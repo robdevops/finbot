@@ -19,7 +19,7 @@ sudo pip3 install requests datetime python-dotenv
 * Set up the bot by messaging [BotFather](https://telegram.me/BotFather)
 * In the .env file, prepend the bot id with `bot`
 * In the .env file, append the URL with `/sendMessage?chat_id=-CHAT_ID` where _CHAT_ID_ is the unique identifier
-* For channels, _CHAT_ID_ should be negative and 13 characters. Prepend `100` if necessary.
+* For channels, _CHAT_ID_ should be negative and 13 characters. Prepend `-100` if necessary.
 * For Telegram groups, be aware the group id can change if you edit group settings (it becomes a "supergroup")
 * Example .env entry:
 ```
