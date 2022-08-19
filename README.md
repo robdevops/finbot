@@ -2,7 +2,7 @@
 Notify Slack and Discord of trades from Sharesight
 
 # Dependencies
-* Email support@sharesight.com to get an API key and add the access details to the .env file
+* Email Sharesight support to get an API key and add the access details to the .env file
 * Set up Slack and/or Discord webhooks and add them to the .env file
 * Python 3
 * Python modules:
