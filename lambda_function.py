@@ -15,10 +15,13 @@ def lambda_handler(event,context):
             "client_secret": os.getenv('sharesight_client_secret'),
             "redirect_uri": os.getenv('sharesight_redirect_uri')
     }
-    webhooks = { 
-        'slack': os.getenv('slack_webhook'),
-        'discord': os.getenv('discord_webhook')
-    }
+    webhooks = {}
+    if os.getenv('slack_webhook'):
+        webhooks['slack'] = os.getenv('slack_webhook'),
+    if os.getenv('discord_webhook'):
+        webhooks['discord'] = os.getenv('discord_webhook'),
+
+    print(webhooks)
     today = datetime.today().strftime('%Y-%m-%d')
     
     class BearerAuth(requests.auth.AuthBase):
@@ -76,7 +79,7 @@ def lambda_handler(event,context):
         return data['trades']
 
 
-    def prepare_payload(webhook, alltrades):
+    def prepare_payload(service, alltrades):
         payload = ''
         for trade in alltrades:
             id = trade['id']
@@ -93,7 +96,7 @@ def lambda_handler(event,context):
             holding_link = '<https://portfolio.sharesight.com/holdings/' + str(holding_id) + f'|{symbol}>'
             #print(f"{date} {portfolio} {type} {units} {symbol} on {market} for {price} {currency} per share.")
     
-            if "slack" in webhook:
+            if service == 'slack':
                 flag_prefix=':flag-'
             else:
                 flag_prefix=':flag_'
@@ -124,7 +127,6 @@ def lambda_handler(event,context):
             payload += f"{emoji} {portfolio} {trade_link} {currency} {value} worth of {holding_link} {flag}\n"
         return payload
     
-    
     def webhook_write(url, payload):
         try:
             r = requests.post(url, headers={'Content-type': 'application/json'}, json={"text":payload})
@@ -133,7 +135,7 @@ def lambda_handler(event,context):
             return []
     
         if r.status_code != 200:
-            print(f'Error communicating with webhook API. HTTP code {r.status_code}, URL: {url}')
+            print(f'Error communicating with webhook. HTTP code {r.status_code}, URL: {url}')
             return []
     
     
@@ -147,11 +149,10 @@ def lambda_handler(event,context):
     if alltrades:
         print("Found", len(alltrades), "trades in the specified range.\n")
         for service in webhooks:
-            print(f"preparing {service}...\n")
-            url = webhooks[service]
+            print(f"preparing {service} payload...\n")
             payload = prepare_payload(service, alltrades)
-            print(payload)
-            #webhook_write(url, payload)
+            url = webhooks[service]
+            webhook_write(url, payload)
     else:
-        print("No trades found in the specified date range. Exiting.")
+        print("No trades found in the specified date range.")
     
