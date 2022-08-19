@@ -16,7 +16,7 @@ sudo pip3 install requests datetime python-dotenv
 ## Configuration Details
 
 ### Discord
-* We use Discord's Slack compatibility webhook by appending `/slack` to the Discord webhook. Example .env file entry:
+* We use Discord's Slack compatibility webhook by appending `/slack` to the Discord webhook in the .env file:
 ```
 discord_webhook='https://discord.com/api/webhooks/1009998000000000000/AbCdEfGhIjKlMnOpQrStUvWxYz-AbCdEfGhIjKlMn/slack'
 ```
