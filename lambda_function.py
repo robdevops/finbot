@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import os
 from dotenv import load_dotenv
+import urllib.parse
 
 def lambda_handler(event,context):
     load_dotenv()
@@ -17,10 +18,11 @@ def lambda_handler(event,context):
     }
     webhooks = {}
     if os.getenv('slack_webhook'):
-        webhooks['slack'] = os.getenv('slack_webhook'),
+        webhooks['slack'] = os.getenv('slack_webhook')
     if os.getenv('discord_webhook'):
-        webhooks['discord'] = os.getenv('discord_webhook'),
+        webhooks['discord'] = os.getenv('discord_webhook')
 
+    telegram_chat = os.getenv('telegram_chat')
     today = datetime.today().strftime('%Y-%m-%d')
     
     class BearerAuth(requests.auth.AuthBase):
@@ -100,6 +102,7 @@ def lambda_handler(event,context):
             else:
                 flag_prefix=':flag_'
 
+            flag=''
             if market == 'ASX':
                 flag = flag_prefix + 'au:'
             elif market == 'NASDAQ' or market == 'NYSE' or market == 'BATS':
@@ -126,6 +129,50 @@ def lambda_handler(event,context):
             payload += f"{emoji} {portfolio} {trade_link} {currency} {value} worth of {holding_link} {flag}\n"
         return payload
     
+    def prepare_payload_telegram(alltrades):
+        payload = ''
+        for trade in alltrades:
+            id = trade['id']
+            portfolio = trade['portfolio']
+            date = trade['transaction_date']
+            type = trade['transaction_type']
+            units = round(trade['quantity'])
+            price = trade['price']
+            currency = trade['brokerage_currency_code']
+            symbol = trade['symbol']
+            market = trade['market']
+            value = round(trade['value'])
+            holding_id = trade['holding_id']
+            holding_link = f'[{symbol}]' + '(https://portfolio.sharesight.com/holdings/' + str(holding_id) + ')'
+            #print(f"{date} {portfolio} {type} {units} {symbol} on {market} for {price} {currency} per share.")
+
+            flag=''
+            if market == 'ASX':
+                flag = '🇦🇺'
+            elif market == 'NASDAQ' or market == 'NYSE' or market == 'BATS':
+                flag = '🇺🇸'
+            elif market == 'KRX' or market == 'KOSDAQ':
+                flag = '🇰🇷'
+            elif market == 'TAI':
+                flag = '🇹🇼'
+            elif market == 'HKG':
+                flag = '🇭🇰'
+            elif market == 'LSE':
+                flag = '🇬🇧'
+
+            action=''
+            emoji=''
+            if type == 'BUY':
+                action = 'bought'
+                emoji = '💸'
+            elif type == 'SELL':
+                action = 'sold'
+                emoji = '💰'
+
+            trade_link = f'[{action}](https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(id) + '/edit)'
+            payload += f"{emoji} {portfolio} {trade_link} {currency} {value} worth of {holding_link} {flag}\n"
+        return payload
+
     def webhook_write(url, payload):
         try:
             r = requests.post(url, headers={'Content-type': 'application/json'}, json={"text":payload})
@@ -137,7 +184,19 @@ def lambda_handler(event,context):
             print(f'Error communicating with webhook. HTTP code {r.status_code}, URL: {url}')
             return []
     
-    
+    def telegram_write(url, payload):
+        payload = urllib.parse.quote_plus(payload)
+        url = url + '&parse_mode=MarkdownV2' + '&disable_web_page_preview=true' + '&text=' + payload
+        try:
+            r = requests.get(url)
+        except:
+            print(f'Failure talking to webhook: {url}')
+            return []
+
+        if r.status_code != 200:
+            print(f'Error communicating with webhook. HTTP code {r.status_code}, URL: {url}')
+            return []
+
     token = sharesight_get_token(sharesight_auth_data)
     portfolios = sharesight_get_portfolios()
     alltrades = []
@@ -152,6 +211,11 @@ def lambda_handler(event,context):
             payload = prepare_payload(service, alltrades)
             url = webhooks[service]
             webhook_write(url, payload)
+        if telegram_chat:
+            print('preparing telegram payload...')
+            payload = prepare_payload_telegram(alltrades)
+            url = telegram_chat
+            telegram_write(url, payload)
     else:
         print("No trades found in the specified date range.")
     
