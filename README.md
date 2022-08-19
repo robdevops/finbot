@@ -15,6 +15,18 @@ sudo pip3 install requests datetime python-dotenv
 
 ## Configuration Details
 
+### Discord
+* Append /slack to the Discord webhook. Example:
+```
+discord_webhook='https://discord.com/api/webhooks/1009998000000000000/AbCdEfGhIjKlMnOpQrStUvWxYz-AbCdEfGhIjKlMn/slack'
+```
+
+### Slack
+* Slack simply requires the Slack webhook. Example:
+```
+slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGhIjKlMnOpQrStUvWxYz'
+```
+
 ### Telegram
 * Set up the bot by messaging [BotFather](https://telegram.me/BotFather)
 * In the .env file, prepend the bot id with `bot`
@@ -24,18 +36,6 @@ sudo pip3 install requests datetime python-dotenv
 * Example .env entry:
 ```
 telegram_chat='https://api.telegram.org/bot0123456789:AbCdEfGhIjKlMnOpQrStUvWxYz/sendMessage?chat_id=-1001234567890'
-```
-
-### Slack
-* Slack simply requires the Slack webhook. Example:
-```
-slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGhIjKlMnOpQrStUvWxYz'
-```
-
-### Discord
-* Append /slack to the Discord webhook. Example:
-```
-discord_webhook='https://discord.com/api/webhooks/1009998000000000000/AbCdEfGhIjKlMnOpQrStUvWxYz-AbCdEfGhIjKlMn/slack'
 ```
 
 ## Running the script
