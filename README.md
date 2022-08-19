@@ -16,21 +16,21 @@ sudo pip3 install requests datetime python-dotenv
 ## Configuration Details
 
 ### Discord
-* We use Discord's Slack compatibility webhook by appending `/slack` to the Discord webhook. Example:
+* We use Discord's Slack compatibility by appending `/slack` to the Discord webhook in the .env file. Example:
 ```
 discord_webhook='https://discord.com/api/webhooks/1009998000000000000/AbCdEfGhIjKlMnOpQrStUvWxYz-AbCdEfGhIjKlMn/slack'
 ```
 
 ### Slack
-* Slack support simply requires the Slack webhook. Example:
+* Slack support simply requires the Slack webhook in the .env file. Example:
 ```
 slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGhIjKlMnOpQrStUvWxYz'
 ```
 
 ### Telegram
-* Set up the bot by messaging [BotFather](https://telegram.me/BotFather)
-* In the .env file, prepend the bot id with `bot`
-* In the .env file, append the URL with `/sendMessage?chat_id=-CHAT_ID` where _CHAT_ID_ is the unique identifier
+* Set up the bot by messaging [BotFather](https://telegram.me/BotFather).
+* Prepend the bot id with `bot` in the .env file.
+* In the .env file, append `/sendMessage?chat_id=-CHAT_ID` to the bot URL, where _CHAT_ID_ is the unique identifier.
 * For channels, _CHAT_ID_ should be negative and 13 characters. Prepend `-100` if necessary.
 * For Telegram groups, be aware the group id can change if you edit group settings (it becomes a "supergroup")
 * Example .env entry:
@@ -49,5 +49,5 @@ zip -r script.zip .
 ```
 
 ## Limitations
-* Sharesight V2 API only provides trade times to the granularity of one day. So this has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
+* Sharesight V2 API only provides trade times to the granularity of one day. So this script has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
 * Discord shows garbage link previews from Sharesight. Modify the script to remove hyperlinks, or disable this for your Discord account under _Settings > Text & Images > Embeds and link previews._
