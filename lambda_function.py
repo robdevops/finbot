@@ -6,6 +6,7 @@ import json
 import os
 from dotenv import load_dotenv
 import urllib.parse
+import time
 
 def lambda_handler(event,context):
     load_dotenv()
@@ -70,6 +71,7 @@ def lambda_handler(event,context):
 
     def sharesight_get_trades(portfolio_name, portfolio_id):
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
+        #url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + '2022-08-13' + '&end_date=' + today
         url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + today + '&end_date=' + today
         r = requests.get(url, auth=BearerAuth(token))
         data = r.json()
@@ -93,6 +95,7 @@ def lambda_handler(event,context):
             symbol = trade['symbol']
             market = trade['market']
             value = round(trade['value'])
+            value = abs(value)
             holding_id = trade['holding_id']
             holding_link = '<https://portfolio.sharesight.com/holdings/' + str(holding_id) + f'|{symbol}>'
             #print(f"{date} {portfolio} {type} {units} {symbol} on {market} for {price} {currency} per share.")
@@ -130,7 +133,7 @@ def lambda_handler(event,context):
         return payload
     
     def prepare_payload_telegram(alltrades):
-        payload = ''
+        payload = []
         for trade in alltrades:
             id = trade['id']
             portfolio = trade['portfolio']
@@ -142,6 +145,7 @@ def lambda_handler(event,context):
             symbol = trade['symbol']
             market = trade['market']
             value = round(trade['value'])
+            value = abs(value)
             holding_id = trade['holding_id']
             holding_link = f'[{symbol}]' + '(https://portfolio.sharesight.com/holdings/' + str(holding_id) + ')'
             #print(f"{date} {portfolio} {type} {units} {symbol} on {market} for {price} {currency} per share.")
@@ -170,7 +174,9 @@ def lambda_handler(event,context):
                 emoji = '💰'
 
             trade_link = f'[{action}](https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(id) + '/edit)'
-            payload += f"{emoji} {portfolio} {trade_link} {currency} {value} worth of {holding_link} {flag}\n"
+            #payload += f"{emoji} {portfolio} {trade_link} {currency} {value} worth of {holding_link} {flag}\n"
+            #payload.append(f"{portfolio} {action} {currency} {value} worth of {symbol}")
+            payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value} worth of {holding_link} {flag}")
         return payload
 
     def webhook_write(url, payload):
@@ -187,8 +193,12 @@ def lambda_handler(event,context):
     def telegram_write(url, payload):
         payload = urllib.parse.quote_plus(payload)
         url = url + '&parse_mode=MarkdownV2' + '&disable_web_page_preview=true' + '&text=' + payload
+        # post method
+        #data = { "text": payload }
+        #url = url + '&parse_mode=MarkdownV2' + '&disable_web_page_preview=true'
         try:
             r = requests.get(url)
+            #r = requests.post(url, data=data)
         except:
             print(f'Failure talking to webhook: {url}')
             return []
@@ -196,6 +206,9 @@ def lambda_handler(event,context):
         if r.status_code != 200:
             print(f'Error communicating with webhook. HTTP code {r.status_code}, URL: {url}')
             return []
+
+    def chunker(seq, size):
+        return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
     token = sharesight_get_token(sharesight_auth_data)
     portfolios = sharesight_get_portfolios()
@@ -213,9 +226,13 @@ def lambda_handler(event,context):
             webhook_write(url, payload)
         if telegram_chat:
             print('preparing telegram payload...')
-            payload = prepare_payload_telegram(alltrades)
             url = telegram_chat
-            telegram_write(url, payload)
+            payload = prepare_payload_telegram(alltrades)
+            for payload_chunk in chunker(payload, 20): # split into chunks to workaround potential message length limits
+                payload_chunk_str = '\n'.join(payload_chunk)
+                print("chunk iteration: ", payload_chunk_str)
+                telegram_write(url, payload_chunk_str)
+                time.sleep(1)
     else:
         print("No trades found in the specified date range.")
     
