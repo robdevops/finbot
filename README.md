@@ -5,7 +5,7 @@ Notify Discord, Slack and/or Telegram of trades from Sharesight
 
 
 ## Dependencies
-* Email Sharesight support to get an API key and add the access details to the .env file
+* Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to the .env file
 * Set up Slack and/or Discord webhooks and/or a Telegram bot user, and add their URLs to the .env file
 * Python 3
 * Python modules:
