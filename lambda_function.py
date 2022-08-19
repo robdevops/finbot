@@ -71,8 +71,8 @@ def lambda_handler(event,context):
 
     def sharesight_get_trades(portfolio_name, portfolio_id):
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
-        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + '2022-08-13' + '&end_date=' + today
-        #url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + today + '&end_date=' + today
+        #url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + '2022-08-13' + '&end_date=' + today
+        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + today + '&end_date=' + today
         r = requests.get(url, auth=BearerAuth(token))
         data = r.json()
         #print(json.dumps(data['trades'], indent=4, sort_keys=True))
