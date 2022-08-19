@@ -21,4 +21,4 @@ zip -r script.zip .
 ```
 
 ## Limitations
-Sharesight only provides trade times to the granularity of 1 day. So this has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
+Sharesight V2 API only provides trade times to the granularity of one day. So this has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
