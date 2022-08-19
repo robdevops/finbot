@@ -1,7 +1,7 @@
 # sharesight-bot
 Notify Slack and Discord of trades from Sharesight
 
-# Dependencies
+## Dependencies
 * Email Sharesight support to get an API key and add the access details to the .env file
 * Set up Slack and/or Discord webhooks and add them to the .env file
 * Python 3
@@ -10,7 +10,7 @@ Notify Slack and Discord of trades from Sharesight
 sudo pip3 install requests datetime python-dotenv
 ```
 
-# Running the script
+## Running the script
 This has been designed to run from AWS Lambda, but can run it on a normal Python environment with `python3 sharesight.py`
 
 To prepare zip for upload to Lambda:
@@ -20,5 +20,5 @@ pip3 install requests datetime python-dotenv --upgrade --target=$(pwd)
 zip -r script.zip .
 ```
 
-# Limitations
+## Limitations
 Sharesight only provides trade times to the granulality of 1 day. So this has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
