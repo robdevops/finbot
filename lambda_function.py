@@ -23,7 +23,7 @@ def lambda_handler(event,context):
     if os.getenv('discord_webhook'):
         webhooks['discord'] = os.getenv('discord_webhook')
 
-    telegram_chat = os.getenv('telegram_chat')
+    telegram_url = os.getenv('telegram_url')
     today = datetime.today().strftime('%Y-%m-%d')
     
     class BearerAuth(requests.auth.AuthBase):
@@ -71,8 +71,8 @@ def lambda_handler(event,context):
 
     def sharesight_get_trades(portfolio_name, portfolio_id):
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
-        #url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + '2022-08-13' + '&end_date=' + today
-        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + today + '&end_date=' + today
+        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + '2022-08-13' + '&end_date=' + today
+        #url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + today + '&end_date=' + today
         r = requests.get(url, auth=BearerAuth(token))
         data = r.json()
         #print(json.dumps(data['trades'], indent=4, sort_keys=True))
@@ -129,7 +129,7 @@ def lambda_handler(event,context):
                 emoji = ':moneybag:'
     
             trade_link = '<https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(id) + '/edit' + f'|{action}>'
-            payload += f"{emoji} {portfolio} {trade_link} {currency} {value} worth of {holding_link} {flag}\n"
+            payload += f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}\n"
         return payload
     
     def prepare_payload_telegram(alltrades):
@@ -174,9 +174,9 @@ def lambda_handler(event,context):
                 emoji = '💰'
 
             trade_link = f'[{action}](https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(id) + '/edit)'
-            #payload += f"{emoji} {portfolio} {trade_link} {currency} {value} worth of {holding_link} {flag}\n"
-            #payload.append(f"{portfolio} {action} {currency} {value} worth of {symbol}")
-            payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value} worth of {holding_link} {flag}")
+            #payload += f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}\n"
+            #payload.append(f"{portfolio} {action} {currency} {value} of {symbol}")
+            payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}")
         return payload
 
     def webhook_write(url, payload):
@@ -224,14 +224,12 @@ def lambda_handler(event,context):
             payload = prepare_payload(service, alltrades)
             url = webhooks[service]
             webhook_write(url, payload)
-        if telegram_chat:
+        if telegram_url:
             print('preparing telegram payload...')
-            url = telegram_chat
             payload = prepare_payload_telegram(alltrades)
-            for payload_chunk in chunker(payload, 20): # split into chunks to workaround potential message length limits
-                payload_chunk_str = '\n'.join(payload_chunk)
-                print("chunk iteration: ", payload_chunk_str)
-                telegram_write(url, payload_chunk_str)
+            for payload_chunk in chunker(payload, 20): # split to workaround potential max length
+                payload_chunk = '\n'.join(payload_chunk)
+                telegram_write(telegram_url, payload_chunk)
                 time.sleep(1)
     else:
         print("No trades found in the specified date range.")
