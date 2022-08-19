@@ -11,7 +11,7 @@ sudo pip3 install requests datetime python-dotenv
 ```
 
 ## Running the script
-This has been designed to run from AWS Lambda, but can run it on a normal Python environment with `python3 sharesight.py`
+This has been designed to run from AWS Lambda, but you can run it on a normal Python environment with `python3 sharesight.py`
 
 To prepare zip for upload to Lambda:
 ```
