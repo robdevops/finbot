@@ -37,7 +37,7 @@ def lambda_handler(event,context):
             return []
     
         if r.status_code != 200:
-            print(f'Could not fetch token from endpoint. Code {r.status_code}')
+            print(f'Could not fetch token from endpoint. Code {r.status_code}. Check config in .env file')
             exit(1)
             return []
     
@@ -65,7 +65,6 @@ def lambda_handler(event,context):
 
 
     def sharesight_get_trades(portfolio_name, portfolio_id):
-        trades= ''
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
         url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + today + '&end_date=' + today
         r = requests.get(url, auth=BearerAuth(token))
@@ -152,7 +151,7 @@ def lambda_handler(event,context):
             url = webhooks[service]
             payload = prepare_payload(service, alltrades)
             print(payload)
-            webhook_write(url, payload)
+            #webhook_write(url, payload)
     else:
         print("No trades found in the specified date range. Exiting.")
     
