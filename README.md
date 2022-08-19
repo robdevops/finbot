@@ -16,21 +16,21 @@ sudo pip3 install requests datetime python-dotenv
 ## Configuration Details
 
 ### Discord
-* We use Discord's Slack compatibility webhook by appending `/slack` to the Discord webhook. Example:
+* We use Discord's Slack compatibility webhook by appending `/slack` to the Discord webhook. Example .env file entry:
 ```
 discord_webhook='https://discord.com/api/webhooks/1009998000000000000/AbCdEfGhIjKlMnOpQrStUvWxYz-AbCdEfGhIjKlMn/slack'
 ```
 
 ### Slack
-* Slack support simply requires the Slack webhook. Example:
+* Slack support simply requires the Slack webhook in the .env file. Example:
 ```
 slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGhIjKlMnOpQrStUvWxYz'
 ```
 
 ### Telegram
 * Set up the bot by messaging [BotFather](https://telegram.me/BotFather)
-* In the .env file, prepend the bot id with `bot`
-* In the .env file, append the URL with `/sendMessage?chat_id=-CHAT_ID` where _CHAT_ID_ is the unique identifier
+* Prepend the bot id with `bot` in the .env file.
+* In the .env file, append `/sendMessage?chat_id=-CHAT_ID` to the bot URL, where _CHAT_ID_ is the unique identifier
 * For channels, _CHAT_ID_ should be negative and 13 characters. Prepend `-100` if necessary.
 * For Telegram groups, be aware the group id can change if you edit group settings (it becomes a "supergroup")
 * Example .env entry:
