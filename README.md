@@ -1,6 +1,9 @@
 # sharesight-bot
 Notify Slack and Discord of trades from Sharesight
 
+![screenshot of Slack message](screenshot.png?raw=true "Screenshot of Slack message")
+
+
 ## Dependencies
 * Email Sharesight support to get an API key and add the access details to the .env file
 * Set up Slack and/or Discord webhooks and add them to the .env file
