@@ -16,7 +16,7 @@ sudo pip3 install requests datetime python-dotenv
 ## Configuration Details
 
 ### Discord
-* Append /slack to the Discord webhook. Example:
+* Append `/slack` to the Discord webhook. Example:
 ```
 discord_webhook='https://discord.com/api/webhooks/1009998000000000000/AbCdEfGhIjKlMnOpQrStUvWxYz-AbCdEfGhIjKlMn/slack'
 ```
