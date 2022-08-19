@@ -147,9 +147,9 @@ def lambda_handler(event,context):
         alltrades = alltrades + sharesight_get_trades(portfolio, portfolios[portfolio])
 
     if alltrades:
-        print("Found", len(alltrades), "trades in the specified range.\n")
+        print("Found", len(alltrades), "trades in the specified range")
         for service in webhooks:
-            print(f"preparing {service} payload...\n")
+            print(f"preparing {service} payload...")
             payload = prepare_payload(service, alltrades)
             url = webhooks[service]
             webhook_write(url, payload)
