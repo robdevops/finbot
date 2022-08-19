@@ -13,7 +13,7 @@ sudo pip3 install requests datetime python-dotenv
 # RUN
 This has been designed to run from AWS Lambda, but can run it on a normal distro with `python3 sharesight.py`
 
-To upload to Lambda:
+To prepare zip for upload to Lambda:
 ```
 cd sharesight-bot
 pip3 install requests datetime python-dotenv --upgrade --target=$(pwd)
