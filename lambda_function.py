@@ -21,7 +21,6 @@ def lambda_handler(event,context):
     if os.getenv('discord_webhook'):
         webhooks['discord'] = os.getenv('discord_webhook'),
 
-    print(webhooks)
     today = datetime.today().strftime('%Y-%m-%d')
     
     class BearerAuth(requests.auth.AuthBase):
