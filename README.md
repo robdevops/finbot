@@ -1,19 +1,29 @@
 # sharesight-bot
-Notify Discord, Slack and/or Telegram of trades from Sharesight
+* Daily trade notifications across all portfolios
+* Daily price movements of holdings over a defined threshold
+* Discord, Slack and Telegram support
 
 ![screenshot of Slack message](screenshot.png?raw=true "Screenshot of Slack message")
 
 
 ## Dependencies
-* Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to the .env file
-* Set up Slack and/or Discord webhooks and/or a Telegram bot user, and add their URLs to the .env file
+* Sharesight paid plan, preferably with automatic trade imports, and an API key
+* Slack / Discord webhooks / Telegram bot user
 * Python 3
 * Python modules:
 ```
-sudo pip3 install requests datetime python-dotenv
+sudo pip3 install datetime python-dotenv requests yfinance
 ```
 
 ## Configuration Details
+
+### Sharesight
+* Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to the .env file. Example:
+```
+sharesight_code='87428fc522803d31065emockupf03fe475096631e5e07bbd7a0fde60c4cf25c7'
+sharesight_client_id='0263829989b6fd954f72bnot2fc64bc2e2f01d692d4de72986ea808f6e99813f'
+sharesight_client_secret='a3a5e715f0cc574a73c3realbb6bc24f32ffd5b67b387244c2c909da779a1478'
+```
 
 ### Discord
 * We use Discord's Slack compatibility by appending `/slack` to the Discord webhook in the .env file. Example:
@@ -38,13 +48,19 @@ slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGh
 telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhIjKlMnOpQrStUvWxYz/sendMessage?chat_id=-1001234567890'
 ```
 
+### Price alerts
+Setting `alert_threshold=THRESHOLD` in the .env file will trigger price alerts for stocks which moved _THRESHOLD_ or more. This data is sourced from Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The value is an integer representing a percentage. Example:
+```
+alert_threshold=10
+```
+
 ## Running the script
 This has been designed to run from AWS Lambda, but you can run it on a normal Python environment with `python3 sharesight_trades.py`
 
 To prepare zip for upload to Lambda:
 ```
 cd sharesight-bot
-pip3 install requests datetime python-dotenv --upgrade --target=$(pwd)
+pip3 install datetime python-dotenv requests yfinance --upgrade --target=$(pwd)
 zip -r script.zip .
 ```
 
