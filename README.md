@@ -39,7 +39,7 @@ telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhIjKlMnOpQrStUvWxYz/
 ```
 
 ## Running the script
-This has been designed to run from AWS Lambda, but you can run it on a normal Python environment with `python3 sharesight.py`
+This has been designed to run from AWS Lambda, but you can run it on a normal Python environment with `python3 sharesight_trades.py`
 
 To prepare zip for upload to Lambda:
 ```
