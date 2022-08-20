@@ -7,6 +7,8 @@ import os
 from dotenv import load_dotenv
 import urllib.parse
 import time
+import yfinance as yf
+import re
 
 def lambda_handler(event,context):
     load_dotenv()
@@ -24,6 +26,7 @@ def lambda_handler(event,context):
         webhooks['discord'] = os.getenv('discord_webhook')
 
     telegram_url = os.getenv('telegram_url')
+    alert_threshold = float(os.getenv('alert_threshold'))
     today = datetime.today().strftime('%Y-%m-%d')
     
     class BearerAuth(requests.auth.AuthBase):
@@ -82,6 +85,68 @@ def lambda_handler(event,context):
         return data['trades']
 
 
+    def sharesight_get_holdings(portfolio_id):
+        endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
+        url = endpoint + str(portfolio_id) + '/valuation.json?grouping=ungrouped&balance_date=' + today
+        r = requests.get(url, auth=BearerAuth(token))
+        data = r.json()
+        return data
+
+    def holdings_to_yahoo_tickers(holdings):
+        tickers = {}
+        for holding in holdings['holdings']:
+            symbol = holding['symbol']
+            name = holding['name']
+            market = holding['market']
+
+            # shorten long names
+            name = name.replace("- Ordinary Shares - Class A", "")
+            name = name.replace("Global X Funds - Global X ", "")
+            name = name.replace(" Index", " ")
+            name = name.replace("Etf", "ETF")
+            name = name.replace("Tpg", "TPG")
+            name = name.replace("Rea", "REA")
+            name = name.replace("Etf", "ETF")
+            name = name.replace(" Co.", " ")
+            name = name.replace(" Holdings", " ")
+            name = name.replace(" Australian", " Aus")
+            name = name.replace(" Australia", " Aus")
+            name = name.replace(" Enterpr", " ")
+            name = name.replace(" Group", " ")
+            name = name.replace(" Infrastructure", " Infra")
+            name = name.replace(" Technologies", " ")
+            name = name.replace(" Technology", " ")
+            name = name.replace(" Plc", " ")
+            name = name.replace(" Limited", " ")
+            name = name.replace(" Ltd", " ")
+            name = name.replace(" Incorporated", " ")
+            name = name.replace(" Inc", " ")
+            name = name.replace(" Corporation", " ")
+            name = name.replace(" Corp", " ")
+            name = name.replace("Corp.", "")
+            name = name.replace(" Co (The)", " ")
+            name = name.replace("- ADR", "")
+            name = name.replace("- New York Shares", "")
+            name = name.replace(" .", " ")
+            name = name.replace("  ", " ")
+            name = name.rstrip()
+            if symbol == 'QCLN':
+                name = 'NASDAQ Clean Energy ETF'
+            if symbol == 'LIS' and market == 'ASX':
+                name = 'LI-S Energy'
+            if symbol == 'TSM':
+                name = 'Taiwan Semiconductor'
+            if symbol == 'MAP' and market == 'ASX':
+                name = 'Microba Life Sciences'
+
+            if market == 'ASX':
+                tickers[symbol + '.AX'] = name
+            elif market == 'NASDAQ' or market == 'NYSE' or market == 'BATS':
+                tickers[symbol] = name
+            else:
+                continue
+        return tickers
+        
     def prepare_payload(service, alltrades):
         payload = ''
         for trade in alltrades:
@@ -147,7 +212,7 @@ def lambda_handler(event,context):
             value = round(trade['value'])
             value = abs(value)
             holding_id = trade['holding_id']
-            holding_link = f'[{symbol}]' + '(https://portfolio.sharesight.com/holdings/' + str(holding_id) + ')'
+            holding_link = '<a href=https://portfolio.sharesight.com/holdings/>' + str(holding_id) + f'>{symbol}</a>'
             #print(f"{date} {portfolio} {type} {units} {symbol} on {market} for {price} {currency} per share.")
 
             flag=''
@@ -173,13 +238,15 @@ def lambda_handler(event,context):
                 action = 'sold'
                 emoji = '💰'
 
-            trade_link = f'[{action}](https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(id) + '/edit)'
+            trade_link = '<a href=https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(id) + f'/edit>{action}</a>'
+            #trade_link = f'[{action}](https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(id) + '/edit)'
             #payload += f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}\n"
             #payload.append(f"{portfolio} {action} {currency} {value} of {symbol}")
             payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}")
         return payload
 
     def webhook_write(url, payload):
+        # slack: "unfurl_links": false, "unfurl_media": false
         try:
             r = requests.post(url, headers={'Content-type': 'application/json'}, json={"text":payload})
         except:
@@ -192,7 +259,8 @@ def lambda_handler(event,context):
     
     def telegram_write(url, payload):
         payload = urllib.parse.quote_plus(payload)
-        url = url + '&parse_mode=MarkdownV2' + '&disable_web_page_preview=true' + '&text=' + payload
+        url = url + '&parse_mode=HTML' + '&disable_web_page_preview=true' + '&text=' + payload
+        #url = url + '&parse_mode=MarkdownV2' + '&disable_web_page_preview=true' + '&text=' + payload
         # post method
         #data = { "text": payload }
         #url = url + '&parse_mode=MarkdownV2' + '&disable_web_page_preview=true'
@@ -210,12 +278,68 @@ def lambda_handler(event,context):
     def chunker(seq, size):
         return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
+
+    def percentage_change(previous, current):
+        if current == previous:
+            return 0
+        try:
+            return (abs(current - previous) / previous) * 100.0
+        except ZeroDivisionError:
+            return float('inf')
+    
+    def yahoo_get_history(stockcode):
+        stock = yf.Ticker(stockcode)
+        try:
+            history = stock.history(period="2d")
+        except Exception as e:
+            print(stockcode + ' not found on Yahoo')
+
+        #                     Open    High        Low       Close    Volume  Dividends  Stock Splits
+        #Date
+        #2022-08-18  97.739998  101.07  96.730003  100.440002  76059500          0             0
+        #2022-08-19  98.669998   99.25  94.589996   95.949997  67167500          0             0
+    
+        price = {}
+        count=0
+        for line in str(history).splitlines():
+            if match := re.search(r'([0-9]{4}-[0-9]{2}-[0-9]{2}) +(\d+\.\d+) +(\d+\.\d+) +(\d+\.\d+) +(\d+\.\d+) +(\d+)', line):
+                count=count+1
+                date = match.group(1)
+                openprice = float(match.group(2))
+                high = float(match.group(3))
+                low = float(match.group(4))
+                close = float(match.group(5))
+                volume = int(match.group(6))
+                price[count] = close
+        return price
+
+    def compare_prices(tickers, alert_threshold):
+        alert = []
+        alert_telegram = []
+        for ticker in tickers:
+            price = yahoo_get_history(ticker)
+            if price:
+                percentage = percentage_change(price[1], price[2])
+                percentage = round(percentage, 2)
+                if percentage > alert_threshold:
+                    yahoo_url = 'https://finance.yahoo.com/quote/' + ticker
+                    if price[1] > price[2]:
+                        alert.append(f'🔻{tickers[ticker]} (<{yahoo_url}|{ticker}>) day change: -{str(percentage)}%')
+                        alert_telegram.append('🔻' + tickers[ticker] + ' (<a href="' + yahoo_url + '">' + ticker + '</a>) ' + "day change: -" + str(percentage) + '%')
+                    else:
+                        alert.append(f'⬆️ {tickers[ticker]} (<{yahoo_url}|{ticker}>) day change: {str(percentage)}%')
+                        alert.telegram.append('⬆️ ' + tickers[ticker] + ' (<a href="' + yahoo_url + '">' + ticker + '</a>) ' + "day change: " + str(percentage) + '%')
+        return alert, alert_telegram
+
     token = sharesight_get_token(sharesight_auth_data)
     portfolios = sharesight_get_portfolios()
     alltrades = []
+    tickers = {}
 
     for portfolio in portfolios:
         alltrades = alltrades + sharesight_get_trades(portfolio, portfolios[portfolio])
+        holdings = sharesight_get_holdings(portfolios[portfolio])
+        tickers = {**tickers, **holdings_to_yahoo_tickers(holdings)}
 
     if alltrades:
         print("Found", len(alltrades), "trades in the specified range")
@@ -232,5 +356,21 @@ def lambda_handler(event,context):
                 telegram_write(telegram_url, payload_chunk)
                 time.sleep(1)
     else:
-        print("No trades found in the specified date range.")
+        print(f"No trades found for {today}")
     
+    if tickers and alert_threshold:
+        #print(json.dumps(tickers, indent=4, sort_keys=True))
+        alert, alert_telegram = compare_prices(tickers, alert_threshold)
+        if alert:
+            alert = '\n'.join(alert)
+            for service in webhooks:
+                print(alert)
+                url = webhooks[service]
+                webhook_write(url, alert)
+        if alert_telegram and telegram_url:
+            alert_telegram = '\n'.join(alert_telegram)
+            print(alert_telegram)
+            telegram_write(telegram_url, alert_telegram)
+        else:
+            print(f"No stocks changed {alert_threshold}% or more in the last session.")
+
