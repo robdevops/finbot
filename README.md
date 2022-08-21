@@ -12,7 +12,7 @@
 * Python 3
 * Python modules:
 ```
-sudo pip3 install datetime python-dotenv requests yfinance
+pip3 install datetime python-dotenv requests yfinance
 ```
 
 ## Configuration Details
