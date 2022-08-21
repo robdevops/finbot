@@ -26,8 +26,11 @@ def lambda_handler(event,context):
         webhooks['discord'] = os.getenv('discord_webhook')
 
     telegram_url = os.getenv('telegram_url')
-    alert_threshold = float(os.getenv('alert_threshold'))
-    today = datetime.today().strftime('%Y-%m-%d')
+    if os.getenv('alert_threshold'):
+        alert_threshold = os.getenv('alert_threshold') 
+        alert_threshold = float(alert_threshold)
+    date = datetime.today().strftime('%Y-%m-%d')
+    #date = '2022-08-13'
     
     class BearerAuth(requests.auth.AuthBase):
         def __init__(self, token):
@@ -37,6 +40,7 @@ def lambda_handler(event,context):
             return r
     
     def sharesight_get_token(sharesight_auth_data):
+        print("Fetching Sharesight auth token")
         try:
             r = requests.post("https://api.sharesight.com/oauth2/token", data=sharesight_auth_data)
         except:
@@ -54,6 +58,7 @@ def lambda_handler(event,context):
 
 
     def sharesight_get_portfolios():
+        print("Fetching Sharesight portfolios")
         portfolio_dict = {}
         try:
             r = requests.get("https://api.sharesight.com/api/v2/portfolios.json", headers={'Content-type': 'application/json'}, auth=BearerAuth(token))
@@ -69,27 +74,29 @@ def lambda_handler(event,context):
         for portfolio in data['portfolios']:
             portfolio_dict[portfolio['name']] = portfolio['id']
 
+        print(portfolio_dict)
         return portfolio_dict
 
 
     def sharesight_get_trades(portfolio_name, portfolio_id):
+        print(f"Fetching Sharesight trades for {portfolio_name} on {date}", end=': ')
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
-        #url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + '2022-08-13' + '&end_date=' + today
-        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + today + '&end_date=' + today
+        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + date + '&end_date=' + date
         r = requests.get(url, auth=BearerAuth(token))
         data = r.json()
-        #print(json.dumps(data['trades'], indent=4, sort_keys=True))
-        
+        print(len(data['trades']))
         for trade in data['trades']:
            trade['portfolio'] = portfolio_name
         return data['trades']
 
 
-    def sharesight_get_holdings(portfolio_id):
+    def sharesight_get_holdings(portfolio_id, portfolio_name):
+        print(f"Fetching Sharesight holdings for {portfolio_name}", end=': ')
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
-        url = endpoint + str(portfolio_id) + '/valuation.json?grouping=ungrouped&balance_date=' + today
+        url = endpoint + str(portfolio_id) + '/valuation.json?grouping=ungrouped&balance_date=' + date
         r = requests.get(url, auth=BearerAuth(token))
         data = r.json()
+        print(len(data['holdings']))
         return data
 
     def holdings_to_yahoo_tickers(holdings):
@@ -99,20 +106,19 @@ def lambda_handler(event,context):
             name = holding['name']
             market = holding['market']
 
-            # shorten long names
+            # shorten long names to reduce line wrap on mobile
             name = name.replace("- Ordinary Shares - Class A", "")
             name = name.replace("Global X Funds - Global X ", "")
+            name = name.replace("- New York Shares", "")
+            name = name.replace("Co (The)", " ")
+            name = name.replace("- ADR", "")
             name = name.replace(" Index", " ")
-            name = name.replace("Etf", "ETF")
-            name = name.replace("Tpg", "TPG")
-            name = name.replace("Rea", "REA")
-            name = name.replace("Etf", "ETF")
-            name = name.replace(" Co.", " ")
-            name = name.replace(" Holdings", " ")
-            name = name.replace(" Australian", " Aus")
-            name = name.replace(" Australia", " Aus")
+            name = name.replace(" Enterprises", " ")
+            name = name.replace(" Enterprise", " ")
             name = name.replace(" Enterpr", " ")
             name = name.replace(" Group", " ")
+            name = name.replace(" Co.", " ")
+            name = name.replace(" Holdings", " ")
             name = name.replace(" Infrastructure", " Infra")
             name = name.replace(" Technologies", " ")
             name = name.replace(" Technology", " ")
@@ -123,10 +129,11 @@ def lambda_handler(event,context):
             name = name.replace(" Inc", " ")
             name = name.replace(" Corporation", " ")
             name = name.replace(" Corp", " ")
-            name = name.replace("Corp.", "")
-            name = name.replace(" Co (The)", " ")
-            name = name.replace("- ADR", "")
-            name = name.replace("- New York Shares", "")
+            name = name.replace(" Australian", " Aus")
+            name = name.replace(" Australia", " Aus")
+            name = name.replace("Etf", "ETF")
+            name = name.replace("Tpg", "TPG")
+            name = name.replace("Rea", "REA")
             name = name.replace(" .", " ")
             name = name.replace("  ", " ")
             name = name.rstrip()
@@ -138,6 +145,8 @@ def lambda_handler(event,context):
                 name = 'Taiwan Semiconductor'
             if symbol == 'MAP' and market == 'ASX':
                 name = 'Microba Life Sciences'
+            if symbol == 'DRNA' and market == 'NASDAQ':
+                continue
 
             if market == 'ASX':
                 tickers[symbol + '.AX'] = name
@@ -148,6 +157,7 @@ def lambda_handler(event,context):
         return tickers
         
     def prepare_payload(service, alltrades):
+        print("Preparing payload")
         payload = ''
         for trade in alltrades:
             id = trade['id']
@@ -198,6 +208,7 @@ def lambda_handler(event,context):
         return payload
     
     def prepare_payload_telegram(alltrades):
+        print("Preparing payload - telegram")
         payload = []
         for trade in alltrades:
             id = trade['id']
@@ -258,6 +269,7 @@ def lambda_handler(event,context):
             return []
     
     def telegram_write(url, payload):
+        print("Sending to telgram")
         payload = urllib.parse.quote_plus(payload)
         url = url + '&parse_mode=HTML' + '&disable_web_page_preview=true' + '&text=' + payload
         #url = url + '&parse_mode=MarkdownV2' + '&disable_web_page_preview=true' + '&text=' + payload
@@ -289,10 +301,7 @@ def lambda_handler(event,context):
     
     def yahoo_get_history(stockcode):
         stock = yf.Ticker(stockcode)
-        try:
-            history = stock.history(period="2d")
-        except Exception as e:
-            print(stockcode + ' not found on Yahoo')
+        history = stock.history(period="2d")
 
         #                     Open    High        Low       Close    Volume  Dividends  Stock Splits
         #Date
@@ -316,19 +325,25 @@ def lambda_handler(event,context):
     def compare_prices(tickers, alert_threshold):
         alert = []
         alert_telegram = []
+        all_tickers_string = ' '.join(tickers)
+        print("Fetching Yahoo price histories")
+        print(all_tickers_string)
+        data = yf.download(all_tickers_string, period="2d", group_by='ticker')
+
         for ticker in tickers:
-            price = yahoo_get_history(ticker)
-            if price:
-                percentage = percentage_change(price[1], price[2])
-                percentage = round(percentage, 2)
-                if percentage > alert_threshold:
-                    yahoo_url = 'https://finance.yahoo.com/quote/' + ticker
-                    if price[1] > price[2]:
-                        alert.append(f'🔻{tickers[ticker]} (<{yahoo_url}|{ticker}>) day change: -{str(percentage)}%')
-                        alert_telegram.append('🔻' + tickers[ticker] + ' (<a href="' + yahoo_url + '">' + ticker + '</a>) ' + "day change: -" + str(percentage) + '%')
-                    else:
-                        alert.append(f'⬆️ {tickers[ticker]} (<{yahoo_url}|{ticker}>) day change: {str(percentage)}%')
-                        alert.telegram.append('⬆️ ' + tickers[ticker] + ' (<a href="' + yahoo_url + '">' + ticker + '</a>) ' + "day change: " + str(percentage) + '%')
+            previous=data[ticker].to_numpy()[0][4]
+            current=data[ticker].to_numpy()[1][4]
+            #print(ticker, previous, current)
+            percentage = percentage_change(previous, current)
+            percentage = round(percentage, 2)
+            if percentage > alert_threshold:
+                yahoo_url = 'https://finance.yahoo.com/quote/' + ticker
+                if previous > current:
+                    alert.append(f'🔻{tickers[ticker]} (<{yahoo_url}|{ticker}>) day change: -{str(percentage)}%')
+                    alert_telegram.append('🔻' + tickers[ticker] + ' (<a href="' + yahoo_url + '">' + ticker + '</a>) ' + "day change: -" + str(percentage) + '%')
+                else:
+                    alert.append(f'⬆️ {tickers[ticker]} (<{yahoo_url}|{ticker}>) day change: {str(percentage)}%')
+                    alert.telegram.append('⬆️ ' + tickers[ticker] + ' (<a href="' + yahoo_url + '">' + ticker + '</a>) ' + "day change: " + str(percentage) + '%')
         return alert, alert_telegram
 
     token = sharesight_get_token(sharesight_auth_data)
@@ -338,25 +353,26 @@ def lambda_handler(event,context):
 
     for portfolio in portfolios:
         alltrades = alltrades + sharesight_get_trades(portfolio, portfolios[portfolio])
-        holdings = sharesight_get_holdings(portfolios[portfolio])
+        holdings = sharesight_get_holdings(portfolios[portfolio], portfolio)
         tickers = {**tickers, **holdings_to_yahoo_tickers(holdings)}
 
     if alltrades:
         print("Found", len(alltrades), "trades in the specified range")
         for service in webhooks:
-            print(f"preparing {service} payload...")
+            print(f"preparing {service} payload")
             payload = prepare_payload(service, alltrades)
             url = webhooks[service]
+            print(f"sending to {service}")
             webhook_write(url, payload)
         if telegram_url:
-            print('preparing telegram payload...')
+            print('preparing telegram payload')
             payload = prepare_payload_telegram(alltrades)
             for payload_chunk in chunker(payload, 20): # split to workaround potential max length
                 payload_chunk = '\n'.join(payload_chunk)
                 telegram_write(telegram_url, payload_chunk)
                 time.sleep(1)
     else:
-        print(f"No trades found for {today}")
+        print(f"No trades found for {date}")
     
     if tickers and alert_threshold:
         #print(json.dumps(tickers, indent=4, sort_keys=True))
@@ -367,10 +383,11 @@ def lambda_handler(event,context):
                 print(alert)
                 url = webhooks[service]
                 webhook_write(url, alert)
+        else:
+            print(f"No stocks changed {alert_threshold}% or more in the last session.")
+
         if alert_telegram and telegram_url:
             alert_telegram = '\n'.join(alert_telegram)
             print(alert_telegram)
             telegram_write(telegram_url, alert_telegram)
-        else:
-            print(f"No stocks changed {alert_threshold}% or more in the last session.")
 
