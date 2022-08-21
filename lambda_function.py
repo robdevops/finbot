@@ -51,15 +51,12 @@ def lambda_handler(event,context):
             print("Failed to get Sharesight access token")
             exit(1)
             return []
-    
         if r.status_code != 200:
             print(f"Could not fetch token from endpoint. Code {r.status_code}. Check config in .env file")
             exit(1)
             return []
-    
         data = r.json()
         return data['access_token']
-
 
     def sharesight_get_portfolios():
         print("Fetching Sharesight portfolios")
@@ -69,18 +66,14 @@ def lambda_handler(event,context):
         except:
             print("Failure talking to Sharesight")
             return []
-    
         if r.status_code != 200:
             print(f"Error communicating with Sharesight API. Code: {r.status_code}")
             return []
-    
         data = r.json()
         for portfolio in data['portfolios']:
             portfolio_dict[portfolio['name']] = portfolio['id']
-
         print(portfolio_dict)
         return portfolio_dict
-
 
     def sharesight_get_trades(portfolio_name, portfolio_id):
         print(f"Fetching Sharesight trades for {portfolio_name} on {date}", end=": ")
@@ -92,7 +85,6 @@ def lambda_handler(event,context):
         for trade in data['trades']:
            trade['portfolio'] = portfolio_name
         return data['trades']
-
 
     def sharesight_get_holdings(portfolio_name, portfolio_id):
         print(f"Fetching Sharesight holdings for {portfolio_name}", end=": ")
@@ -177,7 +169,6 @@ def lambda_handler(event,context):
             value = abs(value)
             holding_id = trade['holding_id']
             #print(f"{date} {portfolio} {type} {units} {symbol} on {market} for {price} {currency} per share.")
-    
             flag=''
             if market == 'ASX':
                 flag = '🇦🇺'
@@ -191,7 +182,6 @@ def lambda_handler(event,context):
                 flag = '🇭🇰'
             elif market == 'LSE':
                 flag = '🇬🇧'
-
             action=''
             emoji=''
             if type == 'BUY':
@@ -217,7 +207,6 @@ def lambda_handler(event,context):
         except:
             print(f"Failure talking to webhook: {url}")
             return []
-    
         if r.status_code != 200:
             print(f"Error communicating with webhook. HTTP code: {r.status_code}, URL: {url}")
             return []
@@ -230,7 +219,6 @@ def lambda_handler(event,context):
         except:
             print(f"Failure talking to webhook: {url}")
             return []
-
         if r.status_code != 200:
             print(f"Error communicating with webhook. HTTP code: {r.status_code}, URL: {url}")
             return []
@@ -259,7 +247,6 @@ def lambda_handler(event,context):
         for ticker in tickers:
             previous = price_data[ticker].to_numpy()[0][4]
             current = price_data[ticker].to_numpy()[1][4]
-            #print(ticker, previous, current)
             percentage = percentage_change(previous, current)
             percentage = round(percentage, 2)
             if percentage > config_price_updates_percentage:
@@ -289,7 +276,7 @@ def lambda_handler(event,context):
             if count < len(list(chunks)):
                 time.sleep(1) # workaround potential API throttling
 
-### MAIN ###
+# MAIN #
     token = sharesight_get_token(sharesight_auth_data)
     portfolios = sharesight_get_portfolios()
     trades = []
@@ -324,7 +311,6 @@ def lambda_handler(event,context):
             print(f"Sending to {service}")
             chunks = chunker(price_payload, 20)
             payload_wrapper(service, url, chunks)
-
         if tickers:
             print(f"preparing {service} payload")
             price_payload = prepare_price_payload(service, price_data, config_price_updates_percentage)
