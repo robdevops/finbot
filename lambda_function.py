@@ -24,11 +24,19 @@ def lambda_handler(event,context):
         webhooks['slack'] = os.getenv('slack_webhook')
     if os.getenv('discord_webhook'):
         webhooks['discord'] = os.getenv('discord_webhook')
+    if os.getenv('telegram_url'):
+        webhooks['telegram'] = os.getenv('telegram_url')
 
-    telegram_url = os.getenv('telegram_url')
-    if os.getenv('alert_threshold'):
-        alert_threshold = os.getenv('alert_threshold') 
-        alert_threshold = float(alert_threshold)
+    if os.getenv('trade_updates'):
+        trade_updates = os.getenv("trade_updates", 'False').lower() in ('true', '1', 't')
+
+    if os.getenv('price_updates'):
+        price_updates = os.getenv("price_updates", 'False').lower() in ('true', '1', 't')
+
+    if os.getenv('price_updates_percentage'):
+        price_updates_percentage = os.getenv('price_updates_percentage') 
+        price_updates_percentage = float(price_updates_percentage)
+
     date = datetime.today().strftime('%Y-%m-%d')
     #date = '2022-08-13'
     
@@ -97,11 +105,11 @@ def lambda_handler(event,context):
         r = requests.get(url, auth=BearerAuth(token))
         data = r.json()
         print(len(data['holdings']))
-        return data
+        return data['holdings']
 
-    def holdings_to_yahoo_tickers(holdings):
+    def transform_tickers(holdings):
         tickers = {}
-        for holding in holdings['holdings']:
+        for holding in holdings:
             symbol = holding['symbol']
             name = holding['name']
             market = holding['market']
@@ -156,11 +164,11 @@ def lambda_handler(event,context):
                 continue
         return tickers
         
-    def prepare_payload(service, alltrades):
-        print("Preparing payload")
-        payload = ''
-        for trade in alltrades:
-            id = trade['id']
+    def prepare_trade_payload(service, trades):
+        print(f"Preparing payload: {service}")
+        trade_payload = []
+        for trade in trades:
+            trade_id = trade['id']
             portfolio = trade['portfolio']
             date = trade['transaction_date']
             type = trade['transaction_type']
@@ -172,60 +180,8 @@ def lambda_handler(event,context):
             value = round(trade['value'])
             value = abs(value)
             holding_id = trade['holding_id']
-            holding_link = '<https://portfolio.sharesight.com/holdings/' + str(holding_id) + f'|{symbol}>'
             #print(f"{date} {portfolio} {type} {units} {symbol} on {market} for {price} {currency} per share.")
     
-            if service == 'slack':
-                flag_prefix=':flag-'
-            else:
-                flag_prefix=':flag_'
-
-            flag=''
-            if market == 'ASX':
-                flag = flag_prefix + 'au:'
-            elif market == 'NASDAQ' or market == 'NYSE' or market == 'BATS':
-                flag = flag_prefix + 'us:'
-            elif market == 'KRX' or market == 'KOSDAQ':
-                flag = flag_prefix + 'kr:'
-            elif market == 'TAI':
-                flag = flag_prefix + 'tw:'
-            elif market == 'HKG':
-                flag = flag_prefix + 'hk:'
-            elif market == 'LSE':
-                flag = flag_prefix + 'gb:'
-    
-            action=''
-            emoji=''
-            if type == 'BUY':
-                action = 'bought'
-                emoji = ':money_with_wings:'
-            elif type == 'SELL':
-                action = 'sold'
-                emoji = ':moneybag:'
-    
-            trade_link = '<https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(id) + '/edit' + f'|{action}>'
-            payload += f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}\n"
-        return payload
-    
-    def prepare_payload_telegram(alltrades):
-        print("Preparing payload - telegram")
-        payload = []
-        for trade in alltrades:
-            id = trade['id']
-            portfolio = trade['portfolio']
-            date = trade['transaction_date']
-            type = trade['transaction_type']
-            units = round(trade['quantity'])
-            price = trade['price']
-            currency = trade['brokerage_currency_code']
-            symbol = trade['symbol']
-            market = trade['market']
-            value = round(trade['value'])
-            value = abs(value)
-            holding_id = trade['holding_id']
-            holding_link = '<a href=https://portfolio.sharesight.com/holdings/>' + str(holding_id) + f'>{symbol}</a>'
-            #print(f"{date} {portfolio} {type} {units} {symbol} on {market} for {price} {currency} per share.")
-
             flag=''
             if market == 'ASX':
                 flag = '🇦🇺'
@@ -248,14 +204,16 @@ def lambda_handler(event,context):
             elif type == 'SELL':
                 action = 'sold'
                 emoji = '💰'
-
-            trade_link = '<a href=https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(id) + f'/edit>{action}</a>'
-            #trade_link = f'[{action}](https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(id) + '/edit)'
-            #payload += f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}\n"
-            #payload.append(f"{portfolio} {action} {currency} {value} of {symbol}")
-            payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}")
-        return payload
-
+    
+            if service == 'telegram':
+                holding_link = '<a href=https://portfolio.sharesight.com/holdings/>' + str(holding_id) + f'>{symbol}</a>'
+                trade_link = '<a href=https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(trade_id) + f'/edit>{action}</a>'
+            else:
+                holding_link = '<https://portfolio.sharesight.com/holdings/' + str(holding_id) + f'|{symbol}>'
+                trade_link = '<https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(trade_id) + '/edit' + f'|{action}>'
+            trade_payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}")
+        return trade_payload
+    
     def webhook_write(url, payload):
         # slack: "unfurl_links": false, "unfurl_media": false
         try:
@@ -269,16 +227,10 @@ def lambda_handler(event,context):
             return []
     
     def telegram_write(url, payload):
-        print("Sending to telgram")
         payload = urllib.parse.quote_plus(payload)
         url = url + '&parse_mode=HTML' + '&disable_web_page_preview=true' + '&text=' + payload
-        #url = url + '&parse_mode=MarkdownV2' + '&disable_web_page_preview=true' + '&text=' + payload
-        # post method
-        #data = { "text": payload }
-        #url = url + '&parse_mode=MarkdownV2' + '&disable_web_page_preview=true'
         try:
             r = requests.get(url)
-            #r = requests.post(url, data=data)
         except:
             print(f'Failure talking to webhook: {url}')
             return []
@@ -290,7 +242,6 @@ def lambda_handler(event,context):
     def chunker(seq, size):
         return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
-
     def percentage_change(previous, current):
         if current == previous:
             return 0
@@ -299,95 +250,85 @@ def lambda_handler(event,context):
         except ZeroDivisionError:
             return float('inf')
     
-    def yahoo_get_history(stockcode):
-        stock = yf.Ticker(stockcode)
-        history = stock.history(period="2d")
-
-        #                     Open    High        Low       Close    Volume  Dividends  Stock Splits
-        #Date
-        #2022-08-18  97.739998  101.07  96.730003  100.440002  76059500          0             0
-        #2022-08-19  98.669998   99.25  94.589996   95.949997  67167500          0             0
-    
-        price = {}
-        count=0
-        for line in str(history).splitlines():
-            if match := re.search(r'([0-9]{4}-[0-9]{2}-[0-9]{2}) +(\d+\.\d+) +(\d+\.\d+) +(\d+\.\d+) +(\d+\.\d+) +(\d+)', line):
-                count=count+1
-                date = match.group(1)
-                openprice = float(match.group(2))
-                high = float(match.group(3))
-                low = float(match.group(4))
-                close = float(match.group(5))
-                volume = int(match.group(6))
-                price[count] = close
-        return price
-
-    def compare_prices(tickers, alert_threshold):
+    def yahoo_get_prices(tickers):
         alert = []
         alert_telegram = []
         all_tickers_string = ' '.join(tickers)
-        print("Fetching Yahoo price histories")
-        print(all_tickers_string)
-        data = yf.download(all_tickers_string, period="2d", group_by='ticker')
+        print("Fetching Yahoo price histories for ", all_tickers_string)
+        price_data = yf.download(all_tickers_string, period="2d", group_by='ticker')
+        return price_data
 
+    def prepare_price_payload(service, price_data, price_updates_percentage):
+        price_payload = []
         for ticker in tickers:
-            previous=data[ticker].to_numpy()[0][4]
-            current=data[ticker].to_numpy()[1][4]
+            previous = price_data[ticker].to_numpy()[0][4]
+            current = price_data[ticker].to_numpy()[1][4]
             #print(ticker, previous, current)
             percentage = percentage_change(previous, current)
             percentage = round(percentage, 2)
-            if percentage > alert_threshold:
+            if percentage > price_updates_percentage:
                 yahoo_url = 'https://finance.yahoo.com/quote/' + ticker
                 if previous > current:
-                    alert.append(f'🔻{tickers[ticker]} (<{yahoo_url}|{ticker}>) day change: -{str(percentage)}%')
-                    alert_telegram.append('🔻' + tickers[ticker] + ' (<a href="' + yahoo_url + '">' + ticker + '</a>) ' + "day change: -" + str(percentage) + '%')
+                    if service == 'telegram':
+                        price_payload.append('🔻' + tickers[ticker] + ' (<a href="' + yahoo_url + '">' + ticker + '</a>) ' + "day change: -" + str(percentage) + '%')
+                    else:
+                        price_payload.append(f'🔻{tickers[ticker]} (<{yahoo_url}|{ticker}>) day change: -{str(percentage)}%')
                 else:
-                    alert.append(f'⬆️ {tickers[ticker]} (<{yahoo_url}|{ticker}>) day change: {str(percentage)}%')
-                    alert.telegram.append('⬆️ ' + tickers[ticker] + ' (<a href="' + yahoo_url + '">' + ticker + '</a>) ' + "day change: " + str(percentage) + '%')
-        return alert, alert_telegram
+                    if service == 'telegram':
+                        price_payload.telegram.append('⬆️ ' + tickers[ticker] + ' (<a href="' + yahoo_url + '">' + ticker + '</a>) ' + "day change: " + str(percentage) + '%')
+                    else:
+                        price_payload.append(f'⬆️ {tickers[ticker]} (<{yahoo_url}|{ticker}>) day change: {str(percentage)}%')
+        print(len(price_payload), "holdings moved more than", price_updates_percentage, '%')
+        return price_payload
 
+### MAIN ###
     token = sharesight_get_token(sharesight_auth_data)
     portfolios = sharesight_get_portfolios()
-    alltrades = []
+    trades = []
+    holdings = []
     tickers = {}
 
-    for portfolio in portfolios:
-        alltrades = alltrades + sharesight_get_trades(portfolio, portfolios[portfolio])
-        holdings = sharesight_get_holdings(portfolios[portfolio], portfolio)
-        tickers = {**tickers, **holdings_to_yahoo_tickers(holdings)}
-
-    if alltrades:
-        print("Found", len(alltrades), "trades in the specified range")
-        for service in webhooks:
-            print(f"preparing {service} payload")
-            payload = prepare_payload(service, alltrades)
-            url = webhooks[service]
-            print(f"sending to {service}")
-            webhook_write(url, payload)
-        if telegram_url:
-            print('preparing telegram payload')
-            payload = prepare_payload_telegram(alltrades)
-            for payload_chunk in chunker(payload, 20): # split to workaround potential max length
-                payload_chunk = '\n'.join(payload_chunk)
-                telegram_write(telegram_url, payload_chunk)
-                time.sleep(1)
-    else:
-        print(f"No trades found for {date}")
-    
-    if tickers and alert_threshold:
-        #print(json.dumps(tickers, indent=4, sort_keys=True))
-        alert, alert_telegram = compare_prices(tickers, alert_threshold)
-        if alert:
-            alert = '\n'.join(alert)
-            for service in webhooks:
-                print(alert)
-                url = webhooks[service]
-                webhook_write(url, alert)
+    if trade_updates:
+        for portfolio in portfolios:
+            trades = trades + sharesight_get_trades(portfolio, portfolios[portfolio])
+        if trades:
+            print(len(trades), "trades found for", date)
         else:
-            print(f"No stocks changed {alert_threshold}% or more in the last session.")
+            print("No trades found for", date)
 
-        if alert_telegram and telegram_url:
-            alert_telegram = '\n'.join(alert_telegram)
-            print(alert_telegram)
-            telegram_write(telegram_url, alert_telegram)
+    if price_updates and price_updates_percentage:
+        for portfolio in portfolios:
+            holdings = holdings + sharesight_get_holdings(portfolios[portfolio], portfolio)
+        tickers = transform_tickers(holdings)
+        price_data = yahoo_get_prices(tickers)
+        #print(json.dumps(tickers, indent=4, sort_keys=True))
+
+    for service in webhooks:
+        if trades:
+            print(f"Preparing {service} trades payload")
+            trade_payload = prepare_trade_payload(service, trades)
+            url = webhooks[service]
+            print(f"Sending {service} trades payload")
+            for payload_chunk in chunker(trade_payload, 20): # workaround potential max length
+                payload_chunk = '\n'.join(payload_chunk)
+                if service == 'telegram':
+                    telegram_write(url, payload_chunk)
+                else:
+                    webhook_write(url, payload_chunk)
+                time.sleep(1) # workaround potential API throttling
+    
+        if tickers:
+            price_payload = prepare_price_payload(service, price_data, price_updates_percentage)
+            if price_payload and price_updates:
+                price_payload_string = '\n'.join(price_payload)
+                print(f"preparing {service} price alert payload")
+                print(price_payload_string)
+                url = webhooks[service]
+                print(f"Sending {service} price alert payload")
+                if service == 'telegram':
+                    telegram_write(url, price_payload_string)
+                else:
+                    webhook_write(url, price_payload_string)
+            else:
+                print(f"{service}: no holdings changed by {price_updates_percentage}% in the last session.")
 
