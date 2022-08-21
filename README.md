@@ -47,11 +47,14 @@ slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGh
 ```
 telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhIjKlMnOpQrStUvWxYz/sendMessage?chat_id=-1001234567890'
 ```
+### Trade updates
+Setting `trade_updates=true` in the .env file will tell the bot to send Sharesight trades to your configured chat services.
 
 ### Price alerts
-Setting `alert_threshold=THRESHOLD` in the .env file will trigger price alerts for stocks which moved _THRESHOLD_ or more. This data is sourced from Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The value is an integer representing a percentage. Example:
+Setting `price_updates=true` and `price_updates_percentage=THRESHOLD` in the .env file will trigger price alerts for stocks which moved _THRESHOLD_ or more. This data is sourced from Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). Example:
 ```
-alert_threshold=10
+price_updates=true
+price_updates_percentage=10
 ```
 
 ## Running the script
@@ -63,7 +66,7 @@ cd sharesight-bot
 pip3 install datetime python-dotenv requests yfinance --upgrade --target=$(pwd)
 zip -r script.zip .
 ```
-This script may take more than 10 seconds to execute trade alerts, and more than 60 seconds to execute price alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to at least two minutes.
+This script may take more than 10 seconds to execute trade alerts, and more than 50 seconds to execute price alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to at least two minutes.
 
 ## Limitations
 * Sharesight V2 API only provides trade times to the granularity of one day. So this script has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
