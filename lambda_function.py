@@ -24,14 +24,14 @@ def lambda_handler(event,context):
         webhooks['telegram'] = os.getenv('telegram_url')
 
     if os.getenv('trade_updates'):
-        trade_updates = os.getenv("trade_updates", 'False').lower() in ('true', '1', 't')
+        config_trade_updates = os.getenv("trade_updates", 'False').lower() in ('true', '1', 't')
 
     if os.getenv('price_updates'):
-        price_updates = os.getenv("price_updates", 'False').lower() in ('true', '1', 't')
+        config_price_updates = os.getenv("price_updates", 'False').lower() in ('true', '1', 't')
 
     if os.getenv('price_updates_percentage'):
-        price_updates_percentage = os.getenv('price_updates_percentage') 
-        price_updates_percentage = float(price_updates_percentage)
+        config_price_updates_percentage = os.getenv('price_updates_percentage') 
+        config_price_updates_percentage = float(config_price_updates_percentage)
 
     date = datetime.today().strftime('%Y-%m-%d')
     #date = '2022-08-13'
@@ -48,12 +48,12 @@ def lambda_handler(event,context):
         try:
             r = requests.post("https://api.sharesight.com/oauth2/token", data=sharesight_auth_data)
         except:
-            print(f'Failed to get Sharesight access token')
+            print("Failed to get Sharesight access token")
             exit(1)
             return []
     
         if r.status_code != 200:
-            print(f'Could not fetch token from endpoint. Code {r.status_code}. Check config in .env file')
+            print(f"Could not fetch token from endpoint. Code {r.status_code}. Check config in .env file")
             exit(1)
             return []
     
@@ -67,11 +67,11 @@ def lambda_handler(event,context):
         try:
             r = requests.get("https://api.sharesight.com/api/v2/portfolios.json", headers={'Content-type': 'application/json'}, auth=BearerAuth(token))
         except:
-            print(f'Failure talking to Sharesight')
+            print("Failure talking to Sharesight")
             return []
     
         if r.status_code != 200:
-            print(f'Error communicating with Sharesight API. Code {r.status_code}')
+            print(f"Error communicating with Sharesight API. Code: {r.status_code}")
             return []
     
         data = r.json()
@@ -83,7 +83,7 @@ def lambda_handler(event,context):
 
 
     def sharesight_get_trades(portfolio_name, portfolio_id):
-        print(f"Fetching Sharesight trades for {portfolio_name} on {date}", end=': ')
+        print(f"Fetching Sharesight trades for {portfolio_name} on {date}", end=": ")
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
         url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + date + '&end_date=' + date
         r = requests.get(url, auth=BearerAuth(token))
@@ -94,8 +94,8 @@ def lambda_handler(event,context):
         return data['trades']
 
 
-    def sharesight_get_holdings(portfolio_id, portfolio_name):
-        print(f"Fetching Sharesight holdings for {portfolio_name}", end=': ')
+    def sharesight_get_holdings(portfolio_name, portfolio_id):
+        print(f"Fetching Sharesight holdings for {portfolio_name}", end=": ")
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
         url = endpoint + str(portfolio_id) + '/valuation.json?grouping=ungrouped&balance_date=' + date
         r = requests.get(url, auth=BearerAuth(token))
@@ -215,11 +215,11 @@ def lambda_handler(event,context):
         try:
             r = requests.post(url, headers={'Content-type': 'application/json'}, json={"text":payload})
         except:
-            print(f'Failure talking to webhook: {url}')
+            print(f"Failure talking to webhook: {url}")
             return []
     
         if r.status_code != 200:
-            print(f'Error communicating with webhook. HTTP code {r.status_code}, URL: {url}')
+            print(f"Error communicating with webhook. HTTP code: {r.status_code}, URL: {url}")
             return []
     
     def telegram_write(url, payload):
@@ -228,11 +228,11 @@ def lambda_handler(event,context):
         try:
             r = requests.get(url)
         except:
-            print(f'Failure talking to webhook: {url}')
+            print(f"Failure talking to webhook: {url}")
             return []
 
         if r.status_code != 200:
-            print(f'Error communicating with webhook. HTTP code {r.status_code}, URL: {url}')
+            print(f"Error communicating with webhook. HTTP code: {r.status_code}, URL: {url}")
             return []
 
     def chunker(seq, size):
@@ -250,11 +250,11 @@ def lambda_handler(event,context):
         alert = []
         alert_telegram = []
         all_tickers_string = ' '.join(tickers)
-        print("Fetching Yahoo price histories for ", all_tickers_string)
+        print(f"Fetching Yahoo price histories for {all_tickers_string}")
         price_data = yf.download(all_tickers_string, period="2d", group_by='ticker')
         return price_data
 
-    def prepare_price_payload(service, price_data, price_updates_percentage):
+    def prepare_price_payload(service, price_data, config_price_updates_percentage):
         price_payload = []
         for ticker in tickers:
             previous = price_data[ticker].to_numpy()[0][4]
@@ -262,7 +262,7 @@ def lambda_handler(event,context):
             #print(ticker, previous, current)
             percentage = percentage_change(previous, current)
             percentage = round(percentage, 2)
-            if percentage > price_updates_percentage:
+            if percentage > config_price_updates_percentage:
                 yahoo_url = 'https://finance.yahoo.com/quote/' + ticker
                 if previous > current:
                     if service == 'telegram':
@@ -274,8 +274,20 @@ def lambda_handler(event,context):
                         price_payload.telegram.append('⬆️ ' + tickers[ticker] + ' (<a href="' + yahoo_url + '">' + ticker + '</a>) ' + "day change: " + str(percentage) + '%')
                     else:
                         price_payload.append(f'⬆️ {tickers[ticker]} (<{yahoo_url}|{ticker}>) day change: {str(percentage)}%')
-        print(len(price_payload), "holdings moved more than", price_updates_percentage, '%')
+        print(len(price_payload), f"holdings moved more than {config_price_updates_percentage}%")
         return price_payload
+
+    def payload_wrapper(service, url, chunks):
+        count=0
+        for payload_chunk in chunks: # workaround potential max length
+            count=count+1
+            payload_chunk = '\n'.join(payload_chunk)
+            if service == 'telegram':
+                telegram_write(url, payload_chunk)
+            else:
+                webhook_write(url, payload_chunk)
+            if count < len(list(chunks)):
+                time.sleep(1) # workaround potential API throttling
 
 ### MAIN ###
     token = sharesight_get_token(sharesight_auth_data)
@@ -284,47 +296,43 @@ def lambda_handler(event,context):
     holdings = []
     tickers = {}
 
-    if trade_updates:
-        for portfolio in portfolios:
-            trades = trades + sharesight_get_trades(portfolio, portfolios[portfolio])
+    # get trades from sharesight
+    if config_trade_updates:
+        for portfolio_name in portfolios:
+            portfolio_id = portfolios[portfolio_name]
+            trades = trades + sharesight_get_trades(portfolio_name, portfolio_id)
         if trades:
-            print(len(trades), "trades found for", date)
+            print(len(trades), f"trades found for {date}")
         else:
-            print("No trades found for", date)
+            print(f"No trades found for {date}")
 
-    if price_updates and price_updates_percentage:
-        for portfolio in portfolios:
-            holdings = holdings + sharesight_get_holdings(portfolios[portfolio], portfolio)
+    # get prices from yahoo
+    if config_price_updates and config_price_updates_percentage:
+        for portfolio_name in portfolios:
+            portfolio_id = portfolios[portfolio_name]
+            holdings = holdings + sharesight_get_holdings(portfolio_name, portfolio_id)
         tickers = transform_tickers(holdings)
         price_data = yahoo_get_prices(tickers)
         #print(json.dumps(tickers, indent=4, sort_keys=True))
 
+    # prep and send payloads
     for service in webhooks:
+        url = webhooks[service]
         if trades:
-            print(f"Preparing {service} trades payload")
+            print(f"Preparing {service} payload")
             trade_payload = prepare_trade_payload(service, trades)
-            url = webhooks[service]
-            print(f"Sending {service} trades payload")
-            for payload_chunk in chunker(trade_payload, 20): # workaround potential max length
-                payload_chunk = '\n'.join(payload_chunk)
-                if service == 'telegram':
-                    telegram_write(url, payload_chunk)
-                else:
-                    webhook_write(url, payload_chunk)
-                time.sleep(1) # workaround potential API throttling
-    
+            print(f"Sending to {service}")
+            chunks = chunker(price_payload, 20)
+            payload_wrapper(service, url, chunks)
+
         if tickers:
-            price_payload = prepare_price_payload(service, price_data, price_updates_percentage)
-            if price_payload and price_updates:
+            print(f"preparing {service} payload")
+            price_payload = prepare_price_payload(service, price_data, config_price_updates_percentage)
+            if price_payload:
                 price_payload_string = '\n'.join(price_payload)
-                print(f"preparing {service} price alert payload")
-                print(price_payload_string)
-                url = webhooks[service]
-                print(f"Sending {service} price alert payload")
-                if service == 'telegram':
-                    telegram_write(url, price_payload_string)
-                else:
-                    webhook_write(url, price_payload_string)
+                print(f"{price_payload_string}")
+                chunks = chunker(price_payload, 20)
+                payload_wrapper(service, url, chunks)
             else:
-                print(f"{service}: no holdings changed by {price_updates_percentage}% in the last session.")
+                print(f"{service}: no holdings changed by {config_price_updates_percentage}% in the last session.")
 
