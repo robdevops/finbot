@@ -1,14 +1,10 @@
 #!/usr/bin/python3
 
-import requests
+import os, time, urllib.parse, json
 from datetime import datetime
-import json
-import os
 from dotenv import load_dotenv
-import urllib.parse
-import time
+import requests
 import yfinance as yf
-import re
 
 def lambda_handler(event,context):
     load_dotenv()
