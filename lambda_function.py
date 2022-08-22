@@ -29,6 +29,7 @@ def lambda_handler(event,context):
     if os.getenv('price_updates'):
         config_price_updates = os.getenv("price_updates", 'False').lower() in ('true', '1', 't')
 
+    config_price_updates_percentage = 10 # default
     if os.getenv('price_updates_percentage'):
         config_price_updates_percentage = os.getenv('price_updates_percentage') 
         config_price_updates_percentage = float(config_price_updates_percentage)
@@ -294,7 +295,7 @@ def lambda_handler(event,context):
             print(f"No trades found for {date}")
 
     # get prices from yahoo
-    if config_price_updates and config_price_updates_percentage:
+    if config_price_updates:
         for portfolio_name in portfolios:
             portfolio_id = portfolios[portfolio_name]
             holdings = holdings + sharesight_get_holdings(portfolio_name, portfolio_id)
