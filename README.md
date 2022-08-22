@@ -39,6 +39,7 @@ slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGh
 
 ### Telegram
 * Set up the bot by messaging [BotFather](https://telegram.me/BotFather).
+* Add your bot to a group or channel.
 * Prepend the bot id with `bot` in the .env file.
 * In the .env file, append `/sendMessage?chat_id=-CHAT_ID` to the bot URL, where _CHAT_ID_ is the unique identifier.
 * For channels, _CHAT_ID_ should be negative and 13 characters. Prepend `-100` if necessary.
