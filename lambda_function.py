@@ -28,22 +28,34 @@ def lambda_handler(event,context):
     if os.getenv('price_updates'):
         config_price_updates = os.getenv("price_updates", 'False').lower() in ('true', '1', 't')
 
-    if os.getenv('earnings_reminder'):
-        config_earnings_reminder = os.getenv("earnings_reminder", 'False').lower() in ('true', '1', 't')
-
-    config_earnings_reminder_days = 3 # default
-    if os.getenv('earnings_reminder_days'):
-        config_earnings_reminder_days = os.getenv('earnings_reminder_days') 
-        config_earnings_reminder_days = int(config_earnings_reminder_days)
-
     config_price_updates_percentage = 10 # default
     if os.getenv('price_updates_percentage'):
         config_price_updates_percentage = os.getenv('price_updates_percentage') 
         config_price_updates_percentage = float(config_price_updates_percentage)
 
-    config_earnings_reminder_weekday = 'any' # default
-    if os.getenv('earnings_reminder_weekday'):
-        config_earnings_reminder_weekday = os.getenv('earnings_reminder_weekday')
+    if os.getenv('earnings'):
+        config_earnings = os.getenv("earnings", 'False').lower() in ('true', '1', 't')
+
+    config_earnings_days = 3 # default
+    if os.getenv('earnings_days'):
+        config_earnings_days = os.getenv('earnings_days') 
+        config_earnings_days = int(config_earnings_days)
+
+    config_earnings_weekday = 'any' # default
+    if os.getenv('earnings_weekday'):
+        config_earnings_weekday = os.getenv('earnings_weekday')
+
+    if os.getenv('ex_dividend'):
+        config_ex_dividend = os.getenv("ex_dividend", 'False').lower() in ('true', '1', 't')
+
+    config_ex_dividend_days = 7 # default
+    if os.getenv('ex_dividend_days'):
+        config_ex_dividend_days = os.getenv('ex_dividend_days') 
+        config_ex_dividend_days = int(config_ex_dividend_days)
+
+    config_ex_dividend_weekday = 'any' # default
+    if os.getenv('ex_dividend_weekday'):
+        config_ex_dividend_weekday = os.getenv('ex_dividend_weekday') 
 
     #time_now = datetime.datetime.today() # 2022-08-23 01:35:20.310961
     time_now = datetime.datetime.utcnow() # 2022-08-22 15:35:20.311000
@@ -247,14 +259,14 @@ def lambda_handler(event,context):
         offset = datetime.datetime.fromtimestamp(now_timestamp) - datetime.datetime.utcfromtimestamp(now_timestamp)
         return utc_datetime + offset
 
-    def prepare_earnings_reminder_payload(service, yahoo_output):
-        earnings_reminder_payload = []
+    def prepare_earnings_payload(service, yahoo_output):
+        earnings_payload = []
         if service == 'telegram':
-            earnings_reminder_payload.append(f"<b>Upcoming earnings:</b>")
+            earnings_payload.append(f"<b>Upcoming earnings:</b>")
         elif service == 'slack':
-            earnings_reminder_payload.append(f"*Upcoming earnings:*")
+            earnings_payload.append(f"*Upcoming earnings:*")
         else:
-            earnings_reminder_payload.append(f"**Upcoming earnings:**")
+            earnings_payload.append(f"**Upcoming earnings:**")
         for ticker in yahoo_output:
             title = yahoo_output[ticker]['title']
             yahoo_url = 'https://finance.yahoo.com/quote/' + ticker
@@ -262,20 +274,36 @@ def lambda_handler(event,context):
                 earnings_date = yahoo_output[ticker]['earnings_date']
             except KeyError:
                 continue
-            #earnings_date = earnings_reminders[ticker]
-            #ticker_description = tickers[ticker]
             if earnings_date:
                 if service == 'telegram':
-                    earnings_reminder_payload.append(f"📣 {title} (<a href='{yahoo_url}'>{ticker}</a>) reports on {earnings_date}")
+                    earnings_payload.append(f"📣 {title} (<a href='{yahoo_url}'>{ticker}</a>) reports on {earnings_date}")
                 else:
-                    earnings_reminder_payload.append(f"📣 {title} (<{yahoo_url}|{ticker}>) reports on {earnings_date}")
-        return earnings_reminder_payload
+                    earnings_payload.append(f"📣 {title} (<{yahoo_url}|{ticker}>) reports on {earnings_date}")
+        return earnings_payload
+
+    def prepare_ex_dividend_payload(service, ex_dividend_dates, yahoo_output):
+        ex_dividend_payload = []
+        if service == 'telegram':
+            ex_dividend_payload.append(f"<b>Upcoming ex-dividend dates:</b>")
+        elif service == 'slack':
+            ex_dividend_payload.append(f"*Upcoming ex-dividend dates:*")
+        else:
+            ex_dividend_payload.append(f"**Upcoming ex-dividend dates:**")
+        for ticker in ex_dividend_dates:
+            ex_dividend_date = ex_dividend_dates[ticker]
+            yahoo_url = 'https://finance.yahoo.com/quote/' + ticker
+            title = yahoo_output[ticker]['title']
+            if service == 'telegram':
+                ex_dividend_payload.append(f"🤑 {title} (<a href='{yahoo_url}'>{ticker}</a>) goes ex-dividend on {ex_dividend_date}")
+            else:
+                ex_dividend_payload.append(f"🤑 {title} (<{yahoo_url}|{ticker}>) goes ex-dividend on {ex_dividend_date}")
+        return ex_dividend_payload
 
     def yahoo_fetch(tickers):
-        print(f"fetching {len(tickers)} holdings from Yahoo")
+        print(f"Fetching Yahoo price info for {len(tickers)} holdings")
         yahoo_output = {}
         now = int(time.time())
-        soon = now + config_earnings_reminder_days * 86400
+        soon = now + config_earnings_days * 86400
         url = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' + ','.join(tickers)
         url2 = 'https://query2.finance.yahoo.com/v7/finance/quote?symbols=' + ','.join(tickers)
         try:
@@ -341,19 +369,70 @@ def lambda_handler(event,context):
             title = title.replace(" .", " ")
             title = title.replace(" ,", " ")
             title = title.replace("  ", " ")
+            title = title.rstrip()
             try:
                 earningsTimestamp = item['earningsTimestamp']
                 earningsTimestampStart = item['earningsTimestampStart']
                 earningsTimestampEnd = item['earningsTimestampEnd']
             except (KeyError, IndexError):
-                pass
+                yahoo_output[ticker] = { "title": title, "percent_change": percent_change}
+                continue
             if earningsTimestamp == earningsTimestampStart == earningsTimestampEnd: # if not estimate
                 if earningsTimestamp > now and earningsTimestamp < soon:
                     human_timestamp = datetime.datetime.fromtimestamp(earningsTimestamp)
                     yahoo_output[ticker] = { "title": title, "percent_change": percent_change, "earnings_date": str(human_timestamp) }
+                else:
+                    yahoo_output[ticker] = { "title": title, "percent_change": percent_change}
             else:
                 yahoo_output[ticker] = { "title": title, "percent_change": percent_change}
         return yahoo_output
+
+    def yahoo_fetch_ex_dividends(tickers, config_ex_dividend_days):
+        now = int(time.time())
+        soon = now + config_ex_dividend_days * 86400
+        print(f"Fetching {len(tickers)} ex-dividend dates from Yahoo")
+        ex_dividend_dates = {}
+        for ticker in tickers:
+            yahoo_output = {}
+            now = int(time.time())
+            soon = now + config_ex_dividend_days * 86400
+            url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + ticker + '?modules=summaryDetail'
+            url2 = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + ticker + '?modules=summaryDetail'
+            try:
+                r = requests.get(url, headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
+            except:
+                print(f"Failed to query Yahoo. Trying alternate URL.")
+                try:
+                    r = requests.get(url2, headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
+                except:
+                    print(f"Failed to query alternate URL. Giving up.")
+                    return []
+                if r.status_code != 200:
+                    print(f"alternate URL returned {r.status_code}. Giving up.")
+                    return []
+            if r.status_code != 200:
+                print(f"Yahoo returned {r.status_code}. Trying alternate URL.")
+                try:
+                    r = requests.get(url2, headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
+                except:
+                    print(f"Failed to query alternate URL. Giving up.")
+                    return []
+                if r.status_code != 200:
+                    print(f"alternate URL returned {r.status_code}. Giving up.")
+                    return []
+            data = r.json()
+            data = data['quoteSummary']
+            data = data['result']
+            for item in data:
+                try:
+                    raw = item['summaryDetail']['exDividendDate']['raw']
+                    fmt = item['summaryDetail']['exDividendDate']['fmt']
+                except (KeyError, TypeError):
+                    continue
+                if raw:
+                    if raw > now and raw < soon:
+                        ex_dividend_dates[ticker] = fmt
+        return ex_dividend_dates
 
 # MAIN #
     token = sharesight_get_token(sharesight_auth_data)
@@ -370,15 +449,20 @@ def lambda_handler(event,context):
         else:
             print(f"No trades found for {date}")
 
-    # get holdings from sharesight and fetch from yahoo
-    if config_price_updates or config_earnings_reminder:
+    # Fetch holdings from sharesight, and holdin detail from Yahoo
+    if config_price_updates or config_earnings or config_ex_dividend:
         holdings = []
-        tickers = []
+        tickers = []    
         for portfolio_name in portfolios:
             portfolio_id = portfolios[portfolio_name]
             holdings = holdings + sharesight_get_holdings(portfolio_name, portfolio_id)
             tickers = transform_tickers(holdings)
         yahoo_output = yahoo_fetch(tickers)
+
+    # fetch ex_dividend_dates from Yahoo
+    if config_ex_dividend:
+        ex_dividend_dates = yahoo_fetch_ex_dividends(tickers, config_ex_dividend_days)
+        #print(json.dumps(ex_dividend_dates, indent=4, sort_keys=True))
 
     # prep and send payloads
     for service in webhooks:
@@ -401,16 +485,27 @@ def lambda_handler(event,context):
                     payload_wrapper(service, url, chunks)
                 else:
                     print(f"{service}: no holdings changed by {config_price_updates_percentage}% in the last session.")
-        if config_earnings_reminder:
+        if config_earnings:
             weekday = datetime.datetime.today().strftime('%A').lower()
-            if config_earnings_reminder_weekday.lower() in {'any', 'all', weekday}:
-                print(f"preparing earnings reminder payload for {service}")
-                earnings_reminder_payload = prepare_earnings_reminder_payload(service, yahoo_output)
-                earnings_reminder_payload_string = '\n'.join(earnings_reminder_payload)
-                print(f"Sending earnings reminders to {service}")
-                print(earnings_reminder_payload_string)
-                chunks = chunker(earnings_reminder_payload, 20)
+            if config_earnings_weekday.lower() in {'any', 'all', weekday}:
+                print(f"preparing earnings date payload for {service}")
+                earnings_payload = prepare_earnings_payload(service, yahoo_output)
+                earnings_payload_string = '\n'.join(earnings_payload)
+                print(f"Sending earnings dates to {service}")
+                print(earnings_payload_string)
+                chunks = chunker(earnings_payload, 20)
                 payload_wrapper(service, url, chunks)
             else:
-                print(f"Skipping earnings reminder because today is {weekday} and earnings_reminder_weekday is set to {config_earnings_reminder_weekday}")
-
+                print(f"Skipping earnings date because today is {weekday} and earnings_weekday is set to {config_earnings_weekday}")
+        if config_ex_dividend:
+            weekday = datetime.datetime.today().strftime('%A').lower()
+            if config_ex_dividend_weekday.lower() in {'any', 'all', weekday}:
+                print(f"preparing ex-dividend date payload for {service}")
+                ex_dividend_payload = prepare_ex_dividend_payload(service, ex_dividend_dates, yahoo_output)
+                ex_dividend_payload_string = '\n'.join(ex_dividend_payload)
+                print(f"Sending ex-dividend dates to {service}")
+                print(ex_dividend_payload_string)
+                chunks = chunker(ex_dividend_payload, 20)
+                payload_wrapper(service, url, chunks)
+            else:
+                print(f"Skipping ex-dividend date because today is {weekday} and ex_dividend_weekday is set to {config_ex_dividend_weekday}")

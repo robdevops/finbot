@@ -2,6 +2,7 @@
 * Daily trade notifications across all portfolios
 * Daily price movements of holdings over a defined threshold
 * Earnings date reminders for your holdings
+* Ex-dividend date reminders for your holdings
 * Discord, Slack and Telegram support
 
 ![screenshot of Slack message](screenshot.png?raw=true "Screenshot of Slack message")
@@ -60,11 +61,19 @@ price_updates_percentage=10
 ```
 
 ### Earnings reminders
-Setting `earnings_reminder=true` in the .env file will trigger upcoming earnings date alerts. The data is sourced from Yahoo! Finance. Events more than `earnings_reminder_days` into the future will be ignored. Earnings reminders will only run on `earnings_reminder_weekday`. Set to `any` to run it on every execution of the script. Example:`
+Setting `earnings=true` in the .env file will trigger upcoming earnings date alerts. The data is sourced from Yahoo! Finance. Events more than `earnings_days` into the future will be ignored. Earnings reminders will only run on `earnings_weekday`. Set to `any` to run it on every execution of the script. Example:`
 ```
-earnings_reminder=true
-earnings_reminder_days=7
-earnings_reminder_weekday=Friday
+earnings=true
+earnings_days=7
+earnings_weekday=Friday
+```
+
+### Ex-dividend reminders
+Setting `ex_dividend=true` in the .env file will trigger upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `ex_dividend_days` into the future will be ignored. Ex-dividend reminders will only run on `ex_dividend_weekday`. Set to `any` to run it on every execution of the script. Example:`
+```
+ex_dividend=true
+ex_dividend_days=7
+ex_dividend_weekday=Friday
 ```
 
 ## Running the script
@@ -76,7 +85,7 @@ cd sharesight-bot
 pip3 install datetime python-dotenv requests --upgrade --target=$(pwd)
 zip -r script.zip .
 ```
-This script may take more than 10 seconds to execute trade alerts, and more than 20 seconds to execute earnings reminders and price alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to at least 60 seconds.
+This script takes around 10 seconds to execute trade alerts, 20 seconds to execute earnings reminders and price alerts, and  30 seconds to execute ex-dividend alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to 2 minutes.
 
 ## Limitations
 * Sharesight V2 API only provides trade times to the granularity of one day. So this script has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
