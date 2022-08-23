@@ -1,11 +1,15 @@
 # sharesight-bot
+
+## Description
 * Daily trade notifications across all portfolios
 * Daily price movements of holdings over a defined threshold
 * Earnings date reminders for your holdings
 * Ex-dividend date reminders for your holdings
 * Discord, Slack and Telegram support
+* For speed and reliability, it uses no uncommon libraries or screen scraping
 
 ![screenshot of Slack message](screenshot.png?raw=true "Screenshot of Slack message")
+
 
 
 ## Dependencies
