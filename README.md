@@ -69,7 +69,7 @@ earnings_weekday=Friday
 ```
 
 ### Ex-dividend reminders
-Setting `ex_dividend=true` in the .env file will trigger upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `ex_dividend_days` into the future will be ignored. Ex-dividend reminders will only run on `ex_dividend_weekday`. Set `ex_dividend_weekdayany` to run it on every execution of the script. Example:`
+Setting `ex_dividend=true` in the .env file will trigger upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `ex_dividend_days` into the future will be ignored. Ex-dividend reminders will only run on `ex_dividend_weekday`. Set `ex_dividend_weekday=any` to run it on every execution of the script. Example:`
 ```
 ex_dividend=true
 ex_dividend_days=7
