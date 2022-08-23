@@ -60,7 +60,7 @@ price_updates_percentage=10
 ```
 
 ### Earnings reminders
-Setting `earnings_reminder=true` in the .env file will trigger upcoming earnings date alerts. Events more than `earnings_reminder_days` into the future will be ignored. Earnings reminders will only run on `earnings_reminder_weekday`. Set to `any` to run it on every execution of the script. Example:`
+Setting `earnings_reminder=true` in the .env file will trigger upcoming earnings date alerts. The data is sourced from Yahoo! Finance. Events more than `earnings_reminder_days` into the future will be ignored. Earnings reminders will only run on `earnings_reminder_weekday`. Set to `any` to run it on every execution of the script. Example:`
 ```
 earnings_reminder=true
 earnings_reminder_days=7
