@@ -12,7 +12,7 @@
 * Python 3
 * Python modules:
 ```
-pip3 install datetime python-dotenv requests yfinance
+pip3 install datetime python-dotenv requests
 ```
 
 ## Configuration Details
@@ -58,16 +58,24 @@ price_updates=true
 price_updates_percentage=10
 ```
 
+### Earnings reminders
+Setting `earnings_reminder=true` in the .env file will trigger upcoming earnings date alerts. Events more than `earnings_reminder_days` into the future will be ignored. Earnings reminders will only run on `earnings_reminder_weekday`. Set to `any` to run it on every execution of the script. Example:`
+```
+earnings_reminder=true
+earnings_reminder_days=7
+earnings_reminder_weekday=Friday
+```
+
 ## Running the script
 This has been designed to run from AWS Lambda, but you can run it on a normal Python environment with `python3 sharesight_trades.py`
 
 To prepare zip for upload to Lambda:
 ```
 cd sharesight-bot
-pip3 install datetime python-dotenv requests yfinance --upgrade --target=$(pwd)
+pip3 install datetime python-dotenv requests --upgrade --target=$(pwd)
 zip -r script.zip .
 ```
-This script may take more than 10 seconds to execute trade alerts, and more than 50 seconds to execute price alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to at least two minutes.
+This script may take more than 10 seconds to execute trade alerts, and more than 20 seconds to execute earnings reminders and price alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to at least 60 seconds..
 
 ## Limitations
 * Sharesight V2 API only provides trade times to the granularity of one day. So this script has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
