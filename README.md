@@ -130,7 +130,7 @@ cron(0 22 ? * 2-6 *)
 * Sharesight V2 API only provides trade times to the granularity of one day. So this script has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
 * Discord shows garbage link previews from Sharesight. Modify the script to remove hyperlinks, or disable this for your Discord account under _Settings > Text & Images > Embeds and link previews._
 
-## Suggestions?
+## Suggestions
 * Know a chat or notification service with a REST API?
 * Is my code is doing something the hard way?
 * Something important is missing from this README?
