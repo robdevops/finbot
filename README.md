@@ -88,6 +88,8 @@ The script has been designed to run from AWS Lambda, but you can run it on a nor
 #### Installation
 ```
 sudo pip3 install datetime python-dotenv requests
+```
+```
 sudo su -c 'git clone https://github.com/robdevops/sharesight-bot.git /usr/local/bin/sharesight-bot/'
 ```
 
@@ -97,9 +99,12 @@ sudo vi /usr/local/bin/sharesight-bot/.env
 ```
 
 #### Scheduling
-Add a wrapper to /etc/cron.daily/ and ensure it's executable:
+Add a wrapper to /etc/cron.daily/:
 ```
 echo '!#/bin/bash; cd /usr/local/bin/sharesight-bot/; python3 sharesight-bot.py' | sudo tee /etc/cron.daily/sharesight-bot
+````
+Ensure it's executable:
+```
 sudo chmod u+x /etc/cron.daily/sharesight-bot
 ```
 
