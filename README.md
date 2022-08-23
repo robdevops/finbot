@@ -121,7 +121,7 @@ zip -r script.zip .
 For four portfolios (72 holdings), this script takes around 10 seconds to execute trade alerts, 20 seconds to execute earnings reminders and price alerts, and  30 seconds to execute ex-dividend alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to 2 minutes.
 
 #### Scheduling
-Go to _Lambda > Functions > YOUR_FUNCTION > Add Trigger > EventBridge (Cloudwatch Events)_, and set _Schedule expression_ to, for example, This means 10 PM Monday to Friday UTC:
+Go to _Lambda > Functions > YOUR_FUNCTION > Add Trigger > EventBridge (Cloudwatch Events)_, and set _Schedule expression_ to, for example, 10 PM Monday to Friday UTC:
 ```
 cron(0 22 ? * 2-6 *)
 ```
