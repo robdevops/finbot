@@ -79,13 +79,42 @@ ex_dividend_weekday=Friday
 ## Running the script
 The script has been designed to run from AWS Lambda, but you can run it on a normal Python environment with `python3 sharesight-bot.py`
 
+
+### Linux
+#### Installation
+```
+sudo pip3 install datetime python-dotenv requests
+sudo su -c 'git clone https://github.com/robdevops/sharesight-bot.git /usr/local/bin/sharesight-bot/'
+```
+
+#### Configuration
+```
+sudo vi /usr/local/bin/sharesight-bot/.env
+```
+
+#### Scheduling
+Add a wrapper to /etc/cron.daily/ and ensure it's executable:
+```
+echo '!#/bin/bash; cd /usr/local/bin/sharesight-bot/; python3 sharesight-bot.py' | sudo tee /etc/cron.daily/sharesight-bot
+sudo chmod u+x /etc/cron.daily/sharesight-bot
+```
+
+### Amazon Lambda
+#### Installation
 To prepare zip for upload to Lambda:
 ```
 cd sharesight-bot
 pip3 install datetime python-dotenv requests --upgrade --target=$(pwd)
 zip -r script.zip .
 ```
+
+#### Configuration
 This script takes around 10 seconds to execute trade alerts, 20 seconds to execute earnings reminders and price alerts, and  30 seconds to execute ex-dividend alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to 2 minutes.
+
+#### Scheduling
+Go to `_Lambda > Functions > YOUR_FUNCTION > Add Trigger > EventBridge (Cloudwatch Events)`, and set `Schedule expression` to `cron(0 22 ? * 2-6 *)`, for example.
+
+
 
 ## Limitations
 * Sharesight V2 API only provides trade times to the granularity of one day. So this script has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
