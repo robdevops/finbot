@@ -41,6 +41,10 @@ def lambda_handler(event,context):
         config_price_updates_percentage = os.getenv('price_updates_percentage') 
         config_price_updates_percentage = float(config_price_updates_percentage)
 
+    config_earnings_reminder_weekday = 'any' # default
+    if os.getenv('earnings_reminder_weekday'):
+        config_earnings_reminder_weekday = os.getenv('earnings_reminder_weekday')
+
     #time_now = datetime.datetime.today() # 2022-08-23 01:35:20.310961
     time_now = datetime.datetime.utcnow() # 2022-08-22 15:35:20.311000
     date = str(time_now).split(' ')[0] # 2022-08-22
@@ -111,12 +115,13 @@ def lambda_handler(event,context):
             market = holding['market']
             if market == 'ASX':
                 tickers.append(symbol + '.AX')
-            elif market == 'NASDAQ' or market == 'NYSE' or market == 'BATS':
+            elif market in ('NASDAQ', 'NYSE', 'BATS'):
                 if symbol == 'DRNA':
                     continue
                 tickers.append(symbol)
             else:
                 continue
+        tickers = list(set(tickers)) # de-dupe
         return tickers
         
     def prepare_trade_payload(service, trades):
@@ -145,9 +150,9 @@ def lambda_handler(event,context):
             flag=''
             if market == 'ASX':
                 flag = '🇦🇺'
-            elif market == 'NASDAQ' or market == 'NYSE' or market == 'BATS':
+            elif market in ('NASDAQ', 'NYSE', 'BATS'):
                 flag = '🇺🇸'
-            elif market == 'KRX' or market == 'KOSDAQ':
+            elif market in ('KRX', 'KOSDAQ'):
                 flag = '🇰🇷'
             elif market == 'TAI':
                 flag = '🇹🇼'
@@ -365,7 +370,7 @@ def lambda_handler(event,context):
         else:
             print(f"No trades found for {date}")
 
-    # get holdings from sharesight
+    # get holdings from sharesight and fetch from yahoo
     if config_price_updates or config_earnings_reminder:
         holdings = []
         tickers = []
@@ -373,9 +378,6 @@ def lambda_handler(event,context):
             portfolio_id = portfolios[portfolio_name]
             holdings = holdings + sharesight_get_holdings(portfolio_name, portfolio_id)
             tickers = transform_tickers(holdings)
-
-    # get yahoo data
-    if config_price_updates or config_earnings_reminder:
         yahoo_output = yahoo_fetch(tickers)
 
     # prep and send payloads
@@ -400,11 +402,15 @@ def lambda_handler(event,context):
                 else:
                     print(f"{service}: no holdings changed by {config_price_updates_percentage}% in the last session.")
         if config_earnings_reminder:
-            print(f"preparing earnings reminder payload for {service}")
-            earnings_reminder_payload = prepare_earnings_reminder_payload(service, yahoo_output)
-            earnings_reminder_payload_string = '\n'.join(earnings_reminder_payload)
-            print(f"Sending earnings reminders to {service}")
-            print(earnings_reminder_payload_string)
-            chunks = chunker(earnings_reminder_payload, 20)
-            payload_wrapper(service, url, chunks)
+            weekday = datetime.datetime.today().strftime('%A').lower()
+            if config_earnings_reminder_weekday.lower() in {'any', 'all', weekday}:
+                print(f"preparing earnings reminder payload for {service}")
+                earnings_reminder_payload = prepare_earnings_reminder_payload(service, yahoo_output)
+                earnings_reminder_payload_string = '\n'.join(earnings_reminder_payload)
+                print(f"Sending earnings reminders to {service}")
+                print(earnings_reminder_payload_string)
+                chunks = chunker(earnings_reminder_payload, 20)
+                payload_wrapper(service, url, chunks)
+            else:
+                print(f"Skipping earnings reminder because today is {weekday} and earnings_reminder_weekday is set to {config_earnings_reminder_weekday}")
 
