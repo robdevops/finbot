@@ -254,11 +254,6 @@ def lambda_handler(event,context):
             if count < len(list(chunks)):
                 time.sleep(1) # workaround potential API throttling
 
-    def to_localtime(utc_datetime):
-        now_timestamp = time.time()
-        offset = datetime.datetime.fromtimestamp(now_timestamp) - datetime.datetime.utcfromtimestamp(now_timestamp)
-        return utc_datetime + offset
-
     def prepare_earnings_payload(service, yahoo_output):
         earnings_payload = []
         if service == 'telegram':
@@ -375,27 +370,25 @@ def lambda_handler(event,context):
                 earningsTimestampStart = item['earningsTimestampStart']
                 earningsTimestampEnd = item['earningsTimestampEnd']
             except (KeyError, IndexError):
-                yahoo_output[ticker] = { "title": title, "percent_change": percent_change}
+                yahoo_output[ticker] = { "title": title, "percent_change": percent_change} # no earnings date
                 continue
-            if earningsTimestamp == earningsTimestampStart == earningsTimestampEnd: # if not estimate
+            if earningsTimestamp == earningsTimestampStart == earningsTimestampEnd:
                 if earningsTimestamp > now and earningsTimestamp < soon:
                     human_timestamp = datetime.datetime.fromtimestamp(earningsTimestamp)
                     yahoo_output[ticker] = { "title": title, "percent_change": percent_change, "earnings_date": str(human_timestamp) }
                 else:
-                    yahoo_output[ticker] = { "title": title, "percent_change": percent_change}
+                    yahoo_output[ticker] = { "title": title, "percent_change": percent_change} # earnings date past
             else:
-                yahoo_output[ticker] = { "title": title, "percent_change": percent_change}
+                yahoo_output[ticker] = { "title": title, "percent_change": percent_change} # earnings date not announced
         return yahoo_output
 
     def yahoo_fetch_ex_dividends(tickers, config_ex_dividend_days):
+        print(f"Fetching {len(tickers)} ex-dividend dates from Yahoo")
         now = int(time.time())
         soon = now + config_ex_dividend_days * 86400
-        print(f"Fetching {len(tickers)} ex-dividend dates from Yahoo")
         ex_dividend_dates = {}
         for ticker in tickers:
             yahoo_output = {}
-            now = int(time.time())
-            soon = now + config_ex_dividend_days * 86400
             url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + ticker + '?modules=summaryDetail'
             url2 = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + ticker + '?modules=summaryDetail'
             try:
@@ -429,9 +422,8 @@ def lambda_handler(event,context):
                     fmt = item['summaryDetail']['exDividendDate']['fmt']
                 except (KeyError, TypeError):
                     continue
-                if raw:
-                    if raw > now and raw < soon:
-                        ex_dividend_dates[ticker] = fmt
+                if raw > now and raw < soon:
+                    ex_dividend_dates[ticker] = fmt
         return ex_dividend_dates
 
 # MAIN #
@@ -449,7 +441,7 @@ def lambda_handler(event,context):
         else:
             print(f"No trades found for {date}")
 
-    # Fetch holdings from sharesight, and holdin detail from Yahoo
+    # Fetch holdings from sharesight, and holding detail from Yahoo
     if config_price_updates or config_earnings or config_ex_dividend:
         holdings = []
         tickers = []    
@@ -480,14 +472,14 @@ def lambda_handler(event,context):
                 price_payload = prepare_price_payload(service, yahoo_output, config_price_updates_percentage)
                 if price_payload:
                     price_payload_string = '\n'.join(price_payload)
-                    print(f"{price_payload_string}")
+                    print(price_payload_string)
                     chunks = chunker(price_payload, 20)
                     payload_wrapper(service, url, chunks)
                 else:
                     print(f"{service}: no holdings changed by {config_price_updates_percentage}% in the last session.")
         if config_earnings:
-            weekday = datetime.datetime.today().strftime('%A').lower()
-            if config_earnings_weekday.lower() in {'any', 'all', weekday}:
+            weekday = datetime.datetime.today().strftime('%A')
+            if config_earnings_weekday.lower() in {'any', 'all', weekday.lower()}:
                 print(f"preparing earnings date payload for {service}")
                 earnings_payload = prepare_earnings_payload(service, yahoo_output)
                 earnings_payload_string = '\n'.join(earnings_payload)
@@ -498,8 +490,8 @@ def lambda_handler(event,context):
             else:
                 print(f"Skipping earnings date because today is {weekday} and earnings_weekday is set to {config_earnings_weekday}")
         if config_ex_dividend:
-            weekday = datetime.datetime.today().strftime('%A').lower()
-            if config_ex_dividend_weekday.lower() in {'any', 'all', weekday}:
+            weekday = datetime.datetime.today().strftime('%A')
+            if config_ex_dividend_weekday.lower() in {'any', 'all', weekday.lower()}:
                 print(f"preparing ex-dividend date payload for {service}")
                 ex_dividend_payload = prepare_ex_dividend_payload(service, ex_dividend_dates, yahoo_output)
                 ex_dividend_payload_string = '\n'.join(ex_dividend_payload)
