@@ -121,13 +121,10 @@ zip -r script.zip .
 For four portfolios (72 holdings), this script takes around 10 seconds to execute trade alerts, 20 seconds to execute earnings reminders and price alerts, and  30 seconds to execute ex-dividend alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to 2 minutes.
 
 #### Scheduling
-Go to _Lambda > Functions > YOUR_FUNCTION > Add Trigger > EventBridge (Cloudwatch Events)_, and set _Schedule expression_ to, for example:
+Go to _Lambda > Functions > YOUR_FUNCTION > Add Trigger > EventBridge (Cloudwatch Events)_, and set _Schedule expression_ to, for example, This means 10 PM Monday to Friday UTC:
 ```
 cron(0 22 ? * 2-6 *)
 ```
-This means 10 PM Monday to Friday UTC.
-
-
 
 ## Limitations
 * Sharesight V2 API only provides trade times to the granularity of one day. So this script has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
