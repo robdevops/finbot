@@ -18,7 +18,7 @@
 * Python 3
 * Python modules:
 ```
-pip3 install datetime python-dotenv requests
+datetime python-dotenv requests
 ```
 
 ## Configuration Details
