@@ -219,11 +219,11 @@ def lambda_handler(event,context):
     def prepare_price_payload(service, yahoo_output, config_price_updates_percentage):
         price_payload = []
         if service == 'telegram':
-            price_payload.append(f"<b>Price alerts:</b>")
+            price_payload.append(f"<b>Price alerts (day change):</b>")
         elif service == 'slack':
-            price_payload.append(f"*Price alerts:*")
+            price_payload.append(f"*Price alerts (day change):*")
         else:
-            price_payload.append(f"**Price alerts:**")
+            price_payload.append(f"**Price alerts (day change):**")
         for ticker in yahoo_output:
             percentage = yahoo_output[ticker]['percent_change']
             title = yahoo_output[ticker]['title']
@@ -231,15 +231,15 @@ def lambda_handler(event,context):
                 yahoo_url = 'https://finance.yahoo.com/quote/' + ticker
                 if percentage < 0:
                     if service == 'telegram':
-                        price_payload.append(f"🔻 {title} (<a href='{yahoo_url}'>{ticker}</a>) day change: {str(percentage)}%")
+                        price_payload.append(f"🔻 {title} (<a href='{yahoo_url}'>{ticker}</a>) {str(percentage)}%")
                     else:
                         price_payload.append(f"🔻 {title} (<{yahoo_url}|{ticker}>) day change: {str(percentage)}%")
                 else:
                     if service == 'telegram':
-                        price_payload.append(f"⬆️  {title} (<a href='{yahoo_url}'>{ticker}</a>) day change: {str(percentage)}%")
+                        price_payload.append(f"⬆️  {title} (<a href='{yahoo_url}'>{ticker}</a>) {str(percentage)}%")
                     else:
-                        price_payload.append(f"⬆️  {title} (<{yahoo_url}|{ticker}>) day change: {str(percentage)}%")
-        print(len(price_payload)-1, f"holdings moved more than {config_price_updates_percentage}%")
+                        price_payload.append(f"⬆️  {title} (<{yahoo_url}|{ticker}>) {str(percentage)}%")
+        print(len(price_payload)-1, f"holdings moved more than {config_price_updates_percentage}%") # -1 ignores header
         return price_payload
 
     def payload_wrapper(service, url, chunks):
@@ -375,7 +375,8 @@ def lambda_handler(event,context):
             if earningsTimestamp == earningsTimestampStart == earningsTimestampEnd:
                 if earningsTimestamp > now and earningsTimestamp < soon:
                     human_timestamp = datetime.datetime.fromtimestamp(earningsTimestamp)
-                    yahoo_output[ticker] = { "title": title, "percent_change": percent_change, "earnings_date": str(human_timestamp) }
+                    human_timestamp = str(human_timestamp).split(' ')[0] # TZ is inconsistent, so get date only
+                    yahoo_output[ticker] = { "title": title, "percent_change": percent_change, "earnings_date": human_timestamp }
                 else:
                     yahoo_output[ticker] = { "title": title, "percent_change": percent_change} # earnings date past
             else:
@@ -470,7 +471,7 @@ def lambda_handler(event,context):
             if tickers:
                 print(f"preparing price change payload for {service}")
                 price_payload = prepare_price_payload(service, yahoo_output, config_price_updates_percentage)
-                if price_payload:
+                if len(price_payload) > 1: # ignore header
                     price_payload_string = '\n'.join(price_payload)
                     print(price_payload_string)
                     chunks = chunker(price_payload, 20)
@@ -482,11 +483,12 @@ def lambda_handler(event,context):
             if config_earnings_weekday.lower() in {'any', 'all', weekday.lower()}:
                 print(f"preparing earnings date payload for {service}")
                 earnings_payload = prepare_earnings_payload(service, yahoo_output)
-                earnings_payload_string = '\n'.join(earnings_payload)
-                print(f"Sending earnings dates to {service}")
-                print(earnings_payload_string)
-                chunks = chunker(earnings_payload, 20)
-                payload_wrapper(service, url, chunks)
+                if len(earnings_payload) > 1: # ignore header
+                    earnings_payload_string = '\n'.join(earnings_payload)
+                    print(f"Sending earnings dates to {service}")
+                    print(earnings_payload_string)
+                    chunks = chunker(earnings_payload, 20)
+                    payload_wrapper(service, url, chunks)
             else:
                 print(f"Skipping earnings date because today is {weekday} and earnings_weekday is set to {config_earnings_weekday}")
         if config_ex_dividend:
@@ -494,10 +496,11 @@ def lambda_handler(event,context):
             if config_ex_dividend_weekday.lower() in {'any', 'all', weekday.lower()}:
                 print(f"preparing ex-dividend date payload for {service}")
                 ex_dividend_payload = prepare_ex_dividend_payload(service, ex_dividend_dates, yahoo_output)
-                ex_dividend_payload_string = '\n'.join(ex_dividend_payload)
-                print(f"Sending ex-dividend dates to {service}")
-                print(ex_dividend_payload_string)
-                chunks = chunker(ex_dividend_payload, 20)
-                payload_wrapper(service, url, chunks)
+                if len(ex_dividend_payload) > 1: # ignore header
+                    ex_dividend_payload_string = '\n'.join(ex_dividend_payload)
+                    print(f"Sending ex-dividend dates to {service}")
+                    print(ex_dividend_payload_string)
+                    chunks = chunker(ex_dividend_payload, 20)
+                    payload_wrapper(service, url, chunks)
             else:
                 print(f"Skipping ex-dividend date because today is {weekday} and ex_dividend_weekday is set to {config_ex_dividend_weekday}")
