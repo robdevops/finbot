@@ -1,11 +1,15 @@
 # sharesight-bot
+
+## Description
 * Daily trade notifications across all portfolios
 * Daily price movements of holdings over a defined threshold
 * Earnings date reminders for your holdings
 * Ex-dividend date reminders for your holdings
 * Discord, Slack and Telegram support
+* For speed and reliability, it uses no uncommon libraries or screen scraping
 
 ![screenshot of Slack message](screenshot.png?raw=true "Screenshot of Slack message")
+
 
 
 ## Dependencies
@@ -14,7 +18,7 @@
 * Python 3
 * Python modules:
 ```
-pip3 install datetime python-dotenv requests
+datetime python-dotenv requests
 ```
 
 ## Configuration Details
@@ -54,14 +58,14 @@ telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhIjKlMnOpQrStUvWxYz/
 Setting `trade_updates=true` in the .env file will tell the bot to send Sharesight trades to your configured chat services.
 
 ### Price alerts
-Setting `price_updates=true` in the .env file will trigger price alerts for holdings which moved by a certain percentage in the last session. This data is sourced from Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The default threshold is 10% but you can change it by setting `price_updates_percentage` in the .env file. Example:
+Setting `price_updates=true` in the .env file will trigger price alerts for holdings which moved by a certain percentage in the most recent session. This data is sourced from Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The default threshold is 10% but you can change it by setting `price_updates_percentage` in the .env file. Example:
 ```
 price_updates=true
 price_updates_percentage=10
 ```
 
 ### Earnings reminders
-Setting `earnings=true` in the .env file will trigger upcoming earnings date alerts. The data is sourced from Yahoo! Finance. Events more than `earnings_days` into the future will be ignored. Earnings reminders will only run on `earnings_weekday`. Set to `any` to run it on every execution of the script. Example:`
+Setting `earnings=true` in the .env file will trigger upcoming earnings date alerts. The data is sourced from Yahoo! Finance. Events more than `earnings_days` into the future will be ignored. Earnings reminders will only run on `earnings_weekday`. Set `earnings_weekday=any` to run it on every execution of the script. Example:
 ```
 earnings=true
 earnings_days=7
@@ -69,7 +73,7 @@ earnings_weekday=Friday
 ```
 
 ### Ex-dividend reminders
-Setting `ex_dividend=true` in the .env file will trigger upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `ex_dividend_days` into the future will be ignored. Ex-dividend reminders will only run on `ex_dividend_weekday`. Set to `any` to run it on every execution of the script. Example:`
+Setting `ex_dividend=true` in the .env file will trigger upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `ex_dividend_days` into the future will be ignored. Ex-dividend reminders will only run on `ex_dividend_weekday`. Set `ex_dividend_weekday=any` to run it on every execution of the script. Example:
 ```
 ex_dividend=true
 ex_dividend_days=7
@@ -79,14 +83,56 @@ ex_dividend_weekday=Friday
 ## Running the script
 The script has been designed to run from AWS Lambda, but you can run it on a normal Python environment with `python3 sharesight-bot.py`
 
+
+### Linux
+#### Installation
+```
+sudo pip3 install datetime python-dotenv requests
+```
+```
+sudo su -c 'git clone https://github.com/robdevops/sharesight-bot.git /usr/local/bin/sharesight-bot/'
+```
+
+#### Configuration
+```
+sudo vi /usr/local/bin/sharesight-bot/.env
+```
+
+#### Scheduling
+Add a wrapper to /etc/cron.daily/:
+```
+echo '!#/bin/bash; cd /usr/local/bin/sharesight-bot/; python3 sharesight-bot.py' | sudo tee /etc/cron.daily/sharesight-bot
+````
+Ensure it's executable:
+```
+sudo chmod u+x /etc/cron.daily/sharesight-bot
+```
+
+### Amazon Lambda
+#### Installation
 To prepare zip for upload to Lambda:
 ```
 cd sharesight-bot
 pip3 install datetime python-dotenv requests --upgrade --target=$(pwd)
 zip -r script.zip .
 ```
-This script takes around 10 seconds to execute trade alerts, 20 seconds to execute earnings reminders and price alerts, and  30 seconds to execute ex-dividend alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to 2 minutes.
+
+#### Configuration
+For four portfolios (72 holdings), this script takes around 10 seconds to execute trade alerts, 20 seconds to execute earnings reminders and price alerts, and  30 seconds to execute ex-dividend alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to 2 minutes.
+
+#### Scheduling
+Go to _Lambda > Functions > YOUR_FUNCTION > Add Trigger > EventBridge (Cloudwatch Events)_, and set _Schedule expression_ to, for example, 10 PM Monday to Friday UTC:
+```
+cron(0 22 ? * 2-6 *)
+```
 
 ## Limitations
 * Sharesight V2 API only provides trade times to the granularity of one day. So this script has been designed to run from cron once per day after market close. In the future, it could store trades locally and ignore known trades, so that it can be run with higher frequency.
 * Discord shows garbage link previews from Sharesight. Modify the script to remove hyperlinks, or disable this for your Discord account under _Settings > Text & Images > Embeds and link previews._
+
+## Suggestions
+* Know a chat or notification service with a REST API?
+* Is my code is doing something the hard way?
+* Something important is missing from this README?
+
+Please log an [issue](https://github.com/robdevops/sharesight-bot/issues)!
