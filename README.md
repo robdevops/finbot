@@ -11,15 +11,13 @@
 
 ![screenshot of Slack message](screenshot.png?raw=true "Screenshot of Slack message")
 
-
-
 ## Dependencies
 * Sharesight paid plan, preferably with automatic trade imports, and an API key
 * Slack / Discord webhooks / Telegram bot user
 * Python 3
 * Python modules:
 ```
-datetime python-dotenv requests
+bs4 datetime python-dotenv requests
 ```
 
 ## Configuration Details
@@ -95,7 +93,7 @@ The script has been designed to run from AWS Lambda, but you can run it on a nor
 ### Linux
 #### Installation
 ```
-sudo pip3 install datetime python-dotenv requests
+sudo pip3 install bs4 datetime python-dotenv requests
 ```
 ```
 sudo su -c 'git clone https://github.com/robdevops/sharesight-bot.git /usr/local/bin/sharesight-bot/'
