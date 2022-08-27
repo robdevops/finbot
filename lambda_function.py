@@ -220,7 +220,10 @@ def lambda_handler(event,context):
         return payload
     
     def webhook_write(url, payload):
-        # slack todo: "unfurl_links": false, "unfurl_media": false
+        if 'hooks.slack.com' in url:
+            headers={'Content-type': 'application/json', 'unfurl_links': 'false', 'unfurl_media': 'false'}
+        else:
+            headers={'Content-type': 'application/json'}
         try:
             r = requests.post(url, headers={'Content-type': 'application/json'}, json={"text": payload})
         except:
