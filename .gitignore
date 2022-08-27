@@ -1,3 +1,5 @@
 .*
 !.gitignore
 __pycache__/
+*.bak
+todo.txt

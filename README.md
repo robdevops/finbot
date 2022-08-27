@@ -4,7 +4,8 @@
 * Daily trade notifications across all portfolios
 * Daily price movements of holdings over a defined threshold
 * Earnings date reminders for your holdings
-* Ex-dividend date reminders for your holdings
+* Ex-dividend date warnings for your holdings
+* Highly shorted stock warnings for your holdings (AU, US)
 * Discord, Slack and Telegram support
 * For speed and reliability, it uses no uncommon libraries or screen scraping
 
@@ -58,14 +59,14 @@ telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhIjKlMnOpQrStUvWxYz/
 Setting `trade_updates=true` in the .env file will tell the bot to send Sharesight trades to your configured chat services.
 
 ### Price alerts
-Setting `price_updates=true` in the .env file will trigger price alerts for holdings which moved by a certain percentage in the most recent session. This data is sourced from Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The default threshold is 10% but you can change it by setting `price_updates_percentage` in the .env file. Example:
+Setting `price_updates=true` in the .env file will trigger price alerts for holdings which moved by a certain percentage in the most recent session. This data is sourced from Finviz (US) and Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The default threshold is 10% but you can change it by setting `price_updates_percentage` in the .env file. Example:
 ```
 price_updates=true
 price_updates_percentage=10
 ```
 
 ### Earnings reminders
-Setting `earnings=true` in the .env file will trigger upcoming earnings date alerts. The data is sourced from Yahoo! Finance. Events more than `earnings_days` into the future will be ignored. Earnings reminders will only run on `earnings_weekday`. Set `earnings_weekday=any` to run it on every execution of the script. Example:
+Setting `earnings=true` in the .env file will trigger upcoming earnings date alerts. The data is sourced from Finviz (US) and Yahoo! Finance. Events more than `earnings_days` into the future will be ignored. Earnings reminders will only run on `earnings_weekday`. Set `earnings_weekday=any` to run it on every execution of the script. Example:
 ```
 earnings=true
 earnings_days=7
@@ -78,6 +79,13 @@ Setting `ex_dividend=true` in the .env file will trigger upcoming ex-dividend da
 ex_dividend=true
 ex_dividend_days=7
 ex_dividend_weekday=Friday
+```
+
+### Highly shorted stock warnings
+Setting `shorts=true` in the .env file will trigger highly shorted stock warnings. The data is sourced from Finviz (US) and Shortman (AU). Warnings will only run on `shorts_weekday`. Set `shorts_weekday=any` to run it on every execution of the script. Example:
+```
+shorts=true
+shorts_weekday=Friday
 ```
 
 ## Running the script
@@ -118,7 +126,7 @@ zip -r script.zip .
 ```
 
 #### Configuration
-For four portfolios (72 holdings), this script takes around 10 seconds to execute trade alerts, 20 seconds to execute earnings reminders and price alerts, and  30 seconds to execute ex-dividend alerts. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to 2 minutes.
+For four portfolios (72 holdings) and with all features enabled, this script takes the better part of a minute to run. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to 2 minutes.
 
 #### Scheduling
 Go to _Lambda > Functions > YOUR_FUNCTION > Add Trigger > EventBridge (Cloudwatch Events)_, and set _Schedule expression_ to, for example, 10 PM Monday to Friday UTC:
