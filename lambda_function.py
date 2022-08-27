@@ -1,18 +1,20 @@
 #!/usr/bin/python3
 
-import os, time, urllib.parse, json
+import json, os, time, urllib.parse
 import datetime
+from dateutil import relativedelta
 from dotenv import load_dotenv
 import requests
+from bs4 import BeautifulSoup
 
 def lambda_handler(event,context):
     load_dotenv()
-    sharesight_auth_data = {
-            "grant_type": os.getenv('sharesight_grant_type'),
+    sharesight_auth = {
+            "grant_type": 'client_credentials',
             "code": os.getenv('sharesight_code'),
             "client_id": os.getenv('sharesight_client_id'),
             "client_secret": os.getenv('sharesight_client_secret'),
-            "redirect_uri": os.getenv('sharesight_redirect_uri')
+            "redirect_uri": 'urn:ietf:wg:oauth:2.0:oob'
     }
     webhooks = {}
     if os.getenv('slack_webhook'):
@@ -22,19 +24,22 @@ def lambda_handler(event,context):
     if os.getenv('telegram_url'):
         webhooks['telegram'] = os.getenv('telegram_url')
 
+    config_trade_updates = True # default
     if os.getenv('trade_updates'):
-        config_trade_updates = os.getenv("trade_updates", 'False').lower() in ('true', '1', 't')
+        config_trade_updates=os.getenv("trade_updates",'False').lower() in ('true','1','t')
 
+    config_price_updates = True # default
     if os.getenv('price_updates'):
-        config_price_updates = os.getenv("price_updates", 'False').lower() in ('true', '1', 't')
+        config_price_updates=os.getenv("price_updates",'False').lower() in ('true','1','t')
 
-    config_price_updates_percentage = 10 # default
-    if os.getenv('price_updates_percentage'):
-        config_price_updates_percentage = os.getenv('price_updates_percentage') 
-        config_price_updates_percentage = float(config_price_updates_percentage)
+    config_price_updates_percent = 10 # default
+    if os.getenv('price_updates_percent'):
+        config_price_updates_percent = os.getenv('price_updates_percent') 
+        config_price_updates_percent = float(config_price_updates_percent)
 
+    config_earnings = True # default
     if os.getenv('earnings'):
-        config_earnings = os.getenv("earnings", 'False').lower() in ('true', '1', 't')
+        config_earnings=os.getenv("earnings",'False').lower() in ('true','1','t')
 
     config_earnings_days = 3 # default
     if os.getenv('earnings_days'):
@@ -45,8 +50,9 @@ def lambda_handler(event,context):
     if os.getenv('earnings_weekday'):
         config_earnings_weekday = os.getenv('earnings_weekday')
 
+    config_ex_dividend = True # default
     if os.getenv('ex_dividend'):
-        config_ex_dividend = os.getenv("ex_dividend", 'False').lower() in ('true', '1', 't')
+        config_ex_dividend=os.getenv("ex_dividend",'False').lower() in ('true','1','t')
 
     config_ex_dividend_days = 7 # default
     if os.getenv('ex_dividend_days'):
@@ -56,6 +62,18 @@ def lambda_handler(event,context):
     config_ex_dividend_weekday = 'any' # default
     if os.getenv('ex_dividend_weekday'):
         config_ex_dividend_weekday = os.getenv('ex_dividend_weekday') 
+
+    config_shorts = False # default
+    if os.getenv('shorts'):
+        config_shorts=os.getenv("shorts",'False').lower() in ('true','1','t')
+
+    config_shorts_weekday = 'any' # default
+    if os.getenv('shorts_weekday'):
+        config_shorts_weekday = os.getenv('shorts_weekday') 
+
+    config_shorts_percent = 15 # default
+    if os.getenv('shorts_weekday'):
+        config_shorts_percent = int(os.getenv('shorts_percent'))
 
     #time_now = datetime.datetime.today() # 2022-08-23 01:35:20.310961
     time_now = datetime.datetime.utcnow() # 2022-08-22 15:35:20.311000
@@ -68,32 +86,31 @@ def lambda_handler(event,context):
             r.headers["Authorization"] = "Bearer " + self.token
             return r
     
-    def sharesight_get_token(sharesight_auth_data):
+    def sharesight_get_token(sharesight_auth):
         print("Fetching Sharesight auth token")
         try:
-            r = requests.post("https://api.sharesight.com/oauth2/token", data=sharesight_auth_data)
+            r = requests.post("https://api.sharesight.com/oauth2/token", data=sharesight_auth)
         except:
             print("Failed to get Sharesight access token")
             exit(1)
-            return []
         if r.status_code != 200:
-            print(f"Could not fetch token from endpoint. Code {r.status_code}. Check config in .env file")
+            print(r.status_code, "Could not fetch Sharesight token. Check config in .env file")
             exit(1)
-            return []
         data = r.json()
         return data['access_token']
 
     def sharesight_get_portfolios():
         print("Fetching Sharesight portfolios")
         portfolio_dict = {}
+        url = "https://api.sharesight.com/api/v2/portfolios.json"
         try:
-            r = requests.get("https://api.sharesight.com/api/v2/portfolios.json", headers={'Content-type': 'application/json'}, auth=BearerAuth(token))
+            r = requests.get(url, headers={'Content-type': 'application/json'}, auth=BearerAuth(token))
         except:
             print("Failure talking to Sharesight")
-            return []
+            return {}
         if r.status_code != 200:
-            print(f"Error communicating with Sharesight API. Code: {r.status_code}")
-            return []
+            print(r.status_code, "error communicating with Sharesight.")
+            return {}
         data = r.json()
         for portfolio in data['portfolios']:
             portfolio_dict[portfolio['name']] = portfolio['id']
@@ -101,7 +118,7 @@ def lambda_handler(event,context):
         return portfolio_dict
 
     def sharesight_get_trades(portfolio_name, portfolio_id):
-        print(f"Fetching Sharesight trades for {portfolio_name} on {date}", end=": ")
+        print("Fetching Sharesight trades for", portfolio_name, "on", date, end=": ")
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
         url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + date + '&end_date=' + date
         r = requests.get(url, auth=BearerAuth(token))
@@ -112,7 +129,7 @@ def lambda_handler(event,context):
         return data['trades']
 
     def sharesight_get_holdings(portfolio_name, portfolio_id):
-        print(f"Fetching Sharesight holdings for {portfolio_name}", end=": ")
+        print("Fetching Sharesight holdings for", portfolio_name, end=": ")
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
         url = endpoint + str(portfolio_id) + '/valuation.json?grouping=ungrouped&balance_date=' + date
         r = requests.get(url, auth=BearerAuth(token))
@@ -120,14 +137,24 @@ def lambda_handler(event,context):
         print(len(data['holdings']))
         return data['holdings']
 
-    def transform_tickers(holdings):
+    def transform_tickers_for_yahoo(holdings):
         tickers = []
         for holding in holdings:
             symbol = holding['symbol']
             market = holding['market']
             if market == 'ASX':
                 tickers.append(symbol + '.AX')
-            elif market in ('NASDAQ', 'NYSE', 'BATS'):
+            if market == 'HKG':
+                tickers.append(symbol + '.HK')
+            if market == 'KRX':
+                tickers.append(symbol + '.KS')
+            if market == 'KOSDAQ':
+                tickers.append(symbol + '.KQ')
+            if market == 'LSE':
+                tickers.append(symbol + '.L')
+            if market == 'TAI':
+                tickers.append(symbol + '.TW')
+            if market in ('NASDAQ', 'NYSE', 'BATS'):
                 if symbol == 'DRNA':
                     continue
                 tickers.append(symbol)
@@ -137,16 +164,19 @@ def lambda_handler(event,context):
         return tickers
         
     def prepare_trade_payload(service, trades):
-        print(f"Preparing payload: {service}")
-        trade_payload = []
+        print("Preparing payload:", service)
+        payload = []
+        url = "https://portfolio.sharesight.com/holdings/"
         if service == 'telegram':
-            trade_payload.append(f"<b>Today's trades:</b>")
+            payload.append("<b>Today's trades:</b>")
         elif service == 'slack':
-            trade_payload.append(f"*Today's trades:*")
+            payload.append("*Today's trades:*")
+        elif service == 'discord':
+            payload.append("**Today's trades:**")
         else:
-            trade_payload.append(f"**Today's trades:**")
+            payload.append("Today's trades:")
         for trade in trades:
-            trade_id = trade['id']
+            trade_id = str(trade['id'])
             portfolio = trade['portfolio']
             date = trade['transaction_date']
             type = trade['transaction_type']
@@ -157,8 +187,7 @@ def lambda_handler(event,context):
             market = trade['market']
             value = round(trade['value'])
             value = abs(value)
-            holding_id = trade['holding_id']
-            #print(f"{date} {portfolio} {type} {units} {symbol} on {market} for {price} {currency} per share.")
+            holding_id = str(trade['holding_id'])
             flag=''
             if market == 'ASX':
                 flag = '🇦🇺'
@@ -176,71 +205,73 @@ def lambda_handler(event,context):
             emoji=''
             if type == 'BUY':
                 action = 'bought'
-                emoji = '💸'
+                emoji = '💸 '
             elif type == 'SELL':
                 action = 'sold'
-                emoji = '💰'
+                emoji = '💰 '
     
             if service == 'telegram':
-                holding_link = '<a href=https://portfolio.sharesight.com/holdings/>' + str(holding_id) + f'>{symbol}</a>'
-                trade_link = '<a href=https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(trade_id) + f'/edit>{action}</a>'
+                holding_link = '<a href=' + url + '>' + holding_id + '>' + symbol + '</a>'
+                trade_link = '<a href=' + url + holding_id + '/trades/' + trade_id + '/edit>' + action + '</a>'
             else:
-                holding_link = '<https://portfolio.sharesight.com/holdings/' + str(holding_id) + f'|{symbol}>'
-                trade_link = '<https://portfolio.sharesight.com/holdings/' + str(holding_id) + '/trades/' + str(trade_id) + '/edit' + f'|{action}>'
-            trade_payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}")
-        return trade_payload
+                holding_link = '<' + url + holding_id + '|' + symbol + '>'
+                trade_link = '<' + url + holding_id + '/trades/' + trade_id + '/edit' + '|' + action + '>'
+            payload.append(emoji + portfolio + trade_link + currency + value + ' of ' + holding_link + flag)
+        return payload
     
     def webhook_write(url, payload):
         # slack todo: "unfurl_links": false, "unfurl_media": false
         try:
-            r = requests.post(url, headers={'Content-type': 'application/json'}, json={"text":payload})
+            r = requests.post(url, headers={'Content-type': 'application/json'}, json={"text": payload})
         except:
-            print(f"Failure talking to webhook: {url}")
-            return []
+            print("Failure talking to webhook:", url)
+            return False
         if r.status_code != 200:
-            print(f"Error communicating with webhook. HTTP code: {r.status_code}, URL: {url}")
-            return []
+            print(r.status_code, "error communicating with", url)
+            return False
     
     def telegram_write(url, payload):
+        print(payload)
         payload = urllib.parse.quote_plus(payload)
         url = url + '&parse_mode=HTML' + '&disable_web_page_preview=true' + '&text=' + payload
         try:
             r = requests.get(url)
         except:
-            print(f"Failure talking to webhook: {url}")
-            return []
+            print("Failure talking to webhook:", url)
+            return False
         if r.status_code != 200:
-            print(f"Error communicating with webhook. HTTP code: {r.status_code}, URL: {url}")
-            return []
+            print(r.status_code, "error communicating with", url)
+            return False
 
     def chunker(seq, size):
         return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
-    def prepare_price_payload(service, yahoo_output, config_price_updates_percentage):
-        price_payload = []
+    def prepare_price_payload(service, market_data):
+        payload = []
         if service == 'telegram':
-            price_payload.append(f"<b>Price alerts (day change):</b>")
+            payload.append("<b>Price alerts (day change):</b>")
         elif service == 'slack':
-            price_payload.append(f"*Price alerts (day change):*")
+            payload.append("*Price alerts (day change):*")
+        elif service == 'discord':
+            payload.append("**Price alerts (day change):**")
         else:
-            price_payload.append(f"**Price alerts (day change):**")
-        for ticker in yahoo_output:
-            percentage = yahoo_output[ticker]['percent_change']
-            title = yahoo_output[ticker]['title']
-            if abs(percentage) > config_price_updates_percentage:
-                yahoo_url = 'https://finance.yahoo.com/quote/' + ticker
-                if percentage < 0:
-                    if service == 'telegram':
-                        price_payload.append(f"🔻 {title} (<a href='{yahoo_url}'>{ticker}</a>) {str(percentage)}%")
-                    else:
-                        price_payload.append(f"🔻 {title} (<{yahoo_url}|{ticker}>) day change: {str(percentage)}%")
+            payload.append("Price alerts (day change):")
+        for ticker in market_data:
+            percent = market_data[ticker]['percent_change']
+            title = market_data[ticker]['title']
+            if abs(float(percent)) > config_price_updates_percent:
+                url = 'https://finance.yahoo.com/quote/' + ticker
+                if percent < 0:
+                    emoji = "🔻 "
                 else:
-                    if service == 'telegram':
-                        price_payload.append(f"⬆️  {title} (<a href='{yahoo_url}'>{ticker}</a>) {str(percentage)}%")
-                    else:
-                        price_payload.append(f"⬆️  {title} (<{yahoo_url}|{ticker}>) {str(percentage)}%")
-        print(len(price_payload)-1, f"holdings moved more than {config_price_updates_percentage}%") # -1 ignores header
-        return price_payload
+                    emoji = "⬆️  "
+                percent = str(round(percent))
+                if service == 'telegram':
+                    payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + percent + '%')
+                else:
+                    payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + percent + '%')
+        print(len(payload)-1, f"holdings moved more than {config_price_updates_percent}%") # -1 ignores header
+        return payload
 
     def payload_wrapper(service, url, chunks):
         count=0
@@ -254,253 +285,399 @@ def lambda_handler(event,context):
             if count < len(list(chunks)):
                 time.sleep(1) # workaround potential API throttling
 
-    def prepare_earnings_payload(service, yahoo_output):
-        earnings_payload = []
-        if service == 'telegram':
-            earnings_payload.append(f"<b>Upcoming earnings:</b>")
-        elif service == 'slack':
-            earnings_payload.append(f"*Upcoming earnings:*")
-        else:
-            earnings_payload.append(f"**Upcoming earnings:**")
-        for ticker in yahoo_output:
-            title = yahoo_output[ticker]['title']
-            yahoo_url = 'https://finance.yahoo.com/quote/' + ticker
-            try:
-                earnings_date = yahoo_output[ticker]['earnings_date']
-            except KeyError:
-                continue
-            if earnings_date:
-                if service == 'telegram':
-                    earnings_payload.append(f"📣 {title} (<a href='{yahoo_url}'>{ticker}</a>) reports on {earnings_date}")
-                else:
-                    earnings_payload.append(f"📣 {title} (<{yahoo_url}|{ticker}>) reports on {earnings_date}")
-        return earnings_payload
-
-    def prepare_ex_dividend_payload(service, ex_dividend_dates, yahoo_output):
-        ex_dividend_payload = []
-        if service == 'telegram':
-            ex_dividend_payload.append(f"<b>Upcoming ex-dividend dates:</b>")
-        elif service == 'slack':
-            ex_dividend_payload.append(f"*Upcoming ex-dividend dates:*")
-        else:
-            ex_dividend_payload.append(f"**Upcoming ex-dividend dates:**")
-        for ticker in ex_dividend_dates:
-            ex_dividend_date = ex_dividend_dates[ticker]
-            yahoo_url = 'https://finance.yahoo.com/quote/' + ticker
-            title = yahoo_output[ticker]['title']
-            if service == 'telegram':
-                ex_dividend_payload.append(f"🤑 {title} (<a href='{yahoo_url}'>{ticker}</a>) goes ex-dividend on {ex_dividend_date}")
-            else:
-                ex_dividend_payload.append(f"🤑 {title} (<{yahoo_url}|{ticker}>) goes ex-dividend on {ex_dividend_date}")
-        return ex_dividend_payload
-
-    def yahoo_fetch(tickers):
-        print(f"Fetching Yahoo price info for {len(tickers)} holdings")
-        yahoo_output = {}
+    def prepare_earnings_payload(service):
+        payload = []
+        emoji = "📣 "
+        finviz_date_list = []
         now = int(time.time())
         soon = now + config_earnings_days * 86400
-        url = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' + ','.join(tickers)
-        url2 = 'https://query2.finance.yahoo.com/v7/finance/quote?symbols=' + ','.join(tickers)
-        try:
-            r = requests.get(url, headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
-        except:
-            print(f"Failed to query Yahoo. Trying alternate URL.")
+        today = datetime.datetime.today()
+        this_month = str(today.strftime('%b'))
+        this_year = str(today.strftime('%Y'))
+        next_year = today + relativedelta.relativedelta(years=1)
+        next_year = str(next_year.strftime('%Y'))
+        if service == 'telegram':
+            payload.append("<b>Upcoming earnings:</b>")
+        elif service == 'slack':
+            payload.append("*Upcoming earnings:*")
+        elif service == 'discord':
+            payload.append("**Upcoming earnings:**")
+        else:
+            payload.append("Upcoming earnings:")
+        for ticker in market_data:
+            title = market_data[ticker]['title']
+            url = 'https://finance.yahoo.com/quote/' + ticker
+            before_after_close = ''
             try:
-                r = requests.get(url2, headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
-            except:
-                print(f"Failed to query alternate URL. Giving up.")
-                return []
-            if r.status_code != 200:
-                print(f"alternate URL returned {r.status_code}. Giving up.")
-                return []
-        if r.status_code != 200:
-            print(f"Yahoo returned {r.status_code}. Trying alternate URL.")
+                earnings_date = market_data[ticker]['earnings_date']
+            except KeyError:
+                continue
+            if earnings_date == '-':
+                continue
+            if earnings_date:
+                if '/a' in str(earnings_date) or '/b' in str(earnings_date):
+                    human_date = earnings_date
+                    finviz_date_list = str(earnings_date).split('/')
+                    finviz_suffix = finviz_date_list[1]
+                    finviz_date_list = finviz_date_list[0].split(' ')
+                    finviz_month = finviz_date_list[0]
+                    finviz_day = finviz_date_list[1]
+                    if this_month in ('Nov','Dec') and finviz_month in ('Jan','Feb'): # guess Finviz year
+                        finviz_year = next_year
+                    else:
+                        finviz_year = this_year
+                    finviz_date = finviz_year + finviz_month + finviz_day
+                    data_seconds = time.mktime(datetime.datetime.strptime(finviz_date,"%Y%b%d").timetuple())
+                    if finviz_suffix == 'b':
+                        data_seconds = data_seconds + 3600 * 9 # 9 AM
+                    if finviz_suffix == 'a':
+                        data_seconds = data_seconds + 3600 * 18 # 6 PM
+                else: # yahoo
+                    data_seconds = int(earnings_date)
+                    data_seconds = data_seconds + 3600 * 4 # allow for Yahoo's inaccuracy
+                    human_date = time.strftime('%b %d', time.localtime(data_seconds))
+                if data_seconds > now and data_seconds < soon:
+                    if service == 'telegram':
+                        payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + human_date)
+                    else:
+                        payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + human_date)
+        return payload
+
+    def prepare_ex_dividend_payload(service, market_data):
+        payload = []
+        emoji = "🤑 "
+        now = int(time.time())
+        soon = now + config_ex_dividend_days * 86400
+        if service == 'telegram':
+            payload.append("<b>Ex-dividend dates avoid buy:</b>")
+        elif service == 'slack':
+            payload.append("*Ex-dividend dates avoid buy:*")
+        elif service == 'discord':
+            payload.append("**Ex-dividend dates avoid buy:**")
+        else:
+            payload.append("Upcoming ex-dividend dates:")
+        for ticker in market_data:
             try:
-                r = requests.get(url2, headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
-            except:
-                print(f"Failed to query alternate URL. Giving up.")
-                return []
-            if r.status_code != 200:
-                print(f"alternate URL returned {r.status_code}. Giving up.")
-                return []
+                timestamp = market_data[ticker]['ex_dividend_date']
+            except KeyError:
+                continue
+            url = 'https://finance.yahoo.com/quote/' + ticker
+            title = market_data[ticker]['title']
+            if timestamp > now and timestamp < soon:
+                date = time.strftime('%b %d', time.localtime(timestamp))
+                if service == 'telegram':
+                    payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + date)
+                else:
+                    payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + date)
+        return payload
+
+    def fetch_yahoo(tickers):
+        print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
+        yahoo_output = {}
+        yahoo_urls = ['https://query1.finance.yahoo.com/v7/finance/quote?symbols=' + ','.join(tickers)]
+        yahoo_urls.append('https://query2.finance.yahoo.com/v7/finance/quote?symbols=' + ','.join(tickers))
+        headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+        for url in yahoo_urls:
+            try:
+                r = requests.get(url, headers=headers)
+            except Exception as e:
+                print(e)
+            else:
+                if r.status_code != 200:
+                    print(r.status_code, "returned by", url)
+                    continue
+                break
+        else:
+            print("Exhausted Yahoo API attempts. Giving up")
+            return False
         data = r.json()
         data = data['quoteResponse']
         data = data['result']
         for item in data:
-            #print(json.dumps(ticker, indent=4, sort_keys=True))
             ticker = item['symbol']
             title = item['longName']
             percent_change = item['regularMarketChangePercent']
-            percent_change = round(percent_change, 2)
-
-            # shorten long names to reduce line wrap on mobile
-            title = title.replace("First Trust NASDAQ Clean Edge Green Energy Index Fund", "NASDAQ Clean Energy ETF")
-            title = title.replace("Global X ", "")
-            title = title.replace("The ", "")
-            title = title.replace(" Australian", " Aus")
-            title = title.replace(" Australia", " Aus")
-            title = title.replace(" Infrastructure", " Infra")
-            title = title.replace(" Manufacturing Company", " ")
-            title = title.replace(" Limited", " ")
-            title = title.replace(" Ltd", " ")
-            title = title.replace(" Holdings", " ")
-            title = title.replace(" Corporation", " ")
-            title = title.replace(" Incorporated", " ")
-            title = title.replace(" incorporated", " ")
-            title = title.replace(" Technologies", " ")
-            title = title.replace(" Technology", " ")
-            title = title.replace(" Enterprises", " ")
-            title = title.replace(" Ventures", " ")
-            title = title.replace(" Co.", " ")
-            title = title.replace(" Tech ", " ")
-            title = title.replace(" Company", " ")
-            title = title.replace(" Tech ", " ")
-            title = title.replace(" Group", " ")
-            title = title.replace(", Inc", " ")
-            title = title.replace(" Inc", " ")
-            title = title.replace(" Plc", " ")
-            title = title.replace(" plc", " ")
-            title = title.replace(" Index", " ")
-            title = title.replace(" .", " ")
-            title = title.replace(" ,", " ")
-            title = title.replace("  ", " ")
-            title = title.rstrip()
+            try:
+                dividend = float(item['trailingAnnualDividendRate'])
+            except (KeyError, IndexError):
+                dividend = float(0)
+            title = transform_title(title)
             try:
                 earningsTimestamp = item['earningsTimestamp']
                 earningsTimestampStart = item['earningsTimestampStart']
                 earningsTimestampEnd = item['earningsTimestampEnd']
             except (KeyError, IndexError):
-                yahoo_output[ticker] = { "title": title, "percent_change": percent_change} # no earnings date
+                yahoo_output[ticker] = { 'ticker': ticker, 'title': title, 'percent_change': percent_change, 'dividend': dividend} # no date
                 continue
             if earningsTimestamp == earningsTimestampStart == earningsTimestampEnd:
-                if earningsTimestamp > now and earningsTimestamp < soon:
-                    human_timestamp = datetime.datetime.fromtimestamp(earningsTimestamp)
-                    human_timestamp = str(human_timestamp).split(' ')[0] # TZ is inconsistent, so get date only
-                    yahoo_output[ticker] = { "title": title, "percent_change": percent_change, "earnings_date": human_timestamp }
-                else:
-                    yahoo_output[ticker] = { "title": title, "percent_change": percent_change} # earnings date past
-            else:
-                yahoo_output[ticker] = { "title": title, "percent_change": percent_change} # earnings date not announced
+                yahoo_output[ticker] = { 'ticker': ticker, 'title': title, 'percent_change': percent_change, 'dividend': dividend, 'earnings_date': earningsTimestamp}
+            else: # approximate date
+                yahoo_output[ticker] = { 'ticker': ticker, 'title': title, 'percent_change': percent_change, 'dividend': dividend}
         return yahoo_output
 
-    def yahoo_fetch_ex_dividends(tickers, config_ex_dividend_days):
-        print(f"Fetching {len(tickers)} ex-dividend dates from Yahoo")
-        now = int(time.time())
-        soon = now + config_ex_dividend_days * 86400
-        ex_dividend_dates = {}
+    def transform_title(title):
+            # shorten long names to reduce line wrap on mobile
+            title = title.replace('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'NASDAQ Clean Energy ETF')
+            title = title.replace('Atlantica Sustainable Infrastructure', 'Atlantica Sustainable')
+            title = title.replace('Flight Centre Travel', 'Flight Centre')
+            title = title.replace('Global X ', '')
+            title = title.replace('The ', '')
+            title = title.replace(' Australian', ' Aus')
+            title = title.replace(' Australia', ' Aus')
+            title = title.replace(' Infrastructure', 'Infra')
+            title = title.replace(' Manufacturing Company', ' ')
+            title = title.replace(' Limited', ' ')
+            title = title.replace(' Ltd', ' ')
+            title = title.replace(' Holdings', ' ')
+            title = title.replace(' Corporation', ' ')
+            title = title.replace(' Incorporated', ' ')
+            title = title.replace(' incorporated', ' ')
+            title = title.replace(' Technologies', ' ')
+            title = title.replace(' Technology', ' ')
+            title = title.replace(' Enterprises', ' ')
+            title = title.replace(' Ventures', ' ')
+            title = title.replace(' Co.', ' ')
+            title = title.replace(' Tech ', ' ')
+            title = title.replace(' Company', ' ')
+            title = title.replace(' Tech ', ' ')
+            title = title.replace(' Group', ' ')
+            title = title.replace(', Inc', ' ')
+            title = title.replace(' Inc', ' ')
+            title = title.replace(' Plc', ' ')
+            title = title.replace(' plc', ' ')
+            title = title.replace(' Index', ' ')
+            title = title.replace(' .', ' ')
+            title = title.replace(' ,', ' ')
+            title = title.replace('  ', ' ')
+            title = title.rstrip()
+            return title
+
+    def fetch_yahoo_ex_dividends(market_data):
+        print("Fetching ex-dividend dates from Yahoo")
+        base_url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/'
+        headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+        for ticker in market_data:
+            yahoo_urls = [base_url + ticker + '?modules=summaryDetail']
+            yahoo_urls.append(base_url + ticker + '?modules=summaryDetail')
+            if market_data[ticker]['dividend'] > 0:
+                for url in yahoo_urls:
+                    try:
+                        r = requests.get(url, headers=headers)
+                    except Exception as e:
+                        print(e)
+                    else:
+                        if r.status_code != 200:
+                            print(r.status_code, "returned by", url)
+                            continue
+                        break
+                else:
+                    print("Exhausted Yahoo API attempts. Giving up")
+                    return False
+                data = r.json()
+                data = data['quoteSummary']
+                data = data['result']
+                for item in data:
+                    try:
+                        timestamp = item['summaryDetail']['exDividendDate']['raw']
+                    except (KeyError, TypeError):
+                        timestamp == ''
+                    market_data[ticker]['ex_dividend_date'] = timestamp # naughty update global dict
+        return
+
+    def prepare_shorts_payload(service, market_data):
+        payload = []
+        emoji = "⚠️  "
+        if service == 'telegram':
+            payload.append("<b>Highly shorted stock warning:</b>")
+        elif service == 'slack':
+            payload.append("*Highly shorted stock warning:*")
+        elif service == 'discord':
+            payload.append("**Highly shorted stock warning:**")
+        else:
+            payload.append("Highly shorted stock warning:")
         for ticker in tickers:
-            yahoo_output = {}
-            url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/' + ticker + '?modules=summaryDetail'
-            url2 = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/' + ticker + '?modules=summaryDetail'
             try:
-                r = requests.get(url, headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
+                percent_short = market_data[ticker]['percent_short']
             except:
-                print(f"Failed to query Yahoo. Trying alternate URL.")
-                try:
-                    r = requests.get(url2, headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
-                except:
-                    print(f"Failed to query alternate URL. Giving up.")
-                    return []
-                if r.status_code != 200:
-                    print(f"alternate URL returned {r.status_code}. Giving up.")
-                    return []
-            if r.status_code != 200:
-                print(f"Yahoo returned {r.status_code}. Trying alternate URL.")
-                try:
-                    r = requests.get(url2, headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
-                except:
-                    print(f"Failed to query alternate URL. Giving up.")
-                    return []
-                if r.status_code != 200:
-                    print(f"alternate URL returned {r.status_code}. Giving up.")
-                    return []
-            data = r.json()
-            data = data['quoteSummary']
-            data = data['result']
-            for item in data:
-                try:
-                    raw = item['summaryDetail']['exDividendDate']['raw']
-                    fmt = item['summaryDetail']['exDividendDate']['fmt']
-                except (KeyError, TypeError):
-                    continue
-                if raw > now and raw < soon:
-                    ex_dividend_dates[ticker] = fmt
-        return ex_dividend_dates
+                continue
+            if '.AX' in ticker:
+                url = 'https://www.shortman.com.au/stock?q=' + ticker.replace('.AX','') # change in python 3.9
+            else:
+                url = 'https://finviz.com/quote.ashx?t=' + ticker
+            if float(percent_short) > config_shorts_percent:
+                title = market_data[ticker]['title']
+                percent_short = str(round(percent_short))
+                if service == 'telegram':
+                    payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + percent_short + '%')
+                else:
+                    payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + percent_short + '%')
+        return payload
+
+    def fetch_finviz(chunk):
+        finviz_output = {}
+        chunk_string=','.join(chunk)
+        url = 'https://finviz.com/screener.ashx?v=150&c=0,1,2,30,66,68,14&t=' + chunk_string
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        html = requests.get(url, headers=headers)
+        soup = BeautifulSoup(html.content, "html.parser")
+        main_div = soup.find('div', attrs={'id': 'screener-content'})
+        table = main_div.find('table')
+        sub = table.findAll('tr')
+        rows = sub[5].findAll("tr")
+        rows = rows[0].findAll("tr")
+        for row in rows:
+            item = row.findAll('a')
+            count = item[0].text
+            ticker = item[1].text
+            title = item[2].text
+            title = transform_title(title)
+            percent_short = item[3].text.replace('%', '') # change to .removesuffix() in python 3.9
+            percent_change = item[4].text.replace('%', '') # change to .removesuffix() in python 3.9
+            earnings_date = item[5].text
+            dividend = item[6].text.replace('%', '') # change to .removesuffix() in python 3.9
+            try:
+                percent_short = float(percent_short)
+            except ValueError:
+                percent_short = float(0)
+            try:
+                percent_change = float(percent_change)
+            except ValueError:
+                percent_change = float(0)
+            try:
+                dividend = float(dividend)
+            except ValueError:
+                dividend = float(0)
+            finviz_output[ticker] = { 'ticker': ticker, 'title': title, 'percent_change': percent_change, 'earnings_date': earnings_date, 'percent_short': percent_short, 'dividend': dividend}
+        return finviz_output
+
+    def fetch_shortman(market_data):
+        print("Fetching ASX shorts from Shortman")
+        content = {}
+        url = 'https://www.shortman.com.au/downloadeddata/latest.csv'
+        try:
+            r = requests.get(url)
+        except:
+            print("Failure fetching", url)
+            return {}
+        if r.status_code != 200:
+            print(r.status_code, "error communicating with", url)
+            return {}
+        csv = r.content.decode('utf-8')
+        csv = csv.split('\r\n')
+        csv.pop(0) # remove header
+        del csv[-1] # remove junk
+        for line in csv:
+            cells = line.split(',')
+            title = cells[0]
+            ticker = cells[1]
+            positions = cells[2]
+            on_issue = cells[3]
+            short_percent = cells[4]
+            content[ticker] = float(short_percent)
+            ticker_yahoo = ticker.replace('.AX', '') # change to .removesuffix() in python 3.9
+            if ticker_yahoo in market_data:
+                market_data[ticker_yahoo]['percent_short'] = float(short_percent) # naughty update global dict
+        return
 
 # MAIN #
-    token = sharesight_get_token(sharesight_auth_data)
+    token = sharesight_get_token(sharesight_auth)
     portfolios = sharesight_get_portfolios()
+    weekday = datetime.datetime.today().strftime('%A')
 
-    # get trades from sharesight
+    # Get trades from Sharesight
     if config_trade_updates:
         trades = []
         for portfolio_name in portfolios:
             portfolio_id = portfolios[portfolio_name]
             trades = trades + sharesight_get_trades(portfolio_name, portfolio_id)
         if trades:
-            print(len(trades), f"trades found for {date}")
+            print(len(trades), "trades found for", date)
         else:
-            print(f"No trades found for {date}")
+            print("No trades found for", date)
 
-    # Fetch holdings from sharesight, and holding detail from Yahoo
-    if config_price_updates or config_earnings or config_ex_dividend:
+    # Fetch holdings from Sharesight, and market data from Yahoo/Finviz
+    if config_price_updates or config_earnings or config_ex_dividend or config_shorts:
         holdings = []
         tickers = []    
+        tickers_us = [] # used by fetch_finviz()
+        tickers_au = [] # used by fetch_shortman()
+        tickers_world = [] # used by fetch_yahoo()
+        finviz_output = {}
         for portfolio_name in portfolios:
             portfolio_id = portfolios[portfolio_name]
             holdings = holdings + sharesight_get_holdings(portfolio_name, portfolio_id)
-            tickers = transform_tickers(holdings)
-        yahoo_output = yahoo_fetch(tickers)
+        tickers = transform_tickers_for_yahoo(holdings)
+        for ticker in tickers:
+            if '.AX' in ticker:
+                tickers_au.append(ticker)
+            if '.' in ticker:
+                tickers_world.append(ticker)
+            else:
+                tickers_us.append(ticker)
+        yahoo_output = fetch_yahoo(tickers_world)
+        chunks = chunker(tickers_us, 20)
+        for chunk in chunks:
+            finviz_output = {**finviz_output, **fetch_finviz(chunk)} # change to new way in python 3.9
+        market_data = {**yahoo_output, **finviz_output} # change to new way in python 3.9
 
-    # fetch ex_dividend_dates from Yahoo
+    # Fetch ASX shorts
+    if config_shorts and tickers_au and config_shorts_weekday.lower() in {'any', 'all', weekday.lower()}:
+        fetch_shortman(market_data)
+
+    # Fetch ex_dividend_dates from Yahoo
     if config_ex_dividend:
-        ex_dividend_dates = yahoo_fetch_ex_dividends(tickers, config_ex_dividend_days)
-        #print(json.dumps(ex_dividend_dates, indent=4, sort_keys=True))
+        fetch_yahoo_ex_dividends(market_data)
 
-    # prep and send payloads
+    # Prep and send payloads
     for service in webhooks:
         url = webhooks[service]
         if config_trade_updates:
             if trades:
-                print(f"Preparing trade payload for {service}")
-                trade_payload = prepare_trade_payload(service, trades)
-                print(f"Sending to {service}")
-                chunks = chunker(price_payload, 20)
+                print("Preparing trade payload for", service)
+                payload = prepare_trade_payload(service, trades)
+                chunks = chunker(payload, 20)
                 payload_wrapper(service, url, chunks)
         if config_price_updates:
             if tickers:
-                print(f"preparing price change payload for {service}")
-                price_payload = prepare_price_payload(service, yahoo_output, config_price_updates_percentage)
-                if len(price_payload) > 1: # ignore header
-                    price_payload_string = '\n'.join(price_payload)
-                    print(price_payload_string)
-                    chunks = chunker(price_payload, 20)
+                print("Preparing price change payload for", service)
+                payload = prepare_price_payload(service, market_data)
+                if len(payload) > 1: # ignore header
+                    payload_string = '\n'.join(payload)
+                    print(payload_string)
+                    chunks = chunker(payload, 20)
                     payload_wrapper(service, url, chunks)
                 else:
-                    print(f"{service}: no holdings changed by {config_price_updates_percentage}% in the last session.")
+                    print(service, ": no holdings changed by", config_price_updates_percent, "% in the last session.")
         if config_earnings:
-            weekday = datetime.datetime.today().strftime('%A')
             if config_earnings_weekday.lower() in {'any', 'all', weekday.lower()}:
-                print(f"preparing earnings date payload for {service}")
-                earnings_payload = prepare_earnings_payload(service, yahoo_output)
-                if len(earnings_payload) > 1: # ignore header
-                    earnings_payload_string = '\n'.join(earnings_payload)
-                    print(f"Sending earnings dates to {service}")
-                    print(earnings_payload_string)
-                    chunks = chunker(earnings_payload, 20)
+                print("Preparing earnings date payload for", service)
+                payload = prepare_earnings_payload(service)
+                if len(payload) > 1: # ignore header
+                    payload_string = '\n'.join(payload)
+                    print(payload_string)
+                    chunks = chunker(payload, 20)
                     payload_wrapper(service, url, chunks)
             else:
-                print(f"Skipping earnings date because today is {weekday} and earnings_weekday is set to {config_earnings_weekday}")
+                print("Skipping earnings date because today is", weekday, "but earnings_weekday is set to", config_earnings_weekday)
         if config_ex_dividend:
-            weekday = datetime.datetime.today().strftime('%A')
             if config_ex_dividend_weekday.lower() in {'any', 'all', weekday.lower()}:
-                print(f"preparing ex-dividend date payload for {service}")
-                ex_dividend_payload = prepare_ex_dividend_payload(service, ex_dividend_dates, yahoo_output)
-                if len(ex_dividend_payload) > 1: # ignore header
-                    ex_dividend_payload_string = '\n'.join(ex_dividend_payload)
-                    print(f"Sending ex-dividend dates to {service}")
-                    print(ex_dividend_payload_string)
-                    chunks = chunker(ex_dividend_payload, 20)
+                print("Preparing ex-dividend date payload for", service)
+                payload = prepare_ex_dividend_payload(service, market_data)
+                if len(payload) > 1: # ignore header
+                    payload_string = '\n'.join(payload)
+                    print(payload_string)
+                    chunks = chunker(payload, 20)
                     payload_wrapper(service, url, chunks)
             else:
-                print(f"Skipping ex-dividend date because today is {weekday} and ex_dividend_weekday is set to {config_ex_dividend_weekday}")
+                print("Skipping ex-dividend: today is", weekday, "but ex_dividend_weekday is set to", config_ex_dividend_weekday)
+        if config_shorts:
+            if config_shorts_weekday.lower() in {'any', 'all', weekday.lower()}:
+                print("Preparing shorts payload for", service)
+                payload = prepare_shorts_payload(service, market_data)
+                if len(payload) > 1: # ignore header
+                    payload_string = '\n'.join(payload)
+                    print(payload_string)
+                    chunks = chunker(payload, 20)
+                    payload_wrapper(service, url, chunks)
+            else:
+                print("Skipping short warnings because today is", weekday, "but shorts_weekday is set to", config_shorts_weekday)
