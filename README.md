@@ -80,10 +80,11 @@ ex_dividend_weekday=Friday
 ```
 
 ### Highly shorted stock warnings
-Setting `shorts=true` in the .env file will trigger highly shorted stock warnings. The data is sourced from Finviz (US) and Shortman (AU). Warnings will only run on `shorts_weekday`. Set `shorts_weekday=any` to run it on every execution of the script. Example:
+Setting `shorts=true` in the .env file will trigger highly shorted stock warnings. The data is sourced from Finviz (US) and Shortman (AU). Warnings will only run on `shorts_weekday`. Set `shorts_weekday=any` to run it on every execution of the script. `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. Example:
 ```
 shorts=true
 shorts_weekday=Friday
+shorts_percent=15
 ```
 
 ## Running the script
