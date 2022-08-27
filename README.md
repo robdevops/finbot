@@ -57,10 +57,10 @@ telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhIjKlMnOpQrStUvWxYz/
 Setting `trade_updates=true` in the .env file will tell the bot to send Sharesight trades to your configured chat services.
 
 ### Price alerts
-Setting `price_updates=true` in the .env file will trigger price alerts for holdings which moved by a certain percentage in the most recent session. This data is sourced from Finviz (US) and Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The default threshold is 10% but you can change it by setting `price_updates_percentage` in the .env file. Example:
+Setting `price_updates=true` in the .env file will trigger price alerts for holdings which moved by a certain percentage in the most recent session. This data is sourced from Finviz (US) and Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The default threshold is 10% but you can change it by setting `price_updates_percent` in the .env file. Example:
 ```
 price_updates=true
-price_updates_percentage=10
+price_updates_percent=10
 ```
 
 ### Earnings reminders
