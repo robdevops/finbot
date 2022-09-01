@@ -23,6 +23,10 @@ def lambda_handler(event,context):
         webhooks['discord'] = os.getenv('discord_webhook')
     if os.getenv('telegram_url'):
         webhooks['telegram'] = os.getenv('telegram_url')
+    if os.getenv('pushbullet_url'):
+        webhooks['pushbullet'] = os.getenv('pushbullet_url')
+    if os.getenv('pushover_url'):
+        webhooks['pushover'] = os.getenv('pushover_url')
 
     config_trade_updates = True # default
     if os.getenv('trade_updates'):
@@ -102,7 +106,7 @@ def lambda_handler(event,context):
     def sharesight_get_portfolios():
         print("Fetching Sharesight portfolios")
         portfolio_dict = {}
-        url = "https://api.sharesight.com/api/v2/portfolios.json"
+        url = "https://api.sharesight.com/api/v3/portfolios"
         try:
             r = requests.get(url, headers={'Content-type': 'application/json'}, auth=BearerAuth(token))
         except:
@@ -129,19 +133,23 @@ def lambda_handler(event,context):
         return data['trades']
 
     def sharesight_get_holdings(portfolio_name, portfolio_id):
+        holdings = []
         print("Fetching Sharesight holdings for", portfolio_name, end=": ")
-        endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
-        url = endpoint + str(portfolio_id) + '/valuation.json?grouping=ungrouped&balance_date=' + date
+        endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
+        url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + date + '&end_date=' + date
         r = requests.get(url, auth=BearerAuth(token))
         data = r.json()
-        print(len(data['holdings']))
-        return data['holdings']
+        #print(json.dumps(data['report'], indent=4))
+        print(len(data['report']['holdings']))
+        for holding in data['report']['holdings']:
+            holdings.append(holding['instrument'])
+        return holdings
 
     def transform_tickers_for_yahoo(holdings):
         tickers = []
         for holding in holdings:
-            symbol = holding['symbol']
-            market = holding['market']
+            symbol = holding['code']
+            market = holding['market_code']
             if market == 'ASX':
                 tickers.append(symbol + '.AX')
             if market == 'HKG':
@@ -209,7 +217,6 @@ def lambda_handler(event,context):
             elif type == 'SELL':
                 action = 'sold'
                 emoji = '💰 '
-    
             if service == 'telegram':
                 holding_link = '<a href=' + url + '>' + holding_id + '>' + symbol + '</a>'
                 trade_link = '<a href=' + url + holding_id + '/trades/' + trade_id + '/edit>' + action + '</a>'
@@ -221,31 +228,23 @@ def lambda_handler(event,context):
     
     def webhook_write(url, payload):
         if 'hooks.slack.com' in url:
-            headers={'Content-type': 'application/json', 'unfurl_links': 'false', 'unfurl_media': 'false'}
+            headers = {'unfurl_links': 'false', 'unfurl_media': 'false', 'Content-type': 'application/json'}
+            payload = json.dumps({'text': payload})
+        elif 'api.telegram.org' in url:
+            headers = {}
+            payload = {'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true', 'text': payload}
         else:
-            headers={'Content-type': 'application/json'}
+            headers = {'Content-type': 'application/json'}
+            payload = json.dumps({'text': payload})
         try:
-            r = requests.post(url, headers={'Content-type': 'application/json'}, json={"text": payload})
+            r = requests.post(url, headers=headers, data=payload)
         except:
-            print("Failure talking to webhook:", url)
+            print("Failure executing request for", url)
             return False
         if r.status_code != 200:
             print(r.status_code, "error communicating with", url)
             return False
     
-    def telegram_write(url, payload):
-        print(payload)
-        payload = urllib.parse.quote_plus(payload)
-        url = url + '&parse_mode=HTML' + '&disable_web_page_preview=true' + '&text=' + payload
-        try:
-            r = requests.get(url)
-        except:
-            print("Failure talking to webhook:", url)
-            return False
-        if r.status_code != 200:
-            print(r.status_code, "error communicating with", url)
-            return False
-
     def chunker(seq, size):
         return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
@@ -281,10 +280,7 @@ def lambda_handler(event,context):
         for payload_chunk in chunks: # workaround potential max length
             count=count+1
             payload_chunk = '\n'.join(payload_chunk)
-            if service == 'telegram':
-                telegram_write(url, payload_chunk)
-            else:
-                webhook_write(url, payload_chunk)
+            webhook_write(url, payload_chunk)
             if count < len(list(chunks)):
                 time.sleep(1) # workaround potential API throttling
 
@@ -608,7 +604,7 @@ def lambda_handler(event,context):
         finviz_output = {}
         for portfolio_name in portfolios:
             portfolio_id = portfolios[portfolio_name]
-            holdings = holdings + sharesight_get_holdings(portfolio_name, portfolio_id)
+            holdings = sharesight_get_holdings(portfolio_name, portfolio_id)
         tickers = transform_tickers_for_yahoo(holdings)
         for ticker in tickers:
             if '.AX' in ticker:
