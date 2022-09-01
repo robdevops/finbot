@@ -1,5 +1,7 @@
 # sharesight-bot
 
+_This project has no affiliation with Sharesight Ltd._
+
 ## Description
 * Daily trade notifications across all portfolios
 * Daily price movements of holdings over a defined threshold
