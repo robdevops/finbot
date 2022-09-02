@@ -172,7 +172,6 @@ def lambda_handler(event,context):
         return tickers
         
     def prepare_trade_payload(service, trades):
-        print("Preparing payload:", service)
         payload = []
         url = "https://portfolio.sharesight.com/holdings/"
         if service == 'telegram':
@@ -227,23 +226,23 @@ def lambda_handler(event,context):
         return payload
     
     def webhook_write(url, payload):
+        headers = {'Content-type': 'application/json'}
+        payload = {'text': payload}
         if 'hooks.slack.com' in url:
-            headers = {'unfurl_links': 'false', 'unfurl_media': 'false', 'Content-type': 'application/json'}
-            payload = json.dumps({'text': payload})
+            headers = {**headers, **{'unfurl_links': 'false', 'unfurl_media': 'false'}} # switch to new syntax in python 3.9
         elif 'api.telegram.org' in url:
-            headers = {}
-            payload = {'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true', 'text': payload}
-        else:
-            headers = {'Content-type': 'application/json'}
-            payload = json.dumps({'text': payload})
+            payload = {**payload, **{'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true'}} # change in python 3.9
         try:
-            r = requests.post(url, headers=headers, data=payload)
+            r = requests.post(url, headers=headers, json=payload)
         except:
-            print("Failure executing request for", url)
+            print("Failure executing request:", url, headers, payload)
             return False
         if r.status_code != 200:
-            print(r.status_code, "error communicating with", url)
-            return False
+            print(r.status_code, "error", service)
+            return r.status_code
+        else:
+            print(r.status_code, "success", service)
+            return r.status_code
     
     def chunker(seq, size):
         return (seq[pos:pos + size] for pos in range(0, len(seq), size))
@@ -261,7 +260,7 @@ def lambda_handler(event,context):
         for ticker in market_data:
             percent = market_data[ticker]['percent_change']
             title = market_data[ticker]['title']
-            if abs(float(percent)) > config_price_updates_percent:
+            if abs(float(percent)) >= config_price_updates_percent:
                 url = 'https://finance.yahoo.com/quote/' + ticker
                 if percent < 0:
                     emoji = "🔻 "
@@ -272,7 +271,7 @@ def lambda_handler(event,context):
                     payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + percent + '%')
                 else:
                     payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + percent + '%')
-        print(len(payload)-1, f"holdings moved more than {config_price_updates_percent}%") # -1 ignores header
+        print(len(payload)-1, f"holdings moved by {config_price_updates_percent}% or more") # -1 ignores header
         return payload
 
     def payload_wrapper(service, url, chunks):
@@ -632,13 +631,13 @@ def lambda_handler(event,context):
         url = webhooks[service]
         if config_trade_updates:
             if trades:
-                print("Preparing trade payload for", service)
+                print(service, "Preparing trade payload")
                 payload = prepare_trade_payload(service, trades)
                 chunks = chunker(payload, 20)
                 payload_wrapper(service, url, chunks)
         if config_price_updates:
             if tickers:
-                print("Preparing price change payload for", service)
+                print(service, "Preparing price change payload")
                 payload = prepare_price_payload(service, market_data)
                 if len(payload) > 1: # ignore header
                     payload_string = '\n'.join(payload)
@@ -646,10 +645,10 @@ def lambda_handler(event,context):
                     chunks = chunker(payload, 20)
                     payload_wrapper(service, url, chunks)
                 else:
-                    print(service, ": no holdings changed by", config_price_updates_percent, "% in the last session.")
+                    print("No holdings changed by", config_price_updates_percent, "% or more in the last session.")
         if config_earnings:
             if config_earnings_weekday.lower() in {'any', 'all', weekday.lower()}:
-                print("Preparing earnings date payload for", service)
+                print(service, "Preparing earnings date payload")
                 payload = prepare_earnings_payload(service)
                 if len(payload) > 1: # ignore header
                     payload_string = '\n'.join(payload)
@@ -660,7 +659,7 @@ def lambda_handler(event,context):
                 print("Skipping earnings date because today is", weekday, "but earnings_weekday is set to", config_earnings_weekday)
         if config_ex_dividend:
             if config_ex_dividend_weekday.lower() in {'any', 'all', weekday.lower()}:
-                print("Preparing ex-dividend date payload for", service)
+                print(service, "Preparing ex-dividend date payload")
                 payload = prepare_ex_dividend_payload(service, market_data)
                 if len(payload) > 1: # ignore header
                     payload_string = '\n'.join(payload)
@@ -671,7 +670,7 @@ def lambda_handler(event,context):
                 print("Skipping ex-dividend: today is", weekday, "but ex_dividend_weekday is set to", config_ex_dividend_weekday)
         if config_shorts:
             if config_shorts_weekday.lower() in {'any', 'all', weekday.lower()}:
-                print("Preparing shorts payload for", service)
+                print(service, "Preparing shorts payload")
                 payload = prepare_shorts_payload(service, market_data)
                 if len(payload) > 1: # ignore header
                     payload_string = '\n'.join(payload)
