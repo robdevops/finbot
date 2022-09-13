@@ -93,7 +93,9 @@ def lambda_handler(event,context):
         except:
             print("Failed to get Sharesight access token")
             exit(1)
-        if r.status_code != 200:
+        if r.status_code == 200:
+            print(r.status_code, "success sharesight")
+        else:
             print(r.status_code, "Could not fetch Sharesight token. Check config in .env file")
             exit(1)
         data = r.json()
@@ -108,8 +110,10 @@ def lambda_handler(event,context):
         except:
             print("Failure talking to Sharesight")
             return {}
-        if r.status_code != 200:
-            print(r.status_code, "error communicating with Sharesight.")
+        if r.status_code == 200:
+            print(r.status_code, "success sharesight")
+        else:
+            print(r.status_code, "error sharesight")
             return {}
         data = r.json()
         for portfolio in data['portfolios']:
@@ -134,6 +138,8 @@ def lambda_handler(event,context):
         endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
         url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + date + '&end_date=' + date
         r = requests.get(url, auth=BearerAuth(token))
+        if r.status_code != 200:
+            print(r.status_code, "error")
         data = r.json()
         print(len(data['report']['holdings']))
         for item in data['report']['holdings']:
@@ -385,7 +391,9 @@ def lambda_handler(event,context):
             except Exception as e:
                 print(e)
             else:
-                if r.status_code != 200:
+                if r.status_code == 200:
+                    print(r.status_code, "success yahoo")
+                else:
                     print(r.status_code, "returned by", url)
                     continue
                 break
@@ -455,7 +463,7 @@ def lambda_handler(event,context):
             return title
 
     def fetch_yahoo_ex_dividends(market_data):
-        print("Fetching", len(market_data), "ex-dividend dates from Yahoo")
+        print("Fetching ex-dividend dates from Yahoo")
         base_url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/'
         headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
         for ticker in market_data:
@@ -469,7 +477,7 @@ def lambda_handler(event,context):
                         print(e)
                     else:
                         if r.status_code != 200:
-                            print(r.status_code, "returned by", url)
+                            print(r.status_code, "error", ticker, url)
                             continue
                         break
                 else:
@@ -522,8 +530,12 @@ def lambda_handler(event,context):
         chunk_string=','.join(chunk)
         url = 'https://finviz.com/screener.ashx?v=150&c=0,1,2,30,66,68,14&t=' + chunk_string
         headers = {'User-Agent': 'Mozilla/5.0'}
-        html = requests.get(url, headers=headers)
-        soup = BeautifulSoup(html.content, "html.parser")
+        r = requests.get(url, headers=headers)
+        if r.status_code == 200:
+            print(r.status_code, "success finviz chunk")
+        else:
+            print(r.status_code, "error finviz chunk")
+        soup = BeautifulSoup(r.content, "html.parser")
         main_div = soup.find('div', attrs={'id': 'screener-content'})
         table = main_div.find('table')
         sub = table.findAll('tr')
@@ -563,7 +575,9 @@ def lambda_handler(event,context):
         except:
             print("Failure fetching", url)
             return {}
-        if r.status_code != 200:
+        if r.status_code == 200:
+            print(r.status_code, "success shortman")
+        else:
             print(r.status_code, "error communicating with", url)
             return {}
         csv = r.content.decode('utf-8')
