@@ -23,10 +23,6 @@ def lambda_handler(event,context):
         webhooks['discord'] = os.getenv('discord_webhook')
     if os.getenv('telegram_url'):
         webhooks['telegram'] = os.getenv('telegram_url')
-    if os.getenv('pushbullet_url'):
-        webhooks['pushbullet'] = os.getenv('pushbullet_url')
-    if os.getenv('pushover_url'):
-        webhooks['pushover'] = os.getenv('pushover_url')
 
     config_trade_updates = True # default
     if os.getenv('trade_updates'):
@@ -122,7 +118,7 @@ def lambda_handler(event,context):
         return portfolio_dict
 
     def sharesight_get_trades(portfolio_name, portfolio_id):
-        print("Fetching Sharesight trades for", portfolio_name, "on", date, end=": ")
+        print("Fetching Sharesight trades for", portfolio_name, end=": ")
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
         url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + date + '&end_date=' + date
         r = requests.get(url, auth=BearerAuth(token))
@@ -133,23 +129,23 @@ def lambda_handler(event,context):
         return data['trades']
 
     def sharesight_get_holdings(portfolio_name, portfolio_id):
-        holdings = []
+        holdings = {}
         print("Fetching Sharesight holdings for", portfolio_name, end=": ")
         endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
         url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + date + '&end_date=' + date
         r = requests.get(url, auth=BearerAuth(token))
         data = r.json()
-        #print(json.dumps(data['report'], indent=4))
         print(len(data['report']['holdings']))
-        for holding in data['report']['holdings']:
-            holdings.append(holding['instrument'])
+        for item in data['report']['holdings']:
+            code = item['instrument']['code']
+            holdings[code] = item['instrument']
         return holdings
 
     def transform_tickers_for_yahoo(holdings):
         tickers = []
         for holding in holdings:
-            symbol = holding['code']
-            market = holding['market_code']
+            symbol = holdings[holding]['code']
+            market = holdings[holding]['market_code']
             if market == 'ASX':
                 tickers.append(symbol + '.AX')
             if market == 'HKG':
@@ -219,9 +215,12 @@ def lambda_handler(event,context):
             if service == 'telegram':
                 holding_link = '<a href=' + url + '>' + holding_id + '>' + symbol + '</a>'
                 trade_link = '<a href=' + url + holding_id + '/trades/' + trade_id + '/edit>' + action + '</a>'
-            else:
+            elif service in ['discord', 'slack']:
                 holding_link = '<' + url + holding_id + '|' + symbol + '>'
                 trade_link = '<' + url + holding_id + '/trades/' + trade_id + '/edit' + '|' + action + '>'
+            else:
+                holding_link = f"({symbol})"
+                trade_link = ''
             payload.append(emoji + portfolio + trade_link + currency + value + ' of ' + holding_link + flag)
         return payload
     
@@ -231,18 +230,17 @@ def lambda_handler(event,context):
         if 'hooks.slack.com' in url:
             headers = {**headers, **{'unfurl_links': 'false', 'unfurl_media': 'false'}} # switch to new syntax in python 3.9
         elif 'api.telegram.org' in url:
-            payload = {**payload, **{'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true'}} # change in python 3.9
+            payload = {**payload, **{'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true'}}
         try:
             r = requests.post(url, headers=headers, json=payload)
         except:
             print("Failure executing request:", url, headers, payload)
             return False
-        if r.status_code != 200:
-            print(r.status_code, "error", service)
-            return r.status_code
-        else:
+        if r.status_code == 200:
             print(r.status_code, "success", service)
-            return r.status_code
+        else:
+            print(r.status_code, "error", service)
+            return False
     
     def chunker(seq, size):
         return (seq[pos:pos + size] for pos in range(0, len(seq), size))
@@ -269,8 +267,10 @@ def lambda_handler(event,context):
                 percent = str(round(percent))
                 if service == 'telegram':
                     payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + percent + '%')
-                else:
+                elif service in ['slack', 'discord']:
                     payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + percent + '%')
+                else:
+                    payload.append(emoji + title + ' (' + ticker + ') ' + percent + '%')
         print(len(payload)-1, f"holdings moved by {config_price_updates_percent}% or more") # -1 ignores header
         return payload
 
@@ -320,8 +320,8 @@ def lambda_handler(event,context):
                     finviz_date_list = finviz_date_list[0].split(' ')
                     finviz_month = finviz_date_list[0]
                     finviz_day = finviz_date_list[1]
-                    if this_month in ('Nov','Dec') and finviz_month in ('Jan','Feb'): # guess Finviz year
-                        finviz_year = next_year
+                    if this_month in ('Oct','Nov','Dec') and finviz_month in ('Jan','Feb','Mar'):
+                        finviz_year = next_year # guess Finviz year
                     else:
                         finviz_year = this_year
                     finviz_date = finviz_year + finviz_month + finviz_day
@@ -337,8 +337,10 @@ def lambda_handler(event,context):
                 if data_seconds > now and data_seconds < soon:
                     if service == 'telegram':
                         payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + human_date)
-                    else:
+                    elif service in ['slack', 'discord']:
                         payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + human_date)
+                    else:
+                        payload.append(emoji + title + ' (' + ticker + ') ' + human_date)
         return payload
 
     def prepare_ex_dividend_payload(service, market_data):
@@ -347,13 +349,13 @@ def lambda_handler(event,context):
         now = int(time.time())
         soon = now + config_ex_dividend_days * 86400
         if service == 'telegram':
-            payload.append("<b>Ex-dividend dates avoid buy:</b>")
+            payload.append("<b>Ex-dividend dates. Avoid buy on:</b>")
         elif service == 'slack':
-            payload.append("*Ex-dividend dates avoid buy:*")
+            payload.append("*Ex-dividend dates. Avoid buy on:*")
         elif service == 'discord':
-            payload.append("**Ex-dividend dates avoid buy:**")
+            payload.append("**Ex-dividend dates. Avoid buy on:**")
         else:
-            payload.append("Upcoming ex-dividend dates:")
+            payload.append("Ex-dividend dates. Avoid buy on:")
         for ticker in market_data:
             try:
                 timestamp = market_data[ticker]['ex_dividend_date']
@@ -365,8 +367,10 @@ def lambda_handler(event,context):
                 date = time.strftime('%b %d', time.localtime(timestamp))
                 if service == 'telegram':
                     payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + date)
-                else:
+                elif service in ['slack', 'discord']:
                     payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + date)
+                else:
+                    payload.append(emoji + title + ' (' + ticker + ') ' + date)
         return payload
 
     def fetch_yahoo(tickers):
@@ -415,7 +419,7 @@ def lambda_handler(event,context):
 
     def transform_title(title):
             # shorten long names to reduce line wrap on mobile
-            title = title.replace('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'NASDAQ Clean Energy ETF')
+            title = title.replace('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'Clean Energy ETF')
             title = title.replace('Atlantica Sustainable Infrastructure', 'Atlantica Sustainable')
             title = title.replace('Flight Centre Travel', 'Flight Centre')
             title = title.replace('Global X ', '')
@@ -451,7 +455,7 @@ def lambda_handler(event,context):
             return title
 
     def fetch_yahoo_ex_dividends(market_data):
-        print("Fetching ex-dividend dates from Yahoo")
+        print("Fetching", len(market_data), "ex-dividend dates from Yahoo")
         base_url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/'
         headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
         for ticker in market_data:
@@ -507,8 +511,10 @@ def lambda_handler(event,context):
                 percent_short = str(round(percent_short))
                 if service == 'telegram':
                     payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + percent_short + '%')
-                else:
+                elif service in ['slack', 'discord']:
                     payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + percent_short + '%')
+                else:
+                    payload.append(emoji + title + ' (' + ticker + ') ' + percent_short + '%')
         return payload
 
     def fetch_finviz(chunk):
@@ -530,9 +536,9 @@ def lambda_handler(event,context):
             title = item[2].text
             title = transform_title(title)
             percent_short = item[3].text.replace('%', '') # change to .removesuffix() in python 3.9
-            percent_change = item[4].text.replace('%', '') # change to .removesuffix() in python 3.9
+            percent_change = item[4].text.replace('%', '')
             earnings_date = item[5].text
-            dividend = item[6].text.replace('%', '') # change to .removesuffix() in python 3.9
+            dividend = item[6].text.replace('%', '')
             try:
                 percent_short = float(percent_short)
             except ValueError:
@@ -595,7 +601,7 @@ def lambda_handler(event,context):
 
     # Fetch holdings from Sharesight, and market data from Yahoo/Finviz
     if config_price_updates or config_earnings or config_ex_dividend or config_shorts:
-        holdings = []
+        holdings = {}
         tickers = []    
         tickers_us = [] # used by fetch_finviz()
         tickers_au = [] # used by fetch_shortman()
@@ -603,7 +609,7 @@ def lambda_handler(event,context):
         finviz_output = {}
         for portfolio_name in portfolios:
             portfolio_id = portfolios[portfolio_name]
-            holdings = sharesight_get_holdings(portfolio_name, portfolio_id)
+            holdings = {**holdings, **sharesight_get_holdings(portfolio_name, portfolio_id)}
         tickers = transform_tickers_for_yahoo(holdings)
         for ticker in tickers:
             if '.AX' in ticker:
@@ -614,8 +620,9 @@ def lambda_handler(event,context):
                 tickers_us.append(ticker)
         yahoo_output = fetch_yahoo(tickers_world)
         chunks = chunker(tickers_us, 20)
+        print("Fetching", len(tickers_us), "holdings from Finviz")
         for chunk in chunks:
-            finviz_output = {**finviz_output, **fetch_finviz(chunk)} # change to new way in python 3.9
+            finviz_output = {**finviz_output, **fetch_finviz(chunk)}
         market_data = {**yahoo_output, **finviz_output} # change to new way in python 3.9
 
     # Fetch ASX shorts
@@ -627,6 +634,9 @@ def lambda_handler(event,context):
         fetch_yahoo_ex_dividends(market_data)
 
     # Prep and send payloads
+    if not webhooks:
+        print("Error: no services enabled in .env")
+        exit(1)
     for service in webhooks:
         url = webhooks[service]
         if config_trade_updates:
