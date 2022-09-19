@@ -232,7 +232,7 @@ def lambda_handler(event,context):
                 emoji = '💰 '
 
             if service == 'telegram':
-                holding_link = '<a href="' + url + '">' + holding_id + '>' + symbol + '</a>'
+                holding_link = '<a href="' + url + holding_id + '">' + symbol + '</a>'
                 trade_link = '<a href="' + url + holding_id + '/trades/' + trade_id + '/edit">' + verb + '</a>'
             elif service in ['discord', 'slack']:
                 holding_link = '<' + url + holding_id + '|' + symbol + '>'
