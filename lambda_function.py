@@ -2,7 +2,6 @@
 
 import json, os, time, urllib.parse
 import datetime
-from dateutil import relativedelta
 from dotenv import load_dotenv
 import requests
 from bs4 import BeautifulSoup
@@ -189,13 +188,12 @@ def lambda_handler(event,context):
             portfolio = trade['portfolio']
             date = trade['transaction_date']
             type = trade['transaction_type']
-            units = round(trade['quantity'])
-            price = trade['price']
+            units = str(round(trade['quantity']))
+            price = str(trade['price'])
             currency = trade['brokerage_currency_code']
             symbol = trade['symbol']
             market = trade['market']
-            value = round(trade['value'])
-            value = abs(value)
+            value = str(abs(round(trade['value'])))
             holding_id = str(trade['holding_id'])
             flag=''
             if market == 'ASX':
@@ -298,8 +296,7 @@ def lambda_handler(event,context):
         today = datetime.datetime.today()
         this_month = str(today.strftime('%b'))
         this_year = str(today.strftime('%Y'))
-        next_year = today + relativedelta.relativedelta(years=1)
-        next_year = str(next_year.strftime('%Y'))
+        next_year = str(int(this_year) + 1)
         if service == 'telegram':
             payload.append("<b>Upcoming earnings:</b>")
         elif service == 'slack':
