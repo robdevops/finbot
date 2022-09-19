@@ -195,6 +195,7 @@ def lambda_handler(event,context):
             market = trade['market']
             value = str(abs(round(trade['value'])))
             holding_id = str(trade['holding_id'])
+
             flag=''
             if market == 'ASX':
                 flag = '🇦🇺'
@@ -208,31 +209,46 @@ def lambda_handler(event,context):
                 flag = '🇭🇰'
             elif market == 'LSE':
                 flag = '🇬🇧'
-            action=''
+
+            currency_symbol = ''
+            if currency in ['AUD', 'CAD', 'HKD', 'NZD', 'SGD', 'TWD', 'USD']:
+                currency_symbol = '$'
+            elif currency_symbol in ['CNY', 'JPY']:
+                currency_symbol = '¥'
+            elif currency == 'EUR':
+                currency_symbol = '€'
+            elif currency == 'GBP':
+                currency_symbol = '£'
+            elif currency_symbol == 'KRW':
+                currency_symbol = '₩'
+
+            verb=''
             emoji=''
             if type == 'BUY':
-                action = 'bought'
+                verb = 'bought'
                 emoji = '💸 '
             elif type == 'SELL':
-                action = 'sold'
+                verb = 'sold'
                 emoji = '💰 '
+
             if service == 'telegram':
-                holding_link = '<a href=' + url + '>' + holding_id + '>' + symbol + '</a>'
-                trade_link = '<a href=' + url + holding_id + '/trades/' + trade_id + '/edit>' + action + '</a>'
+                holding_link = '<a href="' + url + '">' + holding_id + '>' + symbol + '</a>'
+                trade_link = '<a href="' + url + holding_id + '/trades/' + trade_id + '/edit">' + verb + '</a>'
             elif service in ['discord', 'slack']:
                 holding_link = '<' + url + holding_id + '|' + symbol + '>'
-                trade_link = '<' + url + holding_id + '/trades/' + trade_id + '/edit' + '|' + action + '>'
+                trade_link = '<' + url + holding_id + '/trades/' + trade_id + '/edit' + '|' + verb + '>'
             else:
                 holding_link = f"({symbol})"
                 trade_link = ''
-            payload.append(emoji + portfolio + trade_link + currency + value + ' of ' + holding_link + flag)
+            payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}")
+        print('\n'.join(payload))
         return payload
     
     def webhook_write(url, payload):
         headers = {'Content-type': 'application/json'}
         payload = {'text': payload}
         if 'hooks.slack.com' in url:
-            headers = {**headers, **{'unfurl_links': 'false', 'unfurl_media': 'false'}} # switch to new syntax in python 3.9
+            headers = {**headers, **{'unfurl_links': 'false', 'unfurl_media': 'false'}} # FIX python 3.9
         elif 'api.telegram.org' in url:
             payload = {**payload, **{'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true'}}
         try:
@@ -508,7 +524,7 @@ def lambda_handler(event,context):
             except:
                 continue
             if '.AX' in ticker:
-                url = 'https://www.shortman.com.au/stock?q=' + ticker.replace('.AX','') # change in python 3.9
+                url = 'https://www.shortman.com.au/stock?q=' + ticker.replace('.AX','') # FIX python 3.9
             else:
                 url = 'https://finviz.com/quote.ashx?t=' + ticker
             if float(percent_short) > config_shorts_percent:
@@ -544,7 +560,7 @@ def lambda_handler(event,context):
             ticker = item[1].text
             title = item[2].text
             title = transform_title(title)
-            percent_short = item[3].text.replace('%', '') # change to .removesuffix() in python 3.9
+            percent_short = item[3].text.replace('%', '') # FIX python 3.9
             percent_change = item[4].text.replace('%', '')
             earnings_date = item[5].text
             dividend = item[6].text.replace('%', '')
@@ -589,7 +605,7 @@ def lambda_handler(event,context):
             on_issue = cells[3]
             short_percent = cells[4]
             content[ticker] = float(short_percent)
-            ticker_yahoo = ticker.replace('.AX', '') # change to .removesuffix() in python 3.9
+            ticker_yahoo = ticker.replace('.AX', '') # FIX python 3.9
             if ticker_yahoo in market_data:
                 market_data[ticker_yahoo]['percent_short'] = float(short_percent) # naughty update global dict
         return
@@ -634,7 +650,7 @@ def lambda_handler(event,context):
         print("Fetching", len(tickers_us), "holdings from Finviz")
         for chunk in chunks:
             finviz_output = {**finviz_output, **fetch_finviz(chunk)}
-        market_data = {**yahoo_output, **finviz_output} # change to new way in python 3.9
+        market_data = {**yahoo_output, **finviz_output} # FIX python 3.9
 
     # Fetch ASX shorts
     if config_shorts and tickers_au and config_shorts_weekday.lower() in {'any', 'all', weekday.lower()}:
