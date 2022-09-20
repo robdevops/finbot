@@ -76,11 +76,10 @@ def lambda_handler(event,context):
     if os.getenv('shorts_weekday'):
         config_shorts_percent = int(os.getenv('shorts_percent'))
 
-    #time_now = datetime.datetime.today() # 2022-08-23 01:35:20.310961
-    time_now = datetime.datetime.utcnow() # 2022-08-22 15:35:20.311000
-    date = str(time_now).split(' ')[0] # 2022-08-22
-    thirty_days_ago = time_now - datetime.timedelta(days=30)
-    thirty_days_ago = str(thirty_days_ago).split(' ')[0] # 2022-07-22
+    time_now = datetime.datetime.today()
+    today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
+    start_date = time_now - datetime.timedelta(days=31)
+    start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
     file = '/tmp/sharesight_trades.txt'
     
     class BearerAuth(requests.auth.AuthBase):
@@ -128,7 +127,7 @@ def lambda_handler(event,context):
     def sharesight_get_trades(portfolio_name, portfolio_id):
         print("Fetching Sharesight trades for", portfolio_name, end=": ")
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
-        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + thirty_days_ago + '&end_date=' + date
+        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + start_date + '&end_date=' + today
         r = requests.get(url, auth=BearerAuth(token))
         data = r.json()
         print(len(data['trades']))
@@ -140,7 +139,7 @@ def lambda_handler(event,context):
         holdings = {}
         print("Fetching Sharesight holdings for", portfolio_name, end=": ")
         endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
-        url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + date + '&end_date=' + date
+        url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + today + '&end_date=' + today
         r = requests.get(url, auth=BearerAuth(token))
         if r.status_code != 200:
             print(r.status_code, "error")
@@ -376,7 +375,7 @@ def lambda_handler(event,context):
                 else: # yahoo
                     data_seconds = int(earnings_date)
                     data_seconds = data_seconds + 3600 * 4 # allow for Yahoo's inaccuracy
-                    human_date = time.strftime('%b %d', time.localtime(data_seconds))
+                    human_date = time.strftime('%b %d', time.localtime(data_seconds)) # Sep 08
                 if data_seconds > now and data_seconds < soon:
                     if service == 'telegram':
                         payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + human_date)
@@ -407,13 +406,13 @@ def lambda_handler(event,context):
             url = 'https://finance.yahoo.com/quote/' + ticker
             title = market_data[ticker]['title']
             if timestamp > now and timestamp < soon:
-                date = time.strftime('%b %d', time.localtime(timestamp))
+                human_date = time.strftime('%b %d', time.localtime(timestamp)) # Sep 08
                 if service == 'telegram':
-                    payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + date)
+                    payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + human_date)
                 elif service in ['slack', 'discord']:
-                    payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + date)
+                    payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + human_date)
                 else:
-                    payload.append(emoji + title + ' (' + ticker + ') ' + date)
+                    payload.append(emoji + title + ' (' + ticker + ') ' + human_date)
         return payload
 
     def fetch_yahoo(tickers):
@@ -656,7 +655,7 @@ def lambda_handler(event,context):
             portfolio_id = portfolios[portfolio_name]
             trades = trades + sharesight_get_trades(portfolio_name, portfolio_id)
         if trades:
-            print(len(trades), "trades found for", date)
+            print(len(trades), "trades found from", start_date, "until", today)
         else:
             print("No trades found for", date)
 
