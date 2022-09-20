@@ -5,6 +5,8 @@ import datetime
 from dotenv import load_dotenv
 import requests
 from bs4 import BeautifulSoup
+import os.path
+
 
 def lambda_handler(event,context):
     load_dotenv()
@@ -77,6 +79,9 @@ def lambda_handler(event,context):
     #time_now = datetime.datetime.today() # 2022-08-23 01:35:20.310961
     time_now = datetime.datetime.utcnow() # 2022-08-22 15:35:20.311000
     date = str(time_now).split(' ')[0] # 2022-08-22
+    thirty_days_ago = time_now - datetime.timedelta(days=30)
+    thirty_days_ago = str(thirty_days_ago).split(' ')[0] # 2022-07-22
+    file = '/tmp/sharesight_trades.txt'
     
     class BearerAuth(requests.auth.AuthBase):
         def __init__(self, token):
@@ -123,7 +128,7 @@ def lambda_handler(event,context):
     def sharesight_get_trades(portfolio_name, portfolio_id):
         print("Fetching Sharesight trades for", portfolio_name, end=": ")
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
-        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + date + '&end_date=' + date
+        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + thirty_days_ago + '&end_date=' + date
         r = requests.get(url, auth=BearerAuth(token))
         data = r.json()
         print(len(data['trades']))
@@ -173,6 +178,11 @@ def lambda_handler(event,context):
         return tickers
         
     def prepare_trade_payload(service, trades):
+        if os.path.isfile(file):
+            known_trades = open_trades_file(file)
+        else:
+            known_trades = []
+        newtrades = []
         payload = []
         url = "https://portfolio.sharesight.com/holdings/"
         if service == 'telegram':
@@ -195,6 +205,16 @@ def lambda_handler(event,context):
             market = trade['market']
             value = str(abs(round(trade['value'])))
             holding_id = str(trade['holding_id'])
+
+            if type not in ('BUY', 'SELL'):
+                print("Skipping corporate action:", type, symbol)
+                continue
+
+            if trade_id in known_trades:
+                print("Skipping known trade_id:", trade_id, type, symbol)
+                continue
+            else:
+                newtrades.append(trade_id)
 
             flag=''
             if market == 'ASX':
@@ -226,10 +246,10 @@ def lambda_handler(event,context):
             emoji=''
             if type == 'BUY':
                 verb = 'bought'
-                emoji = '💸 '
+                emoji = '💸'
             elif type == 'SELL':
                 verb = 'sold'
-                emoji = '💰 '
+                emoji = '💰'
 
             if service == 'telegram':
                 holding_link = '<a href="' + url + holding_id + '">' + symbol + '</a>'
@@ -241,7 +261,11 @@ def lambda_handler(event,context):
                 holding_link = f"({symbol})"
                 trade_link = ''
             payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}")
-        print('\n'.join(payload))
+
+        if os.path.isfile(file):
+            write_trades_file(file, newtrades, "a")
+        else:
+            write_trades_file(file, newtrades, "w")
         return payload
     
     def webhook_write(url, payload):
@@ -610,6 +634,16 @@ def lambda_handler(event,context):
                 market_data[ticker_yahoo]['percent_short'] = float(short_percent) # naughty update global dict
         return
 
+    def open_trades_file(file):
+        with open(file, "r") as f:
+            lines = f.read().splitlines()
+            return lines
+    
+    def write_trades_file(file, trades, action):
+        with open(file, action) as f:
+            for trade in trades:
+                f.write(f"{trade}\n")
+
 # MAIN #
     token = sharesight_get_token(sharesight_auth)
     portfolios = sharesight_get_portfolios()
@@ -670,8 +704,13 @@ def lambda_handler(event,context):
             if trades:
                 print(service, "Preparing trade payload")
                 payload = prepare_trade_payload(service, trades)
-                chunks = chunker(payload, 20)
-                payload_wrapper(service, url, chunks)
+                if len(payload) > 1: # ignore header
+                    payload_string = '\n'.join(payload)
+                    print(payload_string)
+                    chunks = chunker(payload, 20)
+                    payload_wrapper(service, url, chunks)
+                else:
+                    print("No new trades for specified date range.")
         if config_price_updates:
             if tickers:
                 print(service, "Preparing price change payload")
