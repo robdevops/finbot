@@ -127,7 +127,7 @@ def lambda_handler(event,context):
     def sharesight_get_trades(portfolio_name, portfolio_id):
         print("Fetching Sharesight trades for", portfolio_name, end=": ")
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
-        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + start_date + '&end_date=' + today
+        url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + start_date
         r = requests.get(url, auth=BearerAuth(token))
         data = r.json()
         print(len(data['trades']))
@@ -139,7 +139,7 @@ def lambda_handler(event,context):
         holdings = {}
         print("Fetching Sharesight holdings for", portfolio_name, end=": ")
         endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
-        url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + today + '&end_date=' + today
+        url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + today
         r = requests.get(url, auth=BearerAuth(token))
         if r.status_code != 200:
             print(r.status_code, "error")
