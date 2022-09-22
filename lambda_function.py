@@ -5,8 +5,6 @@ import datetime
 from dotenv import load_dotenv
 import requests
 from bs4 import BeautifulSoup
-import os.path
-
 
 def lambda_handler(event,context):
     load_dotenv()
@@ -29,6 +27,11 @@ def lambda_handler(event,context):
     if os.getenv('trade_updates'):
         config_trade_updates=os.getenv("trade_updates",'False').lower() in ('true','1','t')
 
+    config_trade_updates_past_days = 0 # default
+    if os.getenv('trade_updates_past_days'):
+        config_trade_updates_past_days = os.getenv('trade_updates_past_days')
+        config_trade_updates_past_days = int(config_trade_updates_past_days)
+
     config_price_updates = True # default
     if os.getenv('price_updates'):
         config_price_updates=os.getenv("price_updates",'False').lower() in ('true','1','t')
@@ -49,7 +52,7 @@ def lambda_handler(event,context):
 
     config_earnings_weekday = 'any' # default
     if os.getenv('earnings_weekday'):
-        config_earnings_weekday = os.getenv('earnings_weekday')
+        config_earnings_weekday = os.getenv('earnings_weekday').lower()
 
     config_ex_dividend = True # default
     if os.getenv('ex_dividend'):
@@ -62,7 +65,7 @@ def lambda_handler(event,context):
 
     config_ex_dividend_weekday = 'any' # default
     if os.getenv('ex_dividend_weekday'):
-        config_ex_dividend_weekday = os.getenv('ex_dividend_weekday') 
+        config_ex_dividend_weekday = os.getenv('ex_dividend_weekday').lower()
 
     config_shorts = False # default
     if os.getenv('shorts'):
@@ -70,17 +73,24 @@ def lambda_handler(event,context):
 
     config_shorts_weekday = 'any' # default
     if os.getenv('shorts_weekday'):
-        config_shorts_weekday = os.getenv('shorts_weekday') 
+        config_shorts_weekday = os.getenv('shorts_weekday').lower()
 
     config_shorts_percent = 15 # default
     if os.getenv('shorts_weekday'):
         config_shorts_percent = int(os.getenv('shorts_percent'))
 
+    config_state_file = '/tmp/sharesight-bot-trades.txt' # default
+    if os.getenv('state_file'):
+        config_state_file = os.getenv('state_file')
+
+    config_http_timeout = int(10) # default
+    if os.getenv('http_timeout'):
+        config_http_timeout = int(os.getenv('http_timeout'))
+
     time_now = datetime.datetime.today()
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    start_date = time_now - datetime.timedelta(days=31)
+    start_date = time_now - datetime.timedelta(days=config_trade_updates_past_days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
-    file = '/tmp/sharesight_trades.txt'
     
     class BearerAuth(requests.auth.AuthBase):
         def __init__(self, token):
@@ -92,7 +102,7 @@ def lambda_handler(event,context):
     def sharesight_get_token(sharesight_auth):
         print("Fetching Sharesight auth token")
         try:
-            r = requests.post("https://api.sharesight.com/oauth2/token", data=sharesight_auth)
+            r = requests.post("https://api.sharesight.com/oauth2/token", data=sharesight_auth, timeout=config_http_timeout)
         except:
             print("Failed to get Sharesight access token")
             exit(1)
@@ -109,7 +119,7 @@ def lambda_handler(event,context):
         portfolio_dict = {}
         url = "https://api.sharesight.com/api/v3/portfolios"
         try:
-            r = requests.get(url, headers={'Content-type': 'application/json'}, auth=BearerAuth(token))
+            r = requests.get(url, headers={'Content-type': 'application/json'}, auth=BearerAuth(token), timeout=config_http_timeout)
         except:
             print("Failure talking to Sharesight")
             return {}
@@ -128,7 +138,7 @@ def lambda_handler(event,context):
         print("Fetching Sharesight trades for", portfolio_name, end=": ")
         endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
         url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + start_date
-        r = requests.get(url, auth=BearerAuth(token))
+        r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
         data = r.json()
         print(len(data['trades']))
         for trade in data['trades']:
@@ -140,7 +150,7 @@ def lambda_handler(event,context):
         print("Fetching Sharesight holdings for", portfolio_name, end=": ")
         endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
         url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + today
-        r = requests.get(url, auth=BearerAuth(token))
+        r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
         if r.status_code != 200:
             print(r.status_code, "error")
         data = r.json()
@@ -151,95 +161,58 @@ def lambda_handler(event,context):
         return holdings
 
     def transform_tickers_for_yahoo(holdings):
-        tickers = []
+        tickers = set()
         for holding in holdings:
             symbol = holdings[holding]['code']
             market = holdings[holding]['market_code']
             if market == 'ASX':
-                tickers.append(symbol + '.AX')
+                tickers.add(symbol + '.AX')
             if market == 'HKG':
-                tickers.append(symbol + '.HK')
+                tickers.add(symbol + '.HK')
             if market == 'KRX':
-                tickers.append(symbol + '.KS')
+                tickers.add(symbol + '.KS')
             if market == 'KOSDAQ':
-                tickers.append(symbol + '.KQ')
+                tickers.add(symbol + '.KQ')
             if market == 'LSE':
-                tickers.append(symbol + '.L')
+                tickers.add(symbol + '.L')
             if market == 'TAI':
-                tickers.append(symbol + '.TW')
-            if market in ('NASDAQ', 'NYSE', 'BATS'):
+                tickers.add(symbol + '.TW')
+            if market in {'NASDAQ', 'NYSE', 'BATS'}:
                 if symbol == 'DRNA':
                     continue
-                tickers.append(symbol)
+                tickers.add(symbol)
             else:
                 continue
-        tickers = list(set(tickers)) # de-dupe
         return tickers
         
     def prepare_trade_payload(service, trades):
-        if os.path.isfile(file):
-            known_trades = open_trades_file(file)
+        if os.path.isfile(config_state_file):
+            known_trades = state_file_read()
         else:
             known_trades = []
-        newtrades = []
         payload = []
         url = "https://portfolio.sharesight.com/holdings/"
         if service == 'telegram':
-            payload.append("<b>Today's trades:</b>")
+            payload.append("<b>New trades:</b>")
         elif service == 'slack':
-            payload.append("*Today's trades:*")
+            payload.append("*New trades:*")
         elif service == 'discord':
-            payload.append("**Today's trades:**")
+            payload.append("**New trades:**")
         else:
-            payload.append("Today's trades:")
+            payload.append("New trades:")
         for trade in trades:
             trade_id = str(trade['id'])
             portfolio = trade['portfolio']
             date = trade['transaction_date']
             type = trade['transaction_type']
-            units = str(round(trade['quantity']))
-            price = str(trade['price'])
+            units = float(round(trade['quantity']))
+            price = float(trade['price'])
             currency = trade['brokerage_currency_code']
             symbol = trade['symbol']
             market = trade['market']
-            value = str(abs(round(trade['value'])))
+            #value = abs(round(trade['value'])) # converted to portfolio currency
+            value = abs(round(price * units))
             holding_id = str(trade['holding_id'])
-
-            if type not in ('BUY', 'SELL'):
-                print("Skipping corporate action:", type, symbol)
-                continue
-
-            if trade_id in known_trades:
-                print("Skipping known trade_id:", trade_id, type, symbol)
-                continue
-            else:
-                newtrades.append(trade_id)
-
-            flag=''
-            if market == 'ASX':
-                flag = '🇦🇺'
-            elif market in ('NASDAQ', 'NYSE', 'BATS'):
-                flag = '🇺🇸'
-            elif market in ('KRX', 'KOSDAQ'):
-                flag = '🇰🇷'
-            elif market == 'TAI':
-                flag = '🇹🇼'
-            elif market == 'HKG':
-                flag = '🇭🇰'
-            elif market == 'LSE':
-                flag = '🇬🇧'
-
-            currency_symbol = ''
-            if currency in ['AUD', 'CAD', 'HKD', 'NZD', 'SGD', 'TWD', 'USD']:
-                currency_symbol = '$'
-            elif currency_symbol in ['CNY', 'JPY']:
-                currency_symbol = '¥'
-            elif currency == 'EUR':
-                currency_symbol = '€'
-            elif currency == 'GBP':
-                currency_symbol = '£'
-            elif currency_symbol == 'KRW':
-                currency_symbol = '₩'
 
             verb=''
             emoji=''
@@ -249,22 +222,52 @@ def lambda_handler(event,context):
             elif type == 'SELL':
                 verb = 'sold'
                 emoji = '💰'
+            else:
+                print("Skipping corporate action:", portfolio, type, symbol)
+                continue
+
+            if trade_id in known_trades:
+                print("Skipping known trade_id:", trade_id, portfolio, type, symbol)
+                continue
+            else:
+                newtrades.add(trade_id) # sneaky update global set
+
+            flag=''
+            if market == 'ASX':
+                flag = '🇦🇺'
+            elif market in {'NASDAQ', 'NYSE', 'BATS'}:
+                flag = '🇺🇸'
+            elif market in {'KRX', 'KOSDAQ'}:
+                flag = '🇰🇷'
+            elif market == 'TAI':
+                flag = '🇹🇼'
+            elif market == 'HKG':
+                flag = '🇭🇰'
+            elif market == 'LSE':
+                flag = '🇬🇧'
+
+            currency_symbol = ''
+            if currency in {'AUD', 'CAD', 'HKD', 'NZD', 'SGD', 'TWD', 'USD'}:
+                currency_symbol = '$'
+            elif currency_symbol in {'CNY', 'JPY'}:
+                currency_symbol = '¥'
+            elif currency == 'EUR':
+                currency_symbol = '€'
+            elif currency == 'GBP':
+                currency_symbol = '£'
+            elif currency_symbol == 'KRW':
+                currency_symbol = '₩'
 
             if service == 'telegram':
-                holding_link = '<a href="' + url + holding_id + '">' + symbol + '</a>'
                 trade_link = '<a href="' + url + holding_id + '/trades/' + trade_id + '/edit">' + verb + '</a>'
-            elif service in ['discord', 'slack']:
-                holding_link = '<' + url + holding_id + '|' + symbol + '>'
+                holding_link = '<a href="' + url + holding_id + '">' + symbol + '</a>'
+            elif service in {'discord', 'slack'}:
                 trade_link = '<' + url + holding_id + '/trades/' + trade_id + '/edit' + '|' + verb + '>'
+                holding_link = '<' + url + holding_id + '|' + symbol + '>'
             else:
-                holding_link = f"({symbol})"
-                trade_link = ''
-            payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value} of {holding_link} {flag}")
-
-        if os.path.isfile(file):
-            write_trades_file(file, newtrades, "a")
-        else:
-            write_trades_file(file, newtrades, "w")
+                trade_link = verb
+                holding_link = symbol
+            payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value:,} of {holding_link} {flag}")
         return payload
     
     def webhook_write(url, payload):
@@ -275,7 +278,7 @@ def lambda_handler(event,context):
         elif 'api.telegram.org' in url:
             payload = {**payload, **{'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true'}}
         try:
-            r = requests.post(url, headers=headers, json=payload)
+            r = requests.post(url, headers=headers, json=payload, timeout=config_http_timeout)
         except:
             print("Failure executing request:", url, headers, payload)
             return False
@@ -304,16 +307,17 @@ def lambda_handler(event,context):
             if abs(float(percent)) >= config_price_updates_percent:
                 url = 'https://finance.yahoo.com/quote/' + ticker
                 if percent < 0:
-                    emoji = "🔻 "
+                    emoji = "🔻"
                 else:
-                    emoji = "⬆️  "
+                    emoji = "⬆️ "
                 percent = str(round(percent))
                 if service == 'telegram':
-                    payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + percent + '%')
-                elif service in ['slack', 'discord']:
-                    payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + percent + '%')
+                    ticker_link = '<a href="' + url + '">' + ticker + '</a>'
+                elif service in {'slack', 'discord'}:
+                    ticker_link = '<' + url + '|' + ticker + '>'
                 else:
-                    payload.append(emoji + title + ' (' + ticker + ') ' + percent + '%')
+                    ticker_link = ticker
+                payload.append(f"{emoji} {title} ({ticker_link}) {percent}%")
         print(len(payload)-1, f"holdings moved by {config_price_updates_percent}% or more") # -1 ignores header
         return payload
 
@@ -328,7 +332,7 @@ def lambda_handler(event,context):
 
     def prepare_earnings_payload(service):
         payload = []
-        emoji = "📣 "
+        emoji = "📣"
         finviz_date_list = []
         now = int(time.time())
         soon = now + config_earnings_days * 86400
@@ -362,7 +366,7 @@ def lambda_handler(event,context):
                     finviz_date_list = finviz_date_list[0].split(' ')
                     finviz_month = finviz_date_list[0]
                     finviz_day = finviz_date_list[1]
-                    if this_month in ('Oct','Nov','Dec') and finviz_month in ('Jan','Feb','Mar'):
+                    if this_month in {'Oct','Nov','Dec'} and finviz_month in {'Jan','Feb','Mar'}:
                         finviz_year = next_year # guess Finviz year
                     else:
                         finviz_year = this_year
@@ -378,16 +382,17 @@ def lambda_handler(event,context):
                     human_date = time.strftime('%b %d', time.localtime(data_seconds)) # Sep 08
                 if data_seconds > now and data_seconds < soon:
                     if service == 'telegram':
-                        payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + human_date)
-                    elif service in ['slack', 'discord']:
-                        payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + human_date)
+                        ticker_link = '<a href="' + url + '">' + ticker + '</a>'
+                    elif service in {'slack', 'discord'}:
+                        ticker_link = '<' + url + '|' + ticker + '>'
                     else:
-                        payload.append(emoji + title + ' (' + ticker + ') ' + human_date)
+                        ticker_link = ticker
+                    payload.append(f"{emoji} {title} ({ticker_link}) {human_date}")
         return payload
 
     def prepare_ex_dividend_payload(service, market_data):
         payload = []
-        emoji = "🤑 "
+        emoji = "🤑"
         now = int(time.time())
         soon = now + config_ex_dividend_days * 86400
         if service == 'telegram':
@@ -408,11 +413,12 @@ def lambda_handler(event,context):
             if timestamp > now and timestamp < soon:
                 human_date = time.strftime('%b %d', time.localtime(timestamp)) # Sep 08
                 if service == 'telegram':
-                    payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + human_date)
-                elif service in ['slack', 'discord']:
-                    payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + human_date)
+                    ticker_link = '<a href="' + url + '">' + ticker + '</a>'
+                elif service in {'slack', 'discord'}:
+                    ticker_link = "<' + url + '|' + ticker + '>"
                 else:
-                    payload.append(emoji + title + ' (' + ticker + ') ' + human_date)
+                    ticker_link = ticker
+                payload.append(f"{emoji} {title} ({ticker_link}) {human_date}")
         return payload
 
     def fetch_yahoo(tickers):
@@ -423,7 +429,7 @@ def lambda_handler(event,context):
         headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
         for url in yahoo_urls:
             try:
-                r = requests.get(url, headers=headers)
+                r = requests.get(url, headers=headers, timeout=config_http_timeout)
             except Exception as e:
                 print(e)
             else:
@@ -508,7 +514,7 @@ def lambda_handler(event,context):
             if market_data[ticker]['dividend'] > 0:
                 for url in yahoo_urls:
                     try:
-                        r = requests.get(url, headers=headers)
+                        r = requests.get(url, headers=headers, timeout=config_http_timeout)
                     except Exception as e:
                         print(e)
                     else:
@@ -532,7 +538,7 @@ def lambda_handler(event,context):
 
     def prepare_shorts_payload(service, market_data):
         payload = []
-        emoji = "⚠️  "
+        emoji = "🩳"
         if service == 'telegram':
             payload.append("<b>Highly shorted stock warning:</b>")
         elif service == 'slack':
@@ -554,11 +560,12 @@ def lambda_handler(event,context):
                 title = market_data[ticker]['title']
                 percent_short = str(round(percent_short))
                 if service == 'telegram':
-                    payload.append(emoji + title + ' (<a href="' + url + '">' + ticker + '</a>) ' + percent_short + '%')
-                elif service in ['slack', 'discord']:
-                    payload.append(emoji + title + ' (<' + url + '|' + ticker + '>) ' + percent_short + '%')
+                    ticker_link = '<a href="' + url + '">' + ticker + '</a>'
+                elif service in {'slack', 'discord'}:
+                    ticker_link = '<' + url + '|' + ticker + '>'
                 else:
-                    payload.append(emoji + title + ' (' + ticker + ') ' + percent_short + '%')
+                    ticker_link = ticker
+                payload.append(f"{emoji} {title} ({ticker_link}) {percent_short}%")
         return payload
 
     def fetch_finviz(chunk):
@@ -566,7 +573,7 @@ def lambda_handler(event,context):
         chunk_string=','.join(chunk)
         url = 'https://finviz.com/screener.ashx?v=150&c=0,1,2,30,66,68,14&t=' + chunk_string
         headers = {'User-Agent': 'Mozilla/5.0'}
-        r = requests.get(url, headers=headers)
+        r = requests.get(url, headers=headers, timeout=config_http_timeout)
         if r.status_code == 200:
             print(r.status_code, "success finviz chunk")
         else:
@@ -607,7 +614,7 @@ def lambda_handler(event,context):
         content = {}
         url = 'https://www.shortman.com.au/downloadeddata/latest.csv'
         try:
-            r = requests.get(url)
+            r = requests.get(url, timeout=config_http_timeout)
         except:
             print("Failure fetching", url)
             return {}
@@ -623,41 +630,41 @@ def lambda_handler(event,context):
         for line in csv:
             cells = line.split(',')
             title = cells[0]
-            ticker = cells[1]
+            ticker = cells[1] + '.AX'
             positions = cells[2]
             on_issue = cells[3]
             short_percent = cells[4]
             content[ticker] = float(short_percent)
-            ticker_yahoo = ticker.replace('.AX', '') # FIX python 3.9
-            if ticker_yahoo in market_data:
-                market_data[ticker_yahoo]['percent_short'] = float(short_percent) # naughty update global dict
+            if ticker in market_data:
+                market_data[ticker]['percent_short'] = float(short_percent) # naughty update global dict
         return
 
-    def open_trades_file(file):
-        with open(file, "r") as f:
+    def state_file_read():
+        with open(config_state_file, "r") as f:
             lines = f.read().splitlines()
             return lines
     
-    def write_trades_file(file, trades, action):
-        with open(file, action) as f:
+    def state_file_write(trades):
+        with open(config_state_file, "a") as f:
             for trade in trades:
                 f.write(f"{trade}\n")
 
-# MAIN #
+    # MAIN #
     token = sharesight_get_token(sharesight_auth)
     portfolios = sharesight_get_portfolios()
-    weekday = datetime.datetime.today().strftime('%A')
+    weekday = datetime.datetime.today().strftime('%A').lower()
 
     # Get trades from Sharesight
     if config_trade_updates:
         trades = []
+        newtrades = set()
         for portfolio_name in portfolios:
             portfolio_id = portfolios[portfolio_name]
             trades = trades + sharesight_get_trades(portfolio_name, portfolio_id)
         if trades:
-            print(len(trades), "trades found from", start_date, "until", today)
+            print(len(trades), "trades found since", start_date)
         else:
-            print("No trades found for", date)
+            print("No trades found since", start_date)
 
     # Fetch holdings from Sharesight, and market data from Yahoo/Finviz
     if config_price_updates or config_earnings or config_ex_dividend or config_shorts:
@@ -669,7 +676,7 @@ def lambda_handler(event,context):
         finviz_output = {}
         for portfolio_name in portfolios:
             portfolio_id = portfolios[portfolio_name]
-            holdings = {**holdings, **sharesight_get_holdings(portfolio_name, portfolio_id)}
+            holdings = {**holdings, **sharesight_get_holdings(portfolio_name, portfolio_id)} # FIX python 3.9
         tickers = transform_tickers_for_yahoo(holdings)
         for ticker in tickers:
             if '.AX' in ticker:
@@ -682,11 +689,11 @@ def lambda_handler(event,context):
         chunks = chunker(tickers_us, 20)
         print("Fetching", len(tickers_us), "holdings from Finviz")
         for chunk in chunks:
-            finviz_output = {**finviz_output, **fetch_finviz(chunk)}
-        market_data = {**yahoo_output, **finviz_output} # FIX python 3.9
+            finviz_output = {**finviz_output, **fetch_finviz(chunk)} # FIX python 3.9
+        market_data = {**yahoo_output, **finviz_output}
 
     # Fetch ASX shorts
-    if config_shorts and tickers_au and config_shorts_weekday.lower() in {'any', 'all', weekday.lower()}:
+    if config_shorts and tickers_au and config_shorts_weekday in {'any', 'all', weekday}:
         fetch_shortman(market_data)
 
     # Fetch ex_dividend_dates from Yahoo
@@ -722,7 +729,7 @@ def lambda_handler(event,context):
                 else:
                     print("No holdings changed by", config_price_updates_percent, "% or more in the last session.")
         if config_earnings:
-            if config_earnings_weekday.lower() in {'any', 'all', weekday.lower()}:
+            if config_earnings_weekday in {'any', 'all', weekday}:
                 print(service, "Preparing earnings date payload")
                 payload = prepare_earnings_payload(service)
                 if len(payload) > 1: # ignore header
@@ -733,7 +740,7 @@ def lambda_handler(event,context):
             else:
                 print("Skipping earnings date because today is", weekday, "but earnings_weekday is set to", config_earnings_weekday)
         if config_ex_dividend:
-            if config_ex_dividend_weekday.lower() in {'any', 'all', weekday.lower()}:
+            if config_ex_dividend_weekday in {'any', 'all', weekday}:
                 print(service, "Preparing ex-dividend date payload")
                 payload = prepare_ex_dividend_payload(service, market_data)
                 if len(payload) > 1: # ignore header
@@ -744,7 +751,7 @@ def lambda_handler(event,context):
             else:
                 print("Skipping ex-dividend: today is", weekday, "but ex_dividend_weekday is set to", config_ex_dividend_weekday)
         if config_shorts:
-            if config_shorts_weekday.lower() in {'any', 'all', weekday.lower()}:
+            if config_shorts_weekday in {'any', 'all', weekday}:
                 print(service, "Preparing shorts payload")
                 payload = prepare_shorts_payload(service, market_data)
                 if len(payload) > 1: # ignore header
@@ -754,3 +761,8 @@ def lambda_handler(event,context):
                     payload_wrapper(service, url, chunks)
             else:
                 print("Skipping short warnings because today is", weekday, "but shorts_weekday is set to", config_shorts_weekday)
+
+    # write state file
+    if config_trade_updates:
+        if newtrades:
+            state_file_write(newtrades)
