@@ -79,9 +79,9 @@ def lambda_handler(event,context):
     if os.getenv('shorts_weekday'):
         config_shorts_percent = int(os.getenv('shorts_percent'))
 
-    config_state_file = '/tmp/sharesight-bot-trades.txt' # default
-    if os.getenv('state_file'):
-        config_state_file = os.getenv('state_file')
+    config_state_file_path = '/tmp/sharesight-bot-trades.txt' # default
+    if os.getenv('state_file_path'):
+        config_state_file_path = os.getenv('state_file_path')
 
     config_http_timeout = int(10) # default
     if os.getenv('http_timeout'):
@@ -186,7 +186,7 @@ def lambda_handler(event,context):
         return tickers
         
     def prepare_trade_payload(service, trades):
-        if os.path.isfile(config_state_file):
+        if os.path.isfile(config_state_file_path):
             known_trades = state_file_read()
         else:
             known_trades = []
@@ -640,12 +640,12 @@ def lambda_handler(event,context):
         return
 
     def state_file_read():
-        with open(config_state_file, "r") as f:
+        with open(config_state_file_path, "r") as f:
             lines = f.read().splitlines()
             return lines
     
     def state_file_write(trades):
-        with open(config_state_file, "a") as f:
+        with open(config_state_file_path, "a") as f:
             for trade in trades:
                 f.write(f"{trade}\n")
 
