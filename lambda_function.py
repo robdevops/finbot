@@ -235,16 +235,22 @@ def lambda_handler(event,context):
             flag=''
             if market == 'ASX':
                 flag = '🇦🇺'
+                currency = 'AUD'
             elif market in {'NASDAQ', 'NYSE', 'BATS'}:
                 flag = '🇺🇸'
+                currency = 'USD'
             elif market in {'KRX', 'KOSDAQ'}:
                 flag = '🇰🇷'
+                currency = 'KRW'
             elif market == 'TAI':
                 flag = '🇹🇼'
+                currency = 'TWD'
             elif market == 'HKG':
                 flag = '🇭🇰'
+                # allows secondary currencies
             elif market == 'LSE':
                 flag = '🇬🇧'
+                # allows secondary currencies
 
             currency_symbol = ''
             if currency in {'AUD', 'CAD', 'HKD', 'NZD', 'SGD', 'TWD', 'USD'}:
@@ -766,3 +772,6 @@ def lambda_handler(event,context):
     if config_trade_updates:
         if newtrades:
             state_file_write(newtrades)
+
+    # make google cloud happy
+    return True
