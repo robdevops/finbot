@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import json, os, time, urllib.parse
+import json, os, time
 import datetime
 from dotenv import load_dotenv
 import requests
@@ -92,6 +92,14 @@ def lambda_handler(event,context):
     start_date = time_now - datetime.timedelta(days=config_trade_updates_past_days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
     
+    config_country_code = str("AU") # default
+    if os.getenv('country_code'):
+        config_country_code = str(os.getenv('country_code'))
+
+    config_finance_calendar_updates = True # default
+    if os.getenv('finance_calendar_updates'):
+        config_finance_calendar_updates = os.getenv("finance_calendar_updates",'False').lower() in ('true','1','t')
+
     class BearerAuth(requests.auth.AuthBase):
         def __init__(self, token):
             self.token = token
@@ -305,6 +313,7 @@ def lambda_handler(event,context):
             if market in {'WAR'}:
                 flag = '🇵🇱'
                 currency = 'PLN'
+            # falls back to Sharesight brokerage currency
 
             currency_symbol = ''
             if currency in {'AUD', 'CAD', 'HKD', 'NZD', 'SGD', 'TWD', 'USD'}:
@@ -535,6 +544,7 @@ def lambda_handler(event,context):
             # shorten long names to reduce line wrap on mobile
             title = title.replace('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'Clean Energy ETF')
             title = title.replace('Atlantica Sustainable Infrastructure', 'Atlantica Sustainable')
+            title = title.replace('Advanced Micro Devices', 'AMD')
             title = title.replace('Flight Centre Travel', 'Flight Centre')
             title = title.replace('Global X ', '')
             title = title.replace('The ', '')
@@ -713,6 +723,42 @@ def lambda_handler(event,context):
             for trade in trades:
                 f.write(f"{trade}\n")
 
+    def prepare_finance_calendar_payload(service):
+        payload = []
+        if service == 'telegram':
+            payload.append("<b>Finance event reminders:</b>")
+        elif service == 'slack':
+            payload.append("*Finance event reminders:*")
+        elif service == 'discord':
+            payload.append("**Finance event reminders:**")
+        else:
+            payload.append("Finance event reminders:")
+        month_and_day = str(time_now.strftime('%m-%d')) # 09-20
+        if config_country_code == 'AU':
+            flag = "🇦🇺"
+            if month_and_day in {'01-28', '04-28', '07-28', '10-28'}:
+                payload.append("🤑 Quarterly Superannuation payout is due today" + flag)
+            if month_and_day == '06-23':
+                payload.append("💰 Pay deductable donations, work expenses & investment subscriptions by EOFY June 30" + flag)
+                payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)
+                payload.append("✍️  Submit superannuation 'Notice of Intent to Claim' by EOFY June 30" + flag)
+            if month_and_day == '10-24':
+                payload.append("😓 Self-service individual tax returns are due Oct 31" + flag)
+            if month_and_day == '10-31':
+                payload.append("😰 Self-service individual tax returns are due today" + flag)
+        elif config_country_code in {'AU', 'NZ'}:
+            if month_and_day == '06-30':
+                payload.append("🥳 Happy EOFY 🇦🇺 🇳🇿")
+        elif config_country_code in {'CA', 'HK', 'GB', 'IN', 'JP', 'ZA'}:
+            if month_and_day == '03-31':
+                payload.append("🥳 Happy EOFY 🇨🇦 🇭🇰 🇬🇧 🇯🇵 🇮🇳 🇿🇦")
+        elif config_country_code == 'US':
+            if month_and_day == '09-30':
+                payload.append("🥳 Happy EOFY 🇺🇸")
+        # deliberately ommited countries where EOFY aligns with calendar year
+        return payload
+
+
     # MAIN #
     token = sharesight_get_token(sharesight_auth)
     portfolios = sharesight_get_portfolios()
@@ -825,6 +871,13 @@ def lambda_handler(event,context):
                     payload_wrapper(service, url, chunks)
             else:
                 print("Skipping short warnings because today is", weekday, "but shorts_weekday is set to", config_shorts_weekday)
+        if config_finance_calendar_updates:
+            payload = prepare_finance_calendar_payload(service)
+            if len(payload) > 1: # ignore header
+                payload_string = '\n'.join(payload)
+                print(payload_string)
+                chunks = chunker(payload, 20)
+                payload_wrapper(service, url, chunks)
 
     # write state file
     if config_trade_updates:
