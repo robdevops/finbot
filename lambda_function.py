@@ -3,6 +3,7 @@
 import json, os, time
 import datetime
 from dotenv import load_dotenv
+import pytz
 import requests
 from bs4 import BeautifulSoup
 
@@ -96,6 +97,10 @@ def lambda_handler(event,context):
     if os.getenv('country_code'):
         config_country_code = str(os.getenv('country_code'))
 
+    config_timezone = str("Australia/Melbourne") # default
+    if os.getenv('timezone'):
+        config_timezone = str(os.getenv('timezone'))
+
     config_finance_calendar_updates = True # default
     if os.getenv('finance_calendar_updates'):
         config_finance_calendar_updates = os.getenv("finance_calendar_updates",'False').lower() in ('true','1','t')
@@ -186,8 +191,6 @@ def lambda_handler(event,context):
             if market == 'TAI':
                 tickers.add(symbol + '.TW')
             if market in {'NASDAQ', 'NYSE', 'BATS'}:
-                if symbol == 'DRNA':
-                    continue
                 tickers.add(symbol)
             else:
                 continue
@@ -488,7 +491,7 @@ def lambda_handler(event,context):
                 if service == 'telegram':
                     ticker_link = '<a href="' + url + '">' + ticker + '</a>'
                 elif service in {'slack', 'discord'}:
-                    ticker_link = "<' + url + '|' + ticker + '>"
+                    ticker_link = '<' + url + '|' + ticker + '>'
                 else:
                     ticker_link = ticker
                 payload.append(f"{emoji} {title} ({ticker_link}) {human_date}")
@@ -733,7 +736,9 @@ def lambda_handler(event,context):
             payload.append("**Finance event reminders:**")
         else:
             payload.append("Finance event reminders:")
-        month_and_day = str(time_now.strftime('%m-%d')) # 09-20
+        tz = pytz.timezone(config_timezone)
+        localtime = datetime.datetime.now(tz)
+        month_and_day = str(localtime.strftime('%m-%d')) # 09-20
         if config_country_code == 'AU':
             flag = "🇦🇺"
             if month_and_day in {'01-28', '04-28', '07-28', '10-28'}:
@@ -746,7 +751,7 @@ def lambda_handler(event,context):
                 payload.append("😓 Self-service individual tax returns are due Oct 31" + flag)
             if month_and_day == '10-31':
                 payload.append("😰 Self-service individual tax returns are due today" + flag)
-        elif config_country_code in {'AU', 'NZ'}:
+        if config_country_code in {'AU', 'NZ'}:
             if month_and_day == '06-30':
                 payload.append("🥳 Happy EOFY 🇦🇺 🇳🇿")
         elif config_country_code in {'CA', 'HK', 'GB', 'IN', 'JP', 'ZA'}:
