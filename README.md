@@ -33,6 +33,10 @@ sudo su -c 'git clone https://github.com/robdevops/sharesight-bot.git /usr/local
 
 
 ## Setup
+Configuration is set by the .env file in the parent directory. Example:
+```
+vi /usr/local/bin/sharesight-bot/.env
+```
 
 ### Sharesight
 * Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to the .env file. Example:
@@ -64,12 +68,6 @@ slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGh
 * Example .env entry:
 ```
 telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhmockupOpQrStUvWxYz/sendMessage?chat_id=-1001000000000'
-```
-
-## Configuration
-Configuration is set by the .env file in the parent directory. Example:
-```
-vi /usr/local/bin/sharesight-bot/.env
 ```
 
 ## Reports
