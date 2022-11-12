@@ -21,26 +21,22 @@ if os.getenv('telegram_url'):
 
 config_trade_updates_past_days = 0 # default
 if os.getenv('trade_updates_past_days'):
-    config_trade_updates_past_days = os.getenv('trade_updates_past_days')
-    config_trade_updates_past_days = int(config_trade_updates_past_days)
+    config_trade_updates_past_days = int(os.getenv('trade_updates_past_days'))
 
 config_price_updates_percent = 10 # default
 if os.getenv('price_updates_percent'):
-    config_price_updates_percent = os.getenv('price_updates_percent') 
-    config_price_updates_percent = float(config_price_updates_percent)
+    config_price_updates_percent = float(os.getenv('price_updates_percent'))
 
 config_earnings_future_days = 7 # default
 if os.getenv('earnings_future_days'):
-    config_earnings_future_days = os.getenv('earnings_future_days') 
-    config_earnings_future_days = int(config_earnings_future_days)
+    config_earnings_future_days = int(os.getenv('earnings_future_days'))
 
 config_ex_dividend_future_days = 7 # default
 if os.getenv('ex_dividend_future_days'):
-    config_ex_dividend_future_days = os.getenv('ex_dividend_future_days') 
-    config_ex_dividend_future_days = int(config_ex_dividend_future_days)
+    config_ex_dividend_future_days = int(os.getenv('ex_dividend_future_days'))
 
 config_shorts_percent = 15 # default
-if os.getenv('shorts_weekday'):
+if os.getenv('shorts_percent'):
     config_shorts_percent = int(os.getenv('shorts_percent'))
 
 config_state_file_path = '/tmp/sharesight-bot-trades.txt' # default
