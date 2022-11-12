@@ -121,6 +121,7 @@ Recommended for a machine set to UTC:
 30  21 * * Fri cd /usr/local/bin/sharesight-bot/; ./earnings.py; ./ex-dividend.py; ./price.py
 ```
 ## Serverless
+_The following are notes from an AWS Lambda install and may not be current_
 ### Installation
 To prepare zip for upload to cloud:
 ```
