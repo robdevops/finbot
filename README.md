@@ -22,7 +22,17 @@ _This project has no affiliation with Sharesight Ltd._
 bs4 datetime python-dotenv requests
 ```
 
-## Configuration Details
+## Installation (Linux)
+```
+sudo pip3 install git bs4 datetime python-dotenv requests
+```
+
+```
+sudo su -c 'git clone https://github.com/robdevops/sharesight-bot.git /usr/local/bin/sharesight-bot/'
+```
+
+
+## Setup
 
 ### Sharesight
 * Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to the .env file. Example:
@@ -56,6 +66,13 @@ slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGh
 telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhmockupOpQrStUvWxYz/sendMessage?chat_id=-1001000000000'
 ```
 
+## Configuration
+Configuration is set by the .env file in the parent directory. Example:
+```
+vi /usr/local/bin/sharesight-bot/.env
+```
+
+## Reports
 ### Trade updates
 `trades.py` sends recent Sharesight trades to your configured chat services.
 * To avoid duplicate trades, you can either limit this to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are stored in a temp file defined by `config_state_file_path` in the .env file:
@@ -90,22 +107,7 @@ shorts_percent = 15
 ```
 
 
-### Linux
-#### Installation
-```
-sudo pip3 install git bs4 datetime python-dotenv requests
-```
-
-```
-sudo su -c 'git clone https://github.com/robdevops/sharesight-bot.git /usr/local/bin/sharesight-bot/'
-```
-
-#### Configuration
-```
-vi /usr/local/bin/sharesight-bot/.env
-```
-
-#### Scheduling example
+## Scheduling example
 Recommended for a machine set to UTC:
 ```
 # run calendar reminders once per day
@@ -120,9 +122,8 @@ Recommended for a machine set to UTC:
 # run other advisories once per week
 30  21 * * Fri cd /usr/local/bin/sharesight-bot/; ./earnings.py; ./ex-dividend.py; ./price.py
 ```
-
-### Serverless
-#### Installation
+## Serverless
+### Installation
 To prepare zip for upload to cloud:
 ```
 cd sharesight-bot
@@ -130,10 +131,10 @@ pip3 install datetime python-dotenv requests --upgrade --target=$(pwd)
 zip -r script.zip .
 ```
 
-#### Configuration
+### Configuration
 For four portfolios (72 holdings) and with all features enabled, this script takes the better part of a minute to run. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to 2 minutes.
 
-#### Scheduling
+### Scheduling
 For AWS, go to _Lambda > Functions > YOUR_FUNCTION > Add Trigger > EventBridge (Cloudwatch Events)_, and set _Schedule expression_ to, for example, 10 PM Monday to Friday UTC:
 ```
 cron(0 22 ? * 2-6 *)
