@@ -9,7 +9,7 @@ _This project has no affiliation with Sharesight Ltd._
 * Ex-dividend date warnings for your holdings
 * Highly shorted stock warnings for your holdings (AU, US)
 * Discord, Slack and Telegram support
-* For speed and reliability, it uses no uncommon libraries or screen scraping
+* For speed and reliability, it uses no uncommon libraries and minimal screen scraping
 
 ![screenshot of Slack message](screenshot.png?raw=true "Screenshot of Slack message")
 
