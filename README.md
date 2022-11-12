@@ -59,7 +59,7 @@ telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhmockupOpQrStUvWxYz/
 ### Trade updates
 trades.py sends recent Sharesight trades to your configured chat services.
 * To avoid duplicate trades, you can either limit this to one run per day (after market close), or run it in an environment with persisent storage. To allow frequent runs, known trades are stored a tmp file configured with `config_state_file_path` in the .env file.
-* By default, this script only looks for today's trades. You can override this with `trade_updates_past_days` in the .env file. This is useful if trades are imported for past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31.
+* By default, this script only looks for today's trades. You can override this with `trade_updates_past_days` in the .env file. This is useful if trades are imported for past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will notify all historical trades for the period.
 ```
 config_state_file_path = '/tmp/sharesight-bot-trades.txt'
 trade_updates_past_days = 31
