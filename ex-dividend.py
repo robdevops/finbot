@@ -38,7 +38,7 @@ def lambda_handler(event,context):
                     ticker_link = '<' + url + '|' + ticker + '>'
                 else:
                     ticker_link = ticker
-                payload.append(f"{emoji} {title} ({ticker_link}) {human_date}")
+                payload.append(f"{emoji} {human date} {title} ({ticker_link})")
         payload.sort()
         if service == 'telegram':
             payload.insert(0, "<b>Ex-dividend dates. Avoid buy on:</b>")
