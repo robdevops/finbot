@@ -37,6 +37,21 @@ def transform_tickers(holdings):
             continue
     return tickers
     
+def transform_ticker(ticker, market):
+    if market == 'ASX':
+        ticker = ticker + '.AX'
+    if market == 'HKG':
+        ticker = ticker + '.HK'
+    if market == 'KRX':
+        ticker = ticker + '.KS'
+    if market == 'KOSDAQ':
+        ticker = ticker + '.KQ'
+    if market == 'LSE':
+        ticker = ticker + '.L'
+    if market == 'TAI':
+        ticker = ticker + '.TW'
+    return ticker
+
 def fetch(tickers):
     print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
     yahoo_output = {}

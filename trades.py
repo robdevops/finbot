@@ -9,6 +9,7 @@ from lib.config import *
 import lib.sharesight as sharesight
 import lib.webhook as webhook
 import lib.util as util
+import lib.yahoo as yahoo
 
 def lambda_handler(event,context):
     time_now = datetime.datetime.today()
@@ -22,7 +23,8 @@ def lambda_handler(event,context):
         else:
             known_trades = []
         payload = []
-        url = "https://portfolio.sharesight.com/holdings/"
+        sharesight_url = "https://portfolio.sharesight.com/holdings/"
+        yahoo_url = "https://au.finance.yahoo.com/quote/"
         if service == 'telegram':
             payload.append("<b>New trades:</b>")
         elif service == 'slack':
@@ -44,6 +46,7 @@ def lambda_handler(event,context):
             #value = abs(round(trade['value'])) # converted to portfolio currency
             value = abs(round(price * units))
             holding_id = str(trade['holding_id'])
+            ticker = yahoo.transform_ticker(symbol, market)
 
             verb=''
             emoji=''
@@ -155,11 +158,11 @@ def lambda_handler(event,context):
                 currency_symbol = '฿'
 
             if service == 'telegram':
-                trade_link = '<a href="' + url + holding_id + '/trades/' + trade_id + '/edit">' + verb + '</a>'
-                holding_link = '<a href="' + url + holding_id + '">' + symbol + '</a>'
+                trade_link = '<a href="' + sharesight_url + holding_id + '/trades/' + trade_id + '/edit">' + verb + '</a>'
+                holding_link = '<a href="' + yahoo_url + ticker + '">' + symbol + '</a>'
             elif service in {'discord', 'slack'}:
-                trade_link = '<' + url + holding_id + '/trades/' + trade_id + '/edit' + '|' + verb + '>'
-                holding_link = '<' + url + holding_id + '|' + symbol + '>'
+                trade_link = '<' + sharesight_url + holding_id + '/trades/' + trade_id + '/edit' + '|' + verb + '>'
+                holding_link = '<' + yahoo_url + ticker + '|' + symbol + '>'
             else:
                 trade_link = verb
                 holding_link = symbol
