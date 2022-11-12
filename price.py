@@ -42,13 +42,13 @@ def lambda_handler(event,context):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
         if service == 'telegram':
-            payload.insert(0, "<b>Price alerts (day change):</b>")
+            payload.insert(0, "<b>Price alerts (intraday):</b>")
         elif service == 'slack':
-            payload.insert(0, "*Price alerts (day change):*")
+            payload.insert(0, "*Price alerts (intraday):*")
         elif service == 'discord':
-            payload.insert(0, "**Price alerts (day change):**")
+            payload.insert(0, "**Price alerts (intraday):**")
         else:
-            payload.insert(0, "Price alerts (day change):")
+            payload.insert(0, "Price alerts (intraday):")
         return payload
 
     # MAIN #
