@@ -11,7 +11,7 @@ _This project has no affiliation with Sharesight Ltd._
 * Discord, Slack and Telegram support
 * For speed and reliability, it uses no uncommon libraries and minimal screen scraping
 
-![screenshot of Slack message](screenshot.png?raw=true "Screenshot of Slack message")
+![screenshot of Slack message](img/screenshot.png?raw=true "Screenshot of Slack message")
 
 ## Dependencies
 * Sharesight paid plan, preferably with automatic trade imports, and an API key
@@ -71,7 +71,10 @@ telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhmockupOpQrStUvWxYz/
 ```
 
 ## Reports
-### Trade updates
+
+### Trades
+![trade update in Slack](img/trades.png?raw=true "Trade update in Slack")
+
 `trades.py` sends recent Sharesight trades to your configured chat services.
 * To avoid duplicate trades, you can either limit this to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are stored in a temp file defined by `config_state_file_path` in the .env file:
 * By default, it only checks for trades from the current day. You can override this with `trade_updates_past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will notify all historical trades for the period.
@@ -81,18 +84,24 @@ trade_updates_past_days = 31
 ```
 
 ### Price alerts
+![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
+
 `prices.py` sends intraday price alerts if the movement is over a percentage threshold. This data is sourced from Finviz (US) and Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The default threshold is 10% but you can change it by setting `price_updates_percent` in the .env file. Example:
 ```
 price_updates_percent = 10
 ```
 
 ### Earnings reminders
+![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
+
 `earnings.py` sends upcoming earnings date alerts. The data is sourced from Finviz (US) and Yahoo! Finance. Events more than `earnings_future_days` into the future will be ignored.
 ```
 earnings_future_days = 7
 ```
 
-### Ex-dividend reminders
+### Ex-dividend warnings
+![ex-dividend warning in Slack](img/ex-dividend.png?raw=true "Ex-dividend warning in Slack")
+
 `ex-dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `ex_dividend_future_days` into the future will be ignored.
 ```
 ex_dividend_future_days = 7
