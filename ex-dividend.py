@@ -17,14 +17,12 @@ import lib.finviz as finviz
 def lambda_handler(event,context):
     time_now = datetime.datetime.today()
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    start_date = time_now - datetime.timedelta(days=config_trade_updates_past_days)
-    start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
     
     def prepare_ex_dividend_payload(service, market_data):
         payload = []
         emoji = "🤑"
         now = int(time.time())
-        soon = now + config_ex_dividend_days * 86400
+        soon = now + config_ex_dividend_future_days * 86400
         for ticker in market_data:
             try:
                 timestamp = market_data[ticker]['ex_dividend_date']

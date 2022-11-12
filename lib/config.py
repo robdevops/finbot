@@ -29,15 +29,15 @@ if os.getenv('price_updates_percent'):
     config_price_updates_percent = os.getenv('price_updates_percent') 
     config_price_updates_percent = float(config_price_updates_percent)
 
-config_earnings_days = 3 # default
-if os.getenv('earnings_days'):
-    config_earnings_days = os.getenv('earnings_days') 
-    config_earnings_days = int(config_earnings_days)
+config_earnings_future_days = 7 # default
+if os.getenv('earnings_future_days'):
+    config_earnings_future_days = os.getenv('earnings_future_days') 
+    config_earnings_future_days = int(config_earnings_future_days)
 
-config_ex_dividend_days = 7 # default
-if os.getenv('ex_dividend_days'):
-    config_ex_dividend_days = os.getenv('ex_dividend_days') 
-    config_ex_dividend_days = int(config_ex_dividend_days)
+config_ex_dividend_future_days = 7 # default
+if os.getenv('ex_dividend_future_days'):
+    config_ex_dividend_future_days = os.getenv('ex_dividend_future_days') 
+    config_ex_dividend_future_days = int(config_ex_dividend_future_days)
 
 config_shorts_percent = 15 # default
 if os.getenv('shorts_weekday'):
