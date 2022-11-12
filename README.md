@@ -63,6 +63,7 @@ trades.py sends recent Sharesight trades to your configured chat services.
 ```
 config_state_file_path = '/tmp/sharesight-bot-trades.txt'
 trade_updates_past_days = 31
+```
 
 ### Price alerts
 prices.py sends price alerts for holdings which moved by a certain percentage in the most recent session. This data is sourced from Finviz (US) and Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The default threshold is 10% but you can change it by setting `price_updates_percent` in the .env file. Example:
@@ -94,9 +95,9 @@ shorts_percent = 15
 ```
 sudo pip3 install git bs4 datetime python-dotenv requests
 ```
+
 ```
 sudo su -c 'git clone https://github.com/robdevops/sharesight-bot.git /usr/local/bin/sharesight-bot/'
-
 ```
 
 #### Configuration
