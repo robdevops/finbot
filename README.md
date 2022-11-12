@@ -106,14 +106,19 @@ vi /usr/local/bin/sharesight-bot/.env
 ```
 
 #### Scheduling example
-Recommended times for a machine set to UTC:
+Recommended for a machine set to UTC:
 ```
+# run calendar reminders once per day
+29  21 * * * /usr/local/bin/sharesight-bot/finance_calendar.py
+
+# run trade updates every 20 minutes on weekdays
 */20 * * * Mon-Fri /usr/local/bin/sharesight-bot/trades.py
-30  21 * * * /usr/local/bin/sharesight-bot/finance_calendar.py
-30  21 * * Fri /usr/local/bin/sharesight-bot/earnings.py
-30  21 * * Fri /usr/local/bin/sharesight-bot/ex-dividend.py
-30  21 * * Fri /usr/local/bin/sharesight-bot/price.py
-30  21 1 * * /usr/local/bin/sharesight-bot/shorts.py
+
+# run short advisories once per month
+29  21 1 * * /usr/local/bin/sharesight-bot/shorts.py
+
+# run other advisories once per week
+30  21 * * Fri cd /usr/local/bin/sharesight-bot/; ./earnings.py; ./ex-dividend.py; ./price.py
 ```
 
 ### Serverless
