@@ -63,3 +63,7 @@ config_included_portfolios = () # default
 if os.getenv('included_portfolios'):
     config_included_portfolios = set(os.getenv('included_portfolios').split(','))
 
+config_watchlist = () # default
+if os.getenv('watchlist'):
+    config_watchlist = set(os.getenv('watchlist').split(','))
+

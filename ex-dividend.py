@@ -66,6 +66,7 @@ def lambda_handler(event,context):
         portfolio_id = portfolios[portfolio_name]
         holdings = {**holdings, **sharesight.get_holdings(token, portfolio_name, portfolio_id)} # FIX python 3.9
     tickers = yahoo.transform_tickers(holdings)
+    tickers.update(config_watchlist)
     for ticker in tickers:
         if '.AX' in ticker:
             tickers_au.append(ticker)
