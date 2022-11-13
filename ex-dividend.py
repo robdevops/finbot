@@ -22,7 +22,7 @@ def lambda_handler(event,context):
         payload = []
         emoji = "🤑"
         now = int(time.time())
-        soon = now + config_ex_dividend_future_days * 86400
+        soon = now + config_future_days * 86400
         for ticker in market_data:
             try:
                 timestamp = market_data[ticker]['ex_dividend_date']

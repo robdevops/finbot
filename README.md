@@ -109,17 +109,17 @@ price_updates_percent = 9.4
 ### Earnings reminders
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
 
-`earnings.py` sends upcoming earnings date alerts. The data is sourced from Finviz (US) and Yahoo! Finance. Events more than `earnings_future_days` into the future will be ignored.
+`earnings.py` sends upcoming earnings date alerts. The data is sourced from Finviz (US) and Yahoo! Finance. Events more than `future_days` into the future will be ignored.
 ```
-earnings_future_days = 7
+future_days = 7
 ```
 
 ### Ex-dividend warnings
 ![ex-dividend warning in Slack](img/ex-dividend.png?raw=true "Ex-dividend warning in Slack")
 
-`ex-dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `ex_dividend_future_days` into the future will be ignored.
+`ex-dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `future_days` into the future will be ignored.
 ```
-ex_dividend_future_days = 7
+future_days = 7
 ```
 
 ### Highly shorted stock warnings

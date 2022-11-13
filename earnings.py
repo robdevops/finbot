@@ -23,7 +23,7 @@ def lambda_handler(event,context):
         emoji = "📣"
         finviz_date_list = []
         now = int(time.time())
-        soon = now + config_earnings_future_days * 86400
+        soon = now + config_future_days * 86400
         today = datetime.datetime.today()
         this_month = str(today.strftime('%b'))
         this_year = str(today.strftime('%Y'))
