@@ -71,14 +71,14 @@ telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhmockupOpQrStUvWxYz/
 ```
 
 ### Portfolios
-Portfolios are auto-discovered, including other people's portfolios that are shared to you. To exclude specific portfolios, add their ID to `excluded_portfolios` in the .env file:
+Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs (comma separated) to `excluded_portfolios` in the .env file:
 ```
-excluded_portfolios='100001,100002'
+excluded_portfolios = 100001,100002
 ```
 
 Alternatively, you can use only specific portfolios:
 ```
-included_portfolios='100003,100004'
+included_portfolios = 100003,100004
 ```
 
 ## Reports
