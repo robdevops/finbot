@@ -55,3 +55,11 @@ config_timezone = str("Australia/Melbourne") # default
 if os.getenv('timezone'):
     config_timezone = str(os.getenv('timezone'))
 
+config_excluded_portfolios = () # default
+if os.getenv('excluded_portfolios'):
+    config_excluded_portfolios = set(os.getenv('excluded_portfolios').split(','))
+
+config_included_portfolios = () # default
+if os.getenv('included_portfolios'):
+    config_included_portfolios = set(os.getenv('included_portfolios').split(','))
+

@@ -48,7 +48,15 @@ def get_portfolios(token):
         exit(1)
     data = r.json()
     for portfolio in data['portfolios']:
-        portfolio_dict[portfolio['name']] = portfolio['id']
+        if str(portfolio['id']) in config_excluded_portfolios:
+            print(portfolio['id'], "(" + portfolio['name'] + ") in exclusion list. Skipping.")
+        elif str(portfolio['id']) not in config_included_portfolios and config_included_portfolios:
+            print("Exclusion list is defined and does not contain", portfolio['id'], "(" + portfolio['name'] + "). Skipping.")
+        else:
+            portfolio_dict[portfolio['name']] = portfolio['id']
+    if len(portfolio_dict) == 0:
+        print("No portfolios found. Exiting.")
+        exit(1)
     print(portfolio_dict)
     return portfolio_dict
 

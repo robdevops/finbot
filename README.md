@@ -70,6 +70,17 @@ slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGh
 telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhmockupOpQrStUvWxYz/sendMessage?chat_id=-1001000000000'
 ```
 
+### Portfolios
+Portfolios are auto-discovered, including other people's portfolios that are shared to you. To exclude specific portfolios, add their ID to `excluded_portfolios` in the .env file:
+```
+excluded_portfolios='100001,100002'
+```
+
+Alternatively, you can use only specific portfolios:
+```
+included_portfolios='100003,100004'
+```
+
 ## Reports
 
 ### Trades
