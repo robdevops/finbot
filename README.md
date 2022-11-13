@@ -9,7 +9,7 @@ _This project has no affiliation with Sharesight Ltd._
 * Ex-dividend date warnings for your holdings
 * Highly shorted stock warnings for your holdings (AU, US)
 * Discord, Slack and Telegram support
-* Supports multiple portfolios, including portfolios shared to you
+* Supports multiple Sharesight portfolios, including portfolios shared to you
 
 ![screenshot of Slack message](img/screenshot.png?raw=true "Screenshot of Slack message")
 
@@ -81,7 +81,7 @@ included_portfolios = "100001 100002"
 ```
 
 ### Watchlist
-Tracks stocks which are not in your Sharesight portfolio(s). Use the Yahoo! Finance ticker format. Example:
+Tracks securities which are not in your Sharesight holdings. Use the Yahoo! Finance ticker format. Example:
 ```
 watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
 ```
@@ -92,7 +92,7 @@ watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
 
 `trades.py` sends recent Sharesight trades to your configured chat services.
 * To avoid duplicate trades, you can either limit this to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are tracked in a state file defined by `config_state_file_path` in the .env file.
-* By default, this report only checks for trades for the current day. You can override this with `trade_updates_past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will notify for all historic trades in the period.
+* By default, this report only checks for trades for the current day. You can override this with `trade_updates_past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will notify for all historical trades in the period.
 ```
 config_state_file_path = '/tmp/sharesight-bot-trades.txt'
 trade_updates_past_days = 31
