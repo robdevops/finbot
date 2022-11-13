@@ -4,3 +4,4 @@ __pycache__/
 *.bak
 todo.txt
 script.zip
+.env
