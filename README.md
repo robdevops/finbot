@@ -109,7 +109,7 @@ price_updates_percent = 9.4
 ### Earnings reminders
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
 
-`earnings.py` sends upcoming earnings date alerts. The data is sourced from Finviz (US) and Yahoo! Finance. Events more than `future_days` into the future will be ignored. **Explanation:** when a company releases its quarterly earnings report, the stock may experience a signficant price movement, depending on whether it beat or missed market expectations. You may wish to hold off buying a stock until after its earnings report, unless you think the stock will beat market expectations. 
+`earnings.py` sends upcoming earnings date alerts. The data is sourced from Finviz (US) and Yahoo! Finance. Events more than `future_days` into the future will be ignored. **Explanation:** when a company releases its quarterly earnings report, the stock may experience a signficant positive or negative price movement, depending on whether it beat or missed market expectations. You may wish to hold off buying a stock until after its earnings report, unless you think the stock will beat market expectations. 
 ```
 future_days = 7
 ```
