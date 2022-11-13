@@ -3,12 +3,13 @@
 _This project has no affiliation with Sharesight Ltd._
 
 ## Description
-* Daily trade notifications across all portfolios, including portfolios shared to you
+* Trade notifications
 * Daily price movements of holdings over a defined threshold
 * Earnings date reminders for your holdings
 * Ex-dividend date warnings for your holdings
 * Highly shorted stock warnings for your holdings (AU, US)
 * Discord, Slack and Telegram support
+* Supports multiple portfolios, including portfolios shared to you
 
 ![screenshot of Slack message](img/screenshot.png?raw=true "Screenshot of Slack message")
 
