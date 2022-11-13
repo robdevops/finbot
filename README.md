@@ -88,7 +88,7 @@ trade_updates_past_days = 31
 
 `prices.py` sends intraday price alerts if the movement is over a percentage threshold. This data is sourced from Finviz (US) and Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The default threshold is 10% but you can change it by setting `price_updates_percent` in the .env file. Example:
 ```
-price_updates_percent = 10
+price_updates_percent = 9.4
 ```
 
 ### Earnings reminders
