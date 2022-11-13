@@ -55,3 +55,12 @@ def fetch(chunk):
             dividend = float(0)
         finviz_output[ticker] = { 'ticker': ticker, 'title': title, 'percent_change': percent_change, 'earnings_date': earnings_date, 'percent_short': percent_short, 'dividend': dividend}
     return finviz_output
+
+def wrapper(tickers_us):
+    finviz_output = {}
+    chunks = util.chunker(tickers_us, 20)
+    print("Fetching", len(tickers_us), "holdings from Finviz")
+    for chunk in chunks:
+        finviz_output = {**finviz_output, **fetch(chunk)} # FIX python 3.9
+    return finviz_output
+

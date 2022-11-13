@@ -182,7 +182,6 @@ def lambda_handler(event,context):
     # MAIN #
     token = sharesight.get_token(sharesight_auth)
     portfolios = sharesight.get_portfolios(token)
-    weekday = datetime.datetime.today().strftime('%A').lower()
 
     # Get trades from Sharesight
     trades = []
@@ -194,23 +193,17 @@ def lambda_handler(event,context):
         print(len(trades), "trades found since", start_date)
     else:
         print("No trades found since", start_date)
+        exit()
 
     # Prep and send payloads
     if not webhooks:
         print("Error: no services enabled in .env")
         exit(1)
     for service in webhooks:
+        print(service, "Preparing trade payload")
+        payload = prepare_trade_payload(service, trades)
         url = webhooks[service]
-        if trades:
-            print(service, "Preparing trade payload")
-            payload = prepare_trade_payload(service, trades)
-            if len(payload) > 1: # ignore header
-                payload_string = '\n'.join(payload)
-                print(payload_string)
-                chunks = util.chunker(payload, 20)
-                webhook.payload_wrapper(service, url, chunks)
-            else:
-                print("No new trades for specified date range.")
+        webhook.payload_wrapper(service, url, payload)
 
     # write state file
     if newtrades:

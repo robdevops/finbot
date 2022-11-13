@@ -86,3 +86,9 @@ def get_holdings(token, portfolio_name, portfolio_id):
         holdings[code] = item['instrument']
     return holdings
 
+def get_holdings_wrapper(token, portfolios):
+    holdings = {}
+    for portfolio_name in portfolios:
+        portfolio_id = portfolios[portfolio_name]
+        holdings = {**holdings, **get_holdings(token, portfolio_name, portfolio_id)} # FIX python 3.9
+    return holdings

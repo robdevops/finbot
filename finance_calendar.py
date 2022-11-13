@@ -10,9 +10,6 @@ import lib.webhook as webhook
 import lib.util as util
 
 def lambda_handler(event,context):
-    time_now = datetime.datetime.today()
-    today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    
     def prepare_finance_calendar_payload(service):
         payload = []
         if service == 'telegram':
@@ -58,13 +55,10 @@ def lambda_handler(event,context):
         print("Error: no services enabled in .env")
         exit(1)
     for service in webhooks:
-        url = webhooks[service]
+        print(service, "Preparing finance calendar payload")
         payload = prepare_finance_calendar_payload(service)
-        if len(payload) > 1: # ignore header
-            payload_string = '\n'.join(payload)
-            print(payload_string)
-            chunks = util.chunker(payload, 20)
-            webhook.payload_wrapper(service, url, chunks)
+        url = webhooks[service]
+        webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy
     return True

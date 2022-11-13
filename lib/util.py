@@ -57,3 +57,17 @@ def transform_title(title):
         title = title.rstrip()
         return title
 
+def categorise_tickers(tickers):
+    tickers_us = [] # used by fetch_finviz()
+    tickers_au = [] # used by fetch_shortman()
+    tickers_world = [] # used by fetch_yahoo()
+    finviz_output = {}
+    for ticker in tickers:
+        if '.AX' in ticker:
+            tickers_au.append(ticker)
+        if '.' in ticker:
+            tickers_world.append(ticker)
+        else:
+            tickers_us.append(ticker)
+    return tickers_au, tickers_world, tickers_us
+
