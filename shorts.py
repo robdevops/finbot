@@ -54,6 +54,7 @@ def lambda_handler(event,context):
         return payload
 
     def fetch_shortman(market_data):
+        local_market_data = market_data.copy()
         print("Fetching ASX shorts from Shortman")
         content = {}
         url = 'https://www.shortman.com.au/downloadeddata/latest.csv'
@@ -80,8 +81,8 @@ def lambda_handler(event,context):
             short_percent = cells[4]
             content[ticker] = float(short_percent)
             if ticker in market_data:
-                market_data[ticker]['percent_short'] = float(short_percent) # naughty update global dict
-        return
+                local_market_data[ticker]['percent_short'] = float(short_percent)
+        return local_market_data
 
     # MAIN #
     token = sharesight.get_token(sharesight_auth)
@@ -97,9 +98,7 @@ def lambda_handler(event,context):
     yahoo_output = yahoo.fetch(tickers_world)
     finviz_output = finviz.wrapper(tickers_us)
     market_data = {**yahoo_output, **finviz_output}
-
-    # add ASX shorts to market_data
-    fetch_shortman(market_data)
+    market_data = fetch_shortman(market_data)
 
     # Prep and send payloads
     if not webhooks:

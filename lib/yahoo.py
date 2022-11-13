@@ -103,6 +103,7 @@ def fetch(tickers):
     return yahoo_output
 
 def fetch_ex_dividends(market_data):
+    local_market_data = market_data.copy()
     print("Fetching ex-dividend dates from Yahoo")
     base_url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
@@ -131,6 +132,6 @@ def fetch_ex_dividends(market_data):
                     timestamp = item['summaryDetail']['exDividendDate']['raw']
                 except (KeyError, TypeError):
                     timestamp == ''
-                market_data[ticker]['ex_dividend_date'] = timestamp # naughty update global dict
-    return
+                local_market_data[ticker]['ex_dividend_date'] = timestamp
+    return local_market_data
 

@@ -64,9 +64,7 @@ def lambda_handler(event,context):
     yahoo_output = yahoo.fetch(tickers_world)
     finviz_output = finviz.wrapper(tickers_us)
     market_data = {**yahoo_output, **finviz_output}
-
-    # populate market_data with ex_dividend_dates from Yahoo
-    yahoo.fetch_ex_dividends(market_data)
+    market_data = yahoo.fetch_ex_dividends(market_data)
 
     # Prep and send payloads
     if not webhooks:
