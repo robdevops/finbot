@@ -57,13 +57,13 @@ if os.getenv('timezone'):
 
 config_excluded_portfolios = () # default
 if os.getenv('excluded_portfolios'):
-    config_excluded_portfolios = set(os.getenv('excluded_portfolios').split(','))
+    config_excluded_portfolios = set(os.getenv('excluded_portfolios').split())
 
 config_included_portfolios = () # default
 if os.getenv('included_portfolios'):
-    config_included_portfolios = set(os.getenv('included_portfolios').split(','))
+    config_included_portfolios = set(os.getenv('included_portfolios').split())
 
 config_watchlist = () # default
 if os.getenv('watchlist'):
-    config_watchlist = set(os.getenv('watchlist').split(','))
+    config_watchlist = set(os.getenv('watchlist').split())
 
