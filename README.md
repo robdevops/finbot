@@ -4,7 +4,7 @@ _This project has no affiliation with Sharesight Ltd._
 
 ## Description
 * Trade notifications
-* Daily price movements of holdings over a defined threshold
+* Intraday price movements of holdings over a defined threshold
 * Earnings date reminders for your holdings
 * Ex-dividend date warnings for your holdings
 * Highly shorted stock warnings for your holdings (AU, US)
@@ -31,7 +31,6 @@ sudo pip3 install git bs4 datetime python-dotenv requests
 sudo su -c 'git clone https://github.com/robdevops/sharesight-bot.git /usr/local/bin/sharesight-bot/'
 ```
 
-
 ## Setup
 Configuration is set by the .env file in the parent directory. Example:
 ```
@@ -41,9 +40,9 @@ vi /usr/local/bin/sharesight-bot/.env
 ### Sharesight
 * Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to the .env file. Example:
 ```
-sharesight_code = '87428fc522803d31065emockupf03fe475096631e5e07bbd7a0fde60c4cf25c7'
-sharesight_client_id = '0263829989b6fd954f7mockupfc64bc2e2f01d692d4de72986ea808f6e99813f'
-sharesight_client_secret = 'a3a5e715f0cc574a73cmockupb6bc24f32ffd5b67b387244c2c909da779a1478'
+sharesight_code = '01d692d4de7mockupfc64bc2e2f01d692d4de72986ea808f6e99813f'
+sharesight_client_id = '01d692d4de7mockupfc64bc2e2f01d692d4de72986ea808f6e99813f'
+sharesight_client_secret = '01d692d4de7mockupfc64bc2e2f01d692d4de72986ea808f6e99813f'
 ```
 
 ### Discord
@@ -55,7 +54,7 @@ discord_webhook = 'https://discord.com/api/webhooks/1009998000000000000/AbCdEfGh
 ### Slack
 * Slack support simply requires the Slack webhook in the .env file. Example:
 ```
-slack_webhook = 'https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGhmockupOpQrStUvWxYz'
+slack_webhook = 'https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA'
 ```
 
 ### Telegram
@@ -67,7 +66,7 @@ slack_webhook = 'https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEf
 * For Telegram groups, be aware the group id can change if you edit group settings (it becomes a "supergroup")
 * Example .env entry:
 ```
-telegram_url = 'https://api.telegram.org/bot0123456789:AbCdEfGhmockupOpQrStUvWxYz/sendMessage?chat_id=-1001000000000'
+telegram_url = 'https://api.telegram.org/bot0000000000:AAAAAAAAmockupAAAAAAAAAAAA/sendMessage?chat_id=-1001000000000'
 ```
 
 ### Portfolios
@@ -76,13 +75,13 @@ Portfolios are auto-discovered, including other people's portfolios which are sh
 excluded_portfolios = "100003 100004"
 ```
 
-Alternatively, you can use only specific portfolios:
+Alternatively, you can include only specific portfolios:
 ```
 included_portfolios = "100001 100002"
 ```
 
 ### Watchlist
-Tracks stocks which are not in your Sharesight portfolio(s). Use Yahoo! Finance ticker format. Example:
+Tracks stocks which are not in your Sharesight portfolio(s). Use the Yahoo! Finance ticker format. Example:
 ```
 watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
 ```
@@ -92,8 +91,8 @@ watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
 ![trade update in Slack](img/trades.png?raw=true "Trade update in Slack")
 
 `trades.py` sends recent Sharesight trades to your configured chat services.
-* To avoid duplicate trades, you can either limit this to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are tracked in a temp file defined by `config_state_file_path` in the .env file.
-* By default, this report only checks for trades from the current day. You can override this with `trade_updates_past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will notify all historical trades for the period.
+* To avoid duplicate trades, you can either limit this to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are tracked in a state file defined by `config_state_file_path` in the .env file.
+* By default, this report only checks for trades for the current day. You can override this with `trade_updates_past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will notify for all historic trades in the period.
 ```
 config_state_file_path = '/tmp/sharesight-bot-trades.txt'
 trade_updates_past_days = 31
@@ -102,7 +101,7 @@ trade_updates_past_days = 31
 ### Price alerts
 ![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
 
-`prices.py` sends intraday price alerts if the movement is over a percentage threshold. This data is sourced from Finviz (US) and Yahoo! Finance, based on the holdings in your Sharesight portfolio(s). The default threshold is 10% but you can change it by setting `price_updates_percent` in the .env file. Example:
+`prices.py` sends intraday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Finviz (US) and Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_updates_percent` in the .env file. Decimal fractions are accepted. Example:
 ```
 price_updates_percent = 9.4
 ```
