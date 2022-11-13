@@ -41,21 +41,21 @@ vi /usr/local/bin/sharesight-bot/.env
 ### Sharesight
 * Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to the .env file. Example:
 ```
-sharesight_code='87428fc522803d31065emockupf03fe475096631e5e07bbd7a0fde60c4cf25c7'
-sharesight_client_id='0263829989b6fd954f7mockupfc64bc2e2f01d692d4de72986ea808f6e99813f'
-sharesight_client_secret='a3a5e715f0cc574a73cmockupb6bc24f32ffd5b67b387244c2c909da779a1478'
+sharesight_code = '87428fc522803d31065emockupf03fe475096631e5e07bbd7a0fde60c4cf25c7'
+sharesight_client_id = '0263829989b6fd954f7mockupfc64bc2e2f01d692d4de72986ea808f6e99813f'
+sharesight_client_secret = 'a3a5e715f0cc574a73cmockupb6bc24f32ffd5b67b387244c2c909da779a1478'
 ```
 
 ### Discord
 * We use Discord's Slack compatibility by appending `/slack` to the Discord webhook in the .env file. Example:
 ```
-discord_webhook='https://discord.com/api/webhooks/1009998000000000000/AbCdEfGhIjKlMnOmockupvWxYz-AbCdEfGhIjKlMn/slack'
+discord_webhook = 'https://discord.com/api/webhooks/1009998000000000000/AbCdEfGhIjKlMnOmockupvWxYz-AbCdEfGhIjKlMn/slack'
 ```
 
 ### Slack
 * Slack support simply requires the Slack webhook in the .env file. Example:
 ```
-slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGhmockupOpQrStUvWxYz'
+slack_webhook = 'https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGhmockupOpQrStUvWxYz'
 ```
 
 ### Telegram
@@ -67,7 +67,7 @@ slack_webhook='https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AbCdEfGh
 * For Telegram groups, be aware the group id can change if you edit group settings (it becomes a "supergroup")
 * Example .env entry:
 ```
-telegram_url='https://api.telegram.org/bot0123456789:AbCdEfGhmockupOpQrStUvWxYz/sendMessage?chat_id=-1001000000000'
+telegram_url = 'https://api.telegram.org/bot0123456789:AbCdEfGhmockupOpQrStUvWxYz/sendMessage?chat_id=-1001000000000'
 ```
 
 ### Portfolios
