@@ -4,7 +4,7 @@ _This project has no affiliation with Sharesight Ltd._
 
 ## Description
 * Trade notifications
-* Intraday price movements of holdings over a defined threshold
+* Intraday price movements for holdings over a defined threshold
 * Earnings date reminders for your holdings
 * Ex-dividend date warnings for your holdings
 * Highly shorted stock warnings for your holdings (AU, US)
@@ -92,7 +92,7 @@ watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
 
 `trades.py` sends recent Sharesight trades to your configured chat services.
 * To avoid duplicate trades, you can either limit this to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are tracked in a state file defined by `config_state_file_path` in the .env file.
-* By default, this report only checks for trades for the current day. You can override this with `trade_updates_past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will notify for all historical trades in the period.
+* By default, this report only checks for trades for the current day. You can override this with `trade_updates_past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will send all historical trades for the period.
 ```
 config_state_file_path = '/tmp/sharesight-bot-trades.txt'
 trade_updates_past_days = 31
@@ -109,7 +109,7 @@ price_updates_percent = 9.4
 ### Earnings reminders
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
 
-`earnings.py` sends upcoming earnings date alerts. The data is sourced from Finviz (US) and Yahoo! Finance. Events more than `future_days` into the future will be ignored. **Explanation:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying a stock until after its earnings report, unless you think the stock will beat market expectations. 
+`earnings.py` sends upcoming earnings date alerts. The data is sourced from Finviz (US) and Yahoo! Finance. Events more than `future_days` into the future will be ignored. **Explanation:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations. 
 ```
 future_days = 7
 ```
@@ -117,13 +117,13 @@ future_days = 7
 ### Ex-dividend warnings
 ![ex-dividend warning in Slack](img/ex-dividend.png?raw=true "Ex-dividend warning in Slack")
 
-`ex-dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `future_days` into the future will be ignored. **Explanation:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the stock to go ex-dividend before buying.
+`ex-dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `future_days` into the future will be ignored. **Explanation:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
 ```
 future_days = 7
 ```
 
 ### Highly shorted stock warnings
-`shorts.py` sends highly shorted stock warnings. The data is sourced from Finviz (US) and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. **Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you of an above-average risk, and prompt you to investigate this stock more closely. 
+`shorts.py` sends highly shorted stock warnings. The data is sourced from Finviz (US) and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. **Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely. 
 ```
 shorts_percent = 15
 ```
