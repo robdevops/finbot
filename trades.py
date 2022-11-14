@@ -55,7 +55,7 @@ def lambda_handler(event,context):
                 emoji = '💸'
             elif type == 'SELL':
                 verb = 'sold'
-                emoji = '💰'
+                emoji = '🤑'
             else:
                 print("Skipping corporate action:", portfolio, type, symbol)
                 continue

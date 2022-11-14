@@ -20,7 +20,7 @@ def lambda_handler(event,context):
     
     def prepare_ex_dividend_payload(service, market_data):
         payload = []
-        emoji = "🤑"
+        emoji = "⚠️"
         now = int(time.time())
         soon = now + config_future_days * 86400
         for ticker in market_data:
@@ -41,13 +41,13 @@ def lambda_handler(event,context):
                 payload.append(f"{emoji} {human_date} {title} ({ticker_link})")
         payload.sort()
         if service == 'telegram':
-            payload.insert(0, "<b>Ex-dividend dates. Avoid buy on:</b>")
+            payload.insert(0, "<b>Ex-dividend dates. Avoid buy before:</b>")
         elif service == 'slack':
-            payload.insert(0, "*Ex-dividend dates. Avoid buy on:*")
+            payload.insert(0, "*Ex-dividend dates. Avoid buy before:*")
         elif service == 'discord':
-            payload.insert(0, "**Ex-dividend dates. Avoid buy on:**")
+            payload.insert(0, "**Ex-dividend dates. Avoid buy before:**")
         else:
-            payload.insert(0, "Ex-dividend dates. Avoid buy on:")
+            payload.insert(0, "Ex-dividend dates. Avoid buy before:")
         return payload
 
     # MAIN #
