@@ -117,7 +117,7 @@ future_days = 7
 ### Ex-dividend warnings
 ![ex-dividend warning in Slack](img/ex-dividend.png?raw=true "Ex-dividend warning in Slack")
 
-`ex-dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `future_days` into the future will be ignored. **Explanation:** After a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/investing/091015/how-dividends-affect-stock-prices.asp) by the amount of the dividend paid. If you buy on the ex-dividend date, you do not get the dividend but may experience the dip. Thus, this may be the worst day to buy the stock. 
+`ex-dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `future_days` into the future will be ignored. **Explanation:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the stock to go ex-dividend before buying.
 ```
 future_days = 7
 ```
