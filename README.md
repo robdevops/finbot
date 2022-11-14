@@ -133,16 +133,16 @@ shorts_percent = 15
 Recommended for a machine set to UTC:
 ```
 # run calendar reminders once per day
-29  21 * * * /home/rob/sharesight-bot/finance_calendar.py > /dev/null
+29  21 * * * /usr/local/bin/sharesight-bot/finance_calendar.py > /dev/null
 
 # run trade updates every 20 minutes on weekdays
-*/20 * * * Mon-Fri /home/rob/sharesight-bot/trades.py > /dev/null
+*/20 * * * Mon-Fri /usr/local/bin/sharesight-bot/trades.py > /dev/null
 
 # run short advisories once per month
-29  21 1 * * /home/rob/sharesight-bot/shorts.py > /dev/null
+29  21 1 * * /usr/local/bin/sharesight-bot/shorts.py > /dev/null
 
 # run other advisories once per week
-30  21 * * Fri { cd /home/rob/sharesight-bot/; ./earnings.py; ./ex-dividend.py; ./price.py ;} > /dev/null
+30  21 * * Fri { cd /usr/local/bin/sharesight-bot/; ./earnings.py; ./ex-dividend.py; ./price.py ;} > /dev/null
 ```
 ## Serverless
 _The following are notes from an AWS Lambda install and may not be current_
