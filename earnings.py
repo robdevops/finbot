@@ -1,18 +1,14 @@
 #!/usr/bin/python3
 
-import json, os, time, re
+import json, time
 import datetime
-#from dotenv import load_dotenv
-import pytz
-import requests
-from bs4 import BeautifulSoup
 
 from lib.config import *
-import lib.sharesight as sharesight
-import lib.webhook as webhook
-import lib.util as util
-import lib.yahoo as yahoo
 import lib.finviz as finviz
+import lib.sharesight as sharesight
+import lib.util as util
+import lib.webhook as webhook
+import lib.yahoo as yahoo
 
 def lambda_handler(event,context):
     time_now = datetime.datetime.today()

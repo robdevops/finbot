@@ -1,11 +1,6 @@
 #!/usr/bin/python3
 
-import json, os, time, re
-import datetime
-#from dotenv import load_dotenv
-import pytz
-import requests
-from bs4 import BeautifulSoup
+import json, re
 
 from lib.config import *
 import lib.sharesight as sharesight
@@ -13,11 +8,9 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 import lib.finviz as finviz
+import lib.shortman as shortman
 
 def lambda_handler(event,context):
-    time_now = datetime.datetime.today()
-    today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    
     def prepare_shorts_payload(service, market_data):
         payload = []
         emoji = "🩳"
@@ -53,37 +46,6 @@ def lambda_handler(event,context):
             payload.insert(0, "Highly shorted stock warning:")
         return payload
 
-    def fetch_shortman(market_data):
-        local_market_data = market_data.copy()
-        print("Fetching ASX shorts from Shortman")
-        content = {}
-        url = 'https://www.shortman.com.au/downloadeddata/latest.csv'
-        try:
-            r = requests.get(url, timeout=config_http_timeout)
-        except:
-            print("Failure fetching", url)
-            return {}
-        if r.status_code == 200:
-            print(r.status_code, "success shortman")
-        else:
-            print(r.status_code, "error communicating with", url)
-            return {}
-        csv = r.content.decode('utf-8')
-        csv = csv.split('\r\n')
-        csv.pop(0) # remove header
-        del csv[-1] # remove junk
-        for line in csv:
-            cells = line.split(',')
-            title = cells[0]
-            ticker = cells[1] + '.AX'
-            positions = cells[2]
-            on_issue = cells[3]
-            short_percent = cells[4]
-            content[ticker] = float(short_percent)
-            if ticker in market_data:
-                local_market_data[ticker]['percent_short'] = float(short_percent)
-        return local_market_data
-
     # MAIN #
     token = sharesight.get_token(sharesight_auth)
     portfolios = sharesight.get_portfolios(token)
@@ -98,7 +60,7 @@ def lambda_handler(event,context):
     yahoo_output = yahoo.fetch(tickers_world)
     finviz_output = finviz.wrapper(tickers_us)
     market_data = {**yahoo_output, **finviz_output}
-    market_data = fetch_shortman(market_data)
+    market_data = shortman.fetch(market_data)
 
     # Prep and send payloads
     if not webhooks:

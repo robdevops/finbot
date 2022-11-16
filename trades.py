@@ -1,9 +1,7 @@
 #!/usr/bin/python3
 
-import json, os, time
+import json, os
 import datetime
-import pytz
-import requests
 
 from lib.config import *
 import lib.sharesight as sharesight
@@ -14,11 +12,11 @@ import lib.yahoo as yahoo
 def lambda_handler(event,context):
     time_now = datetime.datetime.today()
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    start_date = time_now - datetime.timedelta(days=config_trade_updates_past_days)
+    start_date = time_now - datetime.timedelta(days=config_past_days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
     
     def prepare_trade_payload(service, trades):
-        if os.path.isfile(config_state_file_path):
+        if os.path.isfile(config_state_file):
             known_trades = state_file_read()
         else:
             known_trades = []
@@ -170,12 +168,12 @@ def lambda_handler(event,context):
         return payload
     
     def state_file_read():
-        with open(config_state_file_path, "r") as f:
+        with open(config_state_file, "r") as f:
             lines = f.read().splitlines()
             return lines
     
     def state_file_write(trades):
-        with open(config_state_file_path, "a") as f:
+        with open(config_state_file, "a") as f:
             for trade in trades:
                 f.write(f"{trade}\n")
 

@@ -1,11 +1,11 @@
-import json, os, time
+import json
 import datetime
 import requests
 from lib.config import *
 
 time_now = datetime.datetime.today()
 today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-start_date = time_now - datetime.timedelta(days=config_trade_updates_past_days)
+start_date = time_now - datetime.timedelta(days=config_past_days)
 start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
 
 class BearerAuth(requests.auth.AuthBase):
@@ -32,11 +32,9 @@ def get_token(sharesight_auth):
 
 def get_portfolios(token):
     print("Fetching Sharesight portfolios")
-    #headers={'Content-type': 'application/json', 'Authorization': 'Bearer ' + token}
     portfolio_dict = {}
     url = "https://api.sharesight.com/api/v3/portfolios"
     try:
-        #r = requests.get(url, headers=headers, timeout=config_http_timeout)
         r = requests.get(url, headers={'Content-type': 'application/json'}, auth=BearerAuth(token), timeout=config_http_timeout)
     except:
         print("Failure talking to Sharesight")
@@ -48,9 +46,9 @@ def get_portfolios(token):
         exit(1)
     data = r.json()
     for portfolio in data['portfolios']:
-        if str(portfolio['id']) in config_excluded_portfolios:
+        if str(portfolio['id']) in config_exclude_portfolios:
             print(portfolio['id'], "(" + portfolio['name'] + ") in exclusion list. Skipping.")
-        elif str(portfolio['id']) not in config_included_portfolios and config_included_portfolios:
+        elif str(portfolio['id']) not in config_include_portfolios and config_include_portfolios:
             print("Exclusion list is defined and does not contain", portfolio['id'], "(" + portfolio['name'] + "). Skipping.")
         else:
             portfolio_dict[portfolio['name']] = portfolio['id']

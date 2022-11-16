@@ -1,18 +1,10 @@
 #!/usr/bin/python3
 
-import json, os, time, re
-import datetime
-#from dotenv import load_dotenv
-import pytz
+import json
 import requests
 
 from lib.config import *
 import lib.util as util
-
-time_now = datetime.datetime.today()
-today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-start_date = time_now - datetime.timedelta(days=config_trade_updates_past_days)
-start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
 
 def transform_tickers(holdings):
     tickers = set()

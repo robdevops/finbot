@@ -19,13 +19,13 @@ if os.getenv('discord_webhook'):
 if os.getenv('telegram_url'):
     webhooks['telegram'] = os.getenv('telegram_url')
 
-config_trade_updates_past_days = 0 # default
-if os.getenv('trade_updates_past_days'):
-    config_trade_updates_past_days = int(os.getenv('trade_updates_past_days'))
+config_past_days = 0 # default
+if os.getenv('past_days'):
+    config_past_days = int(os.getenv('past_days'))
 
-config_price_updates_percent = 10 # default
-if os.getenv('price_updates_percent'):
-    config_price_updates_percent = float(os.getenv('price_updates_percent'))
+config_price_percent = 10 # default
+if os.getenv('price_percent'):
+    config_price_percent = float(os.getenv('price_percent'))
 
 config_future_days = 7 # default
 if os.getenv('future_days'):
@@ -35,9 +35,9 @@ config_shorts_percent = 15 # default
 if os.getenv('shorts_percent'):
     config_shorts_percent = int(os.getenv('shorts_percent'))
 
-config_state_file_path = '/tmp/sharesight-bot-trades.txt' # default
-if os.getenv('state_file_path'):
-    config_state_file_path = os.getenv('state_file_path')
+config_state_file = '/tmp/sharesight-bot-trades.txt' # default
+if os.getenv('state_file'):
+    config_state_file = os.getenv('state_file')
 
 config_http_timeout = int(10) # default
 if os.getenv('http_timeout'):
@@ -51,13 +51,13 @@ config_timezone = str("Australia/Melbourne") # default
 if os.getenv('timezone'):
     config_timezone = str(os.getenv('timezone'))
 
-config_excluded_portfolios = () # default
-if os.getenv('excluded_portfolios'):
-    config_excluded_portfolios = set(os.getenv('excluded_portfolios').split())
+config_exclude_portfolios = () # default
+if os.getenv('exclude_portfolios'):
+    config_exclude_portfolios = set(os.getenv('exclude_portfolios').split())
 
-config_included_portfolios = () # default
-if os.getenv('included_portfolios'):
-    config_included_portfolios = set(os.getenv('included_portfolios').split())
+config_include_portfolios = () # default
+if os.getenv('include_portfolios'):
+    config_include_portfolios = set(os.getenv('include_portfolios').split())
 
 config_watchlist = () # default
 if os.getenv('watchlist'):

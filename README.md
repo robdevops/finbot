@@ -70,14 +70,14 @@ telegram_url = 'https://api.telegram.org/bot0000000000:AAAAAAAAmockupAAAAAAAAAAA
 ```
 
 ### Portfolios
-Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `excluded_portfolios` in the .env file:
+Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `exclude_portfolios` in the .env file:
 ```
-excluded_portfolios = "100003 100004"
+exclude_portfolios = "100003 100004"
 ```
 
 Alternatively, you can include only specific portfolios:
 ```
-included_portfolios = "100001 100002"
+include_portfolios = "100001 100002"
 ```
 
 ### Watchlist
@@ -91,19 +91,19 @@ watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
 ![trade update in Slack](img/trades.png?raw=true "Trade update in Slack")
 
 `trades.py` sends recent Sharesight trades to your configured chat services.
-* To avoid duplicate trades, you can either limit this to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are tracked in a state file defined by `config_state_file_path` in the .env file.
-* By default, this report only checks for trades for the current day. You can override this with `trade_updates_past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will send all historical trades for the period.
+* To avoid duplicate trades, you can either limit this to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are tracked in a state file defined by `state_file` in the .env file.
+* By default, this report only checks for trades for the current day. You can override this with `past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will send all historical trades for the period.
 ```
-config_state_file_path = '/tmp/sharesight-bot-trades.txt'
-trade_updates_past_days = 31
+state_file = '/tmp/sharesight-bot-trades.txt'
+past_days = 31
 ```
 
 ### Price alerts
 ![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
 
-`prices.py` sends intraday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Finviz (US) and Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_updates_percent` in the .env file. Decimal fractions are accepted. Example:
+`prices.py` sends intraday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Finviz (US) and Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file. Decimal fractions are accepted. Example:
 ```
-price_updates_percent = 9.4
+price_percent = 9.4
 ```
 
 ### Earnings reminders

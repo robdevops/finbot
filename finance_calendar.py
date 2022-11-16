@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
-import json, os, time, re
 import datetime
+import json
 import pytz
 
 from lib.config import *

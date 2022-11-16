@@ -1,11 +1,6 @@
 #!/usr/bin/python3
 
-import json, os, time, re
-import datetime
-#from dotenv import load_dotenv
-import pytz
-import requests
-from bs4 import BeautifulSoup
+import json, re
 
 from lib.config import *
 import lib.sharesight as sharesight
@@ -15,15 +10,12 @@ import lib.yahoo as yahoo
 import lib.finviz as finviz
 
 def lambda_handler(event,context):
-    time_now = datetime.datetime.today()
-    today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    
     def prepare_price_payload(service, market_data):
         payload = []
         for ticker in market_data:
             percent = market_data[ticker]['percent_change']
             title = market_data[ticker]['title']
-            if abs(float(percent)) >= config_price_updates_percent:
+            if abs(float(percent)) >= config_price_percent:
                 url = 'https://finance.yahoo.com/quote/' + ticker
                 if percent < 0:
                     emoji = "🔻"
@@ -37,7 +29,7 @@ def lambda_handler(event,context):
                 else:
                     ticker_link = ticker
                 payload.append(f"{emoji} {title} ({ticker_link}) {percent}%")
-        print(len(payload), f"holdings moved by at least {config_price_updates_percent}%")
+        print(len(payload), f"holdings moved by at least {config_price_percent}%")
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)

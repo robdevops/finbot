@@ -1,11 +1,6 @@
 #!/usr/bin/python3
 
-import json, os, time, re
-import datetime
-#from dotenv import load_dotenv
-import pytz
-import requests
-from bs4 import BeautifulSoup
+import json, time
 
 from lib.config import *
 import lib.sharesight as sharesight
@@ -15,9 +10,6 @@ import lib.yahoo as yahoo
 import lib.finviz as finviz
 
 def lambda_handler(event,context):
-    time_now = datetime.datetime.today()
-    today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    
     def prepare_ex_dividend_payload(service, market_data):
         payload = []
         emoji = "⚠️"
