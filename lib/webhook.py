@@ -34,18 +34,17 @@ def write(service, url, payload):
         print(r.status_code, "error", service)
         return False
 
-def webhook_wrapper(service, url, chunks):
-    count=0
-    for payload_chunk in chunks: # workaround potential max length
-        count=count+1
-        payload_chunk = '\n'.join(payload_chunk)
-        write(service, url, payload_chunk)
-        if count < len(list(chunks)):
-            time.sleep(1) # workaround potential API throttling
-
 def payload_wrapper(service, url, payload):
     if len(payload) > 1: # ignore header
         print('\n'.join(payload))
         chunks = util.chunker(payload, 20)
-        webhook_wrapper(service, url, chunks)
+        count=0
+        for payload_chunk in chunks: # workaround potential max length
+            count=count+1
+            payload_chunk = '\n'.join(payload_chunk)
+            write(service, url, payload_chunk)
+            if count < len(list(chunks)):
+                time.sleep(1) # workaround potential API throttling
+    else:
+        print("Nothing to send")
 
