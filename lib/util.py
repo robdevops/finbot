@@ -59,3 +59,141 @@ def categorise_tickers(tickers):
             tickers_us.append(ticker)
     return tickers_au, tickers_world, tickers_us
 
+def flag_from_market(market):
+            flag=''
+            if market == 'ASX':
+                flag = '🇦🇺'
+            elif market in {'BOM', 'NSE'}:
+                flag = '🇮🇳'
+            elif market in {'BMV'}:
+                flag = '🇲🇽'
+            elif market in {'BKK'}:
+                flag = '🇹🇭'
+            elif market in {'BVMF'}:
+                flag = '🇧🇷'
+            elif market in {'SHE', 'SGX', 'SHA'}:
+                flag = '🇨🇳'
+            elif market == 'CPSE':
+                flag = '🇩🇰'
+            elif market in {'EURONEXT','AMS','ATH','BIT','BME','DUB','EBR','EPA','ETR','FWB','FRA','VIE'}:
+                flag == '🇪🇺'
+            elif market == 'HKG':
+                flag = '🇭🇰'
+            elif market == 'ICSE':
+                flag = '🇮🇸'
+            elif market in {'JSE'}:
+                flag = '🇿🇦'
+            elif market in {'KRX', 'KOSDAQ'}:
+                flag = '🇰🇷'
+            elif market == 'LSE':
+                flag = '🇬🇧'
+            elif market == 'MISX':
+                flag = '🇷🇺'
+            elif market in {'OM', 'STO'}:
+                flag = '🇸🇪'
+            elif market == 'SGX':
+                flag = '🇸🇬'
+            elif market in {'SWX', 'VTX'}:
+                flag = '🇨🇭'
+            elif market in {'TAI', 'TPE'}:
+                flag = '🇹🇼'
+            elif market == 'TASE':
+                flag = '🇮🇱'
+            elif market == 'OB':
+                flag = '🇳🇴'
+            elif market == 'TSE':
+                flag = '🇯🇵'
+            elif market == 'TSX':
+                flag = '🇨🇦'
+            elif market in {'NASDAQ', 'NYSE', 'BATS'}:
+                flag = '🇺🇸'
+            elif market in {'WAR'}:
+                flag = '🇵🇱'
+            return flag
+
+def flag_from_ticker(ticker):
+    flag = ''
+    if '.' in ticker:
+        suffix = ticker.split('.')[1]
+        if suffix == 'AX':
+            flag = '🇦🇺'
+        elif suffix == 'HK':
+            flag = '🇭🇰'
+        elif suffix in ('KS', 'KQ'):
+            flag = '🇰🇷'
+        elif suffix == 'L':
+            flag = '🇬🇧'
+        elif suffix == 'TW':
+            flag = '🇹🇼'
+    else:
+        flag = '🇺🇸'
+    return flag
+
+def currency_from_market(market):
+            if market == 'ASX':
+                currency = 'AUD'
+            elif market in {'BOM', 'NSE'}:
+                currency = 'INR'
+            elif market in {'BMV'}:
+                currency = 'MXN'
+            elif market in {'BKK'}:
+                currency = 'THB'
+            elif market in {'BVMF'}:
+                currency = 'BRL'
+            elif market in {'SHE', 'SGX', 'SHA'}:
+                currency = 'CNY'
+            elif market == 'CPSE':
+                currency = 'DEK'
+            elif market in {'EURONEXT','AMS','ATH','BIT','BME','DUB','EBR','EPA','ETR','FWB','FRA','VIE'}:
+                currency = 'EUR'
+            elif market == 'ICSE':
+                currency = 'ISK'
+            elif market in {'JSE'}:
+                currency = 'ZAR'
+            elif market in {'KRX', 'KOSDAQ'}:
+                currency = 'KRW'
+            elif market == 'MISX':
+                currency = 'RUB'
+            elif market in {'OM', 'STO'}:
+                currency = 'SEK'
+            elif market == 'SGX':
+                currency = 'SGD'
+            elif market in {'SWX', 'VTX'}:
+                currency = 'CHF'
+            elif market in {'TAI', 'TPE'}:
+                currency = 'TWD'
+            elif market == 'TASE':
+                currency = 'ILS'
+            elif market == 'OB':
+                currency = 'NOK'
+            elif market == 'TSE':
+                currency = 'JPY'
+            elif market == 'TSX':
+                currency = 'CAD'
+            elif market in {'NASDAQ', 'NYSE', 'BATS'}:
+                currency = 'USD'
+            elif market in {'WAR'}:
+                currency = 'PLN'
+            else:
+                # note: LSE and HKE allow non-home currencies
+                return False
+            return currency
+
+def currency_symbol(currency):
+            currency_symbol=''
+            if currency in {'AUD', 'CAD', 'HKD', 'NZD', 'SGD', 'TWD', 'USD'}:
+                currency_symbol = '$'
+            elif currency_symbol in {'CNY', 'JPY'}:
+                currency_symbol = '¥'
+            elif currency == 'EUR':
+                currency_symbol = '€'
+            elif currency == 'GBP':
+                currency_symbol = '£'
+            elif currency_symbol == 'KRW':
+                currency_symbol = '₩'
+            elif currency == 'RUB':
+                currency_symbol = '₽'
+            elif currency == 'THB':
+                currency_symbol = '฿'
+            return currency_symbol
+

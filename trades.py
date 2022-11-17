@@ -41,7 +41,7 @@ def lambda_handler(event,context):
             currency = trade['brokerage_currency_code']
             symbol = trade['symbol']
             market = trade['market']
-            #value = abs(round(trade['value'])) # converted to portfolio currency
+            #value = abs(round(trade['value'])) # don't use - sharesight converts to local currency
             value = abs(round(price * units))
             holding_id = str(trade['holding_id'])
             ticker = yahoo.transform_ticker(symbol, market)
@@ -55,105 +55,20 @@ def lambda_handler(event,context):
                 verb = 'sold'
                 emoji = '🤑'
             else:
-                print("Skipping corporate action:", portfolio, type, symbol)
+                print("Skipping corporate action:", portfolio, date, type, symbol)
                 continue
 
             if trade_id in known_trades:
-                print("Skipping known trade_id:", trade_id, portfolio, type, symbol)
+                print("Skipping known trade_id:", trade_id, date, portfolio, type, symbol)
                 continue
             else:
                 newtrades.add(trade_id) # sneaky update global set
 
-            flag=''
-            if market == 'ASX':
-                flag = '🇦🇺'
-                currency = 'AUD'
-            if market in {'BOM', 'NSE'}:
-                flag = '🇮🇳'
-                currency = 'INR'
-            if market in {'BMV'}:
-                flag = '🇲🇽'
-                currency = 'MXN'
-            if market in {'BKK'}:
-                flag = '🇹🇭'
-                currency = 'THB'
-            if market in {'BVMF'}:
-                flag = '🇧🇷'
-                currency = 'BRL'
-            if market in {'SHE', 'SGX', 'SHA'}:
-                flag = '🇨🇳'
-                currency = 'CNY'
-            if market == 'CPSE':
-                flag = '🇩🇰'
-                currency = 'DEK'
-            if market in {'EURONEXT','AMS','ATH','BIT','BME','DUB','EBR','EPA','ETR','FWB','FRA','VIE'}:
-                flag == '🇪🇺'
-                currency = 'EUR'
-            elif market == 'HKG':
-                flag = '🇭🇰'
-                # allows non-home currencies
-            elif market == 'ICSE':
-                flag = '🇮🇸'
-                currency = 'ISK'
-            if market in {'JSE'}:
-                flag = '🇿🇦'
-                currency = 'ZAR'
-            elif market in {'KRX', 'KOSDAQ'}:
-                flag = '🇰🇷'
-                currency = 'KRW'
-            elif market == 'LSE':
-                flag = '🇬🇧'
-                # allows non-home currencies
-            elif market == 'MISX':
-                flag = '🇷🇺'
-                currency = 'RUB'
-            elif market in {'OM', 'STO'}:
-                flag = '🇸🇪'
-                currency = 'SEK'
-            elif market == 'SGX':
-                flag = '🇸🇬'
-                currency = 'SGD'
-            elif market in {'SWX', 'VTX'}:
-                flag = '🇨🇭'
-                currency = 'CHF'
-            elif market in {'TAI', 'TPE'}:
-                flag = '🇹🇼'
-                currency = 'TWD'
-            elif market == 'TASE':
-                flag = '🇮🇱'
-                currency = 'ILS'
-            if market == 'OB':
-                flag = '🇳🇴'
-                currency = 'NOK'
-            if market == 'TSE':
-                flag = '🇯🇵'
-                currency = 'JPY'
-            if market == 'TSX':
-                flag = '🇨🇦'
-                currency = 'CAD'
-            elif market in {'NASDAQ', 'NYSE', 'BATS'}:
-                flag = '🇺🇸'
-                currency = 'USD'
-            if market in {'WAR'}:
-                flag = '🇵🇱'
-                currency = 'PLN'
-            # falls back to Sharesight brokerage currency
-
-            currency_symbol = ''
-            if currency in {'AUD', 'CAD', 'HKD', 'NZD', 'SGD', 'TWD', 'USD'}:
-                currency_symbol = '$'
-            elif currency_symbol in {'CNY', 'JPY'}:
-                currency_symbol = '¥'
-            elif currency == 'EUR':
-                currency_symbol = '€'
-            elif currency == 'GBP':
-                currency_symbol = '£'
-            elif currency_symbol == 'KRW':
-                currency_symbol = '₩'
-            elif currency == 'RUB':
-                currency_symbol = '₽'
-            elif currency == 'THB':
-                currency_symbol = '฿'
+            flag = util.flag_from_market(market)
+            # lookup currency or fall back to less reliable sharesight currency
+            currency_temp = util.currency_from_market(market)
+            if currency_temp:
+                currency = currency_temp
 
             if service == 'telegram':
                 trade_link = '<a href="' + sharesight_url + holding_id + '/trades/' + trade_id + '/edit">' + verb + '</a>'
