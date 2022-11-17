@@ -27,15 +27,17 @@ def write(service, url, payload):
 
 def payload_wrapper(service, url, payload):
     if len(payload) > 1: # ignore header
-        print('\n'.join(payload))
-        chunks = util.chunker(payload, 20)
-        count=0
-        for payload_chunk in chunks: # workaround potential max length
-            count=count+1
-            payload_chunk = '\n'.join(payload_chunk)
-            write(service, url, payload_chunk)
-            if count < len(list(chunks)):
+        payload_string = ('\n'.join(payload))
+        print("Service:", service, "Bytes:", len(payload_string), "Payload:", payload_string)
+        if service == 'discord' and len(payload_string) > 2000:
+            print(service, "payload is over 2000 bytes. Splitting.")
+            chunks = util.chunker(payload, config_chunk_maxlines)
+            for payload_chunk in chunks:
+                payload_chunk = '\n'.join(payload_chunk)
+                write(service, url, payload_chunk)
                 time.sleep(1) # workaround potential API throttling
+        else:
+            write(service, url, payload_string)
     else:
         print("Nothing to send")
 
