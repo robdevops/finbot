@@ -22,6 +22,8 @@ def lambda_handler(event,context):
                 else:
                     emoji = "⬆️ "
                 percent = str(round(percent))
+                flag = util.flag_from_ticker(ticker)
+                ticker_short = ticker.split('.')[0]
                 if service == 'telegram':
                     ticker_link = '<a href="' + url + '">' + ticker + '</a>'
                 elif service in {'slack', 'discord'}:
@@ -52,7 +54,7 @@ def lambda_handler(event,context):
     finviz_output = {}
     yahoo_output = {}
     holdings = sharesight.get_holdings_wrapper(token, portfolios)
-    tickers = yahoo.transform_tickers(holdings)
+    tickers = yahoo.transform_ticker_wrapper(holdings)
     tickers.update(config_watchlist)
     tickers_au, tickers_world, tickers_us = util.categorise_tickers(tickers)
     yahoo_output = yahoo.fetch(tickers_world)

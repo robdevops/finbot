@@ -63,3 +63,7 @@ config_watchlist = () # default
 if os.getenv('watchlist'):
     config_watchlist = set(os.getenv('watchlist').split())
 
+config_chunk_maxlines = int(20) # default
+if os.getenv('chunk_maxlines'):
+    config_chunk_maxlines = int(os.getenv('chunk_maxlines'))
+

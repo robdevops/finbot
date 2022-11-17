@@ -22,6 +22,8 @@ def lambda_handler(event,context):
                 continue
             url = 'https://finance.yahoo.com/quote/' + ticker
             title = market_data[ticker]['title']
+            flag = util.flag_from_ticker(ticker)
+            ticker_short = ticker.split('.')[0]
             if timestamp > now and timestamp < soon:
                 human_date = time.strftime('%b %d', time.localtime(timestamp)) # Sep 08
                 if service == 'telegram':
@@ -50,7 +52,7 @@ def lambda_handler(event,context):
     finviz_output = {}
     yahoo_output = {}
     holdings = sharesight.get_holdings_wrapper(token, portfolios)
-    tickers = yahoo.transform_tickers(holdings)
+    tickers = yahoo.transform_ticker_wrapper(holdings)
     tickers.update(config_watchlist)
     tickers_au, tickers_world, tickers_us = util.categorise_tickers(tickers)
     yahoo_output = yahoo.fetch(tickers_world)

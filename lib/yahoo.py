@@ -6,27 +6,13 @@ import requests
 from lib.config import *
 import lib.util as util
 
-def transform_tickers(holdings):
+def transform_ticker_wrapper(holdings):
     tickers = set()
     for holding in holdings:
         symbol = holdings[holding]['code']
         market = holdings[holding]['market_code']
-        if market == 'ASX':
-            tickers.add(symbol + '.AX')
-        if market == 'HKG':
-            tickers.add(symbol + '.HK')
-        if market == 'KRX':
-            tickers.add(symbol + '.KS')
-        if market == 'KOSDAQ':
-            tickers.add(symbol + '.KQ')
-        if market == 'LSE':
-            tickers.add(symbol + '.L')
-        if market == 'TAI':
-            tickers.add(symbol + '.TW')
-        if market in {'NASDAQ', 'NYSE', 'BATS'}:
-            tickers.add(symbol)
-        else:
-            continue
+        ticker = transform_ticker(symbol, market)
+        tickers.add(ticker)
     return tickers
     
 def transform_ticker(ticker, market):
