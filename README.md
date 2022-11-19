@@ -28,13 +28,13 @@ sudo pip3 install git bs4 datetime python-dotenv requests
 ```
 
 ```
-sudo su -c 'git clone https://github.com/robdevops/sharesight-bot.git /usr/local/bin/sharesight-bot/'
+git clone https://github.com/robdevops/sharesight-bot.git ~/sharesight-bot
 ```
 
 ## Setup
 Configuration is set by the .env file in the parent directory. Example:
 ```
-vi /usr/local/bin/sharesight-bot/.env
+vi ~/sharesight-bot/.env
 ```
 
 ### Sharesight
