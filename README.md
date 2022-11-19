@@ -152,7 +152,7 @@ _The following are notes from an AWS Lambda install and may not be current_
 ### Installation
 To prepare zip for upload to cloud:
 ```
-cd sharesight-bot
+cd ~/sharesight-bot
 pip3 install datetime python-dotenv requests --upgrade --target=$(pwd)
 zip -r script.zip .
 ```
