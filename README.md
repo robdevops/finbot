@@ -136,7 +136,10 @@ Recommended for a machine set to UTC:
 */20 * * * Mon-Fri /usr/local/bin/sharesight-bot/trades.py > /dev/null
 
 # Daily
-29  21 * * * { cd /usr/local/bin/sharesight-bot/; ./finance_calendar.py; ./price.py ;} > /dev/null
+29  21 * * * /usr/local/bin/sharesight-bot/finance_calendar.py > /dev/null
+
+# Daily on weekdays
+29  21 * * Mon-Fri /usr/local/bin/sharesight-bot/price.py > /dev/null
 
 # Weekly
 30  21 * * Fri { cd /usr/local/bin/sharesight-bot/; ./earnings.py; ./ex-dividend.py ;} > /dev/null
