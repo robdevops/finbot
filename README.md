@@ -145,7 +145,7 @@ Recommended for a machine set to UTC:
 30  21 * * Fri { cd /usr/local/bin/sharesight-bot/; ./earnings.py; ./ex-dividend.py ;} > /dev/null
 
 # Monthly
-29  21 1 * * /usr/local/bin/sharesight-bot/shorts.py > /dev/null
+28  21 1 * * /usr/local/bin/sharesight-bot/shorts.py > /dev/null
 ```
 ## Serverless
 _The following are notes from an AWS Lambda install and may not be current_
