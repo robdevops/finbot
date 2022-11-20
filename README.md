@@ -147,6 +147,11 @@ Recommended for a machine set to UTC:
 # Monthly
 27  21 1 * * ~/sharesight-bot/shorts.py > /dev/null
 ```
+The above an be installed with:
+```
+(crontab -l ; cat ~/crontab.txt)| crontab -
+```
+
 ## Serverless
 _The following are notes from an AWS Lambda install and may not be current_
 ### Installation
