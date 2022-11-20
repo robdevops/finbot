@@ -1,0 +1,15 @@
+# Every 20 minutes on weekdays
+*/20 * * * Mon-Fri ~/sharesight-bot/trades.py > /dev/null
+
+# Daily
+30  21 * * * ~/sharesight-bot/finance_calendar.py > /dev/null
+
+# Daily on weekdays
+29  21 * * Mon-Fri ~/sharesight-bot/price.py > /dev/null
+
+# Weekly
+28  21 * * Fri { cd ~/sharesight-bot/; ./earnings.py; ./ex-dividend.py ;} > /dev/null
+
+# Monthly
+27  21 1 * * ~/sharesight-bot/shorts.py > /dev/null
+
