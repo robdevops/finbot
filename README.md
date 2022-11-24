@@ -147,9 +147,9 @@ Recommended for a machine set to UTC:
 # Monthly
 27  21 1 * * ~/sharesight-bot/shorts.py > /dev/null
 ```
-The above an be installed with:
+The above can be installed with:
 ```
-(crontab -l ; cat ~/crontab.txt)| crontab -
+(crontab -l ; cat ~/sharesight-bot/crontab.txt)| crontab -
 ```
 
 ## Serverless
