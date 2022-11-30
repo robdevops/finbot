@@ -57,7 +57,7 @@ def lambda_handler(event,context):
     tickers = yahoo.transform_ticker_wrapper(holdings)
     tickers.update(config_watchlist)
     tickers_au, tickers_world, tickers_us = util.categorise_tickers(tickers)
-    market_data = yahoo.fetch(tickers)
+    market_data = yahoo.fetch(tickers_us)
     #finviz_output = finviz.wrapper(tickers_us)
     #market_data = {**yahoo_output, **finviz_output}
 
