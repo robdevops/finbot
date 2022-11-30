@@ -37,6 +37,7 @@ def fetch(tickers):
     yahoo_urls.append('https://query2.finance.yahoo.com/v7/finance/quote?symbols=' + ','.join(tickers))
     headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     for url in yahoo_urls:
+        print("Fetching", url)
         try:
             r = requests.get(url, headers=headers, timeout=config_http_timeout)
         except Exception as e:
@@ -66,18 +67,20 @@ def fetch(tickers):
             dividend = float(item['trailingAnnualDividendRate'])
         except (KeyError, IndexError):
             dividend = float(0)
+        try:
+            percent_change_premarket = item['preMarketChangePercent']
+        except (KeyError, IndexError):
+            percent_change_premarket = float(0)
         title = util.transform_title(title)
+        yahoo_output[ticker] = { 'ticker': ticker, 'title': title, 'percent_change': percent_change, 'dividend': dividend, 'percent_change_premarket': percent_change_premarket}
         try:
             earningsTimestamp = item['earningsTimestamp']
             earningsTimestampStart = item['earningsTimestampStart']
             earningsTimestampEnd = item['earningsTimestampEnd']
         except (KeyError, IndexError):
-            yahoo_output[ticker] = { 'ticker': ticker, 'title': title, 'percent_change': percent_change, 'dividend': dividend} # no date
             continue
         if earningsTimestamp == earningsTimestampStart == earningsTimestampEnd:
-            yahoo_output[ticker] = { 'ticker': ticker, 'title': title, 'percent_change': percent_change, 'dividend': dividend, 'earnings_date': earningsTimestamp}
-        else: # approximate date
-            yahoo_output[ticker] = { 'ticker': ticker, 'title': title, 'percent_change': percent_change, 'dividend': dividend}
+            yahoo_output[ticker] = {**yahoo_output[ticker], **{'earnings_date': earningsTimestamp}}
     return yahoo_output
 
 def fetch_ex_dividends(market_data):
