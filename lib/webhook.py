@@ -28,9 +28,9 @@ def write(service, url, payload):
 def payload_wrapper(service, url, payload):
     if len(payload) > 1: # ignore header
         payload_string = ('\n'.join(payload))
-        print("Service:", service, "Bytes:", len(payload_string), "Payload:", payload_string)
+        print("Service: "+ service + ". Bytes: " + str(len(payload_string)) + ". Payload: " + payload_string)
         if service == 'discord' and len(payload_string) > 2000:
-            print(service, "payload is over 2000 bytes. Splitting.")
+            print(service, "payload is over 2,000 bytes. Splitting.")
             chunks = util.chunker(payload, config_chunk_maxlines)
             for payload_chunk in chunks:
                 payload_chunk = '\n'.join(payload_chunk)
