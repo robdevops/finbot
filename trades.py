@@ -14,10 +14,11 @@ def lambda_handler(event,context):
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
     start_date = time_now - datetime.timedelta(days=config_past_days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
+    cache_file = config_cache_dir + "/sharesight_trade_cache.txt"
     
     def prepare_trade_payload(service, trades):
-        if os.path.isfile(config_state_file):
-            known_trades = state_file_read()
+        if os.path.isfile(trade_cache):
+            known_trades = trade_cache_read(cache_file)
         else:
             known_trades = []
         payload = []
@@ -82,13 +83,13 @@ def lambda_handler(event,context):
             payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value:,} of {holding_link} {flag}")
         return payload
     
-    def state_file_read():
-        with open(config_state_file, "r") as f:
+    def trade_cache_read(cache_file):
+        with open(cache_file, "r") as f:
             lines = f.read().splitlines()
             return lines
     
-    def state_file_write(trades):
-        with open(config_state_file, "a") as f:
+    def trade_cache_write(cache_file, trades):
+        with open(cache_file, "a") as f:
             for trade in trades:
                 f.write(f"{trade}\n")
 
@@ -116,11 +117,13 @@ def lambda_handler(event,context):
         print(service, "Preparing trade payload")
         payload = prepare_trade_payload(service, trades)
         url = webhooks[service]
+        if service == "telegram":
+            url = url + "sendMessage?chat_id=" + config_telegram_chat_id
         webhook.payload_wrapper(service, url, payload)
 
     # write state file
     if newtrades:
-        state_file_write(newtrades)
+        trade_cache_write(cache_file, newtrades)
 
     # make google cloud happy
     return True

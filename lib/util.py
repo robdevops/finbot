@@ -3,6 +3,11 @@
 from lib.config import *
 import lib.sharesight as sharesight
 import lib.webhook as webhook
+import datetime
+import json
+
+time_now = datetime.datetime.today()
+now = time_now.timestamp()
 
 def chunker(seq, size):
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
@@ -197,3 +202,13 @@ def currency_symbol(currency):
                 currency_symbol = '฿'
             return currency_symbol
 
+def read_cache(cache_file):
+    if os.path.isfile(cache_file) and os.path.getmtime(cache_file) > now - 3600:
+        print("Using cache:", cache_file)
+        with open(cache_file, "r") as f:
+            cache_dict = json.loads(f.read())
+        return cache_dict
+
+def write_cache(cache_file, fresh_dict):
+    with open(cache_file, "w") as f:
+        f.write(json.dumps(fresh_dict))
