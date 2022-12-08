@@ -11,6 +11,7 @@ def fetch(chunk):
     finviz_output = {}
     chunk_string=','.join(chunk)
     url = 'https://finviz.com/screener.ashx?v=150&c=0,1,2,30,66,68,14&t=' + chunk_string
+    print("fetching", url)
     headers = {'User-Agent': 'Mozilla/5.0'}
     r = requests.get(url, headers=headers, timeout=config_http_timeout)
     if r.status_code == 200:
