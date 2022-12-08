@@ -58,6 +58,8 @@ def lambda_handler(event,context):
         print(service, "Preparing finance calendar payload")
         payload = prepare_finance_calendar_payload(service)
         url = webhooks[service]
+        if service == "telegram":
+            url = url + "sendMessage?chat_id=" + config_telegram_chat_id
         webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy

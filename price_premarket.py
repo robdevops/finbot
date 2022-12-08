@@ -69,6 +69,8 @@ def lambda_handler(event,context):
         print(service, "Preparing intraday price payload")
         payload = prepare_price_payload(service, market_data)
         url = webhooks[service]
+        if service == "telegram":
+            url = url + "sendMessage?chat_id=" + config_telegram_chat_id
         webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy

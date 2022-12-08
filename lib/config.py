@@ -19,6 +19,12 @@ if os.getenv('discord_webhook'):
 if os.getenv('telegram_url'):
     webhooks['telegram'] = os.getenv('telegram_url')
 
+if os.getenv('telegram_chat_id'):
+    config_telegram_chat_id = str(os.getenv('telegram_chat_id'))
+
+if os.getenv('telegram_botname'):
+    config_telegram_botname = os.getenv('telegram_botname')
+
 config_past_days = 0 # default
 if os.getenv('past_days'):
     config_past_days = int(os.getenv('past_days'))
@@ -35,9 +41,9 @@ config_shorts_percent = 15 # default
 if os.getenv('shorts_percent'):
     config_shorts_percent = int(os.getenv('shorts_percent'))
 
-config_state_file = '/tmp/sharesight-bot-trades.txt' # default
-if os.getenv('state_file'):
-    config_state_file = os.getenv('state_file')
+config_cache_dir = '/tmp' # default
+if os.getenv('cache_dir'):
+    config_cache_dir = os.getenv('cache_dir')
 
 config_http_timeout = int(10) # default
 if os.getenv('http_timeout'):
