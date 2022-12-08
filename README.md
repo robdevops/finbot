@@ -60,15 +60,15 @@ slack_webhook = 'https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAA
 ### Telegram
 * Set up the bot by messaging [BotFather](https://telegram.me/BotFather).
 * Add your bot to a group or channel.
-* In the .env file set `telegram_url` to your bot's URL.
-  * Ensure `bot` is prepended to the id..
+* In the .env file, add your bots token to `telegram_url` in form `https://api.telegram.org/botTOKEN/`
+  * Ensure `bot` is prepended to the token.
 * In the .env file, set `telegram_chat_id` to the chat group or channel id.
    * For channels and supergroups, _CHAT_ID_ should be negative and 13 characters. Prepend `-100` if necessary.
    * Be aware a group id can change if you edit group settings and it becomes a "supergroup". Currently, the bot does not automatically handle this.
 * Optionally, set `telegram_botname`. This is an alternative trigger word if you use interactive mode.
 * Example .env entry:
 ```
-telegram_url = 'https://api.telegram.org/bot0000000000:AAAAAAAAmockupAAAAAAAAAAAA/'
+telegram_url = 'https://api.telegram.org/bot0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA/'
 telegram_chat_id = '-1001000000000'
 telegram_botname = '@mybot'
 ```
