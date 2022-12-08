@@ -2,9 +2,14 @@
 
 import json
 import requests
+import datetime
+import time
 
 from lib.config import *
 import lib.util as util
+
+time_now = datetime.datetime.today()
+now = time_now.timestamp()
 
 def transform_ticker_wrapper(holdings):
     tickers = set()
@@ -56,23 +61,43 @@ def fetch(tickers):
     data = data['quoteResponse']
     data = data['result']
     for item in data:
-        try:
-            ticker = item['symbol']
-            title = item['longName']
-            percent_change = item['regularMarketChangePercent']
-        except (KeyError, IndexError):
-            print("Yahoo: ", ticker, " not found. Skipping")
-            continue
+        ticker = item['symbol']
+        title = item['longName']
+        percent_change = round(float(item['regularMarketChangePercent']), 2)
+        currency = item['currency']
         try:
             dividend = float(item['trailingAnnualDividendRate'])
         except (KeyError, IndexError):
             dividend = float(0)
+        title = util.transform_title(title)
+        yahoo_output[ticker] = { 'title': title, 'ticker': ticker, 'percent_change': percent_change, 'dividend': dividend, 'currency': currency }
+        # optional fields
         try:
             percent_change_premarket = item['preMarketChangePercent']
         except (KeyError, IndexError):
-            percent_change_premarket = float(0)
-        title = util.transform_title(title)
-        yahoo_output[ticker] = { 'ticker': ticker, 'title': title, 'percent_change': percent_change, 'dividend': dividend, 'percent_change_premarket': percent_change_premarket}
+            pass
+        else:
+            yahoo_output[ticker]["percent_change_premarket"] = round(percent_change_premarket, 2)
+        try:
+            percent_change_postmarket = item['postMarketChangePercent']
+        except (KeyError, IndexError):
+            pass
+        else:
+            print(percent_change_postmarket)
+            yahoo_output[ticker]["percent_change_postmarket"] = round(percent_change_postmarket, 2)
+        try:
+            market_cap = round(float(item['marketCap']))
+        except (KeyError, IndexError):
+            pass
+        else:
+            market_cap = f"{market_cap:,}"
+            yahoo_output[ticker]["market_cap"] = market_cap
+        try:
+            pe = round(item['forwardPE'])
+        except:
+            pass
+        else:
+            yahoo_output[ticker]["pe"] = pe
         try:
             earningsTimestamp = item['earningsTimestamp']
             earningsTimestampStart = item['earningsTimestampStart']
@@ -80,10 +105,15 @@ def fetch(tickers):
         except (KeyError, IndexError):
             continue
         if earningsTimestamp == earningsTimestampStart == earningsTimestampEnd:
-            yahoo_output[ticker] = {**yahoo_output[ticker], **{'earnings_date': earningsTimestamp}}
+            yahoo_output[ticker]["earnings_date"] = earningsTimestamp
     return yahoo_output
 
 def fetch_ex_dividends(market_data):
+    cache_file = config_cache_dir + "/sharesight_ex_dividends_cache"
+    cache = util.read_cache(cache_file)
+    if cache:
+        print("Fetching ex-dividend dates from cache:", cache_file)
+        return cache
     local_market_data = market_data.copy()
     print("Fetching ex-dividend dates from Yahoo")
     base_url = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/'
@@ -91,7 +121,9 @@ def fetch_ex_dividends(market_data):
     for ticker in market_data:
         yahoo_urls = [base_url + ticker + '?modules=summaryDetail']
         yahoo_urls.append(base_url + ticker + '?modules=summaryDetail')
+        print('.', sep=' ', end='', flush=True)
         if market_data[ticker]['dividend'] > 0:
+            time.sleep(0.1)
             for url in yahoo_urls:
                 try:
                     r = requests.get(url, headers=headers, timeout=config_http_timeout)
@@ -112,7 +144,10 @@ def fetch_ex_dividends(market_data):
                 try:
                     timestamp = item['summaryDetail']['exDividendDate']['raw']
                 except (KeyError, TypeError):
-                    timestamp == ''
-                local_market_data[ticker]['ex_dividend_date'] = timestamp
+                    pass
+                else:
+                    local_market_data[ticker]['ex_dividend_date'] = timestamp
+    print("")
+    util.write_cache(cache_file, local_market_data)
     return local_market_data
 
