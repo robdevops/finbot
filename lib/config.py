@@ -73,3 +73,15 @@ config_chunk_maxlines = int(20) # default
 if os.getenv('chunk_maxlines'):
     config_chunk_maxlines = int(os.getenv('chunk_maxlines'))
 
+config_cache = True # default
+if os.getenv('cache'):
+    config_cache = os.getenv("cache", 'False').lower() in ('true', '1', 't')
+
+config_cache_seconds = 82800 # default
+if os.getenv('cache_seconds'):
+    config_cache_seconds = int(os.getenv('cache_seconds'))
+
+config_telegram_outgoing_webhook = str() # default
+if os.getenv('telegram_outgoing_webhook'):
+    config_telegram_outgoing_webhook = str(os.getenv('telegram_outgoing_webhook'))
+

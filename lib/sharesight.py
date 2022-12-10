@@ -20,8 +20,8 @@ class BearerAuth(requests.auth.AuthBase):
 
 def get_token(sharesight_auth):
     cache_file = config_cache_dir + "/sharesight_token_cache.txt"
-    cache = util.read_cache(cache_file)
-    if cache:
+    cache = util.read_cache(cache_file, 1740)
+    if config_cache and cache:
         print("reading token from cache:", cache_file)
         cache_expiry = cache['created_at'] + cache['expires_in']
         if cache_expiry < now + 60:
@@ -46,8 +46,8 @@ def get_token(sharesight_auth):
 
 def get_portfolios(token):
     cache_file = config_cache_dir + "/sharesight_portfolio_cache.txt"
-    cache = util.read_cache(cache_file)
-    if cache:
+    cache = util.read_cache(cache_file, config_cache_seconds)
+    if config_cache and cache:
         print("Fetched Sharesight portfolios from cache")
         print(cache)
         return cache
@@ -80,6 +80,7 @@ def get_portfolios(token):
     return portfolio_dict
 
 def get_trades(token, portfolio_name, portfolio_id):
+    # NEVER CACHE THIS
     print("Fetching Sharesight trades for", portfolio_name, end=": ")
     endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
     url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + start_date
@@ -92,8 +93,8 @@ def get_trades(token, portfolio_name, portfolio_id):
 
 def get_holdings(token, portfolio_name, portfolio_id):
     cache_file = config_cache_dir + "/sharesight_holdings_cache_" + str(portfolio_id)
-    cache = util.read_cache(cache_file)
-    if cache:
+    cache = util.read_cache(cache_file, config_cache_seconds)
+    if config_cache and cache:
         print("Fetching Sharesight holdings from cache.", portfolio_name, end=": ")
         print(len(cache))
         return cache

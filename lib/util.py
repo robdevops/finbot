@@ -5,6 +5,7 @@ import lib.sharesight as sharesight
 import lib.webhook as webhook
 import datetime
 import json
+import os
 
 time_now = datetime.datetime.today()
 now = time_now.timestamp()
@@ -14,9 +15,12 @@ def chunker(seq, size):
 
 def transform_title(title):
         # shorten long names to reduce line wrap on mobile
+        title = title.replace(' FPO', '')
         title = title.replace('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'Clean Energy ETF')
         title = title.replace('Atlantica Sustainable Infrastructure', 'Atlantica Sustainable')
         title = title.replace('Advanced Micro Devices', 'AMD')
+        title = title.replace('Taiwan Semiconductor Manufacturing', 'TSM')
+        title = title.replace('Taiwan Semiconductor Manufactur', 'TSM')
         title = title.replace('Flight Centre Travel', 'Flight Centre')
         title = title.replace('Global X ', '')
         title = title.replace('The ', '')
@@ -202,13 +206,16 @@ def currency_symbol(currency):
                 currency_symbol = '฿'
             return currency_symbol
 
-def read_cache(cache_file):
-    if os.path.isfile(cache_file) and os.path.getmtime(cache_file) > now - 3600:
-        print("Using cache:", cache_file)
+def read_cache(cache_file, seconds):
+    if os.path.isfile(cache_file) and os.path.getmtime(cache_file) > now - int(seconds):
         with open(cache_file, "r") as f:
             cache_dict = json.loads(f.read())
         return cache_dict
 
 def write_cache(cache_file, fresh_dict):
-    with open(cache_file, "w") as f:
+    os.umask(0)
+    def opener(path, flags):
+        return os.open(path, flags, 0o640)
+    with open(cache_file, "w", opener=opener) as f:
         f.write(json.dumps(fresh_dict))
+    os.umask(0o022)
