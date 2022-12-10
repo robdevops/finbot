@@ -11,10 +11,18 @@ import lib.finviz as finviz
 
 def lambda_handler(event,context):
     def prepare_price_payload(service, market_data):
+        postmarket = False
         payload = []
         for ticker in market_data:
-            percent = market_data[ticker]['percent_change_premarket']
-            title = market_data[ticker]['title']
+            if 'percent_change_premarket' in market_data[ticker]:
+                percent = market_data[ticker]['percent_change_premarket']
+            elif 'percent_change_postmarket' in market_data[ticker]:
+                postmarket = True
+                percent = market_data[ticker]['percent_change_postmarket']
+            else:
+                print("no data for", ticker)
+                continue
+            title = market_data[ticker]['profile_title']
             if abs(float(percent)) >= config_price_percent:
                 url = 'https://finance.yahoo.com/quote/' + ticker
                 if percent < 0:
