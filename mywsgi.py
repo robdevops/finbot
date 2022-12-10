@@ -209,7 +209,7 @@ def prepare_help(service, user):
     payload = []
     payload.append("<b>Examples:</b>")
     payload.append("!AAPL")
-    payload.append("!BHP.AX")
+    payload.append("!AAPL bio")
     payload.append("!watchlist")
     payload.append("!watchlist add GOOGL")
     payload.append("!watchlist del GOOGL")
