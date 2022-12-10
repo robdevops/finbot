@@ -21,7 +21,7 @@ def lambda_handler(event,context):
             except KeyError:
                 continue
             url = 'https://finance.yahoo.com/quote/' + ticker
-            title = market_data[ticker]['title']
+            title = market_data[ticker]['profile_title']
             flag = util.flag_from_ticker(ticker)
             ticker_short = ticker.split('.')[0]
             if timestamp > now and timestamp < soon:
@@ -55,11 +55,13 @@ def lambda_handler(event,context):
     tickers = yahoo.transform_ticker_wrapper(holdings)
     tickers.update(config_watchlist)
     tickers_au, tickers_world, tickers_us = util.categorise_tickers(tickers)
-    yahoo_output = yahoo.fetch(tickers_world)
+    for ticker in tickers:
+        try:
+            yahoo_output = { **yahoo_output, **yahoo.fetch_detail(ticker) }
+        except (TypeError):
+            pass
     finviz_output = finviz.wrapper(tickers_us)
     market_data = {**yahoo_output, **finviz_output}
-    market_data = yahoo.fetch_ex_dividends(market_data)
-
     # Prep and send payloads
     if not webhooks:
         print("Error: no services enabled in .env")
@@ -71,7 +73,6 @@ def lambda_handler(event,context):
         if service == "telegram":
             url = url + "sendMessage?chat_id=" + config_telegram_chat_id
         webhook.payload_wrapper(service, url, payload)
-
     # make google cloud happy
     return True
 
