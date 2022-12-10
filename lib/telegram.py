@@ -6,7 +6,7 @@ from lib.config import *
 
 def subscribe():
     telegram_url = webhooks['telegram'] + 'setWebhook'
-    params = {"url": telegram_outgoing_webhook, "allowed_updates": ["message"]}
+    params = {"url": config_telegram_outgoing_webhook, "allowed_updates": ["message"]}
     response = requests.post(
         #url="https://api.telegram.org/botTOKEN/setWebhook",
         telegram_url,

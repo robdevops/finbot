@@ -247,7 +247,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     if bio:
         city = market_data[ticker]['profile_city']
         country = market_data[ticker]['profile_country']
-        if profile_state in market_data[ticker]:
+        state = ''
+        if 'profile_state' in market_data[ticker]:
             state = market_data[ticker]['profile_state']
         payload.append(f"{market_data[ticker]['profile_bio']}")
         payload.append("")
