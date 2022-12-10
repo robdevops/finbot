@@ -10,6 +10,7 @@ _This project has no affiliation with Sharesight Ltd._
 * Highly shorted stock warnings for your holdings (AU, US)
 * Discord, Slack and Telegram support
 * Supports multiple Sharesight portfolios, including portfolios shared to you
+* Interactive chat commands (alpha)
 
 ![screenshot of Slack message](img/screenshot.png?raw=true "Screenshot of Slack message")
 
@@ -154,6 +155,16 @@ Recommended for a machine set to UTC:
 The above can be installed with:
 ```
 (crontab -l ; cat ~/sharesight-bot/crontab.txt)| crontab -
+```
+
+## Interactive bot
+Currently in alpha and supporting only Telegram. You need to host `mywsgi.py` and point `telegram_outgoing_webhook` to it. Supported commands:
+```
+!watchlist
+!watchlist add AAPL
+!watchlist del AAPL
+!AAPL
+!AAPL bio
 ```
 
 ## Serverless
