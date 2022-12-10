@@ -17,7 +17,7 @@ def lambda_handler(event,context):
     cache_file = config_cache_dir + "/sharesight_trade_cache.txt"
     
     def prepare_trade_payload(service, trades):
-        if os.path.isfile(trade_cache):
+        if os.path.isfile(cache_file):
             known_trades = trade_cache_read(cache_file)
         else:
             known_trades = []

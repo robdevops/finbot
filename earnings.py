@@ -25,7 +25,7 @@ def lambda_handler(event,context):
         this_year = str(today.strftime('%Y'))
         next_year = str(int(this_year) + 1)
         for ticker in market_data:
-            title = market_data[ticker]['title']
+            title = market_data[ticker]['profile_title']
             url = 'https://finance.yahoo.com/quote/' + ticker
             before_after_close = ''
             try:

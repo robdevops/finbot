@@ -46,7 +46,7 @@ def fetch(chunk):
             dividend = float(dividend)
         except ValueError:
             dividend = float(0)
-        finviz_output[ticker] = { 'ticker': ticker, 'title': title, 'percent_change': percent_change, 'earnings_date': earnings_date, 'percent_short': percent_short, 'dividend': dividend}
+        finviz_output[ticker] = { 'ticker': ticker, 'profile_title': title, 'percent_change': percent_change, 'earnings_date': earnings_date, 'percent_short': percent_short, 'dividend': dividend}
     return finviz_output
 
 def wrapper(tickers_us):

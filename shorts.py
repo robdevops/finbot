@@ -24,7 +24,7 @@ def lambda_handler(event,context):
             else:
                 url = 'https://finviz.com/quote.ashx?t=' + ticker
             if float(percent_short) > config_shorts_percent:
-                title = market_data[ticker]['title']
+                title = market_data[ticker]['profile_title']
                 percent_short = str(round(percent_short))
                 flag = util.flag_from_ticker(ticker)
                 ticker_short = ticker.split('.')[0]

@@ -14,7 +14,7 @@ def lambda_handler(event,context):
         payload = []
         for ticker in market_data:
             percent = market_data[ticker]['percent_change']
-            title = market_data[ticker]['title']
+            title = market_data[ticker]['profile_title']
             if abs(float(percent)) >= config_price_percent:
                 url = 'https://finance.yahoo.com/quote/' + ticker
                 if percent < 0:
