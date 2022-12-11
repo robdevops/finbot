@@ -245,14 +245,13 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     ticker_link = '<a href="' + yahoo_url + '">' + ticker + '</a>'
     profile_title = market_data[ticker]['profile_title']
     if bio:
-        city = market_data[ticker]['profile_city']
-        country = market_data[ticker]['profile_country']
-        state = ''
+        location = [ market_data[ticker]['profile_city'] ]
         if 'profile_state' in market_data[ticker]:
-            state = market_data[ticker]['profile_state']
+            location.append(market_data[ticker]['profile_state'])
+        location.append(market_data[ticker]['profile_country'])
         payload.append(f"{market_data[ticker]['profile_bio']}")
         payload.append("")
-        payload.append(f"<b>Location:</b> {city}, {state}, {country}")
+        payload.append(f"<b>Location:</b> " + ', '.join(location))
         payload.append(f"<b>Classification:</b> {market_data[ticker]['profile_industry']}, {market_data[ticker]['profile_sector']}")
         if 'profile_employees' in market_data[ticker]:
             payload.append(f"<b>Employees:</b> {market_data[ticker]['profile_employees']:,}")
