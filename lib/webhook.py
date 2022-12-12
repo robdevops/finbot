@@ -36,6 +36,13 @@ def payload_wrapper(service, url, payload):
                 payload_chunk = '\n'.join(payload_chunk)
                 write(service, url, payload_chunk)
                 time.sleep(1) # workaround potential API throttling
+        if service != 'discord' and len(payload_string) > 4000:
+            print(service, "payload is over 4,000 bytes. Splitting.")
+            chunks = util.chunker(payload, config_chunk_maxlines)
+            for payload_chunk in chunks:
+                payload_chunk = '\n'.join(payload_chunk)
+                write(service, url, payload_chunk)
+                time.sleep(1) # workaround potential API throttling
         else:
             write(service, url, payload_string)
     else:
