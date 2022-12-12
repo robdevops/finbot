@@ -281,7 +281,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
                 net_debt_equity_ratio = round(((total_debt - total_cash) / shareholder_equity * 100))
                 if net_debt_equity_ratio > 40:
                     emoji = '⚠️ '
-                if net_debt_equity > 0:
+                if net_debt_equity_ratio > 0:
                     payload.append(f"<b>Net debt/equity ratio:</b> {net_debt_equity_ratio}%{emoji}")
     if cashflow:
         if cashflow < 0:
@@ -371,7 +371,11 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             emoji = '⚠️ '
         payload.append(f"<b>Forward P/E:</b> {forwardPe}{emoji}")
     if 'price_to_earnings_peg' in market_data[ticker]:
-        payload.append(f"<b>PEG ratio:</b> {market_data[ticker]['price_to_earnings_peg']}")
+        peg = round(market_data[ticker]['price_to_earnings_peg'], 1)
+        payload.append(f"<b>PEG ratio:</b> {peg}")
+    if 'price_to_sales' in market_data[ticker]:
+        price_to_sales = round(market_data[ticker]['price_to_sales'], 1)
+        payload.append(f"<b>PS ratio:</b> {price_to_sales}")
 
     payload.append("")
 

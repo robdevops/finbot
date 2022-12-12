@@ -70,7 +70,7 @@ def fetch(tickers):
         percent_change = round(float(item['regularMarketChangePercent']), 2)
         currency = item['currency']
         try:
-            dividend = float(item['trailingAnnualDividendRate'])
+            dividend = round(float(item['trailingAnnualDividendRate'], 1))
         except (KeyError, IndexError):
             dividend = float(0)
         profile_title = util.transform_title(profile_title)
@@ -223,15 +223,15 @@ def fetch_detail(ticker):
         pass
     else:
         dividend = dividend * 100
-        local_market_data[ticker]['dividend'] = round(dividend, 2)
+        local_market_data[ticker]['dividend'] = round(dividend, 1)
     try:
-        price_to_earnings_trailing = float(data['quoteSummary']['result'][0]['summaryDetail']['trailingPE']['raw'])
+        price_to_earnings_trailing = data['quoteSummary']['result'][0]['summaryDetail']['trailingPE']['raw']
     except (KeyError, IndexError, ValueError):
         pass
     else:
         local_market_data[ticker]['price_to_earnings_trailing'] = price_to_earnings_trailing
     try:
-        price_to_earnings_forward = int(data['quoteSummary']['result'][0]['summaryDetail']['forwardPE']['raw'])
+        price_to_earnings_forward = data['quoteSummary']['result'][0]['summaryDetail']['forwardPE']['raw']
     except (KeyError, IndexError):
         pass
     else:
@@ -260,35 +260,35 @@ def fetch_detail(ticker):
         pass
     else:
         percent_change = percent_change * 100
-        local_market_data[ticker]['percent_change'] = round(percent_change, 2)
+        local_market_data[ticker]['percent_change'] = round(percent_change, 1)
     try:
         percent_change_year = float(data['quoteSummary']['result'][0]['defaultKeyStatistics']['52WeekChange']['raw'])
     except (KeyError, IndexError):
         pass
     else:
         percent_change_year = percent_change_year * 100
-        local_market_data[ticker]['percent_change_year'] = round(percent_change_year, 2)
+        local_market_data[ticker]['percent_change_year'] = round(percent_change_year, 1)
     try:
         percent_change_premarket = float(data['quoteSummary']['result'][0]['price']['preMarketChangePercent']['raw'])
     except (KeyError, IndexError):
         pass
     else:
         percent_change_premarket = percent_change_premarket * 100
-        local_market_data[ticker]['percent_change_premarket'] = round(percent_change_premarket, 2)
+        local_market_data[ticker]['percent_change_premarket'] = round(percent_change_premarket, 1)
     try:
         percent_change_postmarket = float(data['quoteSummary']['result'][0]['price']['postMarketChangePercent']['raw'])
     except (KeyError, IndexError):
         pass
     else:
         percent_change_postmarket = percent_change_postmarket * 100
-        local_market_data[ticker]['percent_change_postmarket'] = round(percent_change_postmarket, 2)
+        local_market_data[ticker]['percent_change_postmarket'] = round(percent_change_postmarket, 1)
     try:
         short_percent = float(data['quoteSummary']['result'][0]['defaultKeyStatistics']['shortPercentOfFloat']['raw'])
     except (KeyError, IndexError):
         pass
     else:
         short_percent = short_percent * 100
-        local_market_data[ticker]['short_percent'] = round(short_percent, 2)
+        local_market_data[ticker]['short_percent'] = round(short_percent, 1)
     try:
         price_to_book = data['quoteSummary']['result'][0]['defaultKeyStatistics']['priceToBook']['raw']
     except (KeyError, IndexError):
