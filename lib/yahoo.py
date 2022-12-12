@@ -124,7 +124,7 @@ def fetch_detail(ticker):
         data = cache
     else:
         print('↓', sep=' ', end='', flush=True)
-        yahoo_urls = [base_url + ticker + '?modules=calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend']
+        yahoo_urls = [base_url + ticker + '?modules=calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions']
         yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
         for url in yahoo_urls:
             try:
@@ -144,7 +144,6 @@ def fetch_detail(ticker):
         util.write_cache(cache_file, data)
         # might be interesting:
             # majorHoldersBreakdown
-            # insiderTransactions
             # netSharePurchaseActivity
             # upgradeDowngradeHistory
     try:
@@ -374,21 +373,19 @@ def fetch_detail(ticker):
         for item in data['quoteSummary']['result'][0]['earningsTrend']['trend']:
             if item['period'] == '+1y':
                 try:
-                    earn_est = item['earningsEstimate']['growth']['raw']
-                    rev_est = item['revenueEstimate']['growth']['raw']
+                    revenueEstimateY = item['revenueEstimate']['growth']['raw']
+                    earningsEstimateY = item['earningsEstimate']['growth']['raw']
+                    revenueAnalysts = item['revenueEstimate']['numberOfAnalysts']['raw']
+                    earningsAnalysts = item['earningsEstimate']['numberOfAnalysts']['raw']
                 except (KeyError):
-                    continue
-            else:
-                try:
-                    earn_est = data['quoteSummary']['result'][0]['earningsTrend']['trend'][0]['growth']['raw']
-                    rev_est = data['quoteSummary']['result'][0]['earningsTrend']['trend'][0]['revenueEstimate']['growth']['raw']
-                except (KeyError):
-                    continue
+                    break
         try:
-            earn_est = earn_est * 100
-            rev_est = rev_est * 100
-            local_market_data[ticker]['revenue_growth_forecast'] = round(earn_est, 2)
-            local_market_data[ticker]['earnings_growth_forecast'] = round(rev_est, 2)
+            earningsEstimateY = earningsEstimateY * 100
+            revenueEstimateY = revenueEstimateY * 100
+            local_market_data[ticker]['revenueEstimateY'] = round(revenueEstimateY, 2)
+            local_market_data[ticker]['earningsEstimateY'] = round(earningsEstimateY, 2)
+            local_market_data[ticker]['revenueAnalysts'] = revenueAnalysts
+            local_market_data[ticker]['earningsAnalysts'] = earningsAnalysts
         except (UnboundLocalError):
             print(f'{ticker}†', sep=' ', end='', flush=True)
     try:
@@ -411,6 +408,27 @@ def fetch_detail(ticker):
         local_market_data[ticker]['revenueQ'] = revenueQ
         local_market_data[ticker]['earningsY'] = earningsY
         local_market_data[ticker]['revenueY'] = revenueY
+    try:
+        data['quoteSummary']['result'][0]['insiderTransactions']['transactions'][0]['startDate']['raw']
+    except (KeyError, IndexError):
+        pass
+    else:
+        buyTotal = 0
+        buyValue = 0
+        sellTotal = 0
+        sellValue = 0
+        for item in data['quoteSummary']['result'][0]['insiderTransactions']['transactions']:
+            if item['startDate']['raw'] > now - 7884000:
+                if 'Buy' in item['transactionText']:
+                    buyTotal = buyTotal + item['shares']['raw']
+                    buyValue = buyValue + item['value']['raw']
+                if 'Sale' in item['transactionText']:
+                    sellTotal = sellTotal + item['shares']['raw']
+                    sellValue = sellValue + item['value']['raw']
+        local_market_data[ticker]['insiderBuy'] = buyTotal
+        local_market_data[ticker]['insiderSell'] = sellTotal
+        local_market_data[ticker]['insiderBuyValue'] = buyValue
+        local_market_data[ticker]['insiderSellValue'] = sellValue
 
     #print("")
     local_market_data[ticker] = dict(sorted(local_market_data[ticker].items()))

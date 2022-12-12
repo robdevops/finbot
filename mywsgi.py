@@ -274,19 +274,15 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         shareholder_equity = market_data[ticker]['shareholder_equity']
         debt_equity_ratio = round(total_debt / shareholder_equity * 100)
         profile_industry = market_data[ticker]['profile_industry']
-        emoji = ''
-        # debt
-        if 'Bank' not in profile_industry:
-            if debt_equity_ratio > 100:
-                emoji = '⚠️ '
-            payload.append(f"<b>Debt/Equity Ratio:</b> {debt_equity_ratio}%{emoji}")
-            if 'total_cash' in market_data[ticker]:
-                emoji=''
-                total_cash = market_data[ticker]['total_cash']
+        if 'total_cash' in market_data[ticker]:
+            total_cash = market_data[ticker]['total_cash']
+            if 'Bank' not in profile_industry:
+                emoji = ''
                 net_debt_equity_ratio = round(((total_debt - total_cash) / shareholder_equity * 100))
                 if net_debt_equity_ratio > 40:
                     emoji = '⚠️ '
-                payload.append(f"<b>Net Debt/Equity Ratio:</b> {net_debt_equity_ratio}%{emoji}")
+                if net_debt_equity > 0:
+                    payload.append(f"<b>Net debt/equity ratio:</b> {net_debt_equity_ratio}%{emoji}")
     if cashflow:
         if cashflow < 0:
             payload.append(f"<b>Cashflow positive:</b> no⚠️ ")
@@ -298,17 +294,52 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         else:
             payload.append(f"<b>Profitable:</b> yes")
 
+    payload.append("")
+
     if 'earningsQ' in market_data[ticker]:
         revenueQs = doDelta(market_data[ticker]['earningsQ'])
         earningsQs = doDelta(market_data[ticker]['revenueQ'])
         revenueYs = doDelta(market_data[ticker]['revenueY'])
         earningsYs = doDelta(market_data[ticker]['earningsY'])
-        payload.append("")
-        payload.append(f"{revenueQs} quarterly revenue")
-        payload.append(f"{earningsQs} quarterly earnings")
-        payload.append(f"{revenueYs} yearly revenue")
-        payload.append(f"{earningsYs} yearly earnings")
-        payload.append("")
+        payload.append(f"{revenueQs}  quarterly revenue")
+        payload.append(f"{earningsQs}  quarterly earnings")
+        payload.append(f"{revenueYs}  yearly revenue")
+        payload.append(f"{earningsYs}  yearly earnings")
+
+    payload.append("")
+
+    if 'revenueEstimateY' in market_data[ticker]:
+        revenueEstimateY = int(round(market_data[ticker]['revenueEstimateY']))
+        earningsEstimateY = int(round(market_data[ticker]['earningsEstimateY']))
+        revenueAnalysts = market_data[ticker]['revenueAnalysts']
+        earningsAnalysts = market_data[ticker]['earningsAnalysts']
+        payload.append(f"<b>Revenue growth forecast (1Y):</b> {revenueEstimateY}%")
+        payload.append(f"<b>Earnings growth forecast (1Y):</b> {earningsEstimateY}%")
+    if 'insiderBuy' in market_data[ticker]:
+        emoji=''
+        insiderBuy = market_data[ticker]['insiderBuy']
+        insiderSell = market_data[ticker]['insiderSell']
+        insiderBuyValue = market_data[ticker]['insiderBuyValue']
+        insiderSellValue = market_data[ticker]['insiderSellValue']
+        if insiderBuy > insiderSell:
+            payload.append(f"<b>Net insider action (3M)</b>: Buy ({currency} {insiderBuyValue:,}{emoji})")
+        if insiderBuy < insiderSell:
+            emoji = '⚠️ '
+            payload.append(f"<b>Net insider action (3M)</b>: Sell ({currency} {insiderSellValue:,}){emoji}")
+    if 'short_percent' in market_data[ticker]:
+        emoji=''
+        short_percent = market_data[ticker]['short_percent']
+        if short_percent > 10:
+            emoji = '⚠️ '
+        payload.append(f"<b>Percent shorted:</b> {short_percent}%{emoji}")
+    if 'recommend' in market_data[ticker]:
+        recommend = market_data[ticker]['recommend']
+        recommend_index = market_data[ticker]['recommend_index']
+        recommend_analysts = market_data[ticker]['recommend_analysts']
+        payload.append(f"<b>Score:</b> {recommend_index} {recommend} ({recommend_analysts} analysts)")
+
+    payload.append("")
+
     if 'earnings_date' in market_data[ticker]:
         earnings_date = market_data[ticker]['earnings_date']
         human_earnings_date = time.strftime('%b %d', time.localtime(earnings_date))
@@ -329,33 +360,23 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
                 else:
                     print("Skipping past ex-dividend:", human_exdate)
     if 'price_to_earnings_trailing' in market_data[ticker]:
-        payload.append(f"<b>Trailing P/E:</b> {market_data[ticker]['price_to_earnings_trailing']}")
+        trailingPe = int(round(market_data[ticker]['price_to_earnings_trailing']))
+        payload.append(f"<b>Trailing P/E:</b> {trailingPe}")
     if 'price_to_earnings_forward' in market_data[ticker]:
+        forwardPe = int(round(market_data[ticker]['price_to_earnings_forward']))
         emoji=''
-        if 'Software' in market_data[ticker]['profile_industry'] and market_data[ticker]['price_to_earnings_forward'] > 100:
+        if 'Software' in market_data[ticker]['profile_industry'] and forwardPe > 100:
             emoji = '⚠️ '
-        elif 'Software' not in market_data[ticker]['profile_industry'] and market_data[ticker]['price_to_earnings_forward'] > 30:
+        elif 'Software' not in market_data[ticker]['profile_industry'] and forwardPe > 30:
             emoji = '⚠️ '
-        payload.append(f"<b>Forward P/E:</b> {market_data[ticker]['price_to_earnings_forward']}{emoji}")
+        payload.append(f"<b>Forward P/E:</b> {forwardPe}{emoji}")
     if 'price_to_earnings_peg' in market_data[ticker]:
         payload.append(f"<b>PEG ratio:</b> {market_data[ticker]['price_to_earnings_peg']}")
-    if 'short_percent' in market_data[ticker]:
-        emoji=''
-        short_percent = market_data[ticker]['short_percent']
-        if short_percent > 10:
-            emoji = '⚠️ '
-        payload.append(f"<b>Percent shorted:</b> {short_percent}%{emoji}")
-    if 'earnings_growth_forecast' in market_data[ticker]:
-        payload.append(f"<b>Revenue growth forecast:</b> {market_data[ticker]['revenue_growth_forecast']}%")
-        payload.append(f"<b>Earnings growth forecast:</b> {market_data[ticker]['earnings_growth_forecast']}%")
-    if 'recommend' in market_data[ticker]:
-        recommend = market_data[ticker]['recommend']
-        recommend_index = market_data[ticker]['recommend_index']
-        recommend_analysts = market_data[ticker]['recommend_analysts']
-        payload.append(f"<b>Score:</b> {recommend_index}: {recommend} ({recommend_analysts} analysts)")
+
+    payload.append("")
+
     if 'percent_change_year' in market_data[ticker]:
         percent_change_year = str(market_data[ticker]['percent_change_year']) + '%'
-        payload.append("")
         payload.append(f"<b>1Y:</b> {percent_change_year}")
         payload.append(f"<b>1D:</b> {market_data[ticker]['percent_change']}%")
     if 'percent_change_premarket' in market_data[ticker]:
