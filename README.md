@@ -66,12 +66,10 @@ slack_webhook = 'https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAA
 * In the .env file, set `telegram_chat_id` to the chat group or channel id.
    * For channels and supergroups, _CHAT_ID_ should be negative and 13 characters. Prepend `-100` if necessary.
    * Be aware a group id can change if you edit group settings and it becomes a "supergroup". Currently, the bot does not automatically handle this.
-* Optionally, set `telegram_botname`. This is an alternative trigger word if you use interactive mode.
 * Example .env entry:
 ```
 telegram_url = 'https://api.telegram.org/bot0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA/'
 telegram_chat_id = '-1001000000000'
-telegram_botname = '@mybot'
 ```
 
 ### Portfolios
@@ -165,6 +163,8 @@ Currently in alpha and supporting only Telegram. You need to host `mywsgi.py` an
 !watchlist del AAPL
 !AAPL
 !AAPL bio
+@botname AAPL
+@botname AAPL bio
 ```
 
 ## Serverless

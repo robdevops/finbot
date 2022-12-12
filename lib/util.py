@@ -219,3 +219,10 @@ def write_cache(cache_file, fresh_dict):
     with open(cache_file, "w", opener=opener) as f:
         f.write(json.dumps(fresh_dict))
     os.umask(0o022)
+
+def humanUnits(value, decimal_places=0):
+    for unit in ['', 'K', 'M', 'B', 't', 'q', 'Q']:
+        if value < 1000.0 or unit == 'Q':
+            break
+        value /= 1000.0
+    return f"{value:.{decimal_places}f} {unit}"

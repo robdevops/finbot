@@ -52,12 +52,10 @@ def main(env, start_response):
         return [b'<h1>Unhandled</h1>']
 
     # read bot command
-    stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^@{} ([\w\.]+)".format(config_telegram_botname)
-    bio_command = "^\!(desc|descr|describe|info|detail|bio|profile) ([\w\W\.]+)|^@{} info ([\w\W\.+]+)".format(config_telegram_botname)
-    watchlist_command = "^\!watchlist$|^\!watchlist ([\w]+) ([\w\.]+)|^@{} watchlist (\w+)\s+([\w\.]+)".format(config_telegram_botname)
+    stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + re.escape(botName) + "\s([A-Z\.]+)\s*(bio|info|profile)*"
+    watchlist_command = "^\!watchlist$|^\!watchlist ([\w]+) ([\w\.]+)|^@{} watchlist (\w+)\s+([\w\.]+)".format(botName)
     m_stockfinancial = re.match(stockfinancial_command, message)
     m_watchlist = re.match(watchlist_command, message)
-    m_bio = re.match(bio_command, message)
     if m_watchlist:
         action = False
         ticker = False
@@ -69,30 +67,34 @@ def main(env, start_response):
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
             webhook.payload_wrapper("telegram", url, payload)
             return [b"<b>OK</b>"]
-    elif message in ("!help", "!usage", config_telegram_botname + " help", config_telegram_botname + " usage"):
+    elif message in ("!help", "!usage", botName + " help", botName + " usage"):
         for service in webhooks:
             payload = prepare_help("telegram", user)
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
             webhook.payload_wrapper("telegram", url, payload)
             return [b"<b>OK</b>"]
-    elif message in ("!todo", "!roadmap", config_telegram_botname + " todo", config_telegram_botname + " roadmap"):
+    elif message in ("!todo", "!roadmap", botName  + " todo", botName + " roadmap"):
         for service in webhooks:
             payload = prepare_todo("telegram", user)
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
             webhook.payload_wrapper("telegram", url, payload)
             return [b"<b>OK</b>"]
     elif m_stockfinancial:
-        if m_stockfinancial.group(1):
-            print("starting stock detail")
-            bio=False
+        print("starting stock detail")
+        bio=False
+        if m_stockfinancial.group(3):
+            ticker = m_stockfinancial.group(3).upper()
+            if m_stockfinancial.group(4):
+                bio=True
+        elif m_stockfinancial.group(1):
             ticker = m_stockfinancial.group(1).upper()
             if m_stockfinancial.group(2):
                 bio=True
-            for service in webhooks:
-                payload = prepare_stockfinancial_payload("telegram", user, ticker, bio)
-                url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
-                webhook.payload_wrapper("telegram", url, payload)
-                return [b"<b>OK</b>"]
+        for service in webhooks:
+            payload = prepare_stockfinancial_payload("telegram", user, ticker, bio)
+            url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
+            webhook.payload_wrapper("telegram", url, payload)
+            return [b"<b>OK</b>"]
     else:
         print(message, "is not a bot command")
         start_response('200 OK', [('Content-Type', 'application/json')])
@@ -213,6 +215,8 @@ def prepare_help(service, user):
     payload.append("!watchlist")
     payload.append("!watchlist add GOOGL")
     payload.append("!watchlist del GOOGL")
+    payload.append(botName + " AAPL")
+    payload.append(botName + " AAPL bio")
     return payload
 
 def prepare_todo(service, user):
@@ -263,8 +267,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             payload.insert(0, f"Beep Boop. I could not find " + ticker_orig + ", but I found " + ticker_link)
         return payload
     currency = market_data[ticker]['currency']
-    market_cap = market_data[ticker]['market_cap']
-    payload.append(f"<b>Mkt cap:</b> {currency} {market_cap:,}")
+    market_cap = util.humanUnits(market_data[ticker]['market_cap'])
+    payload.append(f"<b>Mkt cap:</b> {currency} {market_cap}")
     if 'free_cashflow' in market_data[ticker]:
         cashflow = market_data[ticker]['free_cashflow']
     elif 'operating_cashflow' in market_data[ticker]:
@@ -283,6 +287,25 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
                     emoji = '⚠️ '
                 if net_debt_equity_ratio > 0:
                     payload.append(f"<b>Net debt/equity ratio:</b> {net_debt_equity_ratio}%{emoji}")
+    if 'earnings_date' in market_data[ticker]:
+        earnings_date = market_data[ticker]['earnings_date']
+        human_earnings_date = time.strftime('%b %d', time.localtime(earnings_date))
+        if earnings_date > now:
+            payload.append(f"<b>Earnings date:</b> {human_earnings_date}")
+        else:
+            print("Skipping past earnings:", human_earnings_date)
+    if 'dividend' in market_data[ticker]:
+        dividend = market_data[ticker]['dividend']
+        if market_data[ticker]['dividend'] > 0:
+            dividend = str(market_data[ticker]['dividend']) + '%'
+            payload.append(f"<b>Dividend:</b> {dividend}")
+            if 'ex_dividend_date' in market_data[ticker]:
+                ex_dividend_date = market_data[ticker]['ex_dividend_date']
+                human_exdate = time.strftime('%b %d', time.localtime(ex_dividend_date))
+                if ex_dividend_date > now:
+                    payload.append(f"<b>Ex-dividend date:</b> {human_exdate}")
+                else:
+                    print("Skipping past ex-dividend:", human_exdate)
     if cashflow:
         if cashflow < 0:
             payload.append(f"<b>Cashflow positive:</b> no⚠️ ")
@@ -321,11 +344,16 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         insiderSell = market_data[ticker]['insiderSell']
         insiderBuyValue = market_data[ticker]['insiderBuyValue']
         insiderSellValue = market_data[ticker]['insiderSellValue']
-        if insiderBuy > insiderSell:
-            payload.append(f"<b>Net insider action (3M)</b>: Buy ({currency} {insiderBuyValue:,}{emoji})")
-        if insiderBuy < insiderSell:
+        if insiderBuy == insiderSell:
+            pass
+        elif insiderBuy > insiderSell:
+            action = 'Buy'
+            humanValue = util.humanUnits(insiderBuyValue)
+        elif insiderBuy < insiderSell:
             emoji = '⚠️ '
-            payload.append(f"<b>Net insider action (3M)</b>: Sell ({currency} {insiderSellValue:,}){emoji}")
+            action = 'Sell'
+            humanValue = util.humanUnits(insiderSellValue)
+        payload.append(f"<b>Net insider action (3M)</b>: {action} {currency} {humanValue}{emoji}")
     if 'short_percent' in market_data[ticker]:
         emoji=''
         short_percent = market_data[ticker]['short_percent']
@@ -340,25 +368,6 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
 
     payload.append("")
 
-    if 'earnings_date' in market_data[ticker]:
-        earnings_date = market_data[ticker]['earnings_date']
-        human_earnings_date = time.strftime('%b %d', time.localtime(earnings_date))
-        if earnings_date > now:
-            payload.append(f"<b>Earnings date:</b> {human_earnings_date}")
-        else:
-            print("Skipping past earnings:", human_earnings_date)
-    if 'dividend' in market_data[ticker]:
-        dividend = market_data[ticker]['dividend']
-        if market_data[ticker]['dividend'] > 0:
-            dividend = str(market_data[ticker]['dividend']) + '%'
-            payload.append(f"<b>Dividend:</b> {dividend}")
-            if 'ex_dividend_date' in market_data[ticker]:
-                ex_dividend_date = market_data[ticker]['ex_dividend_date']
-                human_exdate = time.strftime('%b %d', time.localtime(ex_dividend_date))
-                if ex_dividend_date > now:
-                    payload.append(f"<b>Ex-dividend date:</b> {human_exdate}")
-                else:
-                    print("Skipping past ex-dividend:", human_exdate)
     if 'price_to_earnings_trailing' in market_data[ticker]:
         trailingPe = int(round(market_data[ticker]['price_to_earnings_trailing']))
         payload.append(f"<b>Trailing P/E:</b> {trailingPe}")
@@ -400,6 +409,7 @@ ip="127.0.0.1"
 port=5000
 print(f'Serving on https://{ip}:{port}')
 server = pywsgi.WSGIServer((ip, port), main)
+botName = '@' + telegram.getBotName()
 # to start the server asynchronously, call server.start()
 # we use blocking serve_forever() here because we have no other jobs
 server.serve_forever()

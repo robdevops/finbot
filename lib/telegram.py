@@ -14,4 +14,13 @@ def subscribe():
     )
     print(response.text)
 
+def getBotName():
+    telegram_url = webhooks['telegram'] + 'getMe'
+    params = {"url": config_telegram_outgoing_webhook}
+    response = requests.post(
+        telegram_url,
+        params=params
+    )
+    return response.json()['result']['username']
+
 subscribe()
