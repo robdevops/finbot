@@ -10,7 +10,7 @@ import lib.yahoo as yahoo
 import lib.finviz as finviz
 import lib.shortman as shortman
 
-def lambda_handler(event,context):
+def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = False, user='', threshold=config_shorts_percent):
     def prepare_shorts_payload(service, market_data):
         payload = []
         emoji = "🩳"
@@ -23,7 +23,7 @@ def lambda_handler(event,context):
                 url = 'https://www.shortman.com.au/stock?q=' + ticker.replace('.AX','') # FIX python 3.9
             else:
                 url = 'https://finviz.com/quote.ashx?t=' + ticker
-            if float(percent_short) > config_shorts_percent:
+            if float(percent_short) > threshold:
                 title = market_data[ticker]['profile_title']
                 percent_short = str(round(percent_short))
                 flag = util.flag_from_ticker(ticker)
@@ -38,7 +38,11 @@ def lambda_handler(event,context):
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
-        if service == 'telegram':
+        if interactive:
+            payload.insert(0, f"@{user}")
+            if len(payload) == 1:
+                payload.append(f"No shorts meet threshold: {threshold}% {emoji}")
+        elif service == 'telegram':
             payload.insert(0, "<b>Highly shorted stock warning:</b>")
         elif service == 'slack':
             payload.insert(0, "*Highly shorted stock warning:*")
@@ -73,10 +77,12 @@ def lambda_handler(event,context):
         payload = prepare_shorts_payload(service, market_data)
         url = webhooks[service]
         if service == "telegram":
-            url = url + "sendMessage?chat_id=" + config_telegram_chat_id
+            url = url + "sendMessage?chat_id=" + str(telegram_chat_id)
         webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy
     return True
 
-lambda_handler(1,2)
+if __name__ == "__main__":
+    lambda_handler()
+

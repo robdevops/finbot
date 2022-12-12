@@ -14,16 +14,19 @@ def chunker(seq, size):
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
 def transform_title(title):
-        # shorten long names to reduce line wrap on mobile
         title = title.replace(' FPO', '')
+        if title.isupper():
+            title = title.title()
+        title = title.replace(' - ', ' ')
         title = title.replace('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'Clean Energy ETF')
         title = title.replace('Atlantica Sustainable Infrastructure', 'Atlantica Sustainable')
         title = title.replace('Advanced Micro Devices', 'AMD')
         title = title.replace('Taiwan Semiconductor Manufacturing', 'TSM')
-        title = title.replace('Taiwan Semiconductor Manufactur', 'TSM')
         title = title.replace('Flight Centre Travel', 'Flight Centre')
         title = title.replace('Global X ', '')
         title = title.replace('The ', '')
+        title = title.replace('N.V.', '')
+        title = title.replace('New York Re', '')
         title = title.replace(' Australian', ' Aus')
         title = title.replace(' Australia', ' Aus')
         title = title.replace(' Infrastructure', 'Infra')
@@ -31,6 +34,7 @@ def transform_title(title):
         title = title.replace(' Limited', ' ')
         title = title.replace(' Ltd', ' ')
         title = title.replace(' Holdings', ' ')
+        title = title.replace(' Holding', ' ')
         title = title.replace(' Corporation', ' ')
         title = title.replace(' Incorporated', ' ')
         title = title.replace(' incorporated', ' ')

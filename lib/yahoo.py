@@ -18,6 +18,9 @@ def transform_ticker_wrapper(holdings):
         market = holdings[holding]['market_code']
         ticker = transform_ticker(symbol, market)
         tickers.add(ticker)
+    tickers = list(tickers)
+    tickers.sort()
+    tickers = set(tickers)
     return tickers
     
 def transform_ticker(ticker, market):
@@ -67,10 +70,16 @@ def fetch(tickers):
             profile_title = item['longName']
         except (KeyError, IndexError):
             continue
-        percent_change = round(float(item['regularMarketChangePercent']), 2)
-        currency = item['currency']
         try:
-            dividend = round(float(item['trailingAnnualDividendRate'], 1))
+            percent_change = round(float(item['regularMarketChangePercent']), 2)
+        except (KeyError, IndexError):
+            pass
+        try:
+            currency = item['currency']
+        except (KeyError, IndexError):
+            pass
+        try:
+            dividend = round(float(item['trailingAnnualDividendRate']), 1)
         except (KeyError, IndexError):
             dividend = float(0)
         profile_title = util.transform_title(profile_title)
@@ -147,7 +156,7 @@ def fetch_detail(ticker):
             # netSharePurchaseActivity
             # upgradeDowngradeHistory
     try:
-        profile_title = data['quoteSummary']['result'][0]['price']['shortName']
+        profile_title = data['quoteSummary']['result'][0]['price']['longName']
     except (KeyError, IndexError, ValueError):
         print(ticker + '†', sep=' ', end='', flush=True)
         return False
@@ -225,7 +234,7 @@ def fetch_detail(ticker):
         dividend = dividend * 100
         local_market_data[ticker]['dividend'] = round(dividend, 1)
     try:
-        price_to_earnings_trailing = data['quoteSummary']['result'][0]['summaryDetail']['trailingPE']['raw']
+        price_to_earnings_trailing = int(data['quoteSummary']['result'][0]['summaryDetail']['trailingPE']['raw'])
     except (KeyError, IndexError, ValueError):
         pass
     else:

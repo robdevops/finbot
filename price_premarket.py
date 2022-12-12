@@ -9,7 +9,7 @@ import lib.util as util
 import lib.yahoo as yahoo
 import lib.finviz as finviz
 
-def lambda_handler(event,context):
+def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = False, user=''):
     def prepare_price_payload(service, market_data):
         postmarket = False
         payload = []
@@ -43,7 +43,11 @@ def lambda_handler(event,context):
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
-        if service == 'telegram':
+        if interactive:
+            payload.insert(0, f"@{user}")
+            if len(payload) == 1:
+                payload.append(f"No price movements meet threshold: {config_price_percent}%")
+        elif service == 'telegram':
             payload.insert(0, "<b>Price alerts (pre-market):</b>")
         elif service == 'slack':
             payload.insert(0, "*Price alerts (pre-market):*")
@@ -78,11 +82,12 @@ def lambda_handler(event,context):
         payload = prepare_price_payload(service, market_data)
         url = webhooks[service]
         if service == "telegram":
-            url = url + "sendMessage?chat_id=" + config_telegram_chat_id
+            url = url + "sendMessage?chat_id=" + str(telegram_chat_id)
         webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy
     return True
 
+if __name__ == "__main__":
+    lambda_handler()
 
-lambda_handler(1,2)

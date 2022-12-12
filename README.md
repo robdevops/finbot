@@ -88,6 +88,14 @@ Tracks securities which are not in your Sharesight holdings. Use the Yahoo! Fina
 ```
 watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
 ```
+
+### Caching
+Many object sources are cached for 1 day by default. Cache is controlled by the settings below. Trades are not cached.
+```
+cache=True
+cache_seconds=82800
+```
+
 ## Reports
 
 ### Trades
@@ -158,13 +166,28 @@ The above can be installed with:
 ## Interactive bot
 Currently in alpha and supporting only Telegram. You need to host `mywsgi.py` and point `telegram_outgoing_webhook` to it. Supported commands:
 ```
+!AAPL
+!AAPL bio
+!holdings
+!premarket
+!shorts
+!shorts 5
+!trades
+!shorts 5
 !watchlist
 !watchlist add AAPL
 !watchlist del AAPL
-!AAPL
-!AAPL bio
 @botname AAPL
 @botname AAPL bio
+@botname holdings
+@botname premarket
+@botname shorts
+@botname shorts 5
+@botname trades
+@botname shorts 5
+@botname watchlist
+@botname watchlist add AAPL
+@botname watchlist del AAPL
 ```
 
 ## Serverless

@@ -9,29 +9,21 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(event,context):
+def lambda_handler(telegram_chat_id=config_telegram_chat_id, interactive=False, user='', past_days=config_past_days):
     time_now = datetime.datetime.today()
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    start_date = time_now - datetime.timedelta(days=config_past_days)
+    start_date = time_now - datetime.timedelta(days=past_days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
     cache_file = config_cache_dir + "/sharesight_trade_cache.txt"
     
     def prepare_trade_payload(service, trades):
-        if os.path.isfile(cache_file):
+        if os.path.isfile(cache_file) and not interactive:
             known_trades = trade_cache_read(cache_file)
         else:
             known_trades = []
         payload = []
         sharesight_url = "https://portfolio.sharesight.com/holdings/"
         yahoo_url = "https://au.finance.yahoo.com/quote/"
-        if service == 'telegram':
-            payload.append("<b>New trades:</b>")
-        elif service == 'slack':
-            payload.append("*New trades:*")
-        elif service == 'discord':
-            payload.append("**New trades:**")
-        else:
-            payload.append("New trades:")
         for trade in trades:
             trade_id = str(trade['id'])
             portfolio = trade['portfolio']
@@ -81,6 +73,18 @@ def lambda_handler(event,context):
                 trade_link = verb
                 holding_link = symbol
             payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value:,} of {holding_link} {flag}")
+        if interactive:
+            payload.insert(0, f"@{user}")
+            if len(payload) == 1:
+                payload.append(f"No trades found in the past {past_days} days")
+        elif service == 'telegram':
+            payload.insert(0, "<b>New trades:</b>")
+        elif service == 'slack':
+            payload.insert(0, "*New trades:*")
+        elif service == 'discord':
+            payload.insert(0, "**New trades:**")
+        else:
+            payload.insert(0, "New trades:")
         return payload
     
     def trade_cache_read(cache_file):
@@ -102,12 +106,11 @@ def lambda_handler(event,context):
     newtrades = set()
     for portfolio_name in portfolios:
         portfolio_id = portfolios[portfolio_name]
-        trades = trades + sharesight.get_trades(token, portfolio_name, portfolio_id)
+        trades = trades + sharesight.get_trades(token, portfolio_name, portfolio_id, past_days)
     if trades:
         print(len(trades), "trades found since", start_date)
     else:
         print("No trades found since", start_date)
-        exit()
 
     # Prep and send payloads
     if not webhooks:
@@ -118,14 +121,15 @@ def lambda_handler(event,context):
         payload = prepare_trade_payload(service, trades)
         url = webhooks[service]
         if service == "telegram":
-            url = url + "sendMessage?chat_id=" + config_telegram_chat_id
+            url = url + "sendMessage?chat_id=" + str(telegram_chat_id)
         webhook.payload_wrapper(service, url, payload)
 
     # write state file
-    if newtrades:
+    if newtrades and not interactive:
         trade_cache_write(cache_file, newtrades)
 
     # make google cloud happy
     return True
 
-lambda_handler(1, 2)
+if __name__ == "__main__":
+    lambda_handler()

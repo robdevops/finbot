@@ -8,8 +8,6 @@ import time
 time_now = datetime.datetime.today()
 now = int(time.time())
 today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-start_date = time_now - datetime.timedelta(days=config_past_days)
-start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
 
 class BearerAuth(requests.auth.AuthBase):
     def __init__(self, token):
@@ -79,8 +77,10 @@ def get_portfolios(token):
     util.write_cache(cache_file, portfolio_dict)
     return portfolio_dict
 
-def get_trades(token, portfolio_name, portfolio_id):
-    # NEVER CACHE THIS
+def get_trades(token, portfolio_name, portfolio_id, days=config_past_days):
+    # DO NOT CACHE #
+    start_date = time_now - datetime.timedelta(days=days)
+    start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
     print("Fetching Sharesight trades for", portfolio_name, end=": ")
     endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
     url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + start_date
