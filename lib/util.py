@@ -7,9 +7,6 @@ import datetime
 import json
 import os
 
-time_now = datetime.datetime.today()
-now = time_now.timestamp()
-
 def chunker(seq, size):
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
@@ -228,6 +225,8 @@ def currency_symbol(currency):
             return currency_symbol
 
 def read_cache(cacheFile, maxSeconds=config_cache_seconds):
+    time_now = datetime.datetime.today()
+    now = time_now.timestamp()
     if os.path.isfile(cacheFile):
         cacheFileSeconds = now - int(os.path.getmtime(cacheFile))
         cacheTTL = maxSeconds - cacheFileSeconds

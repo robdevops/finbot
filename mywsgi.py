@@ -353,12 +353,12 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     tickerNative = ticker.split('.')[0]
     now = int(time.time())
     payload = []
-    market_data = yahoo.fetch_detail(ticker, 300)
+    market_data = yahoo.fetch_detail(ticker, 600)
     print("")
     if not market_data and '.' not in ticker:
         ticker = ticker + '.AX'
         print("trying again with", ticker)
-        market_data = yahoo.fetch_detail(ticker, 300)
+        market_data = yahoo.fetch_detail(ticker, 600)
         print("")
     if not market_data:
         payload = [ f"@{user} 🛑", f"Beep Boop. I could not find {ticker_orig}" ]
