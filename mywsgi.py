@@ -75,12 +75,12 @@ def main(env, start_response):
         return [b'<h1>Unhandled</h1>']
 
     # read bot command
-    stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + " ([\w\.]+)\s*(bio|info|profile)*"
-    watchlist_command = "^\!watchlist$|^\!watchlist ([\w]+) ([\w\.]+)|^" + botName + " watchlist$|^" + botName + " watchlist (\w+) ([\w\.]+)"
-    trades_command = "^\!trades\s*(\d+)*|^" + botName + "\strades\s*(\d+)*"
-    holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\sholdings\s*([\w\s]+)*"
-    shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\sshorts\s*([\d]+)*"
-    premarket_command = "^\!premarket\s*([\d]+)*|^" + botName + "\spremarket\s*([\d]+)*"
+    stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
+    watchlist_command = "^\!watchlist\s*([\w]+)*\s*([\w\.]+)*|^" + botName + "\s+watchlist\s*(\w+)*\s*([\w\.]+)*"
+    trades_command = "^\!trades\s*(\d+)*|^" + botName + "\s+trades\s*(\d+)*"
+    holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\s+holdings\s*([\w\s]+)*"
+    shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\s+shorts\s*([\d]+)*"
+    premarket_command = "^\!premarket\s*([\d]+)*|^" + botName + "\s+premarket\s*([\d]+)*"
     m_stockfinancial = re.match(stockfinancial_command, message)
     m_watchlist = re.match(watchlist_command, message)
     m_trades = re.match(trades_command, message)
@@ -407,7 +407,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         if 'profile_website' in market_data[ticker]:
             payload.append(f"<b>Website:</b> {market_data[ticker]['profile_website']}")
         if 'profile_website' in market_data[ticker]:
-            if profile_exchange == 'NYSE' or 'Nasdaq' in 'profile_exchange':
+            if profile_exchange == 'NYSE' or 'Nasdaq' in profile_exchange:
                 #swsURL = 'https://simplywall.st/compare/' + profile_exchange + ':' + ticker.split('.')[0]
                 finvizURL='https://finviz.com/quote.ashx?t=' + ticker
                 marketwatchURL = 'https://www.marketwatch.com/investing/stock/' + ticker.lower()
@@ -419,7 +419,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
                 swsLink = '<a href="' + swsURL + '">Simply Wall St</a>'
                 payload.append(f"<b>Other Links:</b> {market_link} | {swsLink} | {seekingalphaLink} | {marketwatchLink} | {finvizLink}")
             else:
-                payload.append(f"<b>Other Links:</b> {market_link} | {swsLink}")
+                payload.append(f"<b>Other Links:</b> {market_link}")
         if ticker_orig == ticker:
             payload.insert(0, profile_title + " (" + yahoo_link + ")")
         else:
