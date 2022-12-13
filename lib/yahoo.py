@@ -8,9 +8,6 @@ import time
 from lib.config import *
 import lib.util as util
 
-time_now = datetime.datetime.today()
-now = time_now.timestamp()
-
 def fetch(tickers):
     # NEVER CACHE THIS
     print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
@@ -96,6 +93,8 @@ def fetch(tickers):
     return yahoo_output
 
 def fetch_detail(ticker, seconds=config_cache_seconds):
+    time_now = datetime.datetime.today()
+    now = time_now.timestamp()
     local_market_data = {}
     base_url = 'https://query2.finance.yahoo.com/v11/finance/quoteSummary/'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}

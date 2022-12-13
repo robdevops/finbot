@@ -5,10 +5,6 @@ from lib.config import *
 import lib.util as util
 import time
 
-time_now = datetime.datetime.today()
-now = int(time.time())
-today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-
 class BearerAuth(requests.auth.AuthBase):
     def __init__(self, token):
         self.token = token
@@ -17,6 +13,7 @@ class BearerAuth(requests.auth.AuthBase):
         return r
 
 def get_token():
+    now = int(time.time())
     cache_file = config_cache_dir + "/sharesight_token_cache.json"
     cache = util.read_cache(cache_file, 1740)
     if config_cache and cache:
@@ -78,6 +75,7 @@ def get_portfolios():
 
 def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     # DO NOT CACHE #
+    time_now = datetime.datetime.today()
     start_date = time_now - datetime.timedelta(days=days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
     print("Fetching Sharesight trades for", portfolio_name, end=": ")
@@ -92,6 +90,8 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     return data['trades']
 
 def get_holdings(portfolio_name, portfolio_id):
+    time_now = datetime.datetime.today()
+    today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
     cache_file = config_cache_dir + "/sharesight_holdings_cache_" + str(portfolio_id) + '.json'
     cache = util.read_cache(cache_file, config_cache_seconds)
     if config_cache and cache:

@@ -11,10 +11,9 @@ import lib.webhook as webhook
 import lib.yahoo as yahoo
 
 def lambda_handler(event,context):
-    time_now = datetime.datetime.today()
-    today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    
     def prepare_earnings_payload(service):
+        time_now = datetime.datetime.today()
+        today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
         payload = []
         emoji = "📣"
         finviz_date_list = []
