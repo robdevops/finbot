@@ -12,7 +12,7 @@ import lib.webhook as webhook
 import lib.yahoo as yahoo
 import lib.telegram as telegram
 import lib.sharesight as sharesight
-import price_premarket
+import premarket
 import shorts
 import trades
 
@@ -30,10 +30,10 @@ def main(env, start_response):
     start_response(status, headers)
     
     # Return the response body
-    try:
-        print("Incoming request:", json.dumps(inbound, indent=4))
-    except Exception as e:
-        print(e, "raw body: ", inbound)
+    #try:
+    #    print("Incoming request:", json.dumps(inbound, indent=4))
+    #except Exception as e:
+    #    print(e, "raw body: ", inbound)
 
     # read telegram message
     if "message" in inbound:
@@ -45,6 +45,7 @@ def main(env, start_response):
                 user = inbound["message"]["from"]["username"]
             else:
                 user = inbound["message"]["from"]["first_name"]
+            print(message)
         else:
             print("unhandled 'message' without 'text'")
             start_response('200 OK', [('Content-Type', 'application/json')])
@@ -58,6 +59,7 @@ def main(env, start_response):
                 user = inbound["edited_message"]["from"]["username"]
             else:
                 user = inbound["edited_message"]["from"]["first_name"]
+            print(message)
         else:
             print("unhandled 'edited_message' without 'text'")
             start_response('200 OK', [('Content-Type', 'application/json')])
@@ -66,6 +68,7 @@ def main(env, start_response):
         message = inbound["channel_post"]["text"]
         chat_id = inbound["channel_post"]["chat"]["id"]
         user = ''
+        print(message)
     else:
         print("unhandled not 'message' nor 'channel_post'")
         start_response('200 OK', [('Content-Type', 'application/json')])
@@ -77,11 +80,13 @@ def main(env, start_response):
     trades_command = "^\!trades\s*(\d+)*|^" + botName + "\s*(trades)\s*(\d+)*"
     holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\s*(holdings)\s*([\w\s]+)*"
     shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\s*(shorts)\s*([\d]+)*"
+    premarket_command = "^\!premarket\s*([\d]+)*|^" + botName + "\s*(premarket)\s*([\d]+)*"
     m_stockfinancial = re.match(stockfinancial_command, message)
     m_watchlist = re.match(watchlist_command, message)
     m_trades = re.match(trades_command, message)
     m_holdings = re.match(holdings_command, message)
     m_shorts = re.match(shorts_command, message)
+    m_premarket = re.match(premarket_command, message)
     if m_watchlist:
         action = False
         ticker = False
@@ -104,15 +109,22 @@ def main(env, start_response):
             if service == 'telegram':
                 webhook.payload_wrapper("telegram", url, payload)
             return [b"<b>OK</b>"]
-    elif message in ("!premarket", botName + " premarket"):
+    elif m_premarket:
+        premarket_threshold = config_price_percent
+        if m_premarket.group(3):
+            premarket_threshold = int(m_premarket.group(3))
+        elif m_premarket.group(1):
+            premarket_threshold = int(m_premarket.group(1))
         for service in webhooks:
             payload = prepare_help("telegram", user)
             if service == 'telegram':
-                price_premarket.lambda_handler(chat_id, interactive, user)
+                premarket.lambda_handler(chat_id, interactive, user, premarket_threshold)
             return [b"<b>OK</b>"]
     elif m_shorts:
         shorts_threshold = config_shorts_percent
-        if m_shorts.group(1):
+        if m_shorts.group(3):
+            shorts_threshold = int(m_shorts.group(3))
+        elif m_shorts.group(1):
             shorts_threshold = int(m_shorts.group(1))
         for service in webhooks:
             if service == 'telegram':
@@ -126,16 +138,15 @@ def main(env, start_response):
                 webhook.payload_wrapper("telegram", url, payload)
             return [b"<b>OK</b>"]
     elif m_trades:
-        if m_trades.group(2):
-            days = int(m_trades.group(2))
+        if m_trades.group(3):
+            days = int(m_trades.group(3))
         elif m_trades.group(1):
             days = int(m_trades.group(1))
         else:
             days = 1
-        payload = [ f"@{user}", f"beep boop. Rummaging for trades from the past {days} (hold music 🎶)" ]
+        payload = [ f"@{user}", f"beep boop. Rummaging for trades from the past {days} days 🔍" ]
         url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
-        if service == 'telegram':
-            webhook.payload_wrapper("telegram", url, payload)
+        webhook.payload_wrapper("telegram", url, payload)
         for service in webhooks:
             if service == 'telegram':
                 trades.lambda_handler(chat_id, interactive, user, days)
@@ -170,9 +181,10 @@ def main(env, start_response):
                             holding_link = item
                         payload.append(f"{title} ({holding_link})")
                 portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
+                payload.sort()
                 payload.insert(0, f"<b>Holdings for {portfoliosReverseLookup[portfolioId]}</b>")
             else:
-                payload = [ f"@{user} {portfolioName} not found. I only know about:" ]
+                payload = [ f"@{user} {portfolioName} portfolio not found. I only know about:" ]
                 for item in portfolios:
                     payload.append( item )
         else:
@@ -257,15 +269,15 @@ def prepare_watchlist(service, user, action, ticker):
                 duplicate = True
             else:
                 watchlist.append(tickerau)
-                transformed = True
                 market_data = yahoo.fetch(watchlist)
                 if tickerau in market_data:
+                    transformed = True
                     print("found", tickerau)
                     ticker = tickerau
                 else:
+                    missing = True
                     print(tickerau, "not found")
                     watchlist.remove(tickerau)
-                    missing = True
         elif ticker not in market_data:
             watchlist.remove(ticker)
             missing = True
@@ -303,8 +315,7 @@ def prepare_watchlist(service, user, action, ticker):
         elif duplicate:
             payload.insert(0, f"@{user}, I'm already tracking <b>{ticker}</b>")
         elif ticker not in market_data:
-            payload = [f"@{user}"]
-            payload.append(f"Beep Boop. I could not find <b>{ticker}</b> to add it")
+            payload = [f"@{user}", f"Beep Boop. I could not find <b>{ticker}</b> to add it"]
         else:
             payload.insert(0, f"Ok @{user}, I added <b>{ticker}</b>")
     elif action == False:
@@ -321,6 +332,7 @@ def prepare_help(service, user):
     payload.append("!AAPL bio")
     payload.append("!holdings")
     payload.append("!premarket")
+    payload.append("!premarket 5")
     payload.append("!shorts")
     payload.append("!shorts 5")
     payload.append("!trades")
@@ -332,6 +344,7 @@ def prepare_help(service, user):
     payload.append(botName + " AAPL bio")
     payload.append(botName + " holdings")
     payload.append(botName + " premarket")
+    payload.append(botName + " premarket 5")
     payload.append(botName + " shorts")
     payload.append(botName + " shorts 5")
     payload.append(botName + " trades")
@@ -344,20 +357,22 @@ def prepare_help(service, user):
 def prepare_stockfinancial_payload(service, user, ticker, bio):
     cashflow = False
     ticker_orig = ticker
+    tickerNative = ticker.split('.')[0]
     now = int(time.time())
     payload = []
-    market_data = yahoo.fetch_detail(ticker)
+    sws_link=''
+    yahoo_link=''
+    market_data = yahoo.fetch_detail(ticker, 300)
     if not market_data and '.' not in ticker:
         ticker = ticker + '.AX'
         print("trying again with", ticker)
-        market_data = yahoo.fetch_detail(ticker)
+        market_data = yahoo.fetch_detail(ticker, 300)
     if not market_data:
-        payload = [ f"Beep Boop. I could not find {ticker_orig}" ]
-        payload.insert(0, f"@{user}")
+        payload = [ f"@{user} 🛑", f"Beep Boop. I could not find {ticker_orig}" ]
         return payload
-    print("Yahoo data:", json.dumps(market_data, indent=4))
+    #print("Yahoo data:", json.dumps(market_data, indent=4))
     yahoo_url = "https://finance.yahoo.com/quote/" + ticker
-    ticker_link = '<a href="' + yahoo_url + '">' + ticker + '</a>'
+    ticker_link = '<a href="' + yahoo_url + '">' + tickerNative + '</a>'
     profile_title = market_data[ticker]['profile_title']
     if bio:
         location = [ market_data[ticker]['profile_city'] ]
@@ -509,11 +524,18 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     elif 'percent_change_postmarket' in market_data[ticker]:
         percent_change_postmarket = str(market_data[ticker]['percent_change_postmarket']) + '%'
         payload.append(f"<b>Post-market:</b> {percent_change_postmarket}")
+    if 'profile_exchange' in market_data[ticker]:
+        profile_exchange = market_data[ticker]['profile_exchange']
+        sws_url = 'https://simplywall.st/compare/' + profile_exchange + ':' + ticker.split('.')[0]
+        sws_link = '<a href="' + sws_url + '">SWS</a>'
+        yahoo_url = "https://finance.yahoo.com/quote/" + ticker
+        yahoo_link = '<a href="' + yahoo_url + '">Y</a>'
     if ticker_orig == ticker:
-        payload.insert(0, profile_title + " (" + ticker_link + ")")
+        payload.insert(0, f"{profile_title} ({ticker_link}) | {sws_link} | {yahoo_link}")
     else:
-        payload.insert(0, f"Beep Boop. I could not find " + ticker_orig + ", but I found " + ticker_link)
-        payload.insert(0, f"@{user}")
+        payload.insert(0, f"@{user}, I could not find {ticker_orig} but I found {ticker}:")
+        payload.insert(1, "")
+        payload.insert(2, f"{profile_title} ({ticker_link} | {sws_link} | {yahoo_link}")
     return payload
 
 ip="127.0.0.1"
