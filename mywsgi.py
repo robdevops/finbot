@@ -75,12 +75,12 @@ def main(env, start_response):
         return [b'<h1>Unhandled</h1>']
 
     # read bot command
-    stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + " ([A-Z\.]+)\s*(bio|info|profile)*"
+    stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + " ([\w\.]+)\s*(bio|info|profile)*"
     watchlist_command = "^\!watchlist$|^\!watchlist ([\w]+) ([\w\.]+)|^" + botName + " watchlist$|^" + botName + " watchlist (\w+) ([\w\.]+)"
-    trades_command = "^\!trades\s*(\d+)*|^" + botName + "\s*(trades)\s*(\d+)*"
-    holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\s*(holdings)\s*([\w\s]+)*"
-    shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\s*(shorts)\s*([\d]+)*"
-    premarket_command = "^\!premarket\s*([\d]+)*|^" + botName + "\s*(premarket)\s*([\d]+)*"
+    trades_command = "^\!trades\s*(\d+)*|^" + botName + "\strades\s*(\d+)*"
+    holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\sholdings\s*([\w\s]+)*"
+    shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\sshorts\s*([\d]+)*"
+    premarket_command = "^\!premarket\s*([\d]+)*|^" + botName + "\spremarket\s*([\d]+)*"
     m_stockfinancial = re.match(stockfinancial_command, message)
     m_watchlist = re.match(watchlist_command, message)
     m_trades = re.match(trades_command, message)
@@ -111,8 +111,8 @@ def main(env, start_response):
             return [b"<b>OK</b>"]
     elif m_premarket:
         premarket_threshold = config_price_percent
-        if m_premarket.group(3):
-            premarket_threshold = int(m_premarket.group(3))
+        if m_premarket.group(2):
+            premarket_threshold = int(m_premarket.group(2))
         elif m_premarket.group(1):
             premarket_threshold = int(m_premarket.group(1))
         for service in webhooks:
@@ -122,8 +122,8 @@ def main(env, start_response):
             return [b"<b>OK</b>"]
     elif m_shorts:
         shorts_threshold = config_shorts_percent
-        if m_shorts.group(3):
-            shorts_threshold = int(m_shorts.group(3))
+        if m_shorts.group(2):
+            shorts_threshold = int(m_shorts.group(2))
         elif m_shorts.group(1):
             shorts_threshold = int(m_shorts.group(1))
         for service in webhooks:
@@ -138,8 +138,8 @@ def main(env, start_response):
                 webhook.payload_wrapper("telegram", url, payload)
             return [b"<b>OK</b>"]
     elif m_trades:
-        if m_trades.group(3):
-            days = int(m_trades.group(3))
+        if m_trades.group(2):
+            days = int(m_trades.group(2))
         elif m_trades.group(1):
             days = int(m_trades.group(1))
         else:
@@ -160,14 +160,13 @@ def main(env, start_response):
             portfolioName = m_holdings.group(2)
         elif m_holdings.group(1):
             portfolioName = m_holdings.group(1)
-        token = sharesight.get_token(sharesight_auth)
-        portfolios = sharesight.get_portfolios(token)
+        #token = sharesight.get_token(sharesight_auth)
+        portfolios = sharesight.get_portfolios()
         portfoliosLower = {k.lower():v for k,v in portfolios.items()}
         if portfolioName:
             if portfolioName.lower() in portfoliosLower:
                 portfolioId = portfoliosLower[portfolioName.lower()]
-                holdings = sharesight.get_holdings(token, portfolioName, portfolioId)
-                tickers = yahoo.transform_ticker_wrapper(holdings)
+                tickers = sharesight.get_holdings(portfolioName, portfolioId)
                 market_data = yahoo.fetch(tickers)
                 for item in market_data:
                     ticker = market_data[item]['ticker']
@@ -240,7 +239,7 @@ def prepare_watchlist(service, user, action, ticker):
     transformed = False
     tickerau = False
     ticker_orig = ticker
-    cache_file = config_cache_dir + "/sharesight_watchlist.txt"
+    cache_file = config_cache_dir + "/sharesight_watchlist.json"
     if os.path.isfile(cache_file):
         with open(cache_file, "r") as f:
             watchlist = json.loads(f.read())
@@ -353,7 +352,6 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     now = int(time.time())
     payload = []
     sws_link=''
-    yahoo_link=''
     market_data = yahoo.fetch_detail(ticker, 300)
     if not market_data and '.' not in ticker:
         ticker = ticker + '.AX'
@@ -364,8 +362,12 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         return payload
     #print("Yahoo data:", json.dumps(market_data, indent=4))
     yahoo_url = "https://finance.yahoo.com/quote/" + ticker
-    ticker_link = '<a href="' + yahoo_url + '">' + tickerNative + '</a>'
+    yahoo_link = '<a href="' + yahoo_url + '">' + ticker + '</a>'
     profile_title = market_data[ticker]['profile_title']
+    if 'profile_exchange' in market_data[ticker]:
+        profile_exchange = market_data[ticker]['profile_exchange']
+        sws_url = 'https://simplywall.st/compare/' + profile_exchange + ':' + ticker.split('.')[0]
+        sws_link = '<a href="' + sws_url + '">simplywall.st</a>'
     if bio:
         location = [ market_data[ticker]['profile_city'] ]
         if 'profile_state' in market_data[ticker]:
@@ -380,9 +382,11 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         if 'profile_website' in market_data[ticker]:
             payload.append(f"<b>Website:</b> {market_data[ticker]['profile_website']}")
         if ticker_orig == ticker:
-            payload.insert(0, profile_title + " (" + ticker_link + ")")
+            payload.insert(0, profile_title + " (" + yahoo_link + ")")
         else:
-            payload.insert(0, f"Beep Boop. I could not find " + ticker_orig + ", but I found " + ticker_link)
+            payload.insert(0, f"Beep Boop. I could not find " + ticker_orig + ", but I found " + yahoo_link)
+            payload.insert(1, "")
+            payload.insert(2, profile_title + " (" + yahoo_link + ")")
         return payload
     if 'currency' in market_data[ticker] and 'market_cap' in market_data[ticker]:
         currency = market_data[ticker]['currency']
@@ -412,7 +416,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         if earnings_date > now:
             payload.append(f"<b>Earnings date:</b> {human_earnings_date}")
         else:
-            print("Skipping past earnings:", human_earnings_date)
+            print("Skipping past earnings:", ticker, human_earnings_date)
     if 'dividend' in market_data[ticker]:
         dividend = market_data[ticker]['dividend']
         if market_data[ticker]['dividend'] > 0:
@@ -424,7 +428,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
                 if ex_dividend_date > now:
                     payload.append(f"<b>Ex-dividend date:</b> {human_exdate}")
                 else:
-                    print("Skipping past ex-dividend:", human_exdate)
+                    print("Skipping past ex-dividend:", ticker, human_exdate)
     if cashflow:
         if cashflow < 0:
             payload.append(f"<b>Cashflow positive:</b> no⚠️ ")
@@ -516,18 +520,12 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     elif 'percent_change_postmarket' in market_data[ticker]:
         percent_change_postmarket = str(market_data[ticker]['percent_change_postmarket']) + '%'
         payload.append(f"<b>Post-market:</b> {percent_change_postmarket}")
-    if 'profile_exchange' in market_data[ticker]:
-        profile_exchange = market_data[ticker]['profile_exchange']
-        sws_url = 'https://simplywall.st/compare/' + profile_exchange + ':' + ticker.split('.')[0]
-        sws_link = '<a href="' + sws_url + '">SWS</a>'
-        yahoo_url = "https://finance.yahoo.com/quote/" + ticker
-        yahoo_link = '<a href="' + yahoo_url + '">Y</a>'
     if ticker_orig == ticker:
-        payload.insert(0, f"{profile_title} ({ticker_link}) | {sws_link} | {yahoo_link}")
+        payload.insert(0, f"{profile_title} ({yahoo_link})")
     else:
-        payload.insert(0, f"@{user}, I could not find {ticker_orig} but I found {ticker}:")
+        payload.insert(0, f"I could not find {ticker_orig} but I found {yahoo_link}:")
         payload.insert(1, "")
-        payload.insert(2, f"{profile_title} ({ticker_link} | {sws_link} | {yahoo_link}")
+        payload.insert(2, f"{profile_title} ({yahoo_link}) {sws_link}")
     return payload
 
 ip="127.0.0.1"
