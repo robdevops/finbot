@@ -11,33 +11,6 @@ import lib.util as util
 time_now = datetime.datetime.today()
 now = time_now.timestamp()
 
-def transform_ticker_wrapper(holdings):
-    tickers = set()
-    for holding in holdings:
-        symbol = holdings[holding]['code']
-        market = holdings[holding]['market_code']
-        ticker = transform_ticker(symbol, market)
-        tickers.add(ticker)
-    tickers = list(tickers)
-    tickers.sort()
-    tickers = set(tickers)
-    return tickers
-    
-def transform_ticker(ticker, market):
-    if market == 'ASX':
-        ticker = ticker + '.AX'
-    if market == 'HKG':
-        ticker = ticker + '.HK'
-    if market == 'KRX':
-        ticker = ticker + '.KS'
-    if market == 'KOSDAQ':
-        ticker = ticker + '.KQ'
-    if market == 'LSE':
-        ticker = ticker + '.L'
-    if market == 'TAI':
-        ticker = ticker + '.TW'
-    return ticker
-
 def fetch(tickers):
     # NEVER CACHE THIS
     print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
@@ -126,7 +99,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     base_url = 'https://query2.finance.yahoo.com/v11/finance/quoteSummary/'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     local_market_data[ticker] = {}
-    cache_file = config_cache_dir + "/sharesight_detail_cache_" + ticker
+    cache_file = config_cache_dir + "/sharesight_detail_cache_" + ticker + '.json'
     cacheData = util.read_cache(cache_file, seconds)
     if config_cache and cacheData:
         print('.', sep=' ', end='', flush=True)

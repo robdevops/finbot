@@ -60,6 +60,21 @@ def transform_title(title):
         title = title.rstrip()
         return title
 
+def transform_ticker(ticker, market):
+    if market == 'ASX':
+        ticker = ticker + '.AX'
+    if market == 'HKG':
+        ticker = ticker + '.HK'
+    if market == 'KRX':
+        ticker = ticker + '.KS'
+    if market == 'KOSDAQ':
+        ticker = ticker + '.KQ'
+    if market == 'LSE':
+        ticker = ticker + '.L'
+    if market == 'TAI':
+        ticker = ticker + '.TW'
+    return ticker
+
 def categorise_tickers(tickers):
     tickers_us = [] # used by fetch_finviz()
     tickers_au = [] # used by fetch_shortman()
@@ -212,14 +227,15 @@ def currency_symbol(currency):
                 currency_symbol = '฿'
             return currency_symbol
 
-def read_cache(cache_file, seconds=config_cache_seconds):
-    if os.path.isfile(cache_file):
-        cacheFileAge = now - int(os.path.getmtime(cache_file))
-        if cacheFileAge < seconds:
-            print(cache_file, "life:", int(round(cacheFileAge/60)), "of", int(round(seconds/60)), "minutes")
-            with open(cache_file, "r") as f:
-                cache_dict = json.loads(f.read())
-            return cache_dict
+def read_cache(cacheFile, maxSeconds=config_cache_seconds):
+    if os.path.isfile(cacheFile):
+        cacheFileSeconds = now - int(os.path.getmtime(cacheFile))
+        cacheTTL = maxSeconds - cacheFileSeconds
+        if cacheTTL > 0:
+            #print(cacheFile, "TTL:", int(round(cacheTTL/60, 0)), "minutes")
+            with open(cacheFile, "r") as f:
+                cacheDict = json.loads(f.read())
+            return cacheDict
         else:
             print("cache expired")
 
