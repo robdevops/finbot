@@ -30,10 +30,10 @@ def fetch(chunk):
         ticker = item[1].text
         title = item[2].text
         title = util.transform_title(title)
-        dividend = item[3].text.replace('%', '')
-        percent_short = item[4].text.replace('%', '') # FIX python 3.9
+        dividend = item[6].text.replace('%', '')
+        percent_short = item[3].text.replace('%', '') # FIX python 3.9
         earnings_date = item[5].text
-        percent_change = item[6].text.replace('%', '')
+        percent_change = item[4].text.replace('%', '')
         try:
             percent_short = float(percent_short)
         except ValueError:
