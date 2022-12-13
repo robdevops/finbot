@@ -15,7 +15,7 @@ def chunker(seq, size):
 
 def transform_title(title):
         title = title.replace(' FPO', '')
-        if title.isupper():
+        if title.isupper() or title.islower():
             title = title.title()
         title = title.replace(' - ', ' ')
         title = title.replace('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'Clean Energy ETF')
@@ -216,7 +216,7 @@ def read_cache(cache_file, seconds=config_cache_seconds):
     if os.path.isfile(cache_file):
         cacheFileAge = now - int(os.path.getmtime(cache_file))
         if cacheFileAge < seconds:
-            print(cache_file, "age:", int(round(cacheFileAge/60)), "minutes")
+            print(cache_file, "life:", int(round(cacheFileAge/60)), "of", int(round(seconds/60)), "minutes")
             with open(cache_file, "r") as f:
                 cache_dict = json.loads(f.read())
             return cache_dict

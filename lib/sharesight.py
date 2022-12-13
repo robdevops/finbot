@@ -95,7 +95,7 @@ def get_holdings(token, portfolio_name, portfolio_id):
     cache_file = config_cache_dir + "/sharesight_holdings_cache_" + str(portfolio_id)
     cache = util.read_cache(cache_file, config_cache_seconds)
     if config_cache and cache:
-        print("Fetching Sharesight holdings from cache.", portfolio_name, end=": ")
+        print(portfolio_name, end=": ")
         print(len(cache))
         return cache
     print("Fetching Sharesight holdings", portfolio_name, end=": ")
