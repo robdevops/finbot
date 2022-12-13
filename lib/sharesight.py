@@ -16,11 +16,10 @@ class BearerAuth(requests.auth.AuthBase):
         r.headers["Authorization"] = "Bearer " + self.token
         return r
 
-def get_token(sharesight_auth):
-    cache_file = config_cache_dir + "/sharesight_token_cache.txt"
+def get_token():
+    cache_file = config_cache_dir + "/sharesight_token_cache.json"
     cache = util.read_cache(cache_file, 1740)
     if config_cache and cache:
-        print("reading token from cache:", cache_file)
         cache_expiry = cache['created_at'] + cache['expires_in']
         if cache_expiry < now + 60:
             print("token cache has expired")
@@ -42,14 +41,14 @@ def get_token(sharesight_auth):
     print(data)
     return data['access_token']
 
-def get_portfolios(token):
-    cache_file = config_cache_dir + "/sharesight_portfolio_cache.txt"
+def get_portfolios():
+    cache_file = config_cache_dir + "/sharesight_portfolio_cache.json"
     cache = util.read_cache(cache_file, config_cache_seconds)
     if config_cache and cache:
-        print("Fetched Sharesight portfolios from cache")
         print(cache)
         return cache
     print("Fetching Sharesight portfolios")
+    token = get_token()
     portfolio_dict = {}
     url = "https://api.sharesight.com/api/v3/portfolios"
     try:
@@ -77,11 +76,12 @@ def get_portfolios(token):
     util.write_cache(cache_file, portfolio_dict)
     return portfolio_dict
 
-def get_trades(token, portfolio_name, portfolio_id, days=config_past_days):
+def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     # DO NOT CACHE #
     start_date = time_now - datetime.timedelta(days=days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
     print("Fetching Sharesight trades for", portfolio_name, end=": ")
+    token = get_token()
     endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
     url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + start_date
     r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
@@ -91,14 +91,15 @@ def get_trades(token, portfolio_name, portfolio_id, days=config_past_days):
        trade['portfolio'] = portfolio_name
     return data['trades']
 
-def get_holdings(token, portfolio_name, portfolio_id):
-    cache_file = config_cache_dir + "/sharesight_holdings_cache_" + str(portfolio_id)
+def get_holdings(portfolio_name, portfolio_id):
+    cache_file = config_cache_dir + "/sharesight_holdings_cache_" + str(portfolio_id) + '.json'
     cache = util.read_cache(cache_file, config_cache_seconds)
     if config_cache and cache:
         print(portfolio_name, end=": ")
         print(len(cache))
         return cache
     print("Fetching Sharesight holdings", portfolio_name, end=": ")
+    token = get_token()
     holdings = {}
     endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
     url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + today
@@ -111,11 +112,27 @@ def get_holdings(token, portfolio_name, portfolio_id):
         code = item['instrument']['code']
         holdings[code] = item['instrument']
     util.write_cache(cache_file, holdings)
-    return holdings
+    tickers = transform_ticker_wrapper(holdings)
+    return tickers
 
-def get_holdings_wrapper(token, portfolios):
-    holdings = {}
+def get_holdings_wrapper():
+    tickers = set()
+    portfolios = get_portfolios()
     for portfolio_name in portfolios:
         portfolio_id = int(portfolios[portfolio_name])
-        holdings = {**holdings, **get_holdings(token, portfolio_name, portfolio_id)} # FIX python 3.9
-    return holdings
+        tickers.update(get_holdings(portfolio_name, portfolio_id))
+        #holdings = {**holdings, **get_holdings(portfolio_name, portfolio_id)} # FIX python 3.9
+    return tickers
+
+def transform_ticker_wrapper(holdings):
+    tickers = set()
+    for holding in holdings:
+        symbol = holdings[holding]['code']
+        market = holdings[holding]['market_code']
+        ticker = util.transform_ticker(symbol, market)
+        tickers.add(ticker)
+    tickers = list(tickers)
+    tickers.sort()
+    tickers = set(tickers)
+    return tickers
+
