@@ -44,6 +44,7 @@ def fetch(tickers):
         except (KeyError, IndexError):
             continue
         try:
+            percent_change = 0
             percent_change = round(float(item['regularMarketChangePercent']), 2)
         except (KeyError, IndexError):
             pass

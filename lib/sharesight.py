@@ -111,20 +111,6 @@ def get_holdings(portfolio_name, portfolio_id):
     for item in data['report']['holdings']:
         code = item['instrument']['code']
         holdings[code] = item['instrument']
-    util.write_cache(cache_file, holdings)
-    tickers = transform_ticker_wrapper(holdings)
-    return tickers
-
-def get_holdings_wrapper():
-    tickers = set()
-    portfolios = get_portfolios()
-    for portfolio_name in portfolios:
-        portfolio_id = int(portfolios[portfolio_name])
-        tickers.update(get_holdings(portfolio_name, portfolio_id))
-        #holdings = {**holdings, **get_holdings(portfolio_name, portfolio_id)} # FIX python 3.9
-    return tickers
-
-def transform_ticker_wrapper(holdings):
     tickers = set()
     for holding in holdings:
         symbol = holdings[holding]['code']
@@ -133,6 +119,14 @@ def transform_ticker_wrapper(holdings):
         tickers.add(ticker)
     tickers = list(tickers)
     tickers.sort()
-    tickers = set(tickers)
+    util.write_cache(cache_file, tickers)
+    return tickers
+
+def get_holdings_wrapper():
+    tickers = set()
+    portfolios = get_portfolios()
+    for portfolio_name in portfolios:
+        portfolio_id = int(portfolios[portfolio_name])
+        tickers.update(get_holdings(portfolio_name, portfolio_id))
     return tickers
 
