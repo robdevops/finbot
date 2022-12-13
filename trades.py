@@ -76,7 +76,7 @@ def lambda_handler(telegram_chat_id=config_telegram_chat_id, interactive=False, 
         if interactive:
             payload.insert(0, f"@{user}")
             if len(payload) == 1:
-                payload.append(f"No trades found in the past {past_days} days")
+                payload.append(f"No trades found in the past {past_days} days 🛑")
         elif service == 'telegram':
             payload.insert(0, "<b>New trades:</b>")
         elif service == 'slack':

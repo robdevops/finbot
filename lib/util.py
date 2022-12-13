@@ -55,6 +55,8 @@ def transform_title(title):
         title = title.replace(' .', ' ')
         title = title.replace(' ,', ' ')
         title = title.replace('  ', ' ')
+        if title.islower():
+            title = title.title()
         title = title.rstrip()
         return title
 
@@ -210,11 +212,16 @@ def currency_symbol(currency):
                 currency_symbol = '฿'
             return currency_symbol
 
-def read_cache(cache_file, seconds):
-    if os.path.isfile(cache_file) and os.path.getmtime(cache_file) > now - int(seconds):
-        with open(cache_file, "r") as f:
-            cache_dict = json.loads(f.read())
-        return cache_dict
+def read_cache(cache_file, seconds=config_cache_seconds):
+    if os.path.isfile(cache_file):
+        cacheFileAge = now - int(os.path.getmtime(cache_file))
+        if cacheFileAge < seconds:
+            print(cache_file, "age:", int(round(cacheFileAge/60)), "minutes")
+            with open(cache_file, "r") as f:
+                cache_dict = json.loads(f.read())
+            return cache_dict
+        else:
+            print("cache expired")
 
 def write_cache(cache_file, fresh_dict):
     os.umask(0)

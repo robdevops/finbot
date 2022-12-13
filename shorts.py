@@ -39,9 +39,9 @@ def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = Fal
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
         if interactive:
-            payload.insert(0, f"@{user}")
+            payload.insert(0, f"<b>@{user} stocks with at least {threshold}% short interest</b>")
             if len(payload) == 1:
-                payload.append(f"No shorts meet threshold: {threshold}% {emoji}")
+                payload.append(f"No shorts meet threshold {emoji}. Try specifying a number.")
         elif service == 'telegram':
             payload.insert(0, "<b>Highly shorted stock warning:</b>")
         elif service == 'slack':

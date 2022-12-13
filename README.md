@@ -117,6 +117,13 @@ past_days = 31
 price_percent = 9.4
 ```
 
+### Price alerts (pre-market)
+
+`premarket.py` sends pre/post market price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file. Decimal fractions are accepted. Example:
+```
+price_percent = 9.4
+```
+
 ### Earnings reminders
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
 
@@ -170,6 +177,7 @@ Currently in alpha and supporting only Telegram. You need to host `mywsgi.py` an
 !AAPL bio
 !holdings
 !premarket
+!premarket 5
 !shorts
 !shorts 5
 !trades
@@ -181,6 +189,7 @@ Currently in alpha and supporting only Telegram. You need to host `mywsgi.py` an
 @botname AAPL bio
 @botname holdings
 @botname premarket
+@botname premarket 5
 @botname shorts
 @botname shorts 5
 @botname trades
