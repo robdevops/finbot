@@ -176,27 +176,19 @@ Currently in alpha and supporting only Telegram. You need to host `mywsgi.py` an
 !AAPL
 !AAPL bio
 !holdings
-!premarket
-!premarket 5
-!shorts
-!shorts 5
-!trades
-!shorts 5
+!premarket [percent]
+!shorts [percent]
+!trades [days]
 !watchlist
-!watchlist add AAPL
-!watchlist del AAPL
+!watchlist [add|del] AAPL
 @botname AAPL
 @botname AAPL bio
 @botname holdings
-@botname premarket
-@botname premarket 5
-@botname shorts
-@botname shorts 5
-@botname trades
-@botname shorts 5
+@botname premarket [percent]
+@botname shorts [percent]
+@botname trades [days]
 @botname watchlist
-@botname watchlist add AAPL
-@botname watchlist del AAPL
+@botname watchlist [add|del] AAPL
 ```
 
 ## Serverless
