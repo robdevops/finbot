@@ -9,7 +9,7 @@ import lib.util as util
 import lib.yahoo as yahoo
 import lib.finviz as finviz
 
-def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = False, user=''):
+def lambda_handler(telegram_chat_id=config_telegram_chat_id, interactive=False, user='', threshold=config_price_percent):
     def prepare_price_payload(service, market_data):
         postmarket = False
         payload = []
@@ -23,7 +23,7 @@ def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = Fal
                 print("no data for", ticker)
                 continue
             title = market_data[ticker]['profile_title']
-            if abs(float(percent)) >= config_price_percent:
+            if abs(float(percent)) >= threshold:
                 url = 'https://finance.yahoo.com/quote/' + ticker
                 if percent < 0:
                     emoji = "🔻"
@@ -39,14 +39,14 @@ def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = Fal
                 else:
                     ticker_link = ticker
                 payload.append(f"{emoji} {title} ({ticker_link}) {percent}%")
-        print(len(payload), f"holdings moved by at least {config_price_percent}%")
+        print(len(payload), f"holdings moved by at least {threshold}%")
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
         if interactive:
-            payload.insert(0, f"@{user}")
+            payload.insert(0, f"<b>@{user} stocks moving at least {threshold}% pre-market</b>")
             if len(payload) == 1:
-                payload.append(f"No price movements meet threshold: {config_price_percent}%")
+                payload.append(f"No price movements meet threshold 🛑")
         elif service == 'telegram':
             payload.insert(0, "<b>Price alerts (pre-market):</b>")
         elif service == 'slack':
