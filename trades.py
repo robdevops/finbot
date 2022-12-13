@@ -14,7 +14,7 @@ def lambda_handler(telegram_chat_id=config_telegram_chat_id, interactive=False, 
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
     start_date = time_now - datetime.timedelta(days=past_days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
-    cache_file = config_cache_dir + "/sharesight_trade_cache.txt"
+    cache_file = config_cache_dir + "/sharesight_trade_cache.json"
     
     def prepare_trade_payload(service, trades):
         if os.path.isfile(cache_file) and not interactive:
@@ -37,7 +37,7 @@ def lambda_handler(telegram_chat_id=config_telegram_chat_id, interactive=False, 
             #value = abs(round(trade['value'])) # don't use - sharesight converts to local currency
             value = abs(round(price * units))
             holding_id = str(trade['holding_id'])
-            ticker = yahoo.transform_ticker(symbol, market)
+            ticker = util.transform_ticker(symbol, market)
 
             verb=''
             emoji=''
@@ -98,15 +98,14 @@ def lambda_handler(telegram_chat_id=config_telegram_chat_id, interactive=False, 
                 f.write(f"{trade}\n")
 
     # MAIN #
-    token = sharesight.get_token(sharesight_auth)
-    portfolios = sharesight.get_portfolios(token)
+    portfolios = sharesight.get_portfolios()
 
     # Get trades from Sharesight
     trades = []
     newtrades = set()
     for portfolio_name in portfolios:
         portfolio_id = portfolios[portfolio_name]
-        trades = trades + sharesight.get_trades(token, portfolio_name, portfolio_id, past_days)
+        trades = trades + sharesight.get_trades(portfolio_name, portfolio_id, past_days)
     if trades:
         print(len(trades), "trades found since", start_date)
     else:

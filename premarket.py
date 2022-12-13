@@ -59,14 +59,10 @@ def lambda_handler(telegram_chat_id=config_telegram_chat_id, interactive=False, 
 
 
     # MAIN #
-    token = sharesight.get_token(sharesight_auth)
-    portfolios = sharesight.get_portfolios(token)
-
     # Fetch holdings from Sharesight, and market data from Yahoo/Finviz
     finviz_output = {}
     yahoo_output = {}
-    holdings = sharesight.get_holdings_wrapper(token, portfolios)
-    tickers = yahoo.transform_ticker_wrapper(holdings)
+    tickers = sharesight.get_holdings_wrapper()
     tickers.update(config_watchlist)
     tickers_au, tickers_world, tickers_us = util.categorise_tickers(tickers)
     market_data = yahoo.fetch(tickers_us)
