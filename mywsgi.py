@@ -339,7 +339,6 @@ def prepare_help(service, user):
     payload.append(botName + " AAPL")
     payload.append(botName + " AAPL bio")
     payload.append(botName + " holdings")
-    payload.append(botName + " premarket")
     payload.append(botName + " premarket [percent]")
     payload.append(botName + " shorts [percent]")
     payload.append(botName + " trades [days]")
