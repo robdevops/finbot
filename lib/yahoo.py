@@ -121,16 +121,16 @@ def fetch(tickers):
             pass
     return yahoo_output
 
-def fetch_detail(ticker):
+def fetch_detail(ticker, seconds=config_cache_seconds):
     local_market_data = {}
     base_url = 'https://query2.finance.yahoo.com/v11/finance/quoteSummary/'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     local_market_data[ticker] = {}
     cache_file = config_cache_dir + "/sharesight_detail_cache_" + ticker
-    cache = util.read_cache(cache_file, config_cache_seconds)
-    if config_cache and cache:
+    cacheData = util.read_cache(cache_file, seconds)
+    if config_cache and cacheData:
         print('.', sep=' ', end='', flush=True)
-        data = cache
+        data = cacheData
     else:
         print('↓', sep=' ', end='', flush=True)
         yahoo_urls = [base_url + ticker + '?modules=calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions']
@@ -291,6 +291,12 @@ def fetch_detail(ticker):
     else:
         percent_change_postmarket = percent_change_postmarket * 100
         local_market_data[ticker]['percent_change_postmarket'] = round(percent_change_postmarket, 1)
+    try:
+        profile_exchange = data['quoteSummary']['result'][0]['price']['exchangeName']
+    except (KeyError, IndexError):
+        pass
+    else:
+        local_market_data[ticker]['profile_exchange'] = profile_exchange
     try:
         short_percent = float(data['quoteSummary']['result'][0]['defaultKeyStatistics']['shortPercentOfFloat']['raw'])
     except (KeyError, IndexError):
