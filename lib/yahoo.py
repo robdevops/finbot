@@ -271,6 +271,12 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     else:
         local_market_data[ticker]['profile_exchange'] = profile_exchange
     try:
+        marketState = data['quoteSummary']['result'][0]['price']['marketState']
+    except (KeyError, IndexError):
+        pass
+    else:
+        local_market_data[ticker]['marketState'] = marketState
+    try:
         short_percent = float(data['quoteSummary']['result'][0]['defaultKeyStatistics']['shortPercentOfFloat']['raw'])
     except (KeyError, IndexError):
         pass

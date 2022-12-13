@@ -258,6 +258,7 @@ def prepare_watchlist(service, user, action, ticker):
         else:
             watchlist.append(ticker)
     market_data = yahoo.fetch(watchlist)
+    print("")
     if action == 'add':
         if '.' not in ticker and ticker not in market_data:
             tickerau = ticker + '.AX'
@@ -269,6 +270,7 @@ def prepare_watchlist(service, user, action, ticker):
             else:
                 watchlist.append(tickerau)
                 market_data = yahoo.fetch(watchlist)
+                print("")
                 if tickerau in market_data:
                     transformed = True
                     print("found", tickerau)
@@ -351,12 +353,13 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     tickerNative = ticker.split('.')[0]
     now = int(time.time())
     payload = []
-    sws_link=''
     market_data = yahoo.fetch_detail(ticker, 300)
+    print("")
     if not market_data and '.' not in ticker:
         ticker = ticker + '.AX'
         print("trying again with", ticker)
         market_data = yahoo.fetch_detail(ticker, 300)
+        print("")
     if not market_data:
         payload = [ f"@{user} 🛑", f"Beep Boop. I could not find {ticker_orig}" ]
         return payload
@@ -364,33 +367,72 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     yahoo_url = "https://finance.yahoo.com/quote/" + ticker
     yahoo_link = '<a href="' + yahoo_url + '">' + ticker + '</a>'
     profile_title = market_data[ticker]['profile_title']
+    if 'marketState' in market_data[ticker]:
+        marketState = market_data[ticker]['marketState'].rstrip()
+        if marketState == 'REGULAR':
+            marketStateEmoji = '🟢'
+        elif marketState in {'PRE', 'POST'}:
+            marketStateEmoji = '🟠'
+        else:
+            marketStateEmoji = '🔴'
     if 'profile_exchange' in market_data[ticker]:
         profile_exchange = market_data[ticker]['profile_exchange']
-        sws_url = 'https://simplywall.st/compare/' + profile_exchange + ':' + ticker.split('.')[0]
-        sws_link = '<a href="' + sws_url + '">simplywall.st</a>'
+        if profile_exchange == 'ASX':
+            market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
+        elif 'Nasdaq' in profile_exchange:
+            market_url = 'https://www.nasdaq.com/market-activity/stocks/' + ticker.lower()
+        elif profile_exchange == 'NYSE':
+            market_url = 'https://www.nyse.com/quote/XNYS:' + ticker
+        else:
+            market_url = 'https://www.google.com/search?q=' + profile_exchange + ' ' + ticker.split('.')[0] + '&btnI'
+        market_link = '<a href="' + market_url + '">' + profile_exchange + '</a>'
     if bio:
-        location = [ market_data[ticker]['profile_city'] ]
+        location = []
+        if 'profile_city' in market_data[ticker]:
+            location.append(market_data[ticker]['profile_city'])
         if 'profile_state' in market_data[ticker]:
             location.append(market_data[ticker]['profile_state'])
-        location.append(market_data[ticker]['profile_country'])
-        payload.append(f"{market_data[ticker]['profile_bio']}")
-        payload.append("")
-        payload.append(f"<b>Location:</b> " + ', '.join(location))
-        payload.append(f"<b>Classification:</b> {market_data[ticker]['profile_industry']}, {market_data[ticker]['profile_sector']}")
+        if 'profile_country' in market_data[ticker]:
+            profile_country = market_data[ticker]['profile_country']
+            location.append(profile_country)
+        if 'profile_bio' in market_data[ticker]:
+            payload.append(f"{market_data[ticker]['profile_bio']}")
+            payload.append("")
+        if location:
+            payload.append(f"<b>Location:</b> " + ', '.join(location))
+        if 'profile_industry' in market_data[ticker] and 'profile_sector' in market_data[ticker]:
+            payload.append(f"<b>Classification:</b> {market_data[ticker]['profile_industry']}, {market_data[ticker]['profile_sector']}")
         if 'profile_employees' in market_data[ticker]:
             payload.append(f"<b>Employees:</b> {market_data[ticker]['profile_employees']:,}")
         if 'profile_website' in market_data[ticker]:
             payload.append(f"<b>Website:</b> {market_data[ticker]['profile_website']}")
+        if 'profile_website' in market_data[ticker]:
+            if profile_exchange == 'NYSE' or 'Nasdaq' in 'profile_exchange':
+                #swsURL = 'https://simplywall.st/compare/' + profile_exchange + ':' + ticker.split('.')[0]
+                finvizURL='https://finviz.com/quote.ashx?t=' + ticker
+                marketwatchURL = 'https://www.marketwatch.com/investing/stock/' + ticker.lower()
+                seekingalphaURL='https://seekingalpha.com/symbol/' + ticker
+                swsURL = 'https://www.google.com/search?q=site:simplywall.st+stock+report ' + profile_exchange + ':' + ticker.split('.')[0] + '&btnI'
+                finvizLink='<a href="' + finvizURL + '">Finviz</a>'
+                marketwatchLink='<a href="' + marketwatchURL + '">MarketWatch</a>'
+                seekingalphaLink='<a href="' + seekingalphaURL + '">Seeking Alpha</a>'
+                swsLink = '<a href="' + swsURL + '">Simply Wall St</a>'
+                payload.append(f"<b>Other Links:</b> {market_link} | {swsLink} | {seekingalphaLink} | {marketwatchLink} | {finvizLink}")
+            else:
+                payload.append(f"<b>Other Links:</b> {market_link} | {swsLink}")
         if ticker_orig == ticker:
             payload.insert(0, profile_title + " (" + yahoo_link + ")")
         else:
             payload.insert(0, f"Beep Boop. I could not find " + ticker_orig + ", but I found " + yahoo_link)
             payload.insert(1, "")
             payload.insert(2, profile_title + " (" + yahoo_link + ")")
+        if len(payload) < 2:
+            payload.append("no data found")
         return payload
     if 'currency' in market_data[ticker] and 'market_cap' in market_data[ticker]:
         currency = market_data[ticker]['currency']
-        market_cap = util.humanUnits(market_data[ticker]['market_cap'])
+        market_cap = market_data[ticker]['market_cap']
+        market_cap = util.humanUnits(market_cap)
         payload.append(f"<b>Mkt cap:</b> {currency} {market_cap}")
     if 'free_cashflow' in market_data[ticker]:
         cashflow = market_data[ticker]['free_cashflow']
@@ -521,11 +563,11 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         percent_change_postmarket = str(market_data[ticker]['percent_change_postmarket']) + '%'
         payload.append(f"<b>Post-market:</b> {percent_change_postmarket}")
     if ticker_orig == ticker:
-        payload.insert(0, f"{profile_title} ({yahoo_link})")
+        payload.insert(0, f"{profile_title} ({yahoo_link}) {marketStateEmoji}")
     else:
         payload.insert(0, f"I could not find {ticker_orig} but I found {yahoo_link}:")
         payload.insert(1, "")
-        payload.insert(2, f"{profile_title} ({yahoo_link}) {sws_link}")
+        payload.insert(2, f"{profile_title} ({yahoo_link}) {marketStateEmoji}")
     return payload
 
 ip="127.0.0.1"
