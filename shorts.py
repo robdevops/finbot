@@ -15,16 +15,16 @@ def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = Fal
         emoji = "🩳"
         for ticker in tickers:
             try:
-                percent_short = market_data[ticker]['percent_short']
+                short_percent = market_data[ticker]['short_percent']
             except:
                 continue
             if '.AX' in ticker:
                 url = 'https://www.shortman.com.au/stock?q=' + ticker.replace('.AX','') # FIX python 3.9
             else:
                 url = 'https://finviz.com/quote.ashx?t=' + ticker
-            if float(percent_short) > threshold:
+            if float(short_percent) > threshold:
                 title = market_data[ticker]['profile_title']
-                percent_short = str(round(percent_short))
+                short_percent = str(round(short_percent))
                 flag = util.flag_from_ticker(ticker)
                 ticker_short = ticker.split('.')[0]
                 if service == 'telegram':
@@ -33,7 +33,7 @@ def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = Fal
                     ticker_link = '<' + url + '|' + ticker + '>'
                 else:
                     ticker_link = ticker
-                payload.append(f"{emoji} {title} ({ticker_link}) {percent_short}%")
+                payload.append(f"{emoji} {title} ({ticker_link}) {short_percent}%")
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
@@ -55,7 +55,12 @@ def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = Fal
 
     tickers = sharesight.get_holdings_wrapper()
     tickers.update(config_watchlist)
-    market_data = yahoo.fetch(tickers)
+    market_data = {}
+    for ticker in tickers:
+        try:
+            market_data = { **market_data, **yahoo.fetch_detail(ticker) }
+        except (TypeError):
+            pass
     market_data = shortman.fetch(market_data)
 
     # Prep and send payloads

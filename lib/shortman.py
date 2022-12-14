@@ -29,8 +29,8 @@ def fetch(market_data):
         ticker = cells[1] + '.AX'
         positions = cells[2]
         on_issue = cells[3]
-        short_percent = cells[4]
-        content[ticker] = float(short_percent)
+        percent_short = cells[4]
+        content[ticker] = float(percent_short)
         if ticker in market_data:
-            local_market_data[ticker]['percent_short'] = float(short_percent)
+            local_market_data[ticker]['percent_short'] = float(percent_short)
     return local_market_data
