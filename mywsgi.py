@@ -22,6 +22,7 @@ interactive=True
 
 def main(env, start_response):
     user=''
+    userRealName=''
     request_body = env['wsgi.input'].read()
     inbound = json.loads(request_body)
     
@@ -44,6 +45,7 @@ def main(env, start_response):
             chat_id = str(chat_id["id"])
             if "username" in inbound["message"]["from"]:
                 user = '@' + inbound["message"]["from"]["username"]
+                userRealName = inbound["message"]["from"]["first_name"]
             else:
                 user = '@' + inbound["message"]["from"]["first_name"]
             print(message)
@@ -104,14 +106,23 @@ def main(env, start_response):
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
             if service == 'telegram':
                 webhook.payload_wrapper("telegram", url, payload)
-            return [b"<b>OK</b>"]
+        return [b"<b>OK</b>"]
     elif message in ("!help", "!usage", botName + " help", botName + " usage"):
         for service in webhooks:
             payload = prepare_help("telegram", user)
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
             if service == 'telegram':
                 webhook.payload_wrapper("telegram", url, payload)
-            return [b"<b>OK</b>"]
+        return [b"<b>OK</b>"]
+    elif message in ("!thanks", "!thankyou", "!thank you", "!tyvm", "TYVM", botName + " thanks", botName + " thankyou", botName + " thank you", botName + " tyvm", botName + " TYVM"):
+        for service in webhooks:
+            time.sleep(3) # pause for realism
+            payload = [ user ]
+            payload.append(f"You're very welcome, {userRealName}! 😇")
+            url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
+            if service == 'telegram':
+                webhook.payload_wrapper("telegram", url, payload)
+        return [b"<b>OK</b>"]
     elif m_premarket:
         premarket_threshold = config_price_percent
         if m_premarket.group(2):
@@ -122,7 +133,7 @@ def main(env, start_response):
             payload = prepare_help("telegram", user)
             if service == 'telegram':
                 premarket.lambda_handler(chat_id, interactive, user, premarket_threshold)
-            return [b"<b>OK</b>"]
+        return [b"<b>OK</b>"]
     elif m_shorts:
         shorts_threshold = config_shorts_percent
         if m_shorts.group(2):
@@ -132,14 +143,14 @@ def main(env, start_response):
         for service in webhooks:
             if service == 'telegram':
                 shorts.lambda_handler(chat_id, interactive, user, shorts_threshold)
-            return [b"<b>OK</b>"]
+        return [b"<b>OK</b>"]
     elif message in ("!todo", "!roadmap", botName  + " todo", botName + " roadmap"):
         for service in webhooks:
             payload = prepare_todo("telegram", user)
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
             if service == 'telegram':
                 webhook.payload_wrapper("telegram", url, payload)
-            return [b"<b>OK</b>"]
+        return [b"<b>OK</b>"]
     elif m_trades:
         if m_trades.group(2):
             days = int(m_trades.group(2))
@@ -153,7 +164,7 @@ def main(env, start_response):
         for service in webhooks:
             if service == 'telegram':
                 trades.lambda_handler(chat_id, interactive, user, days)
-            return [b"<b>OK</b>"]
+        return [b"<b>OK</b>"]
     elif m_holdings:
         payload = []
         portfolioName = False
@@ -193,7 +204,6 @@ def main(env, start_response):
             if service == 'telegram':
                 webhook.payload_wrapper("telegram", url, payload)
         return [b"<b>OK</b>"]
-
     elif m_stockfinancial:
         print("starting stock detail")
         bio=False
