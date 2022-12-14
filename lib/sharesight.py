@@ -78,8 +78,8 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     time_now = datetime.datetime.today()
     start_date = time_now - datetime.timedelta(days=days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
-    print("Fetching Sharesight trades for", portfolio_name, end=": ")
     token = get_token()
+    print("Fetching Sharesight trades for", portfolio_name, end=": ")
     endpoint = 'https://api.sharesight.com/api/v2/portfolios/'
     url = endpoint + str(portfolio_id) + '/trades.json' + '?start_date=' + start_date
     r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
