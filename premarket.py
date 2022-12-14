@@ -8,7 +8,7 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(telegram_chat_id=config_telegram_chat_id, interactive=False, user='', threshold=config_price_percent):
+def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user='', threshold=config_price_percent):
     def prepare_price_payload(service, market_data):
         postmarket = False
         payload = []
@@ -71,7 +71,7 @@ def lambda_handler(telegram_chat_id=config_telegram_chat_id, interactive=False, 
         payload = prepare_price_payload(service, market_data)
         url = webhooks[service]
         if service == "telegram":
-            url = url + "sendMessage?chat_id=" + str(telegram_chat_id)
+            url = url + "sendMessage?chat_id=" + str(telegramChatID)
         webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy

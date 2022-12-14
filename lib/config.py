@@ -16,14 +16,11 @@ if os.getenv('slack_webhook'):
     webhooks['slack'] = os.getenv('slack_webhook')
 if os.getenv('discord_webhook'):
     webhooks['discord'] = os.getenv('discord_webhook')
-if os.getenv('telegram_url'):
-    webhooks['telegram'] = os.getenv('telegram_url')
+if os.getenv('telegramBotToken'):
+    webhooks['telegram'] = 'https://api.telegram.org/bot' + os.getenv('telegramBotToken') + '/'
 
-if os.getenv('telegram_chat_id'):
-    config_telegram_chat_id = str(os.getenv('telegram_chat_id'))
-
-if os.getenv('telegram_botname'):
-    config_telegram_botname = os.getenv('telegram_botname')
+if os.getenv('telegramChatID'):
+    config_telegramChatID = str(os.getenv('telegramChatID'))
 
 config_past_days = 0 # default
 if os.getenv('past_days'):

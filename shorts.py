@@ -9,7 +9,7 @@ import lib.util as util
 import lib.yahoo as yahoo
 import lib.shortman as shortman
 
-def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = False, user='', threshold=config_shorts_percent):
+def lambda_handler(telegramChatID = config_telegramChatID, interactive = False, user='', threshold=config_shorts_percent):
     def prepare_shorts_payload(service, market_data):
         payload = []
         emoji = "🩳"
@@ -74,7 +74,7 @@ def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = Fal
         payload = prepare_shorts_payload(service, market_data)
         url = webhooks[service]
         if service == "telegram":
-            url = url + "sendMessage?chat_id=" + str(telegram_chat_id)
+            url = url + "sendMessage?chat_id=" + str(telegramChatID)
         webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy

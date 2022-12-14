@@ -9,7 +9,7 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(telegram_chat_id=config_telegram_chat_id, interactive=False, user='', past_days=config_past_days):
+def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user='', past_days=config_past_days):
     time_now = datetime.datetime.today()
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
     start_date = time_now - datetime.timedelta(days=past_days)
@@ -120,7 +120,7 @@ def lambda_handler(telegram_chat_id=config_telegram_chat_id, interactive=False, 
         payload = prepare_trade_payload(service, trades)
         url = webhooks[service]
         if service == "telegram":
-            url = url + "sendMessage?chat_id=" + str(telegram_chat_id)
+            url = url + "sendMessage?chat_id=" + str(telegramChatID)
         webhook.payload_wrapper(service, url, payload)
 
     # write state file
