@@ -4,6 +4,7 @@ from gevent import pywsgi
 from html import escape
 import numpy
 #from itertools import pairwise # python 3.10
+from itertools import groupby
 
 import json, re, time
 from lib.config import *
@@ -42,9 +43,9 @@ def main(env, start_response):
             chat_id = inbound["message"]["chat"]
             chat_id = str(chat_id["id"])
             if "username" in inbound["message"]["from"]:
-                user = inbound["message"]["from"]["username"]
+                user = '@' + inbound["message"]["from"]["username"]
             else:
-                user = inbound["message"]["from"]["first_name"]
+                user = '@' + inbound["message"]["from"]["first_name"]
             print(message)
         else:
             print("unhandled 'message' without 'text'")
@@ -96,6 +97,8 @@ def main(env, start_response):
         elif m_watchlist.group(1) and m_watchlist.group(2):
             action = m_watchlist.group(1)
             ticker = m_watchlist.group(2).upper()
+        if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
+            action = 'delete'
         for service in webhooks:
             payload = prepare_watchlist("telegram", user, action, ticker)
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
@@ -144,7 +147,7 @@ def main(env, start_response):
             days = int(m_trades.group(1))
         else:
             days = 1
-        payload = [ f"@{user}", f"beep boop. Rummaging for trades from the past {days} days 🔍" ]
+        payload = [ f"{user}", f"beep boop. Rummaging for trades from the past {days} days 🔍" ]
         url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper("telegram", url, payload)
         for service in webhooks:
@@ -153,7 +156,6 @@ def main(env, start_response):
             return [b"<b>OK</b>"]
     elif m_holdings:
         payload = []
-        yahoo_url = "https://au.finance.yahoo.com/quote/"
         portfolioName = False
         print("Starting holdings report")
         if m_holdings.group(2):
@@ -168,26 +170,22 @@ def main(env, start_response):
                 tickers = sharesight.get_holdings(portfolioName, portfolioId)
                 market_data = yahoo.fetch(tickers)
                 print("")
+                brief = True
                 for item in market_data:
                     ticker = market_data[item]['ticker']
                     title = market_data[item]['profile_title']
                     for service in webhooks:
-                        if service == 'telegram':
-                            holding_link = '<a href="' + yahoo_url + ticker + '">' + ticker.split('.')[0] + '</a>'
-                        elif service in {'discord', 'slack'}:
-                            holding_link = '<' + yahoo_url + ticker + '|' + ticker.split('.')[0] + '>'
-                        else:
-                            holding_link = item
-                        payload.append(f"{title} ({holding_link})")
+                        yahoo_link = utils.yahoo_link(ticker, service, brief)
+                    payload.append(f"{title} ({yahoo_link})")
                 portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
                 payload.sort()
                 payload.insert(0, f"<b>Holdings for {portfoliosReverseLookup[portfolioId]}</b>")
             else:
-                payload = [ f"@{user} {portfolioName} portfolio not found. I only know about:" ]
+                payload = [ f"{user} {portfolioName} portfolio not found. I only know about:" ]
                 for item in portfolios:
                     payload.append( item )
         else:
-            payload = [ f"@{user} Please try again specifying a portfolio:" ]
+            payload = [ f"{user} Please try again specifying a portfolio:" ]
             for item in portfolios:
                 payload.append( item )
         for service in webhooks:
@@ -214,7 +212,7 @@ def main(env, start_response):
                 webhook.payload_wrapper("telegram", url, payload)
             return [b"<b>OK</b>"]
     else:
-        print(message, "is not a bot command")
+        #print(message, "is not a bot command")
         start_response('200 OK', [('Content-Type', 'application/json')])
         return [b"<b>OK</b>"]
 
@@ -232,13 +230,13 @@ def doDelta(inputList):
             deltaString = deltaString + '▪️'
     return deltaString
 
-def prepare_watchlist(service, user, action, ticker):
-    # Ugly code badly needs a rewrite
+def prepare_watchlist(service, user, action=False, ticker=False):
+    if ticker:
+        ticker_link = util.yahoo_link(ticker, service)
+        ticker_orig = ticker.upper()
+        ticker = ticker.upper()
     duplicate = False
-    missing = False
     transformed = False
-    tickerau = False
-    ticker_orig = ticker
     cache_file = config_cache_dir + "/sharesight_watchlist.json"
     if os.path.isfile(cache_file):
         with open(cache_file, "r") as f:
@@ -246,84 +244,81 @@ def prepare_watchlist(service, user, action, ticker):
     else:
         watchlist = list(config_watchlist)
     print(watchlist)
-    if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
-        if ticker in watchlist:
-            watchlist.remove(ticker)
-        else:
-            print(ticker, "not in watchlist")
-            missing = True
-    elif action == 'add':
+    if action == 'add':
         if ticker in watchlist:
             duplicate = True
         else:
             watchlist.append(ticker)
     market_data = yahoo.fetch(watchlist)
     print("")
+    if action == 'delete':
+        if ticker in watchlist:
+            watchlist.remove(ticker)
+        else:
+            print(ticker, "not in watchlist")
     if action == 'add':
         if '.' not in ticker and ticker not in market_data:
-            tickerau = ticker + '.AX'
-            print(ticker, "not found. Trying", tickerau)
             watchlist.remove(ticker)
-            if tickerau in watchlist:
-                print(tickerau, "already in watchlist")
+            ticker = ticker + '.AX'
+            transformed = True
+            ticker_link = util.yahoo_link(ticker, service)
+            print(ticker_orig, "not found. Trying", ticker)
+            if ticker in watchlist:
+                print(ticker, "already in watchlist")
                 duplicate = True
             else:
-                watchlist.append(tickerau)
+                watchlist.append(ticker)
                 market_data = yahoo.fetch(watchlist)
                 print("")
-                if tickerau in market_data:
-                    transformed = True
-                    print("found", tickerau)
-                    ticker = tickerau
+                if ticker in market_data:
+                    print("found", ticker)
                 else:
-                    missing = True
-                    print(tickerau, "not found")
-                    watchlist.remove(tickerau)
+                    watchlist.remove(ticker)
+                    print(ticker, "not found")
         elif ticker not in market_data:
             watchlist.remove(ticker)
-            missing = True
+
     print(watchlist)
-    yahoo_url = "https://au.finance.yahoo.com/quote/"
+
     payload = []
     for item in market_data:
+        item_link = util.yahoo_link(item, service)
         profile_title = market_data[item]['profile_title']
-        if service == 'telegram':
-            holding_link = '<a href="' + yahoo_url + item + '">' + item + '</a>'
-        elif service in {'discord', 'slack'}:
-            holding_link = '<' + yahoo_url + item + '|' + item + '>'
+        if item == ticker and action == 'delete':
+            pass
+        elif item == ticker and action == 'add': # make the requested item bold
+            payload.append(f"<b>{profile_title} ({item_link})</b>")
         else:
-            holding_link = item
-        # make the requested item bold
-        if action == 'add' and ticker == item:
-            payload.append(f"<b>{profile_title} ({holding_link})</b>")
-        elif action == 'add' and tickerau == item:
-            payload.append(f"<b>{profile_title} ({holding_link})</b>")
-        else:
-            payload.append(f"{profile_title} ({holding_link})")
+            payload.append(f"{profile_title} ({item_link})")
+
     def profile_title(e): # disregards the <b> in sort command
         return re.findall('[A-Z].*', e)
     payload.sort(key=profile_title)
-    if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
-        if missing:
+
+    if action == 'delete':
+        if ticker not in market_data:
             payload.insert(0, f"Beep Boop. I could not find <b>{ticker}</b> to remove it")
         else:
-            payload.insert(0, f"Ok @{user}, I deleted <b>{ticker}</b>")
+            payload.insert(0, f"Ok {user}, I deleted <b>{ticker_link}</b>")
+
     elif action == 'add':
-        if tickerau and duplicate:
-            payload.insert(0, f"Beep Boop. I could not find <b>{ticker}</b> and I'm already tracking {tickerau}")
+        if ticker not in market_data:
+            payload = [f"{user}", f"Beep Boop. I could not find <b>{ticker_orig}</b> to add it"]
+        elif transformed and duplicate:
+            print("ticker au and duplicate")
+            payload.insert(0, f"Beep Boop. I could not find <b>{ticker_orig}</b> and I'm already tracking <b>{ticker_link}</b>")
         elif transformed:
-            payload.insert(0, f"Beep Boop. I could not find {ticker_orig} so I added <b>{tickerau}</b>")
+            payload.insert(0, f"Beep Boop. I could not find <b>{ticker_orig}</b> so I added <b>{ticker_link}</b>")
         elif duplicate:
-            payload.insert(0, f"@{user}, I'm already tracking <b>{ticker}</b>")
-        elif ticker not in market_data:
-            payload = [f"@{user}", f"Beep Boop. I could not find <b>{ticker}</b> to add it"]
+            print("ticker us and duplicate")
+            payload.insert(0, f"{user}, I'm already tracking <b>{ticker_link}</b>")
         else:
-            payload.insert(0, f"Ok @{user}, I added <b>{ticker}</b>")
+            payload.insert(0, f"Ok {user}, I added <b>{ticker_link}</b>")
     elif action == False:
-        payload.insert(0, f"Hi @{user}, I'm currently tracking:")
+        payload.insert(0, f"Hi {user}, I'm currently tracking:")
+
     with open(cache_file, "w") as f:
         f.write(json.dumps(watchlist))
-    print(json.dumps(payload))
     return payload
 
 def prepare_help(service, user):
@@ -339,12 +334,7 @@ def prepare_help(service, user):
     payload.append("!watchlist [add|del] AAPL")
     payload.append(botName + " AAPL")
     payload.append(botName + " AAPL bio")
-    payload.append(botName + " holdings")
-    payload.append(botName + " premarket [percent]")
-    payload.append(botName + " shorts [percent]")
-    payload.append(botName + " trades [days]")
-    payload.append(botName + " watchlist")
-    payload.append(botName + " watchlist [add|del] AAPL")
+    payload.append("etc.")
     return payload
 
 def prepare_stockfinancial_payload(service, user, ticker, bio):
@@ -361,11 +351,10 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         market_data = yahoo.fetch_detail(ticker, 600)
         print("")
     if not market_data:
-        payload = [ f"@{user} 🛑", f"Beep Boop. I could not find {ticker_orig}" ]
+        payload = [ f"{user} 🛑", f"Beep Boop. I could not find {ticker_orig}" ]
         return payload
     #print("Yahoo data:", json.dumps(market_data, indent=4))
-    yahoo_url = "https://finance.yahoo.com/quote/" + ticker
-    yahoo_link = '<a href="' + yahoo_url + '">' + ticker + '</a>'
+    yahoo_link = util.yahoo_link(ticker, service)
     profile_title = market_data[ticker]['profile_title']
     if 'marketState' in market_data[ticker]:
         marketState = market_data[ticker]['marketState'].rstrip()
@@ -432,13 +421,14 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             else:
                 payload.append(f"<b>Other links:</b> {market_link} | {swsLink}")
         if ticker_orig == ticker:
-            payload.insert(0, profile_title + " (" + yahoo_link + ")")
+            payload.insert(0, f"<b>{profile_title} ({yahoo_link})</b>")
         else:
             payload.insert(0, f"Beep Boop. I could not find " + ticker_orig + ", but I found " + yahoo_link)
             payload.insert(1, "")
-            payload.insert(2, profile_title + " (" + yahoo_link + ")")
+            payload.insert(2, f"<b>{profile_title} ({yahoo_link})</b>")
         if len(payload) < 2:
             payload.append("no data found")
+        payload = [i[0] for i in groupby(payload)]
         return payload
     if 'currency' in market_data[ticker] and 'market_cap' in market_data[ticker]:
         currency = market_data[ticker]['currency']
@@ -579,6 +569,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         payload.insert(0, f"I could not find {ticker_orig} but I found {yahoo_link}:")
         payload.insert(1, "")
         payload.insert(2, f"{profile_title} ({yahoo_link}) {marketStateEmoji}")
+    payload = [i[0] for i in groupby(payload)]
     return payload
 
 ip="127.0.0.1"
