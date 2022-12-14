@@ -160,7 +160,6 @@ def main(env, start_response):
             portfolioName = m_holdings.group(2)
         elif m_holdings.group(1):
             portfolioName = m_holdings.group(1)
-        #token = sharesight.get_token(sharesight_auth)
         portfolios = sharesight.get_portfolios()
         portfoliosLower = {k.lower():v for k,v in portfolios.items()}
         if portfolioName:
@@ -378,19 +377,26 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             marketStateEmoji = '🔴'
     if 'profile_exchange' in market_data[ticker]:
         profile_exchange = market_data[ticker]['profile_exchange']
-        #swsURL = 'https://simplywall.st/compare/' + profile_exchange + ':' + ticker.split('.')[0]
-        swsURL = 'https://www.google.com/search?q=site:simplywall.st+' + profile_exchange + ':' + ticker.split('.')[0] + '+stock+price+quote+analysis&btnI'
+        swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock+Price+Quote+Analysis&btnI'
         swsLink = '<a href="' + swsURL + '">Simply Wall St</a>'
         if profile_exchange == 'ASX':
             market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
             shortman_url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
             shortman_link = '<a href="' + shortman_url + '">shortman</a>'
+        elif profile_exchange == 'HKSE':
+            market_url = 'https://www.hkex.com.hk/Market-Data/Securities-Prices/Equities/Equities-Quote?sym=' + ticker.split('.')[0] + '&sc_lang=en'
         elif 'Nasdaq' in profile_exchange:
             market_url = 'https://www.nasdaq.com/market-activity/stocks/' + ticker.lower()
         elif profile_exchange == 'NYSE':
             market_url = 'https://www.nyse.com/quote/XNYS:' + ticker
+        elif profile_exchange == 'Taiwan':
+            profile_exchange = 'TWSE'
+            market_url = 'https://mis.twse.com.tw/stock/fibest.jsp?stock=' + ticker.split('.')[0] + '&lang=en_us'
+        elif profile_exchange == 'Tokyo':
+            profile_exchange = 'JPX'
+            market_url = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + ticker.split('.')[0]
         else:
-            market_url = 'https://www.google.com/search?q=' + profile_exchange + ' ' + ticker.split('.')[0] + '&btnI'
+            market_url = 'https://www.google.com/search?q=stock+exchange+' + profile_exchange + '+' + ticker.split('.')[0] + '&btnI'
         market_link = '<a href="' + market_url + '">' + profile_exchange + '</a>'
     if bio:
         location = []
