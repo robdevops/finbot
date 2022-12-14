@@ -23,21 +23,14 @@ def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user
                 continue
             title = market_data[ticker]['profile_title']
             if abs(float(percent)) >= threshold:
-                url = 'https://finance.yahoo.com/quote/' + ticker
                 if percent < 0:
                     emoji = "🔻"
                 else:
                     emoji = "⬆️ "
                 percent = str(round(percent))
                 flag = util.flag_from_ticker(ticker)
-                ticker_short = ticker.split('.')[0]
-                if service == 'telegram':
-                    ticker_link = '<a href="' + url + '">' + ticker + '</a>'
-                elif service in {'slack', 'discord'}:
-                    ticker_link = '<' + url + '|' + ticker + '>'
-                else:
-                    ticker_link = ticker
-                payload.append(f"{emoji} {title} ({ticker_link}) {percent}%")
+                yahoo_link = util.yahoo_link(ticker, service)
+                payload.append(f"{emoji} {title} ({yahoo_link}) {percent}%")
         print(len(payload), f"holdings moved by at least {threshold}%")
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])

@@ -19,19 +19,13 @@ def lambda_handler(event,context):
                 timestamp = market_data[ticker]['ex_dividend_date']
             except KeyError:
                 continue
-            url = 'https://finance.yahoo.com/quote/' + ticker
             title = market_data[ticker]['profile_title']
             flag = util.flag_from_ticker(ticker)
             ticker_short = ticker.split('.')[0]
             if timestamp > now and timestamp < soon:
                 human_date = time.strftime('%b %d', time.localtime(timestamp)) # Sep 08
-                if service == 'telegram':
-                    ticker_link = '<a href="' + url + '">' + ticker + '</a>'
-                elif service in {'slack', 'discord'}:
-                    ticker_link = '<' + url + '|' + ticker + '>'
-                else:
-                    ticker_link = ticker
-                payload.append(f"{emoji} {human_date} {title} ({ticker_link})")
+                yahoo_link = util.yahoo_link(ticker, service)
+                payload.append(f"{emoji} {human_date} {title} ({yahoo_link})")
         payload.sort()
         if service == 'telegram':
             payload.insert(0, "<b>Ex-dividend dates. Avoid buy before:</b>")
@@ -53,6 +47,7 @@ def lambda_handler(event,context):
             market_data = { **market_data, **yahoo.fetch_detail(ticker) }
         except (TypeError):
             pass
+    print("")
     # Prep and send payloads
     if not webhooks:
         print("Error: no services enabled in .env")

@@ -19,21 +19,20 @@ def lambda_handler(telegramChatID = config_telegramChatID, interactive = False, 
             except:
                 continue
             if '.AX' in ticker:
-                url = 'https://www.shortman.com.au/stock?q=' + ticker.replace('.AX','') # FIX python 3.9
+                url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0]
             else:
-                url = 'https://finviz.com/quote.ashx?t=' + ticker
+                url = 'https://finance.yahoo.com/quote/' + ticker + '/key-statistics?p=' + ticker
             if float(short_percent) > threshold:
                 title = market_data[ticker]['profile_title']
                 short_percent = str(round(short_percent))
                 flag = util.flag_from_ticker(ticker)
-                ticker_short = ticker.split('.')[0]
                 if service == 'telegram':
-                    ticker_link = '<a href="' + url + '">' + ticker + '</a>'
+                    short_interest_link = '<a href="' + url + '">' + ticker + '</a>'
                 elif service in {'slack', 'discord'}:
-                    ticker_link = '<' + url + '|' + ticker + '>'
+                    short_interest_link = '<' + url + '|' + ticker + '>'
                 else:
-                    ticker_link = ticker
-                payload.append(f"{emoji} {title} ({ticker_link}) {short_percent}%")
+                    short_interest_link = ticker
+                payload.append(f"{emoji} {title} ({short_interest_link}) {short_percent}%")
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)

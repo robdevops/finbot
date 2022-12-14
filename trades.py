@@ -23,7 +23,6 @@ def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user
             known_trades = []
         payload = []
         sharesight_url = "https://portfolio.sharesight.com/holdings/"
-        yahoo_url = "https://au.finance.yahoo.com/quote/"
         for trade in trades:
             trade_id = str(trade['id'])
             portfolio = trade['portfolio']
@@ -62,13 +61,13 @@ def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user
             currency_temp = util.currency_from_market(market)
             if currency_temp:
                 currency = currency_temp
-
+            brief=True
             if service == 'telegram':
                 trade_link = '<a href="' + sharesight_url + holding_id + '/trades/' + trade_id + '/edit">' + verb + '</a>'
-                holding_link = '<a href="' + yahoo_url + ticker + '">' + symbol + '</a>'
+                holding_link = util.yahoo_link(ticker, service, brief)
             elif service in {'discord', 'slack'}:
                 trade_link = '<' + sharesight_url + holding_id + '/trades/' + trade_id + '/edit' + '|' + verb + '>'
-                holding_link = '<' + yahoo_url + ticker + '|' + symbol + '>'
+                holding_link = util.yahoo_link(ticker, service, brief)
             else:
                 trade_link = verb
                 holding_link = symbol
