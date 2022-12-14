@@ -76,14 +76,10 @@ def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user
             payload.insert(0, f"@{user}")
             if len(payload) == 1:
                 payload.append(f"No trades found in the past {past_days} days 🛑")
-        elif service == 'telegram':
-            payload.insert(0, "<b>New trades:</b>")
-        elif service == 'slack':
-            payload.insert(0, "*New trades:*")
-        elif service == 'discord':
-            payload.insert(0, "**New trades:**")
         else:
-            payload.insert(0, "New trades:")
+            message = 'New trades:'
+            message = webhook.bold(message, service)
+            payload.insert(0, message)
         return payload
     
     def trade_cache_read(cache_file):

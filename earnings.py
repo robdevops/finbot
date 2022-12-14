@@ -31,14 +31,9 @@ def lambda_handler(event,context):
         def last_two_columns(e):
             return e.split()[-2:]
         payload.sort(key=last_two_columns)
-        if service == 'telegram':
-            payload.insert(0, "<b>Upcoming earnings:</b>")
-        elif service == 'slack':
-            payload.insert(0, "*Upcoming earnings:*")
-        elif service == 'discord':
-            payload.insert(0, "**Upcoming earnings:**")
-        else:
-            payload.insert(0, "Upcoming earnings:")
+        message = 'Upcoming earnings:'
+        message = webhook.bold(message, service)
+        payload.insert(0, message)
         return payload
 
     # MAIN #

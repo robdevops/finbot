@@ -27,14 +27,9 @@ def lambda_handler(event,context):
                 yahoo_link = util.yahoo_link(ticker, service)
                 payload.append(f"{emoji} {human_date} {title} ({yahoo_link})")
         payload.sort()
-        if service == 'telegram':
-            payload.insert(0, "<b>Ex-dividend dates. Avoid buy before:</b>")
-        elif service == 'slack':
-            payload.insert(0, "*Ex-dividend dates. Avoid buy before:*")
-        elif service == 'discord':
-            payload.insert(0, "**Ex-dividend dates. Avoid buy before:**")
-        else:
-            payload.insert(0, "Ex-dividend dates. Avoid buy before:")
+        message = 'Ex-dividend dates. Avoid buy before:'
+        message = webhook.bold(message, service)
+        payload.insert(0, message)
         return payload
 
     # MAIN #

@@ -39,14 +39,10 @@ def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user
             payload.insert(0, f"<b>@{user} stocks moving at least {threshold}% pre-market</b>")
             if len(payload) == 1:
                 payload.append(f"No price movements meet threshold 🛑")
-        elif service == 'telegram':
-            payload.insert(0, "<b>Price alerts (pre-market):</b>")
-        elif service == 'slack':
-            payload.insert(0, "*Price alerts (pre-market):*")
-        elif service == 'discord':
-            payload.insert(0, "**Price alerts (pre-market):**")
         else:
-            payload.insert(0, "Price alerts (pre-market):")
+            message = 'Price alerts (pre-market):'
+            message = webhook.bold(message, service)
+            payload.insert(0, message)
         return payload
 
 

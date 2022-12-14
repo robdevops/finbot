@@ -40,14 +40,10 @@ def lambda_handler(telegramChatID = config_telegramChatID, interactive = False, 
             payload.insert(0, f"<b>@{user} stocks with at least {threshold}% short interest</b>")
             if len(payload) == 1:
                 payload.append(f"No shorts meet threshold {emoji}. Try specifying a number.")
-        elif service == 'telegram':
-            payload.insert(0, "<b>Highly shorted stock warning:</b>")
-        elif service == 'slack':
-            payload.insert(0, "*Highly shorted stock warning:*")
-        elif service == 'discord':
-            payload.insert(0, "**Highly shorted stock warning:**")
         else:
-            payload.insert(0, "Highly shorted stock warning:")
+            message = 'Highly shorted stock warning:'
+            message = webhook.bold(message, service)
+            payload.insert(0, message)
         return payload
 
     # MAIN #

@@ -27,14 +27,9 @@ def lambda_handler(event,context):
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
-        if service == 'telegram':
-            payload.insert(0, "<b>Price alerts (intraday):</b>")
-        elif service == 'slack':
-            payload.insert(0, "*Price alerts (intraday):*")
-        elif service == 'discord':
-            payload.insert(0, "**Price alerts (intraday):**")
-        else:
-            payload.insert(0, "Price alerts (intraday):")
+        message = 'Price alerts (intraday):'
+        message = webhook.bold(message, service)
+        payload.insert(0, message)
         return payload
 
 
