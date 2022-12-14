@@ -235,8 +235,6 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
             with open(cacheFile, "r") as f:
                 cacheDict = json.loads(f.read())
             return cacheDict
-        else:
-            print("cache expired")
 
 def write_cache(cache_file, fresh_dict):
     os.umask(0)
@@ -252,3 +250,18 @@ def humanUnits(value, decimal_places=0):
             break
         value /= 1000.0
     return f"{value:.{decimal_places}f} {unit}"
+
+def yahoo_link(ticker, service='telegram', brief=False):
+    yahoo_url = "https://au.finance.yahoo.com/quote/"
+    if brief:
+        text = ticker.split('.')[0]
+    else:
+        text = ticker
+    if service == 'telegram':
+            ticker_link = '<a href="' + yahoo_url + ticker + '">' + text + '</a>'
+    elif service in {'discord', 'slack'}:
+        ticker_link = '<' + yahoo_url + ticker + '|' + text + '>'
+    else:
+        ticker_link = item
+    return ticker_link
+
