@@ -377,8 +377,13 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             marketStateEmoji = '🔴'
     if 'profile_exchange' in market_data[ticker]:
         profile_exchange = market_data[ticker]['profile_exchange']
+        #swsURL = 'https://simplywall.st/compare/' + profile_exchange + ':' + ticker.split('.')[0]
+        swsURL = 'https://www.google.com/search?q=site:simplywall.st+' + profile_exchange + ':' + ticker.split('.')[0] + '+stock+price+quote+analysis&btnI'
+        swsLink = '<a href="' + swsURL + '">Simply Wall St</a>'
         if profile_exchange == 'ASX':
             market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
+            shortman_url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
+            shortman_link = '<a href="' + shortman_url + '">shortman</a>'
         elif 'Nasdaq' in profile_exchange:
             market_url = 'https://www.nasdaq.com/market-activity/stocks/' + ticker.lower()
         elif profile_exchange == 'NYSE':
@@ -408,18 +413,17 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             payload.append(f"<b>Website:</b> {market_data[ticker]['profile_website']}")
         if 'profile_website' in market_data[ticker]:
             if profile_exchange == 'NYSE' or 'Nasdaq' in profile_exchange:
-                #swsURL = 'https://simplywall.st/compare/' + profile_exchange + ':' + ticker.split('.')[0]
                 finvizURL='https://finviz.com/quote.ashx?t=' + ticker
                 marketwatchURL = 'https://www.marketwatch.com/investing/stock/' + ticker.lower()
                 seekingalphaURL='https://seekingalpha.com/symbol/' + ticker
-                swsURL = 'https://www.google.com/search?q=site:simplywall.st+stock+report ' + profile_exchange + ':' + ticker.split('.')[0] + '&btnI'
                 finvizLink='<a href="' + finvizURL + '">Finviz</a>'
                 marketwatchLink='<a href="' + marketwatchURL + '">MarketWatch</a>'
                 seekingalphaLink='<a href="' + seekingalphaURL + '">Seeking Alpha</a>'
-                swsLink = '<a href="' + swsURL + '">Simply Wall St</a>'
-                payload.append(f"<b>Other Links:</b> {market_link} | {swsLink} | {seekingalphaLink} | {marketwatchLink} | {finvizLink}")
+                payload.append(f"<b>Other links:</b> {market_link} | {finvizLink} | {seekingalphaLink} | {marketwatchLink} | {swsLink}")
+            elif profile_exchange == 'ASX':
+                payload.append(f"<b>Other links:</b> {market_link} | {shortman_link} | {swsLink}")
             else:
-                payload.append(f"<b>Other Links:</b> {market_link}")
+                payload.append(f"<b>Other links:</b> {market_link} | {swsLink}")
         if ticker_orig == ticker:
             payload.insert(0, profile_title + " (" + yahoo_link + ")")
         else:

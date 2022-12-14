@@ -57,10 +57,11 @@ def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = Fal
     tickers.update(config_watchlist)
     market_data = {}
     for ticker in tickers:
-        try:
-            market_data = { **market_data, **yahoo.fetch_detail(ticker) }
-        except (TypeError):
-            pass
+        if '.' not in ticker:
+            try:
+                market_data = { **market_data, **yahoo.fetch_detail(ticker) }
+            except (TypeError):
+                pass
     market_data = shortman.fetch(market_data)
 
     # Prep and send payloads
