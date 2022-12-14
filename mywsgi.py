@@ -168,6 +168,7 @@ def main(env, start_response):
                 portfolioId = portfoliosLower[portfolioName.lower()]
                 tickers = sharesight.get_holdings(portfolioName, portfolioId)
                 market_data = yahoo.fetch(tickers)
+                print("")
                 for item in market_data:
                     ticker = market_data[item]['ticker']
                     title = market_data[item]['profile_title']

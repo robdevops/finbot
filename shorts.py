@@ -55,13 +55,14 @@ def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = Fal
 
     tickers = sharesight.get_holdings_wrapper()
     tickers.update(config_watchlist)
-    market_data = {}
+    market_data = yahoo.fetch(tickers)
     for ticker in tickers:
         if '.' not in ticker:
             try:
                 market_data = { **market_data, **yahoo.fetch_detail(ticker) }
             except (TypeError):
                 pass
+    print("")
     market_data = shortman.fetch(market_data)
 
     # Prep and send payloads
