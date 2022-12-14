@@ -10,6 +10,7 @@ _This project has no affiliation with Sharesight Ltd._
 * Highly shorted stock warnings for your holdings (AU, US)
 * Discord, Slack and Telegram support
 * Supports multiple Sharesight portfolios, including portfolios shared to you
+* For speed and reliability, no use of uncommon libraries or screen scraping
 * Interactive chat commands (alpha)
 
 ![screenshot of Slack message](img/screenshot.png?raw=true "Screenshot of Slack message")
@@ -112,7 +113,7 @@ past_days = 31
 ### Price alerts
 ![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
 
-`prices.py` sends intraday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Finviz (US) and Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file. Decimal fractions are accepted. Example:
+`prices.py` sends intraday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file. Decimal fractions are accepted. Example:
 ```
 price_percent = 9.4
 ```
@@ -127,7 +128,7 @@ price_percent = 9.4
 ### Earnings reminders
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
 
-`earnings.py` sends upcoming earnings date alerts. The data is sourced from Finviz (US) and Yahoo! Finance. Events more than `future_days` into the future will be ignored. **Explanation:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
+`earnings.py` sends upcoming earnings date alerts. The data is sourced from Yahoo! Finance. Events more than `future_days` into the future will be ignored. **Explanation:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 ```
 future_days = 7
 ```
@@ -141,7 +142,7 @@ future_days = 7
 ```
 
 ### Highly shorted stock warnings
-`shorts.py` sends highly shorted stock warnings. The data is sourced from Finviz (US) and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. **Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely. 
+`shorts.py` sends highly shorted stock warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. **Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely. 
 ```
 shorts_percent = 15
 ```
