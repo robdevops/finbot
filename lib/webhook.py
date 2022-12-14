@@ -49,3 +49,12 @@ def payload_wrapper(service, url, payload):
     else:
         print("Nothing to send")
 
+def bold(message, service):
+    if service == 'telegram':
+        message = '<b>' + message + '</b>'
+    elif service == 'slack':
+        message = '*' + message + '*'
+    elif service == 'discord':
+        message = '**' + message + '**'
+    return message
+
