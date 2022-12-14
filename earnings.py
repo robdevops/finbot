@@ -4,7 +4,6 @@ import json, time
 import datetime
 
 from lib.config import *
-import lib.finviz as finviz
 import lib.sharesight as sharesight
 import lib.util as util
 import lib.webhook as webhook
@@ -79,15 +78,9 @@ def lambda_handler(event,context):
         return payload
 
     # MAIN #
-    # Fetch holdings from Sharesight, and market data from Yahoo/Finviz
-    finviz_output = {}
-    yahoo_output = {}
     tickers = sharesight.get_holdings_wrapper()
     tickers.update(config_watchlist)
-    tickers_au, tickers_world, tickers_us = util.categorise_tickers(tickers)
-    yahoo_output = yahoo.fetch(tickers_world)
-    finviz_output = finviz.wrapper(tickers_us)
-    market_data = {**yahoo_output, **finviz_output}
+    market_data = yahoo.fetch(tickers)
 
     # Prep and send payloads
     if not webhooks:

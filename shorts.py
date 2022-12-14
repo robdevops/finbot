@@ -7,7 +7,6 @@ import lib.sharesight as sharesight
 import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
-import lib.finviz as finviz
 import lib.shortman as shortman
 
 def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = False, user='', threshold=config_shorts_percent):
@@ -54,15 +53,9 @@ def lambda_handler(telegram_chat_id = config_telegram_chat_id, interactive = Fal
 
     # MAIN #
 
-    # Fetch holdings from Sharesight, and market data from Yahoo/Finviz
-    finviz_output = {}
-    yahoo_output = {}
     tickers = sharesight.get_holdings_wrapper()
     tickers.update(config_watchlist)
-    tickers_au, tickers_world, tickers_us = util.categorise_tickers(tickers)
-    yahoo_output = yahoo.fetch(tickers_world)
-    finviz_output = finviz.wrapper(tickers_us)
-    market_data = {**yahoo_output, **finviz_output}
+    market_data = yahoo.fetch(tickers)
     market_data = shortman.fetch(market_data)
 
     # Prep and send payloads
