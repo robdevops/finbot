@@ -265,3 +265,12 @@ def yahoo_link(ticker, service='telegram', brief=False):
         ticker_link = item
     return ticker_link
 
+def link(ticker, url, text, service='telegram'):
+    if service == 'telegram':
+        link = '<a href="' + url + '">' + text + '</a>'
+    elif service in {'discord', 'slack'}:
+        link = '<' + url + '|' + text + '>'
+    else:
+        link = ticker
+    return link
+

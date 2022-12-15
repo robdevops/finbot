@@ -172,7 +172,7 @@ The above can be installed with:
 ```
 
 ## Interactive bot
-Currently in alpha and supporting only Telegram. You need to host `mywsgi.py` and point `telegram_outgoing_webhook` to it. Supported commands:
+Currently supporting Telegram (stable) + Slack (alpha). You need to host `mywsgi.py` and point `telegram_outgoing_webhook` to it. Supported commands:
 ```
 !AAPL
 !AAPL bio

@@ -19,6 +19,9 @@ if os.getenv('discord_webhook'):
 if os.getenv('telegramBotToken'):
     webhooks['telegram'] = 'https://api.telegram.org/bot' + os.getenv('telegramBotToken') + '/'
 
+if os.getenv('slackToken'):
+    config_slackToken = str(os.getenv('slackToken'))
+
 if os.getenv('telegramChatID'):
     config_telegramChatID = str(os.getenv('telegramChatID'))
 

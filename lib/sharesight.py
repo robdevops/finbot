@@ -44,8 +44,8 @@ def get_portfolios():
     if config_cache and cache:
         print(cache)
         return cache
-    print("Fetching Sharesight portfolios")
     token = get_token()
+    print("Fetching Sharesight portfolios")
     portfolio_dict = {}
     url = "https://api.sharesight.com/api/v3/portfolios"
     try:
@@ -97,8 +97,8 @@ def get_holdings(portfolio_name, portfolio_id):
     if config_cache and cache:
         print(portfolio_name, end=": ")
         return cache
-    print("Fetching Sharesight holdings", portfolio_name, end=": ")
     token = get_token()
+    print("Fetching Sharesight holdings", portfolio_name, end=": ")
     holdings = {}
     endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
     url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + today

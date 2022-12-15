@@ -7,11 +7,14 @@ from lib.config import *
 import lib.sharesight as sharesight
 import lib.util as util
 
-def write(service, url, payload):
+def write(service, url, payload, slackchannel=False):
     headers = {'Content-type': 'application/json'}
     payload = {'text': payload}
-    if 'hooks.slack.com' in url:
+    if 'slack.com' in url:
         headers = {**headers, **{'unfurl_links': 'false', 'unfurl_media': 'false'}} # FIX python 3.9
+        if slackchannel:
+            headers = {**headers, **{'Authorization': 'Bearer ' + config_slackToken}} # FIX python 3.9
+            payload = {**payload, **{'channel': slackchannel}} # FIX python 3.9
     elif 'api.telegram.org' in url:
         payload = {**payload, **{'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true'}}
     try:
@@ -25,7 +28,7 @@ def write(service, url, payload):
         print(r.status_code, "error", service)
         return False
 
-def payload_wrapper(service, url, payload):
+def payload_wrapper(service, url, payload, slackchannel=False):
     if len(payload) > 1: # ignore header
         payload_string = ('\n'.join(payload))
         #print("Service: "+ service + ". Bytes: " + str(len(payload_string)) + ". Payload: " + payload_string)
@@ -45,7 +48,7 @@ def payload_wrapper(service, url, payload):
                 write(service, url, payload_chunk)
                 time.sleep(1) # workaround potential API throttling
         else:
-            write(service, url, payload_string)
+            write(service, url, payload_string, slackchannel)
     else:
         print("Nothing to send")
 
