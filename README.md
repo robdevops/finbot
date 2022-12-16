@@ -159,6 +159,7 @@ Recommended for a machine set to UTC:
 
 # Daily on weekdays
 29  21 * * Mon-Fri ~/sharesight-bot/price.py > /dev/null
+10  11 * * Mon-Fri ~/sharesight-bot/premarket.py > /dev/null
 
 # Weekly
 28  21 * * Fri { cd ~/sharesight-bot/; ./earnings.py; ./ex-dividend.py ;} > /dev/null
