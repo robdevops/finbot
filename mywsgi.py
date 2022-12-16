@@ -1,34 +1,30 @@
-# Import the necessary modules
-from wsgiref.simple_server import make_server
-#import wsgiref.headers
-from urllib.parse import parse_qs
+#!/usr/bin/python3
 
 from gevent import pywsgi
 from html import escape
-import numpy
-#from itertools import pairwise # python 3.10
 from itertools import groupby
-
+from urllib.parse import parse_qs
+from wsgiref.simple_server import make_server
 import json, re, time
+import numpy
+import queue # TODO
+import threading # TODO
+#from itertools import pairwise # python 3.10
+
 from lib.config import *
+import lib.sharesight as sharesight
+import lib.slack as telegram
+import lib.telegram as telegram
 import lib.util as util
 import lib.webhook as webhook
 import lib.yahoo as yahoo
-import lib.telegram as telegram
-import lib.sharesight as sharesight
 import premarket
 import shorts
 import trades
 
-botName = '@' + telegram.getBotName()
-interactive=True
-
 def main(env, start_response):
     global botName
-    print(interactive)
-    print(botName)
-    user=''
-    userRealName=''
+    interactive=True
     #request_body = env['wsgi.input'].read()
     #inbound = json.loads(request_body)
     inbound = json.loads(env["wsgi.input"].read())
@@ -38,16 +34,16 @@ def main(env, start_response):
     headers = [('Content-type', 'application/json')]
     start_response(status, headers)
     
-    # Return the response headers
-    uri = env['PATH_INFO']
-
-    # Return the response body
+    # Process incoming request
     #try:
     #    print("Incoming request:", uri, json.dumps(inbound, indent=4))
     #except Exception as e:
     #    print(e, "raw body: ", inbound)
-
+    uri = env['PATH_INFO']
+    user=''
+    userRealName=''
     if uri == '/telegram':
+        botName = '@' + telegram.getBotName()
         service = 'telegram'
         if "message" in inbound:
             if "text" in inbound["message"]:
@@ -59,7 +55,7 @@ def main(env, start_response):
                     userRealName = inbound["message"]["from"]["first_name"]
                 else:
                     user = '@' + inbound["message"]["from"]["first_name"]
-                print(message)
+                print(user, message)
             else:
                 print("unhandled 'message' without 'text'")
                 start_response('200 OK', [('Content-Type', 'application/json')])
@@ -73,7 +69,7 @@ def main(env, start_response):
                     user = inbound["edited_message"]["from"]["username"]
                 else:
                     user = inbound["edited_message"]["from"]["first_name"]
-                print(message)
+                print(user, message)
             else:
                 print("unhandled 'edited_message' without 'text'")
                 start_response('200 OK', [('Content-Type', 'application/json')])
@@ -98,10 +94,12 @@ def main(env, start_response):
                 return [bytes(status, "utf-8")]
             if inbound['type'] == 'event_callback':
                 message = inbound['event']['text']
+                message = re.sub(r'<http://.*\|([\w\.]+)>', '\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
+                message = re.sub(r'<@([\w\.]+)>', '\g<1>', message) # <@U03UTTPBGDN> becomes U03UTTPBGDN
                 user = '<@' + inbound['event']['user'] + '>'
                 chat_id = inbound['event']['channel']
                 botName = inbound['authorizations'][0]['user_id']
-                print(user, message)
+                print(message)
         else:
             status = "404 Not Found"
             start_response(status, headers)
@@ -112,13 +110,16 @@ def main(env, start_response):
         start_response(status, headers)
         return [b"<b>404</b>"]
 
+    # TODO: at this point we should use queue and threading. Slack expects a reply within 3 seconds.
+
     # read bot command
-    stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^<*@*" + botName + ">*\s+([\w\.]+)\s*(bio|info|profile)*"
-    watchlist_command = "^\!watchlist\s*([\w]+)*\s*([\w\.]+)*|^<*@*" + botName + ">*\s+watchlist\s*(\w+)*\s*([\w\.]+)*"
-    trades_command = "^\!trades\s*(\d+)*|^<*@*" + botName + ">*\s+trades\s*(\d+)*"
-    holdings_command = "^\!holdings\s*([\w\s]+)*|^<*@*" + botName + ">*\s+holdings\s*([\w\s]+)*"
-    shorts_command = "^\!shorts\s*([\d]+)*|^<*@*" + botName + ">*\s+shorts\s*([\d]+)*"
-    premarket_command = "^\!premarket\s*([\d]+)*|^<*@*" + botName + ">*\s+premarket\s*([\d]+)*"
+    # TODO: strip incoming url in slack sessages
+    stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
+    watchlist_command = "^\!watchlist\s*([\w]+)*\s*([\w\.]+)*|^" + botName + "\s+watchlist\s*(\w+)*\s*([\w\.]+)*"
+    trades_command = "^\!trades\s*(\d+)*|^" + botName + "\s+trades\s*(\d+)*"
+    holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\s+holdings\s*([\w\s]+)*"
+    shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\s+shorts\s*([\d]+)*"
+    premarket_command = "^\!premarket\s*([\d]+)*|^" + botName + "\s+premarket\s*([\d]+)*"
     m_stockfinancial = re.match(stockfinancial_command, message)
     m_watchlist = re.match(watchlist_command, message)
     m_trades = re.match(trades_command, message)
@@ -136,12 +137,11 @@ def main(env, start_response):
             ticker = m_watchlist.group(2).upper()
         if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
             action = 'delete'
-        print(action, ticker, m_watchlist.group(0))
-        url = webhooks[service]
         payload = prepare_watchlist(service, user, action, ticker)
+        url = webhooks[service]
         if service == 'slack':
             url = 'https://slack.com/api/chat.postMessage'
-        if service == 'telegram':
+        elif service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
         return [b"<b>OK</b>"]
@@ -149,16 +149,8 @@ def main(env, start_response):
         payload = prepare_help(service, user)
         if service == 'slack':
             url = 'https://slack.com/api/chat.postMessage'
-        if service == 'telegram':
+        elif service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
-        webhook.payload_wrapper(service, url, payload, chat_id)
-        return [b"<b>OK</b>"]
-    elif message == "<@U03UTTPBGDN> hi":
-        url = webhooks[service]
-        if service == 'slack':
-            url = 'https://slack.com/api/chat.postMessage'
-            payload = [ f"{user}" ]
-            payload.append("hello")
         webhook.payload_wrapper(service, url, payload, chat_id)
         return [b"<b>OK</b>"]
     elif message in ("!thanks", "!thankyou", "!thank you", "!tyvm", "TYVM", botName + " thanks", botName + " thankyou", botName + " thank you", botName + " tyvm", botName + " TYVM"):
@@ -167,7 +159,7 @@ def main(env, start_response):
         payload.append(f"You're very welcome, {userRealName}! 😇")
         if service == 'slack':
             url = 'https://slack.com/api/chat.postMessage'
-        if service == 'telegram':
+        elif service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
         return [b"<b>OK</b>"]
@@ -177,26 +169,16 @@ def main(env, start_response):
             premarket_threshold = int(m_premarket.group(2))
         elif m_premarket.group(1):
             premarket_threshold = int(m_premarket.group(1))
-        payload = prepare_help(service, user)
-        premarket.lambda_handler(chat_id, interactive, user, premarket_threshold)
-        if service == 'slack':
-            url = 'https://slack.com/api/chat.postMessage'
-        if service == 'telegram':
-            url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        premarket.lambda_handler(service, chat_id, user, premarket_threshold, interactive)
         return [b"<b>OK</b>"]
     elif m_shorts:
+        print("starting shorts report...")
         shorts_threshold = config_shorts_percent
         if m_shorts.group(2):
             shorts_threshold = int(m_shorts.group(2))
         elif m_shorts.group(1):
             shorts_threshold = int(m_shorts.group(1))
-            shorts.lambda_handler(chat_id, interactive, user, shorts_threshold)
-        if service == 'slack':
-            url = 'https://slack.com/api/chat.postMessage'
-        if service == 'telegram':
-            url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        shorts.lambda_handler(service, chat_id, user, shorts_threshold, interactive)
         return [b"<b>OK</b>"]
     elif m_trades:
         if m_trades.group(2):
@@ -205,13 +187,13 @@ def main(env, start_response):
             days = int(m_trades.group(1))
         else:
             days = 1
-        payload = [ f"{user}", f"beep boop. Rummaging for trades from the past {days} days 🔍" ]
-        webhook.payload_wrapper(service, url, payload, chat_id)
         if service == 'slack':
             url = 'https://slack.com/api/chat.postMessage'
         if service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
+        payload = [ f"{user}", f"beep boop. Rummaging for trades from the past {days} days 🔍" ]
         webhook.payload_wrapper(service, url, payload, chat_id)
+        trades.lambda_handler(service, chat_id, user, days, interactive)
         return [b"<b>OK</b>"]
     elif m_holdings:
         payload = []
@@ -233,7 +215,7 @@ def main(env, start_response):
                 for item in market_data:
                     ticker = market_data[item]['ticker']
                     title = market_data[item]['profile_title']
-                    yahoo_link = utils.yahoo_link(ticker, service, brief)
+                    yahoo_link = util.yahoo_link(ticker, service, brief)
                     payload.append(f"{title} ({yahoo_link})")
                 portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
                 payload.sort()
@@ -248,7 +230,7 @@ def main(env, start_response):
                 payload.append( item )
         if service == 'slack':
             url = 'https://slack.com/api/chat.postMessage'
-        if service == 'telegram':
+        elif service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
         return [b"<b>OK</b>"]
@@ -266,7 +248,7 @@ def main(env, start_response):
         payload = prepare_stockfinancial_payload(service, user, ticker, bio)
         if service == 'slack':
             url = 'https://slack.com/api/chat.postMessage'
-        if service == 'telegram':
+        elif service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
         return [b"<b>OK</b>"]
@@ -335,9 +317,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
                     print(ticker, "not found")
         elif ticker not in market_data:
             watchlist.remove(ticker)
-
     print(watchlist)
-
     payload = []
     for item in market_data:
         item_link = util.yahoo_link(item, service)
@@ -349,38 +329,33 @@ def prepare_watchlist(service, user, action=False, ticker=False):
             payload.append(text)
         else:
             payload.append(f"{profile_title} ({item_link})")
-
     def profile_title(e): # disregards markup in sort command
         return re.findall('[A-Z].*', e)
     payload.sort(key=profile_title)
-
     if action == 'delete':
         if ticker not in market_data:
             payload.insert(0, f"Beep Boop. I could not find " + webhook.bold(ticker, service) + " to remove it")
         else:
             payload.insert(0, f"Ok {user}, I deleted " + webhook.bold(ticker_link, service))
-
     elif action == 'add':
         if ticker not in market_data:
             payload = [f"{user}", f"Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " to add it"]
         elif transformed and duplicate:
-            print("ticker au and duplicate")
             payload.insert(0, f"Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " and I'm already tracking " + webhook.bold(ticker_link, service))
         elif transformed:
             payload.insert(0, f"Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " so I added " + webhook.bold(ticker_link, service))
         elif duplicate:
-            print("ticker us and duplicate")
             payload.insert(0, f"{user}, I'm already tracking " + webhook.bold(ticker_link, service))
         else:
             payload.insert(0, f"Ok {user}, I added " + webhook.bold(ticker_link, service))
     elif action == False:
         payload.insert(0, f"Hi {user}, I'm currently tracking:")
-
     with open(cache_file, "w") as f:
         f.write(json.dumps(watchlist))
     return payload
 
 def prepare_help(service, user):
+    global botName
     payload = []
     payload.append(webhook.bold("Examples:", service))
     payload.append("!AAPL")
@@ -391,8 +366,12 @@ def prepare_help(service, user):
     payload.append("!trades [days]")
     payload.append("!watchlist")
     payload.append("!watchlist [add|del] AAPL")
-    payload.append(botName + " AAPL")
-    payload.append(botName + " AAPL bio")
+    if service == 'telegram':
+        payload.append(botName + " AAPL")
+        payload.append(botName + " AAPL bio")
+    else:
+        payload.append('<@' + botName + "> AAPL")
+        payload.append('<@' + botName + "> AAPL bio")
     payload.append("etc.")
     return payload
 
@@ -493,7 +472,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             payload.insert(2, webhook.bold(f"{profile_title} ({yahoo_link})", service))
         if len(payload) < 2:
             payload.append("no data found")
-        payload = [i[0] for i in groupby(payload)]
+        payload = [i[0] for i in groupby(payload)] # de-dupe white space
         return payload
     if 'currency' in market_data[ticker] and 'market_cap' in market_data[ticker]:
         currency = market_data[ticker]['currency']
@@ -635,13 +614,13 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         payload.insert(0, f"I could not find {ticker_orig} but I found {yahoo_link}:")
         payload.insert(1, "")
         payload.insert(2, f"{profile_title} ({yahoo_link}) {marketStateEmoji}")
-    payload = [i[0] for i in groupby(payload)]
+    payload = [i[0] for i in groupby(payload)] # de-dupe white space
     return payload
 
 ip="127.0.0.1"
 port=5000
-print(f'Serving on https://{ip}:{port}')
 server = pywsgi.WSGIServer((ip, port), main)
+print(f'Serving on https://{ip}:{port}')
 # to start the server asynchronously, call server.start()
 # we use blocking serve_forever() here because we have no other jobs
 server.serve_forever()
