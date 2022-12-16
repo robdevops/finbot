@@ -49,7 +49,9 @@ def lambda_handler(event,context):
         url = webhooks[service]
         if service == "telegram":
             url = url + "sendMessage?chat_id=" + config_telegramChatID
-        webhook.payload_wrapper(service, url, payload)
+        elif service == "slack":
+            url = 'https://slack.com/api/chat.postMessage'
+        webhook.payload_wrapper(service, url, payload, chat_id)
 
     # make google cloud happy
     return True

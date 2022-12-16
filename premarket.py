@@ -8,8 +8,8 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user='', threshold=config_price_percent):
-    def prepare_price_payload(service, market_data):
+def lambda_handler(service=False, chat_id=config_telegramChatID, user='', threshold=config_price_percent, interactive=False):
+    def prepare_price_payload(service, market_data, threshold):
         postmarket = False
         payload = []
         for ticker in market_data:
@@ -36,9 +36,11 @@ def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
         if interactive:
-            payload.insert(0, f"<b>@{user} stocks moving at least {threshold}% pre-market</b>")
+            message = f"Stocks moving at least {threshold}% pre-market"
+            message = webhook.bold(message, service)
+            payload.insert(0, message)
             if len(payload) == 1:
-                payload.append(f"No price movements meet threshold 🛑")
+                payload.append(f"{user}, no price movements meet threshold {threshold}% 🛑")
         else:
             message = 'Price alerts (pre-market):'
             message = webhook.bold(message, service)
@@ -55,13 +57,23 @@ def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user
     if not webhooks:
         print("Error: no services enabled in .env")
         exit(1)
-    for service in webhooks:
-        print(service, "Preparing intraday price payload")
-        payload = prepare_price_payload(service, market_data)
-        url = webhooks[service]
+    if interactive:
+        payload = prepare_price_payload(service, market_data, threshold)
         if service == "telegram":
-            url = url + "sendMessage?chat_id=" + str(telegramChatID)
-        webhook.payload_wrapper(service, url, payload)
+            url = url + "sendMessage?chat_id=" + str(chat_id)
+        elif service == "slack":
+            url = 'https://slack.com/api/chat.postMessage'
+        webhook.payload_wrapper(service, url, payload, chat_id)
+    else:
+        for service in webhooks:
+            print(service, "Preparing intraday price payload")
+            payload = prepare_price_payload(service, market_data, threshold)
+            url = webhooks[service]
+            if service == "telegram":
+                url = url + "sendMessage?chat_id=" + str(chat_id)
+            elif service == "slack":
+                url = 'https://slack.com/api/chat.postMessage'
+            webhook.payload_wrapper(service, url, payload, chat_id)
 
     # make google cloud happy
     return True

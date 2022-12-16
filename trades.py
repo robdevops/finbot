@@ -9,7 +9,7 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user='', past_days=config_past_days):
+def lambda_handler(service, chat_id=config_telegramChatID, user='', past_days=config_past_days, interactive=False):
     time_now = datetime.datetime.today()
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
     start_date = time_now - datetime.timedelta(days=past_days)
@@ -73,7 +73,7 @@ def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user
                 holding_link = symbol
             payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value:,} of {holding_link} {flag}")
         if interactive:
-            payload.insert(0, f"@{user}")
+            payload.insert(0, f"{user}")
             if len(payload) == 1:
                 payload.append(f"No trades found in the past {past_days} days 🛑")
         else:
@@ -110,13 +110,21 @@ def lambda_handler(telegramChatID=config_telegramChatID, interactive=False, user
     if not webhooks:
         print("Error: no services enabled in .env")
         exit(1)
-    for service in webhooks:
-        print(service, "Preparing trade payload")
+    if interactive:
         payload = prepare_trade_payload(service, trades)
-        url = webhooks[service]
         if service == "telegram":
-            url = url + "sendMessage?chat_id=" + str(telegramChatID)
-        webhook.payload_wrapper(service, url, payload)
+            url = url + "sendMessage?chat_id=" + str(chat_id)
+        elif service == "slack":
+            url = 'https://slack.com/api/chat.postMessage'
+        webhook.payload_wrapper(service, url, payload, chat_id)
+    else:
+        for service in webhooks:
+            print(service, "Preparing trade payload")
+            payload = prepare_trade_payload(service, trades)
+            url = webhooks[service]
+            if service == "telegram":
+                url = url + "sendMessage?chat_id=" + str(chat_id)
+            webhook.payload_wrapper(service, url, payload, chat_id)
 
     # write state file
     if newtrades and not interactive:

@@ -9,7 +9,7 @@ import lib.util as util
 import lib.yahoo as yahoo
 import lib.shortman as shortman
 
-def lambda_handler(telegramChatID = config_telegramChatID, interactive = False, user='', threshold=config_shorts_percent):
+def lambda_handler(service, chat_id=config_telegramChatID, user='', threshold=config_shorts_percent, interactive=False):
     def prepare_shorts_payload(service, market_data):
         payload = []
         emoji = "🩳"
@@ -37,7 +37,7 @@ def lambda_handler(telegramChatID = config_telegramChatID, interactive = False, 
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
         if interactive:
-            payload.insert(0, f"<b>@{user} stocks with at least {threshold}% short interest</b>")
+            payload.insert(0, webhook.bold(f"{user} stocks with at least {threshold}% short interest", service))
             if len(payload) == 1:
                 payload.append(f"No shorts meet threshold {emoji}. Try specifying a number.")
         else:
@@ -64,13 +64,19 @@ def lambda_handler(telegramChatID = config_telegramChatID, interactive = False, 
     if not webhooks:
         print("Error: no services enabled in .env")
         exit(1)
-    for service in webhooks:
+    if interactive:
         print(service, "Preparing shorts payload")
         payload = prepare_shorts_payload(service, market_data)
-        url = webhooks[service]
         if service == "telegram":
-            url = url + "sendMessage?chat_id=" + str(telegramChatID)
-        webhook.payload_wrapper(service, url, payload)
+            url = url + "sendMessage?chat_id=" + str(chat_id)
+        elif service == "slack":
+            url = 'https://slack.com/api/chat.postMessage'
+        webhook.payload_wrapper(service, url, payload, chat_id)
+    else:
+        for service in webhooks:
+            payload = prepare_shorts_payload(service, market_data)
+            url = webhooks[service]
+            webhook.payload_wrapper(service, url, payload, chat_id)
 
     # make google cloud happy
     return True

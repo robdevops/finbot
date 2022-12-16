@@ -12,14 +12,6 @@ import lib.util as util
 def lambda_handler(event,context):
     def prepare_finance_calendar_payload(service):
         payload = []
-        if service == 'telegram':
-            payload.append("<b>Finance event reminders:</b>")
-        elif service == 'slack':
-            payload.append("*Finance event reminders:*")
-        elif service == 'discord':
-            payload.append("**Finance event reminders:**")
-        else:
-            payload.append("Finance event reminders:")
         tz = pytz.timezone(config_timezone)
         localtime = datetime.datetime.now(tz)
         month_and_day = str(localtime.strftime('%m-%d')) # 09-20
@@ -45,6 +37,8 @@ def lambda_handler(event,context):
             if month_and_day == '09-30':
                 payload.append("🥳 Happy EOFY 🇺🇸")
         # deliberately ommited countries where EOFY aligns with calendar year
+        heading = webhook.bold("Finance event reminders:", service)
+        payload.insert(0, heading)
         return payload
 
 
