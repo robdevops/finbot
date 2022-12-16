@@ -1,14 +1,12 @@
 #!/usr/bin/python3
 
 from gevent import pywsgi
-from html import escape
 from itertools import groupby
 from urllib.parse import parse_qs
 from wsgiref.simple_server import make_server
 import json, re, time
 import numpy
-import queue # TODO
-import threading # TODO
+import threading
 #from itertools import pairwise # python 3.10
 
 from lib.config import *
@@ -22,24 +20,22 @@ import premarket
 import shorts
 import trades
 
-def main(env, start_response):
-    global botName
-    interactive=True
-    #request_body = env['wsgi.input'].read()
-    #inbound = json.loads(request_body)
-    inbound = json.loads(env["wsgi.input"].read())
+def main(environ, start_response):
+    request_body = environ['wsgi.input'].read()
+    inbound = json.loads(request_body)
 
     # Set the response status code and headers
     status = '200 OK'
     headers = [('Content-type', 'application/json')]
     start_response(status, headers)
-    
-    # Process incoming request
+
     #try:
     #    print("Incoming request:", uri, json.dumps(inbound, indent=4))
     #except Exception as e:
     #    print(e, "raw body: ", inbound)
-    uri = env['PATH_INFO']
+
+    # first pass
+    uri = environ['PATH_INFO']
     user=''
     userRealName=''
     if uri == '/telegram':
@@ -57,8 +53,7 @@ def main(env, start_response):
                     user = '@' + inbound["message"]["from"]["first_name"]
                 print(user, message)
             else:
-                print("unhandled 'message' without 'text'")
-                start_response('200 OK', [('Content-Type', 'application/json')])
+                print("unhandled: 'message' without 'text'")
                 return [b'<h1>Unhandled</h1>']
         elif "edited_message" in inbound:
             if "text" in inbound["edited_message"]:
@@ -71,8 +66,7 @@ def main(env, start_response):
                     user = inbound["edited_message"]["from"]["first_name"]
                 print(user, message)
             else:
-                print("unhandled 'edited_message' without 'text'")
-                start_response('200 OK', [('Content-Type', 'application/json')])
+                print("unhandled: 'edited_message' without 'text'")
                 return [b'<h1>Unhandled</h1>']
         elif "channel_post" in inbound:
             message = inbound["channel_post"]["text"]
@@ -80,8 +74,7 @@ def main(env, start_response):
             user = ''
             print(message)
         else:
-            print("unhandled not 'message' nor 'channel_post'")
-            start_response('200 OK', [('Content-Type', 'application/json')])
+            print("unhandled: not 'message' nor 'channel_post'")
             return [b'<h1>Unhandled</h1>']
     elif uri == '/slack':
         service = 'slack'
@@ -89,31 +82,41 @@ def main(env, start_response):
             if inbound['type'] == 'url_verification':
                 response = json.dumps({"challenge": inbound["challenge"]})
                 response = bytes(response, "utf-8")
-                status = "200 OK"
                 headers = [("Content-type", "application/json")]
                 return [bytes(status, "utf-8")]
             if inbound['type'] == 'event_callback':
                 message = inbound['event']['text']
                 message = re.sub(r'<http://.*\|([\w\.]+)>', '\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
-                message = re.sub(r'<@([\w\.]+)>', '\g<1>', message) # <@U03UTTPBGDN> becomes U03UTTPBGDN
+                message = re.sub(r'<(@[\w\.]+)>', '\g<1>', message) # <@U03UTTPBGDN> becomes U03UTTPBGDN
                 user = '<@' + inbound['event']['user'] + '>'
                 chat_id = inbound['event']['channel']
-                botName = inbound['authorizations'][0]['user_id']
+                botName = '@' + inbound['authorizations'][0]['user_id']
                 print(message)
+            else:
+                print("unhandled 'type'")
+                return [b'<h1>Unhandled</h1>']
         else:
-            status = "404 Not Found"
-            start_response(status, headers)
-            return [bytes(status, "utf-8")]
+            print("unhandled: no 'type'")
+            return [b'Unhandled']
     else:
-        print("unknown path", uri)
+        print("Unknown URI", uri)
         status = "404 Not Found"
         start_response(status, headers)
-        return [b"<b>404</b>"]
+        return [b'<h1>404</h1>']
 
-    # TODO: at this point we should use queue and threading. Slack expects a reply within 3 seconds.
+    def worker():
+        process_request(service, chat_id, user, message, botName, userRealName)
 
-    # read bot command
-    # TODO: strip incoming url in slack sessages
+    # process in a background thread so we don't keep the requesting client waiting
+    t = threading.Thread(target=worker)
+    t.start()
+
+    # Return an empty response to the client
+    print("200 closing incoming connection from", service)
+    return [b'']
+
+def process_request(service, chat_id, user, message, botName, userRealName):
+    interactive=True
     stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
     watchlist_command = "^\!watchlist\s*([\w]+)*\s*([\w\.]+)*|^" + botName + "\s+watchlist\s*(\w+)*\s*([\w\.]+)*"
     trades_command = "^\!trades\s*(\d+)*|^" + botName + "\s+trades\s*(\d+)*"
@@ -144,15 +147,13 @@ def main(env, start_response):
         elif service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
-        return [b"<b>OK</b>"]
     elif message in ("!help", "!usage", botName + " help", botName + " usage"):
-        payload = prepare_help(service, user)
+        payload = prepare_help(service, user, botName)
         if service == 'slack':
             url = 'https://slack.com/api/chat.postMessage'
         elif service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
-        return [b"<b>OK</b>"]
     elif message in ("!thanks", "!thankyou", "!thank you", "!tyvm", "TYVM", botName + " thanks", botName + " thankyou", botName + " thank you", botName + " tyvm", botName + " TYVM"):
         time.sleep(3) # pause for realism
         payload = [ user ]
@@ -162,7 +163,6 @@ def main(env, start_response):
         elif service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
-        return [b"<b>OK</b>"]
     elif m_premarket:
         premarket_threshold = config_price_percent
         if m_premarket.group(2):
@@ -170,7 +170,6 @@ def main(env, start_response):
         elif m_premarket.group(1):
             premarket_threshold = int(m_premarket.group(1))
         premarket.lambda_handler(service, chat_id, user, premarket_threshold, interactive)
-        return [b"<b>OK</b>"]
     elif m_shorts:
         print("starting shorts report...")
         shorts_threshold = config_shorts_percent
@@ -179,7 +178,6 @@ def main(env, start_response):
         elif m_shorts.group(1):
             shorts_threshold = int(m_shorts.group(1))
         shorts.lambda_handler(service, chat_id, user, shorts_threshold, interactive)
-        return [b"<b>OK</b>"]
     elif m_trades:
         if m_trades.group(2):
             days = int(m_trades.group(2))
@@ -194,7 +192,6 @@ def main(env, start_response):
         payload = [ f"{user}", f"beep boop. Rummaging for trades from the past {days} days 🔍" ]
         webhook.payload_wrapper(service, url, payload, chat_id)
         trades.lambda_handler(service, chat_id, user, days, interactive)
-        return [b"<b>OK</b>"]
     elif m_holdings:
         payload = []
         portfolioName = False
@@ -233,7 +230,6 @@ def main(env, start_response):
         elif service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
-        return [b"<b>OK</b>"]
     elif m_stockfinancial:
         print("starting stock detail")
         bio=False
@@ -251,10 +247,6 @@ def main(env, start_response):
         elif service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
-        return [b"<b>OK</b>"]
-    else:
-        start_response('200 OK', [('Content-Type', 'application/json')])
-        return [b"<b>OK</b>"]
 
 def doDelta(inputList):
     deltaString = ''
@@ -354,8 +346,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
         f.write(json.dumps(watchlist))
     return payload
 
-def prepare_help(service, user):
-    global botName
+def prepare_help(service, user, botName):
     payload = []
     payload.append(webhook.bold("Examples:", service))
     payload.append("!AAPL")
@@ -366,12 +357,12 @@ def prepare_help(service, user):
     payload.append("!trades [days]")
     payload.append("!watchlist")
     payload.append("!watchlist [add|del] AAPL")
-    if service == 'telegram':
-        payload.append(botName + " AAPL")
-        payload.append(botName + " AAPL bio")
+    if service == 'slack':
+        payload.append('<' + botName + '> AAPL')
+        payload.append('<' + botName + '> AAPL bio')
     else:
-        payload.append('<@' + botName + "> AAPL")
-        payload.append('<@' + botName + "> AAPL bio")
+        payload.append(botName + ' AAPL')
+        payload.append(botName + ' AAPL bio')
     payload.append("etc.")
     return payload
 
@@ -616,6 +607,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         payload.insert(2, f"{profile_title} ({yahoo_link}) {marketStateEmoji}")
     payload = [i[0] for i in groupby(payload)] # de-dupe white space
     return payload
+
 
 ip="127.0.0.1"
 port=5000
