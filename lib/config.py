@@ -22,6 +22,7 @@ if os.getenv('telegramBotToken'):
 if os.getenv('slackToken'):
     config_slackToken = str(os.getenv('slackToken'))
 
+config_telegramChatID = False # default
 if os.getenv('telegramChatID'):
     config_telegramChatID = str(os.getenv('telegramChatID'))
 

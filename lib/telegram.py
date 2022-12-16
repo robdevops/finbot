@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 import json, time
 import requests
 from lib.config import *

@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 from lib.config import *
 import lib.sharesight as sharesight
 import lib.webhook as webhook
