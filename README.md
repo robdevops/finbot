@@ -91,7 +91,7 @@ watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
 ```
 
 ### Caching
-Many object sources are cached for 1 day by default. Cache is controlled by the settings below. Trades are not cached.
+Many object sources are cached for just under one day by default. Cache is controlled by the settings below. Trades IDs are stored on disk, but trades are not cached for functional reasons.
 ```
 cache=True
 cache_seconds=82800
