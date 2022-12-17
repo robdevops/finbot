@@ -652,10 +652,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     return payload
 
 
-ip="127.0.0.1"
-port=5000
-server = pywsgi.WSGIServer((ip, port), main)
-print(f'Listening on http://{ip}:{port}')
+server = pywsgi.WSGIServer((config_ip, config_port), main)
+print(f'Listening on http://{config_ip}:{config_port}')
 # to start the server asynchronously, call server.start()
 # we use blocking serve_forever() here because we have no other jobs
 server.serve_forever()

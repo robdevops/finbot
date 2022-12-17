@@ -174,7 +174,16 @@ The above can be installed with:
 ```
 
 ## Interactive bot
-Currently supporting Slack and Telegram. You need to run `interactive.py` (as an unprivileged user) to start the server, and proxy it behind an https server on a valid domain name with a valid x509 certifcate. Example https server config (nginx):
+Currently supporting Slack and Telegram, the interactive bot adds:
+* Stock lookup (financials and company profile)
+* Group configurable watch list
+* Listing portfolios and current holdings
+* Running certain reports which are normally scheduled (see above), on demand.
+
+The bot backend `interactive.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
+It defaults to listening on http://127.0.0.1:5000/, which can be changed by setting `ip` and `port` in the .env file.
+
+Example frontend https server config (nginx):
 ```
 server {
 	listen 8443 ssl;
@@ -194,6 +203,8 @@ server {
 }
 ```
 
+### Integrating the interactive bot with chat networks
+
 For Telegram, message BotFather to create a bot. Set .env `telegramBotToken` to the token given by BotFather.
 Set .env `telegram_outgoing_webhook` to your web server (https://www.example.com:8443/telegram), add your Telegram bot to a group, and give it group admin access so it can read the group chat. With these options set, your bot will auto-subscribe to events the bot sees, when you run `interactive.py`.
 
@@ -201,7 +212,7 @@ For Slack, visit https://api.slack.com/apps/ to create/configure an app. Put its
 * You can also subscribe to `message.channels` if you want your bot to see everything and respond to `!` commands.
 * If you want to DM the bot, subscribe to `message.im`, and check the box _App Home > Allow users to send Slash commands and messages from the messages tab_.
 
-Supported commands:
+### Supported commands:
 ```
 !AAPL
 !AAPL bio
@@ -219,26 +230,6 @@ Supported commands:
 @botname trades [days]
 @botname watchlist
 @botname watchlist [add|del] AAPL
-```
-
-## Serverless
-_The following are notes from an early AWS Lambda install. The bot will no longer work in this environment without modification, and *it will run non-optimally without persistent storage.
-
-### Installation
-To prepare zip for upload to cloud:
-```
-cd ~/sharesight-bot
-pip3 install datetime python-dotenv requests --upgrade --target=$(pwd)
-zip -r script.zip .
-```
-
-### Configuration
-For four portfolios (72 holdings) and with all features enabled, this script takes the better part of a minute to run. It is recommended to set _Lambda > Functions > YOUR_FUNCTION > Configuration > General configuration > Edit > Timeout_ to 2 minutes.
-
-### Scheduling
-For AWS, go to _Lambda > Functions > YOUR_FUNCTION > Add Trigger > EventBridge (Cloudwatch Events)_, and set _Schedule expression_ to, for example, 10 PM Monday to Friday UTC:
-```
-cron(0 22 ? * 2-6 *)
 ```
 
 ## Limitations

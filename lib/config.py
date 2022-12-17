@@ -90,3 +90,11 @@ config_telegram_outgoing_webhook = str() # default
 if os.getenv('telegram_outgoing_webhook'):
     config_telegram_outgoing_webhook = str(os.getenv('telegram_outgoing_webhook'))
 
+config_ip = '127.0.0.1' # default
+if os.getenv('ip'):
+    config_ip = os.getenv('ip')
+
+config_port = int(5000) # default
+if os.getenv('port'):
+    config_port = int(os.getenv('port'))
+
