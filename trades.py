@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import json, os
+import json, os, random
 import datetime
 
 from lib.config import *
@@ -9,7 +9,7 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(service, chat_id=config_telegramChatID, user='', past_days=config_past_days, interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, interactive=False, service=False, user=''):
     time_now = datetime.datetime.today()
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
     start_date = time_now - datetime.timedelta(days=past_days)
@@ -72,14 +72,28 @@ def lambda_handler(service, chat_id=config_telegramChatID, user='', past_days=co
                 trade_link = verb
                 holding_link = symbol
             payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value:,} of {holding_link} {flag}")
-        if interactive:
-            payload.insert(0, f"{user}")
-            if len(payload) == 1:
-                payload.append(f"No trades found in the past {past_days} days 🛑")
-        else:
+        if len(payload):
             message = 'New trades:'
             message = webhook.bold(message, service)
             payload.insert(0, message)
+        else:
+            if interactive:
+                # easter egg 3
+                noTradesVerb = [
+                        "The money is probably resting in another account",
+                        "Oh well. The market would have just gone down anyway",
+                        "Heating bills don't pay themselves you know",
+                        "You were fearful when others were also fearful",
+                        "I bet you're regretting that extra 1¢ on your limit order now",
+                        "This is why you can't have nice things",
+                        "But I'm sure that's just a rounding error",
+                        "Nothing + nothing = more nothing. Well played",
+                        "Or maybe there was. They don't pay me for this you know",
+                        "I guess that's right. Maybe... I'm kinda busy with ChatGPT in another window",
+                        "I like this contrarian play you're having on 'being in it to win it'",
+                        "With your stock picking skills, this is probably for the best"
+                        ]
+                payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]
         return payload
     
     def trade_cache_read(cache_file):
@@ -112,14 +126,14 @@ def lambda_handler(service, chat_id=config_telegramChatID, user='', past_days=co
         exit(1)
     if interactive:
         payload = prepare_trade_payload(service, trades)
-        if service == "telegram":
-            url = url + "sendMessage?chat_id=" + str(chat_id)
-        elif service == "slack":
+        url = webhooks[service]
+        if service == "slack":
             url = 'https://slack.com/api/chat.postMessage'
+        elif service == "telegram":
+            url = url + "sendMessage?chat_id=" + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
     else:
         for service in webhooks:
-            print(service, "Preparing trade payload")
             payload = prepare_trade_payload(service, trades)
             url = webhooks[service]
             if service == "telegram":
