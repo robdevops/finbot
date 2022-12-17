@@ -4,7 +4,8 @@ from gevent import pywsgi
 from itertools import groupby
 from urllib.parse import parse_qs
 from wsgiref.simple_server import make_server
-import json, re, time
+import datetime
+import json, re, time, random
 import numpy
 import threading
 #from itertools import pairwise # python 3.10
@@ -29,13 +30,18 @@ def main(environ, start_response):
     headers = [('Content-type', 'application/json')]
     start_response(status, headers)
 
-    #try:
-    #    print("Incoming request:", uri, json.dumps(inbound, indent=4))
-    #except Exception as e:
-    #    print(e, "raw body: ", inbound)
+    # handle incoming request
+    timestamp = datetime.datetime.today()
+    timestamp = str(timestamp.strftime('%H:%M:%S')) # 2022-09-20
+
+    uri = environ['PATH_INFO']
+    if debug:
+        try:
+            print(f"[{timestamp}]: inbound {uri}", json.dumps(inbound, indent=4))
+        except Exception as e:
+            print(e, "raw body: ", inbound)
 
     # first pass
-    uri = environ['PATH_INFO']
     user=''
     userRealName=''
     if uri == '/telegram':
@@ -51,9 +57,9 @@ def main(environ, start_response):
                     userRealName = inbound["message"]["from"]["first_name"]
                 else:
                     user = '@' + inbound["message"]["from"]["first_name"]
-                print(user, message)
+                print(f"[{timestamp} {service}]:", user, message)
             else:
-                print("unhandled: 'message' without 'text'")
+                print(f"[{timestamp} {service}]: unhandled: 'message' without 'text'")
                 return [b'<h1>Unhandled</h1>']
         elif "edited_message" in inbound:
             if "text" in inbound["edited_message"]:
@@ -64,42 +70,42 @@ def main(environ, start_response):
                     user = inbound["edited_message"]["from"]["username"]
                 else:
                     user = inbound["edited_message"]["from"]["first_name"]
-                print(user, message)
+                print(f"[{timestamp} {service}]:", service, user, "[edit]", message)
             else:
-                print("unhandled: 'edited_message' without 'text'")
+                print(f"[{timestamp} {service}]: unhandled: 'edited_message' without 'text'")
                 return [b'<h1>Unhandled</h1>']
         elif "channel_post" in inbound:
             message = inbound["channel_post"]["text"]
             chat_id = inbound["channel_post"]["chat"]["id"]
             user = ''
-            print(message)
+            print(f"[{timestamp} {service}]:", service, message)
         else:
-            print("unhandled: not 'message' nor 'channel_post'")
+            print(f"[{timestamp} {service}]: unhandled: not 'message' nor 'channel_post'")
             return [b'<h1>Unhandled</h1>']
     elif uri == '/slack':
         service = 'slack'
         if 'type' in inbound:
             if inbound['type'] == 'url_verification':
                 response = json.dumps({"challenge": inbound["challenge"]})
+                print("replying with", response)
                 response = bytes(response, "utf-8")
-                headers = [("Content-type", "application/json")]
-                return [bytes(status, "utf-8")]
+                return [response]
             if inbound['type'] == 'event_callback':
                 message = inbound['event']['text']
                 message = re.sub(r'<http://.*\|([\w\.]+)>', '\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
-                message = re.sub(r'<(@[\w\.]+)>', '\g<1>', message) # <@U03UTTPBGDN> becomes U03UTTPBGDN
-                user = '<@' + inbound['event']['user'] + '>'
+                message = re.sub(r'<(@[\w\.]+)>', '\g<1>', message) # <@QWERTY> becomes @QWERTY
+                user = '<@' + inbound['event']['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
+                botName = '@' + inbound['authorizations'][0]['user_id'] # QWERTY becomes @QWERTY
                 chat_id = inbound['event']['channel']
-                botName = '@' + inbound['authorizations'][0]['user_id']
-                print(message)
+                print(f"[{timestamp} {service}]:", service, user, message)
             else:
-                print("unhandled 'type'")
+                print(f"[{timestamp} {service}]: unhandled 'type'")
                 return [b'<h1>Unhandled</h1>']
         else:
-            print("unhandled: no 'type'")
+            print(f"[{timestamp} {service}]: unhandled: no 'type'")
             return [b'Unhandled']
     else:
-        print("Unknown URI", uri)
+        print(timestamp, "Unknown URI", uri)
         status = "404 Not Found"
         start_response(status, headers)
         return [b'<h1>404</h1>']
@@ -112,11 +118,13 @@ def main(environ, start_response):
     t.start()
 
     # Return an empty response to the client
-    print("200 closing incoming connection from", service)
+    print(status, "closing inbound from", service)
     return [b'']
 
 def process_request(service, chat_id, user, message, botName, userRealName):
     interactive=True
+    if not len(userRealName):
+        userRealName = user
     stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
     watchlist_command = "^\!watchlist\s*([\w]+)*\s*([\w\.]+)*|^" + botName + "\s+watchlist\s*(\w+)*\s*([\w\.]+)*"
     trades_command = "^\!trades\s*(\d+)*|^" + botName + "\s+trades\s*(\d+)*"
@@ -154,10 +162,10 @@ def process_request(service, chat_id, user, message, botName, userRealName):
         elif service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
+    # easter egg 1
     elif message in ("!thanks", "!thankyou", "!thank you", "!tyvm", "TYVM", botName + " thanks", botName + " thankyou", botName + " thank you", botName + " tyvm", botName + " TYVM"):
         time.sleep(3) # pause for realism
-        payload = [ user ]
-        payload.append(f"You're very welcome, {userRealName}! 😇")
+        payload = [f"You're very welcome, {userRealName}! 😇"]
         if service == 'slack':
             url = 'https://slack.com/api/chat.postMessage'
         elif service == 'telegram':
@@ -169,7 +177,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             premarket_threshold = int(m_premarket.group(2))
         elif m_premarket.group(1):
             premarket_threshold = int(m_premarket.group(1))
-        premarket.lambda_handler(service, chat_id, user, premarket_threshold, interactive)
+        premarket.lambda_handler(chat_id, premarket_threshold, interactive, service, user)
     elif m_shorts:
         print("starting shorts report...")
         shorts_threshold = config_shorts_percent
@@ -177,7 +185,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             shorts_threshold = int(m_shorts.group(2))
         elif m_shorts.group(1):
             shorts_threshold = int(m_shorts.group(1))
-        shorts.lambda_handler(service, chat_id, user, shorts_threshold, interactive)
+        shorts.lambda_handler(chat_id, shorts_threshold, interactive, service, user)
     elif m_trades:
         if m_trades.group(2):
             days = int(m_trades.group(2))
@@ -189,9 +197,45 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             url = 'https://slack.com/api/chat.postMessage'
         if service == 'telegram':
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
-        payload = [ f"{user}", f"beep boop. Rummaging for trades from the past {days} days 🔍" ]
+        # easter egg 2
+        searchVerb = [
+                'Asking ChatGPT to help me find',
+                'Avoiding eye contact with',
+                'Carrying the 1 on',
+                'Combing through',
+                'Conjuring up',
+                'Digging up',
+                'Dispatching fluffy dogs to sniff down',
+                'Entering metaverse for maximum inefficiency on',
+                'Excavating',
+                'Foraging for',
+                'Hiring developers to troubleshoot',
+                'Loading backup tapes for',
+                'Manifesting', 'Massaging data for',
+                'Panning for',
+                'Performing expert calculus on',
+                'Plucking',
+                'Poking a stick at',
+                'Praying for',
+                'Raking up',
+                'Reciting incantations on',
+                'Repairing file-system to restore',
+                'Resetting Sharesight password to get',
+                'Rummaging for',
+                'SELECT * FROM topsecret WHERE',
+                'Sacrificing wildebeest to recover',
+                'Shooing rodents to access',
+                'Sifting through', 'Summoning',
+                'Training pigeons to fetch',
+                'Transcribing Hebrew for',
+                'Unshredding documents for',
+                'Unspilling coffee to read',
+                'ls -l /var/lib/topsecret/ | grep'
+                ]
+        payload = [ f"{random.choice(searchVerb)} trades from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
+        #payload = [ f"{user} beep boop. Rummaging for trades from the past {days} days 🔍" ]
         webhook.payload_wrapper(service, url, payload, chat_id)
-        trades.lambda_handler(service, chat_id, user, days, interactive)
+        trades.lambda_handler(chat_id, days, interactive, service, user)
     elif m_holdings:
         payload = []
         portfolioName = False
@@ -216,7 +260,8 @@ def process_request(service, chat_id, user, message, botName, userRealName):
                     payload.append(f"{title} ({yahoo_link})")
                 portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
                 payload.sort()
-                payload.insert(0, webhook.bold("Holdings for " + portfoliosReverseLookup[portfolioId], service))
+                if len(payload):
+                    payload.insert(0, webhook.bold("Holdings for " + portfoliosReverseLookup[portfolioId], service))
             else:
                 payload = [ f"{user} {portfolioName} portfolio not found. I only know about:" ]
                 for item in portfolios:
@@ -269,12 +314,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
         ticker = ticker.upper()
     duplicate = False
     transformed = False
-    cache_file = config_cache_dir + "/sharesight_watchlist.json"
-    if os.path.isfile(cache_file):
-        with open(cache_file, "r") as f:
-            watchlist = json.loads(f.read())
-    else:
-        watchlist = list(config_watchlist)
+    tickers.update(util.watchlist_load())
     print(watchlist)
     if action == 'add':
         if ticker in watchlist:
@@ -331,7 +371,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
             payload.insert(0, f"Ok {user}, I deleted " + webhook.bold(ticker_link, service))
     elif action == 'add':
         if ticker not in market_data:
-            payload = [f"{user}", f"Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " to add it"]
+            payload = [f"Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " to add it"]
         elif transformed and duplicate:
             payload.insert(0, f"Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " and I'm already tracking " + webhook.bold(ticker_link, service))
         elif transformed:
@@ -380,9 +420,10 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         market_data = yahoo.fetch_detail(ticker, 600)
         print("")
     if not market_data:
-        payload = [ f"{user} 🛑", f"Beep Boop. I could not find {ticker_orig}" ]
+        payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
         return payload
-    #print("Yahoo data:", json.dumps(market_data, indent=4))
+    if debug:
+        print("Yahoo data:", json.dumps(market_data, indent=4))
     yahoo_link = util.yahoo_link(ticker, service)
     profile_title = market_data[ticker]['profile_title']
     if 'marketState' in market_data[ticker]:
@@ -396,12 +437,10 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     if 'profile_exchange' in market_data[ticker]:
         profile_exchange = market_data[ticker]['profile_exchange']
         swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock+Price+Quote+Analysis&btnI'
-        #swsLink = '<a href="' + swsURL + '">Simply Wall St</a>'
         swsLink = util.link(ticker, swsURL, 'Simply Wall St', service)
         if profile_exchange == 'ASX':
             market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
             shortman_url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
-            #shortman_link = '<a href="' + shortman_url + '">ShortMan</a>'
             shortman_link = util.link(ticker, shortman_url, 'ShortMan', service)
         elif profile_exchange == 'HKSE':
             market_url = 'https://www.hkex.com.hk/Market-Data/Securities-Prices/Equities/Equities-Quote?sym=' + ticker.split('.')[0] + '&sc_lang=en'
@@ -417,7 +456,6 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             market_url = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + ticker.split('.')[0]
         else:
             market_url = 'https://www.google.com/search?q=stock+exchange+' + profile_exchange + '+' + ticker.split('.')[0] + '&btnI'
-        #market_link = '<a href="' + market_url + '">' + profile_exchange + '</a>'
         market_link = util.link(ticker, market_url, profile_exchange, service)
     if bio:
         location = []
@@ -430,7 +468,10 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             location.append(profile_country)
         if 'profile_bio' in market_data[ticker]:
             payload.append(f"{market_data[ticker]['profile_bio']}")
+
+        if len(payload):
             payload.append("")
+
         if location:
             payload.append(webhook.bold("Location:", service) + " " + ', '.join(location))
         if 'profile_industry' in market_data[ticker] and 'profile_sector' in market_data[ticker]:
@@ -444,11 +485,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
                 finvizURL='https://finviz.com/quote.ashx?t=' + ticker
                 marketwatchURL = 'https://www.marketwatch.com/investing/stock/' + ticker.lower()
                 seekingalphaURL='https://seekingalpha.com/symbol/' + ticker
-                #finvizLink='<a href="' + finvizURL + '">Finviz</a>'
                 finvizLink = util.link(ticker, finvizURL, 'Finviz', service)
-                #marketwatchLink='<a href="' + marketwatchURL + '">MarketWatch</a>'
                 marketwatchLink = util.link(ticker, marketwatchURL, 'MarketWatch', service)
-                #seekingalphaLink='<a href="' + seekingalphaURL + '">Seeking Alpha</a>'
                 seekingalphaLink = util.link(ticker, seekingalphaURL, 'Seeking Alpha', service)
                 payload.append(webhook.bold("Other links:", service) + f" {market_link} | {finvizLink} | {seekingalphaLink} | {marketwatchLink} | {swsLink}")
             elif profile_exchange == 'ASX':
@@ -518,7 +556,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         else:
             payload.append(webhook.bold("Profitable:", service) + " yes")
 
-    payload.append("")
+    if len(payload):
+        payload.append("")
 
     if 'earningsQ' in market_data[ticker]:
         revenueQs = doDelta(market_data[ticker]['earningsQ'])
@@ -530,7 +569,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         payload.append(f"{revenueYs}  yearly revenue")
         payload.append(f"{earningsYs}  yearly earnings")
 
-    payload.append("")
+    if len(payload):
+        payload.append("")
 
     if 'revenueEstimateY' in market_data[ticker]:
         revenueEstimateY = int(round(market_data[ticker]['revenueEstimateY']))
@@ -566,7 +606,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         recommend_analysts = market_data[ticker]['recommend_analysts']
         payload.append(webhook.bold("Score:", service) + f" {recommend_index} {recommend} ({recommend_analysts} analysts)")
 
-    payload.append("")
+    if len(payload):
+        payload.append("")
 
     if 'price_to_earnings_trailing' in market_data[ticker]:
         trailingPe = str(int(round(market_data[ticker]['price_to_earnings_trailing'])))
@@ -586,7 +627,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         price_to_sales = round(market_data[ticker]['price_to_sales'], 1)
         payload.append(webhook.bold("PS ratio:", service) + f" {str(price_to_sales)}")
 
-    payload.append("")
+    if len(payload):
+        payload.append("")
 
     if 'percent_change_year' in market_data[ticker]:
         percent_change_year = str(market_data[ticker]['percent_change_year']) + '%'
@@ -606,13 +648,15 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         payload.insert(1, "")
         payload.insert(2, f"{profile_title} ({yahoo_link}) {marketStateEmoji}")
     payload = [i[0] for i in groupby(payload)] # de-dupe white space
+    if len(payload) < 2:
+        payload.append("no data found")
     return payload
 
 
 ip="127.0.0.1"
 port=5000
 server = pywsgi.WSGIServer((ip, port), main)
-print(f'Serving on https://{ip}:{port}')
+print(f'Listening on http://{ip}:{port}')
 # to start the server asynchronously, call server.start()
 # we use blocking serve_forever() here because we have no other jobs
 server.serve_forever()
