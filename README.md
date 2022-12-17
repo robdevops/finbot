@@ -11,22 +11,22 @@ _This project has no affiliation with Sharesight Ltd._
 * Discord, Slack and Telegram support
 * Supports multiple Sharesight portfolios, including portfolios shared to you
 * For speed and reliability, no use of uncommon libraries or screen scraping
-* Interactive chat commands (alpha)
+* Interactive chat commands (Slack & Telegram)
 
 ![screenshot of Slack message](img/screenshot.png?raw=true "Screenshot of Slack message")
 
 ## Dependencies
 * Sharesight paid plan, preferably with automatic trade imports, and an API key
 * Slack / Discord webhooks / Telegram bot user
-* Python 3
+* Python 3.8.10
 * Python modules:
 ```
-bs4 datetime python-dotenv requests
+datetime python-dotenv requests gevent
 ```
 
 ## Installation (Linux)
 ```
-sudo pip3 install git bs4 datetime python-dotenv requests
+sudo pip3 install git datetime python-dotenv requests gevent
 ```
 
 ```
@@ -48,13 +48,14 @@ sharesight_client_secret = '01d692d4de7mockupfc64bc2e2f01d692d4de72986ea808f6e99
 ```
 
 ### Discord
-* We use Discord's Slack compatibility by appending `/slack` to the Discord webhook in the .env file. Example:
+The Discord webhook can be provisioned under _Server Settings > Integrations > Webhooks_.
+We use Discord's Slack compatibility by appending `/slack` to the Discord webhook in the .env file. Example:
 ```
-discord_webhook = 'https://discord.com/api/webhooks/1009998000000000000/AbCdEfGhIjKlMnOmockupvWxYz-AbCdEfGhIjKlMn/slack'
+discord_webhook = 'https://discord.com/api/webhooks/1009998000000000000/aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbb/slack'
 ```
 
 ### Slack
-* Slack support simply requires the Slack webhook in the .env file. Example:
+A Slack webhook can be provisioned by creating a new app at https://api.slack.com/apps/ then navigating to _Incoming Webhooks_. Once the link is generated, add it to the .env file. Example:
 ```
 slack_webhook = 'https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA'
 ```
@@ -69,8 +70,8 @@ slack_webhook = 'https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAA
    * Be aware a group id can change if you edit group settings and it becomes a "supergroup". Currently, the bot does not automatically handle this.
 * Example .env entry:
 ```
-telegramBotToken='0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA'
-telegramChatID=-1001000000000
+telegramBotToken = '0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA'
+telegramChatID = -1001000000000
 ```
 
 ### Portfolios
@@ -89,12 +90,13 @@ Tracks securities which are not in your Sharesight holdings. Use the Yahoo! Fina
 ```
 watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
 ```
+Once this value is loaded into interactive mode, it is not read again. Interactive mode uses its own watchlist file.
 
 ### Caching
 Many object sources are cached for just under one day by default. Cache is controlled by the settings below. Trades IDs are stored on disk, but trades are not cached for functional reasons.
 ```
-cache=True
-cache_seconds=82800
+cache = True
+cache_seconds = 82800
 ```
 
 ## Reports
@@ -119,7 +121,6 @@ price_percent = 9.4
 ```
 
 ### Price alerts (pre-market)
-
 `premarket.py` sends pre/post market price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file. Decimal fractions are accepted. Example:
 ```
 price_percent = 9.4
@@ -173,7 +174,34 @@ The above can be installed with:
 ```
 
 ## Interactive bot
-Currently supporting Telegram (stable) + Slack (alpha). You need to host `mywsgi.py` and point `telegram_outgoing_webhook` to it. Supported commands:
+Currently supporting Slack and Telegram. You need to run `python3 interactive_bot.py` (as an unprivileged user) to start the server, and proxy it behind an https server on a valid domain name with a valid x509 certifcate. Example https server config (nginx):
+```
+server {
+	listen 8443 ssl;
+
+	server_name         www.example.com;
+	ssl_certificate     /etc/letsencrypt/live/www.example.com/fullchain.pem;
+    	ssl_certificate_key /etc/letsencrypt/live/www.example.com/privkey.pem;
+    	ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
+    	ssl_ciphers         HIGH:!aNULL:!MD5;
+
+	location /slack {
+    		proxy_pass http://127.0.0.1:5000/slack;
+	}
+	location /telegram {
+    		proxy_pass http://127.0.0.1:5000/telegram;
+	}
+}
+```
+
+For Telegram, message BotFather to create a bot. Set .env `telegramBotToken` to the token given by BotFather.
+Set .env `telegram_outgoing_webhook` to your web server (https://www.example.com:8443/telegram), add your Telegram bot to a group, and give it group admin access so it can read the group chat. With these options set, your bot will auto-subscribe to events the bot sees, when you run `mywsgi.py`.
+
+For Slack, visit https://api.slack.com/apps/ to create/configure an app. Put its token from _Basic Information > Verification Token_ into the the .env file under `slackToken`. Put your web server URL (https://www.example.com:8443/slack) into _Event Subscriptions > Enable Events_ (the bot will auto verify if `mywsgi.py` is running and reachable), and finally, subscribe to event `app_mention` for the bot to see _@botname_ mentions.
+* You can also subscribe to `message.channels` if you want your bot to see everything and respond to `!` commands.
+* If you want to DM the bot, subscribe to `message.im`, and check the box _App Home > Allow users to send Slash commands and messages from the messages tab_.
+
+Supported commands:
 ```
 !AAPL
 !AAPL bio
@@ -194,7 +222,8 @@ Currently supporting Telegram (stable) + Slack (alpha). You need to host `mywsgi
 ```
 
 ## Serverless
-_The following are notes from an AWS Lambda install and may not be current_
+_The following are notes from an early AWS Lambda install. The bot will no longer work in this environment without modification, and *it will run non-optimally without persistent storage.
+
 ### Installation
 To prepare zip for upload to cloud:
 ```
