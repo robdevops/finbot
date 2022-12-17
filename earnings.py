@@ -49,9 +49,8 @@ def lambda_handler(event,context):
     for service in webhooks:
         print(service, "Preparing earnings date payload")
         payload = prepare_earnings_payload(service)
-        url = webhooks[service]
         if service == "telegram":
-            url = url + "sendMessage?chat_id=" + config_telegramChatID
+            url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
         elif service == "slack":
             url = 'https://slack.com/api/chat.postMessage'
         webhook.payload_wrapper(service, url, payload)

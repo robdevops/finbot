@@ -126,11 +126,10 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, in
         exit(1)
     if interactive:
         payload = prepare_trade_payload(service, trades)
-        url = webhooks[service]
         if service == "slack":
             url = 'https://slack.com/api/chat.postMessage'
         elif service == "telegram":
-            url = url + "sendMessage?chat_id=" + str(chat_id)
+            url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
     else:
         for service in webhooks:

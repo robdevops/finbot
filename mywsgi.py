@@ -129,7 +129,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
     holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\s+holdings\s*([\w\s]+)*"
     shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\s+shorts\s*([\d]+)*"
     premarket_command = "^\!premarket\s*([\d]+)*|^" + botName + "\s+premarket\s*([\d]+)*"
-    thanks_command = "^\!(thanks|thank you|thank you|tyvm)|" + botName + "\s+(thanks|thank you|thank you)"
+    thanks_command = "^\!(thanks|thankyou|thank you|tyvm)|" + botName + "\s+(thanks|thankyou|thank you)"
     m_thanks = re.match(thanks_command, message)
     m_stockfinancial = re.match(stockfinancial_command, message)
     m_watchlist = re.match(watchlist_command, message)

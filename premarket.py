@@ -56,11 +56,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         exit(1)
     if interactive:
         payload = prepare_price_payload(service, market_data, threshold)
-        url = webhooks[service]
         if service == "slack":
             url = 'https://slack.com/api/chat.postMessage'
         elif service == "telegram":
-            url = url + "sendMessage?chat_id=" + str(chat_id)
+            url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
     else:
         for service in webhooks:
