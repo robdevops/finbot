@@ -311,7 +311,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
         ticker = ticker.upper()
     duplicate = False
     transformed = False
-    tickers.update(util.watchlist_load())
+    watchlist = util.watchlist_load()
     print(watchlist)
     if action == 'add':
         if ticker in watchlist:
