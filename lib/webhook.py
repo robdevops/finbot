@@ -21,34 +21,33 @@ def write(service, url, payload, slackchannel=False):
         print("Failure executing request:", url, headers, payload)
         return False
     if r.status_code == 200:
-        print(r.status_code, "success", service)
+        print(r.status_code, "OK outbound to", service)
     else:
-        print(r.status_code, "error", service)
+        print(r.status_code, "error outbound to", service)
         return False
 
 def payload_wrapper(service, url, payload, slackchannel=False):
-    if len(payload) > 1: # ignore header
+    if not len(payload):
+        print(service + ": Nothing to send")
+    else:
         payload_string = ('\n'.join(payload))
-        #print("Service: "+ service + ". Bytes: " + str(len(payload_string)) + ". Payload: " + payload_string)
-        print("Service: "+ service + ". Bytes: " + str(len(payload_string)))
+        print("Preparing outbound to", service, str(len(payload_string)), "bytes")
+        if debug:
+            print("Payload: " + payload_string)
+        def chunkLooper():
+            chunks = util.chunker(payload, config_chunk_maxlines)
+            for idx, chunk in enumerate(chunks):
+                idx > 0 and time.sleep(1)
+                payload_chunk = '\n'.join(chunk)
+                write(service, url, payload_chunk)
         if service == 'discord' and len(payload_string) > 2000:
             print(service, "payload is over 2,000 bytes. Splitting.")
-            chunks = util.chunker(payload, config_chunk_maxlines)
-            for payload_chunk in chunks:
-                payload_chunk = '\n'.join(payload_chunk)
-                write(service, url, payload_chunk)
-                time.sleep(1) # workaround potential API throttling
-        if service != 'discord' and len(payload_string) > 4000:
+            chunkLooper()
+        elif service != 'discord' and len(payload_string) > 4000:
             print(service, "payload is over 4,000 bytes. Splitting.")
-            chunks = util.chunker(payload, config_chunk_maxlines)
-            for payload_chunk in chunks:
-                payload_chunk = '\n'.join(payload_chunk)
-                write(service, url, payload_chunk)
-                time.sleep(1) # workaround potential API throttling
+            chunkLooper()
         else:
             write(service, url, payload_string, slackchannel)
-    else:
-        print("Nothing to send")
 
 def bold(message, service):
     if service == 'telegram':
