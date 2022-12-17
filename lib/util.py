@@ -229,7 +229,8 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
         cacheFileSeconds = now - int(os.path.getmtime(cacheFile))
         cacheTTL = maxSeconds - cacheFileSeconds
         if cacheTTL > 0:
-            #print(cacheFile, "TTL:", int(round(cacheTTL/60, 0)), "minutes")
+            if debug:
+                print(cacheFile, "TTL:", int(round(cacheTTL/60, 0)), "minutes")
             with open(cacheFile, "r") as f:
                 cacheDict = json.loads(f.read())
             return cacheDict
@@ -271,4 +272,13 @@ def link(ticker, url, text, service='telegram'):
     else:
         link = ticker
     return link
+
+def watchlist_load():
+    cache_file = config_cache_dir + "/sharesight_watchlist.json"
+    if os.path.isfile(cache_file):
+        with open(cache_file, "r") as f:
+            watchlist = json.loads(f.read())
+    else:
+        watchlist = list(config_watchlist)
+    return watchlist
 

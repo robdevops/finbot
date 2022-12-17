@@ -27,7 +27,7 @@ def lambda_handler(event,context):
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
-        message = 'Price alerts (intraday):'
+        message = f'Price alerts (intraday) over {config_price_percent}%:'
         message = webhook.bold(message, service)
         payload.insert(0, message)
         return payload
@@ -36,7 +36,7 @@ def lambda_handler(event,context):
     # MAIN #
 
     tickers = sharesight.get_holdings_wrapper()
-    tickers.update(config_watchlist)
+    tickers.update(util.watchlist_load())
     market_data = yahoo.fetch(tickers)
 
     # Prep and send payloads
@@ -49,9 +49,7 @@ def lambda_handler(event,context):
         url = webhooks[service]
         if service == "telegram":
             url = url + "sendMessage?chat_id=" + config_telegramChatID
-        elif service == "slack":
-            url = 'https://slack.com/api/chat.postMessage'
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy
     return True

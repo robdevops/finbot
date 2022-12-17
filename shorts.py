@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 import json, re
-
 from lib.config import *
 import lib.sharesight as sharesight
 import lib.webhook as webhook
@@ -9,7 +8,7 @@ import lib.util as util
 import lib.yahoo as yahoo
 import lib.shortman as shortman
 
-def lambda_handler(service, chat_id=config_telegramChatID, user='', threshold=config_shorts_percent, interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percent, interactive=False, service=False, user=''):
     def prepare_shorts_payload(service, market_data):
         payload = []
         emoji = "🩳"
@@ -36,20 +35,19 @@ def lambda_handler(service, chat_id=config_telegramChatID, user='', threshold=co
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
-        if interactive:
-            payload.insert(0, webhook.bold(f"{user} stocks with at least {threshold}% short interest", service))
-            if len(payload) == 1:
-                payload.append(f"No shorts meet threshold {emoji}. Try specifying a number.")
-        else:
-            message = 'Highly shorted stock warning:'
+        if len(payload):
+            message = f'Stocks shorted over {threshold}%:'
             message = webhook.bold(message, service)
             payload.insert(0, message)
+        else:
+            if interactive:
+                payload = [f"{emoji}No stocks shorted over {threshold}%. Try specifying a number."]
         return payload
 
     # MAIN #
 
     tickers = sharesight.get_holdings_wrapper()
-    tickers.update(config_watchlist)
+    tickers.update(util.watchlist_load())
     market_data = yahoo.fetch(tickers)
     for ticker in tickers:
         if '.' not in ticker:
@@ -65,17 +63,19 @@ def lambda_handler(service, chat_id=config_telegramChatID, user='', threshold=co
         print("Error: no services enabled in .env")
         exit(1)
     if interactive:
-        print(service, "Preparing shorts payload")
         payload = prepare_shorts_payload(service, market_data)
-        if service == "telegram":
-            url = url + "sendMessage?chat_id=" + str(chat_id)
-        elif service == "slack":
+        url = webhooks[service]
+        if service == "slack":
             url = 'https://slack.com/api/chat.postMessage'
+        elif service == "telegram":
+            url = url + "sendMessage?chat_id=" + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
     else:
         for service in webhooks:
             payload = prepare_shorts_payload(service, market_data)
             url = webhooks[service]
+            if service == "telegram":
+                url = url + "sendMessage?chat_id=" + str(chat_id)
             webhook.payload_wrapper(service, url, payload, chat_id)
 
     # make google cloud happy

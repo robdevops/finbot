@@ -27,15 +27,16 @@ def lambda_handler(event,context):
                 yahoo_link = util.yahoo_link(ticker, service)
                 payload.append(f"{emoji} {human_date} {title} ({yahoo_link})")
         payload.sort()
-        message = 'Ex-dividend dates. Avoid buy before:'
-        message = webhook.bold(message, service)
-        payload.insert(0, message)
+        if len(payload):
+            message = 'Ex-dividend dates. Avoid buy before:'
+            message = webhook.bold(message, service)
+            payload.insert(0, message)
         return payload
 
     # MAIN #
 
     tickers = sharesight.get_holdings_wrapper()
-    tickers.update(config_watchlist)
+    tickers.update(util.watchlist_load())
     market_data = {}
     for ticker in tickers:
         try:

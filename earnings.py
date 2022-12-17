@@ -31,14 +31,15 @@ def lambda_handler(event,context):
         def last_two_columns(e):
             return e.split()[-2:]
         payload.sort(key=last_two_columns)
-        message = 'Upcoming earnings:'
-        message = webhook.bold(message, service)
-        payload.insert(0, message)
+        if len(payload):
+            message = 'Upcoming earnings:'
+            message = webhook.bold(message, service)
+            payload.insert(0, message)
         return payload
 
     # MAIN #
     tickers = sharesight.get_holdings_wrapper()
-    tickers.update(config_watchlist)
+    tickers.update(util.watchlist_load())
     market_data = yahoo.fetch(tickers)
 
     # Prep and send payloads
@@ -53,7 +54,7 @@ def lambda_handler(event,context):
             url = url + "sendMessage?chat_id=" + config_telegramChatID
         elif service == "slack":
             url = 'https://slack.com/api/chat.postMessage'
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy
     return True

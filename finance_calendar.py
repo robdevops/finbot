@@ -37,8 +37,9 @@ def lambda_handler(event,context):
             if month_and_day == '09-30':
                 payload.append("🥳 Happy EOFY 🇺🇸")
         # deliberately ommited countries where EOFY aligns with calendar year
-        heading = webhook.bold("Finance event reminders:", service)
-        payload.insert(0, heading)
+        if len(payload):
+            heading = webhook.bold("Finance event reminders:", service)
+            payload.insert(0, heading)
         return payload
 
 
@@ -49,7 +50,6 @@ def lambda_handler(event,context):
         print("Error: no services enabled in .env")
         exit(1)
     for service in webhooks:
-        print(service, "Preparing finance calendar payload")
         payload = prepare_finance_calendar_payload(service)
         url = webhooks[service]
         if service == "telegram":
