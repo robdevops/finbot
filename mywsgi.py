@@ -129,6 +129,8 @@ def process_request(service, chat_id, user, message, botName, userRealName):
     holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\s+holdings\s*([\w\s]+)*"
     shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\s+shorts\s*([\d]+)*"
     premarket_command = "^\!premarket\s*([\d]+)*|^" + botName + "\s+premarket\s*([\d]+)*"
+    thanks_command = "^\!(thanks|thank you|thank you|tyvm)|" + botName + "\s+(thanks|thank you|thank you)"
+    m_thanks = re.match(thanks_command, message)
     m_stockfinancial = re.match(stockfinancial_command, message)
     m_watchlist = re.match(watchlist_command, message)
     m_trades = re.match(trades_command, message)
@@ -161,7 +163,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 1
-    elif message in ("!thanks", "!thankyou", "!thank you", "!tyvm", "TYVM", botName + " thanks", botName + " thankyou", botName + " thank you", botName + " tyvm", botName + " TYVM"):
+    elif m_thanks:
         time.sleep(3) # pause for realism
         payload = [f"You're very welcome, {userRealName}! 😇"]
         if service == 'slack':
