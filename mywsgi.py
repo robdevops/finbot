@@ -379,7 +379,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
             payload.insert(0, f"Ok {user}, I added " + webhook.bold(ticker_link, service))
     elif action == False:
         payload.insert(0, f"Hi {user}, I'm currently tracking:")
-    with open(cache_file, "w") as f:
+    with open(config_cache_dir + "/sharesight_watchlist.json", "w") as f:
         f.write(json.dumps(watchlist))
     return payload
 
