@@ -78,6 +78,10 @@ config_cache = True # default
 if os.getenv('cache'):
     config_cache = os.getenv("cache", 'False').lower() in ('true', '1', 't')
 
+debug = False # default
+if os.getenv('debug'):
+    debug = os.getenv("debug", 'False').lower() in ('true', '1', 't')
+
 config_cache_seconds = 82800 # default
 if os.getenv('cache_seconds'):
     config_cache_seconds = int(os.getenv('cache_seconds'))
