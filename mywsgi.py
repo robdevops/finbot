@@ -3,10 +3,8 @@
 from gevent import pywsgi
 from itertools import groupby
 from urllib.parse import parse_qs
-from wsgiref.simple_server import make_server
 import datetime
 import json, re, time, random
-import numpy
 import threading
 #from itertools import pairwise # python 3.10
 
@@ -295,9 +293,8 @@ def process_request(service, chat_id, user, message, botName, userRealName):
 
 def doDelta(inputList):
     deltaString = ''
-    #deltaList = [j-i for i,j in zip(inputList, inputList[1:])]
+    deltaList = [j-i for i,j in zip(inputList, inputList[1:])]
     #deltaList = [y-x for (x,y) in pairwise(inputList)] # python 3.10
-    deltaList = numpy.diff(inputList)
     for delta in deltaList:
         if delta < 0:
             deltaString = deltaString + '🔻'
