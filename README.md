@@ -247,6 +247,14 @@ For Slack, visit https://api.slack.com/apps/ to create a new Slack app. Put its 
 @botname watchlist [add|del] AAPL
 ```
 
+### Daemonize (systemd)
+`finbot.service` can take care of keeping `bot.py` running in the background and starting on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User` and `ExecStart`, then enable and start it:
+```
+sed -i 's/CHANGEME/YOUR USERNAME/' finbot.service
+sudo cp -v finbot.service /etc/systemd/system/finbot.service
+sudo systemctl enable finbot --now
+```
+
 ## Limitations
 * Discord shows garbage link previews from Sharesight. Modify the script to remove hyperlinks, or disable this for your Discord account under _Settings > Text & Images > Embeds and link previews._
 
