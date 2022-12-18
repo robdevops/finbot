@@ -3,8 +3,10 @@
 _This project has no affiliation with Sharesight Ltd._
 
 ## Description
+
+### Features
 * Discord, Slack and Telegram support
-* trade notifications
+* Trade notifications
 * Reports:
   * Intraday price movements for holdings over a defined threshold
   * Earnings date reminders for your holdings
@@ -14,9 +16,9 @@ _This project has no affiliation with Sharesight Ltd._
 * Supports multiple Sharesight portfolios, including portfolios shared to you
 * For speed and reliability, uses no uncommon libraries or screen scraping
 
-Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integration features, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs. Persistent storage enables a polling frequency greater than daily. Every 5 minutes, for example.
-
 ![screenshot of Slack message](img/screenshot.png?raw=true "Screenshot of Slack message")
+
+Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integration features, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs. Persistent storage enables a polling frequency greater than daily. Every 5 minutes, for example.
 
 The various reports can either run from cron, or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings in your Sharesight portfolio(s) plus a custom watch list. Depending on how they're triggered, they either report to all configured chat networks, or reply to the chat which triggered them.
 
