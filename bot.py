@@ -121,22 +121,39 @@ def main(environ, start_response):
 
 def process_request(service, chat_id, user, message, botName, userRealName):
     interactive=True
+
+    if service == 'slack':
+        url = 'https://slack.com/api/chat.postMessage'
+    elif service == 'telegram':
+        url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
+
     if not len(userRealName):
         userRealName = user
-    stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
-    watchlist_command = "^\!watchlist\s*([\w]+)*\s*([\w\.]+)*|^" + botName + "\s+watchlist\s*(\w+)*\s*([\w\.]+)*"
-    trades_command = "^\!trades\s*(\d+)*|^" + botName + "\s+trades\s*(\d+)*"
+
+    hello_command = "^\!(hello)|" + botName + "\s+(hello)"
+    m_hello = re.match(hello_command, message)
+
     holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\s+holdings\s*([\w\s]+)*"
-    shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\s+shorts\s*([\d]+)*"
+    m_holdings = re.match(holdings_command, message)
+
     premarket_command = "^\!premarket\s*([\d]+)*|^" + botName + "\s+premarket\s*([\d]+)*"
+    m_premarket = re.match(premarket_command, message)
+
+    shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\s+shorts\s*([\d]+)*"
+    m_shorts = re.match(shorts_command, message)
+
+    stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
+    m_stockfinancial = re.match(stockfinancial_command, message)
+
     thanks_command = "^\!(thanks|thankyou|thank you|tyvm)|" + botName + "\s+(thanks|thankyou|thank you)"
     m_thanks = re.match(thanks_command, message)
-    m_stockfinancial = re.match(stockfinancial_command, message)
-    m_watchlist = re.match(watchlist_command, message)
+
+    trades_command = "^\!trades\s*(\d+)*|^" + botName + "\s+trades\s*(\d+)*"
     m_trades = re.match(trades_command, message)
-    m_holdings = re.match(holdings_command, message)
-    m_shorts = re.match(shorts_command, message)
-    m_premarket = re.match(premarket_command, message)
+
+    watchlist_command = "^\!watchlist\s*([\w]+)*\s*([\w\.]+)*|^" + botName + "\s+watchlist\s*(\w+)*\s*([\w\.]+)*"
+    m_watchlist = re.match(watchlist_command, message)
+
     if m_watchlist:
         action = False
         ticker = False
@@ -149,27 +166,18 @@ def process_request(service, chat_id, user, message, botName, userRealName):
         if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
             action = 'delete'
         payload = prepare_watchlist(service, user, action, ticker)
-        url = webhooks[service]
-        if service == 'slack':
-            url = 'https://slack.com/api/chat.postMessage'
-        elif service == 'telegram':
-            url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif message in ("!help", "!usage", botName + " help", botName + " usage"):
         payload = prepare_help(service, user, botName)
-        if service == 'slack':
-            url = 'https://slack.com/api/chat.postMessage'
-        elif service == 'telegram':
-            url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 1
+    elif m_hello:
+        time.sleep(3) # pause for realism
+        payload = [f"Very nice to meet you, {userRealName}! 😇"]
+        webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_thanks:
         time.sleep(3) # pause for realism
-        payload = [f"You're very welcome, {userRealName}! 😇"]
-        if service == 'slack':
-            url = 'https://slack.com/api/chat.postMessage'
-        elif service == 'telegram':
-            url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
+        payload = [f"You're most welcome, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_premarket:
         premarket_threshold = config_price_percent
@@ -193,47 +201,44 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             days = int(m_trades.group(1))
         else:
             days = 1
-        if service == 'slack':
-            url = 'https://slack.com/api/chat.postMessage'
-        if service == 'telegram':
-            url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         # easter egg 2
         searchVerb = [
                 'Asking ChatGPT to help me find',
                 'Avoiding eye contact with',
                 'Carrying the 1 on',
-                'Combing through',
+                'Conducting seance to make contact with',
                 'Conjuring up',
-                'Digging up',
-                'Dispatching fluffy dogs to sniff down',
-                'Entering metaverse for maximum inefficiency on',
+                'Dispatching fluffy dogs to track',
+                'Entering metaverse to inefficiently get',
                 'Excavating',
                 'Foraging for',
                 'Hiring developers to troubleshoot',
                 'Loading backup tapes for',
-                'Manifesting', 'Massaging data for',
+                'Manifesting',
+                'Massaging data for',
+                'Mining dogecoin to buy report on',
                 'Panning for',
                 'Performing expert calculus on',
                 'Plucking',
                 'Poking a stick at',
                 'Praying for',
-                'Raking up',
                 'Reciting incantations on',
                 'Repairing file-system to restore',
-                'Resetting Sharesight password to get',
+                'Resetting Sharesight password to fetch',
                 'Rummaging for',
                 'SELECT * FROM topsecret WHERE',
                 'Sacrificing wildebeest to recover',
                 'Shooing rodents to access',
-                'Sifting through', 'Summoning',
+                'Summoning',
+                f"Time travelling { f'{days} days' if days != 1 else 'day' } to get",
                 'Training pigeons to fetch',
                 'Transcribing Hebrew for',
+                'Traversing the void for',
                 'Unshredding documents for',
                 'Unspilling coffee to read',
                 'ls -l /var/lib/topsecret/ | grep'
                 ]
         payload = [ f"{random.choice(searchVerb)} trades from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
-        #payload = [ f"{user} beep boop. Rummaging for trades from the past {days} days 🔍" ]
         webhook.payload_wrapper(service, url, payload, chat_id)
         trades.lambda_handler(chat_id, days, interactive, service, user)
     elif m_holdings:
@@ -270,10 +275,6 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             payload = [ f"{user} Please try again specifying a portfolio:" ]
             for item in portfolios:
                 payload.append( item )
-        if service == 'slack':
-            url = 'https://slack.com/api/chat.postMessage'
-        elif service == 'telegram':
-            url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_stockfinancial:
         print("starting stock detail")
@@ -287,10 +288,6 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             if m_stockfinancial.group(2):
                 bio=True
         payload = prepare_stockfinancial_payload(service, user, ticker, bio)
-        if service == 'slack':
-            url = 'https://slack.com/api/chat.postMessage'
-        elif service == 'telegram':
-            url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
 
 def doDelta(inputList):
