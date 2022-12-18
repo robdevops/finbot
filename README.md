@@ -1,14 +1,10 @@
-# sharesight-bot
-
-_This project has no affiliation with Sharesight Ltd._
+# finbot
 
 ## Description
 
 ### Features
-* Discord, Slack and Telegram support
-* Trade notifications
-* Supports multiple Sharesight portfolios, including those shared by other accounts
-* Holdings reports:
+* Sharesight Trade notifications
+* Yahoo Finance data for Sharesight holdings:
   * Intraday and premarket price movements over a defined threhold
   * Earnings date reminders
   * Ex-dividend date warnings
@@ -17,6 +13,7 @@ _This project has no affiliation with Sharesight Ltd._
   * Stock lookup with price/valuation-related stats and warnings
   * Stock lookup, with company profile
   * Shared watch list
+* Discord, Slack and Telegram support
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
@@ -29,7 +26,7 @@ The interactive bot requires you to host a web service on a domain with a truste
 * Look up stock facts when given a ticker code
 * Allow your chat group to maintain a shared watch list that is picked up by the various reports.
 
-![Screenshot showing stock info on Telegram](img/stockinfo.png?raw=true "Screenshot showing stock info on Telegram")
+![Screenshot showing stock info on Slack](img/stockinfo.png?raw=true "Screenshot showing stock info on Slack")
 
 ## Dependencies
 * Sharesight paid plan, preferably with automatic trade imports, and an API key
@@ -116,7 +113,7 @@ Tracks securities which are not in your Sharesight holdings. Use the Yahoo! Fina
 ```
 watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
 ```
-Once this value is loaded into interactive mode, it is not read again. Interactive mode uses its own watchlist file.
+Once this value is loaded into the interactive bot, it is not read again. Interactive mode uses its own watchlist file.
 
 ## Reports
 
