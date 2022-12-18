@@ -208,7 +208,7 @@ server {
 For Telegram, message BotFather to create a bot. Set .env `telegramBotToken` to the token given by BotFather.
 Set .env `telegram_outgoing_webhook` to your web server (https://www.example.com:8443/telegram), add your Telegram bot to a group, and give it group admin access so it can read the group chat. With these options set, your bot will auto-subscribe to events the bot sees, when you run `interactive.py`.
 
-For Slack, visit https://api.slack.com/apps/ to create/configure an app. Put its token from _Basic Information > Verification Token_ into the the .env file under `slackToken`. Put your web server URL (https://www.example.com:8443/slack) into _Event Subscriptions > Enable Events_ (the bot will auto verify if `interactive.py` is running and reachable), and finally, subscribe to event `app_mention` for the bot to see _@botname_ mentions.
+For Slack, visit https://api.slack.com/apps/ to create a new Slack app. Put its token from _Basic Information > Verification Token_ into the the .env file under `slackToken`. Put your web server URL (https://www.example.com:8443/slack) into _Event Subscriptions > Enable Events_ (the bot will auto verify if `interactive.py` is running and reachable), and finally, subscribe to event `app_mention` for the bot to see _@botname_ mentions.
 * You can also subscribe to `message.channels` if you want your bot to see everything and respond to `!` commands.
 * If you want to DM the bot, subscribe to `message.im`, and check the box _App Home > Allow users to send Slash commands and messages from the messages tab_.
 
