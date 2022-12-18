@@ -3,17 +3,26 @@
 _This project has no affiliation with Sharesight Ltd._
 
 ## Description
-* Trade notifications
-* Intraday price movements for holdings over a defined threshold
-* Earnings date reminders for your holdings
-* Ex-dividend date warnings for your holdings
-* Highly shorted stock warnings for your holdings (AU, US)
 * Discord, Slack and Telegram support
+* trade notifications
+* Reports:
+** Intraday price movements for holdings over a defined threshold
+** Earnings date reminders for your holdings
+** Ex-dividend date warnings for your holdings
+** Highly shorted stock warnings for your holdings (AU, US)
+* Interactive chat commands for stock info (Slack & Telegram)
 * Supports multiple Sharesight portfolios, including portfolios shared to you
-* For speed and reliability, no use of uncommon libraries or screen scraping
-* Interactive chat commands (Slack & Telegram)
+* For speed and reliability, uses no uncommon libraries or screen scraping
 
+Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integration features, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs. Persistent storage enables a polling frequency greater than daily. Every 5 minutes, for example.
 ![screenshot of Slack message](img/screenshot.png?raw=true "Screenshot of Slack message")
+
+The various reports can either run from cron, or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings in your Sharesight portfolio(s) plus a custom watch list. Depending on how they're triggered, they either report to all configured chat networks, or reply to the chat which triggered them.
+
+The interactive bot requires you to host a web service on a domain with a trusted certificate. It subscribes to push updates from native Slack apps / Telegram bots, and reacts to certain regex seen in chat. It can: 
+* Run the aforementioned reports on demand
+* Look up stock facts when given a ticker code
+* Allow your chat group to maintain a shared watch list that is picked up by the various reports
 
 ## Dependencies
 * Sharesight paid plan, preferably with automatic trade imports, and an API key
@@ -48,6 +57,7 @@ sharesight_client_secret = '01d692d4de7mockupfc64bc2e2f01d692d4de72986ea808f6e99
 ```
 
 ### Discord
+Discord support is currently only for trade notifications and scheduled reports.
 The Discord webhook can be provisioned under _Server Settings > Integrations > Webhooks_.
 We use Discord's Slack compatibility by appending `/slack` to the Discord webhook in the .env file. Example:
 ```
@@ -59,6 +69,7 @@ A Slack webhook can be provisioned by creating a new app at https://api.slack.co
 ```
 slack_webhook = 'https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA'
 ```
+The webhook is only used for the trade notifications and scheduled reports. The interactive bot requires further configuration of this Slack app (see below).
 
 ### Telegram
 * Set up the bot by messaging [BotFather](https://telegram.me/BotFather).
@@ -85,19 +96,19 @@ Alternatively, you can include only specific portfolios:
 include_portfolios = "100001 100002"
 ```
 
-### Watchlist
-Tracks securities which are not in your Sharesight holdings. Use the Yahoo! Finance ticker format. Example:
-```
-watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
-```
-Once this value is loaded into interactive mode, it is not read again. Interactive mode uses its own watchlist file.
-
 ### Caching
 Many object sources are cached for just under one day by default. Cache is controlled by the settings below. Trades IDs are stored on disk, but trades are not cached for functional reasons.
 ```
 cache = True
 cache_seconds = 82800
 ```
+
+### Watchlist
+Tracks securities which are not in your Sharesight holdings. Use the Yahoo! Finance ticker format. Example:
+```
+watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
+```
+Once this value is loaded into interactive mode, it is not read again. Interactive mode uses its own watchlist file.
 
 ## Reports
 
@@ -148,7 +159,6 @@ future_days = 7
 shorts_percent = 15
 ```
 
-
 ## Scheduling example
 Recommended for a machine set to UTC:
 ```
@@ -176,11 +186,11 @@ The above can be installed with:
 ## Interactive bot
 Currently supporting Slack and Telegram, the interactive bot adds:
 * Stock lookup (financials and company profile)
-* Group configurable watch list
-* Listing portfolios and current holdings
-* Running certain reports which are normally scheduled (see above), on demand.
+* Group maintainable watch list
+* Listing of portfolios and their current holdings
+* Running the stock reports on command
 
-The bot backend `interactive.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
+The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
 It defaults to listening on http://127.0.0.1:5000/, which can be changed by setting `ip` and `port` in the .env file.
 
 Example frontend https server config (nginx):
@@ -205,10 +215,10 @@ server {
 
 ### Integrating the interactive bot with chat networks
 
-For Telegram, message BotFather to create a bot. Set .env `telegramBotToken` to the token given by BotFather.
-Set .env `telegram_outgoing_webhook` to your web server (https://www.example.com:8443/telegram), add your Telegram bot to a group, and give it group admin access so it can read the group chat. With these options set, your bot will auto-subscribe to events the bot sees, when you run `interactive.py`.
+For Telegram, message BotFather to create a bot. Set .env file `telegramBotToken` to the token given by BotFather. 
+Set .env `telegram_outgoing_webhook` to your web server (https://www.example.com:8443/telegram). Add your Telegram bot to a group, and give it group admin access so it can read the group chat. With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
 
-For Slack, visit https://api.slack.com/apps/ to create a new Slack app. Put its token from _Basic Information > Verification Token_ into the the .env file under `slackToken`. Put your web server URL (https://www.example.com:8443/slack) into _Event Subscriptions > Enable Events_ (the bot will auto verify if `interactive.py` is running and reachable), and finally, subscribe to event `app_mention` for the bot to see _@botname_ mentions.
+For Slack, visit https://api.slack.com/apps/ to create a new Slack app. Put its token from _Basic Information > Verification Token_ into the the .env file under `slackToken`. Put your web server URL (https://www.example.com:8443/slack) into _Event Subscriptions > Enable Events_ (the bot will auto verify Slack's verification request if `bot.py` is running and reachable), and finally, under _Event Subscriptions > Subscribe to bot events_, add event `app_mention` for the bot to see _@botname_ mentions.
 * You can also subscribe to `message.channels` if you want your bot to see everything and respond to `!` commands.
 * If you want to DM the bot, subscribe to `message.im`, and check the box _App Home > Allow users to send Slash commands and messages from the messages tab_.
 
