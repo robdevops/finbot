@@ -25,11 +25,12 @@ The various reports can either run from cron, or on demand through the interacti
 The interactive bot requires you to host a web service on a domain with a trusted certificate. It subscribes to push updates from native Slack apps / Telegram bots, and reacts to certain regex seen in chat. It can: 
 * Run the aforementioned reports on demand
 * Look up stock facts when given a ticker code
-* Allow your chat group to maintain a shared watch list that is picked up by the various reports
+* Allow your chat group to maintain a shared watch list that is picked up by the various reports.
 
 ## Dependencies
 * Sharesight paid plan, preferably with automatic trade imports, and an API key
 * Slack / Discord webhooks / Telegram bot user
+* The interactive bot requires a web server with domain name and matching certificate, plus the gevent Python module
 * Python 3.8.10
 * Python modules:
 ```
