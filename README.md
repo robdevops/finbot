@@ -6,10 +6,10 @@ _This project has no affiliation with Sharesight Ltd._
 * Discord, Slack and Telegram support
 * trade notifications
 * Reports:
-** Intraday price movements for holdings over a defined threshold
-** Earnings date reminders for your holdings
-** Ex-dividend date warnings for your holdings
-** Highly shorted stock warnings for your holdings (AU, US)
+  * Intraday price movements for holdings over a defined threshold
+  * Earnings date reminders for your holdings
+  * Ex-dividend date warnings for your holdings
+  * Highly shorted stock warnings for your holdings (AU, US)
 * Interactive chat commands for stock info (Slack & Telegram)
 * Supports multiple Sharesight portfolios, including portfolios shared to you
 * For speed and reliability, uses no uncommon libraries or screen scraping
