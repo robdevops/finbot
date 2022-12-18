@@ -9,7 +9,7 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, interactive=False, service=False, user=''):
+def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=False, user='', interactive=False):
     time_now = datetime.datetime.today()
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
     start_date = time_now - datetime.timedelta(days=past_days)
@@ -61,13 +61,12 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, in
             currency_temp = util.currency_from_market(market)
             if currency_temp:
                 currency = currency_temp
-            brief=True
             if service == 'telegram':
                 trade_link = '<a href="' + sharesight_url + holding_id + '/trades/' + trade_id + '/edit">' + verb + '</a>'
-                holding_link = util.yahoo_link(ticker, service, brief)
+                holding_link = util.yahoo_link(ticker, service, brief=True)
             elif service in {'discord', 'slack'}:
                 trade_link = '<' + sharesight_url + holding_id + '/trades/' + trade_id + '/edit' + '|' + verb + '>'
-                holding_link = util.yahoo_link(ticker, service, brief)
+                holding_link = util.yahoo_link(ticker, service, brief=True)
             else:
                 trade_link = verb
                 holding_link = symbol

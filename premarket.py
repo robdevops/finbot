@@ -8,7 +8,7 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, interactive=False, service=False, user=''):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', interactive=False):
     def prepare_price_payload(service, market_data, threshold):
         postmarket = False
         payload = []

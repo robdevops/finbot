@@ -120,8 +120,6 @@ def main(environ, start_response):
     return [b'']
 
 def process_request(service, chat_id, user, message, botName, userRealName):
-    interactive=True
-
     if service == 'slack':
         url = 'https://slack.com/api/chat.postMessage'
     elif service == 'telegram':
@@ -130,7 +128,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
     if not len(userRealName):
         userRealName = user
 
-    hello_command = "^\!(hello)|" + botName + "\s+(hello)"
+    hello_command = "^\!(hello)|^" + botName + "\s+(hello)|^(hi|hello)\s+" + botName
     m_hello = re.match(hello_command, message)
 
     holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\s+holdings\s*([\w\s]+)*"
@@ -185,7 +183,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             premarket_threshold = int(m_premarket.group(2))
         elif m_premarket.group(1):
             premarket_threshold = int(m_premarket.group(1))
-        premarket.lambda_handler(chat_id, premarket_threshold, interactive, service, user)
+        premarket.lambda_handler(chat_id, premarket_threshold, service, user, interactive=True)
     elif m_shorts:
         print("starting shorts report...")
         shorts_threshold = config_shorts_percent
@@ -193,7 +191,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             shorts_threshold = int(m_shorts.group(2))
         elif m_shorts.group(1):
             shorts_threshold = int(m_shorts.group(1))
-        shorts.lambda_handler(chat_id, shorts_threshold, interactive, service, user)
+        shorts.lambda_handler(chat_id, shorts_threshold, service, user, interactive=True)
     elif m_trades:
         if m_trades.group(2):
             days = int(m_trades.group(2))
@@ -240,7 +238,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
                 ]
         payload = [ f"{random.choice(searchVerb)} trades from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
         webhook.payload_wrapper(service, url, payload, chat_id)
-        trades.lambda_handler(chat_id, days, interactive, service, user)
+        trades.lambda_handler(chat_id, days, service, user, interactive=True)
     elif m_holdings:
         payload = []
         portfolioName = False
@@ -257,11 +255,10 @@ def process_request(service, chat_id, user, message, botName, userRealName):
                 tickers = sharesight.get_holdings(portfolioName, portfolioId)
                 market_data = yahoo.fetch(tickers)
                 print("")
-                brief = True
                 for item in market_data:
                     ticker = market_data[item]['ticker']
                     title = market_data[item]['profile_title']
-                    yahoo_link = util.yahoo_link(ticker, service, brief)
+                    yahoo_link = util.yahoo_link(ticker, service, brief=True)
                     payload.append(f"{title} ({yahoo_link})")
                 portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
                 payload.sort()

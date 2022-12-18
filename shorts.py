@@ -8,7 +8,7 @@ import lib.util as util
 import lib.yahoo as yahoo
 import lib.shortman as shortman
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percent, interactive=False, service=False, user=''):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percent, service=False, user='', interactive=False):
     def prepare_shorts_payload(service, market_data):
         payload = []
         emoji = "🩳"
