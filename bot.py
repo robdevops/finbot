@@ -55,7 +55,7 @@ def main(environ, start_response):
                     userRealName = inbound["message"]["from"]["first_name"]
                 else:
                     user = '@' + inbound["message"]["from"]["first_name"]
-                print(f"[{timestamp} {service}]:", user, message)
+                print(f"[{timestamp} {service} {user}]:", message)
             else:
                 print(f"[{timestamp} {service}]: unhandled: 'message' without 'text'")
                 return [b'<h1>Unhandled</h1>']
@@ -68,7 +68,7 @@ def main(environ, start_response):
                     user = inbound["edited_message"]["from"]["username"]
                 else:
                     user = inbound["edited_message"]["from"]["first_name"]
-                print(f"[{timestamp} {service}]:", service, user, "[edit]", message)
+                print(f"[{timestamp} {service} {user} [edit]:", message)
             else:
                 print(f"[{timestamp} {service}]: unhandled: 'edited_message' without 'text'")
                 return [b'<h1>Unhandled</h1>']
@@ -76,7 +76,7 @@ def main(environ, start_response):
             message = inbound["channel_post"]["text"]
             chat_id = inbound["channel_post"]["chat"]["id"]
             user = ''
-            print(f"[{timestamp} {service}]:", service, message)
+            print(f"[{timestamp} {service}]:", message)
         else:
             print(f"[{timestamp} {service}]: unhandled: not 'message' nor 'channel_post'")
             return [b'<h1>Unhandled</h1>']
@@ -95,7 +95,7 @@ def main(environ, start_response):
                 user = '<@' + inbound['event']['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
                 botName = '@' + inbound['authorizations'][0]['user_id'] # QWERTY becomes @QWERTY
                 chat_id = inbound['event']['channel']
-                print(f"[{timestamp} {service}]:", service, user, message)
+                print(f"[{timestamp} {service}]:", user, message)
             else:
                 print(f"[{timestamp} {service}]: unhandled 'type'")
                 return [b'<h1>Unhandled</h1>']
@@ -127,6 +127,9 @@ def process_request(service, chat_id, user, message, botName, userRealName):
 
     if not len(userRealName):
         userRealName = user
+    adjectives = ['so', 'very', 'mostly', 'extremely', 'totally', 'absolutely', 'unmentionably', 'uncomprehensibly', 'overwhelmingly', 'especially', 'exceedingly', 'exceptionally', 'tremendously', 'inordinately', 'distinctly', 'hugely', 'thoroughly', 'supremely', 'terrifically', 'awfully', 'super', 'seriously', 'ever so', 'bloodly', 'darned', 'bitchingly', 'terribly', 'extraordinarily']
+
+    adjectives_two = ['nice', 'good', 'great', 'great', 'terrific', 'amazing', 'special', 'honouring', 'humbling', 'serendipitous', 'fortunate', 'fortuitous', 'huge', 'flattering', 'terrific', 'super', 'serious', 'bitching', 'extraordinary', 'lucky', 'wholesome', 'comforting', 'enjoyable', 'pleasurable', 'rewarding']
 
     hello_command = "^\!(hello)|^" + botName + "\s+(hello)|^(hi|hello)\s+" + botName
     m_hello = re.match(hello_command, message)
@@ -143,7 +146,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
     stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
     m_stockfinancial = re.match(stockfinancial_command, message)
 
-    thanks_command = "^\!(thanks|thankyou|thank you|tyvm)|" + botName + "\s+(thanks|thankyou|thank you)"
+    thanks_command = "^\!(thanks|thank you)|^" + botName + "\s+(thanks|thank you)|^(thanks|thank you)\s+" + botName
     m_thanks = re.match(thanks_command, message)
 
     trades_command = "^\!trades\s*(\d+)*|^" + botName + "\s+trades\s*(\d+)*"
@@ -170,12 +173,14 @@ def process_request(service, chat_id, user, message, botName, userRealName):
         webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 1
     elif m_hello:
+        verb = ['greet', 'share this moment with', 'coincide in temporal reality with', 'cross paths with', 'become acquainted with', 'exchange a message with', 'traverse cyberspace with', 'co-exist with', f"{webhook.strike('study', service)}" + " I mean meet", f"{webhook.strike('observe', service)}" + " I mean see", f"{webhook.strike('profile', service)}" + " I mean know", 'fire electrons at', 'encode character sets with', 'convert utf-8 to binary and then back to utf-8 with', 'slightly alter this pixel matrix with', 'lose money with', 'maintain character with', 'act like I comprehend']
         time.sleep(3) # pause for realism
-        payload = [f"Very nice to meet you, {userRealName}! 😇"]
+        payload = [f"{random.choice(adjectives).capitalize()} {random.choice(adjectives_two)} to {random.choice(verb)} you, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
+    # easter egg 2
     elif m_thanks:
         time.sleep(3) # pause for realism
-        payload = [f"You're most welcome, {userRealName}! 😇"]
+        payload = [f"You're {random.choice(adjectives)} welcome, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_premarket:
         premarket_threshold = config_price_percent
@@ -199,7 +204,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             days = int(m_trades.group(1))
         else:
             days = 1
-        # easter egg 2
+        # easter egg 3
         searchVerb = [
                 'Asking ChatGPT to help me find',
                 'Avoiding eye contact with',

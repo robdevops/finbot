@@ -58,3 +58,21 @@ def bold(message, service):
         message = '**' + message + '**'
     return message
 
+def italic(message, service):
+    if service == 'telegram':
+        message = '<i>' + message + '</i>'
+    elif service == 'slack':
+        message = '_' + message + '_'
+    elif service == 'discord':
+        message = '_' + message + '_'
+    return message
+
+def strike(message, service):
+    if service == 'telegram':
+        message = '<s>' + message + '</s>'
+    elif service == 'slack':
+        message = '~' + message + '~'
+    elif service == 'discord':
+        message = '~~' + message + '~~'
+    return message
+

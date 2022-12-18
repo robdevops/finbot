@@ -77,7 +77,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             payload.insert(0, message)
         else:
             if interactive:
-                # easter egg 3
+                # easter egg 4
                 noTradesVerb = [
                         "The money is probably resting in another account",
                         "Oh well. The market would have just gone down anyway",
