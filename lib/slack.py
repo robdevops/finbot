@@ -4,7 +4,7 @@ from lib.config import *
 
 def getUser(user_id):
     url = 'https://slack.com/api/users.info'
-    headers = {'Content-type': 'application/x-www-form-urlencoded', 'Authorization': 'Bearer ' + config_slackToken, 'user': user_id}
+    headers = {'Content-type': 'application/x-www-form-urlencoded', 'Authorization': 'Bearer ' + config_slackOAuthToken, 'user': user_id}
     response = requests.get(url, headers=headers)
     print(response.json())
     return response.json()

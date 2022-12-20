@@ -10,16 +10,16 @@
   * Ex-dividend date warnings
   * Highly shorted stock warnings (AU, US)
 * Interactive chat commands for stock info (Slack & Telegram):
-  * Stock lookup with price/valuation-related stats and warnings
+  * Stock lookup with price/valuation related stats and warnings
   * Stock lookup, with company profile
   * Shared watch list
 * Discord, Slack and Telegram support
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
-Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integration features, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs. Persistent storage enables a polling frequency greater than daily. Every 5 minutes, for example.
+Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs. Persistent storage enables a polling frequency greater than daily such as every 5 minutes.
 
-The various reports can either run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings in your Sharesight portfolio(s) plus a custom watch list. Depending on how they're triggered, they either report to all configured chat networks, or reply to the chat which triggered them.
+The various reports can either run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings combined across your Sharesight portfolios, your friends Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they either report to all configured chat networks, or reply to the chat which triggered them.
 
 The interactive bot requires you to host a web service on a domain with a trusted certificate. It subscribes to push updates from native Slack apps / Telegram bots, and reacts to certain regex seen in chat. It can: 
 * Run the aforementioned reports on demand
@@ -44,13 +44,13 @@ sudo pip3 install git datetime python-dotenv requests gevent
 ```
 
 ```
-git clone https://github.com/robdevops/sharesight-bot.git ~/sharesight-bot
+git clone https://github.com/robdevops/finbot.git ~/finbot
 ```
 
 ## Setup
-Configuration is set by the .env file in the parent directory. Example:
+Configuration is set by the .env file in the main directory. Example:
 ```
-vi ~/sharesight-bot/.env
+vi ~/finbot/.env
 ```
 
 ### Sharesight
@@ -124,7 +124,7 @@ Once this value is loaded into the interactive bot, it is not read again. Intera
 * To avoid duplicate trades, you can either limit this to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are tracked in a state file defined by `state_file` in the .env file.
 * By default, this report only checks for trades for the current day. You can override this with `past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will send all historical trades for the period.
 ```
-state_file = '/tmp/sharesight-bot-trades.txt'
+state_file = '/tmp/finbot-trades.txt'
 past_days = 31
 ```
 
@@ -168,24 +168,24 @@ shorts_percent = 15
 Recommended for a machine set to UTC:
 ```
 # Every 20 minutes on weekdays
-*/20 * * * Mon-Fri ~/sharesight-bot/trades.py > /dev/null
+*/20 * * * Mon-Fri ~/finbot/trades.py > /dev/null
 
 # Daily
-30  21 * * * ~/sharesight-bot/finance_calendar.py > /dev/null
+30  21 * * * ~/finbot/finance_calendar.py > /dev/null
 
 # Daily on weekdays
-29  21 * * Mon-Fri ~/sharesight-bot/price.py > /dev/null
-10  11 * * Mon-Fri ~/sharesight-bot/premarket.py > /dev/null
+29  21 * * Mon-Fri ~/finbot/price.py > /dev/null
+10  11 * * Mon-Fri ~/finbot/premarket.py > /dev/null
 
 # Weekly
-28  21 * * Fri { cd ~/sharesight-bot/; ./earnings.py; ./ex-dividend.py ;} > /dev/null
+28  21 * * Fri { cd ~/finbot/; ./earnings.py; ./ex-dividend.py ;} > /dev/null
 
 # Monthly
-27  21 1 * * ~/sharesight-bot/shorts.py > /dev/null
+27  21 1 * * ~/finbot/shorts.py > /dev/null
 ```
 The above can be installed with:
 ```
-(crontab -l ; cat ~/sharesight-bot/crontab.txt)| crontab -
+(crontab -l ; cat ~/finbot/crontab.txt)| crontab -
 ```
 
 ## Interactive bot
@@ -202,6 +202,7 @@ Example frontend https server config (nginx):
 ```
 server {
 	listen 8443 ssl;
+	deny all;
 
 	server_name         www.example.com;
 	ssl_certificate     /etc/letsencrypt/live/www.example.com/fullchain.pem;
@@ -211,9 +212,12 @@ server {
 
 	location /slack {
     		proxy_pass http://127.0.0.1:5000/slack;
+		allow all;
 	}
 	location /telegram {
     		proxy_pass http://127.0.0.1:5000/telegram;
+		allow 91.108.4.0/22
+		deny all;
 	}
 }
 ```
@@ -223,7 +227,7 @@ server {
 For Telegram, message BotFather to create a bot. Set .env file `telegramBotToken` to the token given by BotFather. 
 Set .env `telegram_outgoing_webhook` to your web server (https://www.example.com:8443/telegram). Add your Telegram bot to a group, and give it group admin access so it can read the group chat. With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
 
-For Slack, visit https://api.slack.com/apps/ to create a new Slack app. Put its token from _Basic Information > Verification Token_ into the the .env file under `slackToken`. Put your web server URL (https://www.example.com:8443/slack) into _Event Subscriptions > Enable Events_ (the bot will auto verify Slack's verification request if `bot.py` is running and reachable), and finally, under _Event Subscriptions > Subscribe to bot events_, add event `app_mention` for the bot to see _@botname_ mentions.
+For Slack, visit https://api.slack.com/apps/ to create a new Slack app. Put the token from _OAuth & Permissions > Bot User OAuth Token_ into .env file `slackOAuthToken` and the token from _Basic Information > Verification Token_ into the .env file `slackVerifyToken`. Put your web server URL (https://www.example.com:8443/slack) into _Event Subscriptions > Enable Events_ (the bot will auto verify Slack's verification request if `bot.py` is running and reachable), and finally, under _Event Subscriptions > Subscribe to bot events_, add event `app_mention` for the bot to see _@botname_ mentions.
 * You can also subscribe to `message.channels` if you want your bot to see everything and respond to `!` commands.
 * If you want to DM the bot, subscribe to `message.im`, and check the box _App Home > Allow users to send Slash commands and messages from the messages tab_.
 
@@ -263,4 +267,4 @@ sudo systemctl enable finbot --now
 * Is my code is doing something the hard way?
 * Something important is missing from this README?
 
-Log an [issue](https://github.com/robdevops/sharesight-bot/issues)!
+Log an [issue](https://github.com/robdevops/finbot/issues)!

@@ -4,7 +4,7 @@ from lib.config import *
 
 def subscribe():
     telegram_url = webhooks['telegram'] + 'setWebhook'
-    params = {"url": config_telegram_outgoing_webhook, "allowed_updates": ["message"]}
+    params = {"url": config_telegram_outgoing_webhook, "allowed_updates": ["message"], 'secret_token': config_telegramOutgoingToken}
     #params = {"url": ''} # unsubscribe
     response = requests.post(
         telegram_url,

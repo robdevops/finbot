@@ -11,7 +11,7 @@ def write(service, url, payload, slackchannel=False):
     if 'slack.com' in url:
         headers = {**headers, **{'unfurl_links': 'false', 'unfurl_media': 'false'}} # FIX python 3.9
         if slackchannel:
-            headers = {**headers, **{'Authorization': 'Bearer ' + config_slackToken}} # FIX python 3.9
+            headers = {**headers, **{'Authorization': 'Bearer ' + config_slackOAuthToken}} # FIX python 3.9
             payload = {**payload, **{'channel': slackchannel}} # FIX python 3.9
     elif 'api.telegram.org' in url:
         payload = {**payload, **{'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true'}}
