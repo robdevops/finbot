@@ -33,29 +33,32 @@ def main(environ, start_response):
     timestamp = str(timestamp.strftime('%H:%M:%S')) # 2022-09-20
 
     uri = environ['PATH_INFO']
-    def print_incoming():
+    def print_body():
         try:
             print(f"[{timestamp}]: inbound {uri}", json.dumps(inbound, indent=4))
         except Exception as e:
             print(e, "raw body: ", inbound)
+    def print_headers():
+        for item in environ.items():
+            print(item)
     if debug:
-        print_incoming()
+        print_headers()
+        print_body()
 
     # first pass
     user=''
     userRealName=''
     if uri == '/telegram':
         if 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' not in environ:
+            print_headers()
             print("warning: Telegram authorisation header is not present")
-            print_incoming()
             return [b'<h1>Unauthorized</h1>']
         telegram_secret_received = environ['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN']
         if telegram_secret_received == config_telegramOutgoingToken:
             print("Incoming request authenticated")
         else: 
-            print("warning: Telegram authorisation header is present but incorrect:", telegram_secret_received)
-            print("expected:", config_telegramOutgoingToken)
-            print_incoming()
+            print_headers()
+            print("warning: Telegram authorisation header is present but incorrect. Expected:", config_telegramOutgoingToken)
             return [b'<h1>Unauthorized</h1>']
         botName = '@' + telegram.getBotName()
         service = 'telegram'
@@ -101,14 +104,14 @@ def main(environ, start_response):
         service = 'slack'
         if 'token' not in inbound:
             print("warning: Slack authorisation field not present")
-            print_incoming()
+            print_body()
             return [b'<h1>Unauthorized</h1>']
         if inbound['token'] == config_slackOutgoingToken:
             print("Incoming request authenticated")
         else:
             print("warning: Slack authorisation field is present but incorrect")
             print("expected:", config_slackOutgoingToken)
-            print_incoming()
+            print_body()
             return [b'<h1>Unauthorized</h1>']
         if 'type' in inbound:
             if inbound['type'] == 'url_verification':
