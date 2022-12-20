@@ -74,7 +74,11 @@ def get_portfolios():
     return portfolio_dict
 
 def get_trades(portfolio_name, portfolio_id, days=config_past_days):
-    # DO NOT CACHE #
+    # DO NOT CACHE LONG ENOUGH FOR CRON TO NOTICE #
+    cache_file = config_cache_dir + "/sharesight_trade_cache_" + str(portfolio_id) + "_" + str(days) + ".json"
+    cache = util.read_cache(cache_file, 59)
+    if config_cache and cache:
+        return cache['trades']
     time_now = datetime.datetime.today()
     start_date = time_now - datetime.timedelta(days=days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
@@ -87,6 +91,8 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     print(len(data['trades']))
     for trade in data['trades']:
        trade['portfolio'] = portfolio_name
+    if config_cache:
+        util.write_cache(cache_file, data)
     return data['trades']
 
 def get_holdings(portfolio_name, portfolio_id):
