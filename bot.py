@@ -8,6 +8,7 @@ import threading
 #from itertools import pairwise # python 3.10
 
 from lib.config import *
+import lib.telegram as telegram
 import lib.worker as worker
 
 def main(environ, start_response):
