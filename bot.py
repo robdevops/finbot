@@ -50,7 +50,9 @@ def main(environ, start_response):
             print_incoming()
             return [b'<h1>Unauthorized</h1>']
         telegram_secret_received = environ['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN']
-        if telegram_secret_received != config_telegramOutgoingToken:
+        if telegram_secret_received == config_telegramOutgoingToken:
+            print("Incoming request authenticated")
+        else: 
             print("warning: Telegram authorisation header is present but incorrect:", telegram_secret_received)
             print("expected:", config_telegramOutgoingToken)
             print_incoming()
@@ -101,7 +103,9 @@ def main(environ, start_response):
             print("warning: Slack authorisation field not present")
             print_incoming()
             return [b'<h1>Unauthorized</h1>']
-        if inbound['token'] != config_slackOutgoingToken:
+        if inbound['token'] == config_slackOutgoingToken:
+            print("Incoming request authenticated")
+        else:
             print("warning: Slack authorisation field is present but incorrect")
             print("expected:", config_slackOutgoingToken)
             print_incoming()
