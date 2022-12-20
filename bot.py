@@ -33,16 +33,28 @@ def main(environ, start_response):
     timestamp = str(timestamp.strftime('%H:%M:%S')) # 2022-09-20
 
     uri = environ['PATH_INFO']
-    if debug:
+    def print_incoming():
         try:
             print(f"[{timestamp}]: inbound {uri}", json.dumps(inbound, indent=4))
         except Exception as e:
             print(e, "raw body: ", inbound)
+    if debug:
+        print_incoming()
 
     # first pass
     user=''
     userRealName=''
     if uri == '/telegram':
+        if 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' not in environ:
+            print("warning: Telegram authorisation header is not present")
+            print_incoming()
+            return [b'<h1>Unauthorized</h1>']
+        telegram_secret_received = environ['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN']
+        if telegram_secret_received != config_telegramOutgoingToken:
+            print("warning: Telegram authorisation header is present but incorrect:", telegram_secret_received)
+            print("expected:", config_telegramOutgoingToken)
+            print_incoming()
+            return [b'<h1>Unauthorized</h1>']
         botName = '@' + telegram.getBotName()
         service = 'telegram'
         if "message" in inbound:
@@ -56,6 +68,7 @@ def main(environ, start_response):
                 else:
                     user = '@' + inbound["message"]["from"]["first_name"]
                 print(f"[{timestamp} {service} {user}]:", message)
+                # this condition spawns a worker before returning
             else:
                 print(f"[{timestamp} {service}]: unhandled: 'message' without 'text'")
                 return [b'<h1>Unhandled</h1>']
@@ -69,6 +82,7 @@ def main(environ, start_response):
                 else:
                     user = inbound["edited_message"]["from"]["first_name"]
                 print(f"[{timestamp} {service} {user} [edit]:", message)
+                # this condition spawns a worker before returning
             else:
                 print(f"[{timestamp} {service}]: unhandled: 'edited_message' without 'text'")
                 return [b'<h1>Unhandled</h1>']
@@ -77,11 +91,21 @@ def main(environ, start_response):
             chat_id = inbound["channel_post"]["chat"]["id"]
             user = ''
             print(f"[{timestamp} {service}]:", message)
+            # this condition spawns a worker before returning
         else:
             print(f"[{timestamp} {service}]: unhandled: not 'message' nor 'channel_post'")
             return [b'<h1>Unhandled</h1>']
     elif uri == '/slack':
         service = 'slack'
+        if 'token' not in inbound:
+            print("warning: Slack authorisation field not present")
+            print_incoming()
+            return [b'<h1>Unauthorized</h1>']
+        if inbound['token'] != config_slackOutgoingToken:
+            print("warning: Slack authorisation field is present but incorrect")
+            print("expected:", config_slackOutgoingToken)
+            print_incoming()
+            return [b'<h1>Unauthorized</h1>']
         if 'type' in inbound:
             if inbound['type'] == 'url_verification':
                 response = json.dumps({"challenge": inbound["challenge"]})
@@ -96,6 +120,7 @@ def main(environ, start_response):
                 botName = '@' + inbound['authorizations'][0]['user_id'] # QWERTY becomes @QWERTY
                 chat_id = inbound['event']['channel']
                 print(f"[{timestamp} {service}]:", user, message)
+                # this condition spawns a worker before returning
             else:
                 print(f"[{timestamp} {service}]: unhandled 'type'")
                 return [b'<h1>Unhandled</h1>']
@@ -127,9 +152,9 @@ def process_request(service, chat_id, user, message, botName, userRealName):
 
     if not len(userRealName):
         userRealName = user
-    adjectives = ['absolutely', 'amazingly', 'awfully', 'bitchingly', 'bloodly', 'darned', 'distinctly', 'especially', 'ever so', 'enjoyably', 'exceedingly', 'exceptionally', 'extraordinarily', 'extremely', 'flatteringly', 'greatly', 'fortunately', 'fortutously', 'honourably', 'hugely', 'humblingly', 'inordinately', 'luckily', 'mostly', 'overwhelmingly', 'pleasurably', 'rewardingly', 'serendipitously', 'seriously', 'significantly', 'so', 'super', 'supremely', 'surprisingly', 'terribly', 'terrifically', 'thoroughly', 'totally', 'tremendously', 'uber', 'uncomprehensibly', 'unmentionably', 'very', 'wholesomely']
+    adjectives = ['absolutely', 'amazingly', 'awfully', 'bitchingly', 'bloodly', 'darned', 'distinctly', 'especially', 'ever so', 'enjoyably', 'exceedingly', 'exceptionally', 'extraordinarily', 'extremely', 'flatteringly', 'greatly', 'fortunately', 'fortutously', 'honourably', 'hugely', 'humblingly', 'inordinately', 'luckily', 'memorably', 'mostly', 'overwhelmingly', 'pleasurably', 'rewardingly', 'serendipitously', 'seriously', 'significantly', 'so', 'super', 'supremely', 'surprisingly', 'terribly', 'terrifically', 'thoroughly', 'totally', 'tremendously', 'uber', 'uncomprehensibly', 'unmentionably', 'very', 'wholesomely']
 
-    adjectives_two = ['amazing', 'bitching', 'comforting', 'enjoyable', 'exceptional', 'extraordinary', 'flattering', 'fortuitous', 'fortunate', 'great', 'honouring', 'huge', 'humbling', 'inordinate', 'lucky', 'nice', 'overwhelming', 'pleasurable', 'rewarding', 'serendipitous', 'serious', 'significant', 'special', 'super', 'terrific', 'tremendous', 'comprehensible', 'mentionable', 'wholesome']
+    adjectives_two = ['amazing', 'bitching', 'comforting', 'enjoyable', 'exceptional', 'extraordinary', 'flattering', 'fortuitous', 'fortunate', 'great', 'honouring', 'huge', 'humbling', 'inordinate', 'lucky', 'nice', 'overwhelming', 'memorable', 'pleasurable', 'rewarding', 'serendipitous', 'significant', 'special', 'super', 'terrific', 'tremendous', 'comprehensible', 'mentionable', 'wholesome']
 
     hello_command = "^\!(hello)|^" + botName + "\s+(hello)|^(hi|hello)\s+" + botName
     m_hello = re.match(hello_command, message)
@@ -236,7 +261,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
                 'Sacrificing wildebeest to recover',
                 'Shooing rodents to access',
                 'Summoning',
-                f"Time travelling { f'{days} days' if days != 1 else 'day' } to get",
+                f"Time travelling { f'{days} days' if days != 1 else 'one day' } to get",
                 'Training pigeons to fetch',
                 'Transcribing Hebrew for',
                 'Traversing the void for',
