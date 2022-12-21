@@ -5,7 +5,7 @@ from lib.config import *
 import lib.sharesight as sharesight
 import lib.util as util
 
-def write(service, url, payload, slackchannel=False):
+def write(service, url, payload, slackchannel=False, message_id=False):
     headers = {'Content-type': 'application/json'}
     payload = {'text': payload}
     if 'slack.com' in url:
@@ -14,7 +14,7 @@ def write(service, url, payload, slackchannel=False):
             headers = {**headers, **{'Authorization': 'Bearer ' + config_slackOAuthToken}} # FIX python 3.9
             payload = {**payload, **{'channel': slackchannel}} # FIX python 3.9
     elif 'api.telegram.org' in url:
-        payload = {**payload, **{'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true'}}
+        payload = {**payload, **{'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true', "allow_sending_without_reply": True, "reply_to_message_id": message_id }}
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=config_http_timeout)
     except:
@@ -26,7 +26,7 @@ def write(service, url, payload, slackchannel=False):
         print(r.status_code, "error outbound to", service)
         return False
 
-def payload_wrapper(service, url, payload, slackchannel=False):
+def payload_wrapper(service, url, payload, slackchannel=False, message_id=False):
     if not len(payload):
         print(service + ": Nothing to send")
     else:
@@ -47,7 +47,7 @@ def payload_wrapper(service, url, payload, slackchannel=False):
             print(service, "payload is over 4,000 bytes. Splitting.")
             chunkLooper()
         else:
-            write(service, url, payload_string, slackchannel)
+            write(service, url, payload_string, slackchannel, message_id)
 
 def bold(message, service):
     if service == 'telegram':

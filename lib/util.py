@@ -52,7 +52,7 @@ def transform_title(title):
         title = title.replace('  ', ' ')
         if title.islower():
             title = title.title()
-        title = title.rstrip()
+        title = title.strip()
         return title
 
 def transform_ticker(ticker, market):

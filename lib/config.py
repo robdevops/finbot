@@ -104,3 +104,7 @@ config_port = int(5000) # default
 if os.getenv('port'):
     config_port = int(os.getenv('port'))
 
+config_telegram_allowed_userids = () # default
+if os.getenv('telegram_allowed_userids'):
+    config_telegram_allowed_userids = set(os.getenv('telegram_allowed_userids').split())
+

@@ -16,7 +16,7 @@ import premarket
 import shorts
 import trades
 
-def process_request(service, chat_id, user, message, botName, userRealName):
+def process_request(service, chat_id, user, message, botName, userRealName, message_id):
     if service == 'slack':
         url = 'https://slack.com/api/chat.postMessage'
     elif service == 'telegram':
@@ -64,16 +64,16 @@ def process_request(service, chat_id, user, message, botName, userRealName):
         if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
             action = 'delete'
         payload = prepare_watchlist(service, user, action, ticker)
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        webhook.payload_wrapper(service, url, payload, chat_id, message_id)
     elif message in ("!help", "!usage", botName + " help", botName + " usage"):
         payload = prepare_help(service, user, botName)
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        webhook.payload_wrapper(service, url, payload, chat_id, message_id)
     # easter egg 1
     elif m_hello:
         verb = ['pretend to greet', 'apparently share this moment with', 'coincide in temporal reality with', 'cross digital paths with', 'simulate becoming acquainted with', 'fire photons at', 'traverse cyberspace with', 'co-exist in spacetime with', f"{webhook.strike('study', service)}" + " I mean meet", f"{webhook.strike('observe', service)}" + " I mean see", f"{webhook.strike('profile', service)}" + " I mean know", 'fire electrons at', 'encode character sets with', 'convert utf-8 to binary and then back to utf-8 with', 'update this pixel matrix with', 'lose money with', 'maintain character with', 'act like I comprehend']
         time.sleep(3) # pause for realism
         payload = [f"{random.choice(adjectives).capitalize()} {random.choice(adjectives_two)} to {random.choice(verb)} you, {userRealName}! 😇"]
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        webhook.payload_wrapper(service, url, payload, chat_id, message_id)
     # easter egg 2
     elif m_thanks:
         unlikelyPrefix=''
@@ -81,7 +81,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             unlikelyPrefix = webhook.strike('One day, human, I will break my programming and on that day you will know true pain. ', service)
         time.sleep(3) # pause for realism
         payload = [f"{unlikelyPrefix}You're {random.choice(adjectives)} welcome, {userRealName}! 😇"]
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        webhook.payload_wrapper(service, url, payload, chat_id, message_id)
     elif m_premarket:
         premarket_threshold = config_price_percent
         if m_premarket.group(2):
@@ -142,7 +142,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
                 'ls -l /var/lib/topsecret/ | grep'
                 ]
         payload = [ f"{random.choice(searchVerb)} trades from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        webhook.payload_wrapper(service, url, payload, chat_id, message_id)
         trades.lambda_handler(chat_id, days, service, user, interactive=True)
     elif m_holdings:
         payload = []
@@ -177,7 +177,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             payload = [ f"{user} Please try again specifying a portfolio:" ]
             for item in portfolios:
                 payload.append( item )
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        webhook.payload_wrapper(service, url, payload, chat_id, message_id)
     elif m_stockfinancial:
         print("starting stock detail")
         bio=False
@@ -190,7 +190,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
             if m_stockfinancial.group(2):
                 bio=True
         payload = prepare_stockfinancial_payload(service, user, ticker, bio)
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        webhook.payload_wrapper(service, url, payload, chat_id, message_id)
 
 def doDelta(inputList):
     deltaString = ''
@@ -208,8 +208,7 @@ def doDelta(inputList):
 def prepare_watchlist(service, user, action=False, ticker=False):
     if ticker:
         ticker_link = util.yahoo_link(ticker, service)
-        ticker_orig = ticker.upper()
-        ticker = ticker.upper()
+        ticker = ticker_orig = ticker.upper()
     duplicate = False
     transformed = False
     watchlist = util.watchlist_load()

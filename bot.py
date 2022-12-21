@@ -11,18 +11,19 @@ from lib.config import *
 import lib.telegram as telegram
 import lib.worker as worker
 
+def print_body():
+    try:
+        print(f"[{current_time}]: inbound {uri} ", json.dumps(inbound, indent=4))
+    except Exception as e:
+        print(e, "raw body: ", inbound)
+def print_headers():
+    for item in sorted(environ.items()):
+        print(item)
+
 def main(environ, start_response):
-    def print_body():
-        try:
-            print(f"[{timestamp}]: inbound {uri}", json.dumps(inbound, indent=4))
-        except Exception as e:
-            print(e, "raw body: ", inbound)
-    def print_headers():
-        for item in sorted(environ.items()):
-            print(item)
     request_body = environ['wsgi.input'].read()
-    timestamp = datetime.datetime.today()
-    timestamp = str(timestamp.strftime('%H:%M:%S')) # 2022-09-20
+    current_time = datetime.datetime.today()
+    current_time = str(current_time.strftime('%H:%M:%S')) # 2022-09-20
     user=''
     userRealName=''
     # prepare response
@@ -37,55 +38,47 @@ def main(environ, start_response):
         print_body()
     if uri == '/telegram':
         service = 'telegram'
+        botName = '@' + telegram.getBotName()
         if 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' not in environ:
             print_headers()
             print("Fatal:", service, "authorisation header not present")
             return [b'<h1>Unauthorized</h1>']
-        elif environ['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] == config_telegramOutgoingToken:
-            print("Incoming request authenticated")
-        else: 
+        elif environ['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] != config_telegramOutgoingToken:
             print_headers()
             print("Fatal: Telegram authorisation header is present but incorrect. Expected:", config_telegramOutgoingToken)
             return [b'<h1>Unauthorized</h1>']
-        botName = '@' + telegram.getBotName()
-        if "message" in inbound:
+        if "message" not in inbound:
+            return [b'Unsupported']
+        else:
+            message_id = str(inbound["message"]["message_id"])
+            chat_id = str(inbound["message"]["chat"]["id"])
+            user_id = str(inbound["message"]["from"]["id"])
+            chat_type = inbound["message"]["chat"]["type"]
+            if "username" in inbound["message"]["from"]:
+                user = '@' + inbound["message"]["from"]["username"]
+                userRealName = inbound["message"]["from"]["first_name"]
+            else:
+                user = userRealName = '@' + inbound["message"]["from"]["first_name"]
+            if chat_type == "private": # Anyone can find and PM the bot so we need to be careful
+                if user_id in config_telegram_allowed_userids:
+                    print(user_id, user, userRealName, "is whitelisted for private message")
+                else:
+                    print(user_id, user, userRealName, "is not whitelisted. Ignoring.")
+                    return [b'<h1>Unauthorized</h1>']
+            file_id=False
             if "text" in inbound["message"]:
                 message = inbound["message"]["text"]
-                chat_id = inbound["message"]["chat"]
-                chat_id = str(chat_id["id"])
-                if "username" in inbound["message"]["from"]:
-                    user = '@' + inbound["message"]["from"]["username"]
-                    userRealName = inbound["message"]["from"]["first_name"]
-                else:
-                    user = '@' + inbound["message"]["from"]["first_name"]
-                print(f"[{timestamp} {service} {user}]:", message)
-                # this condition spawns a worker before returning
+                print(f"[Telegram]:", user, message)
+            elif "photo" in inbound["message"]:
+                message = ''
+                if "caption" in inbound["message"]:
+                    message = inbound["message"]["caption"]
+                photo = inbound["message"]["photo"][-1]
+                file_id = photo["file_id"]
+                print(f"[Telegram photo]:", user, file_id, message)
             else:
-                print(f"[{timestamp} {service}]: unhandled: 'message' without 'text'")
+                print(f"[{service}]: unhandled: 'message' without 'text'")
                 return [b'<h1>Unhandled</h1>']
-        elif "edited_message" in inbound:
-            if "text" in inbound["edited_message"]:
-                message = inbound["edited_message"]["text"]
-                chat_id = inbound["edited_message"]["chat"]
-                chat_id = str(chat_id["id"])
-                if "username" in inbound["edited_message"]["from"]:
-                    user = inbound["edited_message"]["from"]["username"]
-                else:
-                    user = inbound["edited_message"]["from"]["first_name"]
-                print(f"[{timestamp} {service} {user} [edit]:", message)
-                # this condition spawns a worker before returning
-            else:
-                print(f"[{timestamp} {service}]: unhandled: 'edited_message' without 'text'")
-                return [b'<h1>Unhandled</h1>']
-        elif "channel_post" in inbound:
-            message = inbound["channel_post"]["text"]
-            chat_id = inbound["channel_post"]["chat"]["id"]
-            user = ''
-            print(f"[{timestamp} {service}]:", message)
-            # this condition spawns a worker before returning
-        else:
-            print(f"[{timestamp} {service}]: unhandled: not 'message' nor 'channel_post'")
-            return [b'<h1>Unhandled</h1>']
     elif uri == '/slack':
         service = 'slack'
         if 'token' not in inbound:
@@ -112,22 +105,22 @@ def main(environ, start_response):
                 user = '<@' + inbound['event']['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
                 botName = '@' + inbound['authorizations'][0]['user_id'] # QWERTY becomes @QWERTY
                 chat_id = inbound['event']['channel']
-                print(f"[{timestamp} {service}]:", user, message)
+                print(f"[{current_time} {service}]:", user, message)
                 # this condition spawns a worker before returning
             else:
-                print(f"[{timestamp} {service}]: unhandled 'type'")
+                print(f"[{current_time} {service}]: unhandled 'type'")
                 return [b'<h1>Unhandled</h1>']
         else:
-            print(f"[{timestamp} {service}]: unhandled: no 'type'")
+            print(f"[{current_time} {service}]: unhandled: no 'type'")
             return [b'Unhandled']
     else:
-        print(timestamp, "Unknown URI", uri)
+        print(current_time, "Unknown URI", uri)
         status = "404 Not Found"
         start_response(status, headers)
         return [b'<h1>404</h1>']
 
     def runWorker():
-        worker.process_request(service, chat_id, user, message, botName, userRealName)
+        worker.process_request(service, chat_id, user, message, botName, userRealName, message_id)
 
     # process in a background thread so we don't keep the requesting client waiting
     t = threading.Thread(target=runWorker)
