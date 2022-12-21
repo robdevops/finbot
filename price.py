@@ -27,9 +27,10 @@ def lambda_handler(event,context):
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
-        message = f'Price alerts (intraday) over {config_price_percent}%:'
-        message = webhook.bold(message, service)
-        payload.insert(0, message)
+        if len(payload):
+            message = f'Price alerts (intraday) over {config_price_percent}%:'
+            message = webhook.bold(message, service)
+            payload.insert(0, message)
         return payload
 
 
