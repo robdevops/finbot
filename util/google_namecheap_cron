@@ -4,6 +4,7 @@ set -euo pipefail
 PROVIDER=namecheap
 PASSWORD='topsecret'
 DOMAIN=www.example.com
+KEYFILE=keyfile
 if [[ $DOMAIN =~ (.*)\.(.*)\.(.*) ]]; then
 	RECORD=${DOMAIN%%\.*}
 	BASEDOMAIN=${DOMAIN#*\.}
@@ -27,16 +28,16 @@ get_new_ip(){
 }
 
 update_provider(){
-	if [[ $PROVIDER == 'namecheap' ]]; then
+	if [[ $PROVIDER == namecheap ]]; then
 		curl -s "https://dynamicdns.park-your-domain.com/update?host=${RECORD}&domain=${BASEDOMAIN}&password=${PASSWORD}&ip=${newip}" > /dev/null
 	elif [[ $(is_ipv4 $PROVIDER) ]]; then # RFC 2136
-		sudo nsupdate -4 -l -k keyfile <<EOF
+		sudo nsupdate -4 -l -k $KEYFILE <<EOF
 server $PROVIDER
 prereq yxrrset $DOMAIN A
 update delete $DOMAIN A
 send
 prereq nxrrset $DOMAIN A
-update add $DOMAIN 86400 A $newip
+update add $DOMAIN 300 A $newip
 send
 EOF
 	else
