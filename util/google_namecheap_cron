@@ -1,0 +1,53 @@
+#!/bin/bash
+set -euo pipefail
+
+PROVIDER=namecheap
+PASSWORD='topsecret'
+DOMAIN=www.example.com
+if [[ $DOMAIN =~ (.*)\.(.*)\.(.*) ]]; then
+	RECORD=${DOMAIN%%\.*}
+	BASEDOMAIN=${DOMAIN#*\.}
+else
+	RECORD="@"
+	BASEDOMAIN=$DOMAIN
+fi
+
+is_ipv4(){
+	[[ $* =~ ^([0-9]+{1,3}\.){3}[0-9]{1,3}$ ]]
+}
+
+get_old_ip(){
+	dig +short $DOMAIN | head -1
+}
+
+get_new_ip(){
+	# try Google Cloud Platform API then fall back to OpenDNS
+	url='http://metadata/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip'
+	curl -m1 -sH "Metadata-Flavor: Google" "$url" 2>/dev/null || dig +short myip.opendns.com. @resolver4.opendns.com.
+}
+
+update_provider(){
+	if [[ $PROVIDER == 'namecheap' ]]; then
+		curl -s "https://dynamicdns.park-your-domain.com/update?host=${RECORD}&domain=${BASEDOMAIN}&password=${PASSWORD}&ip=${newip}" > /dev/null
+	elif [[ $(is_ipv4 $PROVIDER) ]]; then # RFC 2136
+		sudo nsupdate -4 -l -k keyfile <<EOF
+server $PROVIDER
+prereq yxrrset $DOMAIN A
+update delete $DOMAIN A
+send
+prereq nxrrset $DOMAIN A
+update add $DOMAIN 86400 A $newip
+send
+EOF
+	else
+		echo "Unsupported provider: $PROVIDER"
+fi
+}
+
+set -e
+oldip=$( get_old_ip )
+is_ipv4 $oldip
+newip=$( get_new_ip )
+is_ipv4 $newip
+[[ $oldip == $newip ]] || update_provider
+
