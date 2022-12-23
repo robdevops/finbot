@@ -1,0 +1,65 @@
+#!/bin/bash
+set -euo pipefail
+
+LIVE="/etc/nginx/aws_subnets"
+STAGING="${LIVE}.staging"
+BACKUP="${LIVE}.bak"
+
+nginx_path=$(which nginx)
+
+download(){
+	url='https://ip-ranges.amazonaws.com/ip-ranges.json'
+	curl -s $url | awk -F\" '$2 == "ip_prefix" {print "allow "$4";"}' | sort > $STAGING
+}
+
+exists() {
+	test -f $STAGING
+}
+
+non_zero() {
+	test -s $STAGING
+}
+
+newer() {
+	test $STAGING -nt $LIVE
+}
+
+different() {
+	if $(cmp --silent $STAGING $LIVE); then
+		return 1
+	else
+		return 0
+	fi
+}
+
+valid() {
+	$nginx_path -qt
+}
+
+reload_nginx() {
+        $nginx_path -s reload
+}
+
+if [[ ! -f $LIVE ]]; then
+	set -e
+	download
+	exists
+	non_zero
+	cp $STAGING $LIVE
+else
+	set -e
+	download
+	exists
+	non_zero
+	newer
+	different
+	cp $LIVE $BACKUP
+	cp $STAGING $LIVE
+fi
+
+if valid; then
+	reload_nginx
+else
+	cp $BACKUP $LIVE
+fi
+
