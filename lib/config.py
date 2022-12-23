@@ -13,11 +13,11 @@ sharesight_auth = {
 }
 webhooks = {}
 if os.getenv('slack_webhook'):
-    webhooks['slack'] = os.getenv('slack_webhook')
+    webhooks['slack'] = os.getenv('slack_webhook').rstrip('/')
 if os.getenv('discord_webhook'):
-    webhooks['discord'] = os.getenv('discord_webhook')
+    webhooks['discord'] = os.getenv('discord_webhook').rstrip('/').replace('/slack', '') + '/slack'
 if os.getenv('telegramBotToken'):
-    webhooks['telegram'] = 'https://api.telegram.org/bot' + os.getenv('telegramBotToken') + '/'
+    webhooks['telegram'] = 'https://api.telegram.org/bot' + os.getenv('telegramBotToken').rstrip('/') + '/'
 
 if os.getenv('slackOAuthToken'):
     config_slackOAuthToken = str(os.getenv('slackOAuthToken'))
@@ -48,9 +48,9 @@ config_shorts_percent = 15 # default
 if os.getenv('shorts_percent'):
     config_shorts_percent = int(os.getenv('shorts_percent'))
 
-config_cache_dir = '/tmp' # default
+config_cache_dir = 'var/cache' # default
 if os.getenv('cache_dir'):
-    config_cache_dir = os.getenv('cache_dir')
+    config_cache_dir = os.getenv('cache_dir').rstrip('/')
 
 config_http_timeout = int(10) # default
 if os.getenv('http_timeout'):

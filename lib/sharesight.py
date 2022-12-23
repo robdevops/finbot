@@ -14,7 +14,7 @@ class BearerAuth(requests.auth.AuthBase):
 
 def get_token():
     now = int(time.time())
-    cache_file = config_cache_dir + "/sharesight_token_cache.json"
+    cache_file = config_cache_dir + "/finbot_token_cache.json"
     cache = util.read_cache(cache_file, 1740)
     if config_cache and cache:
         cache_expiry = cache['created_at'] + cache['expires_in']
@@ -39,7 +39,7 @@ def get_token():
     return data['access_token']
 
 def get_portfolios():
-    cache_file = config_cache_dir + "/sharesight_portfolio_cache.json"
+    cache_file = config_cache_dir + "/finbot_portfolio_cache.json"
     cache = util.read_cache(cache_file, config_cache_seconds)
     if config_cache and cache:
         print(cache)
@@ -75,7 +75,7 @@ def get_portfolios():
 
 def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     # DO NOT CACHE LONG ENOUGH FOR CRON TO NOTICE #
-    cache_file = config_cache_dir + "/sharesight_trade_cache_" + str(portfolio_id) + "_" + str(days) + ".json"
+    cache_file = config_cache_dir + "/finbot_trade_cache_" + str(portfolio_id) + "_" + str(days) + ".json"
     cache = util.read_cache(cache_file, 59)
     if config_cache and cache:
         return cache['trades']
@@ -98,7 +98,7 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
 def get_holdings(portfolio_name, portfolio_id):
     time_now = datetime.datetime.today()
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    cache_file = config_cache_dir + "/sharesight_holdings_cache_" + str(portfolio_id) + '.json'
+    cache_file = config_cache_dir + "/finbot_holdings_cache_" + str(portfolio_id) + '.json'
     cache = util.read_cache(cache_file, config_cache_seconds)
     if config_cache and cache:
         print(portfolio_name, end=": ")

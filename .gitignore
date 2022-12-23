@@ -5,3 +5,4 @@ __pycache__/
 todo.txt
 script.zip
 .env
+var/cache/*

@@ -97,7 +97,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     base_url = 'https://query2.finance.yahoo.com/v11/finance/quoteSummary/'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     local_market_data[ticker] = {}
-    cache_file = config_cache_dir + "/sharesight_detail_cache_" + ticker + '.json'
+    cache_file = config_cache_dir + "/finbot_detail_cache_" + ticker + '.json'
     cacheData = util.read_cache(cache_file, seconds)
     if config_cache and cacheData:
         print('.', sep=' ', end='', flush=True)

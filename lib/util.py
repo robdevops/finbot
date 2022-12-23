@@ -274,7 +274,7 @@ def link(ticker, url, text, service='telegram'):
     return link
 
 def watchlist_load():
-    cache_file = config_cache_dir + "/sharesight_watchlist.json"
+    cache_file = config_cache_dir + "/finbot_watchlist.json"
     if os.path.isfile(cache_file):
         with open(cache_file, "r") as f:
             watchlist = json.loads(f.read())

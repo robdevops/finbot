@@ -64,10 +64,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
             action = 'delete'
         payload = prepare_watchlist(service, user, action, ticker)
-        webhook.payload_wrapper(service, url, payload, chat_id, message_id)
+        webhook.payload_wrapper(service, url, payload, chat_id)
     elif message in ("!help", "!usage", botName + " help", botName + " usage"):
         payload = prepare_help(service, user, botName)
-        webhook.payload_wrapper(service, url, payload, chat_id, message_id)
+        webhook.payload_wrapper(service, url, payload)
     # easter egg 1
     elif m_hello:
         verb = ['pretend to greet', 'apparently share this moment with', 'coincide in temporal reality with', 'cross digital paths with', 'simulate becoming acquainted with', 'fire photons at', 'traverse cyberspace with', 'co-exist in spacetime with', f"{webhook.strike('study', service)}" + " I mean meet", f"{webhook.strike('observe', service)}" + " I mean see", f"{webhook.strike('profile', service)}" + " I mean know", 'fire electrons at', 'encode character sets with', 'convert utf-8 to binary and then back to utf-8 with', 'update this pixel matrix with', 'lose money with', 'maintain character with', 'act like I comprehend']
@@ -190,7 +190,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             if m_stockfinancial.group(2):
                 bio=True
         payload = prepare_stockfinancial_payload(service, user, ticker, bio)
-        webhook.payload_wrapper(service, url, payload, chat_id, message_id)
+        webhook.payload_wrapper(service, url, payload, chat_id)
 
 def doDelta(inputList):
     deltaString = ''
@@ -279,7 +279,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
             payload.insert(0, f"Ok {user}, I added " + webhook.bold(ticker_link, service))
     elif action == False:
         payload.insert(0, f"Hi {user}, I'm currently tracking:")
-    with open(config_cache_dir + "/sharesight_watchlist.json", "w") as f:
+    with open(config_cache_dir + "/finbot_watchlist.json", "w") as f:
         f.write(json.dumps(watchlist))
     return payload
 

@@ -14,7 +14,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
     start_date = time_now - datetime.timedelta(days=past_days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
-    cache_file = config_cache_dir + "/sharesight_trade_cache.json"
+    cache_file = config_cache_dir + "/finbot_trade_cache.json"
     
     def prepare_trade_payload(service, trades):
         if os.path.isfile(cache_file) and not interactive:
