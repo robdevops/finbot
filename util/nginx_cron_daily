@@ -21,11 +21,7 @@ newer() {
 }
 
 different() {
-	if $(cmp --silent $STAGING $LIVE); then
-		return 1
-	else
-		return 0
-	fi
+	! cmp --silent $STAGING $LIVE
 }
 
 valid() {
