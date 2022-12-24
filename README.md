@@ -102,7 +102,7 @@ include_portfolios = "100001 100002"
 ```
 
 ### Caching
-Many object sources are cached for just under one day by default. Cache is controlled by the settings below. Trades IDs are stored on disk, but trades are not cached for functional reasons.
+Many object sources are cached for just under one day by default. Cache is controlled by the settings below. Trades IDs are stored on disk, but trade queries generally don't result in a cache hit for functional reasons.
 ```
 cache = True
 cache_seconds = 82800
