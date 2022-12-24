@@ -198,7 +198,7 @@ Currently supporting Slack and Telegram, the interactive bot adds:
 * Stock lookup (financials and company profile)
 * Group maintainable watch list
 * Listing of portfolios and their current holdings
-* Running the stock reports on command
+* Running the other stock reports on command
 
 The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
 It defaults to listening on http://127.0.0.1:5000/, which can be changed with `ip` and `port` in the .env file.
