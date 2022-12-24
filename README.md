@@ -127,7 +127,7 @@ By default, this report searches Sharesight for trades from the current day only
 
 Without persistent storage, it is recommended to leave `past_days=0` to avoid duplicate trade notifications. The cron that triggers the report must do so exactly once per day, after market close.
 
-With persistent storage, it is recommended to set `past_days=30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will send all historical trades for the configured period. It is recommended to set the cron frequency to every 20 minutes.
+With persistent storage, it is recommended to set `past_days=30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to set the cron frequency to every 20 minutes.
 
 ```
 past_days = 30
