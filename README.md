@@ -232,7 +232,7 @@ Note: The utils folder contains a script to generate `/etc/nginx/aws_subnets`. I
 ### Integrating the interactive bot with chat networks
 
 For Telegram, message BotFather to create a bot. Set .env file `telegramBotToken` to the token given by BotFather. 
-Set .env `telegram_outgoing_webhook` to your web server (https://www.example.com:8443/telegram). Add your Telegram bot to a group, and give it group admin access so it can read the group chat. With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
+Set .env `telegram_outgoing_webhook` to your web server (https://www.example.com:8443/telegram). Finally, set `telegramOutgoingToken` to a password of your choosing. Telegram will use this to authenticate with finbot. Add your Telegram bot to a group, and give it group admin access so it can read the group chat. With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
 
 For Slack, visit https://api.slack.com/apps/ to create a new Slack app. Put the token from _OAuth & Permissions > Bot User OAuth Token_ into .env file `slackOAuthToken` and the token from _Basic Information > Verification Token_ into the .env file `slackVerifyToken`. Put your web server URL (https://www.example.com:8443/slack) into _Event Subscriptions > Enable Events_ (the bot will auto verify Slack's verification request if `bot.py` is running and reachable), and finally, under _Event Subscriptions > Subscribe to bot events_, add event `app_mention` for the bot to see _@botname_ mentions.
 * You can also subscribe to `message.channels` if you want your bot to see everything and respond to `!` commands.
