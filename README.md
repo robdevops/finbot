@@ -11,13 +11,13 @@
   * Highly shorted stock warnings (AU, US)
 * Interactive chat commands for stock info (Slack & Telegram):
   * Stock lookup with price/valuation related stats and warnings
-  * Stock lookup, with company profile
+  * Company profiles
   * Shared watch list
 * Discord, Slack and Telegram support
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
-Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs. Persistent storage enables a polling frequency greater than daily such as every 5 minutes.
+Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs. Persistent storage enables a polling frequency greater than daily, such as every 5 minutes.
 
 The various reports can either run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings combined across your Sharesight portfolios, your friends Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they either report to all configured chat networks, or reply to the chat which triggered them.
 
