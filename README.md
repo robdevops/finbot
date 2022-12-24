@@ -113,7 +113,7 @@ Tracks securities which are not in your Sharesight holdings. Use the Yahoo! Fina
 ```
 watchlist = "RMBS STEM ZS SYR.AX 2454.TW"
 ```
-Once this value is loaded into the interactive bot, it is not read again. Interactive mode uses its own watchlist file.
+Once this value is loaded into the interactive bot, it is not read again. The interactive mode uses its own watchlist file.
 
 ## Reports
 
@@ -121,7 +121,7 @@ Once this value is loaded into the interactive bot, it is not read again. Intera
 ![trade update in Slack](img/trades.png?raw=true "Trade update in Slack")
 
 `trades.py` sends recent Sharesight trades to your configured chat services.
-* To avoid duplicate trades, you can either limit this to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are tracked in a state file defined by `state_file` in the .env file.
+* The minimum period it searches is one day. To avoid duplicate trades notifications, you can either limit the frequency to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are tracked in a state file defined by `state_file` in the .env file.
 * By default, this report only checks for trades for the current day. You can override this with `past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will send all historical trades for the period.
 ```
 state_file = '/tmp/finbot-trades.txt'
