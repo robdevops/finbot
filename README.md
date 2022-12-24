@@ -117,15 +117,20 @@ Once this value is loaded into the interactive bot, it is not read again. The in
 
 ## Reports
 
+"Reports" refers to the cron initiated non-interactive notifications from the bot.
+
 ### Trades
 ![trade update in Slack](img/trades.png?raw=true "Trade update in Slack")
 
 `trades.py` sends recent Sharesight trades to your configured chat services.
-* The minimum period it searches is one day. To avoid duplicate trades notifications, you can either limit the frequency to one run per day (after market close), or run it in an environment with persistent storage. To allow frequent runs, known trades are tracked in a state file defined by `state_file` in the .env file.
-* By default, this report only checks for trades for the current day. You can override this with `past_days` in the .env file. This is useful if Sharesight imports trades with past dates for any reason. Without persistent storage, it is recommended to leave this set to 0. With persistent storage, it is recommended to set it to 31. In this case, the first run will send all historical trades for the period.
+By default, this report searches Sharesight for trades from the current day only. You can override this with `past_days` in the .env file. 
+
+Without persistent storage, it is recommended to leave `past_days=0` to avoid duplicate trade notifications. The cron that triggers the report must do so exactly once per day, after market close.
+
+With persistent storage, it is recommended to set `past_days=30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will send all historical trades for the configured period. It is recommended to set the cron frequency to every 20 minutes.
+
 ```
-state_file = '/tmp/finbot-trades.txt'
-past_days = 31
+past_days = 30
 ```
 
 ### Price alerts
@@ -196,7 +201,7 @@ Currently supporting Slack and Telegram, the interactive bot adds:
 * Running the stock reports on command
 
 The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
-It defaults to listening on http://127.0.0.1:5000/, which can be changed by setting `ip` and `port` in the .env file.
+It defaults to listening on http://127.0.0.1:5000/, which can be changed with `ip` and `port` in the .env file.
 
 Example frontend https server config (nginx):
 ```
@@ -212,7 +217,8 @@ server {
 
 	location /slack {
     		proxy_pass http://127.0.0.1:5000/slack;
-		allow all;
+                include /etc/nginx/aws_subnets;
+                deny all;
 	}
 	location /telegram {
     		proxy_pass http://127.0.0.1:5000/telegram;
@@ -221,6 +227,7 @@ server {
 	}
 }
 ```
+Note: The utils folder contains a script to generate `/etc/nginx/aws_subnets`. It can be run once, or placed in `/etc/cron.daily/`.
 
 ### Integrating the interactive bot with chat networks
 
@@ -255,7 +262,13 @@ For Slack, visit https://api.slack.com/apps/ to create a new Slack app. Put the 
 `finbot.service` can take care of keeping `bot.py` running in the background and starting on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User` and `ExecStart`, then enable and start it:
 ```
 sed -i 's/CHANGEME/YOUR USERNAME/' finbot.service
+```
+
+```
 sudo cp -v finbot.service /etc/systemd/system/finbot.service
+```
+
+```
 sudo systemctl enable finbot --now
 ```
 
