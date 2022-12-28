@@ -168,13 +168,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 1
     elif m_hello:
-def alliterate():
-    word1 = 'A'
-    word2 = 'Z'
-    while not word1.lower().startswith(list(word2)[0])
-        word1 = random.choice(adjectives)
-        word2 = random.choice(adjectives_two)
-    return (word1, word2)
+        def alliterate():
+            word1 = 'A'
+            word2 = 'Z'
+            while not word1.lower().startswith(list(word2)[0])
+                word1 = random.choice(adjectives)
+                word2 = random.choice(adjectives_two)
+            return (word1, word2)
         verb = [
             'pretend to greet',
             'apparently share this moment with',
