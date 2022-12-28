@@ -5,7 +5,7 @@
 ### Features
 * Sharesight Trade notifications
 * Yahoo Finance data for Sharesight holdings:
-  * Intraday and premarket price movements over a defined threhold
+  * Intraday and premarket price movements over a defined threshold
   * Earnings date reminders
   * Ex-dividend date warnings
   * Highly shorted stock warnings (AU, US)
@@ -19,7 +19,7 @@
 
 Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs. Persistent storage enables a polling frequency greater than daily, such as every 5 minutes.
 
-The other various reports can also run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings combined across your Sharesight portfolios, your friends Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they can either report to all configured chat networks, or reply to the chat which triggered them.
+The other various reports can also run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings combined across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they will either report to all configured chat networks, or reply to the chat which triggered them.
 
 The interactive bot requires you to host a web service on a domain with a trusted certificate. It subscribes to push updates from native Slack apps / Telegram bots, and reacts to certain regex seen in chat. It can: 
 * Run the aforementioned reports on demand
@@ -127,7 +127,7 @@ By default, this report searches Sharesight for trades from the current day only
 
 Without persistent storage, it is recommended to leave `past_days=0` to avoid duplicate trade notifications. The cron that triggers the report must do so exactly once per day, after market close.
 
-With persistent storage, it is recommended to set `past_days=30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will send all historical trades for the configured period. It is recommended to set the cron frequency to every 20 minutes.
+With persistent storage, it is recommended to set `past_days=30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to set the cron frequency to every 20 minutes.
 
 ```
 past_days = 30
@@ -164,7 +164,7 @@ future_days = 7
 ```
 
 ### Highly shorted stock warnings
-`shorts.py` sends highly shorted stock warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. **Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely. 
+`shorts.py` sends short interest warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. **Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely. 
 ```
 shorts_percent = 15
 ```
@@ -198,7 +198,7 @@ Currently supporting Slack and Telegram, the interactive bot adds:
 * Stock lookup (financials and company profile)
 * Group maintainable watch list
 * Listing of portfolios and their current holdings
-* Running the stock reports on command
+* Running the other stock reports on command
 
 The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
 It defaults to listening on http://127.0.0.1:5000/, which can be changed with `ip` and `port` in the .env file.
@@ -232,7 +232,7 @@ Note: The utils folder contains a script to generate `/etc/nginx/aws_subnets`. I
 ### Integrating the interactive bot with chat networks
 
 For Telegram, message BotFather to create a bot. Set .env file `telegramBotToken` to the token given by BotFather. 
-Set .env `telegram_outgoing_webhook` to your web server (https://www.example.com:8443/telegram). Add your Telegram bot to a group, and give it group admin access so it can read the group chat. With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
+Set .env `telegram_outgoing_webhook` to your web server (https://www.example.com:8443/telegram). Finally, set `telegramOutgoingToken` to a password of your choosing. Telegram will use this to authenticate with finbot. Add your Telegram bot to a group, and give it group admin access so it can read the group chat. With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
 
 For Slack, visit https://api.slack.com/apps/ to create a new Slack app. Put the token from _OAuth & Permissions > Bot User OAuth Token_ into .env file `slackOAuthToken` and the token from _Basic Information > Verification Token_ into the .env file `slackVerifyToken`. Put your web server URL (https://www.example.com:8443/slack) into _Event Subscriptions > Enable Events_ (the bot will auto verify Slack's verification request if `bot.py` is running and reachable), and finally, under _Event Subscriptions > Subscribe to bot events_, add event `app_mention` for the bot to see _@botname_ mentions.
 * You can also subscribe to `message.channels` if you want your bot to see everything and respond to `!` commands.
