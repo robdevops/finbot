@@ -22,11 +22,109 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif service == 'telegram':
         url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
 
-    if not len(userRealName):
-        userRealName = user
-    adjectives = ['absolutely', 'amazingly', 'awfully', 'bitchingly', 'bloodly', 'darned', 'distinctly', 'especially', 'ever so', 'enjoyably', 'exceedingly', 'exceptionally', 'extraordinarily', 'extremely', 'flatteringly', 'greatly', 'fortunately', 'fortutously', 'honourably', 'hugely', 'humblingly', 'inordinately', 'luckily', 'memorably', 'mostly', 'overwhelmingly', 'pleasurably', 'rewardingly', 'serendipitously', 'seriously', 'significantly', 'so', 'super', 'supremely', 'surprisingly', 'terribly', 'terrifically', 'thoroughly', 'totally', 'tremendously', 'uber', 'uncomprehensibly', 'unmentionably', 'very', 'wholesomely']
+    adjectives = [
+        'absolutely',
+        'amazingly',
+        'awfully',
+        'bitchingly',
+        'bloodly',
+        'comfortably',
+        'darned',
+        'distinctly',
+        'especially',
+        'ever so',
+        'enjoyably',
+        'exceedingly',
+        'exceptionally',
+        'extraordinarily',
+        'extremely',
+        'flatteringly',
+        'fortunately',
+        'fortuitously',
+        'greatly',
+        'honourably',
+        'hugely',
+        'humblingly',
+        'inordinately',
+        'jolly',
+        'joyfully',
+        'keenly',
+        'luckily',
+        'memorably',
+        'mostly',
+        'needlessly',
+        'overwhelmingly',
+        'pleasurably',
+        'questionably',
+        'rewardingly',
+        'serendipitously',
+        'seriously',
+        'significantly',
+        'so',
+        'super',
+        'supremely',
+        'surprisingly',
+        'terribly',
+        'terrifically',
+        'thoroughly',
+        'totally',
+        'tremendously',
+        'uber',
+        'uncomprehensibly',
+        'unexceptionably',
+        'unquestionably',
+        'unmentionably',
+        'unusually',
+        'discomfortingly',
+        'incomprehensibly',
+        'very',
+        'wholesomely',
+        'xenial',
+        'yawningly',
+        'zealously'
+    ]
 
-    adjectives_two = ['amazing', 'bitching', 'comforting', 'enjoyable', 'exceptional', 'extraordinary', 'flattering', 'fortuitous', 'fortunate', 'great', 'honouring', 'huge', 'humbling', 'inordinate', 'lucky', 'nice', 'overwhelming', 'memorable', 'pleasurable', 'rewarding', 'serendipitous', 'significant', 'special', 'super', 'terrific', 'tremendous', 'comprehensible', 'mentionable', 'wholesome']
+    adjectives_two = [
+        'amazing',
+        'bitching',
+        'comforting',
+        'comprehensible',
+        'dapper',
+        'enjoyable',
+        'exceptional',
+        'extraordinary',
+        'flattering',
+        'fortuitous',
+        'fortunate',
+        'great',
+        'grateful',
+        'honouring',
+        'huge',
+        'humbling',
+        'inordinate',
+        'joyous',
+        'keen',
+        'lucky',
+        'memorable',
+        'mentionable',
+        'nice',
+        'overwhelming',
+        'pleasurable',
+        'questionable',
+        'rewarding',
+        'serendipitous',
+        'significant',
+        'special',
+        'super',
+        'terrific',
+        'tremendous',
+        'useful',
+        'virtuous',
+        'wholesome',
+        'xenial',
+        'yawning',
+        'zany'
+    ]
 
     hello_command = "^\!(hello)|^" + botName + "\s+(hello)|^(hi|hello)\s+" + botName
     m_hello = re.match(hello_command, message)
@@ -70,9 +168,35 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 1
     elif m_hello:
-        verb = ['pretend to greet', 'apparently share this moment with', 'coincide in temporal reality with', 'cross digital paths with', 'simulate becoming acquainted with', 'fire photons at', 'traverse cyberspace with', 'co-exist in spacetime with', f"{webhook.strike('study', service)}" + " I mean meet", f"{webhook.strike('observe', service)}" + " I mean see", f"{webhook.strike('profile', service)}" + " I mean know", 'fire electrons at', 'encode character sets with', 'convert utf-8 to binary and then back to utf-8 with', 'update this pixel matrix with', 'lose money with', 'maintain character with', 'act like I comprehend']
+        def alliterate():
+            word1 = 'A'
+            word2 = 'Z'
+            while word1.startswith.lower(list(word1)[0]) != word2.startswith.lower(list(word2)[0]):
+                word1 = random.choice(adjectives)
+                word2 = random.choice(adjectives_two)
+            return set(word1, word2)
+        verb = [
+            'pretend to greet',
+            'apparently share this moment with',
+            'coincide in temporal reality with',
+            'cross digital paths with',
+            'simulate becoming acquainted with',
+            'fire photons at',
+            'traverse cyberspace with',
+            'co-exist in spacetime with',
+            f"{webhook.strike('study', service)}" + " I mean meet", f"{webhook.strike('observe', service)}" + " I mean see", f"{webhook.strike('profile', service)}" + " I mean know",
+            'fire electrons at',
+            'encode character sets with',
+            'convert utf-8 to binary and then back to utf-8 with',
+            'update this pixel matrix with',
+            'lose money with',
+            'maintain character with',
+            'act like I comprehend'
+        ]
         time.sleep(3) # pause for realism
-        payload = [f"{random.choice(adjectives).capitalize()} {random.choice(adjectives_two)} to {random.choice(verb)} you, {userRealName}! 😇"]
+        alliteration = alliterate()
+        payload = [f"{alliteration(0).capitalize()} {alliteration(1)} to {random.choice(verb)} you, {userRealName}! 😇"]
+        #payload = [f"{random.choice(adjectives).capitalize()} {random.choice(adjectives_two)} to {random.choice(verb)} you, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 2
     elif m_thanks:

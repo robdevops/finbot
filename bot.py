@@ -54,8 +54,9 @@ def main(environ, start_response):
             user_id = str(inbound["message"]["from"]["id"])
             chat_type = inbound["message"]["chat"]["type"]
             if "username" in inbound["message"]["from"]:
-                user = '@' + inbound["message"]["from"]["username"]
-                userRealName = inbound["message"]["from"]["first_name"]
+                user = userRealname = '@' + inbound["message"]["from"]["username"]
+                if len(inbound["message"]["from"]["first_name"]):
+                    userRealName = inbound["message"]["from"]["first_name"]
             else:
                 user = userRealName = '@' + inbound["message"]["from"]["first_name"]
             if chat_type == "private": # Anyone can find and PM the bot so we need to be careful
@@ -85,7 +86,7 @@ def main(environ, start_response):
             print_body()
             return [b'<h1>Unauthorized</h1>']
         if inbound['token'] == config_slackOutgoingToken:
-            print("Incoming request authenticated")
+            print("Incoming Slack request authenticated")
         else:
             print("warning: Slack authorisation field is present but incorrect")
             print("expected:", config_slackOutgoingToken)

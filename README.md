@@ -211,17 +211,17 @@ server {
 
 	server_name         www.example.com;
 	ssl_certificate     /etc/letsencrypt/live/www.example.com/fullchain.pem;
-    	ssl_certificate_key /etc/letsencrypt/live/www.example.com/privkey.pem;
-    	ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
-    	ssl_ciphers         HIGH:!aNULL:!MD5;
+	ssl_certificate_key /etc/letsencrypt/live/www.example.com/privkey.pem;
+	ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
+	ssl_ciphers         HIGH:!aNULL:!MD5;
 
 	location /slack {
-    		proxy_pass http://127.0.0.1:5000/slack;
+		proxy_pass http://127.0.0.1:5000/slack;
                 include /etc/nginx/aws_subnets;
                 deny all;
 	}
 	location /telegram {
-    		proxy_pass http://127.0.0.1:5000/telegram;
+		proxy_pass http://127.0.0.1:5000/telegram;
 		allow 91.108.4.0/22
 		deny all;
 	}
@@ -231,11 +231,11 @@ Note: The utils folder contains a script to generate `/etc/nginx/aws_subnets`. I
 
 ### Integrating the interactive bot with chat networks
 
-For Telegram, message BotFather to create a bot. Set .env file `telegramBotToken` to the token given by BotFather. 
+For Telegram, message BotFather to create a bot. Set .env file `telegramBotToken` to the token given by BotFather.
 Set .env `telegram_outgoing_webhook` to your web server (https://www.example.com:8443/telegram). Finally, set `telegramOutgoingToken` to a password of your choosing. Telegram will use this to authenticate with finbot. Add your Telegram bot to a group, and give it group admin access so it can read the group chat. With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
 
 For Slack, visit https://api.slack.com/apps/ to create a new Slack app. Put the token from _OAuth & Permissions > Bot User OAuth Token_ into .env file `slackOAuthToken` and the token from _Basic Information > Verification Token_ into the .env file `slackVerifyToken`. Put your web server URL (https://www.example.com:8443/slack) into _Event Subscriptions > Enable Events_ (the bot will auto verify Slack's verification request if `bot.py` is running and reachable), and finally, under _Event Subscriptions > Subscribe to bot events_, add event `app_mention` for the bot to see _@botname_ mentions.
-* You can also subscribe to `message.channels` if you want your bot to see everything and respond to `!` commands.
+* Alternatively, you can subscribe to `message.channels` if you want your bot to see everything and respond to `!` commands. To avoid duplicate responses, don't subscribe to `app_mention` and `message.channels` at the same time.
 * If you want to DM the bot, subscribe to `message.im`, and check the box _App Home > Allow users to send Slash commands and messages from the messages tab_.
 
 ### Supported commands:
