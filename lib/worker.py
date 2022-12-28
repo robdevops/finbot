@@ -67,7 +67,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif message in ("!help", "!usage", botName + " help", botName + " usage"):
         payload = prepare_help(service, user, botName)
-        webhook.payload_wrapper(service, url, payload)
+        webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 1
     elif m_hello:
         verb = ['pretend to greet', 'apparently share this moment with', 'coincide in temporal reality with', 'cross digital paths with', 'simulate becoming acquainted with', 'fire photons at', 'traverse cyberspace with', 'co-exist in spacetime with', f"{webhook.strike('study', service)}" + " I mean meet", f"{webhook.strike('observe', service)}" + " I mean see", f"{webhook.strike('profile', service)}" + " I mean know", 'fire electrons at', 'encode character sets with', 'convert utf-8 to binary and then back to utf-8 with', 'update this pixel matrix with', 'lose money with', 'maintain character with', 'act like I comprehend']
