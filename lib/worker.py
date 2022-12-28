@@ -171,7 +171,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         def alliterate():
             word1 = 'A'
             word2 = 'Z'
-            while not word1.lower().startswith(list(word2)[0])
+            while not word1.lower().startswith(list(word2)[0]):
                 word1 = random.choice(adjectives)
                 word2 = random.choice(adjectives_two)
             return (word1, word2)
