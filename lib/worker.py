@@ -195,7 +195,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         ]
         time.sleep(3) # pause for realism
         alliteration = alliterate()
-        payload = [f"{alliteration(0).capitalize()} {alliteration(1)} to {random.choice(verb)} you, {userRealName}! 😇"]
+        payload = [f"{alliteration[0].capitalize()} {alliteration[1]} to {random.choice(verb)} you, {userRealName}! 😇"]
         #payload = [f"{random.choice(adjectives).capitalize()} {random.choice(adjectives_two)} to {random.choice(verb)} you, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 2
