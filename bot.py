@@ -34,8 +34,8 @@ def main(environ, start_response):
     uri = environ['PATH_INFO']
     inbound = json.loads(request_body)
     if debug:
-        print_headers()
-        print_body()
+        print_headers(environ)
+        print_body(inbound)
     if uri == '/telegram':
         service = 'telegram'
         botName = '@' + telegram.getBotName()
@@ -83,14 +83,14 @@ def main(environ, start_response):
         service = 'slack'
         if 'token' not in inbound:
             print("warning: Slack authorisation field not present")
-            print_body()
+            print_body(inbound)
             return [b'<h1>Unauthorized</h1>']
         if inbound['token'] == config_slackOutgoingToken:
             print("Incoming request authenticated")
         else:
             print("warning: Slack authorisation field is present but incorrect")
             print("expected:", config_slackOutgoingToken)
-            print_body()
+            print_body(inbound)
             return [b'<h1>Unauthorized</h1>']
         if 'type' in inbound:
             if inbound['type'] == 'url_verification':
