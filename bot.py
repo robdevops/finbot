@@ -98,7 +98,7 @@ def main(environ, start_response):
                 response = bytes(response, "utf-8")
                 return [response]
             if inbound['type'] == 'event_callback':
-                message_id = str(inbound["event"]["event_ts"])
+                message_id = str(inbound["event"]["ts"])
                 message = inbound['event']['text']
                 message = re.sub(r'<http://.*\|([\w\.]+)>', '\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
                 message = re.sub(r'<(@[\w\.]+)>', '\g<1>', message) # <@QWERTY> becomes @QWERTY
