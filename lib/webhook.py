@@ -14,7 +14,7 @@ def write(service, url, payload, slackchannel=False, message_id=False):
             headers = {**headers, **{'Authorization': 'Bearer ' + config_slackOAuthToken}} # FIX python 3.9
             payload = {**payload, **{'channel': slackchannel}} # FIX python 3.9
             if message_id:
-                payload = {**payload, **{'thread_ts': message_id, 'reply_broadcast': true}} # FIX python 3.9
+                payload = {**payload, **{'thread_ts': message_id, 'reply_broadcast': 'true'}} # FIX python 3.9
     elif 'api.telegram.org' in url:
         payload = {**payload, **{'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true', "allow_sending_without_reply": True, "reply_to_message_id": message_id }}
     try:
