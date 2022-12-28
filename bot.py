@@ -11,16 +11,15 @@ from lib.config import *
 import lib.telegram as telegram
 import lib.worker as worker
 
-def print_body(inbound):
-    try:
-        print(f"inbound {uri} ", json.dumps(inbound, indent=4))
-    except Exception as e:
-        print(e, "raw body: ", inbound)
-def print_headers(environ):
-    for item in sorted(environ.items()):
-        print(item)
-
 def main(environ, start_response):
+    def print_body():
+        try:
+            print(f"inbound {uri} ", json.dumps(inbound, indent=4))
+        except Exception as e:
+            print(e, "raw body: ", inbound)
+    def print_headers():
+        for item in sorted(environ.items()):
+            print(item)
     request_body = environ['wsgi.input'].read()
     current_time = datetime.datetime.today()
     current_time = str(current_time.strftime('%H:%M:%S')) # 2022-09-20
@@ -34,8 +33,8 @@ def main(environ, start_response):
     uri = environ['PATH_INFO']
     inbound = json.loads(request_body)
     if debug:
-        print_headers(environ)
-        print_body(inbound)
+        print_headers()
+        print_body()
     if uri == '/telegram':
         service = 'telegram'
         botName = '@' + telegram.getBotName()
@@ -83,14 +82,14 @@ def main(environ, start_response):
         service = 'slack'
         if 'token' not in inbound:
             print("warning: Slack authorisation field not present")
-            print_body(inbound)
+            print_body()
             return [b'<h1>Unauthorized</h1>']
         if inbound['token'] == config_slackOutgoingToken:
             print("Incoming request authenticated")
         else:
             print("warning: Slack authorisation field is present but incorrect")
             print("expected:", config_slackOutgoingToken)
-            print_body(inbound)
+            print_body()
             return [b'<h1>Unauthorized</h1>']
         if 'type' in inbound:
             if inbound['type'] == 'url_verification':
