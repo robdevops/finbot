@@ -11,12 +11,12 @@ from lib.config import *
 import lib.telegram as telegram
 import lib.worker as worker
 
-def print_body():
+def print_body(inbound):
     try:
         print(f"[{current_time}]: inbound {uri} ", json.dumps(inbound, indent=4))
     except Exception as e:
         print(e, "raw body: ", inbound)
-def print_headers():
+def print_headers(environ):
     for item in sorted(environ.items()):
         print(item)
 
