@@ -174,7 +174,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             while word1.lower().startswith(list(word1)[0]) != word2.lower().startswith(list(word2)[0]):
                 word1 = random.choice(adjectives)
                 word2 = random.choice(adjectives_two)
-            return set(word1, word2)
+            return (word1, word2)
         verb = [
             'pretend to greet',
             'apparently share this moment with',
