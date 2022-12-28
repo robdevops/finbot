@@ -13,7 +13,7 @@ import lib.worker as worker
 
 def print_body(inbound):
     try:
-        print(f"[{current_time}]: inbound {uri} ", json.dumps(inbound, indent=4))
+        print(f"inbound {uri} ", json.dumps(inbound, indent=4))
     except Exception as e:
         print(e, "raw body: ", inbound)
 def print_headers(environ):
