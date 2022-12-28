@@ -9,7 +9,7 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=False, user='', interactive=False, message_id=False):
+def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=False, user='', message_id=False, interactive=False):
     time_now = datetime.datetime.today()
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
     start_date = time_now - datetime.timedelta(days=past_days)

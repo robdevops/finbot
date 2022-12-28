@@ -143,7 +143,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 ]
         payload = [ f"{random.choice(searchVerb)} trades from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
         webhook.payload_wrapper(service, url, payload, chat_id, message_id)
-        trades.lambda_handler(chat_id, days, service, user, interactive=True, message_id)
+        trades.lambda_handler(chat_id, days, service, user, message_id, interactive=True)
     elif m_holdings:
         payload = []
         portfolioName = False
