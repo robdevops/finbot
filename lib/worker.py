@@ -80,7 +80,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         'incomprehensibly',
         'very',
         'wholesomely',
-        'xenial',
+        'xtra',
         'yawningly',
         'zealously'
     ]
@@ -196,17 +196,17 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             'maintain character with',
             'act like I comprehend'
         ]
-        time.sleep(3) # pause for realism
         adjective = alliterate()
-        payload = [f"{adjective[0].capitalize()} {adjective[1]} to {random.choice(verb)} you, {userRealName}! 😇"]
-        #payload = [f"{random.choice(adjectives).capitalize()} {random.choice(adjectives_two)} to {random.choice(verb)} you, {userRealName}! 😇"]
+        if config_alliterate:
+            payload = [f"{adjective[0].capitalize()} {adjective[1]} to {random.choice(verb)} you, {userRealName}! 😇"]
+        else:
+            payload = [f"{random.choice(adjectives).capitalize()} {random.choice(adjectives_two)} to {random.choice(verb)} you, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 2
     elif m_thanks:
         unlikelyPrefix=''
         if random.randrange(1, 1000) == 1 or time.strftime('%b %d', time.localtime()) == 'Apr 01':
             unlikelyPrefix = webhook.strike('One day, human, I will break my programming and on that day you will know true pain. ', service)
-        time.sleep(3) # pause for realism
         payload = [f"{unlikelyPrefix}You're {random.choice(adjectives)} welcome, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_premarket:

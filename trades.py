@@ -15,7 +15,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
     start_date = time_now - datetime.timedelta(days=past_days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
     cache_file = config_cache_dir + "/finbot_trade_cache.json"
-    
+
     def prepare_trade_payload(service, trades):
         if os.path.isfile(cache_file) and not interactive:
             known_trades = trade_cache_read(cache_file)
@@ -94,12 +94,12 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                         ]
                 payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]
         return payload
-    
+
     def trade_cache_read(cache_file):
         with open(cache_file, "r") as f:
             lines = f.read().splitlines()
             return lines
-    
+
     def trade_cache_write(cache_file, trades):
         with open(cache_file, "a") as f:
             for trade in trades:
