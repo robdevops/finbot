@@ -97,15 +97,20 @@ def main(environ, start_response):
                 return [response]
             if inbound['type'] == 'event_callback':
                 if inbound["event"]["type"] == "message":
-                    message_id = str(inbound["event"]["ts"])
-                    message = inbound['event']['text']
-                    message = re.sub(r'<http://.*\|([\w\.]+)>', '\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
-                    message = re.sub(r'<(@[\w\.]+)>', '\g<1>', message) # <@QWERTY> becomes @QWERTY
-                    user = '<@' + inbound['event']['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
-                    botName = '@' + inbound['authorizations'][0]['user_id'] # QWERTY becomes @QWERTY
-                    chat_id = inbound['event']['channel']
-                    print(f"[{service}]:", user, message)
-                    # this condition spawns a worker before returning
+                    if "text" in inbound['event']:
+                        message_id = str(inbound["event"]["ts"])
+                        message = inbound['event']['text']
+                        message = re.sub(r'<http://.*\|([\w\.]+)>', '\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
+                        message = re.sub(r'<(@[\w\.]+)>', '\g<1>', message) # <@QWERTY> becomes @QWERTY
+                        user = '<@' + inbound['event']['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
+                        botName = '@' + inbound['authorizations'][0]['user_id'] # QWERTY becomes @QWERTY
+                        chat_id = inbound['event']['channel']
+                        print(f"[{service}]:", user, message)
+                        # this condition spawns a worker before returning
+                    else:
+                        print(f"[{service}]: unhandled message type")
+                        print_body()
+                        return [b'<h1>Unhandled</h1>']
                 else:
                     print(f"[{service}]: unhandled event callback type", inbound["event"]["type"])
                     print_body()
@@ -138,4 +143,4 @@ if __name__ == '__main__':
     print(f'Listening on http://{config_ip}:{config_port}')
     # to start the server asynchronously, call server.start()
     # we use blocking serve_forever() here because we have no other jobs
-    server.serve_forever()
+    httpd.serve_forever()
