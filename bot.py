@@ -98,9 +98,8 @@ def main(environ, start_response):
             response = bytes(response, "utf-8")
             return [response]
         elif inbound['type'] == 'event_callback':
-            if inbound["event"]["type"] != "message" or "text" not in inbound['event']:
+            if inbound["event"]["type"] not in ('message', 'app_mention') or "text" not in inbound['event']:
                 print(f"[{service}]: unhandled event callback type", inbound["event"]["type"])
-                print_body()
                 return [b'<h1>Unhandled</h1>']
             else:
                 message_id = str(inbound["event"]["ts"])
