@@ -40,9 +40,12 @@ datetime python-dotenv requests gevent
 
 ## Installation (Linux)
 ```
-sudo pip3 install git datetime python-dotenv requests gevent
+pip3 install datetime python-dotenv requests gevent
 ```
 
+```
+sudo $(which apt dnf yum) install git
+```
 ```
 git clone https://github.com/robdevops/finbot.git ~/finbot
 ```
