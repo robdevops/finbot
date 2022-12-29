@@ -106,7 +106,7 @@ def main(environ, start_response):
                 message = inbound['event']['text']
                 message = re.sub(r'<http://.*\|([\w\.]+)>', '\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
                 message = re.sub(r'<(@[\w\.]+)>', '\g<1>', message) # <@QWERTY> becomes @QWERTY
-                user = '<@' + inbound['event']['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
+                user = userRealName = '<@' + inbound['event']['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
                 botName = '@' + inbound['authorizations'][0]['user_id'] # QWERTY becomes @QWERTY
                 chat_id = inbound['event']['channel']
                 print(f"[{service}]:", user, message)
