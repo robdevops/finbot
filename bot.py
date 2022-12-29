@@ -82,45 +82,39 @@ def main(environ, start_response):
             print("warning: Slack authorisation field not present")
             print_body()
             return [b'<h1>Unauthorized</h1>']
-        if inbound['token'] == config_slackOutgoingToken:
+        elif inbound['token'] == config_slackOutgoingToken:
             print("Incoming Slack request authenticated")
         else:
             print("warning: Slack authorisation field is present but incorrect")
             print("expected:", config_slackOutgoingToken)
             print_body()
             return [b'<h1>Unauthorized</h1>']
-        if 'type' in inbound:
-            if inbound['type'] == 'url_verification':
-                response = json.dumps({"challenge": inbound["challenge"]})
-                print("replying with", response)
-                response = bytes(response, "utf-8")
-                return [response]
-            if inbound['type'] == 'event_callback':
-                if inbound["event"]["type"] == "message":
-                    if "text" in inbound['event']:
-                        message_id = str(inbound["event"]["ts"])
-                        message = inbound['event']['text']
-                        message = re.sub(r'<http://.*\|([\w\.]+)>', '\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
-                        message = re.sub(r'<(@[\w\.]+)>', '\g<1>', message) # <@QWERTY> becomes @QWERTY
-                        user = '<@' + inbound['event']['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
-                        botName = '@' + inbound['authorizations'][0]['user_id'] # QWERTY becomes @QWERTY
-                        chat_id = inbound['event']['channel']
-                        print(f"[{service}]:", user, message)
-                        # this condition spawns a worker before returning
-                    else:
-                        print(f"[{service}]: unhandled message type")
-                        print_body()
-                        return [b'<h1>Unhandled</h1>']
-                else:
-                    print(f"[{service}]: unhandled event callback type", inbound["event"]["type"])
-                    print_body()
-                    return [b'<h1>Unhandled</h1>']
-            else:
-                print(f"[{service}]: unhandled 'type'")
-                return [b'<h1>Unhandled</h1>']
-        else:
+        if 'type' not in inbound:
             print(f"[{service}]: unhandled: no 'type'")
             return [b'Unhandled']
+        elif inbound['type'] == 'url_verification':
+            response = json.dumps({"challenge": inbound["challenge"]})
+            print("replying with", response)
+            response = bytes(response, "utf-8")
+            return [response]
+        elif inbound['type'] == 'event_callback':
+            if inbound["event"]["type"] != "message" or "text" not in inbound['event']:
+                print(f"[{service}]: unhandled event callback type", inbound["event"]["type"])
+                print_body()
+                return [b'<h1>Unhandled</h1>']
+            else:
+                message_id = str(inbound["event"]["ts"])
+                message = inbound['event']['text']
+                message = re.sub(r'<http://.*\|([\w\.]+)>', '\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
+                message = re.sub(r'<(@[\w\.]+)>', '\g<1>', message) # <@QWERTY> becomes @QWERTY
+                user = '<@' + inbound['event']['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
+                botName = '@' + inbound['authorizations'][0]['user_id'] # QWERTY becomes @QWERTY
+                chat_id = inbound['event']['channel']
+                print(f"[{service}]:", user, message)
+                # this condition spawns a worker before returning
+        else:
+            print(f"[{service}]: unhandled 'type'")
+            return [b'<h1>Unhandled</h1>']
     else:
         print("Unknown URI", uri)
         status = "404 Not Found"
