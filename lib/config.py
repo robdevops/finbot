@@ -19,92 +19,29 @@ if os.getenv('discord_webhook'):
 if os.getenv('telegramBotToken'):
     webhooks['telegram'] = 'https://api.telegram.org/bot' + os.getenv('telegramBotToken').rstrip('/') + '/'
 
-if os.getenv('slackOAuthToken'):
-    config_slackOAuthToken = str(os.getenv('slackOAuthToken'))
-
-if os.getenv('slackOutgoingToken'):
-    config_slackOutgoingToken = str(os.getenv('slackOutgoingToken'))
-
-config_telegramChatID = False # default
-if os.getenv('telegramChatID'):
-    config_telegramChatID = str(os.getenv('telegramChatID'))
-
-if os.getenv('telegramOutgoingToken'):
-    config_telegramOutgoingToken = str(os.getenv('telegramOutgoingToken'))
-
-config_past_days = 0 # default
-if os.getenv('past_days'):
-    config_past_days = int(os.getenv('past_days'))
-
-config_price_percent = 10 # default
-if os.getenv('price_percent'):
-    config_price_percent = float(os.getenv('price_percent'))
-
-config_future_days = 7 # default
-if os.getenv('future_days'):
-    config_future_days = int(os.getenv('future_days'))
-
-config_shorts_percent = 15 # default
-if os.getenv('shorts_percent'):
-    config_shorts_percent = int(os.getenv('shorts_percent'))
-
-config_cache_dir = 'var/cache' # default
-if os.getenv('cache_dir'):
-    config_cache_dir = os.getenv('cache_dir').rstrip('/')
-
-config_http_timeout = int(10) # default
-if os.getenv('http_timeout'):
-    config_http_timeout = int(os.getenv('http_timeout'))
-
-config_country_code = str("AU") # default
-if os.getenv('country_code'):
-    config_country_code = str(os.getenv('country_code'))
-
-config_timezone = str("Australia/Melbourne") # default
-if os.getenv('timezone'):
-    config_timezone = str(os.getenv('timezone'))
-
+config_alliterate = os.getenv("alliterate", 'False').lower() in ('true', '1', 't')
+config_cache = os.getenv("cache", 'False').lower() in ('true', '1', 't')
+config_cache_dir = os.getenv('cache_dir', 'var/cache').rstrip('/')
+config_cache_seconds = int(os.getenv('cache_seconds', 82800))
+config_country_code = os.getenv('country_code', 'AU')
+config_chunk_maxlines = int(os.getenv('chunk_maxlines', 20))
 config_exclude_portfolios = () # default
-if os.getenv('exclude_portfolios'):
-    config_exclude_portfolios = set(os.getenv('exclude_portfolios').split())
-
-config_include_portfolios = () # default
-if os.getenv('include_portfolios'):
-    config_include_portfolios = set(os.getenv('include_portfolios').split())
-
-config_watchlist = () # default
-if os.getenv('watchlist'):
-    config_watchlist = set(os.getenv('watchlist').split())
-
-config_chunk_maxlines = int(20) # default
-if os.getenv('chunk_maxlines'):
-    config_chunk_maxlines = int(os.getenv('chunk_maxlines'))
-
-config_cache = True # default
-if os.getenv('cache'):
-    config_cache = os.getenv("cache", 'False').lower() in ('true', '1', 't')
-
-debug = False # default
-if os.getenv('debug'):
-    debug = os.getenv("debug", 'False').lower() in ('true', '1', 't')
-
-config_cache_seconds = 82800 # default
-if os.getenv('cache_seconds'):
-    config_cache_seconds = int(os.getenv('cache_seconds'))
-
-config_telegram_outgoing_webhook = str() # default
-if os.getenv('telegram_outgoing_webhook'):
-    config_telegram_outgoing_webhook = str(os.getenv('telegram_outgoing_webhook'))
-
-config_ip = '127.0.0.1' # default
-if os.getenv('ip'):
-    config_ip = os.getenv('ip')
-
-config_port = int(5000) # default
-if os.getenv('port'):
-    config_port = int(os.getenv('port'))
-
-config_telegram_allowed_userids = () # default
-if os.getenv('telegram_allowed_userids'):
-    config_telegram_allowed_userids = set(os.getenv('telegram_allowed_userids').split())
+config_exclude_portfolios = os.getenv('exclude_portfolios', '').split()
+config_future_days = int(os.getenv('future_days', 7))
+config_http_timeout = int(os.getenv('http_timeout', 10))
+config_include_portfolios = os.getenv('include_portfolios', '').split()
+config_ip = os.getenv('ip', '127.0.0.1')
+config_past_days = int(os.getenv('past_days', 0))
+config_port = int(os.getenv('port', 5000))
+config_price_percent = float(os.getenv('price_percent', 9.4))
+config_shorts_percent = int(os.getenv('shorts_percent', 15))
+config_slackOAuthToken = os.getenv('slackOAuthToken', False)
+config_slackOutgoingToken = os.getenv('slackOutgoingToken', False)
+config_telegram_allowed_userids = os.getenv('telegram_allowed_userids', '').split()
+config_telegram_outgoing_webhook = os.getenv('telegram_outgoing_webhook', False)
+config_telegramChatID = os.getenv('telegramChatID', False)
+config_telegramOutgoingToken = os.getenv('telegramOutgoingToken', False)
+config_timezone = os.getenv('timezone', 'Australia/Melbourne')
+config_watchlist = os.getenv('watchlist', '').split()
+debug = os.getenv("debug", 'False').lower() in ('true', '1', 't')
 
