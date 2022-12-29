@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 from itertools import groupby
-import datetime
 import json, re, time, random
 #from itertools import pairwise # python 3.10
 
@@ -175,10 +174,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         def alliterate():
             word1 = 'A'
             word2 = 'Z'
-            while not word1.lower().startswith(list(word2)[0]):
+            while word1.lower()[0] != word2.lower()[0]:
                 word1 = random.choice(adjectives)
                 word2 = random.choice(adjectives_two)
-            return (word1, word2)
+            return word1, word2
         verb = [
             'pretend to greet',
             'apparently share this moment with',
@@ -197,9 +196,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             'maintain character with',
             'act like I comprehend'
         ]
-        #time.sleep(3) # pause for realism
-        alliteration = alliterate()
-        payload = [f"{alliteration[0].capitalize()} {alliteration[1]} to {random.choice(verb)} you, {userRealName}! 😇"]
+        time.sleep(3) # pause for realism
+        adjective = alliterate()
+        payload = [f"{adjective[0].capitalize()} {adjective[1]} to {random.choice(verb)} you, {userRealName}! 😇"]
         #payload = [f"{random.choice(adjectives).capitalize()} {random.choice(adjectives_two)} to {random.choice(verb)} you, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 2
