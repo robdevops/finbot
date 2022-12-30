@@ -82,7 +82,8 @@ The webhook is only used for the trade notifications and scheduled reports. The 
 ### Telegram
 * Set up the bot by messaging [BotFather](https://telegram.me/BotFather).
 * Add your bot to a group or channel.
-* Optionally, make the bot an admin (for interactive features).
+* For security, run `/setjoingroups` and set to `Disabled`
+* Optionally, make the bot a group admin (for interactive features).
 * In the .env file, set `telegramBotToken` to the token BotFather gave you.
 * In the .env file, set `telegramChatID` to the chat group or channel id.
    * For channels and supergroups, _CHAT_ID_ should be negative and 13 characters. Prepend `-100` if necessary.
