@@ -263,14 +263,16 @@ For Slack, visit https://api.slack.com/apps/ to create a new Slack app. Put the 
 
 ### Daemonize (systemd)
 `finbot.service` can take care of keeping `bot.py` running in the background and starting on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User` and `ExecStart`, then enable and start it:
-```
-sed -i 's/CHANGEME/YOUR USERNAME/' finbot.service
-```
 
 ```
-sudo cp -v finbot.service /etc/systemd/system/finbot.service
+sudo cp -v finbot.service /etc/systemd/system/
 ```
-
+```
+sudo sed -i 's/CHANGEME/YOUR USERNAME/' /etc/systemd/system/finbot.service
+```
+```
+sudo systemctl daemon-reload
+```
 ```
 sudo systemctl enable finbot --now
 ```
