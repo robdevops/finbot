@@ -7,6 +7,10 @@ User=CHANGEME
 ExecStart=/home/CHANGEME/finbot/bot.py
 Restart=on-failure
 RestartSec=30s
+StandardOutput=null
+StandardError=journal
+SyslogIdentifier=finbot
+Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target

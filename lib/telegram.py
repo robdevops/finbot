@@ -1,10 +1,12 @@
 import json, time
 import requests
 from lib.config import *
+from sys import stderr
+import threading
 
-def subscribe():
+def setWebhook():
     telegram_url = webhooks['telegram'] + 'setWebhook'
-    params = {"url": config_telegram_outgoing_webhook, "allowed_updates": ["message"], 'secret_token': config_telegramOutgoingToken}
+    params = {"url": config_telegramOutgoingWebhook, "allowed_updates": "message", 'secret_token': config_telegramOutgoingToken}
     #params = {"url": ''} # unsubscribe
     response = requests.post(
         telegram_url,
@@ -12,13 +14,18 @@ def subscribe():
     )
     print(response.text)
 
-def getBotName():
+def getMe():
     telegram_url = webhooks['telegram'] + 'getMe'
-    params = {"url": config_telegram_outgoing_webhook}
     response = requests.post(
         telegram_url,
-        params=params
     )
-    return response.json()['result']['username']
+    return response.json()['result']
 
-subscribe()
+if config_telegramBotToken:
+    try:
+        threading.Thread(target=setWebhook).start()
+        #threading.Thread(target=setMyCommands).start()
+        botName = ''
+        botName = '@' + getMe()['username']
+    except Exception as e:
+        print("Telegram error", str(e), file=stderr)
