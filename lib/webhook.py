@@ -9,14 +9,20 @@ def write(service, url, payload, slackchannel=False, message_id=False):
     headers = {'Content-type': 'application/json'}
     payload = {'text': payload}
     if 'slack.com' in url:
-        headers = {**headers, **{'unfurl_links': 'false', 'unfurl_media': 'false'}} # FIX python 3.9
+        headers['unfurl_links'] = 'false'
+        headers['unfurl_media'] = 'false'
         if slackchannel:
-            headers = {**headers, **{'Authorization': 'Bearer ' + config_slackOAuthToken}} # FIX python 3.9
-            payload = {**payload, **{'channel': slackchannel}} # FIX python 3.9
+            headers['Authorization'] = 'Bearer ' + config_slackBotToken
+            payload['channel': slackchannel]
             if message_id:
-                payload = {**payload, **{'thread_ts': message_id, 'reply_broadcast': 'true'}} # FIX python 3.9
+                payload['thread_ts'] = message_id
+                payload['reply_broadcast'] = 'true'
     elif 'api.telegram.org' in url:
-        payload = {**payload, **{'parse_mode': 'HTML', 'disable_web_page_preview': 'true', 'disable_notification': 'true', "allow_sending_without_reply": True, "reply_to_message_id": message_id }}
+        payload['parse_mode'] = 'HTML'
+        payload['disable_web_page_preview'] = 'true'
+        payload['disable_notification'] = 'true'
+        payload['allow_sending_without_reply'] = 'true'
+        payload['reply_to_message_id'] = message_id
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=config_http_timeout)
     except:
