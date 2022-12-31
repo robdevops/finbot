@@ -245,9 +245,9 @@ Note: The utils folder contains a script to generate `/etc/nginx/aws_subnets`. I
 With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
 
 #### Slack
-For Slack, visit https://api.slack.com/apps/ to create a new Slack app.
-* Put the token from _OAuth & Permissions > Bot User OAuth Token_ into .env file `slackOAuthToken`
-* Put token from _Basic Information > Verification Token_ into the .env file `slackVerifyToken`.
+Visit https://api.slack.com/apps/ to create a new Slack app.
+* Put the token from _OAuth & Permissions > Bot User OAuth Token_ into .env file `slackBotToken`
+* Put token from _Basic Information > Verification Token_ into the .env file `slackOutgoingToken`.
 * Put your web server URL (e.g. https://www.example.com:8443/slack) into:
   * _Event Subscriptions > Enable Events_ (the bot will auto verify Slack's verification request if `bot.py` is running and reachable)
   * .env file `slackOutgoingWebhook`
