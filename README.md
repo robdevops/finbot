@@ -40,9 +40,12 @@ datetime python-dotenv requests gevent
 
 ## Installation (Linux)
 ```
-sudo pip3 install git datetime python-dotenv requests gevent
+pip3 install datetime python-dotenv requests gevent
 ```
 
+```
+sudo $(which apt dnf yum) install git
+```
 ```
 git clone https://github.com/robdevops/finbot.git ~/finbot
 ```
@@ -79,7 +82,8 @@ The webhook is only used for the trade notifications and scheduled reports. The 
 ### Telegram
 * Set up the bot by messaging [BotFather](https://telegram.me/BotFather).
 * Add your bot to a group or channel.
-* Optionally, make the bot an admin (for interactive features).
+* For security, run `/setjoingroups` and set to `Disabled`
+* Optionally, make the bot a group admin (for interactive features).
 * In the .env file, set `telegramBotToken` to the token BotFather gave you.
 * In the .env file, set `telegramChatID` to the chat group or channel id.
    * For channels and supergroups, _CHAT_ID_ should be negative and 13 characters. Prepend `-100` if necessary.
@@ -267,14 +271,16 @@ For Slack, visit https://api.slack.com/apps/ to create a new Slack app.
 
 ### Daemonize (systemd)
 `finbot.service` can take care of keeping `bot.py` running in the background and starting on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User` and `ExecStart`, then enable and start it:
-```
-sed -i 's/CHANGEME/YOUR USERNAME/' finbot.service
-```
 
 ```
-sudo cp -v finbot.service /etc/systemd/system/finbot.service
+sudo cp -v finbot.service /etc/systemd/system/
 ```
-
+```
+sudo sed -i 's/CHANGEME/YOUR USERNAME/' /etc/systemd/system/finbot.service
+```
+```
+sudo systemctl daemon-reload
+```
 ```
 sudo systemctl enable finbot --now
 ```
