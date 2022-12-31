@@ -42,7 +42,6 @@ datetime python-dotenv requests gevent
 ```
 pip3 install datetime python-dotenv requests gevent
 ```
-
 ```
 sudo $(which apt dnf yum) install git
 ```
@@ -289,7 +288,6 @@ sudo systemctl enable finbot --now
 * Discord shows garbage link previews from Sharesight. Modify the script to remove hyperlinks, or disable this for your Discord account under _Settings > Text & Images > Embeds and link previews._
 
 ## Suggestions
-* Know a chat or notification service with a REST API?
 * Is my code is doing something the hard way?
 * Something important is missing from this README?
 
