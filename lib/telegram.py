@@ -2,7 +2,7 @@ import json, time
 import requests
 from lib.config import *
 from sys import stderr
-import threading
+import concurrent.futures
 
 def setWebhook():
     telegram_url = webhooks['telegram'] + 'setWebhook'
@@ -22,10 +22,8 @@ def getMe():
     return response.json()['result']
 
 if config_telegramBotToken:
-    try:
-        threading.Thread(target=setWebhook).start()
-        #threading.Thread(target=setMyCommands).start()
-        botName = ''
-        botName = '@' + getMe()['username']
-    except Exception as e:
-        print("Telegram error", str(e), file=stderr)
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        executor.submit(setWebhook)
+        #executor.submit(setMyCommands)
+        thread = executor.submit(getMe)
+        botName = '@' + thread.result()['username']
