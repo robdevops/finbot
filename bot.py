@@ -3,11 +3,10 @@
 import gevent.monkey
 gevent.monkey.patch_all()
 from gevent import pywsgi
-from itertools import groupby
-import json, re
+import json, os, re
 import threading
 from sys import stderr
-#from itertools import pairwise # python 3.10
+from urllib.parse import urlparse
 
 from lib.config import *
 import lib.worker as worker
@@ -37,7 +36,7 @@ def main(environ, start_response):
     if debug:
         print_headers()
         print_body()
-    if uri == '/' + config_telegramOutgoingWebhook.split('/')[-1]:
+    if config_telegramOutgoingWebhook and uri == urlparse(config_telegramOutgoingWebhook).path:
         service = 'telegram'
         global botName
         if 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' not in environ:
@@ -81,7 +80,7 @@ def main(environ, start_response):
             else:
                 print(f"[{service}]: unhandled: 'message' without 'text/photo'", file=stderr)
                 return [b'<h1>Unhandled</h1>']
-    elif uri == '/' + config_slackOutgoingWebhook.split('/')[-1]:
+    elif config_slackOutgoingWebhook and uri == urlparse(config_slackOutgoingWebhook).path:
         service = 'slack'
         if 'token' not in inbound:
             print("warning: Slack authorisation field not present", file=stderr)
@@ -135,6 +134,8 @@ def main(environ, start_response):
     return [b'']
 
 if __name__ == '__main__':
+    if os.getuid() == 0:
+        print("Running as superuser. This is not recommended.", file=stderr)
     httpd = pywsgi.WSGIServer((config_ip, config_port), main)
     if debug:
         httpd.secure_repr = False
