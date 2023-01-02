@@ -40,13 +40,16 @@ datetime python-dotenv requests gevent
 
 ## Installation (Linux)
 ```
-pip3 install datetime python-dotenv requests gevent
-```
-```
 sudo $(which apt dnf yum) install git
 ```
 ```
 git clone https://github.com/robdevops/finbot.git ~/finbot
+```
+```
+cd ~/finbot
+```
+```
+pip3 install -r requirements.txt
 ```
 
 ## Setup
@@ -292,6 +295,10 @@ sudo systemctl daemon-reload
 ```
 ```
 sudo systemctl enable finbot --now
+```
+You can now monitor the bot's stderr with :
+```
+journalctl -fu finbot
 ```
 
 ## Limitations
