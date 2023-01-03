@@ -6,7 +6,7 @@ staging="${live}.staging"
 backup="${live}.bak"
 PATH="$PATH:/usr/sbin:/usr/bin"
 [[ $(whoami) == root ]] || { echo "requires root account"; exit 1 ;}
-which awk curl nginx whois >/dev/null || { echo "requires: awk, curl, nginx, whois"; exit 1 ;}
+which awk curl nginx whois >/dev/null || { echo "requires: awk curl nginx whois"; exit 1 ;}
 
 download(){
 	url='https://core.telegram.org/getProxyConfig'
@@ -15,7 +15,7 @@ download(){
             echo ${ip%\.*}\.0
         done | sort -u);
     do
-            whois $subnet
+            whois -T route $subnet
     done | awk '$1 == "route:" {print "allow "$2";"}' | sort -u > $staging
 }
 

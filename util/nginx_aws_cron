@@ -6,7 +6,7 @@ staging="${live}.staging"
 backup="${live}.bak"
 PATH="$PATH:/usr/sbin:/usr/bin"
 [[ $(whoami) == root ]] || { echo "requires root account"; exit 1 ;}
-which awk curl nginx >/dev/null || { echo "requires: awk, curl, nginx"; exit 1 ;}
+which awk curl nginx >/dev/null || { echo "requires: awk curl nginx"; exit 1 ;}
 
 download(){
 	url='https://ip-ranges.amazonaws.com/ip-ranges.json'
