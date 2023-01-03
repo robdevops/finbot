@@ -228,12 +228,12 @@ server {
 	}
 	location /telegram {
 		proxy_pass http://127.0.0.1:5000/telegram;
-		allow 91.108.4.0/22
+		include /etc/nginx/telegram_subnets;
 		deny all;
 	}
 }
 ```
-Note: The utils folder contains a script to generate `/etc/nginx/aws_subnets`. It can be run once, or placed in `/etc/cron.daily/`.
+Note: The utils folder contains scripts to generate `/etc/nginx/aws_subnets` and `/etc/nginx/telegram_subnets`. They can be run once, or placed in `/etc/cron.daily/`.
 
 ### Integrating the interactive bot with chat networks
 

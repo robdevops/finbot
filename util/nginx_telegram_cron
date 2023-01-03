@@ -1,0 +1,62 @@
+#!/bin/bash
+set -euo pipefail
+
+live="/etc/nginx/telegram_subnets"
+staging="${live}.staging"
+backup="${live}.bak"
+PATH="$PATH:/usr/sbin:/usr/bin"
+[[ $(whoami) == root ]] || { echo "requires root account"; exit 1 ;}
+which awk curl nginx >/dev/null || { echo "requires: awk, curl, nginx"; exit 1 ;}
+
+download(){
+	url='https://core.telegram.org/getProxyConfig'
+    for subnet in $(for ip in $(curl $url | grep -oE "([0-9]{1,3}\.){3}[0-9]{1,3}");
+        do
+            echo ${ip%\.*}\.0
+        done | sort -u);
+    do
+            whois $subnet
+    done | awk '$1 == "route:" {print "allow "$2";"}' | sort -u > $staging
+}
+
+non_zero() {
+	test -s $staging
+}
+
+newer() {
+	test $staging -nt $live
+}
+
+different() {
+	! cmp --silent $staging $live
+}
+
+valid() {
+	nginx -qt
+}
+
+reload_nginx() {
+        nginx -s reload
+}
+
+if [[ ! -f $live ]]; then
+	set -e
+	download
+	non_zero
+	cp $staging $live
+else
+	set -e
+	download
+	non_zero
+	newer
+	different
+	cp $live $backup
+	cp $staging $live
+fi
+
+if valid; then
+	reload_nginx
+else
+	cp $backup $live
+fi
+
