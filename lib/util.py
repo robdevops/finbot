@@ -236,11 +236,10 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
         else:
             if debug:
                 print("cache expired:", cacheFile)
-            return false
+            return False
     else:
-        if debug:
-            print("does not exist:", cache_file)
-        return false
+        print("Cache file does not exist:", cacheFile, "first run?")
+        return False
 
 def write_cache(cache_file, fresh_dict):
     os.umask(0)

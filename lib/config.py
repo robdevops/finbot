@@ -20,7 +20,7 @@ if os.getenv('telegramBotToken'):
     webhooks['telegram'] = 'https://api.telegram.org/bot' + os.getenv('telegramBotToken').rstrip('/') + '/'
 
 config_alliterate = os.getenv("alliterate", 'False').lower() in ('true', '1', 't')
-config_cache = os.getenv("cache", 'False').lower() in ('true', '1', 't')
+config_cache = os.getenv("cache", 'True').lower() in ('true', '1', 't')
 config_cache_dir = os.getenv('cache_dir', 'var/cache').rstrip('/')
 config_cache_seconds = int(os.getenv('cache_seconds', 82800))
 config_country_code = os.getenv('country_code', 'AU')
