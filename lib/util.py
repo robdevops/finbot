@@ -4,6 +4,7 @@ import lib.webhook as webhook
 import datetime
 import json
 import os
+import time
 
 def chunker(seq, size):
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
@@ -223,10 +224,8 @@ def currency_symbol(currency):
             return currency_symbol
 
 def read_cache(cacheFile, maxSeconds=config_cache_seconds):
-    time_now = datetime.datetime.today()
-    now = time_now.timestamp()
     if os.path.isfile(cacheFile):
-        cacheFileSeconds = now - int(os.path.getmtime(cacheFile))
+        cacheFileSeconds = time.time() - os.path.getmtime(cacheFile)
         cacheTTL = maxSeconds - cacheFileSeconds
         if cacheTTL > 0:
             if debug:
@@ -234,6 +233,14 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
             with open(cacheFile, "r") as f:
                 cacheDict = json.loads(f.read())
             return cacheDict
+        else:
+            if debug:
+                print("cache expired:", cacheFile)
+            return false
+    else:
+        if debug:
+            print("does not exist:", cache_file)
+        return false
 
 def write_cache(cache_file, fresh_dict):
     os.umask(0)
