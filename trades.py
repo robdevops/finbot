@@ -63,10 +63,12 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                 currency = currency_temp
             if service == 'telegram':
                 trade_link = '<a href="' + sharesight_url + holding_id + '/trades/' + trade_id + '/edit">' + verb + '</a>'
-                holding_link = util.yahoo_link(ticker, service, brief=True)
+                #holding_link = util.yahoo_link(ticker, service, brief=True)
+                holding_link = util.gfinance_link(symbol, market, service, brief=True)
             elif service in {'discord', 'slack'}:
                 trade_link = '<' + sharesight_url + holding_id + '/trades/' + trade_id + '/edit' + '|' + verb + '>'
-                holding_link = util.yahoo_link(ticker, service, brief=True)
+                #holding_link = util.yahoo_link(ticker, service, brief=True)
+                holding_link = util.gfinance_link(symbol, market, service, brief=True)
             else:
                 trade_link = verb
                 holding_link = symbol
@@ -135,7 +137,10 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             payload = prepare_trade_payload(service, trades)
             url = webhooks[service]
             if service == "telegram":
+                chat_id=config_telegramChatID
                 url = url + "sendMessage?chat_id=" + str(chat_id)
+            else:
+                chat_id=False
             webhook.payload_wrapper(service, url, payload, chat_id)
 
     # write state file

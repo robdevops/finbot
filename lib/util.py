@@ -270,6 +270,21 @@ def yahoo_link(ticker, service='telegram', brief=False):
         ticker_link = item
     return ticker_link
 
+def gfinance_link(symbol, market, service='telegram', brief=True):
+    url = "https://www.google.com/finance/quote/"
+    ticker = symbol + ':' + market
+    if brief:
+        text = symbol
+    else:
+        text = ticker
+    if service == 'telegram':
+            ticker_link = '<a href="' + url + ticker + '">' + text + '</a>'
+    elif service in {'discord', 'slack'}:
+        ticker_link = '<' + url + ticker + '|' + text + '>'
+    else:
+        ticker_link = item
+    return ticker_link
+
 def link(ticker, url, text, service='telegram'):
     if service == 'telegram':
         link = '<a href="' + url + '">' + text + '</a>'
