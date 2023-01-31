@@ -427,6 +427,7 @@ def prepare_help(service, user, botName):
     payload.append("!AAPL")
     payload.append("!AAPL bio")
     payload.append("!holdings")
+    payload.append("!price [percent]")
     payload.append("!premarket [percent]")
     payload.append("!shorts [percent]")
     payload.append("!trades [days]")
