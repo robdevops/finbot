@@ -13,7 +13,7 @@ def write(service, url, payload, slackchannel=False, message_id=False):
         headers['unfurl_media'] = 'false'
         if slackchannel:
             headers['Authorization'] = 'Bearer ' + config_slackBotToken
-            payload['channel': slackchannel]
+            payload['channel'] = slackchannel
             if message_id:
                 payload['thread_ts'] = message_id
                 payload['reply_broadcast'] = 'true'

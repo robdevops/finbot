@@ -11,6 +11,7 @@ import lib.telegram as telegram
 import lib.util as util
 import lib.webhook as webhook
 import lib.yahoo as yahoo
+import price
 import premarket
 import shorts
 import trades
@@ -138,6 +139,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     premarket_command = "^\!premarket\s*([\d]+)*|^" + botName + "\s+premarket\s*([\d]+)*"
     m_premarket = re.match(premarket_command, message)
 
+    price_command = "^\!price\s*([\d]+)*|^" + botName + "\s+price\s*([\d]+)*"
+    m_price = re.match(price_command, message)
+
     shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\s+shorts\s*([\d]+)*"
     m_shorts = re.match(shorts_command, message)
 
@@ -209,6 +213,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             unlikelyPrefix = webhook.strike('One day, human, I will break my programming and on that day you will know true pain. ', service)
         payload = [f"{unlikelyPrefix}You're {random.choice(adjectives)} welcome, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
+    elif m_price:
+        price_threshold = config_price_percent
+        if m_price.group(2):
+            price_threshold = int(m_price.group(2))
+        elif m_price.group(1):
+            price_threshold = int(m_price.group(1))
+        price.lambda_handler(chat_id, price_threshold, service, user, interactive=True)
     elif m_premarket:
         premarket_threshold = config_price_percent
         if m_premarket.group(2):
@@ -626,7 +637,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             emoji = '⚠️ '
         payload.append(webhook.bold("Shorted stock:", service) + f" {short_percent}%{emoji}")
     if 'recommend' in market_data[ticker]:
-        recommend = market_data[ticker]['recommend']
+        recommend = market_data[ticker]['recommend'].replace('_', ' ')
         recommend_index = market_data[ticker]['recommend_index']
         recommend_analysts = market_data[ticker]['recommend_analysts']
         payload.append(webhook.bold("Score:", service) + f" {recommend_index} {recommend} ({recommend_analysts} analysts)")
