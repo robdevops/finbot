@@ -17,9 +17,9 @@
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
-Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs. Persistent storage enables a polling frequency greater than daily, such as every 5 minutes.
+Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs.
 
-The other various reports can also run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings combined across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they will either report to all configured chat networks, or reply to the chat which triggered them.
+The other various reports can also run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they will either report to all configured chat networks, or reply to the chat which triggered them.
 
 The interactive bot requires you to host a web service on a domain with a trusted certificate. It subscribes to push updates from native Slack apps / Telegram bots, and reacts to certain regex seen in chat. It can: 
 * Run the aforementioned reports on demand
@@ -32,7 +32,7 @@ The interactive bot requires you to host a web service on a domain with a truste
 * Sharesight paid plan, preferably with automatic trade imports, and an API key
 * Slack / Discord webhooks / Telegram bot user
 * The interactive bot requires a web server with domain name and matching certificate, plus the gevent Python module
-* Python 3.8.10
+* Python 3.8.10+
 * Python modules:
 ```
 datetime python-dotenv requests gevent
@@ -108,7 +108,7 @@ include_portfolios = "100001 100002"
 ```
 
 ### Caching
-Many object sources are cached for just under one day by default. Cache is controlled by the settings below. Trades IDs are stored on disk, but trade queries generally don't result in a cache hit for functional reasons.
+Many objects are cached for just under one day by default. Cache is controlled by the settings below. Trades IDs are stored on disk, but trade queries generally don't result in a cache hit for functional reasons.
 ```
 cache = True
 cache_seconds = 82800
@@ -123,7 +123,7 @@ Once this value is loaded into the interactive bot, it is not read again. The in
 
 ## Reports
 
-"Reports" refers to the cron initiated non-interactive notifications from the bot.
+"Reports" refers to the cron-initiated non-interactive notifications from the bot.
 
 ### Trades
 ![trade update in Slack](img/trades.png?raw=true "Trade update in Slack")
@@ -133,7 +133,7 @@ By default, this report searches Sharesight for trades from the current day only
 
 Without persistent storage, it is recommended to leave `past_days=0` to avoid duplicate trade notifications. The cron that triggers the report must do so exactly once per day, after market close.
 
-With persistent storage, it is recommended to set `past_days=30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to set the cron frequency to every 20 minutes.
+With persistent storage, it is recommended to set `past_days=30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to set the cron frequency to 20 minutes.
 
 ```
 past_days = 30
@@ -257,7 +257,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app.
 * Under _Event Subscriptions > Subscribe to bot events_:
   * Add event `app_mention` for the bot to see _@botname_ mentions.
     * Alternatively, you can subscribe to `message.channels` if you want your bot to see everything and respond to `!` commands. To avoid duplicate responses, don't subscribe to `app_mention` and `message.channels` at the same time.
-  * If you want to DM the bot
+  * If you want to DM the bot:
     * Subscribe to `message.im`
     * Check the box _App Home > Allow users to send Slash commands and messages from the messages tab_.
 
