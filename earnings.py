@@ -51,8 +51,8 @@ def lambda_handler(event,context):
         payload = prepare_earnings_payload(service)
         if service == "telegram":
             url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
-        elif service == "slack":
-            url = 'https://slack.com/api/chat.postMessage'
+        else:
+            url = webhooks[service]
         webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy
