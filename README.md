@@ -56,6 +56,7 @@ The interactive bot requires you to host a web service on a domain with a truste
 
 ### Stock lookup
 ![Screenshot showing stock info on Slack](img/stockinfo.png?raw=true "Screenshot showing stock info on Slack")
+
 This report can only be run through the interactive bot. Example usage:
 ```
 !AAPL
@@ -65,6 +66,8 @@ This report can only be run through the interactive bot. Example usage:
 ```
 
 ### Stock bio
+![Screenshot showing stock bio on Slack](img/bio.png?raw=true "Screenshot showing stock bio on Slack")
+
 This report can only be run through the interactive bot. Example usage:
 ```
 !AAPL bio
@@ -77,11 +80,11 @@ This report can only be run through the interactive bot. Example usage:
 ![trade update in Slack](img/trades.png?raw=true "Trade update in Slack")
 
 `trades.py` sends recent Sharesight trades to your configured chat services.
-By default, this report searches Sharesight for trades from the current day only. You can override this with `past_days` in the .env file where run from cron, or by providing a number as argument when triggered through the chat bot.
+By default, this report searches Sharesight for trades from the current day only. You can override this with `past_days` in the .env file, or by providing a number as argument when triggered through the chat bot.
 
-Without persistent storage, it is recommended to leave `past_days=0` to avoid duplicate trade notifications. The cron that triggers the report must do so exactly once per day, after market close.
+Without persistent storage, it is recommended to leave `past_days = 0` to avoid duplicate trade notifications. In this case, the cron that triggers the report must do so exactly once per day, after market close.
 
-With persistent storage, it is recommended to set `past_days=30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to set the cron frequency to 20 minutes.
+With persistent storage, it is recommended to set `past_days = 30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to set the cron frequency to 20 minutes.
 
 ```
 past_days = 30
@@ -98,7 +101,7 @@ Interactive trigger:
 ### Price alerts
 ![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
 
-`prices.py` sends intraday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file when run from cron, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted. Example:
+`prices.py` sends intraday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted. Example:
 ```
 price_percent = 9.4
 ```
@@ -112,7 +115,9 @@ Interactive trigger:
 ```
 
 ### Price alerts (pre-market)
-`premarket.py` sends pre/post market price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file when run from cron, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted. Example:
+![pre-market price alert in Slack](img/premarket.png?raw=true "Pre-market price alert in Slack")
+
+`premarket.py` sends pre/post market price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted. Example:
 ```
 price_percent = 9.4
 ```
@@ -128,7 +133,7 @@ Interactive trigger:
 ### Earnings reminders
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
 
-`earnings.py` sends upcoming earnings date alerts. The data is sourced from Yahoo! Finance. Events more than `future_days` into the future will be ignored when run from cron, or the days can be specified as an argument when triggered through the chat bot. **Explanation:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
+`earnings.py` sends upcoming earnings date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This can be specified as an argument when triggered through the chat bot. **Explanation:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 ```
 future_days = 7
 ```
@@ -144,7 +149,7 @@ Interactive trigger:
 ### Ex-dividend warnings
 ![ex-dividend warning in Slack](img/ex-dividend.png?raw=true "Ex-dividend warning in Slack")
 
-`ex-dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. Events more than `future_days` into the future will be ignored when run from cron, or the days can be specified as an argument when triggered through the chat bot. **Explanation:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
+`ex-dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This can be specified as an argument when triggered through the chat bot. **Explanation:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
 ```
 future_days = 7
 ```
@@ -158,7 +163,9 @@ Interactive trigger:
 ```
 
 ### Highly shorted stock warnings
-`shorts.py` sends short interest warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted when run from cron, or the threshold can be specified as an argument when triggered through the chat bot. **Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely.
+![short warnings in Slack](img/shorts.png?raw=true "Short warnings in Slack")
+
+`shorts.py` sends short interest warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. This can be specified as an argument when triggered through the chat bot. **Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely.
 ```
 shorts_percent = 15
 ```
@@ -172,6 +179,8 @@ Interactive trigger:
 ```
 
 ### Watchlist
+![Shared watchlist in Slack](img/watchlist.png?raw=true "Shared watchlist in Slack")
+
 Tracks additional securities which are not in your Sharesight holdings. Use the Yahoo! Finance ticker format.
 
 It is stored in `var/cache/finbot_watchlist.json` by default. It uses JSON list format. Example:
