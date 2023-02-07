@@ -463,8 +463,8 @@ def prepare_help(service, user, botName):
     else:
         payload.append(botName + ' AAPL')
         payload.append(botName + ' AAPL bio')
-    payload.append("")
     payload.append("etc.")
+    payload.append("")
     payload.append("https://github.com/robdevops/finbot")
     return payload
 
