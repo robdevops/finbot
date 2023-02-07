@@ -47,10 +47,11 @@ Trade notifications are peformed by polling the Sharesight trades API from a cro
 
 The other various reports can also run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they will either report to all configured chat networks, or reply to the chat which triggered them.
 
-The interactive bot requires you to host a web service on a domain with a trusted certificate. It subscribes to push updates from native Slack apps / Telegram bots, and reacts to certain regex seen in chat. It can:
-* Run the aforementioned reports on demand
-* Look up stock facts when given a ticker code
-* Allow your chat group to maintain a shared watch list that is picked up by the various reports.
+The interactive bot requires you to host a web service on a domain with a trusted certificate. It subscribes to push updates from native Slack apps / Telegram bots, and reacts to certain regex seen in chat. It provides:
+* Stock lookup (financials and company profile)
+* Group maintainable watch list, picked up by the various reports
+* Listing of portfolios and their current holdings
+* Running the other stock reports on demand
 
 ## Reports
 
@@ -314,13 +315,7 @@ The above can be installed with:
 (crontab -l ; cat ~/finbot/crontab.txt)| crontab -
 ```
 
-## Interactive bot
-Currently supporting Slack and Telegram, the interactive bot adds:
-* Stock lookup (financials and company profile)
-* Group maintainable watch list
-* Listing of portfolios and their current holdings
-* Running the other stock reports on command
-
+## Interactive bot setup
 The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
 It defaults to listening on http://127.0.0.1:5000/, which can be changed with `ip` and `port` in the .env file.
 
