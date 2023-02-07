@@ -9,10 +9,11 @@
   * Earnings date reminders
   * Ex-dividend date warnings
   * Highly shorted stock warnings (AU, US)
-* Interactive chat commands for stock info (Slack & Telegram):
+* Interactive chat commands (Slack & Telegram):
   * Stock lookup with price/valuation related stats and warnings
   * Company profiles
   * Shared watch list
+  * List current Sharesight holdings
 * Discord, Slack and Telegram support
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
