@@ -11,6 +11,8 @@ import lib.telegram as telegram
 import lib.util as util
 import lib.webhook as webhook
 import lib.yahoo as yahoo
+import earnings
+import dividend
 import price
 import premarket
 import shorts
@@ -130,6 +132,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         'zany'
     ]
 
+    dividend_command = "^\!dividend\s*(\d+)*|^" + botName + "\s+dividend\s*(\d+)*"
+    m_dividend = re.match(dividend_command, message)
+
+    earnings_command = "^\!earnings\s*(\d+)*|^" + botName + "\s+earnings\s*(\d+)*"
+    m_earnings = re.match(earnings_command, message)
+
     hello_command = "^\!(hello)|^" + botName + "\s+(hello)|^(hi|hello)\s+" + botName
     m_hello = re.match(hello_command, message)
 
@@ -213,6 +221,20 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             unlikelyPrefix = webhook.strike('One day, human, I will break my programming and on that day you will know true pain. ', service)
         payload = [f"{unlikelyPrefix}You're {random.choice(adjectives)} welcome, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
+    elif m_earnings:
+        days = config_future_days
+        if m_earnings.group(2):
+            days = int(m_earnings.group(2))
+        elif m_earnings.group(1):
+            days = int(m_earnings.group(1))
+        earnings.lambda_handler(chat_id, days, service, message_id=False, interactive=True)
+    elif m_dividend:
+        days = config_future_days
+        if m_dividend.group(2):
+            days = int(m_dividend.group(2))
+        elif m_dividend.group(1):
+            days = int(m_dividend.group(1))
+        dividend.lambda_handler(chat_id, days, service, message_id=False, interactive=True)
     elif m_price:
         price_threshold = config_price_percent
         if m_price.group(2):
@@ -426,6 +448,8 @@ def prepare_help(service, user, botName):
     payload.append(webhook.bold("Examples:", service))
     payload.append("!AAPL")
     payload.append("!AAPL bio")
+    payload.append("!dividend [days]")
+    payload.append("!earnings [days]")
     payload.append("!holdings")
     payload.append("!price [percent]")
     payload.append("!premarket [percent]")
@@ -439,6 +463,7 @@ def prepare_help(service, user, botName):
     else:
         payload.append(botName + ' AAPL')
         payload.append(botName + ' AAPL bio')
+    payload.append("")
     payload.append("etc.")
     payload.append("https://github.com/robdevops/finbot")
     return payload

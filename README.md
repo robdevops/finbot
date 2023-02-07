@@ -265,7 +265,10 @@ Visit https://api.slack.com/apps/ to create a new Slack app.
 ```
 !AAPL
 !AAPL bio
+!dividend [days]
+!earnings [days]
 !holdings
+!price [percent]
 !premarket [percent]
 !shorts [percent]
 !trades [days]
