@@ -151,7 +151,7 @@ Interactive trigger:
 ### Ex-dividend warnings
 ![ex-dividend warning in Slack](img/ex-dividend.png?raw=true "Ex-dividend warning in Slack")
 
-`ex-dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This can be specified as an argument when triggered through the chat bot. **Explanation:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
+`dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This can be specified as an argument when triggered through the chat bot. **Explanation:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
 ```
 future_days = 7
 ```
@@ -306,7 +306,7 @@ Recommended for a machine set to UTC:
 10  11 * * Mon-Fri ~/finbot/premarket.py > /dev/null
 
 # Weekly
-28  21 * * Fri { cd ~/finbot/; ./earnings.py; ./ex-dividend.py ;} > /dev/null
+28  21 * * Fri { cd ~/finbot/; ./earnings.py; ./dividend.py ;} > /dev/null
 
 # Monthly
 27  21 1 * * ~/finbot/shorts.py > /dev/null
