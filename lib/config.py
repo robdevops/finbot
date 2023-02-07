@@ -45,6 +45,5 @@ config_telegramOutgoingWebhook = os.getenv('telegramOutgoingWebhook', False)
 config_telegramChatID = os.getenv('telegramChatID', False)
 config_telegramOutgoingToken = os.getenv('telegramOutgoingToken', False)
 config_timezone = os.getenv('timezone', 'Australia/Melbourne')
-config_watchlist = os.getenv('watchlist', '').split()
 debug = os.getenv("debug", 'False').lower() in ('true', '1', 't')
 

@@ -300,6 +300,6 @@ def watchlist_load():
         with open(cache_file, "r") as f:
             watchlist = json.loads(f.read())
     else:
-        watchlist = list(config_watchlist)
+        watchlist = []
     return watchlist
 
