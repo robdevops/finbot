@@ -81,6 +81,10 @@ def fetch(tickers):
         except:
             pass
         try:
+            yahoo_output[ticker]["marketState"] = item['marketState']
+        except:
+            pass
+        try:
             earningsTimestamp = item['earningsTimestamp']
             earningsTimestampStart = item['earningsTimestampStart']
             earningsTimestampEnd = item['earningsTimestampEnd']

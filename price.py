@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import json, re
+import json, re, sys
 
 from lib.config import *
 import lib.sharesight as sharesight
@@ -8,10 +8,12 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, midsession=False, interactive=False):
     def prepare_price_payload(service, market_data, threshold):
         payload = []
         for ticker in market_data:
+            if midsession and market_data[ticker]['marketState'] != "REGULAR": # for scheduling mid-session updates
+                continue
             percent = market_data[ticker]['percent_change']
             title = market_data[ticker]['profile_title']
             if percent < 0:
@@ -30,7 +32,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         payload.sort(key=last_column_percent)
         if len(payload):
             if not specific_stock:
-                message = f'Price alerts (intraday) over {threshold}%:'
+                if midsession:
+                    message = f'Price alerts (mid-session) over {threshold}%:'
+                else:
+                    message = f'Price alerts (intraday) over {threshold}%:'
                 message = webhook.bold(message, service)
                 payload.insert(0, message)
         else:
@@ -73,4 +78,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
     return True
 
 if __name__ == "__main__":
-    lambda_handler()
+    midsession = False
+    if len(sys.argv) > 1:
+        midsession = sys.argv[1]
+    lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, midsession=True, interactive=False)
