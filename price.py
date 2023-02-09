@@ -8,11 +8,11 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, midsession=False, interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, ignoreclosed=False):
     def prepare_price_payload(service, market_data, threshold):
         payload = []
         for ticker in market_data:
-            if midsession and market_data[ticker]['marketState'] != "REGULAR": # for scheduling mid-session updates
+            if ignoreclosed and market_data[ticker]['marketState'] != "REGULAR": # for scheduling mid-session updates
                 continue
             percent = market_data[ticker]['percent_change']
             title = market_data[ticker]['profile_title']
@@ -32,8 +32,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         payload.sort(key=last_column_percent)
         if len(payload):
             if not specific_stock:
-                if midsession:
-                    message = f'Price alerts (mid-session) over {threshold}%:'
+                if ignoreclosed:
+                    message = f'Mid-session over {threshold}%:'
                 else:
                     message = f'Price alerts (intraday) over {threshold}%:'
                 message = webhook.bold(message, service)
@@ -78,7 +78,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
     return True
 
 if __name__ == "__main__":
-    midsession = False
-    if len(sys.argv) > 1:
-        midsession = sys.argv[1]
-    lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, midsession=True, interactive=False)
+    ignoreclosed = False
+    if len(sys.argv) > 1 and sys.argv[1] == 'ignoreclosed':
+            lambda_handler(ignoreclosed=True)
+    else:
+        lambda_handler()
