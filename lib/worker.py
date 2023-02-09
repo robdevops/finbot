@@ -144,6 +144,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\s+holdings\s*([\w\s]+)*"
     m_holdings = re.match(holdings_command, message)
 
+    marketcap_command = "^\!marketcap\s+([\w\.]+)+|^" + botName + "\s+marketcap\s+([\w\.]+)+"
+    m_marketcap = re.match(marketcap_command, message)
+
     premarket_command = "^\!premarket\s*([\d\w\.]+)*|^" + botName + "\s+premarket\s*([\d\w\.]+)*"
     m_premarket = re.match(premarket_command, message)
 
@@ -368,6 +371,22 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             for item in portfolios:
                 payload.append( item )
         webhook.payload_wrapper(service, url, payload, chat_id)
+    elif m_marketcap:
+        if m_marketcap.group(2):
+            ticker = m_marketcap.group(2)
+            market_data = yahoo.fetch_detail(ticker, 600)
+        elif m_marketcap.group(1):
+            ticker = m_marketcap.group(1)
+            market_data = yahoo.fetch_detail(ticker, 600)
+        else:
+            payload = prepare_help(service, user, botName)
+        if 'market_cap' in market_data[ticker]:
+            market_cap = market_data[ticker]['market_cap']
+            market_cap = util.humanUnits(market_cap)
+            payload = [f"{ticker} mkt cap: {market_cap}"]
+        else:
+            payload = [f"Mkt cap not found for {ticker}"]
+        webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_stockfinancial:
         print("starting stock detail")
         bio=False
@@ -479,8 +498,9 @@ def prepare_help(service, user, botName):
     payload.append("!AAPL")
     payload.append("!AAPL bio")
     payload.append("!dividend [days|AAPL]")
-    payload.append("!earnings |[days|AAPL]")
+    payload.append("!earnings [days|AAPL]")
     payload.append("!holdings")
+    payload.append("!marketcap AAPL")
     payload.append("!price [percent|AAPL]")
     payload.append("!premarket [percent|AAPL]")
     payload.append("!shorts [percent]|AAPL")

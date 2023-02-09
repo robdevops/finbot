@@ -22,12 +22,13 @@
 ```
 !AAPL
 !AAPL bio
-!dividend [days]
-!earnings [days]
+!dividend [days|AAPL]
+!earnings [days|AAPL]
 !holdings
-!price [percent]
-!premarket [percent]
-!shorts [percent]
+!marketcap AAPL
+!price [percent|AAPL]
+!premarket [percent|AAPL]
+!shorts [percent|AAPL]
 !trades [days]
 !watchlist
 !watchlist [add|del] AAPL
@@ -36,6 +37,7 @@
 @botname dividend [days]
 @botname earnings [days]
 @botname holdings
+@botname marketcap AAPL
 @botname price [percent]
 @botname premarket [percent]
 @botname shorts [percent]
