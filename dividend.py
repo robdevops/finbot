@@ -8,7 +8,7 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, service=False, message_id=False, interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, service=False, specific_stock=False, message_id=False, interactive=False):
     def prepare_ex_dividend_payload(service, market_data, days):
         payload = []
         emoji = "⚠️"
@@ -22,21 +22,31 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
             title = market_data[ticker]['profile_title']
             flag = util.flag_from_ticker(ticker)
             ticker_short = ticker.split('.')[0]
-            if timestamp > now and timestamp < soon:
+            if (timestamp > now and timestamp < soon) or specific_stock:
                 human_date = time.strftime('%b %d', time.localtime(timestamp)) # Sep 08
                 yahoo_link = util.yahoo_link(ticker, service)
                 payload.append(f"{emoji} {human_date} {title} ({yahoo_link})")
         payload.sort()
         if len(payload):
-            message = f'Ex-dividends next {days} days. Avoid buy before:'
-            message = webhook.bold(message, service)
-            payload.insert(0, message)
+            if not specific_stock:
+                message = f'Ex-dividends next {days} days. Avoid buy before:'
+                message = webhook.bold(message, service)
+                payload.insert(0, message)
+        else:
+            if interactive:
+                if specific_stock:
+                    payload = [f"No ex-dividend date found for {tickers[0]}"]
+                else:
+                    payload = [f"No ex-dividend days found for the next {days} days"]
         return payload
 
     # MAIN #
 
-    tickers = sharesight.get_holdings_wrapper()
-    tickers.update(util.watchlist_load())
+    if specific_stock:
+        tickers = [specific_stock]
+    else:
+        tickers = sharesight.get_holdings_wrapper()
+        tickers.update(util.watchlist_load())
     market_data = {}
     for ticker in tickers:
         try:
@@ -44,6 +54,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
         except (TypeError):
             pass
     print("")
+
     # Prep and send payloads
     if not webhooks:
         print("Error: no services enabled in .env")

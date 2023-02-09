@@ -132,10 +132,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         'zany'
     ]
 
-    dividend_command = "^\!dividend\s*(\d+)*|^" + botName + "\s+dividend\s*(\d+)*"
+    dividend_command = "^\!dividend\s*([\d\w\.]+)*|^" + botName + "\s+dividend\s*([\d\w\.]+)*"
     m_dividend = re.match(dividend_command, message)
 
-    earnings_command = "^\!earnings\s*(\d+)*|^" + botName + "\s+earnings\s*(\d+)*"
+    earnings_command = "^\!earnings\s*([\d\w\.]+)*|^" + botName + "\s+earnings\s*([\d\w\.]+)*"
     m_earnings = re.match(earnings_command, message)
 
     hello_command = "^\!(hello)|^" + botName + "\s+(hello)|^(hi|hello)\s+" + botName
@@ -144,13 +144,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\s+holdings\s*([\w\s]+)*"
     m_holdings = re.match(holdings_command, message)
 
-    premarket_command = "^\!premarket\s*([\d]+)*|^" + botName + "\s+premarket\s*([\d]+)*"
+    premarket_command = "^\!premarket\s*([\d\w\.]+)*|^" + botName + "\s+premarket\s*([\d\w\.]+)*"
     m_premarket = re.match(premarket_command, message)
 
-    price_command = "^\!price\s*([\d]+)*|^" + botName + "\s+price\s*([\d]+)*"
+    price_command = "^\!price\s*([\d\w\.]+)*|^" + botName + "\s+price\s*([\d\w\.]+)*"
     m_price = re.match(price_command, message)
 
-    shorts_command = "^\!shorts\s*([\d]+)*|^" + botName + "\s+shorts\s*([\d]+)*"
+    shorts_command = "^\!shorts\s*([\d\w\.]+)*|^" + botName + "\s+shorts\s*([\d\w\.]+)*"
     m_shorts = re.match(shorts_command, message)
 
     stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
@@ -223,40 +223,70 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_earnings:
         days = config_future_days
-        if m_earnings.group(2):
-            days = int(m_earnings.group(2))
-        elif m_earnings.group(1):
-            days = int(m_earnings.group(1))
-        earnings.lambda_handler(chat_id, days, service, message_id=False, interactive=True)
+        specific_stock = False
+        if m_earnings.group(2) or m_earnings.group(1):
+            if m_earnings.group(2):
+                arg = m_earnings.group(2)
+            elif m_earnings.group(1):
+                arg = m_earnings.group(1)
+            try:
+                days = int(arg)
+            except ValueError:
+                specific_stock = str(arg)
+        earnings.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True)
     elif m_dividend:
         days = config_future_days
-        if m_dividend.group(2):
-            days = int(m_dividend.group(2))
-        elif m_dividend.group(1):
-            days = int(m_dividend.group(1))
-        dividend.lambda_handler(chat_id, days, service, message_id=False, interactive=True)
+        specific_stock = False
+        if m_dividend.group(2) or m_dividend.group(1):
+            if m_dividend.group(2):
+                arg = m_dividend.group(2)
+            elif m_dividend.group(1):
+                arg = m_dividend.group(1)
+            try:
+                days = int(arg)
+            except ValueError:
+                specific_stock = str(arg)
+        dividend.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True)
     elif m_price:
         price_threshold = config_price_percent
-        if m_price.group(2):
-            price_threshold = int(m_price.group(2))
-        elif m_price.group(1):
-            price_threshold = int(m_price.group(1))
-        price.lambda_handler(chat_id, price_threshold, service, user, interactive=True)
+        specific_stock = False
+        if m_price.group(2) or m_price.group(1):
+            if m_price.group(2):
+                arg = m_price.group(2)
+            elif m_price.group(1):
+                arg = m_price.group(1)
+            try:
+                price_threshold = int(arg)
+            except ValueError:
+                specific_stock = str(arg)
+        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True)
     elif m_premarket:
         premarket_threshold = config_price_percent
-        if m_premarket.group(2):
-            premarket_threshold = int(m_premarket.group(2))
-        elif m_premarket.group(1):
-            premarket_threshold = int(m_premarket.group(1))
-        premarket.lambda_handler(chat_id, premarket_threshold, service, user, interactive=True)
+        specific_stock = False
+        if m_premarket.group(2) or m_premarket.group(1):
+            if m_premarket.group(2):
+                arg = m_premarket.group(2)
+            elif m_premarket.group(1):
+                arg = m_premarket.group(1)
+            try:
+                premarket_threshold = int(arg)
+            except ValueError:
+                specific_stock = str(arg)
+        premarket.lambda_handler(chat_id, premarket_threshold, service, user, specific_stock, interactive=True)
     elif m_shorts:
         print("starting shorts report...")
         shorts_threshold = config_shorts_percent
-        if m_shorts.group(2):
-            shorts_threshold = int(m_shorts.group(2))
-        elif m_shorts.group(1):
-            shorts_threshold = int(m_shorts.group(1))
-        shorts.lambda_handler(chat_id, shorts_threshold, service, user, interactive=True)
+        specific_stock = False
+        if m_shorts.group(2) or m_shorts.group(1):
+            if m_shorts.group(2):
+                arg = m_shorts.group(2)
+            elif m_shorts.group(1):
+                arg = m_shorts.group(1)
+            try:
+                shorts_threshold = int(arg)
+            except ValueError:
+                specific_stock = str(arg)
+        shorts.lambda_handler(chat_id, shorts_threshold, specific_stock, service, user, interactive=True)
     elif m_trades:
         if m_trades.group(2):
             days = int(m_trades.group(2))
@@ -448,12 +478,12 @@ def prepare_help(service, user, botName):
     payload.append(webhook.bold("Examples:", service))
     payload.append("!AAPL")
     payload.append("!AAPL bio")
-    payload.append("!dividend [days]")
-    payload.append("!earnings [days]")
+    payload.append("!dividend [days|AAPL]")
+    payload.append("!earnings |[days|AAPL]")
     payload.append("!holdings")
-    payload.append("!price [percent]")
-    payload.append("!premarket [percent]")
-    payload.append("!shorts [percent]")
+    payload.append("!price [percent|AAPL]")
+    payload.append("!premarket [percent|AAPL]")
+    payload.append("!shorts [percent]|AAPL")
     payload.append("!trades [days]")
     payload.append("!watchlist")
     payload.append("!watchlist [add|del] AAPL")
