@@ -105,9 +105,16 @@ Interactive trigger:
 ### Price alerts
 ![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
 
-`prices.py` sends intraday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted. Example:
+`prices.py` sends intraday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
+
+Config example:
 ```
 price_percent = 9.4
+```
+
+If `ignoreclosed` is specified at execution, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, you could be run twice per day 12 hours apart, to capture markets in different timezones.
+```
+./price.py [ignoreclosed]
 ```
 
 Interactive trigger:
