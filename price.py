@@ -54,7 +54,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 if specific_stock:
                     payload = [f"No intraday price found for {tickers[0]}"]
                 elif premarket:
-                    payload = [f"No pre-market price found for {tickers[0]}"]
+                    payload = [f"No pre-market price movements meet threshold {threshold}%"]
                 else:
                     payload = [f"{user}, no price movements meet threshold {threshold}%"]
         return payload
