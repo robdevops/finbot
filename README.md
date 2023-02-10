@@ -112,10 +112,12 @@ Config example:
 price_percent = 9.4
 ```
 
-If `ignoreclosed` is specified at execution, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, you could be run twice per day 12 hours apart, to capture markets in different timezones.
+Scheduled trigger:
 ```
 ./price.py [ignoreclosed]
 ```
+If `ignoreclosed` is specified at execution, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, you could be run twice per day 12 hours apart, to capture markets in different timezones.
+
 
 Interactive trigger:
 ```
