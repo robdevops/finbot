@@ -114,9 +114,10 @@ price_percent = 9.4
 
 Scheduled trigger:
 ```
-./price.py [ignoreclosed]
+./price.py [ignoreclosed|premarket]
 ```
-If `ignoreclosed` is specified at execution, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones.
+* If `ignoreclosed` is specified at execution, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones.
+* If `premarket` is specified at execution, it only reports for pre/post market price movements.
 
 
 Interactive trigger:
@@ -127,15 +128,7 @@ Interactive trigger:
 @botname price [percent]
 ```
 
-### Price alerts (pre-market)
-![pre-market price alert in Slack](img/premarket.png?raw=true "Pre-market price alert in Slack")
-
-`premarket.py` sends pre/post market price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted. Example:
-```
-price_percent = 9.4
-```
-
-Interactive trigger:
+Interactive trigger (pre-market):
 ```
 !premarket [percent]
 ```

@@ -14,7 +14,6 @@ import lib.yahoo as yahoo
 import earnings
 import dividend
 import price
-import premarket
 import shorts
 import trades
 
@@ -275,7 +274,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 premarket_threshold = int(arg)
             except ValueError:
                 specific_stock = str(arg)
-        premarket.lambda_handler(chat_id, premarket_threshold, service, user, specific_stock, interactive=True)
+        price.lambda_handler(chat_id, premarket_threshold, service, user, specific_stock, interactive=True, premarket=True)
     elif m_shorts:
         print("starting shorts report...")
         shorts_threshold = config_shorts_percent

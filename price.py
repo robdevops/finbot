@@ -8,13 +8,22 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, ignoreclosed=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, ignoreclosed=False, premarket=False):
     def prepare_price_payload(service, market_data, threshold):
         payload = []
         for ticker in market_data:
             if ignoreclosed and market_data[ticker]['marketState'] != "REGULAR": # for scheduling mid-session updates
                 continue
-            percent = market_data[ticker]['percent_change']
+            elif premarket:
+                if 'percent_change_premarket' in market_data[ticker]:
+                    percent = market_data[ticker]['percent_change_premarket']
+                elif 'percent_change_postmarket' in market_data[ticker]:
+                    percent = market_data[ticker]['percent_change_postmarket']
+                else:
+                    print("no data for", ticker)
+                    continue
+            else:
+                percent = market_data[ticker]['percent_change']
             title = market_data[ticker]['profile_title']
             if percent < 0:
                 emoji = "🔻"
@@ -34,6 +43,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             if not specific_stock:
                 if ignoreclosed:
                     message = f'Mid-session over {threshold}%:'
+                elif premarket:
+                    message = f'Stocks moving over {threshold}% pre-market:'
                 else:
                     message = f'Price alerts (intraday) over {threshold}%:'
                 message = webhook.bold(message, service)
@@ -41,9 +52,11 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         else:
             if interactive:
                 if specific_stock:
-                    payload = [f"No intraday price found for {tickers[0]} 🛑"]
+                    payload = [f"No intraday price found for {tickers[0]}"]
+                elif premarket:
+                    payload = [f"No pre-market price found for {tickers[0]}"]
                 else:
-                    payload = [f"{user}, no price movements meet threshold {threshold}% 🛑"]
+                    payload = [f"{user}, no price movements meet threshold {threshold}%"]
         return payload
 
 
@@ -78,8 +91,11 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
     return True
 
 if __name__ == "__main__":
-    ignoreclosed = False
-    if len(sys.argv) > 1 and sys.argv[1] == 'ignoreclosed':
+    if len(sys.argv) > 1:
+        # change to "match .. case" in python 3.10
+        if sys.argv[1] == 'ignoreclosed':
             lambda_handler(ignoreclosed=True)
+        elif sys.argv[1] == 'premarket':
+            lambda_handler(premarket=True)
     else:
         lambda_handler()
