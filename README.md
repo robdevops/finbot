@@ -22,6 +22,7 @@
 ```
 !AAPL
 !AAPL bio
+!bio AAPL
 !dividend [days|AAPL]
 !earnings [days|AAPL]
 !holdings

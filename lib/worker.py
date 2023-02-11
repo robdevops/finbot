@@ -158,6 +158,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
     m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
+    bio_command = "^\!bio\s+([\w\.]+)+|^" + botName + "\s+bio\s+([\w\.]+)+"
+    m_bio = re.match(bio_command, message)
+
     thanks_command = "^\!(thanks|thank you)|^" + botName + "\s+(thanks|thank you)|^(thanks|thank you)\s+" + botName
     m_thanks = re.match(thanks_command, message)
 
@@ -386,6 +389,17 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         else:
             payload = [f"Mkt cap not found for {ticker}"]
         webhook.payload_wrapper(service, url, payload, chat_id)
+    elif m_bio:
+        if m_bio.group(2):
+            ticker = m_bio.group(2)
+            market_data = yahoo.fetch_detail(ticker, 600)
+        elif m_bio.group(1):
+            ticker = m_bio.group(1)
+            market_data = yahoo.fetch_detail(ticker, 600)
+        else:
+            payload = prepare_help(service, user, botName)
+        payload = prepare_stockfinancial_payload(service, user, ticker, bio=True)
+        webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_stockfinancial:
         print("starting stock detail")
         bio=False
@@ -399,6 +413,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 bio=True
         payload = prepare_stockfinancial_payload(service, user, ticker, bio)
         webhook.payload_wrapper(service, url, payload, chat_id)
+
 
 def doDelta(inputList):
     deltaString = ''
@@ -496,6 +511,7 @@ def prepare_help(service, user, botName):
     payload.append(webhook.bold("Examples:", service))
     payload.append("!AAPL")
     payload.append("!AAPL bio")
+    payload.append("!bio AAPL")
     payload.append("!dividend [days|AAPL]")
     payload.append("!earnings [days|AAPL]")
     payload.append("!holdings")
