@@ -39,6 +39,7 @@ def transform_title(title):
         title = title.replace(' Enterprises', ' ')
         title = title.replace(' Ventures', ' ')
         title = title.replace(' Co.', ' ')
+        title = title.replace(' Corp.', ' ')
         title = title.replace(' Tech ', ' ')
         title = title.replace(' Company', ' ')
         title = title.replace(' Tech ', ' ')
