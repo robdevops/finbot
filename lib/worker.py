@@ -156,7 +156,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     m_shorts = re.match(shorts_command, message)
 
     stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
-    m_stockfinancial = re.match(stockfinancial_command, message)
+    m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
     thanks_command = "^\!(thanks|thank you)|^" + botName + "\s+(thanks|thank you)|^(thanks|thank you)\s+" + botName
     m_thanks = re.match(thanks_command, message)
