@@ -187,9 +187,9 @@ Interactive trigger:
 ### Watchlist
 ![Shared watchlist in Slack](img/watchlist.png?raw=true "Shared watchlist in Slack")
 
-Tracks additional securities which are not in your Sharesight holdings. Use the Yahoo! Finance ticker format.
+Tracks additional securities which are not in your Sharesight holdings.
 
-It is stored in `var/cache/finbot_watchlist.json` by default. It uses JSON list format. Example:
+It is stored in `var/cache/finbot_watchlist.json` by default. It uses JSON list format with Yahoo symbols. Example:
 ```
 ["2454.TW", "3217.TWO", "ASO.AX", "STEM"]
 ```
@@ -367,7 +367,7 @@ Note: The utils folder contains scripts to generate `/etc/nginx/aws_subnets` and
 With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
 
 #### Slack
-Visit https://api.slack.com/apps/ to create a new Slack app.
+Visit https://api.slack.com/apps/ to create a new Slack app. If you already created one for a webhook (above), you can reuse that app.
 * Put the token from _OAuth & Permissions > Bot User OAuth Token_ into .env file `slackBotToken`
 * Put token from _Basic Information > Verification Token_ into the .env file `slackOutgoingToken`.
 * Put your web server URL (e.g. https://www.example.com:8443/slack) into:
@@ -381,7 +381,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app.
     * Check the box _App Home > Allow users to send Slash commands and messages from the messages tab_.
 
 ### Daemonize (systemd)
-`finbot.service` can take care of keeping `bot.py` running in the background and starting on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User` and `ExecStart`, then enable and start it:
+`finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User` and `ExecStart`, then enable and start it:
 
 ```
 sudo cp -v finbot.service /etc/systemd/system/
