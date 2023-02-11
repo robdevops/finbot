@@ -237,7 +237,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             try:
                 days = int(arg)
             except ValueError:
-                specific_stock = str(arg)
+                specific_stock = str(arg).upper()
         earnings.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True)
     elif m_dividend:
         days = config_future_days
@@ -250,7 +250,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             try:
                 days = int(arg)
             except ValueError:
-                specific_stock = str(arg)
+                specific_stock = str(arg).upper()
         dividend.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True)
     elif m_price:
         price_threshold = config_price_percent
@@ -263,7 +263,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             try:
                 price_threshold = int(arg)
             except ValueError:
-                specific_stock = str(arg)
+                specific_stock = str(arg).upper()
         price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True)
     elif m_premarket:
         premarket_threshold = config_price_percent
@@ -276,7 +276,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             try:
                 premarket_threshold = int(arg)
             except ValueError:
-                specific_stock = str(arg)
+                specific_stock = str(arg).upper()
         price.lambda_handler(chat_id, premarket_threshold, service, user, specific_stock, interactive=True, premarket=True)
     elif m_shorts:
         print("starting shorts report...")
@@ -290,7 +290,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             try:
                 shorts_threshold = int(arg)
             except ValueError:
-                specific_stock = str(arg)
+                specific_stock = str(arg).upper()
         shorts.lambda_handler(chat_id, shorts_threshold, specific_stock, service, user, interactive=True)
     elif m_trades:
         if m_trades.group(2):
@@ -375,10 +375,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_marketcap:
         if m_marketcap.group(2):
-            ticker = m_marketcap.group(2)
+            ticker = m_marketcap.group(2).upper()
             market_data = yahoo.fetch_detail(ticker, 600)
         elif m_marketcap.group(1):
-            ticker = m_marketcap.group(1)
+            ticker = m_marketcap.group(1).upper()
             market_data = yahoo.fetch_detail(ticker, 600)
         else:
             payload = prepare_help(service, user, botName)
@@ -391,10 +391,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_bio:
         if m_bio.group(2):
-            ticker = m_bio.group(2)
+            ticker = m_bio.group(2).upper()
             market_data = yahoo.fetch_detail(ticker, 600)
         elif m_bio.group(1):
-            ticker = m_bio.group(1)
+            ticker = m_bio.group(1).upper()
             market_data = yahoo.fetch_detail(ticker, 600)
         else:
             payload = prepare_help(service, user, botName)
@@ -535,7 +535,7 @@ def prepare_help(service, user, botName):
 
 def prepare_stockfinancial_payload(service, user, ticker, bio):
     cashflow = False
-    ticker_orig = ticker
+    ticker = ticker_orig = ticker.upper()
     tickerNative = ticker.split('.')[0]
     now = int(time.time())
     payload = []
