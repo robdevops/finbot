@@ -13,7 +13,7 @@
 10  11 * * Mon-Fri ~/finbot/price.py premarket > /dev/null
 
 # Weekly
-28  21 * * Fri { cd ~/finbot/; ./event.py earnings; ./event.py ex-dividend ;} > /dev/null
+28  21 * * Fri { cd ~/finbot/; ./upcoming.py earnings; ./upcoming.py ex-dividend ;} > /dev/null
 
 # Monthly
 27  21 1 * * ~/finbot/shorts.py > /dev/null
