@@ -41,10 +41,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
                 if specific_stock:
                     payload = [f"No events found for {tickers[0]}"]
                 else:
-                    if earnings:
-                        payload = [f"No earnings dates found for the next {days} days"]
-                    elif dividend:
-                        payload = [f"No ex-dividend dates found for the next {days} days"]
+                    payload = [f"No events found for the next {days} days"]
         return payload
 
     # MAIN #
