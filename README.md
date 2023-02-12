@@ -106,7 +106,7 @@ Interactive trigger:
 ### Price alerts
 ![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
 
-`prices.py` sends intraday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
+`prices.py` sends intraday and premarket price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
 Config example:
 ```
@@ -137,15 +137,24 @@ Interactive trigger (pre-market):
 @botname premarket [percent]
 ```
 
-### Earnings reminders
+### Upcoming company events
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
 
-`earnings.py` sends upcoming earnings date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This can be specified as an argument when triggered through the chat bot. **Explanation:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
+`upcoming.py` sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This can be specified as an argument when triggered through the chat bot.
+
+**Earnings:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
+
+**Ex-dividend:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
 ```
 future_days = 7
 ```
 
-Interactive trigger:
+Cron execution:
+```
+./upcoming.py [earnings|ex-dividend]
+```
+
+Interactive trigger (earnings):
 ```
 !earnings [days]
 ```
@@ -153,15 +162,7 @@ Interactive trigger:
 @botname earnings [days]
 ```
 
-### Ex-dividend warnings
-![ex-dividend warning in Slack](img/ex-dividend.png?raw=true "Ex-dividend warning in Slack")
-
-`dividend.py` sends upcoming ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This can be specified as an argument when triggered through the chat bot. **Explanation:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
-```
-future_days = 7
-```
-
-Interactive trigger:
+Interactive trigger (ex-dividend):
 ```
 !dividend [days]
 ```
