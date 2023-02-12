@@ -309,14 +309,14 @@ Recommended for a machine set to UTC:
 15 17 * * Mon-Fri ~/finbot/price.py ignoreclosed > /dev/null # US
 
 # Daily
-30  21 * * * ~/finbot/finance_calendar.py > /dev/null
+30  21 * * * ~/finbot/reminder.py > /dev/null
 
 # Daily on weekdays
 29  21 * * Mon-Fri ~/finbot/price.py > /dev/null
 10  11 * * Mon-Fri ~/finbot/price.py premarket > /dev/null
 
 # Weekly
-28  21 * * Fri { cd ~/finbot/; ./earnings.py; ./dividend.py ;} > /dev/null
+28  21 * * Fri { cd ~/finbot/; ./upcoming.py earnings; ./upcoming.py ex-dividend;} > /dev/null
 
 # Monthly
 27  21 1 * * ~/finbot/shorts.py > /dev/null
