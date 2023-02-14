@@ -9,7 +9,7 @@
 30  21 * * * ~/finbot/reminder.py > /dev/null
 
 # Daily on weekdays
-29  21 * * Mon-Fri ~/finbot/price.py > /dev/null
+29  21 * * Mon-Fri ~/finbot/price.py intraday > /dev/null
 10  11 * * Mon-Fri ~/finbot/price.py premarket > /dev/null
 
 # Weekly

@@ -115,10 +115,12 @@ price_percent = 9.4
 
 Scheduled trigger:
 ```
-./price.py [ignoreclosed|premarket]
+./price.py [ignoreclosed|intraday|premarket]
 ```
-* If `ignoreclosed` is specified at execution, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones.
-* If `premarket` is specified at execution, it only reports for pre/post market price movements.
+The mode must be passed as an execution argument.
+* If `ignoreclosed` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones.
+* If `intraday` is passed, it reports current price against the previous market close.
+* If `premarket is passed, it only reportd on pre/post market price movements.
 
 
 Interactive trigger:
@@ -312,7 +314,7 @@ Recommended for a machine set to UTC:
 30  21 * * * ~/finbot/reminder.py > /dev/null
 
 # Daily on weekdays
-29  21 * * Mon-Fri ~/finbot/price.py > /dev/null
+29  21 * * Mon-Fri ~/finbot/price.py intraday > /dev/null
 10  11 * * Mon-Fri ~/finbot/price.py premarket > /dev/null
 
 # Weekly

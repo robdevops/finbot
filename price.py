@@ -8,12 +8,14 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, ignoreclosed=False, premarket=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, ignoreclosed=False, premarket=False, intraday=False):
     def prepare_price_payload(service, market_data, threshold):
         payload = []
         for ticker in market_data:
             if ignoreclosed and market_data[ticker]['marketState'] != "REGULAR": # for scheduling mid-session updates
                 continue
+            elif intraday:
+                percent = market_data[ticker]['percent_change']
             elif premarket:
                 if 'percent_change_premarket' in market_data[ticker]:
                     percent = market_data[ticker]['percent_change_premarket']
@@ -22,8 +24,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 else:
                     print("no data for", ticker)
                     continue
-            else:
-                percent = market_data[ticker]['percent_change']
             title = market_data[ticker]['profile_title']
             if percent < 0:
                 emoji = "🔻"
@@ -95,7 +95,11 @@ if __name__ == "__main__":
         # change to "match .. case" in python 3.10
         if sys.argv[1] == 'ignoreclosed':
             lambda_handler(ignoreclosed=True)
+        elif sys.argv[1] == 'intraday':
+            lambda_handler(intraday=True)
         elif sys.argv[1] == 'premarket':
             lambda_handler(premarket=True)
+        else:
+            print("Usage:", sys.argv[0], "[ignoreclosed|intraday|premarket]")
     else:
-        lambda_handler()
+        print("Usage:", sys.argv[0], "[ignoreclosed|intraday|premarket]")
