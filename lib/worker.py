@@ -567,7 +567,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             marketStateEmoji = '🔴'
     if 'profile_exchange' in market_data[ticker]:
         profile_exchange = market_data[ticker]['profile_exchange']
-        swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock+Price+Quote+Analysis&btnI'
+        swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock&btnI'
         swsLink = util.link(ticker, swsURL, 'Simply Wall St', service)
         if profile_exchange == 'ASX':
             market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
