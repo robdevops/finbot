@@ -310,7 +310,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     else:
         local_market_data[ticker]['profit_margin'] = profit_margin
     try:
-        net_income = data['quoteSummary']['result'][0]['defaultKeyStatistics']['netIncomeToCommon']['raw']
+        net_income = data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-1]['earnings']['raw']
     except (KeyError, IndexError):
         pass
     else:
