@@ -151,7 +151,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     price_command = "^\!price\s*([\d\w\.]+)*|^" + botName + "\s+price\s*([\d\w\.]+)*"
     m_price = re.match(price_command, message)
 
-    shorts_command = "^\!shorts\s*([\d\w\.]+)*|^" + botName + "\s+shorts\s*([\d\w\.]+)*"
+    shorts_command = "^\!shorts?\s*([\d\w\.]+)*|^" + botName + "\s+shorts?\s*([\d\w\.]+)*"
     m_shorts = re.match(shorts_command, message)
 
     stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
@@ -313,7 +313,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 'Loading backup tapes for',
                 'Manifesting',
                 'Massaging data for',
-                'Mining dogecoin to buy report on',
+                'Mining dogecoin to purchase report on',
                 'Panning for',
                 'Performing expert calculus on',
                 'Plucking',
@@ -522,7 +522,7 @@ def prepare_help(service, user, botName):
     payload.append("!marketcap AAPL")
     payload.append("!price [percent|AAPL]")
     payload.append("!premarket [percent|AAPL]")
-    payload.append("!shorts [percent]|AAPL")
+    payload.append("!shorts [percent]|AAPL]")
     payload.append("!trades [days]")
     payload.append("!watchlist")
     payload.append("!watchlist [add|del] AAPL")
