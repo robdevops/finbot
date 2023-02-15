@@ -13,6 +13,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         payload = []
         for ticker in market_data:
             if ignoreclosed and market_data[ticker]['marketState'] != "REGULAR": # for scheduling mid-session updates
+                # Possible market states: PREPRE PRE REGULAR POST POSTPOST CLOSED
                 continue
             elif ignoreclosed or intraday:
                 percent = market_data[ticker]['percent_change']

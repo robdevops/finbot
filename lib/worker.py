@@ -418,10 +418,15 @@ def doDelta(inputList):
     deltaString = ''
     deltaList = [j-i for i,j in zip(inputList, inputList[1:])]
     #deltaList = [y-x for (x,y) in pairwise(inputList)] # python 3.10
-    for delta in deltaList:
-        if delta < 0:
+    for idx, delta in enumerate(deltaList):
+        absolute = inputList[idx+1]
+        if delta < 0 and absolute < 0:
             deltaString = deltaString + '🔻'
-        elif delta > 0:
+        elif delta < 0 and absolute >= 0:
+            deltaString = deltaString + '🔽'
+        elif delta > 0 and absolute < 0:
+            deltaString = deltaString + '🔺'
+        elif delta > 0 and absolute >= 0:
             deltaString = deltaString + '🔼'
         else:
             deltaString = deltaString + '▪️'
