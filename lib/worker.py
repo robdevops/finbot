@@ -678,7 +678,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
                     print("Skipping past ex-dividend:", ticker, human_exdate)
     if cashflow:
         if cashflow < 0:
-            payload.append(webhook.bold("Cashflow positive:", service) + " no⚠️ ")
+            payload.append(webhook.bold("Cashflow positive:", service) + " no ⚠️ ")
         else:
             payload.append(webhook.bold("Cashflow positive:", service) + " yes")
     if 'net_income' in market_data[ticker]:
@@ -704,12 +704,19 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         payload.append("")
 
     if 'revenueEstimateY' in market_data[ticker]:
+        emoji = ''
         revenueEstimateY = int(round(market_data[ticker]['revenueEstimateY']))
-        earningsEstimateY = int(round(market_data[ticker]['earningsEstimateY']))
         revenueAnalysts = market_data[ticker]['revenueAnalysts']
+        if revenueEstimateY <= 0:
+            emoji = '⚠️ '
+        payload.append(webhook.bold("Revenue forecast (1Y):", service) + f" {revenueEstimateY}% {emoji}")
+    if 'earningsEstimateY' in market_data[ticker]:
+        emoji = ''
+        earningsEstimateY = int(round(market_data[ticker]['earningsEstimateY']))
         earningsAnalysts = market_data[ticker]['earningsAnalysts']
-        payload.append(webhook.bold("Revenue growth forecast (1Y):", service) + f" {revenueEstimateY}%")
-        payload.append(webhook.bold("Earnings growth forecast (1Y):", service) + f" {earningsEstimateY}%")
+        if earningsEstimateY <= 0:
+            emoji = '⚠️ '
+        payload.append(webhook.bold("Earnings forecast (1Y):", service) + f" {earningsEstimateY}% {emoji}")
     if 'insiderBuy' in market_data[ticker]:
         emoji=''
         insiderBuy = market_data[ticker]['insiderBuy']
@@ -719,12 +726,12 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         if insiderBuy > insiderSell:
             action = 'Buy'
             humanValue = util.humanUnits(insiderBuyValue)
-            payload.append(webhook.bold("Net insider action (3M):", service) + f" {action} {currency} {humanValue}{emoji}")
+            payload.append(webhook.bold("Net insider action (3M):", service) + f" {action} {currency} {humanValue} {emoji}")
         elif insiderBuy < insiderSell:
             emoji = '⚠️ '
             action = 'Sell'
             humanValue = util.humanUnits(insiderSellValue)
-            payload.append(webhook.bold("Net insider action (3M):", service) + f" {action} {currency} {humanValue}{emoji}")
+            payload.append(webhook.bold("Net insider action (3M):", service) + f" {action} {currency} {humanValue} {emoji}")
     if 'short_percent' in market_data[ticker]:
         emoji=''
         short_percent = market_data[ticker]['short_percent']
@@ -742,7 +749,9 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
 
     if 'price_to_earnings_trailing' in market_data[ticker]:
         trailingPe = str(int(round(market_data[ticker]['price_to_earnings_trailing'])))
-        payload.append(webhook.bold("Trailing P/E:", service) + f" {trailingPe}")
+    else:
+        trailingPe = 'N/A ⚠️ '
+    payload.append(webhook.bold("Trailing P/E:", service) + f" {trailingPe}")
     if 'price_to_earnings_forward' in market_data[ticker]:
         forwardPe = int(round(market_data[ticker]['price_to_earnings_forward']))
         emoji=''
@@ -750,7 +759,9 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             emoji = '⚠️ '
         elif 'Software' not in market_data[ticker]['profile_industry'] and forwardPe > 30:
             emoji = '⚠️ '
-        payload.append(webhook.bold("Forward P/E:", service) + f" {str(forwardPe)}{emoji}")
+        if 'price_to_earnings_trailing' in market_data[ticker] and forwardPe > int(trailingPe):
+            emoji = '⚠️ '
+        payload.append(webhook.bold("Forward P/E:", service) + f" {str(forwardPe)} {emoji}")
     if 'price_to_earnings_peg' in market_data[ticker]:
         peg = round(market_data[ticker]['price_to_earnings_peg'], 1)
         payload.append(webhook.bold("PEG ratio:", service) + f" {str(peg)}")
