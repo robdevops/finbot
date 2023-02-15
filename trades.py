@@ -74,7 +74,10 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                 holding_link = symbol
             payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value:,} of {holding_link} {flag}")
         if len(payload):
-            message = 'New trades:'
+            if len(payload) == 1:
+                message = 'New trade:'
+            else:
+                message = 'New trades:'
             message = webhook.bold(message, service)
             payload.insert(0, message)
         else:
