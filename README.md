@@ -62,13 +62,24 @@ The interactive bot component requires you to host a web service on a domain wit
 ### Stock lookup
 ![Screenshot showing stock info on Slack](img/stockinfo.png?raw=true "Screenshot showing stock info on Slack")
 
-This report can only be run through the interactive bot. Example usage:
+The stock lookup returns various stats relevant to a stock's valuation, growth and risk factors.  This report can only be run through the interactive bot. Example usage:
 ```
 !AAPL
 ```
 ```
 @botname AAPL
 ```
+#### Emoji legend
+* The circle next to the symbol at the top indicates the current market state:
+    * 🟢 normal trading
+    * 🟠 pre/Post-market
+    * 🔴 market closed
+* The emoji grid indicates the directional change in the company earnings and revenue for each reporting period. Additionally, A red arrow indicates the absolute earnings was negative. In the screenshot above, ZG reported:
+    * 🔼🔽🔼 In the past three quarters, revenue increased, then decreased, then increased.
+    * 🔼🔽🔻 In the past three quarters, earnings increased, decreased, and decreased, and was negative in the last quarter.
+    * 🔼🔼🔼 In the past three years, revenue increased each year.
+    * 🔻🔺🔻 In the past three years, earnings decreased, increased, then decreased, and was negative for all three years.
+
 
 ### Stock bio
 ![Screenshot showing stock bio on Slack](img/bio.png?raw=true "Screenshot showing stock bio on Slack")
