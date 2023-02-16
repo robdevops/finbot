@@ -71,9 +71,9 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
 ```
 #### Emoji legend
 * The circle next to the symbol at the top indicates the current market state:
-    * 🟢 normal trading
-    * 🟠 pre/Post-market
     * 🔴 market closed
+    * 🟠 pre/post-market
+    * 🟢 normal trading
 * The emoji grid indicates the directional change in the company earnings and revenue for each reporting period. Additionally, A red arrow indicates the absolute earnings was negative. In the screenshot above, ZG reported:
     * 🔼🔽🔼 In the past three quarters, revenue increased, then decreased, then increased.
     * 🔼🔽🔻 In the past three quarters, earnings increased, decreased, and decreased, and was negative in the last quarter.
