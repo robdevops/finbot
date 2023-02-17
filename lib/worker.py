@@ -130,44 +130,44 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         'zany'
     ]
 
-    dividend_command = "^\!dividend\s*([\d\w\.]+)*|^" + botName + "\s+dividend\s*([\d\w\.]+)*"
+    dividend_command = "^\!\s?dividend\s*([\d\w\.]+)*|^" + botName + "\s+dividend\s*([\d\w\.]+)*"
     m_dividend = re.match(dividend_command, message)
 
-    earnings_command = "^\!earnings\s*([\d\w\.]+)*|^" + botName + "\s+earnings\s*([\d\w\.]+)*"
-    m_earnings = re.match(earnings_command, message)
+    earnings_command = "^\!\s?earnings\s*([\d\w\.]+)*|^" + botName + "\s+earnings\s*([\d\w\.]+)*"
+    m_earnings = re.match(earnings_command, message, re.IGNORECASE)
 
-    hello_command = "^\!(hello)|^" + botName + "\s+(hello)|^(hi|hello)\s+" + botName
-    m_hello = re.match(hello_command, message)
+    hello_command = "^\!\s?(hello)|^" + botName + "\s+(hello)|^(hi|hello)\s+" + botName
+    m_hello = re.match(hello_command, message, re.IGNORECASE)
 
-    holdings_command = "^\!holdings\s*([\w\s]+)*|^" + botName + "\s+holdings\s*([\w\s]+)*"
-    m_holdings = re.match(holdings_command, message)
+    holdings_command = "^\!\s?holdings\s*([\w\s]+)*|^" + botName + "\s+holdings\s*([\w\s]+)*"
+    m_holdings = re.match(holdings_command, message, re.IGNORECASE)
 
-    marketcap_command = "^\!marketcap\s+([\w\.]+)+|^" + botName + "\s+marketcap\s+([\w\.]+)+"
-    m_marketcap = re.match(marketcap_command, message)
+    marketcap_command = "^\!\s?marketcap\s+([\w\.]+)+|^" + botName + "\s+marketcap\s+([\w\.]+)+"
+    m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
-    premarket_command = "^\!premarket\s*([\d\w\.]+)*|^" + botName + "\s+premarket\s*([\d\w\.]+)*"
-    m_premarket = re.match(premarket_command, message)
+    premarket_command = "^\!\s?premarket\s*([\d\w\.]+)*|^" + botName + "\s+premarket\s*([\d\w\.]+)*"
+    m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-    price_command = "^\!price\s*([\d\w\.]+)*|^" + botName + "\s+price\s*([\d\w\.]+)*"
-    m_price = re.match(price_command, message)
+    price_command = "^\!\s?price\s*([\d\w\.]+)*|^" + botName + "\s+price\s*([\d\w\.]+)*"
+    m_price = re.match(price_command, message, re.IGNORECASE)
 
-    shorts_command = "^\!shorts?\s*([\d\w\.]+)*|^" + botName + "\s+shorts?\s*([\d\w\.]+)*"
-    m_shorts = re.match(shorts_command, message)
+    shorts_command = "^\!\s?shorts?\s*([\d\w\.]+)*|^" + botName + "\s+shorts?\s*([\d\w\.]+)*"
+    m_shorts = re.match(shorts_command, message, re.IGNORECASE)
 
-    stockfinancial_command = "^\!([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
+    stockfinancial_command = "^\!\s?([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
     m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
-    bio_command = "^\!bio\s+([\w\.]+)+|^" + botName + "\s+bio\s+([\w\.]+)+"
-    m_bio = re.match(bio_command, message)
+    bio_command = "^\!\s?bio\s+([\w\.]+)+|^" + botName + "\s+bio\s+([\w\.]+)+"
+    m_bio = re.match(bio_command, message, re.IGNORECASE)
 
-    thanks_command = "^\!(thanks|thank you)|^" + botName + "\s+(thanks|thank you)|^(thanks|thank you)\s+" + botName
-    m_thanks = re.match(thanks_command, message)
+    thanks_command = "^\!\s?(thanks|thank you)|^" + botName + "\s+(thanks|thank you)|^(thanks|thank you)\s+" + botName
+    m_thanks = re.match(thanks_command, message, re.IGNORECASE)
 
-    trades_command = "^\!trades\s*(\d+)*|^" + botName + "\s+trades\s*(\d+)*"
-    m_trades = re.match(trades_command, message)
+    trades_command = "^\!\s?trades\s*(\d+)*|^" + botName + "\s+trades\s*(\d+)*"
+    m_trades = re.match(trades_command, message, re.IGNORECASE)
 
-    watchlist_command = "^\!watchlist\s*([\w]+)*\s*([\w\.]+)*|^" + botName + "\s+watchlist\s*(\w+)*\s*([\w\.]+)*"
-    m_watchlist = re.match(watchlist_command, message)
+    watchlist_command = "^\!\s?watchlist\s*([\w]+)*\s*([\w\.]+)*|^" + botName + "\s+watchlist\s*(\w+)*\s*([\w\.]+)*"
+    m_watchlist = re.match(watchlist_command, message, re.IGNORECASE)
 
     if m_watchlist:
         action = False
