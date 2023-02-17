@@ -438,25 +438,21 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     return local_market_data
 
 def price_month(ticker):
+    now = int(time.time())
     url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
-    url = url + '?period1=' + str(int(time.time()) - 86400*31) + '&period2=' + str(int(time.time())) + '&interval=1d&events=history&includeAdjustedClose=true'
+    url = url + '?period1=' + str(now - 86400*31) + '&period2=' + str(now) + '&interval=1d&events=history&includeAdjustedClose=true'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     try:
         r = requests.get(url, headers=headers, timeout=config_http_timeout)
     except:
         print("Failure fetching", url)
-        return {}
-    if r.status_code == 200:
-        print(r.status_code, "success yahoo")
-    else:
+        return False
+    if r.status_code != 200:
         print(r.status_code, "error communicating with", url)
-        return {}
-    csv = r.content.decode('utf-8')
-    csv = csv.split('\n')
-    csv.pop(0) # remove header
-    #del csv[-1] # remove junk
+        return False
+    csv = r.content.decode('utf-8').split('\n')
     price = []
-    for line in csv:
+    for line in csv[1:]:
         cells = line.split(',')
         price.append(float(cells[5]))
     percent = str(round(100 * (price[-1] - price[0]) / price[0], 1))
