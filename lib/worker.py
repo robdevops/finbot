@@ -569,6 +569,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         profile_exchange = market_data[ticker]['profile_exchange']
         swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock+Report&btnI'
         swsLink = util.link(ticker, swsURL, 'Simply Wall St', service)
+        swsTiny = util.link(ticker, swsURL, 'simplywall.st', service)
         if profile_exchange == 'ASX':
             market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
             shortman_url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
@@ -792,6 +793,16 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     elif 'percent_change_postmarket' in market_data[ticker]:
         percent_change_postmarket = str(market_data[ticker]['percent_change_postmarket']) + '%'
         payload.append(webhook.bold("Post-market:", service) + f" {percent_change_postmarket}")
+    if 'profile_website' in market_data[ticker]:
+        website = website_text = market_data[ticker]['profile_website']
+        website_text = website_text.replace('https://www.', '')
+        website_text = website_text.replace('http://www.', '')
+        website_text = website_text.replace('https://', '')
+        website_text = website_text.replace('http://', '')
+        website = util.link(ticker, website, website_text, service)
+    footer = f"{website} | {swsTiny}"
+    payload.append("")
+    payload.append(footer)
     if ticker_orig == ticker:
         payload.insert(0, f"{profile_title} ({yahoo_link}) {marketStateEmoji}")
     else:
