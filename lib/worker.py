@@ -682,10 +682,12 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         else:
             payload.append(webhook.bold("Cashflow positive:", service) + " yes")
     if 'net_income' in market_data[ticker]:
-        if market_data[ticker]['net_income'] < 0:
+        if market_data[ticker]['net_income'] <= 0:
             payload.append(webhook.bold("Profitable:", service) + " no ⚠️ ")
         else:
             payload.append(webhook.bold("Profitable:", service) + " yes")
+    else:
+        payload.append(webhook.bold("Profitable:", service) + " unknown ⚠️")
 
     if len(payload):
         payload.append("")

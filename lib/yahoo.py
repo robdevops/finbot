@@ -310,8 +310,11 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     else:
         local_market_data[ticker]['profit_margin'] = profit_margin
     try:
-        net_income = data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-1]['earnings']['raw']
-    except (KeyError, IndexError):
+        if data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-1]['earnings']['fmt'] is None:
+            raise TypeError('quarterly earninings is null')
+        else:
+            net_income = data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-1]['earnings']['raw']
+    except (KeyError, IndexError, TypeError):
         pass
     else:
         local_market_data[ticker]['net_income'] = net_income
