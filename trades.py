@@ -83,20 +83,6 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         else:
             if interactive:
                 # easter egg 4
-                noTradesVerb = [
-                        "The money is probably resting in another account",
-                        "Oh well. The market would have just gone down anyway",
-                        "Heating bills don't pay themselves you know",
-                        "You were fearful when others were also fearful",
-                        "I bet you're regretting that extra 1¢ on your limit order now",
-                        "This is why you can't have nice things",
-                        "But I'm sure that's just a rounding error",
-                        "Nothing + nothing = more nothing. Well played",
-                        "Or maybe there was. They don't pay me for this you know",
-                        "I guess that's right. Maybe... I'm kinda busy with ChatGPT in another window",
-                        "I like this contrarian play you're having on 'being in it to win it'",
-                        "With your stock picking skills, this is probably for the best"
-                        ]
                 payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]
         return payload
 
