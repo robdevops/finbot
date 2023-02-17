@@ -395,6 +395,10 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         earningsY = []
         revenueY = []
         for item in data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly']:
+            if item['earnings']['fmt'] is None: # bad data
+                earningsQ = []
+                revenueQ = []
+                break
             earningsQ.append(item['earnings']['raw'])
             revenueQ.append(item['revenue']['raw'])
         for item in data['quoteSummary']['result'][0]['earnings']['financialsChart']['yearly']:

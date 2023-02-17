@@ -695,10 +695,14 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         earningsQs = doDelta(market_data[ticker]['earningsQ'])
         revenueYs = doDelta(market_data[ticker]['revenueY'])
         earningsYs = doDelta(market_data[ticker]['earningsY'])
-        payload.append(f"{revenueQs}  quarterly revenue delta")
-        payload.append(f"{earningsQs}  quarterly earnings delta")
-        payload.append(f"{revenueYs}  annual revenue delta")
-        payload.append(f"{earningsYs}  annual earnings delta")
+        if len(revenueQs):
+            payload.append(f"{revenueQs}  quarterly revenue delta")
+        if len(earningsQs):
+            payload.append(f"{earningsQs}  quarterly earnings delta")
+        if len(revenueYs):
+            payload.append(f"{revenueYs}  annual revenue delta")
+        if len(earningsYs):
+            payload.append(f"{earningsYs}  annual earnings delta")
 
     if len(payload):
         payload.append("")
