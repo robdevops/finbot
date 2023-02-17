@@ -93,6 +93,12 @@ This report can only be run through the interactive bot. Example usage:
 ```
 @botname AAPL bio
 ```
+```
+!bio AAPL
+```
+```
+@botname bio AAPL
+```
 
 ### Trades
 ![trade update in Slack](img/trades.png?raw=true "Trade update in Slack")
