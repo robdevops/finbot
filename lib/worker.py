@@ -758,7 +758,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         trailingPe = str(int(round(market_data[ticker]['price_to_earnings_trailing'])))
     else:
         trailingPe = 'N/A ⚠️ '
-    payload.append(webhook.bold("Trailing P/E:", service) + f" {trailingPe}")
+    if market_data[ticker]['net_income'] > 0:
+        payload.append(webhook.bold("Trailing P/E:", service) + f" {trailingPe}")
     if 'price_to_earnings_forward' in market_data[ticker]:
         forwardPe = int(round(market_data[ticker]['price_to_earnings_forward']))
         emoji=''
@@ -772,7 +773,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     if 'price_to_earnings_peg' in market_data[ticker]:
         peg = round(market_data[ticker]['price_to_earnings_peg'], 1)
         payload.append(webhook.bold("PEG ratio:", service) + f" {str(peg)}")
-    if 'price_to_sales' in market_data[ticker]:
+    if 'price_to_sales' in market_data[ticker] and 'price_to_earnings_forward' not in market_data[ticker]:
         price_to_sales = round(market_data[ticker]['price_to_sales'], 1)
         payload.append(webhook.bold("PS ratio:", service) + f" {str(price_to_sales)}")
 
@@ -800,9 +801,9 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         website_text = website_text.replace('https://', '')
         website_text = website_text.replace('http://', '')
         website = util.link(ticker, website, website_text, service)
-    footer = f"{website} | {swsTiny}"
-    payload.append("")
-    payload.append(footer)
+        footer = f"{website} | {swsTiny}"
+        payload.append("")
+        payload.append(footer)
     if ticker_orig == ticker:
         payload.insert(0, f"{profile_title} ({yahoo_link}) {marketStateEmoji}")
     else:
