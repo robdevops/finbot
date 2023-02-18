@@ -281,13 +281,15 @@ def prepare_watchlist(service, user, action=False, ticker=False):
     duplicate = False
     transformed = False
     watchlist = util.watchlist_load()
-    print(watchlist)
     if action == 'add':
         if ticker in watchlist:
             duplicate = True
         else:
             watchlist.append(ticker)
-    market_data = yahoo.fetch(watchlist)
+    if len(watchlist):
+        market_data = yahoo.fetch(watchlist)
+    else:
+        market_data = False
     print("")
     if action == 'delete':
         if ticker in watchlist:
@@ -315,18 +317,23 @@ def prepare_watchlist(service, user, action=False, ticker=False):
                     print(ticker, "not found")
         elif ticker not in market_data:
             watchlist.remove(ticker)
-    print(watchlist)
     payload = []
-    for item in market_data:
-        item_link = util.yahoo_link(item, service)
-        profile_title = market_data[item]['profile_title']
-        if item == ticker and action == 'delete':
-            pass
-        elif item == ticker and action == 'add': # make the requested item bold
-            text = webhook.bold(f"{profile_title} ({item_link})", service)
-            payload.append(text)
-        else:
-            payload.append(f"{profile_title} ({item_link})")
+    if market_data:
+        for item in market_data:
+            flag=''
+            if '.AX' in item:
+                flag = '🇦🇺'
+            elif '.' not in item:
+                flag = '🇺🇸'
+            item_link = util.yahoo_link(item, service)
+            profile_title = market_data[item]['profile_title']
+            if item == ticker and action == 'delete':
+                pass
+            elif item == ticker and action == 'add': # make the requested item bold
+                text = webhook.bold(f"{profile_title} ({item_link}) {flag}", service)
+                payload.append(text)
+            else:
+                payload.append(f"{profile_title} ({item_link}) {flag}")
     def profile_title(e): # disregards markup in sort command
         return re.findall('[A-Z].*', e)
     payload.sort(key=profile_title)
@@ -346,8 +353,10 @@ def prepare_watchlist(service, user, action=False, ticker=False):
             payload.insert(0, f"{user}, I'm already tracking " + webhook.bold(ticker_link, service))
         else:
             payload.insert(0, f"Ok {user}, I added " + webhook.bold(ticker_link, service))
-    elif action == False:
+    elif action == False and len(payload):
         payload.insert(0, f"Hi {user}, I'm currently tracking:")
+    else:
+        payload.append('Watchlist is empty. Try ".watchlist add SYMBOL" to create it')
     with open(config_cache_dir + "/finbot_watchlist.json", "w") as f:
         f.write(json.dumps(watchlist))
     return payload
