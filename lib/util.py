@@ -150,8 +150,10 @@ def flag_from_ticker(ticker):
             flag = '🇰🇷'
         elif suffix == 'L':
             flag = '🇬🇧'
-        elif suffix == 'TW':
+        elif suffix in ('TW', 'TWO'):
             flag = '🇹🇼'
+        elif suffix == 'TO':
+            flag = '🇨🇦'
     else:
         flag = '🇺🇸'
     return flag
