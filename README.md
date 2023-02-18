@@ -30,10 +30,9 @@
 .premarket [percent|AAPL]
 .shorts [percent|AAPL]
 .trades [days]
-.watchlist
-.watchlist [add|del] AAPL
+.watchlist [add|del AAPL]
 @botname AAPL
-@botname AAPL bio
+@botname bio AAPL
 @botname dividend [days]
 @botname earnings [days]
 @botname holdings
@@ -42,8 +41,7 @@
 @botname premarket [percent]
 @botname shorts [percent]
 @botname trades [days]
-@botname watchlist
-@botname watchlist [add|del] AAPL
+@botname watchlist [add|del AAPL]
 ```
 
 Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs.
@@ -76,7 +74,7 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
 
 Example usage:
 ```
-!AAPL
+.AAPL
 ```
 ```
 @botname AAPL
@@ -87,13 +85,7 @@ Example usage:
 
 This report can only be run through the interactive bot. Example usage:
 ```
-!AAPL bio
-```
-```
-@botname AAPL bio
-```
-```
-!bio AAPL
+.bio AAPL
 ```
 ```
 @botname bio AAPL
@@ -115,7 +107,7 @@ past_days = 30
 
 Interactive trigger:
 ```
-!trades [days]
+.trades [days]
 ```
 ```
 @botname trades [days]
@@ -143,7 +135,7 @@ The mode must be passed as an execution argument.
 
 Interactive trigger:
 ```
-!price [percent]
+.price [percent]
 ```
 ```
 @botname price [percent]
@@ -151,7 +143,7 @@ Interactive trigger:
 
 Interactive trigger (pre-market):
 ```
-!premarket [percent]
+.premarket [percent]
 ```
 ```
 @botname premarket [percent]
@@ -176,7 +168,7 @@ Cron execution:
 
 Interactive trigger (earnings):
 ```
-!earnings [days]
+.earnings [days]
 ```
 ```
 @botname earnings [days]
@@ -184,7 +176,7 @@ Interactive trigger (earnings):
 
 Interactive trigger (ex-dividend):
 ```
-!dividend [days]
+.dividend [days]
 ```
 ```
 @botname dividend [days]
@@ -200,7 +192,7 @@ shorts_percent = 15
 
 Interactive trigger:
 ```
-!shorts [percent]
+.shorts [percent]
 ```
 ```
 @botname shorts [percent]
@@ -220,10 +212,10 @@ When run interactively, the watchlist is dynamic and can be edited by members of
 
 Interactive trigger:
 ```
-!watchlist
+.watchlist
 ```
 ```
-!watchlist [add|del] AAPL
+.watchlist [add|del] AAPL
 ```
 ```
 @botname watchlist

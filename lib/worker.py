@@ -344,10 +344,8 @@ def prepare_help(service, user, botName):
     payload.append(".watchlist [add|del] AAPL")
     if service == 'slack':
         payload.append('<' + botName + '> AAPL')
-        payload.append('<' + botName + '> AAPL bio')
     else:
         payload.append(botName + ' AAPL')
-        payload.append(botName + ' AAPL bio')
     payload.append("etc.")
     payload.append("")
     payload.append("https://github.com/robdevops/finbot")
