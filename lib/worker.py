@@ -22,59 +22,59 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif service == 'telegram':
         url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
 
-    dividend_command = "^[\!\.]\s?dividend\s*([\d\w\.]+)*|^" + botName + "\s+dividend\s*([\d\w\.]+)*"
+    dividend_command = "^([\!\.]\s?|" + botName + "\s+)dividends?\s*([\d\w\.]+)*"
     m_dividend = re.match(dividend_command, message)
 
-    earnings_command = "^[\!\.]\s?earnings\s*([\d\w\.]+)*|^" + botName + "\s+earnings\s*([\d\w\.]+)*"
+    earnings_command = "^([\!\.]\s?|" + botName + "\s+)earnings?\s*([\d\w\.]+)*"
     m_earnings = re.match(earnings_command, message, re.IGNORECASE)
 
-    hello_command = "^[\!\.]\s?(hello)|^" + botName + "\s+(hello)|^(hi|hello)\s+" + botName
+    hello_command = "^([\!\.]\s?|" + botName + "\s+)(hi|hello)|^(hi|hello)\s+" + botName
     m_hello = re.match(hello_command, message, re.IGNORECASE)
 
-    holdings_command = "^[\!\.]\s?holdings\s*([\w\s]+)*|^" + botName + "\s+holdings\s*([\w\s]+)*"
+    help_command = "^([\!\.]\s?|" + botName + "\s+)(help|usage)"
+    m_help = re.match(help_command, message, re.IGNORECASE)
+
+    holdings_command = "^([\!\.]\s?|^" + botName + "\s+)holdings?\s*([\w\s]+)*"
     m_holdings = re.match(holdings_command, message, re.IGNORECASE)
 
-    marketcap_command = "^[\!\.]\s?marketcap\s+([\w\.]+)+|^" + botName + "\s+marketcap\s+([\w\.]+)+"
+    marketcap_command = "^([\!\.]\s?|^" + botName + "\s+)marketcap\s+([\w\.]+)"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
-    premarket_command = "^[\!\.]\s?premarket\s*([\d\w\.]+)*|^" + botName + "\s+premarket\s*([\d\w\.]+)*"
+    premarket_command = "^([\!\.]\s?|^" + botName + "\s+)premarket\s*([\d\w\.]+)*"
     m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-    price_command = "^[\!\.]\s?price\s*([\d\w\.]+)*|^" + botName + "\s+price\s*([\d\w\.]+)*"
+    price_command = "^([\!\.]\s?|^" + botName + "\s+)prices?\s*([\d\w\.]+)*"
     m_price = re.match(price_command, message, re.IGNORECASE)
 
-    shorts_command = "^[\!\.]\s?shorts?\s*([\d\w\.]+)*|^" + botName + "\s+shorts?\s*([\d\w\.]+)*"
+    shorts_command = "^([\!\.]\s?|^" + botName + "\s+)shorts?\s*([\d\w\.]+)*"
     m_shorts = re.match(shorts_command, message, re.IGNORECASE)
 
-    stockfinancial_command = "^[\!\.]\s?([\w\.]+)\s*(bio|info|profile)*|^" + botName + "\s+([\w\.]+)\s*(bio|info|profile)*"
+    stockfinancial_command = "^([\!\.]\s?|^" + botName + "\s+)([\w\.]+)\s*(bio|info|profile)*"
     m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
-    bio_command = "^[\!\.]\s?bio\s+([\w\.]+)+|^" + botName + "\s+bio\s+([\w\.]+)+"
+    bio_command = "^([\!\.]\s?|^" + botName + "\s+)bio\s+([\w\.]+)+"
     m_bio = re.match(bio_command, message, re.IGNORECASE)
 
-    thanks_command = "^[\!\.]\s?(thanks|thank you)|^" + botName + "\s+(thanks|thank you)|^(thanks|thank you)\s+" + botName
+    thanks_command = "^([\!\.]\s?|^" + botName + "\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
     m_thanks = re.match(thanks_command, message, re.IGNORECASE)
 
-    trades_command = "^[\!\.]\s?trades\s*(\d+)*|^" + botName + "\s+trades\s*(\d+)*"
+    trades_command = "^([\!\.]\s?|^" + botName + "\s+)trades?\s*(\d+)*"
     m_trades = re.match(trades_command, message, re.IGNORECASE)
 
-    watchlist_command = "^[\!\.]\s?watchlist\s*([\w]+)*\s*([\w\.]+)*|^" + botName + "\s+watchlist\s*(\w+)*\s*([\w\.]+)*"
+    watchlist_command = "^([\!\.]\s?|^" + botName + "\s+)watchlist\s*([\w]+)*\s*([\w\.]+)*"
     m_watchlist = re.match(watchlist_command, message, re.IGNORECASE)
 
     if m_watchlist:
         action = False
         ticker = False
-        if m_watchlist.group(3) and m_watchlist.group(4):
-            action = m_watchlist.group(3).lower()
-            ticker = m_watchlist.group(4).upper()
-        elif m_watchlist.group(1) and m_watchlist.group(2):
-            action = m_watchlist.group(1).lower()
-            ticker = m_watchlist.group(2).upper()
+        if m_watchlist.group(2) and m_watchlist.group(3):
+            action = m_watchlist.group(2).lower()
+            ticker = m_watchlist.group(3).upper()
         if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
             action = 'delete'
         payload = prepare_watchlist(service, user, action, ticker)
         webhook.payload_wrapper(service, url, payload, chat_id)
-    elif message in ("!help", "!usage", botName + " help", botName + " usage"):
+    elif m_help:
         payload = prepare_help(service, user, botName)
         webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 1
@@ -104,11 +104,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_earnings:
         days = config_future_days
         specific_stock = False
-        if m_earnings.group(2) or m_earnings.group(1):
-            if m_earnings.group(2):
-                arg = m_earnings.group(2)
-            elif m_earnings.group(1):
-                arg = m_earnings.group(1)
+        if m_earnings.group(2):
+            arg = m_earnings.group(2)
             try:
                 days = int(arg)
             except ValueError:
@@ -117,24 +114,20 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_dividend:
         days = config_future_days
         specific_stock = False
-        if m_dividend.group(2) or m_dividend.group(1):
-            if m_dividend.group(2):
-                arg = m_dividend.group(2)
-            elif m_dividend.group(1):
-                arg = m_dividend.group(1)
+        if m_dividend.group(2):
+            arg = m_dividend.group(2)
             try:
                 days = int(arg)
+                payload = [ f"Looking up ex-dividend dates for the next { f'{days} days' if days != 1 else 'day' } 🔍" ]
+                webhook.payload_wrapper(service, url, payload, chat_id)
             except ValueError:
                 specific_stock = str(arg).upper()
         upcoming.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=False, dividend=True)
     elif m_price:
         price_threshold = config_price_percent
         specific_stock = False
-        if m_price.group(2) or m_price.group(1):
-            if m_price.group(2):
-                arg = m_price.group(2)
-            elif m_price.group(1):
-                arg = m_price.group(1)
+        if m_price.group(2):
+            arg = m_price.group(2)
             try:
                 price_threshold = int(arg)
             except ValueError:
@@ -143,11 +136,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_premarket:
         premarket_threshold = config_price_percent
         specific_stock = False
-        if m_premarket.group(2) or m_premarket.group(1):
-            if m_premarket.group(2):
-                arg = m_premarket.group(2)
-            elif m_premarket.group(1):
-                arg = m_premarket.group(1)
+        if m_premarket.group(2):
+            arg = m_premarket.group(2)
             try:
                 premarket_threshold = int(arg)
             except ValueError:
@@ -157,11 +147,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         print("starting shorts report...")
         shorts_threshold = config_shorts_percent
         specific_stock = False
-        if m_shorts.group(2) or m_shorts.group(1):
-            if m_shorts.group(2):
-                arg = m_shorts.group(2)
-            elif m_shorts.group(1):
-                arg = m_shorts.group(1)
+        if m_shorts.group(2):
+            arg = m_shorts.group(2)
             try:
                 shorts_threshold = int(arg)
             except ValueError:
@@ -170,8 +157,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_trades:
         if m_trades.group(2):
             days = int(m_trades.group(2))
-        elif m_trades.group(1):
-            days = int(m_trades.group(1))
         else:
             days = 1
         # easter egg 3
@@ -186,8 +171,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         print("Starting holdings report")
         if m_holdings.group(2):
             portfolioName = m_holdings.group(2)
-        elif m_holdings.group(1):
-            portfolioName = m_holdings.group(1)
         portfolios = sharesight.get_portfolios()
         portfoliosLower = {k.lower():v for k,v in portfolios.items()}
         if portfolioName:
@@ -215,42 +198,29 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 payload.append( item )
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_marketcap:
-        if m_marketcap.group(2):
-            ticker = m_marketcap.group(2).upper()
-            market_data = yahoo.fetch_detail(ticker, 600)
-        elif m_marketcap.group(1):
-            ticker = m_marketcap.group(1).upper()
-            market_data = yahoo.fetch_detail(ticker, 600)
-        else:
-            payload = prepare_help(service, user, botName)
+        ticker = m_marketcap.group(2).upper()
+        market_data = yahoo.fetch_detail(ticker, 600)
         if 'market_cap' in market_data[ticker]:
             market_cap = market_data[ticker]['market_cap']
             market_cap = util.humanUnits(market_cap)
-            payload = [f"{ticker} mkt cap: {market_cap}"]
+            title = market_data[ticker]['profile_title']
+            ticker_link = util.yahoo_link(ticker, service)
+            payload = [f"{title} ({ticker_link}) mkt cap: {market_cap}"]
         else:
             payload = [f"Mkt cap not found for {ticker}"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_bio:
-        if m_bio.group(2):
-            ticker = m_bio.group(2).upper()
-            market_data = yahoo.fetch_detail(ticker, 600)
-        elif m_bio.group(1):
-            ticker = m_bio.group(1).upper()
-            market_data = yahoo.fetch_detail(ticker, 600)
-        else:
-            payload = prepare_help(service, user, botName)
+        ticker = m_bio.group(2).upper()
+        market_data = yahoo.fetch_detail(ticker, 600)
+        payload = prepare_help(service, user, botName)
         payload = prepare_stockfinancial_payload(service, user, ticker, bio=True)
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_stockfinancial:
         print("starting stock detail")
         bio=False
-        if m_stockfinancial.group(3):
-            ticker = m_stockfinancial.group(3).upper()
-            if m_stockfinancial.group(4):
-                bio=True
-        elif m_stockfinancial.group(1):
-            ticker = m_stockfinancial.group(1).upper()
-            if m_stockfinancial.group(2):
+        if m_stockfinancial.group(2):
+            ticker = m_stockfinancial.group(2).upper()
+            if m_stockfinancial.group(3):
                 bio=True
         payload = prepare_stockfinancial_payload(service, user, ticker, bio)
         webhook.payload_wrapper(service, url, payload, chat_id)
@@ -360,19 +330,18 @@ def prepare_watchlist(service, user, action=False, ticker=False):
 def prepare_help(service, user, botName):
     payload = []
     payload.append(webhook.bold("Examples:", service))
-    payload.append("!AAPL")
-    payload.append("!AAPL bio")
-    payload.append("!bio AAPL")
-    payload.append("!dividend [days|AAPL]")
-    payload.append("!earnings [days|AAPL]")
-    payload.append("!holdings")
-    payload.append("!marketcap AAPL")
-    payload.append("!price [percent|AAPL]")
-    payload.append("!premarket [percent|AAPL]")
-    payload.append("!shorts [percent]|AAPL]")
-    payload.append("!trades [days]")
-    payload.append("!watchlist")
-    payload.append("!watchlist [add|del] AAPL")
+    payload.append(".AAPL")
+    payload.append(".bio AAPL")
+    payload.append(".dividend [days|AAPL]")
+    payload.append(".earnings [days|AAPL]")
+    payload.append(".holdings")
+    payload.append(".marketcap AAPL")
+    payload.append(".price [percent|AAPL]")
+    payload.append(".premarket [percent|AAPL]")
+    payload.append(".shorts [percent]|AAPL]")
+    payload.append(".trades [days]")
+    payload.append(".watchlist")
+    payload.append(".watchlist [add|del] AAPL")
     if service == 'slack':
         payload.append('<' + botName + '> AAPL')
         payload.append('<' + botName + '> AAPL bio')
@@ -563,14 +532,20 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         revenueAnalysts = market_data[ticker]['revenueAnalysts']
         if revenueEstimateY <= 0:
             emoji = '⚠️ '
-        payload.append(webhook.bold("Revenue forecast (1Y):", service) + f" {revenueEstimateY}% {emoji}")
+            prefix = ''
+        else:
+            prefix='+'
+        payload.append(webhook.bold("Revenue forecast (1Y):", service) + f" {prefix}{revenueEstimateY}% {emoji}")
     if 'earningsEstimateY' in market_data[ticker]:
         emoji = ''
+        prefix = ''
         earningsEstimateY = int(round(market_data[ticker]['earningsEstimateY']))
         earningsAnalysts = market_data[ticker]['earningsAnalysts']
         if earningsEstimateY <= 0:
             emoji = '⚠️ '
-        payload.append(webhook.bold("Earnings forecast (1Y):", service) + f" {earningsEstimateY}% {emoji}")
+        else:
+            prefix='+'
+        payload.append(webhook.bold("Earnings forecast (1Y):", service) + f" {prefix}{earningsEstimateY}% {emoji}")
     if 'insiderBuy' in market_data[ticker]:
         emoji=''
         insiderBuy = market_data[ticker]['insiderBuy']

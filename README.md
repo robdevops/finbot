@@ -20,19 +20,18 @@
 
 ### Supported commands:
 ```
-!AAPL
-!AAPL bio
-!bio AAPL
-!dividend [days|AAPL]
-!earnings [days|AAPL]
-!holdings
-!marketcap AAPL
-!price [percent|AAPL]
-!premarket [percent|AAPL]
-!shorts [percent|AAPL]
-!trades [days]
-!watchlist
-!watchlist [add|del] AAPL
+.AAPL
+.bio AAPL
+.dividend [days|AAPL]
+.earnings [days|AAPL]
+.holdings
+.marketcap AAPL
+.price [percent|AAPL]
+.premarket [percent|AAPL]
+.shorts [percent|AAPL]
+.trades [days]
+.watchlist
+.watchlist [add|del] AAPL
 @botname AAPL
 @botname AAPL bio
 @botname dividend [days]
