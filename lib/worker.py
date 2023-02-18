@@ -320,11 +320,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
     payload = []
     if market_data:
         for item in market_data:
-            flag=''
-            if '.AX' in item:
-                flag = '🇦🇺'
-            elif '.' not in item:
-                flag = '🇺🇸'
+            flag = util.flag_from_ticker(item)
             item_link = util.yahoo_link(item, service)
             profile_title = market_data[item]['profile_title']
             if item == ticker and action == 'delete':
