@@ -37,7 +37,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     holdings_command = "^([\!\.]\s?|^" + botName + "\s+)holdings?\s*([\w\s]+)*"
     m_holdings = re.match(holdings_command, message, re.IGNORECASE)
 
-    marketcap_command = "^([\!\.]\s?|^" + botName + "\s+)marketcap\s+([\w\.]+)"
+    marketcap_command = "^([\!\.]\s?|^" + botName + "\s+)marketcap\s*([\w\.]+)*"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
     premarket_command = "^([\!\.]\s?|^" + botName + "\s+)premarket\s*([\d\w\.]+)*"
@@ -52,7 +52,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     stockfinancial_command = "^([\!\.]\s?|^" + botName + "\s+)([\w\.]+)\s*(bio|info|profile)*"
     m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
-    bio_command = "^([\!\.]\s?|^" + botName + "\s+)bio\s+([\w\.]+)+"
+    bio_command = "^([\!\.]\s?|^" + botName + "\s+)bio\s*([\w\.]+)*"
     m_bio = re.match(bio_command, message, re.IGNORECASE)
 
     thanks_command = "^([\!\.]\s?|^" + botName + "\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
@@ -198,22 +198,31 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 payload.append( item )
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_marketcap:
-        ticker = m_marketcap.group(2).upper()
-        market_data = yahoo.fetch_detail(ticker, 600)
-        if 'market_cap' in market_data[ticker]:
-            market_cap = market_data[ticker]['market_cap']
-            market_cap = util.humanUnits(market_cap)
-            title = market_data[ticker]['profile_title']
-            ticker_link = util.yahoo_link(ticker, service)
-            payload = [f"{title} ({ticker_link}) mkt cap: {market_cap}"]
+        if m_marketcap.group(2):
+            ticker = m_marketcap.group(2).upper()
+            market_data = yahoo.fetch_detail(ticker, 600)
+            if market_data:
+                market_cap = market_data[ticker]['market_cap']
+                market_cap = util.humanUnits(market_cap)
+                title = market_data[ticker]['profile_title']
+                ticker_link = util.yahoo_link(ticker, service)
+                payload = [f"{title} ({ticker_link}) mkt cap: {market_cap}"]
+            else:
+                payload = [f"Mkt cap not found for {ticker}"]
         else:
-            payload = [f"Mkt cap not found for {ticker}"]
+            payload = [f"please try again specifying a ticker"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_bio:
-        ticker = m_bio.group(2).upper()
-        market_data = yahoo.fetch_detail(ticker, 600)
-        payload = prepare_help(service, user, botName)
-        payload = prepare_stockfinancial_payload(service, user, ticker, bio=True)
+        if m_bio.group(2):
+            ticker = m_bio.group(2).upper()
+            market_data = yahoo.fetch_detail(ticker, 600)
+            if market_data:
+                payload = prepare_help(service, user, botName)
+                payload = prepare_stockfinancial_payload(service, user, ticker, bio=True)
+            else:
+                payload = [f"{ticker} not found"]
+        else:
+            payload = [f"please try again specifying a ticker"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_stockfinancial:
         print("starting stock detail")
