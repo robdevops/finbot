@@ -347,10 +347,9 @@ def prepare_help(service, user, botName):
     payload.append(".marketcap AAPL")
     payload.append(".price [percent|AAPL]")
     payload.append(".premarket [percent|AAPL]")
-    payload.append(".shorts [percent]|AAPL]")
+    payload.append(".shorts [percent|AAPL]")
     payload.append(".trades [days]")
-    payload.append(".watchlist")
-    payload.append(".watchlist [add|del] AAPL")
+    payload.append(".watchlist [add|del AAPL]")
     if service == 'slack':
         payload.append('<' + botName + '> AAPL')
     else:
