@@ -71,6 +71,7 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔼🔽🔻 In the past three quarters, earnings increased, decreased, and decreased again, and was negative in the last quarter.
     * 🔼🔼🔼 In the past three years, revenue increased each year.
     * 🔻🔺🔻 In the past three years, earnings decreased, increased, then decreased, and was negative for all three years.
+    * An▪️ emoji indicates no change from the previous period.
 
 Example usage:
 ```
