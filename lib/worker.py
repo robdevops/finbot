@@ -22,10 +22,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif service == 'telegram':
         url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
 
-    dividend_command = "^([\!\.]\s?|" + botName + "\s+)dividends?\s*([\d\w\.]+)*"
-    m_dividend = re.match(dividend_command, message)
+    dividend_command = "^([\!\.]\s?|" + botName + "\s+)dividends?\s*([\w\.]+)*"
+    m_dividend = re.match(dividend_command, message, re.IGNORECASE)
 
-    earnings_command = "^([\!\.]\s?|" + botName + "\s+)earnings?\s*([\d\w\.]+)*"
+    earnings_command = "^([\!\.]\s?|" + botName + "\s+)earnings?\s*([\w\.]+)*"
     m_earnings = re.match(earnings_command, message, re.IGNORECASE)
 
     hello_command = "^([\!\.]\s?|" + botName + "\s+)(hi|hello)|^(hi|hello)\s+" + botName
@@ -40,13 +40,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     marketcap_command = "^([\!\.]\s?|^" + botName + "\s+)marketcap\s*([\w\.]+)*"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
-    premarket_command = "^([\!\.]\s?|^" + botName + "\s+)premarket\s*([\d\w\.]+)*"
+    premarket_command = "^([\!\.]\s?|^" + botName + "\s+)premarket\s*([\w\.]+)*"
     m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-    price_command = "^([\!\.]\s?|^" + botName + "\s+)prices?\s*([\d\w\.]+)*"
+    price_command = "^([\!\.]\s?|^" + botName + "\s+)prices?\s*([\w\.]+)*"
     m_price = re.match(price_command, message, re.IGNORECASE)
 
-    shorts_command = "^([\!\.]\s?|^" + botName + "\s+)shorts?\s*([\d\w\.]+)*"
+    shorts_command = "^([\!\.]\s?|^" + botName + "\s+)shorts?\s*([\w\.]+)*"
     m_shorts = re.match(shorts_command, message, re.IGNORECASE)
 
     stockfinancial_command = "^([\!\.]\s?|^" + botName + "\s+)([\w\.]+)\s*(bio|info|profile)*"
