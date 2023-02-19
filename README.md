@@ -33,13 +33,13 @@
 .watchlist [add|del AAPL]
 @botname AAPL
 @botname bio AAPL
-@botname dividend [days]
-@botname earnings [days]
+@botname dividend [days|AAPL]
+@botname earnings [days|AAPL]
 @botname holdings
 @botname marketcap AAPL
-@botname price [percent]
-@botname premarket [percent]
-@botname shorts [percent]
+@botname price [percent|AAPL]
+@botname premarket [percent|AAPL]
+@botname shorts [percent|AAPL]
 @botname trades [days]
 @botname watchlist [add|del AAPL]
 ```
