@@ -11,7 +11,7 @@ import lib.telegram as telegram
 import lib.util as util
 import lib.webhook as webhook
 import lib.yahoo as yahoo
-import upcoming
+import cal
 import price
 import shorts
 import trades
@@ -110,7 +110,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 days = int(arg)
             except ValueError:
                 specific_stock = str(arg).upper()
-        upcoming.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=True)
+        cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=True)
     elif m_dividend:
         days = config_future_days
         specific_stock = False
@@ -122,7 +122,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 webhook.payload_wrapper(service, url, payload, chat_id)
             except ValueError:
                 specific_stock = str(arg).upper()
-        upcoming.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=False, dividend=True)
+        cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=False, dividend=True)
     elif m_price:
         price_threshold = config_price_percent
         specific_stock = False

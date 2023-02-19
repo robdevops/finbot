@@ -149,10 +149,10 @@ Interactive trigger (pre-market):
 @botname premarket [percent]
 ```
 
-### Upcoming company events
+### Events calendar
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
 
-`upcoming.py` sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This can be specified as an argument when triggered through the chat bot.
+`cal.py` sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This can be specified as an argument when triggered through the chat bot.
 
 **Earnings:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 
@@ -163,7 +163,7 @@ future_days = 7
 
 Cron execution:
 ```
-./upcoming.py [earnings|ex-dividend]
+./cal.py [earnings|ex-dividend]
 ```
 
 Interactive trigger (earnings):
@@ -328,7 +328,7 @@ Recommended for a machine set to UTC:
 10  11 * * Mon-Fri ~/finbot/price.py premarket > /dev/null
 
 # Weekly
-28  21 * * Fri { cd ~/finbot/; ./upcoming.py earnings; ./upcoming.py ex-dividend;} > /dev/null
+28  21 * * Fri { cd ~/finbot/; ./cal.py earnings; ./cal.py ex-dividend;} > /dev/null
 
 # Monthly
 27  21 1 * * ~/finbot/shorts.py > /dev/null
