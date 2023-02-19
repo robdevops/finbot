@@ -292,7 +292,7 @@ The webhook is only used for the trade notifications and scheduled reports. The 
 * Optionally, make the bot a group admin (for interactive features).
 * In the .env file, set `telegramBotToken` to the token BotFather gave you.
 * In the .env file, set `telegramChatID` to the chat group or channel id.
-   * For channels and supergroups, _CHAT_ID_ should be negative and 13 characters. Prepend `-100` if necessary.
+   * For channels and supergroups, `telegramChatID` should be negative and 13 characters. Prepend `-100` if necessary.
    * Be aware a group id can change if you edit group settings and it becomes a "supergroup". Currently, the bot does not automatically handle this.
 * Example .env entry:
 ```
@@ -393,7 +393,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
 * From _Basic Information > Verification Token_, copy _Verification token_ into the .env file variable `slackOutgoingToken`
 * In the .env file, put your web server URL (e.g. https://www.example.com:8443/slack) into `slackOutgoingWebhook`
 * Save the .env file and (re)start `bot.py`
-* Under _Event Subscriptions:
+* Under _Event Subscriptions_:
   * Go to _Enable Events > On > Request URL_ and enter your web server URL (e.g. https://www.example.com:8443/slack). The bot will auto verify Slack's verification request if it is reachable.
   * Go down to _Subscribe to bot events_ and add event `app_mention` for the bot to see _@botname_ mentions.
     * Alternatively, you can subscribe to `message.channels` if you want your bot to see everything and respond to `.` commands. To avoid duplicate responses, don't subscribe to `app_mention` and `message.channels` at the same time.
