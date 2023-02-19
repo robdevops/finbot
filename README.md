@@ -73,9 +73,9 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔺 earnings increased from the previous period but remained negative
     * ▪ earnings/revenue matched the previous period
 * Using the example screenshot above, the company reported:
-    * 🔼🔼🔼 revenue increased in the past three quarters
+    * 🔼🔼🔼 revenue increased in all of the past three quarters
     * 🔺🔻🔻 In the past three quarters, earnings initially increased, then decreased for two quarters, and was negative in every quarter
-    * 🔼🔼🔼 revenue increased in the past three years
+    * 🔼🔼🔼 revenue increased in all of the past three years
     * 🔻🔺🔻 In the past three years, earnings decreased, increased, then decreased, and was negative for all three years
 
 Example usage:
