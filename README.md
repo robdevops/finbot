@@ -59,7 +59,7 @@ The interactive bot component requires you to host a web service on a domain wit
 ### Stock lookup
 ![Screenshot showing stock info on Slack](img/stockinfo.png?raw=true "Screenshot showing stock info on Slack")
 
-The stock lookup returns various stats relevant to a stock's valuation, growth and risk factors.  This report can only be run through the interactive bot. 
+The stock lookup returns various stats relevant to a stock's valuation, growth and risk factors.
 
 #### Emoji legend
 * The colored circle next to the symbol at the top indicates the current market state:
@@ -78,7 +78,7 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔼🔼🔼 revenue increased in all of the past three years
     * 🔻🔺🔻 In the past three years, earnings decreased, increased, then decreased, and was negative for all three years
 
-Example usage:
+This report can only be run through the interactive bot. Example usage:
 ```
 .AAPL
 ```
@@ -129,14 +129,14 @@ Config example:
 price_percent = 9.4
 ```
 
-Scheduled trigger:
+Cron trigger:
 ```
 ./price.py [ignoreclosed|intraday|premarket]
 ```
 The mode must be passed as an execution argument.
 * If `ignoreclosed` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones.
 * If `intraday` is passed, it reports current price against the previous market close.
-* If `premarket is passed, it only reportd on pre/post market price movements.
+* If `premarket` is passed, it only reportd on pre/post market price movements.
 
 
 Interactive trigger:
@@ -158,7 +158,7 @@ Interactive trigger (pre-market):
 ### Events calendar
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
 
-`cal.py` sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This can be specified as an argument when triggered through the chat bot.
+`cal.py` sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the .env file for triggering the report from Cron, or can be specified as an argument when triggered through the chat bot.
 
 **Earnings:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 
@@ -191,7 +191,9 @@ Interactive trigger (ex-dividend):
 ### Highly shorted stock warnings
 ![short warnings in Slack](img/shorts.png?raw=true "Short warnings in Slack")
 
-`shorts.py` sends short interest warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. This can be specified as an argument when triggered through the chat bot. **Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely.
+`shorts.py` sends short interest warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. This can be specified in the .env file for running the report from Cron, or as an argument when triggered through the chat bot.
+
+**Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely.
 ```
 shorts_percent = 15
 ```
