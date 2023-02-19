@@ -277,7 +277,7 @@ discord_webhook = 'https://discord.com/api/webhooks/1009998000000000000/aaaaaaaa
 ```
 
 ### Slack
-A Slack webhook can be provisioned by creating a new app at https://api.slack.com/apps/ then navigating to _Incoming Webhooks_. Once the link is generated, add it to the .env file. Example:
+A Slack webhook can be provisioned by creating a new app from scratch at https://api.slack.com/apps/ then navigating to _Incoming Webhooks_. Once the link is generated, add it to the .env file. Example:
 ```
 slack_webhook = 'https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA'
 ```
@@ -387,18 +387,26 @@ Note: The utils folder contains scripts to generate `/etc/nginx/aws_subnets` and
 With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
 
 #### Slack
-Visit https://api.slack.com/apps/ to create a new Slack app. If you already created one for a webhook (above), you can reuse that app.
-* Put the token from _OAuth & Permissions > Bot User OAuth Token_ into .env file `slackBotToken`
-* Put token from _Basic Information > Verification Token_ into the .env file `slackOutgoingToken`.
-* Put your web server URL (e.g. https://www.example.com:8443/slack) into:
-  * _Event Subscriptions > Enable Events_ (the bot will auto verify Slack's verification request if `bot.py` is running and reachable)
-  * .env file `slackOutgoingWebhook`
-* Under _Event Subscriptions > Subscribe to bot events_:
-  * Add event `app_mention` for the bot to see _@botname_ mentions.
-    * Alternatively, you can subscribe to `message.channels` if you want your bot to see everything and respond to `!` commands. To avoid duplicate responses, don't subscribe to `app_mention` and `message.channels` at the same time.
-  * If you want to DM the bot:
-    * Subscribe to `message.im`
-    * Check the box _App Home > Allow users to send Slash commands and messages from the messages tab_.
+Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app).
+* From _Basic Information > Verification Token_, copy _Verification token_ into the .env file variable `slackOutgoingToken`
+* In the .env file, put your web server URL (e.g. https://www.example.com:8443/slack) into `slackOutgoingWebhook`
+* Save the .env file and (re)start `bot.py`
+* Under _Event Subscriptions:
+  * Go to _Enable Events > On > Request URL_ and enter your web server URL (e.g. https://www.example.com:8443/slack). The bot will auto verify Slack's verification request if it is reachable.
+  * Go down to _Subscribe to bot events_ and add event `app_mention` for the bot to see _@botname_ mentions.
+    * Alternatively, you can subscribe to `message.channels` if you want your bot to see everything and respond to `.` commands. To avoid duplicate responses, don't subscribe to `app_mention` and `message.channels` at the same time.
+    * If you want to DM the bot:
+      * Subscribe to `message.im`
+      * Check the box _App Home > Allow users to send Slash commands and messages from the messages tab_
+  * Save Changes
+* Under _OAuth & Permissions_: 
+  * Scroll down to _Scopes > Bot Token Scopes_, and add `chat:write`
+  * Scroll up to _OAuth Tokens for Your Workspace:
+    * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_ 
+    * Copy _Bot User OAuth Token_ into .env file `slackBotToken`
+    * Restart `bot.py`
+
+
 
 ### Daemonize (systemd)
 `finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User` and `ExecStart`, then enable and start it:
