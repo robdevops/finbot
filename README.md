@@ -66,12 +66,17 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔴 market closed
     * 🟠 pre/post-market
     * 🟢 normal trading
-* The emoji grid indicates the directional change in the company earnings and revenue for each reporting period. Additionally, a red arrow indicates the absolute earnings was negative. In the screenshot above, ZG reported:
-    * 🔼🔽🔼 In the past three quarters, revenue increased, then decreased, then increased.
-    * 🔼🔽🔻 In the past three quarters, earnings increased, decreased, and decreased again, and was negative in the last quarter.
-    * 🔼🔼🔼 In the past three years, revenue increased each year.
-    * 🔻🔺🔻 In the past three years, earnings decreased, increased, then decreased, and was negative for all three years.
-    * An▪️ emoji indicates no change from the previous period.
+* The emoji grid indicates the directional change in the company earnings and revenue for each reporting period. Additionally, a red arrow indicates the absolute earnings was negative.
+    * 🔼 earnings/revenue increased from the previous period
+    * 🔽 earnings/revenue decreased from the previous period
+    * 🔻 earnings decreased from the previous period and was negative
+    * 🔺 earnings increased from the previous period but remained negative
+    * ▪ earnings/revenue matched the previous period
+* Using the example screenshot above, the company reported:
+    * 🔼🔼🔼 revenue increased in the past three quarters
+    * 🔺🔻🔻 In the past three quarters, earnings initially increased, then decreased for two quarters, and was negative in every quarter
+    * 🔼🔼🔼 revenue increased in the past three years
+    * 🔻🔺🔻 In the past three years, earnings decreased, increased, then decreased, and was negative for all three years
 
 Example usage:
 ```
