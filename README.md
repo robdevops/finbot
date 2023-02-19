@@ -136,7 +136,7 @@ Cron trigger:
 The mode must be passed as an execution argument.
 * If `ignoreclosed` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones.
 * If `intraday` is passed, it reports current price against the previous market close.
-* If `premarket` is passed, it only reportd on pre/post market price movements.
+* If `premarket` is passed, it only reports on pre/post market price movements.
 
 
 Interactive trigger:
@@ -234,8 +234,8 @@ Interactive trigger:
 
 ## Dependencies
 * Sharesight paid plan, preferably with automatic trade imports, and an API key
-* Slack / Discord webhooks / Telegram bot user
-* The interactive bot requires a web server with domain name and matching certificate, plus the gevent Python module
+* Discord/Slack webhooks / Telegram bot user
+* The interactive bot requires a web server with domain name and matching certificate, plus the _gevent_ Python module
 * Python 3.8.10+
 * Python modules:
 ```
