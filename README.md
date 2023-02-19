@@ -401,7 +401,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
   * Save Changes
 * Under _OAuth & Permissions_: 
   * Scroll down to _Scopes > Bot Token Scopes_, and add `chat:write`
-  * Scroll up to _OAuth Tokens for Your Workspace:
+  * Scroll up to _OAuth Tokens for Your Workspace_:
     * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_ 
     * Copy _Bot User OAuth Token_ into .env file `slackBotToken`
     * Restart `bot.py`
