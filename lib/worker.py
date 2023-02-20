@@ -118,10 +118,11 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             arg = m_dividend.group(2)
             try:
                 days = int(arg)
-                payload = [ f"Looking up ex-dividend dates for the next { f'{days} days' if days != 1 else 'day' } 🔍" ]
-                webhook.payload_wrapper(service, url, payload, chat_id)
             except ValueError:
                 specific_stock = str(arg).upper()
+        else:
+            payload = [ f"Looking up ex-dividend dates for the next { f'{days} days' if days != 1 else 'day' } 🔍" ]
+            webhook.payload_wrapper(service, url, payload, chat_id)
         cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=False, dividend=True)
     elif m_price:
         price_threshold = config_price_percent
