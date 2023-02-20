@@ -19,30 +19,30 @@
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
 ### Supported commands
-Where _AAPL_ is any Yahoo Finance symbol:
+Where _symbol_ is any Yahoo Finance symbol:
 ```
-.AAPL
-.bio AAPL
-.dividend [days|AAPL]
-.earnings [days|AAPL]
+.symbol
+.bio symbol
+.dividend [days|symbol]
+.earnings [days|symbol]
 .holdings
-.marketcap AAPL
-.price [percent|AAPL]
-.premarket [percent|AAPL]
-.shorts [percent|AAPL]
+.marketcap symbol
+.price [percent|symbol]
+.premarket [percent|symbol]
+.shorts [percent|symbol]
 .trades [days]
-.watchlist [add|del AAPL]
-@botname AAPL
-@botname bio AAPL
-@botname dividend [days|AAPL]
-@botname earnings [days|AAPL]
+.watchlist [add|del symbol]
+@botname symbol
+@botname bio symbol
+@botname dividend [days|symbol]
+@botname earnings [days|symbol]
 @botname holdings
-@botname marketcap AAPL
-@botname price [percent|AAPL]
-@botname premarket [percent|AAPL]
-@botname shorts [percent|AAPL]
+@botname marketcap symbol
+@botname price [percent|symbol]
+@botname premarket [percent|symbol]
+@botname shorts [percent|symbol]
 @botname trades [days]
-@botname watchlist [add|del AAPL]
+@botname watchlist [add|del symbol]
 ```
 
 Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs.
