@@ -18,7 +18,8 @@
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
-### Supported commands:
+### Supported commands
+Where _AAPL_ is any Yahoo Finance symbol:
 ```
 .AAPL
 .bio AAPL
