@@ -587,7 +587,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         trailingPe = str(int(round(market_data[ticker]['price_to_earnings_trailing'])))
     else:
         trailingPe = 'N/A ⚠️ '
-    if market_data[ticker]['net_income'] > 0:
+    if 'net_income' in market_data[ticker] and market_data[ticker]['net_income'] > 0:
         payload.append(webhook.bold("Trailing P/E:", service) + f" {trailingPe}")
     if 'price_to_earnings_forward' in market_data[ticker]:
         forwardPe = int(round(market_data[ticker]['price_to_earnings_forward']))
