@@ -29,7 +29,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             if percent < 0:
                 emoji = "🔻"
             elif percent > 0:
-                emoji = "⬆️ "
+                emoji = '🔼'
             else:
                 emoji = "▪️"
             percent = str(round(percent))
