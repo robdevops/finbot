@@ -58,7 +58,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     thanks_command = "^([\!\.]\s?|^" + botName + "\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
     m_thanks = re.match(thanks_command, message, re.IGNORECASE)
 
-    trades_command = "^([\!\.]\s?|^" + botName + "\s+)trades?\s*(\d+)*"
+    trades_command = "^([\!\.]\s?|^" + botName + "\s+)trades?\s*([\w\s]+)*"
     m_trades = re.match(trades_command, message, re.IGNORECASE)
 
     watchlist_command = "^([\!\.]\s?|^" + botName + "\s+)watchlist\s*([\w]+)*\s*([\w\.]+)*"
@@ -156,8 +156,14 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 specific_stock = str(arg).upper()
         shorts.lambda_handler(chat_id, shorts_threshold, specific_stock, service, user, interactive=True)
     elif m_trades:
+        portfolio_select = False
         if m_trades.group(2):
-            days = int(m_trades.group(2))
+            arg = m_trades.group(2)
+            try:
+                days = int(arg)
+            except ValueError:
+                days = 1
+                portfolio_select = arg
         else:
             days = 1
         # easter egg 3
@@ -165,7 +171,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         searchVerb.append(verbString)
         payload = [ f"{random.choice(searchVerb)} trades from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
         webhook.payload_wrapper(service, url, payload, chat_id)
-        trades.lambda_handler(chat_id, days, service, user, message_id=False, interactive=True)
+        trades.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=False, interactive=True)
     elif m_holdings:
         payload = []
         portfolioName = False
@@ -349,7 +355,7 @@ def prepare_help(service, user, botName):
     payload.append(".price [percent|AAPL]")
     payload.append(".premarket [percent|AAPL]")
     payload.append(".shorts [percent|AAPL]")
-    payload.append(".trades [days]")
+    payload.append(".trades [days|portfolio]")
     payload.append(".watchlist [add|del AAPL]")
     if service == 'slack':
         payload.append('<' + botName + '> AAPL')

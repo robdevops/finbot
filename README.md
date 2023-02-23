@@ -41,7 +41,7 @@ Where _symbol_ is any Yahoo Finance symbol:
 @botname price [percent|symbol]
 @botname premarket [percent|symbol]
 @botname shorts [percent|symbol]
-@botname trades [days]
+@botname trades [days|portfolio]
 @botname watchlist [add|del symbol]
 ```
 
@@ -119,6 +119,15 @@ Interactive trigger:
 ```
 @botname trades [days]
 ```
+
+You can also specify a portfolio name to get today's trades for just that portfolio:
+```
+.trades [portfolio]
+```
+```
+@botname trades [portfolio]
+```
+
 
 ### Price alerts
 ![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
