@@ -471,16 +471,17 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         total_debt = market_data[ticker]['total_debt']
         shareholder_equity = market_data[ticker]['shareholder_equity']
         debt_equity_ratio = round(total_debt / shareholder_equity * 100)
-        profile_industry = market_data[ticker]['profile_industry']
-        if 'total_cash' in market_data[ticker]:
-            total_cash = market_data[ticker]['total_cash']
-            if 'Bank' not in profile_industry:
-                emoji = ''
-                net_debt_equity_ratio = round(((total_debt - total_cash) / shareholder_equity * 100))
-                if net_debt_equity_ratio > 40:
-                    emoji = '⚠️ '
-                if net_debt_equity_ratio > 0:
-                    payload.append(webhook.bold("Net debt/equity ratio:", service) + f" {net_debt_equity_ratio}%{emoji}")
+        if 'profile_industry' in market_data[ticker]:
+            profile_industry = market_data[ticker]['profile_industry']
+            if 'total_cash' in market_data[ticker]:
+                total_cash = market_data[ticker]['total_cash']
+                if 'profile_industry' in market_data[ticker] and 'Bank' not in profile_industry:
+                    emoji = ''
+                    net_debt_equity_ratio = round(((total_debt - total_cash) / shareholder_equity * 100))
+                    if net_debt_equity_ratio > 40:
+                        emoji = '⚠️ '
+                    if net_debt_equity_ratio > 0:
+                        payload.append(webhook.bold("Net debt/equity ratio:", service) + f" {net_debt_equity_ratio}%{emoji}")
     if 'earnings_date' in market_data[ticker]:
         earnings_date = market_data[ticker]['earnings_date']
         human_earnings_date = time.strftime('%b %d', time.localtime(earnings_date))
@@ -592,12 +593,14 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     if 'price_to_earnings_forward' in market_data[ticker]:
         forwardPe = int(round(market_data[ticker]['price_to_earnings_forward']))
         emoji=''
-        if 'Software' in market_data[ticker]['profile_industry'] and forwardPe > 100:
-            emoji = '⚠️ '
-        elif 'Software' not in market_data[ticker]['profile_industry'] and forwardPe > 30:
-            emoji = '⚠️ '
-        if 'price_to_earnings_trailing' in market_data[ticker] and forwardPe > int(trailingPe):
-            emoji = '⚠️ '
+        if 'profile_industry' in market_data[ticker]:
+            profile_industry = market_data[ticker]['profile_industry']
+            if 'Software' in profile_industry and forwardPe > 100:
+                emoji = '⚠️ '
+            elif 'Software' not in profile_industry and forwardPe > 30:
+                emoji = '⚠️ '
+            if 'price_to_earnings_trailing' in market_data[ticker] and forwardPe > int(trailingPe):
+                emoji = '⚠️ '
         payload.append(webhook.bold("Forward P/E:", service) + f" {str(forwardPe)} {emoji}")
     if 'price_to_earnings_peg' in market_data[ticker]:
         peg = round(market_data[ticker]['price_to_earnings_peg'], 1)
