@@ -25,7 +25,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         sharesight_url = "https://portfolio.sharesight.com/holdings/"
         for trade in trades:
             trade_id = str(trade['id'])
-            portfolio = trade['portfolio']
+            portfolio_name = trade['portfolio']
             date = trade['transaction_date']
             type = trade['transaction_type']
             units = float(round(trade['quantity']))
@@ -47,16 +47,18 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                 verb = 'sold'
                 emoji = '🤑'
             else:
-                print("Skipping corporate action:", portfolio, date, type, symbol)
+                print("Skipping corporate action:", portfolio_name, date, type, symbol)
                 continue
 
             if trade_id in known_trades:
-                print("Skipping known trade_id:", trade_id, date, portfolio, type, symbol)
+                print("Skipping known trade_id:", trade_id, date, portfolio_name, type, symbol)
                 continue
             else:
                 newtrades.add(trade_id) # sneaky update global set
 
             flag = util.flag_from_market(market)
+            if service == 'telegram' and len(portfolio_name) > 6: # avoid annoying linewrap
+                flag = ''
             # lookup currency or fall back to less reliable sharesight currency
             currency_temp = util.currency_from_market(market)
             if currency_temp:
@@ -72,7 +74,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             else:
                 trade_link = verb
                 holding_link = symbol
-            payload.append(f"{emoji} {portfolio} {trade_link} {currency} {value:,} of {holding_link} {flag}")
+            payload.append(f"{emoji} {portfolio_name} {trade_link} {currency} {value:,} of {holding_link} {flag}")
         if len(payload):
             if len(payload) == 1:
                 message = 'New trade:'
@@ -102,9 +104,9 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
     # Get trades from Sharesight
     trades = []
     newtrades = set()
-    for portfolio_name in portfolios:
-        portfolio_id = portfolios[portfolio_name]
-        trades = trades + sharesight.get_trades(portfolio_name, portfolio_id, past_days)
+    for portfolio in portfolios:
+        portfolio_id = portfolios[portfolio]
+        trades = trades + sharesight.get_trades(portfolio, portfolio_id, past_days)
     if trades:
         print(len(trades), "trades found since", start_date)
     else:
