@@ -471,17 +471,16 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         total_debt = market_data[ticker]['total_debt']
         shareholder_equity = market_data[ticker]['shareholder_equity']
         debt_equity_ratio = round(total_debt / shareholder_equity * 100)
-        if 'profile_industry' in market_data[ticker]:
-            profile_industry = market_data[ticker]['profile_industry']
-            if 'total_cash' in market_data[ticker]:
+        if 'profile_industry' in market_data[ticker] and 'total_cash' in market_data[ticker]:
+            if 'Bank' not in market_data[ticker]['profile_industry']:
+                emoji = ''
+                profile_industry = market_data[ticker]['profile_industry']
                 total_cash = market_data[ticker]['total_cash']
-                if 'profile_industry' in market_data[ticker] and 'Bank' not in profile_industry:
-                    emoji = ''
-                    net_debt_equity_ratio = round(((total_debt - total_cash) / shareholder_equity * 100))
-                    if net_debt_equity_ratio > 40:
-                        emoji = '⚠️ '
-                    if net_debt_equity_ratio > 0:
-                        payload.append(webhook.bold("Net debt/equity ratio:", service) + f" {net_debt_equity_ratio}%{emoji}")
+                net_debt_equity_ratio = round(((total_debt - total_cash) / shareholder_equity * 100))
+                if net_debt_equity_ratio > 40:
+                    emoji = '⚠️ '
+                if net_debt_equity_ratio > 0:
+                    payload.append(webhook.bold("Net debt/equity ratio:", service) + f" {net_debt_equity_ratio}%{emoji}")
     if 'earnings_date' in market_data[ticker]:
         earnings_date = market_data[ticker]['earnings_date']
         human_earnings_date = time.strftime('%b %d', time.localtime(earnings_date))
