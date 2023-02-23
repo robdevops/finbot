@@ -110,8 +110,10 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 
     if portfolio_select:
         portfoliosLower = {k.lower():v for k,v in portfolios.items()}
+        portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
         if portfolio_select.lower() in portfoliosLower:
             portfolio_id = portfoliosLower[portfolio_select.lower()]
+            portfolio_select = portfoliosReverseLookup[portfolio_id]
         trades = trades + sharesight.get_trades(portfolio_select, portfolio_id, past_days)
     else:
         for portfolio in portfolios:
