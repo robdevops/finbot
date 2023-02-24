@@ -85,6 +85,12 @@ def fetch(tickers):
         except:
             pass
         try:
+            profile_exchange = item['fullExchangeName']
+        except:
+            pass
+        else:
+            yahoo_output[ticker]["profile_exchange"] = profile_exchange
+        try:
             earningsTimestamp = item['earningsTimestamp']
             earningsTimestampStart = item['earningsTimestampStart']
             earningsTimestampEnd = item['earningsTimestampEnd']

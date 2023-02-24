@@ -333,6 +333,27 @@ cache = True
 cache_seconds = 82800
 ```
 
+### Hyperlinks
+These config options relate to hyperlinks:
+
+* `hyperlink`, if set to `False`, disables all hyperlinks. Note: it can not disable syntax highlighting and false positives by chat clients that try to detect domains. Setting it to `False` can be useful for chat networks like Discord that provide too many link previews. Defaults to `True`.
+```
+hyperlink = True
+```
+
+* `hyperlinkFooter` appends hyperlinks to the symbol lookup for the company website, and a google search for the ticker on simplywall.st. Possiblevalues are `True` or `False. Defaults to `False`.
+
+```
+hyperlinkFooter = True
+```
+
+* `hyperlinkProvider` configures where to send ticker hyperlinks. Available options are `google` and `yahoo`. If set to Google, it is only used where practical - Google does not publish earnings date, ex-dividend date, premarket price, or short interest reports Defaults to `yahoo`.
+```
+hyperlinkProvider = google
+hyperlinkProvider = yahoo
+```
+
+
 ## Scheduling example
 Recommended for a machine set to UTC:
 ```

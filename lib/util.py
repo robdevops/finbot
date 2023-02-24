@@ -57,21 +57,6 @@ def transform_title(title):
         title = title.strip()
         return title
 
-def transform_ticker(ticker, market):
-    if market == 'ASX':
-        ticker = ticker + '.AX'
-    if market == 'HKG':
-        ticker = ticker + '.HK'
-    if market == 'KRX':
-        ticker = ticker + '.KS'
-    if market == 'KOSDAQ':
-        ticker = ticker + '.KQ'
-    if market == 'LSE':
-        ticker = ticker + '.L'
-    if market == 'TAI':
-        ticker = ticker + '.TW'
-    return ticker
-
 def categorise_tickers(tickers):
     tickers_us = [] # used by fetch_finviz()
     tickers_au = [] # used by fetch_shortman()
@@ -265,37 +250,77 @@ def yahoo_link(ticker, service='telegram', brief=False):
         text = ticker.split('.')[0]
     else:
         text = ticker
-    if service == 'telegram':
-            ticker_link = '<a href="' + yahoo_url + ticker + '">' + text + '</a>'
-    elif service in {'discord', 'slack'}:
+    if service == 'telegram' and config_hyperlink:
+        ticker_link = '<a href="' + yahoo_url + ticker + '">' + text + '</a>'
+    elif service in {'discord', 'slack'} and config_hyperlink:
         ticker_link = '<' + yahoo_url + ticker + '|' + text + '>'
     else:
-        ticker_link = item
-    return ticker_link
-
-def gfinance_link(symbol, market, service='telegram', brief=True):
-    url = "https://www.google.com/finance/quote/"
-    ticker = symbol + ':' + market
-    if brief:
-        text = symbol
-    else:
-        text = ticker
-    if service == 'telegram':
-            ticker_link = '<a href="' + url + ticker + '">' + text + '</a>'
-    elif service in {'discord', 'slack'}:
-        ticker_link = '<' + url + ticker + '|' + text + '>'
-    else:
-        ticker_link = item
+        ticker_link = text
     return ticker_link
 
 def link(ticker, url, text, service='telegram'):
-    if service == 'telegram':
+    if service == 'telegram' and config_hyperlink:
         link = '<a href="' + url + '">' + text + '</a>'
-    elif service in {'discord', 'slack'}:
+    elif service in {'discord', 'slack'} and config_hyperlink:
         link = '<' + url + '|' + text + '>'
     else:
-        link = ticker
+        link = text
     return link
+
+def gfinance_link(symbol, market, service='telegram', brief=False):
+    url = "https://www.google.com/finance/quote/"
+    market = transform_to_google(market)
+    ticker = symbol.split('.')[0] + ':' + market
+    if brief:
+        text = symbol
+    else:
+        if '.' in symbol:
+            text = ticker
+        else:
+            text = symbol
+    if service == 'telegram' and config_hyperlink:
+        ticker_link = '<a href="' + url + ticker + '?window=5D' + '">' + text + '</a>'
+    elif service in {'discord', 'slack'} and config_hyperlink:
+        ticker_link = '<' + url + ticker + '?window=5D' + '|' + text + '>'
+    else:
+        ticker_link = symbol
+    return ticker_link
+
+def transform_to_google(exchange):
+    if 'Nasdaq' in exchange:
+        exchange = 'NASDAQ'
+    elif exchange in {'OTC', 'PNK', 'Other OTC', 'OTCPK'}:
+        exchange = 'OTCMKTS'
+    elif exchange in {'TO', 'TOR', 'Toronto'}:
+        exchange = 'TSE'
+    elif exchange in {'TW', 'TWO', 'TAI', 'Taiwan', 'Taipei Exchange' 'Taipei'}:
+        exchange = 'TPE'
+    elif exchange in {'HK', 'HKG', 'HKSE'}:
+        exchange = 'HKG'
+    elif exchange in {'KQ', 'KOE', 'KOSDAQ'}:
+        exchange = 'KOSDAQ'
+    elif exchange in {'KS', 'KRX', 'KSE', 'KSC'}:
+        exchange = 'KRX'
+    elif exchange in {'L', 'LSE', 'London'}:
+        exchange = 'LON'
+    elif exchange in {'T', 'TYO', 'JPX', 'Tokyo'}:
+        exchange = 'TYO'
+    return exchange
+
+def transform_ticker(ticker, market):
+    if market == 'ASX':
+        ticker = ticker + '.AX'
+    if market == 'HKG':
+        ticker = ticker + '.HK'
+    if market == 'KRX':
+        ticker = ticker + '.KS'
+    if market == 'KOSDAQ':
+        ticker = ticker + '.KQ'
+    if market == 'LSE':
+        ticker = ticker + '.L'
+    if market == 'TAI':
+        ticker = ticker + '.TW'
+    return ticker
 
 def watchlist_load():
     cache_file = config_cache_dir + "/finbot_watchlist.json"
@@ -305,4 +330,11 @@ def watchlist_load():
     else:
         watchlist = []
     return watchlist
+
+def strip_url(url):
+    url = url.replace('https://www.', '')
+    url = url.replace('http://www.', '')
+    url = url.replace('https://', '')
+    url = url.replace('http://', '')
+    return url
 

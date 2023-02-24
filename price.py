@@ -23,7 +23,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 elif 'percent_change_postmarket' in market_data[ticker]:
                     percent = market_data[ticker]['percent_change_postmarket']
                 else:
-                    print("no data for", ticker)
+                    print("no pre/post-market data for", ticker)
                     continue
             title = market_data[ticker]['profile_title']
             if percent < 0:
@@ -34,9 +34,13 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 emoji = "▪️"
             percent = str(round(percent))
             flag = util.flag_from_ticker(ticker)
-            yahoo_link = util.yahoo_link(ticker, service)
+            if not (premarket and 'PRE' in market_data[ticker]['marketState']) and config_hyperlinkProvider == 'google':
+                # oddly, google provides post-market but not pre-market pricing
+                ticker_link = util.gfinance_link(ticker, market_data[ticker]['profile_exchange'], service)
+            else:
+                ticker_link = util.yahoo_link(ticker, service)
             if abs(float(percent)) >= threshold or specific_stock:
-                payload.append(f"{emoji} {title} ({yahoo_link}) {percent}%")
+                payload.append(f"{emoji} {title} ({ticker_link}) {percent}%")
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)

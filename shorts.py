@@ -19,19 +19,13 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
                 continue
             if '.AX' in ticker:
                 url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0]
+                short_interest_link = util.link(ticker, url, ticker, service)
             else:
                 url = 'https://finance.yahoo.com/quote/' + ticker + '/key-statistics?p=' + ticker
+                short_interest_link = util.link(ticker, url, ticker, service)
             title = market_data[ticker]['profile_title']
             short_percent = str(round(short_percent))
-
             flag = util.flag_from_ticker(ticker)
-            if service == 'telegram':
-                short_interest_link = '<a href="' + url + '">' + ticker + '</a>'
-            elif service in {'slack', 'discord'}:
-                short_interest_link = '<' + url + '|' + ticker + '>'
-            else:
-                short_interest_link = ticker
-
             if float(short_percent) > threshold or specific_stock:
                 payload.append(f"{emoji} {title} ({short_interest_link}) {short_percent}%")
         def last_column_percent(e):

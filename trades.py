@@ -66,17 +66,9 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             currency_temp = util.currency_from_market(market)
             if currency_temp:
                 currency = currency_temp
-            if service == 'telegram':
-                trade_link = '<a href="' + sharesight_url + holding_id + '/trades/' + trade_id + '/edit">' + verb + '</a>'
-                #holding_link = util.yahoo_link(ticker, service, brief=True)
-                holding_link = util.gfinance_link(symbol, market, service, brief=True)
-            elif service in {'discord', 'slack'}:
-                trade_link = '<' + sharesight_url + holding_id + '/trades/' + trade_id + '/edit' + '|' + verb + '>'
-                #holding_link = util.yahoo_link(ticker, service, brief=True)
-                holding_link = util.gfinance_link(symbol, market, service, brief=True)
-            else:
-                trade_link = verb
-                holding_link = symbol
+            trade_url = sharesight_url + holding_id + '/trades/' + trade_id + '/edit'
+            trade_link = util.link(verb, trade_url, verb, service)
+            holding_link = util.gfinance_link(symbol, market, service, brief=True)
             payload.append(f"{emoji} {portfolio_name} {trade_link} {currency} {value:,} of {holding_link} {flag}")
 
         if interactive and not len(payload): # easter egg 4
