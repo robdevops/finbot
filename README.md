@@ -334,22 +334,24 @@ cache_seconds = 82800
 ```
 
 ### Hyperlinks
-These config options relate to hyperlinks:
+These .env file options relate to hyperlinks:
 
-* `hyperlink`, if set to `False`, disables all hyperlinks. Note: it can not disable syntax highlighting and false positives by chat clients that try to detect domains. Setting it to `False` can be useful for chat networks like Discord that provide too many link previews. Defaults to `True`.
+* `hyperlink`, if set to `False`, disables all hyperlinks. Note: it can not disable syntax highlighting and false positives by chat clients that try to detect domains. Setting it to `False` can be useful for chat networks like Discord that can't easily disable link previews. Defaults to `True`.
 ```
 hyperlink = True
 ```
 
-* `hyperlinkFooter` appends hyperlinks to the symbol lookup for the company website, and a google search for the ticker on simplywall.st. Possiblevalues are `True` or `False. Defaults to `False`.
+* `hyperlinkFooter` appends hyperlinks to the company website and to a Google search for the ticker on simplywall.st  for the symbol lookup report. Possible values are `True` or `False`. Defaults to `False`.
 
 ```
 hyperlinkFooter = True
 ```
 
-* `hyperlinkProvider` configures where to send ticker hyperlinks. Available options are `google` and `yahoo`. If set to Google, it is only used where practical - Google does not publish earnings date, ex-dividend date, premarket price, or short interest reports Defaults to `yahoo`.
+* `hyperlinkProvider` configures where to send ticker hyperlinks. Available options are `google` and `yahoo`. If set to `google`, it is only used where practical, as Google does not publish earnings date, ex-dividend date, premarket price, or short interest figures. Defaults to `yahoo`.
 ```
 hyperlinkProvider = google
+```
+```
 hyperlinkProvider = yahoo
 ```
 
