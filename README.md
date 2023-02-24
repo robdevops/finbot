@@ -19,7 +19,12 @@
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
 ### Supported commands
-Where _symbol_ is any Yahoo Finance symbol:
+
+Where: 
+* _symbol_ is a Yahoo Finance symbol
+* _days_ is an integer
+* _portfolio_ is a Sharesight portfolio name
+* _percent_ is a integer or float
 ```
 .symbol
 .bio symbol
