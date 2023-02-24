@@ -226,7 +226,7 @@ Interactive trigger:
 
 Tracks additional securities which are not in your Sharesight holdings.
 
-It is stored in `var/cache/finbot_watchlist.json` by default. It uses JSON list format with Yahoo symbols. Example:
+It is stored in `var/cache/finbot_watchlist.json` by default. It is a JSON array literal containing Yahoo symbols. Example:
 ```
 ["2454.TW", "3217.TWO", "ASO.AX", "STEM"]
 ```
