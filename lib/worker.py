@@ -271,7 +271,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
     if ticker:
         ticker = ticker_orig = ticker.upper()
         if config_hyperlinkProvider == 'google':
-            ticker_link = util.gfinance(ticker, ticker.split('.')[1], service)
+            ticker_link = util.gfinance_link(ticker, ticker.split('.')[1], service)
         else:
             ticker_link = util.yahoo_link(ticker, service)
     duplicate = False
@@ -298,7 +298,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
             ticker = ticker + '.AX'
             transformed = True
             if config_hyperlinkProvider == 'google':
-                ticker_link = util.gfinance(ticker, ticker.split('.')[1], service)
+                ticker_link = util.gfinance_link(ticker, ticker.split('.')[1], service)
             else:
                 ticker_link = util.yahoo_link(ticker, service)
             print(ticker_orig, "not found. Trying", ticker)

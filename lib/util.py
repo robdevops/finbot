@@ -293,7 +293,7 @@ def transform_to_google(exchange):
         exchange = 'OTCMKTS'
     elif exchange in {'TO', 'TOR', 'Toronto'}:
         exchange = 'TSE'
-    elif exchange in {'TW', 'TWO', 'TAI', 'Taiwan', 'Taipei Exchange' 'Taipei'}:
+    elif exchange in {'TW', 'TWO', 'TAI', 'Taiwan', 'Taipei Exchange', 'Taipei'}:
         exchange = 'TPE'
     elif exchange in {'HK', 'HKG', 'HKSE'}:
         exchange = 'HKG'
