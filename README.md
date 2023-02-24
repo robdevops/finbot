@@ -30,7 +30,7 @@ Where _symbol_ is any Yahoo Finance symbol:
 .price [percent|symbol]
 .premarket [percent|symbol]
 .shorts [percent|symbol]
-.trades [days]
+.trades [days|portfolio]
 .watchlist [add|del symbol]
 @botname symbol
 @botname bio symbol
