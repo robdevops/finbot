@@ -40,6 +40,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     marketcap_command = "^([\!\.]\s?|^" + botName + "\s+)marketcap\s*([\w\.]+)*"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
+    postmarket_command = "^([\!\.]\s?|^" + botName + "\s+)postmarket\s*([\w\.]+)*"
+    m_postmarket = re.match(postmarket_command, message, re.IGNORECASE)
+
     premarket_command = "^([\!\.]\s?|^" + botName + "\s+)premarket\s*([\w\.]+)*"
     m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
@@ -134,6 +137,16 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             except ValueError:
                 specific_stock = str(arg).upper()
         price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, intraday=True)
+    elif m_postmarket:
+        postmarket_threshold = config_price_percent
+        specific_stock = False
+        if m_postmarket.group(2):
+            arg = m_postmarket.group(2)
+            try:
+                postmarket_threshold = int(arg)
+            except ValueError:
+                specific_stock = str(arg).upper()
+        price.lambda_handler(chat_id, postmarket_threshold, service, user, specific_stock, interactive=True, premarket=True)
     elif m_premarket:
         premarket_threshold = config_price_percent
         specific_stock = False
