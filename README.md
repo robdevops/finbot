@@ -25,7 +25,7 @@ Where _symbol_ is any Yahoo Finance symbol:
 .bio symbol
 .dividend [days|symbol]
 .earnings [days|symbol]
-.holdings
+.holdings [portfolio]
 .marketcap symbol
 .price [percent|symbol]
 .premarket [percent|symbol]
@@ -36,7 +36,7 @@ Where _symbol_ is any Yahoo Finance symbol:
 @botname bio symbol
 @botname dividend [days|symbol]
 @botname earnings [days|symbol]
-@botname holdings
+@botname holdings [portfolio]
 @botname marketcap symbol
 @botname price [percent|symbol]
 @botname premarket [percent|symbol]
