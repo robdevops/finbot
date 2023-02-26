@@ -15,10 +15,13 @@ def lambda_handler(event,context):
         tz = pytz.timezone(config_timezone)
         localtime = datetime.datetime.now(tz)
         month_and_day = str(localtime.strftime('%m-%d')) # 09-20
+        year = str(localtime.strftime('%Y')) # 2023
         if config_country_code == 'AU':
             flag = "🇦🇺"
             if month_and_day in {'01-28', '04-28', '07-28', '10-28'}:
-                payload.append("🤑 Quarterly Superannuation payout is due today" + flag)
+                payload.append("🤑 Quarterly Superannuation payout deadline" + flag)
+            if month_and_day == '03-24' and year == '2023':
+                payload.append == ('🤑 Vic Energy Compare incentive round opens https://compare.energy.vic.gov.au/')
             if month_and_day == '06-23':
                 payload.append("💰 Finalise deductable donations, work expenses & investment subscriptions by EOFY June 30" + flag)
                 payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)
@@ -36,7 +39,11 @@ def lambda_handler(event,context):
         elif config_country_code == 'US':
             if month_and_day == '09-30':
                 payload.append("🥳 Happy EOFY 🇺🇸")
-        # deliberately ommited countries where EOFY aligns with calendar year
+        # above ommits countries where EOFY == calendar year
+        if month_and_day == '08-19':
+            payload.append("🎂 Happy Birthday to me, happy birthday TO me... 🎶 🥳")
+            payload.append("😓 Oh no, that song costs royalties. Not very finance savvy of me 😅")
+            payload.append("🎶 For I'm a jolly good chat bot, for I'm a jolly good chat bot... 🥳")
         if len(payload):
             heading = webhook.bold("Finance event reminders:", service)
             payload.insert(0, heading)
