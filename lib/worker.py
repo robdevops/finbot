@@ -77,7 +77,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
                 action = 'delete'
             if action not in {'add', 'delete'}:
-                payload = prepare_help(service, user, botName)
+                payload = [f'\"{action}\" is not a valid watchlist action']
                 webhook.payload_wrapper(service, url, payload, chat_id)
                 return
         payload = prepare_watchlist(service, user, action, ticker)
