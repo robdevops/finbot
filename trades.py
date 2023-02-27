@@ -28,7 +28,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             portfolio_name = trade['portfolio']
             date = trade['transaction_date']
             type = trade['transaction_type']
-            units = float(round(trade['quantity']))
+            units = float(trade['quantity'])
             price = float(trade['price'])
             currency = trade['brokerage_currency_code']
             symbol = trade['symbol']
