@@ -27,26 +27,26 @@ Where:
 * _percent_ is a integer or float
 ```
 .symbol
-.bio symbol
 .dividend [days|symbol]
 .earnings [days|symbol]
 .holdings [portfolio]
 .marketcap symbol
-.midsession [percent|symbol]
+.session [percent|symbol]
 .price [percent|symbol]
 .premarket [percent|symbol]
+.profile symbol
 .shorts [percent|symbol]
 .trades [days|portfolio]
 .watchlist [add|del symbol]
 @botname symbol
-@botname bio symbol
 @botname dividend [days|symbol]
 @botname earnings [days|symbol]
 @botname holdings [portfolio]
 @botname marketcap symbol
-@botname midsession [percent|symbol]
+@botname session [percent|symbol]
 @botname price [percent|symbol]
 @botname premarket [percent|symbol]
+@botname profile symbol
 @botname shorts [percent|symbol]
 @botname trades [days|portfolio]
 @botname watchlist [add|del symbol]
@@ -94,15 +94,15 @@ This report can only be run through the interactive bot. Example usage:
 @botname AAPL
 ```
 
-### Stock bio
-![Screenshot showing stock bio on Slack](img/bio.png?raw=true "Screenshot showing stock bio on Slack")
+### Stock Profile
+![Screenshot showing stock profile on Slack](img/bio.png?raw=true "Screenshot showing stock profile on Slack")
 
 This report can only be run through the interactive bot. Example usage:
 ```
-.bio AAPL
+.profile AAPL
 ```
 ```
-@botname bio AAPL
+@botname profile AAPL
 ```
 
 ### Trades
@@ -373,8 +373,8 @@ Recommended for a machine set to UTC:
 */20 * * * Mon-Fri ~/finbot/trades.py > /dev/null
 
 # Mid-session
-00 01 * * Mon-Fri ~/finbot/price.py ignoreclosed > /dev/null # AU
-15 17 * * Mon-Fri ~/finbot/price.py ignoreclosed > /dev/null # US
+00 01 * * Mon-Fri ~/finbot/price.py midsession > /dev/null # AU
+15 17 * * Mon-Fri ~/finbot/price.py midsession > /dev/null # US
 
 # Daily
 30  21 * * * ~/finbot/reminder.py > /dev/null

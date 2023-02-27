@@ -34,8 +34,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     help_command = "^([\!\.]\s?|" + botName + "\s+)(help|usage)"
     m_help = re.match(help_command, message, re.IGNORECASE)
 
-    midsession_command = "^([\!\.]\s?|^" + botName + "\s+)midsession\s*([\w\.]+)*"
-    m_midsession = re.match(midsession_command, message, re.IGNORECASE)
+    session_command = "^([\!\.]\s?|^" + botName + "\s+)session\s*([\w\.]+)*"
+    m_session = re.match(session_command, message, re.IGNORECASE)
 
     holdings_command = "^([\!\.]\s?|^" + botName + "\s+)holdings?\s*([\w\s]+)*"
     m_holdings = re.match(holdings_command, message, re.IGNORECASE)
@@ -52,11 +52,11 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     shorts_command = "^([\!\.]\s?|^" + botName + "\s+)shorts?\s*([\w\.]+)*"
     m_shorts = re.match(shorts_command, message, re.IGNORECASE)
 
-    stockfinancial_command = "^([\!\.]\s?|^" + botName + "\s+)([\w\.]+)\s*(bio|info|profile)*"
+    stockfinancial_command = "^([\!\.]\s?|^" + botName + "\s+)([\w\.]+)"
     m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
-    bio_command = "^([\!\.]\s?|^" + botName + "\s+)bio\s*([\w\.]+)*"
-    m_bio = re.match(bio_command, message, re.IGNORECASE)
+    profile_command = "^([\!\.]\s?|^" + botName + "\s+)profile\s*([\w\.]+)"
+    m_profile = re.match(profile_command, message, re.IGNORECASE)
 
     thanks_command = "^([\!\.]\s?|^" + botName + "\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
     m_thanks = re.match(thanks_command, message, re.IGNORECASE)
@@ -127,11 +127,11 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             payload = [ f"Fetching ex-dividend dates for the next { f'{days} days' if days != 1 else 'day' } 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
         cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=False, dividend=True)
-    elif m_midsession:
+    elif m_session:
         price_threshold = config_price_percent
         specific_stock = False
-        if m_midsession.group(2):
-            arg = m_midsession.group(2)
+        if m_session.group(2):
+            arg = m_session.group(2)
             try:
                 price_threshold = int(arg)
             except ValueError:
@@ -239,9 +239,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         else:
             payload = [f"please try again specifying a ticker"]
         webhook.payload_wrapper(service, url, payload, chat_id)
-    elif m_bio:
-        if m_bio.group(2):
-            ticker = m_bio.group(2).upper()
+    elif m_profile:
+        if m_profile.group(2):
+            ticker = m_profile.group(2).upper()
             market_data = yahoo.fetch_detail(ticker, 600)
             if market_data:
                 payload = prepare_help(service, user, botName)
@@ -381,7 +381,7 @@ def prepare_help(service, user, botName):
     payload.append(".earnings [days|AAPL]")
     payload.append(".holdings")
     payload.append(".marketcap AAPL")
-    payload.append(".midsession [percent|AAPL]")
+    payload.append(".session [percent|AAPL]")
     payload.append(".price [percent|AAPL]")
     payload.append(".premarket [percent|AAPL]")
     payload.append(".shorts [percent|AAPL]")

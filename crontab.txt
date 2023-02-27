@@ -2,8 +2,8 @@
 */20 * * * Mon-Fri ~/finbot/trades.py > /dev/null
 
 # Mid-session
-00 01 * * Mon-Fri ~/finbot/price.py ignoreclosed > /dev/null # AU
-15 17 * * Mon-Fri ~/finbot/price.py ignoreclosed > /dev/null # US
+00 01 * * Mon-Fri ~/finbot/price.py midsession > /dev/null # AU
+15 17 * * Mon-Fri ~/finbot/price.py midsession > /dev/null # US
 
 # Daily
 30  21 * * * ~/finbot/reminder.py > /dev/null
