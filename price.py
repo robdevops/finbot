@@ -11,7 +11,9 @@ import lib.yahoo as yahoo
 def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, ignoreclosed=False, premarket=False, intraday=False):
     def prepare_price_payload(service, market_data, threshold):
         payload = []
+        marketStates = []
         for ticker in market_data:
+            marketStates.append(market_data[ticker]['marketState'])
             if ignoreclosed and market_data[ticker]['marketState'] != "REGULAR": # for scheduling mid-session updates
                 # Possible market states: PREPRE PRE REGULAR POST POSTPOST CLOSED
                 continue
@@ -60,6 +62,11 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                     payload = [f"No intraday price found for {tickers[0]}"]
                 elif premarket:
                     payload = [f"No pre-market price movements meet threshold {threshold}%"]
+                elif ignoreclosed:
+                    if 'REGULAR' not in marketStates:
+                        payload = [f"{user}, none of the stocks I'm tracking are currently in a trading sesion."]
+                    else:
+                        payload = [f"{user}, no in-session stocks meet threshold {threshold}%"]
                 else:
                     payload = [f"{user}, no price movements meet threshold {threshold}%"]
         return payload

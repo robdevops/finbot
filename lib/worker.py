@@ -34,6 +34,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     help_command = "^([\!\.]\s?|" + botName + "\s+)(help|usage)"
     m_help = re.match(help_command, message, re.IGNORECASE)
 
+    midsession_command = "^([\!\.]\s?|^" + botName + "\s+)midsession\s*([\w\.]+)*"
+    m_midsession = re.match(midsession_command, message, re.IGNORECASE)
+
     holdings_command = "^([\!\.]\s?|^" + botName + "\s+)holdings?\s*([\w\s]+)*"
     m_holdings = re.match(holdings_command, message, re.IGNORECASE)
 
@@ -124,6 +127,16 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             payload = [ f"Fetching ex-dividend dates for the next { f'{days} days' if days != 1 else 'day' } 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
         cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=False, dividend=True)
+    elif m_midsession:
+        price_threshold = config_price_percent
+        specific_stock = False
+        if m_midsession.group(2):
+            arg = m_midsession.group(2)
+            try:
+                price_threshold = int(arg)
+            except ValueError:
+                specific_stock = str(arg).upper()
+        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, intraday=False, ignoreclosed=True)
     elif m_price:
         price_threshold = config_price_percent
         specific_stock = False
