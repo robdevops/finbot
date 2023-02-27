@@ -256,8 +256,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         bio=False
         if m_stockfinancial.group(2):
             ticker = m_stockfinancial.group(2).upper()
-            if m_stockfinancial.group(3):
-                bio=True
         payload = prepare_stockfinancial_payload(service, user, ticker, bio)
         webhook.payload_wrapper(service, url, payload, chat_id)
 
@@ -284,7 +282,10 @@ def prepare_watchlist(service, user, action=False, ticker=False):
     if ticker:
         ticker = ticker_orig = ticker.upper()
         if config_hyperlinkProvider == 'google':
-            ticker_link = util.gfinance_link(ticker, ticker.split('.')[1], service)
+            if '.' in ticker:
+                ticker_link = util.gfinance_link(ticker, ticker.split('.')[1], service)
+            else:
+                ticker_link = util.gfinance_link(ticker, ticker, service)
         else:
             ticker_link = util.yahoo_link(ticker, service)
     duplicate = False
@@ -376,14 +377,14 @@ def prepare_help(service, user, botName):
     payload = []
     payload.append(webhook.bold("Examples:", service))
     payload.append(".AAPL")
-    payload.append(".bio AAPL")
     payload.append(".dividend [days|AAPL]")
     payload.append(".earnings [days|AAPL]")
     payload.append(".holdings")
     payload.append(".marketcap AAPL")
-    payload.append(".session [percent|AAPL]")
-    payload.append(".price [percent|AAPL]")
     payload.append(".premarket [percent|AAPL]")
+    payload.append(".price [percent|AAPL]")
+    payload.append(".profile AAPL")
+    payload.append(".session [percent|AAPL]")
     payload.append(".shorts [percent|AAPL]")
     payload.append(".trades [days|portfolio]")
     payload.append(".watchlist [add|del AAPL]")

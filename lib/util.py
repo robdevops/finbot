@@ -270,6 +270,8 @@ def link(ticker, url, text, service='telegram'):
 def gfinance_link(symbol, market, service='telegram', brief=False):
     url = "https://www.google.com/finance/quote/"
     market = transform_to_google(market)
+    if ':' in symbol:
+        return symbol
     ticker = symbol.split('.')[0] + ':' + market
     if brief:
         text = symbol
