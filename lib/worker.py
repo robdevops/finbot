@@ -73,8 +73,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if m_watchlist.group(2) and m_watchlist.group(3):
             action = m_watchlist.group(2).lower()
             ticker = m_watchlist.group(3).upper()
-        if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
-            action = 'delete'
+        if action:
+            if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
+                action = 'delete'
+            if action not in {'add', 'delete'}:
+                payload = prepare_help(service, user, botName)
+                webhook.payload_wrapper(service, url, payload, chat_id)
+                return
         payload = prepare_watchlist(service, user, action, ticker)
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_help:
