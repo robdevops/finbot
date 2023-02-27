@@ -136,7 +136,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 price_threshold = int(arg)
             except ValueError:
                 specific_stock = str(arg).upper()
-        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, intraday=False, ignoreclosed=True)
+        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, intraday=False, midsession=True)
     elif m_price:
         price_threshold = config_price_percent
         specific_stock = False
@@ -381,6 +381,7 @@ def prepare_help(service, user, botName):
     payload.append(".earnings [days|AAPL]")
     payload.append(".holdings")
     payload.append(".marketcap AAPL")
+    payload.append(".midsession [percent|AAPL]")
     payload.append(".price [percent|AAPL]")
     payload.append(".premarket [percent|AAPL]")
     payload.append(".shorts [percent|AAPL]")

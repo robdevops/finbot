@@ -20,7 +20,7 @@
 
 ### Supported commands
 
-Where: 
+Where:
 * _symbol_ is a Yahoo Finance symbol
 * _days_ is an integer
 * _portfolio_ is a Sharesight portfolio name
@@ -32,6 +32,7 @@ Where:
 .earnings [days|symbol]
 .holdings [portfolio]
 .marketcap symbol
+.midsession [percent|symbol]
 .price [percent|symbol]
 .premarket [percent|symbol]
 .shorts [percent|symbol]
@@ -43,6 +44,7 @@ Where:
 @botname earnings [days|symbol]
 @botname holdings [portfolio]
 @botname marketcap symbol
+@botname midsession [percent|symbol]
 @botname price [percent|symbol]
 @botname premarket [percent|symbol]
 @botname shorts [percent|symbol]
@@ -137,7 +139,7 @@ You can also specify a portfolio name to get today's trades for just that portfo
 ### Price alerts
 ![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
 
-`prices.py` sends intraday and premarket price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
+`prices.py` sends premarket, midsession, and intaday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
 Config example:
 ```
@@ -146,21 +148,12 @@ price_percent = 9.4
 
 Cron trigger:
 ```
-./price.py [ignoreclosed|intraday|premarket]
+./price.py [premarket|midsession|intraday]
 ```
-The mode must be passed as an execution argument.
-* If `ignoreclosed` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones.
-* If `intraday` is passed, it reports current price against the previous market close.
+When scheduled, the mode must be passed as an execution argument.
 * If `premarket` is passed, it only reports on pre/post market price movements.
-
-
-Interactive trigger:
-```
-.price [percent]
-```
-```
-@botname price [percent]
-```
+* If `midsession` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones. It can also be run through the interactive bot  as shown below.
+* If `intraday` is passed, it reports current price against the previous market close.
 
 Interactive trigger (pre-market):
 ```
@@ -169,6 +162,23 @@ Interactive trigger (pre-market):
 ```
 @botname premarket [percent]
 ```
+
+Interactive trigger (mid-session):
+```
+.midsession [percent]
+```
+```
+@botname midsession [percent]
+```
+
+Interactive trigger (intraday):
+```
+.price [percent]
+```
+```
+@botname price [percent]
+```
+
 
 ### Events calendar
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")

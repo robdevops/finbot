@@ -8,16 +8,16 @@ import lib.webhook as webhook
 import lib.util as util
 import lib.yahoo as yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, ignoreclosed=False, premarket=False, intraday=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, midsession=False, premarket=False, intraday=False):
     def prepare_price_payload(service, market_data, threshold):
         payload = []
         marketStates = []
         for ticker in market_data:
             marketStates.append(market_data[ticker]['marketState'])
-            if ignoreclosed and market_data[ticker]['marketState'] != "REGULAR": # for scheduling mid-session updates
+            if midsession and market_data[ticker]['marketState'] != "REGULAR": # for scheduling mid-session updates
                 # Possible market states: PREPRE PRE REGULAR POST POSTPOST CLOSED
                 continue
-            elif ignoreclosed or intraday:
+            elif midsession or intraday:
                 percent = market_data[ticker]['percent_change']
             elif premarket:
                 if 'percent_change_premarket' in market_data[ticker]:
@@ -48,7 +48,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         payload.sort(key=last_column_percent)
         if len(payload):
             if not specific_stock:
-                if ignoreclosed:
+                if midsession:
                     message = f'Mid-session over {threshold}%:'
                 elif premarket:
                     message = f'Stocks moving over {threshold}% pre-market:'
@@ -62,11 +62,11 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                     payload = [f"No intraday price found for {tickers[0]}"]
                 elif premarket:
                     payload = [f"No pre-market price movements meet threshold {threshold}%"]
-                elif ignoreclosed:
+                elif midsession:
                     if 'REGULAR' not in marketStates:
                         payload = [f"{user}, none of the stocks I'm tracking are currently in a trading sesion."]
                     else:
-                        payload = [f"{user}, no in-session stocks meet threshold {threshold}%"]
+                        payload = [f"{user}, no in-session securities meet threshold {threshold}%"]
                 else:
                     payload = [f"{user}, no price movements meet threshold {threshold}%"]
         return payload
@@ -105,13 +105,13 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         # change to "match .. case" in python 3.10
-        if sys.argv[1] == 'ignoreclosed':
-            lambda_handler(ignoreclosed=True)
+        if sys.argv[1] == 'midsession':
+            lambda_handler(midsession=True)
         elif sys.argv[1] == 'intraday':
             lambda_handler(intraday=True)
         elif sys.argv[1] == 'premarket':
             lambda_handler(premarket=True)
         else:
-            print("Usage:", sys.argv[0], "[ignoreclosed|intraday|premarket]")
+            print("Usage:", sys.argv[0], "[midsession|intraday|premarket]")
     else:
-        print("Usage:", sys.argv[0], "[ignoreclosed|intraday|premarket]")
+        print("Usage:", sys.argv[0], "[midsession|intraday|premarket]")
