@@ -36,7 +36,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             #value = abs(round(trade['value'])) # don't use - sharesight converts to local currency
             value = abs(round(price * units))
             holding_id = str(trade['holding_id'])
-            ticker = util.transform_ticker(symbol, market)
+            ticker = util.transform_to_yahoo(symbol, market)
 
             verb=''
             emoji=''
@@ -68,7 +68,10 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                 currency = currency_temp
             trade_url = sharesight_url + holding_id + '/trades/' + trade_id + '/edit'
             trade_link = util.link(verb, trade_url, verb, service)
-            holding_link = util.gfinance_link(symbol, market, service, brief=True)
+            if config_hyperlinkProvider == 'google':
+                holding_link = util.gfinance_link(symbol, market, service, brief=True)
+            else:
+                holding_link = util.yahoo_link(ticker, service, brief=True)
             payload.append(f"{emoji} {portfolio_name} {trade_link} {currency} {value:,} of {holding_link} {flag}")
 
         if interactive and not len(payload): # easter egg 4

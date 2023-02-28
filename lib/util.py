@@ -307,21 +307,42 @@ def transform_to_google(exchange):
         exchange = 'LON'
     elif exchange in {'T', 'TYO', 'JPX', 'Tokyo'}:
         exchange = 'TYO'
+    elif exchange in {'TA', 'TLV', 'Tel Aviv'}:
+        exchange = 'TLV'
     return exchange
 
-def transform_ticker(ticker, market):
+def transform_to_yahoo(ticker, market=False):
+    if '.' in ticker:
+        split = ticker.split('.')
+        ticker = split[0]
+        market = split[1]
+    elif ':' in ticker:
+        split = ticker.split(':')
+        ticker = split[0]
+        market = split[1]
+    if not market:
+        return ticker
     if market == 'ASX':
-        ticker = ticker + '.AX'
+        market = 'AX'
     if market == 'HKG':
-        ticker = ticker + '.HK'
+        market = 'HK'
     if market == 'KRX':
-        ticker = ticker + '.KS'
+        market = 'KS'
     if market == 'KOSDAQ':
-        ticker = ticker + '.KQ'
+        market = 'KQ'
     if market == 'LSE':
-        ticker = ticker + '.L'
-    if market == 'TAI':
-        ticker = ticker + '.TW'
+        market = 'L'
+    if market in {'TAI', 'TPE'}:
+        market = 'TW'
+    if market == 'TSE':
+        market = 'TO'
+    if market == 'TYO':
+        market = 'T'
+    if market == 'TLV':
+        market = 'TA'
+    if market in {'NASDAQ', 'NYSE', 'BATS', 'OTCMKTS'}:
+        return ticker
+    ticker = ticker + '.' + market
     return ticker
 
 def watchlist_load():

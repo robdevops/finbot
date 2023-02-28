@@ -22,10 +22,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif service == 'telegram':
         url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
 
-    dividend_command = "^([\!\.]\s?|" + botName + "\s+)dividends?\s*([\w\.]+)*"
+    dividend_command = "^([\!\.]\s?|" + botName + "\s+)dividends?\s*([\w\.\:]+)*"
     m_dividend = re.match(dividend_command, message, re.IGNORECASE)
 
-    earnings_command = "^([\!\.]\s?|" + botName + "\s+)earnings?\s*([\w\.]+)*"
+    earnings_command = "^([\!\.]\s?|" + botName + "\s+)earnings?\s*([\w\.\:]+)*"
     m_earnings = re.match(earnings_command, message, re.IGNORECASE)
 
     hello_command = "^([\!\.]\s?|" + botName + "\s+)(hi|hello)|^(hi|hello)\s+" + botName
@@ -34,28 +34,28 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     help_command = "^([\!\.]\s?|" + botName + "\s+)(help|usage)"
     m_help = re.match(help_command, message, re.IGNORECASE)
 
-    session_command = "^([\!\.]\s?|^" + botName + "\s+)session\s*([\w\.]+)*"
+    session_command = "^([\!\.]\s?|^" + botName + "\s+)session\s*([\w\.\:]+)*"
     m_session = re.match(session_command, message, re.IGNORECASE)
 
     holdings_command = "^([\!\.]\s?|^" + botName + "\s+)holdings?\s*([\w\s]+)*"
     m_holdings = re.match(holdings_command, message, re.IGNORECASE)
 
-    marketcap_command = "^([\!\.]\s?|^" + botName + "\s+)marketcap\s*([\w\.]+)*"
+    marketcap_command = "^([\!\.]\s?|^" + botName + "\s+)marketcap\s*([\w\.\:]+)*"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
-    premarket_command = "^([\!\.]\s?|^" + botName + "\s+)(premarket|postmarket)\s*([\w\.]+)*"
+    premarket_command = "^([\!\.]\s?|^" + botName + "\s+)(premarket|postmarket)\s*([\w\.\:]+)*"
     m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-    price_command = "^([\!\.]\s?|^" + botName + "\s+)prices?\s*([\w\.]+)*"
+    price_command = "^([\!\.]\s?|^" + botName + "\s+)prices?\s*([\w\.\:]+)*"
     m_price = re.match(price_command, message, re.IGNORECASE)
 
-    shorts_command = "^([\!\.]\s?|^" + botName + "\s+)shorts?\s*([\w\.]+)*"
+    shorts_command = "^([\!\.]\s?|^" + botName + "\s+)shorts?\s*([\w\.\:]+)*"
     m_shorts = re.match(shorts_command, message, re.IGNORECASE)
 
     stockfinancial_command = "^([\!\.]\s?|^" + botName + "\s+)([\w\.]+)"
     m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
-    profile_command = "^([\!\.]\s?|^" + botName + "\s+)profile\s*([\w\.]+)"
+    profile_command = "^([\!\.]\s?|^" + botName + "\s+)profile\s*([\w\.\:]+)"
     m_profile = re.match(profile_command, message, re.IGNORECASE)
 
     thanks_command = "^([\!\.]\s?|^" + botName + "\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
@@ -64,7 +64,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     trades_command = "^([\!\.]\s?|^" + botName + "\s+)trades?\s*([\w\s]+)*"
     m_trades = re.match(trades_command, message, re.IGNORECASE)
 
-    watchlist_command = "^([\!\.]\s?|^" + botName + "\s+)watchlist\s*([\w]+)*\s*([\w\.]+)*"
+    watchlist_command = "^([\!\.]\s?|^" + botName + "\s+)watchlist\s*([\w]+)*\s*([\w\.\:]+)*"
     m_watchlist = re.match(watchlist_command, message, re.IGNORECASE)
 
     if m_watchlist:
@@ -229,6 +229,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_marketcap:
         if m_marketcap.group(2):
             ticker = m_marketcap.group(2).upper()
+            ticker = util.transform_to_yahoo(ticker)
             market_data = yahoo.fetch_detail(ticker, 600)
             if market_data:
                 market_cap = market_data[ticker]['market_cap']
@@ -247,6 +248,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_profile:
         if m_profile.group(2):
             ticker = m_profile.group(2).upper()
+            ticker = util.transform_to_yahoo(ticker)
             market_data = yahoo.fetch_detail(ticker, 600)
             if market_data:
                 payload = prepare_help(service, user, botName)
@@ -285,7 +287,7 @@ def doDelta(inputList):
 
 def prepare_watchlist(service, user, action=False, ticker=False):
     if ticker:
-        ticker = ticker_orig = ticker.upper()
+        ticker = ticker_orig = util.transform_to_yahoo(ticker)
         if config_hyperlinkProvider == 'google':
             if '.' in ticker:
                 ticker_link = util.gfinance_link(ticker, ticker.split('.')[1], service)

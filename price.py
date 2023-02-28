@@ -59,7 +59,12 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         else:
             if interactive:
                 if specific_stock:
-                    payload = [f"No intraday price found for {tickers[0]}"]
+                    if midsession:
+                        payload = [f"{tickers[0]} not found or not in session"]
+                    elif premarket:
+                        payload = [f"No premarket price found for {tickers[0]}"]
+                    else:
+                        payload = [f"No intraday price found for {tickers[0]}"]
                 elif premarket:
                     payload = [f"No pre-market price movements meet threshold {threshold}%"]
                 elif midsession:
@@ -74,6 +79,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 
     # MAIN #
     if specific_stock:
+        specific_stock = util.transform_to_yahoo(specific_stock)
         tickers = [specific_stock]
     else:
         tickers = sharesight.get_holdings_wrapper()

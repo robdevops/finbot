@@ -120,7 +120,7 @@ def get_holdings(portfolio_name, portfolio_id):
     for holding in holdings:
         symbol = holdings[holding]['code']
         market = holdings[holding]['market_code']
-        ticker = util.transform_ticker(symbol, market)
+        ticker = util.transform_to_yahoo(symbol, market)
         tickers.add(ticker)
     tickers = list(tickers)
     tickers.sort()

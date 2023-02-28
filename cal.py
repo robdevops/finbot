@@ -46,7 +46,8 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 
     # MAIN #
     if specific_stock:
-        tickers = [specific_stock]
+        ticker = util.transform_to_yahoo(specific_stock)
+        tickers = [ticker]
     else:
         tickers = sharesight.get_holdings_wrapper()
         tickers.update(util.watchlist_load())
