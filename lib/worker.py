@@ -52,7 +52,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     shorts_command = "^([\!\.]\s?|^" + botName + "\s+)shorts?\s*([\w\.\:]+)*"
     m_shorts = re.match(shorts_command, message, re.IGNORECASE)
 
-    stockfinancial_command = "^([\!\.]\s?|^" + botName + "\s+)([\w\.]+)"
+    stockfinancial_command = "^([\!\.]\s?|^" + botName + "\s+)([\w\.\:]+)"
     m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
     profile_command = "^([\!\.]\s?|^" + botName + "\s+)profile\s*([\w\.\:]+)"
@@ -406,7 +406,7 @@ def prepare_help(service, user, botName):
 
 def prepare_stockfinancial_payload(service, user, ticker, bio):
     cashflow = False
-    ticker = ticker_orig = ticker.upper()
+    ticker = ticker_orig = util.transform_to_yahoo(ticker)
     tickerNative = ticker.split('.')[0]
     now = int(time.time())
     payload = []

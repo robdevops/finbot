@@ -36,7 +36,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 emoji = "▪️"
             percent = str(round(percent))
             flag = util.flag_from_ticker(ticker)
-            if not (premarket and 'PRE' in market_data[ticker]['marketState']) and config_hyperlinkProvider == 'google':
+            exchange = market_data[ticker]['profile_exchange']
+            if not (premarket and 'PRE' in market_data[ticker]['marketState']) and config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
                 # oddly, google provides post-market but not pre-market pricing
                 ticker_link = util.gfinance_link(ticker, market_data[ticker]['profile_exchange'], service)
             else:
