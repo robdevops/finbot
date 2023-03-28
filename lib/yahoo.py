@@ -446,7 +446,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 def price_month(ticker):
     now = int(time.time())
     url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
-    url = url + '?period1=' + str(now - 86400*31) + '&period2=' + str(now) + '&interval=1d&events=history&includeAdjustedClose=true'
+    url = url + '?period1=' + str(now - 86400*27) + '&period2=' + str(now) + '&interval=1d&events=history&includeAdjustedClose=true'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     try:
         r = requests.get(url, headers=headers, timeout=config_http_timeout)
