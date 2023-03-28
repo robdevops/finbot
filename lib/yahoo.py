@@ -464,3 +464,24 @@ def price_month(ticker):
     percent = str(round(100 * (price[-1] - price[0]) / price[0], 1))
     return percent
 
+def price_five_year(ticker):
+    now = int(time.time())
+    url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
+    url = url + '?period1=' + str(now - 86400*(365*5)) + '&period2=' + str(now) + '&interval=1mo&events=history&includeAdjustedClose=true'
+    headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+    try:
+        r = requests.get(url, headers=headers, timeout=config_http_timeout)
+    except:
+        print("Failure fetching", url)
+        return False
+    if r.status_code != 200:
+        print(r.status_code, "error communicating with", url)
+        return False
+    csv = r.content.decode('utf-8').split('\n')
+    price = []
+    for line in csv[1:]:
+        cells = line.split(',')
+        price.append(float(cells[5]))
+    percent = str(round(100 * (price[-1] - price[0]) / price[0], 1))
+    return percent
+
