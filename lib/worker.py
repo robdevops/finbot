@@ -266,7 +266,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         payload = prepare_stockfinancial_payload(service, user, ticker, bio)
         webhook.payload_wrapper(service, url, payload, chat_id)
 
-
 def doDelta(inputList):
     deltaString = ''
     deltaList = [j-i for i,j in zip(inputList, inputList[1:])]
