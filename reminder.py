@@ -20,8 +20,8 @@ def lambda_handler(event,context):
             flag = "🇦🇺"
             if month_and_day in {'01-28', '04-28', '07-28', '10-28'}:
                 payload.append("🤑 Quarterly Superannuation payout deadline" + flag)
-            if month_and_day == '03-24' and year == '2023':
-                payload.append == ('🤑 Vic Energy Compare incentive round opens https://compare.energy.vic.gov.au/')
+            if month_and_day == '03-29' and year == '2023':
+                payload.append('🤑 Vic Energy Compare incentive https://compare.energy.vic.gov.au/')
             if month_and_day == '06-23':
                 payload.append("💰 Finalise deductable donations, work expenses & investment subscriptions by EOFY June 30" + flag)
                 payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)
@@ -60,7 +60,9 @@ def lambda_handler(event,context):
         payload = prepare_finance_calendar_payload(service)
         url = webhooks[service]
         if service == "telegram":
-            url = url + "sendMessage?chat_id=" + config_telegramChatID
+            url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
+        else:
+            url = webhooks[service]
         webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy
