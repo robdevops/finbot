@@ -461,11 +461,9 @@ def price_month(ticker):
     for line in csv[1:]:
         cells = line.split(',')
         try:
-            float(cells[5])
+            price.append(float(cells[5]))
         except ValueError:
             continue
-        else:
-            price.append(float(cells[5]))
     percent = str(round(100 * (price[-1] - price[0]) / price[0], 1))
     return percent
 
@@ -487,11 +485,9 @@ def price_five_year(ticker):
     for line in csv[1:]:
         cells = line.split(',')
         try:
-            float(cells[5])
+            price.append(float(cells[5]))
         except ValueError:
             continue
-        else:
-            price.append(float(cells[5]))
     percent = str(round(100 * (price[-1] - price[0]) / price[0], 1))
     return percent
 
