@@ -17,17 +17,16 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         for ticker in market_data:
             marketState = market_data[ticker]['marketState']
             marketStates.append(marketState)
-            if midsession and marketState != "REGULAR": # skip stocks not in-session
+            regularMarketTime = market_data[ticker]['regularMarketTime']
+            tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
+            now = datetime.datetime.now(tz).timestamp()
+            if midsession and marketState != "REGULAR":
+                # skip stocks not in session
                 # Possible market states: PREPRE PRE REGULAR POST POSTPOST CLOSED
                 continue
-            if intraday and not interactive: # avoid repeating on public holidays
-                regularMarketTime = market_data[ticker]['regularMarketTime']
-                tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
-                now = datetime.datetime.now(tz).timestamp()
-                if now - regularMarketTime > 86400:
-                    continue
-            elif midsession or intraday:
-                percent = market_data[ticker]['percent_change']
+            elif intraday and not interactive and now - regularMarketTime > 86400:
+                # avoid repeating on public holidays
+                continue
             elif premarket:
                 if 'percent_change_premarket' in market_data[ticker]:
                     percent = market_data[ticker]['percent_change_premarket']
@@ -36,6 +35,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 else:
                     print("no pre/post-market data for", ticker)
                     continue
+            else:
+                percent = market_data[ticker]['percent_change']
             title = market_data[ticker]['profile_title']
             if percent < 0:
                 emoji = "🔻"

@@ -67,11 +67,9 @@ def fetch(tickers):
         else:
             yahoo_output[ticker]["percent_change_postmarket"] = round(percent_change_postmarket, 2)
         try:
-            market_cap = round(float(item['marketCap']))
+            yahoo_output[ticker]["market_cap"] = round(float(item['marketCap']))
         except (KeyError, IndexError):
             pass
-        else:
-            yahoo_output[ticker]["market_cap"] = market_cap
         try:
             yahoo_output[ticker]["forward_pe"] = round(item['forwardPE'])
         except:
@@ -85,23 +83,17 @@ def fetch(tickers):
         except:
             pass
         try:
-            profile_exchange = item['fullExchangeName']
+            yahoo_output[ticker]["profile_exchange"] = item['fullExchangeName']
         except:
             pass
-        else:
-            yahoo_output[ticker]["profile_exchange"] = profile_exchange
         try:
-            exchangeTimezoneName = item['exchangeTimezoneName']
+            yahoo_output[ticker]["exchangeTimezoneName"] = item['exchangeTimezoneName']
         except:
             pass
-        else:
-            yahoo_output[ticker]["exchangeTimezoneName"] = exchangeTimezoneName
         try:
-            regularMarketTime = item['regularMarketTime']
+            yahoo_output[ticker]["regularMarketTime"] = item['regularMarketTime']
         except:
             pass
-        else:
-            yahoo_output[ticker]["regularMarketTime"] = regularMarketTime
         try:
             earningsTimestamp = item['earningsTimestamp']
             earningsTimestampStart = item['earningsTimestampStart']
