@@ -20,49 +20,49 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif service == 'telegram':
         url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
 
-    dividend_command = "^([\!\.]\s?|" + botName + "\s+)dividends?\s*([\w\.\:]+)*"
+    dividend_command = r"^([\!\.]\s?|" + botName + r"\s+)dividends?\s*([\w\.\:]+)*"
     m_dividend = re.match(dividend_command, message, re.IGNORECASE)
 
-    earnings_command = "^([\!\.]\s?|" + botName + "\s+)earnings?\s*([\w\.\:]+)*"
+    earnings_command = r"^([\!\.]\s?|" + botName + r"\s+)earnings?\s*([\w\.\:]+)*"
     m_earnings = re.match(earnings_command, message, re.IGNORECASE)
 
-    hello_command = "^([\!\.]\s?|" + botName + "\s+)(hi|hello)|^(hi|hello)\s+" + botName
+    hello_command = r"^([\!\.]\s?|" + botName + r"\s+)(hi|hello)|^(hi|hello)\s+" + botName
     m_hello = re.match(hello_command, message, re.IGNORECASE)
 
-    help_command = "^([\!\.]\s?|" + botName + "\s+)(help|usage)"
+    help_command = r"^([\!\.]\s?|" + botName + r"\s+)(help|usage)"
     m_help = re.match(help_command, message, re.IGNORECASE)
 
-    session_command = "^([\!\.]\s?|^" + botName + "\s+)session\s*([\w\.\:]+)*"
+    session_command = r"^([\!\.]\s?|^" + botName + r"\s+)session\s*([\w\.\:]+)*"
     m_session = re.match(session_command, message, re.IGNORECASE)
 
-    holdings_command = "^([\!\.]\s?|^" + botName + "\s+)holdings?\s*([\w\s]+)*"
+    holdings_command = r"^([\!\.]\s?|^" + botName + r"\s+)holdings?\s*([\w\s]+)*"
     m_holdings = re.match(holdings_command, message, re.IGNORECASE)
 
-    marketcap_command = "^([\!\.]\s?|^" + botName + "\s+)marketcap\s*([\w\.\:]+)*"
+    marketcap_command = r"^([\!\.]\s?|^" + botName + r"\s+)marketcap\s*([\w\.\:]+)*"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
-    premarket_command = "^([\!\.]\s?|^" + botName + "\s+)(premarket|postmarket)\s*([\w\.\:]+)*"
+    premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket)\s*([\w\.\:]+)*"
     m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-    price_command = "^([\!\.]\s?|^" + botName + "\s+)prices?\s*([\w\.\:]+)*"
+    price_command = r"^([\!\.]\s?|^" + botName + r"\s+)prices?\s*([\w\.\:]+)*"
     m_price = re.match(price_command, message, re.IGNORECASE)
 
-    shorts_command = "^([\!\.]\s?|^" + botName + "\s+)shorts?\s*([\w\.\:]+)*"
+    shorts_command = r"^([\!\.]\s?|^" + botName + r"\s+)shorts?\s*([\w\.\:]+)*"
     m_shorts = re.match(shorts_command, message, re.IGNORECASE)
 
-    stockfinancial_command = "^([\!\.]\s?|^" + botName + "\s+)([\w\.\:]+)"
+    stockfinancial_command = r"^([\!\.]\s?|^" + botName + r"\s+)([\w\.\:]+)"
     m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
-    profile_command = "^([\!\.]\s?|^" + botName + "\s+)profile\s*([\w\.\:]+)"
+    profile_command = r"^([\!\.]\s?|^" + botName + r"\s+)profile\s*([\w\.\:]+)"
     m_profile = re.match(profile_command, message, re.IGNORECASE)
 
-    thanks_command = "^([\!\.]\s?|^" + botName + "\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
+    thanks_command = r"^([\!\.]\s?|^" + botName + r"\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
     m_thanks = re.match(thanks_command, message, re.IGNORECASE)
 
-    trades_command = "^([\!\.]\s?|^" + botName + "\s+)trades?\s*([\w\s]+)*"
+    trades_command = r"^([\!\.]\s?|^" + botName + r"\s+)trades?\s*([\w\s]+)*"
     m_trades = re.match(trades_command, message, re.IGNORECASE)
 
-    watchlist_command = "^([\!\.]\s?|^" + botName + "\s+)watchlist\s*([\w]+)*\s*([\w\.\:]+)*"
+    watchlist_command = r"^([\!\.]\s?|^" + botName + r"\s+)watchlist\s*([\w]+)*\s*([\w\.\:]+)*"
     m_watchlist = re.match(watchlist_command, message, re.IGNORECASE)
 
     if m_watchlist:
