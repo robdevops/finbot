@@ -1,21 +1,21 @@
 #!/usr/bin/python3
 
-import json, re
+import json, re, sys
 from lib.config import *
-import lib.sharesight as sharesight
-import lib.webhook as webhook
-import lib.util as util
-import lib.yahoo as yahoo
-import lib.shortman as shortman
+from lib import sharesight
+from lib import webhook
+from lib import util
+from lib import yahoo
+from lib import shortman
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percent, specific_stock=False, service=False, user='', interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percent, specific_stock=False, service=False, interactive=False):
     def prepare_shorts_payload(service, market_data):
         payload = []
         emoji = "🩳"
         for ticker in tickers:
             try:
                 short_percent = market_data[ticker]['short_percent']
-            except:
+            except (KeyError, ValueError):
                 continue
             if '.AX' in ticker:
                 url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0]
@@ -25,13 +25,13 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
                 short_interest_link = util.link(ticker, url, ticker, service)
             title = market_data[ticker]['profile_title']
             short_percent = str(round(short_percent))
-            flag = util.flag_from_ticker(ticker)
+            #flag = util.flag_from_ticker(ticker)
             if float(short_percent) > threshold or specific_stock:
                 payload.append(f"{emoji} {title} ({short_interest_link}) {short_percent}%")
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
-        if len(payload):
+        if payload:
             if not specific_stock:
                 message = f'Stocks shorted over {threshold}%:'
                 message = webhook.bold(message, service)
@@ -57,7 +57,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
         if '.' not in ticker:
             try:
                 market_data = { **market_data, **yahoo.fetch_detail(ticker) }
-            except (TypeError):
+            except TypeError:
                 pass
     print("")
     market_data = shortman.fetch(market_data)
@@ -65,7 +65,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
     # Prep and send payloads
     if not webhooks:
         print("Error: no services enabled in .env")
-        exit(1)
+        sys.exit(1)
     if interactive:
         payload = prepare_shorts_payload(service, market_data)
         url = webhooks[service]
@@ -75,9 +75,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
             url = url + "sendMessage?chat_id=" + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
     else:
-        for service in webhooks:
+        for service, url in webhooks.items():
             payload = prepare_shorts_payload(service, market_data)
-            url = webhooks[service]
             if service == "telegram":
                 url = url + "sendMessage?chat_id=" + str(chat_id)
             webhook.payload_wrapper(service, url, payload, chat_id)
@@ -87,4 +86,3 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
 
 if __name__ == "__main__":
     lambda_handler()
-

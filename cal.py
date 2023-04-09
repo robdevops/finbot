@@ -3,10 +3,10 @@
 import json, time, sys
 
 from lib.config import *
-import lib.sharesight as sharesight
-import lib.util as util
-import lib.webhook as webhook
-import lib.yahoo as yahoo
+from lib import sharesight
+from lib import util
+from lib import webhook
+from lib import yahoo
 
 def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, service=False, specific_stock=False, message_id=False, interactive=False, earnings=False, dividend=False):
     def prepare_payload(service, market_data, days):
@@ -28,7 +28,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
                 ticker_link = util.yahoo_link(ticker, service)
                 payload.append(f"{emoji} {human_date} {title} ({ticker_link})")
         payload.sort()
-        if len(payload):
+        if payload:
             if not specific_stock:
                 if earnings:
                     message = f'Upcoming earnings next {days} days:'
@@ -58,14 +58,14 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
         for ticker in tickers:
             try:
                 market_data = { **market_data, **yahoo.fetch_detail(ticker) }
-            except (TypeError):
+            except TypeError:
                 pass
         print("")
 
     # Prep and send payloads
     if not webhooks:
         print("Error: no services enabled in .env")
-        exit(1)
+        sys.exit(1)
     if interactive:
         payload = prepare_payload(service, market_data, days)
         if service == "slack":
@@ -74,12 +74,10 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
             url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id, message_id)
     else:
-        for service in webhooks:
+        for service, url in webhooks.items():
             payload = prepare_payload(service, market_data, config_future_days)
             if service == "telegram":
-                url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
-            else:
-                url = webhooks[service]
+                url = url + "sendMessage?chat_id=" + config_telegramChatID
             webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy

@@ -172,7 +172,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 shorts_threshold = int(arg)
             except ValueError:
                 specific_stock = str(arg).upper()
-        shorts.lambda_handler(chat_id, shorts_threshold, specific_stock, service, user, interactive=True)
+        shorts.lambda_handler(chat_id, shorts_threshold, specific_stock, service, interactive=True)
     elif m_trades:
         portfolio_select = False
         if m_trades.group(2):

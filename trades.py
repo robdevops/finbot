@@ -1,17 +1,15 @@
 #!/usr/bin/python3
 
-import json, os, random
+import json, os, random, sys
 import datetime
 
 from lib.config import *
-import lib.sharesight as sharesight
-import lib.webhook as webhook
-import lib.util as util
-import lib.yahoo as yahoo
+from lib import sharesight
+from lib import webhook
+from lib import util
 
 def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=False, user='', portfolio_select=False, message_id=False, interactive=False):
     time_now = datetime.datetime.today()
-    today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
     start_date = time_now - datetime.timedelta(days=past_days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
     cache_file = config_cache_dir + "/finbot_trade_cache.json"
@@ -27,7 +25,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             trade_id = str(trade['id'])
             portfolio_name = trade['portfolio']
             date = trade['transaction_date']
-            type = trade['transaction_type']
+            transactionType = trade['transaction_type']
             units = float(trade['quantity'])
             price = float(trade['price'])
             currency = trade['brokerage_currency_code']
@@ -38,26 +36,25 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             holding_id = str(trade['holding_id'])
             ticker = util.transform_to_yahoo(symbol, market)
 
-            verb=''
+            action=''
             emoji=''
-            if type == 'BUY':
-                verb = 'bought'
+            if transactionType == 'BUY':
+                action = 'bought'
                 emoji = '💸'
-            elif type == 'SELL':
-                verb = 'sold'
+            elif transactionType == 'SELL':
+                action = 'sold'
                 emoji = '🤑'
             else:
-                print("Skipping corporate action:", portfolio_name, date, type, symbol)
+                print("Skipping corporate action:", portfolio_name, date, transactionType, symbol)
                 continue
 
             if portfolio_select and portfolio_name.lower() != portfolio_select.lower():
                 continue
 
             if trade_id in known_trades:
-                print("Skipping known trade_id:", trade_id, date, portfolio_name, type, symbol)
+                print("Skipping known trade_id:", trade_id, date, portfolio_name, transactionType, symbol)
                 continue
-            else:
-                newtrades.add(trade_id) # sneaky update global set
+            newtrades.add(trade_id) # sneaky update global set
 
             flag = util.flag_from_market(market)
             if service == 'telegram' and len(portfolio_name) > 6: # avoid annoying linewrap
@@ -67,17 +64,17 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             if currency_temp:
                 currency = currency_temp
             trade_url = sharesight_url + holding_id + '/trades/' + trade_id + '/edit'
-            trade_link = util.link(verb, trade_url, verb, service)
+            trade_link = util.link(action, trade_url, action, service)
             if config_hyperlinkProvider == 'google':
                 holding_link = util.gfinance_link(symbol, market, service, brief=True)
             else:
                 holding_link = util.yahoo_link(ticker, service, brief=True)
             payload.append(f"{emoji} {portfolio_name} {trade_link} {currency} {value:,} of {holding_link} {flag}")
 
-        if interactive and not len(payload): # easter egg 4
+        if interactive and not payload: # easter egg 4
             payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]
         elif not interactive:
-            if len(payload):
+            if payload:
                 message = 'New trades:'
             elif len(payload) == 1:
                 message = 'New trade:'
@@ -86,12 +83,12 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         return payload
 
     def trade_cache_read(cache_file):
-        with open(cache_file, "r") as f:
+        with open(cache_file, "r", encoding="utf-8") as f:
             lines = f.read().splitlines()
             return lines
 
     def trade_cache_write(cache_file, trades):
-        with open(cache_file, "a") as f:
+        with open(cache_file, "a", encoding="utf-8") as f:
             for trade in trades:
                 f.write(f"{trade}\n")
 
@@ -121,7 +118,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
     # Prep and send payloads
     if not webhooks:
         print("Error: no services enabled in .env")
-        exit(1)
+        sys.exit(1)
     if interactive:
         payload = prepare_trade_payload(service, trades)
         if service == "slack":
@@ -130,9 +127,8 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id, message_id)
     else:
-        for service in webhooks:
+        for service, url in webhooks.items():
             payload = prepare_trade_payload(service, trades)
-            url = webhooks[service]
             if service == "telegram":
                 chat_id=config_telegramChatID
                 url = url + "sendMessage?chat_id=" + str(chat_id)

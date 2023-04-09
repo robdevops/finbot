@@ -1,15 +1,14 @@
 #!/usr/bin/python3
 
+import sys
 import datetime
 import json
 import pytz
 
 from lib.config import *
-import lib.sharesight as sharesight
-import lib.webhook as webhook
-import lib.util as util
+from lib import webhook
 
-def lambda_handler(event,context):
+def lambda_handler():
     def prepare_finance_calendar_payload(service):
         payload = []
         tz = pytz.timezone(config_timezone)
@@ -44,7 +43,7 @@ def lambda_handler(event,context):
             payload.append("🎂 Happy Birthday to me, happy birthday TO me... 🎶 🥳")
             payload.append("😓 Oh no, that song costs royalties. Not very finance savvy of me 😅")
             payload.append("🎶 For I'm a jolly good chat bot, for I'm a jolly good chat bot... 🥳")
-        if len(payload):
+        if payload:
             heading = webhook.bold("Finance event reminders:", service)
             payload.insert(0, heading)
         return payload
@@ -55,17 +54,15 @@ def lambda_handler(event,context):
     # Prep and send payloads
     if not webhooks:
         print("Error: no services enabled in .env")
-        exit(1)
-    for service in webhooks:
+        sys.exit(1)
+    for service, url in webhooks.items():
         payload = prepare_finance_calendar_payload(service)
-        url = webhooks[service]
         if service == "telegram":
             url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
-        else:
-            url = webhooks[service]
         webhook.payload_wrapper(service, url, payload)
 
     # make google cloud happy
     return True
 
-lambda_handler(1,2)
+if __name__ == "__main__":
+    lambda_handler()

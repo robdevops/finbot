@@ -5,10 +5,14 @@ import datetime
 import pytz
 
 from lib.config import *
-import lib.sharesight as sharesight
-import lib.webhook as webhook
-import lib.util as util
-import lib.yahoo as yahoo
+from lib import sharesight
+from lib import webhook
+from lib import util
+from lib import yahoo
+#import lib.sharesight as sharesight
+#import lib.webhook as webhook
+#import lib.util as util
+#import lib.yahoo as yahoo
 
 def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, midsession=False, premarket=False, intraday=False):
     def prepare_price_payload(service, market_data, threshold):
@@ -24,12 +28,12 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 # skip stocks not in session
                 # Possible market states: PREPRE PRE REGULAR POST POSTPOST CLOSED
                 continue
-            elif intraday and not interactive and now - regularMarketTime > 86400:
+            if intraday and not interactive and now - regularMarketTime > 86400:
                 # avoid repeating on public holidays
                 whenMarketClosed = round((now - regularMarketTime) / 86400)
                 print("Skipping security not traded in", whenMarketClosed, "days:", ticker)
                 continue
-            elif premarket:
+            if premarket:
                 if 'percent_change_premarket' in market_data[ticker]:
                     percent = market_data[ticker]['percent_change_premarket']
                 elif 'percent_change_postmarket' in market_data[ticker]:
@@ -47,7 +51,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             else:
                 emoji = "▪️"
             percent = str(round(percent))
-            flag = util.flag_from_ticker(ticker)
+            #flag = util.flag_from_ticker(ticker)
             exchange = market_data[ticker]['profile_exchange']
             if not (premarket and 'PRE' in marketState) and config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
                 # oddly, google provides post-market but not pre-market pricing
@@ -59,7 +63,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
         payload.sort(key=last_column_percent)
-        if len(payload):
+        if payload:
             if not specific_stock:
                 if midsession:
                     message = f'Mid-session over {threshold}%:'
@@ -82,7 +86,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                     payload = [f"No pre-market price movements meet threshold {threshold}%"]
                 elif midsession:
                     if 'REGULAR' not in marketStates:
-                        payload = [f"{user}, none of the stocks I'm tracking are currently in a trading sesion."]
+                        payload = [f"{user}, no tracked stocks are currently in session."]
                     else:
                         payload = [f"{user}, no in-session securities meet threshold {threshold}%"]
                 else:
@@ -102,7 +106,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
     # Prep and send payloads
     if not webhooks:
         print("Error: no services enabled in .env")
-        exit(1)
+        sys.exit(1)
     if interactive:
         payload = prepare_price_payload(service, market_data, threshold)
         if service == "slack":
@@ -111,9 +115,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
         webhook.payload_wrapper(service, url, payload, chat_id)
     else:
-        for service in webhooks:
+        for service, url in webhooks.items():
             payload = prepare_price_payload(service, market_data, threshold)
-            url = webhooks[service]
             if service == "telegram":
                 url = url + "sendMessage?chat_id=" + str(chat_id)
             webhook.payload_wrapper(service, url, payload, chat_id)
