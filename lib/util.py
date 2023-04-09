@@ -1,67 +1,63 @@
-from lib.config import *
-import lib.sharesight as sharesight
-import lib.webhook as webhook
-import datetime
-import json
 import os
 import time
+import json
+from lib.config import *
 
 def chunker(seq, size):
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
 def transform_title(title):
-        title = title.replace(' FPO', '')
-        if title.isupper() or title.islower():
-            title = title.title()
-        title = title.replace(' - ', ' ')
-        title = title.replace('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'Clean Energy ETF')
-        title = title.replace('Atlantica Sustainable Infrastructure', 'Atlantica Sustainable')
-        title = title.replace('Advanced Micro Devices', 'AMD')
-        title = title.replace('Taiwan Semiconductor Manufacturing', 'TSM')
-        title = title.replace('Flight Centre Travel', 'Flight Centre')
-        title = title.replace('Global X ', '')
-        title = title.replace('The ', '')
-        title = title.replace('N.V.', '')
-        title = title.replace('New York Re', '')
-        title = title.replace(' Australian', ' Aus')
-        title = title.replace(' Australia', ' Aus')
-        title = title.replace(' Infrastructure', 'Infra')
-        title = title.replace(' Manufacturing Company', ' ')
-        title = title.replace(' Limited', ' ')
-        title = title.replace(' Ltd', ' ')
-        title = title.replace(' Holdings', ' ')
-        title = title.replace(' Holding', ' ')
-        title = title.replace(' Corporation', ' ')
-        title = title.replace(' Incorporated', ' ')
-        title = title.replace(' incorporated', ' ')
-        title = title.replace(' Technologies', ' ')
-        title = title.replace(' Technology', ' ')
-        title = title.replace(' Enterprises', ' ')
-        title = title.replace(' Ventures', ' ')
-        title = title.replace(' Co.', ' ')
-        title = title.replace(' Corp.', ' ')
-        title = title.replace(' Tech ', ' ')
-        title = title.replace(' Company', ' ')
-        title = title.replace(' Tech ', ' ')
-        title = title.replace(' Group', ' ')
-        title = title.replace(', Inc', ' ')
-        title = title.replace(' Inc', ' ')
-        title = title.replace(' Plc', ' ')
-        title = title.replace(' plc', ' ')
-        title = title.replace(' Index', ' ')
-        title = title.replace(' .', ' ')
-        title = title.replace(' ,', ' ')
-        title = title.replace('  ', ' ')
-        if title.islower():
-            title = title.title()
-        title = title.strip()
-        return title
+    title = title.replace(' FPO', '')
+    if title.isupper() or title.islower():
+        title = title.title()
+    title = title.replace(' - ', ' ')
+    title = title.replace('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'Clean Energy ETF')
+    title = title.replace('Atlantica Sustainable Infrastructure', 'Atlantica Sustainable')
+    title = title.replace('Advanced Micro Devices', 'AMD')
+    title = title.replace('Taiwan Semiconductor Manufacturing', 'TSM')
+    title = title.replace('Flight Centre Travel', 'Flight Centre')
+    title = title.replace('Global X ', '')
+    title = title.replace('The ', '')
+    title = title.replace('N.V.', '')
+    title = title.replace('New York Re', '')
+    title = title.replace(' Australian', ' Aus')
+    title = title.replace(' Australia', ' Aus')
+    title = title.replace(' Infrastructure', 'Infra')
+    title = title.replace(' Manufacturing Company', ' ')
+    title = title.replace(' Limited', ' ')
+    title = title.replace(' Ltd', ' ')
+    title = title.replace(' Holdings', ' ')
+    title = title.replace(' Holding', ' ')
+    title = title.replace(' Corporation', ' ')
+    title = title.replace(' Incorporated', ' ')
+    title = title.replace(' incorporated', ' ')
+    title = title.replace(' Technologies', ' ')
+    title = title.replace(' Technology', ' ')
+    title = title.replace(' Enterprises', ' ')
+    title = title.replace(' Ventures', ' ')
+    title = title.replace(' Co.', ' ')
+    title = title.replace(' Corp.', ' ')
+    title = title.replace(' Tech ', ' ')
+    title = title.replace(' Company', ' ')
+    title = title.replace(' Tech ', ' ')
+    title = title.replace(' Group', ' ')
+    title = title.replace(', Inc', ' ')
+    title = title.replace(' Inc', ' ')
+    title = title.replace(' Plc', ' ')
+    title = title.replace(' plc', ' ')
+    title = title.replace(' Index', ' ')
+    title = title.replace(' .', ' ')
+    title = title.replace(' ,', ' ')
+    title = title.replace('  ', ' ')
+    if title.islower():
+        title = title.title()
+    title = title.strip()
+    return title
 
 def categorise_tickers(tickers):
     tickers_us = [] # used by fetch_finviz()
     tickers_au = [] # used by fetch_shortman()
     tickers_world = [] # used by fetch_yahoo()
-    finviz_output = {}
     for ticker in tickers:
         if '.AX' in ticker:
             tickers_au.append(ticker)
@@ -72,56 +68,56 @@ def categorise_tickers(tickers):
     return tickers_au, tickers_world, tickers_us
 
 def flag_from_market(market):
-            flag=''
-            if market == 'ASX':
-                flag = '🇦🇺'
-            elif market in {'BOM', 'NSE'}:
-                flag = '🇮🇳'
-            elif market in {'BMV'}:
-                flag = '🇲🇽'
-            elif market in {'BKK'}:
-                flag = '🇹🇭'
-            elif market in {'BVMF'}:
-                flag = '🇧🇷'
-            elif market in {'SHE', 'SGX', 'SHA'}:
-                flag = '🇨🇳'
-            elif market == 'CPSE':
-                flag = '🇩🇰'
-            elif market in {'EURONEXT','AMS','ATH','BIT','BME','DUB','EBR','EPA','ETR','FWB','FRA','VIE'}:
-                flag == '🇪🇺'
-            elif market == 'HKG':
-                flag = '🇭🇰'
-            elif market == 'ICSE':
-                flag = '🇮🇸'
-            elif market in {'JSE'}:
-                flag = '🇿🇦'
-            elif market in {'KRX', 'KOSDAQ'}:
-                flag = '🇰🇷'
-            elif market == 'LSE':
-                flag = '🇬🇧'
-            elif market == 'MISX':
-                flag = '🇷🇺'
-            elif market in {'OM', 'STO'}:
-                flag = '🇸🇪'
-            elif market == 'SGX':
-                flag = '🇸🇬'
-            elif market in {'SWX', 'VTX'}:
-                flag = '🇨🇭'
-            elif market in {'TAI', 'TPE'}:
-                flag = '🇹🇼'
-            elif market == 'TASE':
-                flag = '🇮🇱'
-            elif market == 'OB':
-                flag = '🇳🇴'
-            elif market == 'TSE':
-                flag = '🇯🇵'
-            elif market == 'TSX':
-                flag = '🇨🇦'
-            elif market in {'NASDAQ', 'NYSE', 'BATS'}:
-                flag = '🇺🇸'
-            elif market in {'WAR'}:
-                flag = '🇵🇱'
-            return flag
+    flag=''
+    if market == 'ASX':
+        flag = '🇦🇺'
+    elif market in {'BOM', 'NSE'}:
+        flag = '🇮🇳'
+    elif market in {'BMV'}:
+        flag = '🇲🇽'
+    elif market in {'BKK'}:
+        flag = '🇹🇭'
+    elif market in {'BVMF'}:
+        flag = '🇧🇷'
+    elif market in {'SHE', 'SGX', 'SHA'}:
+        flag = '🇨🇳'
+    elif market == 'CPSE':
+        flag = '🇩🇰'
+    elif market in {'EURONEXT','AMS','ATH','BIT','BME','DUB','EBR','EPA','ETR','FWB','FRA','VIE'}:
+        flag = '🇪🇺'
+    elif market == 'HKG':
+        flag = '🇭🇰'
+    elif market == 'ICSE':
+        flag = '🇮🇸'
+    elif market in {'JSE'}:
+        flag = '🇿🇦'
+    elif market in {'KRX', 'KOSDAQ'}:
+        flag = '🇰🇷'
+    elif market == 'LSE':
+        flag = '🇬🇧'
+    elif market == 'MISX':
+        flag = '🇷🇺'
+    elif market in {'OM', 'STO'}:
+        flag = '🇸🇪'
+    elif market == 'SGX':
+        flag = '🇸🇬'
+    elif market in {'SWX', 'VTX'}:
+        flag = '🇨🇭'
+    elif market in {'TAI', 'TPE'}:
+        flag = '🇹🇼'
+    elif market == 'TASE':
+        flag = '🇮🇱'
+    elif market == 'OB':
+        flag = '🇳🇴'
+    elif market == 'TSE':
+        flag = '🇯🇵'
+    elif market == 'TSX':
+        flag = '🇨🇦'
+    elif market in {'NASDAQ', 'NYSE', 'BATS'}:
+        flag = '🇺🇸'
+    elif market in {'WAR'}:
+        flag = '🇵🇱'
+    return flag
 
 def flag_from_ticker(ticker):
     flag = ''
@@ -144,72 +140,72 @@ def flag_from_ticker(ticker):
     return flag
 
 def currency_from_market(market):
-            if market == 'ASX':
-                currency = 'AUD'
-            elif market in {'BOM', 'NSE'}:
-                currency = 'INR'
-            elif market in {'BMV'}:
-                currency = 'MXN'
-            elif market in {'BKK'}:
-                currency = 'THB'
-            elif market in {'BVMF'}:
-                currency = 'BRL'
-            elif market in {'SHE', 'SGX', 'SHA'}:
-                currency = 'CNY'
-            elif market == 'CPSE':
-                currency = 'DEK'
-            elif market in {'EURONEXT','AMS','ATH','BIT','BME','DUB','EBR','EPA','ETR','FWB','FRA','VIE'}:
-                currency = 'EUR'
-            elif market == 'ICSE':
-                currency = 'ISK'
-            elif market in {'JSE'}:
-                currency = 'ZAR'
-            elif market in {'KRX', 'KOSDAQ'}:
-                currency = 'KRW'
-            elif market == 'MISX':
-                currency = 'RUB'
-            elif market in {'OM', 'STO'}:
-                currency = 'SEK'
-            elif market == 'SGX':
-                currency = 'SGD'
-            elif market in {'SWX', 'VTX'}:
-                currency = 'CHF'
-            elif market in {'TAI', 'TPE'}:
-                currency = 'TWD'
-            elif market == 'TASE':
-                currency = 'ILS'
-            elif market == 'OB':
-                currency = 'NOK'
-            elif market == 'TSE':
-                currency = 'JPY'
-            elif market == 'TSX':
-                currency = 'CAD'
-            elif market in {'NASDAQ', 'NYSE', 'BATS'}:
-                currency = 'USD'
-            elif market in {'WAR'}:
-                currency = 'PLN'
-            else:
-                # note: LSE and HKE allow non-home currencies
-                return False
-            return currency
+    if market == 'ASX':
+        currency = 'AUD'
+    elif market in {'BOM', 'NSE'}:
+        currency = 'INR'
+    elif market in {'BMV'}:
+        currency = 'MXN'
+    elif market in {'BKK'}:
+        currency = 'THB'
+    elif market in {'BVMF'}:
+        currency = 'BRL'
+    elif market in {'SHE', 'SGX', 'SHA'}:
+        currency = 'CNY'
+    elif market == 'CPSE':
+        currency = 'DEK'
+    elif market in {'EURONEXT','AMS','ATH','BIT','BME','DUB','EBR','EPA','ETR','FWB','FRA','VIE'}:
+        currency = 'EUR'
+    elif market == 'ICSE':
+        currency = 'ISK'
+    elif market in {'JSE'}:
+        currency = 'ZAR'
+    elif market in {'KRX', 'KOSDAQ'}:
+        currency = 'KRW'
+    elif market == 'MISX':
+        currency = 'RUB'
+    elif market in {'OM', 'STO'}:
+        currency = 'SEK'
+    elif market == 'SGX':
+        currency = 'SGD'
+    elif market in {'SWX', 'VTX'}:
+        currency = 'CHF'
+    elif market in {'TAI', 'TPE'}:
+        currency = 'TWD'
+    elif market == 'TASE':
+        currency = 'ILS'
+    elif market == 'OB':
+        currency = 'NOK'
+    elif market == 'TSE':
+        currency = 'JPY'
+    elif market == 'TSX':
+        currency = 'CAD'
+    elif market in {'NASDAQ', 'NYSE', 'BATS'}:
+        currency = 'USD'
+    elif market in {'WAR'}:
+        currency = 'PLN'
+    else:
+        # note: LSE and HKE allow non-home currencies
+        return False
+    return currency
 
-def currency_symbol(currency):
-            currency_symbol=''
-            if currency in {'AUD', 'CAD', 'HKD', 'NZD', 'SGD', 'TWD', 'USD'}:
-                currency_symbol = '$'
-            elif currency_symbol in {'CNY', 'JPY'}:
-                currency_symbol = '¥'
-            elif currency == 'EUR':
-                currency_symbol = '€'
-            elif currency == 'GBP':
-                currency_symbol = '£'
-            elif currency_symbol == 'KRW':
-                currency_symbol = '₩'
-            elif currency == 'RUB':
-                currency_symbol = '₽'
-            elif currency == 'THB':
-                currency_symbol = '฿'
-            return currency_symbol
+def get_currency_symbol(currency):
+    currency_symbol=''
+    if currency in {'AUD', 'CAD', 'HKD', 'NZD', 'SGD', 'TWD', 'USD'}:
+        currency_symbol = '$'
+    elif currency_symbol in {'CNY', 'JPY'}:
+        currency_symbol = '¥'
+    elif currency == 'EUR':
+        currency_symbol = '€'
+    elif currency == 'GBP':
+        currency_symbol = '£'
+    elif currency_symbol == 'KRW':
+        currency_symbol = '₩'
+    elif currency == 'RUB':
+        currency_symbol = '₽'
+    elif currency == 'THB':
+        currency_symbol = '฿'
+    return currency_symbol
 
 def read_cache(cacheFile, maxSeconds=config_cache_seconds):
     if os.path.isfile(cacheFile):
@@ -218,22 +214,20 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
         if cacheTTL > 0:
             if debug:
                 print(cacheFile, "TTL:", int(round(cacheTTL/60, 0)), "minutes")
-            with open(cacheFile, "r") as f:
+            with open(cacheFile, "r", encoding="utf-8") as f:
                 cacheDict = json.loads(f.read())
             return cacheDict
-        else:
-            if debug:
-                print("cache expired:", cacheFile)
-            return False
-    else:
-        print("Cache file does not exist:", cacheFile, "first run?")
+        if debug:
+            print("cache expired:", cacheFile)
         return False
+    print("Cache file does not exist:", cacheFile, "first run?")
+    return False
 
 def write_cache(cache_file, fresh_dict):
     os.umask(0)
     def opener(path, flags):
         return os.open(path, flags, 0o640)
-    with open(cache_file, "w", opener=opener) as f:
+    with open(cache_file, "w", opener=opener, encoding="utf-8") as f:
         f.write(json.dumps(fresh_dict))
     os.umask(0o022)
 
@@ -258,14 +252,14 @@ def yahoo_link(ticker, service='telegram', brief=False):
         ticker_link = text
     return ticker_link
 
-def link(ticker, url, text, service='telegram'):
+def link(url, text, service='telegram'):
     if service == 'telegram' and config_hyperlink:
-        link = '<a href="' + url + '">' + text + '</a>'
+        hyperlink = '<a href="' + url + '">' + text + '</a>'
     elif service in {'discord', 'slack'} and config_hyperlink:
-        link = '<' + url + '|' + text + '>'
+        hyperlink = '<' + url + '|' + text + '>'
     else:
-        link = text
-    return link
+        hyperlink = text
+    return hyperlink
 
 def gfinance_link(symbol, market, service='telegram', brief=False):
     url = "https://www.google.com/finance/quote/"
@@ -346,7 +340,7 @@ def transform_to_yahoo(ticker, market=False):
 def watchlist_load():
     cache_file = config_cache_dir + "/finbot_watchlist.json"
     if os.path.isfile(cache_file):
-        with open(cache_file, "r") as f:
+        with open(cache_file, "r", encoding="utf-8") as f:
             watchlist = json.loads(f.read())
     else:
         watchlist = []
@@ -358,4 +352,3 @@ def strip_url(url):
     url = url.replace('https://', '')
     url = url.replace('http://', '')
     return url
-

@@ -1,10 +1,10 @@
-import json
-import requests
 import datetime
 import time
+import json
+import requests
 
 from lib.config import *
-import lib.util as util
+from lib import util
 
 def fetch(tickers):
     # NEVER CACHE THIS
@@ -145,12 +145,11 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     except (KeyError, IndexError, ValueError):
         print(ticker + '†', sep=' ', end='', flush=True)
         return False
-    else:
-        if profile_title is None: # catches some delisted stocks like "DUB"
-            print(f"{ticker}†", sep=' ', end='', flush=True)
-            return False
-        profile_title = util.transform_title(profile_title)
-        local_market_data[ticker]['profile_title'] = profile_title
+    if profile_title is None: # catches some delisted stocks like "DUB"
+        print(f"{ticker}†", sep=' ', end='', flush=True)
+        return False
+    profile_title = util.transform_title(profile_title)
+    local_market_data[ticker]['profile_title'] = profile_title
     try:
         profile_bio = data['quoteSummary']['result'][0]['summaryProfile']['longBusinessSummary']
     except (KeyError, IndexError):
@@ -321,7 +320,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         local_market_data[ticker]['profit_margin'] = profit_margin
     try:
         if data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-1]['earnings']['fmt'] is None:
-            raise TypeError('quarterly earninings is null')
+            raise TypeError('quarterly earnings is null')
         else:
             net_income = data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-1]['earnings']['raw']
     except (KeyError, IndexError, TypeError):
@@ -386,7 +385,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
                     earningsEstimateY = item['earningsEstimate']['growth']['raw']
                     revenueAnalysts = item['revenueEstimate']['numberOfAnalysts']['raw']
                     earningsAnalysts = item['earningsEstimate']['numberOfAnalysts']['raw']
-                except (KeyError):
+                except KeyError:
                     break
         try:
             earningsEstimateY = earningsEstimateY * 100
@@ -395,13 +394,12 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
             local_market_data[ticker]['earningsEstimateY'] = round(earningsEstimateY, 2)
             local_market_data[ticker]['revenueAnalysts'] = revenueAnalysts
             local_market_data[ticker]['earningsAnalysts'] = earningsAnalysts
-        except (UnboundLocalError):
+        except UnboundLocalError:
             print(f'{ticker}†', sep=' ', end='', flush=True)
     try:
         data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][0]['revenue']['raw']
     except (KeyError, IndexError):
         print(f'{ticker}†', sep=' ', end='', flush=True)
-        pass
     else:
         earningsQ = []
         revenueQ = []
@@ -494,4 +492,3 @@ def price_five_year(ticker):
             continue
     percent = str(round(100 * (price[-1] - price[0]) / price[0], 1))
     return percent
-

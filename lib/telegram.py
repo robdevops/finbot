@@ -1,8 +1,7 @@
-import json, time
+import concurrent.futures
+import json
 import requests
 from lib.config import *
-from sys import stderr
-import concurrent.futures
 
 def setWebhook():
     telegram_url = webhooks['telegram'] + 'setWebhook'
@@ -11,7 +10,8 @@ def setWebhook():
     #params = {"url": ''} # unsubscribe
     response = requests.post(
         telegram_url,
-        params=params
+        params=params,
+        timeout=config_http_timeout
     )
     print(response.text)
 
@@ -19,6 +19,7 @@ def getMe():
     telegram_url = webhooks['telegram'] + 'getMe'
     response = requests.post(
         telegram_url,
+        timeout=config_http_timeout
     )
     return response.json()['result']
 

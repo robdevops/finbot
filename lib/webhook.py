@@ -2,8 +2,7 @@ import json, time
 import requests
 
 from lib.config import *
-import lib.sharesight as sharesight
-import lib.util as util
+from lib import util
 
 def write(service, url, payload, slackchannel=False, message_id=False):
     headers = {'Content-type': 'application/json'}
@@ -35,10 +34,10 @@ def write(service, url, payload, slackchannel=False, message_id=False):
         return False
 
 def payload_wrapper(service, url, payload, slackchannel=False, message_id=False):
-    if not len(payload):
+    if not payload:
         print(service + ": Nothing to send")
     else:
-        payload_string = ('\n'.join(payload))
+        payload_string = '\n'.join(payload)
         print("Preparing outbound to", service, str(len(payload_string)), "bytes")
         if debug:
             print("Payload: " + payload_string)
@@ -83,4 +82,3 @@ def strike(message, service):
     elif service == 'discord':
         message = '~~' + message + '~~'
     return message
-

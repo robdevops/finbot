@@ -1,4 +1,5 @@
 import json
+import sys
 import datetime
 import requests
 from lib.config import *
@@ -27,12 +28,12 @@ def get_token():
         r = requests.post("https://api.sharesight.com/oauth2/token", data=sharesight_auth, timeout=config_http_timeout)
     except:
         print("Failed to get Sharesight access token")
-        exit(1)
+        sys.exit(1)
     if r.status_code == 200:
         print(r.status_code, "success sharesight")
     else:
         print(r.status_code, "Could not fetch Sharesight token. Check config in .env file")
-        exit(1)
+        sys.exit(1)
     data = r.json()
     util.write_cache(cache_file, data)
     print(data)
@@ -52,12 +53,12 @@ def get_portfolios():
         r = requests.get(url, headers={'Content-type': 'application/json'}, auth=BearerAuth(token), timeout=config_http_timeout)
     except:
         print("Failure talking to Sharesight")
-        exit(1)
+        sys.exit(1)
     if r.status_code == 200:
         print(r.status_code, "success sharesight")
     else:
         print(r.status_code, "error sharesight")
-        exit(1)
+        sys.exit(1)
     data = r.json()
     for portfolio in data['portfolios']:
         if str(portfolio['id']) in config_exclude_portfolios:
@@ -68,7 +69,7 @@ def get_portfolios():
             portfolio_dict[portfolio['name']] = portfolio['id']
     if len(portfolio_dict) == 0:
         print("No portfolios found. Exiting.")
-        exit(1)
+        sys.exit(1)
     print(portfolio_dict)
     util.write_cache(cache_file, portfolio_dict)
     return portfolio_dict

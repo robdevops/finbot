@@ -5,12 +5,10 @@ import json, re, time, random
 #from itertools import pairwise # python 3.10
 
 from lib.config import *
-import lib.sharesight as sharesight
-import lib.slack as telegram
-import lib.telegram as telegram
-import lib.util as util
-import lib.webhook as webhook
-import lib.yahoo as yahoo
+from lib import sharesight
+from lib import util
+from lib import webhook
+from lib import yahoo
 import cal
 import price
 import shorts
@@ -83,7 +81,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         payload = prepare_watchlist(service, user, action, ticker)
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_help:
-        payload = prepare_help(service, user, botName)
+        payload = prepare_help(service, botName)
         webhook.payload_wrapper(service, url, payload, chat_id)
     # easter egg 1
     elif m_hello:
@@ -215,7 +213,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                     payload.append(f"{title} ({ticker_link})")
                 portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
                 payload.sort()
-                if len(payload):
+                if payload:
                     payload.insert(0, webhook.bold("Holdings for " + portfoliosReverseLookup[portfolioId], service))
             else:
                 payload = [ f"{user} {portfolioName} portfolio not found. I only know about:" ]
@@ -243,7 +241,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             else:
                 payload = [f"Mkt cap not found for {ticker}"]
         else:
-            payload = [f"please try again specifying a ticker"]
+            payload = ["please try again specifying a ticker"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_profile:
         if m_profile.group(2):
@@ -251,12 +249,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             ticker = util.transform_to_yahoo(ticker)
             market_data = yahoo.fetch_detail(ticker, 600)
             if market_data:
-                payload = prepare_help(service, user, botName)
+                payload = prepare_help(service, botName)
                 payload = prepare_stockfinancial_payload(service, user, ticker, bio=True)
             else:
                 payload = [f"{ticker} not found"]
         else:
-            payload = [f"please try again specifying a ticker"]
+            payload = ["please try again specifying a ticker"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_stockfinancial:
         print("starting stock detail")
@@ -352,34 +350,34 @@ def prepare_watchlist(service, user, action=False, ticker=False):
                 payload.append(text)
             else:
                 payload.append(f"{profile_title} ({item_link}) {flag}")
-    def profile_title(e): # disregards markup in sort command
+    def profile_title_sort(e): # disregards markup in sort command
         return re.findall('[A-Z].*', e)
-    payload.sort(key=profile_title)
+    payload.sort(key=profile_title_sort)
     if action == 'delete':
         if ticker not in market_data:
-            payload.insert(0, f"Beep Boop. I could not find " + webhook.bold(ticker, service) + " to remove it")
+            payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker, service) + " to remove it")
         else:
             payload.insert(0, f"Ok {user}, I deleted " + webhook.bold(ticker_link, service))
     elif action == 'add':
         if ticker not in market_data:
-            payload = [f"Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " to add it"]
+            payload = ["Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " to add it"]
         elif transformed and duplicate:
-            payload.insert(0, f"Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " and I'm already tracking " + webhook.bold(ticker_link, service))
+            payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " and I'm already tracking " + webhook.bold(ticker_link, service))
         elif transformed:
-            payload.insert(0, f"Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " so I added " + webhook.bold(ticker_link, service))
+            payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " so I added " + webhook.bold(ticker_link, service))
         elif duplicate:
             payload.insert(0, f"{user}, I'm already tracking " + webhook.bold(ticker_link, service))
         else:
             payload.insert(0, f"Ok {user}, I added " + webhook.bold(ticker_link, service))
-    elif action == False and len(payload):
+    elif action is False and payload:
         payload.insert(0, f"Hi {user}, I'm currently tracking:")
     else:
         payload.append('Watchlist is empty. Try ".watchlist add SYMBOL" to create it')
-    with open(config_cache_dir + "/finbot_watchlist.json", "w") as f:
+    with open(config_cache_dir + "/finbot_watchlist.json", "w", encoding="utf-8") as f:
         f.write(json.dumps(watchlist))
     return payload
 
-def prepare_help(service, user, botName):
+def prepare_help(service, botName):
     payload = []
     payload.append(webhook.bold("Examples:", service))
     payload.append(".AAPL")
@@ -406,7 +404,6 @@ def prepare_help(service, user, botName):
 def prepare_stockfinancial_payload(service, user, ticker, bio):
     cashflow = False
     ticker = ticker_orig = util.transform_to_yahoo(ticker)
-    tickerNative = ticker.split('.')[0]
     now = int(time.time())
     payload = []
     market_data = yahoo.fetch_detail(ticker, 600)
@@ -419,7 +416,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     if not market_data:
         payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
         return payload
-    if debug:
+    if config_debug:
         print("Yahoo data:", json.dumps(market_data, indent=4))
     if config_hyperlinkProvider == 'google':
         exchange = market_data[ticker]['profile_exchange']
@@ -438,16 +435,16 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     if 'profile_exchange' in market_data[ticker]:
         profile_exchange = market_data[ticker]['profile_exchange']
         swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock&btnI'
-        swsLink = util.link(ticker, swsURL, 'simplywall.st', service)
+        swsLink = util.link(swsURL, 'simplywall.st', service)
         if 'profile_website' in market_data[ticker]:
             website = website_text = market_data[ticker]['profile_website']
             website_text = util.strip_url(website)
-            website = util.link(ticker, website, website_text, service)
+            website = util.link(website, website_text, service)
 
         if profile_exchange == 'ASX':
             market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
             shortman_url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
-            shortman_link = util.link(ticker, shortman_url, 'shortman', service)
+            shortman_link = util.link(shortman_url, 'shortman', service)
         elif profile_exchange == 'HKSE':
             market_url = 'https://www.hkex.com.hk/Market-Data/Securities-Prices/Equities/Equities-Quote?sym=' + ticker.split('.')[0] + '&sc_lang=en'
         elif 'Nasdaq' in profile_exchange:
@@ -462,7 +459,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             market_url = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + ticker.split('.')[0]
         else:
             market_url = 'https://www.google.com/search?q=stock+exchange+' + profile_exchange + '+' + ticker.split('.')[0] + '&btnI'
-        market_link = util.link(ticker, market_url, profile_exchange, service)
+        market_link = util.link(market_url, profile_exchange, service)
     if bio:
         location = []
         if 'profile_city' in market_data[ticker]:
@@ -475,7 +472,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         if 'profile_bio' in market_data[ticker]:
             payload.append(f"{market_data[ticker]['profile_bio']}")
 
-        if len(payload):
+        if payload:
             payload.append("")
 
         if location:
@@ -491,9 +488,9 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
                 finvizURL='https://finviz.com/quote.ashx?t=' + ticker
                 marketwatchURL = 'https://www.marketwatch.com/investing/stock/' + ticker.lower()
                 seekingalphaURL='https://seekingalpha.com/symbol/' + ticker
-                finvizLink = util.link(ticker, finvizURL, 'finviz', service)
-                marketwatchLink = util.link(ticker, marketwatchURL, 'marketwatch', service)
-                seekingalphaLink = util.link(ticker, seekingalphaURL, 'seekingalpha', service)
+                finvizLink = util.link(finvizURL, 'finviz', service)
+                marketwatchLink = util.link(marketwatchURL, 'marketwatch', service)
+                seekingalphaLink = util.link(seekingalphaURL, 'seekingalpha', service)
                 payload.append(webhook.bold("Other links:", service) + f" {market_link} | {finvizLink} | {seekingalphaLink} | {marketwatchLink} | {swsLink}")
             elif profile_exchange == 'ASX':
                 payload.append(webhook.bold("Other links:", service) + f" {market_link} | {shortman_link} | {swsLink}")
@@ -502,7 +499,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         if ticker_orig == ticker:
             payload.insert(0, webhook.bold(f"{profile_title} ({ticker_link})", service))
         else:
-            payload.insert(0, f"Beep Boop. I could not find " + ticker_orig + ", but I found " + ticker_link)
+            payload.insert(0, "Beep Boop. I could not find " + ticker_orig + ", but I found " + ticker_link)
             payload.insert(1, "")
             payload.insert(2, webhook.bold(f"{profile_title} ({ticker_link})", service))
         if len(payload) < 2:
@@ -521,7 +518,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     if 'shareholder_equity' in market_data[ticker] and 'total_debt' in market_data[ticker]:
         total_debt = market_data[ticker]['total_debt']
         shareholder_equity = market_data[ticker]['shareholder_equity']
-        debt_equity_ratio = round(total_debt / shareholder_equity * 100)
+        #debt_equity_ratio = round(total_debt / shareholder_equity * 100)
         if 'profile_industry' in market_data[ticker] and 'total_cash' in market_data[ticker]:
             if 'Bank' not in market_data[ticker]['profile_industry']:
                 emoji = ''
@@ -564,7 +561,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     else:
         payload.append(webhook.bold("Profitable:", service) + " unknown ⚠️")
 
-    if len(payload):
+    if payload:
         payload.append("")
 
     if 'earningsQ' in market_data[ticker]:
@@ -572,22 +569,22 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         earningsQs = doDelta(market_data[ticker]['earningsQ'])
         revenueYs = doDelta(market_data[ticker]['revenueY'])
         earningsYs = doDelta(market_data[ticker]['earningsY'])
-        if len(revenueQs):
+        if revenueQs:
             payload.append(f"{revenueQs}  quarterly revenue delta")
-        if len(earningsQs):
+        if earningsQs:
             payload.append(f"{earningsQs}  quarterly earnings delta")
-        if len(revenueYs):
+        if revenueYs:
             payload.append(f"{revenueYs}  annual revenue delta")
-        if len(earningsYs):
+        if earningsYs:
             payload.append(f"{earningsYs}  annual earnings delta")
 
-    if len(payload):
+    if payload:
         payload.append("")
 
     if 'revenueEstimateY' in market_data[ticker]:
         emoji = ''
         revenueEstimateY = int(round(market_data[ticker]['revenueEstimateY']))
-        revenueAnalysts = market_data[ticker]['revenueAnalysts']
+        #revenueAnalysts = market_data[ticker]['revenueAnalysts']
         if revenueEstimateY <= 0:
             emoji = '⚠️ '
             prefix = ''
@@ -598,7 +595,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         emoji = ''
         prefix = ''
         earningsEstimateY = int(round(market_data[ticker]['earningsEstimateY']))
-        earningsAnalysts = market_data[ticker]['earningsAnalysts']
+        #earningsAnalysts = market_data[ticker]['earningsAnalysts']
         if earningsEstimateY <= 0:
             emoji = '⚠️ '
         else:
@@ -631,7 +628,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         recommend_analysts = market_data[ticker]['recommend_analysts']
         payload.append(webhook.bold("Score:", service) + f" {recommend_index} {recommend} ({recommend_analysts} analysts)")
 
-    if len(payload):
+    if payload:
         payload.append("")
 
     if 'price_to_earnings_trailing' in market_data[ticker]:
@@ -659,7 +656,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         price_to_sales = round(market_data[ticker]['price_to_sales'], 1)
         payload.append(webhook.bold("PS ratio:", service) + f" {str(price_to_sales)}")
 
-    if len(payload):
+    if payload:
         payload.append("")
 
     if 'percent_change_year' in market_data[ticker]:
@@ -693,4 +690,3 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     if len(payload) < 2:
         payload.append("no data found")
     return payload
-
