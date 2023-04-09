@@ -26,6 +26,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 continue
             elif intraday and not interactive and now - regularMarketTime > 86400:
                 # avoid repeating on public holidays
+                whenMarketClosed = round((now - regularMarketTime) / 86400)
+                print("Skipping security not traded in", whenMarketClosed, "days:", ticker)
                 continue
             elif premarket:
                 if 'percent_change_premarket' in market_data[ticker]:
@@ -49,10 +51,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             exchange = market_data[ticker]['profile_exchange']
             if not (premarket and 'PRE' in marketState) and config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
                 # oddly, google provides post-market but not pre-market pricing
-                ticker_link = util.gfinance_link(ticker, market_data[ticker]['profile_exchange'], service)
+                ticker_link = util.gfinance_link(ticker, exchange, service)
             else:
                 ticker_link = util.yahoo_link(ticker, service)
-            if abs(float(percent)) >= threshold or specific_stock:
+            if specific_stock or float(percent) >= threshold:
                 payload.append(f"{emoji} {title} ({ticker_link}) {percent}%")
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])

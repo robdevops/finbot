@@ -33,8 +33,8 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             currency = trade['brokerage_currency_code']
             symbol = trade['symbol']
             market = trade['market']
-            #value = abs(round(trade['value'])) # don't use - sharesight converts to local currency
-            value = abs(round(price * units))
+            #value = round(trade['value']) # don't use - sharesight converts to local currency
+            value = round(price * units)
             holding_id = str(trade['holding_id'])
             ticker = util.transform_to_yahoo(symbol, market)
 
