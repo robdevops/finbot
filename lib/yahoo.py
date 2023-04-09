@@ -91,6 +91,18 @@ def fetch(tickers):
         else:
             yahoo_output[ticker]["profile_exchange"] = profile_exchange
         try:
+            exchangeTimezoneName = item['exchangeTimezoneName']
+        except:
+            pass
+        else:
+            yahoo_output[ticker]["exchangeTimezoneName"] = exchangeTimezoneName
+        try:
+            regularMarketTime = item['regularMarketTime']
+        except:
+            pass
+        else:
+            yahoo_output[ticker]["regularMarketTime"] = regularMarketTime
+        try:
             earningsTimestamp = item['earningsTimestamp']
             earningsTimestampStart = item['earningsTimestampStart']
             earningsTimestampEnd = item['earningsTimestampEnd']

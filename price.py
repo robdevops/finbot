@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
 import json, re, sys
+import datetime
+import pytz
 
 from lib.config import *
 import lib.sharesight as sharesight
@@ -13,10 +15,17 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         payload = []
         marketStates = []
         for ticker in market_data:
-            marketStates.append(market_data[ticker]['marketState'])
-            if midsession and market_data[ticker]['marketState'] != "REGULAR": # for scheduling mid-session updates
+            marketState = market_data[ticker]['marketState']
+            marketStates.append(marketState)
+            if midsession and marketState != "REGULAR": # skip stocks not in-session
                 # Possible market states: PREPRE PRE REGULAR POST POSTPOST CLOSED
                 continue
+            if intraday and not interactive: # avoid repeating on public holidays
+                regularMarketTime = market_data[ticker]['regularMarketTime']
+                tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
+                now = datetime.datetime.now(tz).timestamp()
+                if now - regularMarketTime > 86400:
+                    continue
             elif midsession or intraday:
                 percent = market_data[ticker]['percent_change']
             elif premarket:
@@ -37,7 +46,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             percent = str(round(percent))
             flag = util.flag_from_ticker(ticker)
             exchange = market_data[ticker]['profile_exchange']
-            if not (premarket and 'PRE' in market_data[ticker]['marketState']) and config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
+            if not (premarket and 'PRE' in marketState) and config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
                 # oddly, google provides post-market but not pre-market pricing
                 ticker_link = util.gfinance_link(ticker, market_data[ticker]['profile_exchange'], service)
             else:
