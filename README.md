@@ -57,7 +57,7 @@ Alternative syntax:
 @botname watchlist [add|del symbol]
 ```
 
-Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs.
+Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 
 The other various reports can also run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they will either report to all configured chat networks, or reply to the chat which triggered them.
 
@@ -79,7 +79,7 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔴 market closed
     * 🟠 pre/post-market
     * 🟢 normal trading
-* The warning symbol ⚠️ indicates possible risk factors. This is not intended to replace due diligence, but to non-exhaustively highlight where extra diligence is warranted. Some risk factors include:
+* The warning symbol ⚠️ indicates possible risk factors. This is not intended to replace due diligence, but to non-exhaustively highlight where additional diligence is due. Some risk factors include:
     * Negative earnings ⚠️
     * Earnings in decline ⚠️
     * Negative cashflow ⚠️
@@ -107,7 +107,7 @@ This report can only be run through the interactive bot. Example usage:
 @botname AAPL
 ```
 
-### Stock Profile
+### Company Profile
 ![Screenshot showing stock profile on Slack](img/bio.png?raw=true "Screenshot showing stock profile on Slack")
 
 This report can only be run through the interactive bot. Example usage:
