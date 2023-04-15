@@ -24,7 +24,7 @@ Where:
 * _symbol_ is a Yahoo Finance symbol
 * _days_ is an integer
 * _portfolio_ is a Sharesight portfolio name
-* _percent_ is a integer or float
+* _percent_ is an integer or float
 ```
 .symbol
 .dividend [days|symbol]
