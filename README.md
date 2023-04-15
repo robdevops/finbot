@@ -310,7 +310,7 @@ sharesight_client_secret = '01d692d4de7mockupfc64bc2e2f01d692d4de72986ea808f6e99
 
 ### Discord
 Discord support is currently only for trade notifications and scheduled reports.
-The Discord webhook can be provisioned under _Server Settings > Integrations > Webhooks_.
+The Discord webhook can be provisioned in Discord under _Server Settings > Integrations > Webhooks_.
 We use Discord's Slack compatibility by appending `/slack` to the Discord webhook in the .env file. Example:
 ```
 discord_webhook = 'https://discord.com/api/webhooks/1009998000000000000/aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbb/slack'
