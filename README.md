@@ -370,7 +370,7 @@ hyperlink = True
 hyperlinkFooter = True
 ```
 
-* `hyperlinkProvider` configures where to send ticker hyperlinks. Available options are `google` and `yahoo`. If set to `google`, it is only used where practical, as Google does not publish earnings date, ex-dividend date, premarket price, or short interest figures. Defaults to `yahoo`.
+* `hyperlinkProvider` configures where to send ticker hyperlinks. Available values are `google` and `yahoo`. If set to `google`, it is only used where practical, as Google does not publish earnings date, ex-dividend date, premarket price, or short interest figures. Defaults to `yahoo`.
 ```
 hyperlinkProvider = google
 ```
@@ -451,11 +451,11 @@ With these options set, your bot will auto-subscribe your URL to events the bot 
 
 #### Slack
 Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app).
-* From _Basic Information > Verification Token_, copy _Verification token_ into the .env file variable `slackOutgoingToken`
+* From _Basic Information > Verification Token_, copy _Verification token_ into the .env file variable `slackOutgoingToken`. This allows Slack to authenticate with finbot.
 * In the .env file, put your web server URL (e.g. https://www.example.com:8443/slack) into `slackOutgoingWebhook`
 * Save the .env file and (re)start `bot.py`
 * Under _Event Subscriptions_:
-  * Go to _Enable Events > On > Request URL_ and enter your web server URL (e.g. https://www.example.com:8443/slack). The bot will auto verify Slack's verification request if it is reachable.
+  * Go to _Enable Events > On > Request URL_ and enter your web server URL (e.g. https://www.example.com:8443/slack). At this time, if the bot is reachable, it will auto respond to Slack's verification request.
   * Go down to _Subscribe to bot events_ and add event `app_mention` for the bot to see _@botname_ mentions.
     * Alternatively, you can subscribe to `message.channels` if you want your bot to see everything and respond to `.` commands. To avoid duplicate responses, don't subscribe to `app_mention` and `message.channels` at the same time.
     * If you want to DM the bot:
@@ -466,7 +466,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
   * Scroll down to _Scopes > Bot Token Scopes_, and add `chat:write`
   * Scroll up to _OAuth Tokens for Your Workspace_:
     * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_ 
-    * Copy _Bot User OAuth Token_ into .env file `slackBotToken`
+    * Copy _Bot User OAuth Token_ into .env file `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies.
     * Restart `bot.py`
 
 
@@ -478,7 +478,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
 sudo cp -v finbot.service /etc/systemd/system/
 ```
 ```
-sudo sed -i 's/CHANGEME/YOUR USERNAME/' /etc/systemd/system/finbot.service
+sudo sed -i 's/CHANGEME/YOUR LINUX USERNAME/' /etc/systemd/system/finbot.service
 ```
 ```
 sudo systemctl daemon-reload
@@ -492,7 +492,7 @@ journalctl -fu finbot
 ```
 
 ## Limitations
-* Discord shows garbage link previews from Sharesight. Modify the script to remove hyperlinks, or disable this for your Discord account under _Settings > Text & Images > Embeds and link previews._
+* Discord shows garbage link previews from Sharesight. Set hyperlink = False, or disable this for your Discord client under _Settings > Text & Images > Embeds and link previews._
 
 ## Suggestions
 * Is my code is doing something the hard way?
