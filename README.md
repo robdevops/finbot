@@ -31,10 +31,10 @@ Where:
 .earnings [days|symbol]
 .holdings [portfolio]
 .marketcap symbol
-.session [percent|symbol]
-.price [percent|symbol]
 .premarket [percent|symbol]
+.price [percent|symbol]
 .profile symbol
+.session [percent|symbol]
 .shorts [percent|symbol]
 .trades [days|portfolio]
 .watchlist [add|del symbol]
@@ -48,10 +48,10 @@ Alternative syntax:
 @botname earnings [days|symbol]
 @botname holdings [portfolio]
 @botname marketcap symbol
-@botname session [percent|symbol]
-@botname price [percent|symbol]
 @botname premarket [percent|symbol]
+@botname price [percent|symbol]
 @botname profile symbol
+@botname session [percent|symbol]
 @botname shorts [percent|symbol]
 @botname trades [days|portfolio]
 @botname watchlist [add|del symbol]
