@@ -40,7 +40,7 @@ Where:
 .watchlist [add|del symbol]
 ```
 
-Alternative Syntax:
+Alternative syntax:
 
 ```
 @botname symbol
@@ -79,7 +79,7 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔴 market closed
     * 🟠 pre/post-market
     * 🟢 normal trading
-* The warning symbol ⚠️ indicates possible risk factors. This is not intended to replace due diligence, but to highlight where extra diligence is warranted. Some risk factors include:
+* The warning symbol ⚠️ indicates possible risk factors. This is not intended to replace due diligence, but to non-exhaustively highlight where extra diligence is warranted. Some risk factors include:
     * Negative earnings ⚠️
     * Earnings in decline ⚠️
     * Negative cashflow ⚠️
@@ -163,7 +163,7 @@ Cron trigger:
 ```
 ./price.py [premarket|midsession|intraday]
 ```
-When scheduled, the mode must be passed as an execution argument.
+When scheduled (Cron), the mode must be passed as an execution argument.
 * If `premarket` is passed, it only reports on pre/post market price movements.
 * If `midsession` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones. It can also be run through the interactive bot  as shown below.
 * If `intraday` is passed, it reports current price against the previous market close.
@@ -198,9 +198,9 @@ Interactive trigger (intraday):
 
 `cal.py` sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the .env file for triggering the report from Cron, or can be specified as an argument when triggered through the chat bot.
 
-**Earnings:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
+**Finance Explainer:** When a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 
-**Ex-dividend:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
+**Finance Explainer:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
 ```
 future_days = 7
 ```
@@ -231,7 +231,7 @@ Interactive trigger (ex-dividend):
 
 `shorts.py` sends short interest warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. This can be specified in the .env file for running the report from Cron, or as an argument when triggered through the chat bot.
 
-**Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely.
+**Finance Explainer:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely.
 ```
 shorts_percent = 15
 ```
