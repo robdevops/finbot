@@ -492,7 +492,7 @@ journalctl -fu finbot
 ```
 
 ## Limitations
-* Discord shows garbage link previews from Sharesight. Set hyperlink = False, or disable this for your Discord client under _Settings > Text & Images > Embeds and link previews._
+* Discord shows garbage link previews from Sharesight. Set `hyperlink = False`, or disable this for each Discord client under _Settings > Text & Images > Embeds and link previews_ (must be repeated for each participating Discord client).
 
 ## Suggestions
 * Is my code is doing something the hard way?
