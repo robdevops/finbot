@@ -38,6 +38,11 @@ Where:
 .shorts [percent|symbol]
 .trades [days|portfolio]
 .watchlist [add|del symbol]
+```
+
+Alternative Syntax:
+
+```
 @botname symbol
 @botname dividend [days|symbol]
 @botname earnings [days|symbol]
@@ -74,7 +79,15 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔴 market closed
     * 🟠 pre/post-market
     * 🟢 normal trading
-* The emoji grid indicates the directional change in the company earnings and revenue for each reporting period. A red arrow indicates the absolute earnings was negative:
+* The warning symbol ⚠️ indicates possible risk factors. This is not intended to replace due diligence, but to highlight where extra diligence is warranted. Some risk factors include:
+    * Negative earnings ⚠️
+    * Earnings in decline ⚠️
+    * Negative cashflow ⚠️
+    * High short interest ⚠️
+    * High forward P/E ratio ⚠️
+    * Net insider selling ⚠️
+    * High debt-to-equity ratio ⚠️
+* The arrow grid indicates the directional change in the company earnings and revenue for each reporting period. A red arrow indicates the absolute earnings was negative:
     * 🔼 earnings/revenue increased from the previous period
     * 🔽 earnings/revenue decreased from the previous period
     * 🔺 earnings increased from the previous period but remained negative
