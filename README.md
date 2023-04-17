@@ -274,7 +274,7 @@ Interactive trigger:
 * Sharesight paid plan, preferably with automatic trade imports, and an API key
 * Discord/Slack webhooks / Telegram bot user
 * The interactive bot requires a web server with domain name and matching certificate, plus the _gevent_ Python module
-* Python 3.8.10+
+* Python 3.10.6+
 * Python modules:
 ```
 datetime python-dotenv requests gevent

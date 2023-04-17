@@ -16,7 +16,7 @@ webhooks = {}
 if os.getenv('slack_webhook'):
     webhooks['slack'] = os.getenv('slack_webhook').rstrip('/')
 if os.getenv('discord_webhook'):
-    webhooks['discord'] = os.getenv('discord_webhook').rstrip('/').replace('/slack', '') + '/slack'
+    webhooks['discord'] = os.getenv('discord_webhook').rstrip('/').removesuffix('/slack') + '/slack'
 if os.getenv('telegramBotToken'):
     webhooks['telegram'] = 'https://api.telegram.org/bot' + os.getenv('telegramBotToken').rstrip('/') + '/'
 

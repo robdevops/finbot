@@ -56,7 +56,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
     for ticker in tickers:
         if '.' not in ticker:
             try:
-                market_data = { **market_data, **yahoo.fetch_detail(ticker) }
+                market_data = market_data | yahoo.fetch_detail(ticker)
             except TypeError:
                 pass
     print("")

@@ -2,7 +2,7 @@
 
 from itertools import groupby
 import json, re, time, random
-#from itertools import pairwise # python 3.10
+from itertools import pairwise # python 3.10
 
 from lib.config import *
 from lib import sharesight
@@ -266,8 +266,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 
 def doDelta(inputList):
     deltaString = ''
-    deltaList = [j-i for i,j in zip(inputList, inputList[1:])]
-    #deltaList = [y-x for (x,y) in pairwise(inputList)] # python 3.10
+    #deltaList = [j-i for i,j in zip(inputList, inputList[1:])]
+    deltaList = [y-x for (x,y) in pairwise(inputList)] # python 3.10
     for idx, delta in enumerate(deltaList):
         absolute = inputList[idx+1]
         if delta < 0 and absolute < 0:
@@ -416,7 +416,7 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     if not market_data:
         payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
         return payload
-    if config_debug:
+    if debug:
         print("Yahoo data:", json.dumps(market_data, indent=4))
     if config_hyperlinkProvider == 'google':
         exchange = market_data[ticker]['profile_exchange']

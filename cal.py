@@ -57,7 +57,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
         market_data = {}
         for ticker in tickers:
             try:
-                market_data = { **market_data, **yahoo.fetch_detail(ticker) }
+                market_data = market_data | yahoo.fetch_detail(ticker)
             except TypeError:
                 pass
         print("")
@@ -85,12 +85,12 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        # change to "match .. case" in python 3.10
-        if sys.argv[1] == 'earnings':
-            lambda_handler(earnings=True)
-        elif sys.argv[1] == 'ex-dividend':
-            lambda_handler(dividend=True)
-        else:
-            print("Usage:", sys.argv[0], "[earnings|ex-dividend]")
+        match sys.argv[1]:
+            case 'earnings':
+                lambda_handler(earnings=True)
+            case 'ex-dividend':
+                lambda_handler(dividend=True)
+            case other:
+                print("Usage:", sys.argv[0], "[earnings|ex-dividend]")
     else:
         print("Usage:", sys.argv[0], "[earnings|ex-dividend]")

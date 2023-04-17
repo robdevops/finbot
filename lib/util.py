@@ -347,8 +347,8 @@ def watchlist_load():
     return watchlist
 
 def strip_url(url):
-    url = url.replace('https://www.', '')
-    url = url.replace('http://www.', '')
-    url = url.replace('https://', '')
-    url = url.replace('http://', '')
+    url = url.removeprefix('https://www.')
+    url = url.removeprefix('http://www.')
+    url = url.removeprefix('https://')
+    url = url.removeprefix('http://')
     return url
