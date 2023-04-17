@@ -24,35 +24,40 @@ Where:
 * _symbol_ is a Yahoo Finance symbol
 * _days_ is an integer
 * _portfolio_ is a Sharesight portfolio name
-* _percent_ is a integer or float
+* _percent_ is an integer or float
 ```
 .symbol
 .dividend [days|symbol]
 .earnings [days|symbol]
 .holdings [portfolio]
 .marketcap symbol
-.session [percent|symbol]
-.price [percent|symbol]
 .premarket [percent|symbol]
+.price [percent|symbol]
 .profile symbol
+.session [percent|symbol]
 .shorts [percent|symbol]
 .trades [days|portfolio]
 .watchlist [add|del symbol]
+```
+
+Alternative syntax:
+
+```
 @botname symbol
 @botname dividend [days|symbol]
 @botname earnings [days|symbol]
 @botname holdings [portfolio]
 @botname marketcap symbol
-@botname session [percent|symbol]
-@botname price [percent|symbol]
 @botname premarket [percent|symbol]
+@botname price [percent|symbol]
 @botname profile symbol
+@botname session [percent|symbol]
 @botname shorts [percent|symbol]
 @botname trades [days|portfolio]
 @botname watchlist [add|del symbol]
 ```
 
-Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade ids between runs.
+Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 
 The other various reports can also run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they will either report to all configured chat networks, or reply to the chat which triggered them.
 
@@ -74,7 +79,15 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔴 market closed
     * 🟠 pre/post-market
     * 🟢 normal trading
-* The emoji grid indicates the directional change in the company earnings and revenue for each reporting period. A red arrow indicates the absolute earnings was negative:
+* The warning symbol ⚠️ indicates possible risk factors. This is not intended to replace due diligence, but to non-exhaustively highlight where additional diligence is due. Some risk factors include:
+    * Negative earnings ⚠️
+    * Earnings in decline ⚠️
+    * Negative cashflow ⚠️
+    * High short interest ⚠️
+    * High forward P/E ratio ⚠️
+    * Net insider selling ⚠️
+    * High debt-to-equity ratio ⚠️
+* The arrow grid indicates the directional change in the company earnings and revenue for each reporting period. A red arrow indicates the absolute earnings was negative:
     * 🔼 earnings/revenue increased from the previous period
     * 🔽 earnings/revenue decreased from the previous period
     * 🔺 earnings increased from the previous period but remained negative
@@ -94,7 +107,7 @@ This report can only be run through the interactive bot. Example usage:
 @botname AAPL
 ```
 
-### Stock Profile
+### Company Profile
 ![Screenshot showing stock profile on Slack](img/bio.png?raw=true "Screenshot showing stock profile on Slack")
 
 This report can only be run through the interactive bot. Example usage:
@@ -150,7 +163,7 @@ Cron trigger:
 ```
 ./price.py [premarket|midsession|intraday]
 ```
-When scheduled, the mode must be passed as an execution argument.
+When scheduled (Cron), the mode must be passed as an execution argument.
 * If `premarket` is passed, it only reports on pre/post market price movements.
 * If `midsession` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones. It can also be run through the interactive bot  as shown below.
 * If `intraday` is passed, it reports current price against the previous market close.
@@ -185,9 +198,9 @@ Interactive trigger (intraday):
 
 `cal.py` sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the .env file for triggering the report from Cron, or can be specified as an argument when triggered through the chat bot.
 
-**Earnings:** when a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
+**Finance Explainer:** When a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 
-**Ex-dividend:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
+**Finance Explainer:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
 ```
 future_days = 7
 ```
@@ -218,7 +231,7 @@ Interactive trigger (ex-dividend):
 
 `shorts.py` sends short interest warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. This can be specified in the .env file for running the report from Cron, or as an argument when triggered through the chat bot.
 
-**Explanation:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely.
+**Finance Explainer:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely.
 ```
 shorts_percent = 15
 ```
@@ -297,7 +310,7 @@ sharesight_client_secret = '01d692d4de7mockupfc64bc2e2f01d692d4de72986ea808f6e99
 
 ### Discord
 Discord support is currently only for trade notifications and scheduled reports.
-The Discord webhook can be provisioned under _Server Settings > Integrations > Webhooks_.
+The Discord webhook can be provisioned in Discord under _Server Settings > Integrations > Webhooks_.
 We use Discord's Slack compatibility by appending `/slack` to the Discord webhook in the .env file. Example:
 ```
 discord_webhook = 'https://discord.com/api/webhooks/1009998000000000000/aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbb/slack'
@@ -357,7 +370,7 @@ hyperlink = True
 hyperlinkFooter = True
 ```
 
-* `hyperlinkProvider` configures where to send ticker hyperlinks. Available options are `google` and `yahoo`. If set to `google`, it is only used where practical, as Google does not publish earnings date, ex-dividend date, premarket price, or short interest figures. Defaults to `yahoo`.
+* `hyperlinkProvider` configures where to send ticker hyperlinks. Available values are `google` and `yahoo`. If set to `google`, it is only used where practical, as Google does not publish earnings date, ex-dividend date, premarket price, or short interest figures. Defaults to `yahoo`.
 ```
 hyperlinkProvider = google
 ```
@@ -438,11 +451,11 @@ With these options set, your bot will auto-subscribe your URL to events the bot 
 
 #### Slack
 Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app).
-* From _Basic Information > Verification Token_, copy _Verification token_ into the .env file variable `slackOutgoingToken`
+* From _Basic Information > Verification Token_, copy _Verification token_ into the .env file variable `slackOutgoingToken`. This allows Slack to authenticate with finbot.
 * In the .env file, put your web server URL (e.g. https://www.example.com:8443/slack) into `slackOutgoingWebhook`
 * Save the .env file and (re)start `bot.py`
 * Under _Event Subscriptions_:
-  * Go to _Enable Events > On > Request URL_ and enter your web server URL (e.g. https://www.example.com:8443/slack). The bot will auto verify Slack's verification request if it is reachable.
+  * Go to _Enable Events > On > Request URL_ and enter your web server URL (e.g. https://www.example.com:8443/slack). At this time, if the bot is reachable, it will auto respond to Slack's verification request.
   * Go down to _Subscribe to bot events_ and add event `app_mention` for the bot to see _@botname_ mentions.
     * Alternatively, you can subscribe to `message.channels` if you want your bot to see everything and respond to `.` commands. To avoid duplicate responses, don't subscribe to `app_mention` and `message.channels` at the same time.
     * If you want to DM the bot:
@@ -453,7 +466,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
   * Scroll down to _Scopes > Bot Token Scopes_, and add `chat:write`
   * Scroll up to _OAuth Tokens for Your Workspace_:
     * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_ 
-    * Copy _Bot User OAuth Token_ into .env file `slackBotToken`
+    * Copy _Bot User OAuth Token_ into .env file `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies.
     * Restart `bot.py`
 
 
@@ -465,7 +478,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
 sudo cp -v finbot.service /etc/systemd/system/
 ```
 ```
-sudo sed -i 's/CHANGEME/YOUR USERNAME/' /etc/systemd/system/finbot.service
+sudo sed -i 's/CHANGEME/YOUR LINUX USERNAME/' /etc/systemd/system/finbot.service
 ```
 ```
 sudo systemctl daemon-reload
@@ -479,7 +492,7 @@ journalctl -fu finbot
 ```
 
 ## Limitations
-* Discord shows garbage link previews from Sharesight. Modify the script to remove hyperlinks, or disable this for your Discord account under _Settings > Text & Images > Embeds and link previews._
+* Discord shows garbage link previews from Sharesight. Set `hyperlink = False`, or disable this for each Discord client under _Settings > Text & Images > Embeds and link previews_ (must be repeated for each participating Discord client).
 
 ## Suggestions
 * Is my code is doing something the hard way?
