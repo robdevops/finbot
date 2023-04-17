@@ -282,7 +282,7 @@ datetime python-dotenv requests gevent
 
 ## Installation (Linux)
 ```
-sudo $(which apt dnf yum) install git
+sudo $(which apt dnf yum) install git python3-pip
 ```
 ```
 git clone https://github.com/robdevops/finbot.git ~/finbot
