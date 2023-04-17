@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import json, os, random, sys
+import json, os, random, sys, re
 import datetime
 
 from lib.config import *
@@ -64,21 +64,25 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             if currency_temp:
                 currency = currency_temp
             trade_url = sharesight_url + holding_id + '/trades/' + trade_id + '/edit'
-            trade_link = util.link(action, trade_url, action, service)
+            trade_link = util.link(trade_url, action, service)
             if config_hyperlinkProvider == 'google':
                 holding_link = util.gfinance_link(symbol, market, service, brief=True)
             else:
                 holding_link = util.yahoo_link(ticker, service, brief=True)
             payload.append(f"{emoji} {portfolio_name} {trade_link} {currency} {value:,} of {holding_link} {flag}")
 
+        def sort_ticker(e):
+            return re.split(' ', e)[-2]
+        payload.sort(key=sort_ticker)
+
         if interactive and not payload: # easter egg 4
             payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]
         elif not interactive:
-            if payload:
+            if len(payload) > 1:
                 message = 'New trades:'
             elif len(payload) == 1:
                 message = 'New trade:'
-                payload.insert(0, message)
+            payload.insert(0, message)
 
         return payload
 
@@ -103,8 +107,8 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         portfoliosLower = {k.lower():v for k,v in portfolios.items()}
         portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
         if portfolio_select.lower() in portfoliosLower:
-            portfolio_id = portfoliosLower[portfolio_select.lower()]
-            portfolio_select = portfoliosReverseLookup[portfolio_id]
+            portfolio_id = portfoliosLower[portfolio_select.lower()] # any-case input
+            portfolio_select = portfoliosReverseLookup[portfolio_id] # correct-case output
         trades = trades + sharesight.get_trades(portfolio_select, portfolio_id, past_days)
     else:
         for portfolio in portfolios:
