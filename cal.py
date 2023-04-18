@@ -85,12 +85,23 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        match sys.argv[1]:
-            case 'earnings':
-                lambda_handler(earnings=True)
-            case 'ex-dividend':
-                lambda_handler(dividend=True)
-            case other:
-                print("Usage:", sys.argv[0], "[earnings|ex-dividend]")
+
+        # python 3.9
+        if sys.argv[1] == 'earnings':
+            lambda_handler(earnings=True)
+        elif sys.argv[1] == 'dividend':
+            lambda_handler(dividend=True)
+        else:
+            print("Usage:", sys.argv[0], "[earnings|ex-dividend]")
+
+        # python 3.10
+        #match sys.argv[1]:
+        #    case 'earnings':
+        #        lambda_handler(earnings=True)
+        #    case 'ex-dividend':
+        #        lambda_handler(dividend=True)
+        #    case other:
+        #        print("Usage:", sys.argv[0], "[earnings|ex-dividend]")
+
     else:
         print("Usage:", sys.argv[0], "[earnings|ex-dividend]")

@@ -126,14 +126,27 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        match sys.argv[1]:
-            case 'midsession':
-                lambda_handler(midsession=True)
-            case 'intraday':
-                lambda_handler(intraday=True)
-            case 'premarket':
-                lambda_handler(premarket=True)
-            case other:
-                print("Usage:", sys.argv[0], "[midsession|intraday|premarket]")
+
+        # python 3.9
+        if sys.argv[1] == 'midsession':
+            lambda_handler(midsession=True)
+        elif sys.argv[1] == 'intraday':
+            lambda_handler(intraday=True)
+        elif sys.argv[1] == 'premarket':
+            lambda_handler(premarket=True)
+        else:
+            print("Usage:", sys.argv[0], "[midsession|intraday|premarket]")
+
+        # python 3.10
+        #match sys.argv[1]:
+        #    case 'midsession':
+        #        lambda_handler(midsession=True)
+        #    case 'intraday':
+        #        lambda_handler(intraday=True)
+        #    case 'premarket':
+        #        lambda_handler(premarket=True)
+        #    case other:
+        #        print("Usage:", sys.argv[0], "[midsession|intraday|premarket]")
+
     else:
         print("Usage:", sys.argv[0], "[midsession|intraday|premarket]")
