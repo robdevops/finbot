@@ -69,9 +69,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         if payload:
             if not specific_stock:
                 if midsession:
-                    message = f'Moving ≥ {threshold}% mid-session:'
+                    message = f'Tracking ≥ {threshold}% mid-session:'
                 elif premarket:
-                    message = f'Moving ≥ {threshold}% pre-market:'
+                    message = f'Tracking ≥ {threshold}% pre-market:'
                 elif days:
                     message = f'Moved ≥ {threshold}% in {days} days:'
                 else:

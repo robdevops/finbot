@@ -2,17 +2,42 @@ import datetime
 import time
 import json
 import requests
+import sys
 
 from lib.config import *
 from lib import util
+
+def getCrumb():
+    headers = {'cookie': 'A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng; A2=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng;', 'User-Agent': 'Mozilla/5.0'}
+    yahoo_urls = ['https://query2.finance.yahoo.com/v1/test/getcrumb']
+    yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
+    for url in yahoo_urls:
+        try:
+            r = requests.get(url, headers=headers, timeout=config_http_timeout)
+        except Exception as e:
+            print(e)
+        else:
+            if r.status_code == 200:
+                print(r.status_code, "success yahoo")
+            else:
+                print(r.status_code, "returned by", url)
+                continue
+            break
+    else:
+        print("Exhausted Yahoo API attempts. Giving up")
+        sys.exit(1)
+    return r.text
 
 def fetch(tickers):
     # NEVER CACHE THIS
     print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
     yahoo_output = {}
-    yahoo_urls = ['https://query2.finance.yahoo.com/v7/finance/quote?symbols=' + ','.join(tickers)]
+    crumb = False
+    if not crumb:
+        crumb = getCrumb()
+    yahoo_urls = ['https://query2.finance.yahoo.com/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)]
     yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
-    headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+    headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0', 'cookie': 'A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng; A2=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng;'}
     for url in yahoo_urls:
         print("Fetching", url)
         try:
@@ -28,7 +53,7 @@ def fetch(tickers):
             break
     else:
         print("Exhausted Yahoo API attempts. Giving up")
-        return False
+        sys.exit(1)
     data = r.json()
     data = data['quoteResponse']
     data = data['result']
@@ -446,9 +471,13 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     return local_market_data
 
 def price_history(ticker, days=27):
+    crumb = False
+    if not crumb:
+        crumb = getCrumb()
     now = int(time.time())
     url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
     url = url + '?period1=' + str(now - 86400 * days) + '&period2=' + str(now) + '&interval=1d&events=history&includeAdjustedClose=true'
+    url = url + '&crumb=' + crumb
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     try:
         r = requests.get(url, headers=headers, timeout=config_http_timeout)
@@ -470,9 +499,13 @@ def price_history(ticker, days=27):
     return percent
 
 def price_five_year(ticker):
+    crumb = False
+    if not crumb:
+        crumb = getCrumb()
     now = int(time.time())
     url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
     url = url + '?period1=' + str(now - 86400*(365*5)) + '&period2=' + str(now) + '&interval=1mo&events=history&includeAdjustedClose=true'
+    url = url + '&crumb=' + crumb
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     try:
         r = requests.get(url, headers=headers, timeout=config_http_timeout)
