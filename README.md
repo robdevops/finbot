@@ -4,7 +4,7 @@
 
 ### Features
 * Discord, Slack and Telegram support
-* Sharesight Trade notifications
+* [Sharesight](https://www.sharesight.com/au/) trade notifications
 * Yahoo Finance data for Sharesight holdings:
   * Intraday and premarket price movements over a defined threshold
   * Earnings date reminders
