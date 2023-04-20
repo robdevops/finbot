@@ -80,9 +80,12 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         elif not interactive:
             if len(payload) > 1:
                 message = 'New trades:'
+                message = webhook.bold(message, service)
+                payload.insert(0, message)
             elif len(payload) == 1:
                 message = 'New trade:'
-            payload.insert(0, message)
+                message = webhook.bold(message, service)
+                payload.insert(0, message)
 
         return payload
 
