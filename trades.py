@@ -77,16 +77,6 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 
         if interactive and not payload: # easter egg 4
             payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]
-        elif not interactive:
-            if len(payload) > 1:
-                message = 'New trades:'
-                message = webhook.bold(message, service)
-                payload.insert(0, message)
-            elif len(payload) == 1:
-                message = 'New trade:'
-                message = webhook.bold(message, service)
-                payload.insert(0, message)
-
         return payload
 
     def trade_cache_read(cache_file):
