@@ -196,6 +196,7 @@ Interactive trigger (intraday):
 
 
 ### Portfolio performance
+![Screenshot of Portfolio performance notification on Slack](img/performance.png?raw=true "Screenshot performance notification on Slack")
 `performance.py` reports on Sharesight portfolio performance over a given period. The default is set by `past_days` in the .env file, which can be overridden at runtime by specifying an integer as an argument.
 
 Config example:
