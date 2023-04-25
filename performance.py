@@ -34,10 +34,10 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         if portfolio_select.lower() in portfoliosLower:
             portfolio_id = portfoliosLower[portfolio_select.lower()] # any-case input
             portfolio_select = portfoliosReverseLookup[portfolio_id] # correct-case output
-        performance[portfolio_id] = sharesight.get_performance(portfolio_select, portfolio_id, past_days)
+        performance[portfolio_id] = sharesight.get_performance(portfolio_id, past_days)
     else:
         for portfolio, portfolio_id in portfolios.items():
-            performance[portfolio_id] = sharesight.get_performance(portfolio, portfolio_id, past_days)
+            performance[portfolio_id] = sharesight.get_performance(portfolio_id, past_days)
 
     # Prep and send payloads
     if not len(performance):
