@@ -60,7 +60,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 ticker_link = util.gfinance_link(ticker, exchange, service)
             else:
                 ticker_link = util.yahoo_link(ticker, service)
-            if specific_stock or float(percent) >= threshold:
+            if specific_stock or abs(float(percent)) >= threshold: # abs catches negative percentages
                 payload.append(f"{emoji} {title} ({ticker_link}) {percent}%")
         def last_column_percent(e):
             return int(re.split(' |%', e)[-2])
