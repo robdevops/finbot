@@ -41,7 +41,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 else:
                     print("no pre/post-market data for", ticker)
                     continue
-            if days:
+            elif days:
                 percent = yahoo.price_history(ticker, days)
             else:
                 percent = market_data[ticker]['percent_change']
