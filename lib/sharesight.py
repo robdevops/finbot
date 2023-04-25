@@ -67,7 +67,7 @@ def get_portfolios():
             print("Exclusion list is defined and does not contain", portfolio['id'], "(" + portfolio['name'] + "). Skipping.")
         else:
             portfolio_dict[portfolio['name']] = portfolio['id']
-    if len(portfolio_dict) == 0:
+    if not len(portfolio_dict):
         print("No portfolios found. Exiting.")
         sys.exit(1)
     print(portfolio_dict)
@@ -131,8 +131,24 @@ def get_holdings(portfolio_name, portfolio_id):
 def get_holdings_wrapper():
     tickers = set()
     portfolios = get_portfolios()
-    for portfolio_name in portfolios:
-        portfolio_id = int(portfolios[portfolio_name])
+    for portfolio_name, portfolio_id in portfolios.items():
         tickers.update(get_holdings(portfolio_name, portfolio_id))
     return tickers
+
+def get_performance(portfolio_id, days):
+    start_date = datetime.datetime.now() - datetime.timedelta(days=days)
+    start_date = str(start_date.strftime('%Y-%m-%d')) # 2023-04-25
+    cache_file = config_cache_dir + "/finbot_performance_cache_" + str(portfolio_id) + "_" + str(days) + '.json'
+    cache = util.read_cache(cache_file, config_cache_seconds)
+    if config_cache and cache:
+        return cache['report']['capital_gain_percent']
+    token = get_token()
+    endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
+    url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + start_date
+    r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
+    if r.status_code != 200:
+        print(r.status_code, "error")
+    data = r.json()
+    util.write_cache(cache_file, data)
+    return data['report']['capital_gain_percent']
 

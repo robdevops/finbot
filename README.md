@@ -31,6 +31,7 @@ Where:
 .earnings [days|symbol]
 .holdings [portfolio]
 .marketcap symbol
+.performance [days|portfolio]
 .premarket [percent|symbol]
 .price [percent|symbol]
 .profile symbol
@@ -48,6 +49,7 @@ Alternative syntax:
 @botname earnings [days|symbol]
 @botname holdings [portfolio]
 @botname marketcap symbol
+@botname performance [days|portfolio]
 @botname premarket [percent|symbol]
 @botname price [percent|symbol]
 @botname profile symbol
@@ -192,6 +194,35 @@ Interactive trigger (intraday):
 @botname price [percent]
 ```
 
+
+### Portfolio performance
+`performance.py` reports on Sharesight portfolio performance over a given period. The default is set by `past_days` in the .env file, which can be overridden at runtime by specifying an integer as an argument.
+
+Config example:
+```
+past_days = 28
+```
+
+Cron trigger:
+```
+./performance.py 7
+```
+
+Interactive trigger:
+```
+.performance 7
+```
+```
+@botname performance 7
+```
+
+Interactively, you can instead specify a portfolio:
+```
+.performance [portfolio]
+```
+```
+@botname performance [portfolio]
+```
 
 ### Events calendar
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
@@ -383,24 +414,24 @@ hyperlinkProvider = yahoo
 Recommended for a machine set to UTC:
 ```
 # Every 20 minutes on weekdays
-*/20 * * * Mon-Fri ~/finbot/trades.py > /dev/null
+*/20 * * * Mon-Fri ~/finbot/trades.py &> /dev/null
 
 # Mid-session
-00 01 * * Mon-Fri ~/finbot/price.py midsession > /dev/null # AU
-15 17 * * Mon-Fri ~/finbot/price.py midsession > /dev/null # US
+00 01 * * Mon-Fri ~/finbot/price.py midsession &> /dev/null # AU
+15 17 * * Mon-Fri ~/finbot/price.py midsession &> /dev/null # US
 
 # Daily
 30  21 * * * ~/finbot/reminder.py > /dev/null
 
 # Daily on weekdays
-29  21 * * Mon-Fri ~/finbot/price.py intraday > /dev/null
-10  11 * * Mon-Fri ~/finbot/price.py premarket > /dev/null
+29  21 * * Mon-Fri ~/finbot/price.py intraday &> /dev/null
+10  11 * * Mon-Fri ~/finbot/price.py premarket &> /dev/null
 
 # Weekly
-28  21 * * Fri { cd ~/finbot/; ./cal.py earnings; ./cal.py ex-dividend;} > /dev/null
+28  21 * * Sat { cd ~/finbot/; ./cal.py earnings; ./cal.py ex-dividend; ./price.py week; ./performance.py 7 ;} &> /dev/null
 
 # Monthly
-27  21 1 * * ~/finbot/shorts.py > /dev/null
+27  21 1 * * { cd ~/finbot/; ./shorts.py; ./price.py month; ./performance.py 28 ;} &> /dev/null
 ```
 The above can be installed with:
 ```

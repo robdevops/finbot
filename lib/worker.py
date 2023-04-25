@@ -10,6 +10,7 @@ from lib import util
 from lib import webhook
 from lib import yahoo
 import cal
+import performance
 import price
 import shorts
 import trades
@@ -40,6 +41,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 
     marketcap_command = r"^([\!\.]\s?|^" + botName + r"\s+)marketcap\s*([\w\.\:]+)*"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
+
+    performance_command = r"^([\!\.]\s?|^" + botName + r"\s+)performance?\s*([\w\s]+)*"
+    m_performance = re.match(performance_command, message, re.IGNORECASE)
 
     premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket)\s*([\w\.\:]+)*"
     m_premarket = re.match(premarket_command, message, re.IGNORECASE)
@@ -130,6 +134,23 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             payload = [ f"Fetching ex-dividend dates for the next { f'{days} days' if days != 1 else 'day' } 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
         cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=False, dividend=True)
+    elif m_performance:
+        portfolio_select = False
+        if m_performance.group(2):
+            arg = m_performance.group(2)
+            try:
+                days = int(arg)
+            except ValueError:
+                days = config_past_days
+                portfolio_select = arg
+        else:
+            days = config_past_days
+        # easter egg 3
+        verbString = f"Time travelling { f'{days} days' if days != 1 else 'one day' } to get"
+        searchVerb.append(verbString)
+        payload = [ f"{random.choice(searchVerb)} performance for the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
+        webhook.payload_wrapper(service, url, payload, chat_id)
+        performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=False, interactive=True)
     elif m_session:
         price_threshold = config_price_percent
         specific_stock = False
@@ -385,6 +406,7 @@ def prepare_help(service, botName):
     payload.append(".earnings [days|AAPL]")
     payload.append(".holdings")
     payload.append(".marketcap AAPL")
+    payload.append(".performance [days|portfolio]")
     payload.append(".premarket [percent|AAPL]")
     payload.append(".price [percent|AAPL]")
     payload.append(".profile AAPL")

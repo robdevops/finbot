@@ -140,7 +140,7 @@ if __name__ == "__main__":
         elif sys.argv[1] == 'premarket':
             lambda_handler(premarket=True)
         elif sys.argv[1] == 'week':
-            lambda_handler(days=7)
+            lambda_handler(days=5)
         elif sys.argv[1] == 'month':
             lambda_handler(days=28)
         else:
