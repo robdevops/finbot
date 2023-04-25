@@ -160,7 +160,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 price_threshold = int(arg)
             except ValueError:
                 specific_stock = str(arg).upper()
-        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, intraday=False, midsession=True)
+        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, interday=False, midsession=True)
     elif m_price:
         price_threshold = config_price_percent
         specific_stock = False
@@ -170,7 +170,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 price_threshold = int(arg)
             except ValueError:
                 specific_stock = str(arg).upper()
-        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, intraday=True)
+        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, interday=True)
     elif m_premarket:
         premarket_threshold = config_price_percent
         specific_stock = False

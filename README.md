@@ -6,7 +6,7 @@
 * Discord, Slack and Telegram support
 * [Sharesight](https://www.sharesight.com/au/) trade notifications
 * Yahoo Finance data for Sharesight holdings:
-  * Intraday and premarket price movements over a defined threshold
+  * Interday and premarket price movements over a defined threshold
   * Earnings date reminders
   * Ex-dividend date warnings
   * Highly shorted stock warnings (AU, US)
@@ -163,12 +163,12 @@ price_percent = 9.4
 
 Cron trigger:
 ```
-./price.py [premarket|midsession|intraday]
+./price.py [premarket|midsession|interday]
 ```
 When scheduled (Cron), the mode must be passed as an execution argument.
 * If `premarket` is passed, it only reports on pre/post market price movements.
 * If `midsession` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones. It can also be run through the interactive bot  as shown below.
-* If `intraday` is passed, it reports current price against the previous market close.
+* If `interday` is passed, it reports current price against the previous market close.
 
 Interactive trigger (pre-market):
 ```
@@ -186,7 +186,7 @@ Interactive trigger (mid-session):
 @botname midsession [percent]
 ```
 
-Interactive trigger (intraday):
+Interactive trigger (interday):
 ```
 .price [percent]
 ```
@@ -426,7 +426,7 @@ Recommended for a machine set to UTC:
 30  21 * * * ~/finbot/reminder.py > /dev/null
 
 # Daily on weekdays
-29  21 * * Mon-Fri ~/finbot/price.py intraday &> /dev/null
+29  21 * * Mon-Fri ~/finbot/price.py interday &> /dev/null
 10  11 * * Mon-Fri ~/finbot/price.py premarket &> /dev/null
 
 # Weekly

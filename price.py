@@ -14,7 +14,7 @@ from lib import yahoo
 #import lib.util as util
 #import lib.yahoo as yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, midsession=False, premarket=False, intraday=False, days=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, midsession=False, premarket=False, interday=False, days=False):
     def prepare_price_payload(service, market_data, threshold):
         payload = []
         marketStates = []
@@ -28,7 +28,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 # skip stocks not in session
                 # Possible market states: PREPRE PRE REGULAR POST POSTPOST CLOSED
                 continue
-            if intraday and not interactive and now - regularMarketTime > 86400:
+            if interday and not interactive and now - regularMarketTime > 86400:
                 # avoid repeating on public holidays
                 whenMarketClosed = round((now - regularMarketTime) / 86400)
                 print("Skipping security not traded in", whenMarketClosed, "days:", ticker)
@@ -75,7 +75,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 elif days:
                     message = f'Moved ≥ {threshold}% in {days} days:'
                 else:
-                    message = f'Moved ≥ {threshold}% intraday:'
+                    message = f'Moved ≥ {threshold}% interday:'
                 message = webhook.bold(message, service)
                 payload.insert(0, message)
         else:
@@ -86,7 +86,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                     elif premarket:
                         payload = [f"No premarket price found for {tickers[0]}"]
                     else:
-                        payload = [f"No intraday price found for {tickers[0]}"]
+                        payload = [f"No interday price found for {tickers[0]}"]
                 elif premarket:
                     payload = [f"No pre-market price movements meet threshold {threshold}%"]
                 elif midsession:
@@ -135,8 +135,8 @@ if __name__ == "__main__":
         # python 3.9
         if sys.argv[1] == 'midsession':
             lambda_handler(midsession=True)
-        elif sys.argv[1] == 'intraday':
-            lambda_handler(intraday=True)
+        elif sys.argv[1] == 'interday':
+            lambda_handler(interday=True)
         elif sys.argv[1] == 'premarket':
             lambda_handler(premarket=True)
         elif sys.argv[1] == 'week':
@@ -144,14 +144,14 @@ if __name__ == "__main__":
         elif sys.argv[1] == 'month':
             lambda_handler(days=28)
         else:
-            print("Usage:", sys.argv[0], "[midsession|intraday|premarket|week|month]")
+            print("Usage:", sys.argv[0], "[midsession|interday|premarket|week|month]")
 
         # python 3.10
         #match sys.argv[1]:
         #    case 'midsession':
         #        lambda_handler(midsession=True)
-        #    case 'intraday':
-        #        lambda_handler(intraday=True)
+        #    case 'interday':
+        #        lambda_handler(interday=True)
         #    case 'premarket':
         #        lambda_handler(premarket=True)
         #    case 'week':
@@ -159,7 +159,7 @@ if __name__ == "__main__":
         #    case 'month':
         #        lambda_handler(days=28)
         #    case other:
-        #        print("Usage:", sys.argv[0], "[midsession|intraday|premarket|week|month]")
+        #        print("Usage:", sys.argv[0], "[midsession|interday|premarket|week|month]")
 
     else:
-        print("Usage:", sys.argv[0], "[midsession|intraday|premarket|week|month]")
+        print("Usage:", sys.argv[0], "[midsession|interday|premarket|week|month]")
