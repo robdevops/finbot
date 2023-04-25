@@ -31,7 +31,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             if interday and not interactive and now - regularMarketTime > 86400:
                 # avoid repeating on public holidays
                 whenMarketClosed = round((now - regularMarketTime) / 86400)
-                print("Skipping security not traded in", whenMarketClosed, "days:", ticker)
+                print(ticker + '⏭', sep='', end=' ', flush=True)
                 continue
             if premarket:
                 if 'percent_change_premarket' in market_data[ticker]:
@@ -39,7 +39,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 elif 'percent_change_postmarket' in market_data[ticker]:
                     percent = market_data[ticker]['percent_change_postmarket']
                 else:
-                    print("no pre/post-market data for", ticker)
                     continue
             elif days:
                 percent = yahoo.price_history(ticker, days)
