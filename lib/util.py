@@ -261,7 +261,16 @@ def link(url, text, service='telegram'):
         hyperlink = text
     return hyperlink
 
-def gfinance_link(symbol, market, service='telegram', brief=False):
+def gfinance_link(symbol, market, service='telegram', days=1, brief=False):
+    window = '1D'
+    if days > 1:
+        window = '5D'
+    if days > 7:
+        window = '1M'
+    if days > 31:
+        window = '6M'
+    if days > 183:
+        window = '1Y'
     url = "https://www.google.com/finance/quote/"
     market = transform_to_google(market)
     if ':' in symbol:
@@ -275,9 +284,9 @@ def gfinance_link(symbol, market, service='telegram', brief=False):
         else:
             text = symbol
     if service == 'telegram' and config_hyperlink:
-        ticker_link = '<a href="' + url + ticker + '?window=5D' + '">' + text + '</a>'
+        ticker_link = '<a href="' + url + ticker + '?window=' + window + '">' + text + '</a>'
     elif service in {'discord', 'slack'} and config_hyperlink:
-        ticker_link = '<' + url + ticker + '?window=5D' + '|' + text + '>'
+        ticker_link = '<' + url + ticker + '?window=' + window + '|' + text + '>'
     else:
         ticker_link = symbol
     return ticker_link
