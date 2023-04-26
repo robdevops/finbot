@@ -18,6 +18,17 @@
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
+
+### Requirements
+* Most features require a Sharesight paid plan, preferably with automatic trade imports, and an API key
+* Discord/Slack webhooks / Telegram bot user
+* The interactive bot requires a web server with domain name and matching certificate, plus the _gevent_ Python module
+* Python ≥ 3.9
+* Python modules:
+```
+datetime python-dotenv requests gevent
+```
+
 ### Supported commands
 
 Where:
@@ -301,16 +312,6 @@ Interactive trigger:
 ```
 ```
 @botname watchlist [add|del] AAPL
-```
-
-## Dependencies
-* Sharesight paid plan, preferably with automatic trade imports, and an API key
-* Discord/Slack webhooks / Telegram bot user
-* The interactive bot requires a web server with domain name and matching certificate, plus the _gevent_ Python module
-* Python ≥ 3.9
-* Python modules:
-```
-datetime python-dotenv requests gevent
 ```
 
 ## Installation (Linux)
