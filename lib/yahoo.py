@@ -482,7 +482,7 @@ def price_history(ticker, days=27, seconds=config_cache_seconds):
     if days < 90:
         interval = '1d'
     else:
-        interval = '1m'
+        interval = '1mo'
     url = url + '?period1=' + str(now - 86400 * days) + '&period2=' + str(now) + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
     url = url + '&crumb=' + crumb
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}

@@ -684,8 +684,9 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
     if 'percent_change_year' in market_data[ticker]:
         percent_change_year = str(market_data[ticker]['percent_change_year']) + '%'
         percent_change = str(market_data[ticker]['percent_change']) + '%'
-        percent_change_five_year = str(yahoo.price_history(ticker, 1825)) + '%'
+        percent_change_five_year = yahoo.price_history(ticker, 1825)
         if percent_change_five_year:
+            percent_change_five_year = str(percent_change_five_year) + '%'
             payload.append(webhook.bold("5Y:", service) + f" {percent_change_five_year}")
         payload.append(webhook.bold("1Y:", service) + f" {percent_change_year}")
         percent_change_month = yahoo.price_history(ticker, 27) + '%'
