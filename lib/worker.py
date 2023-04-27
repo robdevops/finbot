@@ -301,6 +301,12 @@ def doDelta(inputList):
             deltaString = deltaString + '🔼'
         else:
             deltaString = deltaString + '▪️'
+    missingfromstart = 3 - len(deltaString) # desired length hard coded
+    if missingfromstart > 0:
+        deltaString = ("❌" * missingfromstart) + deltaString
+
+
+
     return deltaString
 
 def prepare_watchlist(service, user, action=False, ticker=False):
@@ -682,23 +688,24 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         payload.append("")
 
     if 'percent_change_year' in market_data[ticker]:
-        percent_change_year = str(market_data[ticker]['percent_change_year']) + '%'
-        percent_change = str(market_data[ticker]['percent_change']) + '%'
+        percent_change_year = round(market_data[ticker]['percent_change_year'])
+        percent_change = market_data[ticker]['percent_change']
         percent_change_five_year = yahoo.price_history(ticker, 1825)
         if percent_change_five_year:
-            percent_change_five_year = str(percent_change_five_year) + '%'
-            payload.append(webhook.bold("5Y:", service) + f" {percent_change_five_year}")
-        payload.append(webhook.bold("1Y:", service) + f" {percent_change_year}")
-        percent_change_month = yahoo.price_history(ticker, 27) + '%'
+            percent_change_five_year = round(percent_change_five_year)
+            payload.append(webhook.bold("5Y:", service) + f" {percent_change_five_year:,}%")
+        payload.append(webhook.bold("1Y:", service) + f" {percent_change_year:,}%")
+        percent_change_month = yahoo.price_history(ticker, 27)
         if percent_change_month:
-            payload.append(webhook.bold("1M:", service) + f" {percent_change_month}")
-        payload.append(webhook.bold("1D:", service) + f" {percent_change}")
+            percent_change_month = round(percent_change_month)
+            payload.append(webhook.bold("1M:", service) + f" {percent_change_month:,}%")
+        payload.append(webhook.bold("1D:", service) + f" {percent_change:,}%")
     if 'percent_change_premarket' in market_data[ticker]:
-        percent_change_premarket = str(market_data[ticker]['percent_change_premarket']) + '%'
-        payload.append(webhook.bold("Pre-market:", service) + f" {percent_change_premarket}")
+        percent_change_premarket = market_data[ticker]['percent_change_premarket']
+        payload.append(webhook.bold("Pre-market:", service) + f" {percent_change_premarket:,}%")
     elif 'percent_change_postmarket' in market_data[ticker]:
-        percent_change_postmarket = str(market_data[ticker]['percent_change_postmarket']) + '%'
-        payload.append(webhook.bold("Post-market:", service) + f" {percent_change_postmarket}")
+        percent_change_postmarket = market_data[ticker]['percent_change_postmarket']
+        payload.append(webhook.bold("Post-market:", service) + f" {percent_change_postmarket:,}%")
     if 'profile_website' in market_data[ticker] and config_hyperlinkFooter and config_hyperlink:
         footer = f"{website} | {swsLink}"
         payload.append("")

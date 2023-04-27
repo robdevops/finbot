@@ -433,11 +433,13 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         revenueY = []
         for item in data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly']:
             if item['earnings']['fmt'] is None: # bad data
-                earningsQ = []
-                revenueQ = []
-                break
-            earningsQ.append(item['earnings']['raw'])
-            revenueQ.append(item['revenue']['raw'])
+                if len(earningsQ):
+                    earningsQ.append(earningsQ[-1]) # repeat last so we get a neutral readout
+                if len(revenueQ):
+                    revenueQ.append(revenueQ[-1]) # repeat last so we get a neutral readout
+            else:
+                earningsQ.append(item['earnings']['raw'])
+                revenueQ.append(item['revenue']['raw'])
         for item in data['quoteSummary']['result'][0]['earnings']['financialsChart']['yearly']:
             earningsY.append(item['earnings']['raw'])
             revenueY.append(item['revenue']['raw'])
@@ -494,7 +496,7 @@ def price_history(ticker, days=27, seconds=config_cache_seconds):
     if r.status_code == 200:
         print('↓', sep=' ', end='', flush=True)
     else:
-        print(r.status_code, "error communicating with", url)
+        print(ticker, r.status_code, "error communicating with", url)
         return False
     csv = r.content.decode('utf-8').split('\n')
     price = []
@@ -504,6 +506,6 @@ def price_history(ticker, days=27, seconds=config_cache_seconds):
             price.append(float(cells[5]))
         except ValueError:
             continue
-    percent = str(round(100 * (price[-1] - price[0]) / price[0], 1))
+    percent = round(100 * (price[-1] - price[0]) / price[0], 2)
     util.write_cache(cache_file, percent)
     return percent
