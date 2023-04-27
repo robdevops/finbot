@@ -106,6 +106,7 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔺 earnings increased from the previous period but remained negative
     * 🔻 earnings decreased from the previous period and was negative
     * ▪ earnings/revenue matched the previous period
+    * ❌ indicates missing data for this period
 * Using the example screenshot above, the company reported:
     * 🔼🔼🔼 revenue increased in all of the past three quarters
     * 🔺🔻🔻 In the past three quarters, earnings initially increased, then decreased for two quarters, and was negative in every quarter

@@ -287,11 +287,24 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 
 def doDelta(inputList):
     deltaString = ''
-    deltaList = [j-i for i,j in zip(inputList, inputList[1:])] # python 3.9
-    #deltaList = [y-x for (x,y) in pairwise(inputList)] # python 3.10
+    inputListFixed = inputList.copy()
+
+    # replace any NoneType to allow delta calculation
+    for idx, absolute in enumerate(inputList):
+        if absolute is None:
+            if idx == 0:
+                # get the next value that's not None
+                inputListFixed[idx] = next((x for x in inputList if x is not None), 0)
+            else:
+                # get the previous value
+                inputListFixed[idx] = inputListFixed[idx-1]
+
+    deltaList = [j-i for i,j in zip(inputListFixed, inputListFixed[1:])] # python 3.9
+    #deltaList = [y-x for (x,y) in pairwise(inputListFixed)] # python 3.10
+
     for idx, delta in enumerate(deltaList):
         absolute = inputList[idx+1]
-        if absolute == 99999999999999999999.99999999999999999999: # missing
+        if absolute is None or (idx == 0 and inputList[0] is None):
             deltaString = deltaString + '❌'
         elif delta < 0 and absolute < 0:
             deltaString = deltaString + '🔻'
@@ -303,11 +316,10 @@ def doDelta(inputList):
             deltaString = deltaString + '🔼'
         else:
             deltaString = deltaString + '▪️'
+
+    # fallback if input has missing elements
     missingfromstart = 3 - len(deltaString) # desired length hard coded
-    if missingfromstart > 0:
-        deltaString = ("❌" * missingfromstart) + deltaString
-
-
+    deltaString = ("❌" * missingfromstart) + deltaString
 
     return deltaString
 

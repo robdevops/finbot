@@ -433,10 +433,10 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         revenueY = []
         for item in data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly']:
             if item['earnings']['fmt'] is None: # bad data
-                if len(earningsQ):
-                    earningsQ.append(99999999999999999999.99999999999999999999) # hack to indicate missing
-                if len(revenueQ):
-                    revenueQ.append(99999999999999999999.99999999999999999999) # hack to indicate missing
+                #if len(earningsQ): # may fix weirdness in dodelta()
+                earningsQ.append(None)
+                #if len(revenueQ):
+                revenueQ.append(None)
             else:
                 earningsQ.append(item['earnings']['raw'])
                 revenueQ.append(item['revenue']['raw'])
