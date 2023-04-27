@@ -434,9 +434,9 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         for item in data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly']:
             if item['earnings']['fmt'] is None: # bad data
                 if len(earningsQ):
-                    earningsQ.append(earningsQ[-1]) # repeat last so we get a neutral readout
+                    earningsQ.append(99999999999999999999.99999999999999999999) # hack to indicate missing
                 if len(revenueQ):
-                    revenueQ.append(revenueQ[-1]) # repeat last so we get a neutral readout
+                    revenueQ.append(99999999999999999999.99999999999999999999) # hack to indicate missing
             else:
                 earningsQ.append(item['earnings']['raw'])
                 revenueQ.append(item['revenue']['raw'])

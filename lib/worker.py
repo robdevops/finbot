@@ -291,7 +291,9 @@ def doDelta(inputList):
     #deltaList = [y-x for (x,y) in pairwise(inputList)] # python 3.10
     for idx, delta in enumerate(deltaList):
         absolute = inputList[idx+1]
-        if delta < 0 and absolute < 0:
+        if absolute == 99999999999999999999.99999999999999999999: # missing
+            deltaString = deltaString + '❌'
+        elif delta < 0 and absolute < 0:
             deltaString = deltaString + '🔻'
         elif delta < 0 and absolute >= 0:
             deltaString = deltaString + '🔽'
