@@ -41,7 +41,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 else:
                     continue
             elif days:
-                percent = yahoo.price_history(ticker, days)
+                try:
+                    percent = market_data[ticker]['percent_change_period']
+                except KeyError:
+                    percent = yahoo.price_history(ticker, days)
             else:
                 percent = market_data[ticker]['percent_change']
             title = market_data[ticker]['profile_title']
@@ -55,8 +58,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             percent = str(round(percent))
             #flag = util.flag_from_ticker(ticker)
             exchange = market_data[ticker]['profile_exchange']
-            if not (premarket and 'PRE' in marketState) and config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
-                # oddly, google provides post-market but not pre-market pricing
+            if config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
                 if days:
                     ticker_link = util.gfinance_link(ticker, exchange, service, days) # google graph time window
                 else:
@@ -106,9 +108,27 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         specific_stock = util.transform_to_yahoo(specific_stock)
         tickers = [specific_stock]
     else:
-        tickers = sharesight.get_holdings_wrapper()
+        performance = {}
+        performance_data = sharesight.get_performance_wrapper(days)
+        tickers = set()
+        for portfolio_id, data in performance_data.items():
+            for holding in data['report']['holdings']:
+                symbol = holding['instrument']['code']
+                market = holding['instrument']['market_code']
+                percent = float(holding['capital_gain_percent'])
+                ticker = util.transform_to_yahoo(symbol, market)
+                tickers.add(ticker)
+                performance[ticker] = percent
         tickers.update(util.watchlist_load())
+
     market_data = yahoo.fetch(tickers)
+
+    if not specific_stock:
+        for ticker, percent in performance.items():
+            try:
+                market_data[ticker]['percent_change_period'] = percent
+            except KeyError:
+                continue
 
     # Prep and send payloads
     if not webhooks:
@@ -142,7 +162,7 @@ if __name__ == "__main__":
         elif sys.argv[1] == 'premarket':
             lambda_handler(premarket=True)
         elif sys.argv[1] == 'week':
-            lambda_handler(days=5)
+            lambda_handler(days=7)
         elif sys.argv[1] == 'month':
             lambda_handler(days=28)
         else:

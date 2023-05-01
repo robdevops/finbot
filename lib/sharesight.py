@@ -15,7 +15,7 @@ class BearerAuth(requests.auth.AuthBase):
 
 def get_token():
     now = int(time.time())
-    cache_file = config_cache_dir + "/finbot_token_cache.json"
+    cache_file = config_cache_dir + "/finbot_sharesight_token.json"
     cache = util.read_cache(cache_file, 1740)
     if config_cache and cache:
         cache_expiry = cache['created_at'] + cache['expires_in']
@@ -40,7 +40,7 @@ def get_token():
     return data['access_token']
 
 def get_portfolios():
-    cache_file = config_cache_dir + "/finbot_portfolio_cache.json"
+    cache_file = config_cache_dir + "/finbot_sharesight_portfolios.json"
     cache = util.read_cache(cache_file, config_cache_seconds)
     if config_cache and cache:
         print(cache)
@@ -76,7 +76,7 @@ def get_portfolios():
 
 def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     # DO NOT CACHE LONG ENOUGH FOR CRON TO NOTICE #
-    cache_file = config_cache_dir + "/finbot_trade_cache_" + str(portfolio_id) + "_" + str(days) + ".json"
+    cache_file = config_cache_dir + "/finbot_sharesight_trades" + str(portfolio_id) + "_" + str(days) + ".json"
     cache = util.read_cache(cache_file, 59)
     if config_cache and cache:
         return cache['trades']
@@ -99,7 +99,7 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
 def get_holdings(portfolio_name, portfolio_id):
     time_now = datetime.datetime.today()
     today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    cache_file = config_cache_dir + "/finbot_holdings_cache_" + str(portfolio_id) + '.json'
+    cache_file = config_cache_dir + "/finbot_sharesight_holdings_" + str(portfolio_id) + '.json'
     cache = util.read_cache(cache_file, config_cache_seconds)
     if config_cache and cache:
         print(portfolio_name, end=": ")
@@ -138,17 +138,25 @@ def get_holdings_wrapper():
 def get_performance(portfolio_id, days):
     start_date = datetime.datetime.now() - datetime.timedelta(days=days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2023-04-25
-    cache_file = config_cache_dir + "/finbot_performance_cache_" + str(portfolio_id) + "_" + str(days) + '.json'
+    cache_file = config_cache_dir + "/finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'
     cache = util.read_cache(cache_file, config_cache_seconds)
     if config_cache and cache:
-        return cache['report']['capital_gain_percent']
-    token = get_token()
-    endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
-    url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + start_date
-    r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
-    if r.status_code != 200:
-        print(r.status_code, "error")
-    data = r.json()
-    util.write_cache(cache_file, data)
-    return data['report']['capital_gain_percent']
+        data = cache
+    else:
+        token = get_token()
+        endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
+        url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + start_date
+        r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
+        if r.status_code != 200:
+            print(r.status_code, "error")
+        data = r.json()
+        util.write_cache(cache_file, data)
+    return data
 
+def get_performance_wrapper(days=config_past_days):
+    performance = {}
+    portfolios = get_portfolios()
+    for portfolio_name, portfolio_id in portfolios.items():
+        #performance = performance | get_performance(portfolio_id, days)
+        performance[portfolio_id] = get_performance(portfolio_id, days)
+    return performance

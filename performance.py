@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import sys
+import json
 
 from lib.config import *
 from lib import sharesight
@@ -8,15 +9,14 @@ from lib import webhook
 from lib import util
 
 def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=False, user='', portfolio_select=False, message_id=False, interactive=False):
-    performance = {}
-
     def prepare_performance_payload(service, performance, portfolios):
         portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
         payload = []
-        for portfolio_id, percent in performance.items():
+        for portfolio_id in performance:
             portfolio_url = "https://portfolio.sharesight.com/portfolios/" + str(portfolio_id)
             portfolio_name = portfoliosReverseLookup[portfolio_id]
             portfolio_link = util.link(portfolio_url, portfolio_name, service)
+            percent = float(performance[portfolio_id]['report']['currency_gain_percent'])
             payload.append(f"{portfolio_link} {percent}%")
         if len(payload):
             days_english = f'{past_days} days' if past_days != 1 else 'day'
@@ -27,13 +27,12 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 
     # MAIN #
     portfolios = sharesight.get_portfolios()
+    performance = {}
 
     if portfolio_select:
         portfoliosLower = {k.lower():v for k,v in portfolios.items()}
-        portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
         if portfolio_select.lower() in portfoliosLower:
             portfolio_id = portfoliosLower[portfolio_select.lower()] # any-case input
-            portfolio_select = portfoliosReverseLookup[portfolio_id] # correct-case output
             performance[portfolio_id] = sharesight.get_performance(portfolio_id, past_days)
     else:
         for portfolio, portfolio_id in portfolios.items():
