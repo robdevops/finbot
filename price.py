@@ -109,7 +109,11 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         tickers = [specific_stock]
     else:
         performance = {}
-        performance_data = sharesight.get_performance_wrapper(days)
+        if days:
+            performance_data = sharesight.get_performance_wrapper(days)
+        else:
+            # we need to run this anyway, because it's replacing sharesight.get_portfolios()
+            performance_data = sharesight.get_performance_wrapper(days=0)
         tickers = set()
         for portfolio_id, data in performance_data.items():
             for holding in data['report']['holdings']:

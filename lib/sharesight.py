@@ -76,7 +76,7 @@ def get_portfolios():
 
 def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     # DO NOT CACHE LONG ENOUGH FOR CRON TO NOTICE #
-    cache_file = config_cache_dir + "/finbot_sharesight_trades" + str(portfolio_id) + "_" + str(days) + ".json"
+    cache_file = config_cache_dir + "/finbot_sharesight_trades_" + str(portfolio_id) + "_" + str(days) + ".json"
     cache = util.read_cache(cache_file, 59)
     if config_cache and cache:
         return cache['trades']
