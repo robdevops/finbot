@@ -48,7 +48,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket)\s*([\w\.\:]+)*"
     m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-    price_command = r"^([\!\.]\s?|^" + botName + r"\s+)prices?\s*([\w\.\:]+)*"
+    price_command = r"^([\!\.]\s?|^" + botName + r"\s+)prices?\s*([\w\.\:\%]+)*\s*([\w\.\:\%]+)*"
     m_price = re.match(price_command, message, re.IGNORECASE)
 
     shorts_command = r"^([\!\.]\s?|^" + botName + r"\s+)shorts?\s*([\w\.\:]+)*"
@@ -164,13 +164,29 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_price:
         price_threshold = config_price_percent
         specific_stock = False
+        past_days = False
+        interday = True
         if m_price.group(2):
             arg = m_price.group(2)
             try:
-                price_threshold = int(arg)
+                price_threshold = int(arg.split('%')[0])
             except ValueError:
-                specific_stock = str(arg).upper()
-        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, interday=True)
+                try:
+                    past_days = int(arg.split('d')[0])
+                    interday = False
+                except ValueError:
+                    specific_stock = str(arg).upper()
+        if m_price.group(3):
+            arg = m_price.group(3)
+            try:
+                past_days = int(arg.split('d')[0])
+                interday = False
+            except ValueError:
+                try:
+                    price_threshold = int(arg.split('%')[0])
+                except ValueError:
+                    pass
+        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, interday=interday, days=past_days)
     elif m_premarket:
         premarket_threshold = config_price_percent
         specific_stock = False
