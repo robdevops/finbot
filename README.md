@@ -18,7 +18,6 @@
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
-
 ### Requirements
 * Most features require a Sharesight paid plan, preferably with automatic trade imports, and an API key
 * Discord/Slack webhooks / Telegram bot user
@@ -44,7 +43,7 @@ Where:
 .marketcap symbol
 .performance [days|portfolio]
 .premarket [percent|symbol]
-.price [percent|symbol]
+.price [percent|symbol] [days]
 .profile symbol
 .session [percent|symbol]
 .shorts [percent|symbol]
@@ -105,7 +104,7 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔽 earnings/revenue decreased from the previous period
     * 🔺 earnings increased from the previous period but remained negative
     * 🔻 earnings decreased from the previous period and was negative
-    * ▪ earnings/revenue matched the previous period
+    * ▪️  earnings/revenue matched the previous period
     * ❌ data is missing for this period
 * Using the example screenshot above, Crowdstrike reported:
     * 🔼🔼🔼 revenue increased in all of the past three quarters
@@ -162,11 +161,10 @@ You can also specify a portfolio name to get today's trades for just that portfo
 @botname trades [portfolio]
 ```
 
-
 ### Price alerts
 ![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
 
-`prices.py` sends premarket, midsession, and intaday price alerts for Sharesight holdings if the movement is over a percentage threshold. This data is sourced from Yahoo! Finance. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
+`prices.py` sends premarket, midsession, and interday price movements if holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
 Config example:
 ```
@@ -175,14 +173,16 @@ price_percent = 9.4
 
 Cron trigger:
 ```
-./price.py [premarket|midsession|interday]
+./price.py [premarket|midsession|interday|days (int)]
 ```
 When scheduled (Cron), the mode must be passed as an execution argument.
 * If `premarket` is passed, it only reports on pre/post market price movements.
 * If `midsession` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones. It can also be run through the interactive bot  as shown below.
 * If `interday` is passed, it reports current price against the previous market close.
+* If an integer [i] is passed, it reports current price against [i] days ago.
 
 Interactive trigger (pre-market):
+Interactively, you can also optionally specify the number of days to compare against.
 ```
 .premarket [percent]
 ```
@@ -198,14 +198,23 @@ Interactive trigger (mid-session):
 @botname midsession [percent]
 ```
 
-Interactive trigger (interday):
+Interactive trigger (interday).
 ```
 .price [percent]
 ```
 ```
-@botname price [percent]
+@botname [percent]
 ```
 
+For interday, can also specify the number of days:
+```
+.price 10% [5d]
+```
+
+Or a specific stock:
+```
+.price AAPL [90d]
+```
 
 ### Portfolio performance
 ![Screenshot of Portfolio performance notification on Slack](img/performance.png?raw=true "Screenshot performance notification on Slack")
@@ -413,7 +422,6 @@ hyperlinkProvider = google
 hyperlinkProvider = yahoo
 ```
 
-
 ## Scheduling example
 Recommended for a machine set to UTC:
 ```
@@ -432,10 +440,10 @@ Recommended for a machine set to UTC:
 10  11 * * Mon-Fri ~/finbot/price.py premarket &> /dev/null
 
 # Weekly
-28  21 * * Sat { cd ~/finbot/; ./cal.py earnings; ./cal.py ex-dividend; ./price.py week; ./performance.py 7 ;} &> /dev/null
+28  21 * * Sat { cd ~/finbot/; ./cal.py earnings; ./cal.py ex-dividend; ./price.py 7; ./performance.py 7 ;} &> /dev/null
 
 # Monthly
-27  21 1 * * { cd ~/finbot/; ./shorts.py; ./price.py month; ./performance.py 28 ;} &> /dev/null
+27  21 1 * * { cd ~/finbot/; ./shorts.py; ./price.py 28; ./performance.py 28 ;} &> /dev/null
 ```
 The above can be installed with:
 ```
@@ -503,8 +511,6 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
     * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_ 
     * Copy _Bot User OAuth Token_ into .env file `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies.
     * Restart `bot.py`
-
-
 
 ### Daemonize (systemd)
 `finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User` and `ExecStart`, then enable and start it:
