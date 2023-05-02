@@ -106,8 +106,8 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔺 earnings increased from the previous period but remained negative
     * 🔻 earnings decreased from the previous period and was negative
     * ▪ earnings/revenue matched the previous period
-    * ❌ indicates missing data for this period
-* Using the example screenshot above, the company reported:
+    * ❌ data is missing for this period
+* Using the example screenshot above, Crowdstrike reported:
     * 🔼🔼🔼 revenue increased in all of the past three quarters
     * 🔺🔻🔻 In the past three quarters, earnings initially increased, then decreased for two quarters, and was negative in every quarter
     * 🔼🔼🔼 revenue increased in all of the past three years
@@ -338,17 +338,17 @@ vi ~/finbot/.env
 ### Sharesight
 * Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to the .env file. Example:
 ```
-sharesight_code = '01d692d4de7mockupfc64bc2e2f01d692d4de72986ea808f6e99813f'
-sharesight_client_id = '01d692d4de7mockupfc64bc2e2f01d692d4de72986ea808f6e99813f'
-sharesight_client_secret = '01d692d4de7mockupfc64bc2e2f01d692d4de72986ea808f6e99813f'
+sharesight_code = '01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f'
+sharesight_client_id = '01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f'
+sharesight_client_secret = '01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f'
 ```
 
 ### Discord
 Discord support is currently only for trade notifications and scheduled reports.
 The Discord webhook can be provisioned in Discord under _Server Settings > Integrations > Webhooks_.
-We use Discord's Slack compatibility by appending `/slack` to the Discord webhook in the .env file. Example:
+Example:
 ```
-discord_webhook = 'https://discord.com/api/webhooks/1009998000000000000/aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbb/slack'
+discord_webhook = 'https://discord.com/api/webhooks/1009998000000000000/aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbb'
 ```
 
 ### Slack
