@@ -36,7 +36,7 @@ Where:
 * _portfolio_ is a Sharesight portfolio name
 * _percent_ is an integer or float
 ```
-.symbol
+.<symbol>
 .dividend [days|symbol]
 .earnings [days|symbol]
 .holdings [portfolio]
@@ -54,14 +54,14 @@ Where:
 Alternative syntax:
 
 ```
-@botname symbol
+@botname <symbol>
 @botname dividend [days|symbol]
 @botname earnings [days|symbol]
 @botname holdings [portfolio]
 @botname marketcap symbol
 @botname performance [days|portfolio]
 @botname premarket [percent|symbol]
-@botname price [percent|symbol]
+@botname price [percent|symbol] [days]
 @botname profile symbol
 @botname session [percent|symbol]
 @botname shorts [percent|symbol]
