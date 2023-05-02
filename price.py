@@ -112,7 +112,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         if days:
             performance_data = sharesight.get_performance_wrapper(days)
         else:
-            # we need to run this anyway, because it's replacing sharesight.get_portfolios()
+            # must be called even when using yahoo data, because it's replacing sharesight.get_holdings()
             performance_data = sharesight.get_performance_wrapper(days=0)
         tickers = set()
         for portfolio_id, data in performance_data.items():
@@ -159,18 +159,19 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
 
         # python 3.9
-        if sys.argv[1] == 'midsession':
-            lambda_handler(midsession=True)
-        elif sys.argv[1] == 'interday':
-            lambda_handler(interday=True)
-        elif sys.argv[1] == 'premarket':
-            lambda_handler(premarket=True)
-        elif sys.argv[1] == 'week':
-            lambda_handler(days=7)
-        elif sys.argv[1] == 'month':
-            lambda_handler(days=28)
+        try:
+            arg = int(sys.argv[1])
+        except ValueError:
+            if sys.argv[1] == 'midsession':
+                lambda_handler(midsession=True)
+            elif sys.argv[1] == 'interday':
+                lambda_handler(interday=True)
+            elif sys.argv[1] == 'premarket':
+                lambda_handler(premarket=True)
+            else:
+                print("Usage:", sys.argv[0], "[midsession|interday|premarket|days (int)]")
         else:
-            print("Usage:", sys.argv[0], "[midsession|interday|premarket|week|month]")
+            lambda_handler(days=arg)
 
         # python 3.10
         #match sys.argv[1]:
@@ -188,4 +189,4 @@ if __name__ == "__main__":
         #        print("Usage:", sys.argv[0], "[midsession|interday|premarket|week|month]")
 
     else:
-        print("Usage:", sys.argv[0], "[midsession|interday|premarket|week|month]")
+        print("Usage:", sys.argv[0], "[midsession|interday|premarket|days (int)]")
