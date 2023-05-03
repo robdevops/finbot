@@ -97,23 +97,10 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     return data['trades']
 
 def get_holdings(portfolio_name, portfolio_id):
-    time_now = datetime.datetime.today()
-    today = str(time_now.strftime('%Y-%m-%d')) # 2022-09-20
-    cache_file = config_cache_dir + "/finbot_sharesight_holdings_" + str(portfolio_id) + '.json'
-    cache = util.read_cache(cache_file, config_cache_seconds)
-    if config_cache and cache:
-        print(portfolio_name, end=": ")
-        return cache
-    token = get_token()
     print("Fetching Sharesight holdings", portfolio_name, end=": ")
-    holdings = {}
-    endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
-    url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + today
-    r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
-    if r.status_code != 200:
-        print(r.status_code, "error")
-    data = r.json()
+    data = get_performance(portfolio_id, 0)
     print(len(data['report']['holdings']))
+    holdings = {}
     for item in data['report']['holdings']:
         code = item['instrument']['code']
         holdings[code] = item['instrument']
@@ -125,7 +112,6 @@ def get_holdings(portfolio_name, portfolio_id):
         tickers.add(ticker)
     tickers = list(tickers)
     tickers.sort()
-    util.write_cache(cache_file, tickers)
     return tickers
 
 def get_holdings_wrapper():
