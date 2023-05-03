@@ -25,7 +25,8 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
             if (timestamp > now and timestamp < soon) or specific_stock:
                 title = market_data[ticker]['profile_title']
                 ticker_link = util.yahoo_link(ticker, service)
-                payload.append(f"{timestamp} {emoji} {title} ({ticker_link})")
+                payload.append(f"{timestamp} {title} ({ticker_link})")
+
         def sort_first_column(e):
             return int(e.split()[0])
         payload.sort(key=sort_first_column)
@@ -34,7 +35,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
             timestamp = int(line[0])
             human_date = time.strftime('%b %d', time.localtime(timestamp)) # Dec 30
             line = ' '.join(line[1:])
-            payload[i] = human_date + ' ' + line
+            payload[i] = emoji + ' ' + human_date + ' ' + line
 
         if payload:
             if not specific_stock:
