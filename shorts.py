@@ -14,7 +14,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
         emoji = "🩳"
         for ticker in tickers:
             try:
-                short_percent = market_data[ticker]['short_percent']
+                short_percent = float(market_data[ticker]['short_percent'])
             except (KeyError, ValueError):
                 continue
             if '.AX' in ticker:
@@ -24,13 +24,18 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
                 url = 'https://finance.yahoo.com/quote/' + ticker + '/key-statistics?p=' + ticker
                 short_interest_link = util.link(url, ticker, service)
             title = market_data[ticker]['profile_title']
-            short_percent = str(round(short_percent))
-            #flag = util.flag_from_ticker(ticker)
-            if float(short_percent) > threshold or specific_stock:
-                payload.append(f"{emoji} {title} ({short_interest_link}) {short_percent}%")
-        def last_column_percent(e):
-            return int(re.split(' |%', e)[-2])
-        payload.sort(key=last_column_percent)
+            if short_percent > threshold or specific_stock:
+                payload.append(f"{str(short_percent)} {emoji} {title} {short_interest_link}")
+
+        def sort_first_column(e):
+            return float(e.split()[0])
+        payload.sort(key=sort_first_column)
+        for i, line in enumerate(payload): # round after sorting
+            line = line.split()
+            percent = round(float(line[0]))
+            line = ' '.join(line[1:])
+            payload[i] = line + ' ' + str(percent) + '%'
+
         if payload:
             if not specific_stock:
                 message = f'Stocks shorted over {threshold}%:'

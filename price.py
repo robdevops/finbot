@@ -55,7 +55,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 emoji = '🔼'
             else:
                 emoji = "▪️"
-            percent = str(round(percent))
             #flag = util.flag_from_ticker(ticker)
             exchange = market_data[ticker]['profile_exchange']
             if config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
@@ -65,11 +64,18 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                     ticker_link = util.gfinance_link(ticker, exchange, service, brief=True)
             else:
                 ticker_link = util.yahoo_link(ticker, service)
-            if specific_stock or abs(float(percent)) >= threshold: # abs catches negative percentages
-                payload.append(f"{emoji} {title} ({ticker_link}) {percent}%")
-        def last_column_percent(e):
-            return int(re.split(' |%', e)[-2])
-        payload.sort(key=last_column_percent)
+            if specific_stock or abs(percent) >= threshold: # abs catches negative percentages
+                payload.append(f"{str(percent)} {emoji} {title} ({ticker_link})")
+
+        def sort_first_column(e):
+            return float(e.split()[0])
+        payload.sort(key=sort_first_column)
+        for i, line in enumerate(payload): # round after sorting
+            line = line.split()
+            percent = round(float(line[0]))
+            line = ' '.join(line[1:])
+            payload[i] = line + ' ' + str(percent) + '%'
+
         if payload:
             if not specific_stock:
                 if midsession:

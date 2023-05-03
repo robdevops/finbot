@@ -69,11 +69,19 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                 holding_link = util.gfinance_link(symbol, market, service, brief=True)
             else:
                 holding_link = util.yahoo_link(ticker, service, brief=True)
-            payload.append(f"{emoji} {portfolio_name} {trade_link} {currency} {value:,} of {holding_link} {flag}")
+            payload.append(f"{date} {emoji} {portfolio_name} {trade_link} {currency} {value:,} of {holding_link} {flag}")
 
-        def sort_ticker(e):
-            return re.split(' ', e)[-2]
-        payload.sort(key=sort_ticker)
+        def sort_first_column(e):
+            return int(e.split()[0].replace('-', ''))
+        payload.sort(key=sort_first_column)
+        for i, line in enumerate(payload): # remove date after sorting
+            line_split = line.split()
+            line = ' '.join(line_split[1:])
+            #if interactive:
+            #    timeobject = datetime.datetime.strptime(line_split[0], '%Y-%m-%d')
+            #    human_date = timeobject.strftime('%b %d')
+            #    line = human_date + ' ' + line
+            payload[i] = line
 
         if interactive and not payload: # easter egg 4
             payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]
