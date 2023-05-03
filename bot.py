@@ -5,7 +5,6 @@ gevent.monkey.patch_all()
 import json, os, re, sys
 from gevent import pywsgi
 import threading
-from sys import stderr
 from urllib.parse import urlparse
 
 from lib.config import *
@@ -17,12 +16,12 @@ if config_telegramBotToken:
 def main(environ, start_response):
     def print_body():
         try:
-            print(f"inbound {uri} ", json.dumps(inbound, indent=4), file=stderr)
+            print(f"inbound {uri} ", json.dumps(inbound, indent=4), file=sys.stderr)
         except Exception as e:
-            print(e, "raw body: ", inbound, file=stderr)
+            print(e, "raw body: ", inbound, file=sys.stderr)
     def print_headers():
         for item in sorted(environ.items()):
-            print(item, file=stderr)
+            print(item, file=sys.stderr)
     request_body = environ['wsgi.input'].read()
     user=''
     userRealName=''
@@ -41,11 +40,11 @@ def main(environ, start_response):
         global botName
         if 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' not in environ:
             print_headers()
-            print("Fatal:", service, "authorisation header not present", file=stderr)
+            print("Fatal:", service, "authorisation header not present", file=sys.stderr)
             return [b'<h1>Unauthorized</h1>']
         if environ['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] != config_telegramOutgoingToken:
             print_headers()
-            print("Fatal: Telegram authorisation header is present but incorrect. Expected:", config_telegramOutgoingToken, file=stderr)
+            print("Fatal: Telegram authorisation header is present but incorrect. Expected:", config_telegramOutgoingToken, file=sys.stderr)
             return [b'<h1>Unauthorized</h1>']
         if "message" not in inbound:
             return [b'Unsupported']
@@ -63,7 +62,7 @@ def main(environ, start_response):
             if user_id in config_telegramAllowedUserIDs:
                 print(user_id, user, userRealName, "is whitelisted for private message")
             else:
-                print(user_id, user, userRealName, "is not whitelisted. Ignoring.", file=stderr)
+                print(user_id, user, userRealName, "is not whitelisted. Ignoring.", file=sys.stderr)
                 return [b'<h1>Unauthorized</h1>']
         file_id=False
         if "text" in inbound["message"]:
@@ -77,31 +76,31 @@ def main(environ, start_response):
             file_id = photo["file_id"]
             print("[Telegram photo]:", user, file_id, message)
         else:
-            print(f"[{service}]: unhandled: 'message' without 'text/photo'", file=stderr)
+            print(f"[{service}]: unhandled: 'message' without 'text/photo'", file=sys.stderr)
             return [b'<h1>Unhandled</h1>']
     elif config_slackOutgoingWebhook and uri == urlparse(config_slackOutgoingWebhook).path:
         service = 'slack'
         if 'token' not in inbound:
-            print("warning: Slack authorisation field not present", file=stderr)
+            print("warning: Slack authorisation field not present", file=sys.stderr)
             print_body()
             return [b'<h1>Unauthorized</h1>']
         if inbound['token'] == config_slackOutgoingToken:
             print("Incoming Slack request authenticated")
         else:
-            print("Slack auth incorrect. Expected:", config_slackOutgoingToken, "Got:", inbound['token'], file=stderr)
+            print("Slack auth incorrect. Expected:", config_slackOutgoingToken, "Got:", inbound['token'], file=sys.stderr)
             print_body()
             return [b'<h1>Unauthorized</h1>']
         if 'type' not in inbound:
-            print(f"[{service}]: unhandled: no 'type'", file=stderr)
+            print(f"[{service}]: unhandled: no 'type'", file=sys.stderr)
             return [b'Unhandled']
         if inbound['type'] == 'url_verification':
             response = json.dumps({"challenge": inbound["challenge"]})
-            print("replying with", response, file=stderr)
+            print("replying with", response, file=sys.stderr)
             response = bytes(response, "utf-8")
             return [response]
         if inbound['type'] == 'event_callback':
             if inbound["event"]["type"] not in ('message', 'app_mention') or "text" not in inbound['event']:
-                print(f"[{service}]: unhandled event callback type", inbound["event"]["type"], file=stderr)
+                print(f"[{service}]: unhandled event callback type", inbound["event"]["type"], file=sys.stderr)
                 return [b'<h1>Unhandled</h1>']
             message_id = str(inbound["event"]["ts"])
             message = inbound['event']['text']
@@ -113,10 +112,10 @@ def main(environ, start_response):
             print(f"[{service}]:", user, message)
             # this condition spawns a worker before returning
         else:
-            print(f"[{service}]: unhandled 'type'", file=stderr)
+            print(f"[{service}]: unhandled 'type'", file=sys.stderr)
             return [b'<h1>Unhandled</h1>']
     else:
-        print("Unknown URI", uri, file=stderr)
+        print("Unknown URI", uri, file=sys.stderr)
         status = "404 Not Found"
         start_response(status, headers)
         return [b'<h1>404</h1>']
@@ -133,13 +132,13 @@ def main(environ, start_response):
 
 if __name__ == '__main__':
     if os.getuid() == 0:
-        print("Running as superuser. This is not recommended.", file=stderr)
+        print("Running as superuser. This is not recommended.", file=sys.stderr)
     httpd = pywsgi.WSGIServer((config_ip, config_port), main)
     if debug:
         httpd.secure_repr = False
-    print(f'Opening socket on http://{config_ip}:{config_port}', file=stderr)
+    print(f'Opening socket on http://{config_ip}:{config_port}', file=sys.stderr)
     try:
         httpd.serve_forever()
     except OSError as e:
-        print(e, file=stderr)
+        print(e, file=sys.stderr)
         sys.exit(1)

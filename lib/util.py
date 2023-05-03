@@ -300,7 +300,7 @@ def gfinance_link(symbol, market, service='telegram', days=1, brief=False):
         return symbol
     ticker = symbol.split('.')[0] + ':' + market
     if brief:
-        text = symbol
+        text = symbol.replace(':', '.').split('.')[0]
     else:
         if '.' in symbol:
             text = ticker
