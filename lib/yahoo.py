@@ -34,6 +34,7 @@ def getCrumb(seconds=config_cache_seconds):
 def fetch(tickers):
     # NEVER CACHE THIS
     print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
+    now = int(time.time())
     yahoo_output = {}
     crumb = getCrumb()
     yahoo_urls = ['https://query2.finance.yahoo.com/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)]
@@ -124,8 +125,12 @@ def fetch(tickers):
             earningsTimestamp = item['earningsTimestamp']
             earningsTimestampStart = item['earningsTimestampStart']
             earningsTimestampEnd = item['earningsTimestampEnd']
-            if earningsTimestamp == earningsTimestampStart == earningsTimestampEnd:
+            if earningsTimestamp > now:
                 yahoo_output[ticker]["earnings_date"] = earningsTimestamp
+            elif earningsTimestampStart > now:
+                yahoo_output[ticker]["earnings_date"] = earningsTimestampStart
+            elif earningsTimestampEnd > now:
+                yahoo_output[ticker]["earnings_date"] = earningsTimestampEnd
         except (KeyError, IndexError):
             pass
     return yahoo_output
