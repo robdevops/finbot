@@ -146,10 +146,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         else:
             days = config_past_days
         # easter egg 3
-        verbString = f"Time travelling { f'{days} days' if days != 1 else 'one day' } to get"
-        searchVerb.append(verbString)
-        payload = [ f"{random.choice(searchVerb)} performance for the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        if days > 0:
+            payload = [ f"{random.choice(searchVerb)} performance for the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
+            webhook.payload_wrapper(service, url, payload, chat_id)
         performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=False, interactive=True)
     elif m_session:
         price_threshold = config_price_percent
@@ -164,7 +163,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_price:
         price_threshold = config_price_percent
         specific_stock = False
-        past_days = False
+        days = False
         interday = True
         if m_price.group(2):
             arg = m_price.group(2)
@@ -172,21 +171,25 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 price_threshold = int(arg.split('%')[0])
             except ValueError:
                 try:
-                    past_days = int(arg.split('d')[0])
+                    days = int(arg.split('d')[0])
                     interday = False
                 except ValueError:
                     specific_stock = str(arg).upper()
         if m_price.group(3):
             arg = m_price.group(3)
             try:
-                past_days = int(arg.split('d')[0])
+                days = int(arg.split('d')[0])
                 interday = False
             except ValueError:
                 try:
                     price_threshold = int(arg.split('%')[0])
                 except ValueError:
                     pass
-        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, interday=interday, days=past_days)
+        if days and days > 0:
+            # easter egg 3
+            payload = [ f"{random.choice(searchVerb)} performance from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
+            webhook.payload_wrapper(service, url, payload, chat_id)
+        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, interday=interday, days=days)
     elif m_premarket:
         premarket_threshold = config_price_percent
         specific_stock = False
@@ -220,8 +223,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         else:
             days = 1
         # easter egg 3
-        verbString = f"Time travelling { f'{days} days' if days != 1 else 'one day' } to get"
-        searchVerb.append(verbString)
         payload = [ f"{random.choice(searchVerb)} trades from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
         webhook.payload_wrapper(service, url, payload, chat_id)
         trades.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=False, interactive=True)
