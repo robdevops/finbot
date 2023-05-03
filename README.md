@@ -11,10 +11,11 @@
   * Ex-dividend date warnings
   * Highly shorted stock warnings (AU, US)
 * Interactive chat commands (Slack & Telegram):
+  * All the above reports
   * Stock lookup with price/valuation related stats and warnings
   * Company profiles
   * Shared watch list
-  * List current Sharesight holdings
+  * Sharesight holdings & portfolio performance
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
@@ -76,7 +77,7 @@ The other various reports can also run from cron (e.g. daily or weekly), or on d
 The interactive bot component requires you to host a web service on a domain with a trusted certificate. It subscribes to push updates from native Slack apps / Telegram bots, and reacts to certain regex seen in chat. It provides:
 * Stock lookup (financials and company profile)
 * Group maintainable watch list, picked up by the various reports
-* Listing of portfolios and their current holdings
+* Listing of portfolios, portfolio performance, and holdings 
 * Running the other stock reports on demand
 
 ## Reports
