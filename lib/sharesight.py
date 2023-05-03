@@ -99,6 +99,8 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
 def get_holdings(portfolio_name, portfolio_id):
     print("Fetching Sharesight holdings", portfolio_name, end=": ")
     data = get_performance(portfolio_id, 0)
+    if not data:
+        return False
     print(len(data['report']['holdings']))
     holdings = {}
     for item in data['report']['holdings']:
@@ -117,6 +119,8 @@ def get_holdings(portfolio_name, portfolio_id):
 def get_holdings_wrapper():
     tickers = set()
     portfolios = get_portfolios()
+    if not portfolios:
+        return False
     for portfolio_name, portfolio_id in portfolios.items():
         tickers.update(get_holdings(portfolio_name, portfolio_id))
     return tickers
@@ -132,7 +136,11 @@ def get_performance(portfolio_id, days):
         token = get_token()
         endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
         url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + start_date
-        r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
+        try:
+            r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
+        except Exception as e:
+            print(str(e), "for", url, file=sys.stderr)
+            return False
         if r.status_code != 200:
             print(r.status_code, "error")
         data = r.json()
@@ -143,6 +151,7 @@ def get_performance_wrapper(days=config_past_days):
     performance = {}
     portfolios = get_portfolios()
     for portfolio_name, portfolio_id in portfolios.items():
-        #performance = performance | get_performance(portfolio_id, days)
         performance[portfolio_id] = get_performance(portfolio_id, days)
+        if not performance[portfolio_id]:
+            return False
     return performance

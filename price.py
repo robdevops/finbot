@@ -114,13 +114,18 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 
     if not specific_stock and days: # else market_data or yahoo.price_history is faster
         performance = sharesight.get_performance_wrapper(days)
+        if not performance:
+            sys.exit(1)
         for portfolio_id, data in performance.items():
             for holding in data['report']['holdings']:
                 symbol = holding['instrument']['code']
                 market = holding['instrument']['market_code']
                 percent = float(holding['capital_gain_percent'])
                 ticker = util.transform_to_yahoo(symbol, market)
-                market_data[ticker]['percent_change_period'] = percent
+                try:
+                    market_data[ticker]['percent_change_period'] = percent
+                except KeyError:
+                    print(ticker, "has no data")
 
     # Prep and send payloads
     if not webhooks:
