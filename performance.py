@@ -10,14 +10,19 @@ from lib import util
 
 def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=False, user='', portfolio_select=False, message_id=False, interactive=False):
     def prepare_performance_payload(service, performance, portfolios):
-        portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
         payload = []
         for portfolio_id in performance:
             portfolio_url = "https://portfolio.sharesight.com/portfolios/" + str(portfolio_id)
-            portfolio_name = portfoliosReverseLookup[portfolio_id]
+            portfolio_name = performance[portfolio_id]['report']['holdings'][0]['portfolio']['name']
             portfolio_link = util.link(portfolio_url, portfolio_name, service)
             percent = float(performance[portfolio_id]['report']['currency_gain_percent'])
-            payload.append(f"{portfolio_link} {percent}%")
+            if percent < 0:
+                emoji = "🔻"
+            elif percent > 0:
+                emoji = '🔼'
+            else:
+                emoji = "▪️"
+            payload.append(f"{emoji} {portfolio_link} {percent}%")
         if len(payload):
             days_english = f'{past_days} days' if past_days != 1 else 'day'
             message = "Performance over past " + days_english
