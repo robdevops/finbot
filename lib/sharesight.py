@@ -105,7 +105,6 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
         trade['portfolio'] = portfolio_name # inject custom field
     if config_cache and 'trades' in data:
         util.write_cache(cache_file, data)
-    print(json.dumps(data['trades'], indent=4))
     return data['trades']
 
 def get_holdings(portfolio_name, portfolio_id):
