@@ -23,7 +23,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         sharesight_url = "https://portfolio.sharesight.com/holdings/"
         for trade in trades:
             trade_id = str(trade['id'])
-            portfolio_name = trade['portfolio']
+            portfolio_name = trade['portfolio'] # custom field
             date = trade['transaction_date']
             transactionType = trade['transaction_type']
             units = float(trade['quantity'])

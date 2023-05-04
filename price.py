@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import json, re, sys
+import json, re, sys, os
 import datetime
 import pytz
 
@@ -135,7 +135,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 try:
                     market_data[ticker]['percent_change_period'] = percent
                 except KeyError:
-                    print(ticker, "has no data")
+                    print("Error:", os.path.basename(__file__), ticker, "has no data")
 
     # Prep and send payloads
     if not webhooks:
