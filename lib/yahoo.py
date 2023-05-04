@@ -19,14 +19,14 @@ def getCrumb(seconds=config_cache_seconds):
         try:
             r = requests.get(url, headers=headers, timeout=config_http_timeout)
         except Exception as e:
-            print(e)
+            print(e, file=sys.stderr)
         else:
             if r.status_code != 200:
-                print(r.status_code, "returned by", url)
+                print(r.status_code, "returned by", url, file=sys.stderr)
                 continue
             break
     else:
-        print("Exhausted Yahoo API attempts. Giving up")
+        print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
         sys.exit(1)
     util.write_cache(cache_file, r.text)
     return r.text
@@ -45,16 +45,16 @@ def fetch(tickers):
         try:
             r = requests.get(url, headers=headers, timeout=config_http_timeout)
         except Exception as e:
-            print(e)
+            print(e, file=sys.stderr)
         else:
             if r.status_code == 200:
                 print(r.status_code, "success yahoo")
             else:
-                print(r.status_code, "returned by", url)
+                print(r.status_code, "returned by", url, file=sys.stderr)
                 continue
             break
     else:
-        print("Exhausted Yahoo API attempts. Giving up")
+        print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
         sys.exit(1)
     data = r.json()
     data = data['quoteResponse']
@@ -155,11 +155,10 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
             try:
                 r = requests.get(url, headers=headers, timeout=config_http_timeout)
             except Exception as e:
-                print(e)
+                print(e, file=sys.stderr)
             else:
                 if r.status_code != 200:
-                    #print(r.status_code, "error", ticker, url)
-                    print('x', sep=' ', end='', flush=True)
+                    print('x', sep=' ', end='', flush=True, file=sys.stderr)
                     continue
                 break
         else:
@@ -174,10 +173,10 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     try:
         profile_title = data['quoteSummary']['result'][0]['price']['longName']
     except (KeyError, IndexError, ValueError):
-        print(ticker + '†', sep=' ', end='', flush=True)
+        print(ticker + '†', sep=' ', end='', flush=True, file=sys.stderr)
         return False
     if profile_title is None: # catches some delisted stocks like "DUB"
-        print(f"{ticker}†", sep=' ', end='', flush=True)
+        print(f"{ticker}†", sep=' ', end='', flush=True, file=sys.stderr)
         return False
     profile_title = util.transform_title(profile_title)
     local_market_data[ticker]['profile_title'] = profile_title
@@ -426,11 +425,11 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
             local_market_data[ticker]['revenueAnalysts'] = revenueAnalysts
             local_market_data[ticker]['earningsAnalysts'] = earningsAnalysts
         except UnboundLocalError:
-            print(f'{ticker}†', sep=' ', end='', flush=True)
+            print(f'{ticker}†', sep=' ', end='', flush=True, file=sys.stderr)
     try:
         data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][0]['revenue']['raw']
     except (KeyError, IndexError):
-        print(f'{ticker}†', sep=' ', end='', flush=True)
+        print(f'{ticker}†', sep=' ', end='', flush=True, file=sys.stderr)
     else:
         earningsQ = []
         revenueQ = []
@@ -474,7 +473,6 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         local_market_data[ticker]['insiderBuyValue'] = buyValue
         local_market_data[ticker]['insiderSellValue'] = sellValue
 
-    #print("")
     local_market_data[ticker] = dict(sorted(local_market_data[ticker].items()))
     return local_market_data
 
@@ -496,12 +494,12 @@ def price_history(ticker, days=27, seconds=config_cache_seconds):
     try:
         r = requests.get(url, headers=headers, timeout=config_http_timeout)
     except:
-        print("Failure fetching", url)
+        print("Failure fetching", url, file=sys.stderr)
         return False
     if r.status_code == 200:
         print('↓', sep=' ', end='', flush=True)
     else:
-        print(ticker, r.status_code, "error communicating with", url)
+        print(ticker, r.status_code, "error communicating with", url, file=sys.stderr)
         return False
     csv = r.content.decode('utf-8').split('\n')
     price = []

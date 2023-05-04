@@ -70,7 +70,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 
     # Prep and send payloads
     if not webhooks:
-        print("Error: no services enabled in .env")
+        print("Error: no services enabled in .env", file=sys.stderr)
         sys.exit(1)
     if interactive:
         payload = prepare_payload(service, market_data, days)
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         elif sys.argv[1] == 'dividend':
             lambda_handler(dividend=True)
         else:
-            print("Usage:", sys.argv[0], "[earnings|ex-dividend]")
+            print("Usage:", sys.argv[0], "[earnings|ex-dividend]", file=sys.stderr)
 
         # python 3.10
         #match sys.argv[1]:
@@ -107,7 +107,7 @@ if __name__ == "__main__":
         #    case 'ex-dividend':
         #        lambda_handler(dividend=True)
         #    case other:
-        #        print("Usage:", sys.argv[0], "[earnings|ex-dividend]")
+        #        print("Usage:", sys.argv[0], "[earnings|ex-dividend]", file=sys.stderr)
 
     else:
-        print("Usage:", sys.argv[0], "[earnings|ex-dividend]")
+        print("Usage:", sys.argv[0], "[earnings|ex-dividend]", file=sys.stderr)

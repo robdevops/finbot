@@ -25,12 +25,12 @@ def write(service, url, payload, slackchannel=False, message_id=False):
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=config_http_timeout)
     except:
-        print("Failure executing request:", url, headers, payload)
+        print("Failure executing request:", url, headers, payload, file=sys.stderr)
         return False
     if r.status_code == 200:
         print(r.status_code, "OK outbound to", service)
     else:
-        print(r.status_code, "error outbound to", service)
+        print(r.status_code, "error outbound to", service, file=sys.stderr)
         return False
 
 def payload_wrapper(service, url, payload, slackchannel=False, message_id=False):

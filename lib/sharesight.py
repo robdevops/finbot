@@ -72,7 +72,7 @@ def get_portfolios():
         else:
             portfolio_dict[portfolio['name']] = portfolio['id']
     if not len(portfolio_dict):
-        print("No portfolios found. Exiting.")
+        print("No portfolios found. Exiting.", file=sys.stderr)
         sys.exit(1)
     print(portfolio_dict)
     return portfolio_dict
@@ -166,6 +166,6 @@ def get_performance_wrapper(days=config_past_days):
     for portfolio_name, portfolio_id in portfolios.items():
         performance[portfolio_id] = get_performance(portfolio_id, days)
         if not performance[portfolio_id]:
-            print("Could not get performance for portfolio:", portfolio_id)
+            print("Could not get performance for portfolio:", portfolio_id, file=sys.stderr)
             sys.exit(1)
     return performance

@@ -127,11 +127,11 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 try:
                     market_data[ticker]['percent_change_period'] = percent
                 except KeyError:
-                    print("Error:", os.path.basename(__file__), ticker, "has no data")
+                    print("Error:", os.path.basename(__file__), ticker, "has no data", file=sys.stderr)
 
     # Prep and send payloads
     if not webhooks:
-        print("Error: no services enabled in .env")
+        print("Error: no services enabled in .env", file=sys.stderr)
         sys.exit(1)
     if interactive:
         payload = prepare_price_payload(service, market_data, threshold)
@@ -164,7 +164,7 @@ if __name__ == "__main__":
             elif sys.argv[1] == 'premarket':
                 lambda_handler(premarket=True)
             else:
-                print("Usage:", sys.argv[0], "[midsession|interday|premarket|days (int)]")
+                print("Usage:", sys.argv[0], "[midsession|interday|premarket|days (int)]", file=sys.stderr)
         else:
             lambda_handler(days=arg)
 
@@ -181,7 +181,7 @@ if __name__ == "__main__":
         #    case 'month':
         #        lambda_handler(days=28)
         #    case other:
-        #        print("Usage:", sys.argv[0], "[midsession|interday|premarket|week|month]")
+        #        print("Usage:", sys.argv[0], "[midsession|interday|premarket|week|month]", file=sys.stderr)
 
     else:
-        print("Usage:", sys.argv[0], "[midsession|interday|premarket|days (int)]")
+        print("Usage:", sys.argv[0], "[midsession|interday|premarket|days (int)]", file=sys.stderr)

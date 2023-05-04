@@ -67,7 +67,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
 
     # Prep and send payloads
     if not webhooks:
-        print("Error: no services enabled in .env")
+        print("Error: no services enabled in .env", file=sys.stderr)
         sys.exit(1)
     if interactive:
         payload = prepare_shorts_payload(service, market_data)

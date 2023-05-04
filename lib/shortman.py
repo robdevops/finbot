@@ -1,5 +1,6 @@
 import json
 import requests
+import sys
 from lib.config import *
 
 def fetch(market_data):
@@ -10,12 +11,12 @@ def fetch(market_data):
     try:
         r = requests.get(url, timeout=config_http_timeout)
     except:
-        print("Failure fetching", url)
+        print("Failure fetching", url, file=sys.stderr)
         return {}
     if r.status_code == 200:
         print(r.status_code, "success shortman")
     else:
-        print(r.status_code, "error communicating with", url)
+        print(r.status_code, "error communicating with", url, file=sys.stderr)
         return {}
     csv = r.content.decode('utf-8')
     csv = csv.split('\r\n')
