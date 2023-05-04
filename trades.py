@@ -72,8 +72,8 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             payload.append([date, emoji, portfolio_name, trade_link, currency, f'{value:,} of ({holding_link})', flag])
 
         payload.sort()
-        for i, item in enumerate(payload):
-            payload[i] = ' '.join(item[1:])
+        for i, e in enumerate(payload):
+            payload[i] = ' '.join(e[1:])
 
         if interactive and not payload: # easter egg 4
             payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]

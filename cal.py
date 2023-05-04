@@ -30,9 +30,9 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
         def second_element(e):
             return e[1]
         payload.sort(key=second_element)
-        for i, item in enumerate(payload):
-            item[1] = time.strftime('%b %d', time.localtime(item[1]))
-            payload[i] = ' '.join(item)
+        for i, e in enumerate(payload):
+            e[1] = time.strftime('%b %d', time.localtime(e[1])) # Dec 30
+            payload[i] = ' '.join(e)
 
         if payload:
             if not specific_stock:

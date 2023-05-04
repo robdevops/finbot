@@ -70,9 +70,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         def last_element(e):
             return e[-1]
         payload.sort(key=last_element)
-        for i, item in enumerate(payload):
-            item[-1] = str(round(item[-1])) + '%'
-            payload[i] = ' '.join(item)
+        for i, e in enumerate(payload):
+            e[-1] = str(round(e[-1])) + '%'
+            payload[i] = ' '.join(e)
 
         if payload:
             if not specific_stock:
