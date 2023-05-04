@@ -12,17 +12,13 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
     time_now = datetime.datetime.today()
     start_date = time_now - datetime.timedelta(days=past_days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
-    cache_file = config_cache_dir + "/finbot_sharesight_trades.txt"
+    state_file = config_cache_dir + "/finbot_sharesight_trades.json"
 
     def prepare_trade_payload(service, trades):
-        if os.path.isfile(cache_file) and not interactive:
-            known_trades = trade_cache_read(cache_file)
-        else:
-            known_trades = []
         payload = []
         sharesight_url = "https://portfolio.sharesight.com/holdings/"
         for trade in trades:
-            trade_id = str(trade['id'])
+            trade_id = int(trade['id'])
             portfolio_name = trade['portfolio'] # custom field
             date = trade['transaction_date']
             transactionType = trade['transaction_type']
@@ -63,7 +59,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             currency_temp = util.currency_from_market(market)
             if currency_temp:
                 currency = currency_temp
-            trade_url = sharesight_url + holding_id + '/trades/' + trade_id + '/edit'
+            trade_url = sharesight_url + holding_id + '/trades/' + str(trade_id) + '/edit'
             trade_link = util.link(trade_url, action, service)
             if config_hyperlinkProvider == 'google':
                 holding_link = util.gfinance_link(symbol, market, service, brief=True)
@@ -79,22 +75,26 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]
         return payload
 
-    def trade_cache_read(cache_file):
-        with open(cache_file, "r", encoding="utf-8") as f:
-            lines = f.read().splitlines()
-            return lines
+    def trade_state_read(state_file):
+        with open(state_file, "r", encoding="utf-8") as f:
+            known_trades = json.loads(f.read())
+            return known_trades
 
-    def trade_cache_write(cache_file, trades):
-        with open(cache_file, "a", encoding="utf-8") as f:
-            for trade in trades:
-                f.write(f"{trade}\n")
+    def trade_state_write(state_file, newtrades):
+        def opener(path, flags):
+            return os.open(path, flags, 0o640)
+        with open(state_file, "w", opener=opener, encoding="utf-8") as f:
+            f.write(json.dumps(newtrades))
 
     # MAIN #
     portfolios = sharesight.get_portfolios()
 
     # Get trades from Sharesight
     trades = []
+    known_trades = []
     newtrades = set()
+    if os.path.isfile(state_file) and not interactive:
+        known_trades = trade_state_read(state_file)
 
     if portfolio_select:
         portfoliosLower = {k.lower():v for k,v in portfolios.items()}
@@ -135,7 +135,8 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 
     # write state file
     if newtrades and not interactive:
-        trade_cache_write(cache_file, newtrades)
+        known_trades = set(known_trades) | newtrades
+        trade_state_write(state_file, list(known_trades))
 
     # make google cloud happy
     return True
