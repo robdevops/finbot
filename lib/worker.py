@@ -431,7 +431,10 @@ def prepare_watchlist(service, user, action=False, ticker=False):
         payload.insert(0, f"Hi {user}, I'm currently tracking:")
     else:
         payload.append('Watchlist is empty. Try ".watchlist add SYMBOL" to create it')
-    with open(config_cache_dir + "/finbot_watchlist.json", "w", encoding="utf-8") as f:
+
+    def opener(path, flags):
+        return os.open(path, flags, 0o640)
+    with open(config_cache_dir + "/finbot_watchlist.json", "w", opener=opener, encoding="utf-8") as f:
         f.write(json.dumps(watchlist))
     return payload
 
