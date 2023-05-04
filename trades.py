@@ -69,7 +69,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                 holding_link = util.gfinance_link(symbol, market, service, brief=True)
             else:
                 holding_link = util.yahoo_link(ticker, service, brief=True)
-            payload.append([date, emoji, portfolio_name, trade_link, currency, f'{value:,} of', holding_link, flag])
+            payload.append([date, emoji, portfolio_name, trade_link, currency, f'{value:,}', 'of', holding_link, flag])
 
         payload.sort()
         for i, e in enumerate(payload):
