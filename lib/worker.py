@@ -117,7 +117,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if m_earnings.group(2):
             arg = m_earnings.group(2)
             try:
-                days = int(arg)
+                days = int(arg.split('d')[0])
             except ValueError:
                 specific_stock = str(arg).upper()
         cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=True)
@@ -127,7 +127,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if m_dividend.group(2):
             arg = m_dividend.group(2)
             try:
-                days = int(arg)
+                days = int(arg.split('d')[0])
             except ValueError:
                 specific_stock = str(arg).upper()
         else:
@@ -139,7 +139,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if m_performance.group(2):
             arg = m_performance.group(2)
             try:
-                days = int(arg)
+                days = int(arg.split('d')[0])
             except ValueError:
                 days = config_past_days
                 portfolio_select = arg
@@ -151,24 +151,24 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             webhook.payload_wrapper(service, url, payload, chat_id)
         performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=False, interactive=True)
     elif m_session:
-        price_threshold = config_price_percent
+        price_percent = config_price_percent
         specific_stock = False
         if m_session.group(2):
             arg = m_session.group(2)
             try:
-                price_threshold = int(arg)
+                price_percent = int(arg.split('%')[0])
             except ValueError:
                 specific_stock = str(arg).upper()
-        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, interday=False, midsession=True)
+        price.lambda_handler(chat_id, price_percent, service, user, specific_stock, interactive=True, premarket=False, interday=False, midsession=True)
     elif m_price:
-        price_threshold = config_price_percent
+        price_percent = config_price_percent
         specific_stock = False
         days = False
         interday = True
         if m_price.group(2):
             arg = m_price.group(2)
             try:
-                price_threshold = int(arg.split('%')[0])
+                price_percent = int(arg.split('%')[0])
             except ValueError:
                 try:
                     days = int(arg.split('d')[0])
@@ -182,41 +182,41 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 interday = False
             except ValueError:
                 try:
-                    price_threshold = int(arg.split('%')[0])
+                    price_percent = int(arg.split('%')[0])
                 except ValueError:
                     pass
         if days and days > 0:
             # easter egg 3
             payload = [ f"{random.choice(searchVerb)} performance from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
-        price.lambda_handler(chat_id, price_threshold, service, user, specific_stock, interactive=True, premarket=False, interday=interday, days=days)
+        price.lambda_handler(chat_id, price_percent, service, user, specific_stock, interactive=True, premarket=False, interday=interday, days=days)
     elif m_premarket:
-        premarket_threshold = config_price_percent
+        premarket_percent = config_price_percent
         specific_stock = False
         if m_premarket.group(3):
             arg = m_premarket.group(3)
             try:
-                premarket_threshold = int(arg)
+                premarket_percent = int(arg.split('%')[0])
             except ValueError:
                 specific_stock = str(arg).upper()
-        price.lambda_handler(chat_id, premarket_threshold, service, user, specific_stock, interactive=True, premarket=True)
+        price.lambda_handler(chat_id, premarket_percent, service, user, specific_stock, interactive=True, premarket=True)
     elif m_shorts:
         print("starting shorts report...")
-        shorts_threshold = config_shorts_percent
+        shorts_percent = config_shorts_percent
         specific_stock = False
         if m_shorts.group(2):
             arg = m_shorts.group(2)
             try:
-                shorts_threshold = int(arg)
+                shorts_percent = int(arg.split('%')[0])
             except ValueError:
                 specific_stock = str(arg).upper()
-        shorts.lambda_handler(chat_id, shorts_threshold, specific_stock, service, interactive=True)
+        shorts.lambda_handler(chat_id, shorts_percent, specific_stock, service, interactive=True)
     elif m_trades:
         portfolio_select = False
         if m_trades.group(2):
             arg = m_trades.group(2)
             try:
-                days = int(arg)
+                days = int(arg.split('d')[0])
             except ValueError:
                 days = 1
                 portfolio_select = arg
@@ -445,7 +445,7 @@ def prepare_help(service, botName):
     payload.append(".marketcap AAPL")
     payload.append(".performance [days|portfolio]")
     payload.append(".premarket [percent|AAPL]")
-    payload.append(".price [percent|AAPL]")
+    payload.append(".price [percent|AAPL] [days]")
     payload.append(".profile AAPL")
     payload.append(".session [percent|AAPL]")
     payload.append(".shorts [percent|AAPL]")
