@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import json, time, sys
+import json, datetime, sys
 
 from lib.config import *
 from lib import sharesight
@@ -12,9 +12,9 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
     def prepare_payload(service, market_data, days):
         payload_staging = []
         emoji = "📣"
-        now = int(time.time())
+        now = int(datetime.datetime.now().timestamp())
         soon = now + days * 86400
-        dates = set()
+        grouping_dates = set()
         for ticker in market_data:
             try:
                 if earnings:
@@ -26,30 +26,25 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
             if (timestamp > now and timestamp < soon) or specific_stock:
                 title = market_data[ticker]['profile_title']
                 ticker_link = util.yahoo_link(ticker, service)
-                human_date = time.strftime('%b %d', time.localtime(timestamp)) # Dec 30
-                dates.add(human_date)
-                payload_staging.append([emoji, timestamp, title, f'({ticker_link})', human_date])
+                dt = datetime.datetime.fromtimestamp(timestamp)
+                grouping_dates.add(dt.date())
+                payload_staging.append([emoji, title, f'({ticker_link})', dt])
 
-        def second_element(e):
-            return e[0]
-        payload_staging.sort(key=second_element)
+        def numeric_date(e):
+            return e[3]
+        payload_staging.sort(key=numeric_date)
 
         payload = []
-        for date in sorted(dates):
+        for date in sorted(grouping_dates):
+            human_date = date.strftime('%b %d') # Dec 30
             if not specific_stock:
                 payload.append("")
-                payload.append(webhook.bold(date, service))
-            for i, e in enumerate(payload_staging):
-                if str(date) == e[4]:
+                payload.append(webhook.bold(human_date, service))
+            for e in payload_staging:
+                if date == e[3].date():
                     if specific_stock:
-                        e[1] = e[4]
-                        payload.append(' '.join(e[:-1]))
-                    else:
-                        payload.append(' '.join([e[0]] + e[2:-1]))
-
-        #for i, e in enumerate(payload):
-        #    e[1] = time.strftime('%b %d', time.localtime(e[1])) # Dec 30
-        #    payload[i] = ' '.join(e)
+                        e.insert(1, human_date)
+                    payload.append(' '.join(e[:-1]))
 
         if payload:
             if not specific_stock:
