@@ -35,7 +35,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
         payload_staging.sort(key=second_element)
 
         payload = []
-        for idx, date in enumerate(sorted(dates)):
+        for date in sorted(dates):
             if not specific_stock:
                 payload.append("")
                 payload.append(webhook.bold(date, service))
