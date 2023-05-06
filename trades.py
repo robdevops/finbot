@@ -9,8 +9,7 @@ from lib import webhook
 from lib import util
 
 def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=False, user='', portfolio_select=False, message_id=False, interactive=False):
-    time_now = datetime.datetime.today()
-    start_date = time_now - datetime.timedelta(days=past_days)
+    start_date = datetime.datetime.now() - datetime.timedelta(days=past_days)
     start_date = start_date.strftime('%Y-%m-%d') # 2022-08-20
     state_file = config_cache_dir + "/finbot_sharesight_trades.json"
 
@@ -21,7 +20,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         for trade in trades:
             trade_id = int(trade['id'])
             portfolio_name = trade['portfolio'] # custom field
-            date = trade['transaction_date']
+            date = trade['transaction_date'] # 2023-12-30
             transactionType = trade['transaction_type']
             units = float(trade['quantity'])
             price = float(trade['price'])
@@ -32,7 +31,8 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             value = round(price * units)
             holding_id = str(trade['holding_id'])
             ticker = util.transform_to_yahoo(symbol, market)
-            dates.add(date)
+            dt_date = datetime.datetime.strptime(date, '%Y-%m-%d').date() # (2023, 12, 30)
+            dates.add(dt_date)
 
             action=''
             emoji=''
@@ -67,14 +67,13 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                 holding_link = util.gfinance_link(symbol, market, service, brief=True)
             else:
                 holding_link = util.yahoo_link(ticker, service, brief=True)
-            payload_staging.append([date, trade_id, emoji, portfolio_name, trade_link, currency, f'{value:,}', 'of', holding_link, flag])
+            payload_staging.append([dt_date, trade_id, emoji, portfolio_name, trade_link, currency, f'{value:,}', 'of', holding_link, flag])
 
         payload = []
         payload_staging.sort()
         for date in sorted(dates):
             if past_days > 1:
-                dt = datetime.datetime.strptime(date, '%Y-%m-%d')
-                human_date = dt.strftime('%b %d')
+                human_date = date.strftime('%b %d') # Dec 30
                 payload.append("")
                 payload.append(webhook.bold(human_date, service))
             for trade in payload_staging:

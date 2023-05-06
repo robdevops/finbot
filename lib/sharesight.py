@@ -4,7 +4,6 @@ import datetime
 import requests
 from lib.config import *
 import lib.util as util
-import time
 
 class BearerAuth(requests.auth.AuthBase):
     def __init__(self, token):
@@ -14,7 +13,7 @@ class BearerAuth(requests.auth.AuthBase):
         return r
 
 def get_token():
-    now = int(time.time())
+    now = int(datetime.datetime.now().timestamp())
     cache_file = config_cache_dir + "/finbot_sharesight_token.json"
     cache = util.read_cache(cache_file, 1740)
     url = "https://api.sharesight.com/oauth2/token"
@@ -82,9 +81,8 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     cache = util.read_cache(cache_file, 299) # max freq 5 min
     if config_cache and cache:
         return cache['trades']
-    time_now = datetime.datetime.now()
-    start_date = time_now - datetime.timedelta(days=days)
-    start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
+    start_date = datetime.datetime.now() - datetime.timedelta(days=days)
+    start_date = start_date.strftime('%Y-%m-%d') # 2022-08-20
     token = get_token()
     print("Fetching Sharesight trades for", portfolio_name, end=": ")
     url = 'https://api.sharesight.com/api/v2/portfolios/'
@@ -136,7 +134,7 @@ def get_holdings_wrapper():
 
 def get_performance(portfolio_id, days):
     start_date = datetime.datetime.now() - datetime.timedelta(days=days)
-    start_date = str(start_date.strftime('%Y-%m-%d')) # 2023-04-25
+    start_date = start_date.strftime('%Y-%m-%d') # 2023-04-25
     cache_file = config_cache_dir + "/finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'
     cache = util.read_cache(cache_file, config_cache_seconds)
     if config_cache and cache:

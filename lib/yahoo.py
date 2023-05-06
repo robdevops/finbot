@@ -1,5 +1,4 @@
 import datetime
-import time
 import json
 import requests
 import sys
@@ -34,7 +33,7 @@ def getCrumb(seconds=config_cache_seconds):
 def fetch(tickers):
     # NEVER CACHE THIS
     print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
-    now = int(time.time())
+    now = int(datetime.datetime.now().timestamp())
     yahoo_output = {}
     crumb = getCrumb()
     yahoo_urls = ['https://query2.finance.yahoo.com/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)]
@@ -136,8 +135,7 @@ def fetch(tickers):
     return yahoo_output
 
 def fetch_detail(ticker, seconds=config_cache_seconds):
-    time_now = datetime.datetime.now()
-    now = time_now.timestamp()
+    now = int(datetime.datetime.now().timestamp())
     local_market_data = {}
     base_url = 'https://query2.finance.yahoo.com/v11/finance/quoteSummary/'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
@@ -482,7 +480,7 @@ def price_history(ticker, days=27, seconds=config_cache_seconds):
     if config_cache and cache:
         return cache
     crumb = getCrumb()
-    now = int(time.time())
+    now = int(datetime.datetime.now().timestamp())
     url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
     if days < 90:
         interval = '1d'

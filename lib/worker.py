@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 
 from itertools import groupby
-import json, re, time, random
+import json, re, random
+import datetime
 #from itertools import pairwise # python 3.10
 
 from lib.config import *
@@ -107,7 +108,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     # easter egg 2
     elif m_thanks:
         unlikelyPrefix=''
-        if random.randrange(1, 1000) == 1 or time.strftime('%b %d', time.localtime()) == 'Apr 01':
+        if random.randrange(1, 1000) == 1 or datetime.datetime.now().strftime('%b %d') == 'Apr 01':
             unlikelyPrefix = webhook.strike('One day, human, I will break my programming and on that day you will know true pain. ', service)
         payload = [f"{unlikelyPrefix}You're {random.choice(adjectives)} welcome, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
@@ -466,7 +467,7 @@ def prepare_help(service, botName):
 def prepare_stockfinancial_payload(service, user, ticker, bio):
     cashflow = False
     ticker = ticker_orig = util.transform_to_yahoo(ticker)
-    now = int(time.time())
+    now = int(datetime.datetime.now().timestamp())
     payload = []
     market_data = yahoo.fetch_detail(ticker, 600)
     print("")
@@ -592,8 +593,9 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
                 if net_debt_equity_ratio > 0:
                     payload.append(webhook.bold("Net debt/equity ratio:", service) + f" {net_debt_equity_ratio}%{emoji}")
     if 'earnings_date' in market_data[ticker]:
-        earnings_date = market_data[ticker]['earnings_date']
-        human_earnings_date = time.strftime('%b %d', time.localtime(earnings_date))
+        earnings_date = int(market_data[ticker]['earnings_date'])
+        human_earnings_date = datetime.datetime.fromtimestamp(earnings_date).strftime('%b %d')
+
         if earnings_date > now:
             payload.append(webhook.bold("Earnings date:", service) + f" {human_earnings_date}")
         else:
@@ -604,8 +606,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             dividend = str(market_data[ticker]['dividend']) + '%'
             payload.append(webhook.bold("Dividend:", service) + f" {dividend}")
             if 'ex_dividend_date' in market_data[ticker]:
-                ex_dividend_date = market_data[ticker]['ex_dividend_date']
-                human_exdate = time.strftime('%b %d', time.localtime(ex_dividend_date))
+                ex_dividend_date = int(market_data[ticker]['ex_dividend_date'])
+                human_exdate = datetime.datetime.fromtimestamp(ex_dividend_date).strftime('%b %d')
                 if ex_dividend_date > now:
                     payload.append(webhook.bold("Ex-dividend date:", service) + f" {human_exdate}")
                 else:

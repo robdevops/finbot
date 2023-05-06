@@ -14,7 +14,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
         emoji = "📣"
         now = int(datetime.datetime.now().timestamp())
         soon = now + days * 86400
-        grouping_dates = set()
+        dates = set()
         for ticker in market_data:
             try:
                 if earnings:
@@ -27,7 +27,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
                 title = market_data[ticker]['profile_title']
                 ticker_link = util.yahoo_link(ticker, service)
                 dt = datetime.datetime.fromtimestamp(timestamp)
-                grouping_dates.add(dt.date())
+                dates.add(dt.date()) # (2023, 12, 30)
                 payload_staging.append([emoji, title, f'({ticker_link})', dt])
 
         def numeric_date(e):
@@ -35,7 +35,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
         payload_staging.sort(key=numeric_date)
 
         payload = []
-        for date in sorted(grouping_dates):
+        for date in sorted(dates):
             human_date = date.strftime('%b %d') # Dec 30
             if not specific_stock:
                 payload.append("")

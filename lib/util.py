@@ -1,5 +1,5 @@
 import os
-import time
+import datetime
 import json
 from lib.config import *
 
@@ -233,7 +233,7 @@ def get_currency_symbol(currency):
 
 def read_cache(cacheFile, maxSeconds=config_cache_seconds):
     if os.path.isfile(cacheFile):
-        cacheFileSeconds = time.time() - os.path.getmtime(cacheFile)
+        cacheFileSeconds = int(datetime.datetime.now().timestamp()) - os.path.getmtime(cacheFile)
         cacheTTL = maxSeconds - cacheFileSeconds
         if cacheTTL > 0:
             if debug:

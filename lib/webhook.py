@@ -1,4 +1,5 @@
-import json, time
+import json
+import time
 import requests
 
 from lib.config import *
