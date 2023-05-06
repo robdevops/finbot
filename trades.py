@@ -73,7 +73,9 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         payload_staging.sort()
         for idx, date in enumerate(sorted(dates)):
             if past_days > 1:
-                payload.append(webhook.bold(date, service))
+                timeobject = datetime.datetime.strptime(date, '%Y-%m-%d')
+                human_date = timeobject.strftime('%b %d')
+                payload.append(webhook.bold(human_date, service))
             for i, trade in enumerate(payload_staging):
                 if date == trade[0]:
                     payload.append(' '.join(trade[2:]))
