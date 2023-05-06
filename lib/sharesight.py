@@ -82,7 +82,7 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     cache = util.read_cache(cache_file, 299) # max freq 5 min
     if config_cache and cache:
         return cache['trades']
-    time_now = datetime.datetime.today()
+    time_now = datetime.datetime.now()
     start_date = time_now - datetime.timedelta(days=days)
     start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
     token = get_token()

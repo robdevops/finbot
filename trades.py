@@ -11,7 +11,7 @@ from lib import util
 def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=False, user='', portfolio_select=False, message_id=False, interactive=False):
     time_now = datetime.datetime.today()
     start_date = time_now - datetime.timedelta(days=past_days)
-    start_date = str(start_date.strftime('%Y-%m-%d')) # 2022-08-20
+    start_date = start_date.strftime('%Y-%m-%d') # 2022-08-20
     state_file = config_cache_dir + "/finbot_sharesight_trades.json"
 
     def prepare_trade_payload(service, trades):
@@ -71,22 +71,15 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 
         payload = []
         payload_staging.sort()
-        #for idx, date in enumerate(sorted(dates)):
         for date in sorted(dates):
             if past_days > 1:
+                dt = datetime.datetime.strptime(date, '%Y-%m-%d')
+                human_date = dt.strftime('%b %d')
                 payload.append("")
-                timeobject = datetime.datetime.strptime(date, '%Y-%m-%d')
-                human_date = timeobject.strftime('%b %d')
                 payload.append(webhook.bold(human_date, service))
             for trade in payload_staging:
                 if date == trade[0]:
                     payload.append(' '.join(trade[2:]))
-            #if past_days > 1 and idx + 1 < len(dates):
-            #    payload.append("")
-
-        #payload.sort()
-        #for i, e in enumerate(payload):
-        #    payload[i] = ' '.join(e[2:])
 
         if interactive and not payload: # easter egg 4
             payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]

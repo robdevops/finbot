@@ -136,7 +136,7 @@ def fetch(tickers):
     return yahoo_output
 
 def fetch_detail(ticker, seconds=config_cache_seconds):
-    time_now = datetime.datetime.today()
+    time_now = datetime.datetime.now()
     now = time_now.timestamp()
     local_market_data = {}
     base_url = 'https://query2.finance.yahoo.com/v11/finance/quoteSummary/'
