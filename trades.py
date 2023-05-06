@@ -15,7 +15,8 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
     state_file = config_cache_dir + "/finbot_sharesight_trades.json"
 
     def prepare_trade_payload(service, trades):
-        payload = []
+        payload_staging = []
+        dates = set()
         sharesight_url = "https://portfolio.sharesight.com/holdings/"
         for trade in trades:
             trade_id = int(trade['id'])
@@ -31,6 +32,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             value = round(price * units)
             holding_id = str(trade['holding_id'])
             ticker = util.transform_to_yahoo(symbol, market)
+            dates.add(date)
 
             action=''
             emoji=''
@@ -65,11 +67,22 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                 holding_link = util.gfinance_link(symbol, market, service, brief=True)
             else:
                 holding_link = util.yahoo_link(ticker, service, brief=True)
-            payload.append([date, trade_id, emoji, portfolio_name, trade_link, currency, f'{value:,}', 'of', holding_link, flag])
+            payload_staging.append([date, trade_id, emoji, portfolio_name, trade_link, currency, f'{value:,}', 'of', holding_link, flag])
 
-        payload.sort()
-        for i, e in enumerate(payload):
-            payload[i] = ' '.join(e[2:])
+        payload = []
+        payload_staging.sort()
+        for idx, date in enumerate(sorted(dates)):
+            if past_days > 1:
+                payload.append(webhook.bold(date, service) + ':')
+            for i, trade in enumerate(payload_staging):
+                if date == trade[0]:
+                    payload.append(' '.join(trade[2:]))
+            if past_days > 1 and idx + 1 < len(dates):
+                payload.append("")
+
+        #payload.sort()
+        #for i, e in enumerate(payload):
+        #    payload[i] = ' '.join(e[2:])
 
         if interactive and not payload: # easter egg 4
             payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]

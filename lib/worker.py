@@ -185,7 +185,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                     price_percent = int(arg.split('%')[0])
                 except ValueError:
                     pass
-        if days and days > 0:
+        if days and days > 0 and not specific_stock:
             # easter egg 3
             payload = [ f"{random.choice(searchVerb)} performance from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
