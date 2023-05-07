@@ -467,7 +467,7 @@ def prepare_help(service, botName):
 def prepare_stockfinancial_payload(service, user, ticker, bio):
     cashflow = False
     ticker = ticker_orig = util.transform_to_yahoo(ticker)
-    now = int(datetime.datetime.now().timestamp())
+    now = datetime.datetime.now()
     payload = []
     market_data = yahoo.fetch_detail(ticker, 600)
     print("")
@@ -593,8 +593,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
                 if net_debt_equity_ratio > 0:
                     payload.append(webhook.bold("Net debt/equity ratio:", service) + f" {net_debt_equity_ratio}%{emoji}")
     if 'earnings_date' in market_data[ticker]:
-        earnings_date = int(market_data[ticker]['earnings_date'])
-        human_earnings_date = datetime.datetime.fromtimestamp(earnings_date).strftime('%b %d')
+        earnings_date = datetime.datetime.fromtimestamp(market_data[ticker]['earnings_date'])
+        human_earnings_date = earnings_date.strftime('%b %d')
 
         if earnings_date > now:
             payload.append(webhook.bold("Earnings date:", service) + f" {human_earnings_date}")
@@ -606,8 +606,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             dividend = str(market_data[ticker]['dividend']) + '%'
             payload.append(webhook.bold("Dividend:", service) + f" {dividend}")
             if 'ex_dividend_date' in market_data[ticker]:
-                ex_dividend_date = int(market_data[ticker]['ex_dividend_date'])
-                human_exdate = datetime.datetime.fromtimestamp(ex_dividend_date).strftime('%b %d')
+                ex_dividend_date = datetime.datetime.fromtimestamp(market_data[ticker]['ex_dividend_date'])
+                human_exdate = ex_dividend_date.strftime('%b %d')
                 if ex_dividend_date > now:
                     payload.append(webhook.bold("Ex-dividend date:", service) + f" {human_exdate}")
                 else:

@@ -233,11 +233,13 @@ def get_currency_symbol(currency):
 
 def read_cache(cacheFile, maxSeconds=config_cache_seconds):
     if os.path.isfile(cacheFile):
-        cacheFileSeconds = int(datetime.datetime.now().timestamp()) - os.path.getmtime(cacheFile)
-        cacheTTL = maxSeconds - cacheFileSeconds
-        if cacheTTL > 0:
+        maxSeconds = datetime.timedelta(seconds=maxSeconds)
+        cacheFileMtime = datetime.datetime.fromtimestamp(os.path.getmtime(cacheFile))
+        cacheFileAge = datetime.datetime.now() - cacheFileMtime
+        if cacheFileAge < maxSeconds:
             if debug:
-                print(cacheFile, "TTL:", int(round(cacheTTL/60, 0)), "minutes")
+                ttl = round((maxSeconds - cacheFileAge).total_seconds() / 60)
+                print(cacheFile, "TTL:", ttl, "minutes")
             with open(cacheFile, "r", encoding="utf-8") as f:
                 cacheDict = json.loads(f.read())
             return cacheDict

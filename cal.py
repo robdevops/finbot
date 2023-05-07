@@ -12,23 +12,23 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
     def prepare_payload(service, market_data, days):
         payload_staging = []
         emoji = "📣"
-        now = int(datetime.datetime.now().timestamp())
-        soon = now + days * 86400
+        now = datetime.datetime.now()
+        soon = now + datetime.timedelta(days=days)
         dates = set()
         for ticker in market_data:
             try:
                 if earnings:
-                    timestamp = int(market_data[ticker]['earnings_date'] + 3600 * 4) # allow for Yahoo inaccuracy
+                    timestamp = market_data[ticker]['earnings_date']
                 elif dividend:
-                    timestamp = int(market_data[ticker]['ex_dividend_date'])
+                    timestamp = market_data[ticker]['ex_dividend_date']
+                timestamp = datetime.datetime.fromtimestamp(timestamp)
             except (KeyError, ValueError):
                 continue
             if (timestamp > now and timestamp < soon) or specific_stock:
                 title = market_data[ticker]['profile_title']
                 ticker_link = util.yahoo_link(ticker, service)
-                dt = datetime.datetime.fromtimestamp(timestamp)
-                dates.add(dt.date()) # (2023, 12, 30)
-                payload_staging.append([emoji, title, f'({ticker_link})', dt])
+                dates.add(timestamp.date()) # (2023, 12, 30)
+                payload_staging.append([emoji, title, f'({ticker_link})', timestamp])
 
         def numeric_date(e):
             return e[3]
@@ -49,9 +49,9 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
         if payload:
             if not specific_stock:
                 if earnings:
-                    message = f'Upcoming earnings next {days} days:'
+                    message = f"Upcoming earnings next { f'{days} days' if days != 1 else 'day' }:"
                 elif dividend:
-                    message = f'Upcoming ex-dividend next {days} days:'
+                    message = f"Upcoming ex-dividend next { f'{days} days' if days != 1 else 'day' }:"
                 message = webhook.bold(message, service)
                 payload.insert(0, message)
         else:
@@ -59,7 +59,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
                 if specific_stock:
                     payload = [f"No events found for {tickers[0]}"]
                 else:
-                    payload = [f"No events found for the next {days} days"]
+                    payload = [f"No events found for the next { f'{days} days' if days != 1 else 'day' }"]
         return payload
 
     # MAIN #

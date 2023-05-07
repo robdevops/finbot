@@ -33,7 +33,7 @@ def getCrumb(seconds=config_cache_seconds):
 def fetch(tickers):
     # NEVER CACHE THIS
     print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
-    now = int(datetime.datetime.now().timestamp())
+    now = datetime.datetime.now().timestamp()
     yahoo_output = {}
     crumb = getCrumb()
     yahoo_urls = ['https://query2.finance.yahoo.com/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)]
@@ -135,7 +135,7 @@ def fetch(tickers):
     return yahoo_output
 
 def fetch_detail(ticker, seconds=config_cache_seconds):
-    now = int(datetime.datetime.now().timestamp())
+    now = datetime.datetime.now()
     local_market_data = {}
     base_url = 'https://query2.finance.yahoo.com/v11/finance/quoteSummary/'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
@@ -459,7 +459,8 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         sellTotal = 0
         sellValue = 0
         for item in data['quoteSummary']['result'][0]['insiderTransactions']['transactions']:
-            if item['startDate']['raw'] > now - 7884000:
+            dt_startDate = datetime.datetime.fromtimestamp(item['startDate']['raw'])
+            if dt_startDate > now - datetime.timedelta(days=90):
                 if 'Buy' in item['transactionText']:
                     buyTotal = buyTotal + item['shares']['raw']
                     buyValue = buyValue + item['value']['raw']
@@ -480,13 +481,15 @@ def price_history(ticker, days=27, seconds=config_cache_seconds):
     if config_cache and cache:
         return cache
     crumb = getCrumb()
-    now = int(datetime.datetime.now().timestamp())
+    now = datetime.datetime.now()
     url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
     if days < 90:
         interval = '1d'
     else:
         interval = '1mo'
-    url = url + '?period1=' + str(now - 86400 * days) + '&period2=' + str(now) + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
+    start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
+    end = str(int(now.timestamp()))
+    url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
     url = url + '&crumb=' + crumb
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     try:

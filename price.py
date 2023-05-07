@@ -2,17 +2,12 @@
 
 import json, re, sys, os
 import datetime
-import pytz
 
 from lib.config import *
 from lib import sharesight
 from lib import webhook
 from lib import util
 from lib import yahoo
-#import lib.sharesight as sharesight
-#import lib.webhook as webhook
-#import lib.util as util
-#import lib.yahoo as yahoo
 
 def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, midsession=False, premarket=False, interday=False, days=False):
     def prepare_price_payload(service, market_data, threshold):
@@ -21,16 +16,14 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         for ticker in market_data:
             marketState = market_data[ticker]['marketState']
             marketStates.append(marketState)
-            regularMarketTime = market_data[ticker]['regularMarketTime']
-            tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
-            now = datetime.datetime.now(tz).timestamp()
+            regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime'])
+            now = datetime.datetime.now()
             if midsession and marketState != "REGULAR":
                 # skip stocks not in session
                 # Possible market states: PREPRE PRE REGULAR POST POSTPOST CLOSED
                 continue
-            if interday and not interactive and now - regularMarketTime > 86400:
+            if interday and not interactive and now - regularMarketTime > datetime.timedelta(days=1):
                 # avoid repeating on public holidays
-                whenMarketClosed = round((now - regularMarketTime) / 86400)
                 print(ticker + '⏭', sep='', end=' ', flush=True)
                 continue
             if premarket:
