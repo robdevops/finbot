@@ -51,10 +51,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             #flag = util.flag_from_ticker(ticker)
             exchange = market_data[ticker]['profile_exchange']
             if config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
-                if days:
-                    ticker_link = util.gfinance_link(ticker, exchange, service, days, brief=True) # google graph time window
-                else:
-                    ticker_link = util.gfinance_link(ticker, exchange, service, brief=True)
+                ticker_link = util.gfinance_link(ticker, exchange, service, days=1)
             else:
                 ticker_link = util.yahoo_link(ticker, service)
             if specific_stock or abs(percent) >= threshold: # abs catches negative percentages

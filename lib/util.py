@@ -264,7 +264,7 @@ def humanUnits(value, decimal_places=0):
         value /= 1000.0
     return f"{value:.{decimal_places}f} {unit}"
 
-def yahoo_link(ticker, service='telegram', brief=False):
+def yahoo_link(ticker, service='telegram', brief=True):
     yahoo_url = "https://au.finance.yahoo.com/quote/"
     if brief:
         text = ticker.split('.')[0]
@@ -287,7 +287,14 @@ def link(url, text, service='telegram'):
         hyperlink = text
     return hyperlink
 
-def gfinance_link(symbol, market, service='telegram', days=1, brief=False):
+def finance_link(symbol, exchange, service='telegram', days=1, brief=True):
+    if config_hyperlinkProvider == 'google':
+        link = gfinance_link(symbol, exchange, service, days, brief)
+    else:
+        link = syahoo_link(ticker, service, brief)
+    return link
+
+def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True):
     window = '1D'
     if days > 1:
         window = '5D'
@@ -298,17 +305,18 @@ def gfinance_link(symbol, market, service='telegram', days=1, brief=False):
     if days > 183:
         window = '1Y'
     url = "https://www.google.com/finance/quote/"
-    market = transform_to_google(market)
-    if ':' in symbol:
-        return symbol
-    ticker = symbol.split('.')[0] + ':' + market
+    if '.' in exchange:
+        exchange = exchange.split('.')[1]
+    exchange = transform_to_google(exchange)
+    symbol_short = symbol.replace(':', '.').split('.')[0]
+    ticker = symbol_short + ':' + exchange
     if brief:
-        text = symbol.replace(':', '.').split('.')[0]
+        text = symbol_short
     else:
         if '.' in symbol:
             text = ticker
         else:
-            text = symbol
+            text = symbol # US
     if service == 'telegram' and config_hyperlink:
         ticker_link = '<a href="' + url + ticker + '?window=' + window + '">' + text + '</a>'
     elif service in {'discord', 'slack'} and config_hyperlink:

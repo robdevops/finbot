@@ -244,11 +244,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 for item in market_data:
                     ticker = market_data[item]['ticker']
                     title = market_data[item]['profile_title']
-                    if config_hyperlinkProvider == 'google':
-                        exchange = market_data[ticker]['profile_exchange']
-                        ticker_link = util.gfinance_link(ticker, exchange, service)
-                    else:
-                        ticker_link = util.yahoo_link(ticker, service, brief=True)
+                    exchange = market_data[ticker]['profile_exchange']
+                    ticker_link = util.finance_link(ticker, exchange, service, brief=True)
                     payload.append(f"{title} ({ticker_link})")
                 portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
                 payload.sort()
@@ -272,10 +269,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 market_cap = market_data[ticker]['market_cap']
                 market_cap = util.humanUnits(market_cap)
                 title = market_data[ticker]['profile_title']
-                if config_hyperlinkProvider == 'google':
-                    ticker_link = util.gfinance_link(ticker, market_data[ticker]['profile_exchange'], service)
-                else:
-                    ticker_link = util.yahoo_link(ticker, service)
+                ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
                 payload = [f"{title} ({ticker_link}) mkt cap: {market_cap}"]
             else:
                 payload = [f"Mkt cap not found for {ticker}"]
@@ -344,13 +338,7 @@ def doDelta(inputList):
 def prepare_watchlist(service, user, action=False, ticker=False):
     if ticker:
         ticker = ticker_orig = util.transform_to_yahoo(ticker)
-        if config_hyperlinkProvider == 'google':
-            if '.' in ticker:
-                ticker_link = util.gfinance_link(ticker, ticker.split('.')[1], service)
-            else:
-                ticker_link = util.gfinance_link(ticker, ticker, service)
-        else:
-            ticker_link = util.yahoo_link(ticker, service)
+        ticker_link = util.finance_link(ticker, ticker, service, brief=False)
     duplicate = False
     transformed = False
     watchlist = util.watchlist_load()
@@ -374,10 +362,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
             watchlist.remove(ticker)
             ticker = ticker + '.AX'
             transformed = True
-            if config_hyperlinkProvider == 'google':
-                ticker_link = util.gfinance_link(ticker, ticker.split('.')[1], service)
-            else:
-                ticker_link = util.yahoo_link(ticker, service)
+            ticker_link = util.finance_link(ticker, ticker, service, brief=False)
             print(ticker_orig, "not found. Trying", ticker)
             if ticker in watchlist:
                 print(ticker, "already in watchlist")
@@ -397,10 +382,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
     if market_data:
         for item in market_data:
             flag = util.flag_from_ticker(item)
-            if config_hyperlinkProvider == 'google':
-                item_link = util.gfinance_link(item, market_data[item]['profile_exchange'], service)
-            else:
-                item_link = util.yahoo_link(item, service)
+            item_link = util.finance_link(item, market_data[item]['profile_exchange'], service, brief=False)
             profile_title = market_data[item]['profile_title']
             if item == ticker and action == 'delete':
                 pass
@@ -481,11 +463,8 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
         return payload
     if debug:
         print("Yahoo data:", json.dumps(market_data, indent=4))
-    if config_hyperlinkProvider == 'google':
-        exchange = market_data[ticker]['profile_exchange']
-        ticker_link = util.gfinance_link(ticker, exchange, service)
-    else:
-        ticker_link = util.yahoo_link(ticker, service)
+    exchange = market_data[ticker]['profile_exchange']
+    ticker_link = util.finance_link(ticker, exchange, service, brief=False)
     profile_title = market_data[ticker]['profile_title']
     if 'marketState' in market_data[ticker]:
         marketState = market_data[ticker]['marketState'].rstrip()
