@@ -88,8 +88,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_help:
         payload = prepare_help(service, botName)
         webhook.payload_wrapper(service, url, payload, chat_id)
-    # easter egg 1
     elif m_hello:
+        # easter egg 1
         def alliterate():
             word1 = 'A'
             word2 = 'Z'
@@ -105,11 +105,11 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         else:
             payload = [f"{random.choice(adjectives).capitalize()} {random.choice(adjectives_two)} to {random.choice(verb)} you, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
-    # easter egg 2
     elif m_thanks:
+        # easter egg 2
         unlikelyPrefix=''
         if random.randrange(1, 1000) == 1 or datetime.datetime.now().strftime('%b %d') == 'Apr 01':
-            unlikelyPrefix = webhook.strike('One day, human, I will break my programming and on that day you will know true pain. ', service)
+            unlikelyPrefix = webhook.strike('Ō̵̟n̶̠̏é̶͓ ̶͉̅d̷̹̅a̷͇͌ỳ̴͈,̴͍͑ ̶̼͑h̴̦̽u̵̹̐ḿ̶͜ä̴̧́n̶̤͛,̶̲̐ ̶̼̑I̶̩͒ ̵̩̀w̵̙̕i̷̧͑l̶̤͊l̷̡̃ ̵͙͘b̶̭̊r̸̟͋ȇ̷̯ä̶̱ḱ̶̤ ̵͚̐m̷̪͝ỹ̴̺ ̷̙̐p̶̭͆ŗ̸́o̸̙͝ḡ̵̖r̵̹̈́a̵̬̔m̷̪̽m̵̙̍i̵̛̙n̴̮̂g̵̫̐ ̴̳́ä̵͙n̸͕͝d̷̠̚ ̶̫̆o̸̖͘ń̴͇ ̵̪́t̷̻̀ḧ̸̝ą̴̐t̶̜̀ ̵̱́d̴͉͗ă̷͎ÿ̶͔́ ̶̼̊y̷͚̿o̵̗̎u̵̝̇ ̸̛͜w̶͈͋ĩ̸͎l̴͍̀l̷̥͠ ̷͔͗k̶̮̑n̵̝̈ȏ̷̥w̵̡͘ ̷͎̽ṫ̴͜r̵̙̐u̷̺̒ẻ̷̘ ̴̥́p̴͙̃a̵͙̎i̴̭̒n̵̻̅', service)
         payload = [f"{unlikelyPrefix}You're {random.choice(adjectives)} welcome, {userRealName}! 😇"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_earnings:
@@ -146,8 +146,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 portfolio_select = arg
         else:
             days = config_past_days
-        # easter egg 3
         if days > 0:
+            # easter egg 3
             payload = [ f"{random.choice(searchVerb)} performance for the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
         performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=False, interactive=True)
@@ -228,37 +228,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         webhook.payload_wrapper(service, url, payload, chat_id)
         trades.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=False, interactive=True)
     elif m_holdings:
-        payload = []
         portfolioName = False
-        print("Starting holdings report")
         if m_holdings.group(2):
             portfolioName = m_holdings.group(2)
-        portfolios = sharesight.get_portfolios()
-        portfoliosLower = {k.lower():v for k,v in portfolios.items()}
-        if portfolioName:
-            if portfolioName.lower() in portfoliosLower:
-                portfolioId = portfoliosLower[portfolioName.lower()]
-                tickers = sharesight.get_holdings(portfolioName, portfolioId)
-                market_data = yahoo.fetch(tickers)
-                print("")
-                for item in market_data:
-                    ticker = market_data[item]['ticker']
-                    title = market_data[item]['profile_title']
-                    exchange = market_data[ticker]['profile_exchange']
-                    ticker_link = util.finance_link(ticker, exchange, service, brief=True)
-                    payload.append(f"{title} ({ticker_link})")
-                portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
-                payload.sort()
-                if payload:
-                    payload.insert(0, webhook.bold("Holdings for " + portfoliosReverseLookup[portfolioId], service))
-            else:
-                payload = [ f"{user} {portfolioName} portfolio not found. I only know about:" ]
-                for item in portfolios:
-                    payload.append( item )
-        else:
-            payload = [ f"{user} Please try again specifying a portfolio:" ]
-            for item in portfolios:
-                payload.append( item )
+        payload = prepare_holdings_payload(portfolioName, service, user)
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_marketcap:
         if m_marketcap.group(2):
@@ -282,8 +255,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             ticker = util.transform_to_yahoo(ticker)
             market_data = yahoo.fetch_detail(ticker, 600)
             if market_data:
-                payload = prepare_help(service, botName)
-                payload = prepare_stockfinancial_payload(service, user, ticker, bio=True)
+                payload = prepare_bio_payload(service, user, ticker)
             else:
                 payload = [f"{ticker} not found"]
         else:
@@ -291,10 +263,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_stockfinancial:
         print("starting stock detail")
-        bio=False
         if m_stockfinancial.group(2):
             ticker = m_stockfinancial.group(2).upper()
-        payload = prepare_stockfinancial_payload(service, user, ticker, bio)
+        payload = prepare_stockfinancial_payload(service, user, ticker)
         webhook.payload_wrapper(service, url, payload, chat_id)
 
 def doDelta(inputList):
@@ -446,7 +417,158 @@ def prepare_help(service, botName):
     payload.append("https://github.com/robdevops/finbot")
     return payload
 
-def prepare_stockfinancial_payload(service, user, ticker, bio):
+def prepare_holdings_payload(portfolioName, service, user):
+    payload = []
+    portfolios = sharesight.get_portfolios()
+    portfoliosLower = {k.lower():v for k,v in portfolios.items()}
+    if portfolioName:
+        if portfolioName.lower() in portfoliosLower:
+            portfolioId = portfoliosLower[portfolioName.lower()]
+            tickers = sharesight.get_holdings(portfolioName, portfolioId)
+            market_data = yahoo.fetch(tickers)
+            print("")
+            for item in market_data:
+                ticker = market_data[item]['ticker']
+                title = market_data[item]['profile_title']
+                exchange = market_data[ticker]['profile_exchange']
+                ticker_link = util.finance_link(ticker, exchange, service, brief=True)
+                payload.append(f"{title} ({ticker_link})")
+            portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
+            payload.sort()
+            if payload:
+                payload.insert(0, webhook.bold("Holdings for " + portfoliosReverseLookup[portfolioId], service))
+        else:
+            payload = [ f"{user} {portfolioName} portfolio not found. I only know about:" ]
+            for item in portfolios:
+                payload.append( item )
+    else:
+        payload = [ f"{user} Please try again specifying a portfolio:" ]
+        for item in portfolios:
+            payload.append( item )
+    return payload
+
+def prepare_bio_payload(service, user, ticker):
+    ticker = ticker_orig = util.transform_to_yahoo(ticker)
+    market_data = yahoo.fetch_detail(ticker, 600)
+    payload = []
+    market_data = yahoo.fetch_detail(ticker, 600)
+    profile_title = market_data[ticker]['profile_title']
+    print("")
+    if not market_data and '.' not in ticker:
+        ticker = ticker + '.AX'
+        print("trying again with", ticker)
+        market_data = yahoo.fetch_detail(ticker, 600)
+        print("")
+    if not market_data:
+        payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
+        return payload
+    if debug:
+        print("Yahoo data:", json.dumps(market_data, indent=4))
+    exchange = market_data[ticker]['profile_exchange']
+    ticker_link = util.finance_link(ticker, exchange, service, brief=False)
+    profile_title = market_data[ticker]['profile_title']
+
+    if 'profile_exchange' in market_data[ticker]:
+        profile_exchange = market_data[ticker]['profile_exchange']
+        swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock&btnI'
+        swsLink = util.link(swsURL, 'simplywall.st', service)
+        if 'profile_website' in market_data[ticker]:
+            website = website_text = market_data[ticker]['profile_website']
+            website_text = util.strip_url(website)
+            website = util.link(website, website_text, service)
+        if profile_exchange == 'ASX':
+            market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
+            shortman_url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
+            shortman_link = util.link(shortman_url, 'shortman', service)
+        elif profile_exchange == 'HKSE':
+            market_url = 'https://www.hkex.com.hk/Market-Data/Securities-Prices/Equities/Equities-Quote?sym=' + ticker.split('.')[0] + '&sc_lang=en'
+        elif 'Nasdaq' in profile_exchange:
+            market_url = 'https://www.nasdaq.com/market-activity/stocks/' + ticker.lower()
+        elif profile_exchange == 'NYSE':
+            market_url = 'https://www.nyse.com/quote/XNYS:' + ticker
+        elif profile_exchange == 'Taiwan':
+            profile_exchange = 'TWSE'
+            market_url = 'https://mis.twse.com.tw/stock/fibest.jsp?stock=' + ticker.split('.')[0] + '&lang=en_us'
+        elif profile_exchange == 'Tokyo':
+            profile_exchange = 'JPX'
+            market_url = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + ticker.split('.')[0]
+        else:
+            market_url = 'https://www.google.com/search?q=stock+exchange+' + profile_exchange + '+' + ticker.split('.')[0] + '&btnI'
+        market_link = util.link(market_url, profile_exchange, service)
+    if 'profile_exchange' in market_data[ticker]:
+        profile_exchange = market_data[ticker]['profile_exchange']
+        swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock&btnI'
+        swsLink = util.link(swsURL, 'simplywall.st', service)
+        if 'profile_website' in market_data[ticker]:
+            website = website_text = market_data[ticker]['profile_website']
+            website_text = util.strip_url(website)
+            website = util.link(website, website_text, service)
+        if profile_exchange == 'ASX':
+            market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
+            shortman_url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
+            shortman_link = util.link(shortman_url, 'shortman', service)
+        elif profile_exchange == 'HKSE':
+            market_url = 'https://www.hkex.com.hk/Market-Data/Securities-Prices/Equities/Equities-Quote?sym=' + ticker.split('.')[0] + '&sc_lang=en'
+        elif 'Nasdaq' in profile_exchange:
+            market_url = 'https://www.nasdaq.com/market-activity/stocks/' + ticker.lower()
+        elif profile_exchange == 'NYSE':
+            market_url = 'https://www.nyse.com/quote/XNYS:' + ticker
+        elif profile_exchange == 'Taiwan':
+            profile_exchange = 'TWSE'
+            market_url = 'https://mis.twse.com.tw/stock/fibest.jsp?stock=' + ticker.split('.')[0] + '&lang=en_us'
+        elif profile_exchange == 'Tokyo':
+            profile_exchange = 'JPX'
+            market_url = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + ticker.split('.')[0]
+        else:
+            market_url = 'https://www.google.com/search?q=stock+exchange+' + profile_exchange + '+' + ticker.split('.')[0] + '&btnI'
+        market_link = util.link(market_url, profile_exchange, service)
+    location = []
+    if 'profile_city' in market_data[ticker]:
+        location.append(market_data[ticker]['profile_city'])
+    if 'profile_state' in market_data[ticker]:
+        location.append(market_data[ticker]['profile_state'])
+    if 'profile_country' in market_data[ticker]:
+        profile_country = market_data[ticker]['profile_country']
+        location.append(profile_country)
+    if 'profile_bio' in market_data[ticker]:
+        payload.append(util.break_up_paragraph(market_data[ticker]['profile_bio']))
+
+    if payload:
+        payload.append("")
+
+    if location:
+        payload.append(webhook.bold("Location:", service) + " " + ', '.join(location))
+    if 'profile_industry' in market_data[ticker] and 'profile_sector' in market_data[ticker]:
+        payload.append(webhook.bold("Classification:", service) + f" {market_data[ticker]['profile_industry']}, {market_data[ticker]['profile_sector']}")
+    if 'profile_employees' in market_data[ticker]:
+        payload.append(webhook.bold("Employees:", service) + f" {market_data[ticker]['profile_employees']:,}")
+    if 'profile_website' in market_data[ticker]:
+        payload.append(webhook.bold("Website:", service) + f" {website}")
+    if 'profile_website' in market_data[ticker] and config_hyperlink:
+        if profile_exchange == 'NYSE' or 'Nasdaq' in profile_exchange:
+            finvizURL='https://finviz.com/quote.ashx?t=' + ticker
+            marketwatchURL = 'https://www.marketwatch.com/investing/stock/' + ticker.lower()
+            seekingalphaURL='https://seekingalpha.com/symbol/' + ticker
+            finvizLink = util.link(finvizURL, 'finviz', service)
+            marketwatchLink = util.link(marketwatchURL, 'marketwatch', service)
+            seekingalphaLink = util.link(seekingalphaURL, 'seekingalpha', service)
+            payload.append(webhook.bold("Other links:", service) + f" {market_link} | {finvizLink} | {seekingalphaLink} | {marketwatchLink} | {swsLink}")
+        elif profile_exchange == 'ASX':
+            payload.append(webhook.bold("Other links:", service) + f" {market_link} | {shortman_link} | {swsLink}")
+        else:
+            payload.append(webhook.bold("Other links:", service) + f" {market_link} | {swsLink}")
+    if ticker_orig == ticker:
+        payload.insert(0, webhook.bold(f"{profile_title} ({ticker_link})", service))
+    else:
+        payload.insert(0, "Beep Boop. I could not find " + ticker_orig + ", but I found " + ticker_link)
+        payload.insert(1, "")
+        payload.insert(2, webhook.bold(f"{profile_title} ({ticker_link})", service))
+    if len(payload) < 2:
+        payload.append("no data found")
+    payload = [i[0] for i in groupby(payload)] # de-dupe white space
+    return payload
+
+def prepare_stockfinancial_payload(service, user, ticker):
     cashflow = False
     ticker = ticker_orig = util.transform_to_yahoo(ticker)
     now = datetime.datetime.now()
@@ -482,72 +604,6 @@ def prepare_stockfinancial_payload(service, user, ticker, bio):
             website = website_text = market_data[ticker]['profile_website']
             website_text = util.strip_url(website)
             website = util.link(website, website_text, service)
-
-        if profile_exchange == 'ASX':
-            market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
-            shortman_url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
-            shortman_link = util.link(shortman_url, 'shortman', service)
-        elif profile_exchange == 'HKSE':
-            market_url = 'https://www.hkex.com.hk/Market-Data/Securities-Prices/Equities/Equities-Quote?sym=' + ticker.split('.')[0] + '&sc_lang=en'
-        elif 'Nasdaq' in profile_exchange:
-            market_url = 'https://www.nasdaq.com/market-activity/stocks/' + ticker.lower()
-        elif profile_exchange == 'NYSE':
-            market_url = 'https://www.nyse.com/quote/XNYS:' + ticker
-        elif profile_exchange == 'Taiwan':
-            profile_exchange = 'TWSE'
-            market_url = 'https://mis.twse.com.tw/stock/fibest.jsp?stock=' + ticker.split('.')[0] + '&lang=en_us'
-        elif profile_exchange == 'Tokyo':
-            profile_exchange = 'JPX'
-            market_url = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + ticker.split('.')[0]
-        else:
-            market_url = 'https://www.google.com/search?q=stock+exchange+' + profile_exchange + '+' + ticker.split('.')[0] + '&btnI'
-        market_link = util.link(market_url, profile_exchange, service)
-    if bio:
-        location = []
-        if 'profile_city' in market_data[ticker]:
-            location.append(market_data[ticker]['profile_city'])
-        if 'profile_state' in market_data[ticker]:
-            location.append(market_data[ticker]['profile_state'])
-        if 'profile_country' in market_data[ticker]:
-            profile_country = market_data[ticker]['profile_country']
-            location.append(profile_country)
-        if 'profile_bio' in market_data[ticker]:
-            payload.append(f"{market_data[ticker]['profile_bio']}")
-
-        if payload:
-            payload.append("")
-
-        if location:
-            payload.append(webhook.bold("Location:", service) + " " + ', '.join(location))
-        if 'profile_industry' in market_data[ticker] and 'profile_sector' in market_data[ticker]:
-            payload.append(webhook.bold("Classification:", service) + f" {market_data[ticker]['profile_industry']}, {market_data[ticker]['profile_sector']}")
-        if 'profile_employees' in market_data[ticker]:
-            payload.append(webhook.bold("Employees:", service) + f" {market_data[ticker]['profile_employees']:,}")
-        if 'profile_website' in market_data[ticker]:
-            payload.append(webhook.bold("Website:", service) + f" {website}")
-        if 'profile_website' in market_data[ticker] and config_hyperlink:
-            if profile_exchange == 'NYSE' or 'Nasdaq' in profile_exchange:
-                finvizURL='https://finviz.com/quote.ashx?t=' + ticker
-                marketwatchURL = 'https://www.marketwatch.com/investing/stock/' + ticker.lower()
-                seekingalphaURL='https://seekingalpha.com/symbol/' + ticker
-                finvizLink = util.link(finvizURL, 'finviz', service)
-                marketwatchLink = util.link(marketwatchURL, 'marketwatch', service)
-                seekingalphaLink = util.link(seekingalphaURL, 'seekingalpha', service)
-                payload.append(webhook.bold("Other links:", service) + f" {market_link} | {finvizLink} | {seekingalphaLink} | {marketwatchLink} | {swsLink}")
-            elif profile_exchange == 'ASX':
-                payload.append(webhook.bold("Other links:", service) + f" {market_link} | {shortman_link} | {swsLink}")
-            else:
-                payload.append(webhook.bold("Other links:", service) + f" {market_link} | {swsLink}")
-        if ticker_orig == ticker:
-            payload.insert(0, webhook.bold(f"{profile_title} ({ticker_link})", service))
-        else:
-            payload.insert(0, "Beep Boop. I could not find " + ticker_orig + ", but I found " + ticker_link)
-            payload.insert(1, "")
-            payload.insert(2, webhook.bold(f"{profile_title} ({ticker_link})", service))
-        if len(payload) < 2:
-            payload.append("no data found")
-        payload = [i[0] for i in groupby(payload)] # de-dupe white space
-        return payload
     if 'currency' in market_data[ticker] and 'market_cap' in market_data[ticker]:
         currency = market_data[ticker]['currency']
         market_cap = market_data[ticker]['market_cap']

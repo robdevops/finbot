@@ -395,3 +395,15 @@ def strip_url(url):
     url = url.removeprefix('https://')
     url = url.removeprefix('http://')
     return url
+
+def break_up_paragraph(walloftext):
+    buffer = []
+    output = []
+    for word in walloftext.split():
+        buffer.append(word)
+        if word.endswith('!') or word.endswith('.') and len(buffer) > 22:
+            output.append(' '.join(buffer))
+            buffer = []
+    output = '\n\n'.join(output)
+    return output
+
