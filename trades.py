@@ -8,8 +8,8 @@ from lib import sharesight
 from lib import webhook
 from lib import util
 
-def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=False, user='', portfolio_select=False, message_id=False, interactive=False):
-    start_date = datetime.datetime.now() - datetime.timedelta(days=past_days)
+def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service=False, user='', portfolio_select=False, message_id=False, interactive=False):
+    start_date = datetime.datetime.now() - datetime.timedelta(days=days)
     start_date = start_date.strftime('%Y-%m-%d') # 2022-08-20
     state_file = config_cache_dir + "/finbot_sharesight_trades.json"
 
@@ -55,8 +55,6 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             dates.add(dt_date)
 
             flag = util.flag_from_market(market)
-            if service == 'telegram' and len(portfolio_name) > 6: # avoid annoying linewrap
-                flag = ''
             # lookup currency or fall back to less reliable sharesight currency
             currency_temp = util.currency_from_market(market)
             if currency_temp:
@@ -67,7 +65,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                 holding_link = util.gfinance_link(symbol, market, service, brief=True)
             else:
                 holding_link = util.yahoo_link(ticker, service, brief=True)
-            payload_staging.append([dt_date, trade_id, emoji, portfolio_name, trade_link, currency, f'{value:,}', 'of', holding_link, flag])
+            payload_staging.append([dt_date, trade_id, emoji, portfolio_name, trade_link, currency, f'{value:,}', holding_link, flag])
 
         payload = []
         payload_staging.sort()
@@ -81,7 +79,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                     payload.append(' '.join(trade[2:]))
 
         if interactive and not payload: # easter egg 4
-            payload = [f"{user} No trades in the past { f'{past_days} days' if past_days != 1 else 'day' }. {random.choice(noTradesVerb)}"]
+            payload = [f"{user} No trades in the past { f'{days} days' if days != 1 else 'day' }. {random.choice(noTradesVerb)}"]
         return payload
 
     def trade_state_read(state_file):
@@ -111,11 +109,11 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         if portfolio_select.lower() in portfoliosLower:
             portfolio_id = portfoliosLower[portfolio_select.lower()] # any-case input
             portfolio_select = portfoliosReverseLookup[portfolio_id] # correct-case output
-        trades = trades + sharesight.get_trades(portfolio_select, portfolio_id, past_days)
+        trades = trades + sharesight.get_trades(portfolio_select, portfolio_id, days)
     else:
         for portfolio in portfolios:
             portfolio_id = portfolios[portfolio]
-            trades = trades + sharesight.get_trades(portfolio, portfolio_id, past_days)
+            trades = trades + sharesight.get_trades(portfolio, portfolio_id, days)
         if trades:
             print(len(trades), "trades found since", start_date)
         else:
