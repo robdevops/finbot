@@ -32,7 +32,6 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             holding_id = str(trade['holding_id'])
             ticker = util.transform_to_yahoo(symbol, market)
             dt_date = datetime.datetime.strptime(date, '%Y-%m-%d').date() # (2023, 12, 30)
-            dates.add(dt_date)
 
             action=''
             emoji=''
@@ -53,6 +52,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                 print("Skipping known trade_id:", trade_id, date, portfolio_name, transactionType, symbol)
                 continue
             newtrades.add(trade_id) # sneaky update global set
+            dates.add(dt_date)
 
             flag = util.flag_from_market(market)
             if service == 'telegram' and len(portfolio_name) > 6: # avoid annoying linewrap
@@ -72,7 +72,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         payload = []
         payload_staging.sort()
         for date in sorted(dates):
-            if interactive and past_days > 1:
+            if len(dates) > 1 or (interactive and days > 1):
                 human_date = date.strftime('%b %d') # Dec 30
                 payload.append("")
                 payload.append(webhook.bold(human_date, service))
