@@ -72,7 +72,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         payload = []
         payload_staging.sort()
         for date in sorted(dates):
-            if past_days > 1:
+            if interactive and past_days > 1:
                 human_date = date.strftime('%b %d') # Dec 30
                 payload.append("")
                 payload.append(webhook.bold(human_date, service))
