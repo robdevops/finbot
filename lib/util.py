@@ -396,12 +396,12 @@ def strip_url(url):
     url = url.removeprefix('http://')
     return url
 
-def break_up_paragraph(walloftext):
+def make_paragraphs(walloftext):
     buffer = []
     output = []
     for word in walloftext.split():
         buffer.append(word)
-        if word.endswith('!') or word.endswith('.') and len(buffer) > 22:
+        if word.endswith(('!', '.')) and len(buffer) > 22:
             output.append(' '.join(buffer))
             buffer = []
     output = '\n\n'.join(output)

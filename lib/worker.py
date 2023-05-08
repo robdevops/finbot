@@ -499,6 +499,8 @@ def prepare_bio_payload(service, user, ticker):
         profile_exchange = market_data[ticker]['profile_exchange']
         swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock&btnI'
         swsLink = util.link(swsURL, 'simplywall.st', service)
+        macrotrendsURL = 'https://www.google.com/search?q=site:macrotrends.net+' + profile_title + '+PE Ratio+' + ticker.split('.')[0] + '&btnI'
+        macrotrendsLink = util.link(macrotrendsURL, 'macrotrends.net', service)
         if 'profile_website' in market_data[ticker]:
             website = website_text = market_data[ticker]['profile_website']
             website_text = util.strip_url(website)
@@ -531,7 +533,7 @@ def prepare_bio_payload(service, user, ticker):
         profile_country = market_data[ticker]['profile_country']
         location.append(profile_country)
     if 'profile_bio' in market_data[ticker]:
-        payload.append(util.break_up_paragraph(market_data[ticker]['profile_bio']))
+        payload.append(util.make_paragraphs(market_data[ticker]['profile_bio']))
 
     if payload:
         payload.append("")
@@ -552,7 +554,7 @@ def prepare_bio_payload(service, user, ticker):
             finvizLink = util.link(finvizURL, 'finviz', service)
             marketwatchLink = util.link(marketwatchURL, 'marketwatch', service)
             seekingalphaLink = util.link(seekingalphaURL, 'seekingalpha', service)
-            payload.append(webhook.bold("Other links:", service) + f" {market_link} | {finvizLink} | {seekingalphaLink} | {marketwatchLink} | {swsLink}")
+            payload.append(webhook.bold("Other links:", service) + f" {market_link} | {finvizLink} | {seekingalphaLink} | {marketwatchLink} | {swsLink} | {macrotrendsLink}")
         elif profile_exchange == 'ASX':
             payload.append(webhook.bold("Other links:", service) + f" {market_link} | {shortman_link} | {swsLink}")
         else:
