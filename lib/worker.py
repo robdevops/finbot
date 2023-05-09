@@ -10,6 +10,7 @@ from lib import sharesight
 from lib import util
 from lib import webhook
 from lib import yahoo
+from lib import simplywallst
 import cal
 import performance
 import price
@@ -467,37 +468,9 @@ def prepare_bio_payload(service, user, ticker):
     exchange = market_data[ticker]['profile_exchange']
     ticker_link = util.finance_link(ticker, exchange, service, brief=False)
     profile_title = market_data[ticker]['profile_title']
-
     if 'profile_exchange' in market_data[ticker]:
         profile_exchange = market_data[ticker]['profile_exchange']
-        swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock&btnI'
-        swsLink = util.link(swsURL, 'simplywall.st', service)
-        if 'profile_website' in market_data[ticker]:
-            website = website_text = market_data[ticker]['profile_website']
-            website_text = util.strip_url(website)
-            website = util.link(website, website_text, service)
-        if profile_exchange == 'ASX':
-            market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
-            shortman_url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
-            shortman_link = util.link(shortman_url, 'shortman', service)
-        elif profile_exchange == 'HKSE':
-            market_url = 'https://www.hkex.com.hk/Market-Data/Securities-Prices/Equities/Equities-Quote?sym=' + ticker.split('.')[0] + '&sc_lang=en'
-        elif 'Nasdaq' in profile_exchange:
-            market_url = 'https://www.nasdaq.com/market-activity/stocks/' + ticker.lower()
-        elif profile_exchange == 'NYSE':
-            market_url = 'https://www.nyse.com/quote/XNYS:' + ticker
-        elif profile_exchange == 'Taiwan':
-            profile_exchange = 'TWSE'
-            market_url = 'https://mis.twse.com.tw/stock/fibest.jsp?stock=' + ticker.split('.')[0] + '&lang=en_us'
-        elif profile_exchange == 'Tokyo':
-            profile_exchange = 'JPX'
-            market_url = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + ticker.split('.')[0]
-        else:
-            market_url = 'https://www.google.com/search?q=stock+exchange+' + profile_exchange + '+' + ticker.split('.')[0] + '&btnI'
-        market_link = util.link(market_url, profile_exchange, service)
-    if 'profile_exchange' in market_data[ticker]:
-        profile_exchange = market_data[ticker]['profile_exchange']
-        swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock&btnI'
+        swsURL = simplywallst.get_url(ticker, profile_title, profile_exchange)
         swsLink = util.link(swsURL, 'simplywall.st', service)
         macrotrendsURL = 'https://www.google.com/search?q=site:macrotrends.net+' + profile_title + '+PE Ratio+' + ticker.split('.')[0] + '&btnI'
         macrotrendsLink = util.link(macrotrendsURL, 'macrotrends.net', service)
@@ -600,7 +573,7 @@ def prepare_stockfinancial_payload(service, user, ticker):
             marketStateEmoji = '🔴'
     if 'profile_exchange' in market_data[ticker]:
         profile_exchange = market_data[ticker]['profile_exchange']
-        swsURL = 'https://www.google.com/search?q=site:simplywall.st+(' + profile_title + '+' + profile_exchange + ':' + ticker.split('.')[0] + ')+Stock&btnI'
+        swsURL = simplywallst.get_url(ticker, profile_title, profile_exchange)
         swsLink = util.link(swsURL, 'simplywall.st', service)
         if 'profile_website' in market_data[ticker]:
             website = website_text = market_data[ticker]['profile_website']
