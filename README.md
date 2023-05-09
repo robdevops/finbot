@@ -165,7 +165,7 @@ You can also specify a portfolio name to get today's trades for just that portfo
 ### Price alerts
 ![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
 
-`prices.py` sends premarket, midsession, and interday price movements if holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
+`prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
 Config example:
 ```
@@ -176,14 +176,13 @@ Cron trigger:
 ```
 ./price.py [premarket|midsession|interday|days (int)]
 ```
-When scheduled (Cron), the mode must be passed as an execution argument.
+When scheduled (Cron), the mode must be passed as an execution argument:
 * If `premarket` is passed, it only reports on pre/post market price movements.
-* If `midsession` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones. It can also be run through the interactive bot  as shown below.
+* If `midsession` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones.
 * If `interday` is passed, it reports current price against the previous market close.
 * If an integer [i] is passed, it reports current price against [i] days ago.
 
 Interactive trigger (pre-market):
-Interactively, you can also optionally specify the number of days to compare against.
 ```
 .premarket [percent]
 ```
