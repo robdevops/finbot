@@ -18,10 +18,22 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
         dates = set()
         sharesight_url = "https://portfolio.sharesight.com/holdings/"
         for trade in trades:
+            action=''
+            emoji=''
+            transactionType = trade['transaction_type']
+            if transactionType == 'BUY':
+                action = 'bought'
+                emoji = '💸'
+            elif transactionType == 'SELL':
+                action = 'sold'
+                emoji = '🤑'
+            else:
+                print("Skipping corporate action:", portfolio_name, date, transactionType, symbol)
+                continue
+
             trade_id = int(trade['id'])
             portfolio_name = trade['portfolio'] # custom field
             date = trade['transaction_date'] # 2023-12-30
-            transactionType = trade['transaction_type']
             units = float(trade['quantity'])
             price = float(trade['price'])
             currency = trade['brokerage_currency_code']
@@ -32,18 +44,6 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
             holding_id = str(trade['holding_id'])
             ticker = util.transform_to_yahoo(symbol, market)
             dt_date = datetime.datetime.strptime(date, '%Y-%m-%d').date() # (2023, 12, 30)
-
-            action=''
-            emoji=''
-            if transactionType == 'BUY':
-                action = 'bought'
-                emoji = '💸'
-            elif transactionType == 'SELL':
-                action = 'sold'
-                emoji = '🤑'
-            else:
-                print("Skipping corporate action:", portfolio_name, date, transactionType, symbol)
-                continue
 
             if portfolio_select and portfolio_name.lower() != portfolio_select.lower():
                 continue
