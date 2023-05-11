@@ -291,7 +291,7 @@ def finance_link(symbol, exchange, service='telegram', days=1, brief=True):
     if config_hyperlinkProvider == 'google':
         link = gfinance_link(symbol, exchange, service, days, brief)
     else:
-        link = syahoo_link(ticker, service, brief)
+        link = yahoo_link(ticker, service, brief)
     return link
 
 def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True):

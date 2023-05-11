@@ -455,6 +455,31 @@ def prepare_bio_payload(service, user, ticker):
     market_data = yahoo.fetch_detail(ticker, 600)
     profile_title = market_data[ticker]['profile_title']
     print("")
+
+    def gfinance_link(symbol, exchange, service='telegram'):
+        text = 'googlefinance'
+        url = "https://www.google.com/finance/quote/"
+        exchange = util.transform_to_google(exchange)
+        symbol_short = symbol.replace(':', '.').split('.')[0]
+        ticker = symbol_short + ':' + exchange
+        if service == 'telegram' and config_hyperlink:
+            ticker_link = '<a href="' + url + ticker + '">' + text + '</a>'
+        elif service in {'discord', 'slack'} and config_hyperlink:
+            ticker_link = '<' + url + ticker + '?window=' + window + '|' + text + '>'
+        else:
+            ticker_link = symbol
+        return ticker_link
+
+    def yahoo_link(ticker, service='telegram'):
+        url = "https://au.finance.yahoo.com/quote/"
+        if service == 'telegram' and config_hyperlink:
+            ticker_link = '<a href="' + url + ticker + '">yahoo</a>'
+        elif service in {'discord', 'slack'} and config_hyperlink:
+            ticker_link = '<' + url + ticker + '|yahoo>'
+        else:
+            ticker_link = text
+        return ticker_link
+
     if not market_data and '.' not in ticker:
         ticker = ticker + '.AX'
         print("trying again with", ticker)
@@ -466,37 +491,39 @@ def prepare_bio_payload(service, user, ticker):
     if debug:
         print("Yahoo data:", json.dumps(market_data, indent=4))
     exchange = market_data[ticker]['profile_exchange']
+    exchange = exchange.replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq').replace('NYSEArca', 'NYSE')
     ticker_link = util.finance_link(ticker, exchange, service, brief=False)
     profile_title = market_data[ticker]['profile_title']
-    if 'profile_exchange' in market_data[ticker]:
-        profile_exchange = market_data[ticker]['profile_exchange']
-        swsURL = simplywallst.get_url(ticker, profile_title, profile_exchange)
-        swsLink = util.link(swsURL, 'simplywall.st', service)
-        macrotrendsURL = 'https://www.google.com/search?q=site:macrotrends.net+' + profile_title + '+PE Ratio+' + ticker.split('.')[0] + '&btnI'
-        macrotrendsLink = util.link(macrotrendsURL, 'macrotrends.net', service)
-        if 'profile_website' in market_data[ticker]:
-            website = website_text = market_data[ticker]['profile_website']
-            website_text = util.strip_url(website)
-            website = util.link(website, website_text, service)
-        if profile_exchange == 'ASX':
-            market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
-            shortman_url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
-            shortman_link = util.link(shortman_url, 'shortman', service)
-        elif profile_exchange == 'HKSE':
-            market_url = 'https://www.hkex.com.hk/Market-Data/Securities-Prices/Equities/Equities-Quote?sym=' + ticker.split('.')[0] + '&sc_lang=en'
-        elif 'Nasdaq' in profile_exchange:
-            market_url = 'https://www.nasdaq.com/market-activity/stocks/' + ticker.lower()
-        elif profile_exchange == 'NYSE':
-            market_url = 'https://www.nyse.com/quote/XNYS:' + ticker
-        elif profile_exchange == 'Taiwan':
-            profile_exchange = 'TWSE'
-            market_url = 'https://mis.twse.com.tw/stock/fibest.jsp?stock=' + ticker.split('.')[0] + '&lang=en_us'
-        elif profile_exchange == 'Tokyo':
-            profile_exchange = 'JPX'
-            market_url = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + ticker.split('.')[0]
-        else:
-            market_url = 'https://www.google.com/search?q=stock+exchange+' + profile_exchange + '+' + ticker.split('.')[0] + '&btnI'
-        market_link = util.link(market_url, profile_exchange, service)
+    swsURL = simplywallst.get_url(ticker, profile_title, exchange)
+    swsLink = util.link(swsURL, 'simplywall.st', service)
+    macrotrendsURL = 'https://www.google.com/search?q=site:macrotrends.net+' + profile_title + '+PE Ratio+' + ticker.split('.')[0] + '&btnI'
+    macrotrendsLink = util.link(macrotrendsURL, 'macrotrends', service)
+    gfinanceLink = gfinance_link(ticker, exchange, service)
+    yahoo_link = yahoo_link(ticker, service)
+
+    if 'profile_website' in market_data[ticker]:
+        website = website_text = market_data[ticker]['profile_website']
+        website_text = util.strip_url(website)
+        website = util.link(website, website_text, service)
+    if exchange == 'ASX':
+        market_url = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
+        shortman_url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
+        shortman_link = util.link(shortman_url, 'shortman', service)
+    elif exchange == 'HKSE':
+        market_url = 'https://www.hkex.com.hk/Market-Data/Securities-Prices/Equities/Equities-Quote?sym=' + ticker.split('.')[0] + '&sc_lang=en'
+    elif 'Nasdaq' in exchange:
+        market_url = 'https://www.nasdaq.com/market-activity/stocks/' + ticker.lower()
+    elif exchange == 'NYSE':
+        market_url = 'https://www.nyse.com/quote/XNYS:' + ticker
+    elif exchange == 'Taiwan':
+        exchange = 'TWSE'
+        market_url = 'https://mis.twse.com.tw/stock/fibest.jsp?stock=' + ticker.split('.')[0] + '&lang=en_us'
+    elif exchange == 'Tokyo':
+        exchange = 'JPX'
+        market_url = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + ticker.split('.')[0]
+    else:
+        market_url = 'https://www.google.com/search?q=stock+exchange+' + exchange + '+' + ticker.split('.')[0] + '&btnI'
+    market_link = util.link(market_url, exchange, service)
     location = []
     if 'profile_city' in market_data[ticker]:
         location.append(market_data[ticker]['profile_city'])
@@ -520,18 +547,16 @@ def prepare_bio_payload(service, user, ticker):
     if 'profile_website' in market_data[ticker]:
         payload.append(webhook.bold("Website:", service) + f" {website}")
     if 'profile_website' in market_data[ticker] and config_hyperlink:
-        if profile_exchange == 'NYSE' or 'Nasdaq' in profile_exchange:
+        if 'NYSE' in exchange or 'Nasdaq' in exchange:
             finvizURL='https://finviz.com/quote.ashx?t=' + ticker
-            marketwatchURL = 'https://www.marketwatch.com/investing/stock/' + ticker.lower()
             seekingalphaURL='https://seekingalpha.com/symbol/' + ticker
             finvizLink = util.link(finvizURL, 'finviz', service)
-            marketwatchLink = util.link(marketwatchURL, 'marketwatch', service)
             seekingalphaLink = util.link(seekingalphaURL, 'seekingalpha', service)
-            payload.append(webhook.bold("Other links:", service) + f" {market_link} | {finvizLink} | {seekingalphaLink} | {marketwatchLink} | {swsLink} | {macrotrendsLink}")
-        elif profile_exchange == 'ASX':
-            payload.append(webhook.bold("Other links:", service) + f" {market_link} | {shortman_link} | {swsLink}")
+            payload.append(webhook.bold("Links:", service) + f" {market_link} | {finvizLink} | {gfinanceLink} | {macrotrendsLink} | {seekingalphaLink} | {swsLink} | {yahoo_link}")
+        elif exchange == 'ASX':
+            payload.append(webhook.bold("Links:", service) + f" {market_link} | {shortman_link} | {swsLink}")
         else:
-            payload.append(webhook.bold("Other links:", service) + f" {market_link} | {swsLink}")
+            payload.append(webhook.bold("Links:", service) + f" {market_link} | {swsLink}")
     if ticker_orig == ticker:
         payload.insert(0, webhook.bold(f"{profile_title} ({ticker_link})", service))
     else:
