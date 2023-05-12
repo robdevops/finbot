@@ -470,16 +470,6 @@ def prepare_bio_payload(service, user, ticker):
             ticker_link = symbol
         return ticker_link
 
-    def yahoo_link(ticker, service='telegram'):
-        url = "https://au.finance.yahoo.com/quote/"
-        if service == 'telegram' and config_hyperlink:
-            ticker_link = '<a href="' + url + ticker + '">yahoo</a>'
-        elif service in {'discord', 'slack'} and config_hyperlink:
-            ticker_link = '<' + url + ticker + '|yahoo>'
-        else:
-            ticker_link = text
-        return ticker_link
-
     if not market_data and '.' not in ticker:
         ticker = ticker + '.AX'
         print("trying again with", ticker)
@@ -499,7 +489,9 @@ def prepare_bio_payload(service, user, ticker):
     macrotrendsURL = 'https://www.google.com/search?q=site:macrotrends.net+' + profile_title + '+PE Ratio+' + ticker.split('.')[0] + '&btnI'
     macrotrendsLink = util.link(macrotrendsURL, 'macrotrends', service)
     gfinanceLink = gfinance_link(ticker, exchange, service)
-    yahoo_link = yahoo_link(ticker, service)
+    #yahoo_link = yahoo_link(ticker, service)
+    yahoo_url = 'https://au.finance.yahoo.com/quote/' + ticker
+    yahoo_link = util.link(yahoo_url, 'yahoo', service)
 
     if 'profile_website' in market_data[ticker]:
         website = website_text = market_data[ticker]['profile_website']
@@ -554,9 +546,9 @@ def prepare_bio_payload(service, user, ticker):
             seekingalphaLink = util.link(seekingalphaURL, 'seekingalpha', service)
             payload.append(webhook.bold("Links:", service) + f" {market_link} | {finvizLink} | {gfinanceLink} | {macrotrendsLink} | {seekingalphaLink} | {swsLink} | {yahoo_link}")
         elif exchange == 'ASX':
-            payload.append(webhook.bold("Links:", service) + f" {market_link} | {shortman_link} | {swsLink}")
+            payload.append(webhook.bold("Links:", service) + f" {market_link} | {gfinanceLink} | {shortman_link} | {swsLink} | {yahoo_link}")
         else:
-            payload.append(webhook.bold("Links:", service) + f" {market_link} | {swsLink}")
+            payload.append(webhook.bold("Links:", service) + f" {market_link} | {gfinanceLink} | {swsLink} | {yahoo_link}")
     if ticker_orig == ticker:
         payload.insert(0, webhook.bold(f"{profile_title} ({ticker_link})", service))
     else:
