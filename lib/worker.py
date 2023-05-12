@@ -489,7 +489,6 @@ def prepare_bio_payload(service, user, ticker):
     macrotrendsURL = 'https://www.google.com/search?q=site:macrotrends.net+' + profile_title + '+PE Ratio+' + ticker.split('.')[0] + '&btnI'
     macrotrendsLink = util.link(macrotrendsURL, 'macrotrends', service)
     gfinanceLink = gfinance_link(ticker, exchange, service)
-    #yahoo_link = yahoo_link(ticker, service)
     yahoo_url = 'https://au.finance.yahoo.com/quote/' + ticker
     yahoo_link = util.link(yahoo_url, 'yahoo', service)
 
