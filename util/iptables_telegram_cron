@@ -1,0 +1,64 @@
+#!/bin/bash
+set -euo pipefail
+
+# drop unwanted HTTPS traffic
+# avoids inflating egrees bill with TCP resets and HTTP 403 Forbidden
+
+PATH="$PATH:/usr/sbin:/usr/bin"
+[[ $(whoami) == root ]] || { echo "requires root account"; exit 1 ;}
+which awk curl nginx whois >/dev/null || { echo "requires: awk curl nginx whois"; exit 1 ;}
+
+download(){
+   	url='https://core.telegram.org/getProxyConfig'
+	subnets=()
+	mapfile -t subnets < <(for subnet in $(for ip in $(curl -s $url | grep -oE "([0-9]{1,3}\.){3}[0-9]{1,3}");
+	    do
+	        echo ${ip%\.*}\.0
+	    done | sort -u);
+	do
+	        whois -T route $subnet
+	done | awk '$1 == "route:" {print $2}' | sort -u)
+}
+
+non_zero() {
+	[[ ${#subnets[@]} > 0 ]]
+}
+
+list_staging() {
+	for rule in "${rules[@]}"; do
+		echo "$rule"
+	done
+}
+
+flush() {
+	iptables -N HTTP &>/dev/null || true
+	iptables -F HTTP
+	# note: blocking port 80 would break certbot http-01
+	iptables -C INPUT -p tcp -m multiport --dport 8443,443 -j HTTP &>/dev/null || iptables -I INPUT -p tcp -m multiport --dport 8443,443 -j HTTP
+}
+
+stage() {
+	rules=()
+	rules+=("iptables -A HTTP -j DROP")
+	for subnet in ${subnets[@]}; do
+		rules+=("iptables -I HTTP -s $subnet -p tcp --dport 8443 -j ACCEPT")
+	done
+}
+
+different() {
+	! cmp --silent <(list_staging | sort) <(iptables-save | grep -w ^\-.*HTTP | sort)
+}
+
+install() {
+	for rule in "${rules[@]}"; do
+		$rule
+	done
+}
+
+set -e
+download
+non_zero
+flush
+stage
+different
+install
