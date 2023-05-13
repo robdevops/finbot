@@ -727,9 +727,9 @@ def prepare_stockfinancial_payload(service, user, ticker):
         prePostMarketPrice = None
         if 'prePostMarketPrice' in market_data[ticker]:
             prePostMarketPrice = market_data[ticker]['prePostMarketPrice']
-            payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice:,} ({prePostMarketPrice:,} after hrs)")
+            payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice:,.2f} ({prePostMarketPrice:,.2f} after hrs)")
         else:
-            payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice:,}" )
+            payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice:,.2f}" )
     if 'price_to_earnings_trailing' in market_data[ticker]:
         trailingPe = str(int(round(market_data[ticker]['price_to_earnings_trailing'])))
     else:
