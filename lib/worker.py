@@ -705,7 +705,7 @@ def prepare_stockfinancial_payload(service, user, ticker):
             emoji = '⚠️ '
             action = 'Sell'
             humanValue = util.humanUnits(insiderSellValue)
-            payload.append(webhook.bold("Net insider action (3M):", service) + f" {action} {currency} {humanValue} {emoji}")
+            payload.append(webhook.bold("Net insider action (3M):", service) + f" {action} {currency} {humanValue}{emoji}")
     if 'short_percent' in market_data[ticker]:
         emoji=''
         short_percent = market_data[ticker]['short_percent']
@@ -721,12 +721,23 @@ def prepare_stockfinancial_payload(service, user, ticker):
     if payload:
         payload.append("")
 
+    if 'regularMarketPrice' in market_data[ticker]:
+        regularMarketPrice = market_data[ticker]['regularMarketPrice']
+        currency = market_data[ticker]['currency']
+        prePostMarketPrice = None
+        if 'prePostMarketPrice' in market_data[ticker]:
+            print("DEBUG", prePostMarketPrice)
+            prePostMarketPrice = market_data[ticker]['prePostMarketPrice']
+        payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice} { '' if prePostMarketPrice is None else f'({prePostMarketPrice} A/H)' }" )
     if 'price_to_earnings_trailing' in market_data[ticker]:
         trailingPe = str(int(round(market_data[ticker]['price_to_earnings_trailing'])))
     else:
         trailingPe = 'N/A ⚠️ '
     if 'net_income' in market_data[ticker] and market_data[ticker]['net_income'] > 0:
         payload.append(webhook.bold("Trailing P/E:", service) + f" {trailingPe}")
+    if 'netIncomeToCommon' in market_data[ticker] and market_data[ticker]['netIncomeToCommon'] > 0:
+        currentPe = round(market_data[ticker]['regularMarketPrice'] / (market_data[ticker]['netIncomeToCommon'] / market_data[ticker]['sharesOutstanding']))
+        payload.append(webhook.bold("Current P/E:", service) + f" {currentPe}")
     if 'price_to_earnings_forward' in market_data[ticker]:
         forwardPe = int(round(market_data[ticker]['price_to_earnings_forward']))
         emoji=''

@@ -316,6 +316,36 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     else:
         local_market_data[ticker]['marketState'] = marketState
     try:
+        regularMarketPrice = data['quoteSummary']['result'][0]['price']['regularMarketPrice']['raw']
+    except (KeyError, IndexError):
+        pass
+    else:
+        local_market_data[ticker]['regularMarketPrice'] = regularMarketPrice
+    try:
+        preMarketPrice = float(data['quoteSummary']['result'][0]['price']['preMarketPrice']['raw'])
+    except (KeyError, IndexError, ValueError):
+        pass
+    else:
+        local_market_data[ticker]['prePostMarketPrice'] = preMarketPrice
+    try:
+        postMarketPrice = float(data['quoteSummary']['result'][0]['price']['postMarketPrice']['raw'])
+    except (KeyError, IndexError, ValueError):
+        pass
+    else:
+        local_market_data[ticker]['prePostMarketPrice'] = postMarketPrice
+    try:
+        netIncomeToCommon = data['quoteSummary']['result'][0]['defaultKeyStatistics']['netIncomeToCommon']['raw']
+    except (KeyError, IndexError):
+        pass
+    else:
+        local_market_data[ticker]['netIncomeToCommon'] = netIncomeToCommon
+    try:
+        sharesOutstanding = float(data['quoteSummary']['result'][0]['defaultKeyStatistics']['sharesOutstanding']['raw'])
+    except (KeyError, IndexError):
+        pass
+    else:
+        local_market_data[ticker]['sharesOutstanding'] = sharesOutstanding
+    try:
         short_percent = float(data['quoteSummary']['result'][0]['defaultKeyStatistics']['shortPercentOfFloat']['raw'])
     except (KeyError, IndexError):
         pass
@@ -401,6 +431,12 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         pass
     else:
         local_market_data[ticker]['price_to_sales'] = price_to_sales
+    try:
+        currency = data['quoteSummary']['result'][0]['summaryDetail']['currency']
+    except (KeyError, IndexError):
+        pass
+    else:
+        local_market_data[ticker]['currency'] = currency
     try:
         data['quoteSummary']['result'][0]['earningsTrend']['trend'][0]['growth']['raw']
     except (KeyError, IndexError):
