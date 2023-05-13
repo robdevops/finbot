@@ -309,6 +309,7 @@ def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True):
         exchange = exchange.split('.')[1]
     exchange = transform_to_google(exchange)
     symbol_short = symbol.replace(':', '.').split('.')[0]
+    symbol_short = symbol_short.replace('-', '.') # class shares e.g. BRK.A
     ticker = symbol_short + ':' + exchange
     if brief:
         text = symbol_short
@@ -365,7 +366,7 @@ def transform_to_yahoo(ticker, market=False):
         market = 'KQ'
     if market == 'LSE':
         market = 'L'
-    if market in 'TAI': # Taiwan in YF, Sharesight
+    if market == 'TAI': # Taiwan in YF, Sharesight
         market = 'TW' # TPE in GF
     if market == 'TPE': # Taipei in YF, Taiwan in GF. GF format will not work as input
         market = 'TWO' # missing from GF
@@ -377,6 +378,8 @@ def transform_to_yahoo(ticker, market=False):
         market = 'TA'
     if market in {'NASDAQ', 'NYSE', 'BATS', 'OTCMKTS'}:
         return ticker
+    if market in {'A', 'B', 'C'}: # class shares
+        return ticker + '-' + market
     ticker = ticker + '.' + market
     return ticker
 
