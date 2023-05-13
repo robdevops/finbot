@@ -726,9 +726,10 @@ def prepare_stockfinancial_payload(service, user, ticker):
         currency = market_data[ticker]['currency']
         prePostMarketPrice = None
         if 'prePostMarketPrice' in market_data[ticker]:
-            print("DEBUG", prePostMarketPrice)
             prePostMarketPrice = market_data[ticker]['prePostMarketPrice']
-        payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice} { '' if prePostMarketPrice is None else f'({prePostMarketPrice} A/H)' }" )
+            payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice:,} ({prePostMarketPrice:,} after hrs)")
+        else:
+            payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice:,}" )
     if 'price_to_earnings_trailing' in market_data[ticker]:
         trailingPe = str(int(round(market_data[ticker]['price_to_earnings_trailing'])))
     else:

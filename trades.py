@@ -62,7 +62,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
             trade_url = sharesight_url + holding_id + '/trades/' + str(trade_id) + '/edit'
             trade_link = util.link(trade_url, action, service)
             holding_link = util.finance_link(symbol, market, service)
-            payload_staging.append([dt_date, trade_id, emoji, portfolio_name, trade_link, currency, f'{value:,}', holding_link, flag])
+            payload_staging.append([dt_date, trade_id, emoji, portfolio_name, trade_link, currency, f'{value}', holding_link, flag])
 
         payload = []
         payload_staging.sort()
