@@ -55,6 +55,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
     else:
         tickers = sharesight.get_holdings_wrapper()
         tickers.update(util.watchlist_load())
+        if 'GOOG' in tickers and 'GOOGL' in tickers:
+            tickers.remove("GOOGL")
+
     market_data = yahoo.fetch(tickers)
     for ticker in tickers:
         if '.' not in ticker:

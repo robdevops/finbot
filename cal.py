@@ -69,6 +69,9 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
     else:
         tickers = sharesight.get_holdings_wrapper()
         tickers.update(util.watchlist_load())
+        if 'GOOG' in tickers and 'GOOGL' in tickers:
+            tickers.remove("GOOGL")
+
     if earnings:
         market_data = yahoo.fetch(tickers)
     elif dividend:
