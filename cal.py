@@ -110,7 +110,7 @@ if __name__ == "__main__":
         # python 3.9
         if sys.argv[1] == 'earnings':
             lambda_handler(earnings=True)
-        elif sys.argv[1] == 'dividend':
+        elif sys.argv[1] == 'ex-dividend':
             lambda_handler(dividend=True)
         else:
             print("Usage:", sys.argv[0], "[earnings|ex-dividend]", file=sys.stderr)
