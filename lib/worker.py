@@ -725,7 +725,8 @@ def prepare_stockfinancial_payload(service, user, ticker):
         regularMarketPrice = market_data[ticker]['regularMarketPrice']
         currency = market_data[ticker]['currency']
         prePostMarketPrice = None
-        if 'prePostMarketPrice' in market_data[ticker]:
+        marketState = market_data[ticker]['marketState']
+        if marketState != 'REGULAR' and 'prePostMarketPrice' in market_data[ticker]:
             prePostMarketPrice = market_data[ticker]['prePostMarketPrice']
             payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice:,.2f} ({prePostMarketPrice:,.2f} after hrs)")
         else:
@@ -774,10 +775,11 @@ def prepare_stockfinancial_payload(service, user, ticker):
             percent_change_month = round(float(percent_change_month))
             payload.append(webhook.bold("1M:", service) + f" {percent_change_month:,}%")
         payload.append(webhook.bold("1D:", service) + f" {percent_change:,}%")
-    if 'percent_change_premarket' in market_data[ticker]:
+    marketState = market_data[ticker]['marketState']
+    if marketState != 'REGULAR' and 'percent_change_premarket' in market_data[ticker]:
         percent_change_premarket = market_data[ticker]['percent_change_premarket']
         payload.append(webhook.bold("Pre-market:", service) + f" {percent_change_premarket:,}%")
-    elif 'percent_change_postmarket' in market_data[ticker]:
+    elif marketState != 'REGULAR' and 'percent_change_postmarket' in market_data[ticker]:
         percent_change_postmarket = market_data[ticker]['percent_change_postmarket']
         payload.append(webhook.bold("Post-market:", service) + f" {percent_change_postmarket:,}%")
     if 'profile_website' in market_data[ticker] and config_hyperlinkFooter and config_hyperlink:
