@@ -50,7 +50,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket)\s*([\w\.\:]+)*"
     m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-    price_command = r"^([\!\.]\s?|^" + botName + r"\s+)prices?\s*([\w\.\:\%]+)*\s*([\w\.\:\%]+)*"
+    price_command = r"^([\!\.]\s?|^" + botName + r"\s+)prices?\s*([\w\.\:\%\=]+)*\s*([\w\.\:\%]+)*"
     m_price = re.match(price_command, message, re.IGNORECASE)
 
     shorts_command = r"^([\!\.]\s?|^" + botName + r"\s+)shorts?\s*([\w\.\:]+)*"
@@ -132,7 +132,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 days = int(arg.split('d')[0])
             except ValueError:
                 specific_stock = str(arg).upper()
-        else:
+        if not specific_stock:
             payload = [ f"Fetching ex-dividend dates for the next { f'{days} days' if days != 1 else 'day' } 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
         cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=False, dividend=True)
