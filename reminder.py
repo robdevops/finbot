@@ -19,25 +19,20 @@ def lambda_handler():
             flag = "🇦🇺"
             if month_and_day in {'01-28', '04-28', '07-28', '10-28'}:
                 payload.append("🤑 Quarterly Superannuation payout deadline" + flag)
-            if month_and_day == '03-29' and year == '2023':
-                payload.append('🤑 Vic Energy Compare incentive https://compare.energy.vic.gov.au/')
             if month_and_day == '06-23':
                 payload.append("💰 Finalise deductable donations, work expenses & investment subscriptions by EOFY June 30" + flag)
                 payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)
-                payload.append("✍️  Submit superannuation 'Notice of Intent to Claim' by EOFY June 30" + flag)
+                payload.append("✍️ Submit superannuation 'Notice of Intent to Claim' by EOFY June 30" + flag)
             if month_and_day == '10-24':
                 payload.append("😓 Self-service individual tax returns are due Oct 31" + flag)
             if month_and_day == '10-31':
                 payload.append("😰 Self-service individual tax returns are due today" + flag)
-        if config_country_code in {'AU', 'NZ'}:
-            if month_and_day == '06-30':
-                payload.append("🥳 Happy EOFY 🇦🇺 🇳🇿")
-        elif config_country_code in {'CA', 'HK', 'GB', 'IN', 'JP', 'ZA'}:
-            if month_and_day == '03-31':
-                payload.append("🥳 Happy EOFY 🇨🇦 🇭🇰 🇬🇧 🇯🇵 🇮🇳 🇿🇦")
-        elif config_country_code == 'US':
-            if month_and_day == '09-30':
-                payload.append("🥳 Happy EOFY 🇺🇸")
+        #if config_country_code in {'AU', 'BD', 'EG', 'ET', 'KE', 'NP', 'PK'}:
+        if month_and_day == '06-30':
+                payload.append("🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰")
+        #elif config_country_code in {'GB', 'HK', 'IN', 'KR', 'NZ', 'JP', 'ZA'}:
+        if month_and_day == '03-31':
+                payload.append("🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦")
         # above ommits countries where EOFY == calendar year
         if month_and_day == '08-19':
             payload.append("📢 ahem 📢")
