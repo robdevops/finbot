@@ -539,6 +539,8 @@ def price_history(ticker, days=27, seconds=config_cache_seconds):
     end = str(int(now.timestamp()))
     url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
     url = url + '&crumb=' + crumb
+    if debug:
+        print(url)
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     try:
         r = requests.get(url, headers=headers, timeout=config_http_timeout)
