@@ -40,7 +40,8 @@ def fetch(tickers):
     yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
     headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0', 'cookie': 'A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng; A2=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng;'}
     for url in yahoo_urls:
-        print("Fetching", url)
+        if debug:
+            print("Fetching", url)
         try:
             r = requests.get(url, headers=headers, timeout=config_http_timeout)
         except Exception as e:
@@ -63,7 +64,10 @@ def fetch(tickers):
         try:
             profile_title = item['longName']
         except (KeyError, IndexError):
-            continue
+            try:
+                profile_title = item['shortName']
+            except (KeyError, IndexError):
+                continue
         try:
             percent_change = 0
             percent_change = round(float(item['regularMarketChangePercent']), 2)
@@ -150,6 +154,8 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         yahoo_urls = [base_url + ticker + '?modules=calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions']
         yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
         for url in yahoo_urls:
+            if debug:
+                print(url)
             try:
                 r = requests.get(url, headers=headers, timeout=config_http_timeout)
             except Exception as e:
@@ -171,8 +177,14 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     try:
         profile_title = data['quoteSummary']['result'][0]['price']['longName']
     except (KeyError, IndexError, ValueError):
-        print(ticker + '†', sep=' ', end='', flush=True, file=sys.stderr)
-        return False
+        print(ticker + 'x', sep=' ', end='', flush=True, file=sys.stderr)
+        return false
+    if profile_title is None:
+        try:
+            profile_title = data['quoteSummary']['result'][0]['price']['shortName']
+        except (KeyError, IndexError, ValueError):
+            print(ticker + '†', sep=' ', end='', flush=True, file=sys.stderr)
+            return False
     if profile_title is None: # catches some delisted stocks like "DUB"
         print(f"{ticker}†", sep=' ', end='', flush=True, file=sys.stderr)
         return False
