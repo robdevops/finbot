@@ -7,8 +7,17 @@ from lib.config import *
 from lib import sharesight
 from lib import webhook
 from lib import util
+from lib import yahoo
 
 def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=False, user='', portfolio_select=False, message_id=False, interactive=False):
+    def get_emoji(percent):
+        if percent < 0:
+            emoji = "🔻"
+        elif percent > 0:
+            emoji = '🔼'
+        else:
+            emoji = "▪️"
+        return emoji
     def prepare_performance_payload(service, performance, portfolios):
         payload = []
         for portfolio_id in performance:
@@ -16,14 +25,14 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             portfolio_name = performance[portfolio_id]['report']['holdings'][0]['portfolio']['name']
             portfolio_link = util.link(portfolio_url, portfolio_name, service)
             percent = float(performance[portfolio_id]['report']['currency_gain_percent'])
-            if percent < 0:
-                emoji = "🔻"
-            elif percent > 0:
-                emoji = '🔼'
-            else:
-                emoji = "▪️"
+            emoji = get_emoji(percent)
             payload.append(f"{emoji} {portfolio_link} {percent}%")
         if len(payload):
+            percent = yahoo.price_history('SPY', days=past_days)
+            emoji = get_emoji(percent)
+            sp500_link = util.finance_link('SPY', 'NYSEARCA', service=service, days=past_days, brief=True, text="S&P 500")
+            payload.append(f"{emoji} {sp500_link} {percent}%")
+
             days_english = f'{past_days} days' if past_days != 1 else 'day'
             message = "Performance over past " + days_english
             message = webhook.bold(message, service)
