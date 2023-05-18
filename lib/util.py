@@ -264,11 +264,11 @@ def humanUnits(value, decimal_places=0):
         value /= 1000.0
     return f"{value:.{decimal_places}f} {unit}"
 
-def yahoo_link(ticker, service='telegram', brief=True):
+def yahoo_link(ticker, service='telegram', brief=True, text=False):
     yahoo_url = "https://au.finance.yahoo.com/quote/"
-    if brief:
+    if brief and not text:
         text = ticker.split('.')[0]
-    else:
+    elif not text:
         text = ticker
     if service == 'telegram' and config_hyperlink:
         ticker_link = '<a href="' + yahoo_url + ticker + '">' + text + '</a>'
@@ -287,14 +287,14 @@ def link(url, text, service='telegram'):
         hyperlink = text
     return hyperlink
 
-def finance_link(symbol, exchange, service='telegram', days=1, brief=True):
+def finance_link(symbol, exchange, service='telegram', days=1, brief=True, text=False):
     if config_hyperlinkProvider == 'google':
-        link = gfinance_link(symbol, exchange, service, days, brief)
+        link = gfinance_link(symbol, exchange, service, days, brief, text)
     else:
-        link = yahoo_link(ticker, service, brief)
+        link = yahoo_link(ticker, service, brief, text)
     return link
 
-def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True):
+def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True, text=False):
     window = '1D'
     if days > 1:
         window = '5D'
@@ -311,9 +311,9 @@ def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True):
     symbol_short = symbol.replace(':', '.').split('.')[0]
     symbol_short = symbol_short.replace('-', '.') # class shares e.g. BRK.A
     ticker = symbol_short + ':' + exchange
-    if brief:
+    if brief and not text:
         text = symbol_short
-    else:
+    elif not text:
         if '.' in symbol:
             text = ticker
         else:

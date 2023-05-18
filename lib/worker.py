@@ -454,21 +454,8 @@ def prepare_bio_payload(service, user, ticker):
     payload = []
     market_data = yahoo.fetch_detail(ticker, 600)
     profile_title = market_data[ticker]['profile_title']
-    print("")
 
-    def gfinance_link(symbol, exchange, service='telegram'):
-        text = 'googlefinance'
-        url = "https://www.google.com/finance/quote/"
-        exchange = util.transform_to_google(exchange)
-        symbol_short = symbol.replace(':', '.').split('.')[0]
-        ticker = symbol_short + ':' + exchange
-        if service == 'telegram' and config_hyperlink:
-            ticker_link = '<a href="' + url + ticker + '">' + text + '</a>'
-        elif service in {'discord', 'slack'} and config_hyperlink:
-            ticker_link = '<' + url + ticker + '?window=' + window + '|' + text + '>'
-        else:
-            ticker_link = symbol
-        return ticker_link
+    print("")
 
     if not market_data and '.' not in ticker:
         ticker = ticker + '.AX'
@@ -488,7 +475,7 @@ def prepare_bio_payload(service, user, ticker):
     swsLink = util.link(swsURL, 'simplywall.st', service)
     macrotrendsURL = 'https://www.google.com/search?q=site:macrotrends.net+' + profile_title + '+PE Ratio+' + ticker.split('.')[0] + '&btnI'
     macrotrendsLink = util.link(macrotrendsURL, 'macrotrends', service)
-    gfinanceLink = gfinance_link(ticker, exchange, service)
+    gfinanceLink = util.gfinance_link(ticker, exchange, service, brief=True, text='googlefinance')
     yahoo_url = 'https://au.finance.yahoo.com/quote/' + ticker
     yahoo_link = util.link(yahoo_url, 'yahoo', service)
 
