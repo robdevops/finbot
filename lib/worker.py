@@ -358,8 +358,8 @@ def prepare_watchlist(service, user, action=False, ticker=False):
             profile_title = market_data[item]['profile_title']
             if item == ticker and action == 'delete':
                 pass
-            elif item == ticker and action == 'add': # make the requested item bold
-                text = webhook.bold(f"{profile_title} ({item_link}) {flag}", service)
+            elif item == ticker and action == 'add': # highlight requested item
+                text = webhook.bold(webhook.italic(f"{profile_title} ({item_link}) {flag}", service), service)
                 payload.append(text)
             else:
                 payload.append(f"{profile_title} ({item_link}) {flag}")
