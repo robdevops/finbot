@@ -22,7 +22,18 @@ def transform_title(title):
     title = title.replace('Taiwan Semiconductor Manufacturing', 'TSM')
     title = title.replace('Flight Centre Travel', 'Flight Centre')
     title = title.replace('Global X Funds ', '')
-    #title = title.replace('Global X ', '')
+    title = title.replace(' of Australia', '')
+    title = title.replace('National Australia Bank', 'NAB')
+    title = title.replace(' PLC', '')
+    title = title.replace(' p.l.c.', '')
+    title = title.replace(' P.l.c.', '')
+    title = title.replace(' P.L.C.', '')
+    if title.endswith(' AG'):
+        title = title.replace(' AG', '')
+    if title.endswith(' SE'):
+        title = title.replace(' SE', '')
+    if title.endswith(' Se'):
+        title = title.replace(' SE', '')
     title = title.replace('Microbalifesciences', 'Microba Life Sciences')
     title = title.replace('Walt Disney Co (The)', 'Disney')
     title = title.replace('Lisenergylimited', 'LI-S Energy')
