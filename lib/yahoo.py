@@ -58,8 +58,10 @@ def fetch(tickers):
         sys.exit(1)
     data = r.json()
     data = data['quoteResponse']
-    data = data['result']
-    for item in data:
+    if data['result'] is None or data['error'] is not None:
+        print(f"{tickers}†", sep=' ', end='', flush=True, file=sys.stderr)
+        return False
+    for item in data['result']:
         ticker = item['symbol']
         try:
             profile_title = item['longName']
@@ -78,6 +80,10 @@ def fetch(tickers):
         except (KeyError, IndexError):
             pass
         try:
+            regularMarketPrice = item['regularMarketPrice']
+        except (KeyError, IndexError):
+            continue
+        try:
             dividend = round(float(item['trailingAnnualDividendRate']), 1)
         except (KeyError, IndexError):
             dividend = float(0)
@@ -90,6 +96,12 @@ def fetch(tickers):
             pass
         else:
             yahoo_output[ticker]["percent_change_premarket"] = round(percent_change_premarket, 2)
+        try:
+            quoteType = item['quoteType']
+        except (KeyError, IndexError):
+            pass
+        else:
+            yahoo_output[ticker]["quoteType"] = quoteType
         try:
             percent_change_postmarket = item['postMarketChangePercent']
         except (KeyError, IndexError):
@@ -125,6 +137,10 @@ def fetch(tickers):
         except:
             pass
         try:
+            yahoo_output[ticker]["financialCurrency"] = item['financialCurrency']
+        except:
+            pass
+        try:
             earningsTimestamp = item['earningsTimestamp']
             earningsTimestampStart = item['earningsTimestampStart']
             earningsTimestampEnd = item['earningsTimestampEnd']
@@ -134,6 +150,8 @@ def fetch(tickers):
                 yahoo_output[ticker]["earnings_date"] = earningsTimestampStart
             elif earningsTimestampEnd > now:
                 yahoo_output[ticker]["earnings_date"] = earningsTimestampEnd
+            else:
+                yahoo_output[ticker]["earnings_date"] = earningsTimestamp
         except (KeyError, IndexError):
             pass
     return yahoo_output
@@ -167,7 +185,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
                 break
         else:
             print(ticker + '†', sep=' ', end='', flush=True)
-            return False # catches some delisted stocks like "DRNA"
+            return {} # catches some delisted stocks like "DRNA"
         data = r.json()
         util.write_cache(cache_file, data)
         # might be interesting:
@@ -178,16 +196,16 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         profile_title = data['quoteSummary']['result'][0]['price']['longName']
     except (KeyError, IndexError, ValueError):
         print(ticker + 'x', sep=' ', end='', flush=True, file=sys.stderr)
-        return false
+        return {}
     if profile_title is None:
         try:
             profile_title = data['quoteSummary']['result'][0]['price']['shortName']
         except (KeyError, IndexError, ValueError):
             print(ticker + '†', sep=' ', end='', flush=True, file=sys.stderr)
-            return False
+            return {}
     if profile_title is None: # catches some delisted stocks like "DUB"
         print(f"{ticker}†", sep=' ', end='', flush=True, file=sys.stderr)
-        return False
+        return {}
     profile_title = util.transform_title(profile_title)
     local_market_data[ticker]['profile_title'] = profile_title
     try:
@@ -328,9 +346,15 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     else:
         local_market_data[ticker]['marketState'] = marketState
     try:
-        regularMarketPrice = data['quoteSummary']['result'][0]['price']['regularMarketPrice']['raw']
+        quoteType = data['quoteSummary']['result'][0]['price']['quoteType']
     except (KeyError, IndexError):
         pass
+    else:
+        local_market_data[ticker]['quoteType'] = quoteType
+    try:
+        regularMarketPrice = data['quoteSummary']['result'][0]['price']['regularMarketPrice']['raw']
+    except (KeyError, IndexError):
+        return {} # catches junk
     else:
         local_market_data[ticker]['regularMarketPrice'] = regularMarketPrice
     try:
@@ -427,6 +451,12 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         pass
     else:
         local_market_data[ticker]['operating_cashflow'] = operating_cashflow
+    try:
+        financialCurrency = data['quoteSummary']['result'][0]['financialData']['financialCurrency']
+    except (KeyError, IndexError):
+        pass
+    else:
+        local_market_data[ticker]['financialCurrency'] = financialCurrency
     try:
         recommend = data['quoteSummary']['result'][0]['financialData']['recommendationKey']
         recommend_index = data['quoteSummary']['result'][0]['financialData']['recommendationMean']['raw']

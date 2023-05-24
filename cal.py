@@ -15,15 +15,38 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
         now = datetime.datetime.now()
         soon = now + datetime.timedelta(days=days)
         dates = set()
-        for ticker in market_data:
+        for ticker in market_data.copy():
+            if market_data[ticker]['quoteType'] == 'ETF':
+                continue
             try:
                 if earnings:
                     timestamp = market_data[ticker]['earnings_date']
                 elif dividend:
                     timestamp = market_data[ticker]['ex_dividend_date']
                 timestamp = datetime.datetime.fromtimestamp(timestamp)
-            except (KeyError, ValueError):
-                continue
+            except (KeyError):
+                title_orig = market_data[ticker]['profile_title']
+                ticker_primary = ticker
+                if ticker in primary_listing:
+                    ticker_primary = primary_listing[ticker]
+                elif ticker.endswith('.AX') and 'financialCurrency' in market_data[ticker] and market_data[ticker]['financialCurrency'] == 'NZD':
+                    ticker_primary = ticker.replace('.AX', '.NZ') # fixes GTK.AX and SKO.AX
+                market_data = market_data | yahoo.fetch_detail(ticker_primary)
+                if 'profile_country' in market_data[ticker_primary]: # country is only available after fetch_detail
+                    country = market_data[ticker_primary]['profile_country']
+                    if country in yahoo_country and '.' not in ticker_primary:
+                        ticker_primary = ticker_primary + '.' + yahoo_country[country] # fixes ASML and INFY
+                        market_data = market_data | yahoo.fetch_detail(ticker_primary)
+                if ticker_primary not in market_data or title_orig != market_data[ticker_primary]['profile_title']:
+                    continue
+                try:
+                    if earnings:
+                        timestamp = market_data[ticker_primary]['earnings_date']
+                    elif dividend:
+                        timestamp = market_data[ticker_primary]['ex_dividend_date']
+                    timestamp = datetime.datetime.fromtimestamp(timestamp)
+                except (KeyError):
+                    continue
             if (timestamp > now and timestamp < soon) or specific_stock:
                 title = market_data[ticker]['profile_title']
                 ticker_link = util.yahoo_link(ticker, service)
