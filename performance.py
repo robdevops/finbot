@@ -33,8 +33,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             sp500_link = util.finance_link('SPY', 'NYSEARCA', service=service, days=past_days, brief=True, text="S&P 500")
             payload.append(f"{emoji} {sp500_link} {percent}%")
 
-            days_english = f'{past_days} days' if past_days != 1 else 'day'
-            message = "Performance over past " + days_english
+            message = f"Performance over {util.days_english(past_days)}"
             message = webhook.bold(message, service)
             payload.insert(0, message)
         return payload

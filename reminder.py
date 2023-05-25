@@ -34,7 +34,7 @@ def lambda_handler():
         if month_and_day == '03-31':
                 payload.append("🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦")
         # above ommits countries where EOFY == calendar year
-        if month_and_day == '08-19':
+        if month_and_day == '08-18':
             payload.append("📢 ahem 📢")
             payload.append("🎂 Happy Birthday to me, happy birthday TO me... 🎶 🎂")
             payload.append("😓 Oh no, that song costs royalties. Not very finance savvy of me 😅")

@@ -76,7 +76,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
                     payload.append(' '.join(trade[2:]))
 
         if interactive and not payload: # easter egg 4
-            payload = [f"{user} No trades in the past { f'{days} days' if days != 1 else 'day' }. {random.choice(noTradesVerb)}"]
+            payload = [f"{user} No trades {util.days_english(days, 'in the past ')}. {random.choice(noTradesVerb)}"]
         return payload
 
     def trade_state_read(state_file):
@@ -106,6 +106,9 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
         if portfolio_select.lower() in portfoliosLower:
             portfolio_id = portfoliosLower[portfolio_select.lower()] # any-case input
             portfolio_select = portfoliosReverseLookup[portfolio_id] # correct-case output
+        else:
+            print("Portfolio not found:", portfolio_select, file=sys.stderr)
+            sys.exit(1)
         trades = trades + sharesight.get_trades(portfolio_select, portfolio_id, days)
     else:
         for portfolio in portfolios:

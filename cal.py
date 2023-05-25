@@ -72,9 +72,9 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
         if payload:
             if not specific_stock:
                 if earnings:
-                    message = f"Upcoming earnings next { f'{days} days' if days != 1 else 'day' }:"
+                    message = f"Upcoming earnings {util.days_english(days, 'for the next ')}:"
                 elif dividend:
-                    message = f"Upcoming ex-dividend next { f'{days} days' if days != 1 else 'day' }:"
+                    message = f"Upcoming ex-dividends {util.days_english(days, 'for the next ')}:"
                 message = webhook.bold(message, service)
                 payload.insert(0, message)
         else:

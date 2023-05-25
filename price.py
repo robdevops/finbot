@@ -71,7 +71,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 elif premarket:
                     message = f'Tracking ≥ {threshold}% pre-market:'
                 elif days:
-                    message = f'Moved ≥ {threshold}% in {days} days:'
+                    message = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}:'
                 else:
                     message = f'Moved ≥ {threshold}% interday:'
                 message = webhook.bold(message, service)
@@ -105,7 +105,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         tickers = sharesight.get_holdings_wrapper()
         tickers.update(util.watchlist_load())
         if 'GOOG' in tickers and 'GOOGL' in tickers:
+            print(tickers)
             tickers.remove("GOOGL")
+            print(tickers)
     market_data = yahoo.fetch(tickers)
 
     if not specific_stock and days: # else market_data or yahoo.price_history is faster
@@ -116,10 +118,12 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 market = holding['instrument']['market_code']
                 percent = float(holding['capital_gain_percent'])
                 ticker = util.transform_to_yahoo(symbol, market)
+                if ticker not in tickers:
+                    continue
                 try:
                     market_data[ticker]['percent_change_period'] = percent
                 except KeyError:
-                    print("Error:", os.path.basename(__file__), ticker, "has no data", file=sys.stderr)
+                    print("Notice:", os.path.basename(__file__), ticker, "has no data", file=sys.stderr)
 
     # Prep and send payloads
     if not webhooks:

@@ -122,7 +122,17 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             try:
                 days = int(arg.split('d')[0])
             except ValueError:
-                specific_stock = str(arg).upper()
+                try:
+                    days = int(arg.split('w')[0]) * 7
+                except ValueError:
+                    try:
+                        days = int(arg.split('m')[0]) * 30
+                    except ValueError:
+                        try:
+                            days = int(arg.split('y')[0]) * 365
+                        except ValueError:
+                            specific_stock = str(arg).upper()
+                            days = config_future_days
         cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=True)
     elif m_dividend:
         days = config_future_days
@@ -132,9 +142,18 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             try:
                 days = int(arg.split('d')[0])
             except ValueError:
-                specific_stock = str(arg).upper()
+                try:
+                    days = int(arg.split('w')[0]) * 7
+                except ValueError:
+                    try:
+                        days = int(arg.split('m')[0]) * 30
+                    except ValueError:
+                        try:
+                            days = int(arg.split('y')[0]) * 365
+                        except ValueError:
+                            specific_stock = str(arg).upper()
         if not specific_stock:
-            payload = [ f"Fetching ex-dividend dates for the next { f'{days} days' if days != 1 else 'day' } 🔍" ]
+            payload = [ f"Fetching ex-dividend dates for {util.days_english(days, 'the next ')} 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
         cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=False, dividend=True)
     elif m_performance:
@@ -144,15 +163,24 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             try:
                 days = int(arg.split('d')[0])
             except ValueError:
-                days = config_past_days
-                portfolio_select = arg
+                try:
+                    days = int(arg.split('w')[0]) * 7
+                except ValueError:
+                    try:
+                        days = int(arg.split('m')[0]) * 30
+                    except ValueError:
+                        try:
+                            days = int(arg.split('y')[0]) * 365
+                        except ValueError:
+                            days = config_past_days
+                            portfolio_select = arg
         else:
             days = config_past_days
         if days > 0:
             # easter egg 3
-            payload = [ f"{random.choice(searchVerb)} performance for the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
+            payload = [ f"{random.choice(searchVerb)} portfolio performance for {util.days_english(days)} 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
-        performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=False, interactive=True)
+            performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=False, interactive=True)
     elif m_session:
         price_percent = config_price_percent
         specific_stock = False
@@ -177,7 +205,19 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                     days = int(arg.split('d')[0])
                     interday = False
                 except ValueError:
-                    specific_stock = str(arg).upper()
+                    try:
+                        days = int(arg.split('w')[0]) * 7
+                        interday = False
+                    except ValueError:
+                        try:
+                            days = int(arg.split('m')[0]) * 30
+                            interday = False
+                        except ValueError:
+                            try:
+                                days = int(arg.split('y')[0]) * 365
+                                interday = False
+                            except ValueError:
+                                specific_stock = str(arg).upper()
         if m_price.group(3):
             arg = m_price.group(3)
             try:
@@ -185,12 +225,24 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 interday = False
             except ValueError:
                 try:
-                    price_percent = int(arg.split('%')[0])
+                    days = int(arg.split('w')[0]) * 7
+                    interday = False
                 except ValueError:
-                    pass
+                    try:
+                        days = int(arg.split('m')[0]) * 30
+                        interday = False
+                    except ValueError:
+                        try:
+                            days = int(arg.split('y')[0]) * 365
+                            interday = False
+                        except ValueError:
+                            try:
+                                price_percent = int(arg.split('%')[0])
+                            except ValueError:
+                                pass
         if days and days > 0 and not specific_stock:
             # easter egg 3
-            payload = [ f"{random.choice(searchVerb)} performance from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
+            payload = [ f"{random.choice(searchVerb)} stock performance from {util.days_english(days)} 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
         price.lambda_handler(chat_id, price_percent, service, user, specific_stock, interactive=True, premarket=False, interday=interday, days=days)
     elif m_premarket:
@@ -221,12 +273,21 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             try:
                 days = int(arg.split('d')[0])
             except ValueError:
-                days = 1
-                portfolio_select = arg
+                try:
+                    days = int(arg.split('w')[0]) * 7
+                except ValueError:
+                    try:
+                        days = int(arg.split('m')[0]) * 30
+                    except ValueError:
+                        try:
+                            days = int(arg.split('y')[0]) * 365
+                        except ValueError:
+                            days = 1
+                            portfolio_select = arg
         else:
             days = 1
         # easter egg 3
-        payload = [ f"{random.choice(searchVerb)} trades from the past { f'{days} days' if days != 1 else 'day' } 🔍" ]
+        payload = [ f"{random.choice(searchVerb)} trades from {util.days_english(days)} 🔍" ]
         webhook.payload_wrapper(service, url, payload, chat_id)
         trades.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=False, interactive=True)
     elif m_holdings:

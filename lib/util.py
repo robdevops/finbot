@@ -421,3 +421,23 @@ def make_paragraphs(walloftext):
     output = '\n\n'.join(output)
     return output
 
+def days_english(days, prefix='the past ', article=''):
+    if days == 0:
+        return 'today'
+    elif days == 1:
+        return prefix + article + 'day'
+    elif days == 7:
+        return prefix + article + 'week'
+    elif days == 30:
+        return prefix + article + 'month'
+    elif days == 365:
+        return prefix + article + 'year'
+    elif days % 7 == 0:
+        return prefix + str(int(days/7)) + ' weeks'
+    elif days % 30 == 0:
+        return prefix + str(int(days/30)) + ' months'
+    elif days % 365 == 0:
+        return prefix + str(int(days/365)) + ' years'
+    else:
+        return prefix + str(days) + ' days'
+

@@ -178,7 +178,7 @@ verb = [
 ]
 
 searchVerb = [
-    'Asking ChatGPT for help finding',
+    'Asking ChatGPT for',
     'Avoiding eye contact with',
     'Carrying the 1 on',
     'Conducting seance to make contact with',

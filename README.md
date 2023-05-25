@@ -32,23 +32,23 @@ datetime python-dotenv requests gevent
 ### Supported commands
 
 Where:
-* _symbol_ is a Yahoo Finance symbol
-* _days_ is an integer
+* _percent_ is a number followed by '%'
+* _period_ is a number followed by 'd' 'w' 'm' or 'y'
 * _portfolio_ is a Sharesight portfolio name
-* _percent_ is an integer or float
+* _symbol_ is a Yahoo Finance symbol
 ```
 .<symbol>
-.dividend [days|symbol]
-.earnings [days|symbol]
+.dividend [period|symbol]
+.earnings [period|symbol]
 .holdings [portfolio]
 .marketcap symbol
-.performance [days|portfolio]
+.performance [period|portfolio]
 .premarket [percent|symbol]
-.price [percent|symbol] [days]
+.price [percent|symbol] [period]
 .profile symbol
 .session [percent|symbol]
 .shorts [percent|symbol]
-.trades [days|portfolio]
+.trades [period|portfolio]
 .watchlist [add|del symbol]
 ```
 
@@ -56,17 +56,17 @@ Alternative syntax:
 
 ```
 @botname <symbol>
-@botname dividend [days|symbol]
-@botname earnings [days|symbol]
+@botname dividend [period|symbol]
+@botname earnings [period|symbol]
 @botname holdings [portfolio]
 @botname marketcap symbol
-@botname performance [days|portfolio]
+@botname performance [period|portfolio]
 @botname premarket [percent|symbol]
-@botname price [percent|symbol] [days]
+@botname price [percent|symbol] [period]
 @botname profile symbol
 @botname session [percent|symbol]
 @botname shorts [percent|symbol]
-@botname trades [days|portfolio]
+@botname trades [period|portfolio]
 @botname watchlist [add|del symbol]
 ```
 
@@ -126,10 +126,10 @@ This report can only be run through the interactive bot. Example usage:
 
 This report can only be run through the interactive bot. Example usage:
 ```
-.profile AAPL
+.profile [symbol]
 ```
 ```
-@botname profile AAPL
+@botname profile [symbol]
 ```
 
 ### Trades
@@ -148,10 +148,10 @@ past_days = 30
 
 Interactive trigger:
 ```
-.trades [days]
+.trades [period]
 ```
 ```
-@botname trades [days]
+@botname trades [period]
 ```
 
 You can also specify a portfolio name to get today's trades for just that portfolio:
@@ -206,14 +206,14 @@ Interactive trigger (interday).
 @botname [percent]
 ```
 
-For interday, can also specify the number of days:
+For interday, can also specify the time period:
 ```
-.price 10% [5d]
+.price [percent] [period]
 ```
 
 Or a specific stock:
 ```
-.price AAPL [90d]
+.price [symbol] [period]
 ```
 
 ### Portfolio performance
@@ -233,10 +233,10 @@ Cron trigger:
 
 Interactive trigger:
 ```
-.performance 7
+.performance [period]
 ```
 ```
-@botname performance 7
+@botname performance [period]
 ```
 
 Interactively, you can instead specify a portfolio:
@@ -266,18 +266,18 @@ Cron execution:
 
 Interactive trigger (earnings):
 ```
-.earnings [days]
+.earnings [period]
 ```
 ```
-@botname earnings [days]
+@botname earnings [period]
 ```
 
 Interactive trigger (ex-dividend):
 ```
-.dividend [days]
+.dividend [period]
 ```
 ```
-@botname dividend [days]
+@botname dividend [period]
 ```
 
 ### Highly shorted stock warnings
@@ -315,13 +315,13 @@ Interactive trigger:
 .watchlist
 ```
 ```
-.watchlist [add|del] AAPL
+.watchlist [add|del] [symbol]
 ```
 ```
 @botname watchlist
 ```
 ```
-@botname watchlist [add|del] AAPL
+@botname watchlist [add|del] [symbol]
 ```
 
 ## Installation (Linux)
