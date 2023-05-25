@@ -158,6 +158,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=False, dividend=True)
     elif m_performance:
         portfolio_select = False
+        days = config_past_days
         if m_performance.group(2):
             arg = m_performance.group(2)
             try:
@@ -172,10 +173,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                         try:
                             days = int(arg.split('y')[0]) * 365
                         except ValueError:
-                            days = config_past_days
                             portfolio_select = arg
-        else:
-            days = config_past_days
         if days > 0:
             # easter egg 3
             payload = [ f"{random.choice(searchVerb)} portfolio performance for {util.days_english(days)} 🔍" ]
