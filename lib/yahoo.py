@@ -88,7 +88,7 @@ def fetch(tickers):
         except (KeyError, IndexError):
             dividend = float(0)
         profile_title = util.transform_title(profile_title)
-        yahoo_output[ticker] = { 'profile_title': profile_title, 'ticker': ticker, 'percent_change': percent_change, 'dividend': dividend, 'currency': currency }
+        yahoo_output[ticker] = { 'profile_title': profile_title, 'ticker': ticker, 'percent_change': percent_change, 'dividend': dividend, 'currency': currency, 'regularMarketPrice': regularMarketPrice }
         # optional fields
         try:
             percent_change_premarket = item['preMarketChangePercent']
@@ -413,10 +413,12 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     else:
         local_market_data[ticker]['profit_margin'] = profit_margin
     try:
-        if data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-1]['earnings']['fmt'] is None:
-            raise TypeError('quarterly earnings is null')
-        else:
+        if data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-1]['earnings']['fmt'] is not None:
             net_income = data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-1]['earnings']['raw']
+        elif data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-2]['earnings']['fmt'] is not None:
+            net_income = data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-2]['earnings']['raw']
+        else:
+            raise TypeError('quarterly earnings is null')
     except (KeyError, IndexError, TypeError):
         pass
     else:
