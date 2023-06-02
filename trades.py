@@ -20,7 +20,10 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
         for trade in trades:
             action=''
             emoji=''
+            portfolio_name = trade['portfolio'] # custom field
+            date = trade['transaction_date'] # 2023-12-30
             transactionType = trade['transaction_type']
+            symbol = trade['symbol']
             if transactionType == 'BUY':
                 action = 'bought'
                 emoji = '💸'
@@ -32,12 +35,9 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
                 continue
 
             trade_id = int(trade['id'])
-            portfolio_name = trade['portfolio'] # custom field
-            date = trade['transaction_date'] # 2023-12-30
             units = float(trade['quantity'])
             price = float(trade['price'])
             currency = trade['brokerage_currency_code']
-            symbol = trade['symbol']
             market = trade['market']
             #value = round(trade['value']) # don't use - sharesight converts to local currency
             value = round(price * units)
