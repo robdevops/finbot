@@ -650,7 +650,7 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
         percent_dict[days] = round(percent, 2)
     else:
         default_price = df['Close'].iloc[0]
-        default_percent = round((current_price - past_price) / past_price * 100)
+        default_percent = round((current_price - default_price) / default_price * 100)
         for period in interval:
             # try to align with google finance
             if period == 'YTD':
