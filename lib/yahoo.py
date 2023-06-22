@@ -36,8 +36,12 @@ def getCrumb(seconds=config_cache_seconds):
     return r.text
 
 def fetch(tickers):
-    # NEVER CACHE THIS
-    print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
+    # DO NOT CACHE MORE THAN 5 mins
+    #print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
+    cache_file = config_cache_dir + "/finbot_yahoo_v7_" + "_".join(tickers)  + '.json'
+    cacheData = util.read_cache(cache_file, 60)
+    if config_cache and cacheData:
+        return cacheData
     now = datetime.datetime.now().timestamp()
     yahoo_output = {}
     crumb = getCrumb()
@@ -159,6 +163,7 @@ def fetch(tickers):
                 yahoo_output[ticker]["earnings_date"] = earningsTimestamp
         except (KeyError, IndexError):
             pass
+    util.write_cache(cache_file, yahoo_output)
     return yahoo_output
 
 def fetch_detail(ticker, seconds=config_cache_seconds):
