@@ -607,7 +607,7 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
     percent_dict = {}
     market_data = fetch([ticker])
     current_price = market_data[ticker]['regularMarketPrice']
-    cache_file = config_cache_dir + "/finbot_yahoo_price_history_new_" + ticker + "_" + str(days) + ".json"
+    cache_file = config_cache_dir + "/finbot_yahoo_price_history_new_" + ticker + ".json"
     cache = util.read_cache(cache_file, seconds)
     if config_cache and cache:
         csv = cache
