@@ -482,16 +482,20 @@ def graph(df, title, market_data):
             xpoint = x[np.argmin(y)]
             ypoint = y.min()
             text = f"Min {xpoint:.2f}\n{ypoint}"
+            xytext = (-50,-50)
         else:
             xpoint = x[np.argmax(y)]
             ypoint = y.max()
             text = f"Max {ypoint:.2f}\n{xpoint}"
+            xytext=(50,50)
         if not ax:
             ax=plt.gca()
         bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
         arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=60")
         kw = dict(arrowprops=arrowprops, bbox=bbox_props, ha="right", va="top")
-        ax.annotate(text, xy=(mdates.date2num(xpoint), ypoint), xytext=(50,50), textcoords='offset points', **kw)
+        ax.annotate(text, xy=(mdates.date2num(xpoint), ypoint), xytext=xytext, textcoords='offset points', **kw)
+        if atype == 'max':
+            ax.set_ylim(top=ypoint+(ypoint/4))
 
     x = df['Date']
     y = df['Adj Close']
