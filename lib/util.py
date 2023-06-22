@@ -481,13 +481,23 @@ def graph(df, title, market_data):
         if atype == 'min':
             xpoint = x[np.argmin(y)]
             ypoint = y.min()
-            text = f"Min {xpoint:.2f}\n{ypoint}"
-            xytext = (-50,-50)
+            text = f"Min {ypoint:.2f}\n{xpoint}"
+            if np.argmin(y) < 5:
+                xytext = (50,50)
+            else:
+                xytext = (-50,-50)
+            if debug:
+                print("Min", np.argmin(x), np.argmin(y))
         else:
             xpoint = x[np.argmax(y)]
             ypoint = y.max()
             text = f"Max {ypoint:.2f}\n{xpoint}"
-            xytext=(50,50)
+            if np.argmax(y) > 17:
+                xytext=(-50,-50)
+            else:
+                xytext=(50,50)
+            if debug:
+                print("Max", np.argmax(x), np.argmax(y))
         if not ax:
             ax=plt.gca()
         bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
@@ -516,8 +526,8 @@ def graph(df, title, market_data):
     plt.grid(color='grey', linestyle='-', alpha=0.4, linewidth=0.2)
     plt.box(False)
     plt.tight_layout()
-    annote(x,y, atype='max')
     annote(x,y, atype='min')
+    annote(x,y, atype='max')
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight')
     plt.clf()
