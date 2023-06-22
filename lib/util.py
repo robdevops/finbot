@@ -2,6 +2,7 @@ import os
 import io
 import datetime
 import json
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -254,14 +255,14 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
         if cacheFileAge < maxSeconds:
             if debug:
                 ttl = round((maxSeconds - cacheFileAge).total_seconds() / 60)
-                print(cacheFile, "TTL:", ttl, "minutes")
+                print(cacheFile, "TTL:", ttl, "minutes", file=sys.stderr)
             with open(cacheFile, "r", encoding="utf-8") as f:
                 cacheDict = json.loads(f.read())
             return cacheDict
         if debug:
-            print("cache expired:", cacheFile)
+            print("cache expired:", cacheFile, file=sys.stderr)
         return False
-    print("Cache file does not exist:", cacheFile, "first run?")
+    print("Cache file does not exist:", cacheFile, "first run?", file=sys.stderr)
     return False
 
 def write_cache(cache_file, fresh_dict):
@@ -280,14 +281,14 @@ def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
         if cacheFileAge < maxSeconds:
             if debug:
                 ttl = round((maxSeconds - cacheFileAge).total_seconds() / 60)
-                print(cacheFile, "TTL:", ttl, "minutes")
+                print(cacheFile, "TTL:", ttl, "minutes", file=sys.stderr)
             with open(cacheFile, "rb") as f:
                 data = io.BytesIO(f.read())
             return data
         if debug:
-            print("cache expired:", cacheFile)
+            print("cache expired:", cacheFile, file=sys.stderr)
         return False
-    print("Cache file does not exist:", cacheFile, "first run?")
+    print("Cache file does not exist:", cacheFile, "first run?", file=sys.stderr)
     return False
 
 def write_binary_cache(cache_file, data):
@@ -482,22 +483,22 @@ def graph(df, title, market_data):
             xpoint = x[np.argmin(y)]
             ypoint = y.min()
             text = f"Min {ypoint:.2f}\n{xpoint}"
-            if np.argmin(y) < 5:
+            if ypoint < y.max()/3 or np.where(x == xpoint)[0] < np.size(x)*0.1:
                 xytext = (50,50)
             else:
                 xytext = (-50,-50)
             if debug:
-                print("Min", np.argmin(x), np.argmin(y))
+                print("Min", np.argmin(x), np.argmin(y), file=sys.stderr)
         else:
             xpoint = x[np.argmax(y)]
             ypoint = y.max()
             text = f"Max {ypoint:.2f}\n{xpoint}"
-            if np.argmax(y) > 17:
+            if np.where(x == xpoint)[0] > np.size(x)*0.9:
                 xytext=(-50,-50)
             else:
                 xytext=(50,50)
             if debug:
-                print("Max", np.argmax(x), np.argmax(y))
+                print("Max", np.argmax(x), np.argmax(y), file=sys.stderr)
         if not ax:
             ax=plt.gca()
         bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
