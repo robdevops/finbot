@@ -1,5 +1,6 @@
 import datetime
 from dateutil.relativedelta import relativedelta
+import hashlib
 import io
 import json
 import requests
@@ -7,7 +8,6 @@ import pandas as pd
 from pandas.tseries.offsets import BDay as businessday
 import sys
 import lib.telegram as telegram
-
 from lib.config import *
 from lib import util
 
@@ -38,7 +38,10 @@ def getCrumb(seconds=config_cache_seconds):
 def fetch(tickers):
     # DO NOT CACHE MORE THAN 5 mins
     #print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
-    cache_file = config_cache_dir + "/finbot_yahoo_v7_" + "_".join(tickers)  + '.json'
+    tickers = list(tickers)
+    tickers.sort()
+    tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
+    cache_file = config_cache_dir + "/finbot_yahoo_" + tickers_sha256 + '.json'
     cacheData = util.read_cache(cache_file, 60)
     if config_cache and cacheData:
         return cacheData
