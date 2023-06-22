@@ -31,6 +31,7 @@ config_exclude_portfolios = () # default
 config_exclude_portfolios = os.getenv('exclude_portfolios', '').split()
 config_future_days = int(os.getenv('future_days', 7))
 config_http_timeout = int(os.getenv('http_timeout', 18))
+config_graph = os.getenv("graph", 'True').lower() in ('true', '1', 't')
 config_hyperlink = os.getenv("hyperlink", 'True').lower() in ('true', '1', 't')
 config_hyperlinkFooter = os.getenv("hyperlinkFooter", 'False').lower() in ('true', '1', 't')
 config_hyperlinkProvider = os.getenv("hyperlinkProvider", 'yahoo').lower()

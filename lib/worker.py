@@ -12,6 +12,7 @@ from lib import util
 from lib import webhook
 from lib import yahoo
 from lib import simplywallst
+from lib import telegram
 import cal
 import performance
 import price
@@ -30,7 +31,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     earnings_command = r"^([\!\.]\s?|" + botName + r"\s+)earnings?\s*([\w\.\:\-]+)*"
     m_earnings = re.match(earnings_command, message, re.IGNORECASE)
 
-    hello_command = r"^([\!\.]\s?|" + botName + r"\s+)(hi|hello)|^(hi|hello)\s+" + botName
+    hello_command = r"^([\!\.]\s?|" + botName + r"\s+)(hi$|hello)|^(hi|hello)\s+" + botName
     m_hello = re.match(hello_command, message, re.IGNORECASE)
 
     help_command = r"^([\!\.]\s?|" + botName + r"\s+)(help|usage)"
@@ -44,6 +45,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 
     marketcap_command = r"^([\!\.]\s?|^" + botName + r"\s+)marketcap\s*([\w\.\:\-]+)*"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
+
+    pe_command = r"^([\!\.]\s?|^" + botName + r"\s+)pe\s*([\w\.\:\-]+)*"
+    m_pe = re.match(pe_command, message, re.IGNORECASE)
+
+    history_command = r"^([\!\.]\s?|^" + botName + r"\s+)history\s*([\w\.\:\-]+)*"
+    m_history = re.match(history_command, message, re.IGNORECASE)
 
     performance_command = r"^([\!\.]\s?|^" + botName + r"\s+)performance?\s*([\w\s]+)*"
     m_performance = re.match(performance_command, message, re.IGNORECASE)
@@ -120,19 +127,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if m_earnings.group(2):
             arg = m_earnings.group(2)
             try:
-                days = int(arg.split('d')[0])
+                days = util.days_from_human_days(arg)
             except ValueError:
-                try:
-                    days = int(arg.split('w')[0]) * 7
-                except ValueError:
-                    try:
-                        days = int(arg.split('m')[0]) * 30
-                    except ValueError:
-                        try:
-                            days = int(arg.split('y')[0]) * 365
-                        except ValueError:
-                            specific_stock = str(arg).upper()
-                            days = config_future_days
+                specific_stock = str(arg).upper()
+                days = config_future_days
         cal.lambda_handler(chat_id, days, service, specific_stock, message_id=False, interactive=True, earnings=True)
     elif m_dividend:
         days = config_future_days
@@ -140,18 +138,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if m_dividend.group(2):
             arg = m_dividend.group(2)
             try:
-                days = int(arg.split('d')[0])
+                days = util.days_from_human_days(arg)
             except ValueError:
-                try:
-                    days = int(arg.split('w')[0]) * 7
-                except ValueError:
-                    try:
-                        days = int(arg.split('m')[0]) * 30
-                    except ValueError:
-                        try:
-                            days = int(arg.split('y')[0]) * 365
-                        except ValueError:
-                            specific_stock = str(arg).upper()
+                specific_stock = str(arg).upper()
         if not specific_stock:
             payload = [ f"Fetching ex-dividend dates for {util.days_english(days, 'the next ')} 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
@@ -162,18 +151,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if m_performance.group(2):
             arg = m_performance.group(2)
             try:
-                days = int(arg.split('d')[0])
+                days = util.days_from_human_days(arg)
             except ValueError:
-                try:
-                    days = int(arg.split('w')[0]) * 7
-                except ValueError:
-                    try:
-                        days = int(arg.split('m')[0]) * 30
-                    except ValueError:
-                        try:
-                            days = int(arg.split('y')[0]) * 365
-                        except ValueError:
-                            portfolio_select = arg
+                portfolio_select = arg
         if days > 0:
             # easter egg 3
             payload = [ f"{random.choice(searchVerb)} portfolio performance for {util.days_english(days)} 🔍" ]
@@ -197,47 +177,20 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if m_price.group(2):
             arg = m_price.group(2)
             try:
-                price_percent = int(arg.split('%')[0])
+                days = util.days_from_human_days(arg)
+                interday = False
             except ValueError:
-                try:
-                    days = int(arg.split('d')[0])
-                    interday = False
-                except ValueError:
-                    try:
-                        days = int(arg.split('w')[0]) * 7
-                        interday = False
-                    except ValueError:
-                        try:
-                            days = int(arg.split('m')[0]) * 30
-                            interday = False
-                        except ValueError:
-                            try:
-                                days = int(arg.split('y')[0]) * 365
-                                interday = False
-                            except ValueError:
-                                specific_stock = str(arg).upper()
+                specific_stock = str(arg).upper()
         if m_price.group(3):
             arg = m_price.group(3)
             try:
-                days = int(arg.split('d')[0])
+                days = util.days_from_human_days(arg)
                 interday = False
             except ValueError:
-                try:
-                    days = int(arg.split('w')[0]) * 7
-                    interday = False
-                except ValueError:
-                    try:
-                        days = int(arg.split('m')[0]) * 30
-                        interday = False
-                    except ValueError:
-                        try:
-                            days = int(arg.split('y')[0]) * 365
-                            interday = False
-                        except ValueError:
-                            try:
-                                price_percent = int(arg.split('%')[0])
-                            except ValueError:
-                                pass
+               try:
+                   price_percent = int(arg.split('%')[0])
+               except ValueError:
+                   pass
         if days and days > 0 and not specific_stock:
             # easter egg 3
             payload = [ f"{random.choice(searchVerb)} stock performance from {util.days_english(days)} 🔍" ]
@@ -269,19 +222,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if m_trades.group(2):
             arg = m_trades.group(2)
             try:
-                days = int(arg.split('d')[0])
+                days = util.days_from_human_days(arg)
             except ValueError:
-                try:
-                    days = int(arg.split('w')[0]) * 7
-                except ValueError:
-                    try:
-                        days = int(arg.split('m')[0]) * 30
-                    except ValueError:
-                        try:
-                            days = int(arg.split('y')[0]) * 365
-                        except ValueError:
-                            days = 1
-                            portfolio_select = arg
+                days = 1
+                portfolio_select = arg
         else:
             days = 1
         # easter egg 3
@@ -310,6 +254,74 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         else:
             payload = ["please try again specifying a ticker"]
         webhook.payload_wrapper(service, url, payload, chat_id)
+    elif m_pe:
+        payload = []
+        if m_pe.group(2):
+            ticker = m_pe.group(2).upper()
+            ticker = util.transform_to_yahoo(ticker)
+            market_data = yahoo.fetch_detail(ticker, 600)
+            if ticker in market_data and 'market_cap' in market_data[ticker]:
+                market_cap = market_data[ticker]['market_cap']
+                market_cap = util.humanUnits(market_cap)
+                title = market_data[ticker]['profile_title']
+                ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
+                payload.append(webhook.bold(f"{title} ({ticker_link}) mkt cap: {market_cap}", service))
+                if 'price_to_earnings_trailing' in market_data[ticker]:
+                    trailingPe = str(int(round(market_data[ticker]['price_to_earnings_trailing'])))
+                else:
+                    trailingPe = 'N/A ⚠️ '
+                if 'net_income' in market_data[ticker] and market_data[ticker]['net_income'] > 0:
+                    payload.append(webhook.bold("Trailing P/E:", service) + f" {trailingPe}")
+                if 'netIncomeToCommon' in market_data[ticker] and market_data[ticker]['netIncomeToCommon'] > 0:
+                    currentPe = round(market_data[ticker]['regularMarketPrice'] / (market_data[ticker]['netIncomeToCommon'] / market_data[ticker]['sharesOutstanding']))
+                    payload.append(webhook.bold("Current P/E:", service) + f" {currentPe}")
+                if 'price_to_earnings_forward' in market_data[ticker]:
+                    forwardPe = int(round(market_data[ticker]['price_to_earnings_forward']))
+                    emoji=''
+                    if 'profile_industry' in market_data[ticker]:
+                        profile_industry = market_data[ticker]['profile_industry']
+                        if 'Software' in profile_industry and forwardPe > 100:
+                            emoji = '⚠️ '
+                        elif 'Software' not in profile_industry and forwardPe > 30:
+                            emoji = '⚠️ '
+                        if 'price_to_earnings_trailing' in market_data[ticker] and forwardPe > int(trailingPe):
+                            emoji = '⚠️ '
+                    payload.append(webhook.bold("Forward P/E:", service) + f" {str(forwardPe)} {emoji}")
+                if 'price_to_earnings_peg' in market_data[ticker]:
+                    peg = round(market_data[ticker]['price_to_earnings_peg'], 1)
+                    payload.append(webhook.bold("PEG ratio:", service) + f" {str(peg)}")
+                if 'price_to_sales' in market_data[ticker] and 'price_to_earnings_forward' not in market_data[ticker]:
+                    price_to_sales = round(market_data[ticker]['price_to_sales'], 1)
+                    payload.append(webhook.bold("PS ratio:", service) + f" {str(price_to_sales)}")
+            else:
+                payload = [f"Data not found for {ticker}"]
+        else:
+            payload = ["please try again specifying a ticker"]
+        webhook.payload_wrapper(service, url, payload, chat_id)
+    elif m_history:
+        payload = []
+        if m_history.group(2):
+            ticker = m_history.group(2).upper()
+            ticker = util.transform_to_yahoo(ticker)
+            market_data = yahoo.fetch_detail(ticker, 600)
+            title = market_data[ticker]['profile_title']
+            ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, days=1825, brief=False)
+            if ticker in market_data and 'percent_change' in market_data[ticker]:
+                payload.append(webhook.bold(f"{title} ({ticker_link}) performance history", service))
+                #payload.append("")
+                price_history, graph = yahoo.price_history_new(ticker)
+                for interval in ('5Y', '3Y', '1Y', '6M', '3M', '1M', '7D', '1D'):
+                    if interval in price_history:
+                        percent = price_history[interval]
+                        emoji = util.get_emoji(percent)
+                        payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent}%")
+            else:
+                payload = [f"Data not found for {ticker}"]
+        else:
+            payload = ["please try again specifying a ticker"]
+        #webhook.payload_wrapper(service, url, payload, chat_id)
+        caption = '\n'.join(payload)
+        telegram.sendPhoto(chat_id, graph, caption)
     elif m_profile:
         if m_profile.group(2):
             ticker = m_profile.group(2).upper()
@@ -809,29 +821,28 @@ def prepare_stockfinancial_payload(service, user, ticker):
     if payload:
         payload.append("")
 
-    if 'percent_change_year' in market_data[ticker]:
-        percent_change_year = round(market_data[ticker]['percent_change_year'])
-        percent_change = market_data[ticker]['percent_change']
-        percent_change_five_year = yahoo.price_history(ticker, 1825)
-        if percent_change_five_year:
-            percent_change_five_year = round(float(percent_change_five_year))
-            payload.append(webhook.bold("5Y:", service) + f" {percent_change_five_year:,}%")
-        payload.append(webhook.bold("1Y:", service) + f" {percent_change_year:,}%")
-        percent_change_month = yahoo.price_history(ticker, 27)
-        if percent_change_month:
-            percent_change_month = round(float(percent_change_month))
-            payload.append(webhook.bold("1M:", service) + f" {percent_change_month:,}%")
-        payload.append(webhook.bold("1D:", service) + f" {percent_change:,}%")
+    price_history, graph = yahoo.price_history_new(ticker)
+    #price_history['1D'] = market_data[ticker]['percent_change']
+    for interval in ('5Y', '1Y', '1M', '1D'):
+       if interval in price_history:
+           percent = price_history[interval]
+           emoji = util.get_emoji(percent)
+           payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent}%")
+    percent_change = market_data[ticker]['percent_change']
     marketState = market_data[ticker]['marketState']
     if marketState != 'REGULAR' and 'percent_change_premarket' in market_data[ticker]:
         percent_change_premarket = market_data[ticker]['percent_change_premarket']
-        payload.append(webhook.bold("Pre-market:", service) + f" {percent_change_premarket:,}%")
+        emoji = util.get_emoji(percent_change_premarket)
+        payload.append(f"{emoji} {webhook.bold('Pre-market:', service)} {percent_change_premarket:,}%")
     elif marketState != 'REGULAR' and 'percent_change_postmarket' in market_data[ticker]:
         percent_change_postmarket = market_data[ticker]['percent_change_postmarket']
-        payload.append(webhook.bold("Post-market:", service) + f" {percent_change_postmarket:,}%")
+        emoji = util.get_emoji(percent_change_postmarket)
+        payload.append(f"{emoji} {webhook.bold('Post-market:', service)} {percent_change_postmarket:,}%")
+
     if 'profile_website' in market_data[ticker] and config_hyperlinkFooter and config_hyperlink:
         footer = f"{website} | {swsLink}"
-        payload.append("")
+        if payload and footer:
+            payload.append("")
         payload.append(footer)
     if ticker_orig == ticker:
         payload.insert(0, f"{profile_title} ({ticker_link}) {marketStateEmoji}")

@@ -8,10 +8,12 @@ from lib import sharesight
 from lib import webhook
 from lib import util
 from lib import yahoo
+from lib import telegram
 
 def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, midsession=False, premarket=False, interday=False, days=False):
     def prepare_price_payload(service, market_data, threshold):
         payload = []
+        graph = False
         marketStates = []
         for ticker in market_data:
             marketState = market_data[ticker]['marketState']
@@ -35,9 +37,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                     continue
             elif days:
                 try:
-                    percent = market_data[ticker]['percent_change_period']
+                    percent = market_data[ticker]['percent_change_period'] # sharesight value
                 except KeyError:
-                    percent = yahoo.price_history(ticker, days)
+                    percent, graph = yahoo.price_history_new(ticker, days)
+                    percent = percent[days]
             else:
                 percent = market_data[ticker]['percent_change']
             title = market_data[ticker]['profile_title']
@@ -94,7 +97,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                         payload = [f"{user}, no in-session securities meet threshold {threshold}%"]
                 else:
                     payload = [f"{user}, no price movements meet threshold {threshold}%"]
-        return payload
+        return payload, graph
 
 
     # MAIN #
@@ -119,7 +122,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 if ticker not in tickers:
                     continue
                 try:
-                    market_data[ticker]['percent_change_period'] = percent
+                    market_data[ticker]['percent_change_period'] = percent # inject sharesight value
                 except KeyError:
                     print("Notice:", os.path.basename(__file__), ticker, "has no data", file=sys.stderr)
 
@@ -128,15 +131,19 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         print("Error: no services enabled in .env", file=sys.stderr)
         sys.exit(1)
     if interactive:
-        payload = prepare_price_payload(service, market_data, threshold)
+        payload, graph = prepare_price_payload(service, market_data, threshold)
         if service == "slack":
             url = 'https://slack.com/api/chat.postMessage'
         elif service == "telegram":
             url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-        webhook.payload_wrapper(service, url, payload, chat_id)
+        if graph and service == "telegram":
+            caption = '\n'.join(payload)
+            telegram.sendPhoto(chat_id, graph, caption)
+        else:
+            webhook.payload_wrapper(service, url, payload, chat_id)
     else:
         for service, url in webhooks.items():
-            payload = prepare_price_payload(service, market_data, threshold)
+            payload, graph = prepare_price_payload(service, market_data, threshold)
             if service == "telegram":
                 url = url + "sendMessage?chat_id=" + str(chat_id)
             webhook.payload_wrapper(service, url, payload, chat_id)

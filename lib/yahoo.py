@@ -1,7 +1,12 @@
 import datetime
+from dateutil.relativedelta import relativedelta
+import io
 import json
 import requests
+import pandas as pd
+from pandas.tseries.offsets import BDay as businessday
 import sys
+import lib.telegram as telegram
 
 from lib.config import *
 from lib import util
@@ -595,3 +600,131 @@ def price_history(ticker, days=27, seconds=config_cache_seconds):
     percent = round(100 * (price[-1] - price[0]) / price[0], 2)
     util.write_cache(cache_file, percent)
     return percent
+
+def price_history_new(ticker, days=False, seconds=config_cache_seconds):
+    image_data = False
+    now = datetime.datetime.now()
+    percent_dict = {}
+    market_data = fetch([ticker])
+    current_price = market_data[ticker]['regularMarketPrice']
+    cache_file = config_cache_dir + "/finbot_yahoo_price_history_new_" + ticker + "_" + str(days) + ".json"
+    cache = util.read_cache(cache_file, seconds)
+    if config_cache and cache:
+        csv = cache
+    else:
+        crumb = getCrumb()
+        url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
+        #interval = '1mo'
+        interval = '1d'
+        start =  str(int((now - datetime.timedelta(days=1826)).timestamp())) # 5 years inc leap year
+        end = str(int(now.timestamp()))
+        url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
+        url = url + '&crumb=' + crumb
+        if debug: print(url)
+        headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+        try:
+            r = requests.get(url, headers=headers, timeout=config_http_timeout)
+        except:
+            print("Failure fetching", url, file=sys.stderr)
+            return False
+        if r.status_code == 200:
+            print('↓', sep=' ', end='', flush=True)
+        else:
+            print(ticker, r.status_code, "error communicating with", url, file=sys.stderr)
+            return False
+        csv = r.content.decode('utf-8')
+    df = pd.read_csv(io.StringIO(csv))
+    df['Date'] = pd.to_datetime(df['Date']).dt.date
+    #df.sort_values(by='Date', inplace = True)
+    price = []
+    interval = ('5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '28D', '7D', '5D', '1D')
+    if days:
+        seek_date = now - datetime.timedelta(days = days)
+        seek_dt = seek_date.date()
+        mask = df['Date'] >= seek_dt
+        df = df.loc[mask]
+        #df = df.reset_index(drop=True)
+        past_price = df[df.loc[mask]['Date'] >= seek_dt]['Close'].iloc[0]
+        df.reset_index(drop=True, inplace=True)
+        percent = (current_price - past_price) / past_price * 100
+        percent_dict[days] = round(percent, 2)
+    else:
+        default_price = df['Close'].iloc[0]
+        default_percent = round((current_price - past_price) / past_price * 100)
+        for period in interval:
+            # try to align with google finance
+            if period == 'YTD':
+                seek_dt = now.replace(day=1, month=1).date()
+                try:
+                    past_price = df[df['Date'] >= seek_dt]['Close'].iloc[0]
+                except IndexError:
+                    percent_dict['Max'] = default_percent
+                    continue
+            elif period == '1D':
+                    percent_dict['1D'] = market_data[ticker]['percent_change']
+            elif period == '5D':
+                #seek_date = now - datetime.timedelta(days = 5)
+                seek_date = now - businessday(5)
+                seek_dt = seek_date.date()
+                try:
+                    past_price = df[df['Date'] <= seek_dt]['Open'].iloc[-1]
+                except IndexError:
+                    percent_dict['Max'] = default_percent
+                    continue
+            elif period.endswith('M'):
+                months = int(period.removesuffix('M'))
+                seek_date = now - relativedelta(months=months)
+                seek_dt = seek_date.date()
+                try:
+                    past_price = df[df['Date'] <= seek_dt]['Close'].iloc[-1]
+                except IndexError:
+                    percent_dict['Max'] = default_percent
+                    continue
+            elif period.endswith('Y'):
+                years = int(period.removesuffix('Y'))
+                seek_date = now - relativedelta(years=years)
+                seek_dt = seek_date.date()
+                try:
+                    past_price = df[df['Date'] <= seek_dt]['Close'].iloc[-1]
+                except IndexError:
+                    percent_dict['Max'] = default_percent
+                    continue
+            else:
+                seek_date = now - datetime.timedelta(days = int(period.removesuffix('D')))
+                seek_dt = seek_date.date()
+                #print(df[df['Date'] <= seek_dt].tail(1))
+                try:
+                    past_price = df[df['Date'] <= seek_dt]['Close'].iloc[-1]
+                except IndexError:
+                    percent_dict['Max'] = default_percent
+                    continue
+            percent = (current_price - past_price) / past_price * 100
+            percent_dict[period] = round(percent)
+    if config_graph:
+        caption = []
+        profile_title = market_data[ticker]['profile_title']
+        if days:
+            title = profile_title + " (" + ticker + ") " + str(days) + " days " + str(percent_dict[days]) + '%'
+            caption.append(title)
+        else:
+            for k,v in percent_dict.items():
+                caption.append(str(k) + ": " + str(v) + '%')
+            if 'Max' in percent_dict:
+                title = profile_title + " (" + ticker + ") Max " + str(percent_dict['Max']) + '%'
+            else:
+                title = profile_title + " (" + ticker + ") 5Y " + str(percent_dict['5Y']) + '%'
+        caption = '\n'.join(caption)
+        image_cache_file = config_cache_dir + "/finbot_graph_" + ticker + "_" + str(days) + ".png"
+        image_cache = util.read_binary_cache(image_cache_file, seconds)
+        if config_cache and image_cache:
+            image_data = image_cache
+        else:
+            buf = util.graph(df, title, market_data[ticker])
+            #bytesio_to_file(buf, 'temp.png')
+            buf.seek(0)
+            image_data = buf
+            util.write_binary_cache(image_cache_file, image_data)
+            buf.seek(0)
+    util.write_cache(cache_file, csv)
+    return percent_dict, image_data
+

@@ -1,6 +1,9 @@
 import os
+import io
 import datetime
 import json
+import numpy as np
+import matplotlib.pyplot as plt
 from lib.config import *
 
 def chunker(seq, size):
@@ -268,6 +271,33 @@ def write_cache(cache_file, fresh_dict):
         f.write(json.dumps(fresh_dict))
     os.umask(0o022)
 
+def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
+    if os.path.isfile(cacheFile):
+        maxSeconds = datetime.timedelta(seconds=maxSeconds)
+        cacheFileMtime = datetime.datetime.fromtimestamp(os.path.getmtime(cacheFile))
+        cacheFileAge = datetime.datetime.now() - cacheFileMtime
+        if cacheFileAge < maxSeconds:
+            if debug:
+                ttl = round((maxSeconds - cacheFileAge).total_seconds() / 60)
+                print(cacheFile, "TTL:", ttl, "minutes")
+            with open(cacheFile, "rb") as f:
+                data = io.BytesIO(f.read())
+            return data
+        if debug:
+            print("cache expired:", cacheFile)
+        return False
+    print("Cache file does not exist:", cacheFile, "first run?")
+    return False
+
+def write_binary_cache(cache_file, data):
+    os.umask(0)
+    def opener(path, flags):
+        return os.open(path, flags, 0o640)
+    with open(cache_file, "wb", opener=opener) as f:
+        data.seek(0)
+        f.write(data.getbuffer())
+    os.umask(0o022)
+
 def humanUnits(value, decimal_places=0):
     for unit in ['', 'K', 'M', 'B', 'T', 'Q']:
         if value < 1000.0 or unit == 'Q':
@@ -315,6 +345,10 @@ def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True, text
         window = '6M'
     if days > 183:
         window = '1Y'
+    if days > 365:
+        window = '5Y'
+    if days > 1825:
+        window = 'Max'
     url = "https://www.google.com/finance/quote/"
     if '.' in exchange:
         exchange = exchange.split('.')[1]
@@ -441,3 +475,76 @@ def days_english(days, prefix='the past ', article=''):
     else:
         return prefix + str(days) + ' days'
 
+def graph(df, title, market_data):
+    def annot_max(x,y, ax=None):
+        xmax = x[np.argmax(y)]
+        ymax = y.max()
+        text = f"Max {ymax:.2f}\n{xmax}"
+        if not ax:
+            ax=plt.gca()
+        bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
+        arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=60")
+        kw = dict(xycoords='data',textcoords="axes fraction",
+                  arrowprops=arrowprops, bbox=bbox_props, ha="right", va="top")
+        ax.annotate(text, xy=(xmax, ymax), xytext=(1,1), **kw)
+        ax.set_ylim(top=ymax+(ymax/4))
+
+    def annot_min(x,y, ax=None):
+        xmin = x[np.argmin(y)]
+        ymin = y.min()
+        text = f"Min {ymin:.2f}\n{xmin}"
+        if not ax:
+            ax=plt.gca()
+        bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
+        arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=60")
+        kwm = dict(xycoords='data',textcoords="axes fraction",
+                  arrowprops=arrowprops, bbox=bbox_props, ha="right", va="top")
+        ax.annotate(text, xy=(xmin, ymin), xytext=(0.34,0.30), **kwm)
+
+    x = df['Date']
+    y = df['Adj Close']
+    first = df['Adj Close'].iloc[0]
+    last = df['Adj Close'].iloc[-1]
+    if first > last:
+        color = 'red' # red
+    elif first < last:
+        color = 'green' # green
+    else:
+        color = 'grey' # black if unchanged
+    plt.title(title)
+    plt.ylabel(market_data['currency'])
+    df['Date'] = df['Date'].map(lambda x: datetime.datetime.strptime(str(x), '%Y-%m-%d'))
+    plt.gcf().autofmt_xdate()
+    plt.fill_between(x,y, color=color, alpha=0.3, linewidth=0.5)
+    plt.plot(x,y, color=color, alpha=0.9, linewidth=0.7)
+    plt.grid(color='grey', linestyle='-', alpha=0.4, linewidth=0.2)
+    plt.box(False)
+    plt.tight_layout()
+    annot_max(x,y)
+    annot_min(x,y)
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight')
+    plt.clf()
+    return buf
+
+def get_emoji(number):
+    if number > 0:
+        #return '🔺'
+        return '🔼'
+    elif number < 0:
+        return '🔻'
+    else:
+        return '▪️'
+
+def days_from_human_days(arg):
+    try:
+        days = int(arg.removesuffix('d').removesuffix('D'))
+    except ValueError:
+        try:
+            days = int(arg.removesuffix('w').removesuffix('W')) * 7
+        except ValueError:
+            try:
+                days = int(arg.removesuffix('m').removesuffix('M')) * 30
+            except ValueError:
+                days = int(arg.removesuffix('y').removesuffix('Y')) * 365
+    return days
