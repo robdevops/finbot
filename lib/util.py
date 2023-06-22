@@ -4,6 +4,7 @@ import datetime
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from lib.config import *
 
 def chunker(seq, size):
@@ -476,30 +477,21 @@ def days_english(days, prefix='the past ', article=''):
         return prefix + str(days) + ' days'
 
 def graph(df, title, market_data):
-    def annot_max(x,y, ax=None):
-        xmax = x[np.argmax(y)]
-        ymax = y.max()
-        text = f"Max {ymax:.2f}\n{xmax}"
+    def annote(x,y, atype='max', ax=None):
+        if atype == 'min':
+            xpoint = x[np.argmin(y)]
+            ypoint = y.min()
+            text = f"Min {xpoint:.2f}\n{ypoint}"
+        else:
+            xpoint = x[np.argmax(y)]
+            ypoint = y.max()
+            text = f"Max {ypoint:.2f}\n{xpoint}"
         if not ax:
             ax=plt.gca()
         bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
         arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=60")
-        kw = dict(xycoords='data',textcoords="axes fraction",
-                  arrowprops=arrowprops, bbox=bbox_props, ha="right", va="top")
-        ax.annotate(text, xy=(xmax, ymax), xytext=(1,1), **kw)
-        ax.set_ylim(top=ymax+(ymax/4))
-
-    def annot_min(x,y, ax=None):
-        xmin = x[np.argmin(y)]
-        ymin = y.min()
-        text = f"Min {ymin:.2f}\n{xmin}"
-        if not ax:
-            ax=plt.gca()
-        bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
-        arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=60")
-        kwm = dict(xycoords='data',textcoords="axes fraction",
-                  arrowprops=arrowprops, bbox=bbox_props, ha="right", va="top")
-        ax.annotate(text, xy=(xmin, ymin), xytext=(0.34,0.30), **kwm)
+        kw = dict(arrowprops=arrowprops, bbox=bbox_props, ha="right", va="top")
+        ax.annotate(text, xy=(mdates.date2num(xpoint), ypoint), xytext=(50,50), textcoords='offset points', **kw)
 
     x = df['Date']
     y = df['Adj Close']
@@ -520,8 +512,8 @@ def graph(df, title, market_data):
     plt.grid(color='grey', linestyle='-', alpha=0.4, linewidth=0.2)
     plt.box(False)
     plt.tight_layout()
-    annot_max(x,y)
-    annot_min(x,y)
+    annote(x,y, atype='max')
+    annote(x,y, atype='min')
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight')
     plt.clf()
