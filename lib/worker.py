@@ -300,7 +300,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 recommend = market_data[ticker]['recommend'].replace('_', ' ')
                 recommend_index = market_data[ticker]['recommend_index']
                 recommend_analysts = market_data[ticker]['recommend_analysts']
-                if recommend == action:
+                if recommend == action and recommend_analysts < 2:
                     profile_title = market_data[ticker]['profile_title']
                     ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
                     payload.append(f"{profile_title} ({ticker_link}) Score: {recommend_index} ({recommend_analysts} analysts)")
