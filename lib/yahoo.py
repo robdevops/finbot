@@ -642,8 +642,12 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
             return False
         csv = r.content.decode('utf-8')
     df = pd.read_csv(io.StringIO(csv))
-    previous_close = df['Close'].iloc[-1]
-    df.loc[len(df)] = {'Date': now, 'Open': previous_close, 'High': None, 'Low': None, 'Close': current_price, 'Adj Close': current_price, 'Volume': None}
+    if df['Date'].iloc[-1] == now:
+        print ("inserting", now.date(), "because", df['Date'].iloc[-1], "exists")
+    else:
+        print ("inserting", now.date(), "after", df['Date'].iloc[-1])
+        previous_close = df['Close'].iloc[-1]
+        df.loc[len(df)] = {'Date': now.date(), 'Open': previous_close, 'High': None, 'Low': None, 'Close': current_price, 'Adj Close': current_price, 'Volume': None}
     df = df[df.Close.notnull()]
     df.reset_index(drop=True, inplace=True)
     df['Date'] = pd.to_datetime(df['Date']).dt.date
