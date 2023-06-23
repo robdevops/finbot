@@ -49,6 +49,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     pe_command = r"^([\!\.]\s?|^" + botName + r"\s+)pe\s*([\w\.\:\-]+)*"
     m_pe = re.match(pe_command, message, re.IGNORECASE)
 
+    recommend_command = r"^([\!\.]\s?|^" + botName + r"\s+)recommend\s*([\w\.\:\-]+)*"
+    m_recommend = re.match(recommend_command, message, re.IGNORECASE)
+
     history_command = r"^([\!\.]\s?|^" + botName + r"\s+)history\s*([\w\.\:\-]+)*"
     m_history = re.match(history_command, message, re.IGNORECASE)
 
@@ -255,48 +258,68 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             payload = ["please try again specifying a ticker"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_pe:
+        def last_col(e):
+            return int(e.split()[-1])
         payload = []
-        if m_pe.group(2):
-            ticker = m_pe.group(2).upper()
-            ticker = util.transform_to_yahoo(ticker)
-            market_data = yahoo.fetch_detail(ticker, 600)
-            if ticker in market_data and 'market_cap' in market_data[ticker]:
-                market_cap = market_data[ticker]['market_cap']
-                market_cap = util.humanUnits(market_cap)
-                title = market_data[ticker]['profile_title']
-                ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
-                payload.append(webhook.bold(f"{title} ({ticker_link}) mkt cap: {market_cap}", service))
-                if 'price_to_earnings_trailing' in market_data[ticker]:
-                    trailingPe = str(int(round(market_data[ticker]['price_to_earnings_trailing'])))
-                else:
-                    trailingPe = 'N/A ⚠️ '
-                if 'net_income' in market_data[ticker] and market_data[ticker]['net_income'] > 0:
-                    payload.append(webhook.bold("Trailing P/E:", service) + f" {trailingPe}")
-                if 'netIncomeToCommon' in market_data[ticker] and market_data[ticker]['netIncomeToCommon'] > 0:
-                    currentPe = round(market_data[ticker]['regularMarketPrice'] / (market_data[ticker]['netIncomeToCommon'] / market_data[ticker]['sharesOutstanding']))
-                    payload.append(webhook.bold("Current P/E:", service) + f" {currentPe}")
-                if 'price_to_earnings_forward' in market_data[ticker]:
-                    forwardPe = int(round(market_data[ticker]['price_to_earnings_forward']))
-                    emoji=''
-                    if 'profile_industry' in market_data[ticker]:
-                        profile_industry = market_data[ticker]['profile_industry']
-                        if 'Software' in profile_industry and forwardPe > 100:
-                            emoji = '⚠️ '
-                        elif 'Software' not in profile_industry and forwardPe > 30:
-                            emoji = '⚠️ '
-                        if 'price_to_earnings_trailing' in market_data[ticker] and forwardPe > int(trailingPe):
-                            emoji = '⚠️ '
-                    payload.append(webhook.bold("Forward P/E:", service) + f" {str(forwardPe)} {emoji}")
-                if 'price_to_earnings_peg' in market_data[ticker]:
-                    peg = round(market_data[ticker]['price_to_earnings_peg'], 1)
-                    payload.append(webhook.bold("PEG ratio:", service) + f" {str(peg)}")
-                if 'price_to_sales' in market_data[ticker] and 'price_to_earnings_forward' not in market_data[ticker]:
-                    price_to_sales = round(market_data[ticker]['price_to_sales'], 1)
-                    payload.append(webhook.bold("PS ratio:", service) + f" {str(price_to_sales)}")
-            else:
-                payload = [f"Data not found for {ticker}"]
+        tickers = sharesight.get_holdings_wrapper()
+        tickers.update(util.watchlist_load())
+        if 'GOOG' in tickers and 'GOOGL' in tickers:
+            tickers.remove("GOOGL")
+        market_data = yahoo.fetch(tickers)
+        for ticker in market_data:
+            try:
+                pe = market_data[ticker]['trailing_pe']
+            except KeyError:
+                continue
+            profile_title = market_data[ticker]['profile_title']
+            ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
+            payload.append(f"{profile_title} ({ticker_link}) {pe}")
+        payload.sort(key=last_col)
+        payload = payload[:10]
+        payload.insert(0, f"{webhook.bold('Top 10 stocks by trailing P/E ratio', service)}")
+        webhook.payload_wrapper(service, url, payload, chat_id)
+    elif m_recommend:
+        action = 'buy'
+        if m_recommend.group(2):
+            action = m_recommend.group(2)
+        def score_col(e):
+            return float(e.split()[-3])
+        payload = []
+        tickers = sharesight.get_holdings_wrapper()
+        tickers.update(util.watchlist_load())
+        if 'GOOG' in tickers and 'GOOGL' in tickers:
+            tickers.remove("GOOGL")
+        market_data = {}
+        for ticker in tickers:
+            try:
+                market_data = market_data | yahoo.fetch_detail(ticker)
+            except TypeError:
+                pass
+        for ticker in market_data:
+            if 'recommend_index' in market_data[ticker]:
+                recommend = market_data[ticker]['recommend'].replace('_', ' ')
+                recommend_index = market_data[ticker]['recommend_index']
+                recommend_analysts = market_data[ticker]['recommend_analysts']
+                if recommend == action:
+                    profile_title = market_data[ticker]['profile_title']
+                    ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
+                    payload.append(f"{profile_title} ({ticker_link}) Score: {recommend_index} ({recommend_analysts} analysts)")
+                    print(f"{profile_title} ({ticker_link}) Score: {recommend_index} ({recommend_analysts} analysts)")
+            try:
+                score = market_data[ticker]['trailing_pe']
+            except KeyError:
+                continue
+            profile_title = market_data[ticker]['profile_title']
+            ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
+            payload.append(f"{profile_title} ({ticker_link}) {pe}")
+        payload.sort(key=score_col)
+        if action in ('hold', 'sell', 'underperform'):
+            payload.reverse()
+            payload = payload[:10]
         else:
-            payload = ["please try again specifying a ticker"]
+            payload = payload[:10]
+        message = f"Top 10 analyist {action} recommendations"
+        payload.insert(0, f"{webhook.bold(message, service)}")
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_history:
         payload = []
