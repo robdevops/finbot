@@ -499,6 +499,16 @@ def graph(df, title, market_data):
             xytext=(50,50)
             if debug:
                 print("Max", np.argmax(x), np.argmax(y), file=sys.stderr)
+        elif atype == 'last':
+            xpoint = x.iloc[-1]
+            ypoint = df['Close'].iloc[-1]
+            text = f"Last {ypoint:.2f}\n{xpoint}"
+            #if np.where(x == xpoint)[0] > np.size(x)*0.9:
+            #    xytext=(-50,50)
+            #else:
+            xytext=(50,50)
+            if debug:
+                print("Max", np.argmax(x), np.argmax(y), file=sys.stderr)
         if not ax:
             ax=plt.gca()
         bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
@@ -510,9 +520,9 @@ def graph(df, title, market_data):
             ax.set_ylim(top=ypoint+(ypoint/4))
 
     x = df['Date']
-    y = df['Adj Close']
-    first = df['Adj Close'].iloc[0]
-    last = df['Adj Close'].iloc[-1]
+    y = df['Close']
+    first = df['Close'].iloc[0]
+    last = df['Close'].iloc[-1]
     if first > last:
         color = 'red' # red
     elif first < last:
@@ -530,6 +540,7 @@ def graph(df, title, market_data):
     plt.tight_layout()
     annote(x,y, atype='min')
     annote(x,y, atype='max')
+    annote(x,y, atype='last')
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight')
     plt.clf()
