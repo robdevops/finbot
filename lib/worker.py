@@ -49,7 +49,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     pe_command = r"^([\!\.]\s?|^" + botName + r"\s+)pe\s*([\w\.\:\-]+)*"
     m_pe = re.match(pe_command, message, re.IGNORECASE)
 
-    recommend_command = r"^([\!\.]\s?|^" + botName + r"\s+)recommend\s*([\w\.\:\-]+)*"
+    recommend_command = r"^([\!\.]\s?|^" + botName + r"\s+)recommend\s*([\w\s]+)*"
     m_recommend = re.match(recommend_command, message, re.IGNORECASE)
 
     history_command = r"^([\!\.]\s?|^" + botName + r"\s+)history\s*([\w\.\:\-]+)*"
@@ -279,8 +279,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         payload.insert(0, f"{webhook.bold('Top 10 stocks by trailing P/E ratio', service)}")
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_recommend:
-        action = 'buy'
-        if m_recommend.group(2):
+        action = 'strong buy'
+        if m_recommend.group(2) in ('strong buy', 'buy', 'hold', 'underperform', 'sell'):
             action = m_recommend.group(2)
         def score_col(e):
             return float(e.split()[-3])
@@ -313,12 +313,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
             payload.append(f"{profile_title} ({ticker_link}) {pe}")
         payload.sort(key=score_col)
-        if action in ('hold', 'sell', 'underperform'):
+        if action in ('hold', 'sell', 'underperform', 'strong sell'):
             payload.reverse()
             payload = payload[:10]
         else:
             payload = payload[:10]
-        message = f"Top 10 analyist {action} recommendations"
+        message = f"Top 10 analyst {action} recommendations"
         payload.insert(0, f"{webhook.bold(message, service)}")
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_history:
