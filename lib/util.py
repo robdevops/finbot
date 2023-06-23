@@ -478,25 +478,25 @@ def days_english(days, prefix='the past ', article=''):
         return prefix + str(days) + ' days'
 
 def graph(df, title, market_data):
-    def annote(x,y, atype='max', ax=None):
+    def annote(x,y, atype, ax=None):
         if atype == 'min':
             xpoint = x[np.argmin(y)]
             ypoint = y.min()
             text = f"Min {ypoint:.2f}\n{xpoint}"
-            if ypoint < y.max()/3 or np.where(x == xpoint)[0] < np.size(x)*0.1:
+            if ypoint < y.max()/4 or np.where(x == xpoint)[0] < np.size(x)*0.1:
                 xytext = (50,50)
             else:
-                xytext = (-50,-50)
+                xytext = (30,-30)
             if debug:
                 print("Min", np.argmin(x), np.argmin(y), file=sys.stderr)
-        else:
+        elif atype == 'max':
             xpoint = x[np.argmax(y)]
             ypoint = y.max()
             text = f"Max {ypoint:.2f}\n{xpoint}"
-            if np.where(x == xpoint)[0] > np.size(x)*0.9:
-                xytext=(-50,-50)
-            else:
-                xytext=(50,50)
+            #if np.where(x == xpoint)[0] > np.size(x)*0.9:
+            #    xytext=(-50,50)
+            #else:
+            xytext=(50,50)
             if debug:
                 print("Max", np.argmax(x), np.argmax(y), file=sys.stderr)
         if not ax:
@@ -504,7 +504,8 @@ def graph(df, title, market_data):
         bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
         arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=60")
         kw = dict(arrowprops=arrowprops, bbox=bbox_props, ha="right", va="top")
-        ax.annotate(text, xy=(mdates.date2num(xpoint), ypoint), xytext=xytext, textcoords='offset points', **kw)
+        #ax.annotate(text, xy=(mdates.date2num(xpoint), ypoint), xytext=xytext, textcoords='offset points', **kw)
+        ax.annotate(text, xy=(xpoint, ypoint), xytext=xytext, textcoords='offset points', **kw)
         if atype == 'max':
             ax.set_ylim(top=ypoint+(ypoint/4))
 
