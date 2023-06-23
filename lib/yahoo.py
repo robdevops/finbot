@@ -645,12 +645,11 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
     df['Date'] = pd.to_datetime(df['Date']).dt.date
     regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).date()
     if df['Date'].iloc[-1] == regularMarketTime:
-        print ("skipping", regularMarketTime, "because", df['Date'].iloc[-1], "exists", file=sys.stderr)
+        print (ticker, "skipping insert of", regularMarketTime, "because", df['Date'].iloc[-1], "exists", file=sys.stderr)
     else:
-        print(type(now.date()), type(df['Date'].iloc[-1]))
-        print ("inserting", now.date(), "after", df['Date'].iloc[-1], file=sys.stderr)
+        print (ticker, "inserting", regularMarketTime, "after", df['Date'].iloc[-1], file=sys.stderr)
         previous_close = df['Close'].iloc[-1]
-        df.loc[len(df)] = {'Date': now.date(), 'Open': previous_close, 'High': None, 'Low': None, 'Close': current_price, 'Adj Close': current_price, 'Volume': None}
+        df.loc[len(df)] = {'Date': regularMarketTime, 'Open': previous_close, 'High': None, 'Low': None, 'Close': current_price, 'Adj Close': current_price, 'Volume': None}
     df = df[df.Close.notnull()]
     #df.sort_values(by='Date', inplace = True)
     df.reset_index(drop=True, inplace=True)
