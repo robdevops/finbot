@@ -643,7 +643,7 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
         csv = r.content.decode('utf-8')
     df = pd.read_csv(io.StringIO(csv))
     df['Date'] = pd.to_datetime(df['Date']).dt.date
-    if df['Date'].iloc[-1] == now:
+    if df['Date'].iloc[-1] == now.date():
         print ("skipping", now.date(), "because", df['Date'].iloc[-1], "exists", file=sys.stderr)
     else:
         print(type(now.date()), type(df['Date'].iloc[-1]))
