@@ -642,6 +642,8 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
             return False
         csv = r.content.decode('utf-8')
     df = pd.read_csv(io.StringIO(csv))
+    df = df[df.Close.notnull()]
+    df.reset_index(drop=True, inplace=True)
     df['Date'] = pd.to_datetime(df['Date']).dt.date
     #df.sort_values(by='Date', inplace = True)
     price = []

@@ -283,7 +283,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if m_recommend.group(2) in ('strong buy', 'buy', 'hold', 'underperform', 'sell'):
             action = m_recommend.group(2)
         def score_col(e):
-            return float(e.split()[-3])
+            return (float(e.split()[-3]), float(e.split()[-2].removeprefix('(')))
         payload = []
         tickers = sharesight.get_holdings_wrapper()
         tickers.update(util.watchlist_load())
