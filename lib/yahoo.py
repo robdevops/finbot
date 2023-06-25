@@ -5,6 +5,7 @@ import io
 import json
 import requests
 import pandas as pd
+import pytz
 from pandas.tseries.offsets import BDay as businessday
 import sys
 import lib.telegram as telegram
@@ -611,10 +612,12 @@ def price_history(ticker, days=27, seconds=config_cache_seconds):
 
 def price_history_new(ticker, days=False, seconds=config_cache_seconds):
     image_data = False
-    now = datetime.datetime.now()
     percent_dict = {}
     market_data = fetch([ticker])
-    current_price = market_data[ticker]['regularMarketPrice']
+    tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
+    regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
+    regularMarketPrice = market_data[ticker]['regularMarketPrice']
+    now = datetime.datetime.now()
     cache_file = config_cache_dir + "/finbot_yahoo_price_history_new_" + ticker + ".json"
     cache = util.read_cache(cache_file, seconds)
     if config_cache and cache:
@@ -643,13 +646,14 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
         csv = r.content.decode('utf-8')
     df = pd.read_csv(io.StringIO(csv))
     df['Date'] = pd.to_datetime(df['Date']).dt.date
-    regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).date()
     if df['Date'].iloc[-1] == regularMarketTime:
-        print (ticker, "skipping insert of", regularMarketTime, "because", df['Date'].iloc[-1], "exists", file=sys.stderr)
+        if df['Close'].iloc[-1] != regularMarketPrice:
+            print("Updating", df['Close'].iloc[-1], "to", regularMarketPrice)
+            df['Close'].loc[-1] = regularMarketPrice
     else:
         print (ticker, "inserting", regularMarketTime, "after", df['Date'].iloc[-1], file=sys.stderr)
         previous_close = df['Close'].iloc[-1]
-        df.loc[len(df)] = {'Date': regularMarketTime, 'Open': previous_close, 'High': None, 'Low': None, 'Close': current_price, 'Adj Close': current_price, 'Volume': None}
+        df.loc[len(df)] = {'Date': regularMarketTime, 'Open': previous_close, 'High': None, 'Low': None, 'Close': regularMarketPrice, 'Adj Close': regularMarketPrice, 'Volume': None}
     df = df[df.Close.notnull()]
     #df.sort_values(by='Date', inplace = True)
     df.reset_index(drop=True, inplace=True)
@@ -663,11 +667,11 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
         #df = df.reset_index(drop=True)
         past_price = df[df.loc[mask]['Date'] >= seek_dt]['Close'].iloc[0]
         df.reset_index(drop=True, inplace=True)
-        percent = (current_price - past_price) / past_price * 100
+        percent = (regularMarketPrice - past_price) / past_price * 100
         percent_dict[days] = round(percent, 2)
     else:
         default_price = df['Close'].iloc[0]
-        default_percent = round((current_price - default_price) / default_price * 100)
+        default_percent = round((regularMarketPrice - default_price) / default_price * 100)
         for period in interval:
             # try to align with google finance
             if period == 'YTD':
@@ -715,7 +719,7 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
                 except IndexError:
                     percent_dict['Max'] = default_percent
                     continue
-            percent = (current_price - past_price) / past_price * 100
+            percent = (regularMarketPrice - past_price) / past_price * 100
             percent_dict[period] = round(percent)
     if config_graph:
         caption = []

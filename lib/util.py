@@ -493,22 +493,16 @@ def graph(df, title, market_data):
             xpoint = x[np.argmax(y)]
             ypoint = y.max()
             text = f"Max {ypoint:.2f}\n{xpoint}"
-            #if np.where(x == xpoint)[0] > np.size(x)*0.9:
-            #    xytext=(-50,50)
-            #else:
             xytext=(50,50)
             if debug:
                 print("Max", np.argmax(x), np.argmax(y), file=sys.stderr)
         elif atype == 'last':
             xpoint = x.iloc[-1]
-            ypoint = df['Close'].iloc[-1]
+            ypoint = y.iloc[-1]
             text = f"Last {ypoint:.2f}\n{xpoint}"
-            #if np.where(x == xpoint)[0] > np.size(x)*0.9:
-            #    xytext=(-50,50)
-            #else:
-            xytext=(50,50)
+            xytext=(30,-30)
             if debug:
-                print("Max", np.argmax(x), np.argmax(y), file=sys.stderr)
+                print("Last", df.index[-1], df['Close'].index[-1], file=sys.stderr)
         if not ax:
             ax=plt.gca()
         bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
