@@ -291,7 +291,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             if action == 'top':
                 payload_staging.reverse()
             payload_staging = payload_staging[:top]
-            for line in payload_staging:
+            for line in payload_staging: # drop no longer needed sort key
                 words = line.split()
                 payload.append(' '.join(words[:-1]))
             payload.insert(0, f"{webhook.bold(f'{action.title()} {top} stocks by market cap', service)}")
@@ -302,7 +302,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         top = 15
         action = 'pe'
         payload = []
-        allowed_actions = ('forward pe', 'pe', 'peg')
+        allowed_actions = ('forward pe', 'pe', 'peg', 'bottom pe', 'bottom peg', 'bottom forward pe')
         if m_value.group(2) in allowed_actions:
             action = m_value.group(2)
         else:
@@ -316,13 +316,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         market_data = yahoo.fetch(tickers)
         for ticker in market_data:
             try:
-                if action == 'pe':
+                if action == 'pe' or action == 'bottom pe':
                     pe = market_data[ticker]['trailing_pe']
-                elif action == 'forward pe':
+                elif action == 'forward pe' or 'bottom forward pe':
                     if market_data[ticker]['forward_pe'] <= 0:
                         continue
                     pe = market_data[ticker]['forward_pe']
-                elif action == 'peg':
+                elif action == 'peg' or 'bottom peg':
                     market_data = market_data | yahoo.fetch_detail(ticker)
                     pe = market_data[ticker]['price_to_earnings_peg']
             except KeyError:
@@ -332,6 +332,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
             payload.append(f"{profile_title} ({ticker_link}) {pe}")
         payload.sort(key=last_col)
+        if 'bottom' in action:
+            payload.reverse()
         payload = payload[:top]
         payload.insert(0, f"{webhook.bold(f'Top {top} stocks by {action} ratio', service)}")
         webhook.payload_wrapper(service, url, payload, chat_id)
@@ -386,7 +388,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 recommend = market_data[ticker]['recommend'].replace('_', ' ')
                 recommend_index = market_data[ticker]['recommend_index']
                 recommend_analysts = market_data[ticker]['recommend_analysts']
-                print(ticker, action, "in", recommend, "?")
                 if action in recommend and recommend_analysts > 1:
                     profile_title = market_data[ticker]['profile_title']
                     ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
@@ -399,7 +400,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             payload.insert(0, f"{webhook.bold(message, service)}")
             webhook.payload_wrapper(service, url, payload, chat_id)
         else:
-            payload = [f"No stocks meet recommend criteria"]
+            payload = [f"No stocks meet recommend {action} criteria"]
             webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_history:
         payload = []
@@ -411,7 +412,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, days=1825, brief=False)
             if ticker in market_data and 'percent_change' in market_data[ticker]:
                 payload.append(webhook.bold(f"{title} ({ticker_link}) performance history", service))
-                #payload.append("")
                 price_history, graph = yahoo.price_history_new(ticker)
                 for interval in ('5Y', '3Y', '1Y', '6M', '3M', '1M', '7D', '1D'):
                     if interval in price_history:
@@ -422,7 +422,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 payload = [f"Data not found for {ticker}"]
         else:
             payload = ["please try again specifying a ticker"]
-        #webhook.payload_wrapper(service, url, payload, chat_id)
         caption = '\n'.join(payload)
         telegram.sendPhoto(chat_id, graph, caption)
     elif m_profile:
