@@ -59,7 +59,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 ticker_link = util.yahoo_link(ticker, service)
             if specific_stock or abs(percent) >= threshold: # abs catches negative percentages
                 if config_demote_volatile:
-                    multiplier = config_volatile_multiplier
+                    multiplier = config_volatility_multiplier
                     market_data = market_data | yahoo.fetch_detail(ticker)
                     if market_data[ticker]['beta'] > 1.5 and market_data[ticker]['market_cap'] < 1000000000:
                         if debug:
