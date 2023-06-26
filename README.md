@@ -83,7 +83,7 @@ The other various reports can also run from cron (e.g. daily or weekly), or on d
 The interactive bot component requires you to host a web service on a domain with a trusted certificate. It subscribes to push updates from native Slack apps / Telegram bots, and reacts to certain regex seen in chat. It provides:
 * Stock lookup (financials and company profile)
 * Group maintainable watch list, picked up by the various reports
-* Listing of portfolios, portfolio performance, and holdings 
+* Listing of portfolios, portfolio performance, and holdings
 * Running the other stock reports on demand
 
 ## Reports
@@ -316,7 +316,7 @@ Interactive trigger:
 ```
 
 ### History
-Shows the long term performance of a security. 
+Shows the long term performance of a security.
 It creates 5Y chart (Telegram only), and then lists performance for several periods (5Y 3Y 1Y YTD 6M 3M 1M 1W)
 
 Interactive trigger:
@@ -328,7 +328,8 @@ Interactive trigger:
 ```
 
 ### Recommend
-List the most recommended stocks according to Yahoo Finance Analysts
+List the most recommended stocks according to Yahoo Finance analysts
+
 Interactive trigger:
 ```
 .recommend <buy | hold | underperform | sell>
@@ -545,10 +546,10 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
       * Subscribe to `message.im`
       * Check the box _App Home > Allow users to send Slash commands and messages from the messages tab_
   * Save Changes
-* Under _OAuth & Permissions_: 
+* Under _OAuth & Permissions_:
   * Scroll down to _Scopes > Bot Token Scopes_, and add `chat:write`
   * Scroll up to _OAuth Tokens for Your Workspace_:
-    * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_ 
+    * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_
     * Copy _Bot User OAuth Token_ into .env file `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies.
     * Restart `bot.py`
 
