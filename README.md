@@ -40,15 +40,18 @@ Where:
 .<symbol>
 .dividend [period|symbol]
 .earnings [period|symbol]
+.history symbol
 .holdings [portfolio]
-.marketcap symbol
+.marketcap [symbol|top|bottom]
 .performance [period|portfolio]
 .premarket [percent|symbol]
 .price [percent|symbol] [period]
 .profile symbol
+.recommend [buy|hold|underperform|sell]
 .session [percent|symbol]
 .shorts [percent|symbol]
 .trades [period|portfolio]
+.value [pe|forward pe|peg]
 .watchlist [add|del symbol]
 ```
 
@@ -58,15 +61,18 @@ Alternative syntax:
 @botname <symbol>
 @botname dividend [period|symbol]
 @botname earnings [period|symbol]
+@botname history symbol
 @botname holdings [portfolio]
-@botname marketcap symbol
+@botname marketcap [symbol|top|bottom]
 @botname performance [period|portfolio]
 @botname premarket [percent|symbol]
 @botname price [percent|symbol] [period]
 @botname profile symbol
+@botname recommend [buy|hold|underperform|sell]
 @botname session [percent|symbol]
 @botname shorts [percent|symbol]
 @botname trades [period|portfolio]
+@botname value [pe|forward pe|peg]
 @botname watchlist [add|del symbol]
 ```
 
@@ -297,6 +303,40 @@ Interactive trigger:
 ```
 @botname shorts [percent]
 ```
+
+### Value
+List securities by P/E ratio, forward P/E ratio, or PEG
+
+Interactive trigger:
+```
+.value <pe | forward pe | peg>
+```
+```
+@botname value <pe | forward pe | peg>
+```
+
+### History
+Shows the long term performance of a security. 
+It creates 5Y chart (Telegram only), and then lists performance for several periods (5Y 3Y 1Y YTD 6M 3M 1M 1W)
+
+Interactive trigger:
+```
+.history <symbol>
+```
+```
+@botname history <symbol>
+```
+
+### Recommend
+List the most recommended stocks according to Yahoo Finance Analysts
+Interactive trigger:
+```
+.recommend <buy | hold | underperform | sell>
+```
+```
+@botname recommend <buy | hold | underperform | sell>
+```
+
 
 ### Watchlist
 ![Shared watchlist in Slack](img/watchlist.png?raw=true "Shared watchlist in Slack")
