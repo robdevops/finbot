@@ -59,11 +59,12 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 ticker_link = util.yahoo_link(ticker, service)
             if specific_stock or abs(percent) >= threshold: # abs catches negative percentages
                 if config_demote_volatile:
+                    multiplier = config_volatile_multiplier
                     market_data = market_data | yahoo.fetch_detail(ticker)
                     if market_data[ticker]['beta'] > 1.5 and market_data[ticker]['market_cap'] < 1000000000:
                         if debug:
-                            print(ticker, "meets volatility criteria - promoting threshold to "f"{threshold*1.5}%", file=sys.stderr)
-                        if abs(percent) >= (threshold*2):
+                            print(ticker, "meets volatility criteria - promoting threshold to "f"{threshold*multiplier}%", file=sys.stderr)
+                        if abs(percent) >= (threshold*multiplier):
                             payload.append([emoji, title, f'({ticker_link})', percent])
                     else:
                         payload.append([emoji, title, f'({ticker_link})', percent])
