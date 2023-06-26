@@ -49,6 +49,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     pe_command = r"^([\!\.]\s?|^" + botName + r"\s+)pe\s*([\w\.\:\-]+)*"
     m_pe = re.match(pe_command, message, re.IGNORECASE)
 
+    beta_command = r"^([\!\.]\s?|^" + botName + r"\s+)beta\s*([\w\.\:\-]+)*"
+    m_beta = re.match(beta_command, message, re.IGNORECASE)
+
     recommend_command = r"^([\!\.]\s?|^" + botName + r"\s+)recommend\s*([\w\s]+)*"
     m_recommend = re.match(recommend_command, message, re.IGNORECASE)
 
@@ -277,6 +280,31 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         payload.sort(key=last_col)
         payload = payload[:10]
         payload.insert(0, f"{webhook.bold('Top 10 stocks by trailing P/E ratio', service)}")
+        webhook.payload_wrapper(service, url, payload, chat_id)
+    elif m_beta:
+        def last_col(e):
+            return float(e.split()[-1])
+        payload = []
+        market_data = {}
+        tickers = sharesight.get_holdings_wrapper()
+        tickers.update(util.watchlist_load())
+        if 'GOOG' in tickers and 'GOOGL' in tickers:
+            tickers.remove("GOOGL")
+        for ticker in tickers:
+            market_data = market_data | yahoo.fetch_detail(ticker)
+        for ticker in market_data:
+            try:
+                beta = round(market_data[ticker]['beta'], 2)
+            except KeyError:
+                continue
+            if beta > 1.5 and market_data[ticker]['market_cap'] < 1000000000:
+                profile_title = market_data[ticker]['profile_title']
+                ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
+                payload.append(f"{profile_title} ({ticker_link}) {beta}")
+        payload.sort(key=last_col)
+        payload.reverse()
+        #payload = payload[:15]
+        payload.insert(0, f"{webhook.bold('Beta over 1.5 and mkt cap under 1B', service)}")
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_recommend:
         action = 'strong buy'

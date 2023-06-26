@@ -175,7 +175,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     local_market_data = {}
     base_url = 'https://query2.finance.yahoo.com/v11/finance/quoteSummary/'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-    local_market_data[ticker] = {}
+    local_market_data[ticker] = dict()
     cache_file = config_cache_dir + "/finbot_yahoo_detail_" + ticker + '.json'
     cacheData = util.read_cache(cache_file, seconds)
     if config_cache and cacheData:
@@ -270,6 +270,12 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         pass
     else:
         local_market_data[ticker]['profile_website'] = profile_website
+    try:
+        beta = data['quoteSummary']['result'][0]['summaryDetail']['beta']['raw']
+    except (KeyError, IndexError):
+        pass
+    else:
+        local_market_data[ticker]['beta'] = beta
     try:
         currency = data['quoteSummary']['result'][0]['summaryDetail']['currency']
     except (KeyError, IndexError):
