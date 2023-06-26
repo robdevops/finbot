@@ -338,6 +338,16 @@ Interactive trigger:
 @botname recommend <buy | hold | underperform | sell>
 ```
 
+### Marketcap
+List the top (or bottom) stocks by market cap
+
+Interactive trigger:
+```
+.marketcap [top|bottom]
+```
+```
+@botname marketcap [top|bottom]
+```
 
 ### Watchlist
 ![Shared watchlist in Slack](img/watchlist.png?raw=true "Shared watchlist in Slack")
