@@ -32,7 +32,8 @@ def sendPhoto(chat_id, image_data, caption, message_id=None):
       return False
     if r.status_code == 200:
         print(r.status_code, "OK Slack sendPhoto", caption)
-        print(json.dumps(r.text, indent=4))
+        if 'false' in r.json:
+            print(json.dumps(r.json, indent=4))
     else:
         print(r.status_code, "error Slack sendPhoto", r.reason, caption, file=sys.stderr)
         return False
