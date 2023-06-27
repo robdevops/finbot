@@ -13,8 +13,9 @@ def getUser(user_id):
 def sendPhoto(chat_id, image_data, caption, message_id=None):
     #url = webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
     url = 'https://slack.com/api/files.upload'
+    #headers = {}
     #headers = {'Content-type': 'multipart/form-data'}
-    headers = {}
+    headers = {'Content-type': 'application/json'}
     headers['Authorization'] = 'Bearer ' + config_slackBotToken
     data = {
         'channels': chat_id,
