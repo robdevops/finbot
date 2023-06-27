@@ -426,7 +426,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         caption = '\n'.join(payload)
         if service == 'telegram':
             telegram.sendPhoto(chat_id, graph, caption)
-        elif server == 'slack':
+        elif service == 'slack':
             slack.sendPhoto(chat_id, graph, caption)
     elif m_profile:
         if m_profile.group(2):
