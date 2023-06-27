@@ -17,7 +17,7 @@ def sendPhoto(chat_id, image_data, caption, message_id=None):
     headers['Authorization'] = 'Bearer ' + config_slackBotToken
     data = {
         'channels': chat_id,
-        'content': caption }
+        'initial_comment': caption }
     if message_id:
         data['thread_ts'] = message_id
         data['reply_broadcast'] = 'true'
