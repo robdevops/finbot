@@ -24,7 +24,7 @@ def sendPhoto(chat_id, image_data, caption, message_id=None):
         data['reply_broadcast'] = 'true'
     file = {
         "file":("image.png",
-        image_data }
+        image_data) }
     #data = json.dumps(data).encode('utf-8')
     if debug:
         print(url, headers, data)
