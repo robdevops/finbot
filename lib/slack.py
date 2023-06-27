@@ -27,12 +27,12 @@ def sendPhoto(chat_id, image_data, caption, message_id=None):
         print(url, headers, data)
     try:
         r = requests.post(url, headers=headers, data=data, files=files, timeout=config_http_timeout)
-    #except (urllib.error.HTTPError, urllib.error.URLError, socket.timeout) as e:
     except Exception as e:
       print("Failure executing request:", url, data, str(e), file=sys.stderr)
       return False
     if r.status_code == 200:
         print(r.status_code, "OK Slack sendPhoto", caption)
+        print(json.dumps(r.text, indent=4))
     else:
         print(r.status_code, "error Slack sendPhoto", r.reason, caption, file=sys.stderr)
         return False
