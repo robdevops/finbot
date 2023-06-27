@@ -1,5 +1,6 @@
 import json
 import requests
+import sys
 from lib.config import *
 
 def getUser(user_id):
@@ -22,15 +23,17 @@ def sendPhoto(chat_id, image_data, caption, message_id=None):
         data['reply_broadcast'] = 'true'
     files = {"photo": ('image.png', image_data)}
     #data = json.dumps(data).encode('utf-8')
+    if debug:
+        print(url, headers, data)
     try:
         r = requests.post(url, headers=headers, data=data, files=files, timeout=config_http_timeout)
     #except (urllib.error.HTTPError, urllib.error.URLError, socket.timeout) as e:
     except Exception as e:
-      print("Failure executing request:", url, data, str(e))
+      print("Failure executing request:", url, data, str(e), file=sys.stderr)
       return False
     if r.status_code == 200:
         print(r.status_code, "OK Slack sendPhoto", caption)
     else:
-        print(r.status_code, "error Slack sendPhoto", r.reason, caption)
+        print(r.status_code, "error Slack sendPhoto", r.reason, caption, file=sys.stderr)
         return False
 
