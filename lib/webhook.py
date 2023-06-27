@@ -84,3 +84,41 @@ def strike(message, service):
     elif service == 'discord':
         message = '~~' + message + '~~'
     return message
+
+def sendPhoto(chat_id, image_data, caption, service, message_id=None):
+    if service == 'telegram':
+        url = webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
+        headers = {}
+        data = {
+            'disable_notification': True,
+            'chat_id': chat_id,
+            'caption': caption,
+            'parse_mode': 'HTML',
+            'disable_web_page_preview': True,
+            'allow_sending_without_reply': True,
+            'reply_to_message_id': message_id}
+    elif service == 'slack':
+        url = 'https://slack.com/api/files.upload'
+        headers = {'Authorization': 'Bearer ' + config_slackBotToken}
+        data = {'channels': chat_id, 'initial_comment': caption}
+        if message_id:
+            data['thread_ts'] = message_id
+            data['reply_broadcast'] = 'true'
+    files = {"photo": ('image.png', image_data)}
+    try:
+        r = requests.post(url, data=data, headers=headers, files=files, timeout=config_http_timeout)
+    except Exception as e:
+      print("Failure executing request:", url, data, str(e))
+      return False
+    if r.status_code == 200:
+        print(r.status_code, f"OK {service} sendPhoto", caption)
+        output = r.json()
+        if not output['ok']:
+            if service == 'telegram':
+                print(output['error_code'], output['description'], file=sys.stderr)
+            elif service == 'slack':
+                print(output['error'], file=sys.stderr)
+    else:
+        print(r.status_code, f"error {service} sendPhoto", r.reason, caption, file=sys.stderr)
+        return False
+

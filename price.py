@@ -147,9 +147,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             url = 'https://slack.com/api/chat.postMessage'
         elif service == "telegram":
             url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-        if graph and service == "telegram":
+        if graph:
             caption = '\n'.join(payload)
-            telegram.sendPhoto(chat_id, graph, caption)
+            webhook.sendPhoto(chat_id, graph, caption, service)
         else:
             webhook.payload_wrapper(service, url, payload, chat_id)
     else:

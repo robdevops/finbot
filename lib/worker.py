@@ -424,10 +424,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         else:
             payload = ["please try again specifying a ticker"]
         caption = '\n'.join(payload)
-        if service == 'telegram':
-            telegram.sendPhoto(chat_id, graph, caption)
-        elif service == 'slack':
-            slack.sendPhoto(chat_id, graph, caption)
+        webhook.sendPhoto(chat_id, graph, caption, service)
     elif m_profile:
         if m_profile.group(2):
             ticker = m_profile.group(2).upper()
