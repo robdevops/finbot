@@ -6,7 +6,7 @@ import sys
 from lib.config import *
 from lib import util
 
-def write(service, url, payload, slackchannel=False, message_id=False):
+def write(service, url, payload, slackchannel=None, message_id=None):
     headers = {'Content-type': 'application/json'}
     payload = {'text': payload}
     if 'slack.com' in url:
@@ -28,14 +28,14 @@ def write(service, url, payload, slackchannel=False, message_id=False):
         r = requests.post(url, headers=headers, json=payload, timeout=config_http_timeout)
     except:
         print("Failure executing request:", url, headers, payload, file=sys.stderr)
-        return False
+        return None
     if r.status_code == 200:
         print(r.status_code, "OK outbound to", service)
     else:
         print(r.status_code, "error outbound to", service, file=sys.stderr)
-        return False
+        return None
 
-def payload_wrapper(service, url, payload, slackchannel=False, message_id=False):
+def payload_wrapper(service, url, payload, slackchannel=None, message_id=None):
     if not payload:
         print(service + ": Nothing to send")
     else:
@@ -110,7 +110,7 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None):
         r = requests.post(url, data=data, headers=headers, files=files, timeout=config_http_timeout)
     except Exception as e:
       print("Failure executing request:", url, data, str(e))
-      return False
+      return None
     if r.status_code == 200:
         print(r.status_code, f"OK {service} sendPhoto", caption)
         output = r.json()
@@ -121,5 +121,5 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None):
                 print(output['error'], file=sys.stderr)
     else:
         print(r.status_code, f"error {service} sendPhoto", r.reason, caption, file=sys.stderr)
-        return False
+        return None
 

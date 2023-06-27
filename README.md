@@ -212,12 +212,12 @@ Interactive trigger (interday).
 @botname [percent]
 ```
 
-For interday, can also specify the time period:
+For interday, can also specify the time period.
 ```
 .price [percent] [period]
 ```
 
-Or a specific stock:
+Or a specific stock. In this case, the output includes a graph.
 ```
 .price [symbol] [period]
 ```
@@ -317,7 +317,7 @@ Interactive trigger:
 
 ### History
 Shows the long term performance of a security.
-It creates 5Y chart (Telegram only), and then lists performance for several periods (5Y 3Y 1Y YTD 6M 3M 1M 1W)
+It creates 5Y chart, and then lists performance for several periods (5Y 3Y 1Y YTD 6M 3M 1M 1W)
 
 Interactive trigger:
 ```

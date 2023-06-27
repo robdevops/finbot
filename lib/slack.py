@@ -10,26 +10,3 @@ def getUser(user_id):
     print(response.json())
     return response.json()
 
-def sendPhoto(chat_id, image_data, caption, message_id=None):
-    #url = webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
-    url = 'https://slack.com/api/files.upload'
-    headers = {'Authorization': 'Bearer ' + config_slackBotToken}
-    data = {'channels': chat_id, 'initial_comment': caption}
-    if message_id:
-        data['thread_ts'] = message_id
-        data['reply_broadcast'] = 'true'
-    files = {'file': ('image.png', image_data)}
-    try:
-        r = requests.post(url, headers=headers, data=data, files=files, timeout=config_http_timeout)
-    except Exception as e:
-      print("Failure executing request:", url, data, str(e), file=sys.stderr)
-      return False
-    if r.status_code == 200:
-        print(r.status_code, "OK Slack sendPhoto", caption)
-        output = r.json()
-        if not output['ok']:
-            print(output['error'], file=sys.stderr)
-    else:
-        print(r.status_code, "error Slack sendPhoto", r.reason, caption, file=sys.stderr)
-        return False
-
