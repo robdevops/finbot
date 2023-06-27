@@ -12,7 +12,8 @@ from lib import util
 from lib import webhook
 from lib import yahoo
 from lib import simplywallst
-from lib import telegram
+from lib import telegram # combine later
+from lib import slack # combine later
 import cal
 import performance
 import price
@@ -423,7 +424,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         else:
             payload = ["please try again specifying a ticker"]
         caption = '\n'.join(payload)
-        telegram.sendPhoto(chat_id, graph, caption)
+        if service == 'telegram':
+            telegram.sendPhoto(chat_id, graph, caption)
+        elif server == 'slack':
+            slack.sendPhoto(chat_id, graph, caption)
     elif m_profile:
         if m_profile.group(2):
             ticker = m_profile.group(2).upper()

@@ -8,3 +8,29 @@ def getUser(user_id):
     response = requests.get(url, headers=headers, timeout=config_http_timeout)
     print(response.json())
     return response.json()
+
+def sendPhoto(chat_id, image_data, caption, message_id=None):
+    #url = webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
+    url = 'https://slack.com/api/files.upload'
+    headers = {'Content-type': 'multipart/form-data'}
+    headers['Authorization'] = 'Bearer ' + config_slackBotToken
+    data = {
+        'channels': chat_id,
+        'content': caption }
+    if message_id:
+        data['thread_ts'] = message_id
+        data['reply_broadcast'] = 'true'
+    files = {"photo": ('image.png', image_data)}
+    #data = json.dumps(data).encode('utf-8')
+    try:
+        r = requests.post(url, headers=headers, data=data, files=files, timeout=config_http_timeout)
+    #except (urllib.error.HTTPError, urllib.error.URLError, socket.timeout) as e:
+    except Exception as e:
+      print("Failure executing request:", url, data, str(e))
+      return False
+    if r.status_code == 200:
+        print(r.status_code, "OK Slack sendPhoto", caption)
+    else:
+        print(r.status_code, "error Slack sendPhoto", r.reason, caption)
+        return False
+
