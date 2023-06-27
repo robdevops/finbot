@@ -19,7 +19,7 @@ def sendPhoto(chat_id, image_data, caption, message_id=None):
         'initial_comment': caption }
     if message_id:
         data['thread_ts'] = message_id
-        data['reply_broadcast'] = 'true'
+        data['reply_broadcast'] = 'true':
     files = {
         "file":("image.png",
         image_data) }
