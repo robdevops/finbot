@@ -97,6 +97,7 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None):
             'disable_web_page_preview': True,
             'allow_sending_without_reply': True,
             'reply_to_message_id': message_id}
+        files = {"photo": ('image.png', image_data)}
     elif service == 'slack':
         url = 'https://slack.com/api/files.upload'
         headers = {'Authorization': 'Bearer ' + config_slackBotToken}
@@ -104,7 +105,7 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None):
         if message_id:
             data['thread_ts'] = message_id
             data['reply_broadcast'] = 'true'
-    files = {"photo": ('image.png', image_data)}
+        files = {'file': ('image.png', image_data)}
     try:
         r = requests.post(url, data=data, headers=headers, files=files, timeout=config_http_timeout)
     except Exception as e:
