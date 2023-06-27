@@ -22,7 +22,7 @@ def sendPhoto(chat_id, image_data, caption, message_id=None):
     if message_id:
         data['thread_ts'] = message_id
         data['reply_broadcast'] = 'true'
-    files = {"photo": ('image.png', image_data)}
+    files = image_data
     #data = json.dumps(data).encode('utf-8')
     if debug:
         print(url, headers, data)
