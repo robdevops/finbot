@@ -23,9 +23,6 @@ def sendPhoto(chat_id, image_data, caption, message_id=None):
     files = {
         "file":("image.png",
         image_data) }
-    #data = json.dumps(data).encode('utf-8')
-    if debug:
-        print(url, headers, data)
     try:
         r = requests.post(url, headers=headers, data=data, files=files, timeout=config_http_timeout)
     except Exception as e:
@@ -34,9 +31,7 @@ def sendPhoto(chat_id, image_data, caption, message_id=None):
     if r.status_code == 200:
         print(r.status_code, "OK Slack sendPhoto", caption)
         output = r.json()
-        print(json.dumps(output, indent=4))
-        print(str(output))
-        if 'false' in output:
+        if output['ok'] != 'true'
             print(json.dumps(output, indent=4))
     else:
         print(r.status_code, "error Slack sendPhoto", r.reason, caption, file=sys.stderr)
