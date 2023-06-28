@@ -66,6 +66,8 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=False, service=
         tickers.update(util.json_load('finbot_watchlist.json'))
         if 'GOOG' in tickers and 'GOOGL' in tickers:
             tickers.remove("GOOGL")
+        tickers = list(tickers)
+        tickers.sort()
 
     for ticker in tickers:
         market_data = market_data | yahoo.fetch_detail(ticker)
