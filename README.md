@@ -307,6 +307,7 @@ Interactive trigger:
 
 ### Value
 ![value report in Slack](img/finbot_value_peg.png?raw=true "Value report in Slack")
+
 List securities by P/E ratio, forward P/E ratio, or PEG
 
 Interactive trigger:
@@ -319,6 +320,7 @@ Interactive trigger:
 
 ### History
 ![Price history report in Slack](img/finbot_history.png?raw=true "Price history report in Slack")
+
 Shows the long term performance of a security.
 It creates 5Y chart, and then lists performance for several periods (5Y 3Y 1Y YTD 6M 3M 1M 1W)
 
@@ -332,6 +334,7 @@ Interactive trigger:
 
 ### Recommend
 ![Recommend report in Slack](img/finbot_recommend.png?raw=true "Recommend report in Slack")
+
 List the most recommended stocks according to Yahoo Finance analysts
 
 Interactive trigger:
@@ -344,6 +347,7 @@ Interactive trigger:
 
 ### Marketcap
 ![Marketcap report in Slack](img/finbot_marketcap.png?raw=true "Marketcap report in Slack")
+
 List the top (or bottom) stocks by market cap
 
 Interactive trigger:
