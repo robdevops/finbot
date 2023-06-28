@@ -272,7 +272,7 @@ def json_write(filename, data):
     def opener(filename, flags):
         return os.open(filename, flags, 0o640)
     with open(filename, "w", opener=opener, encoding="utf-8") as f:
-        f.write(json.dumps(data))
+        f.write(json.dumps(data, indent=4))
     os.umask(0o022)
 
 def json_load(filename):
