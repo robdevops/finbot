@@ -349,6 +349,13 @@ Interactive trigger:
 @botname marketcap [top|bottom]
 ```
 
+### Consensus rating changes
+Notifies when Yahoo Finance analyst rating consensus changes category (e.g. from hold to buy). Designed to run from Cron. Requires persistent storage.
+
+```
+./rating.py
+```
+
 ### Watchlist
 ![Shared watchlist in Slack](img/watchlist.png?raw=true "Shared watchlist in Slack")
 
