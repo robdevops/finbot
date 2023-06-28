@@ -170,6 +170,7 @@ You can also specify a portfolio name to get today's trades for just that portfo
 
 ### Price alerts
 ![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
+![price alert with chart in Slack](img/finbot_price.png?raw=true "Price alert with chart in Slack")
 
 `prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
@@ -305,6 +306,7 @@ Interactive trigger:
 ```
 
 ### Value
+![value report in Slack](img/finbot_value_peg.png?raw=true "Value report in Slack")
 List securities by P/E ratio, forward P/E ratio, or PEG
 
 Interactive trigger:
@@ -316,6 +318,7 @@ Interactive trigger:
 ```
 
 ### History
+![Price history report in Slack](img/finbot_history.png?raw=true "Price history report in Slack")
 Shows the long term performance of a security.
 It creates 5Y chart, and then lists performance for several periods (5Y 3Y 1Y YTD 6M 3M 1M 1W)
 
@@ -328,6 +331,7 @@ Interactive trigger:
 ```
 
 ### Recommend
+![Recommend report in Slack](img/finbot_recommend.png?raw=true "Recommend report in Slack")
 List the most recommended stocks according to Yahoo Finance analysts
 
 Interactive trigger:
@@ -339,6 +343,7 @@ Interactive trigger:
 ```
 
 ### Marketcap
+![Marketcap report in Slack](img/finbot_marketcap.png?raw=true "Marketcap report in Slack")
 List the top (or bottom) stocks by market cap
 
 Interactive trigger:
