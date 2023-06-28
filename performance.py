@@ -28,7 +28,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             emoji = get_emoji(percent)
             payload.append(f"{emoji} {portfolio_link} {percent}%")
         if len(payload):
-            percent, graph = yahoo.price_history_new('SPY', days=past_days)
+            percent, graph = yahoo.price_history('SPY', days=past_days)
             percent = percent[past_days]
             emoji = get_emoji(percent)
             sp500_link = util.finance_link('SPY', 'NYSEARCA', service=service, days=past_days, brief=True, text="S&P 500")

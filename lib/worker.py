@@ -411,7 +411,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, days=1825, brief=False)
             if ticker in market_data and 'percent_change' in market_data[ticker]:
                 payload.append(webhook.bold(f"{title} ({ticker_link}) performance history", service))
-                price_history, graph = yahoo.price_history_new(ticker)
+                price_history, graph = yahoo.price_history(ticker)
                 for interval in ('5Y', '3Y', '1Y', '6M', '3M', '1M', '7D', '1D'):
                     if interval in price_history:
                         percent = price_history[interval]
@@ -919,7 +919,7 @@ def prepare_stockfinancial_payload(service, user, ticker):
     if payload:
         payload.append("")
 
-    price_history, graph = yahoo.price_history_new(ticker)
+    price_history, graph = yahoo.price_history(ticker)
     #price_history['1D'] = market_data[ticker]['percent_change']
     for interval in ('5Y', '1Y', '1M', '1D'):
        if interval in price_history:

@@ -575,48 +575,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     local_market_data[ticker] = dict(sorted(local_market_data[ticker].items()))
     return local_market_data
 
-def price_history(ticker, days=27, seconds=config_cache_seconds):
-    cache_file = "finbot_yahoo_price_history_" + ticker + "_" + str(days) + ".json"
-    cache = util.read_cache(cache_file, seconds)
-    if config_cache and cache:
-        return cache
-    crumb = getCrumb()
-    now = datetime.datetime.now()
-    url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
-    if days < 90:
-        interval = '1d'
-    else:
-        interval = '1mo'
-    start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
-    end = str(int(now.timestamp()))
-    url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
-    url = url + '&crumb=' + crumb
-    if debug:
-        print(url)
-    headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-    try:
-        r = requests.get(url, headers=headers, timeout=config_http_timeout)
-    except:
-        print("Failure fetching", url, file=sys.stderr)
-        return False
-    if r.status_code == 200:
-        print('↓', sep=' ', end='', flush=True)
-    else:
-        print(ticker, r.status_code, "error communicating with", url, file=sys.stderr)
-        return False
-    csv = r.content.decode('utf-8').split('\n')
-    price = []
-    for line in csv[1:]:
-        cells = line.split(',')
-        try:
-            price.append(float(cells[5]))
-        except ValueError:
-            continue
-    percent = round(100 * (price[-1] - price[0]) / price[0], 2)
-    util.json_write(cache_file, percent)
-    return percent
-
-def price_history_new(ticker, days=False, seconds=config_cache_seconds):
+def price_history(ticker, days=False, seconds=config_cache_seconds):
     image_data = False
     percent_dict = {}
     market_data = fetch([ticker])
@@ -624,7 +583,7 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
     regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
     regularMarketPrice = market_data[ticker]['regularMarketPrice']
     now = datetime.datetime.now()
-    cache_file = "finbot_yahoo_price_history_new_" + ticker + ".json"
+    cache_file = "finbot_yahoo_price_history_" + ticker + ".json"
     cache = util.read_cache(cache_file, seconds)
     if config_cache and cache:
         csv = cache
