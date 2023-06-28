@@ -359,6 +359,8 @@ Interactive trigger:
 ```
 
 ### Consensus rating changes
+![Rating change report in Slack](img/finbot_rating.png?raw=true "Rating change report in Slack")
+
 Notifies when Yahoo Finance analyst rating consensus changes category (e.g. from hold to buy). Designed to run from Cron. Requires persistent storage.
 
 ```
