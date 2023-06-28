@@ -91,7 +91,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
         tickers = [ticker]
     else:
         tickers = sharesight.get_holdings_wrapper()
-        tickers.update(util.watchlist_load())
+        tickers.update(util.json_load('finbot_watchlist.json'))
         if 'GOOG' in tickers and 'GOOGL' in tickers:
             tickers.remove("GOOGL")
 

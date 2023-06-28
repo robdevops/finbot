@@ -14,7 +14,7 @@ class BearerAuth(requests.auth.AuthBase):
 
 def get_token():
     now = datetime.datetime.now()
-    cache_file = config_cache_dir + "/finbot_sharesight_token.json"
+    cache_file = "finbot_sharesight_token.json"
     cache = util.read_cache(cache_file, 1740)
     url = "https://api.sharesight.com/oauth2/token"
     if config_cache and cache:
@@ -36,12 +36,12 @@ def get_token():
         print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
         sys.exit(1)
     if 'access_token' in data:
-        util.write_cache(cache_file, data)
+        util.json_write(cache_file, data)
     print(data)
     return data['access_token']
 
 def get_portfolios():
-    cache_file = config_cache_dir + "/finbot_sharesight_portfolios.json"
+    cache_file = "finbot_sharesight_portfolios.json"
     cache = util.read_cache(cache_file, config_cache_seconds)
     portfolio_dict = {}
     if config_cache and cache:
@@ -62,7 +62,7 @@ def get_portfolios():
             print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
             sys.exit(1)
         if 'portfolios' in data:
-            util.write_cache(cache_file, data)
+            util.json_write(cache_file, data)
     for portfolio in data['portfolios']:
         if str(portfolio['id']) in config_exclude_portfolios:
             print(portfolio['id'], "(" + portfolio['name'] + ") in exclusion list. Skipping.")
@@ -77,7 +77,7 @@ def get_portfolios():
     return portfolio_dict
 
 def get_trades(portfolio_name, portfolio_id, days=config_past_days):
-    cache_file = config_cache_dir + "/finbot_sharesight_trades_" + str(portfolio_id) + "_" + str(days) + ".json"
+    cache_file = "finbot_sharesight_trades_" + str(portfolio_id) + "_" + str(days) + ".json"
     cache = util.read_cache(cache_file, 299) # max freq 5 min
     if config_cache and cache:
         return cache['trades']
@@ -102,7 +102,7 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
     for trade in data['trades']:
         trade['portfolio'] = portfolio_name # inject custom field
     if config_cache and 'trades' in data:
-        util.write_cache(cache_file, data)
+        util.json_write(cache_file, data)
     return data['trades']
 
 def get_holdings(portfolio_name, portfolio_id):
@@ -135,7 +135,7 @@ def get_holdings_wrapper():
 def get_performance(portfolio_id, days):
     start_date = datetime.datetime.now() - datetime.timedelta(days=days)
     start_date = start_date.strftime('%Y-%m-%d') # 2023-04-25
-    cache_file = config_cache_dir + "/finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'
+    cache_file = "finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'
     cache = util.read_cache(cache_file, config_cache_seconds)
     if config_cache and cache:
         data = cache
@@ -155,7 +155,7 @@ def get_performance(portfolio_id, days):
             print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
             sys.exit(1)
         if 'report' in data:
-            util.write_cache(cache_file, data)
+            util.json_write(cache_file, data)
     return data
 
 def get_performance_wrapper(days=config_past_days):

@@ -248,6 +248,7 @@ def get_currency_symbol(currency):
     return currency_symbol
 
 def read_cache(cacheFile, maxSeconds=config_cache_seconds):
+    cacheFile = config_cache_dir + "/" + cacheFile
     if os.path.isfile(cacheFile):
         maxSeconds = datetime.timedelta(seconds=maxSeconds)
         cacheFileMtime = datetime.datetime.fromtimestamp(os.path.getmtime(cacheFile))
@@ -265,13 +266,23 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
     print("Cache file does not exist:", cacheFile, "first run?", file=sys.stderr)
     return False
 
-def write_cache(cache_file, fresh_dict):
+def json_write(filename, data):
+    filename = config_cache_dir + "/" + filename
     os.umask(0)
-    def opener(path, flags):
-        return os.open(path, flags, 0o640)
-    with open(cache_file, "w", opener=opener, encoding="utf-8") as f:
-        f.write(json.dumps(fresh_dict))
+    def opener(filename, flags):
+        return os.open(filename, flags, 0o640)
+    with open(filename, "w", opener=opener, encoding="utf-8") as f:
+        f.write(json.dumps(data))
     os.umask(0o022)
+
+def json_load(filename):
+    filename = config_cache_dir + "/" + filename
+    if os.path.isfile(filename):
+        with open(filename, "r", encoding="utf-8") as f:
+            data = json.loads(f.read())
+    else:
+        data = None
+    return data
 
 def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
     if os.path.isfile(cacheFile):
@@ -429,15 +440,6 @@ def transform_to_yahoo(ticker, market=False):
         return ticker + '-' + market
     ticker = ticker + '.' + market
     return ticker
-
-def watchlist_load():
-    cache_file = config_cache_dir + "/finbot_watchlist.json"
-    if os.path.isfile(cache_file):
-        with open(cache_file, "r", encoding="utf-8") as f:
-            watchlist = json.loads(f.read())
-    else:
-        watchlist = []
-    return watchlist
 
 def strip_url(url):
     url = url.removeprefix('https://www.')

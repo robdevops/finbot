@@ -13,7 +13,7 @@ from lib.config import *
 from lib import util
 
 def getCrumb(seconds=config_cache_seconds):
-    cache_file = config_cache_dir + "/finbot_yahoo_cookie.json"
+    cache_file = "finbot_yahoo_cookie.json"
     cache = util.read_cache(cache_file, seconds)
     if config_cache and cache:
         return cache
@@ -33,7 +33,7 @@ def getCrumb(seconds=config_cache_seconds):
     else:
         print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
         sys.exit(1)
-    util.write_cache(cache_file, r.text)
+    util.json_write(cache_file, r.text)
     return r.text
 
 def fetch(tickers):
@@ -42,7 +42,7 @@ def fetch(tickers):
     tickers = list(tickers)
     tickers.sort()
     tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
-    cache_file = config_cache_dir + "/finbot_yahoo_" + tickers_sha256 + '.json'
+    cache_file = "finbot_yahoo_" + tickers_sha256 + '.json'
     cacheData = util.read_cache(cache_file, 60)
     if config_cache and cacheData:
         return cacheData
@@ -167,7 +167,7 @@ def fetch(tickers):
                 yahoo_output[ticker]["earnings_date"] = earningsTimestamp
         except (KeyError, IndexError):
             pass
-    util.write_cache(cache_file, yahoo_output)
+    util.json_write(cache_file, yahoo_output)
     return yahoo_output
 
 def fetch_detail(ticker, seconds=config_cache_seconds):
@@ -176,7 +176,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     base_url = 'https://query2.finance.yahoo.com/v11/finance/quoteSummary/'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     local_market_data[ticker] = dict()
-    cache_file = config_cache_dir + "/finbot_yahoo_detail_" + ticker + '.json'
+    cache_file = "finbot_yahoo_detail_" + ticker + '.json'
     cacheData = util.read_cache(cache_file, seconds)
     if config_cache and cacheData:
         print('.', sep=' ', end='', flush=True)
@@ -201,7 +201,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
             print(ticker + '†', sep=' ', end='', flush=True)
             return {} # catches some delisted stocks like "DRNA"
         data = r.json()
-        util.write_cache(cache_file, data)
+        util.json_write(cache_file, data)
         # might be interesting:
             # majorHoldersBreakdown
             # netSharePurchaseActivity
@@ -576,7 +576,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     return local_market_data
 
 def price_history(ticker, days=27, seconds=config_cache_seconds):
-    cache_file = config_cache_dir + "/finbot_yahoo_price_history_" + ticker + "_" + str(days) + ".json"
+    cache_file = "finbot_yahoo_price_history_" + ticker + "_" + str(days) + ".json"
     cache = util.read_cache(cache_file, seconds)
     if config_cache and cache:
         return cache
@@ -613,7 +613,7 @@ def price_history(ticker, days=27, seconds=config_cache_seconds):
         except ValueError:
             continue
     percent = round(100 * (price[-1] - price[0]) / price[0], 2)
-    util.write_cache(cache_file, percent)
+    util.json_write(cache_file, percent)
     return percent
 
 def price_history_new(ticker, days=False, seconds=config_cache_seconds):
@@ -624,7 +624,7 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
     regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
     regularMarketPrice = market_data[ticker]['regularMarketPrice']
     now = datetime.datetime.now()
-    cache_file = config_cache_dir + "/finbot_yahoo_price_history_new_" + ticker + ".json"
+    cache_file = "finbot_yahoo_price_history_new_" + ticker + ".json"
     cache = util.read_cache(cache_file, seconds)
     if config_cache and cache:
         csv = cache
@@ -741,7 +741,7 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
             else:
                 title = profile_title + " (" + ticker + ") 5Y " + str(percent_dict['5Y']) + '%'
         caption = '\n'.join(caption)
-        image_cache_file = config_cache_dir + "/finbot_graph_" + ticker + "_" + str(days) + ".png"
+        image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
         image_cache = util.read_binary_cache(image_cache_file, seconds)
         if config_cache and image_cache:
             image_data = image_cache
@@ -752,6 +752,6 @@ def price_history_new(ticker, days=False, seconds=config_cache_seconds):
             image_data = buf
             util.write_binary_cache(image_cache_file, image_data)
             buf.seek(0)
-    util.write_cache(cache_file, csv)
+    util.json_write(cache_file, csv)
     return percent_dict, image_data
 

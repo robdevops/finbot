@@ -11,7 +11,7 @@ from lib import util
 def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service=False, user='', portfolio_select=False, message_id=False, interactive=False):
     start_date = datetime.datetime.now() - datetime.timedelta(days=days)
     start_date = start_date.strftime('%Y-%m-%d') # 2022-08-20
-    state_file = config_cache_dir + "/finbot_sharesight_trades.json"
+    state_file = "finbot_sharesight_trades.json"
 
     def prepare_trade_payload(service, trades):
         payload_staging = []
@@ -79,17 +79,6 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
             payload = [f"{user} No trades {util.days_english(days, 'in the past ')}. {random.choice(noTradesVerb)}"]
         return payload
 
-    def trade_state_read(state_file):
-        with open(state_file, "r", encoding="utf-8") as f:
-            known_trades = json.loads(f.read())
-            return known_trades
-
-    def trade_state_write(state_file, newtrades):
-        def opener(path, flags):
-            return os.open(path, flags, 0o640)
-        with open(state_file, "w", opener=opener, encoding="utf-8") as f:
-            f.write(json.dumps(newtrades))
-
     # MAIN #
     portfolios = sharesight.get_portfolios()
 
@@ -97,8 +86,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
     trades = []
     known_trades = []
     newtrades = set()
-    if os.path.isfile(state_file) and not interactive:
-        known_trades = trade_state_read(state_file)
+    known_trades = util.json_load(state_file)
 
     if portfolio_select:
         portfoliosLower = {k.lower():v for k,v in portfolios.items()}
@@ -143,7 +131,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
     # write state file
     if newtrades and not interactive:
         known_trades = set(known_trades) | newtrades
-        trade_state_write(state_file, list(known_trades))
+        util.json_write(state_file, list(known_trades))
 
     # make google cloud happy
     return True

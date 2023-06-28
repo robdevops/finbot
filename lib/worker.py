@@ -12,8 +12,6 @@ from lib import util
 from lib import webhook
 from lib import yahoo
 from lib import simplywallst
-from lib import telegram # combine later
-from lib import slack # combine later
 import cal
 import performance
 import price
@@ -273,7 +271,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             if m_marketcap.group(2):
                 action = m_marketcap.group(2)
             tickers = sharesight.get_holdings_wrapper()
-            tickers.update(util.watchlist_load())
+            tickers.update(util.json_load('finbot_watchlist.json'))
             if 'GOOG' in tickers and 'GOOGL' in tickers:
                 tickers.remove("GOOGL")
             market_data = yahoo.fetch(tickers)
@@ -311,7 +309,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             webhook.payload_wrapper(service, url, payload, chat_id)
             sys.exit(1)
         tickers = sharesight.get_holdings_wrapper()
-        tickers.update(util.watchlist_load())
+        tickers.update(util.json_load('finbot_watchlist.json'))
         if 'GOOG' in tickers and 'GOOGL' in tickers:
             tickers.remove("GOOGL")
         market_data = yahoo.fetch(tickers)
@@ -344,7 +342,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         payload = []
         market_data = {}
         tickers = sharesight.get_holdings_wrapper()
-        tickers.update(util.watchlist_load())
+        tickers.update(util.json_load('finbot_watchlist.json'))
         if 'GOOG' in tickers and 'GOOGL' in tickers:
             tickers.remove("GOOGL")
         for ticker in tickers:
@@ -375,7 +373,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             return (float(e.split()[-3]), float(e.split()[-2].removeprefix('(')))
         payload = []
         tickers = sharesight.get_holdings_wrapper()
-        tickers.update(util.watchlist_load())
+        tickers.update(util.json_load('finbot_watchlist.json'))
         if 'GOOG' in tickers and 'GOOGL' in tickers:
             tickers.remove("GOOGL")
         market_data = {}
@@ -488,7 +486,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
         ticker_link = util.finance_link(ticker, ticker, service, brief=False)
     duplicate = False
     transformed = False
-    watchlist = util.watchlist_load()
+    watchlist = util.json_load('finbot_watchlist.json')
     if action == 'add':
         if ticker in watchlist:
             duplicate = True
@@ -562,10 +560,7 @@ def prepare_watchlist(service, user, action=False, ticker=False):
     else:
         payload.append('Watchlist is empty. Try ".watchlist add SYMBOL" to create it')
 
-    def opener(path, flags):
-        return os.open(path, flags, 0o640)
-    with open(config_cache_dir + "/finbot_watchlist.json", "w", opener=opener, encoding="utf-8") as f:
-        f.write(json.dumps(watchlist))
+    util.json_write('finbot_watchlist.json', watchlist)
     return payload
 
 def prepare_help(service, botName):
