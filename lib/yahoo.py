@@ -575,8 +575,8 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     local_market_data[ticker] = dict(sorted(local_market_data[ticker].items()))
     return local_market_data
 
-def price_history(ticker, days=False, seconds=config_cache_seconds):
-    image_data = False
+def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_graph):
+    image_data = None
     percent_dict = {}
     market_data = fetch([ticker])
     tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
@@ -602,12 +602,12 @@ def price_history(ticker, days=False, seconds=config_cache_seconds):
             r = requests.get(url, headers=headers, timeout=config_http_timeout)
         except:
             print("Failure fetching", url, file=sys.stderr)
-            return False
+            return None
         if r.status_code == 200:
             print('↓', sep=' ', end='', flush=True)
         else:
             print(ticker, r.status_code, "error communicating with", url, file=sys.stderr)
-            return False
+            return None
         csv = r.content.decode('utf-8')
     df = pd.read_csv(io.StringIO(csv))
     df['Date'] = pd.to_datetime(df['Date']).dt.date
@@ -629,7 +629,6 @@ def price_history(ticker, days=False, seconds=config_cache_seconds):
         seek_dt = seek_date.date()
         mask = df['Date'] >= seek_dt
         df = df.loc[mask]
-        #df = df.reset_index(drop=True)
         past_price = df[df.loc[mask]['Date'] >= seek_dt]['Close'].iloc[0]
         df.reset_index(drop=True, inplace=True)
         percent = (regularMarketPrice - past_price) / past_price * 100
@@ -686,7 +685,7 @@ def price_history(ticker, days=False, seconds=config_cache_seconds):
                     continue
             percent = (regularMarketPrice - past_price) / past_price * 100
             percent_dict[period] = round(percent)
-    if config_graph:
+    if graph:
         caption = []
         profile_title = market_data[ticker]['profile_title']
         if days:
