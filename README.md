@@ -86,9 +86,10 @@ Trade notifications are peformed by polling the Sharesight trades API from a cro
 The other various reports can also run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they will either report to all configured chat networks, or reply to the chat which triggered them.
 
 The interactive bot component requires you to host a web service on a domain with a trusted certificate. It subscribes to push updates from native Slack apps / Telegram bots, and reacts to certain regex seen in chat. It provides:
-* Stock lookup (financials and company profile)
+* Stock lookup (financials, company profile, price charts)
 * Group maintainable watch list, picked up by the various reports
-* Listing of portfolios, portfolio performance, and holdings
+* Listing of portfolios and portfolio performance
+* Listing of holdings sorted by various attributes 
 * Running the other stock reports on demand
 
 ## Reports
