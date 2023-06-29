@@ -285,6 +285,7 @@ def json_load(filename):
     return data
 
 def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
+    cache_file = config_cache_dir + "/" + cache_file
     if os.path.isfile(cacheFile):
         maxSeconds = datetime.timedelta(seconds=maxSeconds)
         cacheFileMtime = datetime.datetime.fromtimestamp(os.path.getmtime(cacheFile))
@@ -303,6 +304,7 @@ def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
     return False
 
 def write_binary_cache(cache_file, data):
+    cache_file = config_cache_dir + "/" + cache_file
     os.umask(0)
     def opener(path, flags):
         return os.open(path, flags, 0o640)
