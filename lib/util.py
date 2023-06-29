@@ -554,14 +554,19 @@ def get_emoji(number):
         return '▪️'
 
 def days_from_human_days(arg):
+    arg = arg.upper()
+    today = datetime.datetime.now().date()
+    if arg == 'YTD':
+        target = today.replace(day=1, month=1)
+        return (today - target).days
     try:
-        days = int(arg.removesuffix('d').removesuffix('D'))
+        days = int(arg.removesuffix('D'))
     except ValueError:
         try:
-            days = int(arg.removesuffix('w').removesuffix('W')) * 7
+            days = int(arg.removesuffix('W')) * 7
         except ValueError:
             try:
-                days = int(arg.removesuffix('m').removesuffix('M')) * 30
+                days = int(arg.removesuffix('M')) * 30
             except ValueError:
-                days = int(arg.removesuffix('y').removesuffix('Y')) * 365
+                days = int(arg.removesuffix('Y')) * 365
     return days
