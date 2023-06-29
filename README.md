@@ -174,8 +174,8 @@ You can also specify a portfolio name to get today's trades for just that portfo
 ```
 
 ### Price alerts
-![price alert in Slack](img/price.png?raw=true "Price alert in Slack")
-![price alert with chart in Slack](img/finbot_price.png?raw=true "Price alert with chart in Slack")
+![Price alert triggered by Cron](img/price.png?raw=true "Price alert triggered by Cron")
+![Price chart triggered from Slack](img/finbot_price.png?raw=true "Price chart triggered from Slack")
 
 `prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
