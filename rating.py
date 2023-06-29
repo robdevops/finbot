@@ -20,25 +20,25 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=False, service=
         new = {}
         old = util.json_load('finbot_rating.json')
         for ticker in tickers:
-            old_rating=None
+            old_action=None
             old_index = float()
             try:
-                rating = market_data[ticker]['recommend'].replace('_', ' ')
+                action = market_data[ticker]['recommend'].replace('_', ' ')
                 index = float(market_data[ticker]['recommend_index'])
                 analysts = market_data[ticker]['recommend_analysts']
             except (KeyError, ValueError):
                 continue
             title = market_data[ticker]['profile_title']
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
-            new[ticker] = [rating, index]
+            new[ticker] = [action, index]
             try:
-                old_rating = old[ticker][0]
+                old_action = old[ticker][0]
                 old_index = old[ticker][1]
             except (KeyError, TypeError):
                 pass
-            if old_rating and rating != old_rating:
+            if old_action and action != old_action:
                 emoji = get_emoji(old_index, index)
-                message = f"{webhook.bold(f'{old_rating} {old_index}', service)} to {webhook.bold(f'{rating} {index}', service)} ({analysts})"
+                message = f"{webhook.bold(f'{old_index} {old_action}', service)} to {webhook.bold(f'{index} {action}', service)} ({analysts})"
                 payload.append(f"{emoji} {title} ({ticker_link}) changed from {message} analysts")
         util.json_write('finbot_rating.json', new)
         payload.sort()
