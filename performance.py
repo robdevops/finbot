@@ -18,6 +18,12 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
         else:
             emoji = "▪️"
         return emoji
+    def stock_performance(ticker, market, text):
+        percent, graph = yahoo.price_history(ticker, days=past_days, graph=False)
+        percent = percent[past_days]
+        emoji = get_emoji(percent)
+        link = util.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
+        return f"{emoji} {link} {percent}%"
     def prepare_performance_payload(service, performance, portfolios):
         payload = []
         for portfolio_id in performance:
@@ -28,12 +34,8 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             emoji = get_emoji(percent)
             payload.append(f"{emoji} {portfolio_link} {percent}%")
         if len(payload):
-            percent, graph = yahoo.price_history('SPY', days=past_days)
-            percent = percent[past_days]
-            emoji = get_emoji(percent)
-            sp500_link = util.finance_link('SPY', 'NYSEARCA', service=service, days=past_days, brief=True, text="S&P 500")
-            payload.append(f"{emoji} {sp500_link} {percent}%")
-
+            payload.append(stock_performance('SPY', 'NYSEARCA', 'S&P 500'))
+            payload.append(stock_performance('QQQ', 'NasdaqGM', 'NASDAQ 100'))
             message = f"Performance over {util.days_english(past_days)}"
             message = webhook.bold(message, service)
             payload.insert(0, message)
