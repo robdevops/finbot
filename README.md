@@ -584,7 +584,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
       * Check the box _App Home > Allow users to send Slash commands and messages from the messages tab_
   * Save Changes
 * Under _OAuth & Permissions_:
-  * Scroll down to _Scopes > Bot Token Scopes_, and add `chat:write`
+  * Scroll down to _Scopes > Bot Token Scopes_, and add: `chat:write` and `files:write`.
   * Scroll up to _OAuth Tokens for Your Workspace_:
     * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_
     * Copy _Bot User OAuth Token_ into .env file `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies.
