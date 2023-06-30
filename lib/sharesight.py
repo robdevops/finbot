@@ -35,7 +35,7 @@ def get_token():
     if 'error' in data:
         print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
         sys.exit(1)
-    if 'access_token' in data:
+    if config_cache and 'access_token' in data:
         util.json_write(cache_file, data)
     print(data)
     return data['access_token']
@@ -61,7 +61,7 @@ def get_portfolios():
         if 'error' in data:
             print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
             sys.exit(1)
-        if 'portfolios' in data:
+        if config_cache and 'portfolios' in data:
             util.json_write(cache_file, data)
     for portfolio in data['portfolios']:
         if str(portfolio['id']) in config_exclude_portfolios:
@@ -127,7 +127,7 @@ def get_holdings_wrapper():
     tickers = set()
     portfolios = get_portfolios()
     if not portfolios:
-        return False
+        return None
     for portfolio_name, portfolio_id in portfolios.items():
         tickers.update(get_holdings(portfolio_name, portfolio_id))
     return tickers
@@ -154,7 +154,7 @@ def get_performance(portfolio_id, days):
         if 'error' in data:
             print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
             sys.exit(1)
-        if 'report' in data:
+        if conifg_cache and 'report' in data:
             util.json_write(cache_file, data)
     return data
 

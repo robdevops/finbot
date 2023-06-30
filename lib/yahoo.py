@@ -33,7 +33,8 @@ def getCrumb(seconds=config_cache_seconds):
     else:
         print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
         sys.exit(1)
-    util.json_write(cache_file, r.text)
+    if config_cache:
+        util.json_write(cache_file, r.text)
     return r.text
 
 def fetch(tickers):
@@ -73,7 +74,7 @@ def fetch(tickers):
     data = data['quoteResponse']
     if data['result'] is None or data['error'] is not None:
         print(f"{tickers}†", sep=' ', end='', flush=True, file=sys.stderr)
-        return False
+        return None
     for item in data['result']:
         ticker = item['symbol']
         try:
@@ -167,7 +168,8 @@ def fetch(tickers):
                 yahoo_output[ticker]["earnings_date"] = earningsTimestamp
         except (KeyError, IndexError):
             pass
-    util.json_write(cache_file, yahoo_output)
+    if config_cache:
+        util.json_write(cache_file, yahoo_output)
     return yahoo_output
 
 def fetch_detail(ticker, seconds=config_cache_seconds):
@@ -201,7 +203,8 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
             print(ticker + '†', sep=' ', end='', flush=True)
             return {} # catches some delisted stocks like "DRNA"
         data = r.json()
-        util.json_write(cache_file, data)
+        if config_cache:
+            util.json_write(cache_file, data)
         # might be interesting:
             # majorHoldersBreakdown
             # netSharePurchaseActivity
@@ -686,6 +689,8 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
             percent = (regularMarketPrice - past_price) / past_price * 100
             percent_dict[period] = round(percent)
     if graph:
+        if days and days < 2:
+            return percent_dict, None
         caption = []
         profile_title = market_data[ticker]['profile_title']
         if days:
@@ -710,6 +715,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
             image_data = buf
             util.write_binary_cache(image_cache_file, image_data)
             buf.seek(0)
-    util.json_write(cache_file, csv)
+    if config_cache:
+        util.json_write(cache_file, csv)
     return percent_dict, image_data
 
