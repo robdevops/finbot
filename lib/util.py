@@ -516,7 +516,8 @@ def graph(df, title, market_data):
         ax.annotate(text, xy=(xpoint, ypoint), xytext=xytext, textcoords='offset points', **kw)
         if atype == 'max':
             ax.set_ylim(top=ypoint+(ypoint/4))
-
+        if atype == 'min':
+            ax.set_ylim(bottom=ypoint-(ypoint*0.1))
     x = df['Date']
     y = df['Close']
     first = df['Close'].iloc[0]
