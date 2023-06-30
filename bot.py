@@ -64,7 +64,7 @@ def main(environ, start_response):
             else:
                 print(user_id, user, userRealName, "is not whitelisted. Ignoring.", file=sys.stderr)
                 return [b'<h1>Unauthorized</h1>']
-        file_id=False
+        file_id = None
         if "text" in inbound["message"]:
             message = inbound["message"]["text"]
             print("[Telegram]:", user, message)

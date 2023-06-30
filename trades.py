@@ -8,7 +8,7 @@ from lib import sharesight
 from lib import webhook
 from lib import util
 
-def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service=False, user='', portfolio_select=False, message_id=False, interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service=None, user='', portfolio_select=None, message_id=None, interactive=False):
     start_date = datetime.datetime.now() - datetime.timedelta(days=days)
     start_date = start_date.strftime('%Y-%m-%d') # 2022-08-20
     state_file = "finbot_sharesight_trades.json"
@@ -48,7 +48,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
             if portfolio_select and portfolio_name.lower() != portfolio_select.lower():
                 continue
 
-            if trade_id in known_trades:
+            if not interactive and trade_id in known_trades:
                 print("Skipping known trade_id:", trade_id, date, portfolio_name, transactionType, symbol)
                 continue
             newtrades.add(trade_id) # sneaky update global set
@@ -125,7 +125,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
                 chat_id=config_telegramChatID
                 url = url + "sendMessage?chat_id=" + str(chat_id)
             else:
-                chat_id=False
+                chat_id = None
             webhook.payload_wrapper(service, url, payload, chat_id)
 
     # write state file

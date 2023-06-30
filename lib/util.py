@@ -320,7 +320,7 @@ def humanUnits(value, decimal_places=0):
         value /= 1000.0
     return f"{value:.{decimal_places}f} {unit}"
 
-def yahoo_link(ticker, service='telegram', brief=True, text=False):
+def yahoo_link(ticker, service='telegram', brief=True, text=None):
     yahoo_url = "https://au.finance.yahoo.com/quote/"
     if brief and not text:
         text = ticker.split('.')[0]
@@ -343,15 +343,17 @@ def link(url, text, service='telegram'):
         hyperlink = text
     return hyperlink
 
-def finance_link(symbol, exchange, service='telegram', days=1, brief=True, text=False):
+def finance_link(symbol, exchange, service='telegram', days=1, brief=True, text=None):
     if config_hyperlinkProvider == 'google':
         link = gfinance_link(symbol, exchange, service, days, brief, text)
     else:
         link = yahoo_link(ticker, service, brief, text)
     return link
 
-def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True, text=False):
+def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True, text=None):
     window = '1D'
+    if not days:
+        days = 1
     if days > 1:
         window = '5D'
     if days > 7:
@@ -409,7 +411,7 @@ def transform_to_google(exchange):
         exchange = 'TLV'
     return exchange
 
-def transform_to_yahoo(ticker, market=False):
+def transform_to_yahoo(ticker, market=None):
     split = ticker.replace(':', '.').split('.')
     if len(split) > 1:
         ticker = split[0]

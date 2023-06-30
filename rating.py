@@ -7,7 +7,7 @@ from lib import webhook
 from lib import util
 from lib import yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, specific_stock=False, service=False, interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=None, interactive=False):
     def prepare_rating_payload(service, market_data):
         def get_emoji(old, new):
             if old > new:

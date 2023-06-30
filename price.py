@@ -10,7 +10,7 @@ from lib import util
 from lib import yahoo
 from lib import telegram
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=False, user='', specific_stock=False, interactive=False, midsession=False, premarket=False, interday=False, days=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None):
     def prepare_price_payload(service, market_data, threshold):
         payload = []
         graph = False
@@ -40,7 +40,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 try:
                     percent = market_data[ticker]['percent_change_period'] # sharesight value
                 except KeyError:
-                    percent, graph = yahoo.price_history(ticker, days)
+                    if specific_stock:
+                        percent, graph = yahoo.price_history(ticker, days)
+                    else:
+                        percent, graph = yahoo.price_history(ticker, days, graph=False)
                     percent = percent[days]
             else:
                 percent = market_data[ticker]['percent_change']
@@ -141,7 +144,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         print("Error: no services enabled in .env", file=sys.stderr)
         sys.exit(1)
     if interactive:
-        payload, graph = prepare_price_payload(service, market_data, threshold)
+        if specific_stock:
+            payload, graph = prepare_price_payload(service, market_data, threshold)
+        else:
+            payload, graph = prepare_price_payload(service, market_data, threshold)
         if service == "slack":
             url = 'https://slack.com/api/chat.postMessage'
         elif service == "telegram":

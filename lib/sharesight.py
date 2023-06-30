@@ -154,7 +154,7 @@ def get_performance(portfolio_id, days):
         if 'error' in data:
             print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
             sys.exit(1)
-        if conifg_cache and 'report' in data:
+        if config_cache and 'report' in data:
             util.json_write(cache_file, data)
     return data
 

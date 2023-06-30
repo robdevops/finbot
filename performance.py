@@ -9,7 +9,7 @@ from lib import webhook
 from lib import util
 from lib import yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=False, user='', portfolio_select=False, message_id=False, interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=None, user='', portfolio_select=None, message_id=None, interactive=False):
     def get_emoji(percent):
         if percent < 0:
             emoji = "🔻"
@@ -75,7 +75,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
                 chat_id = config_telegramChatID
                 url = url + "sendMessage?chat_id=" + str(chat_id)
             else:
-                chat_id=False
+                chat_id = None
             webhook.payload_wrapper(service, url, payload, chat_id)
 
     # make google cloud happy

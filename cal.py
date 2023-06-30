@@ -8,7 +8,7 @@ from lib import util
 from lib import webhook
 from lib import yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, service=False, specific_stock=False, message_id=False, interactive=False, earnings=False, dividend=False):
+def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, service=None, specific_stock=None, message_id=None, interactive=False, earnings=False, dividend=False):
     def prepare_payload(service, market_data, days):
         payload_staging = []
         emoji = "📣"
