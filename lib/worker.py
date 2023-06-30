@@ -569,9 +569,9 @@ def prepare_help(service, botName):
     payload = []
     payload.append(webhook.bold("Examples:", service))
     payload.append('.SYMBOL')
+    payload.append(".beta")
     payload.append(".dividend [days|SYMBOL]")
     payload.append(".earnings [days|SYMBOL]")
-    payload.append(".beta")
     payload.append(".history SYMBOL")
     payload.append(".holdings")
     payload.append(".marketcap [SYMBOL|bottom|top]")
