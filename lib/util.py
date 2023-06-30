@@ -226,7 +226,7 @@ def currency_from_market(market):
         currency = 'PLN'
     else:
         # note: LSE and HKE allow non-home currencies
-        return False
+        return None
     return currency
 
 def get_currency_symbol(currency):
@@ -262,9 +262,9 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
             return cacheDict
         if debug:
             print("cache expired:", cacheFile, file=sys.stderr)
-        return False
-    print("Cache file does not exist:", cacheFile, "first run?", file=sys.stderr)
-    return False
+        return None
+    print("Cache file does not exist:", cacheFile, file=sys.stderr)
+    return None
 
 def json_write(filename, data):
     filename = config_cache_dir + "/" + filename
@@ -299,9 +299,9 @@ def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
             return data
         if debug:
             print("cache expired:", cacheFile, file=sys.stderr)
-        return False
+        return None
     print("Cache file does not exist:", cacheFile, "first run?", file=sys.stderr)
-    return False
+    return None
 
 def write_binary_cache(cacheFile, data):
     cacheFile = config_cache_dir + "/" + cacheFile
@@ -482,7 +482,7 @@ def days_english(days, prefix='the past ', article=''):
         return prefix + str(days) + ' days'
 
 def graph(df, title, market_data):
-    def annote(x,y, atype, ax=None):
+    def label(x,y, atype, ax=None):
         if atype == 'min':
             xpoint = x[np.argmin(y)]
             ypoint = y.min()
@@ -491,22 +491,19 @@ def graph(df, title, market_data):
                 xytext = (50,50)
             else:
                 xytext = (30,-30)
-            if debug:
-                print("Min", np.argmin(x), np.argmin(y), file=sys.stderr)
+            #print("Min", np.argmin(x), np.argmin(y), file=sys.stderr)
         elif atype == 'max':
             xpoint = x[np.argmax(y)]
             ypoint = y.max()
             text = f"Max {ypoint:.2f}\n{xpoint}"
             xytext=(50,50)
-            if debug:
-                print("Max", np.argmax(x), np.argmax(y), file=sys.stderr)
+            #print("Max", np.argmax(x), np.argmax(y), file=sys.stderr)
         elif atype == 'last':
             xpoint = x.iloc[-1]
             ypoint = y.iloc[-1]
             text = f"Last {ypoint:.2f}\n{xpoint}"
             xytext=(30,-30)
-            if debug:
-                print("Last", df.index[-1], df['Close'].index[-1], file=sys.stderr)
+            #print("Last", df.index[-1], df['Close'].index[-1], file=sys.stderr)
         if not ax:
             ax=plt.gca()
         bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
@@ -537,9 +534,9 @@ def graph(df, title, market_data):
     plt.grid(color='grey', linestyle='-', alpha=0.4, linewidth=0.2)
     plt.box(False)
     plt.tight_layout()
-    annote(x,y, atype='min')
-    annote(x,y, atype='max')
-    annote(x,y, atype='last')
+    label(x,y, atype='min')
+    label(x,y, atype='max')
+    label(x,y, atype='last')
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight')
     plt.clf()

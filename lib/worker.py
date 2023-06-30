@@ -559,7 +559,6 @@ def prepare_watchlist(service, user, action=False, ticker=False):
         payload.insert(0, f"Hi {user}, I'm currently tracking:")
     else:
         payload.append('Watchlist is empty. Try ".watchlist add SYMBOL" to create it')
-
     util.json_write('finbot_watchlist.json', watchlist)
     return payload
 
