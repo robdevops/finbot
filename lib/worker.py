@@ -345,7 +345,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
             payload.append(f"{profile_title} ({ticker_link}) {ratio}")
         payload.sort(key=last_col)
-        if 'bottom' in action or 'negative' in action:
+        if 'bottom' in action:
             payload.reverse()
         payload = payload[:top]
         payload.insert(0, f"{webhook.bold(f'Top {top} stocks by {action} ratio', service)}")
