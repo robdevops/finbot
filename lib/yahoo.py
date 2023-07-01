@@ -592,11 +592,10 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
         csv = cache
     else:
         crumb = getCrumb()
-        url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
-        #interval = '1mo'
-        interval = '1d'
         start =  str(int((now - datetime.timedelta(days=1826)).timestamp())) # 5 years inc leap year
         end = str(int(now.timestamp()))
+        interval = '1d'
+        url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
         url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
         url = url + '&crumb=' + crumb
         if debug: print(url)
