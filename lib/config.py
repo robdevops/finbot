@@ -24,7 +24,7 @@ if os.getenv('telegramBotToken'):
 config_alliterate = os.getenv("alliterate", 'False').lower() in ('true', '1', 't')
 config_cache = os.getenv("cache", 'True').lower() in ('true', '1', 't')
 config_cache_dir = os.getenv('cache_dir', 'var/cache').rstrip('/')
-config_cache_seconds = int(os.getenv('cache_seconds', 82740 ))
+config_cache_seconds = int(os.getenv('cache_seconds', 43200 ))
 config_country_code = os.getenv('country_code', 'AU')
 config_chunk_maxlines = int(os.getenv('chunk_maxlines', 20))
 config_exclude_portfolios = () # default
