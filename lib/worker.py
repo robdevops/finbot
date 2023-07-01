@@ -255,11 +255,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 pass
         payload_staging = []
         payload = []
-        specific_stock = True
         action = 'top'
         top = 15
         if m_marketcap.group(2) and m_marketcap.group(2) not in ('top', 'bottom'):
-            specific_stock = True
             ticker = m_marketcap.group(2).upper()
             ticker = util.transform_to_yahoo(ticker)
             market_data = yahoo.fetch_detail(ticker, 600)
