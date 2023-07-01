@@ -127,11 +127,11 @@ def fetch(tickers):
         except (KeyError, IndexError):
             pass
         try:
-            yahoo_output[ticker]["forward_pe"] = round(item['forwardPE'])
+            yahoo_output[ticker]["price_to_earnings_forward"] = round(item['forwardPE'])
         except:
             pass
         try:
-            yahoo_output[ticker]["trailing_pe"] = round(item['trailingPE'])
+            yahoo_output[ticker]["price_to_earnings_trailing"] = round(item['trailingPE'])
         except:
             pass
         try:

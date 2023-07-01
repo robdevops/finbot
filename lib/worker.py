@@ -303,11 +303,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         top = 15
         action = 'pe'
         payload = []
-        allowed_actions = ('forward pe', 'pe', 'peg', 'bottom pe', 'bottom peg', 'bottom forward pe')
+        allowed_actions = ('pe', 'forward pe', 'peg', 'bottom pe', 'bottom forward pe', 'bottom peg', 'negative forward pe', 'negative peg')
         if m_value.group(2) in allowed_actions:
             action = m_value.group(2)
         else:
-            payload = [f"unknown action: {m_value.group(2)}. Please specify: {allowed_actions}"]
+            allowed_actions_str = '\n'.join(allowed_actions)
+            payload = [f"Valid 'value' parameters:\n{allowed_actions_str}"]
             webhook.payload_wrapper(service, url, payload, chat_id)
             sys.exit(1)
         tickers = sharesight.get_holdings_wrapper()
@@ -318,22 +319,33 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         for ticker in market_data:
             try:
                 if action == 'pe' or action == 'bottom pe':
-                    pe = market_data[ticker]['trailing_pe']
-                elif action == 'forward pe' or 'bottom forward pe':
-                    if market_data[ticker]['forward_pe'] <= 0:
+                    ratio = market_data[ticker]['price_to_earnings_trailing']
+                elif action == 'forward pe' or action == 'bottom forward pe':
+                    if market_data[ticker]['price_to_earnings_forward'] < 0:
                         continue
-                    pe = market_data[ticker]['forward_pe']
-                elif action == 'peg' or 'bottom peg':
+                    ratio = market_data[ticker]['price_to_earnings_forward']
+                elif action == 'negative forward pe':
+                    if market_data[ticker]['price_to_earnings_forward'] >= 0:
+                        continue
+                    ratio = market_data[ticker]['price_to_earnings_forward']
+                elif action == 'peg' or action == 'bottom peg':
                     market_data = market_data | yahoo.fetch_detail(ticker)
-                    pe = market_data[ticker]['price_to_earnings_peg']
+                    if market_data[ticker]['price_to_earnings_peg'] < 0:
+                        continue
+                    ratio = market_data[ticker]['price_to_earnings_peg']
+                elif action == 'negative peg':
+                    market_data = market_data | yahoo.fetch_detail(ticker)
+                    if market_data[ticker]['price_to_earnings_peg'] >= 0:
+                        continue
+                    ratio = market_data[ticker]['price_to_earnings_peg']
             except KeyError:
                 print(ticker, action, "value not found", file=sys.stderr)
                 continue
             profile_title = market_data[ticker]['profile_title']
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
-            payload.append(f"{profile_title} ({ticker_link}) {pe}")
+            payload.append(f"{profile_title} ({ticker_link}) {ratio}")
         payload.sort(key=last_col)
-        if 'bottom' in action:
+        if 'bottom' in action or 'negative' in action:
             payload.reverse()
         payload = payload[:top]
         payload.insert(0, f"{webhook.bold(f'Top {top} stocks by {action} ratio', service)}")
@@ -365,10 +377,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_recommend:
         top = 15
-        if m_recommend.group(2) in ('strong buy', 'buy', 'hold', 'underperform', 'sell'):
+        allowed_actions = ('strong buy', 'buy', 'hold', 'underperform', 'sell')
+        if m_recommend.group(2) in allowed_actions:
             action = m_recommend.group(2)
         else:
-            payload = ["valid 'recommend' parameters: buy, hold, underperform, sell"]
+            allowed_actions_str = '\n'.join(allowed_actions)
+            payload = [f"valid 'recommend' parameters:\n{allowed_actions_str}"]
             webhook.payload_wrapper(service, url, payload, chat_id)
             sys.exit(1)
         def score_col(e):
@@ -405,6 +419,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_history:
         payload = []
+        graph = None
         if m_history.group(2):
             ticker = m_history.group(2).upper()
             ticker = util.transform_to_yahoo(ticker)
@@ -420,11 +435,14 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                         emoji = util.get_emoji(percent)
                         payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent}%")
             else:
-                payload = [f"Data not found for {ticker}"]
+                payload = [f".history: Data not found for {ticker}"]
         else:
-            payload = ["please try again specifying a ticker"]
+            payload = [".history: please try again specifying a ticker"]
         caption = '\n'.join(payload)
-        webhook.sendPhoto(chat_id, graph, caption, service)
+        if graph:
+            webhook.sendPhoto(chat_id, graph, caption, service)
+        else:
+            webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_profile:
         if m_profile.group(2):
             ticker = m_profile.group(2).upper()
@@ -435,7 +453,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             else:
                 payload = [f"{ticker} not found"]
         else:
-            payload = ["please try again specifying a ticker"]
+            payload = [".profile: please try again specifying a ticker"]
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_stockfinancial:
         print("starting stock detail")
@@ -618,7 +636,7 @@ def prepare_holdings_payload(portfolioName, service, user):
             for item in portfolios:
                 payload.append( item )
     else:
-        payload = [ f"{user} Please try again specifying a portfolio:" ]
+        payload = [ f".holdings: Please try again specifying a portfolio:" ]
         for item in portfolios:
             payload.append( item )
     return payload
