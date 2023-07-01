@@ -177,7 +177,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_price:
         price_percent = config_price_percent
         specific_stock = None
-        days = True
+        days = None
         interday = True
         if m_price.group(2):
             arg = m_price.group(2)
@@ -203,6 +203,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             # easter egg 3
             payload = [ f"{random.choice(searchVerb)} stock performance from {util.days_english(days)} 🔍" ]
             webhook.payload_wrapper(service, url, payload, chat_id)
+        print(chat_id, price_percent, service, user, specific_stock, interday,days)
         price.lambda_handler(chat_id, price_percent, service, user, specific_stock, interactive=True, premarket=False, interday=interday, days=days)
     elif m_premarket:
         premarket_percent = config_price_percent
