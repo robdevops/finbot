@@ -600,7 +600,7 @@ def prepare_help(service, botName):
     payload.append(".session [percent|SYMBOL]")
     payload.append(".shorts [percent|SYMBOL]")
     payload.append(".trades [days|portfolio]")
-    payload.append(".value [forward pe|pe|peg|bottom forward pe|bottom pe|bottom peg]")
+    payload.append(".value [pe|forward pe|peg|bottom pe|bottom forward pe|bottom peg|negative forward pe|negative peg]")
     payload.append(".watchlist [add|del SYMBOL]")
     if service == 'slack':
         payload.append('<' + botName + '> SYMBOL')

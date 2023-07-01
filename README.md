@@ -42,21 +42,21 @@ Where:
 * _portfolio_ is a Sharesight portfolio name
 * _symbol_ is a Yahoo Finance symbol
 ```
-.<symbol>
+.symbol
 .dividend [period|symbol]
 .earnings [period|symbol]
 .history symbol
-.holdings [portfolio]
+.holdings portfolio
 .marketcap [symbol|top|bottom]
 .performance [period|portfolio]
 .premarket [percent|symbol]
 .price [percent|symbol] [period]
 .profile symbol
-.recommend [buy|hold|underperform|sell]
+.recommend [strong buy|buy|hold|underperform|sell]
 .session [percent|symbol]
 .shorts [percent|symbol]
 .trades [period|portfolio]
-.value [pe|forward pe|peg]
+.value [pe|forward pe|peg|bottom pe|bottom forward pe|bottom peg|negative forward pe|negative peg]
 .watchlist [add|del symbol]
 ```
 
