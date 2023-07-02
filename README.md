@@ -321,7 +321,7 @@ List securities by P/E ratio, forward P/E ratio, or PEG
 
 Interactive trigger:
 ```
-.value <pe | forward pe | peg>
+.value <pe | forward pe | peg | bottom pe | bottom forward pe | bottom peg | negative forward pe | negative peg>
 ```
 ```
 @botname value <pe | forward pe | peg>
@@ -331,7 +331,7 @@ Interactive trigger:
 ![Price history report in Slack](img/finbot_history.png?raw=true "Price history report in Slack")
 
 Shows the long term performance of a security.
-It creates 5Y chart, and then lists performance for several periods (5Y 3Y 1Y YTD 6M 3M 1M 1W)
+It creates a 5Y chart, and then lists performance for several periods (5Y 3Y 1Y 6M 3M 1M 1W 1D)
 
 Interactive trigger:
 ```
@@ -379,14 +379,14 @@ Notifies when Yahoo Finance analyst rating consensus changes category (e.g. from
 ### Watchlist
 ![Shared watchlist in Slack](img/watchlist.png?raw=true "Shared watchlist in Slack")
 
-Tracks additional securities which are not in your Sharesight holdings.
+Tracks additional securities which are not in your Sharesight holdings. The various reports will include wishlist items as if they are holdings.
 
 It is stored in `var/cache/finbot_watchlist.json` by default. It is a JSON array literal containing Yahoo symbols. Example:
 ```
 ["2454.TW", "3217.TWO", "ASO.AX", "STEM"]
 ```
 
-When run interactively, the watchlist is dynamic and can be edited by members of a chat group. In this case, there is no need to create/edit the file manually.
+When the bot is run interactively, the watchlist is dynamic and can be edited by members of a chat group. In this case, there is no need to create/edit the file manually.
 
 Interactive trigger:
 ```
