@@ -48,14 +48,14 @@ Where:
 .history symbol
 .holdings portfolio
 .marketcap [symbol|top|bottom]
-.performance [period|portfolio]
+.performance [period] [portfolio]
 .premarket [percent|symbol]
 .price [percent|symbol] [period]
 .profile symbol
 .recommend [strong buy|buy|hold|underperform|sell]
 .session [percent|symbol]
 .shorts [percent|symbol]
-.trades [period|portfolio]
+.trades [period] [portfolio]
 .value [pe|forward pe|peg|bottom pe|bottom forward pe|bottom peg|negative forward pe|negative peg]
 .watchlist [add|del symbol]
 ```
@@ -69,14 +69,14 @@ Alternative syntax:
 @botname history symbol
 @botname holdings [portfolio]
 @botname marketcap [symbol|top|bottom]
-@botname performance [period|portfolio]
+@botname performance [period] [portfolio]
 @botname premarket [percent|symbol]
 @botname price [percent|symbol] [period]
 @botname profile symbol
 @botname recommend [buy|hold|underperform|sell]
 @botname session [percent|symbol]
 @botname shorts [percent|symbol]
-@botname trades [period|portfolio]
+@botname trades [period] [portfolio]
 @botname value [pe|forward pe|peg]
 @botname watchlist [add|del symbol]
 ```
@@ -166,12 +166,12 @@ Interactive trigger:
 @botname trades [period]
 ```
 
-You can also specify a portfolio name to get today's trades for just that portfolio:
+You can also specify a portfolio name to get trades for just that portfolio:
 ```
-.trades [portfolio]
+.trades [period] [portfolio]
 ```
 ```
-@botname trades [portfolio]
+@botname trades [period] [portfolio]
 ```
 
 ### Price alerts
@@ -255,12 +255,12 @@ Interactive trigger:
 @botname performance [period]
 ```
 
-Interactively, you can instead specify a portfolio:
+Interactively, you can also specify a portfolio:
 ```
-.performance [portfolio]
+.performance [period] [[portfolio]
 ```
 ```
-@botname performance [portfolio]
+@botname performance [period] [portfolio]
 ```
 
 ### Events calendar

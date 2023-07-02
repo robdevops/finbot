@@ -57,7 +57,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     history_command = r"^([\!\.]\s?|^" + botName + r"\s+)history\s*([\w\.\:\-]+)*"
     m_history = re.match(history_command, message, re.IGNORECASE)
 
-    performance_command = r"^([\!\.]\s?|^" + botName + r"\s+)performance?\s*([\w\s]+)*"
+    performance_command = r"^([\!\.]\s?|^" + botName + r"\s+)performance?\s*([\w]+)*\s*([\w\s]+)*"
     m_performance = re.match(performance_command, message, re.IGNORECASE)
 
     premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket)\s*([\w\.\:\-]+)*"
@@ -78,7 +78,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     thanks_command = r"^([\!\.]\s?|^" + botName + r"\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
     m_thanks = re.match(thanks_command, message, re.IGNORECASE)
 
-    trades_command = r"^([\!\.]\s?|^" + botName + r"\s+)trades?\s*([\w\s]+)*"
+    trades_command = r"^([\!\.]\s?|^" + botName + r"\s+)trades?\s*([\w]+)*\s*([\w\s]+)*"
     m_trades = re.match(trades_command, message, re.IGNORECASE)
 
     watchlist_command = r"^([\!\.]\s?|^" + botName + r"\s+)watchlist\s*([\w]+)*\s*([\w\.\:\-]+)*"
@@ -159,9 +159,19 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 days = util.days_from_human_days(arg)
             except ValueError:
                 portfolio_select = arg
+        if m_performance.group(3):
+            arg = m_performance.group(3)
+            try:
+                days = util.days_from_human_days(arg)
+            except ValueError:
+                portfolio_select = arg
         if days > 0:
             # easter egg 3
-            payload = [ f"{random.choice(searchVerb)} portfolio performance for {util.days_english(days)} 🔍" ]
+            if portfolio_select:
+                payload = [ f"{random.choice(searchVerb)} portfolio performance for {webhook.bold(portfolio_select, service)} from {util.days_english(days)} 🔍" ]
+            else:
+                payload = [ f"{random.choice(searchVerb)} portfolio performance for {util.days_english(days)} 🔍" ]
+
             webhook.payload_wrapper(service, url, payload, chat_id)
             performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=None, interactive=True)
     elif m_session:
@@ -227,18 +237,25 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 specific_stock = str(arg).upper()
         shorts.lambda_handler(chat_id, shorts_percent, specific_stock, service, interactive=True)
     elif m_trades:
+        days = 1
         portfolio_select = None
         if m_trades.group(2):
             arg = m_trades.group(2)
             try:
                 days = util.days_from_human_days(arg)
             except ValueError:
-                days = 1
                 portfolio_select = arg
-        else:
-            days = 1
+        if m_trades.group(3):
+            arg = m_trades.group(3)
+            try:
+                days = util.days_from_human_days(arg)
+            except ValueError:
+                portfolio_select = arg
         # easter egg 3
-        payload = [ f"{random.choice(searchVerb)} trades from {util.days_english(days)} 🔍" ]
+        if portfolio_select:
+            payload = [ f"{random.choice(searchVerb)} trades for {webhook.bold(portfolio_select, service)} from {util.days_english(days)} 🔍" ]
+        else:
+            payload = [ f"{random.choice(searchVerb)} trades from {util.days_english(days)} 🔍" ]
         webhook.payload_wrapper(service, url, payload, chat_id)
         trades.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=None, interactive=True)
     elif m_holdings:
@@ -587,19 +604,19 @@ def prepare_help(service, botName):
     payload.append(webhook.bold("Examples:", service))
     payload.append('.SYMBOL')
     payload.append(".beta")
-    payload.append(".dividend [days|SYMBOL]")
-    payload.append(".earnings [days|SYMBOL]")
+    payload.append(".dividend [period|SYMBOL]")
+    payload.append(".earnings [period|SYMBOL]")
     payload.append(".history SYMBOL")
     payload.append(".holdings")
     payload.append(".marketcap [SYMBOL|bottom|top]")
-    payload.append(".performance [days|portfolio]")
+    payload.append(".performance [period] [portfolio]")
     payload.append(".premarket [percent|SYMBOL]")
-    payload.append(".price [percent|SYMBOL] [days]")
+    payload.append(".price [percent|SYMBOL] [period]")
     payload.append(".profile SYMBOL")
     payload.append(".recommend [strong buy|buy|hold|underperform|sell]")
     payload.append(".session [percent|SYMBOL]")
     payload.append(".shorts [percent|SYMBOL]")
-    payload.append(".trades [days|portfolio]")
+    payload.append(".trades [period] [portfolio]")
     payload.append(".value [pe|forward pe|peg|bottom pe|bottom forward pe|bottom peg|negative forward pe|negative peg]")
     payload.append(".watchlist [add|del SYMBOL]")
     if service == 'slack':
@@ -943,7 +960,6 @@ def prepare_stockfinancial_payload(service, user, ticker):
         payload.append("")
 
     price_history, graph = yahoo.price_history(ticker)
-    #price_history['1D'] = market_data[ticker]['percent_change']
     for interval in ('5Y', '1Y', '1M', '1D'):
        if interval in price_history:
            percent = price_history[interval]
