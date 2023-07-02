@@ -1,10 +1,9 @@
 #!/usr/bin/python3
 
-from itertools import groupby
+from itertools import groupby #from itertools import pairwise # python 3.10
 import json, re
 import datetime
 import sys
-#from itertools import pairwise # python 3.10
 from lib.config import *
 from lib import sharesight
 from lib import util
