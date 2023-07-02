@@ -7,7 +7,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from lib import sharesight
-from lib import util
 from lib.config import *
 
 
@@ -576,7 +575,7 @@ def days_from_human_days(arg):
 
 def get_holdings_and_watchlist():
     tickers = sharesight.get_holdings_wrapper()
-    tickers.update(util.json_load('finbot_watchlist.json'))
+    tickers.update(json_load('finbot_watchlist.json'))
     if 'GOOG' in tickers and 'GOOGL' in tickers:
         tickers.remove("GOOGL")
     return tickers
