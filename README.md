@@ -52,7 +52,7 @@ Where:
 .premarket [percent|symbol]
 .price [percent|symbol] [period]
 .profile symbol
-.recommend [strong buy|buy|hold|underperform|sell]
+.rating [strong buy|buy|hold|underperform|sell]
 .session [percent|symbol]
 .shorts [percent|symbol]
 .trades [period] [portfolio]
@@ -73,7 +73,7 @@ Alternative syntax:
 @botname premarket [percent|symbol]
 @botname price [percent|symbol] [period]
 @botname profile symbol
-@botname recommend [buy|hold|underperform|sell]
+@botname rating [buy|hold|underperform|sell]
 @botname session [percent|symbol]
 @botname shorts [percent|symbol]
 @botname trades [period] [portfolio]
@@ -341,17 +341,17 @@ Interactive trigger:
 @botname history <symbol>
 ```
 
-### Recommend
-![Recommend report in Slack](img/finbot_recommend.png?raw=true "Recommend report in Slack")
+### Rating
+![Rating report in Slack](img/finbot_recommend.png?raw=true "Rating report in Slack")
 
-List the most recommended stocks according to Yahoo Finance analysts
+Show top stocks by Yahoo Finance analysts rating
 
 Interactive trigger:
 ```
-.recommend <buy | hold | underperform | sell>
+.rating <buy | hold | underperform | sell>
 ```
 ```
-@botname recommend <buy | hold | underperform | sell>
+@botname rating <buy | hold | underperform | sell>
 ```
 
 ### Marketcap
