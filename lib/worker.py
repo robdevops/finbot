@@ -302,10 +302,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             return float(e.split()[-1])
         payload = []
         market_data = {}
-        tickers = sharesight.get_holdings_wrapper()
-        tickers.update(util.json_load('finbot_watchlist.json'))
-        if 'GOOG' in tickers and 'GOOGL' in tickers:
-            tickers.remove("GOOGL")
+        tickers = util.get_holdings_and_watchlist()
         for ticker in tickers:
             market_data = market_data | yahoo.fetch_detail(ticker)
         for ticker in market_data:

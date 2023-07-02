@@ -533,10 +533,7 @@ def prepare_marketcap_payload(service, action='top', length=15):
         except ValueError:
             pass
     payload_staging = []
-    tickers = sharesight.get_holdings_wrapper()
-    tickers.update(util.json_load('finbot_watchlist.json'))
-    if 'GOOG' in tickers and 'GOOGL' in tickers:
-        tickers.remove("GOOGL")
+    tickers = util.get_holdings_and_watchlist()
     market_data = yahoo.fetch(tickers)
     for ticker in market_data:
         try:
@@ -564,10 +561,7 @@ def prepare_rating_payload(service, action, length=15):
         def score_col(e):
             return (float(e.split()[-3]), float(e.split()[-2].removeprefix('(')))
         payload = []
-        tickers = sharesight.get_holdings_wrapper()
-        tickers.update(util.json_load('finbot_watchlist.json'))
-        if 'GOOG' in tickers and 'GOOGL' in tickers:
-            tickers.remove("GOOGL")
+        tickers = util.get_holdings_and_watchlist()
         market_data = {}
         for ticker in tickers:
             try:
@@ -595,10 +589,7 @@ def prepare_value_payload(service, action='pe', length=15):
         def last_col(e):
             return float(e.split()[-1])
         payload = []
-        tickers = sharesight.get_holdings_wrapper()
-        tickers.update(util.json_load('finbot_watchlist.json'))
-        if 'GOOG' in tickers and 'GOOGL' in tickers:
-            tickers.remove("GOOGL")
+        tickers = util.get_holdings_and_watchlist()
         market_data = yahoo.fetch(tickers)
         for ticker in market_data:
             try:
