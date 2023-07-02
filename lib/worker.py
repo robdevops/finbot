@@ -1,17 +1,12 @@
 #!/usr/bin/python3
 
-from itertools import groupby
-import json, re, random
+import re, random
 import datetime
 import sys
-#from itertools import pairwise # python 3.10
-
 from lib.config import *
-from lib import sharesight
 from lib import util
 from lib import webhook
 from lib import yahoo
-from lib import simplywallst
 from lib import reports
 import cal
 import performance
