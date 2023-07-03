@@ -162,8 +162,7 @@ def prepare_help(service, botName):
     if service == 'slack':
         payload.append('<' + botName + '> trades')
     else:
-        payload.append(botName + ' trades')
-    payload.append("etc.")
+        payload.append(botName + ' price')
     payload.append("")
     payload.append(f"Full help on {util.link('https://github.com/robdevops/finbot', 'GitHub', service)}")
     return payload
