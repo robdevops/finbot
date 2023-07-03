@@ -268,8 +268,11 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
     print("Cache file does not exist:", cacheFile, file=sys.stderr)
     return None
 
-def json_write(filename, data):
-    filename = config_cache_dir + "/" + filename
+def json_write(filename, data, persist=False):
+    if persist:
+        filename = config_var_dir + "/" + filename
+    else:
+        filename = config_cache_dir + "/" + filename
     os.umask(0)
     def opener(filename, flags):
         return os.open(filename, flags, 0o640)
@@ -277,8 +280,11 @@ def json_write(filename, data):
         f.write(json.dumps(data, indent=4))
     os.umask(0o022)
 
-def json_load(filename):
-    filename = config_cache_dir + "/" + filename
+def json_load(filename, persist=False):
+    if persist:
+        filename = config_var_dir + "/" + filename
+    else:
+        filename = config_cache_dir + "/" + filename
     if os.path.isfile(filename):
         with open(filename, "r", encoding="utf-8") as f:
             data = json.loads(f.read())
@@ -579,7 +585,7 @@ def days_from_human_days(arg):
 
 def get_holdings_and_watchlist():
     tickers = sharesight.get_holdings_wrapper()
-    tickers.update(json_load('finbot_watchlist.json'))
+    tickers.update(json_load('finbot_watchlist.json', persist=True))
     if 'GOOG' in tickers and 'GOOGL' in tickers:
         tickers.remove("GOOGL")
     return tickers

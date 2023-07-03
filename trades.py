@@ -86,7 +86,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
     trades = []
     known_trades = []
     newtrades = set()
-    known_trades = util.json_load(state_file)
+    known_trades = util.json_load(state_file, persist=True)
 
     if portfolio_select:
         portfoliosLower = {k.lower():v for k,v in portfolios.items()}
@@ -131,7 +131,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
     # write state file
     if newtrades and not interactive:
         known_trades = set(known_trades) | newtrades
-        util.json_write(state_file, list(known_trades))
+        util.json_write(state_file, list(known_trades), persist=True)
 
     # make google cloud happy
     return True

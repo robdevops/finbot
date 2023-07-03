@@ -413,13 +413,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_plan:
         filename = 'finbot_plan.json'
-        plan = util.json_load(filename)
+        plan = util.json_load(filename, persist=True)
         if not plan:
             plan = dict()
         payload = []
         if m_plan.group(2) and not m_plan.group(2).startswith('@'):
             plan[user] = m_plan.group(2)
-            util.json_write(filename, plan)
+            util.json_write(filename, plan, persist=True)
         for k,v in plan.items():
             payload.append(f"{webhook.bold(k.removeprefix('@'), service)}: {webhook.italic(v, service)}\n")
         webhook.payload_wrapper(service, url, payload, chat_id)

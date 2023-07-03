@@ -50,7 +50,7 @@ def prepare_watchlist(service, user, action=None, ticker=None):
         ticker_link = util.finance_link(ticker, ticker, service, brief=False)
     duplicate = False
     transformed = False
-    watchlist = util.json_load('finbot_watchlist.json')
+    watchlist = util.json_load('finbot_watchlist.json', persist=True)
     if action == 'add':
         if ticker in watchlist:
             duplicate = True
@@ -123,7 +123,7 @@ def prepare_watchlist(service, user, action=None, ticker=None):
         payload.insert(0, f"Hi {user}, I'm currently tracking:")
     else:
         payload.append('Watchlist is empty. Try ".watchlist add SYMBOL" to create it')
-    util.json_write('finbot_watchlist.json', watchlist)
+    util.json_write('finbot_watchlist.json', watchlist, persist=True)
     return payload
 
 def prepare_help(service, botName):
