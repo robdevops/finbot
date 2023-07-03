@@ -128,34 +128,44 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 
 def prepare_help(service, botName):
     payload = []
-    payload.append(webhook.bold("Examples:", service))
+    payload.append(webhook.bold("Tracked securities:", service))
+    payload.append(".holdings")
+    payload.append(".watchlist [add|del SYMBOL]")
+
+    payload.append(webhook.bold("\nCompany info:", service))
     payload.append('.SYMBOL')
-    payload.append(".beta")
-    payload.append(".buy")
+    payload.append(".profile SYMBOL")
     payload.append(".dividend [period|SYMBOL]")
     payload.append(".earnings [period|SYMBOL]")
-    payload.append(".history SYMBOL")
-    payload.append(".holdings")
     payload.append(".marketcap [SYMBOL|bottom|top]")
+
+    payload.append(webhook.bold("\nPrice:", service))
+    payload.append(".beta")
+    payload.append(".history SYMBOL")
+    payload.append(".performance [period] [portfolio]")
+    payload.append(".price [percent|SYMBOL] [period]")
+    payload.append(".session [percent|SYMBOL]")
+    payload.append(".premarket [percent|SYMBOL]")
+
+    payload.append(webhook.bold("\nRisk & Value:", service))
+    payload.append(".buy")
+    payload.append(".sell")
     payload.append(".pe [SYMBOL|top|bottom]")
     payload.append(".peg [SYMBOL|top|bottom|negative]")
     payload.append(".forwardpe [SYMBOL|top|bottom|negative]")
-    payload.append(".performance [period] [portfolio]")
-    payload.append(".premarket [percent|SYMBOL]")
-    payload.append(".price [percent|SYMBOL] [period]")
-    payload.append(".profile SYMBOL")
-    payload.append(".sell")
-    payload.append(".session [percent|SYMBOL]")
     payload.append(".shorts [percent|SYMBOL]")
+
+    payload.append(webhook.bold("\nTrades:", service))
     payload.append(".trades [period] [portfolio]")
-    payload.append(".watchlist [add|del SYMBOL]")
+
+    payload.append(webhook.bold("\nAlternative syntax:", service))
     if service == 'slack':
-        payload.append('<' + botName + '> SYMBOL')
+        payload.append('<' + botName + '> trades')
     else:
-        payload.append(botName + ' SYMBOL')
+        payload.append(botName + ' trades')
     payload.append("etc.")
     payload.append("")
-    payload.append("https://github.com/robdevops/finbot")
+    payload.append(f"Full help on {util.link('https://github.com/robdevops/finbot', 'GitHub', service)}")
     return payload
 
 def prepare_holdings_payload(portfolioName, service, user):
