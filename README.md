@@ -314,17 +314,21 @@ Interactive trigger:
 @botname shorts [percent]
 ```
 
-### Value
+### pe / forward pe / peg
 ![value report in Slack](img/finbot_value_peg.png?raw=true "Value report in Slack")
 
-List securities by P/E ratio, forward P/E ratio, or PEG
+List securities by P/E ratio, forward P/E ratio, or PEG ratio
 
 Interactive trigger:
 ```
-.value <pe | forward pe | peg | bottom pe | bottom forward pe | bottom peg | negative forward pe | negative peg>
+.pe [SYMBOL]
+.fpe [SYMBOL|bottom|negative]
+.peg [SYMBOLbottom|negative]
 ```
 ```
-@botname value <pe | forward pe | peg>
+@botname pe [SYMBOL|top|bottom]
+@botname fpe [SYMBOL|top|bottom|negative]
+@botname peg [SYMBOL|top|bottom|negative]
 ```
 
 ### History
@@ -341,17 +345,30 @@ Interactive trigger:
 @botname history <symbol>
 ```
 
-### Rating
+### Buy
 ![Rating report in Slack](img/finbot_recommend.png?raw=true "Rating report in Slack")
 
-Show top stocks by Yahoo Finance analysts rating
+Show top recommended stocks by Yahoo Finance analysts rating
 
 Interactive trigger:
 ```
-.rating <buy | hold | underperform | sell>
+.buy
 ```
 ```
-@botname rating <buy | hold | underperform | sell>
+@botname buy
+```
+
+### Sell
+![Rating report in Slack](img/finbot_recommend.png?raw=true "Rating report in Slack")
+
+Show least recommended stocks by Yahoo Finance analysts rating
+
+Interactive trigger:
+```
+.sell
+```
+```
+@botname sell
 ```
 
 ### Marketcap

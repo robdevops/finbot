@@ -41,22 +41,16 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     marketcap_command = r"^([\!\.]\s?|^" + botName + r"\s+)marketcap\s*([\w\.\:\-]+)*"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
-    pe_command = r"^([\!\.]\s?|^" + botName + r"\s+)pe\s*([\w\.\:\-\s]+)*"
-    m_pe = re.match(pe_command, message, re.IGNORECASE)
-
-    forwardpe_command = r"^([\!\.]\s?|^" + botName + r"\s+)(fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*"
-    m_forwardpe = re.match(forwardpe_command, message, re.IGNORECASE)
-
-    peg_command = r"^([\!\.]\s?|^" + botName + r"\s+)peg\s*([\w\.\:\-\s]+)*"
-    m_peg = re.match(peg_command, message, re.IGNORECASE)
+    value_command = r"^([\!\.]\s?|^" + botName + r"\s+)value\s*([\w\.\:\-\s]+)*"
+    m_value = re.match(value_command, message, re.IGNORECASE)
 
     beta_command = r"^([\!\.]\s?|^" + botName + r"\s+)beta\s*([\w\.\:\-]+)*"
     m_beta = re.match(beta_command, message, re.IGNORECASE)
 
-    buy_command = r"^([\!\.]\s?|^" + botName + r"\s+)buy"
+    buy_command = r"^([\!\.]\s?|^" + botName + r"\s+)(buy)\s*([\w\s]+)*"
     m_buy = re.match(buy_command, message, re.IGNORECASE)
 
-    sell_command = r"^([\!\.]\s?|^" + botName + r"\s+)sell"
+    sell_command = r"^([\!\.]\s?|^" + botName + r"\s+)(sell)\s*([\w\s]+)*"
     m_sell = re.match(sell_command, message, re.IGNORECASE)
 
     history_command = r"^([\!\.]\s?|^" + botName + r"\s+)history\s*([\w\.\:\-]+)*"
@@ -288,56 +282,17 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 action = m_marketcap.group(2)
             payload = reports.prepare_marketcap_payload(service, action, length=15)
         webhook.payload_wrapper(service, url, payload, chat_id)
-    elif m_peg:
-        action = 'peg'
-        ticker_select = None
-        if m_peg.group(2):
-            arg = m_peg.group(2)
-            if arg == 'top':
-                action = 'peg'
-            elif arg == 'bottom':
-                action = 'bottom peg'
-            elif 'neg' in arg:
-                action = 'negative peg'
-            else:
-                ticker_select = arg
-        else:
-            message = [f"Fetching {action.upper()}s..."]
-            webhook.payload_wrapper(service, url, message, chat_id)
-        payload = reports.prepare_value_payload(service, action, ticker_select, length=15)
-        if payload:
-            webhook.payload_wrapper(service, url, payload, chat_id)
-    elif m_pe:
+    elif m_value:
         action = 'pe'
-        ticker_select = None
-        if m_pe.group(2):
-            arg = m_pe.group(2)
-            if arg == 'top':
-                action = 'pe'
-            elif arg == 'bottom':
-                action = 'bottom pe'
-            else:
-                ticker_select = arg
-        payload = reports.prepare_value_payload(service, action, ticker_select, length=15)
-        if payload:
+        allowed_actions = ('pe', 'forward pe', 'peg', 'bottom pe', 'bottom forward pe', 'bottom peg', 'negative forward pe', 'negative peg')
+        if m_value.group(2) in allowed_actions:
+            action = m_value.group(2)
+        else:
+            allowed_actions_str = '\n'.join(allowed_actions)
+            payload = [f"Valid 'value' parameters:\n{allowed_actions_str}"]
             webhook.payload_wrapper(service, url, payload, chat_id)
-    elif m_forwardpe:
-        print("DEBUG FPE")
-        action = 'forward pe'
-        ticker_select = None
-        if m_forwardpe.group(3):
-            arg = m_forwardpe.group(3)
-            if arg == 'top':
-                action = 'forward pe'
-            elif arg == 'bottom':
-                action = 'bottom forward pe'
-                print("DEBUG FPE bottom")
-            elif 'neg' in arg:
-                action = 'negative forward pe'
-                print("DEBUG FPE neg")
-            else:
-                ticker_select = arg
-        payload = reports.prepare_value_payload(service, action, ticker_select, length=15)
+            sys.exit(1)
+        payload = reports.prepare_value_payload(service, action, length=15)
         if payload:
             webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_beta:
@@ -362,25 +317,20 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if payload:
             payload.insert(0, f"{webhook.bold('Beta over 1.5 and mkt cap under 1B', service)}")
             webhook.payload_wrapper(service, url, payload, chat_id)
-    elif m_buy:
-        action='buy'
-        message = [f"Fetching {action} ratings..."]
-        webhook.payload_wrapper(service, url, message, chat_id)
+    elif m_rating:
+        allowed_actions = ('strong buy', 'buy', 'hold', 'underperform', 'sell')
+        if m_rating.group(3) in allowed_actions:
+            action = m_rating.group(3)
+        else:
+            allowed_actions_str = '\n'.join(allowed_actions)
+            payload = [f"valid 'rating' parameters:\n{allowed_actions_str}"]
+            webhook.payload_wrapper(service, url, payload, chat_id)
+            sys.exit(1)
         payload = reports.prepare_rating_payload(service, action, length=15)
         if payload:
             webhook.payload_wrapper(service, url, payload, chat_id)
         else:
-            payload = [f"No stocks meet {action} criteria"]
-            webhook.payload_wrapper(service, url, payload, chat_id)
-    elif m_sell:
-        action='sell'
-        message = [f"Fetching {action} ratings..."]
-        webhook.payload_wrapper(service, url, message, chat_id)
-        payload = reports.prepare_rating_payload(service, action, length=15)
-        if payload:
-            webhook.payload_wrapper(service, url, payload, chat_id)
-        else:
-            payload = [f"No stocks meet {action} criteria"]
+            payload = [f"No stocks meet rating {action} criteria"]
             webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_history:
         payload = []

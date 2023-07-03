@@ -131,20 +131,23 @@ def prepare_help(service, botName):
     payload.append(webhook.bold("Examples:", service))
     payload.append('.SYMBOL')
     payload.append(".beta")
+    payload.append(".buy")
     payload.append(".dividend [period|SYMBOL]")
     payload.append(".earnings [period|SYMBOL]")
     payload.append(".history SYMBOL")
     payload.append(".holdings")
     payload.append(".marketcap [SYMBOL|bottom|top]")
+    payload.append(".pe [SYMBOL|top|bottom]")
+    payload.append(".peg [SYMBOL|top|bottom|negative]")
+    payload.append(".forwardpe [SYMBOL|top|bottom|negative]")
     payload.append(".performance [period] [portfolio]")
     payload.append(".premarket [percent|SYMBOL]")
     payload.append(".price [percent|SYMBOL] [period]")
     payload.append(".profile SYMBOL")
-    payload.append(".rating [strong buy|buy|hold|underperform|sell]")
+    payload.append(".sell")
     payload.append(".session [percent|SYMBOL]")
     payload.append(".shorts [percent|SYMBOL]")
     payload.append(".trades [period] [portfolio]")
-    payload.append(".value [pe|forward pe|peg|bottom pe|bottom forward pe|bottom peg|negative forward pe|negative peg]")
     payload.append(".watchlist [add|del SYMBOL]")
     if service == 'slack':
         payload.append('<' + botName + '> SYMBOL')
@@ -566,11 +569,13 @@ def prepare_rating_payload(service, action, length=15):
                 recommend = market_data[ticker]['recommend'].replace('_', ' ')
                 recommend_index = market_data[ticker]['recommend_index']
                 recommend_analysts = market_data[ticker]['recommend_analysts']
-                if action in recommend and recommend_analysts > 1:
+                if recommend_analysts > 1:
                     profile_title = market_data[ticker]['profile_title']
                     ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
-                    payload.append(f"{profile_title} ({ticker_link}) Score: {recommend_index} ({recommend_analysts} analysts)")
-                    print(f"{profile_title} ({ticker_link}) Score: {recommend_index} ({recommend_analysts} analysts)")
+                    if action == 'buy' and 'buy' in recommend:
+                            payload.append(f"{profile_title} ({ticker_link}) Score: {recommend_index} ({recommend_analysts} analysts)")
+                    elif action == 'sell' and (recommend == 'sell' or recommend == 'underperform'):
+                            payload.append(f"{profile_title} ({ticker_link}) Score: {recommend_index} ({recommend_analysts} analysts)")
         payload.sort(key=score_col)
         payload = payload[:length]
         if payload:
@@ -578,32 +583,35 @@ def prepare_rating_payload(service, action, length=15):
             payload.insert(0, f"{webhook.bold(message, service)}")
         return payload
 
-def prepare_value_payload(service, action='pe', length=15):
+def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
         def last_col(e):
             return float(e.split()[-1])
         payload = []
-        tickers = util.get_holdings_and_watchlist()
+        if ticker_select:
+            tickers = [ticker_select]
+        else:
+            tickers = util.get_holdings_and_watchlist()
         market_data = yahoo.fetch(tickers)
         for ticker in market_data:
             try:
                 if action == 'pe' or action == 'bottom pe':
                     ratio = market_data[ticker]['price_to_earnings_trailing']
                 elif action == 'forward pe' or action == 'bottom forward pe':
-                    if market_data[ticker]['price_to_earnings_forward'] < 0:
+                    if not ticker_select and market_data[ticker]['price_to_earnings_forward'] < 0:
                         continue
                     ratio = market_data[ticker]['price_to_earnings_forward']
                 elif action == 'negative forward pe':
-                    if market_data[ticker]['price_to_earnings_forward'] >= 0:
+                    if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
                         continue
                     ratio = market_data[ticker]['price_to_earnings_forward']
                 elif action == 'peg' or action == 'bottom peg':
                     market_data = market_data | yahoo.fetch_detail(ticker)
-                    if market_data[ticker]['price_to_earnings_peg'] < 0:
+                    if not ticker_select and market_data[ticker]['price_to_earnings_peg'] < 0:
                         continue
                     ratio = market_data[ticker]['price_to_earnings_peg']
                 elif action == 'negative peg':
                     market_data = market_data | yahoo.fetch_detail(ticker)
-                    if market_data[ticker]['price_to_earnings_peg'] >= 0:
+                    if not ticker_select and market_data[ticker]['price_to_earnings_peg'] >= 0:
                         continue
                     ratio = market_data[ticker]['price_to_earnings_peg']
             except KeyError:
@@ -613,8 +621,10 @@ def prepare_value_payload(service, action='pe', length=15):
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
             payload.append(f"{profile_title} ({ticker_link}) {ratio}")
         payload.sort(key=last_col)
-        if 'bottom' in action:
-            payload.reverse()
-        payload = payload[:length]
-        payload.insert(0, f"{webhook.bold(f'Top {length} stocks by {action} ratio', service)}")
+        if not ticker_select:
+            if 'bottom' in action:
+                payload.reverse()
+            payload = payload[:length]
+            if payload:
+                payload.insert(0, f"{webhook.bold(f'Top {length} stocks by {action} ratio', service)}")
         return payload
