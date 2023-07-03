@@ -68,9 +68,13 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                         if debug:
                             print(ticker, "meets volatility criteria - promoting threshold to "f"{threshold*multiplier}%", file=sys.stderr)
                         if abs(percent) >= (threshold*multiplier):
-                            payload.append([emoji, title, f'({ticker_link})', percent])
+                            payload.append([emoji, title, f'({ticker_link})', str(days), 'days', percent])
+                    elif days:
+                        payload.append([emoji, title, f'({ticker_link})', str(days), 'days', percent])
                     else:
                         payload.append([emoji, title, f'({ticker_link})', percent])
+                elif days:
+                    payload.append([emoji, title, f'({ticker_link})', str(days), 'days', percent])
                 else:
                     payload.append([emoji, title, f'({ticker_link})', percent])
         def last_element(e):
@@ -79,7 +83,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         for i, e in enumerate(payload):
             e[-1] = str(round(e[-1])) + '%'
             payload[i] = ' '.join(e)
-
         if payload:
             if not specific_stock:
                 if midsession:

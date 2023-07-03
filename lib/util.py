@@ -491,7 +491,7 @@ def graph(df, title, market_data):
             xpoint = x[np.argmin(y)]
             ypoint = y.min()
             text = f"Min {ypoint:.2f}\n{xpoint}"
-            if ypoint < y.max()/4 or np.where(x == xpoint)[0] < np.size(x)*0.1:
+            if ypoint < y.max()/2 or np.where(x == xpoint)[0] < np.size(x)*0.1:
                 xytext = (50,50)
             else:
                 xytext = (30,-30)
@@ -515,10 +515,13 @@ def graph(df, title, market_data):
         kw = dict(arrowprops=arrowprops, bbox=bbox_props, ha="right", va="top")
         #ax.annotate(text, xy=(mdates.date2num(xpoint), ypoint), xytext=xytext, textcoords='offset points', **kw)
         ax.annotate(text, xy=(xpoint, ypoint), xytext=xytext, textcoords='offset points', **kw)
-        if atype == 'max':
-            ax.set_ylim(top=ypoint+(ypoint/4))
-        if atype == 'min':
-            ax.set_ylim(bottom=ypoint-(ypoint*0.1))
+    def scale(x, y, ax=None):
+        if not ax:
+            ax=plt.gca()
+        ymax = y.max()
+        ymin = y.min()
+        ax.set_ylim(top=ymax+(ymax/4))
+        ax.set_ylim(bottom=ymin-(ymin*0.1))
     x = df['Date']
     y = df['Close']
     first = df['Close'].iloc[0]
@@ -535,9 +538,10 @@ def graph(df, title, market_data):
     plt.gcf().autofmt_xdate()
     plt.fill_between(x,y, color=color, alpha=0.3, linewidth=0.5)
     plt.plot(x,y, color=color, alpha=0.9, linewidth=0.7)
-    plt.grid(color='grey', linestyle='-', alpha=0.4, linewidth=0.2)
+    plt.grid(color='grey', linestyle='-', alpha=0.5, linewidth=0.2)
     plt.box(False)
     plt.tight_layout()
+    scale(x, y)
     label(x,y, atype='min')
     label(x,y, atype='max')
     label(x,y, atype='last')
