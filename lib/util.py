@@ -226,6 +226,8 @@ def currency_from_market(market):
         currency = 'USD'
     elif market in {'WAR'}:
         currency = 'PLN'
+    elif market == 'LSE':
+        currency = 'GBP' # LSE allows non-home currencies, but this is better than trades.py using brokerage_currency_code which is AUD on CMC
     else:
         # note: LSE and HKE allow non-home currencies
         return None
