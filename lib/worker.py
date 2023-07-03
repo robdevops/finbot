@@ -41,6 +41,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     marketcap_command = r"^([\!\.]\s?|^" + botName + r"\s+)marketcap\s*([\w\.\:\-]+)*"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
+    plan_command = r"^([\!\.]\s?|^" + botName + r"\s+)plan\s*(.*)"
+    m_plan = re.match(plan_command, message, re.IGNORECASE)
+
     pe_command = r"^([\!\.]\s?|^" + botName + r"\s+)pe\s*([\w\.\:\-\s]+)*"
     m_pe = re.match(pe_command, message, re.IGNORECASE)
 
@@ -407,6 +410,19 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if graph:
             webhook.sendPhoto(chat_id, graph, caption, service)
         else:
+            webhook.payload_wrapper(service, url, payload, chat_id)
+    elif m_plan:
+        filename = 'finbot_plan.json'
+        plan = util.json_load(filename)
+        if not plan:
+            plan = dict()
+        payload = []
+        if m_plan.group(2):
+            plan[user] = m_plan.group(2)
+            util.json_write(filename, plan)
+        else:
+            for k,v in plan.items():
+                payload.append(f"{k}: {v}")
             webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_profile:
         if m_profile.group(2):
