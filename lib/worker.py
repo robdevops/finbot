@@ -421,7 +421,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             plan[user] = m_plan.group(2)
             util.json_write(filename, plan)
         for k,v in plan.items():
-            payload.append(f"{k.removeprefix('@')}: {v}")
+            payload.append(f"{webhook.bold(k.removeprefix('@'), service)}: {v}\n")
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_profile:
         if m_profile.group(2):
