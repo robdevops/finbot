@@ -417,13 +417,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         if not plan:
             plan = dict()
         payload = []
-        if m_plan.group(2):
+        if m_plan.group(2) and not m_plan.group(2).startswith('@'):
             plan[user] = m_plan.group(2)
             util.json_write(filename, plan)
-        else:
-            for k,v in plan.items():
-                payload.append(f"{k}: {v}")
-            webhook.payload_wrapper(service, url, payload, chat_id)
+        for k,v in plan.items():
+            payload.append(f"{k.removeprefix('@')}: {v}")
+        webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_profile:
         if m_profile.group(2):
             ticker = m_profile.group(2).upper()
