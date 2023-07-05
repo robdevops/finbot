@@ -61,22 +61,17 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 ticker_link = util.gfinance_link(ticker, exchange, service, days=days)
             else:
                 ticker_link = util.yahoo_link(ticker, service)
-            if specific_stock or abs(percent) >= threshold: # abs catches negative percentages
-                if config_demote_volatile:
-                    market_data = market_data | yahoo.fetch_detail(ticker)
-                    if 'beta' in market_data[ticker] and market_data[ticker]['beta'] > 1.5 and market_data[ticker]['market_cap'] < 1000000000:
-                        if debug:
-                            print(ticker, "meets volatility criteria - promoting threshold to "f"{threshold*multiplier}%", file=sys.stderr)
-                        if abs(percent) >= (threshold*multiplier):
-                            payload.append([emoji, title, f'({ticker_link})', str(days), 'days', percent])
-                    elif days:
-                        payload.append([emoji, title, f'({ticker_link})', str(days), 'days', percent])
-                    else:
-                        payload.append([emoji, title, f'({ticker_link})', percent])
-                elif days:
-                    payload.append([emoji, title, f'({ticker_link})', str(days), 'days', percent])
-                else:
+            if not specific_stock and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000: # abs catches negative percentages
+                if market_data[ticker]['market_cap'] < 100000000 and abs(percent) >= threshold*multiplier:
                     payload.append([emoji, title, f'({ticker_link})', percent])
+                elif market_data[ticker]['market_cap'] >= 100000000 and abs(percent) >= threshold*multiplier:
+                    market_data = market_data | yahoo.fetch_detail(ticker)
+                    if not 'beta' in market_data[ticker]:
+                        payload.append([emoji, title, f'({ticker_link})', percent])
+                    elif market_data[ticker]['beta'] > 1.5:
+                        payload.append([emoji, title, f'({ticker_link})', percent])
+            elif specific_stock or abs(percent) >= threshold: # abs catches negative percentages
+                payload.append([emoji, title, f'({ticker_link})', percent])
         def last_element(e):
             return e[-1]
         payload.sort(key=last_element)
