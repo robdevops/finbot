@@ -15,6 +15,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         payload = []
         graph = False
         marketStates = []
+        skipped_volatile = []
         multiplier = config_volatility_multiplier
         for ticker in market_data:
             marketState = market_data[ticker]['marketState']
@@ -61,16 +62,22 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 ticker_link = util.gfinance_link(ticker, exchange, service, days=days)
             else:
                 ticker_link = util.yahoo_link(ticker, service)
-            if not specific_stock and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000: # abs catches negative percentages
-                if market_data[ticker]['market_cap'] < 100000000 and abs(percent) >= threshold*multiplier:
-                    payload.append([emoji, title, f'({ticker_link})', percent])
-                elif market_data[ticker]['market_cap'] >= 100000000 and abs(percent) >= threshold*multiplier:
+            if not interactive and not payload and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000:
+                if market_data[ticker]['market_cap'] < 100000000:
+                    if abs(percent) >= threshold * multiplier: # <100M
+                        payload.append([emoji, title, f'({ticker_link})', percent])
+                    elif abs(percent) >= threshold:
+                        skipped_volatile.append(ticker)
+                else: # < 1B
                     market_data = market_data | yahoo.fetch_detail(ticker)
-                    if not 'beta' in market_data[ticker]:
+                    if not 'beta' in market_data[ticker] or market_data[ticker]['beta'] > 1.5:
+                        if abs(percent) >= threshold * multiplier:
+                            payload.append([emoji, title, f'({ticker_link})', percent])
+                        elif abs(percent) >= threshold:
+                            skipped_volatile.append(ticker)
+                    elif abs(percent) >= threshold:
                         payload.append([emoji, title, f'({ticker_link})', percent])
-                    elif market_data[ticker]['beta'] > 1.5:
-                        payload.append([emoji, title, f'({ticker_link})', percent])
-            elif specific_stock or abs(percent) >= threshold: # abs catches negative percentages
+            elif abs(percent) >= threshold: # abs catches negative percentages
                 payload.append([emoji, title, f'({ticker_link})', percent])
         def last_element(e):
             return e[-1]
@@ -80,6 +87,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             payload[i] = ' '.join(e)
         if payload:
             if not specific_stock:
+                if skipped_volatile:
+                    payload.append(f"{webhook.italic(f'Omitted {len(skipped_volatile)} securities meeting volatility criteria', service)}")
+                    print(skipped_volatile)
                 if midsession:
                     message = f'Tracking ≥ {threshold}% mid-session:'
                 elif premarket:
