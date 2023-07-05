@@ -62,6 +62,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 ticker_link = util.gfinance_link(ticker, exchange, service, days=days)
             else:
                 ticker_link = util.yahoo_link(ticker, service)
+            #if not interactive and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000:
             if not interactive and not payload and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000:
                 if market_data[ticker]['market_cap'] < 100000000:
                     if abs(percent) >= threshold * multiplier: # <100M
@@ -88,8 +89,12 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         if payload:
             if not specific_stock:
                 if skipped_volatile:
-                    payload.append(f"{webhook.italic(f'Omitted {len(skipped_volatile)} securities meeting volatility criteria', service)}")
-                    print(skipped_volatile)
+                    #len_skipped_volatile = len(skipped_volatile)
+                    #message = f'{len_skipped_volatile} securities' if len_skipped_volatile > 1 else 'one security'
+                    #payload.append(f"{webhook.italic(f'Omitted {message} meeting volatility criteria', service)}")
+                    # run through again, since we already have a payload. only triggers if the first ticker met volatilty threshold
+                    market_data = yahoo.fetch(skipped_volatile)
+                    payload, graph = payload + prepare_price_payload(service, market_data, threshold)[0], graph
                 if midsession:
                     message = f'Tracking ≥ {threshold}% mid-session:'
                 elif premarket:
