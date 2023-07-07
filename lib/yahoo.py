@@ -592,7 +592,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
         csv = cache
     else:
         crumb = getCrumb()
-        start =  str(int((now - datetime.timedelta(days=1826)).timestamp())) # 5 years inc leap year
+        start =  str(int((now - datetime.timedelta(days=1836)).timestamp())) # 5 years inc leap year
         end = str(int(now.timestamp()))
         interval = '1d'
         url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
@@ -625,7 +625,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
     #df.sort_values(by='Date', inplace = True)
     df.reset_index(drop=True, inplace=True)
     price = []
-    interval = ('5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '28D', '7D', '5D', '1D')
+    interval = ('5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
     if days:
         seek_date = now - datetime.timedelta(days = days)
         seek_dt = seek_date.date()
