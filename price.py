@@ -80,6 +80,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                         payload.append([emoji, title, f'({ticker_link})', percent])
             elif abs(percent) >= threshold: # abs catches negative percentages
                 payload.append([emoji, title, f'({ticker_link})', percent])
+            elif specific_stock and interactive:
+                payload.append([emoji, title, f'({ticker_link})', percent])
         def last_element(e):
             return e[-1]
         payload.sort(key=last_element)
