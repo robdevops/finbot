@@ -175,8 +175,8 @@ You can also specify a portfolio name to get trades for just that portfolio:
 ```
 
 ### Price alerts
-![Price alert triggered by Cron](img/price.png?raw=true "Price alert triggered by Cron")
 ![Price chart triggered from Slack](img/finbot_price.png?raw=true "Price chart triggered from Slack")
+![Price alert triggered by Cron](img/price.png?raw=true "Price alert triggered by Cron")
 
 `prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
@@ -315,7 +315,7 @@ Interactive trigger:
 ```
 
 ### pe / forward pe / peg
-![value report in Slack](img/finbot_value_peg.png?raw=true "Value report in Slack")
+![Forward PE report in Slack](img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
 List securities by P/E ratio, forward P/E ratio, or PEG ratio
 
@@ -323,7 +323,7 @@ Interactive trigger:
 ```
 .pe [SYMBOL]
 .fpe [SYMBOL|bottom|negative]
-.peg [SYMBOLbottom|negative]
+.peg [SYMBOL|bottom|negative]
 ```
 ```
 @botname pe [SYMBOL|top|bottom]
@@ -346,9 +346,9 @@ Interactive trigger:
 ```
 
 ### Buy
-![Rating report in Slack](img/finbot_recommend.png?raw=true "Rating report in Slack")
+![Buy ratings in Slack](img/finbot_buy.png?raw=true "Buy ratings in Slack")
 
-Show top recommended stocks by Yahoo Finance analysts rating
+Show top recommended buys by Yahoo Finance analysts rating
 
 Interactive trigger:
 ```
@@ -359,9 +359,9 @@ Interactive trigger:
 ```
 
 ### Sell
-![Rating report in Slack](img/finbot_recommend.png?raw=true "Rating report in Slack")
+![Rating report in Slack](img/finbot_sell.png?raw=true "Rating report in Slack")
 
-Show least recommended stocks by Yahoo Finance analysts rating
+Show top recommended sells by Yahoo Finance analysts rating
 
 Interactive trigger:
 ```
