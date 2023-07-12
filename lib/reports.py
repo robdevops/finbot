@@ -564,7 +564,7 @@ def prepare_marketcap_payload(service, action='top', length=15):
 
 def prepare_rating_payload(service, action, length=15):
         def score_col(e):
-            return (float(e.split()[-3]), float(e.split()[-2].removeprefix('(')))
+            return (float(e.split()[-3]), int(e.split()[-2].removeprefix('(')))
         payload = []
         tickers = util.get_holdings_and_watchlist()
         market_data = {}
@@ -580,11 +580,11 @@ def prepare_rating_payload(service, action, length=15):
                 recommend_analysts = market_data[ticker]['recommend_analysts']
                 if recommend_analysts > 1:
                     profile_title = market_data[ticker]['profile_title']
-                    ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
+                    ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
                     if action == 'buy' and 'buy' in recommend:
-                            payload.append(f"{profile_title} ({ticker_link}) Score: {recommend_index} ({recommend_analysts} analysts)")
+                            payload.append(f"{profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
                     elif action == 'sell' and (recommend == 'sell' or recommend == 'underperform'):
-                            payload.append(f"{profile_title} ({ticker_link}) Score: {recommend_index} ({recommend_analysts} analysts)")
+                            payload.append(f"{profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
         payload.sort(key=score_col)
         payload = payload[:length]
         if payload:
