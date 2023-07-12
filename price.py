@@ -10,7 +10,7 @@ from lib import util
 from lib import yahoo
 from lib import telegram
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False):
     def prepare_price_payload(service, market_data, threshold):
         payload = []
         graph = False
@@ -28,6 +28,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 continue
             if interday and not interactive and now - regularMarketTime > datetime.timedelta(days=1):
                 # avoid repeating on public holidays
+                print(ticker + '⏭', sep='', end=' ', flush=True)
+                continue
+            if close and not interactive and now - regularMarketTime > datetime.timedelta(hours=3) and marketState not in ('POST', 'POSTPOST', 'CLOSED'):
+                # avoid markets that didn't recently close
                 print(ticker + '⏭', sep='', end=' ', flush=True)
                 continue
             if premarket:
@@ -101,6 +105,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                     message = f'Tracking ≥ {threshold}% mid-session:'
                 elif premarket:
                     message = f'Tracking ≥ {threshold}% pre-market:'
+                elif close:
+                    message = f'Moved ≥ {threshold}% today:'
                 elif days:
                     message = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}:'
                 else:
@@ -192,6 +198,8 @@ if __name__ == "__main__":
                 lambda_handler(interday=True)
             elif sys.argv[1] == 'premarket':
                 lambda_handler(premarket=True)
+            elif sys.argv[1] == 'close':
+                lambda_handler(close=True)
             else:
                 print("Usage:", sys.argv[0], "[midsession|interday|premarket|days (int)]", file=sys.stderr)
         else:
@@ -213,4 +221,4 @@ if __name__ == "__main__":
         #        print("Usage:", sys.argv[0], "[midsession|interday|premarket|week|month]", file=sys.stderr)
 
     else:
-        print("Usage:", sys.argv[0], "[midsession|interday|premarket|days (int)]", file=sys.stderr)
+        print("Usage:", sys.argv[0], "[midsession|interday|premarket|close|days (int)]", file=sys.stderr)
