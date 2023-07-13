@@ -16,6 +16,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         graph = False
         marketStates = []
         skipped_volatile = []
+        exchange_set = set()
         multiplier = config_volatility_multiplier
         for ticker in market_data:
             marketState = market_data[ticker]['marketState']
@@ -61,15 +62,18 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             else:
                 emoji = "▪️"
             #flag = util.flag_from_ticker(ticker)
-            exchange = market_data[ticker]['profile_exchange']
+            exchange = exchange_human = market_data[ticker]['profile_exchange']
+            if 'Nasdaq' in exchange or 'NYSE' in exchange:
+                exchange_human = 'US'
+            exchange_set.add(exchange_human)
             if config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
                 ticker_link = util.gfinance_link(ticker, exchange, service, days=days)
             else:
                 ticker_link = util.yahoo_link(ticker, service)
             #if not interactive and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000:
             if not interactive and not payload and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000:
-                if market_data[ticker]['market_cap'] < 100000000:
-                    if abs(percent) >= threshold * multiplier: # <100M
+                if market_data[ticker]['market_cap'] < 150000000:
+                    if abs(percent) >= threshold * multiplier: # <150M
                         payload.append([emoji, title, f'({ticker_link})', percent])
                     elif abs(percent) >= threshold:
                         skipped_volatile.append(ticker)
@@ -106,7 +110,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 elif premarket:
                     message = f'Tracking ≥ {threshold}% pre-market:'
                 elif close:
-                    message = f'Moved ≥ {threshold}% today:'
+                    message = f'≥ {threshold}% at close ({" ".join(exchange_set)}):'
                 elif days:
                     message = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}:'
                 else:
