@@ -180,7 +180,7 @@ You can also specify a portfolio name to get trades for just that portfolio:
 
 `prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
-If `demote_volatile` is `true`, stocks with a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) of < 1B will have their alert threshold (`price_percent`) doubled.
+If `demote_volatile` is `true`, stocks with a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) under 150M, or a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a market cap of under 1B will have their alert threshold (`price_percent`) doubled.
 
 Config example:
 ```
