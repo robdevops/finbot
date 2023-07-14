@@ -65,7 +65,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             exchange = exchange_human = market_data[ticker]['profile_exchange']
             if 'Nasdaq' in exchange or 'NYSE' in exchange:
                 exchange_human = 'US'
-            exchange_set.add(exchange_human)
             if config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
                 ticker_link = util.gfinance_link(ticker, exchange, service, days=days)
             else:
@@ -75,6 +74,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 if market_data[ticker]['market_cap'] < 150000000:
                     if abs(percent) >= threshold * multiplier: # <150M
                         payload.append([emoji, title, f'({ticker_link})', percent])
+                        exchange_set.add(exchange_human)
                     elif abs(percent) >= threshold:
                         skipped_volatile.append(ticker)
                 else: # < 1B
@@ -82,20 +82,24 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                     if not 'beta' in market_data[ticker] or market_data[ticker]['beta'] > 1.5:
                         if abs(percent) >= threshold * multiplier:
                             payload.append([emoji, title, f'({ticker_link})', percent])
+                            exchange_set.add(exchange_human)
                         elif abs(percent) >= threshold:
                             skipped_volatile.append(ticker)
                     elif abs(percent) >= threshold:
                         payload.append([emoji, title, f'({ticker_link})', percent])
+                        exchange_set.add(exchange_human)
             elif abs(percent) >= threshold: # abs catches negative percentages
                 payload.append([emoji, title, f'({ticker_link})', percent])
+                exchange_set.add(exchange_human)
             elif specific_stock and interactive:
                 payload.append([emoji, title, f'({ticker_link})', percent])
+                exchange_set.add(exchange_human)
         def last_element(e):
             return e[-1]
         payload.sort(key=last_element)
         for i, e in enumerate(payload):
             e[-1] = str(round(e[-1])) + '%'
-            payload[i] = ' '.join(e)
+            payload[i] = ', '.join(e)
         if payload:
             if not specific_stock:
                 if skipped_volatile:
