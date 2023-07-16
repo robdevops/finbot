@@ -99,7 +99,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         payload.sort(key=last_element)
         for i, e in enumerate(payload):
             e[-1] = str(round(e[-1])) + '%'
-            payload[i] = ', '.join(e)
+            payload[i] = ' '.join(e)
         if payload:
             if not specific_stock:
                 if skipped_volatile:
@@ -114,7 +114,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 elif premarket:
                     message = f'Tracking ≥ {threshold}% pre-market:'
                 elif close:
-                    message = f'≥ {threshold}% at close ({" ".join(exchange_set)}):'
+                    message = f'≥ {threshold}% at close ({", ".join(exchange_set)}):'
                 elif days:
                     message = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}:'
                 else:
