@@ -30,7 +30,9 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
             portfolio_url = "https://portfolio.sharesight.com/portfolios/" + str(portfolio_id)
             portfolio_name = performance[portfolio_id]['report']['holdings'][0]['portfolio']['name']
             portfolio_link = util.link(portfolio_url, portfolio_name, service)
-            percent = float(performance[portfolio_id]['report']['currency_gain_percent'])
+            currency_percent = float(performance[portfolio_id]['report']['currency_gain_percent'])
+            percent = float(performance[portfolio_id]['report']['capital_gain_percent'])
+            total_percent = float(performance[portfolio_id]['report']['total_gain_percent'])
             emoji = get_emoji(percent)
             payload.append(f"{emoji} {portfolio_link} {percent}%")
         if len(payload):
