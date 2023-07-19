@@ -110,15 +110,15 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                     market_data = yahoo.fetch(skipped_volatile)
                     payload, graph = payload + prepare_price_payload(service, market_data, threshold)[0], graph
                 if midsession:
-                    message = f'Tracking ≥ {threshold}% mid-session:'
+                    message = f'Tracking ≥ {threshold}% ({", ".join(exchange_set)}):'
                 elif premarket:
-                    message = f'Tracking ≥ {threshold}% pre-market:'
+                    message = f'Tracking ≥ {threshold}% pre-market ({", ".join(exchange_set)}):'
                 elif close:
                     message = f'≥ {threshold}% at close ({", ".join(exchange_set)}):'
                 elif days:
                     message = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}:'
                 else:
-                    message = f'Moved ≥ {threshold}% interday:'
+                    message = f'Day change ≥ {threshold}%:'
                 message = webhook.bold(message, service)
                 payload.insert(0, message)
         else:
