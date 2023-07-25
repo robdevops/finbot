@@ -17,7 +17,7 @@ def getCrumb(seconds=config_cache_seconds):
     cache = util.read_cache(cache_file, seconds)
     if config_cache and cache:
         return cache
-    headers = {'cookie': 'A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng; A2=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng;', 'User-Agent': 'Mozilla/5.0'}
+    headers = {'cookie': 'tbla_id=c3e7a9b8-6497-4f07-b420-ab1e6e014111-tuctb38a4b1; B=b7sv001i3u7ph&b=3&s=5k; gam_id=y-RMVTvFpE2uLFxS5dbbxRfcv6TBoCtMen~A; A1=d=AQABBDEfP2QCEKF41xDYjU9cCqCPIQDg87MFEgEBCAFejGS-ZA3sbmUB_eMBAAcIMR8_ZADg87M&S=AQAAAhnXBZlUXHqF945okeljNQc; A3=d=AQABBDEfP2QCEKF41xDYjU9cCqCPIQDg87MFEgEBCAFejGS-ZA3sbmUB_eMBAAcIMR8_ZADg87M&S=AQAAAhnXBZlUXHqF945okeljNQc; GUC=AQEBCAFkjF5kvkIc5QQ0; cmp=t=1688194850&j=0&u=1---; PRF=t%3DQQQ%252BQQQM%252BNVDA%252BAMD%252BBAM%252BLSIP.JK%252BEPCC.F%252BCPAC%252BEPCC.BE%252BEPCC.SG%252BMTS.MC%252BMT.AS%252BBCOLOMBIA.CL%252BPFBCOLOM.CL%252BACAP.BK%26newChartbetateaser%3D1; A1S=d=AQABBDEfP2QCEKF41xDYjU9cCqCPIQDg87MFEgEBCAFejGS-ZA3sbmUB_eMBAAcIMR8_ZADg87M&S=AQAAAhnXBZlUXHqF945okeljNQc&j=WORLD', 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'}
     yahoo_urls = ['https://query2.finance.yahoo.com/v1/test/getcrumb']
     yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
     for url in yahoo_urls:
@@ -177,7 +177,8 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     local_market_data = {}
     crumb = getCrumb()
     base_url = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/'
-    headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+    #headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+    headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'Cookie': 'tbla_id=c3e7a9b8-6497-4f07-b420-ab1e6e014111-tuctb38a4b1; B=b7sv001i3u7ph&b=3&s=5k; gam_id=y-RMVTvFpE2uLFxS5dbbxRfcv6TBoCtMen~A; A1=d=AQABBDEfP2QCEKF41xDYjU9cCqCPIQDg87MFEgEBCAFejGS-ZA3sbmUB_eMBAAcIMR8_ZADg87M&S=AQAAAhnXBZlUXHqF945okeljNQc; A3=d=AQABBDEfP2QCEKF41xDYjU9cCqCPIQDg87MFEgEBCAFejGS-ZA3sbmUB_eMBAAcIMR8_ZADg87M&S=AQAAAhnXBZlUXHqF945okeljNQc; GUC=AQEBCAFkjF5kvkIc5QQ0; cmp=t=1688194850&j=0&u=1---; PRF=t%3DQQQ%252BQQQM%252BNVDA%252BAMD%252BBAM%252BLSIP.JK%252BEPCC.F%252BCPAC%252BEPCC.BE%252BEPCC.SG%252BMTS.MC%252BMT.AS%252BBCOLOMBIA.CL%252BPFBCOLOM.CL%252BACAP.BK%26newChartbetateaser%3D1; A1S=d=AQABBDEfP2QCEKF41xDYjU9cCqCPIQDg87MFEgEBCAFejGS-ZA3sbmUB_eMBAAcIMR8_ZADg87M&S=AQAAAhnXBZlUXHqF945okeljNQc&j=WORLD'}
     local_market_data[ticker] = dict()
     cache_file = "finbot_yahoo_detail_" + ticker + '.json'
     cacheData = util.read_cache(cache_file, seconds)
