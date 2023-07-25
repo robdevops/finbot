@@ -40,7 +40,8 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
                 emoji = get_emoji(old_index, index)
                 message = f"{webhook.bold(f'{old_index} {old_action}', service)} to {webhook.bold(f'{index} {action}', service)} ({analysts})"
                 payload.append(f"{emoji} {title} ({ticker_link}) changed from {message} analysts")
-        util.json_write('finbot_rating.json', new, persist=True)
+        if new:
+            util.json_write('finbot_rating.json', new, persist=True)
         payload.sort()
         if payload:
             if not specific_stock:
