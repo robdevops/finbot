@@ -27,7 +27,7 @@ def getCrumb(seconds=config_cache_seconds):
             print(e, file=sys.stderr)
         else:
             if r.status_code != 200:
-                print(r.status_code, "returned by", url, file=sys.stderr)
+                print(r.status_code, r.text, "returned by", url, file=sys.stderr)
                 continue
             break
     else:
@@ -175,7 +175,8 @@ def fetch(tickers):
 def fetch_detail(ticker, seconds=config_cache_seconds):
     now = datetime.datetime.now()
     local_market_data = {}
-    base_url = 'https://query2.finance.yahoo.com/v11/finance/quoteSummary/'
+    crumb = getCrumb()
+    base_url = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/'
     headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
     local_market_data[ticker] = dict()
     cache_file = "finbot_yahoo_detail_" + ticker + '.json'
@@ -185,7 +186,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         data = cacheData
     else:
         print('↓', sep=' ', end='', flush=True)
-        yahoo_urls = [base_url + ticker + '?modules=calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions']
+        yahoo_urls = [base_url + ticker + '?modules=calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions' + '&crumb=' + crumb]
         yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
         for url in yahoo_urls:
             if debug:
@@ -197,6 +198,8 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
             else:
                 if r.status_code != 200:
                     print('x', sep=' ', end='', flush=True, file=sys.stderr)
+                    if debug:
+                        print(r.text)
                     continue
                 break
         else:
