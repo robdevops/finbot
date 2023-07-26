@@ -512,8 +512,8 @@ def graph(df, title, market_data):
             xytext=(0,-50)
         if not ax:
             ax=plt.gca()
-        bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
-        arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=60")
+        bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72, alpha=.5)
+        arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=60", alpha=.5)
         kw = dict(arrowprops=arrowprops, bbox=bbox_props, ha="right", va="top")
         ax.annotate(text, xy=(xpoint, ypoint), xytext=xytext, textcoords='offset pixels', **kw)
     def scale(x, y, ax=None):
