@@ -260,14 +260,15 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
         if cacheFileAge < maxSeconds:
             if debug:
                 ttl = round((maxSeconds - cacheFileAge).total_seconds() / 60)
-                print(cacheFile, "TTL:", ttl, "minutes", file=sys.stderr)
+                print("cache hit:", cacheFile, "TTL:", ttl, "minutes", file=sys.stderr)
             with open(cacheFile, "r", encoding="utf-8") as f:
                 cacheDict = json.loads(f.read())
             return cacheDict
         if debug:
             print("cache expired:", cacheFile, file=sys.stderr)
         return None
-    print("Cache file does not exist:", cacheFile, file=sys.stderr)
+    if debug:
+        print("cache miss:", cacheFile, file=sys.stderr)
     return None
 
 def json_write(filename, data, persist=False):
@@ -303,14 +304,14 @@ def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
         if cacheFileAge < maxSeconds:
             if debug:
                 ttl = round((maxSeconds - cacheFileAge).total_seconds() / 60)
-                print(cacheFile, "TTL:", ttl, "minutes", file=sys.stderr)
+                print("cache hit", cacheFile, "TTL:", ttl, "minutes", file=sys.stderr)
             with open(cacheFile, "rb") as f:
                 data = io.BytesIO(f.read())
             return data
         if debug:
             print("cache expired:", cacheFile, file=sys.stderr)
         return None
-    print("Cache file does not exist:", cacheFile, "first run?", file=sys.stderr)
+    print("cache miss:", cacheFile, file=sys.stderr)
     return None
 
 def write_binary_cache(cacheFile, data):
