@@ -38,10 +38,8 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
                 pass
             if old_action and action != old_action:
                 emoji = get_emoji(old_index, index)
-                message = f"{webhook.bold(f'{old_index} {old_action}', service)} to {webhook.bold(f'{index} {action}', service)} ({analysts})"
-                payload.append(f"{emoji} {title} ({ticker_link}) changed from {message} analysts")
-        if new:
-            util.json_write('finbot_rating.json', new, persist=True)
+                message = f"{webhook.bold(f'{old_index} {old_action}', service)} to {webhook.bold(f'{index} {action}', service)} ({analysts} analysts)"
+                payload.append(f"{emoji} {title} ({ticker_link}) changed from {message}")
         payload.sort()
         if payload:
             if not specific_stock:
@@ -54,7 +52,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
                     payload = [f"{emoji}No rating changes found for {tickers[0]}"]
                 else:
                     payload = [f"{emoji}No rating changes found"]
-        return payload
+        return payload, new
 
     # MAIN #
 
@@ -75,7 +73,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
         print("Error: no services enabled in .env", file=sys.stderr)
         sys.exit(1)
     if interactive:
-        payload = prepare_rating_payload(service, market_data)
+        payload, new = prepare_rating_payload(service, market_data)
         url = webhooks[service]
         if service == "slack":
             url = 'https://slack.com/api/chat.postMessage'
@@ -84,10 +82,13 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
         webhook.payload_wrapper(service, url, payload, chat_id)
     else:
         for service, url in webhooks.items():
-            payload = prepare_rating_payload(service, market_data)
+            payload, new = prepare_rating_payload(service, market_data)
             if service == "telegram":
                 url = url + "sendMessage?chat_id=" + str(chat_id)
             webhook.payload_wrapper(service, url, payload, chat_id)
+
+    if new:
+        util.json_write('finbot_rating.json', new, persist=True)
 
     # make google cloud happy
     return True
