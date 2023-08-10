@@ -64,7 +64,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             #flag = util.flag_from_ticker(ticker)
             exchange = exchange_human = market_data[ticker]['profile_exchange']
             if 'Nasdaq' in exchange or 'NYSE' in exchange:
-                exchange_human = 'US'
+                exchange_human = 'New York'
             if config_hyperlinkProvider == 'google' and exchange != 'Taipei Exchange':
                 ticker_link = util.gfinance_link(ticker, exchange, service, days=days)
             else:
