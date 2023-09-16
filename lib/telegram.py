@@ -8,7 +8,17 @@ def setWebhook():
     telegram_url = webhooks['telegram'] + 'setWebhook'
     print("registering", config_telegramOutgoingWebhook)
     params = {"url": config_telegramOutgoingWebhook, "allowed_updates": "message", 'secret_token': config_telegramOutgoingToken}
-    #params = {"url": ''} # unsubscribe
+    response = requests.post(
+        telegram_url,
+        params=params,
+        timeout=config_http_timeout
+    )
+    print(response.text)
+
+def delWebhook():
+    telegram_url = webhooks['telegram'] + 'setWebhook'
+    print("deleting", config_telegramOutgoingWebhook)
+    params = {"url": ''} # unsubscribe
     response = requests.post(
         telegram_url,
         params=params,
@@ -25,6 +35,7 @@ def getMe():
     return response.json()['result']
 
 if config_telegramBotToken:
+    delWebhook()
     with concurrent.futures.ThreadPoolExecutor() as executor:
         executor.submit(setWebhook)
         #executor.submit(setMyCommands)
