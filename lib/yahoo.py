@@ -582,7 +582,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     local_market_data[ticker] = dict(sorted(local_market_data[ticker].items()))
     return local_market_data
 
-def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_graph):
+def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_graph, graphCache=True):
     image_data = None
     percent_dict = {}
     market_data = fetch([ticker])
@@ -709,7 +709,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
         caption = '\n'.join(caption)
         image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
         image_cache = util.read_binary_cache(image_cache_file, seconds)
-        if config_cache and image_cache:
+        if config_cache and image_cache and graphCache:
             image_data = image_cache
         else:
             buf = util.graph(df, title, market_data[ticker])

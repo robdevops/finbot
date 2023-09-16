@@ -47,7 +47,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                     percent = market_data[ticker]['percent_change_period'] # sharesight value
                 except KeyError:
                     if specific_stock:
-                        percent, graph = yahoo.price_history(ticker, days)
+                        percent, graph = yahoo.price_history(ticker, days, graphCache=False)
                     else:
                         percent, graph = yahoo.price_history(ticker, days, graph=False)
                     percent = percent[days]
