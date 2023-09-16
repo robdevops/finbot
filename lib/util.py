@@ -522,7 +522,7 @@ def graph(df, title, market_data):
             ax=plt.gca()
         ymax = y.max()
         ymin = y.min()
-        ax.set_ylim(top=ymax+(ymax/8))
+        ax.set_ylim(top=ymax+(ymax/6))
         ax.set_ylim(bottom=ymin-(ymin*0.1))
     x = df['Date']
     y = df['Close']
