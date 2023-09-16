@@ -499,7 +499,7 @@ def prepare_stockfinancial_payload(service, user, ticker):
         payload.append("")
 
     price_history, graph = yahoo.price_history(ticker)
-    for interval in ('Max', '5Y', '1Y', '1M', '1D'):
+    for interval in ('5Y', '1Y', '1M', '1D'):
        if interval in price_history:
            percent = price_history[interval]
            emoji = util.get_emoji(percent)

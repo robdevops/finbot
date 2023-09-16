@@ -397,7 +397,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             if ticker in market_data and 'percent_change' in market_data[ticker]:
                 price_history, graph = yahoo.price_history(ticker)
                 payload.append(webhook.bold(f"{title} ({ticker_link}) performance history", service))
-                for interval in ('5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
+                for interval in ('Max', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
                     if interval in price_history:
                         percent = price_history[interval]
                         emoji = util.get_emoji(percent)
