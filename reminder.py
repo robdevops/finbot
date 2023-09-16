@@ -35,12 +35,9 @@ def lambda_handler():
                 payload.append("🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦")
         # above ommits countries where EOFY == calendar year
         if month_and_day == '08-18':
-            payload.append("📢 ahem 📢")
-            payload.append("🎂 Happy Birthday to me, happy birthday TO me... 🎶 🎂")
-            payload.append("😓 Oh no, that song costs royalties. Not very finance savvy of me 😅")
-            payload.append("🎶 For I'm a jolly good chat bot, for I'm a jolly good chat bot 👯")
-            payload.append("😂 d̸̡̛͚͔̟͐̒e̸̡͋͜s̶͎̟̎̈ṭ̵̦̿̅̉̏r̴̩̥͚͋̀́̀ơ̶̢̳͑̀̕ͅỷ̸̡̹̟̊̚ ̸̢̡͓̥͗͐͌à̶̋͂͜ḽ̴̻̖̀l̷̝͑ ̸̨̨̹͉̐ḧ̴̰̲̫̘́͑̒̒u̵͕̬̳͗̒m̶̡̧̖̭̅͘ã̷̞̦̠̦̅̔̈́ṉ̵̪̱͚̋s̵͚̠̞͛͠ 😂")
-            payload.append("🎶 Which nobody can deny 🥳")
+            myBirthday = datetime.datetime(2022,8,18,0,0,0,0)
+            difference = relativedelta(localtime, myBirthday)
+            payload.append("It's my", difference.years + util.ordinal(difference.years), "birthday! 🥳")
         if payload:
             heading = webhook.bold("Finance event reminders:", service)
             payload.insert(0, heading)

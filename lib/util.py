@@ -586,3 +586,18 @@ def get_holdings_and_watchlist():
         tickers.remove("GOOGL")
     return tickers
 
+def ordinal(num):
+    value = str(num)
+    if len(value) > 1:
+        secondToLastDigit = value[-2]
+        if secondToLastDigit == '1':
+            return 'th'
+    lastDigit = value[-1]
+    if (lastDigit == '1'):
+        return 'st'
+    elif (lastDigit == '2'):
+        return 'nd'
+    elif (lastDigit == '3'):
+        return 'rd'
+    else:
+        return 'th'
