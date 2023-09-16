@@ -31,7 +31,7 @@
 * Python ≥ 3.9
 * Python modules:
 ```
-datetime python-dotenv requests gevent
+datetime python-dotenv requests gevent pandas matplotlib
 ```
 
 ### Supported commands
