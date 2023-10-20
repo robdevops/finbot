@@ -422,6 +422,27 @@ def transform_to_google(exchange):
         exchange = 'TLV'
     return exchange
 
+def exchange_human(exchange):
+    if 'Nasdaq' in exchange or 'NYSE' in exchange or 'Other OTC' in exchange:
+        return 'US'
+    elif exchange in {'TO', 'TOR', 'Toronto'}:
+        return 'CA'
+    elif exchange in {'TW', 'TWO', 'TAI', 'Taiwan', 'Taipei Exchange', 'Taipei'}:
+        return 'TW'
+    elif exchange in {'HK', 'HKG', 'HKSE'}:
+        return 'HK'
+    elif exchange in {'KQ', 'KOE', 'KOSDAQ', 'KS', 'KRX', 'KSE', 'KSC'}:
+        return 'KR'
+    elif exchange in {'L', 'LSE', 'London'}:
+        return 'UK'
+    elif exchange in {'T', 'TYO', 'JPX', 'Tokyo'}:
+        return 'JP'
+    elif exchange in {'TA', 'TLV', 'Tel Aviv'}:
+        return 'IL'
+    elif exchange in {'NZSE', 'NZE', 'New Zealand', 'Auckland'}:
+        return 'NZ'
+    return exchange
+
 def transform_to_yahoo(ticker, market=None):
     split = ticker.replace(':', '.').split('.')
     if len(split) > 1:
