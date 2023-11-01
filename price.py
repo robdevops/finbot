@@ -69,9 +69,13 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             else:
                 ticker_link = util.yahoo_link(ticker, service)
             #if not interactive and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000:
-            if not interactive and not payload and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000:
-                if market_data[ticker]['market_cap'] < 150000000:
-                    if abs(percent) >= threshold * multiplier: # <150M
+            if not interactive and not payload and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000: # 1B
+                if market_data[ticker]['market_cap'] < 150000000: # 150M
+                    if market_data[ticker]['market_cap'] < 10000000: # 10M
+                        if abs(percent) >= threshold * (multiplier * 1.25):
+                            payload.append([emoji, title, f'({ticker_link})', percent])
+                            exchange_set.add(exchange_human)
+                    elif abs(percent) >= threshold * multiplier:
                         payload.append([emoji, title, f'({ticker_link})', percent])
                         exchange_set.add(exchange_human)
                     elif abs(percent) >= threshold:
@@ -102,9 +106,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
         if payload:
             if not specific_stock:
                 if skipped_volatile:
-                    #len_skipped_volatile = len(skipped_volatile)
-                    #message = f'{len_skipped_volatile} securities' if len_skipped_volatile > 1 else 'one security'
-                    #payload.append(f"{webhook.italic(f'Omitted {message} meeting volatility criteria', service)}")
                     # run through again, since we already have a payload. only triggers if the first ticker met volatilty threshold
                     market_data = yahoo.fetch(skipped_volatile)
                     payload, graph = payload + prepare_price_payload(service, market_data, threshold)[0], graph
