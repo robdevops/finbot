@@ -743,3 +743,48 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
         util.json_write(cache_file, csv)
     return percent_dict, image_data
 
+def historic_high(ticker, days=3653, seconds=config_cache_seconds):
+    image_data = None
+    percent_dict = {}
+    market_data = fetch([ticker])
+    tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
+    regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
+    regularMarketPrice = market_data[ticker]['regularMarketPrice']
+    now = datetime.datetime.now()
+    cache_file = "finbot_yahoo_price_history_ath_" + ticker + ".json"
+    cache = util.read_cache(cache_file, seconds)
+    if config_cache and cache:
+        csv = cache
+    else:
+        crumb = getCrumb()
+        start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
+        end = str(int(now.timestamp()))
+        interval = '1d'
+        url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
+        url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
+        url = url + '&crumb=' + crumb
+        if debug:
+            print(url)
+        headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+        try:
+            r = requests.get(url, headers=headers, timeout=config_http_timeout)
+        except:
+            print("Failure fetching", url, file=sys.stderr)
+            return None
+        if r.status_code == 200:
+            print('↓', sep=' ', end='', flush=True)
+        else:
+            print(ticker, r.status_code, "error communicating with", url, file=sys.stderr)
+            return None
+        csv = r.content.decode('utf-8')
+    df = pd.read_csv(io.StringIO(csv))
+    df['Date'] = pd.to_datetime(df['Date']).dt.date
+    df = df[df.High.notnull()]
+    df.reset_index(drop=True, inplace=True)
+    if config_cache:
+        util.json_write(cache_file, csv)
+    index = df['High'].argmax()
+    row = df.iloc[index]
+    print(ticker, row['Date'], round(row['High'], 2))
+    return round(row['High'], 2)
+

@@ -7,34 +7,41 @@ from lib import webhook
 from lib import util
 from lib import yahoo
 
+# BUGS:
+# - need to handle stock splits: flush cache if we see a split in yahoo
+# https://finance.yahoo.com/quote/TSLA/history?period1=0&period2=1707609600&filter=split
+
 def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=None, interactive=False):
     def prepare_ath_payload(service, market_data):
         emoji = '⭐'
         payload = []
         new = {}
-        oldhigh = 0
+        oldhigh = float()
         old = util.json_load('finbot_ath.json', persist=True)
         for ticker in tickers:
             try:
-                regularMarketPrice = market_data[ticker]['regularMarketPrice']
-                #regularMarketPreviousClose = market_data[ticker]['regularMarketPreviousClose']
-                fiftyTwoWeekHigh = market_data[ticker]['fiftyTwoWeekHigh']
-                #allTimeHigh = 'TODO'
+                oldhigh = old[ticker]
+            except (KeyError, TypeError):
+                try:
+                    oldhigh = yahoo.historic_high(ticker)
+                except (KeyError, TypeError):
+                    continue
+            try:
+                newhigh = market_data[ticker]['fiftyTwoWeekHigh']
             except (KeyError, ValueError):
                 continue
             title = market_data[ticker]['profile_title']
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
-            new[ticker] = fiftyTwoWeekHigh
-            try:
-                oldhigh = old[ticker]
-            except (KeyError, TypeError):
-                pass
-            if fiftyTwoWeekHigh > oldhigh:
-                payload.append(f"{emoji} {title} ({ticker_link}) reached a 52 week high at {fiftyTwoWeekHigh}")
+            currency = market_data[ticker]['currency']
+            if newhigh > oldhigh:
+                new[ticker] = newhigh
+                payload.append(f"{emoji} {title} ({ticker_link}) {currency} {newhigh}")
+            else:
+                new[ticker] = oldhigh
         payload.sort()
         if payload:
             if not specific_stock:
-                message = f'New high:'
+                message = f'Record high:'
                 message = webhook.bold(message, service)
                 payload.insert(0, message)
         else:
@@ -55,6 +62,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
         tickers = util.get_holdings_and_watchlist()
         tickers = list(tickers)
         tickers.sort()
+        #tickers = ['TSLA'] # DEBUG
         market_data = yahoo.fetch(tickers)
 
     # Prep and send payloads

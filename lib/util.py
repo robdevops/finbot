@@ -51,6 +51,7 @@ def transform_title(title):
     title = title.replace('Ordinary Shares Class C', '')
     title = title.replace('Lbt Innovations', 'LBT Innovations')
     title = title.replace('The ', '')
+    title = title.replace('Shares ', '')
     title = title.replace('Rea ', 'REA ')
     title = title.replace('Csl ', 'CSL ')
     title = title.replace('Battery ', 'Batt ')
