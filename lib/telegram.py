@@ -17,7 +17,7 @@ def setWebhook():
 
 def delWebhook():
     telegram_url = webhooks['telegram'] + 'setWebhook'
-    print("deleting", config_telegramOutgoingWebhook)
+    print("deregistering", config_telegramOutgoingWebhook)
     params = {"url": ''} # unsubscribe
     response = requests.post(
         telegram_url,
