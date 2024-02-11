@@ -98,11 +98,19 @@ def fetch(tickers):
         except (KeyError, IndexError):
             continue
         try:
+            regularMarketPreviousClose = item['regularMarketPreviousClose']
+        except (KeyError, IndexError):
+            continue
+        try:
+            fiftyTwoWeekHigh = item['fiftyTwoWeekHigh']
+        except (KeyError, IndexError):
+            continue
+        try:
             dividend = round(float(item['trailingAnnualDividendRate']), 1)
         except (KeyError, IndexError):
             dividend = float(0)
         profile_title = util.transform_title(profile_title)
-        yahoo_output[ticker] = { 'profile_title': profile_title, 'ticker': ticker, 'percent_change': percent_change, 'dividend': dividend, 'currency': currency, 'regularMarketPrice': regularMarketPrice }
+        yahoo_output[ticker] = { 'profile_title': profile_title, 'ticker': ticker, 'percent_change': percent_change, 'dividend': dividend, 'currency': currency, 'regularMarketPrice': regularMarketPrice, 'fiftyTwoWeekHigh': fiftyTwoWeekHigh, 'regularMarketPreviousClose': regularMarketPreviousClose }
         # optional fields
         try:
             percent_change_premarket = item['preMarketChangePercent']
@@ -340,7 +348,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         percent_change = percent_change * 100
         local_market_data[ticker]['percent_change'] = round(percent_change, 1)
     try:
-        percent_change_year = float(data['quoteSummary']['result'][0]['defaultKeyStatistics']['52WeekChange']['raw'])
+        percent_change_year = float(data['quoteSummary']['result'][0]['summaryDetail']['52WeekChange']['raw'])
     except (KeyError, IndexError):
         pass
     else:
@@ -384,6 +392,18 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         return {} # catches junk
     else:
         local_market_data[ticker]['regularMarketPrice'] = regularMarketPrice
+    try:
+        regularMarketPreviousClose = data['quoteSummary']['result'][0]['price']['regularMarketPreviousClose']['raw']
+    except (KeyError, IndexError):
+        return {} # catches junk
+    else:
+        local_market_data[ticker]['regularMarketPreviousClose'] = regularMarketPreviousClose
+    try:
+        fiftyTwoWeekHigh = data['quoteSummary']['result'][0]['price']['fiftyTwoWeekHigh']['raw']
+    except (KeyError, IndexError):
+        return {} # catches junk
+    else:
+        local_market_data[ticker]['fiftyTwoWeekHigh'] = fiftyTwoWeekHigh
     try:
         preMarketPrice = float(data['quoteSummary']['result'][0]['price']['preMarketPrice']['raw'])
     except (KeyError, IndexError, ValueError):
@@ -602,7 +622,8 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
         url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
         url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
         url = url + '&crumb=' + crumb
-        if debug: print(url)
+        if debug:
+            print(url)
         headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
         try:
             r = requests.get(url, headers=headers, timeout=config_http_timeout)
