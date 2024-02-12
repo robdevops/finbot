@@ -37,7 +37,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
             emoji = util.flag_from_ticker(ticker)
             if newhigh > oldhigh:
                 new[ticker] = newhigh
-                payload.append(f"{emoji} {title} ({ticker_link}) {currency} {newhigh}")
+                payload.append(f"{emoji} {title} ({ticker_link}) {currency} {round(newhigh, 2)}")
             else:
                 new[ticker] = oldhigh
         payload.sort()
