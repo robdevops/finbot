@@ -31,8 +31,10 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
             except (KeyError, ValueError):
                 continue
             title = market_data[ticker]['profile_title']
-            ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
+            ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
             currency = market_data[ticker]['currency']
+            currency_symbol = util.get_currency_symbol(currency)
+            emoji = util.flag_from_ticker(ticker)
             if newhigh > oldhigh:
                 new[ticker] = newhigh
                 payload.append(f"{emoji} {title} ({ticker_link}) {currency} {newhigh}")
