@@ -15,44 +15,58 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
     def prepare_ath_payload(service, market_data):
         emoji = '⭐'
         payload = []
-        new = {}
+        payloadhigh = []
+        payloadlow = []
         oldhigh = float()
-        old = util.json_load('finbot_ath.json', persist=True)
+        oldlow = float()
+        records = util.json_load('finbot_ath.json', persist=True)
+        if records is None:
+            records = {}
         for ticker in tickers:
             try:
-                oldhigh = old[ticker]
+                oldhigh = records[ticker]['high']
+                oldlow = records[ticker]['low']
             except (KeyError, TypeError):
+                records[ticker] = {}
+                records[ticker]['high'] = float()
+                records[ticker]['low'] = float()
                 try:
-                    oldhigh = yahoo.historic_high(ticker)
+                    oldhigh, oldlow = yahoo.historic_high(ticker, market_data) # first run to prime cache file
                 except (KeyError, TypeError):
                     continue
             try:
                 newhigh = market_data[ticker]['fiftyTwoWeekHigh']
+                newlow = market_data[ticker]['fiftyTwoWeekLow']
             except (KeyError, ValueError):
                 continue
             title = market_data[ticker]['profile_title']
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-            currency = market_data[ticker]['currency']
-            currency_symbol = util.get_currency_symbol(currency)
+            #currency = market_data[ticker]['currency']
+            #currency_symbol = util.get_currency_symbol(currency)
             emoji = util.flag_from_ticker(ticker)
+            records[ticker]['high'] = oldhigh
+            records[ticker]['low'] = oldlow
             if newhigh > oldhigh:
-                new[ticker] = newhigh
-                payload.append(f"{emoji} {title} ({ticker_link}) {currency} {round(newhigh, 2)}")
-            else:
-                new[ticker] = oldhigh
-        payload.sort()
-        if payload:
-            if not specific_stock:
-                message = f'Record high:'
-                message = webhook.bold(message, service)
-                payload.insert(0, message)
-        else:
-            if interactive:
-                if specific_stock:
-                    payload = [f"{emoji}{tickers[0]} is not at an ATH"]
-                else:
-                    payload = [f"{emoji}ATH not found"]
-        return payload, new
+                records[ticker]['high'] = newhigh
+                payloadhigh.append(f"{emoji} {title} ({ticker_link})")
+            if newlow < oldlow:
+                records[ticker]['low'] = newlow
+                payloadlow.append(f"{emoji} {title} ({ticker_link})")
+        payloadlow.sort()
+        payloadhigh.sort()
+        if payloadhigh:
+            message = 'Record high:'
+            message = webhook.bold(message, service)
+            payload.append(message)
+            payload = payload + payloadhigh
+        if payloadlow:
+            if payloadhigh:
+                payload.append("")
+            message = 'Record Low:'
+            message = webhook.bold(message, service)
+            payload.append(message)
+            payload = payload + payloadlow
+        return payload, records
 
     # MAIN #
 
@@ -71,23 +85,15 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
     if not webhooks:
         print("Error: no services enabled in .env", file=sys.stderr)
         sys.exit(1)
-    if interactive:
-        payload, new = prepare_ath_payload(service, market_data)
-        url = webhooks[service]
-        if service == "slack":
-            url = 'https://slack.com/api/chat.postMessage'
-        elif service == "telegram":
-            url = url + "sendMessage?chat_id=" + str(chat_id)
-        webhook.payload_wrapper(service, url, payload, chat_id)
     else:
         for service, url in webhooks.items():
-            payload, new = prepare_ath_payload(service, market_data)
+            payload, records = prepare_ath_payload(service, market_data)
             if service == "telegram":
                 url = url + "sendMessage?chat_id=" + str(chat_id)
             webhook.payload_wrapper(service, url, payload, chat_id)
 
-    if new:
-        util.json_write('finbot_ath.json', new, persist=True)
+    if payload:
+        util.json_write('finbot_ath.json', records, persist=True)
 
     # make google cloud happy
     return True

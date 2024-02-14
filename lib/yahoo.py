@@ -106,11 +106,15 @@ def fetch(tickers):
         except (KeyError, IndexError):
             continue
         try:
+            fiftyTwoWeekLow = item['fiftyTwoWeekLow']
+        except (KeyError, IndexError):
+            continue
+        try:
             dividend = round(float(item['trailingAnnualDividendRate']), 1)
         except (KeyError, IndexError):
             dividend = float(0)
         profile_title = util.transform_title(profile_title)
-        yahoo_output[ticker] = { 'profile_title': profile_title, 'ticker': ticker, 'percent_change': percent_change, 'dividend': dividend, 'currency': currency, 'regularMarketPrice': regularMarketPrice, 'fiftyTwoWeekHigh': fiftyTwoWeekHigh, 'regularMarketPreviousClose': regularMarketPreviousClose }
+        yahoo_output[ticker] = { 'profile_title': profile_title, 'ticker': ticker, 'percent_change': percent_change, 'dividend': dividend, 'currency': currency, 'regularMarketPrice': regularMarketPrice, 'fiftyTwoWeekHigh': fiftyTwoWeekHigh, 'fiftyTwoWeekLow': fiftyTwoWeekLow, 'regularMarketPreviousClose': regularMarketPreviousClose }
         # optional fields
         try:
             percent_change_premarket = item['preMarketChangePercent']
@@ -405,6 +409,12 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     else:
         local_market_data[ticker]['fiftyTwoWeekHigh'] = fiftyTwoWeekHigh
     try:
+        fiftyTwoWeekLow = data['quoteSummary']['result'][0]['price']['fiftyTwoWeekLow']['raw']
+    except (KeyError, IndexError):
+        return {} # catches junk
+    else:
+        local_market_data[ticker]['fiftyTwoWeekLow'] = fiftyTwoWeekLow
+    try:
         preMarketPrice = float(data['quoteSummary']['result'][0]['price']['preMarketPrice']['raw'])
     except (KeyError, IndexError, ValueError):
         pass
@@ -510,7 +520,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         recommend = data['quoteSummary']['result'][0]['financialData']['recommendationKey']
         recommend_index = data['quoteSummary']['result'][0]['financialData']['recommendationMean']['raw']
         recommend_analysts = data['quoteSummary']['result'][0]['financialData']['numberOfAnalystOpinions']['raw']
-    except (KeyError, IndexError):
+    except (KeyError, IndexError) as e:
         pass
     else:
         local_market_data[ticker]['recommend'] = recommend
@@ -743,10 +753,9 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
         util.json_write(cache_file, csv)
     return percent_dict, image_data
 
-def historic_high(ticker, days=3653, seconds=config_cache_seconds):
+def historic_high(ticker, market_data, days=3653, seconds=config_cache_seconds):
     image_data = None
     percent_dict = {}
-    market_data = fetch([ticker])
     tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
     regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
     regularMarketPrice = market_data[ticker]['regularMarketPrice']
@@ -759,7 +768,7 @@ def historic_high(ticker, days=3653, seconds=config_cache_seconds):
         crumb = getCrumb()
         start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
         end = str(int(now.timestamp()))
-        interval = '1d'
+        interval = '1mo'
         url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
         url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
         url = url + '&crumb=' + crumb
@@ -783,8 +792,10 @@ def historic_high(ticker, days=3653, seconds=config_cache_seconds):
     df.reset_index(drop=True, inplace=True)
     if config_cache:
         util.json_write(cache_file, csv)
-    index = df['High'].argmax()
-    row = df.iloc[index]
-    print(ticker, row['Date'], round(row['High'], 2))
-    return round(row['High'], 2)
+    highrow = df.iloc[df['High'].argmax()]
+    lowrow = df.iloc[df['Low'].argmin()]
+    if debug:
+        print(ticker, highrow['Date'], round(highrow['High'], 2))
+        print(ticker, lowrow['Date'], round(lowrow['Low'], 2))
+    return round(highrow['High'], 2), round(lowrow['Low'])
 
