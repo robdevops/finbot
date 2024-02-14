@@ -35,21 +35,23 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
                 except (KeyError, TypeError):
                     continue
             try:
-                newhigh = market_data[ticker]['fiftyTwoWeekHigh']
-                newlow = market_data[ticker]['fiftyTwoWeekLow']
+                newhigh = round(market_data[ticker]['fiftyTwoWeekHigh'], 2)
+                newlow = round(market_data[ticker]['fiftyTwoWeekLow'], 2)
             except (KeyError, ValueError):
                 continue
             title = market_data[ticker]['profile_title']
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-            #currency = market_data[ticker]['currency']
-            #currency_symbol = util.get_currency_symbol(currency)
             emoji = util.flag_from_ticker(ticker)
             records[ticker]['high'] = oldhigh
             records[ticker]['low'] = oldlow
             if newhigh > oldhigh:
+                if debug:
+                    print("DEBUG", ticker, newhigh, "is higher than", oldhigh)
                 records[ticker]['high'] = newhigh
                 payloadhigh.append(f"{emoji} {title} ({ticker_link})")
             if newlow < oldlow:
+                if debug:
+                    print("DEBUG", ticker, newlow, "is lower than", oldlow)
                 records[ticker]['low'] = newlow
                 payloadlow.append(f"{emoji} {title} ({ticker_link})")
         payloadlow.sort()
@@ -78,7 +80,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
         tickers = util.get_holdings_and_watchlist()
         tickers = list(tickers)
         tickers.sort()
-        #tickers = ['TSLA'] # DEBUG
+        #tickers = ['BUGG.AX'] # DEBUG
         market_data = yahoo.fetch(tickers)
 
     # Prep and send payloads

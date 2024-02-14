@@ -98,23 +98,11 @@ def fetch(tickers):
         except (KeyError, IndexError):
             continue
         try:
-            regularMarketPreviousClose = item['regularMarketPreviousClose']
-        except (KeyError, IndexError):
-            continue
-        try:
-            fiftyTwoWeekHigh = item['fiftyTwoWeekHigh']
-        except (KeyError, IndexError):
-            continue
-        try:
-            fiftyTwoWeekLow = item['fiftyTwoWeekLow']
-        except (KeyError, IndexError):
-            continue
-        try:
             dividend = round(float(item['trailingAnnualDividendRate']), 1)
         except (KeyError, IndexError):
             dividend = float(0)
         profile_title = util.transform_title(profile_title)
-        yahoo_output[ticker] = { 'profile_title': profile_title, 'ticker': ticker, 'percent_change': percent_change, 'dividend': dividend, 'currency': currency, 'regularMarketPrice': regularMarketPrice, 'fiftyTwoWeekHigh': fiftyTwoWeekHigh, 'fiftyTwoWeekLow': fiftyTwoWeekLow, 'regularMarketPreviousClose': regularMarketPreviousClose }
+        yahoo_output[ticker] = { 'profile_title': profile_title, 'ticker': ticker, 'percent_change': percent_change, 'dividend': dividend, 'currency': currency, 'regularMarketPrice': regularMarketPrice }
         # optional fields
         try:
             percent_change_premarket = item['preMarketChangePercent']
@@ -178,6 +166,20 @@ def fetch(tickers):
                 yahoo_output[ticker]["earnings_date"] = earningsTimestampEnd
             else:
                 yahoo_output[ticker]["earnings_date"] = earningsTimestamp
+        except (KeyError, IndexError):
+            pass
+        try:
+            yahoo_output[ticker]["regularMarketPreviousClose"] = item['regularMarketPreviousClose']
+        except (KeyError, IndexError):
+            pass
+        try:
+            yahoo_output[ticker]["fiftyTwoWeekHigh"] = item['fiftyTwoWeekHigh']
+        except (KeyError, IndexError):
+            pass
+        try:
+            fiftyTwoWeekLowTemp = item['fiftyTwoWeekLow']
+            if not fiftyTwoWeekLowTemp <= 0:
+                yahoo_output[ticker]["fiftyTwoWeekLow"] = fiftyTwoWeekLowTemp
         except (KeyError, IndexError):
             pass
     if config_cache:
@@ -409,7 +411,9 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     else:
         local_market_data[ticker]['fiftyTwoWeekHigh'] = fiftyTwoWeekHigh
     try:
-        fiftyTwoWeekLow = data['quoteSummary']['result'][0]['price']['fiftyTwoWeekLow']['raw']
+        fiftyTwoWeekLowTemp = data['quoteSummary']['result'][0]['price']['fiftyTwoWeekLow']['raw']
+        if not fiftyTwoWeekLowTemp <= 0:
+            fiftyTwoWeekLow = fiftyTwoWeekLowTemp
     except (KeyError, IndexError):
         return {} # catches junk
     else:
@@ -754,13 +758,15 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
     return percent_dict, image_data
 
 def historic_high(ticker, market_data, days=3653, seconds=config_cache_seconds):
+    #pd.set_option("display.precision", 8)
+    interval = '1d'
     image_data = None
     percent_dict = {}
     tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
     regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
     regularMarketPrice = market_data[ticker]['regularMarketPrice']
     now = datetime.datetime.now()
-    cache_file = "finbot_yahoo_price_history_ath_" + ticker + ".json"
+    cache_file = "finbot_yahoo_ath_" + ticker + "_" + interval + ".json"
     cache = util.read_cache(cache_file, seconds)
     if config_cache and cache:
         csv = cache
@@ -768,7 +774,6 @@ def historic_high(ticker, market_data, days=3653, seconds=config_cache_seconds):
         crumb = getCrumb()
         start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
         end = str(int(now.timestamp()))
-        interval = '1mo'
         url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
         url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
         url = url + '&crumb=' + crumb
@@ -786,16 +791,18 @@ def historic_high(ticker, market_data, days=3653, seconds=config_cache_seconds):
             print(ticker, r.status_code, "error communicating with", url, file=sys.stderr)
             return None
         csv = r.content.decode('utf-8')
+    #df = pd.read_csv(io.StringIO(csv), float_precision=None)
     df = pd.read_csv(io.StringIO(csv))
     df['Date'] = pd.to_datetime(df['Date']).dt.date
     df = df[df.High.notnull()]
+    df.drop(df.index[:1], inplace=True)
     df.reset_index(drop=True, inplace=True)
     if config_cache:
         util.json_write(cache_file, csv)
     highrow = df.iloc[df['High'].argmax()]
     lowrow = df.iloc[df['Low'].argmin()]
     if debug:
-        print(ticker, highrow['Date'], round(highrow['High'], 2))
-        print(ticker, lowrow['Date'], round(lowrow['Low'], 2))
-    return round(highrow['High'], 2), round(lowrow['Low'])
+        print(ticker, "High", highrow['Date'], round(highrow['High'], 2))
+        print(ticker, "Low", lowrow['Date'], round(lowrow['Low'], 2))
+    return round(highrow['High'], 2), round(lowrow['Low'], 2)
 
