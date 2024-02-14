@@ -401,13 +401,13 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     try:
         regularMarketPreviousClose = data['quoteSummary']['result'][0]['price']['regularMarketPreviousClose']['raw']
     except (KeyError, IndexError):
-        return {} # catches junk
+        pass
     else:
         local_market_data[ticker]['regularMarketPreviousClose'] = regularMarketPreviousClose
     try:
         fiftyTwoWeekHigh = data['quoteSummary']['result'][0]['price']['fiftyTwoWeekHigh']['raw']
     except (KeyError, IndexError):
-        return {} # catches junk
+        pass
     else:
         local_market_data[ticker]['fiftyTwoWeekHigh'] = fiftyTwoWeekHigh
     try:
@@ -415,7 +415,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         if not fiftyTwoWeekLowTemp <= 0:
             fiftyTwoWeekLow = fiftyTwoWeekLowTemp
     except (KeyError, IndexError):
-        return {} # catches junk
+        pass
     else:
         local_market_data[ticker]['fiftyTwoWeekLow'] = fiftyTwoWeekLow
     try:
@@ -524,7 +524,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
         recommend = data['quoteSummary']['result'][0]['financialData']['recommendationKey']
         recommend_index = data['quoteSummary']['result'][0]['financialData']['recommendationMean']['raw']
         recommend_analysts = data['quoteSummary']['result'][0]['financialData']['numberOfAnalystOpinions']['raw']
-    except (KeyError, IndexError) as e:
+    except (KeyError, IndexError):
         pass
     else:
         local_market_data[ticker]['recommend'] = recommend
