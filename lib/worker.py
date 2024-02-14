@@ -281,8 +281,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 market_cap = market_data[ticker]['market_cap']
                 market_cap_readable = util.humanUnits(market_cap)
                 title = market_data[ticker]['profile_title']
-                link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
-                payload = [f"{title} ({link}) mkt cap: {market_cap_readable}"]
+                flag = util.flag_from_ticker(ticker)
+                link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+                payload = [f"{flag} {title} ({link}) mkt cap: {market_cap_readable}"]
             else:
                 payload = [f"Mkt cap not found for {ticker}"]
         else:
@@ -358,8 +359,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 continue
             if beta > 1.5 and market_data[ticker]['market_cap'] < 1000000000:
                 profile_title = market_data[ticker]['profile_title']
-                ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
-                payload.append(f"{profile_title} ({ticker_link}) {beta}")
+                ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+                flag = util.flag_from_ticker(ticker)
+                payload.append(f"{flag} {profile_title} ({ticker_link}) {beta}")
         payload.sort(key=last_col)
         payload.reverse()
         if payload:

@@ -47,7 +47,7 @@ def doDelta(inputList):
 def prepare_watchlist(service, user, action=None, ticker=None):
     if ticker:
         ticker = ticker_orig = util.transform_to_yahoo(ticker)
-        ticker_link = util.finance_link(ticker, ticker, service, brief=False)
+        ticker_link = util.finance_link(ticker, ticker, service)
     duplicate = False
     transformed = False
     watchlist = util.json_load('finbot_watchlist.json', persist=True)
@@ -71,7 +71,7 @@ def prepare_watchlist(service, user, action=None, ticker=None):
             watchlist.remove(ticker)
             ticker = ticker + '.AX'
             transformed = True
-            ticker_link = util.finance_link(ticker, ticker, service, brief=False)
+            ticker_link = util.finance_link(ticker, ticker, service)
             print(ticker_orig, "not found. Trying", ticker)
             if ticker in watchlist:
                 print(ticker, "already in watchlist")
@@ -91,15 +91,15 @@ def prepare_watchlist(service, user, action=None, ticker=None):
     if market_data:
         for item in market_data:
             flag = util.flag_from_ticker(item)
-            item_link = util.finance_link(item, market_data[item]['profile_exchange'], service, brief=False)
+            item_link = util.finance_link(item, market_data[item]['profile_exchange'], service)
             profile_title = market_data[item]['profile_title']
             if item == ticker and action == 'delete':
                 pass
             elif item == ticker and action == 'add': # highlight requested item
-                text = webhook.bold(webhook.italic(f"{profile_title} ({item_link}) {flag}", service), service)
+                text = webhook.bold(webhook.italic(f"{flag} {profile_title} ({item_link})", service), service)
                 payload.append(text)
             else:
-                payload.append(f"{profile_title} ({item_link}) {flag}")
+                payload.append(f"{flag} {profile_title} ({item_link})")
     def profile_title_sort(e): # disregards markup in sort command
         return re.findall('[A-Z].*', e)
     payload.sort(key=profile_title_sort)
@@ -181,8 +181,9 @@ def prepare_holdings_payload(portfolioName, service, user):
                 ticker = market_data[item]['ticker']
                 title = market_data[item]['profile_title']
                 exchange = market_data[ticker]['profile_exchange']
-                ticker_link = util.finance_link(ticker, exchange, service, brief=True)
-                payload.append(f"{title} ({ticker_link})")
+                ticker_link = util.finance_link(ticker, exchange, service)
+                flag = util.flag_from_ticker(ticker)
+                payload.append(f"{flag} {title} ({ticker_link})")
             portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
             payload.sort()
             if payload:
@@ -548,8 +549,9 @@ def prepare_marketcap_payload(service, action='top', length=15):
             continue
         market_cap_readable = util.humanUnits(market_cap)
         title = market_data[ticker]['profile_title']
-        link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
-        payload_staging.append(f"{title} ({link}) mkt cap: {market_cap_readable} {market_cap}")
+        link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+        flag = util.flag_from_ticker(ticker)
+        payload_staging.append(f"{flag} {title} ({link}) mkt cap: {market_cap_readable} {market_cap}")
     if payload_staging:
         payload_staging.sort(key=last_col)
         if action == 'top':
@@ -581,10 +583,11 @@ def prepare_rating_payload(service, action, length=15):
                 if recommend_analysts > 1:
                     profile_title = market_data[ticker]['profile_title']
                     ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+                    flag = util.flag_from_ticker(ticker)
                     if action == 'buy' and 'buy' in recommend:
-                            payload.append(f"{profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
+                            payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
                     elif action == 'sell' and (recommend == 'sell' or recommend == 'underperform'):
-                            payload.append(f"{profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
+                            payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
         payload.sort(key=score_col)
         payload = payload[:length]
         if payload:
@@ -627,8 +630,9 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
                 print(ticker, action, "value not found", file=sys.stderr)
                 continue
             profile_title = market_data[ticker]['profile_title']
-            ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
-            payload.append(f"{profile_title} ({ticker_link}) {ratio}")
+            ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+            flag = util.flag_from_ticker(ticker)
+            payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
         payload.sort(key=last_col)
         if not ticker_select:
             if 'bottom' in action:
