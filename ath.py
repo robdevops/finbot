@@ -35,6 +35,14 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
                 except (KeyError, TypeError):
                     continue
             try:
+                oldprofit = records[ticker]['profit']
+                oldcashflow = records[ticker]['cashflow']
+            except (KeyError, TypeError):
+                detail = yahoo.fetch_detail(ticker)
+                profit = detail['net_income']
+                cashflow = detail['free_cashflow']
+            print(profit, cashflow)
+            try:
                 newhigh = round(market_data[ticker]['fiftyTwoWeekHigh'], 2)
                 newlow = round(market_data[ticker]['fiftyTwoWeekLow'], 2)
             except (KeyError, ValueError):
