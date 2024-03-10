@@ -17,6 +17,10 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
         payload = []
         payloadhigh = []
         payloadlow = []
+        payloadprofit = []
+        payloadcashflow = []
+        payloadprofitneg = []
+        payloadcashflowneg = []
         oldhigh = float()
         oldlow = float()
         records = util.json_load('finbot_ath.json', persist=True)
@@ -35,23 +39,36 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
                 except (KeyError, TypeError):
                     continue
             try:
-                oldprofit = records[ticker]['profit']
-                oldcashflow = records[ticker]['cashflow']
-            except (KeyError, TypeError):
-                detail = yahoo.fetch_detail(ticker)
-                profit = detail['net_income']
-                cashflow = detail['free_cashflow']
-            print(profit, cashflow)
-            try:
                 newhigh = round(market_data[ticker]['fiftyTwoWeekHigh'], 2)
                 newlow = round(market_data[ticker]['fiftyTwoWeekLow'], 2)
             except (KeyError, ValueError):
                 continue
+
+            newprofit = False
+            newcashflow = False
+            notify = True
+            try:
+                oldprofit = records[ticker]['profit']
+                oldcashflow = records[ticker]['cashflow']
+            except (KeyError, TypeError):
+                notify = False
+                oldprofit = False
+                oldcashflow = False
+            detail = yahoo.fetch_detail(ticker)
+            if ticker in detail:
+                if 'net_income' in detail[ticker]:
+                    if detail[ticker]['net_income'] > 0:
+                        newprofit = True
+                if 'free_cashflow' in detail[ticker]:
+                    if detail[ticker]['free_cashflow'] > 0:
+                        newcashflow = True
             title = market_data[ticker]['profile_title']
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
             emoji = util.flag_from_ticker(ticker)
             records[ticker]['high'] = oldhigh
             records[ticker]['low'] = oldlow
+            records[ticker]['profit'] = oldprofit
+            records[ticker]['cashflow'] = oldcashflow
             if newhigh > oldhigh:
                 if debug:
                     print("DEBUG", ticker, newhigh, "is higher than", oldhigh)
@@ -62,8 +79,24 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
                     print("DEBUG", ticker, newlow, "is lower than", oldlow)
                 records[ticker]['low'] = newlow
                 payloadlow.append(f"{emoji} {title} ({ticker_link})")
+            if oldprofit != newprofit:
+                records[ticker]['profit'] = newprofit
+                if notify and newprofit:
+                    payloadprofit.append(f"{emoji} {title} ({ticker_link})")
+                if notify and not newprofit:
+                    payloadprofitneg.append(f"{emoji} {title} ({ticker_link})")
+            if oldcashflow != newcashflow:
+                records[ticker]['cashflow'] = newcashflow
+                if notify and newcashflow:
+                    payloadcashflow.append(f"{emoji} {title} ({ticker_link})")
+                if notify and not newcashflow:
+                    payloadcashflowneg.append(f"{emoji} {title} ({ticker_link})")
         payloadlow.sort()
         payloadhigh.sort()
+        payloadprofit.sort()
+        payloadcashflow.sort()
+        payloadprofitneg.sort()
+        payloadcashflowneg.sort()
         if payloadhigh:
             message = 'Record high:'
             message = webhook.bold(message, service)
@@ -76,6 +109,34 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
             message = webhook.bold(message, service)
             payload.append(message)
             payload = payload + payloadlow
+        if payloadprofit:
+            if payloadhigh or payloadlow:
+                payload.append("")
+            message = 'Became profitable'
+            message = webhook.bold(message, service)
+            payload.append(message)
+            payload = payload + payloadprofit
+        if payloadcashflow:
+            if payloadhigh or payloadlow or payloadprofit:
+                payload.append("")
+            message = 'Became cashflow positive'
+            message = webhook.bold(message, service)
+            payload.append(message)
+            payload = payload + payloadcashflow
+        if payloadprofitneg:
+            if payloadhigh or payloadlow or payloadprofit or payloadcashflow:
+                payload.append("")
+            message = 'Became unprofitable'
+            message = webhook.bold(message, service)
+            payload.append(message)
+            payload = payload + payloadprofitneg
+        if payloadcashflowneg:
+            if payloadhigh or payloadlow or payloadprofit or payloadcashflow or payloadprofitneg:
+                payload.append("")
+            message = 'Became cashflow negative'
+            message = webhook.bold(message, service)
+            payload.append(message)
+            payload = payload + payloadcashflowneg
         return payload, records
 
     # MAIN #
@@ -102,7 +163,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
                 url = url + "sendMessage?chat_id=" + str(chat_id)
             webhook.payload_wrapper(service, url, payload, chat_id)
 
-    if payload:
+    if records:
         util.json_write('finbot_ath.json', records, persist=True)
 
     # make google cloud happy
