@@ -492,7 +492,7 @@ def prepare_stockfinancial_payload(service, user, ticker):
     if 'price_to_earnings_peg' in market_data[ticker]:
         peg = round(market_data[ticker]['price_to_earnings_peg'], 1)
         payload.append(webhook.bold("PEG ratio:", service) + f" {str(peg)}")
-    if 'price_to_sales' in market_data[ticker] and 'price_to_earnings_forward' not in market_data[ticker]:
+    if 'price_to_sales' in market_data[ticker]:
         price_to_sales = round(market_data[ticker]['price_to_sales'], 1)
         payload.append(webhook.bold("PS ratio:", service) + f" {str(price_to_sales)}")
 
