@@ -12,7 +12,7 @@ from lib import yahoo
 # https://finance.yahoo.com/quote/TSLA/history?period1=0&period2=1707609600&filter=split
 
 def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=None, interactive=False):
-    def prepare_ath_payload(service, market_data):
+    def prepare_milestone_payload(service, market_data):
         emoji = '⭐'
         payload = []
         payloadhigh = []
@@ -23,7 +23,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
         payloadcashflowneg = []
         oldhigh = float()
         oldlow = float()
-        records = util.json_load('finbot_ath.json', persist=True)
+        records = util.json_load('finbot_milestone.json', persist=True)
         if records is None:
             records = {}
         for ticker in tickers:
@@ -158,13 +158,13 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
         sys.exit(1)
     else:
         for service, url in webhooks.items():
-            payload, records = prepare_ath_payload(service, market_data)
+            payload, records = prepare_milestone_payload(service, market_data)
             if service == "telegram":
                 url = url + "sendMessage?chat_id=" + str(chat_id)
             webhook.payload_wrapper(service, url, payload, chat_id)
 
     if records:
-        util.json_write('finbot_ath.json', records, persist=True)
+        util.json_write('finbot_milestone.json', records, persist=True)
 
     # make google cloud happy
     return True
