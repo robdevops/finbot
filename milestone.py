@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import json, re, sys
+from itertools import groupby #from itertools import pairwise # python 3.10
 from lib.config import *
 from lib import sharesight
 from lib import webhook
@@ -46,50 +47,47 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 
             newprofit = False
             newcashflow = False
-            notify = True
+            detail = yahoo.fetch_detail(ticker)
+            if ticker in detail:
+                if 'net_income' in detail[ticker] and detail[ticker]['net_income'] > 0:
+                    newprofit = True
+                if 'free_cashflow' in detail[ticker] and detail[ticker]['free_cashflow'] > 0:
+                    newcashflow = True
             try:
                 oldprofit = records[ticker]['profit']
                 oldcashflow = records[ticker]['cashflow']
             except (KeyError, TypeError):
-                notify = False
-                oldprofit = False
-                oldcashflow = False
-            detail = yahoo.fetch_detail(ticker)
-            if ticker in detail:
-                if 'net_income' in detail[ticker]:
-                    if detail[ticker]['net_income'] > 0:
-                        newprofit = True
-                if 'free_cashflow' in detail[ticker]:
-                    if detail[ticker]['free_cashflow'] > 0:
-                        newcashflow = True
+                oldprofit = newprofit
+                oldcashflow = newcashflow
+
             title = market_data[ticker]['profile_title']
             ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
             emoji = util.flag_from_ticker(ticker)
-            records[ticker]['high'] = oldhigh
-            records[ticker]['low'] = oldlow
-            records[ticker]['profit'] = oldprofit
-            records[ticker]['cashflow'] = oldcashflow
+            records[ticker]['high'] = newhigh
+            records[ticker]['low'] = newlow
+            records[ticker]['profit'] = newprofit
+            records[ticker]['cashflow'] = newcashflow
             if newhigh > oldhigh:
                 if debug:
                     print("DEBUG", ticker, newhigh, "is higher than", oldhigh)
-                records[ticker]['high'] = newhigh
                 payloadhigh.append(f"{emoji} {title} ({ticker_link})")
             if newlow < oldlow:
                 if debug:
                     print("DEBUG", ticker, newlow, "is lower than", oldlow)
-                records[ticker]['low'] = newlow
                 payloadlow.append(f"{emoji} {title} ({ticker_link})")
             if oldprofit != newprofit:
-                records[ticker]['profit'] = newprofit
-                if notify and newprofit:
+                if debug:
+                    print("DEBUG", ticker, "profitability changed", oldprofit, newprofit)
+                if newprofit:
                     payloadprofit.append(f"{emoji} {title} ({ticker_link})")
-                if notify and not newprofit:
+                else:
                     payloadprofitneg.append(f"{emoji} {title} ({ticker_link})")
             if oldcashflow != newcashflow:
-                records[ticker]['cashflow'] = newcashflow
-                if notify and newcashflow:
+                if debug:
+                    print("DEBUG", ticker, "cashflow changed", oldcashflow, newcashflow)
+                if newcashflow:
                     payloadcashflow.append(f"{emoji} {title} ({ticker_link})")
-                if notify and not newcashflow:
+                else:
                     payloadcashflowneg.append(f"{emoji} {title} ({ticker_link})")
         payloadlow.sort()
         payloadhigh.sort()
@@ -103,40 +101,36 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
             payload.append(message)
             payload = payload + payloadhigh
         if payloadlow:
-            if payloadhigh:
-                payload.append("")
-            message = 'Record Low:'
+            payload.append("")
+            message = 'Record low:'
             message = webhook.bold(message, service)
             payload.append(message)
             payload = payload + payloadlow
         if payloadprofit:
-            if payloadhigh or payloadlow:
-                payload.append("")
+            payload.append("")
             message = 'Became profitable'
             message = webhook.bold(message, service)
             payload.append(message)
             payload = payload + payloadprofit
         if payloadcashflow:
-            if payloadhigh or payloadlow or payloadprofit:
-                payload.append("")
+            payload.append("")
             message = 'Became cashflow positive'
             message = webhook.bold(message, service)
             payload.append(message)
             payload = payload + payloadcashflow
         if payloadprofitneg:
-            if payloadhigh or payloadlow or payloadprofit or payloadcashflow:
-                payload.append("")
+            payload.append("")
             message = 'Became unprofitable'
             message = webhook.bold(message, service)
             payload.append(message)
             payload = payload + payloadprofitneg
         if payloadcashflowneg:
-            if payloadhigh or payloadlow or payloadprofit or payloadcashflow or payloadprofitneg:
-                payload.append("")
+            payload.append("")
             message = 'Became cashflow negative'
             message = webhook.bold(message, service)
             payload.append(message)
             payload = payload + payloadcashflowneg
+        payload = [i[0] for i in groupby(payload)] # de-dupe white space
         return payload, records
 
     # MAIN #
