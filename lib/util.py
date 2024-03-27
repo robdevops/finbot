@@ -92,6 +92,8 @@ def transform_title(title):
     title = title.replace(' .', ' ')
     title = title.replace(' ,', ' ')
     title = title.replace('  ', ' ')
+    if title.endswith(' &'):
+        title = title.replace(' &', '')
     if title.islower():
         title = title.title()
     title = title.strip()
