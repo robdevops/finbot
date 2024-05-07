@@ -97,6 +97,8 @@ def transform_title(title):
     title = title.strip()
     if title.endswith(' &'):
         title = title.replace(' &', '')
+    if title.endswith(' and'):
+        title = title.replace(' and', '')
     return title
 
 def categorise_tickers(tickers):
