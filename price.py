@@ -28,7 +28,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                 # Possible market states: PREPRE PRE REGULAR POST POSTPOST CLOSED
                 continue
             if interday and not interactive and now - regularMarketTime > datetime.timedelta(days=1):
-                # avoid repeating on public holidays
+                # avoid repeating on market holidays
                 print(ticker + '⏭', sep='', end=' ', flush=True)
                 continue
             if close and not interactive and (now - regularMarketTime > datetime.timedelta(hours=1.5) or marketState in ('PREPRE', 'PRE', 'REGULAR')):

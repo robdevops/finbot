@@ -617,6 +617,9 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     return local_market_data
 
 def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_graph, graphCache=True):
+	max_days = 3652 # 10 years inc two leap years
+	if days > max_days:
+		days=max_days
     image_data = None
     percent_dict = {}
     market_data = fetch([ticker])
@@ -630,7 +633,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
         csv = cache
     else:
         crumb = getCrumb()
-        start =  str(int((now - datetime.timedelta(days=1836)).timestamp())) # 5 years inc leap year
+        start =  str(int((now - datetime.timedelta(days=max_days)).timestamp()))
         end = str(int(now.timestamp()))
         interval = '1d'
         url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
@@ -664,7 +667,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
     #df.sort_values(by='Date', inplace = True)
     df.reset_index(drop=True, inplace=True)
     price = []
-    interval = ('5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
+    interval = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
     if days:
         seek_date = now - datetime.timedelta(days = days)
         seek_dt = seek_date.date()
@@ -740,7 +743,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
             if 'Max' in percent_dict:
                 title = profile_title + " (" + ticker + ") Max " + str(percent_dict['Max']) + '%'
             else:
-                title = profile_title + " (" + ticker + ") 5Y " + str(percent_dict['5Y']) + '%'
+                title = profile_title + " (" + ticker + ") 10Y " + str(percent_dict['10Y']) + '%'
         caption = '\n'.join(caption)
         image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
         image_cache = util.read_binary_cache(image_cache_file, seconds)
