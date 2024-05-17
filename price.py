@@ -53,7 +53,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                     try:
                         percent = percent[days]
                     except KeyError:
-                        percent = percent['max']
+                        percent = percent['Max']
             else:
                 percent = market_data[ticker]['percent_change']
             title = market_data[ticker]['profile_title']
