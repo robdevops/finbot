@@ -618,11 +618,6 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 
 def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_graph, graphCache=True):
     max_days = 3655 # 10 years + buffer
-    try:
-        if days > max_days:
-            days=max_days
-    except TypeError:
-        pass
     image_data = None
     percent_dict = {}
     market_data = fetch([ticker])
