@@ -622,7 +622,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
         if days > max_days:
             days=max_days
     except TypeError:
-        continue
+        pass
     image_data = None
     percent_dict = {}
     market_data = fetch([ticker])
