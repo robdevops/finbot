@@ -50,7 +50,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                         percent, graph = yahoo.price_history(ticker, days, graphCache=False)
                     else:
                         percent, graph = yahoo.price_history(ticker, days, graph=False)
-                    percent = percent[days]
+                    try:
+                        percent = percent[days]
+                    except KeyError:
+                        percent = percent['max']
             else:
                 percent = market_data[ticker]['percent_change']
             title = market_data[ticker]['profile_title']
