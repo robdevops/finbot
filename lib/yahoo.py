@@ -617,7 +617,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
     return local_market_data
 
 def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_graph, graphCache=True):
-    max_days = 3652 # 10 years inc two leap years
+    max_days = 3655 # 10 years + buffer
     try:
         if days > max_days:
             days=max_days
