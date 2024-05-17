@@ -733,7 +733,10 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
         caption = []
         profile_title = market_data[ticker]['profile_title']
         if days:
-            title = profile_title + " (" + ticker + ") " + str(days) + " days " + str(percent_dict[days]) + '%'
+            title_days = days
+            if days > max_days:
+                title_days = max_days
+            title = profile_title + " (" + ticker + ") " + str(title_days) + " days " + str(percent_dict[days]) + '%'
             caption.append(title)
         else:
             for k,v in percent_dict.items():
