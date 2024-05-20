@@ -50,6 +50,7 @@ def transform_title(title):
     title = title.replace('Ordinary Shares Class A', '')
     title = title.replace('Ordinary Shares Class C', '')
     title = title.replace('Lbt Innovations', 'LBT Innovations')
+    title = title.replace('Vanguard Information Technology', 'Vanguard Infotech')
     title = title.replace('The ', '')
     title = title.replace(' Shares', '')
     title = title.replace('Rea ', 'REA ')
@@ -91,7 +92,6 @@ def transform_title(title):
     title = title.replace(' ADR', ' ')
     title = title.replace(' .', ' ')
     title = title.replace(' ,', ' ')
-    title = title.replace('  ', ' ')
     if title.islower():
         title = title.title()
     title = title.strip()
@@ -99,6 +99,7 @@ def transform_title(title):
         title = title.replace(' &', '')
     if title.endswith(' and'):
         title = title.replace(' and', '')
+    title = title.replace('  ', ' ')
     return title
 
 def categorise_tickers(tickers):
