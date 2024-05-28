@@ -561,7 +561,7 @@ def prepare_marketcap_payload(service, action='top', length=15):
         for line in payload_staging: # drop no longer needed sort key
             words = line.split()
             payload.append(' '.join(words[:-1]))
-        payload.insert(0, f"{webhook.bold(f'{action.title()} {length} stocks by market cap', service)}")
+        payload.insert(0, f"{webhook.bold(f'{action.title()} {length} tracked stocks by market cap', service)}")
     return payload
 
 def prepare_rating_payload(service, action, length=15):
