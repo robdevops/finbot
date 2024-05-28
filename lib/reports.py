@@ -591,7 +591,7 @@ def prepare_rating_payload(service, action, length=15):
         payload.sort(key=score_col)
         payload = payload[:length]
         if payload:
-            message = f"Top {length} analyst {action} ratings"
+            message = f"Top {length} analyst {action} ratings for tracked stocks"
             payload.insert(0, f"{webhook.bold(message, service)}")
         return payload
 
@@ -639,5 +639,5 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
                 payload.reverse()
             payload = payload[:length]
             if payload:
-                payload.insert(0, f"{webhook.bold(f'Top {length} stocks by {action} ratio', service)}")
+                payload.insert(0, f"{webhook.bold(f'Top {length} tracked stocks by {action} ratio', service)}")
         return payload

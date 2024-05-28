@@ -36,7 +36,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
 
         if payload:
             if not specific_stock:
-                message = f'Stocks shorted over {threshold}%:'
+                message = f'Tracked stocks shorted over {threshold}%:'
                 message = webhook.bold(message, service)
                 payload.insert(0, message)
         else:
