@@ -56,6 +56,7 @@ def transform_title(title):
     title = title.replace('Rea ', 'REA ')
     title = title.replace('Csl ', 'CSL ')
     title = title.replace('Battery ', 'Batt ')
+    title = title.replace('.com', '')
     title = title.replace('Etf', '')
     title = title.replace('ETF', '')
     title = title.replace('N.V.', '')
