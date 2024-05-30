@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import googlesearch
 import json
 import time

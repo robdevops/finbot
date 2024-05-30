@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 import re, random
 import datetime
 import sys

@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 from itertools import groupby #from itertools import pairwise # python 3.10
 import json, re
 import datetime

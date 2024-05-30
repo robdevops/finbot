@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import json, re, sys
 from itertools import groupby #from itertools import pairwise # python 3.10
