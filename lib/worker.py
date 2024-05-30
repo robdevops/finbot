@@ -21,7 +21,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     dividend_command = r"^([\!\.]\s?|" + botName + r"\s+)dividends?\s*([\w\.\:\-]+)*"
     m_dividend = re.match(dividend_command, message, re.IGNORECASE)
 
-    earnings_command = r"^([\!\.]\s?|" + botName + r"\s+)(earnings|earrings)?\s*([\w\.\:\-]+)*"
+    earnings_command = r"^([\!\.]\s?|" + botName + r"\s+)(earnings?|earrings)\s*([\w\.\:\-]+)*"
     m_earnings = re.match(earnings_command, message, re.IGNORECASE)
 
     hello_command = r"^([\!\.]\s?|" + botName + r"\s+)(hi$|hello)|^(hi|hello)\s+" + botName
