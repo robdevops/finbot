@@ -78,7 +78,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     stockfinancial_command = r"^([\!\.]\s?|^" + botName + r"\s+)([\w\.\:\-]+)"
     m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
-    profile_command = r"^([\!\.]\s?|^" + botName + r"\s+)(profile|people|possible)\s*([\w\.\:\-]+)"
+    profile_command = r"^([\!\.]\s?|^" + botName + r"\s+)(profile|professor|proudly|proteja|properties|possible)\s*([\w\.\:\-]+)*"
     m_profile = re.match(profile_command, message, re.IGNORECASE)
 
     thanks_command = r"^([\!\.]\s?|^" + botName + r"\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
