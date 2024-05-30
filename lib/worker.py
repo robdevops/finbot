@@ -21,7 +21,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     dividend_command = r"^([\!\.]\s?|" + botName + r"\s+)dividends?\s*([\w\.\:\-]+)*"
     m_dividend = re.match(dividend_command, message, re.IGNORECASE)
 
-    earnings_command = r"^([\!\.]\s?|" + botName + r"\s+)(earnings|earrings)?\s*([\w\.\:\-]+)*"
+    earnings_command = r"^([\!\.]\s?|" + botName + r"\s+)earnings?\s*([\w\.\:\-]+)*"
     m_earnings = re.match(earnings_command, message, re.IGNORECASE)
 
     hello_command = r"^([\!\.]\s?|" + botName + r"\s+)(hi$|hello)|^(hi|hello)\s+" + botName
@@ -36,7 +36,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     holdings_command = r"^([\!\.]\s?|^" + botName + r"\s+)holdings?\s*([\w\s]+)*"
     m_holdings = re.match(holdings_command, message, re.IGNORECASE)
 
-    marketcap_command = r"^([\!\.]\s?|^" + botName + r"\s+)(marketcap|maletas|marketer)\s*([\w\.\:\-]+)*"
+    marketcap_command = r"^([\!\.]\s?|^" + botName + r"\s+)marketcap\s*([\w\.\:\-]+)*"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
     plan_command = r"^([\!\.]\s?|^" + botName + r"\s+)plan\s*(.*)"
@@ -60,7 +60,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     sell_command = r"^([\!\.]\s?|^" + botName + r"\s+)sell"
     m_sell = re.match(sell_command, message, re.IGNORECASE)
 
-    history_command = r"^([\!\.]\s?|^" + botName + r"\s+)(history|hospital|visual)\s*([\w\.\:\-]+)*"
+    history_command = r"^([\!\.]\s?|^" + botName + r"\s+)history\s*([\w\.\:\-]+)*"
     m_history = re.match(history_command, message, re.IGNORECASE)
 
     performance_command = r"^([\!\.]\s?|^" + botName + r"\s+)performance?\s*([\w]+)*\s*([\w\s]+)*"
@@ -69,7 +69,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket)\s*([\w\.\:\-]+)*"
     m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-    price_command = r"^([\!\.]\s?|^" + botName + r"\s+)(prices?|piece|pence|prince)\s*([\w\.\:\%\=]+)*\s*([\w\.\:\%\-]+)*"
+    price_command = r"^([\!\.]\s?|^" + botName + r"\s+)prices?\s*([\w\.\:\%\=]+)*\s*([\w\.\:\%\-]+)*"
     m_price = re.match(price_command, message, re.IGNORECASE)
 
     shorts_command = r"^([\!\.]\s?|^" + botName + r"\s+)shorts?\s*([\w\.\:\-]+)*"
@@ -78,7 +78,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     stockfinancial_command = r"^([\!\.]\s?|^" + botName + r"\s+)([\w\.\:\-]+)"
     m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
-    profile_command = r"^([\!\.]\s?|^" + botName + r"\s+)(profile|people|possible)\s*([\w\.\:\-]+)"
+    profile_command = r"^([\!\.]\s?|^" + botName + r"\s+)profile\s*([\w\.\:\-]+)"
     m_profile = re.match(profile_command, message, re.IGNORECASE)
 
     thanks_command = r"^([\!\.]\s?|^" + botName + r"\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
