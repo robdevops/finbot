@@ -69,7 +69,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket)\s*([\w\.\:\-]+)*"
     m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-    price_command = r"^([\!\.]\s?|^" + botName + r"\s+)(price|prince|pierce|prime)s?\s*([\w\.\:\%\=]+)*\s*([\w\.\:\%\-]+)*"
+    price_command = r"^([\!\.]\s?|^" + botName + r"\s+)(prices?|prince|pierce|prime)\s*([\w\.\:\%\=]+)*\s*([\w\.\:\%\-]+)*"
     m_price = re.match(price_command, message, re.IGNORECASE)
 
     shorts_command = r"^([\!\.]\s?|^" + botName + r"\s+)shorts?\s*([\w\.\:\-]+)*"
@@ -195,8 +195,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         specific_stock = None
         days = None
         interday = True
-        if m_price.group(2):
-            arg = m_price.group(2)
+        if m_price.group(3):
+            arg = m_price.group(3)
             try:
                 days = util.days_from_human_days(arg)
                 interday = False
@@ -205,8 +205,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                     price_percent = float(arg.split('%')[0])
                 except ValueError:
                     specific_stock = str(arg).upper()
-        if m_price.group(3):
-            arg = m_price.group(3)
+        if m_price.group(4):
+            arg = m_price.group(4)
             try:
                 days = util.days_from_human_days(arg)
                 interday = False
