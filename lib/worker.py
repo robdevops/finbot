@@ -21,7 +21,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     dividend_command = r"^([\!\.]\s?|" + botName + r"\s+)dividends?\s*([\w\.\:\-]+)*"
     m_dividend = re.match(dividend_command, message, re.IGNORECASE)
 
-    earnings_command = r"^([\!\.]\s?|" + botName + r"\s+)earnings?\s*([\w\.\:\-]+)*"
+    earnings_command = r"^([\!\.]\s?|" + botName + r"\s+)(earnings?|earrings?)\s*([\w\.\:\-]+)*"
     m_earnings = re.match(earnings_command, message, re.IGNORECASE)
 
     hello_command = r"^([\!\.]\s?|" + botName + r"\s+)(hi$|hello)|^(hi|hello)\s+" + botName
@@ -36,7 +36,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     holdings_command = r"^([\!\.]\s?|^" + botName + r"\s+)holdings?\s*([\w\s]+)*"
     m_holdings = re.match(holdings_command, message, re.IGNORECASE)
 
-    marketcap_command = r"^([\!\.]\s?|^" + botName + r"\s+)marketcap\s*([\w\.\:\-]+)*"
+    marketcap_command = r"^([\!\.]\s?|^" + botName + r"\s+)(marketcap|maletas|marketer)\s*([\w\.\:\-]+)*"
     m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
     plan_command = r"^([\!\.]\s?|^" + botName + r"\s+)plan\s*(.*)"
@@ -60,7 +60,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     sell_command = r"^([\!\.]\s?|^" + botName + r"\s+)sell"
     m_sell = re.match(sell_command, message, re.IGNORECASE)
 
-    history_command = r"^([\!\.]\s?|^" + botName + r"\s+)history\s*([\w\.\:\-]+)*"
+    history_command = r"^([\!\.]\s?|^" + botName + r"\s+)(history|hospital|visual)\s*([\w\.\:\-]+)*"
     m_history = re.match(history_command, message, re.IGNORECASE)
 
     performance_command = r"^([\!\.]\s?|^" + botName + r"\s+)performance?\s*([\w]+)*\s*([\w\s]+)*"
@@ -69,7 +69,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket)\s*([\w\.\:\-]+)*"
     m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-    price_command = r"^([\!\.]\s?|^" + botName + r"\s+)(prices?|prince|pierce|prime)\s*([\w\.\:\%\=]+)*\s*([\w\.\:\%\-]+)*"
+    price_command = r"^([\!\.]\s?|^" + botName + r"\s+)(prices?|prince|pierce|pence|prime)\s*([\w\.\:\%\=]+)*\s*([\w\.\:\%\-]+)*"
     m_price = re.match(price_command, message, re.IGNORECASE)
 
     shorts_command = r"^([\!\.]\s?|^" + botName + r"\s+)shorts?\s*([\w\.\:\-]+)*"
@@ -78,7 +78,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     stockfinancial_command = r"^([\!\.]\s?|^" + botName + r"\s+)([\w\.\:\-]+)"
     m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
-    profile_command = r"^([\!\.]\s?|^" + botName + r"\s+)profile\s*([\w\.\:\-]+)"
+    profile_command = r"^([\!\.]\s?|^" + botName + r"\s+)(profile|people|possible)\s*([\w\.\:\-]+)"
     m_profile = re.match(profile_command, message, re.IGNORECASE)
 
     thanks_command = r"^([\!\.]\s?|^" + botName + r"\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
@@ -135,8 +135,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_earnings:
         days = config_future_days
         specific_stock = None
-        if m_earnings.group(2):
-            arg = m_earnings.group(2)
+        if m_earnings.group(3):
+            arg = m_earnings.group(3)
             try:
                 days = util.days_from_human_days(arg)
             except ValueError:
@@ -271,8 +271,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
         payload = reports.prepare_holdings_payload(portfolioName, service, user)
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_marketcap:
-        if m_marketcap.group(2) and m_marketcap.group(2) not in ('top', 'bottom'):
-            ticker = m_marketcap.group(2).upper()
+        if m_marketcap.group(3) and m_marketcap.group(3) not in ('top', 'bottom'):
+            ticker = m_marketcap.group(3).upper()
             ticker = util.transform_to_yahoo(ticker)
             market_data = yahoo.fetch_detail(ticker, 600)
             if ticker in market_data and 'market_cap' in market_data[ticker]:
@@ -286,8 +286,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
                 payload = [f"Mkt cap not found for {ticker}"]
         else:
             action = 'top'
-            if m_marketcap.group(2):
-                action = m_marketcap.group(2)
+            if m_marketcap.group(3):
+                action = m_marketcap.group(3)
             payload = reports.prepare_marketcap_payload(service, action, length=15)
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_peg:
@@ -388,8 +388,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
     elif m_history:
         payload = []
         graph = None
-        if m_history.group(2):
-            ticker = m_history.group(2).upper()
+        if m_history.group(3):
+            ticker = m_history.group(3).upper()
             ticker = util.transform_to_yahoo(ticker)
             market_data = yahoo.fetch_detail(ticker, 600)
             title = market_data[ticker]['profile_title']
@@ -424,8 +424,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
             payload.append(f"{webhook.bold(k.removeprefix('@'), service)}: {webhook.italic(v, service)}\n")
         webhook.payload_wrapper(service, url, payload, chat_id)
     elif m_profile:
-        if m_profile.group(2):
-            ticker = m_profile.group(2).upper()
+        if m_profile.group(3):
+            ticker = m_profile.group(3).upper()
             ticker = util.transform_to_yahoo(ticker)
             market_data = yahoo.fetch_detail(ticker, 600)
             if ticker in market_data:
