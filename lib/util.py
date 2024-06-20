@@ -70,6 +70,7 @@ def transform_title(title):
     title = title.replace(' Ltd', ' ')
     title = title.replace(' Holdings', ' ')
     title = title.replace(' Holding', ' ')
+    title = title.replace(' (Holdings)', '')
     title = title.replace(' Corporation', ' ')
     title = title.replace(' Incorporated', ' ')
     title = title.replace(' incorporated', ' ')
