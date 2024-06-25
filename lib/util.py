@@ -92,6 +92,7 @@ def transform_title(title):
     title = title.replace(' plc', ' ')
     title = title.replace(' Index', ' ')
     title = title.replace(' ADR', ' ')
+    title = title.replace(' Daily', ' ')
     title = title.replace(' .', ' ')
     title = title.replace(' ,', ' ')
     if title.islower():
