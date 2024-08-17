@@ -1,4 +1,4 @@
-from itertools import groupby #from itertools import pairwise # python 3.10
+from itertools import pairwise
 import json, re
 import datetime
 import sys
@@ -21,8 +21,7 @@ def doDelta(inputList):
             else:
                 # get the previous value
                 inputListFixed[idx] = inputListFixed[idx-1]
-    deltaList = [j-i for i,j in zip(inputListFixed, inputListFixed[1:])] # python 3.9
-    #deltaList = [y-x for (x,y) in pairwise(inputListFixed)] # python 3.10
+    deltaList = [y-x for (x,y) in pairwise(inputListFixed)]
     for idx, delta in enumerate(deltaList):
         absolute = inputList[idx+1]
         if absolute is None or (idx == 0 and inputList[0] is None):

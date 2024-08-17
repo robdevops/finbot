@@ -28,10 +28,10 @@
 * Most features require a Sharesight paid plan, preferably with automatic trade imports, and an API key
 * Discord/Slack webhooks / Telegram bot user
 * Interactive commands require a public web server with domain name and matching certificate to proxy chat commands to the bot.
-* Python ≥ 3.9
+* Python ≥ 3.10
 * Python modules:
 ```
-datetime python-dotenv requests gevent pandas matplotlib
+datetime python-dotenv requests gevent pandas matplotlib numpy
 ```
 
 ### Supported commands

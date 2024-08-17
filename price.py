@@ -198,38 +198,17 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-
-        # python 3.9
-        try:
-            arg = int(sys.argv[1])
-        except ValueError:
-            if sys.argv[1] == 'midsession':
+        match sys.argv[1]:
+            case 'midsession':
                 lambda_handler(midsession=True)
-            elif sys.argv[1] == 'interday':
+            case 'interday':
                 lambda_handler(interday=True)
-            elif sys.argv[1] == 'premarket':
+            case 'premarket':
                 lambda_handler(premarket=True)
-            elif sys.argv[1] == 'close':
+            case 'close':
                 lambda_handler(close=True)
-            else:
-                print("Usage:", sys.argv[0], "[midsession|interday|premarket|days (int)]", file=sys.stderr)
-        else:
-            lambda_handler(days=arg)
-
-        # python 3.10
-        #match sys.argv[1]:
-        #    case 'midsession':
-        #        lambda_handler(midsession=True)
-        #    case 'interday':
-        #        lambda_handler(interday=True)
-        #    case 'premarket':
-        #        lambda_handler(premarket=True)
-        #    case 'week':
-        #        lambda_handler(days=7)
-        #    case 'month':
-        #        lambda_handler(days=28)
-        #    case other:
-        #        print("Usage:", sys.argv[0], "[midsession|interday|premarket|week|month]", file=sys.stderr)
+            case other:
+                print("Usage:", sys.argv[0], "[midsession|interday|premarket|close]", file=sys.stderr)
 
     else:
         print("Usage:", sys.argv[0], "[midsession|interday|premarket|close|days (int)]", file=sys.stderr)

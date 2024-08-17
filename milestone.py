@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import json, re, sys
-from itertools import groupby #from itertools import pairwise # python 3.10
+from itertools import groupby
 from lib.config import *
 from lib import sharesight
 from lib import webhook
