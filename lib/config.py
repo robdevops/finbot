@@ -53,6 +53,7 @@ config_telegramOutgoingWebhook = os.getenv('telegramOutgoingWebhook', False)
 config_telegramChatID = os.getenv('telegramChatID', False)
 config_telegramOutgoingToken = os.getenv('telegramOutgoingToken', False)
 config_timezone = os.getenv('timezone', 'Australia/Melbourne')
+config_trades_use_yahoo = os.getenv("trades_use_yahoo", 'True').lower() in ('true', '1', 't') # set False if Yahoo breaks
 debug = os.getenv("debug", 'False').lower() in ('true', '1', 't')
 
 adjectives = [
@@ -276,5 +277,5 @@ yahoo_country = {
     'Turkey': 'IS',
     'United Kingdom': 'L',
     'Venezuela': 'CR'
-    # markets with numeric tickers purposefully ommitted
+    # markets with numeric tickers purposefully omitted
 }

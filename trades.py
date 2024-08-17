@@ -7,6 +7,7 @@ from lib.config import *
 from lib import sharesight
 from lib import webhook
 from lib import util
+from lib import yahoo
 
 def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service=None, user='', portfolio_select=None, message_id=None, interactive=False):
     start_date = datetime.datetime.now() - datetime.timedelta(days=days)
@@ -17,6 +18,16 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
         payload_staging = []
         dates = set()
         sharesight_url = "https://portfolio.sharesight.com/holdings/"
+		if config_trades_use_yahoo:
+		    tickers = []
+			for trade in trades:
+			    if trade['transaction_type'] not in {'BUY', 'SELL'}:
+					continue
+				symbol = trade['symbol']
+			    tickers.append(symbol)
+				set(tickers)
+				market_data = yahoo.fetch(tickers)
+
         for trade in trades:
             action=''
             emoji=''
@@ -38,7 +49,10 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
             units = float(trade['quantity'])
             price = float(trade['price'])
             currency = trade['brokerage_currency_code']
-            market = trade['market']
+			if config_trades_use_yahoo:
+				market = market_data['symbol']['profile_exchange']
+			else:
+				market = trade['market']
             #value = round(trade['value']) # don't use - sharesight converts to local currency
             value = round(price * units)
             holding_id = str(trade['holding_id'])
