@@ -51,7 +51,8 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			price = float(trade['price'])
 			currency = trade['brokerage_currency_code']
 			if config_trades_use_yahoo:
-				market = market_data['symbol']['profile_exchange']
+				ticker = util.transform_to_yahoo(symbol)
+				market = market_data[ticker]['profile_exchange']
 			else:
 				market = trade['market']
 			#value = round(trade['value']) # don't use - sharesight converts to local currency
