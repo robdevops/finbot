@@ -8,6 +8,7 @@ from lib import util
 from lib import webhook
 from lib import yahoo
 from lib import simplywallst
+from itertools import groupby
 
 def doDelta(inputList):
 	deltaString = ''
