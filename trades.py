@@ -24,7 +24,8 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
                 if trade['transaction_type'] not in {'BUY', 'SELL'}:
                     continue
                 symbol = trade['symbol']
-                ticker = util.transform_to_yahoo(symbol)
+                market = trade['market']
+                ticker = util.transform_to_yahoo(symbol, market)
                 tickers.append(ticker)
                 set(tickers)
                 market_data = yahoo.fetch(tickers)
