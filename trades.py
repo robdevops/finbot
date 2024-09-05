@@ -19,15 +19,14 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
         dates = set()
         sharesight_url = "https://portfolio.sharesight.com/holdings/"
         if config_trades_use_yahoo:
-            tickers = []
+            tickers = set()
             for trade in trades:
                 if trade['transaction_type'] not in {'BUY', 'SELL'}:
                     continue
                 symbol = trade['symbol']
                 market = trade['market']
                 ticker = util.transform_to_yahoo(symbol, market)
-                tickers.append(ticker)
-            set(tickers)
+                tickers.add(ticker)
             market_data = yahoo.fetch(tickers)
 
         for trade in trades:
