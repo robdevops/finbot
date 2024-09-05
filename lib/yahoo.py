@@ -44,7 +44,7 @@ def fetch(tickers):
     tickers.sort()
     tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
     cache_file = "finbot_yahoo_" + tickers_sha256 + '.json'
-    cacheData = util.read_cache(cache_file, 60)
+    cacheData = util.read_cache(cache_file, 300)
     if config_cache and cacheData:
         return cacheData
     now = datetime.datetime.now().timestamp()
