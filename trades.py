@@ -20,14 +20,17 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
         sharesight_url = "https://portfolio.sharesight.com/holdings/"
         if config_trades_use_yahoo:
             tickers = set()
-            for trade in trades:
+            for trade in trades: # this first loop is to consolidate yahoo.fetch into a single call
                 if trade['transaction_type'] not in {'BUY', 'SELL'}:
                     continue
                 symbol = trade['symbol']
                 market = trade['market']
                 ticker = util.transform_to_yahoo(symbol, market)
                 tickers.add(ticker)
-            market_data = yahoo.fetch(tickers)
+            try:
+                market_data = yahoo.fetch(tickers)
+            except Exception as e:
+                print("Warning: could not fetch Yahoo:", e, file=sys.stderr)
 
         for trade in trades:
             action=''
@@ -53,7 +56,10 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
             currency = trade['brokerage_currency_code']
             if config_trades_use_yahoo:
                 ticker = util.transform_to_yahoo(symbol, market)
-                market = market_data[ticker]['profile_exchange']
+                try:
+                    market = market_data[ticker]['profile_exchange']
+                except Exception as e:
+                    print("Warning: could not get market for", ticker, "from Yahoo:", e, file=sys.stderr)
             #value = round(trade['value']) # don't use - sharesight converts to local currency
             value = round(price * units)
             holding_id = str(trade['holding_id'])
