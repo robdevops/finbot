@@ -40,6 +40,7 @@ def getCrumb(seconds=config_cache_seconds):
 def fetch(tickers):
     # DO NOT CACHE MORE THAN 5 mins
     #print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
+    tickers = set(tickers) # de-dupe
     tickers = list(tickers)
     tickers.sort()
     tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
