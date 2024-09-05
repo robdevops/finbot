@@ -27,8 +27,8 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
                 market = trade['market']
                 ticker = util.transform_to_yahoo(symbol, market)
                 tickers.append(ticker)
-                set(tickers)
-                market_data = yahoo.fetch(tickers)
+             set(tickers)
+             market_data = yahoo.fetch(tickers)
 
         for trade in trades:
             action=''
