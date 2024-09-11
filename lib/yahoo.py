@@ -39,6 +39,7 @@ def getCrumb(seconds=config_cache_seconds):
 	return r.text
 
 def fetch(tickers):
+<<<<<<< HEAD
 	# DO NOT CACHE MORE THAN 5 mins
 	#print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
 	tickers = list(tickers)
@@ -186,6 +187,156 @@ def fetch(tickers):
 	if config_cache:
 		util.json_write(cache_file, yahoo_output)
 	return yahoo_output
+=======
+    # DO NOT CACHE MORE THAN 5 mins
+    #print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
+    tickers = set(tickers) # de-dupe
+    tickers = list(tickers)
+    tickers.sort()
+    tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
+    cache_file = "finbot_yahoo_" + tickers_sha256 + '.json'
+    cacheData = util.read_cache(cache_file, 300)
+    if config_cache and cacheData:
+        return cacheData
+    now = datetime.datetime.now().timestamp()
+    yahoo_output = {}
+    crumb = getCrumb()
+    yahoo_urls = ['https://query2.finance.yahoo.com/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)]
+    yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
+    headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0', 'cookie': 'A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng; A2=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng;'}
+    for url in yahoo_urls:
+        if debug:
+            print("Fetching", url)
+        try:
+            r = requests.get(url, headers=headers, timeout=config_http_timeout)
+        except Exception as e:
+            print(e, file=sys.stderr)
+        else:
+            if r.status_code == 200:
+                print(r.status_code, "success yahoo")
+            else:
+                print(r.status_code, "returned by", url, file=sys.stderr)
+                continue
+            break
+    else:
+        print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
+        sys.exit(1)
+    data = r.json()
+    data = data['quoteResponse']
+    if data['result'] is None or data['error'] is not None:
+        print(f"{tickers}†", sep=' ', end='', flush=True, file=sys.stderr)
+        return None
+    for item in data['result']:
+        ticker = item['symbol']
+        try:
+            profile_title = item['longName']
+        except (KeyError, IndexError):
+            try:
+                profile_title = item['shortName']
+            except (KeyError, IndexError):
+                continue
+        try:
+            percent_change = 0
+            percent_change = round(float(item['regularMarketChangePercent']), 2)
+        except (KeyError, IndexError):
+            pass
+        try:
+            currency = item['currency']
+        except (KeyError, IndexError):
+            pass
+        try:
+            regularMarketPrice = item['regularMarketPrice']
+        except (KeyError, IndexError):
+            continue
+        try:
+            dividend = round(float(item['trailingAnnualDividendRate']), 1)
+        except (KeyError, IndexError):
+            dividend = float(0)
+        profile_title = util.transform_title(profile_title)
+        yahoo_output[ticker] = { 'profile_title': profile_title, 'ticker': ticker, 'percent_change': percent_change, 'dividend': dividend, 'currency': currency, 'regularMarketPrice': regularMarketPrice }
+        # optional fields
+        try:
+            percent_change_premarket = item['preMarketChangePercent']
+        except (KeyError, IndexError):
+            pass
+        else:
+            yahoo_output[ticker]["percent_change_premarket"] = round(percent_change_premarket, 2)
+        try:
+            quoteType = item['quoteType']
+        except (KeyError, IndexError):
+            pass
+        else:
+            yahoo_output[ticker]["quoteType"] = quoteType
+        try:
+            percent_change_postmarket = item['postMarketChangePercent']
+        except (KeyError, IndexError):
+            pass
+        else:
+            yahoo_output[ticker]["percent_change_postmarket"] = round(percent_change_postmarket, 2)
+        try:
+            yahoo_output[ticker]["market_cap"] = round(float(item['marketCap']))
+        except (KeyError, IndexError):
+            pass
+        try:
+            yahoo_output[ticker]["price_to_earnings_forward"] = round(item['forwardPE'])
+        except:
+            pass
+        try:
+            yahoo_output[ticker]["price_to_earnings_trailing"] = round(item['trailingPE'])
+        except:
+            pass
+        try:
+            yahoo_output[ticker]["marketState"] = item['marketState']
+        except:
+            pass
+        try:
+            yahoo_output[ticker]["profile_exchange"] = item['fullExchangeName']
+        except:
+            pass
+        try:
+            yahoo_output[ticker]["exchangeTimezoneName"] = item['exchangeTimezoneName']
+        except:
+            pass
+        try:
+            yahoo_output[ticker]["regularMarketTime"] = item['regularMarketTime']
+        except:
+            pass
+        try:
+            yahoo_output[ticker]["financialCurrency"] = item['financialCurrency']
+        except:
+            pass
+        try:
+            earningsTimestamp = item['earningsTimestamp']
+            earningsTimestampStart = item['earningsTimestampStart']
+            earningsTimestampEnd = item['earningsTimestampEnd']
+            if earningsTimestamp > now:
+                yahoo_output[ticker]["earnings_date"] = earningsTimestamp
+            elif earningsTimestampStart > now:
+                yahoo_output[ticker]["earnings_date"] = earningsTimestampStart
+            elif earningsTimestampEnd > now:
+                yahoo_output[ticker]["earnings_date"] = earningsTimestampEnd
+            else:
+                yahoo_output[ticker]["earnings_date"] = earningsTimestamp
+        except (KeyError, IndexError):
+            pass
+        try:
+            yahoo_output[ticker]["regularMarketPreviousClose"] = item['regularMarketPreviousClose']
+        except (KeyError, IndexError):
+            pass
+        try:
+            yahoo_output[ticker]["fiftyTwoWeekHigh"] = item['fiftyTwoWeekHigh']
+        except (KeyError, IndexError):
+            pass
+        try:
+            fiftyTwoWeekLowTemp = item['fiftyTwoWeekLow']
+            if not fiftyTwoWeekLowTemp <= 0:
+                yahoo_output[ticker]["fiftyTwoWeekLow"] = fiftyTwoWeekLowTemp
+        except (KeyError, IndexError):
+            pass
+    if config_cache:
+        util.json_write(cache_file, yahoo_output)
+    return yahoo_output
+>>>>>>> 5a03fc0d38254abe824afc14c1bdf61e84288a2b
 
 def fetch_detail(ticker, seconds=config_cache_seconds):
 	now = datetime.datetime.now()
