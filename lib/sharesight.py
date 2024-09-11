@@ -119,8 +119,7 @@ def get_holdings(portfolio_name, portfolio_id):
         market = holdings[holding]['market_code']
         ticker = util.transform_to_yahoo(symbol, market)
         tickers.add(ticker)
-    tickers = list(tickers)
-    tickers.sort()
+	tickers = sorted(set(tickers))
     return tickers
 
 def get_holdings_wrapper():
@@ -130,6 +129,7 @@ def get_holdings_wrapper():
         return None
     for portfolio_name, portfolio_id in portfolios.items():
         tickers.update(get_holdings(portfolio_name, portfolio_id))
+	tickers = sorted(set(tickers))
     return tickers
 
 def get_performance(portfolio_id, days):

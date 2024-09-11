@@ -141,9 +141,6 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 		tickers = [ticker]
 	else:
 		tickers = util.get_holdings_and_watchlist()
-		tickers = list(tickers)
-		tickers.sort()
-		#tickers = ['BUGG.AX'] # DEBUG
 		market_data = yahoo.fetch(tickers)
 
 	# Prep and send payloads

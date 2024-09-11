@@ -616,6 +616,7 @@ def get_holdings_and_watchlist():
     tickers.update(json_load('finbot_watchlist.json', persist=True))
     if 'GOOG' in tickers and 'GOOGL' in tickers:
         tickers.remove("GOOGL")
+	tickers = sorted(set(tickers))
     return tickers
 
 def ordinal(num):

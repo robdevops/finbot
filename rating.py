@@ -62,8 +62,6 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
         tickers = [ticker]
     else:
         tickers = util.get_holdings_and_watchlist()
-        tickers = list(tickers)
-        tickers.sort()
 
     for ticker in tickers:
         market_data = market_data | yahoo.fetch_detail(ticker)
