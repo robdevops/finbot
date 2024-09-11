@@ -39,7 +39,6 @@ def getCrumb(seconds=config_cache_seconds):
 	return r.text
 
 def fetch(tickers):
-<<<<<<< HEAD
 	# DO NOT CACHE MORE THAN 5 mins
 	#print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
 	tickers = list(tickers)
