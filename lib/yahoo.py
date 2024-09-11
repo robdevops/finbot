@@ -336,7 +336,6 @@ def fetch(tickers):
     if config_cache:
         util.json_write(cache_file, yahoo_output)
     return yahoo_output
->>>>>>> 5a03fc0d38254abe824afc14c1bdf61e84288a2b
 
 def fetch_detail(ticker, seconds=config_cache_seconds):
 	now = datetime.datetime.now()
