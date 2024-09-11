@@ -1,0 +1,328 @@
+{
+"quoteSummary": {
+"result": [
+{
+"summaryDetail": {
+"maxAge": 1,
+"priceHint": {
+"raw": 2,
+"fmt": "2",
+"longFmt": "2"
+},
+"previousClose": {
+"raw": 35.05,
+"fmt": "35.05"
+},
+"open": {
+"raw": 37.35,
+"fmt": "37.35"
+},
+"dayLow": {
+"raw": 36.86,
+"fmt": "36.86"
+},
+"dayHigh": {
+"raw": 40.47,
+"fmt": "40.47"
+},
+"regularMarketPreviousClose": {
+"raw": 35.05,
+"fmt": "35.05"
+},
+"regularMarketOpen": {
+"raw": 37.35,
+"fmt": "37.35"
+},
+"regularMarketDayLow": {
+"raw": 36.86,
+"fmt": "36.86"
+},
+"regularMarketDayHigh": {
+"raw": 40.47,
+"fmt": "40.47"
+},
+"dividendRate": {},
+"dividendYield": {},
+"exDividendDate": {},
+"payoutRatio": {},
+"fiveYearAvgDividendYield": {},
+"beta": {},
+"trailingPE": {
+"raw": 43.066525,
+"fmt": "43.07"
+},
+"forwardPE": {},
+"volume": {
+"raw": 106139538,
+"fmt": "106.14M",
+"longFmt": "106,139,538"
+},
+"regularMarketVolume": {
+"raw": 106139538,
+"fmt": "106.14M",
+"longFmt": "106,139,538"
+},
+"averageVolume": {
+"raw": 72038726,
+"fmt": "72.04M",
+"longFmt": "72,038,726"
+},
+"averageVolume10days": {
+"raw": 141758160,
+"fmt": "141.76M",
+"longFmt": "141,758,160"
+},
+"averageDailyVolume10Day": {
+"raw": 141758160,
+"fmt": "141.76M",
+"longFmt": "141,758,160"
+},
+"bid": {
+"raw": 40.13,
+"fmt": "40.13"
+},
+"ask": {
+"raw": 0,
+"fmt": "0.00"
+},
+"bidSize": {
+"raw": 1400,
+"fmt": "1.4k",
+"longFmt": "1,400"
+},
+"askSize": {
+"raw": 1400,
+"fmt": "1.4k",
+"longFmt": "1,400"
+},
+"marketCap": {},
+"yield": {
+"raw": 0.0063,
+"fmt": "0.63%"
+},
+"ytdReturn": {},
+"totalAssets": {
+"raw": 11668347904,
+"fmt": "11.67B",
+"longFmt": "11,668,347,904"
+},
+"expireDate": {},
+"strikePrice": {},
+"openInterest": {},
+"fiftyTwoWeekLow": {
+"raw": 14.01,
+"fmt": "14.01"
+},
+"fiftyTwoWeekHigh": {
+"raw": 70.08,
+"fmt": "70.08"
+},
+"priceToSalesTrailing12Months": {},
+"fiftyDayAverage": {
+"raw": 50.2302,
+"fmt": "50.23"
+},
+"twoHundredDayAverage": {
+"raw": 39.0759,
+"fmt": "39.08"
+},
+"trailingAnnualDividendRate": {},
+"trailingAnnualDividendYield": {},
+"navPrice": {
+"raw": 34.992,
+"fmt": "34.99"
+},
+"currency": "USD",
+"fromCurrency": null,
+"toCurrency": null,
+"lastMarket": null,
+"coinMarketCapLink": null,
+"volume24Hr": {},
+"volumeAllCurrencies": {},
+"circulatingSupply": {},
+"algorithm": null,
+"maxSupply": {},
+"startDate": {},
+"tradeable": false
+},
+"defaultKeyStatistics": {
+"maxAge": 1,
+"priceHint": {
+"raw": 2,
+"fmt": "2",
+"longFmt": "2"
+},
+"enterpriseValue": {},
+"forwardPE": {},
+"profitMargins": {},
+"morningStarOverallRating": {},
+"morningStarRiskRating": {},
+"category": "Trading--Leveraged Equity",
+"bookValue": {},
+"priceToBook": {},
+"annualReportExpenseRatio": {},
+"ytdReturn": {
+"raw": 0.1202128,
+"fmt": "12.02%"
+},
+"beta3Year": {
+"raw": 4.64,
+"fmt": "4.64"
+},
+"totalAssets": {
+"raw": 11668347904,
+"fmt": "11.67B",
+"longFmt": "11,668,347,904"
+},
+"yield": {
+"raw": 0.0063,
+"fmt": "0.63%"
+},
+"fundFamily": "Direxion Funds",
+"fundInceptionDate": {
+"raw": 1268265600,
+"fmt": "2010-03-11"
+},
+"legalType": "Exchange Traded Fund",
+"threeYearAverageReturn": {
+"raw": -0.0633328,
+"fmt": "-6.33%"
+},
+"fiveYearAverageReturn": {
+"raw": 0.31223738,
+"fmt": "31.22%"
+},
+"priceToSalesTrailing12Months": {},
+"lastFiscalYearEnd": {},
+"nextFiscalYearEnd": {},
+"mostRecentQuarter": {},
+"earningsQuarterlyGrowth": {},
+"revenueQuarterlyGrowth": {},
+"netIncomeToCommon": {},
+"trailingEps": {},
+"forwardEps": {},
+"pegRatio": {},
+"lastSplitFactor": null,
+"lastSplitDate": {},
+"enterpriseToRevenue": {},
+"enterpriseToEbitda": {},
+"52WeekChange": {},
+"SandP52WeekChange": {},
+"lastDividendValue": {},
+"lastDividendDate": {},
+"lastCapGain": {},
+"annualHoldingsTurnover": {}
+},
+"summaryProfile": {
+"phone": "866-476-7523",
+"longBusinessSummary": "The fund invests at least 80% of its net assets in financial instruments, such as swap agreements, securities of the index, and ETFs that track the index, that, in combination, provide 3X daily leveraged exposure to the index, consistent with the fund's investment objective. The index is a rules-based, modified float-adjusted market capitalization-weighted index that tracks the performance of the thirty largest U.S. listed semiconductor companies. The fund is non-diversified.",
+"companyOfficers": [],
+"maxAge": 86400
+},
+"price": {
+"maxAge": 1,
+"preMarketChangePercent": {
+"raw": 0.011523119,
+"fmt": "1.15%"
+},
+"preMarketChange": {
+"raw": 0.4600029,
+"fmt": "0.46"
+},
+"preMarketTime": 1723801744,
+"preMarketPrice": {
+"raw": 40.38,
+"fmt": "40.38"
+},
+"preMarketSource": "FREE_REALTIME",
+"postMarketChangePercent": {
+"raw": -0.0012524859,
+"fmt": "-0.13%"
+},
+"postMarketChange": {
+"raw": -0.049999237,
+"fmt": "-0.05"
+},
+"postMarketTime": 1723766399,
+"postMarketPrice": {
+"raw": 39.87,
+"fmt": "39.87"
+},
+"postMarketSource": "DELAYED",
+"regularMarketChangePercent": {
+"raw": 0.138944,
+"fmt": "13.89%"
+},
+"regularMarketChange": {
+"raw": 4.87,
+"fmt": "4.87"
+},
+"regularMarketTime": 1723752000,
+"priceHint": {
+"raw": 2,
+"fmt": "2",
+"longFmt": "2"
+},
+"regularMarketPrice": {
+"raw": 39.92,
+"fmt": "39.92"
+},
+"regularMarketDayHigh": {
+"raw": 40.47,
+"fmt": "40.47"
+},
+"regularMarketDayLow": {
+"raw": 36.86,
+"fmt": "36.86"
+},
+"regularMarketVolume": {
+"raw": 106139538,
+"fmt": "106.14M",
+"longFmt": "106,139,538.00"
+},
+"averageDailyVolume10Day": {
+"raw": 141758160,
+"fmt": "141.76M",
+"longFmt": "141,758,160"
+},
+"averageDailyVolume3Month": {
+"raw": 72038726,
+"fmt": "72.04M",
+"longFmt": "72,038,726"
+},
+"regularMarketPreviousClose": {
+"raw": 35.05,
+"fmt": "35.05"
+},
+"regularMarketSource": "FREE_REALTIME",
+"regularMarketOpen": {
+"raw": 37.35,
+"fmt": "37.35"
+},
+"strikePrice": {},
+"openInterest": {},
+"exchange": "PCX",
+"exchangeName": "NYSEArca",
+"exchangeDataDelayedBy": 0,
+"marketState": "PRE",
+"quoteType": "ETF",
+"symbol": "SOXL",
+"underlyingSymbol": null,
+"shortName": "Direxion Daily Semiconductor Bu",
+"longName": "Direxion Daily Semiconductor Bull 3X Shares",
+"currency": "USD",
+"quoteSourceName": "Nasdaq Real Time Price",
+"currencySymbol": "$",
+"fromCurrency": null,
+"toCurrency": null,
+"lastMarket": null,
+"volume24Hr": {},
+"volumeAllCurrencies": {},
+"circulatingSupply": {},
+"marketCap": {}
+}
+}
+],
+"error": null
+}
+}
