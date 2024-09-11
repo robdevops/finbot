@@ -793,13 +793,13 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 		try:
 			r = requests.get(url, headers=headers, timeout=config_http_timeout)
 		except:
-			errorstring = f"General failure {ticker} at {url}"
+			errorstring = f"General failure for {ticker} at {url}"
 			print(errorstring, file=sys.stderr)
 			return errorstring, None
 		if r.status_code == 200:
 			print('↓', sep=' ', end='', flush=True)
 		else:
-			errorstring=f"{r.status_code} error {ticker} at {url}"
+			errorstring=f"{r.status_code} error for {ticker} at {url}"
 			print(errorstring, file=sys.stderr)
 			return errorstring, None
 		csv = r.content.decode('utf-8')
