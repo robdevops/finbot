@@ -186,7 +186,7 @@ def fetch(tickers):
 	if config_cache:
 		util.json_write(cache_file, yahoo_output)
 	return yahoo_output
-=======
+
     # DO NOT CACHE MORE THAN 5 mins
     #print("Fetching Yahoo data for " + str(len(tickers)) + " global holdings")
     tickers = set(tickers) # de-dupe
