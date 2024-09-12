@@ -612,8 +612,8 @@ def days_from_human_days(arg):
 	return days
 
 def get_holdings_and_watchlist():
-	tickers = sharesight.get_holdings_wrapper()
-	tickers.add(json_load('finbot_watchlist.json', persist=True))
+	tickers = set(sharesight.get_holdings_wrapper())
+	tickers.update(json_load('finbot_watchlist.json', persist=True))
 	if 'GOOG' in tickers and 'GOOGL' in tickers:
 		tickers.remove("GOOGL")
 	tickers = sorted(set(tickers))
