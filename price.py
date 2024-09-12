@@ -43,6 +43,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				else:
 					continue
 			elif days:
+				print("DEBUG")
 				try:
 					percent = market_data[ticker]['percent_change_period'] # sharesight value
 				except KeyError:
@@ -63,6 +64,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 							elif service == "telegram":
 								url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
 								webhook.payload_wrapper(service, url, [ticker, "could not fetch price history from Yahoo"], chat_id)
+								print("DEBUG")
+								exit(1)
 					else:
 						try:
 							percent = percent[days]
