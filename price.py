@@ -161,6 +161,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 
 
 	# MAIN #
+	payload=False
 	if specific_stock:
 		specific_stock = util.transform_to_yahoo(specific_stock)
 		tickers = [specific_stock]
@@ -189,15 +190,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 		sys.exit(1)
 	if interactive:
 		if specific_stock:
-			try:
-				payload, graph = prepare_price_payload(service, market_data, threshold)
-			except Exception as e:
-				errorstring=f"error: {e}"
-				print(errorstring, file=sys.stderr)
-			if isinstance(payload, str):
-				errorstring=payload
-				print(errorstring, file=sys.stderr)
-				return errorstring
+			payload, graph = prepare_price_payload(service, market_data, threshold)
 		if service == "slack":
 			url = 'https://slack.com/api/chat.postMessage'
 		elif service == "telegram":
