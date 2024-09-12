@@ -167,6 +167,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 
 
 	# MAIN #
+	graph=False
 	if specific_stock:
 		specific_stock = util.transform_to_yahoo(specific_stock)
 		tickers = [specific_stock]
