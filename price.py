@@ -63,7 +63,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 							elif service == "telegram":
 								url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
 								webhook.payload_wrapper(service, url, [ticker, "could not fetch price history from Yahoo"], chat_id)
-						exit(1)
 					else:
 						try:
 							percent = percent[days]
