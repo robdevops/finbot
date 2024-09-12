@@ -404,7 +404,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				if isinstance(price_history, str):
 					errorstring=price_history
 					print(errorstring, file=sys.stderr)
-				if errorstring:
 					payload = [errorstring]
 				else:
 					payload.append(webhook.bold(f"{title} ({ticker_link}) performance history", service))

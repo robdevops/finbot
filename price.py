@@ -194,8 +194,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			except Exception as e:
 				errorstring=f"error: {e}"
 				print(errorstring, file=sys.stderr)
-			if isinstance(percent, str):
-				errorstring=percent
+			if isinstance(payload, str):
+				errorstring=payload
 				print(errorstring, file=sys.stderr)
 				return errorstring
 		if service == "slack":
