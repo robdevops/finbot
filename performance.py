@@ -25,7 +25,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 			errorstring=f"error: {e}"
 			print(errorstring, file=sys.stderr)
 		if isinstance(percent, str):
-			errorstring=price_history
+			errorstring=percent
 			print(errorstring, file=sys.stderr)
 			return errorstring
 		else:
