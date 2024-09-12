@@ -54,7 +54,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					except Exception as e:
 						errorstring=f"error: {e}"
 						print(errorstring, file=sys.stderr)
-						webhook.payload_wrapper(ticker, errorstring)
+					try:
+						abs(percent)
+					except TypeError:
+						webhook.payload_wrapper(ticker, "could not fetch price history from Yahoo")
 						exit(1)
 					else:
 						try:
