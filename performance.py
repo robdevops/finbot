@@ -23,12 +23,12 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 			percent, graph = yahoo.price_history(ticker, days=past_days, graph=False)
 		except Exception as e:
 			errorstring=f"error: {e}"
-→   →   →   print(errorstring, file=sys.stderr)
-→   →   if isinstance(percent, str):
-→   →		errorstring=price_history
-→   →   →   print(errorstring, file=sys.stderr)
-→   →   →   return errorstring
-→   →   else:
+			print(errorstring, file=sys.stderr)
+		if isinstance(percent, str):
+			errorstring=price_history
+			print(errorstring, file=sys.stderr)
+			return errorstring
+		else:
 			percent = percent[past_days]
 			emoji = get_emoji(percent)
 			link = util.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
