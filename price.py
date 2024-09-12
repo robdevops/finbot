@@ -55,6 +55,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 						errorstring=f"error: {e}"
 						print(errorstring, file=sys.stderr)
 						webhook.payload_wrapper(ticker, errorstring)
+						exit(1)
 					else:
 						try:
 							percent = percent[days]
