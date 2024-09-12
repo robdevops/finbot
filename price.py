@@ -66,13 +66,19 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			else:
 				percent = market_data[ticker]['percent_change']
 			title = market_data[ticker]['profile_title']
-			percent = float(percent)
-			if percent < 0:
-				emoji = "🔻"
-			elif percent > 0:
-				emoji = '🔼'
-			else:
-				emoji = "▪️"
+			try:
+				percent = float(percent)
+			except ValueError:
+				pass
+			try:
+				if percent < 0:
+					emoji = "🔻"
+				elif percent > 0:
+					emoji = '🔼'
+				else:
+					emoji = "▪️"
+			except TypeError:
+					emoji = "▪️"
 			#flag = util.flag_from_ticker(ticker)
 			exchange = exchange_human = market_data[ticker]['profile_exchange']
 			exchange_human = util.exchange_human(exchange)
@@ -183,9 +189,15 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 		sys.exit(1)
 	if interactive:
 		if specific_stock:
-			payload, graph = prepare_price_payload(service, market_data, threshold)
-		else:
-			payload, graph = prepare_price_payload(service, market_data, threshold)
+			try:
+				payload, graph = prepare_price_payload(service, market_data, threshold)
+			except Exception as e:
+				errorstring=f"error: {e}"
+				print(errorstring, file=sys.stderr)
+			if isinstance(percent, str):
+				errorstring=percent
+				print(errorstring, file=sys.stderr)
+				return errorstring
 		if service == "slack":
 			url = 'https://slack.com/api/chat.postMessage'
 		elif service == "telegram":
