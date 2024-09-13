@@ -18,7 +18,6 @@ def transform_title(title):
 	if title.isupper() or title.islower():
 		title = title.title()
 	title = title.replace(' - ', ' ')
-	title = title.replace('GraniteShares 2x NVDA', 'GraniteShares 3x NVDA')
 	title = title.replace('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'First Trust Clean Energy')
 	title = title.replace('First Trust Exchange-Traded Fund III First Trust Nasdaq Clean Edge Clean Energy Index Fund', 'First Trust Green Energy')
 	title = title.replace('Mirae Asset Global Investments (Hong Kong) Limited', '')
