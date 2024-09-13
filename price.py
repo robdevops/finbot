@@ -45,31 +45,36 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			elif days:
 				try:
 					percent = market_data[ticker]['percent_change_period'] # sharesight value
+					print("DEBUG found price change for", ticker, percent, days, file=sys.stderr)
 				except KeyError:
-					if not config_performance_use_sharesight:
-						# wishlist items will come here
-						print("DEBUG could not find", ticker, "in market_data percent_change_period")
-						if specific_stock:
-							percent, graph = yahoo.price_history(ticker, days, graphCache=False)
-							if isinstance(percent, str) and interactive:
-								errormessage = percent
-								print("Error", errormessage, file=sys.stderr)
-								if service == "slack":
-									url = 'https://slack.com/api/chat.postMessage'
-								elif service == "telegram":
-									url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-								webhook.payload_wrapper(service, url, [errormessage], chat_id)
-								sys.exit(1)
-						else:
-							percent, graph = yahoo.price_history(ticker, days, graph=False)
-							if isinstance(percent, str) and interactive:
-								continue
-						try:
-							percent = percent[days]
-						except KeyError:
-							percent = percent['Max']
+					if config_performance_use_sharesight:
+						continue
+					# wishlist items will come here
+                    if debug:
+					    print("Could not find", ticker, "in Sharesight data. Trying Yahoo", file=sys.stderr)
+					if specific_stock:
+						percent, graph = yahoo.price_history(ticker, days, graphCache=False)
+						if isinstance(percent, str) and interactive:
+							errormessage = percent
+							print("Error", errormessage, file=sys.stderr)
+							if service == "slack":
+								url = 'https://slack.com/api/chat.postMessage'
+							elif service == "telegram":
+								url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
+							webhook.payload_wrapper(service, url, [errormessage], chat_id)
+							sys.exit(1)
+					else:
+						print("DEBUG fetching Yahoo CSV for", ticker, file=sys.stderr)
+						percent, graph = yahoo.price_history(ticker, days, graph=False)
+						if isinstance(percent, str) and interactive:
+							continue
+					try:
+						percent = percent[days]
+					except KeyError:
+						percent = percent['Max']
 			else:
 				percent = market_data[ticker]['percent_change']
+				print("DEBUG found price change for", ticker, percent, file=sys.stderr)
 			title = market_data[ticker]['profile_title']
 			percent = float(percent)
 			if percent < 0:
@@ -110,6 +115,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 						exchange_set.add(exchange_human)
 			elif abs(percent) >= threshold: # abs catches negative percentages
 				payload.append([emoji, title, f'({ticker_link})', percent])
+				print("DEBUG", emoji, title, f'({ticker_link})', percent, file=sys.stderr) # DJT here
 				exchange_set.add(exchange_human)
 			elif specific_stock and interactive:
 				payload.append([emoji, title, f'({ticker_link})', percent])
@@ -186,6 +192,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					market_data[ticker]['percent_change_period'] = percent # inject sharesight value
 				except KeyError:
 					print("Notice:", os.path.basename(__file__), ticker, "has no data", file=sys.stderr)
+					continue
 
 	# Prep and send payloads
 	if not webhooks:
