@@ -87,7 +87,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	trades_command = r"^([\!\.]\s?|^" + botName + r"\s+)trades?\s*([\w]+)*\s*([\w\s]+)*"
 	m_trades = re.match(trades_command, message, re.IGNORECASE)
 
-	watchlist_command = r"^([\!\.]\s?|^" + botName + r"\s+)watchlist\s*([\w]+)*\s*([\w\.\:\-]+)*"
+	watchlist_command = r"^([\!\.]\s?|^" + botName + r"\s+)(watchlist|wishlist)\s*([\w]+)*\s*([\w\.\:\-]+)*"
 	m_watchlist = re.match(watchlist_command, message, re.IGNORECASE)
 
 	if m_watchlist:
