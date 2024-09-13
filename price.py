@@ -43,50 +43,36 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				else:
 					continue
 			elif days:
-				print("DEBUG")
 				try:
 					percent = market_data[ticker]['percent_change_period'] # sharesight value
 				except KeyError:
-					graphOption=True
 					if specific_stock:
-						graphOption=False
-					try:
-						percent, graph = yahoo.price_history(ticker, days, graphCache=graphOption)
-					except Exception as e:
-						errorstring=f"error: {e}"
-						print(errorstring, file=sys.stderr)
-					try:
-						abs(percent)
-					except TypeError:
-						if interactive:
-							if service == "slack":
-								url = 'https://slack.com/api/chat.postMessage'
-							elif service == "telegram":
-								url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-								webhook.payload_wrapper(service, url, [ticker, "could not fetch price history from Yahoo"], chat_id)
-								print("DEBUG")
-								exit(1)
+						percent, graph = yahoo.price_history(ticker, days, graphCache=False)
 					else:
-						try:
-							percent = percent[days]
-						except KeyError:
-							percent = percent['Max']
+						percent, graph = yahoo.price_history(ticker, days, graph=False)
+					if isinstance(percent, str) and interactive:
+						errormessage = percent
+						print("Error", errormessage, file=sys.stderr)
+						if service == "slack":
+							url = 'https://slack.com/api/chat.postMessage'
+						elif service == "telegram":
+							url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
+						webhook.payload_wrapper(service, url, [errormessage], chat_id)
+						sys.exit(1)
+					try:
+						percent = percent[days]
+					except KeyError:
+						percent = percent['Max']
 			else:
 				percent = market_data[ticker]['percent_change']
 			title = market_data[ticker]['profile_title']
-			try:
-				percent = float(percent)
-			except ValueError:
-				pass
-			try:
-				if percent < 0:
-					emoji = "🔻"
-				elif percent > 0:
-					emoji = '🔼'
-				else:
-					emoji = "▪️"
-			except TypeError:
-					emoji = "▪️"
+			percent = float(percent)
+			if percent < 0:
+				emoji = "🔻"
+			elif percent > 0:
+				emoji = '🔼'
+			else:
+				emoji = "▪️"
 			#flag = util.flag_from_ticker(ticker)
 			exchange = exchange_human = market_data[ticker]['profile_exchange']
 			exchange_human = util.exchange_human(exchange)
@@ -169,7 +155,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 
 
 	# MAIN #
-	graph=False
 	if specific_stock:
 		specific_stock = util.transform_to_yahoo(specific_stock)
 		tickers = [specific_stock]
@@ -177,7 +162,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 		tickers = util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
 
-	if not specific_stock and days: # else market_data or yahoo.price_history is faster
+	if not specific_stock and days: # else market_data (specific_stock) or yahoo.price_history (days) is faster
+	#if days: # only works if specific_stock is a sharesight holding
 		performance = sharesight.get_performance_wrapper(days)
 		for portfolio_id, data in performance.items():
 			for holding in data['report']['holdings']:
@@ -198,6 +184,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 		sys.exit(1)
 	if interactive:
 		if specific_stock:
+			payload, graph = prepare_price_payload(service, market_data, threshold)
+		else:
 			payload, graph = prepare_price_payload(service, market_data, threshold)
 		if service == "slack":
 			url = 'https://slack.com/api/chat.postMessage'
