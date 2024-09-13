@@ -162,8 +162,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 		tickers = util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
 
-	if not specific_stock and days: # else market_data (specific_stock) or yahoo.price_history (days) is faster
-	#if days: # only works if specific_stock is a sharesight holding
+
+	# Yahoo market_data (specific_stock) or yahoo.price_history (days) is faster
+	# Note: Sharesight only works if specific_stock is a holding
+	if (not specific_stock and days) or (config_performance_use_sharesight and days):
 		performance = sharesight.get_performance_wrapper(days)
 		for portfolio_id, data in performance.items():
 			for holding in data['report']['holdings']:
