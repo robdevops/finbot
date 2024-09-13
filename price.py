@@ -46,23 +46,28 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				try:
 					percent = market_data[ticker]['percent_change_period'] # sharesight value
 				except KeyError:
-					if specific_stock:
-						percent, graph = yahoo.price_history(ticker, days, graphCache=False)
-					else:
-						percent, graph = yahoo.price_history(ticker, days, graph=False)
-					if isinstance(percent, str) and interactive:
-						errormessage = percent
-						print("Error", errormessage, file=sys.stderr)
-						if service == "slack":
-							url = 'https://slack.com/api/chat.postMessage'
-						elif service == "telegram":
-							url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-						webhook.payload_wrapper(service, url, [errormessage], chat_id)
-						sys.exit(1)
-					try:
-						percent = percent[days]
-					except KeyError:
-						percent = percent['Max']
+					if not config_performance_use_sharesight:
+						# wishlist items will come here
+						print("DEBUG could not find", ticker, "in market_data percent_change_period")
+						if specific_stock:
+							percent, graph = yahoo.price_history(ticker, days, graphCache=False)
+							if isinstance(percent, str) and interactive:
+								errormessage = percent
+								print("Error", errormessage, file=sys.stderr)
+								if service == "slack":
+									url = 'https://slack.com/api/chat.postMessage'
+								elif service == "telegram":
+									url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
+								webhook.payload_wrapper(service, url, [errormessage], chat_id)
+								sys.exit(1)
+						else:
+							percent, graph = yahoo.price_history(ticker, days, graph=False)
+							if isinstance(percent, str) and interactive:
+								continue
+						try:
+							percent = percent[days]
+						except KeyError:
+							percent = percent['Max']
 			else:
 				percent = market_data[ticker]['percent_change']
 			title = market_data[ticker]['profile_title']
@@ -178,6 +183,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				if ticker not in tickers:
 					continue
 				try:
+					#print("DEBUG injecting sharesight price into market_data:", ticker, file=sys.stderr)
 					market_data[ticker]['percent_change_period'] = percent # inject sharesight value
 				except KeyError:
 					print("Notice:", os.path.basename(__file__), ticker, "has no data", file=sys.stderr)
