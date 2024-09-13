@@ -164,7 +164,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 
 
 	# Yahoo market_data (specific_stock) or yahoo.price_history (days) is faster
-	# Note: Sharesight only works if specific_stock is a holding
+	# Note: Sharesight only works if specific_stock is a holding.
+	# Note2: Sharesight can only report performance for the time you bought it
+	#	so if you held NVDA for 1Y and request 10Y, you will only get 1Y performance
 	if (not specific_stock and days) or (config_performance_use_sharesight and days):
 		performance = sharesight.get_performance_wrapper(days)
 		for portfolio_id, data in performance.items():
