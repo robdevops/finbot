@@ -167,7 +167,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 		tickers = util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
 
-
 	# Yahoo market_data (specific_stock) or yahoo.price_history (days) is faster
 	# Note: Sharesight only works if specific_stock is a holding.
 	# Note2: Sharesight can only report performance for the time you bought it
@@ -181,7 +180,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				percent = float(holding['capital_gain_percent'])
 				ticker = util.transform_to_yahoo(symbol, market)
 				if ticker not in tickers:
-					continue
+					continue # when using specific_stock
 				try:
 					#print("DEBUG injecting sharesight price into market_data:", ticker, file=sys.stderr)
 					market_data[ticker]['percent_change_period'] = percent # inject sharesight value
