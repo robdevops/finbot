@@ -45,7 +45,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
             elif days:
                 try:
                     percent = market_data[ticker]['percent_change_period'] # sharesight value
-                    print("DEBUG found price change for", ticker, percent, days, file=sys.stderr)
                 except KeyError:
                     if config_performance_use_sharesight:
                         continue
@@ -74,7 +73,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                         percent = percent['Max']
             else:
                 percent = market_data[ticker]['percent_change']
-                print("DEBUG found price change for", ticker, percent, file=sys.stderr)
             title = market_data[ticker]['profile_title']
             percent = float(percent)
             if percent < 0:
@@ -115,7 +113,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
                         exchange_set.add(exchange_human)
             elif abs(percent) >= threshold: # abs catches negative percentages
                 payload.append([emoji, title, f'({ticker_link})', percent])
-                print("DEBUG", emoji, title, f'({ticker_link})', percent, file=sys.stderr) # DJT here
                 exchange_set.add(exchange_human)
             elif specific_stock and interactive:
                 payload.append([emoji, title, f'({ticker_link})', percent])
