@@ -33,7 +33,7 @@ def getCookie(seconds=config_cache_seconds):
         fallback='GUC=AQEBCAFmwrxm60IgwQSu&s=AQAAAJ_IKAxV&g=ZsFy8g; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAG8wmbrZg3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAqMjMZ-sKFhJ_wG3yCIlJDg;'
         return fallback
     if 'set-cookie' in r.headers:
-    cookie = r.headers['set-cookie']
+        cookie = r.headers['set-cookie']
 
     return cookie
 
