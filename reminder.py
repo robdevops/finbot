@@ -4,8 +4,9 @@ import sys
 import datetime
 import json
 import pytz
-
+from dateutil.relativedelta import relativedelta
 from lib.config import *
+from lib import util
 from lib import webhook
 
 def lambda_handler():
@@ -13,6 +14,7 @@ def lambda_handler():
 		payload = []
 		tz = pytz.timezone(config_timezone)
 		localtime = datetime.datetime.now(tz)
+
 		month_and_day = str(localtime.strftime('%m-%d')) # 09-20
 		year = str(localtime.strftime('%Y')) # 2023
 		if config_country_code == 'AU':
@@ -35,9 +37,9 @@ def lambda_handler():
 				payload.append("🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦")
 		# above ommits countries where EOFY == calendar year
 		if month_and_day == '08-18':
-			myBirthday = datetime.datetime(2022,8,18,0,0,0,0)
+			myBirthday = datetime.datetime(2022,8,18,0,0,0,0, tzinfo=tz)
 			difference = relativedelta(localtime, myBirthday)
-			payload.append("It's my", difference.years + util.ordinal(difference.years), "birthday! 🥳")
+			payload.append("It's my " + str(difference.years) + util.ordinal(difference.years) + " birthday! 🥳")
 		if payload:
 			heading = webhook.bold("Finance event reminders:", service)
 			payload.insert(0, heading)
