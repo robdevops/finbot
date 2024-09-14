@@ -12,12 +12,37 @@ import lib.telegram as telegram
 from lib.config import *
 from lib import util
 
-def getCrumb(seconds=config_cache_seconds):
+def getCookie():
 	cache_file = "finbot_yahoo_cookie.json"
 	cache = util.read_cache(cache_file, seconds)
 	if config_cache and cache:
 		return cache
-	headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36', 'Cookie': 'GUC=AQEBCAFkpQZkz0IgwQSu&s=AQAAAP2Vnw8z&g=ZKO-Qw; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; A1S=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8&j=WORLD; cmp=t=1689038249&j=0&u=1---; PRF=t%3DBILL.AX%252BIVV.AX%252BSPY%252BNVDA%252BCHPT%252BAAPL%252BSEDG%252BGME%252BASO.AX%252BRMBS%252BAI%252BRBLX%252BNTDOY%252BPYPL%252BAMPX%26newChartbetateaser%3D1'}
+    cookie = None
+    user_agent_key = "User-Agent"
+    user_agent_value = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.137 Safari/605.1.15"
+    headers = {user_agent_key: user_agent_value}
+    url = 'https://fc.yahoo.com'
+    try:
+        response = requests.get(url, headers=headers, allow_redirects=True)
+	except Exception as e:
+		print(e, file=sys.stderr)
+	else:
+		if r.status_code != 200:
+			print(r.status_code, r.text, "returned by", url, file=sys.stderr)
+    if not response.cookies:
+        print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
+        return 'GUC=AQEBCAFkpQZkz0IgwQSu&s=AQAAAP2Vnw8z&g=ZKO
+-Qw; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; A1S=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8&j=WORLD; cmp=t=1689038249&j=0&u=1---; PRF=t%3DBILL.AX%252BIVV.AX%252BSPY%252BNVDA%252BCHPT%252BAAPL%252BSEDG%252BGME%252BASO.AX%252BRMBS%252BAI%252BRBLX%252BNTDOY%252BPYPL%252BAMPX%26newChartbetateaser%3D1'
+    cookie = list(response.cookies)[0]
+    return cookie
+
+def getCrumb(seconds=config_cache_seconds):
+    cookie = getCookie()
+	cache_file = "finbot_yahoo_crumb.json"
+	cache = util.read_cache(cache_file, seconds)
+	if config_cache and cache:
+		return cache
+	headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.137 Safari/605.1.15', 'Cookie': cookie}
 	yahoo_urls = ['https://query2.finance.yahoo.com/v1/test/getcrumb']
 	yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
 	for url in yahoo_urls:
@@ -31,8 +56,8 @@ def getCrumb(seconds=config_cache_seconds):
 				continue
 			break
 	else:
-		print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
-		sys.exit(1)
+		print("Exhausted Yahoo API attempts. Returning fallback crumb", file=sys.stderr)
+		return 'jkQEU8yLqxs'
 	if config_cache:
 		util.json_write(cache_file, r.text)
 	return r.text
