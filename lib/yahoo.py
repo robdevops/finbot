@@ -12,7 +12,7 @@ import lib.telegram as telegram
 from lib.config import *
 from lib import util
 
-def getCookie():
+def getCookie(seconds=config_cache_seconds):
     cache_file = "finbot_yahoo_cookie.json"
     cache = util.read_cache(cache_file, seconds)
     if config_cache and cache:
