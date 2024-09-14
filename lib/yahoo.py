@@ -32,7 +32,9 @@ def getCookie(seconds=config_cache_seconds):
         print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
         fallback='GUC=AQEBCAFmwrxm60IgwQSu&s=AQAAAJ_IKAxV&g=ZsFy8g; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAG8wmbrZg3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAqMjMZ-sKFhJ_wG3yCIlJDg;'
         return fallback
-    cookie = list(r.cookies)[0]
+    if 'set-cookie' in r.headers:
+    cookie = r.headers['set-cookie']
+
     return cookie
 
 def getCrumb(seconds=config_cache_seconds):
