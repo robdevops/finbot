@@ -34,6 +34,7 @@ def getCookie(seconds=config_cache_seconds):
         return fallback
     if 'set-cookie' in r.headers:
         cookie = r.headers['set-cookie']
+        cookie = cookie.split()[0]
 
     return cookie
 
