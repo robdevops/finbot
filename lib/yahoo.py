@@ -21,9 +21,9 @@ def getCookie(seconds=config_cache_seconds):
     user_agent_key = "User-Agent"
     user_agent_value = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.137 Safari/605.1.15"
     headers = {user_agent_key: user_agent_value}
-    url = 'https://finance.yahoo.com/'
+    url = 'https://fc.yahoo.com/'
     try:
-        r = requests.get(url, headers=headers, allow_redirects=True)
+        r = requests.get(url, headers=headers)
     except Exception as e:
         print(e, file=sys.stderr)
     else:
