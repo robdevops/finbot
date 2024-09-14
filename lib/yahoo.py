@@ -31,7 +31,8 @@ def getCookie():
             print(r.status_code, r.text, "returned by", url, file=sys.stderr)
     if not response.cookies:
         print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
-        return 'GUC=AQEBCAFmwrxm60IgwQSu&s=AQAAAJ_IKAxV&g=ZsFy8g; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAG8wmbrZg3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAqMjMZ-sKFhJ_wG3yCIlJDg;'
+        fallback='GUC=AQEBCAFmwrxm60IgwQSu&s=AQAAAJ_IKAxV&g=ZsFy8g; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAG8wmbrZg3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAqMjMZ-sKFhJ_wG3yCIlJDg;'
+        return fallback
     cookie = list(response.cookies)[0]
     return cookie
 
