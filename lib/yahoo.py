@@ -19,14 +19,14 @@ def getCookie(seconds=config_cache_seconds):
         return cache
     cookie = None
     user_agent_key = "User-Agent"
-    user_agent_value = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
+    user_agent_value = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.137 Safari/605.1.15"
     headers = {user_agent_key: user_agent_value}
     url = 'https://fc.yahoo.com/'
     try:
         r = requests.get(url, headers=headers)
     except Exception as e:
         print(e, file=sys.stderr)
-    if r.status_code != 200:
+    if r.status_code not in {200, 404}:
         print(r.status_code, r.text, "returned by", url, file=sys.stderr)
     if not r.cookies:
         print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
@@ -59,7 +59,7 @@ def getCrumb(seconds=config_cache_seconds):
         return 'jkQEU8yLqxs'
     if config_cache:
         util.json_write(cache_file, r.text)
-    return r.text
+    return r.text, cookie
 
 def fetch(tickers):
     # DO NOT CACHE MORE THAN 5 mins
@@ -71,10 +71,10 @@ def fetch(tickers):
         return cacheData
     now = datetime.datetime.now().timestamp()
     yahoo_output = {}
-    crumb = getCrumb()
+    crumb, cookie = getCrumb()
     yahoo_urls = ['https://query2.finance.yahoo.com/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)]
     yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
-    headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0', 'cookie': 'A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng; A2=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng;'}
+    headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Cookie': cookie}
     for url in yahoo_urls:
         try:
             r = requests.get(url, headers=headers, timeout=config_http_timeout)
@@ -207,10 +207,10 @@ def fetch(tickers):
 def fetch_detail(ticker, seconds=config_cache_seconds):
     now = datetime.datetime.now()
     local_market_data = {}
-    crumb = getCrumb()
+    crumb, cookie = getCrumb()
     base_url = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/'
     #headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-    headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'Cookie': 'GUC=AQEBCAFkpQZkz0IgwQSu&s=AQAAAP2Vnw8z&g=ZKO-Qw; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; cmp=t=1689038249&j=0&u=1---; PRF=t%3DBILL.AX%252BIVV.AX%252BSPY%252BNVDA%252BCHPT%252BAAPL%252BSEDG%252BGME%252BASO.AX%252BRMBS%252BAI%252BRBLX%252BNTDOY%252BPYPL%252BAMPX%26newChartbetateaser%3D1; A1S=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8&j=US'}
+    headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'Cookie': cookie}
     local_market_data[ticker] = dict()
     cache_file = "finbot_yahoo_detail_" + ticker + '.json'
     cacheData = util.read_cache(cache_file, seconds)
@@ -648,7 +648,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
     if config_cache and cache:
         csv = cache
     else:
-        crumb = getCrumb()
+        crumb, cookie = getCrumb()
         start =  str(int((now - datetime.timedelta(days=max_days)).timestamp()))
         end = str(int(now.timestamp()))
         interval = '1d'
@@ -795,7 +795,7 @@ def historic_high(ticker, market_data, days=3653, seconds=config_cache_seconds):
     if config_cache and cache:
         csv = cache
     else:
-        crumb = getCrumb()
+        crumb, cookie = getCrumb()
         start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
         end = str(int(now.timestamp()))
         url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
