@@ -31,7 +31,7 @@ def getCookie():
             print(r.status_code, r.text, "returned by", url, file=sys.stderr)
     if not response.cookies:
         print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
-        return 'GUC=AQEBCAFkpQZkz0IgwQSu&s=AQAAAP2Vnw8z&g=ZKO -Qw; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; A1S=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8&j=WORLD; cmp=t=1689038249&j=0&u=1---; PRF=t%3DBILL.AX%252BIVV.AX%252BSPY%252BNVDA%252BCHPT%252BAAPL%252BSEDG%252BGME%252BASO.AX%252BRMBS%252BAI%252BRBLX%252BNTDOY%252BPYPL%252BAMPX%26newChartbetateaser%3D1'
+        return 'GUC=AQEBCAFmwrxm60IgwQSu&s=AQAAAJ_IKAxV&g=ZsFy8g; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAG8wmbrZg3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAqMjMZ-sKFhJ_wG3yCIlJDg;'
     cookie = list(response.cookies)[0]
     return cookie
 
