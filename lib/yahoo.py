@@ -35,7 +35,8 @@ def getCookie(seconds=config_cache_seconds):
     if 'set-cookie' in r.headers:
         cookie = r.headers['set-cookie']
         cookie = cookie.split()[0]
-
+    if config_cache:
+        util.json_write(cache_file, r.text)
     return cookie
 
 def getCrumb(seconds=config_cache_seconds):
