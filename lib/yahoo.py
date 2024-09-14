@@ -19,16 +19,15 @@ def getCookie(seconds=config_cache_seconds):
         return cache
     cookie = None
     user_agent_key = "User-Agent"
-    user_agent_value = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.137 Safari/605.1.15"
+    user_agent_value = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
     headers = {user_agent_key: user_agent_value}
     url = 'https://fc.yahoo.com/'
     try:
         r = requests.get(url, headers=headers)
     except Exception as e:
         print(e, file=sys.stderr)
-    else:
-        if r.status_code != 200:
-            print(r.status_code, r.text, "returned by", url, file=sys.stderr)
+    if r.status_code != 200:
+        print(r.status_code, r.text, "returned by", url, file=sys.stderr)
     if not r.cookies:
         print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
         fallback='GUC=AQEBCAFmwrxm60IgwQSu&s=AQAAAJ_IKAxV&g=ZsFy8g; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAG8wmbrZg3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAqMjMZ-sKFhJ_wG3yCIlJDg;'
