@@ -196,7 +196,7 @@ When scheduled (Cron), the mode must be passed as an execution argument:
 * If `premarket` is passed, it only reports on pre/post market price movements.
 * If `midsession` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones.
 * If `interday` is passed, it reports current price against the previous market close.
-* If `close` is passed, it reports daily change in stocks that traded in the past 3 hours.
+* If `close` is passed, it reports daily change in stocks whose market closed in the past 3 hours.
 * If an integer [i] is passed, it reports current price against [i] days ago.
 
 Interactive trigger (pre-market):
@@ -231,6 +231,11 @@ For interday, can also specify the time period.
 Or a specific stock. In this case, the output includes a graph.
 ```
 .price [symbol] [period]
+```
+
+Cron trigger:
+```
+trades.py
 ```
 
 ### Portfolio performance
