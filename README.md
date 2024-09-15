@@ -158,6 +158,11 @@ With persistent storage, it is recommended to set `past_days = 30`. This is usef
 past_days = 30
 ```
 
+Cron trigger:
+```
+trades.py
+```
+
 Interactive trigger:
 ```
 .trades [period]
@@ -231,11 +236,6 @@ For interday, can also specify the time period.
 Or a specific stock. In this case, the output includes a graph.
 ```
 .price [symbol] [period]
-```
-
-Cron trigger:
-```
-trades.py
 ```
 
 ### Portfolio performance
