@@ -439,7 +439,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			ticker = util.transform_to_yahoo(ticker)
 			market_data = yahoo.fetch_detail(ticker, 600)
 			if ticker in market_data:
-				payload = reports.prepare_bio_payload(service, user, ticker)
+				payload = reports.prepare_bio_payload(service, user, ticker, market_data)
 			else:
 				payload = [f"{ticker} not found"]
 		else:

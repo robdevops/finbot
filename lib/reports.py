@@ -196,25 +196,23 @@ def prepare_holdings_payload(portfolioName, service, user):
 			payload.append( item )
 	return payload
 
-def prepare_bio_payload(service, user, ticker):
+def prepare_bio_payload(service, user, ticker, market_data):
 	ticker = ticker_orig = util.transform_to_yahoo(ticker)
-	market_data = yahoo.fetch_detail(ticker, 600)
 	payload = []
-	market_data = yahoo.fetch_detail(ticker, 600)
-	profile_title = market_data[ticker]['profile_title']
 
 	print("")
 
-	if not market_data and '.' not in ticker:
+	if ticker not in market_data and '.' not in ticker:
 		ticker = ticker + '.AX'
 		print("trying again with", ticker)
 		market_data = yahoo.fetch_detail(ticker, 600)
 		print("")
-	if not market_data:
+	if ticker not in market_data:
 		payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
 		return payload
 	if debug:
 		print("Yahoo data:", json.dumps(market_data, indent=4))
+	profile_title = market_data[ticker]['profile_title']
 	exchange = market_data[ticker]['profile_exchange']
 	exchange = exchange.replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq').replace('NYSEArca', 'NYSE')
 	ticker_link = util.finance_link(ticker, exchange, service, brief=False)
