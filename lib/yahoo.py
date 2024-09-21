@@ -667,10 +667,10 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	df = json_to_df(data)
 
 	# inject latest
+	regularMarketPrice = market_data[ticker]['regularMarketPrice']
 	#market_data = fetch([ticker])
 	#tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
 	#regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
-	#regularMarketPrice = market_data[ticker]['regularMarketPrice']
 	#if df['Date'].iloc[-1] == regularMarketTime:
 	#	if df['Close'].iloc[-1] != regularMarketPrice:
 	#		print("Updating", df['Close'].iloc[-1], "to", regularMarketPrice)
