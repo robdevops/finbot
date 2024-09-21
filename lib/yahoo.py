@@ -667,21 +667,21 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	df = json_to_df(data)
 
 	# inject latest
-	market_data = fetch([ticker])
-	tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
-	regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
-	regularMarketPrice = market_data[ticker]['regularMarketPrice']
-	if df['Date'].iloc[-1] == regularMarketTime:
-		if df['Close'].iloc[-1] != regularMarketPrice:
-			print("Updating", df['Close'].iloc[-1], "to", regularMarketPrice)
-			df['Close'].loc[-1] = regularMarketPrice
-	else:
-		print (ticker, "inserting", regularMarketTime, "after", df['Date'].iloc[-1], file=sys.stderr)
-		previous_close = df['Close'].iloc[-1]
-		df.loc[len(df)] = {'Date': regularMarketTime, 'Open': previous_close, 'High': None, 'Low': None, 'Close': regularMarketPrice, 'Adj Close': regularMarketPrice, 'Volume': None}
-	df = df[df.Close.notnull()]
-	#df.sort_values(by='Date', inplace = True)
-	df.reset_index(drop=True, inplace=True)
+	#market_data = fetch([ticker])
+	#tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
+	#regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
+	#regularMarketPrice = market_data[ticker]['regularMarketPrice']
+	#if df['Date'].iloc[-1] == regularMarketTime:
+	#	if df['Close'].iloc[-1] != regularMarketPrice:
+	#		print("Updating", df['Close'].iloc[-1], "to", regularMarketPrice)
+	#		df['Close'].loc[-1] = regularMarketPrice
+	#else:
+	#	print (ticker, "inserting", regularMarketTime, "after", df['Date'].iloc[-1], file=sys.stderr)
+	#	previous_close = df['Close'].iloc[-1]
+	#	df.loc[len(df)] = {'Timestamp' now, 'Close': regularMarketPrice, 'Open': previous_close, 'High': None, 'Low': None, 'Volume': None, 'Time': None, 'Date': regularMarketTime}
+	#df = df[df.Close.notnull()]
+	##df.sort_values(by='Date', inplace = True)
+	#df.reset_index(drop=True, inplace=True)
 
 	if days:
 		seek_date = now - datetime.timedelta(days = days)
