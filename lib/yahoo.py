@@ -38,13 +38,13 @@ def getCookie():
 
 	# parse
 	if 'set-cookie' in r.headers:
-	    cookie = SimpleCookie()
-	    cookie.load(response.headers['Set-Cookie'])
+		cookie = SimpleCookie()
+		cookie.load(response.headers['Set-Cookie'])
 		cookielist = []
-	    for name, morsel in cookie.items():
-	        value = morsel.value
-	        max_age = morsel.get('max-age')
-	        cookielist.append([name, value, age])
+		for name, morsel in cookie.items():
+			value = morsel.value
+			max_age = morsel.get('max-age')
+			cookielist.append([name, value, age])
 		cookie = cookielist[0][1] + '=' + cookielist[0][2]
 		if config_cache:
 			util.json_write(cache_file, cookielist)
