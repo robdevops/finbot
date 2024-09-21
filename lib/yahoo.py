@@ -666,11 +666,24 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	data = fetch_history(ticker, days=max_days)
 	df = json_to_df(data)
 
-	# inject latest
-	market_data = fetch([ticker])
-	regularMarketPrice = market_data[ticker]['regularMarketPrice']
-	tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
+	for a in data.values():
+		for b in a.values():
+			if isinstance(b, list):
+				for c in b:
+					if 'currency' in c['meta']:
+						currency = c['meta'].get('currency')
+						fullExchangeName = c['meta'].get('fullExchangeName')
+						tz = c['meta'].get('exchangeTimezoneName')
+						regularMarketTime = datetime.datetime.fromtimestamp(c['meta'].get('regularMarketTime'))
+						regularMarketPrice = c['meta'].get('regularMarketPrice')
+						profile_title = c['meta'].get('shortName')
+						#print(currency, fullExchangeName, regularMarketTime, regularMarketPrice, shortName)
+	#market_data = fetch([ticker])
+	#regularMarketPrice = market_data[ticker]['regularMarketPrice']
+	#tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
 	regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
+
+	# inject latest
 	#if df['Date'].iloc[-1] == regularMarketTime:
 	#	if df['Close'].iloc[-1] != regularMarketPrice:
 	#		print("Updating", df['Close'].iloc[-1], "to", regularMarketPrice)
@@ -705,7 +718,8 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 					percent_dict['Max'] = default_percent
 					continue
 			elif period == '1D':
-					percent_dict['1D'] = market_data[ticker]['percent_change']
+					#percent_dict['1D'] = market_data[ticker]['percent_change']
+					percent_dict['1D'] = default_percent
 			elif period == '5D':
 				#seek_date = now - datetime.timedelta(days = 5)
 				seek_date = now - businessday(5)
@@ -748,7 +762,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 		if days and days < 2:
 			return percent_dict, None
 		caption = []
-		profile_title = market_data[ticker]['profile_title']
+		#profile_title = market_data[ticker]['profile_title']
 		if days:
 			title_days = days
 			if days > max_days:
@@ -768,7 +782,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 		if config_cache and image_cache and graphCache:
 			image_data = image_cache
 		else:
-			buf = util.graph(df, title, market_data[ticker])
+			buf = util.graph(df, title, currency)
 			#bytesio_to_file(buf, 'temp.png')
 			buf.seek(0)
 			image_data = buf
