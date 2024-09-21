@@ -774,14 +774,12 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 			image_data = buf
 			util.write_binary_cache(image_cache_file, image_data)
 			buf.seek(0)
-	if config_cache:
-		util.json_write(cache_file, csv)
 	return percent_dict, image_data
 
-def fetch_history(ticker, days=3665):
+def fetch_history(ticker, days=3665, seconds=config_cache_seconds):
 	now = datetime.datetime.now()
-	cache_file = "finbot_yahoo_history_" + ticker + ".json"
-	cache = util.read_cache(cache_file, seconds)
+	cacheFile = "finbot_yahoo_history_" + ticker + ".json"
+	cache = util.read_cache(cacheFile, seconds)
 	if config_cache and cache:
 		return cache
 	else:
@@ -806,6 +804,8 @@ def fetch_history(ticker, days=3665):
 			errorstring=f"{r.status_code} error for {ticker} at {url}"
 			print(errorstring, file=sys.stderr)
 			return errorstring, None
+		if config_cache:
+			util.json_write(cacheFile, r.json())
 		return r.json()
 
 def json_to_df(json):
