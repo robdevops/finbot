@@ -396,11 +396,11 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			title = market_data[ticker]['profile_title']
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, days=1825, brief=False)
 			if ticker in market_data and 'percent_change' in market_data[ticker]:
-				try:
-					price_history, graph = yahoo.price_history(ticker)
-				except Exception as e:
-					errorstring=f"error: {e}"
-					print(errorstring, file=sys.stderr)
+				#try:
+				price_history, graph = yahoo.price_history(ticker)
+				#except Exception as e:
+				#	errorstring=f"error: {e}"
+				#	print(errorstring, file=sys.stderr)
 				if isinstance(price_history, str):
 					errorstring=price_history
 					print(errorstring, file=sys.stderr)
