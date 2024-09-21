@@ -45,7 +45,7 @@ def getCookie():
 			value = morsel.value
 			max_age = int(morsel.get('max-age'))
 			cookielist.append([name, value, max_age])
-		cookie = cookielist[0][1] + '=' + cookielist[0][2]
+		cookie = cookielist[0][1] + '=' + str(cookielist[0][2])
 		if config_cache:
 			util.json_write(cacheFile, cookielist)
 		return cookie
