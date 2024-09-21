@@ -656,45 +656,21 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 	return local_market_data
 
 def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_graph, graphCache=True):
-	max_days = 3655 # 10 years + buffer
-	image_data = None
 	percent_dict = {}
+	price = []
+	image_data = None
+	max_days = 3655 # 10 years + buffer
+	now = datetime.datetime.now()
+	interval = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
+
+	data = fetch_history(ticker, days=max_days)
+	df = json_to_df(data)
+
+	# inject latest
 	market_data = fetch([ticker])
 	tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
 	regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
 	regularMarketPrice = market_data[ticker]['regularMarketPrice']
-	now = datetime.datetime.now()
-	cache_file = "finbot_yahoo_price_history_" + ticker + ".json"
-	cache = util.read_cache(cache_file, seconds)
-	if config_cache and cache:
-		csv = cache
-	else:
-		cookie = getCookie()
-		crumb = getCrumb()
-		start =  str(int((now - datetime.timedelta(days=max_days)).timestamp()))
-		end = str(int(now.timestamp()))
-		interval = '1d'
-		url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
-		url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
-		url = url + '&crumb=' + crumb
-		if debug:
-			print(url)
-		headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-		try:
-			r = requests.get(url, headers=headers, timeout=config_http_timeout)
-		except:
-			errorstring = f"General failure for {ticker} at {url}"
-			print(errorstring, file=sys.stderr)
-			return errorstring, None
-		if r.status_code == 200:
-			print('↓', sep=' ', end='', flush=True)
-		else:
-			errorstring=f"{r.status_code} error for {ticker} at {url}"
-			print(errorstring, file=sys.stderr)
-			return errorstring, None
-		csv = r.content.decode('utf-8')
-	df = pd.read_csv(io.StringIO(csv))
-	df['Date'] = pd.to_datetime(df['Date']).dt.date
 	if df['Date'].iloc[-1] == regularMarketTime:
 		if df['Close'].iloc[-1] != regularMarketPrice:
 			print("Updating", df['Close'].iloc[-1], "to", regularMarketPrice)
@@ -706,8 +682,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	df = df[df.Close.notnull()]
 	#df.sort_values(by='Date', inplace = True)
 	df.reset_index(drop=True, inplace=True)
-	price = []
-	interval = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
+
 	if days:
 		seek_date = now - datetime.timedelta(days = days)
 		seek_dt = seek_date.date()
@@ -802,6 +777,45 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	if config_cache:
 		util.json_write(cache_file, csv)
 	return percent_dict, image_data
+
+def fetch_history(ticker, days=3665):
+	now = datetime.datetime.now()
+	cache_file = "finbot_yahoo_history_" + ticker + ".json"
+	cache = util.read_cache(cache_file, seconds)
+	if config_cache and cache:
+		return cache
+	else:
+		cookie = getCookie()
+		crumb = getCrumb()
+		start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
+		end = str(int(now.timestamp()))
+		interval = '1d'
+		url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
+		url = url + ticker + '?period1=' + start + '&period2=' + end + '&interval=' + interval
+		url = url + '&crumb=' + crumb
+		headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+		try:
+			r = requests.get(url, headers=headers, timeout=config_http_timeout)
+		except:
+			errorstring = f"General failure for {ticker} at {url}"
+			print(errorstring, file=sys.stderr)
+			return errorstring, None
+		if r.status_code == 200:
+			print('↓', sep=' ', end='', flush=True)
+		else:
+			errorstring=f"{r.status_code} error for {ticker} at {url}"
+			print(errorstring, file=sys.stderr)
+			return errorstring, None
+		return r.json()
+
+def json_to_df(json):
+	data = [json['chart']['result'][0]['timestamp']] + list(json['chart']['result'][0]['indicators']['quote'][0].values())
+	df = pd.DataFrame(
+		{'Timestamp': data[0], 'Close': data[1], 'Open': data[2], 'High': data[3], 'Low': data[4], 'Volume': data[5]})
+	df['Time'] = pd.to_datetime(df['Timestamp'], unit='s')
+	df['Date'] = df['Time'].apply(lambda x: x.strftime('%Y-%m-%d'))
+	df['Date'] = pd.to_datetime(df['Date']).dt.date
+	return df
 
 def historic_high(ticker, market_data, days=3653, seconds=config_cache_seconds):
 	#pd.set_option("display.precision", 8)
