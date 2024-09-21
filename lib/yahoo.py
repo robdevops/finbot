@@ -674,7 +674,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 						currency = c['meta'].get('currency')
 						fullExchangeName = c['meta'].get('fullExchangeName')
 						tz = c['meta'].get('exchangeTimezoneName')
-						regularMarketTime = datetime.datetime.fromtimestamp(c['meta'].get('regularMarketTime'))
+						regularMarketTime = int(c['meta'].get('regularMarketTime'))
 						regularMarketPrice = c['meta'].get('regularMarketPrice')
 						profile_title = c['meta'].get('shortName')
 						#print(currency, fullExchangeName, regularMarketTime, regularMarketPrice, shortName)
