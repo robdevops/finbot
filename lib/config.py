@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 os.chdir(os.path.dirname(__file__) + '/../')
 load_dotenv()
-sharesight_auth = {
+config_sharesight_auth = {
 		"grant_type": 'client_credentials',
 		"code": os.getenv('sharesight_code'),
 		"client_id": os.getenv('sharesight_client_id'),

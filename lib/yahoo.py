@@ -11,35 +11,50 @@ import sys
 import lib.telegram as telegram
 from lib.config import *
 from lib import util
+from http.cookies import SimpleCookie
 
-def getCookie(seconds=config_cache_seconds):
-	cache_file = "finbot_yahoo_cookie.json"
-	cache = util.read_cache(cache_file, seconds)
+def getCookie():
+	# cache read
+	cacheFile = "finbot_yahoo_cookie.json"
+	cache = util.json_load(cacheFile)
 	if config_cache and cache:
-		return cache
+		cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(cacheFile))
+		if cacheFileAge < datetime.timedelta(seconds=cache[0][2]):
+			cookie = cookielist[0][1] + '=' + cookielist[0][2]
+			return cookie
+
+	# request
 	cookie = None
 	user_agent_key = "User-Agent"
 	user_agent_value = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.137 Safari/605.1.15"
 	headers = {user_agent_key: user_agent_value}
-	url = 'https://fc.yahoo.com/'
+	url = 'https://fc.yahoo.com/' # 404, but that is ok because cookie is in response header
 	try:
 		r = requests.get(url, headers=headers)
 	except Exception as e:
 		print(e, file=sys.stderr)
 	if r.status_code not in {200, 404}:
 		print(r.status_code, r.text, "returned by", url, file=sys.stderr)
+
+	# parse
 	if 'set-cookie' in r.headers:
-		cookie = r.headers['set-cookie']
-		cookie = cookie.split()[0]
+	    cookie = SimpleCookie()
+	    cookie.load(response.headers['Set-Cookie'])
+		cookielist = []
+	    for name, morsel in cookie.items():
+	        value = morsel.value
+	        max_age = morsel.get('max-age')
+	        cookielist.append([name, value, age])
+		cookie = cookielist[0][1] + '=' + cookielist[0][2]
+		if config_cache:
+			util.json_write(cache_file, cookielist)
+		return cookie
 	else:
 		print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
 		fallback='A3=d=AQABBBtR5mYCENFZu2wCWkA5iGGkSRGvRgkFEgEBAQGi52bwZtxM0iMA_eMAAA&S=AQAAAtG8VhxZN7aXopfvLNObtpE;'
 		return fallback
-	if config_cache:
-		util.json_write(cache_file, cookie)
-	return cookie
 
-def getCrumb(seconds=config_cache_seconds):
+def getCrumb(seconds=2592000): # 1 month
 	cookie = getCookie()
 	cache_file = "finbot_yahoo_crumb.json"
 	cache = util.read_cache(cache_file, seconds)
