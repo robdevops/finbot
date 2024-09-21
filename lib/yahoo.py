@@ -18,7 +18,7 @@ def getCookie():
 	cacheFile = "finbot_yahoo_cookie.json"
 	cache = util.json_load(cacheFile)
 	if config_cache and cache:
-		cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(cacheFile))
+		cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(config_cache_dir + '/' cacheFile))
 		if cacheFileAge < datetime.timedelta(seconds=cache[0][2]):
 			cookie = cookielist[0][1] + '=' + cookielist[0][2]
 			return cookie
