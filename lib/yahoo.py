@@ -668,9 +668,9 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 
 	# inject latest
 	regularMarketPrice = market_data[ticker]['regularMarketPrice']
-	#market_data = fetch([ticker])
-	#tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
-	#regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
+	market_data = fetch([ticker])
+	tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
+	regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
 	#if df['Date'].iloc[-1] == regularMarketTime:
 	#	if df['Close'].iloc[-1] != regularMarketPrice:
 	#		print("Updating", df['Close'].iloc[-1], "to", regularMarketPrice)
