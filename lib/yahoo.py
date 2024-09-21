@@ -681,6 +681,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	#market_data = fetch([ticker])
 	#regularMarketPrice = market_data[ticker]['regularMarketPrice']
 	#tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
+	tz = pytz.timezone(exchangeTimezoneName)
 	regularMarketTime = datetime.datetime.fromtimestamp(regularMarketTime).astimezone(tz).date()
 
 	# inject latest
@@ -859,6 +860,7 @@ def historic_high(ticker, market_data, days=3653, seconds=config_cache_seconds):
 			r = requests.get(url, headers=headers, timeout=config_http_timeout)
 		except:
 			print("Failure fetching", url, file=sys.stderr)
+			print(f"Failure fetching {url}", file=sys.stderr)
 			return None
 		if r.status_code == 200:
 			print('↓', sep=' ', end='', flush=True)
