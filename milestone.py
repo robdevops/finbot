@@ -36,7 +36,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 				records[ticker]['high'] = float()
 				records[ticker]['low'] = float()
 				try:
-					oldhigh, oldlow = yahoo.historic_high(ticker, market_data) # first run to prime cache file
+					oldhigh, oldlow = yahoo.historic_high(ticker) # first run to prime cache file
 				except (KeyError, TypeError):
 					continue
 			try:

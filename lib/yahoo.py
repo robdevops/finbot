@@ -82,6 +82,103 @@ def getCrumb(seconds=2592000): # 1 month
 
 def fetch(tickers):
 	# DO NOT CACHE MORE THAN 5 mins
+	"""
+	{
+		"quoteResponse": {
+			"result": [
+				{
+					"language": "en-US",
+					"region": "US",
+					"quoteType": "EQUITY",
+					"typeDisp": "Equity",
+					"quoteSourceName": "Nasdaq Real Time Price",
+					"triggerable": true,
+					"customPriceAlertConfidence": "HIGH",
+					"tradeable": false,
+					"cryptoTradeable": false,
+					"currency": "USD",
+					"postMarketPrice": 227.766,
+					"postMarketChange": -0.433594,
+					"regularMarketChange": -0.66999817,
+					"regularMarketTime": 1726862403,
+					"regularMarketDayHigh": 233.09,
+					"regularMarketDayRange": "227.62 - 233.09",
+					"regularMarketDayLow": 227.62,
+					"regularMarketVolume": 287134033,
+					"regularMarketPreviousClose": 228.87,
+					"bid": 227.54,
+					"ask": 228.37,
+					"bidSize": 25,
+					"askSize": 8,
+					"fullExchangeName": "NasdaqGS",
+					"financialCurrency": "USD",
+					"regularMarketOpen": 229.97,
+					"averageDailyVolume3Month": 56802595,
+					"averageDailyVolume10Day": 78775800,
+					"fiftyTwoWeekLowChange": 64.119995,
+					"fiftyTwoWeekLowChangePercent": 0.39078495,
+					"fiftyTwoWeekRange": "164.08 - 237.23",
+					"fiftyTwoWeekHighChange": -9.029999,
+					"fiftyTwoWeekHighChangePercent": -0.03806432,
+					"fiftyTwoWeekLow": 164.08,
+					"fiftyTwoWeekHigh": 237.23,
+					"fiftyTwoWeekChangePercent": 29.60018,
+					"dividendDate": 1723680000,
+					"earningsTimestamp": 1722544200,
+					"earningsTimestampStart": 1730372340,
+					"earningsTimestampEnd": 1730721600,
+					"earningsCallTimestampStart": 1722546000,
+					"earningsCallTimestampEnd": 1722546000,
+					"isEarningsDateEstimate": true,
+					"trailingAnnualDividendRate": 0.97,
+					"trailingPE": 34.733635,
+					"dividendRate": 1,
+					"trailingAnnualDividendYield": 0.004238214,
+					"dividendYield": 0.44,
+					"epsTrailingTwelveMonths": 6.57,
+					"epsForward": 7.48,
+					"epsCurrentYear": 6.7,
+					"priceEpsCurrentYear": 34.059704,
+					"sharesOutstanding": 15204100096,
+					"bookValue": 4.382,
+					"fiftyDayAverage": 222.4378,
+					"fiftyDayAverageChange": 5.762192,
+					"fiftyDayAverageChangePercent": 0.025904732,
+					"twoHundredDayAverage": 196.34795,
+					"twoHundredDayAverageChange": 31.85205,
+					"twoHundredDayAverageChangePercent": 0.16222247,
+					"marketCap": 3469575716864,
+					"forwardPE": 30.50802,
+					"priceToBook": 52.076675,
+					"sourceInterval": 15,
+					"exchangeDataDelayedBy": 0,
+					"averageAnalystRating": "2.0 - Buy",
+					"postMarketChangePercent": -0.190006,
+					"postMarketTime": 1726876792,
+					"hasPrePostMarketData": true,
+					"firstTradeDateMilliseconds": 345479400000,
+					"exchange": "NMS",
+					"shortName": "Apple Inc.",
+					"longName": "Apple Inc.",
+					"messageBoardId": "finmb_24937",
+					"exchangeTimezoneName": "America/New_York",
+					"exchangeTimezoneShortName": "EDT",
+					"gmtOffSetMilliseconds": -14400000,
+					"market": "us_market",
+					"esgPopulated": false,
+					"marketState": "CLOSED",
+					"regularMarketChangePercent": -0.2927418,
+					"regularMarketPrice": 228.2,
+					"priceHint": 2,
+					"displayName": "Apple",
+					"symbol": "AAPL"
+				}
+			],
+			"error": null
+			}
+		}
+"""
+
 	tickers = sorted(set(tickers)) # de-dupe
 	tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
 	cache_file = "finbot_yahoo_" + tickers_sha256 + '.json'
@@ -663,26 +760,11 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	now = datetime.datetime.now()
 	interval = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
 
-	data = fetch_history(ticker, days=max_days)
-	df = json_to_df(data)
-
-	for a in data.values():
-		for b in a.values():
-			if isinstance(b, list):
-				for c in b:
-					if 'currency' in c['meta']:
-						currency = c['meta'].get('currency')
-						fullExchangeName = c['meta'].get('fullExchangeName')
-						tz = c['meta'].get('exchangeTimezoneName')
-						regularMarketTime = int(c['meta'].get('regularMarketTime'))
-						regularMarketPrice = c['meta'].get('regularMarketPrice')
-						profile_title = c['meta'].get('shortName')
-						#print(currency, fullExchangeName, regularMarketTime, regularMarketPrice, shortName)
-	#market_data = fetch([ticker])
-	#regularMarketPrice = market_data[ticker]['regularMarketPrice']
-	#tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
-	tz = pytz.timezone(tz)
-	regularMarketTime = datetime.datetime.fromtimestamp(regularMarketTime).astimezone(tz).date()
+	data = fetch_chart_json(ticker)
+	df = chart_json_to_df(data)
+	stock = chart_json_to_stock_basics(data)
+	tz = pytz.timezone(stock.get('exchangeTimezoneName'))
+	regularMarketTime = datetime.datetime.fromtimestamp(stock.get('regularMarketTime')).astimezone(tz).date()
 
 	# inject latest
 	#if df['Date'].iloc[-1] == regularMarketTime:
@@ -704,11 +786,11 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 		df = df.loc[mask]
 		past_price = df[df.loc[mask]['Date'] >= seek_dt]['Close'].iloc[0]
 		df.reset_index(drop=True, inplace=True)
-		percent = (regularMarketPrice - past_price) / past_price * 100
+		percent = (stock.get('regularMarketPrice') - past_price) / past_price * 100
 		percent_dict[days] = round(percent, 2)
 	else:
 		default_price = df['Close'].iloc[0]
-		default_percent = round((regularMarketPrice - default_price) / default_price * 100)
+		default_percent = round((stock.get('regularMarketPrice') - default_price) / default_price * 100)
 		for period in interval:
 			# try to align with google finance
 			if period == 'YTD':
@@ -757,33 +839,32 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 				except IndexError:
 					percent_dict['Max'] = default_percent
 					continue
-			percent = (regularMarketPrice - past_price) / past_price * 100
+			percent = (stock.get('regularMarketPrice') - past_price) / past_price * 100
 			percent_dict[period] = round(percent)
 	if graph:
 		if days and days < 2:
 			return percent_dict, None
 		caption = []
-		#profile_title = market_data[ticker]['profile_title']
 		if days:
 			title_days = days
 			if days > max_days:
 				title_days = max_days
-			title = profile_title + " (" + ticker + ") " + str(title_days) + " days " + str(percent_dict[days]) + '%'
+			title = stock.get('shortName') + " (" + ticker + ") " + str(title_days) + " days " + str(percent_dict[days]) + '%'
 			caption.append(title)
 		else:
 			for k,v in percent_dict.items():
 				caption.append(str(k) + ": " + str(v) + '%')
 			if 'Max' in percent_dict:
-				title = profile_title + " (" + ticker + ") Max " + str(percent_dict['Max']) + '%'
+				title = stock.get('shortName') + " (" + ticker + ") Max " + str(percent_dict['Max']) + '%'
 			else:
-				title = profile_title + " (" + ticker + ") 10Y " + str(percent_dict['10Y']) + '%'
+				title = stock.get('shortName') + " (" + ticker + ") 10Y " + str(percent_dict['10Y']) + '%'
 		caption = '\n'.join(caption)
 		image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
 		image_cache = util.read_binary_cache(image_cache_file, seconds)
 		if config_cache and image_cache and graphCache:
 			image_data = image_cache
 		else:
-			buf = util.graph(df, title, currency)
+			buf = util.graph(df, title, stock.get('currency'))
 			#bytesio_to_file(buf, 'temp.png')
 			buf.seek(0)
 			image_data = buf
@@ -791,7 +872,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 			buf.seek(0)
 	return percent_dict, image_data
 
-def fetch_history(ticker, days=3665, seconds=config_cache_seconds):
+def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds):
 	now = datetime.datetime.now()
 	cacheFile = "finbot_yahoo_history_" + ticker + ".json"
 	cache = util.read_cache(cacheFile, seconds)
@@ -823,7 +904,7 @@ def fetch_history(ticker, days=3665, seconds=config_cache_seconds):
 			util.json_write(cacheFile, r.json())
 		return r.json()
 
-def json_to_df(json):
+def chart_json_to_df(json):
 	data = [json['chart']['result'][0]['timestamp']] + list(json['chart']['result'][0]['indicators']['quote'][0].values())
 	df = pd.DataFrame(
 		{'Timestamp': data[0], 'Close': data[1], 'Open': data[2], 'High': data[3], 'Low': data[4], 'Volume': data[5]})
@@ -832,50 +913,45 @@ def json_to_df(json):
 	df['Date'] = pd.to_datetime(df['Date']).dt.date
 	return df
 
-def historic_high(ticker, market_data, days=3653, seconds=config_cache_seconds):
-	#pd.set_option("display.precision", 8)
-	interval = '1d'
-	image_data = None
-	percent_dict = {}
-	tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
-	regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
-	regularMarketPrice = market_data[ticker]['regularMarketPrice']
-	now = datetime.datetime.now()
-	cache_file = "finbot_yahoo_ath_" + ticker + "_" + interval + ".json"
-	cache = util.read_cache(cache_file, seconds)
-	if config_cache and cache:
-		csv = cache
-	else:
-		cookie = getCookie()
-		crumb = getCrumb()
-		start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
-		end = str(int(now.timestamp()))
-		url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
-		url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
-		url = url + '&crumb=' + crumb
-		if debug:
-			print(url)
-		headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-		try:
-			r = requests.get(url, headers=headers, timeout=config_http_timeout)
-		except:
-			print("Failure fetching", url, file=sys.stderr)
-			print(f"Failure fetching {url}", file=sys.stderr)
-			return None
-		if r.status_code == 200:
-			print('↓', sep=' ', end='', flush=True)
-		else:
-			print(ticker, r.status_code, "error communicating with", url, file=sys.stderr)
-			return None
-		csv = r.content.decode('utf-8')
-	#df = pd.read_csv(io.StringIO(csv), float_precision=None)
-	df = pd.read_csv(io.StringIO(csv))
-	df['Date'] = pd.to_datetime(df['Date']).dt.date
+def chart_json_to_stock_basics(data):
+	"""
+	{
+		"currency": "USD",
+		"symbol": "AAPL",
+		"exchangeName": "NMS",
+		"fullExchangeName": "NasdaqGS",
+		"instrumentType": "EQUITY",
+		"firstTradeDate": 345479400,
+		"regularMarketTime": 1726862403,
+		"hasPrePostMarketData": true,
+		"gmtoffset": -14400,
+		"timezone": "EDT",
+		"exchangeTimezoneName": "America/New_York",
+		"regularMarketPrice": 228.2,
+		"fiftyTwoWeekHigh": 233.09,
+		"fiftyTwoWeekLow": 227.62,
+		"regularMarketDayHigh": 233.09,
+		"regularMarketDayLow": 227.62,
+		"regularMarketVolume": 287134033,
+		"longName": "Apple Inc.",
+		"shortName": "Apple Inc.",
+		"chartPreviousClose": 224.53,
+		"priceHint": 2,
+	}
+	"""
+	for a in data.values():
+		for b in a.values():
+			if isinstance(b, list):
+				for c in b:
+					if 'currency' in c['meta']:
+						return c['meta']
+
+def historic_high(ticker)
+	data = fetch_chart_json(ticker)
+	df = chart_json_to_df(data)
 	df = df[df.High.notnull()]
 	df.drop(df.index[:1], inplace=True)
 	df.reset_index(drop=True, inplace=True)
-	if config_cache:
-		util.json_write(cache_file, csv)
 	highrow = df.iloc[df['High'].argmax()]
 	lowrow = df.iloc[df['Low'].argmin()]
 	if debug:
