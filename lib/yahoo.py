@@ -20,7 +20,7 @@ def getCookie():
 	if config_cache and cache:
 		cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(config_cache_dir + '/' + cacheFile))
 		if cacheFileAge < datetime.timedelta(seconds=cache[0][2]):
-			cookie = cookielist[0][1] + '=' + cookielist[0][2]
+			cookie = cache[0][0] + '=' + cache[0][1]
 			return cookie
 
 	# request
@@ -45,7 +45,7 @@ def getCookie():
 			value = morsel.value
 			max_age = int(morsel.get('max-age'))
 			cookielist.append([name, value, max_age])
-		cookie = cookielist[0][1] + '=' + str(cookielist[0][2])
+		cookie = cookielist[0][0] + '=' + str(cookielist[0][1])
 		if config_cache:
 			util.json_write(cacheFile, cookielist)
 		return cookie
