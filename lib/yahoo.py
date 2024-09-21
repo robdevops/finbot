@@ -39,7 +39,7 @@ def getCookie():
 	# parse
 	if 'set-cookie' in r.headers:
 		cookie = SimpleCookie()
-		cookie.load(response.headers['Set-Cookie'])
+		cookie.load(r.headers['Set-Cookie'])
 		cookielist = []
 		for name, morsel in cookie.items():
 			value = morsel.value
