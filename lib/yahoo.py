@@ -47,7 +47,7 @@ def getCookie():
 			cookielist.append([name, value, max_age])
 		cookie = cookielist[0][1] + '=' + cookielist[0][2]
 		if config_cache:
-			util.json_write(cache_file, cookielist)
+			util.json_write(cacheFile, cookielist)
 		return cookie
 	else:
 		print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
