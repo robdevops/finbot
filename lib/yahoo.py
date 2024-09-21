@@ -681,7 +681,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	#market_data = fetch([ticker])
 	#regularMarketPrice = market_data[ticker]['regularMarketPrice']
 	#tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
-	tz = pytz.timezone(exchangeTimezoneName)
+	tz = pytz.timezone(tz)
 	regularMarketTime = datetime.datetime.fromtimestamp(regularMarketTime).astimezone(tz).date()
 
 	# inject latest
