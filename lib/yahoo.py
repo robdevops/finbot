@@ -946,7 +946,7 @@ def chart_json_to_stock_basics(data):
 					if 'currency' in c['meta']:
 						return c['meta']
 
-def historic_high(ticker)
+def historic_high(ticker):
 	data = fetch_chart_json(ticker)
 	df = chart_json_to_df(data)
 	df = df[df.High.notnull()]
