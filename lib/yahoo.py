@@ -766,6 +766,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	tz = pytz.timezone(stock.get('exchangeTimezoneName'))
 	regularMarketTime = datetime.datetime.fromtimestamp(stock.get('regularMarketTime')).astimezone(tz).date()
 
+	# temporarily disabled while testing new method
 	# inject latest
 	#if df['Date'].iloc[-1] == regularMarketTime:
 	#	if df['Close'].iloc[-1] != regularMarketPrice:
@@ -904,8 +905,8 @@ def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds):
 			util.json_write(cacheFile, r.json())
 		return r.json()
 
-def chart_json_to_df(json):
-	data = [json['chart']['result'][0]['timestamp']] + list(json['chart']['result'][0]['indicators']['quote'][0].values())
+def chart_json_to_df(chart_json):
+	data = [chart_json['chart']['result'][0]['timestamp']] + list(chart_json['chart']['result'][0]['indicators']['quote'][0].values())
 	df = pd.DataFrame(
 		{'Timestamp': data[0], 'Close': data[1], 'Open': data[2], 'High': data[3], 'Low': data[4], 'Volume': data[5]})
 	df['Time'] = pd.to_datetime(df['Timestamp'], unit='s')
@@ -913,7 +914,7 @@ def chart_json_to_df(json):
 	df['Date'] = pd.to_datetime(df['Date']).dt.date
 	return df
 
-def chart_json_to_stock_basics(data):
+def chart_json_to_stock_basics(chart_json):
 	"""
 	{
 		"currency": "USD",
@@ -939,7 +940,7 @@ def chart_json_to_stock_basics(data):
 		"priceHint": 2,
 	}
 	"""
-	for a in data.values():
+	for a in chart_json.values():
 		for b in a.values():
 			if isinstance(b, list):
 				for c in b:
