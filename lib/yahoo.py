@@ -673,6 +673,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	interval = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
 
 	data = fetch_chart_json(ticker)
+	print(data, file=sys.stderr) if debug else None
 	df = chart_json_to_df(data)
 	stock = chart_json_to_stock_basics(data)
 	tz = pytz.timezone(stock.get('exchangeTimezoneName'))
