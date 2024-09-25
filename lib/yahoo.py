@@ -93,9 +93,9 @@ def fetch(tickers):
 	tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
 	if config_cache:
 		cacheFile = "finbot_yahoo_" + tickers_sha256 + '.json'
-		cacheData = util.read_cache(cacheFile, 300)
-		if cacheData:
-			return cacheData
+		cache = util.read_cache(cacheFile, 300)
+		if cache:
+			return cache
 	now = datetime.datetime.now().timestamp()
 	yahoo_output = {}
 	cookie = getCookie()
@@ -241,13 +241,14 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 	#headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
 	headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'Cookie': cookie}
 	local_market_data[ticker] = dict()
+	cache = None
 	if config_cache:
 		cacheFile = "finbot_yahoo_detail_" + ticker + '.json'
 		cache = util.read_cache(cacheFile, seconds)
 	if cache:
 		print('.', sep=' ', end='', flush=True)
-		data = cacheData
-	else:
+		data = cache
+	if not config_cache or not cache:
 		print('↓', sep=' ', end='', flush=True)
 		yahoo_urls = [base_url + ticker + '?modules=calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions' + '&crumb=' + crumb]
 		yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
