@@ -37,7 +37,11 @@ def getCookie():
 		print(r.status_code, r.text, "returned by", url, file=sys.stderr)
 
 	# parse
-	if 'set-cookie' in r.headers:
+	if not 'set-cookie' in r.headers:
+		print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
+		fallback='A3=d=AQABBBtR5mYCENFZu2wCWkA5iGGkSRGvRgkFEgEBAQGi52bwZtxM0iMA_eMAAA&S=AQAAAtG8VhxZN7aXopfvLNObtpE;'
+		return fallback
+	else:
 		cookie = SimpleCookie()
 		cookie.load(r.headers['Set-Cookie'])
 		cookielist = []
@@ -48,11 +52,8 @@ def getCookie():
 		cookie = cookielist[0][0] + '=' + str(cookielist[0][1])
 		if config_cache:
 			util.json_write(cacheFile, cookielist)
+		print("Got new cookie:", cookie)
 		return cookie
-	else:
-		print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
-		fallback='A3=d=AQABBBtR5mYCENFZu2wCWkA5iGGkSRGvRgkFEgEBAQGi52bwZtxM0iMA_eMAAA&S=AQAAAtG8VhxZN7aXopfvLNObtpE;'
-		return fallback
 
 def getCrumb(seconds=2592000): # 1 month
 	cookie = getCookie()
@@ -79,107 +80,11 @@ def getCrumb(seconds=2592000): # 1 month
 		return 'jkQEU8yLqxs'
 	if config_cache:
 		util.json_write(cacheFile, r.text)
+	print("Got new crumb:", r.text)
 	return r.text
 
 def fetch(tickers):
 	# DO NOT CACHE MORE THAN 5 mins
-	"""
-	{
-		"quoteResponse": {
-			"result": [
-				{
-					"language": "en-US",
-					"region": "US",
-					"quoteType": "EQUITY",
-					"typeDisp": "Equity",
-					"quoteSourceName": "Nasdaq Real Time Price",
-					"triggerable": true,
-					"customPriceAlertConfidence": "HIGH",
-					"tradeable": false,
-					"cryptoTradeable": false,
-					"currency": "USD",
-					"postMarketPrice": 227.766,
-					"postMarketChange": -0.433594,
-					"regularMarketChange": -0.66999817,
-					"regularMarketTime": 1726862403,
-					"regularMarketDayHigh": 233.09,
-					"regularMarketDayRange": "227.62 - 233.09",
-					"regularMarketDayLow": 227.62,
-					"regularMarketVolume": 287134033,
-					"regularMarketPreviousClose": 228.87,
-					"bid": 227.54,
-					"ask": 228.37,
-					"bidSize": 25,
-					"askSize": 8,
-					"fullExchangeName": "NasdaqGS",
-					"financialCurrency": "USD",
-					"regularMarketOpen": 229.97,
-					"averageDailyVolume3Month": 56802595,
-					"averageDailyVolume10Day": 78775800,
-					"fiftyTwoWeekLowChange": 64.119995,
-					"fiftyTwoWeekLowChangePercent": 0.39078495,
-					"fiftyTwoWeekRange": "164.08 - 237.23",
-					"fiftyTwoWeekHighChange": -9.029999,
-					"fiftyTwoWeekHighChangePercent": -0.03806432,
-					"fiftyTwoWeekLow": 164.08,
-					"fiftyTwoWeekHigh": 237.23,
-					"fiftyTwoWeekChangePercent": 29.60018,
-					"dividendDate": 1723680000,
-					"earningsTimestamp": 1722544200,
-					"earningsTimestampStart": 1730372340,
-					"earningsTimestampEnd": 1730721600,
-					"earningsCallTimestampStart": 1722546000,
-					"earningsCallTimestampEnd": 1722546000,
-					"isEarningsDateEstimate": true,
-					"trailingAnnualDividendRate": 0.97,
-					"trailingPE": 34.733635,
-					"dividendRate": 1,
-					"trailingAnnualDividendYield": 0.004238214,
-					"dividendYield": 0.44,
-					"epsTrailingTwelveMonths": 6.57,
-					"epsForward": 7.48,
-					"epsCurrentYear": 6.7,
-					"priceEpsCurrentYear": 34.059704,
-					"sharesOutstanding": 15204100096,
-					"bookValue": 4.382,
-					"fiftyDayAverage": 222.4378,
-					"fiftyDayAverageChange": 5.762192,
-					"fiftyDayAverageChangePercent": 0.025904732,
-					"twoHundredDayAverage": 196.34795,
-					"twoHundredDayAverageChange": 31.85205,
-					"twoHundredDayAverageChangePercent": 0.16222247,
-					"marketCap": 3469575716864,
-					"forwardPE": 30.50802,
-					"priceToBook": 52.076675,
-					"sourceInterval": 15,
-					"exchangeDataDelayedBy": 0,
-					"averageAnalystRating": "2.0 - Buy",
-					"postMarketChangePercent": -0.190006,
-					"postMarketTime": 1726876792,
-					"hasPrePostMarketData": true,
-					"firstTradeDateMilliseconds": 345479400000,
-					"exchange": "NMS",
-					"shortName": "Apple Inc.",
-					"longName": "Apple Inc.",
-					"messageBoardId": "finmb_24937",
-					"exchangeTimezoneName": "America/New_York",
-					"exchangeTimezoneShortName": "EDT",
-					"gmtOffSetMilliseconds": -14400000,
-					"market": "us_market",
-					"esgPopulated": false,
-					"marketState": "CLOSED",
-					"regularMarketChangePercent": -0.2927418,
-					"regularMarketPrice": 228.2,
-					"priceHint": 2,
-					"displayName": "Apple",
-					"symbol": "AAPL"
-				}
-			],
-			"error": null
-			}
-		}
-"""
-
 	tickers = sorted(set(tickers)) # de-dupe
 	tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
 	if config_cache:
