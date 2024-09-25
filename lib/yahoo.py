@@ -52,7 +52,7 @@ def getCookie():
 		cookie = cookielist[0][0] + '=' + str(cookielist[0][1])
 		if config_cache:
 			util.json_write(cacheFile, cookielist)
-		print("Got new cookie:", cookie)
+		print("Got new cookie:", cookie, file=sys.stderr)
 		return cookie
 
 def getCrumb(seconds=2592000): # 1 month
@@ -80,7 +80,7 @@ def getCrumb(seconds=2592000): # 1 month
 		return 'jkQEU8yLqxs'
 	if config_cache:
 		util.json_write(cacheFile, r.text)
-	print("Got new crumb:", r.text)
+	print("Got new crumb:", r.text, file=sys.stderr)
 	return r.text
 
 def fetch(tickers):
