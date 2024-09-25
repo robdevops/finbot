@@ -11,13 +11,56 @@ import sys
 import lib.telegram as telegram
 from lib.config import *
 from lib import util
+from http.cookies import SimpleCookie
 
-def getCrumb(seconds=config_cache_seconds):
-	cache_file = "finbot_yahoo_cookie.json"
+def getCookie():
+	# cache read
+	cacheFile = "finbot_yahoo_cookie.json"
+	cache = util.json_load(cacheFile)
+	if config_cache and cache:
+		cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(config_cache_dir + '/' + cacheFile))
+		if cacheFileAge < datetime.timedelta(seconds=cache[0][2]):
+			cookie = cache[0][0] + '=' + cache[0][1]
+			return cookie
+
+	# request
+	cookie = None
+	user_agent_key = "User-Agent"
+	user_agent_value = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.137 Safari/605.1.15"
+	headers = {user_agent_key: user_agent_value}
+	url = 'https://fc.yahoo.com/' # 404, but that is ok because cookie is in response header
+	try:
+		r = requests.get(url, headers=headers)
+	except Exception as e:
+		print(e, file=sys.stderr)
+	if r.status_code not in {200, 404}:
+		print(r.status_code, r.text, "returned by", url, file=sys.stderr)
+
+	# parse
+	if 'set-cookie' in r.headers:
+		cookie = SimpleCookie()
+		cookie.load(r.headers['Set-Cookie'])
+		cookielist = []
+		for name, morsel in cookie.items():
+			value = morsel.value
+			max_age = int(morsel.get('max-age'))
+			cookielist.append([name, value, max_age])
+		cookie = cookielist[0][0] + '=' + str(cookielist[0][1])
+		if config_cache:
+			util.json_write(cacheFile, cookielist)
+		return cookie
+	else:
+		print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
+		fallback='A3=d=AQABBBtR5mYCENFZu2wCWkA5iGGkSRGvRgkFEgEBAQGi52bwZtxM0iMA_eMAAA&S=AQAAAtG8VhxZN7aXopfvLNObtpE;'
+		return fallback
+
+def getCrumb(seconds=2592000): # 1 month
+	cookie = getCookie()
+	cache_file = "finbot_yahoo_crumb.json"
 	cache = util.read_cache(cache_file, seconds)
 	if config_cache and cache:
 		return cache
-	headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36', 'Cookie': 'GUC=AQEBCAFkpQZkz0IgwQSu&s=AQAAAP2Vnw8z&g=ZKO-Qw; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; A1S=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8&j=WORLD; cmp=t=1689038249&j=0&u=1---; PRF=t%3DBILL.AX%252BIVV.AX%252BSPY%252BNVDA%252BCHPT%252BAAPL%252BSEDG%252BGME%252BASO.AX%252BRMBS%252BAI%252BRBLX%252BNTDOY%252BPYPL%252BAMPX%26newChartbetateaser%3D1'}
+	headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.137 Safari/605.1.15', 'Cookie': cookie}
 	yahoo_urls = ['https://query2.finance.yahoo.com/v1/test/getcrumb']
 	yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
 	for url in yahoo_urls:
@@ -31,14 +74,111 @@ def getCrumb(seconds=config_cache_seconds):
 				continue
 			break
 	else:
-		print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
-		sys.exit(1)
+		print("Exhausted Yahoo API attempts. Returning fallback crumb", file=sys.stderr)
+		return 'jkQEU8yLqxs'
 	if config_cache:
 		util.json_write(cache_file, r.text)
 	return r.text
 
 def fetch(tickers):
 	# DO NOT CACHE MORE THAN 5 mins
+	"""
+	{
+		"quoteResponse": {
+			"result": [
+				{
+					"language": "en-US",
+					"region": "US",
+					"quoteType": "EQUITY",
+					"typeDisp": "Equity",
+					"quoteSourceName": "Nasdaq Real Time Price",
+					"triggerable": true,
+					"customPriceAlertConfidence": "HIGH",
+					"tradeable": false,
+					"cryptoTradeable": false,
+					"currency": "USD",
+					"postMarketPrice": 227.766,
+					"postMarketChange": -0.433594,
+					"regularMarketChange": -0.66999817,
+					"regularMarketTime": 1726862403,
+					"regularMarketDayHigh": 233.09,
+					"regularMarketDayRange": "227.62 - 233.09",
+					"regularMarketDayLow": 227.62,
+					"regularMarketVolume": 287134033,
+					"regularMarketPreviousClose": 228.87,
+					"bid": 227.54,
+					"ask": 228.37,
+					"bidSize": 25,
+					"askSize": 8,
+					"fullExchangeName": "NasdaqGS",
+					"financialCurrency": "USD",
+					"regularMarketOpen": 229.97,
+					"averageDailyVolume3Month": 56802595,
+					"averageDailyVolume10Day": 78775800,
+					"fiftyTwoWeekLowChange": 64.119995,
+					"fiftyTwoWeekLowChangePercent": 0.39078495,
+					"fiftyTwoWeekRange": "164.08 - 237.23",
+					"fiftyTwoWeekHighChange": -9.029999,
+					"fiftyTwoWeekHighChangePercent": -0.03806432,
+					"fiftyTwoWeekLow": 164.08,
+					"fiftyTwoWeekHigh": 237.23,
+					"fiftyTwoWeekChangePercent": 29.60018,
+					"dividendDate": 1723680000,
+					"earningsTimestamp": 1722544200,
+					"earningsTimestampStart": 1730372340,
+					"earningsTimestampEnd": 1730721600,
+					"earningsCallTimestampStart": 1722546000,
+					"earningsCallTimestampEnd": 1722546000,
+					"isEarningsDateEstimate": true,
+					"trailingAnnualDividendRate": 0.97,
+					"trailingPE": 34.733635,
+					"dividendRate": 1,
+					"trailingAnnualDividendYield": 0.004238214,
+					"dividendYield": 0.44,
+					"epsTrailingTwelveMonths": 6.57,
+					"epsForward": 7.48,
+					"epsCurrentYear": 6.7,
+					"priceEpsCurrentYear": 34.059704,
+					"sharesOutstanding": 15204100096,
+					"bookValue": 4.382,
+					"fiftyDayAverage": 222.4378,
+					"fiftyDayAverageChange": 5.762192,
+					"fiftyDayAverageChangePercent": 0.025904732,
+					"twoHundredDayAverage": 196.34795,
+					"twoHundredDayAverageChange": 31.85205,
+					"twoHundredDayAverageChangePercent": 0.16222247,
+					"marketCap": 3469575716864,
+					"forwardPE": 30.50802,
+					"priceToBook": 52.076675,
+					"sourceInterval": 15,
+					"exchangeDataDelayedBy": 0,
+					"averageAnalystRating": "2.0 - Buy",
+					"postMarketChangePercent": -0.190006,
+					"postMarketTime": 1726876792,
+					"hasPrePostMarketData": true,
+					"firstTradeDateMilliseconds": 345479400000,
+					"exchange": "NMS",
+					"shortName": "Apple Inc.",
+					"longName": "Apple Inc.",
+					"messageBoardId": "finmb_24937",
+					"exchangeTimezoneName": "America/New_York",
+					"exchangeTimezoneShortName": "EDT",
+					"gmtOffSetMilliseconds": -14400000,
+					"market": "us_market",
+					"esgPopulated": false,
+					"marketState": "CLOSED",
+					"regularMarketChangePercent": -0.2927418,
+					"regularMarketPrice": 228.2,
+					"priceHint": 2,
+					"displayName": "Apple",
+					"symbol": "AAPL"
+				}
+			],
+			"error": null
+			}
+		}
+"""
+
 	tickers = sorted(set(tickers)) # de-dupe
 	tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
 	cache_file = "finbot_yahoo_" + tickers_sha256 + '.json'
@@ -47,10 +187,11 @@ def fetch(tickers):
 		return cacheData
 	now = datetime.datetime.now().timestamp()
 	yahoo_output = {}
+	cookie = getCookie()
 	crumb = getCrumb()
 	yahoo_urls = ['https://query2.finance.yahoo.com/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)]
 	yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
-	headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0', 'cookie': 'A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng; A2=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBAQESPmRGZAAAAAAA_eMAAA&S=AQAAAmG1EiWmVUILE2HuXk4v6Ng;'}
+	headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Cookie': cookie}
 	for url in yahoo_urls:
 		try:
 			r = requests.get(url, headers=headers, timeout=config_http_timeout)
@@ -183,10 +324,11 @@ def fetch(tickers):
 def fetch_detail(ticker, seconds=config_cache_seconds):
 	now = datetime.datetime.now()
 	local_market_data = {}
+	cookie = getCookie()
 	crumb = getCrumb()
 	base_url = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/'
 	#headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-	headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'Cookie': 'GUC=AQEBCAFkpQZkz0IgwQSu&s=AQAAAP2Vnw8z&g=ZKO-Qw; A1=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; A3=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8; cmp=t=1689038249&j=0&u=1---; PRF=t%3DBILL.AX%252BIVV.AX%252BSPY%252BNVDA%252BCHPT%252BAAPL%252BSEDG%252BGME%252BASO.AX%252BRMBS%252BAI%252BRBLX%252BNTDOY%252BPYPL%252BAMPX%26newChartbetateaser%3D1; A1S=d=AQABBPPAPGQCEEJFcoEDblUBAaI8dLRyLcIFEgEBCAEGpWTPZA3sbmUB_eMBAAcI88A8ZLRyLcI&S=AQAAAmdorBhpNjsvOXeGN1RBvX8&j=US'}
+	headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'Cookie': cookie}
 	local_market_data[ticker] = dict()
 	cache_file = "finbot_yahoo_detail_" + ticker + '.json'
 	cacheData = util.read_cache(cache_file, seconds)
@@ -611,57 +753,33 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 	return local_market_data
 
 def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_graph, graphCache=True):
-	max_days = 3655 # 10 years + buffer
-	image_data = None
 	percent_dict = {}
-	market_data = fetch([ticker])
-	tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
-	regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
-	regularMarketPrice = market_data[ticker]['regularMarketPrice']
-	now = datetime.datetime.now()
-	cache_file = "finbot_yahoo_price_history_" + ticker + ".json"
-	cache = util.read_cache(cache_file, seconds)
-	if config_cache and cache:
-		csv = cache
-	else:
-		crumb = getCrumb()
-		start =  str(int((now - datetime.timedelta(days=max_days)).timestamp()))
-		end = str(int(now.timestamp()))
-		interval = '1d'
-		url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
-		url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
-		url = url + '&crumb=' + crumb
-		if debug:
-			print(url)
-		headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-		try:
-			r = requests.get(url, headers=headers, timeout=config_http_timeout)
-		except:
-			errorstring = f"General failure for {ticker} at {url}"
-			print(errorstring, file=sys.stderr)
-			return errorstring, None
-		if r.status_code == 200:
-			print('↓', sep=' ', end='', flush=True)
-		else:
-			errorstring=f"{r.status_code} error for {ticker} at {url}"
-			print(errorstring, file=sys.stderr)
-			return errorstring, None
-		csv = r.content.decode('utf-8')
-	df = pd.read_csv(io.StringIO(csv))
-	df['Date'] = pd.to_datetime(df['Date']).dt.date
-	if df['Date'].iloc[-1] == regularMarketTime:
-		if df['Close'].iloc[-1] != regularMarketPrice:
-			print("Updating", df['Close'].iloc[-1], "to", regularMarketPrice)
-			df['Close'].loc[-1] = regularMarketPrice
-	else:
-		print (ticker, "inserting", regularMarketTime, "after", df['Date'].iloc[-1], file=sys.stderr)
-		previous_close = df['Close'].iloc[-1]
-		df.loc[len(df)] = {'Date': regularMarketTime, 'Open': previous_close, 'High': None, 'Low': None, 'Close': regularMarketPrice, 'Adj Close': regularMarketPrice, 'Volume': None}
-	df = df[df.Close.notnull()]
-	#df.sort_values(by='Date', inplace = True)
-	df.reset_index(drop=True, inplace=True)
 	price = []
+	image_data = None
+	max_days = 3655 # 10 years + buffer
+	now = datetime.datetime.now()
 	interval = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
+
+	data = fetch_chart_json(ticker)
+	df = chart_json_to_df(data)
+	stock = chart_json_to_stock_basics(data)
+	tz = pytz.timezone(stock.get('exchangeTimezoneName'))
+	regularMarketTime = datetime.datetime.fromtimestamp(stock.get('regularMarketTime')).astimezone(tz).date()
+
+	# temporarily disabled while testing new method
+	# inject latest
+	#if df['Date'].iloc[-1] == regularMarketTime:
+	#	if df['Close'].iloc[-1] != regularMarketPrice:
+	#		print("Updating", df['Close'].iloc[-1], "to", regularMarketPrice)
+	#		df['Close'].loc[-1] = regularMarketPrice
+	#else:
+	#	print (ticker, "inserting", regularMarketTime, "after", df['Date'].iloc[-1], file=sys.stderr)
+	#	previous_close = df['Close'].iloc[-1]
+	#	df.loc[len(df)] = {'Timestamp' now, 'Close': regularMarketPrice, 'Open': previous_close, 'High': None, 'Low': None, 'Volume': None, 'Time': None, 'Date': regularMarketTime}
+	#df = df[df.Close.notnull()]
+	##df.sort_values(by='Date', inplace = True)
+	#df.reset_index(drop=True, inplace=True)
+
 	if days:
 		seek_date = now - datetime.timedelta(days = days)
 		seek_dt = seek_date.date()
@@ -669,11 +787,11 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 		df = df.loc[mask]
 		past_price = df[df.loc[mask]['Date'] >= seek_dt]['Close'].iloc[0]
 		df.reset_index(drop=True, inplace=True)
-		percent = (regularMarketPrice - past_price) / past_price * 100
+		percent = (stock.get('regularMarketPrice') - past_price) / past_price * 100
 		percent_dict[days] = round(percent, 2)
 	else:
 		default_price = df['Close'].iloc[0]
-		default_percent = round((regularMarketPrice - default_price) / default_price * 100)
+		default_percent = round((stock.get('regularMarketPrice') - default_price) / default_price * 100)
 		for period in interval:
 			# try to align with google finance
 			if period == 'YTD':
@@ -684,7 +802,8 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 					percent_dict['Max'] = default_percent
 					continue
 			elif period == '1D':
-					percent_dict['1D'] = market_data[ticker]['percent_change']
+					#percent_dict['1D'] = market_data[ticker]['percent_change']
+					percent_dict['1D'] = default_percent
 			elif period == '5D':
 				#seek_date = now - datetime.timedelta(days = 5)
 				seek_date = now - businessday(5)
@@ -721,84 +840,119 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 				except IndexError:
 					percent_dict['Max'] = default_percent
 					continue
-			percent = (regularMarketPrice - past_price) / past_price * 100
+			percent = (stock.get('regularMarketPrice') - past_price) / past_price * 100
 			percent_dict[period] = round(percent)
 	if graph:
 		if days and days < 2:
 			return percent_dict, None
 		caption = []
-		profile_title = market_data[ticker]['profile_title']
 		if days:
 			title_days = days
 			if days > max_days:
 				title_days = max_days
-			title = profile_title + " (" + ticker + ") " + str(title_days) + " days " + str(percent_dict[days]) + '%'
+			title = stock.get('shortName') + " (" + ticker + ") " + str(title_days) + " days " + str(percent_dict[days]) + '%'
 			caption.append(title)
 		else:
 			for k,v in percent_dict.items():
 				caption.append(str(k) + ": " + str(v) + '%')
 			if 'Max' in percent_dict:
-				title = profile_title + " (" + ticker + ") Max " + str(percent_dict['Max']) + '%'
+				title = stock.get('shortName') + " (" + ticker + ") Max " + str(percent_dict['Max']) + '%'
 			else:
-				title = profile_title + " (" + ticker + ") 10Y " + str(percent_dict['10Y']) + '%'
+				title = stock.get('shortName') + " (" + ticker + ") 10Y " + str(percent_dict['10Y']) + '%'
 		caption = '\n'.join(caption)
 		image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
 		image_cache = util.read_binary_cache(image_cache_file, seconds)
 		if config_cache and image_cache and graphCache:
 			image_data = image_cache
 		else:
-			buf = util.graph(df, title, market_data[ticker])
+			buf = util.graph(df, title, stock.get('currency'))
 			#bytesio_to_file(buf, 'temp.png')
 			buf.seek(0)
 			image_data = buf
 			util.write_binary_cache(image_cache_file, image_data)
 			buf.seek(0)
-	if config_cache:
-		util.json_write(cache_file, csv)
 	return percent_dict, image_data
 
-def historic_high(ticker, market_data, days=3653, seconds=config_cache_seconds):
-	#pd.set_option("display.precision", 8)
-	interval = '1d'
-	image_data = None
-	percent_dict = {}
-	tz = pytz.timezone(market_data[ticker]['exchangeTimezoneName'])
-	regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime']).astimezone(tz).date()
-	regularMarketPrice = market_data[ticker]['regularMarketPrice']
+def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds):
 	now = datetime.datetime.now()
-	cache_file = "finbot_yahoo_ath_" + ticker + "_" + interval + ".json"
-	cache = util.read_cache(cache_file, seconds)
+	cacheFile = "finbot_yahoo_history_" + ticker + ".json"
+	cache = util.read_cache(cacheFile, seconds)
 	if config_cache and cache:
-		csv = cache
+		return cache
 	else:
+		cookie = getCookie()
 		crumb = getCrumb()
 		start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
 		end = str(int(now.timestamp()))
-		url = 'https://query1.finance.yahoo.com/v7/finance/download/' + ticker
-		url = url + '?period1=' + start + '&period2=' + end + '&interval=' + interval + '&events=history&includeAdjustedClose=true'
+		interval = '1d'
+		url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
+		url = url + ticker + '?period1=' + start + '&period2=' + end + '&interval=' + interval
 		url = url + '&crumb=' + crumb
-		if debug:
-			print(url)
 		headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
 		try:
 			r = requests.get(url, headers=headers, timeout=config_http_timeout)
 		except:
-			print("Failure fetching", url, file=sys.stderr)
-			return None
+			errorstring = f"General failure for {ticker} at {url}"
+			print(errorstring, file=sys.stderr)
+			return errorstring, None
 		if r.status_code == 200:
 			print('↓', sep=' ', end='', flush=True)
 		else:
-			print(ticker, r.status_code, "error communicating with", url, file=sys.stderr)
-			return None
-		csv = r.content.decode('utf-8')
-	#df = pd.read_csv(io.StringIO(csv), float_precision=None)
-	df = pd.read_csv(io.StringIO(csv))
+			errorstring=f"{r.status_code} error for {ticker} at {url}"
+			print(errorstring, file=sys.stderr)
+			return errorstring, None
+		if config_cache:
+			util.json_write(cacheFile, r.json())
+		return r.json()
+
+def chart_json_to_df(chart_json):
+	data = [chart_json['chart']['result'][0]['timestamp']] + list(chart_json['chart']['result'][0]['indicators']['quote'][0].values())
+	df = pd.DataFrame(
+		{'Timestamp': data[0], 'Close': data[1], 'Open': data[2], 'High': data[3], 'Low': data[4], 'Volume': data[5]})
+	df['Time'] = pd.to_datetime(df['Timestamp'], unit='s')
+	df['Date'] = df['Time'].apply(lambda x: x.strftime('%Y-%m-%d'))
 	df['Date'] = pd.to_datetime(df['Date']).dt.date
+	return df
+
+def chart_json_to_stock_basics(chart_json):
+	"""
+	{
+		"currency": "USD",
+		"symbol": "AAPL",
+		"exchangeName": "NMS",
+		"fullExchangeName": "NasdaqGS",
+		"instrumentType": "EQUITY",
+		"firstTradeDate": 345479400,
+		"regularMarketTime": 1726862403,
+		"hasPrePostMarketData": true,
+		"gmtoffset": -14400,
+		"timezone": "EDT",
+		"exchangeTimezoneName": "America/New_York",
+		"regularMarketPrice": 228.2,
+		"fiftyTwoWeekHigh": 233.09,
+		"fiftyTwoWeekLow": 227.62,
+		"regularMarketDayHigh": 233.09,
+		"regularMarketDayLow": 227.62,
+		"regularMarketVolume": 287134033,
+		"longName": "Apple Inc.",
+		"shortName": "Apple Inc.",
+		"chartPreviousClose": 224.53,
+		"priceHint": 2,
+	}
+	"""
+	for a in chart_json.values():
+		for b in a.values():
+			if isinstance(b, list):
+				for c in b:
+					if 'currency' in c['meta']:
+						return c['meta']
+
+def historic_high(ticker):
+	data = fetch_chart_json(ticker)
+	df = chart_json_to_df(data)
 	df = df[df.High.notnull()]
 	df.drop(df.index[:1], inplace=True)
 	df.reset_index(drop=True, inplace=True)
-	if config_cache:
-		util.json_write(cache_file, csv)
 	highrow = df.iloc[df['High'].argmax()]
 	lowrow = df.iloc[df['Low'].argmin()]
 	if debug:

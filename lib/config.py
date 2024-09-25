@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 os.chdir(os.path.dirname(__file__) + '/../')
 load_dotenv()
-sharesight_auth = {
+config_sharesight_auth = {
 		"grant_type": 'client_credentials',
 		"code": os.getenv('sharesight_code'),
 		"client_id": os.getenv('sharesight_client_id'),
@@ -42,6 +42,7 @@ config_include_portfolios = os.getenv('include_portfolios', '').split()
 config_ip = os.getenv('ip', '127.0.0.1')
 config_past_days = int(os.getenv('past_days', 0))
 config_performance_use_sharesight = os.getenv('performance_use_sharesight', True)
+config_print_headers = os.getenv('print_headers', False)
 config_port = int(os.getenv('port', 5000))
 config_price_percent = float(os.getenv('price_percent', 9.4))
 config_shorts_percent = int(os.getenv('shorts_percent', 15))
@@ -234,7 +235,7 @@ noTradesVerb = [
 	"With your stock picking skills, this is probably for the best"
 ]
 
-filename = 'lib/finbot_adr.json'
+filename = 'var/finbot_adr.json'
 if os.path.isfile(filename):
 	with open(filename, "r", encoding="utf-8") as f:
 		primary_listing = json.loads(f.read())

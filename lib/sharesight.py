@@ -13,19 +13,16 @@ class BearerAuth(requests.auth.AuthBase):
 		return r
 
 def get_token():
-	now = datetime.datetime.now()
-	cache_file = "finbot_sharesight_token.json"
-	cache = util.read_cache(cache_file, 1740)
-	url = "https://api.sharesight.com/oauth2/token"
+	cacheFile = "finbot_sharesight_token.json"
+	cache = util.json_load(cacheFile)
 	if config_cache and cache:
 		cache_expiry = datetime.datetime.fromtimestamp(cache['created_at'] + cache['expires_in'])
-		if cache_expiry < now + datetime.timedelta(seconds=60):
-			print("token cache has expired")
-		else:
+		if cache_expiry > datetime.datetime.now() + datetime.timedelta(seconds=20):
 			return cache['access_token']
 	print("Fetching Sharesight auth token")
+	url = "https://api.sharesight.com/oauth2/token"
 	try:
-		r = requests.post(url, data=sharesight_auth, timeout=config_http_timeout)
+		r = requests.post(url, data=config_sharesight_auth, timeout=config_http_timeout)
 	except Exception as e:
 		print("Error", str(e), url, file=sys.stderr)
 		sys.exit(1)
@@ -36,7 +33,7 @@ def get_token():
 		print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
 		sys.exit(1)
 	if config_cache and 'access_token' in data:
-		util.json_write(cache_file, data)
+		util.json_write(cacheFile, data)
 	print(data)
 	return data['access_token']
 

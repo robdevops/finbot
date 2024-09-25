@@ -396,11 +396,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			title = market_data[ticker]['profile_title']
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, days=1825, brief=False)
 			if ticker in market_data and 'percent_change' in market_data[ticker]:
-				try:
-					price_history, graph = yahoo.price_history(ticker)
-				except Exception as e:
-					errorstring=f"error: {e}"
-					print(errorstring, file=sys.stderr)
+				price_history, graph = yahoo.price_history(ticker)
 				if isinstance(price_history, str):
 					errorstring=price_history
 					print(errorstring, file=sys.stderr)
@@ -439,7 +435,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			ticker = util.transform_to_yahoo(ticker)
 			market_data = yahoo.fetch_detail(ticker, 600)
 			if ticker in market_data:
-				payload = reports.prepare_bio_payload(service, user, ticker)
+				payload = reports.prepare_bio_payload(service, user, ticker, market_data)
 			else:
 				payload = [f"{ticker} not found"]
 		else:

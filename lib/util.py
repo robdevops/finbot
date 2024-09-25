@@ -526,7 +526,7 @@ def days_english(days, prefix='the past ', article=''):
 	else:
 		return prefix + str(days) + ' days'
 
-def graph(df, title, market_data):
+def graph(df, title, ylabel):
 	def label(x,y, atype, ax=None):
 		if atype == 'min':
 			xpoint = x[np.argmin(y)]
@@ -567,7 +567,7 @@ def graph(df, title, market_data):
 	else:
 		color = 'grey' # black if unchanged
 	plt.title(title)
-	plt.ylabel(market_data['currency'])
+	plt.ylabel(ylabel)
 	df['Date'] = df['Date'].map(lambda x: datetime.datetime.strptime(str(x), '%Y-%m-%d'))
 	plt.gcf().autofmt_xdate()
 	plt.fill_between(x,y, color=color, alpha=0.3, linewidth=0.5)
