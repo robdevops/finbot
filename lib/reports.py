@@ -631,9 +631,11 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
 		payload.sort(key=last_col)
 		if not ticker_select:
+			heading_type = "Bottom" if 'bottom' in action else "Top"
+			heading_trail = action.replace('bottom ', '')
 			if 'bottom' in action:
 				payload.reverse()
 			payload = payload[:length]
 			if payload:
-				payload.insert(0, f"{webhook.bold(f'Top {length} tracked stocks by {action} ratio', service)}")
+				payload.insert(0, f"{webhook.bold(f'{heading_type} {length} tracked stocks by {heading_trail} ratio', service)}")
 		return payload

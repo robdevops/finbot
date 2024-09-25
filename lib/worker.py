@@ -66,7 +66,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	performance_command = r"^([\!\.]\s?|^" + botName + r"\s+)performance?\s*([\w]+)*\s*([\w\s]+)*"
 	m_performance = re.match(performance_command, message, re.IGNORECASE)
 
-	premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket)\s*([\w\.\:\-]+)*"
+	premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket|permarket)\s*([\w\.\:\-]+)*"
 	m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
 	price_command = r"^([\!\.]\s?|^" + botName + r"\s+)(prices?|prince|piece|pierce|pence|prime)\s*([\w\.\:\%\=]+)*\s*([\w\.\:\%\-]+)*"
