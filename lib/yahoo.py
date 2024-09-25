@@ -826,6 +826,7 @@ def chart_json_to_df(chart_json):
 	df['Time'] = pd.to_datetime(df['Timestamp'], unit='s')
 	df['Date'] = df['Time'].apply(lambda x: x.strftime('%Y-%m-%d'))
 	df['Date'] = pd.to_datetime(df['Date']).dt.date
+	print(df) if debug else None
 	return df
 
 def chart_json_to_stock_basics(chart_json):
