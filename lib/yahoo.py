@@ -253,8 +253,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 		yahoo_urls = [base_url + ticker + '?modules=calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions' + '&crumb=' + crumb]
 		yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
 		for url in yahoo_urls:
-			if debug:
-				print(url)
+			print(url, file=sys.stderr) if debug else None
 			try:
 				r = requests.get(url, headers=headers, timeout=config_http_timeout)
 			except Exception as e:
@@ -262,8 +261,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 			else:
 				if r.status_code != 200:
 					print('x', sep=' ', end='', flush=True, file=sys.stderr)
-					if debug:
-						print(r.text)
+					print(r.text, file=sys.stderr) if debug else None
 					continue
 				break
 		else:
@@ -826,7 +824,7 @@ def chart_json_to_df(chart_json):
 	df['Time'] = pd.to_datetime(df['Timestamp'], unit='s')
 	df['Date'] = df['Time'].apply(lambda x: x.strftime('%Y-%m-%d'))
 	df['Date'] = pd.to_datetime(df['Date']).dt.date
-	print(df) if debug else None
+	print(df, file=sys.stderr) if debug else None
 	return df
 
 def chart_json_to_stock_basics(chart_json):
@@ -871,7 +869,7 @@ def historic_high(ticker):
 	highrow = df.iloc[df['High'].argmax()]
 	lowrow = df.iloc[df['Low'].argmin()]
 	if debug:
-		print(ticker, "High", highrow['Date'], round(highrow['High'], 2))
-		print(ticker, "Low", lowrow['Date'], round(lowrow['Low'], 2))
+		print(ticker, "High", highrow['Date'], round(highrow['High'], 2), file=sys.stderr)
+		print(ticker, "Low", lowrow['Date'], round(lowrow['Low'], 2), file=sys.stderr)
 	return round(highrow['High'], 2), round(lowrow['Low'], 2)
 

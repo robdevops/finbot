@@ -275,11 +275,9 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
 			with open(cacheFile, "r", encoding="utf-8") as f:
 				cacheDict = json.loads(f.read())
 			return cacheDict
-		if debug:
-			print("cache expired:", cacheFile, file=sys.stderr)
+		print("cache expired:", cacheFile, file=sys.stderr) if debug else None
 		return None
-	if debug:
-		print("cache miss:", cacheFile, file=sys.stderr)
+	print("cache miss:", cacheFile, file=sys.stderr) if debug else None
 	return None
 
 def json_write(filename, data, persist=False):
@@ -319,8 +317,7 @@ def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
 			with open(cacheFile, "rb") as f:
 				data = io.BytesIO(f.read())
 			return data
-		if debug:
-			print("cache expired:", cacheFile, file=sys.stderr)
+		print("cache expired:", cacheFile, file=sys.stderr) if debug else None
 		return None
 	print("cache miss:", cacheFile, file=sys.stderr)
 	return None
