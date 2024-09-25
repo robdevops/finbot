@@ -271,7 +271,7 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
 		if cacheFileAge < maxSeconds:
 			if debug:
 				ttl = maxSeconds - cacheFileAge
-				print("cache hit:", cacheFile, "TTL:", td_to_human(ttl), "minutes", file=sys.stderr)
+				print("cache hit:", cacheFile, "TTL:", td_to_human(ttl), file=sys.stderr)
 			with open(cacheFile, "r", encoding="utf-8") as f:
 				cacheDict = json.loads(f.read())
 			return cacheDict
@@ -315,7 +315,7 @@ def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
 		if cacheFileAge < maxSeconds:
 			if debug:
 				ttl = maxSeconds - cacheFileAge
-				print("cache hit", cacheFile, "TTL:", td_to_human(ttl), "minutes", file=sys.stderr)
+				print("cache hit", cacheFile, "TTL:", td_to_human(ttl), file=sys.stderr)
 			with open(cacheFile, "rb") as f:
 				data = io.BytesIO(f.read())
 			return data
