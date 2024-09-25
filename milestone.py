@@ -9,7 +9,7 @@ from lib import util
 from lib import yahoo
 
 # BUGS:
-# - need to handle stock splits: flush cache if we see a split in yahoo
+# - need to handle stock splits: flush cache if we see a split in the data
 # https://finance.yahoo.com/quote/TSLA/history?period1=0&period2=1707609600&filter=split
 
 def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=None, interactive=False):
@@ -68,23 +68,19 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 			records[ticker]['profit'] = newprofit
 			records[ticker]['cashflow'] = newcashflow
 			if newhigh > oldhigh:
-				if debug:
-					print("DEBUG", ticker, newhigh, "is higher than", oldhigh)
+				print("DEBUG", ticker, newhigh, "is higher than", oldhigh) if debug else None
 				payloadhigh.append(f"{emoji} {title} ({ticker_link})")
 			if newlow < oldlow:
-				if debug:
-					print("DEBUG", ticker, newlow, "is lower than", oldlow)
+				print("DEBUG", ticker, newlow, "is lower than", oldlow) if debug else None
 				payloadlow.append(f"{emoji} {title} ({ticker_link})")
 			if oldprofit != newprofit:
-				if debug:
-					print("DEBUG", ticker, "profitability changed", oldprofit, newprofit)
+				print("DEBUG", ticker, "profitability changed", oldprofit, newprofit) if debug else None
 				if newprofit:
 					payloadprofit.append(f"{emoji} {title} ({ticker_link})")
 				else:
 					payloadprofitneg.append(f"{emoji} {title} ({ticker_link})")
 			if oldcashflow != newcashflow:
-				if debug:
-					print("DEBUG", ticker, "cashflow changed", oldcashflow, newcashflow)
+				print("DEBUG", ticker, "cashflow changed", oldcashflow, newcashflow) if debug else None
 				if newcashflow:
 					payloadcashflow.append(f"{emoji} {title} ({ticker_link})")
 				else:
