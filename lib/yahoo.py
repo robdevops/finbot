@@ -14,14 +14,14 @@ from lib import util
 from http.cookies import SimpleCookie
 
 def getCookie():
-	if config_cache:
-		cacheFile = "finbot_yahoo_cookie.json"
-		cache = util.json_load(cacheFile)
-		if cache:
-			cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(config_cache_dir + '/' + cacheFile))
-			if cacheFileAge < datetime.timedelta(seconds=cache[0][2]):
-				cookie = cache[0][0] + '=' + cache[0][1]
-				return cookie
+	#if config_cache: # disabled - we must always cache as crumb must match cookie
+	cacheFile = "finbot_yahoo_cookie.json"
+	cache = util.json_load(cacheFile)
+	if cache:
+		cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(config_cache_dir + '/' + cacheFile))
+		if cacheFileAge < datetime.timedelta(seconds=cache[0][2]):
+			cookie = cache[0][0] + '=' + cache[0][1]
+			return cookie
 
 	# request
 	cookie = None
