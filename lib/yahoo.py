@@ -673,7 +673,6 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	interval = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
 
 	data = fetch_chart_json(ticker)
-	print(data, file=sys.stderr) if debug else None
 	df = chart_json_to_df(data)
 	stock = chart_json_to_stock_basics(data)
 	tz = pytz.timezone(stock.get('exchangeTimezoneName'))
@@ -793,31 +792,31 @@ def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds):
 		cache = util.read_cache(cacheFile, seconds)
 		if cache:
 			return cache
+	cookie = getCookie()
+	crumb = getCrumb()
+	start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
+	end = str(int(now.timestamp()))
+	interval = '1d'
+	url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
+	url = url + ticker + '?period1=' + start + '&period2=' + end + '&interval=' + interval
+	url = url + '&crumb=' + crumb
+	headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
+	print("Fetching", url, file=sys.stderr) if debug else None
+	try:
+		r = requests.get(url, headers=headers, timeout=config_http_timeout)
+	except Exception as e:
+		errorstring = f"General failure for {ticker} at {url}: {e}"
+		print(errorstring, file=sys.stderr)
+		return errorstring, None
+	if r.status_code == 200:
+		print('↓', sep=' ', end='', flush=True)
 	else:
-		cookie = getCookie()
-		crumb = getCrumb()
-		start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
-		end = str(int(now.timestamp()))
-		interval = '1d'
-		url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
-		url = url + ticker + '?period1=' + start + '&period2=' + end + '&interval=' + interval
-		url = url + '&crumb=' + crumb
-		headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-		try:
-			r = requests.get(url, headers=headers, timeout=config_http_timeout)
-		except:
-			errorstring = f"General failure for {ticker} at {url}"
-			print(errorstring, file=sys.stderr)
-			return errorstring, None
-		if r.status_code == 200:
-			print('↓', sep=' ', end='', flush=True)
-		else:
-			errorstring=f"{r.status_code} error for {ticker} at {url}"
-			print(errorstring, file=sys.stderr)
-			return errorstring, None
-		if config_cache:
-			util.json_write(cacheFile, r.json())
-		return r.json()
+		errorstring=f"{r.status_code} error for {ticker} at {url}"
+		print(errorstring, file=sys.stderr)
+		return errorstring, None
+	if config_cache:
+		util.json_write(cacheFile, r.json())
+	return r.json()
 
 def chart_json_to_df(chart_json):
 	data = [chart_json['chart']['result'][0]['timestamp']] + list(chart_json['chart']['result'][0]['indicators']['quote'][0].values())
