@@ -40,7 +40,7 @@ def get_token():
 		sys.exit(1)
 	if config_cache and 'access_token' in data:
 		util.json_write(cacheFile, data)
-	print(data)
+	print(data, file=sys.stderr)
 	return data['access_token']
 
 def get_portfolios():
@@ -68,6 +68,7 @@ def get_portfolios():
 		if config_cache and 'portfolios' in data:
 			util.json_write(cache_file, data)
 	for portfolio in data['portfolios']:
+		print("DEBUG" portfolio, file=sys.stderr)
 		if str(portfolio['id']) in config_exclude_portfolios:
 			print(portfolio['id'], "(" + portfolio['name'] + ") in exclusion list. Skipping.")
 		elif str(portfolio['id']) not in config_include_portfolios and config_include_portfolios:
