@@ -14,14 +14,14 @@ from lib import util
 from http.cookies import SimpleCookie
 
 def getCookie():
-	# cache read
-	cacheFile = "finbot_yahoo_cookie.json"
-	cache = util.json_load(cacheFile)
-	if config_cache and cache:
-		cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(config_cache_dir + '/' + cacheFile))
-		if cacheFileAge < datetime.timedelta(seconds=cache[0][2]):
-			cookie = cache[0][0] + '=' + cache[0][1]
-			return cookie
+	if config_cache:
+		cacheFile = "finbot_yahoo_cookie.json"
+		cache = util.json_load(cacheFile)
+		if cache:
+			cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(config_cache_dir + '/' + cacheFile))
+			if cacheFileAge < datetime.timedelta(seconds=cache[0][2]):
+				cookie = cache[0][0] + '=' + cache[0][1]
+				return cookie
 
 	# request
 	cookie = None
@@ -56,10 +56,11 @@ def getCookie():
 
 def getCrumb(seconds=2592000): # 1 month
 	cookie = getCookie()
-	cache_file = "finbot_yahoo_crumb.json"
-	cache = util.read_cache(cache_file, seconds)
-	if config_cache and cache:
-		return cache
+	if config_cache:
+		cacheFile = "finbot_yahoo_crumb.json"
+		cache = util.read_cache(cacheFile, seconds)
+		if cache:
+			return cache
 	headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.137 Safari/605.1.15', 'Cookie': cookie}
 	yahoo_urls = ['https://query2.finance.yahoo.com/v1/test/getcrumb']
 	yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
@@ -77,7 +78,7 @@ def getCrumb(seconds=2592000): # 1 month
 		print("Exhausted Yahoo API attempts. Returning fallback crumb", file=sys.stderr)
 		return 'jkQEU8yLqxs'
 	if config_cache:
-		util.json_write(cache_file, r.text)
+		util.json_write(cacheFile, r.text)
 	return r.text
 
 def fetch(tickers):
@@ -181,10 +182,11 @@ def fetch(tickers):
 
 	tickers = sorted(set(tickers)) # de-dupe
 	tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
-	cache_file = "finbot_yahoo_" + tickers_sha256 + '.json'
-	cacheData = util.read_cache(cache_file, 300)
-	if config_cache and cacheData:
-		return cacheData
+	if config_cache:
+		cacheFile = "finbot_yahoo_" + tickers_sha256 + '.json'
+		cacheData = util.read_cache(cacheFile, 300)
+		if cacheData:
+			return cacheData
 	now = datetime.datetime.now().timestamp()
 	yahoo_output = {}
 	cookie = getCookie()
@@ -318,7 +320,7 @@ def fetch(tickers):
 		except (KeyError, IndexError):
 			pass
 	if config_cache:
-		util.json_write(cache_file, yahoo_output)
+		util.json_write(cacheFile, yahoo_output)
 	return yahoo_output
 
 def fetch_detail(ticker, seconds=config_cache_seconds):
@@ -330,9 +332,10 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 	#headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
 	headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'Cookie': cookie}
 	local_market_data[ticker] = dict()
-	cache_file = "finbot_yahoo_detail_" + ticker + '.json'
-	cacheData = util.read_cache(cache_file, seconds)
-	if config_cache and cacheData:
+	if config_cache:
+		cacheFile = "finbot_yahoo_detail_" + ticker + '.json'
+		cache = util.read_cache(cacheFile, seconds)
+	if cache:
 		print('.', sep=' ', end='', flush=True)
 		data = cacheData
 	else:
@@ -358,7 +361,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 			return {} # catches some delisted stocks like "DRNA"
 		data = r.json()
 		if config_cache:
-			util.json_write(cache_file, data)
+			util.json_write(cacheFile, data)
 		# might be interesting:
 			# majorHoldersBreakdown
 			# netSharePurchaseActivity
