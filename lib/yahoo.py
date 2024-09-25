@@ -818,12 +818,25 @@ def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds):
 	return r.json()
 
 def chart_json_to_df(chart_json):
-	data = [chart_json['chart']['result'][0]['timestamp']] + list(chart_json['chart']['result'][0]['indicators']['quote'][0].values())
-	df = pd.DataFrame(
-		{'Timestamp': data[0], 'Close': data[1], 'Open': data[2], 'High': data[3], 'Low': data[4], 'Volume': data[5]})
-	df['Time'] = pd.to_datetime(df['Timestamp'], unit='s')
-	df['Date'] = df['Time'].apply(lambda x: x.strftime('%Y-%m-%d'))
-	df['Date'] = pd.to_datetime(df['Date']).dt.date
+	result = chart_json['chart']['result'][0]
+	timestamp = result['timestamp']
+	quote_data = result['indicators']['quote'][0]
+
+	# Create a dictionary with 'Timestamp' and all available quote data
+	data = {'Timestamp': timestamp}
+	data.update(quote_data)
+
+	# Create DataFrame
+	df = pd.DataFrame(data)
+
+	#timestamp = [datetime.datetime.fromtimestamp(ts) for ts in timestamp]
+	#df['Date'] = pd.to_datetime(df['Timestamp'], unit='s')
+	df['Date'] = pd.to_datetime(df['Timestamp']).dt.date
+
+
+	# Rename columns to capitalize first letter
+	df.columns = [col.capitalize() for col in df.columns]
+
 	print(df, file=sys.stderr) if debug else None
 	return df
 
