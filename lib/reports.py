@@ -210,7 +210,6 @@ def prepare_bio_payload(service, user, ticker, market_data):
 	if ticker not in market_data:
 		payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
 		return payload
-	print("Yahoo data:", json.dumps(market_data, indent=4), file=sys.stderr) if debug else None
 	profile_title = market_data[ticker]['profile_title']
 	exchange = market_data[ticker]['profile_exchange']
 	exchange = exchange.replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq').replace('NYSEArca', 'NYSE')
@@ -306,7 +305,6 @@ def prepare_stockfinancial_payload(service, user, ticker):
 	if not market_data:
 		payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
 		return payload
-	print("Yahoo data:", json.dumps(market_data, indent=4), file=sys.stderr) if debug else None
 	exchange = market_data[ticker]['profile_exchange']
 	ticker_link = util.finance_link(ticker, exchange, service, brief=False)
 	profile_title = market_data[ticker]['profile_title']
