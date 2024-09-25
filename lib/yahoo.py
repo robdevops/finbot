@@ -830,8 +830,7 @@ def chart_json_to_df(chart_json):
 	df = pd.DataFrame(data)
 
 	#timestamp = [datetime.datetime.fromtimestamp(ts) for ts in timestamp]
-	#df['Date'] = pd.to_datetime(df['Timestamp'], unit='s')
-	df['Date'] = pd.to_datetime(df['Timestamp']).dt.date
+	df['Date'] = pd.to_datetime(df['Timestamp'], unit='s').dt.date
 
 
 	# Rename columns to capitalize first letter
