@@ -11,7 +11,10 @@ from lib import yahoo
 from lib import telegram
 
 def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False):
+	print("DEBUG", days, interactive, specific_stock, file=sys.stderr) if debug else None
 	def prepare_price_payload(service, market_data, threshold):
+		print("DEBUG", service, market_data, threshold, file=sys.stderr) if debug else None
+		print("DEBUG config:", config_performance_use_sharesight, config_graph, file=sys.stderr) if debug else None
 		payload = []
 		graph = False
 		marketStates = []
