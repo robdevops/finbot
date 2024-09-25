@@ -34,8 +34,7 @@ def main(environ, start_response):
 	inbound = json.loads(request_body)
 	if config_print_headers:
 		print_headers()
-	if debug:
-		print_body()
+	print_body() if debug else None
 	if config_telegramOutgoingWebhook and uri == urlparse(config_telegramOutgoingWebhook).path:
 		service = 'telegram'
 		global botName
@@ -135,8 +134,7 @@ if __name__ == '__main__':
 	if os.getuid() == 0:
 		print("Running as superuser. This is not recommended.", file=sys.stderr)
 	httpd = pywsgi.WSGIServer((config_ip, config_port), main)
-	if debug:
-		httpd.secure_repr = False
+	httpd.secure_repr = False if debug else None
 	print(f'Opening socket on http://{config_ip}:{config_port}', file=sys.stderr)
 	try:
 		httpd.serve_forever()
