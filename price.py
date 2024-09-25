@@ -11,10 +11,7 @@ from lib import yahoo
 from lib import telegram
 
 def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False):
-	print("DEBUG", days, interactive, specific_stock, file=sys.stderr) if debug else None
 	def prepare_price_payload(service, market_data, threshold):
-		print("DEBUG", service, market_data, threshold, file=sys.stderr) if debug else None
-		print("DEBUG config:", config_performance_use_sharesight, config_graph, file=sys.stderr) if debug else None
 		payload = []
 		graph = False
 		marketStates = []
@@ -48,7 +45,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			elif days:
 				try:
 					percent = market_data[ticker]['percent_change_period'] # sharesight value
+					print("DEBUG should not work: ", market_data[ticker]['percent_change_period'], file=sys.stderr) if debug else None
 				except KeyError:
+					print("DEBUG should be here for .price AAPL 6m", file=sys.stderr) if debug else None
 					if config_performance_use_sharesight:
 						continue
 					# wishlist items will come here
@@ -175,8 +174,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 	# Yahoo market_data (specific_stock) or yahoo.price_history (days) is faster
 	# Note: Sharesight only works if specific_stock is a holding.
 	# Note2: Sharesight can only report performance for the time you bought it
-	#	so if you held NVDA for 1Y and request 10Y, you will only get 1Y performance
+	#	so if you held NVDA for 1Y and request 5Y, you will only get 1Y performance
 	if (not specific_stock and days) or (config_performance_use_sharesight and days):
+		print("DEBUG should not be here for .price AAPL 6m", file=sys.stderr) if debug else None
 		performance = sharesight.get_performance_wrapper(days)
 		for portfolio_id, data in performance.items():
 			for holding in data['report']['holdings']:
