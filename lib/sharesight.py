@@ -44,10 +44,10 @@ def get_token():
 	return data['access_token']
 
 def get_portfolios():
+	portfolio_dict = {}
 	if config_cache:
 		cache_file = "finbot_sharesight_portfolios.json"
 		cache = util.read_cache(cache_file, config_cache_seconds)
-		portfolio_dict = {}
 		if cache:
 			data = cache
 	else:
