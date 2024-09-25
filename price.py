@@ -176,9 +176,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 	#	so if you held NVDA for 1Y and request 5Y, you will only get 1Y performance
 	if (not specific_stock and days) or (config_performance_use_sharesight and days):
 		print("DEBUG1 should not be here for .price AAPL 6m", file=sys.stderr) if debug else None
-		print("DEBUG1 specific stock:" specific_stock, file=sys.stderr) if debug else None
-		print("DEBUG1 days:" days, file=sys.stderr) if debug else None
-		print("DEBUG1 config_performance_use_sharesight:", config_performance_use_sharesight , file=sys.stderr) if debug else None
+		print("DEBUG1 specific stock:", specific_stock, file=sys.stderr) if debug else None
+		print("DEBUG1 days:", days, file=sys.stderr) if debug else None
+		print("DEBUG1, config_performance_use_sharesight:", config_performance_use_sharesight , file=sys.stderr) if debug else None
 		performance = sharesight.get_performance_wrapper(days)
 		for portfolio_id, data in performance.items():
 			for holding in data['report']['holdings']:
