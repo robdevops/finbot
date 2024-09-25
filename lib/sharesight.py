@@ -44,11 +44,12 @@ def get_token():
 	return data['access_token']
 
 def get_portfolios():
-	cache_file = "finbot_sharesight_portfolios.json"
-	cache = util.read_cache(cache_file, config_cache_seconds)
-	portfolio_dict = {}
-	if config_cache and cache:
-		data = cache
+	if config_cache:
+		cache_file = "finbot_sharesight_portfolios.json"
+		cache = util.read_cache(cache_file, config_cache_seconds)
+		portfolio_dict = {}
+		if cache:
+			data = cache
 	else:
 		token = get_token()
 		print("Fetching Sharesight portfolios")
@@ -80,10 +81,11 @@ def get_portfolios():
 	return portfolio_dict
 
 def get_trades(portfolio_name, portfolio_id, days=config_past_days):
-	cache_file = "finbot_sharesight_trades_" + str(portfolio_id) + "_" + str(days) + ".json"
-	cache = util.read_cache(cache_file, 299) # max freq 5 min
-	if config_cache and cache:
-		return cache['trades']
+	if config_cache:
+		cache_file = "finbot_sharesight_trades_" + str(portfolio_id) + "_" + str(days) + ".json"
+		cache = util.read_cache(cache_file, 299) # max freq 5 min
+		if cache:
+			return cache['trades']
 	start_date = datetime.datetime.now() - datetime.timedelta(days=days)
 	start_date = start_date.strftime('%Y-%m-%d') # 2022-08-20
 	token = get_token()
@@ -138,27 +140,27 @@ def get_holdings_wrapper():
 def get_performance(portfolio_id, days):
 	start_date = datetime.datetime.now() - datetime.timedelta(days=days)
 	start_date = start_date.strftime('%Y-%m-%d') # 2023-04-25
-	cache_file = "finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'
-	cache = util.read_cache(cache_file, config_cache_seconds)
-	if config_cache and cache:
-		data = cache
-	else:
-		token = get_token()
-		endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
-		url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + start_date
-		try:
-			r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
-		except Exception as e:
-			print("Error", str(e), url, file=sys.stderr)
-			sys.exit(1)
-		if r.status_code != 200:
-			print(r.status_code, "error", url, file=sys.stderr)
-		data = r.json()
-		if 'error' in data:
-			print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
-			sys.exit(1)
-		if config_cache and 'report' in data:
-			util.json_write(cache_file, data)
+	if config_cache:
+		cache_file = "finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'
+		cache = util.read_cache(cache_file, config_cache_seconds)
+		if cache:
+			return cache
+	token = get_token()
+	endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
+	url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + start_date
+	try:
+		r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
+	except Exception as e:
+		print("Error", str(e), url, file=sys.stderr)
+		sys.exit(1)
+	if r.status_code != 200:
+		print(r.status_code, "error", url, file=sys.stderr)
+	data = r.json()
+	if 'error' in data:
+		print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
+		sys.exit(1)
+	if config_cache and 'report' in data:
+		util.json_write(cache_file, data)
 	return data
 
 def get_performance_wrapper(days=config_past_days):
