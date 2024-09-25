@@ -14,14 +14,18 @@ from lib import util
 from http.cookies import SimpleCookie
 
 def getCookie():
-	#if config_cache: # disabled - we must always cache as crumb must match cookie
+	# we must always cache this, as crumb must match cookie
 	cacheFile = "finbot_yahoo_cookie.json"
 	cache = util.json_load(cacheFile)
 	if cache:
 		cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(config_cache_dir + '/' + cacheFile))
-		if cacheFileAge < datetime.timedelta(seconds=cache[0][2]):
+		ttl = datetime.timedelta(seconds=cache[0][2]) - cacheFileAge
+		if ttl > datetime.timedelta(seconds=30):
 			cookie = cache[0][0] + '=' + cache[0][1]
+			print("cache hit:", cacheFile, "TTL:", util.td_to_human(ttl), file=sys.stderr) if debug else None
 			return cookie
+		else:
+			print("cache miss:", cacheFile, file=sys.stderr) if debug else None
 
 	# request
 	cookie = None
@@ -783,10 +787,11 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 
 def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds):
 	now = datetime.datetime.now()
-	cacheFile = "finbot_yahoo_history_" + ticker + ".json"
-	cache = util.read_cache(cacheFile, seconds)
-	if config_cache and cache:
-		return cache
+	if config_cache:
+		cacheFile = "finbot_yahoo_history_" + ticker + ".json"
+		cache = util.read_cache(cacheFile, seconds)
+		if cache:
+			return cache
 	else:
 		cookie = getCookie()
 		crumb = getCrumb()

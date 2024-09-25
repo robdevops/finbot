@@ -270,8 +270,8 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
 		cacheFileAge = datetime.datetime.now() - cacheFileMtime
 		if cacheFileAge < maxSeconds:
 			if debug:
-				ttl = round((maxSeconds - cacheFileAge).total_seconds() / 60)
-				print("cache hit:", cacheFile, "TTL:", ttl, "minutes", file=sys.stderr)
+				ttl = maxSeconds - cacheFileAge
+				print("cache hit:", cacheFile, "TTL:", td_to_human(ttl), "minutes", file=sys.stderr)
 			with open(cacheFile, "r", encoding="utf-8") as f:
 				cacheDict = json.loads(f.read())
 			return cacheDict
@@ -314,8 +314,8 @@ def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
 		cacheFileAge = datetime.datetime.now() - cacheFileMtime
 		if cacheFileAge < maxSeconds:
 			if debug:
-				ttl = round((maxSeconds - cacheFileAge).total_seconds() / 60)
-				print("cache hit", cacheFile, "TTL:", ttl, "minutes", file=sys.stderr)
+				ttl = maxSeconds - cacheFileAge
+				print("cache hit", cacheFile, "TTL:", td_to_human(ttl), "minutes", file=sys.stderr)
 			with open(cacheFile, "rb") as f:
 				data = io.BytesIO(f.read())
 			return data
@@ -634,3 +634,20 @@ def ordinal(num):
 		return 'rd'
 	else:
 		return 'th'
+
+def td_to_human(timedelta):
+	days, remainder = divmod(timedelta.total_seconds(), 86400)
+	hours, remainder = divmod(remainder, 3600)
+	minutes, seconds = divmod(remainder, 60)
+	parts = []
+	if days:
+		parts.append(f"{int(days)} day{'s' if days != 1 else ''}")
+	if hours:
+		parts.append(f"{int(hours)} hour{'s' if hours != 1 else ''}")
+	if minutes:
+		parts.append(f"{int(minutes)} minute{'s' if minutes != 1 else ''}")
+	if seconds:
+		parts.append(f"{int(seconds)} second{'s' if seconds != 1 else ''}")
+	if not parts:
+		return "0 seconds"
+	return ", ".join(parts)

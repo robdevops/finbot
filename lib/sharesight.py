@@ -13,12 +13,18 @@ class BearerAuth(requests.auth.AuthBase):
 		return r
 
 def get_token():
-	cacheFile = "finbot_sharesight_token.json"
-	cache = util.json_load(cacheFile)
-	if config_cache and cache:
-		cache_expiry = datetime.datetime.fromtimestamp(cache['created_at'] + cache['expires_in'])
-		if cache_expiry > datetime.datetime.now() + datetime.timedelta(seconds=20):
-			return cache['access_token']
+	if config_cache:
+		cacheFile = "finbot_sharesight_token.json"
+		cache = util.json_load(cacheFile)
+		if cache:
+			cache_expiry = datetime.datetime.fromtimestamp(cache['created_at'] + cache['expires_in'])
+			ttl = cache_expiry - datetime.datetime.now()
+			if ttl > datetime.timedelta(seconds=20):
+				print("cache hit:", cacheFile, "TTL:", util.td_to_human(ttl), file=sys.stderr) if debug else None
+				return cache['access_token']
+			else:
+				print("cache miss:", cacheFile, file=sys.stderr) if debug else None
+
 	print("Fetching Sharesight auth token")
 	url = "https://api.sharesight.com/oauth2/token"
 	try:
