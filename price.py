@@ -49,8 +49,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					if config_performance_use_sharesight:
 						continue
 					# wishlist items will come here
-					if debug:
-						print("Could not find", ticker, "in Sharesight data. Trying Yahoo", file=sys.stderr)
+					print("Could not find", ticker, "in Sharesight data. Trying Yahoo", file=sys.stderr) if debug else None
 					if specific_stock:
 						percent, graph = yahoo.price_history(ticker, days, graphCache=False)
 						if isinstance(percent, str) and interactive:
@@ -63,7 +62,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 							webhook.payload_wrapper(service, url, [errormessage], chat_id)
 							sys.exit(1)
 					else:
-						print("DEBUG fetching Yahoo CSV for", ticker, file=sys.stderr)
 						percent, graph = yahoo.price_history(ticker, days, graph=False)
 						if isinstance(percent, str) and interactive:
 							continue
