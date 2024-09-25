@@ -175,9 +175,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 	if (not specific_stock and days) or (config_performance_use_sharesight and days):
 		performance = sharesight.get_performance_wrapper(days)
 		for portfolio_id, data in performance.items():
-			print("DEBUG", portfolio_id, file=sys.stderr)
+			print("DEBUG", portfolio_id, file=sys.stderr) if debug else None
 			for holding in data['report']['holdings']:
-				print("DEBUG", holding['instrument']['code'], file=sys.stderr)
 				symbol = holding['instrument']['code']
 				market = holding['instrument']['market_code']
 				percent = float(holding['capital_gain_percent'])

@@ -40,7 +40,7 @@ def get_token():
 		sys.exit(1)
 	if config_cache and 'access_token' in data:
 		util.json_write(cacheFile, data)
-	print(data, file=sys.stderr)
+	print("Got Sharesight token:", data['access_token'], file=sys.stderr) if debug else None
 	return data['access_token']
 
 def get_portfolios():

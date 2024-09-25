@@ -30,7 +30,7 @@ def write(service, url, payload, slackchannel=None, message_id=None):
 		print("Failure executing request:", url, headers, payload, file=sys.stderr)
 		return None
 	if r.status_code == 200:
-		print(r.status_code, "OK outbound to", service)
+		print(r.status_code, "OK outbound to", service, file=sys.stderr)
 	else:
 		print(r.status_code, "error outbound to", service, file=sys.stderr)
 		return None
@@ -41,8 +41,7 @@ def payload_wrapper(service, url, payload, slackchannel=None, message_id=None):
 	else:
 		payload_string = '\n'.join(payload)
 		print("Preparing outbound to", service, str(len(payload_string)), "bytes")
-		if debug:
-			print("Payload: " + payload_string)
+		print("Payload: " + payload_string) if debug else None
 		def chunkLooper():
 			chunks = util.chunker(payload, config_chunk_maxlines)
 			for idx, chunk in enumerate(chunks):
