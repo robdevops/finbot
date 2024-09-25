@@ -50,7 +50,7 @@ def get_portfolios():
 		cache = util.read_cache(cache_file, config_cache_seconds)
 		if cache:
 			data = cache
-	else:
+	if not cache or not config_cache:
 		token = get_token()
 		print("Fetching Sharesight portfolios")
 		url = "https://api.sharesight.com/api/v3/portfolios"
