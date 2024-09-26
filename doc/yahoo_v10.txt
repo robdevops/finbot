@@ -11,7 +11,6 @@ curl -s --cookie-jar cookies.txt https://fc.yahoo.com/ -o /dev/null
 curl -s -H "User-Agent: Mozilla/5.0" -b cookies.txt "https://query2.finance.yahoo.com/v1/test/getcrumb" -o crumb.txt
 
 
-
 3. You must send the cookie header and append the crumb parameter:
 
 curl -s -H "User-Agent: Mozilla/5.0" -b cookies.txt "https://query1.finance.yahoo.com/v10/finance/quoteSummary/AAPL?modules=quoteType&crumb=$(cat crumb.txt)" | jq
@@ -78,7 +77,7 @@ summaryProfile
 upgradeDowngradeHistory
 
 
-5. You can can request multiple modules in a single request:
+5. You can request multiple modules in a single request:
 
 https://query1.finance.yahoo.com/v10/finance/quoteSummary/AAPL?modules=majorHoldersBreakdown,quoteType
 
