@@ -111,7 +111,7 @@ curl -s -H "User-Agent: Mozilla/5.0" -b cookies.txt "https://query1.finance.yaho
 }
 
 
-4. You can request multiple intruments in a single request:
+4. You can request multiple instruments in a single request:
 
 https://query1.finance.yahoo.com/v7/finance/quote?symbols=AMZN,NVDA
 
