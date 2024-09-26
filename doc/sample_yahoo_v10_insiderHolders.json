@@ -1,0 +1,214 @@
+{
+	"quoteSummary": {
+	"result": [
+		{
+		"insiderHolders": {
+			"holders": [
+			{
+				"maxAge": 1,
+				"name": "AUSTIN ROXANNE SCHUH",
+				"relation": "Director",
+				"url": "",
+				"transactionDescription": "Sale",
+				"latestTransDate": {
+				"raw": 1719532800,
+				"fmt": "2024-06-28"
+				},
+				"positionDirect": {
+				"raw": 18297,
+				"fmt": "18.3k",
+				"longFmt": "18,297"
+				},
+				"positionDirectDate": {
+				"raw": 1719532800,
+				"fmt": "2024-06-28"
+				}
+			},
+			{
+				"maxAge": 1,
+				"name": "DAVIS CARY J",
+				"relation": "Director",
+				"url": "",
+				"transactionDescription": "Stock Award(Grant)",
+				"latestTransDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"positionDirect": {
+				"raw": 20872,
+				"fmt": "20.87k",
+				"longFmt": "20,872"
+				},
+				"positionDirectDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				}
+			},
+			{
+				"maxAge": 1,
+				"name": "FLOWER JOHANNA",
+				"relation": "Director",
+				"url": "",
+				"transactionDescription": "Stock Award(Grant)",
+				"latestTransDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"positionDirect": {
+				"raw": 85795,
+				"fmt": "85.8k",
+				"longFmt": "85,795"
+				},
+				"positionDirectDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				}
+			},
+			{
+				"maxAge": 1,
+				"name": "GANDHI SAMEER K.",
+				"relation": "Director",
+				"url": "",
+				"transactionDescription": "Stock Award(Grant)",
+				"latestTransDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"positionDirect": {
+				"raw": 1001890,
+				"fmt": "1M",
+				"longFmt": "1,001,890"
+				},
+				"positionDirectDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				}
+			},
+			{
+				"maxAge": 1,
+				"name": "HENRY SHAWN",
+				"relation": "Officer",
+				"url": "",
+				"transactionDescription": "Sale",
+				"latestTransDate": {
+				"raw": 1726444800,
+				"fmt": "2024-09-16"
+				},
+				"positionDirect": {
+				"raw": 174591,
+				"fmt": "174.59k",
+				"longFmt": "174,591"
+				},
+				"positionDirectDate": {
+				"raw": 1726444800,
+				"fmt": "2024-09-16"
+				}
+			},
+			{
+				"maxAge": 1,
+				"name": "KURTZ GEORGE ROBERT",
+				"relation": "Chief Executive Officer",
+				"url": "",
+				"transactionDescription": "Stock Gift",
+				"latestTransDate": {
+				"raw": 1720742400,
+				"fmt": "2024-07-12"
+				},
+				"positionIndirect": {
+				"raw": 1127840,
+				"fmt": "1.13M",
+				"longFmt": "1,127,840"
+				},
+				"positionIndirectDate": {
+				"raw": 1720742400,
+				"fmt": "2024-07-12"
+				}
+			},
+			{
+				"maxAge": 1,
+				"name": "O'LEARY DENIS J",
+				"relation": "Director",
+				"url": "",
+				"transactionDescription": "Stock Award(Grant)",
+				"latestTransDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"positionDirect": {
+				"raw": 63269,
+				"fmt": "63.27k",
+				"longFmt": "63,269"
+				},
+				"positionDirectDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				}
+			},
+			{
+				"maxAge": 1,
+				"name": "PODBERE BURT W.",
+				"relation": "Chief Financial Officer",
+				"url": "",
+				"transactionDescription": "Sale",
+				"latestTransDate": {
+				"raw": 1718928000,
+				"fmt": "2024-06-21"
+				},
+				"positionDirect": {
+				"raw": 383250,
+				"fmt": "383.25k",
+				"longFmt": "383,250"
+				},
+				"positionDirectDate": {
+				"raw": 1718928000,
+				"fmt": "2024-06-21"
+				}
+			},
+			{
+				"maxAge": 1,
+				"name": "SCHUMACHER LAURA J",
+				"relation": "Director",
+				"url": "",
+				"transactionDescription": "Stock Award(Grant)",
+				"latestTransDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"positionDirect": {
+				"raw": 8486,
+				"fmt": "8.49k",
+				"longFmt": "8,486"
+				},
+				"positionDirectDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				}
+			},
+			{
+				"maxAge": 1,
+				"name": "WATZINGER GERHARD",
+				"relation": "Director",
+				"url": "",
+				"transactionDescription": "Stock Award(Grant)",
+				"latestTransDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"positionDirect": {
+				"raw": 56524,
+				"fmt": "56.52k",
+				"longFmt": "56,524"
+				},
+				"positionDirectDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				}
+			}
+			],
+			"maxAge": 1
+		}
+		}
+	],
+	"error": null
+	}
+}

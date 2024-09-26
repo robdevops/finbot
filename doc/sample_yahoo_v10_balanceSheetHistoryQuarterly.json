@@ -1,0 +1,42 @@
+{
+	"quoteSummary": {
+	"result": [
+		{
+		"balanceSheetHistoryQuarterly": {
+			"balanceSheetStatements": [
+			{
+				"maxAge": 1,
+				"endDate": {
+				"raw": 1722384000,
+				"fmt": "2024-07-31"
+				}
+			},
+			{
+				"maxAge": 1,
+				"endDate": {
+				"raw": 1714435200,
+				"fmt": "2024-04-30"
+				}
+			},
+			{
+				"maxAge": 1,
+				"endDate": {
+				"raw": 1706659200,
+				"fmt": "2024-01-31"
+				}
+			},
+			{
+				"maxAge": 1,
+				"endDate": {
+				"raw": 1698710400,
+				"fmt": "2023-10-31"
+				}
+			}
+			],
+			"maxAge": 86400
+		}
+		}
+	],
+	"error": null
+	}
+}

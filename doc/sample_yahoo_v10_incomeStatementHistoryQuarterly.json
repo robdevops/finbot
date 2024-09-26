@@ -1,0 +1,242 @@
+{
+	"quoteSummary": {
+	"result": [
+		{
+		"incomeStatementHistoryQuarterly": {
+			"incomeStatementHistory": [
+			{
+				"maxAge": 1,
+				"endDate": {
+				"raw": 1722384000,
+				"fmt": "2024-07-31"
+				},
+				"totalRevenue": {
+				"raw": 963872000,
+				"fmt": "963.87M",
+				"longFmt": "963,872,000"
+				},
+				"costOfRevenue": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"grossProfit": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"researchDevelopment": {},
+				"sellingGeneralAdministrative": {},
+				"nonRecurring": {},
+				"otherOperatingExpenses": {},
+				"totalOperatingExpenses": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"operatingIncome": {},
+				"totalOtherIncomeExpenseNet": {},
+				"ebit": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"interestExpense": {},
+				"incomeBeforeTax": {},
+				"incomeTaxExpense": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"minorityInterest": {},
+				"netIncomeFromContinuingOps": {},
+				"discontinuedOperations": {},
+				"extraordinaryItems": {},
+				"effectOfAccountingCharges": {},
+				"otherItems": {},
+				"netIncome": {
+				"raw": 47013000,
+				"fmt": "47.01M",
+				"longFmt": "47,013,000"
+				},
+				"netIncomeApplicableToCommonShares": {}
+			},
+			{
+				"maxAge": 1,
+				"endDate": {
+				"raw": 1714435200,
+				"fmt": "2024-04-30"
+				},
+				"totalRevenue": {
+				"raw": 921036000,
+				"fmt": "921.04M",
+				"longFmt": "921,036,000"
+				},
+				"costOfRevenue": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"grossProfit": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"researchDevelopment": {},
+				"sellingGeneralAdministrative": {},
+				"nonRecurring": {},
+				"otherOperatingExpenses": {},
+				"totalOperatingExpenses": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"operatingIncome": {},
+				"totalOtherIncomeExpenseNet": {},
+				"ebit": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"interestExpense": {},
+				"incomeBeforeTax": {},
+				"incomeTaxExpense": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"minorityInterest": {},
+				"netIncomeFromContinuingOps": {},
+				"discontinuedOperations": {},
+				"extraordinaryItems": {},
+				"effectOfAccountingCharges": {},
+				"otherItems": {},
+				"netIncome": {
+				"raw": 42820000,
+				"fmt": "42.82M",
+				"longFmt": "42,820,000"
+				},
+				"netIncomeApplicableToCommonShares": {}
+			},
+			{
+				"maxAge": 1,
+				"endDate": {
+				"raw": 1706659200,
+				"fmt": "2024-01-31"
+				},
+				"totalRevenue": {
+				"raw": 845335000,
+				"fmt": "845.34M",
+				"longFmt": "845,335,000"
+				},
+				"costOfRevenue": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"grossProfit": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"researchDevelopment": {},
+				"sellingGeneralAdministrative": {},
+				"nonRecurring": {},
+				"otherOperatingExpenses": {},
+				"totalOperatingExpenses": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"operatingIncome": {},
+				"totalOtherIncomeExpenseNet": {},
+				"ebit": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"interestExpense": {},
+				"incomeBeforeTax": {},
+				"incomeTaxExpense": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"minorityInterest": {},
+				"netIncomeFromContinuingOps": {},
+				"discontinuedOperations": {},
+				"extraordinaryItems": {},
+				"effectOfAccountingCharges": {},
+				"otherItems": {},
+				"netIncome": {
+				"raw": 53699000,
+				"fmt": "53.7M",
+				"longFmt": "53,699,000"
+				},
+				"netIncomeApplicableToCommonShares": {}
+			},
+			{
+				"maxAge": 1,
+				"endDate": {
+				"raw": 1698710400,
+				"fmt": "2023-10-31"
+				},
+				"totalRevenue": {
+				"raw": 786014000,
+				"fmt": "786.01M",
+				"longFmt": "786,014,000"
+				},
+				"costOfRevenue": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"grossProfit": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"researchDevelopment": {},
+				"sellingGeneralAdministrative": {},
+				"nonRecurring": {},
+				"otherOperatingExpenses": {},
+				"totalOperatingExpenses": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"operatingIncome": {},
+				"totalOtherIncomeExpenseNet": {},
+				"ebit": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"interestExpense": {},
+				"incomeBeforeTax": {},
+				"incomeTaxExpense": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"minorityInterest": {},
+				"netIncomeFromContinuingOps": {},
+				"discontinuedOperations": {},
+				"extraordinaryItems": {},
+				"effectOfAccountingCharges": {},
+				"otherItems": {},
+				"netIncome": {
+				"raw": 26665000,
+				"fmt": "26.66M",
+				"longFmt": "26,665,000"
+				},
+				"netIncomeApplicableToCommonShares": {}
+			}
+			],
+			"maxAge": 86400
+		}
+		}
+	],
+	"error": null
+	}
+}

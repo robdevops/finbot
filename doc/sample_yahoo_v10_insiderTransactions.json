@@ -1,0 +1,3364 @@
+{
+	"quoteSummary": {
+	"result": [
+		{
+		"insiderTransactions": {
+			"transactions": [
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 44,
+				"fmt": "44",
+				"longFmt": "44"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "DAVIS CARY J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 38,
+				"fmt": "38",
+				"longFmt": "38"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SCHUMACHER LAURA J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 88,
+				"fmt": "88",
+				"longFmt": "88"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "WATZINGER GERHARD",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 40,
+				"fmt": "40",
+				"longFmt": "40"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 48,
+				"fmt": "48",
+				"longFmt": "48"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "GANDHI SAMEER K.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 33,
+				"fmt": "33",
+				"longFmt": "33"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "FLOWER JOHANNA",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1726790400,
+				"fmt": "2024-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 4500,
+				"fmt": "4.5k",
+				"longFmt": "4,500"
+				},
+				"value": {
+				"raw": 1173268,
+				"fmt": "1.17M",
+				"longFmt": "1,173,268"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 260.11 - 260.77 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1726444800,
+				"fmt": "2024-09-16"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 4000,
+				"fmt": "4k",
+				"longFmt": "4,000"
+				},
+				"value": {
+				"raw": 1040000,
+				"fmt": "1.04M",
+				"longFmt": "1,040,000"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 260.00 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1723680000,
+				"fmt": "2024-08-15"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 4000,
+				"fmt": "4k",
+				"longFmt": "4,000"
+				},
+				"value": {
+				"raw": 1485280,
+				"fmt": "1.49M",
+				"longFmt": "1,485,280"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 371.32 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1721001600,
+				"fmt": "2024-07-15"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 100000,
+				"fmt": "100k",
+				"longFmt": "100,000"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Gift at price 0.00 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1720742400,
+				"fmt": "2024-07-12"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 100000,
+				"fmt": "100k",
+				"longFmt": "100,000"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1720742400,
+				"fmt": "2024-07-12"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 15000,
+				"fmt": "15k",
+				"longFmt": "15,000"
+				},
+				"value": {
+				"raw": 5703128,
+				"fmt": "5.7M",
+				"longFmt": "5,703,128"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 378.32 - 385.55 per share.",
+				"filerName": "GANDHI SAMEER K.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1719792000,
+				"fmt": "2024-07-01"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 5000,
+				"fmt": "5k",
+				"longFmt": "5,000"
+				},
+				"value": {
+				"raw": 1955050,
+				"fmt": "1.96M",
+				"longFmt": "1,955,050"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 391.01 per share.",
+				"filerName": "AUSTIN ROXANNE SCHUH",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1719532800,
+				"fmt": "2024-06-28"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 5000,
+				"fmt": "5k",
+				"longFmt": "5,000"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "AUSTIN ROXANNE SCHUH",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1719532800,
+				"fmt": "2024-06-28"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 10000,
+				"fmt": "10k",
+				"longFmt": "10,000"
+				},
+				"value": {
+				"raw": 3900100,
+				"fmt": "3.9M",
+				"longFmt": "3,900,100"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 390.01 per share.",
+				"filerName": "AUSTIN ROXANNE SCHUH",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1719446400,
+				"fmt": "2024-06-27"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 10000,
+				"fmt": "10k",
+				"longFmt": "10,000"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "AUSTIN ROXANNE SCHUH",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1719446400,
+				"fmt": "2024-06-27"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 13581,
+				"fmt": "13.58k",
+				"longFmt": "13,581"
+				},
+				"value": {
+				"raw": 5123782,
+				"fmt": "5.12M",
+				"longFmt": "5,123,782"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 374.90 - 380.63 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1719187200,
+				"fmt": "2024-06-24"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 11154,
+				"fmt": "11.15k",
+				"longFmt": "11,154"
+				},
+				"value": {
+				"raw": 4236365,
+				"fmt": "4.24M",
+				"longFmt": "4,236,365"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 373.80 - 380.63 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718928000,
+				"fmt": "2024-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 55587,
+				"fmt": "55.59k",
+				"longFmt": "55,587"
+				},
+				"value": {
+				"raw": 20925765,
+				"fmt": "20.93M",
+				"longFmt": "20,925,765"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 371.77 - 380.43 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718928000,
+				"fmt": "2024-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 37382,
+				"fmt": "37.38k",
+				"longFmt": "37,382"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718928000,
+				"fmt": "2024-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1662,
+				"fmt": "1.66k",
+				"longFmt": "1,662"
+				},
+				"value": {
+				"raw": 632607,
+				"fmt": "632.61k",
+				"longFmt": "632,607"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 380.63 per share.",
+				"filerName": "SAHA ANURAG",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718928000,
+				"fmt": "2024-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 10735,
+				"fmt": "10.73k",
+				"longFmt": "10,735"
+				},
+				"value": {
+				"raw": 4086063,
+				"fmt": "4.09M",
+				"longFmt": "4,086,063"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 380.63 per share.",
+				"filerName": "SENTONAS MICHAEL",
+				"filerRelation": "President",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718928000,
+				"fmt": "2024-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 673,
+				"fmt": "673",
+				"longFmt": "673"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "DAVIS CARY J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718841600,
+				"fmt": "2024-06-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 670,
+				"fmt": "670",
+				"longFmt": "670"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SCHUMACHER LAURA J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718841600,
+				"fmt": "2024-06-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 709,
+				"fmt": "709",
+				"longFmt": "709"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "WATZINGER GERHARD",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718841600,
+				"fmt": "2024-06-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 673,
+				"fmt": "673",
+				"longFmt": "673"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718841600,
+				"fmt": "2024-06-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 679,
+				"fmt": "679",
+				"longFmt": "679"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "GANDHI SAMEER K.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718841600,
+				"fmt": "2024-06-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 667,
+				"fmt": "667",
+				"longFmt": "667"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "FLOWER JOHANNA",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718841600,
+				"fmt": "2024-06-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 641,
+				"fmt": "641",
+				"longFmt": "641"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "AUSTIN ROXANNE SCHUH",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718668800,
+				"fmt": "2024-06-18"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 641,
+				"fmt": "641",
+				"longFmt": "641"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SULLIVAN GODFREY R JR.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718668800,
+				"fmt": "2024-06-18"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 4500,
+				"fmt": "4.5k",
+				"longFmt": "4,500"
+				},
+				"value": {
+				"raw": 1723187,
+				"fmt": "1.72M",
+				"longFmt": "1,723,187"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 382.64 - 383.57 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1718582400,
+				"fmt": "2024-06-17"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 5300,
+				"fmt": "5.3k",
+				"longFmt": "5,300"
+				},
+				"value": {
+				"raw": 2021685,
+				"fmt": "2.02M",
+				"longFmt": "2,021,685"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 381.45 per share.",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1717977600,
+				"fmt": "2024-06-10"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 12000,
+				"fmt": "12k",
+				"longFmt": "12,000"
+				},
+				"value": {
+				"raw": 4187660,
+				"fmt": "4.19M",
+				"longFmt": "4,187,660"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 348.94 - 349.01 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1716249600,
+				"fmt": "2024-05-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 12000,
+				"fmt": "12k",
+				"longFmt": "12,000"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1716249600,
+				"fmt": "2024-05-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 24000,
+				"fmt": "24k",
+				"longFmt": "24,000"
+				},
+				"value": {
+				"raw": 8020656,
+				"fmt": "8.02M",
+				"longFmt": "8,020,656"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 329.10 - 339.29 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1715731200,
+				"fmt": "2024-05-15"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 18599,
+				"fmt": "18.6k",
+				"longFmt": "18,599"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1715731200,
+				"fmt": "2024-05-15"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 4000,
+				"fmt": "4k",
+				"longFmt": "4,000"
+				},
+				"value": {
+				"raw": 1334075,
+				"fmt": "1.33M",
+				"longFmt": "1,334,075"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 331.28 - 336.64 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1715731200,
+				"fmt": "2024-05-15"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 15753,
+				"fmt": "15.75k",
+				"longFmt": "15,753"
+				},
+				"value": {
+				"raw": 4807061,
+				"fmt": "4.81M",
+				"longFmt": "4,807,061"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 301.57 - 306.77 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1714694400,
+				"fmt": "2024-05-03"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 56279,
+				"fmt": "56.28k",
+				"longFmt": "56,279"
+				},
+				"value": {
+				"raw": 17132096,
+				"fmt": "17.13M",
+				"longFmt": "17,132,096"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 300.73 - 306.20 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1714694400,
+				"fmt": "2024-05-03"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 23239,
+				"fmt": "23.24k",
+				"longFmt": "23,239"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1713312000,
+				"fmt": "2024-04-17"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 54225,
+				"fmt": "54.23k",
+				"longFmt": "54,225"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1713312000,
+				"fmt": "2024-04-17"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 7746,
+				"fmt": "7.75k",
+				"longFmt": "7,746"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SAHA ANURAG",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1713312000,
+				"fmt": "2024-04-17"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 38732,
+				"fmt": "38.73k",
+				"longFmt": "38,732"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SENTONAS MICHAEL",
+				"filerRelation": "President",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1713312000,
+				"fmt": "2024-04-17"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 4000,
+				"fmt": "4k",
+				"longFmt": "4,000"
+				},
+				"value": {
+				"raw": 1235170,
+				"fmt": "1.24M",
+				"longFmt": "1,235,170"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 308.33 - 309.75 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1713139200,
+				"fmt": "2024-04-15"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 15000,
+				"fmt": "15k",
+				"longFmt": "15,000"
+				},
+				"value": {
+				"raw": 4752358,
+				"fmt": "4.75M",
+				"longFmt": "4,752,358"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 315.91 - 318.39 per share.",
+				"filerName": "GANDHI SAMEER K.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1712102400,
+				"fmt": "2024-04-03"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 2300,
+				"fmt": "2.3k",
+				"longFmt": "2,300"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Gift at price 0.00 per share.",
+				"filerName": "DAVIS CARY J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1712016000,
+				"fmt": "2024-04-02"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 64000,
+				"fmt": "64k",
+				"longFmt": "64,000"
+				},
+				"value": {
+				"raw": 20254661,
+				"fmt": "20.25M",
+				"longFmt": "20,254,661"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 314.26 - 320.18 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1711929600,
+				"fmt": "2024-04-01"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 22716,
+				"fmt": "22.72k",
+				"longFmt": "22,716"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1711929600,
+				"fmt": "2024-04-01"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1786,
+				"fmt": "1.79k",
+				"longFmt": "1,786"
+				},
+				"value": {
+				"raw": 592095,
+				"fmt": "592.1k",
+				"longFmt": "592,095"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 331.52 per share.",
+				"filerName": "SAHA ANURAG",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1711411200,
+				"fmt": "2024-03-26"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 37704,
+				"fmt": "37.7k",
+				"longFmt": "37,704"
+				},
+				"value": {
+				"raw": 12282483,
+				"fmt": "12.28M",
+				"longFmt": "12,282,483"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 322.76 - 329.30 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1711065600,
+				"fmt": "2024-03-22"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 26097,
+				"fmt": "26.1k",
+				"longFmt": "26,097"
+				},
+				"value": {
+				"raw": 8497406,
+				"fmt": "8.5M",
+				"longFmt": "8,497,406"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 323.25 - 328.28 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1710979200,
+				"fmt": "2024-03-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 78080,
+				"fmt": "78.08k",
+				"longFmt": "78,080"
+				},
+				"value": {
+				"raw": 25515133,
+				"fmt": "25.52M",
+				"longFmt": "25,515,133"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 323.56 - 332.68 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1710979200,
+				"fmt": "2024-03-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 36378,
+				"fmt": "36.38k",
+				"longFmt": "36,378"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1710979200,
+				"fmt": "2024-03-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1019,
+				"fmt": "1.02k",
+				"longFmt": "1,019"
+				},
+				"value": {
+				"raw": 331990,
+				"fmt": "331.99k",
+				"longFmt": "331,990"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 325.80 per share.",
+				"filerName": "SAHA ANURAG",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1710979200,
+				"fmt": "2024-03-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 18747,
+				"fmt": "18.75k",
+				"longFmt": "18,747"
+				},
+				"value": {
+				"raw": 6107773,
+				"fmt": "6.11M",
+				"longFmt": "6,107,773"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 325.80 per share.",
+				"filerName": "SENTONAS MICHAEL",
+				"filerRelation": "President",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1710979200,
+				"fmt": "2024-03-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 37,
+				"fmt": "37",
+				"longFmt": "37"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "DAVIS CARY J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1710892800,
+				"fmt": "2024-03-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 34,
+				"fmt": "34",
+				"longFmt": "34"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SCHUMACHER LAURA J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1710892800,
+				"fmt": "2024-03-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 80,
+				"fmt": "80",
+				"longFmt": "80"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "WATZINGER GERHARD",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1710892800,
+				"fmt": "2024-03-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 38,
+				"fmt": "38",
+				"longFmt": "38"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1710892800,
+				"fmt": "2024-03-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 45,
+				"fmt": "45",
+				"longFmt": "45"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "GANDHI SAMEER K.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1710892800,
+				"fmt": "2024-03-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 30,
+				"fmt": "30",
+				"longFmt": "30"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "FLOWER JOHANNA",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1710892800,
+				"fmt": "2024-03-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 89833,
+				"fmt": "89.83k",
+				"longFmt": "89,833"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1709683200,
+				"fmt": "2024-03-06"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 209610,
+				"fmt": "209.61k",
+				"longFmt": "209,610"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1709683200,
+				"fmt": "2024-03-06"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 59888,
+				"fmt": "59.89k",
+				"longFmt": "59,888"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1709683200,
+				"fmt": "2024-03-06"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 89833,
+				"fmt": "89.83k",
+				"longFmt": "89,833"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SENTONAS MICHAEL",
+				"filerRelation": "President",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1709683200,
+				"fmt": "2024-03-06"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 22123,
+				"fmt": "22.12k",
+				"longFmt": "22,123"
+				},
+				"value": {
+				"raw": 6327178,
+				"fmt": "6.33M",
+				"longFmt": "6,327,178"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 286.00 per share.",
+				"filerName": "SENTONAS MICHAEL",
+				"filerRelation": "President",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1705363200,
+				"fmt": "2024-01-16"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 100000,
+				"fmt": "100k",
+				"longFmt": "100,000"
+				},
+				"value": {
+				"raw": 28396016,
+				"fmt": "28.4M",
+				"longFmt": "28,396,016"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 280.86 - 289.24 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1705017600,
+				"fmt": "2024-01-12"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 15000,
+				"fmt": "15k",
+				"longFmt": "15,000"
+				},
+				"value": {
+				"raw": 3601992,
+				"fmt": "3.6M",
+				"longFmt": "3,601,992"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 240.13 per share.",
+				"filerName": "GANDHI SAMEER K.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1704240000,
+				"fmt": "2024-01-03"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 20000,
+				"fmt": "20k",
+				"longFmt": "20,000"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Gift at price 0.00 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703116800,
+				"fmt": "2023-12-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 22825,
+				"fmt": "22.82k",
+				"longFmt": "22,825"
+				},
+				"value": {
+				"raw": 5779769,
+				"fmt": "5.78M",
+				"longFmt": "5,779,769"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 251.70 - 255.22 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703116800,
+				"fmt": "2023-12-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 20000,
+				"fmt": "20k",
+				"longFmt": "20,000"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703116800,
+				"fmt": "2023-12-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 56985,
+				"fmt": "56.98k",
+				"longFmt": "56,985"
+				},
+				"value": {
+				"raw": 14368632,
+				"fmt": "14.37M",
+				"longFmt": "14,368,632"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 251.08 - 254.44 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703116800,
+				"fmt": "2023-12-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 37090,
+				"fmt": "37.09k",
+				"longFmt": "37,090"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703116800,
+				"fmt": "2023-12-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 9205,
+				"fmt": "9.21k",
+				"longFmt": "9,205"
+				},
+				"value": {
+				"raw": 2330176,
+				"fmt": "2.33M",
+				"longFmt": "2,330,176"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 251.33 - 255.18 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703116800,
+				"fmt": "2023-12-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1399,
+				"fmt": "1.4k",
+				"longFmt": "1,399"
+				},
+				"value": {
+				"raw": 356395,
+				"fmt": "356.39k",
+				"longFmt": "356,395"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 254.75 per share.",
+				"filerName": "SAHA ANURAG",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703116800,
+				"fmt": "2023-12-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 10321,
+				"fmt": "10.32k",
+				"longFmt": "10,321"
+				},
+				"value": {
+				"raw": 2629275,
+				"fmt": "2.63M",
+				"longFmt": "2,629,275"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 254.75 per share.",
+				"filerName": "SENTONAS MICHAEL",
+				"filerRelation": "President",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703116800,
+				"fmt": "2023-12-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 48,
+				"fmt": "48",
+				"longFmt": "48"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "DAVIS CARY J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703030400,
+				"fmt": "2023-12-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 44,
+				"fmt": "44",
+				"longFmt": "44"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SCHUMACHER LAURA J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703030400,
+				"fmt": "2023-12-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 103,
+				"fmt": "103",
+				"longFmt": "103"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "WATZINGER GERHARD",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703030400,
+				"fmt": "2023-12-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 49,
+				"fmt": "49",
+				"longFmt": "49"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703030400,
+				"fmt": "2023-12-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 59,
+				"fmt": "59",
+				"longFmt": "59"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "GANDHI SAMEER K.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703030400,
+				"fmt": "2023-12-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 39,
+				"fmt": "39",
+				"longFmt": "39"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "FLOWER JOHANNA",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1703030400,
+				"fmt": "2023-12-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 6250,
+				"fmt": "6.25k",
+				"longFmt": "6,250"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Gift at price 0.00 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1702425600,
+				"fmt": "2023-12-13"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 41240,
+				"fmt": "41.24k",
+				"longFmt": "41,240"
+				},
+				"value": {
+				"raw": 10311720,
+				"fmt": "10.31M",
+				"longFmt": "10,311,720"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 250.04 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1702339200,
+				"fmt": "2023-12-12"
+				},
+				"ownership": "D/I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 11240,
+				"fmt": "11.24k",
+				"longFmt": "11,240"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1702339200,
+				"fmt": "2023-12-12"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 40250,
+				"fmt": "40.25k",
+				"longFmt": "40,250"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Gift at price 0.00 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1702339200,
+				"fmt": "2023-12-12"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 40250,
+				"fmt": "40.25k",
+				"longFmt": "40,250"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1702339200,
+				"fmt": "2023-12-12"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 6200,
+				"fmt": "6.2k",
+				"longFmt": "6,200"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Gift at price 0.00 per share.",
+				"filerName": "DAVIS CARY J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1701907200,
+				"fmt": "2023-12-07"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 4040,
+				"fmt": "4.04k",
+				"longFmt": "4,040"
+				},
+				"value": {
+				"raw": 962829,
+				"fmt": "962.83k",
+				"longFmt": "962,829"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 238.14 - 238.66 per share.",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1701907200,
+				"fmt": "2023-12-07"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 2610,
+				"fmt": "2.61k",
+				"longFmt": "2,610"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1701907200,
+				"fmt": "2023-12-07"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 26652,
+				"fmt": "26.65k",
+				"longFmt": "26,652"
+				},
+				"value": {
+				"raw": 6289955,
+				"fmt": "6.29M",
+				"longFmt": "6,289,955"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 236.00 per share.",
+				"filerName": "SENTONAS MICHAEL",
+				"filerRelation": "President",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1701302400,
+				"fmt": "2023-11-30"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 150000,
+				"fmt": "150k",
+				"longFmt": "150,000"
+				},
+				"value": {
+				"raw": 30008430,
+				"fmt": "30.01M",
+				"longFmt": "30,008,430"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 200.06 per share.",
+				"filerName": "SULLIVAN GODFREY R JR.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1699833600,
+				"fmt": "2023-11-13"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 30500,
+				"fmt": "30.5k",
+				"longFmt": "30,500"
+				},
+				"value": {
+				"raw": 6100037,
+				"fmt": "6.1M",
+				"longFmt": "6,100,037"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 200.00 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1699833600,
+				"fmt": "2023-11-13"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 15000,
+				"fmt": "15k",
+				"longFmt": "15,000"
+				},
+				"value": {
+				"raw": 3000927,
+				"fmt": "3M",
+				"longFmt": "3,000,927"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 200.06 per share.",
+				"filerName": "GANDHI SAMEER K.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1699833600,
+				"fmt": "2023-11-13"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 5000,
+				"fmt": "5k",
+				"longFmt": "5,000"
+				},
+				"value": {
+				"raw": 926250,
+				"fmt": "926.25k",
+				"longFmt": "926,250"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 185.25 per share.",
+				"filerName": "AUSTIN ROXANNE SCHUH",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1696982400,
+				"fmt": "2023-10-11"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 15000,
+				"fmt": "15k",
+				"longFmt": "15,000"
+				},
+				"value": {
+				"raw": 2646350,
+				"fmt": "2.65M",
+				"longFmt": "2,646,350"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 172.01 - 185.01 per share.",
+				"filerName": "AUSTIN ROXANNE SCHUH",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1696896000,
+				"fmt": "2023-10-10"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 25000,
+				"fmt": "25k",
+				"longFmt": "25,000"
+				},
+				"value": {
+				"raw": 4460035,
+				"fmt": "4.46M",
+				"longFmt": "4,460,035"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 176.78 - 179.90 per share.",
+				"filerName": "SULLIVAN GODFREY R JR.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1696809600,
+				"fmt": "2023-10-09"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 13419,
+				"fmt": "13.42k",
+				"longFmt": "13,419"
+				},
+				"value": {
+				"raw": 2257131,
+				"fmt": "2.26M",
+				"longFmt": "2,257,131"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 168.20 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695254400,
+				"fmt": "2023-09-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 56921,
+				"fmt": "56.92k",
+				"longFmt": "56,921"
+				},
+				"value": {
+				"raw": 9275463,
+				"fmt": "9.28M",
+				"longFmt": "9,275,463"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 160.25 - 170.40 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695254400,
+				"fmt": "2023-09-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 37039,
+				"fmt": "37.04k",
+				"longFmt": "37,039"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695254400,
+				"fmt": "2023-09-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 8996,
+				"fmt": "9k",
+				"longFmt": "8,996"
+				},
+				"value": {
+				"raw": 1511589,
+				"fmt": "1.51M",
+				"longFmt": "1,511,589"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 168.03 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695254400,
+				"fmt": "2023-09-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 926,
+				"fmt": "926",
+				"longFmt": "926"
+				},
+				"value": {
+				"raw": 155549,
+				"fmt": "155.55k",
+				"longFmt": "155,549"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 167.98 per share.",
+				"filerName": "SAHA ANURAG",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695254400,
+				"fmt": "2023-09-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 10321,
+				"fmt": "10.32k",
+				"longFmt": "10,321"
+				},
+				"value": {
+				"raw": 1733722,
+				"fmt": "1.73M",
+				"longFmt": "1,733,722"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 167.98 per share.",
+				"filerName": "SENTONAS MICHAEL",
+				"filerRelation": "President",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695254400,
+				"fmt": "2023-09-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 75,
+				"fmt": "75",
+				"longFmt": "75"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "DAVIS CARY J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695168000,
+				"fmt": "2023-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 68,
+				"fmt": "68",
+				"longFmt": "68"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SCHUMACHER LAURA J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695168000,
+				"fmt": "2023-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 160,
+				"fmt": "160",
+				"longFmt": "160"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "WATZINGER GERHARD",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695168000,
+				"fmt": "2023-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 76,
+				"fmt": "76",
+				"longFmt": "76"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695168000,
+				"fmt": "2023-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 90,
+				"fmt": "90",
+				"longFmt": "90"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "GANDHI SAMEER K.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695168000,
+				"fmt": "2023-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 61,
+				"fmt": "61",
+				"longFmt": "61"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "FLOWER JOHANNA",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1695168000,
+				"fmt": "2023-09-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 7628,
+				"fmt": "7.63k",
+				"longFmt": "7,628"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SAHA ANURAG",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1694044800,
+				"fmt": "2023-09-07"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 25000,
+				"fmt": "25k",
+				"longFmt": "25,000"
+				},
+				"value": {
+				"raw": 3838750,
+				"fmt": "3.84M",
+				"longFmt": "3,838,750"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 149.32 - 154.32 per share.",
+				"filerName": "AUSTIN ROXANNE SCHUH",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1689552000,
+				"fmt": "2023-07-17"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1750,
+				"fmt": "1.75k",
+				"longFmt": "1,750"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Gift at price 0.00 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1689552000,
+				"fmt": "2023-07-17"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1750,
+				"fmt": "1.75k",
+				"longFmt": "1,750"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1689552000,
+				"fmt": "2023-07-17"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 55000,
+				"fmt": "55k",
+				"longFmt": "55,000"
+				},
+				"value": {
+				"raw": 8364999,
+				"fmt": "8.36M",
+				"longFmt": "8,364,999"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 151.50 - 153.39 per share.",
+				"filerName": "AUSTIN ROXANNE SCHUH",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1689206400,
+				"fmt": "2023-07-13"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 178000,
+				"fmt": "178k",
+				"longFmt": "178,000"
+				},
+				"value": {
+				"raw": 26884862,
+				"fmt": "26.88M",
+				"longFmt": "26,884,862"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 150.76 - 152.26 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1689206400,
+				"fmt": "2023-07-13"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 178000,
+				"fmt": "178k",
+				"longFmt": "178,000"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1689206400,
+				"fmt": "2023-07-13"
+				},
+				"ownership": "I"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 13524,
+				"fmt": "13.52k",
+				"longFmt": "13,524"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Gift at price 0.00 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1689206400,
+				"fmt": "2023-07-13"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 60000,
+				"fmt": "60k",
+				"longFmt": "60,000"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Gift at price 0.00 per share.",
+				"filerName": "SULLIVAN GODFREY R JR.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1689033600,
+				"fmt": "2023-07-11"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 60000,
+				"fmt": "60k",
+				"longFmt": "60,000"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "SULLIVAN GODFREY R JR.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1688601600,
+				"fmt": "2023-07-06"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1737,
+				"fmt": "1.74k",
+				"longFmt": "1,737"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "AUSTIN ROXANNE SCHUH",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1818,
+				"fmt": "1.82k",
+				"longFmt": "1,818"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "DAVIS CARY J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1810,
+				"fmt": "1.81k",
+				"longFmt": "1,810"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SCHUMACHER LAURA J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1737,
+				"fmt": "1.74k",
+				"longFmt": "1,737"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SULLIVAN GODFREY R JR.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1909,
+				"fmt": "1.91k",
+				"longFmt": "1,909"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "WATZINGER GERHARD",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1819,
+				"fmt": "1.82k",
+				"longFmt": "1,819"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 14430,
+				"fmt": "14.43k",
+				"longFmt": "14,430"
+				},
+				"value": {
+				"raw": 2099238,
+				"fmt": "2.1M",
+				"longFmt": "2,099,238"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 144.03 - 151.12 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 59465,
+				"fmt": "59.47k",
+				"longFmt": "59,465"
+				},
+				"value": {
+				"raw": 8578480,
+				"fmt": "8.58M",
+				"longFmt": "8,578,480"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 144.13 - 144.88 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 38800,
+				"fmt": "38.8k",
+				"longFmt": "38,800"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1833,
+				"fmt": "1.83k",
+				"longFmt": "1,833"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "GANDHI SAMEER K.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 9218,
+				"fmt": "9.22k",
+				"longFmt": "9,218"
+				},
+				"value": {
+				"raw": 1387125,
+				"fmt": "1.39M",
+				"longFmt": "1,387,125"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 150.48 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 1802,
+				"fmt": "1.8k",
+				"longFmt": "1,802"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "FLOWER JOHANNA",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 815,
+				"fmt": "815",
+				"longFmt": "815"
+				},
+				"value": {
+				"raw": 122641,
+				"fmt": "122.64k",
+				"longFmt": "122,641"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 150.48 per share.",
+				"filerName": "SAHA ANURAG",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 10551,
+				"fmt": "10.55k",
+				"longFmt": "10,551"
+				},
+				"value": {
+				"raw": 1587706,
+				"fmt": "1.59M",
+				"longFmt": "1,587,706"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 150.48 per share.",
+				"filerName": "SENTONAS MICHAEL",
+				"filerRelation": "President",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1687305600,
+				"fmt": "2023-06-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 58182,
+				"fmt": "58.18k",
+				"longFmt": "58,182"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1681862400,
+				"fmt": "2023-04-19"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 135758,
+				"fmt": "135.76k",
+				"longFmt": "135,758"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1681862400,
+				"fmt": "2023-04-19"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 38788,
+				"fmt": "38.79k",
+				"longFmt": "38,788"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1681862400,
+				"fmt": "2023-04-19"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 174546,
+				"fmt": "174.55k",
+				"longFmt": "174,546"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SENTONAS MICHAEL",
+				"filerRelation": "President",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1681862400,
+				"fmt": "2023-04-19"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 3642,
+				"fmt": "3.64k",
+				"longFmt": "3,642"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Gift at price 0.00 per share.",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1680480000,
+				"fmt": "2023-04-03"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 3642,
+				"fmt": "3.64k",
+				"longFmt": "3,642"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1680480000,
+				"fmt": "2023-04-03"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 16615,
+				"fmt": "16.61k",
+				"longFmt": "16,615"
+				},
+				"value": {
+				"raw": 2214828,
+				"fmt": "2.21M",
+				"longFmt": "2,214,828"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 132.50 - 133.98 per share.",
+				"filerName": "PODBERE BURT W.",
+				"filerRelation": "Chief Financial Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1679356800,
+				"fmt": "2023-03-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 58720,
+				"fmt": "58.72k",
+				"longFmt": "58,720"
+				},
+				"value": {
+				"raw": 7912776,
+				"fmt": "7.91M",
+				"longFmt": "7,912,776"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 132.73 - 136.40 per share.",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1679356800,
+				"fmt": "2023-03-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 35160,
+				"fmt": "35.16k",
+				"longFmt": "35,160"
+				},
+				"filerUrl": "",
+				"transactionText": "",
+				"filerName": "KURTZ GEORGE ROBERT",
+				"filerRelation": "Chief Executive Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1679356800,
+				"fmt": "2023-03-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 10462,
+				"fmt": "10.46k",
+				"longFmt": "10,462"
+				},
+				"value": {
+				"raw": 1379415,
+				"fmt": "1.38M",
+				"longFmt": "1,379,415"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 131.85 per share.",
+				"filerName": "HENRY SHAWN",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1679356800,
+				"fmt": "2023-03-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 845,
+				"fmt": "845",
+				"longFmt": "845"
+				},
+				"value": {
+				"raw": 111413,
+				"fmt": "111.41k",
+				"longFmt": "111,413"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 131.85 per share.",
+				"filerName": "SAHA ANURAG",
+				"filerRelation": "Officer",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1679356800,
+				"fmt": "2023-03-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 7926,
+				"fmt": "7.93k",
+				"longFmt": "7,926"
+				},
+				"value": {
+				"raw": 1045043,
+				"fmt": "1.05M",
+				"longFmt": "1,045,043"
+				},
+				"filerUrl": "",
+				"transactionText": "Sale at price 131.85 per share.",
+				"filerName": "SENTONAS MICHAEL",
+				"filerRelation": "President",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1679356800,
+				"fmt": "2023-03-21"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 93,
+				"fmt": "93",
+				"longFmt": "93"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "DAVIS CARY J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1679270400,
+				"fmt": "2023-03-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 84,
+				"fmt": "84",
+				"longFmt": "84"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "SCHUMACHER LAURA J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1679270400,
+				"fmt": "2023-03-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 197,
+				"fmt": "197",
+				"longFmt": "197"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "WATZINGER GERHARD",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1679270400,
+				"fmt": "2023-03-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 94,
+				"fmt": "94",
+				"longFmt": "94"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "O'LEARY DENIS J",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1679270400,
+				"fmt": "2023-03-20"
+				},
+				"ownership": "D"
+			},
+			{
+				"maxAge": 1,
+				"shares": {
+				"raw": 111,
+				"fmt": "111",
+				"longFmt": "111"
+				},
+				"value": {
+				"raw": 0,
+				"fmt": null,
+				"longFmt": "0"
+				},
+				"filerUrl": "",
+				"transactionText": "Stock Award(Grant) at price 0.00 per share.",
+				"filerName": "GANDHI SAMEER K.",
+				"filerRelation": "Director",
+				"moneyText": "",
+				"startDate": {
+				"raw": 1679270400,
+				"fmt": "2023-03-20"
+				},
+				"ownership": "D"
+			}
+			],
+			"maxAge": 1
+		}
+		}
+	],
+	"error": null
+	}
+}

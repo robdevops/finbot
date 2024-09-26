@@ -1,0 +1,126 @@
+{
+	"quoteSummary": {
+	"result": [
+		{
+		"financialData": {
+			"maxAge": 86400,
+			"currentPrice": {
+			"raw": 286.47,
+			"fmt": "286.47"
+			},
+			"targetHighPrice": {
+			"raw": 540,
+			"fmt": "540.00"
+			},
+			"targetLowPrice": {
+			"raw": 185,
+			"fmt": "185.00"
+			},
+			"targetMeanPrice": {
+			"raw": 325.14,
+			"fmt": "325.14"
+			},
+			"targetMedianPrice": {
+			"raw": 324.5,
+			"fmt": "324.50"
+			},
+			"recommendationMean": {
+			"raw": 1.9,
+			"fmt": "1.90"
+			},
+			"recommendationKey": "buy",
+			"numberOfAnalystOpinions": {
+			"raw": 42,
+			"fmt": "42",
+			"longFmt": "42"
+			},
+			"totalCash": {
+			"raw": 4038535936,
+			"fmt": "4.04B",
+			"longFmt": "4,038,535,936"
+			},
+			"totalCashPerShare": {
+			"raw": 16.475,
+			"fmt": "16.48"
+			},
+			"ebitda": {
+			"raw": 187490000,
+			"fmt": "187.49M",
+			"longFmt": "187,490,000"
+			},
+			"totalDebt": {
+			"raw": 791972992,
+			"fmt": "791.97M",
+			"longFmt": "791,972,992"
+			},
+			"quickRatio": {
+			"raw": 1.723,
+			"fmt": "1.72"
+			},
+			"currentRatio": {
+			"raw": 1.899,
+			"fmt": "1.90"
+			},
+			"totalRevenue": {
+			"raw": 3516257024,
+			"fmt": "3.52B",
+			"longFmt": "3,516,257,024"
+			},
+			"debtToEquity": {
+			"raw": 27.398,
+			"fmt": "27.40%"
+			},
+			"revenuePerShare": {
+			"raw": 14.55,
+			"fmt": "14.55"
+			},
+			"returnOnAssets": {
+			"raw": 0.00525,
+			"fmt": "0.52%"
+			},
+			"returnOnEquity": {
+			"raw": 0.07334,
+			"fmt": "7.33%"
+			},
+			"grossProfits": {},
+			"freeCashflow": {
+			"raw": 1209105920,
+			"fmt": "1.21B",
+			"longFmt": "1,209,105,920"
+			},
+			"operatingCashflow": {
+			"raw": 1330402944,
+			"fmt": "1.33B",
+			"longFmt": "1,330,402,944"
+			},
+			"earningsGrowth": {
+			"raw": 5.333,
+			"fmt": "533.30%"
+			},
+			"revenueGrowth": {
+			"raw": 0.317,
+			"fmt": "31.70%"
+			},
+			"grossMargins": {
+			"raw": 0.75372005,
+			"fmt": "75.37%"
+			},
+			"ebitdaMargins": {
+			"raw": 0.053319998,
+			"fmt": "5.33%"
+			},
+			"operatingMargins": {
+			"raw": 0.01417,
+			"fmt": "1.42%"
+			},
+			"profitMargins": {
+			"raw": 0.0484,
+			"fmt": "4.84%"
+			},
+			"financialCurrency": "USD"
+		}
+		}
+	],
+	"error": null
+	}
+}

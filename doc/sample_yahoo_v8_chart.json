@@ -1,0 +1,106 @@
+{
+	"chart":	{
+		"result":	[
+				{
+			"meta":	{
+					"currency":	"USD",
+					"symbol":	"CRWD",
+					"exchangeName":	"NMS",
+					"fullExchangeName":	"NasdaqGS",
+					"instrumentType":	"EQUITY",
+					"firstTradeDate":	1560346200,
+					"regularMarketTime":	1727294401,
+					"hasPrePostMarketData":	true,
+					"gmtoffset":	-14400,
+					"timezone":	"EDT",
+					"exchangeTimezoneName":	"America/New_York",
+					"regularMarketPrice":	286.47,
+					"fiftyTwoWeekHigh":	291.73,
+					"fiftyTwoWeekLow":	285.54,
+					"regularMarketDayHigh":	291.73,
+					"regularMarketDayLow":	285.54,
+					"regularMarketVolume":	2785346,
+					"longName":	"CrowdStrike	Holdings,	Inc.",
+					"shortName":	"CrowdStrike	Holdings,	Inc.",
+					"chartPreviousClose":	293.14,
+					"priceHint":	2,
+					"currentTradingPeriod":	{
+				"pre":	{
+						"timezone":	"EDT",
+						"start":	1727251200,
+						"end":	1727271000,
+						"gmtoffset":	-14400
+				},
+				"regular":	{
+						"timezone":	"EDT",
+						"start":	1727271000,
+						"end":	1727294400,
+						"gmtoffset":	-14400
+				},
+				"post":	{
+						"timezone":	"EDT",
+						"start":	1727294400,
+						"end":	1727308800,
+						"gmtoffset":	-14400
+				}
+					},
+					"dataGranularity":	"1d",
+					"range":	"",
+					"validRanges":	[
+				"1d",
+				"5d",
+				"1mo",
+				"3mo",
+				"6mo",
+				"1y",
+				"2y",
+				"5y",
+				"10y",
+				"ytd",
+				"max"
+					]
+			},
+			"timestamp":	[
+					1727098200,
+					1727184600
+			],
+			"indicators":	{
+					"quote":	[
+				{
+						"open":	[
+					297.7799987792969,
+					294.8900146484375
+						],
+						"close":	[
+					293.1400146484375,
+					288.5400085449219
+						],
+						"high":	[
+					302.1579895019531,
+					295.3999938964844
+						],
+						"volume":	[
+					5519300,
+					4110700
+						],
+						"low":	[
+					292.57000732421875,
+					285.2799987792969
+						]
+				}
+					],
+					"adjclose":	[
+				{
+						"adjclose":	[
+					293.1400146484375,
+					288.5400085449219
+						]
+				}
+					]
+			}
+				}
+		],
+		"error":	null
+	}
+}
+

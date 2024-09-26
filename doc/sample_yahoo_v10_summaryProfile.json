@@ -1,0 +1,29 @@
+{
+	"quoteSummary": {
+	"result": [
+		{
+		"summaryProfile": {
+			"address1": "206 East 9th Street",
+			"address2": "Suite 1400",
+			"city": "Austin",
+			"state": "TX",
+			"zip": "78701",
+			"country": "United States",
+			"phone": "888 512 8906",
+			"website": "https://www.crowdstrike.com",
+			"industry": "Software - Infrastructure",
+			"industryKey": "software-infrastructure",
+			"industryDisp": "Software - Infrastructure",
+			"sector": "Technology",
+			"sectorKey": "technology",
+			"sectorDisp": "Technology",
+			"longBusinessSummary": "CrowdStrike Holdings, Inc. provides cybersecurity solutions in the United States and internationally. Its unified platform offers cloud-delivered protection of endpoints, cloud workloads, identity, and data. The company offers corporate endpoint and cloud workload security, managed security, security and vulnerability management, IT operations management, identity protection, SIEM and log management, threat intelligence, data protection, security orchestration, automation and response and AI powered workflow automation, and securing generative AI workload services. It primarily sells subscriptions to its Falcon platform and cloud modules. The company was incorporated in 2011 and is headquartered in Austin, Texas.",
+			"fullTimeEmployees": 9219,
+			"companyOfficers": [],
+			"maxAge": 86400
+		}
+		}
+	],
+	"error": null
+	}
+}

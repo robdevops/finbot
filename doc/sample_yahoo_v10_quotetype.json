@@ -1,0 +1,24 @@
+{
+	"quoteSummary": {
+	"result": [
+		{
+		"quoteType": {
+			"exchange": "NMS",
+			"quoteType": "EQUITY",
+			"symbol": "CRWD",
+			"underlyingSymbol": "CRWD",
+			"shortName": "CrowdStrike Holdings, Inc.",
+			"longName": "CrowdStrike Holdings, Inc.",
+			"firstTradeDateEpochUtc": 1560346200,
+			"timeZoneFullName": "America/New_York",
+			"timeZoneShortName": "EDT",
+			"uuid": "91e696a0-f87a-3aaf-b2cd-1bd49fbc1d92",
+			"messageBoardId": "finmb_420347413",
+			"gmtOffSetMilliseconds": -14400000,
+			"maxAge": 1
+		}
+		}
+	],
+	"error": null
+	}
+}
