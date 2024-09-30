@@ -93,9 +93,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	if m_watchlist:
 		action = None
 		ticker = None
-		if m_watchlist.group(2) and m_watchlist.group(3):
-			action = m_watchlist.group(2).lower()
-			ticker = m_watchlist.group(3).upper()
+		if m_watchlist.group(3) and m_watchlist.group(4):
+			action = m_watchlist.group(3).lower()
+			ticker = m_watchlist.group(4).upper()
 		if action:
 			if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
 				action = 'delete'
