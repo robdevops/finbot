@@ -1,24 +1,24 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"quoteType": {
-			"exchange": "NMS",
-			"quoteType": "EQUITY",
-			"symbol": "CRWD",
-			"underlyingSymbol": "CRWD",
-			"shortName": "CrowdStrike Holdings, Inc.",
-			"longName": "CrowdStrike Holdings, Inc.",
-			"firstTradeDateEpochUtc": 1560346200,
-			"timeZoneFullName": "America/New_York",
-			"timeZoneShortName": "EDT",
-			"uuid": "91e696a0-f87a-3aaf-b2cd-1bd49fbc1d92",
-			"messageBoardId": "finmb_420347413",
-			"gmtOffSetMilliseconds": -14400000,
-			"maxAge": 1
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "quoteType": {
+          "exchange": "NMS",
+          "quoteType": "EQUITY",
+          "symbol": "NVDA",
+          "underlyingSymbol": "NVDA",
+          "shortName": "NVIDIA Corporation",
+          "longName": "NVIDIA Corporation",
+          "firstTradeDateEpochUtc": 917015400,
+          "timeZoneFullName": "America/New_York",
+          "timeZoneShortName": "EDT",
+          "uuid": "7f5f6a07-b148-30f4-98a2-2caa3df2aed0",
+          "messageBoardId": "finmb_32307",
+          "gmtOffSetMilliseconds": -14400000,
+          "maxAge": 1
+        }
+      }
+    ],
+    "error": null
+  }
 }

@@ -1,15 +1,15 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"pageViews": {
-			"shortTermTrend": "UP",
-			"midTermTrend": "UP",
-			"longTermTrend": "UP",
-			"maxAge": 1
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "pageViews": {
+          "shortTermTrend": "DOWN",
+          "midTermTrend": "UP",
+          "longTermTrend": "UP",
+          "maxAge": 1
+        }
+      }
+    ],
+    "error": null
+  }
 }

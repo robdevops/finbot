@@ -1,16 +1,16 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"industryTrend": {
-			"maxAge": 1,
-			"symbol": null,
-			"peRatio": {},
-			"pegRatio": {},
-			"estimates": []
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "industryTrend": {
+          "maxAge": 1,
+          "symbol": null,
+          "peRatio": {},
+          "pegRatio": {},
+          "estimates": []
+        }
+      }
+    ],
+    "error": null
+  }
 }

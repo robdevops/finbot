@@ -1,96 +1,96 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"price": {
-			"maxAge": 1,
-			"preMarketChange": {},
-			"preMarketPrice": {},
-			"preMarketSource": "FREE_REALTIME",
-			"postMarketChangePercent": {
-			"raw": 0.00125662,
-			"fmt": "0.13%"
-			},
-			"postMarketChange": {
-			"raw": 0.359985,
-			"fmt": "0.36"
-			},
-			"postMarketTime": 1727308733,
-			"postMarketPrice": {
-			"raw": 286.83,
-			"fmt": "286.83"
-			},
-			"postMarketSource": "FREE_REALTIME",
-			"regularMarketChangePercent": {
-			"raw": -0.0071740733,
-			"fmt": "-0.72%"
-			},
-			"regularMarketChange": {
-			"raw": -2.0700073,
-			"fmt": "-2.07"
-			},
-			"regularMarketTime": 1727294401,
-			"priceHint": {
-			"raw": 2,
-			"fmt": "2",
-			"longFmt": "2"
-			},
-			"regularMarketPrice": {
-			"raw": 286.47,
-			"fmt": "286.47"
-			},
-			"regularMarketDayHigh": {
-			"raw": 291.7299,
-			"fmt": "291.73"
-			},
-			"regularMarketDayLow": {
-			"raw": 285.54,
-			"fmt": "285.54"
-			},
-			"regularMarketVolume": {
-			"raw": 2785346,
-			"fmt": "2.79M",
-			"longFmt": "2,785,346.00"
-			},
-			"averageDailyVolume10Day": {},
-			"averageDailyVolume3Month": {},
-			"regularMarketPreviousClose": {
-			"raw": 288.54,
-			"fmt": "288.54"
-			},
-			"regularMarketSource": "FREE_REALTIME",
-			"regularMarketOpen": {
-			"raw": 290,
-			"fmt": "290.00"
-			},
-			"strikePrice": {},
-			"openInterest": {},
-			"exchange": "NMS",
-			"exchangeName": "NasdaqGS",
-			"exchangeDataDelayedBy": 0,
-			"marketState": "PREPRE",
-			"quoteType": "EQUITY",
-			"symbol": "CRWD",
-			"underlyingSymbol": null,
-			"shortName": "CrowdStrike Holdings, Inc.",
-			"longName": "CrowdStrike Holdings, Inc.",
-			"currency": "USD",
-			"quoteSourceName": "Nasdaq Real Time Price",
-			"currencySymbol": "$",
-			"fromCurrency": null,
-			"toCurrency": null,
-			"lastMarket": null,
-			"volume24Hr": {},
-			"volumeAllCurrencies": {},
-			"circulatingSupply": {},
-			"marketCap": {
-			"raw": 70221242368,
-			"fmt": "70.22B",
-			"longFmt": "70,221,242,368.00"
-			}
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "price": {
+          "maxAge": 1,
+          "preMarketChange": {},
+          "preMarketPrice": {},
+          "preMarketSource": "FREE_REALTIME",
+          "postMarketChangePercent": {
+            "raw": -0.00687808,
+            "fmt": "-0.69%"
+          },
+          "postMarketChange": {
+            "raw": -0.834999,
+            "fmt": "-0.83"
+          },
+          "postMarketTime": 1727481599,
+          "postMarketPrice": {
+            "raw": 120.565,
+            "fmt": "120.57"
+          },
+          "postMarketSource": "FREE_REALTIME",
+          "regularMarketChangePercent": {
+            "raw": -0.021686573,
+            "fmt": "-2.17%"
+          },
+          "regularMarketChange": {
+            "raw": -2.6900024,
+            "fmt": "-2.69"
+          },
+          "regularMarketTime": 1727467205,
+          "priceHint": {
+            "raw": 2,
+            "fmt": "2",
+            "longFmt": "2"
+          },
+          "regularMarketPrice": {
+            "raw": 121.35,
+            "fmt": "121.35"
+          },
+          "regularMarketDayHigh": {
+            "raw": 124,
+            "fmt": "124.00"
+          },
+          "regularMarketDayLow": {
+            "raw": 119.26,
+            "fmt": "119.26"
+          },
+          "regularMarketVolume": {
+            "raw": 271009175,
+            "fmt": "271.01M",
+            "longFmt": "271,009,175.00"
+          },
+          "averageDailyVolume10Day": {},
+          "averageDailyVolume3Month": {},
+          "regularMarketPreviousClose": {
+            "raw": 124.04,
+            "fmt": "124.04"
+          },
+          "regularMarketSource": "FREE_REALTIME",
+          "regularMarketOpen": {
+            "raw": 123.9375,
+            "fmt": "123.94"
+          },
+          "strikePrice": {},
+          "openInterest": {},
+          "exchange": "NMS",
+          "exchangeName": "NasdaqGS",
+          "exchangeDataDelayedBy": 0,
+          "marketState": "CLOSED",
+          "quoteType": "EQUITY",
+          "symbol": "NVDA",
+          "underlyingSymbol": null,
+          "shortName": "NVIDIA Corporation",
+          "longName": "NVIDIA Corporation",
+          "currency": "USD",
+          "quoteSourceName": "Nasdaq Real Time Price",
+          "currencySymbol": "$",
+          "fromCurrency": null,
+          "toCurrency": null,
+          "lastMarket": null,
+          "volume24Hr": {},
+          "volumeAllCurrencies": {},
+          "circulatingSupply": {},
+          "marketCap": {
+            "raw": 2976715374592,
+            "fmt": "2.98T",
+            "longFmt": "2,976,715,374,592.00"
+          }
+        }
+      }
+    ],
+    "error": null
+  }
 }

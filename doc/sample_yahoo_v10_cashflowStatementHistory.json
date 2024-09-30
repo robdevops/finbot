@@ -1,62 +1,62 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"cashflowStatementHistory": {
-			"cashflowStatements": [
-			{
-				"maxAge": 1,
-				"endDate": {
-				"raw": 1706659200,
-				"fmt": "2024-01-31"
-				},
-				"netIncome": {
-				"raw": 89327000,
-				"fmt": "89.33M",
-				"longFmt": "89,327,000"
-				}
-			},
-			{
-				"maxAge": 1,
-				"endDate": {
-				"raw": 1675123200,
-				"fmt": "2023-01-31"
-				},
-				"netIncome": {
-				"raw": -183245000,
-				"fmt": "-183.25M",
-				"longFmt": "-183,245,000"
-				}
-			},
-			{
-				"maxAge": 1,
-				"endDate": {
-				"raw": 1643587200,
-				"fmt": "2022-01-31"
-				},
-				"netIncome": {
-				"raw": -234802000,
-				"fmt": "-234.8M",
-				"longFmt": "-234,802,000"
-				}
-			},
-			{
-				"maxAge": 1,
-				"endDate": {
-				"raw": 1612051200,
-				"fmt": "2021-01-31"
-				},
-				"netIncome": {
-				"raw": -92629000,
-				"fmt": "-92.63M",
-				"longFmt": "-92,629,000"
-				}
-			}
-			],
-			"maxAge": 86400
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "cashflowStatementHistory": {
+          "cashflowStatements": [
+            {
+              "maxAge": 1,
+              "endDate": {
+                "raw": 1706400000,
+                "fmt": "2024-01-28"
+              },
+              "netIncome": {
+                "raw": 29760000000,
+                "fmt": "29.76B",
+                "longFmt": "29,760,000,000"
+              }
+            },
+            {
+              "maxAge": 1,
+              "endDate": {
+                "raw": 1674950400,
+                "fmt": "2023-01-29"
+              },
+              "netIncome": {
+                "raw": 4368000000,
+                "fmt": "4.37B",
+                "longFmt": "4,368,000,000"
+              }
+            },
+            {
+              "maxAge": 1,
+              "endDate": {
+                "raw": 1643500800,
+                "fmt": "2022-01-30"
+              },
+              "netIncome": {
+                "raw": 9752000000,
+                "fmt": "9.75B",
+                "longFmt": "9,752,000,000"
+              }
+            },
+            {
+              "maxAge": 1,
+              "endDate": {
+                "raw": 1612051200,
+                "fmt": "2021-01-31"
+              },
+              "netIncome": {
+                "raw": 4332000000,
+                "fmt": "4.33B",
+                "longFmt": "4,332,000,000"
+              }
+            }
+          ],
+          "maxAge": 86400
+        }
+      }
+    ],
+    "error": null
+  }
 }

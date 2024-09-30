@@ -1,42 +1,42 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"balanceSheetHistoryQuarterly": {
-			"balanceSheetStatements": [
-			{
-				"maxAge": 1,
-				"endDate": {
-				"raw": 1722384000,
-				"fmt": "2024-07-31"
-				}
-			},
-			{
-				"maxAge": 1,
-				"endDate": {
-				"raw": 1714435200,
-				"fmt": "2024-04-30"
-				}
-			},
-			{
-				"maxAge": 1,
-				"endDate": {
-				"raw": 1706659200,
-				"fmt": "2024-01-31"
-				}
-			},
-			{
-				"maxAge": 1,
-				"endDate": {
-				"raw": 1698710400,
-				"fmt": "2023-10-31"
-				}
-			}
-			],
-			"maxAge": 86400
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "balanceSheetHistoryQuarterly": {
+          "balanceSheetStatements": [
+            {
+              "maxAge": 1,
+              "endDate": {
+                "raw": 1722124800,
+                "fmt": "2024-07-28"
+              }
+            },
+            {
+              "maxAge": 1,
+              "endDate": {
+                "raw": 1714262400,
+                "fmt": "2024-04-28"
+              }
+            },
+            {
+              "maxAge": 1,
+              "endDate": {
+                "raw": 1706400000,
+                "fmt": "2024-01-28"
+              }
+            },
+            {
+              "maxAge": 1,
+              "endDate": {
+                "raw": 1698537600,
+                "fmt": "2023-10-29"
+              }
+            }
+          ],
+          "maxAge": 86400
+        }
+      }
+    ],
+    "error": null
+  }
 }

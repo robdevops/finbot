@@ -1,29 +1,29 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"majorHoldersBreakdown": {
-			"maxAge": 1,
-			"insidersPercentHeld": {
-			"raw": 0.01254,
-			"fmt": "1.25%"
-			},
-			"institutionsPercentHeld": {
-			"raw": 0.78009003,
-			"fmt": "78.01%"
-			},
-			"institutionsFloatPercentHeld": {
-			"raw": 0.79,
-			"fmt": "79.00%"
-			},
-			"institutionsCount": {
-			"raw": 2228,
-			"fmt": "2.23k",
-			"longFmt": "2,228"
-			}
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "majorHoldersBreakdown": {
+          "maxAge": 1,
+          "insidersPercentHeld": {
+            "raw": 0.042930003,
+            "fmt": "4.29%"
+          },
+          "institutionsPercentHeld": {
+            "raw": 0.66877,
+            "fmt": "66.88%"
+          },
+          "institutionsFloatPercentHeld": {
+            "raw": 0.69876,
+            "fmt": "69.88%"
+          },
+          "institutionsCount": {
+            "raw": 5848,
+            "fmt": "5.85k",
+            "longFmt": "5,848"
+          }
+        }
+      }
+    ],
+    "error": null
+  }
 }

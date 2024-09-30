@@ -1,71 +1,71 @@
 {
-	"trades": [
-		{
-			"id": 90398726,
-			"unique_identifier": "27697991",
-			"transaction_date": "2024-08-30",
-			"quantity": 700.0,
-			"price": 1.45002337,
-			"cost_base": null,
-			"exchange_rate": 0.519238,
-			"brokerage": 0.0,
-			"brokerage_currency_code": "AUD",
-			"value": -1954.82,
-			"paid_on": null,
-			"company_event_id": null,
-			"comments": "Av Price:145 GBX. Rate:0.019259. Exch Fees:0",
-			"portfolio_id": 445825,
-			"holding_id": 19053906,
-			"state": "confirmed",
-			"transaction_type": "SELL",
-			"instrument_id": 2120539,
-			"symbol": "AWE",
-			"market": "LSE",
-			"attachment_filename": null,
-			"attachment_id": null,
-			"confirmed": true,
-			"links": {
-				"portfolio": "https://api.sharesight.com/api/v2/portfolios/445825"
-			},
-			"portfolio": "Rob"
-		},
-		{
-			"id": 90768899,
-			"unique_identifier": "189277747",
-			"transaction_date": "2024-09-10",
-			"quantity": 1957.0,
-			"price": 1.0,
-			"cost_base": null,
-			"exchange_rate": 1.0,
-			"brokerage": 3.0,
-			"brokerage_currency_code": "AUD",
-			"value": -1954.0,
-			"paid_on": null,
-			"company_event_id": null,
-			"comments": "Automatically created from an email sent by Stake Australia on 10 Sep 2024. The contract number for this trade is 189277747.",
-			"portfolio_id": 445825,
-			"holding_id": 13595122,
-			"state": "confirmed",
-			"transaction_type": "SELL",
-			"instrument_id": 1889923,
-			"symbol": "CXL",
-			"market": "ASX",
-			"attachment_filename": null,
-			"attachment_id": null,
-			"confirmed": true,
-			"links": {
-				"portfolio": "https://api.sharesight.com/api/v2/portfolios/445825"
-			},
-			"portfolio": "Rob"
-		}
-	],
-	"api_transaction": {
-		"id": 825719860,
-		"version": 2,
-		"action": "/api/v2/portfolios/445825/trades.json",
-		"timestamp": "2024-09-26T04:20:04.000Z"
-	},
-	"links": {
-		"self": "https://api.sharesight.com/api/v2/portfolios/445825/trades?start_date=2024-08-29"
-	}
+    "trades": [
+        {
+            "id": 90398726,
+            "unique_identifier": "27697991",
+            "transaction_date": "2024-08-30",
+            "quantity": 700.0,
+            "price": 1.45002337,
+            "cost_base": null,
+            "exchange_rate": 0.519238,
+            "brokerage": 0.0,
+            "brokerage_currency_code": "AUD",
+            "value": -1954.82,
+            "paid_on": null,
+            "company_event_id": null,
+            "comments": "Av Price:145 GBX. Rate:0.019259. Exch Fees:0",
+            "portfolio_id": 445825,
+            "holding_id": 19053906,
+            "state": "confirmed",
+            "transaction_type": "SELL",
+            "instrument_id": 2120539,
+            "symbol": "AWE",
+            "market": "LSE",
+            "attachment_filename": null,
+            "attachment_id": null,
+            "confirmed": true,
+            "links": {
+                "portfolio": "https://api.sharesight.com/api/v2/portfolios/445825"
+            },
+            "portfolio": "Rob"
+        },
+        {
+            "id": 90768899,
+            "unique_identifier": "189277747",
+            "transaction_date": "2024-09-10",
+            "quantity": 1957.0,
+            "price": 1.0,
+            "cost_base": null,
+            "exchange_rate": 1.0,
+            "brokerage": 3.0,
+            "brokerage_currency_code": "AUD",
+            "value": -1954.0,
+            "paid_on": null,
+            "company_event_id": null,
+            "comments": "Automatically created from an email sent by Stake Australia on 10 Sep 2024. The contract number for this trade is 189277747.",
+            "portfolio_id": 445825,
+            "holding_id": 13595122,
+            "state": "confirmed",
+            "transaction_type": "SELL",
+            "instrument_id": 1889923,
+            "symbol": "CXL",
+            "market": "ASX",
+            "attachment_filename": null,
+            "attachment_id": null,
+            "confirmed": true,
+            "links": {
+                "portfolio": "https://api.sharesight.com/api/v2/portfolios/445825"
+            },
+            "portfolio": "Rob"
+        }
+    ],
+    "api_transaction": {
+        "id": 825384749,
+        "version": 2,
+        "action": "/api/v2/portfolios/445825/trades.json",
+        "timestamp": "2024-09-25T11:51:28.000Z"
+    },
+    "links": {
+        "self": "https://api.sharesight.com/api/v2/portfolios/445825/trades?start_date=2024-08-26"
+    }
 }

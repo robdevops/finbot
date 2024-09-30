@@ -1,60 +1,66 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"calendarEvents": {
-			"maxAge": 1,
-			"earnings": {
-			"earningsDate": [
-				{
-				"raw": 1732654800,
-				"fmt": "2024-11-26"
-				},
-				{
-				"raw": 1733173200,
-				"fmt": "2024-12-02"
-				}
-			],
-			"earningsCallDate": [
-				{
-				"raw": 1724878800,
-				"fmt": "2024-08-28"
-				}
-			],
-			"isEarningsDateEstimate": true,
-			"earningsAverage": {
-				"raw": 0.81,
-				"fmt": "0.81"
-			},
-			"earningsLow": {
-				"raw": 0.79,
-				"fmt": "0.79"
-			},
-			"earningsHigh": {
-				"raw": 0.83,
-				"fmt": "0.83"
-			},
-			"revenueAverage": {
-				"raw": 982360000,
-				"fmt": "982.36M",
-				"longFmt": "982,360,000"
-			},
-			"revenueLow": {
-				"raw": 977530000,
-				"fmt": "977.53M",
-				"longFmt": "977,530,000"
-			},
-			"revenueHigh": {
-				"raw": 991500000,
-				"fmt": "991.5M",
-				"longFmt": "991,500,000"
-			}
-			},
-			"exDividendDate": {},
-			"dividendDate": {}
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "calendarEvents": {
+          "maxAge": 1,
+          "earnings": {
+            "earningsDate": [
+              {
+                "raw": 1732051200,
+                "fmt": "2024-11-19"
+              },
+              {
+                "raw": 1732569600,
+                "fmt": "2024-11-25"
+              }
+            ],
+            "earningsCallDate": [
+              {
+                "raw": 1724878800,
+                "fmt": "2024-08-28"
+              }
+            ],
+            "isEarningsDateEstimate": true,
+            "earningsAverage": {
+              "raw": 0.74,
+              "fmt": "0.74"
+            },
+            "earningsLow": {
+              "raw": 0.72,
+              "fmt": "0.72"
+            },
+            "earningsHigh": {
+              "raw": 0.8,
+              "fmt": "0.80"
+            },
+            "revenueAverage": {
+              "raw": 32895200000,
+              "fmt": "32.9B",
+              "longFmt": "32,895,200,000"
+            },
+            "revenueLow": {
+              "raw": 32074000000,
+              "fmt": "32.07B",
+              "longFmt": "32,074,000,000"
+            },
+            "revenueHigh": {
+              "raw": 34979000000,
+              "fmt": "34.98B",
+              "longFmt": "34,979,000,000"
+            }
+          },
+          "exDividendDate": {
+            "raw": 1726099200,
+            "fmt": "2024-09-12"
+          },
+          "dividendDate": {
+            "raw": 1727913600,
+            "fmt": "2024-10-03"
+          }
+        }
+      }
+    ],
+    "error": null
+  }
 }

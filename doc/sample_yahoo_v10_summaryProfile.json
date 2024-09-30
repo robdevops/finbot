@@ -1,29 +1,29 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"summaryProfile": {
-			"address1": "206 East 9th Street",
-			"address2": "Suite 1400",
-			"city": "Austin",
-			"state": "TX",
-			"zip": "78701",
-			"country": "United States",
-			"phone": "888 512 8906",
-			"website": "https://www.crowdstrike.com",
-			"industry": "Software - Infrastructure",
-			"industryKey": "software-infrastructure",
-			"industryDisp": "Software - Infrastructure",
-			"sector": "Technology",
-			"sectorKey": "technology",
-			"sectorDisp": "Technology",
-			"longBusinessSummary": "CrowdStrike Holdings, Inc. provides cybersecurity solutions in the United States and internationally. Its unified platform offers cloud-delivered protection of endpoints, cloud workloads, identity, and data. The company offers corporate endpoint and cloud workload security, managed security, security and vulnerability management, IT operations management, identity protection, SIEM and log management, threat intelligence, data protection, security orchestration, automation and response and AI powered workflow automation, and securing generative AI workload services. It primarily sells subscriptions to its Falcon platform and cloud modules. The company was incorporated in 2011 and is headquartered in Austin, Texas.",
-			"fullTimeEmployees": 9219,
-			"companyOfficers": [],
-			"maxAge": 86400
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "summaryProfile": {
+          "address1": "2788 San Tomas Expressway",
+          "city": "Santa Clara",
+          "state": "CA",
+          "zip": "95051",
+          "country": "United States",
+          "phone": "408 486 2000",
+          "website": "https://www.nvidia.com",
+          "industry": "Semiconductors",
+          "industryKey": "semiconductors",
+          "industryDisp": "Semiconductors",
+          "sector": "Technology",
+          "sectorKey": "technology",
+          "sectorDisp": "Technology",
+          "longBusinessSummary": "NVIDIA Corporation provides graphics and compute and networking solutions in the United States, Taiwan, China, Hong Kong, and internationally. The Graphics segment offers GeForce GPUs for gaming and PCs, the GeForce NOW game streaming service and related infrastructure, and solutions for gaming platforms; Quadro/NVIDIA RTX GPUs for enterprise workstation graphics; virtual GPU or vGPU software for cloud-based visual and virtual computing; automotive platforms for infotainment systems; and Omniverse software for building and operating metaverse and 3D internet applications. The Compute & Networking segment comprises Data Center computing platforms and end-to-end networking platforms, including Quantum for InfiniBand and Spectrum for Ethernet; NVIDIA DRIVE automated-driving platform and automotive development agreements; Jetson robotics and other embedded platforms; NVIDIA AI Enterprise and other software; and DGX Cloud software and services. The company's products are used in gaming, professional visualization, data center, and automotive markets. It sells its products to original equipment manufacturers, original device manufacturers, system integrators and distributors, independent software vendors, cloud service providers, consumer internet companies, add-in board manufacturers, distributors, automotive manufacturers and tier-1 automotive suppliers, and other ecosystem participants. NVIDIA Corporation was incorporated in 1993 and is headquartered in Santa Clara, California.",
+          "fullTimeEmployees": 29600,
+          "companyOfficers": [],
+          "irWebsite": "http://phx.corporate-ir.net/phoenix.zhtml?c=116466&p=irol-IRHome",
+          "maxAge": 86400
+        }
+      }
+    ],
+    "error": null
+  }
 }

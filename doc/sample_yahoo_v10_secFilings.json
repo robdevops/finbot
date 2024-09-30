@@ -1,950 +1,1183 @@
 {
-	"quoteSummary": {
+  "quoteSummary": {
 	"result": [
-		{
+	  {
 		"secFilings": {
-			"filings": [
+		  "filings": [
 			{
-				"date": "2024-08-29",
-				"epochDate": 1724889600,
-				"type": "10-Q",
-				"title": "Periodic Financial Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-24-000020_1535527",
-				"exhibits": [
+			  "date": "2024-08-28",
+			  "epochDate": 1724803200,
+			  "type": "10-Q",
+			  "title": "Periodic Financial Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-24-000264_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-31.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000020/crwd-20240731xexx311.htm"
+				  "type": "10-Q",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000264/nvda-20240728.htm"
 				},
 				{
-					"type": "EX-31.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000020/crwd-20240731xexx312.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581024000264/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581024000264/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-32.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000020/crwd-20240731xexx321.htm"
+				  "type": "EX-31.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000264/nvda2025q2ex311.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552724000020/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552724000020/Financial_Report.xlsx"
+				  "type": "EX-31.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000264/nvda2025q2ex312.htm"
 				},
 				{
-					"type": "EX-10.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000020/outsidedirectorcompensatio.htm"
+				  "type": "EX-32.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000264/nvda2025q2ex321.htm"
 				},
 				{
-					"type": "10-Q",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000020/crwd-20240731.htm"
+				  "type": "EX-32.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000264/nvda2025q2ex322.htm"
+				},
+				{
+				  "type": "EX-10.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000264/nvidia-eiparjune2024xex101.htm"
+				},
+				{
+				  "type": "EX-10.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000264/nvidia-espparjune2024xex10.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2024-08-28",
-				"epochDate": 1724803200,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-24-000017_1535527",
-				"exhibits": [
+			  "date": "2024-07-18",
+			  "epochDate": 1721260800,
+			  "type": "SC 13G",
+			  "title": "Tender Offer/Acquisition Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-24-000230_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-99.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000017/crwd-20240828xex991.htm"
+				  "type": "SC 13G",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000230/nvidia-serv13g.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552724000017/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552724000017/Financial_Report.xlsx"
-				},
-				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000017/crwd-20240828.htm"
+				  "type": "SC 13G",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001832483/000104581024000230/nvidia-serv13g.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2024-07-22",
-				"epochDate": 1721606400,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-24-081571_1535527",
-				"exhibits": [
+			  "date": "2024-07-02",
+			  "epochDate": 1719878400,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-24-000206_1045810",
+			  "exhibits": [
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465924081571/tm2419936d1_8k.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581024000206/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581024000206/Financial_Report.xlsx"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000110465924081571/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000110465924081571/Financial_Report.xlsx"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000206/nvda-20240626.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2024-06-21",
-				"epochDate": 1718928000,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-24-073944_1535527",
-				"exhibits": [
+			  "date": "2024-06-07",
+			  "epochDate": 1717718400,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-24-000144_1045810",
+			  "exhibits": [
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465924073944/tm2417737d1_8k.htm"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000144/nvda-20240607.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000110465924073944/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000110465924073944/Financial_Report.xlsx"
+				  "type": "EX-3.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000144/bodapproved-projectsundaex.htm"
+				},
+				{
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581024000144/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581024000144/Financial_Report.xlsx"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2024-06-05",
-				"epochDate": 1717545600,
-				"type": "10-Q",
-				"title": "Periodic Financial Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-24-000013_1535527",
-				"exhibits": [
+			  "date": "2024-05-29",
+			  "epochDate": 1716940800,
+			  "type": "10-Q",
+			  "title": "Periodic Financial Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-24-000124_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-31.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000013/crwd-20240430xexx311.htm"
+				  "type": "10-Q",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000124/nvda-20240428.htm"
 				},
 				{
-					"type": "EX-31.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000013/crwd-20240430xexx312.htm"
+				  "type": "EX-10.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000124/ex102-globalrsuagreementx2.htm"
 				},
 				{
-					"type": "EX-32.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000013/crwd-20240430xexx321.htm"
+				  "type": "EX-10.3",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000124/ex103-psutemplatemarch2024.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552724000013/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552724000013/Financial_Report.xlsx"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581024000124/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581024000124/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-10.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000013/sentonas_michaelx-xusxof.htm"
+				  "type": "EX-31.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000124/nvda2025q1ex311.htm"
 				},
 				{
-					"type": "10-Q",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000013/crwd-20240430.htm"
+				  "type": "EX-31.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000124/nvda2025q1ex312.htm"
+				},
+				{
+				  "type": "EX-32.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000124/nvda2025q1ex321.htm"
+				},
+				{
+				  "type": "EX-32.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000124/nvda2025q1ex322.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2024-06-04",
-				"epochDate": 1717459200,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-24-000011_1535527",
-				"exhibits": [
+			  "date": "2024-05-23",
+			  "epochDate": 1716422400,
+			  "type": "SD",
+			  "title": "Specialized Disclosure Report filed pursuant to Section 1502 of the Dodd-Frank Wall Street Reform and Consumer Protection Act relating to the use of conflict minerals (Rule 13p-1)",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-24-000116_1045810",
+			  "exhibits": [
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000011/crwd-20240604.htm"
+				  "type": "SD",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000116/formsd2024.htm"
 				},
 				{
-					"type": "EX-99.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000011/crwd-20240604xex991.htm"
-				},
-				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552724000011/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552724000011/Financial_Report.xlsx"
+				  "type": "EX-1.01",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000116/a2024conflictmineralsrepor.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2024-05-06",
-				"epochDate": 1714953600,
-				"type": "DEFA14A",
-				"title": "Proxy Statements",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-24-057452_1535527",
-				"exhibits": [
+			  "date": "2024-05-22",
+			  "epochDate": 1716336000,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-24-000113_1045810",
+			  "exhibits": [
 				{
-					"type": "DEFA14A",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465924057452/tm242831d3_defa14a.htm"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000113/nvda-20240522.htm"
+				},
+				{
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581024000113/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581024000113/Financial_Report.xlsx"
+				},
+				{
+				  "type": "EX-99.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000113/q1fy25cfocommentary.htm"
+				},
+				{
+				  "type": "EX-99.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000113/q1fy25pr.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2024-03-07",
-				"epochDate": 1709769600,
-				"type": "S-8",
-				"title": "Offering Registrations",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-24-031625_1535527",
-				"exhibits": [
+			  "date": "2024-05-14",
+			  "epochDate": 1715644800,
+			  "type": "ARS",
+			  "title": "Annual Report to Shareholders",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-24-000106_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-FILING FEES",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465924031625/tm247851d1_ex-filingfees.htm"
-				},
-				{
-					"type": "EX-23.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465924031625/tm247851d1_ex23-1.htm"
-				},
-				{
-					"type": "EX-5.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465924031625/tm247851d1_ex5-1.htm"
-				},
-				{
-					"type": "S-8",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465924031625/tm247851d1_s8.htm"
+				  "type": "ARS",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000106/a2024annualreport.pdf"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2024-03-05",
-				"epochDate": 1709596800,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-24-000004_1535527",
-				"exhibits": [
+			  "date": "2024-03-14",
+			  "epochDate": 1710374400,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-24-000069_1045810",
+			  "exhibits": [
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000004/crwd-20240305.htm"
+				  "type": "EX-10.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000069/exhibit101-fy25variablecom.htm"
 				},
 				{
-					"type": "EX-99.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552724000004/crwd-20240305xex991.htm"
+				  "type": "EX-3.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000069/exhibit31-amendedandrestat.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552724000004/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552724000004/Financial_Report.xlsx"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581024000069/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581024000069/Financial_Report.xlsx"
+				},
+				{
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000069/nvda-20240308.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2024-01-26",
-				"epochDate": 1706227200,
-				"type": "SC 13G/A",
-				"title": "Tender Offer/Acquisition Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001086364-24-004351_1535527",
-				"exhibits": [],
-				"maxAge": 1
-			},
-			{
-				"date": "2023-11-29",
-				"epochDate": 1701216000,
-				"type": "10-Q",
-				"title": "Periodic Financial Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-23-000026_1535527",
-				"exhibits": [
+			  "date": "2024-02-21",
+			  "epochDate": 1708473600,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-24-000028_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-31.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000026/crwd-20231031xexx311.htm"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000028/nvda-20240221.htm"
 				},
 				{
-					"type": "EX-31.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000026/crwd-20231031xexx312.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581024000028/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581024000028/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-32.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000026/crwd-20231031xexx321.htm"
+				  "type": "EX-99.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000028/q4fy24cfocommentary.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552723000026/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552723000026/Financial_Report.xlsx"
-				},
-				{
-					"type": "10-Q",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000026/crwd-20231031.htm"
+				  "type": "EX-99.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581024000028/q4fy24pr.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-11-28",
-				"epochDate": 1701129600,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-23-000024_1535527",
-				"exhibits": [
+			  "date": "2024-01-26",
+			  "epochDate": 1706227200,
+			  "type": "SC 13G/A",
+			  "title": "Tender Offer/Acquisition Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001086364-24-004712_1045810",
+			  "exhibits": [],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2023-11-21",
+			  "epochDate": 1700524800,
+			  "type": "10-Q",
+			  "title": "Periodic Financial Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000227_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-99.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000024/crwd-20231128xex991.htm"
+				  "type": "10-Q",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000227/nvda-20231029.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552723000024/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552723000024/Financial_Report.xlsx"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000227/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000227/Financial_Report.xlsx"
 				},
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000024/crwd-20231128.htm"
+				  "type": "EX-31.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000227/nvda2024q3ex311.htm"
+				},
+				{
+				  "type": "EX-31.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000227/nvda2024q3ex312.htm"
+				},
+				{
+				  "type": "EX-32.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000227/nvda2024q3ex321.htm"
+				},
+				{
+				  "type": "EX-32.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000227/nvda2024q3ex322.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-08-31",
-				"epochDate": 1693440000,
-				"type": "10-Q",
-				"title": "Periodic Financial Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-23-000020_1535527",
-				"exhibits": [
+			  "date": "2023-10-24",
+			  "epochDate": 1698105600,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000221_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-31.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000020/crwd-20230731xexx311.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000221/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000221/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-31.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000020/crwd-20230731xexx312.htm"
-				},
-				{
-					"type": "EX-32.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000020/crwd-20230731xexx321.htm"
-				},
-				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552723000020/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552723000020/Financial_Report.xlsx"
-				},
-				{
-					"type": "EX-10.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000020/outsidedirectorcompensatio.htm"
-				},
-				{
-					"type": "10-Q",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000020/crwd-20230731.htm"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000221/nvda-20231023.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-08-30",
-				"epochDate": 1693353600,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-23-000018_1535527",
-				"exhibits": [
+			  "date": "2023-10-17",
+			  "epochDate": 1697500800,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000217_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-99.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000018/crwd-20230830xex991.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000217/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000217/Financial_Report.xlsx"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552723000018/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552723000018/Financial_Report.xlsx"
-				},
-				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000018/crwd-20230830.htm"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000217/nvda-20231017.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-06-22",
-				"epochDate": 1687392000,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-23-073728_1535527",
-				"exhibits": [
+			  "date": "2023-08-28",
+			  "epochDate": 1693180800,
+			  "type": "10-Q",
+			  "title": "Periodic Financial Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000175_1045810",
+			  "exhibits": [
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000110465923073728/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000110465923073728/Financial_Report.xlsx"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000175/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000175/Financial_Report.xlsx"
 				},
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465923073728/tm2319334d1_8k.htm"
+				  "type": "EX-31.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000175/nvda2024q2ex311.htm"
+				},
+				{
+				  "type": "EX-31.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000175/nvda2024q2ex312.htm"
+				},
+				{
+				  "type": "EX-32.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000175/nvda2024q2ex321.htm"
+				},
+				{
+				  "type": "EX-32.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000175/nvda2024q2ex322.htm"
+				},
+				{
+				  "type": "10-Q",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000175/nvda-20230730.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-06-01",
-				"epochDate": 1685577600,
-				"type": "10-Q",
-				"title": "Periodic Financial Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-23-000014_1535527",
-				"exhibits": [
+			  "date": "2023-08-23",
+			  "epochDate": 1692748800,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000171_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-31.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000014/crwd-20230430xexx311.htm"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000171/nvda-20230823.htm"
 				},
 				{
-					"type": "EX-31.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000014/crwd-20230430xexx312.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000171/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000171/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-32.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000014/crwd-20230430xexx321.htm"
+				  "type": "EX-99.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000171/q2fy24cfocommentary.htm"
 				},
 				{
-					"type": "EX-10.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000014/crwd-fy24ciptcs42423.htm"
-				},
-				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552723000014/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552723000014/Financial_Report.xlsx"
-				},
-				{
-					"type": "10-Q",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000014/crwd-20230430.htm"
+				  "type": "EX-99.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000171/q2fy24pr.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-05-31",
-				"epochDate": 1685491200,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-23-000012_1535527",
-				"exhibits": [
+			  "date": "2023-07-24",
+			  "epochDate": 1690156800,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000164_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-99.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000012/crwd-20230531xex991.htm"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000164/nvda-20230724.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552723000012/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552723000012/Financial_Report.xlsx"
-				},
-				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000012/crwd-20230531.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000164/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000164/Financial_Report.xlsx"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-05-05",
-				"epochDate": 1683244800,
-				"type": "DEF 14A",
-				"title": "Proxy Statements",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-23-056548_1535527",
-				"exhibits": [
+			  "date": "2023-06-29",
+			  "epochDate": 1687996800,
+			  "type": "CORRESP",
+			  "title": "A correspondence can be sent as a document with another submission type or can be sent as a separate submission",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000160_1045810",
+			  "exhibits": [
 				{
-					"type": "DEF 14A",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465923056548/tm232065-3_def14a.htm"
-				},
-				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000110465923056548/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000110465923056548/Financial_Report.xlsx"
+				  "type": "CORRESP",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000160/filename1.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-03-09",
-				"epochDate": 1678320000,
-				"type": "10-K",
-				"title": "Periodic Financial Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-23-000008_1535527",
-				"exhibits": [
+			  "date": "2023-06-27",
+			  "epochDate": 1687824000,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000146_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-10.26",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000008/austin_xsecondxamendment.htm"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000146/nvda-20230622.htm"
 				},
 				{
-					"type": "EX-21.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000008/crwd-20230131xexx211.htm"
-				},
-				{
-					"type": "EX-23.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000008/crwd-20230131xexx231.htm"
-				},
-				{
-					"type": "EX-31.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000008/crwd-20230131xexx311.htm"
-				},
-				{
-					"type": "EX-31.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000008/crwd-20230131xexx312.htm"
-				},
-				{
-					"type": "EX-32.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000008/crwd-20230131xexx321.htm"
-				},
-				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552723000008/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552723000008/Financial_Report.xlsx"
-				},
-				{
-					"type": "10-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000008/crwd-20230131.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000146/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000146/Financial_Report.xlsx"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-03-07",
-				"epochDate": 1678147200,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-23-000006_1535527",
-				"exhibits": [
+			  "date": "2023-05-24",
+			  "epochDate": 1684886400,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000087_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-99.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000006/crwd-20230307xex991.htm"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000087/nvda-20230524.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552723000006/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552723000006/Financial_Report.xlsx"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000087/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000087/Financial_Report.xlsx"
 				},
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552723000006/crwd-20230307.htm"
+				  "type": "EX-99.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000087/q1fy24cfocommentary.htm"
+				},
+				{
+				  "type": "EX-99.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000087/q1fy24pr.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-03-03",
-				"epochDate": 1677801600,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-23-028507_1535527",
-				"exhibits": [
+			  "date": "2023-05-08",
+			  "epochDate": 1683504000,
+			  "type": "DEF 14A",
+			  "title": "Proxy Statements",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000080_1045810",
+			  "exhibits": [
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465923028507/tm238330d1_8k.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000080/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000080/Financial_Report.xlsx"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000110465923028507/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000110465923028507/Financial_Report.xlsx"
-				},
-				{
-					"type": "EX-3.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465923028507/tm238330d1_ex3-2.htm"
+				  "type": "DEF 14A",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000080/nvda-20230508.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-02-14",
-				"epochDate": 1676332800,
-				"type": "SC 13G/A",
-				"title": "Tender Offer/Acquisition Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0000950103-23-002355_1535527",
-				"exhibits": [
+			  "date": "2023-04-26",
+			  "epochDate": 1682467200,
+			  "type": "SD",
+			  "title": "Specialized Disclosure Report filed pursuant to Section 1502 of the Dodd-Frank Wall Street Reform and Consumer Protection Act relating to the use of conflict minerals (Rule 13p-1)",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000069_1045810",
+			  "exhibits": [
 				{
-					"type": "SC 13G/A",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000095010323002355/dp188871_sc13ga-kurtz.htm"
+				  "type": "SD",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000069/formsd2023.htm"
 				},
 				{
-					"type": "SC 13G/A",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001778564/000095010323002355/dp188871_sc13ga-kurtz.htm"
+				  "type": "EX-1.01",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000069/a2022conflictmineralsreport.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-02-09",
-				"epochDate": 1675900800,
-				"type": "SC 13G/A",
-				"title": "Tender Offer/Acquisition Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-23-015731_1535527",
-				"exhibits": [
+			  "date": "2023-03-08",
+			  "epochDate": 1678233600,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000039_1045810",
+			  "exhibits": [
 				{
-					"type": "SC 13G/A",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0000102909/000110465923015731/tv0683-crowdstrikeholdingsin.htm"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000039/nvda-20230302.htm"
 				},
 				{
-					"type": "SC 13G/A",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465923015731/tv0683-crowdstrikeholdingsin.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000039/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000039/Financial_Report.xlsx"
+				},
+				{
+				  "type": "EX-10.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000039/fy24variablecompensationpl.htm"
+				},
+				{
+				  "type": "EX-3.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000039/nvidia-amendedandrestatedb.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2023-02-07",
-				"epochDate": 1675728000,
-				"type": "SC 13G/A",
-				"title": "Tender Offer/Acquisition Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001306550-23-008287_1535527",
-				"exhibits": [],
-				"maxAge": 1
-			},
-			{
-				"date": "2023-01-23",
-				"epochDate": 1674432000,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-23-005624_1535527",
-				"exhibits": [
+			  "date": "2023-02-28",
+			  "epochDate": 1677542400,
+			  "type": "S-3",
+			  "title": "Offering Registrations",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000021_1045810",
+			  "exhibits": [
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465923005624/tm234087d1_8k.htm"
+				  "type": "S-3",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000021/nvidia-formsx3.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000110465923005624/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000110465923005624/Financial_Report.xlsx"
+				  "type": "EX-FILING FEES",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000021/exhibit107filingfeetable.htm"
+				},
+				{
+				  "type": "EX-23.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000021/exhibit231pwcconsent.htm"
+				},
+				{
+				  "type": "EX-25.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000021/exhibit251computersharefor.htm"
+				},
+				{
+				  "type": "EX-5.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000021/exhibit51opinion.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-11-30",
-				"epochDate": 1669766400,
-				"type": "10-Q",
-				"title": "Periodic Financial Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-22-000025_1535527",
-				"exhibits": [
+			  "date": "2023-02-24",
+			  "epochDate": 1677196800,
+			  "type": "10-K",
+			  "title": "Periodic Financial Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000017_1045810",
+			  "exhibits": [
 				{
-					"type": "10-Q",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000025/crwd-20221031.htm"
+				  "type": "EX-10.14",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000017/a2007planglobalrsuagreemen.htm"
 				},
 				{
-					"type": "EX-31.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000025/crwd-20221031xexx311.htm"
+				  "type": "EX-23.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000017/consentofindependentregist.htm"
 				},
 				{
-					"type": "EX-31.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000025/crwd-20221031xexx312.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000017/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000017/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-32.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000025/crwd-20221031xexx321.htm"
+				  "type": "EX-21.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000017/listofregistrantssubsidiar.htm"
 				},
 				{
-					"type": "EX-10.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000025/exhibit101outsidedirectorc.htm"
+				  "type": "EX-31.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000017/nvda-2023xex311.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552722000025/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552722000025/Financial_Report.xlsx"
+				  "type": "EX-31.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000017/nvda-2023xex312.htm"
+				},
+				{
+				  "type": "EX-32.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000017/nvda-2023xex321.htm"
+				},
+				{
+				  "type": "EX-32.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000017/nvda-2023xex322.htm"
+				},
+				{
+				  "type": "EX-4.6",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000017/nvidia-202310xkdescription.htm"
+				},
+				{
+				  "type": "EX-10.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000017/nvidia-eipardecember12022.htm"
+				},
+				{
+				  "type": "10-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000017/nvda-20230129.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-11-29",
-				"epochDate": 1669680000,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-22-000023_1535527",
-				"exhibits": [
+			  "date": "2023-02-22",
+			  "epochDate": 1677024000,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-23-000014_1045810",
+			  "exhibits": [
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000023/crwd-20221129.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581023000014/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581023000014/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-99.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000023/crwd-20221031xex991.htm"
+				  "type": "EX-99.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000014/q4fy23cfocommentary.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552722000023/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552722000023/Financial_Report.xlsx"
+				  "type": "EX-99.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000014/q4fy23pr.htm"
+				},
+				{
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581023000014/nvda-20230222.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-08-31",
-				"epochDate": 1661904000,
-				"type": "10-Q",
-				"title": "Periodic Financial Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-22-000018_1535527",
-				"exhibits": [
+			  "date": "2023-02-09",
+			  "epochDate": 1675900800,
+			  "type": "SC 13G/A",
+			  "title": "Tender Offer/Acquisition Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0000315066-23-001987_1045810",
+			  "exhibits": [],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2023-01-31",
+			  "epochDate": 1675123200,
+			  "type": "SC 13G/A",
+			  "title": "Tender Offer/Acquisition Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001306550-23-005055_1045810",
+			  "exhibits": [],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2022-11-18",
+			  "epochDate": 1668729600,
+			  "type": "10-Q",
+			  "title": "Periodic Financial Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000166_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-31.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000018/crwd-20220731xexx311.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000166/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000166/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-31.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000018/crwd-20220731xexx312.htm"
+				  "type": "EX-31.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000166/nvda2023q3ex311.htm"
 				},
 				{
-					"type": "EX-32.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000018/crwd-20220731xexx321.htm"
+				  "type": "EX-31.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000166/nvda2023q3ex312.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552722000018/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552722000018/Financial_Report.xlsx"
+				  "type": "EX-32.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000166/nvda2023q3ex321.htm"
 				},
 				{
-					"type": "10-Q",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000018/crwd-20220731.htm"
+				  "type": "EX-32.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000166/nvda2023q3ex322.htm"
+				},
+				{
+				  "type": "10-Q",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000166/nvda-20221030.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-08-30",
-				"epochDate": 1661817600,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-22-000016_1535527",
-				"exhibits": [
+			  "date": "2022-11-16",
+			  "epochDate": 1668556800,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000163_1045810",
+			  "exhibits": [
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000016/crwd-20220830.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000163/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000163/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-99.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000016/crwd-20220731xex991.htm"
+				  "type": "EX-99.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000163/q3fy23cfocommentary.htm"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552722000016/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552722000016/Financial_Report.xlsx"
+				  "type": "EX-99.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000163/q3fy23pr.htm"
+				},
+				{
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000163/nvda-20221116.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-07-06",
-				"epochDate": 1657065600,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-22-077774_1535527",
-				"exhibits": [
+			  "date": "2022-09-19",
+			  "epochDate": 1663545600,
+			  "type": "CORRESP",
+			  "title": "A correspondence can be sent as a document with another submission type or can be sent as a separate submission",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000156_1045810",
+			  "exhibits": [
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000110465922077774/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000110465922077774/Financial_Report.xlsx"
-				},
-				{
-					"type": "EX-10.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465922077774/tm2220303d1_ex10-1.htm"
-				},
-				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465922077774/tm2220303d1_8k.htm"
+				  "type": "CORRESP",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000156/filename1.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-06-03",
-				"epochDate": 1654214400,
-				"type": "10-Q",
-				"title": "Periodic Financial Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-22-000012_1535527",
-				"exhibits": [
+			  "date": "2022-09-01",
+			  "epochDate": 1661990400,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000151_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-31.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000012/crwd-20220430xexx311.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000151/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000151/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-31.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000012/crwd-20220430xexx312.htm"
-				},
-				{
-					"type": "EX-32.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000012/crwd-20220430xexx321.htm"
-				},
-				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552722000012/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552722000012/Financial_Report.xlsx"
-				},
-				{
-					"type": "10-Q",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000012/crwd-20220430.htm"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000151/nvda-20220831.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-06-02",
-				"epochDate": 1654128000,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-22-000010_1535527",
-				"exhibits": [
+			  "date": "2022-08-31",
+			  "epochDate": 1661904000,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000146_1045810",
+			  "exhibits": [
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000010/crwd-20220602.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000146/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000146/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-99.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000010/crwd-20220430xex991.htm"
-				},
-				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552722000010/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552722000010/Financial_Report.xlsx"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000146/nvda-20220826.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-05-06",
-				"epochDate": 1651795200,
-				"type": "DEF 14A",
-				"title": "Proxy Statements",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-22-057039_1535527",
-				"exhibits": [
+			  "date": "2022-08-24",
+			  "epochDate": 1661299200,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000136_1045810",
+			  "exhibits": [
 				{
-					"type": "DEF 14A",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465922057039/tm229592-1_def14a.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000136/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000136/Financial_Report.xlsx"
+				},
+				{
+				  "type": "EX-99.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000136/q2fy23cfocommentary.htm"
+				},
+				{
+				  "type": "EX-99.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000136/q2fy23pr.htm"
+				},
+				{
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000136/nvda-20220824.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-04-08",
-				"epochDate": 1649376000,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-22-044351_1535527",
-				"exhibits": [
+			  "date": "2022-08-08",
+			  "epochDate": 1659916800,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000133_1045810",
+			  "exhibits": [
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465922044351/tm2212244d1_8k.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000133/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000133/Financial_Report.xlsx"
 				},
 				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000110465922044351/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000110465922044351/Financial_Report.xlsx"
+				  "type": "EX-99.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000133/pressrelease.htm"
+				},
+				{
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000133/nvda-20220808.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-03-16",
-				"epochDate": 1647388800,
-				"type": "10-K",
-				"title": "Periodic Financial Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-22-000006_1535527",
-				"exhibits": [
+			  "date": "2022-06-06",
+			  "epochDate": 1654473600,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000088_1045810",
+			  "exhibits": [
 				{
-					"type": "10-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000006/crwd-20220131.htm"
+				  "type": "EX-10.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000088/exhibit101-amendedandresta.htm"
 				},
 				{
-					"type": "EX-21.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000006/crwd-20220131xexx211.htm"
+				  "type": "EX-3.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000088/exhibit31-amendmenttoresta.htm"
 				},
 				{
-					"type": "EX-23.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000006/crwd-20220131xexx231.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000088/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000088/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-31.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000006/crwd-20220131xexx311.htm"
-				},
-				{
-					"type": "EX-31.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000006/crwd-20220131xexx312.htm"
-				},
-				{
-					"type": "EX-32.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000006/crwd-20220131xexx321.htm"
-				},
-				{
-					"type": "EX-10.18",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000006/ex-1018_crowdstrikeaustinl.htm"
-				},
-				{
-					"type": "EX-10.19",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000006/ex-1019_crowdstrikeaustin1.htm"
-				},
-				{
-					"type": "EX-10.20",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000006/ex-1020_crowdstrikexarcred.htm"
-				},
-				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552722000006/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552722000006/Financial_Report.xlsx"
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000088/nvda-20220602.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-03-09",
-				"epochDate": 1646784000,
-				"type": "8-K",
-				"title": "Corporate Changes & Voting Matters",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001535527-22-000004_1535527",
-				"exhibits": [
+			  "date": "2022-05-31",
+			  "epochDate": 1653955200,
+			  "type": "SD",
+			  "title": "Specialized Disclosure Report filed pursuant to Section 1502 of the Dodd-Frank Wall Street Reform and Consumer Protection Act relating to the use of conflict minerals (Rule 13p-1)",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000081_1045810",
+			  "exhibits": [
 				{
-					"type": "8-K",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000004/crwd-20220309.htm"
+				  "type": "EX-1.01",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000081/a2021conflictmineralsreport.htm"
 				},
 				{
-					"type": "EX-99.1",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000153552722000004/crwd-20220309xex991.htm"
-				},
-				{
-					"type": "EXCEL",
-					"url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001535527/000153552722000004/Financial_Report.xlsx",
-					"downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001535527/000153552722000004/Financial_Report.xlsx"
+				  "type": "SD",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000081/formsd2022.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-02-14",
-				"epochDate": 1644796800,
-				"type": "SC 13G/A",
-				"title": "Tender Offer/Acquisition Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0000929638-22-000509_1535527",
-				"exhibits": [
+			  "date": "2022-05-27",
+			  "epochDate": 1653609600,
+			  "type": "10-Q",
+			  "title": "Periodic Financial Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000079_1045810",
+			  "exhibits": [
 				{
-					"type": "EX-99.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000092963822000509/exhibit99-2.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000079/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000079/Financial_Report.xlsx"
 				},
 				{
-					"type": "EX-99.2",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001678225/000092963822000509/exhibit99-2.htm"
+				  "type": "EX-31.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000079/nvda2023q1ex311.htm"
 				},
 				{
-					"type": "SC 13G/A",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000092963822000509/sch13ga.htm"
+				  "type": "EX-31.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000079/nvda2023q1ex312.htm"
 				},
 				{
-					"type": "SC 13G/A",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001678225/000092963822000509/sch13ga.htm"
+				  "type": "EX-32.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000079/nvda2023q1ex321.htm"
+				},
+				{
+				  "type": "EX-32.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000079/nvda2023q1ex322.htm"
+				},
+				{
+				  "type": "10-Q",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000079/nvda-20220501.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-02-09",
-				"epochDate": 1644364800,
-				"type": "SC 13G/A",
-				"title": "Tender Offer/Acquisition Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0001104659-22-016922_1535527",
-				"exhibits": [
+			  "date": "2022-05-25",
+			  "epochDate": 1653436800,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000073_1045810",
+			  "exhibits": [
 				{
-					"type": "SC 13G/A",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0000102909/000110465922016922/tv0683-crowdstrikeholdingsin.htm"
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000073/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000073/Financial_Report.xlsx"
 				},
 				{
-					"type": "SC 13G/A",
-					"url": "https://cdn.yahoofinance.com/prod/sec-filings/0001535527/000110465922016922/tv0683-crowdstrikeholdingsin.htm"
+				  "type": "EX-99.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000073/q1fy23cfocommentary.htm"
+				},
+				{
+				  "type": "EX-99.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000073/q1fy23pr.htm"
+				},
+				{
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000073/nvda-20220525.htm"
 				}
-				],
-				"maxAge": 1
+			  ],
+			  "maxAge": 1
 			},
 			{
-				"date": "2022-02-01",
-				"epochDate": 1643673600,
-				"type": "SC 13G/A",
-				"title": "Tender Offer/Acquisition Reports",
-				"edgarUrl": "https://finance.yahoo.com/sec-filing/CRWD/0000834237-22-003876_1535527",
-				"exhibits": [],
-				"maxAge": 1
+			  "date": "2022-04-20",
+			  "epochDate": 1650412800,
+			  "type": "DEFA14A",
+			  "title": "Proxy Statements",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000070_1045810",
+			  "exhibits": [
+				{
+				  "type": "DEFA14A",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000070/noticeof2022annualmeeting.htm"
+				}
+			  ],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2022-04-19",
+			  "epochDate": 1650326400,
+			  "type": "DEF 14A",
+			  "title": "Proxy Statements",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000068_1045810",
+			  "exhibits": [
+				{
+				  "type": "DEF 14A",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000068/noticeof2022annualmeeting.htm"
+				}
+			  ],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2022-04-08",
+			  "epochDate": 1649376000,
+			  "type": "PRE 14A",
+			  "title": "Proxy Statements",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000059_1045810",
+			  "exhibits": [
+				{
+				  "type": "PRE 14A",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000059/nvda2022proxystatement.htm"
+				}
+			  ],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2022-03-18",
+			  "epochDate": 1647561600,
+			  "type": "10-K",
+			  "title": "Periodic Financial Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000036_1045810",
+			  "exhibits": [
+				{
+				  "type": "EX-23.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000036/consentofindependentregist.htm"
+				},
+				{
+				  "type": "EX-4.7",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000036/descriptionoftheregistrant.htm"
+				},
+				{
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000036/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000036/Financial_Report.xlsx"
+				},
+				{
+				  "type": "EX-21.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000036/listofregistrantssubsidiar.htm"
+				},
+				{
+				  "type": "EX-31.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000036/nvda-2022xex311.htm"
+				},
+				{
+				  "type": "EX-31.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000036/nvda-2022xex312.htm"
+				},
+				{
+				  "type": "EX-32.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000036/nvda-2022xex321.htm"
+				},
+				{
+				  "type": "EX-32.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000036/nvda-2022xex322.htm"
+				},
+				{
+				  "type": "EX-10.16",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000036/nvidia-globalrsuagreementx.htm"
+				},
+				{
+				  "type": "EX-3.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000036/nvidia-restatedcertificate.htm"
+				},
+				{
+				  "type": "10-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000036/nvda-20220130.htm"
+				}
+			  ],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2022-03-09",
+			  "epochDate": 1646784000,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000023_1045810",
+			  "exhibits": [
+				{
+				  "type": "EX-10.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000023/exhibit101fy2023variableco.htm"
+				},
+				{
+				  "type": "EX-3.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000023/exhibit31amendedandrestate.htm"
+				},
+				{
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000023/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000023/Financial_Report.xlsx"
+				},
+				{
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000023/nvda-20220303.htm"
+				}
+			  ],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2022-02-16",
+			  "epochDate": 1644969600,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000008_1045810",
+			  "exhibits": [
+				{
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000008/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000008/Financial_Report.xlsx"
+				},
+				{
+				  "type": "EX-99.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000008/q4fy22cfocommentary.htm"
+				},
+				{
+				  "type": "EX-99.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000008/q4fy22pr.htm"
+				},
+				{
+				  "type": "EX-99.2",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/1045810/000104581022000008/q4fy22cfocommentary.htm"
+				},
+				{
+				  "type": "EX-99.1",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/1045810/000104581022000008/q4fy22pr.htm"
+				},
+				{
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000008/nvda-20220216.htm"
+				},
+				{
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/1045810/000104581022000008/nvda-20220216.htm"
+				}
+			  ],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2022-02-10",
+			  "epochDate": 1644451200,
+			  "type": "SC 13G/A",
+			  "title": "Tender Offer/Acquisition Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001104659-22-018217_1045810",
+			  "exhibits": [
+				{
+				  "type": "SC 13G/A",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0000102909/000110465922018217/tv01553-nvidiacorp.htm"
+				},
+				{
+				  "type": "SC 13G/A",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000110465922018217/tv01553-nvidiacorp.htm"
+				}
+			  ],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2022-02-09",
+			  "epochDate": 1644364800,
+			  "type": "SC 13G/A",
+			  "title": "Tender Offer/Acquisition Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0000315066-22-001121_1045810",
+			  "exhibits": [],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2022-02-08",
+			  "epochDate": 1644278400,
+			  "type": "8-K",
+			  "title": "Corporate Changes & Voting Matters",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0001045810-22-000005_1045810",
+			  "exhibits": [
+				{
+				  "type": "EXCEL",
+				  "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001045810/000104581022000005/Financial_Report.xlsx",
+				  "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001045810/000104581022000005/Financial_Report.xlsx"
+				},
+				{
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001045810/000104581022000005/nvda-20220208.htm"
+				},
+				{
+				  "type": "8-K",
+				  "url": "https://cdn.yahoofinance.com/prod/sec-filings/1045810/000104581022000005/nvda-20220208.htm"
+				}
+			  ],
+			  "maxAge": 1
+			},
+			{
+			  "date": "2022-02-01",
+			  "epochDate": 1643673600,
+			  "type": "SC 13G/A",
+			  "title": "Tender Offer/Acquisition Reports",
+			  "edgarUrl": "https://finance.yahoo.com/sec-filing/NVDA/0000834237-22-004392_1045810",
+			  "exhibits": [],
+			  "maxAge": 1
 			}
-			],
-			"maxAge": 86400
+		  ],
+		  "maxAge": 86400
 		}
-		}
+	  }
 	],
 	"error": null
-	}
+  }
 }

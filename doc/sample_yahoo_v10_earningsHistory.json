@@ -1,110 +1,110 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"earningsHistory": {
-			"history": [
-			{
-				"maxAge": 1,
-				"epsActual": {
-				"raw": 0.82,
-				"fmt": "0.82"
-				},
-				"epsEstimate": {
-				"raw": 0.74,
-				"fmt": "0.74"
-				},
-				"epsDifference": {
-				"raw": 0.08,
-				"fmt": "0.08"
-				},
-				"surprisePercent": {
-				"raw": 0.108,
-				"fmt": "10.80%"
-				},
-				"quarter": {
-				"raw": 1698710400,
-				"fmt": "2023-10-31"
-				},
-				"period": "-4q"
-			},
-			{
-				"maxAge": 1,
-				"epsActual": {
-				"raw": 0.95,
-				"fmt": "0.95"
-				},
-				"epsEstimate": {
-				"raw": 0.82,
-				"fmt": "0.82"
-				},
-				"epsDifference": {
-				"raw": 0.13,
-				"fmt": "0.13"
-				},
-				"surprisePercent": {
-				"raw": 0.159,
-				"fmt": "15.90%"
-				},
-				"quarter": {
-				"raw": 1706659200,
-				"fmt": "2024-01-31"
-				},
-				"period": "-3q"
-			},
-			{
-				"maxAge": 1,
-				"epsActual": {
-				"raw": 0.93,
-				"fmt": "0.93"
-				},
-				"epsEstimate": {
-				"raw": 0.89,
-				"fmt": "0.89"
-				},
-				"epsDifference": {
-				"raw": 0.04,
-				"fmt": "0.04"
-				},
-				"surprisePercent": {
-				"raw": 0.045,
-				"fmt": "4.50%"
-				},
-				"quarter": {
-				"raw": 1714435200,
-				"fmt": "2024-04-30"
-				},
-				"period": "-2q"
-			},
-			{
-				"maxAge": 1,
-				"epsActual": {
-				"raw": 1.04,
-				"fmt": "1.04"
-				},
-				"epsEstimate": {
-				"raw": 0.97,
-				"fmt": "0.97"
-				},
-				"epsDifference": {
-				"raw": 0.07,
-				"fmt": "0.07"
-				},
-				"surprisePercent": {
-				"raw": 0.072,
-				"fmt": "7.20%"
-				},
-				"quarter": {
-				"raw": 1722384000,
-				"fmt": "2024-07-31"
-				},
-				"period": "-1q"
-			}
-			],
-			"maxAge": 86400
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "earningsHistory": {
+          "history": [
+            {
+              "maxAge": 1,
+              "epsActual": {
+                "raw": 0.37,
+                "fmt": "0.37"
+              },
+              "epsEstimate": {
+                "raw": 0.31,
+                "fmt": "0.31"
+              },
+              "epsDifference": {
+                "raw": 0.06,
+                "fmt": "0.06"
+              },
+              "surprisePercent": {
+                "raw": 0.19399999,
+                "fmt": "19.40%"
+              },
+              "quarter": {
+                "raw": 1698710400,
+                "fmt": "2023-10-31"
+              },
+              "period": "-4q"
+            },
+            {
+              "maxAge": 1,
+              "epsActual": {
+                "raw": 0.47,
+                "fmt": "0.47"
+              },
+              "epsEstimate": {
+                "raw": 0.42,
+                "fmt": "0.42"
+              },
+              "epsDifference": {
+                "raw": 0.05,
+                "fmt": "0.05"
+              },
+              "surprisePercent": {
+                "raw": 0.118999995,
+                "fmt": "11.90%"
+              },
+              "quarter": {
+                "raw": 1706659200,
+                "fmt": "2024-01-31"
+              },
+              "period": "-3q"
+            },
+            {
+              "maxAge": 1,
+              "epsActual": {
+                "raw": 0.56,
+                "fmt": "0.56"
+              },
+              "epsEstimate": {
+                "raw": 0.51,
+                "fmt": "0.51"
+              },
+              "epsDifference": {
+                "raw": 0.05,
+                "fmt": "0.05"
+              },
+              "surprisePercent": {
+                "raw": 0.098000005,
+                "fmt": "9.80%"
+              },
+              "quarter": {
+                "raw": 1714435200,
+                "fmt": "2024-04-30"
+              },
+              "period": "-2q"
+            },
+            {
+              "maxAge": 1,
+              "epsActual": {
+                "raw": 0.68,
+                "fmt": "0.68"
+              },
+              "epsEstimate": {
+                "raw": 0.64,
+                "fmt": "0.64"
+              },
+              "epsDifference": {
+                "raw": 0.04,
+                "fmt": "0.04"
+              },
+              "surprisePercent": {
+                "raw": 0.063,
+                "fmt": "6.30%"
+              },
+              "quarter": {
+                "raw": 1722384000,
+                "fmt": "2024-07-31"
+              },
+              "period": "-1q"
+            }
+          ],
+          "maxAge": 86400
+        }
+      }
+    ],
+    "error": null
+  }
 }

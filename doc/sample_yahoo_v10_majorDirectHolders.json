@@ -1,13 +1,13 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"majorDirectHolders": {
-			"holders": [],
-			"maxAge": 1
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "majorDirectHolders": {
+          "holders": [],
+          "maxAge": 1
+        }
+      }
+    ],
+    "error": null
+  }
 }

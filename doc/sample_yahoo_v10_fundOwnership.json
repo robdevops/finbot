@@ -1,274 +1,274 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"fundOwnership": {
-			"maxAge": 1,
-			"ownershipList": [
-			{
-				"maxAge": 1,
-				"reportDate": {
-				"raw": 1719705600,
-				"fmt": "2024-06-30"
-				},
-				"organization": "Vanguard Total Stock Market Index Fund",
-				"pctHeld": {
-				"raw": 0.0313,
-				"fmt": "3.13%"
-				},
-				"position": {
-				"raw": 7286764,
-				"fmt": "7.29M",
-				"longFmt": "7,286,764"
-				},
-				"value": {
-				"raw": 2087439291,
-				"fmt": "2.09B",
-				"longFmt": "2,087,439,291"
-				},
-				"pctChange": {
-				"raw": 0.0183,
-				"fmt": "1.83%"
-				}
-			},
-			{
-				"maxAge": 1,
-				"reportDate": {
-				"raw": 1719705600,
-				"fmt": "2024-06-30"
-				},
-				"organization": "Vanguard 500 Index Fund",
-				"pctHeld": {
-				"raw": 0.0255,
-				"fmt": "2.55%"
-				},
-				"position": {
-				"raw": 5923423,
-				"fmt": "5.92M",
-				"longFmt": "5,923,423"
-				},
-				"value": {
-				"raw": 1696882994,
-				"fmt": "1.7B",
-				"longFmt": "1,696,882,994"
-				},
-				"pctChange": {
-				"raw": 1,
-				"fmt": "100.00%"
-				}
-			},
-			{
-				"maxAge": 1,
-				"reportDate": {
-				"raw": 1725062400,
-				"fmt": "2024-08-31"
-				},
-				"organization": "Invesco ETF Tr-Invesco QQQ Tr, Series 1 ETF",
-				"pctHeld": {
-				"raw": 0.0191,
-				"fmt": "1.91%"
-				},
-				"position": {
-				"raw": 4453261,
-				"fmt": "4.45M",
-				"longFmt": "4,453,261"
-				},
-				"value": {
-				"raw": 1275725684,
-				"fmt": "1.28B",
-				"longFmt": "1,275,725,684"
-				},
-				"pctChange": {
-				"raw": -0.0017,
-				"fmt": "-0.17%"
-				}
-			},
-			{
-				"maxAge": 1,
-				"reportDate": {
-				"raw": 1722384000,
-				"fmt": "2024-07-31"
-				},
-				"organization": "Fidelity 500 Index Fund",
-				"pctHeld": {
-				"raw": 0.0121,
-				"fmt": "1.21%"
-				},
-				"position": {
-				"raw": 2819800,
-				"fmt": "2.82M",
-				"longFmt": "2,819,800"
-				},
-				"value": {
-				"raw": 807788109,
-				"fmt": "807.79M",
-				"longFmt": "807,788,109"
-				},
-				"pctChange": {
-				"raw": 0.0001,
-				"fmt": "0.01%"
-				}
-			},
-			{
-				"maxAge": 1,
-				"reportDate": {
-				"raw": 1725062400,
-				"fmt": "2024-08-31"
-				},
-				"organization": "SPDR S&P 500 ETF Trust",
-				"pctHeld": {
-				"raw": 0.0117999995,
-				"fmt": "1.18%"
-				},
-				"position": {
-				"raw": 2734807,
-				"fmt": "2.73M",
-				"longFmt": "2,734,807"
-				},
-				"value": {
-				"raw": 783440164,
-				"fmt": "783.44M",
-				"longFmt": "783,440,164"
-				},
-				"pctChange": {
-				"raw": -0.0127,
-				"fmt": "-1.27%"
-				}
-			},
-			{
-				"maxAge": 1,
-				"reportDate": {
-				"raw": 1725062400,
-				"fmt": "2024-08-31"
-				},
-				"organization": "iShares Core S&P 500 ETF",
-				"pctHeld": {
-				"raw": 0.0109,
-				"fmt": "1.09%"
-				},
-				"position": {
-				"raw": 2529593,
-				"fmt": "2.53M",
-				"longFmt": "2,529,593"
-				},
-				"value": {
-				"raw": 724652509,
-				"fmt": "724.65M",
-				"longFmt": "724,652,509"
-				},
-				"pctChange": {
-				"raw": 0.013300001,
-				"fmt": "1.33%"
-				}
-			},
-			{
-				"maxAge": 1,
-				"reportDate": {
-				"raw": 1719705600,
-				"fmt": "2024-06-30"
-				},
-				"organization": "Vanguard Growth Index Fund",
-				"pctHeld": {
-				"raw": 0.0101,
-				"fmt": "1.01%"
-				},
-				"position": {
-				"raw": 2354543,
-				"fmt": "2.35M",
-				"longFmt": "2,354,543"
-				},
-				"value": {
-				"raw": 674505936,
-				"fmt": "674.51M",
-				"longFmt": "674,505,936"
-				},
-				"pctChange": {
-				"raw": 0.0913,
-				"fmt": "9.13%"
-				}
-			},
-			{
-				"maxAge": 1,
-				"reportDate": {
-				"raw": 1725062400,
-				"fmt": "2024-08-31"
-				},
-				"organization": "Select Sector SPDR Fund-Technology",
-				"pctHeld": {
-				"raw": 0.0072000003,
-				"fmt": "0.72%"
-				},
-				"position": {
-				"raw": 1673766,
-				"fmt": "1.67M",
-				"longFmt": "1,673,766"
-				},
-				"value": {
-				"raw": 479483748,
-				"fmt": "479.48M",
-				"longFmt": "479,483,748"
-				},
-				"pctChange": {
-				"raw": 0.0108,
-				"fmt": "1.08%"
-				}
-			},
-			{
-				"maxAge": 1,
-				"reportDate": {
-				"raw": 1725062400,
-				"fmt": "2024-08-31"
-				},
-				"organization": "First Trust NASDAQ	Cybersecurity ETF",
-				"pctHeld": {
-				"raw": 0.0067000003,
-				"fmt": "0.67%"
-				},
-				"position": {
-				"raw": 1556658,
-				"fmt": "1.56M",
-				"longFmt": "1,556,658"
-				},
-				"value": {
-				"raw": 445935819,
-				"fmt": "445.94M",
-				"longFmt": "445,935,819"
-				},
-				"pctChange": {
-				"raw": -0.0058999998,
-				"fmt": "-0.59%"
-				}
-			},
-			{
-				"maxAge": 1,
-				"reportDate": {
-				"raw": 1719705600,
-				"fmt": "2024-06-30"
-				},
-				"organization": "Vanguard Institutional Index Fund-Institutional Index Fund",
-				"pctHeld": {
-				"raw": 0.0064,
-				"fmt": "0.64%"
-				},
-				"position": {
-				"raw": 1499239,
-				"fmt": "1.5M",
-				"longFmt": "1,499,239"
-				},
-				"value": {
-				"raw": 429486998,
-				"fmt": "429.49M",
-				"longFmt": "429,486,998"
-				},
-				"pctChange": {
-				"raw": 1,
-				"fmt": "100.00%"
-				}
-			}
-			]
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "fundOwnership": {
+          "maxAge": 1,
+          "ownershipList": [
+            {
+              "maxAge": 1,
+              "reportDate": {
+                "raw": 1719705600,
+                "fmt": "2024-06-30"
+              },
+              "organization": "Vanguard Total Stock Market Index Fund",
+              "pctHeld": {
+                "raw": 0.0301,
+                "fmt": "3.01%"
+              },
+              "position": {
+                "raw": 738296945,
+                "fmt": "738.3M",
+                "longFmt": "738,296,945"
+              },
+              "value": {
+                "raw": 89592333149,
+                "fmt": "89.59B",
+                "longFmt": "89,592,333,149"
+              },
+              "pctChange": {
+                "raw": -0.0111,
+                "fmt": "-1.11%"
+              }
+            },
+            {
+              "maxAge": 1,
+              "reportDate": {
+                "raw": 1719705600,
+                "fmt": "2024-06-30"
+              },
+              "organization": "Vanguard 500 Index Fund",
+              "pctHeld": {
+                "raw": 0.0257,
+                "fmt": "2.57%"
+              },
+              "position": {
+                "raw": 631333012,
+                "fmt": "631.33M",
+                "longFmt": "631,333,012"
+              },
+              "value": {
+                "raw": 76612260042,
+                "fmt": "76.61B",
+                "longFmt": "76,612,260,042"
+              },
+              "pctChange": {
+                "raw": 0.0143,
+                "fmt": "1.43%"
+              }
+            },
+            {
+              "maxAge": 1,
+              "reportDate": {
+                "raw": 1722384000,
+                "fmt": "2024-07-31"
+              },
+              "organization": "Fidelity 500 Index Fund",
+              "pctHeld": {
+                "raw": 0.0123000005,
+                "fmt": "1.23%"
+              },
+              "position": {
+                "raw": 300699745,
+                "fmt": "300.7M",
+                "longFmt": "300,699,745"
+              },
+              "value": {
+                "raw": 36489913596,
+                "fmt": "36.49B",
+                "longFmt": "36,489,913,596"
+              },
+              "pctChange": {
+                "raw": 0.0001,
+                "fmt": "0.01%"
+              }
+            },
+            {
+              "maxAge": 1,
+              "reportDate": {
+                "raw": 1725062400,
+                "fmt": "2024-08-31"
+              },
+              "organization": "SPDR S&P 500 ETF Trust",
+              "pctHeld": {
+                "raw": 0.0119,
+                "fmt": "1.19%"
+              },
+              "position": {
+                "raw": 291478528,
+                "fmt": "291.48M",
+                "longFmt": "291,478,528"
+              },
+              "value": {
+                "raw": 35370918928,
+                "fmt": "35.37B",
+                "longFmt": "35,370,918,928"
+              },
+              "pctChange": {
+                "raw": -0.0127,
+                "fmt": "-1.27%"
+              }
+            },
+            {
+              "maxAge": 1,
+              "reportDate": {
+                "raw": 1725062400,
+                "fmt": "2024-08-31"
+              },
+              "organization": "iShares Core S&P 500 ETF",
+              "pctHeld": {
+                "raw": 0.011,
+                "fmt": "1.10%"
+              },
+              "position": {
+                "raw": 269757784,
+                "fmt": "269.76M",
+                "longFmt": "269,757,784"
+              },
+              "value": {
+                "raw": 32735106676,
+                "fmt": "32.74B",
+                "longFmt": "32,735,106,676"
+              },
+              "pctChange": {
+                "raw": 0.013300001,
+                "fmt": "1.33%"
+              }
+            },
+            {
+              "maxAge": 1,
+              "reportDate": {
+                "raw": 1719705600,
+                "fmt": "2024-06-30"
+              },
+              "organization": "Vanguard Growth Index Fund",
+              "pctHeld": {
+                "raw": 0.0094,
+                "fmt": "0.94%"
+              },
+              "position": {
+                "raw": 230601525,
+                "fmt": "230.6M",
+                "longFmt": "230,601,525"
+              },
+              "value": {
+                "raw": 27983494706,
+                "fmt": "27.98B",
+                "longFmt": "27,983,494,706"
+              },
+              "pctChange": {
+                "raw": 0.0355,
+                "fmt": "3.55%"
+              }
+            },
+            {
+              "maxAge": 1,
+              "reportDate": {
+                "raw": 1725062400,
+                "fmt": "2024-08-31"
+              },
+              "organization": "Invesco ETF Tr-Invesco QQQ Tr, Series 1 ETF",
+              "pctHeld": {
+                "raw": 0.0075,
+                "fmt": "0.75%"
+              },
+              "position": {
+                "raw": 183859958,
+                "fmt": "183.86M",
+                "longFmt": "183,859,958"
+              },
+              "value": {
+                "raw": 22311405622,
+                "fmt": "22.31B",
+                "longFmt": "22,311,405,622"
+              },
+              "pctChange": {
+                "raw": -0.0017,
+                "fmt": "-0.17%"
+              }
+            },
+            {
+              "maxAge": 1,
+              "reportDate": {
+                "raw": 1719705600,
+                "fmt": "2024-06-30"
+              },
+              "organization": "Vanguard Institutional Index Fund-Institutional Index Fund",
+              "pctHeld": {
+                "raw": 0.0064999997,
+                "fmt": "0.65%"
+              },
+              "position": {
+                "raw": 159876810,
+                "fmt": "159.88M",
+                "longFmt": "159,876,810"
+              },
+              "value": {
+                "raw": 19401050649,
+                "fmt": "19.4B",
+                "longFmt": "19,401,050,649"
+              },
+              "pctChange": {
+                "raw": -0.015800001,
+                "fmt": "-1.58%"
+              }
+            },
+            {
+              "maxAge": 1,
+              "reportDate": {
+                "raw": 1725062400,
+                "fmt": "2024-08-31"
+              },
+              "organization": "Select Sector SPDR Fund-Technology",
+              "pctHeld": {
+                "raw": 0.0047999998,
+                "fmt": "0.48%"
+              },
+              "position": {
+                "raw": 116969409,
+                "fmt": "116.97M",
+                "longFmt": "116,969,409"
+              },
+              "value": {
+                "raw": 14194237603,
+                "fmt": "14.19B",
+                "longFmt": "14,194,237,603"
+              },
+              "pctChange": {
+                "raw": 0.0108,
+                "fmt": "1.08%"
+              }
+            },
+            {
+              "maxAge": 1,
+              "reportDate": {
+                "raw": 1717113600,
+                "fmt": "2024-05-31"
+              },
+              "organization": "Vanguard Information Technology Index Fund",
+              "pctHeld": {
+                "raw": 0.0042,
+                "fmt": "0.42%"
+              },
+              "position": {
+                "raw": 102979070,
+                "fmt": "102.98M",
+                "longFmt": "102,979,070"
+              },
+              "value": {
+                "raw": 12496509987,
+                "fmt": "12.5B",
+                "longFmt": "12,496,509,987"
+              },
+              "pctChange": {
+                "raw": 0.59349996,
+                "fmt": "59.35%"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "error": null
+  }
 }

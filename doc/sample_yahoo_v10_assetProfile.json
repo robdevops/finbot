@@ -1,231 +1,241 @@
 {
-	"quoteSummary": {
-	"result": [
-		{
-		"assetProfile": {
-			"address1": "206 East 9th Street",
-			"address2": "Suite 1400",
-			"city": "Austin",
-			"state": "TX",
-			"zip": "78701",
-			"country": "United States",
-			"phone": "888 512 8906",
-			"website": "https://www.crowdstrike.com",
-			"industry": "Software - Infrastructure",
-			"industryKey": "software-infrastructure",
-			"industryDisp": "Software - Infrastructure",
-			"sector": "Technology",
-			"sectorKey": "technology",
-			"sectorDisp": "Technology",
-			"longBusinessSummary": "CrowdStrike Holdings, Inc. provides cybersecurity solutions in the United States and internationally. Its unified platform offers cloud-delivered protection of endpoints, cloud workloads, identity, and data. The company offers corporate endpoint and cloud workload security, managed security, security and vulnerability management, IT operations management, identity protection, SIEM and log management, threat intelligence, data protection, security orchestration, automation and response and AI powered workflow automation, and securing generative AI workload services. It primarily sells subscriptions to its Falcon platform and cloud modules. The company was incorporated in 2011 and is headquartered in Austin, Texas.",
-			"fullTimeEmployees": 9219,
-			"companyOfficers": [
-			{
-				"maxAge": 1,
-				"name": "Mr. George R. Kurtz",
-				"age": 52,
-				"title": "Founder, CEO & Director",
-				"yearBorn": 1971,
-				"fiscalYear": 2024,
-				"totalPay": {
-				"raw": 2893818,
-				"fmt": "2.89M",
-				"longFmt": "2,893,818"
-				},
-				"exercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				},
-				"unexercisedValue": {
-				"raw": 99039144,
-				"fmt": "99.04M",
-				"longFmt": "99,039,144"
-				}
-			},
-			{
-				"maxAge": 1,
-				"name": "Mr. Michael	Sentonas",
-				"age": 49,
-				"title": "President",
-				"yearBorn": 1974,
-				"fiscalYear": 2024,
-				"totalPay": {
-				"raw": 1296231,
-				"fmt": "1.3M",
-				"longFmt": "1,296,231"
-				},
-				"exercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				},
-				"unexercisedValue": {
-				"raw": 2362975,
-				"fmt": "2.36M",
-				"longFmt": "2,362,975"
-				}
-			},
-			{
-				"maxAge": 1,
-				"name": "Mr. Burt W. Podbere",
-				"age": 57,
-				"title": "Chief Financial Officer",
-				"yearBorn": 1966,
-				"fiscalYear": 2024,
-				"totalPay": {
-				"raw": 1310655,
-				"fmt": "1.31M",
-				"longFmt": "1,310,655"
-				},
-				"exercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				},
-				"unexercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				}
-			},
-			{
-				"maxAge": 1,
-				"name": "Mr. Shawn	Henry",
-				"age": 60,
-				"title": "Chief Security Officer",
-				"yearBorn": 1963,
-				"fiscalYear": 2024,
-				"totalPay": {
-				"raw": 876121,
-				"fmt": "876.12k",
-				"longFmt": "876,121"
-				},
-				"exercisedValue": {
-				"raw": 327500,
-				"fmt": "327.5k",
-				"longFmt": "327,500"
-				},
-				"unexercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				}
-			},
-			{
-				"maxAge": 1,
-				"name": "Mr. Dmitri	Alperovitch",
-				"age": 42,
-				"title": "Co-Founder",
-				"yearBorn": 1981,
-				"fiscalYear": 2024,
-				"exercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				},
-				"unexercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				}
-			},
-			{
-				"maxAge": 1,
-				"name": "Mr. Anurag	Saha",
-				"age": 44,
-				"title": "Chief Accounting Officer & Principal Accounting Officer",
-				"yearBorn": 1979,
-				"fiscalYear": 2024,
-				"exercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				},
-				"unexercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				}
-			},
-			{
-				"maxAge": 1,
-				"name": "Ms. Maria	Riley",
-				"title": "Vice President of Investor Relations",
-				"fiscalYear": 2024,
-				"exercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				},
-				"unexercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				}
-			},
-			{
-				"maxAge": 1,
-				"name": "Ms. Cathleen Garrigan Anderson",
-				"title": "Chief Legal Officer",
-				"fiscalYear": 2024,
-				"exercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				},
-				"unexercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				}
-			},
-			{
-				"maxAge": 1,
-				"name": "Ms. Jennifer L. Johnson",
-				"age": 48,
-				"title": "Chief Marketing Officer",
-				"yearBorn": 1975,
-				"fiscalYear": 2024,
-				"exercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				},
-				"unexercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				}
-			},
-			{
-				"maxAge": 1,
-				"name": "Mr. J. C. Herrera",
-				"title": "Chief Human Resources Officer",
-				"fiscalYear": 2024,
-				"exercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				},
-				"unexercisedValue": {
-				"raw": 0,
-				"fmt": null,
-				"longFmt": "0"
-				}
-			}
-			],
-			"auditRisk": 5,
-			"boardRisk": 10,
-			"compensationRisk": 10,
-			"shareHolderRightsRisk": 10,
-			"overallRisk": 10,
-			"governanceEpochDate": 1726617600,
-			"compensationAsOfEpochDate": 1735603200,
-			"maxAge": 86400
-		}
-		}
-	],
-	"error": null
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "assetProfile": {
+          "address1": "2788 San Tomas Expressway",
+          "city": "Santa Clara",
+          "state": "CA",
+          "zip": "95051",
+          "country": "United States",
+          "phone": "408 486 2000",
+          "website": "https://www.nvidia.com",
+          "industry": "Semiconductors",
+          "industryKey": "semiconductors",
+          "industryDisp": "Semiconductors",
+          "sector": "Technology",
+          "sectorKey": "technology",
+          "sectorDisp": "Technology",
+          "longBusinessSummary": "NVIDIA Corporation provides graphics and compute and networking solutions in the United States, Taiwan, China, Hong Kong, and internationally. The Graphics segment offers GeForce GPUs for gaming and PCs, the GeForce NOW game streaming service and related infrastructure, and solutions for gaming platforms; Quadro/NVIDIA RTX GPUs for enterprise workstation graphics; virtual GPU or vGPU software for cloud-based visual and virtual computing; automotive platforms for infotainment systems; and Omniverse software for building and operating metaverse and 3D internet applications. The Compute & Networking segment comprises Data Center computing platforms and end-to-end networking platforms, including Quantum for InfiniBand and Spectrum for Ethernet; NVIDIA DRIVE automated-driving platform and automotive development agreements; Jetson robotics and other embedded platforms; NVIDIA AI Enterprise and other software; and DGX Cloud software and services. The company's products are used in gaming, professional visualization, data center, and automotive markets. It sells its products to original equipment manufacturers, original device manufacturers, system integrators and distributors, independent software vendors, cloud service providers, consumer internet companies, add-in board manufacturers, distributors, automotive manufacturers and tier-1 automotive suppliers, and other ecosystem participants. NVIDIA Corporation was incorporated in 1993 and is headquartered in Santa Clara, California.",
+          "fullTimeEmployees": 29600,
+          "companyOfficers": [
+            {
+              "maxAge": 1,
+              "name": "Mr. Jen-Hsun  Huang",
+              "age": 60,
+              "title": "Co-Founder, CEO, President & Director",
+              "yearBorn": 1963,
+              "fiscalYear": 2024,
+              "totalPay": {
+                "raw": 7491487,
+                "fmt": "7.49M",
+                "longFmt": "7,491,487"
+              },
+              "exercisedValue": {
+                "raw": 217327152,
+                "fmt": "217.33M",
+                "longFmt": "217,327,152"
+              },
+              "unexercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              }
+            },
+            {
+              "maxAge": 1,
+              "name": "Ms. Colette M. Kress",
+              "age": 56,
+              "title": "Executive VP & CFO",
+              "yearBorn": 1967,
+              "fiscalYear": 2024,
+              "totalPay": {
+                "raw": 1510765,
+                "fmt": "1.51M",
+                "longFmt": "1,510,765"
+              },
+              "exercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              },
+              "unexercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              }
+            },
+            {
+              "maxAge": 1,
+              "name": "Ms. Debora  Shoquist",
+              "age": 68,
+              "title": "Executive Vice President of Operations",
+              "yearBorn": 1955,
+              "fiscalYear": 2024,
+              "totalPay": {
+                "raw": 1371266,
+                "fmt": "1.37M",
+                "longFmt": "1,371,266"
+              },
+              "exercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              },
+              "unexercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              }
+            },
+            {
+              "maxAge": 1,
+              "name": "Mr. Timothy S. Teter",
+              "age": 56,
+              "title": "Executive VP, General Counsel & Secretary",
+              "yearBorn": 1967,
+              "fiscalYear": 2024,
+              "totalPay": {
+                "raw": 1360939,
+                "fmt": "1.36M",
+                "longFmt": "1,360,939"
+              },
+              "exercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              },
+              "unexercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              }
+            },
+            {
+              "maxAge": 1,
+              "name": "Mr. Ajay K. Puri",
+              "age": 68,
+              "title": "Executive Vice President of Worldwide Field Operations",
+              "yearBorn": 1955,
+              "fiscalYear": 2024,
+              "totalPay": {
+                "raw": 2295097,
+                "fmt": "2.3M",
+                "longFmt": "2,295,097"
+              },
+              "exercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              },
+              "unexercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              }
+            },
+            {
+              "maxAge": 1,
+              "name": "Mr. Chris A. Malachowsky",
+              "title": "Co-Founder",
+              "fiscalYear": 2024,
+              "totalPay": {
+                "raw": 320000,
+                "fmt": "320k",
+                "longFmt": "320,000"
+              },
+              "exercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              },
+              "unexercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              }
+            },
+            {
+              "maxAge": 1,
+              "name": "Mr. Donald F. Robertson Jr.",
+              "age": 54,
+              "title": "VP & Chief Accounting Officer",
+              "yearBorn": 1969,
+              "fiscalYear": 2024,
+              "exercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              },
+              "unexercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              }
+            },
+            {
+              "maxAge": 1,
+              "name": "Prof. William J. Dally Ph.D.",
+              "age": 62,
+              "title": "Chief Scientist & Senior VP of Research",
+              "yearBorn": 1961,
+              "fiscalYear": 2024,
+              "exercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              },
+              "unexercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              }
+            },
+            {
+              "maxAge": 1,
+              "name": "Ms. Mylene  Mangalindan",
+              "title": "VP of Corporate Communications",
+              "fiscalYear": 2024,
+              "exercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              },
+              "unexercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              }
+            },
+            {
+              "maxAge": 1,
+              "name": "Mr. Tommy  Lee",
+              "title": "Senior Vice President of Systems Engineering & Application",
+              "fiscalYear": 2024,
+              "exercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              },
+              "unexercisedValue": {
+                "raw": 0,
+                "fmt": null,
+                "longFmt": "0"
+              }
+            }
+          ],
+          "auditRisk": 7,
+          "boardRisk": 10,
+          "compensationRisk": 1,
+          "shareHolderRightsRisk": 6,
+          "overallRisk": 7,
+          "governanceEpochDate": 1727481600,
+          "compensationAsOfEpochDate": 1735603200,
+          "irWebsite": "http://phx.corporate-ir.net/phoenix.zhtml?c=116466&p=irol-IRHome",
+          "maxAge": 86400
+        }
+      }
+    ],
+    "error": null
+  }
 }

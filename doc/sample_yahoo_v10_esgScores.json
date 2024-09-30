@@ -1,9 +1,84 @@
 {
-	"quoteSummary": {
-	"result": null,
-	"error": {
-		"code": "Not Found",
-		"description": "No fundamentals data found for any of the summaryTypes=esgScores"
-	}
-	}
+  "quoteSummary": {
+    "result": [
+      {
+        "esgScores": {
+          "maxAge": 86400,
+          "totalEsg": {
+            "raw": 13.59,
+            "fmt": "13.6"
+          },
+          "environmentScore": {
+            "raw": 2.3,
+            "fmt": "2.3"
+          },
+          "socialScore": {
+            "raw": 4.95,
+            "fmt": "4.9"
+          },
+          "governanceScore": {
+            "raw": 6.34,
+            "fmt": "6.3"
+          },
+          "ratingYear": 2023,
+          "ratingMonth": 9,
+          "highestControversy": 2,
+          "peerCount": 31,
+          "esgPerformance": "UNDER_PERF",
+          "peerGroup": "Semiconductors",
+          "relatedControversy": [
+            "Customer Incidents"
+          ],
+          "peerEsgScorePerformance": {
+            "min": 9.63,
+            "avg": 19.696451612903225,
+            "max": 32.31
+          },
+          "peerGovernancePerformance": {
+            "min": 4.03,
+            "avg": 6.245666666666667,
+            "max": 8.74
+          },
+          "peerSocialPerformance": {
+            "min": 1.96,
+            "avg": 5.915,
+            "max": 9.16
+          },
+          "peerEnvironmentPerformance": {
+            "min": 2.3,
+            "avg": 7.116333333333333,
+            "max": 15.25
+          },
+          "peerHighestControversyPerformance": {
+            "min": 0,
+            "avg": 1.3548387096774193,
+            "max": 3
+          },
+          "percentile": {
+            "raw": 7.86,
+            "fmt": "8"
+          },
+          "environmentPercentile": null,
+          "socialPercentile": null,
+          "governancePercentile": null,
+          "adult": false,
+          "alcoholic": false,
+          "animalTesting": false,
+          "catholic": false,
+          "controversialWeapons": false,
+          "smallArms": false,
+          "furLeather": false,
+          "gambling": false,
+          "gmo": false,
+          "militaryContract": false,
+          "nuclear": false,
+          "pesticides": false,
+          "palmOil": false,
+          "coal": false,
+          "tobacco": false
+        }
+      }
+    ],
+    "error": null
+  }
 }
