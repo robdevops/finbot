@@ -90,7 +90,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	watchlist_command = r"^([\!\.]\s?|^" + botName + r"\s+)(watchlist|wishlist)\s*([\w]+)*\s*([\w\.\:\-]+)*"
 	m_watchlist = re.match(watchlist_command, message, re.IGNORECASE)
 
-	super_command = r"^([\!\.]\s?|" + botName + r"\s+)(super|smsf|payout)?\s*([\w\.\:\-]+)*"
+	super_command = r"^([\!\.]\s?|" + botName + r"\s+)(super|smsf|payout)\s*([\w\.\:\-]+)*"
 	m_super = re.match(super_command, message, re.IGNORECASE)
 
 	if m_watchlist:
