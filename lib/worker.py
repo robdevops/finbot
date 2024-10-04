@@ -432,6 +432,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		for k,v in plan.items():
 			payload.append(f"{webhook.bold(k.removeprefix('@'), service)}: {webhook.italic(v, service)}\n")
 		webhook.payload_wrapper(service, url, payload, chat_id)
+	elif m_super:
+		payload = ["28 January", "28 April", "28 July", "28 October"]
+		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_profile:
 		if m_profile.group(3):
 			ticker = m_profile.group(3).upper()
@@ -449,7 +452,4 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if m_stockfinancial.group(2):
 			ticker = m_stockfinancial.group(2).upper()
 		payload = reports.prepare_stockfinancial_payload(service, user, ticker)
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_super:
-		payload = ["28 January", "28 April", "28 July", "28 October"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
