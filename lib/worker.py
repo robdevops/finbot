@@ -433,7 +433,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			payload.append(f"{webhook.bold(k.removeprefix('@'), service)}: {webhook.italic(v, service)}\n")
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_super:
-		heading = webhook.bold('Super payout deadlines', service)
+		heading = webhook.bold('Super payout deadlines:', service)
 		payload = [heading, "28 January", "28 April", "28 July", "28 October"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_profile:
