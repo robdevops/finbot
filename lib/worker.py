@@ -90,6 +90,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	watchlist_command = r"^([\!\.]\s?|^" + botName + r"\s+)(watchlist|wishlist)\s*([\w]+)*\s*([\w\.\:\-]+)*"
 	m_watchlist = re.match(watchlist_command, message, re.IGNORECASE)
 
+	super_command = r"^([\!\.]\s?|" + botName + r"\s+)(super|smsf|payout)?\s*([\w\.\:\-]+)*"
+	m_super = re.match(super_command, message, re.IGNORECASE)
+
 	if m_watchlist:
 		action = None
 		ticker = None
@@ -446,4 +449,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if m_stockfinancial.group(2):
 			ticker = m_stockfinancial.group(2).upper()
 		payload = reports.prepare_stockfinancial_payload(service, user, ticker)
+		webhook.payload_wrapper(service, url, payload, chat_id)
+	elif m_super:
+		payload = ["28 January", "28 April", "28 July", "28 October"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
