@@ -69,7 +69,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket|permarket)\s*([\w\.\:\-]+)*"
 	m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-	price_command = r"^([\!\.]\s?|^" + botName + r"\s+)(prices?|prince|piece|pierce|pence|prime)\s*([\w\.\:\%\=]+)*\s*([\w\.\:\%\-]+)*"
+	price_command = r"^([\!\.]\s?|^" + botName + r"\s+)(prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=]+)*\s*([\w\.\:\%\-]+)*"
 	m_price = re.match(price_command, message, re.IGNORECASE)
 
 	shorts_command = r"^([\!\.]\s?|^" + botName + r"\s+)shorts?\s*([\w\.\:\-]+)*"
