@@ -59,7 +59,7 @@ def getCookie():
 		print("Got new cookie:", cookie, file=sys.stderr)
 		return cookie
 
-def getCrumb(seconds=2592000): # 1 month
+def getCrumb(seconds=1209600): # 14 days
 	cookie = getCookie()
 	if config_cache:
 		cacheFile = "finbot_yahoo_crumb.json"
