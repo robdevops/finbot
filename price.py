@@ -87,13 +87,13 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			else:
 				ticker_link = util.yahoo_link(ticker, service)
 			if not interactive and not payload and config_demote_leveraged and '2x' in title.lower():
-				if abs(percent) >= threshold * 2
+				if abs(percent) >= threshold * 2:
 					payload.append([emoji, title, f'({ticker_link})', percent])
 					exchange_set.add(exchange_human)
 				elif abs(percent) >= threshold:
 					skipped_volatile.append(ticker)
 			elif not interactive and not payload and config_demote_leveraged and '3x' in title.lower():
-				if abs(percent) >= threshold * 3
+				if abs(percent) >= threshold * 3:
 					payload.append([emoji, title, f'({ticker_link})', percent])
 					exchange_set.add(exchange_human)
 				elif abs(percent) >= threshold:
