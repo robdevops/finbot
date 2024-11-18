@@ -86,8 +86,20 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				ticker_link = util.gfinance_link(ticker, exchange, service, days=days)
 			else:
 				ticker_link = util.yahoo_link(ticker, service)
+			if not interactive and not payload and config_demote_leveraged and '2x' in title.lower():
+				if abs(percent) >= threshold * 2
+					payload.append([emoji, title, f'({ticker_link})', percent])
+					exchange_set.add(exchange_human)
+				elif abs(percent) >= threshold:
+					skipped_volatile.append(ticker)
+			elif not interactive and not payload and config_demote_leveraged and '3x' in title.lower():
+				if abs(percent) >= threshold * 3
+					payload.append([emoji, title, f'({ticker_link})', percent])
+					exchange_set.add(exchange_human)
+				elif abs(percent) >= threshold:
+					skipped_volatile.append(ticker)
 			#if not interactive and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000:
-			if not interactive and not payload and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000: # 1B
+			elif not interactive and not payload and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000: # 1B
 				if market_data[ticker]['market_cap'] < 150000000: # 150M
 					if market_data[ticker]['market_cap'] < 10000000: # 10M
 						if abs(percent) >= threshold * (multiplier * 1.3):
