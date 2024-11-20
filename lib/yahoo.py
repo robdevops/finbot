@@ -13,7 +13,7 @@ from lib.config import *
 from lib import util
 from http.cookies import SimpleCookie
 
-def getCookie(maxAge=1814400): # 3 weeks
+def getCookie(maxAge=1209600): # 14 days
 	# we must always cache this, as crumb must match cookie
 	cacheFile = "finbot_yahoo_cookie.json"
 	cache = util.json_load(cacheFile)
@@ -58,6 +58,7 @@ def getCookie(maxAge=1814400): # 3 weeks
 		#if config_cache:
 		util.json_write(cacheFile, cookielist)
 		print("Got new cookie:", cookie, file=sys.stderr)
+		rmCrumb() # we must invalidate the non-matching crumb
 		return cookie
 
 def getCrumb(seconds=1209600): # 14 days
@@ -87,6 +88,13 @@ def getCrumb(seconds=1209600): # 14 days
 		util.json_write(cacheFile, r.text)
 	print("Got new crumb:", r.text, file=sys.stderr)
 	return r.text
+
+def rmCrumb():
+	cacheFile = "finbot_yahoo_crumb.json"
+	cacheFile = config_cache_dir + "/" + cacheFile
+	p = Path(cacheFile)
+	if p.is_file():
+		p.unlink(missing_ok=True)
 
 def fetch(tickers):
 	# DO NOT CACHE MORE THAN 5 mins
