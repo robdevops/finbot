@@ -13,13 +13,14 @@ from lib.config import *
 from lib import util
 from http.cookies import SimpleCookie
 
-def getCookie():
+def getCookie(maxAge=1814400): # 3 weeks
 	# we must always cache this, as crumb must match cookie
 	cacheFile = "finbot_yahoo_cookie.json"
 	cache = util.json_load(cacheFile)
 	if cache:
 		cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(config_cache_dir + '/' + cacheFile))
-		ttl = datetime.timedelta(seconds=cache[0][2]) - cacheFileAge
+		#ttl = datetime.timedelta(seconds=cache[0][2]) - cacheFileAge
+		ttl = datetime.timedelta(seconds=maxAge) - cacheFileAge
 		if ttl > datetime.timedelta(seconds=30):
 			cookie = cache[0][0] + '=' + cache[0][1]
 			print("cache hit:", cacheFile, "TTL:", util.td_to_human(ttl), file=sys.stderr) if debug else None
