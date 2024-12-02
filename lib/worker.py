@@ -327,7 +327,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if payload:
 			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_forwardpe:
-		print("DEBUG FPE")
 		action = 'forward pe'
 		ticker_select = None
 		if m_forwardpe.group(3):
@@ -336,15 +335,15 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				action = 'forward pe'
 			elif arg == 'bottom':
 				action = 'bottom forward pe'
-				print("DEBUG FPE bottom")
 			elif 'neg' in arg:
 				action = 'negative forward pe'
-				print("DEBUG FPE neg")
 			else:
 				ticker_select = arg
 		payload = reports.prepare_value_payload(service, action, ticker_select, length=15)
 		if payload:
 			webhook.payload_wrapper(service, url, payload, chat_id)
+		elif ticker_select:
+			webhook.payload_wrapper(service, url, [f"No Forward P/E found for {ticker_select}"], chat_id)
 	elif m_beta:
 		def last_col(e):
 			return float(e.split()[-1])
