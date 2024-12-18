@@ -12,6 +12,7 @@ import lib.telegram as telegram
 from lib.config import *
 from lib import util
 from http.cookies import SimpleCookie
+from pathlib import Path
 
 def getCookie(maxAge=1209600): # 14 days
 	# we must always cache this, as crumb must match cookie
