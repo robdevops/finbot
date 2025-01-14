@@ -24,7 +24,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 			old_index = float()
 			try:
 				action = market_data[ticker]['recommend'].replace('_', ' ')
-				index = float(market_data[ticker]['recommend_index'])
+				index = round(float(market_data[ticker]['recommend_index']), 1)
 				analysts = market_data[ticker]['recommend_analysts']
 			except (KeyError, ValueError):
 				continue
