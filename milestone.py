@@ -73,10 +73,9 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 			if newlow < oldlow:
 				print("DEBUG", ticker, newlow, "is lower than", oldlow) if debug else None
 				payloadlow.append(f"{emoji} {title} ({ticker_link})")
-			if oldprofit != newprofit:
+			if oldprofit == False and newprofit == True:
 				print("DEBUG", ticker, "profitability changed", oldprofit, newprofit) if debug else None
-				if newprofit:
-					payloadprofit.append(f"{emoji} {title} ({ticker_link})")
+				payloadprofit.append(f"{emoji} {title} ({ticker_link})")
 				else:
 					payloadprofitneg.append(f"{emoji} {title} ({ticker_link})")
 			if oldcashflow != newcashflow:
