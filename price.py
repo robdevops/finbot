@@ -206,10 +206,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 		print("Error: no services enabled in .env", file=sys.stderr)
 		sys.exit(1)
 	if interactive:
-		if specific_stock:
-			payload, graph = prepare_price_payload(service, market_data, threshold)
-		else:
-			payload, graph = prepare_price_payload(service, market_data, threshold)
+		payload, graph = prepare_price_payload(service, market_data, threshold)
 		if service == "slack":
 			url = 'https://slack.com/api/chat.postMessage'
 		elif service == "telegram":
@@ -225,9 +222,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			if service == "telegram":
 				url = url + "sendMessage?chat_id=" + str(chat_id)
 			webhook.payload_wrapper(service, url, payload, chat_id)
-
-	# make google cloud happy
-	return True
 
 if __name__ == "__main__":
 	if len(sys.argv) > 1:
