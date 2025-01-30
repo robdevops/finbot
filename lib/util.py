@@ -95,6 +95,7 @@ def transform_title(title):
 	title = title.replace(' Daily', ' ')
 	title = title.replace(' Long', ' ')
 	title = title.replace(' Bull', ' ')
+	title = title.replace(' Usd', 'USD')
 	title = title.replace(' .', ' ')
 	title = title.replace(' ,', ' ')
 	if title.islower():
