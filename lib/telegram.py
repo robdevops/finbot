@@ -6,7 +6,7 @@ from lib.config import *
 
 def setWebhook():
     telegram_url = webhooks['telegram'] + 'setWebhook'
-    print("registering", config_telegramOutgoingWebhook)
+    print("registering", config_telegramOutgoingWebhook, file=sys.stderr)
     params = {"url": config_telegramOutgoingWebhook, "allowed_updates": "message", 'secret_token': config_telegramOutgoingToken}
     response = requests.post(
         telegram_url,
@@ -17,7 +17,7 @@ def setWebhook():
 
 def delWebhook():
     telegram_url = webhooks['telegram'] + 'setWebhook'
-    print("deregistering", config_telegramOutgoingWebhook)
+    print("deregistering", config_telegramOutgoingWebhook, file=sys.stderr)
     params = {"url": ''} # unsubscribe
     response = requests.post(
         telegram_url,
