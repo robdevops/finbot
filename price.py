@@ -82,7 +82,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			#flag = util.flag_from_ticker(ticker)
 			exchange = exchange_human = market_data[ticker]['profile_exchange']
 			exchange_human = util.exchange_human(exchange)
-			if config_hyperlinkProvider == 'google' and exchange not in ('Taipei Exchange', 'CCC'):
+			if exchange in ('Taipei Exchange', 'CCC') or '-' in ticker or ticker.startswith('^'):
+				ticker_link = util.yahoo_link(ticker, service)
+			if config_hyperlinkProvider == 'google':
 				ticker_link = util.gfinance_link(ticker, exchange, service, days=days)
 			else:
 				ticker_link = util.yahoo_link(ticker, service)
