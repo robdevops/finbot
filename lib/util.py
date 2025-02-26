@@ -411,6 +411,8 @@ def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True, text
 def transform_to_google(exchange):
 	if 'Nasdaq' in exchange:
 		exchange = 'NASDAQ'
+	elif exchange == 'Cboe US':
+		exchange = 'BATS'
 	elif exchange in {'OTC', 'PNK', 'Other OTC', 'OTCPK'}:
 		exchange = 'OTCMKTS'
 	elif exchange in {'TO', 'TOR', 'Toronto'}:
