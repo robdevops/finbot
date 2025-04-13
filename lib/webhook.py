@@ -122,3 +122,17 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None):
 		print(r.status_code, f"error {service} sendPhoto", r.reason, caption, file=sys.stderr)
 		return None
 
+def pleaseHold(chat_id, service, action='typing', slackchannel=None, message_id=None):
+	if service == 'telegram':
+		url = webhooks['telegram'] + "sendChatAction?chat_id=" + str(chat_id)
+		data = {
+			'chat_id': chat_id,
+			'action': action,
+			'reply_to_message_id': message_id}
+	else:
+		payload_string = "this might take a moment"
+		if service == "slack":
+			url = 'https://slack.com/api/chat.postMessage'
+		elif service == "telegram":
+			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
+		write(service, url, payload_string, slackchannel, message_id)

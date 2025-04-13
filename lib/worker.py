@@ -176,12 +176,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				portfolio_select = arg
 		if days > 0:
 			# easter egg 3
-			if portfolio_select:
-				payload = [ f"{random.choice(searchVerb)} portfolio performance for {webhook.bold(portfolio_select, service)} from {util.days_english(days)} 🔍" ]
-			else:
-				payload = [ f"{random.choice(searchVerb)} portfolio performance for {util.days_english(days)} 🔍" ]
-
-			webhook.payload_wrapper(service, url, payload, chat_id)
+			#if portfolio_select:
+			#	payload = [ f"{random.choice(searchVerb)} portfolio performance for {webhook.bold(portfolio_select, service)} from {util.days_english(days)} 🔍" ]
+			#else:
+			#	payload = [ f"{random.choice(searchVerb)} portfolio performance for {util.days_english(days)} 🔍" ]
+			#webhook.payload_wrapper(service, url, payload, chat_id)
+			webhook.pleaseHold(chat_id, service)
 			performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=None, interactive=True)
 	elif m_session:
 		price_percent = config_price_percent
