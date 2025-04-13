@@ -144,6 +144,11 @@ def pleaseHold(chat_id, service, action='typing', slackchannel=None, message_id=
 		payload_string = "this might take a moment"
 		if service == "slack":
 			url = 'https://slack.com/api/chat.postMessage'
+			headers = {'Authorization': 'Bearer ' + config_slackBotToken}
+			data = {'channels': chat_id, 'initial_comment': caption}
+			if message_id:
+				data['thread_ts'] = message_id
+				data['reply_broadcast'] = 'true'
 		elif service == "telegram":
 			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
 		write(service, url, payload_string, slackchannel, message_id)
