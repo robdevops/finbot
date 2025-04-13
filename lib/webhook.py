@@ -125,10 +125,24 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None):
 def pleaseHold(chat_id, service, action='typing', slackchannel=None, message_id=None):
 	if service == 'telegram':
 		url = webhooks['telegram'] + "sendChatAction?chat_id=" + str(chat_id)
+		headers = {}
 		data = {
 			'chat_id': chat_id,
 			'action': action,
 			'reply_to_message_id': message_id}
+		try:
+			r = requests.post(url, data=data, headers=headers, timeout=config_http_timeout)
+		except Exception as e:
+		  print("Failure executing request:", url, data, str(e))
+		  return None
+		if r.status_code == 200:
+			print(r.status_code, "OK", service, action)
+			output = r.json()
+			if not output['ok']:
+				print(output['error_code'], output['description'], file=sys.stderr)
+		else:
+			print(r.status_code, "error", service, action, r.reason, file=sys.stderr)
+			return None
 	else:
 		payload_string = "this might take a moment"
 		if service == "slack":
