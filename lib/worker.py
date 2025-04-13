@@ -182,23 +182,23 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			#else:
 			#	payload = [ f"{random.choice(searchVerb)} portfolio performance for {util.days_english(days)} 🔍" ]
 			#webhook.payload_wrapper(service, url, payload, chat_id)
-			def typing_worker(stop_typing, max_loops=6):
+			def typing_worker(stop_event, max_loops=6):
 				loop_count = 0
 				while not stop_event.is_set() and loop_count < max_loops:
 					webhook.pleaseHold(chat_id, service)
 					loop_count += 1
 					time.sleep(5)
 
-			stop_typing = threading.Event()
-			typing_thread = threading.Thread(target=typing_worker, args=(stop_typing,))
+			stop_event = threading.Event()
+			typing_thread = threading.Thread(target=typing_worker, args=(stop_event,))
 			typing_thread.start()
 			try:
 				performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=None, interactive=True)
 			except Exception as e:
-				stop_typing.set()
+				stop_event.set()
 				webhook.payload_wrapper(service, url, [e], chat_id)
 				print(e, file=sys.stderr)
-			stop_typing.set()
+			stop_event.set()
 	elif m_session:
 		price_percent = config_price_percent
 		specific_stock = None
