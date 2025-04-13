@@ -185,7 +185,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			def typing_worker(stop_event, max_loops=6):
 				loop_count = 0
 				while not stop_event.is_set() and loop_count < max_loops:
-					webhook.pleaseHold(chat_id, service)
+					webhook.pleaseHold(service, chat_id)
 					loop_count += 1
 					time.sleep(5)
 
