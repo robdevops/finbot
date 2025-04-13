@@ -235,7 +235,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			   except ValueError:
 				   pass
 		if days and days > 0 and not specific_stock:
-			# easter egg 3
+			# easter egg 4
 			payload = [ f"{random.choice(searchVerb)} stock performance from {util.days_english(days)} 🔍" ]
 			webhook.payload_wrapper(service, url, payload, chat_id)
 		print(chat_id, price_percent, service, user, specific_stock, interday,days)
@@ -276,7 +276,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				days = util.days_from_human_days(arg)
 			except ValueError:
 				portfolio_select = arg
-		# easter egg 3
+		# easter egg 5
 		if portfolio_select:
 			payload = [ f"{random.choice(searchVerb)} trades for {webhook.bold(portfolio_select, service)} from {util.days_english(days)} 🔍" ]
 		else:

@@ -6,15 +6,15 @@ import sys
 from lib.config import *
 from lib import util
 
-def write(service, url, payload, slackchannel=None, message_id=None):
+def write(service, url, payload_string, chat_id=None, message_id=None):
 	headers = {'Content-type': 'application/json'}
-	payload = {'text': payload}
+	payload = {'text': payload_string}
 	if 'slack.com' in url:
 		headers['unfurl_links'] = 'false'
 		headers['unfurl_media'] = 'false'
-		if slackchannel:
+		if chat_id:
 			headers['Authorization'] = 'Bearer ' + config_slackBotToken
-			payload['channel'] = slackchannel
+			payload['channel'] = chat_id
 			if message_id:
 				payload['thread_ts'] = message_id
 				payload['reply_broadcast'] = 'true'
@@ -35,7 +35,7 @@ def write(service, url, payload, slackchannel=None, message_id=None):
 		print(r.status_code, "error outbound to", service, file=sys.stderr)
 		return None
 
-def payload_wrapper(service, url, payload, slackchannel=None, message_id=None):
+def payload_wrapper(service, url, payload, chat_id=None, message_id=None):
 	if not payload:
 		print(service + ": Nothing to send")
 	else:
@@ -45,7 +45,7 @@ def payload_wrapper(service, url, payload, slackchannel=None, message_id=None):
 		def chunkLooper():
 			chunks = util.chunker(payload, config_chunk_maxlines)
 			for idx, chunk in enumerate(chunks):
-				idx > 0 and time.sleep(1)
+				idx > 0 and time.sleep(0.5)
 				payload_chunk = '\n'.join(chunk)
 				write(service, url, payload_chunk)
 		if service == 'discord' and len(payload_string) > 2000:
@@ -55,7 +55,7 @@ def payload_wrapper(service, url, payload, slackchannel=None, message_id=None):
 			print(service, "payload is over 4,000 bytes. Splitting.")
 			chunkLooper()
 		else:
-			write(service, url, payload_string, slackchannel, message_id)
+			write(service, url, payload_string, chat_id, message_id)
 
 def bold(message, service):
 	if service == 'telegram':
@@ -122,7 +122,7 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None):
 		print(r.status_code, f"error {service} sendPhoto", r.reason, caption, file=sys.stderr)
 		return None
 
-def pleaseHold(chat_id, service, action='typing', slackchannel=None, message_id=None):
+def pleaseHold(chat_id, service, action='typing', chat_id=None, message_id=None):
 	if service == 'telegram':
 		url = webhooks['telegram'] + "sendChatAction?chat_id=" + str(chat_id)
 		headers = {}
@@ -144,11 +144,6 @@ def pleaseHold(chat_id, service, action='typing', slackchannel=None, message_id=
 		payload_string = "this might take a moment"
 		if service == "slack":
 			url = 'https://slack.com/api/chat.postMessage'
-			headers = {'Authorization': 'Bearer ' + config_slackBotToken}
-			data = {'channels': chat_id, 'initial_comment': caption}
-			if message_id:
-				data['thread_ts'] = message_id
-				data['reply_broadcast'] = 'true'
 		elif service == "telegram":
 			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-		write(service, url, payload_string, slackchannel, message_id)
+		write(service, url, payload_string, chat_id, message_id)
