@@ -136,13 +136,10 @@ def pleaseHold(chat_id, service, action='typing', slackchannel=None, message_id=
 		  print("Failure executing request:", url, data, str(e))
 		  return None
 		if r.status_code == 200:
-			print(r.status_code, "OK", service, action)
-			output = r.json()
-			if not output['ok']:
-				print(output['error_code'], output['description'], file=sys.stderr)
+			print(r.status_code, "OK typing indicator to", service, file=sys.stderr)
 		else:
-			print(r.status_code, "error", service, action, r.reason, file=sys.stderr)
-			return None
+			print(r.status_code, "error typing indicator to", service, file=sys.stderr)
+		return None
 	else:
 		payload_string = "this might take a moment"
 		if service == "slack":
