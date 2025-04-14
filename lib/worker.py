@@ -25,7 +25,7 @@ def typing(action, service, chat_id):
 		match action:
 			case "start":
 				stop_event = threading.Event()
-				typing_thread = threading.Thread(target=typing_worker, args=(stop_event,), action='typing')
+				typing_thread = threading.Thread(target=typing_worker, args=(stop_event,), kwargs={'action': 'typing'})
 				typing_thread.start()
 			case "stop":
 				stop_event.set()
