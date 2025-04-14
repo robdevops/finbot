@@ -126,9 +126,6 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 		for portfolio in portfolios:
 			portfolio_id = portfolios[portfolio]
 			trades = trades + sharesight.get_trades(portfolio, portfolio_id, days)
-		if not len(trades):
-			print("No trades found for the selected period", file=sys.stderr)
-			return None
 
 	# Prep and send payloads
 	if not webhooks:
