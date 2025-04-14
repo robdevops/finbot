@@ -18,7 +18,7 @@ def typing_worker(stop_event, service, chat_id, max_loops=6, action='typing'):
 	while not stop_event.is_set() and loop_count < max_loops:
 		webhook.pleaseHold(action, service, chat_id)
 		loop_count += 1
-		time.sleep(5)
+		time.sleep(6)
 
 def typing(action, service, chat_id):
 	if service == 'telegram':
