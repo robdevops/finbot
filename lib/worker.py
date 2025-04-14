@@ -22,7 +22,7 @@ def typing_worker(stop_event, service, chat_id, max_loops=6, action='typing'):
 
 def typing(action, service, chat_id):
 	if service == 'telegram':
-		match action:/hjg
+		match action:
 			case "start":
 				stop_event = threading.Event()
 				typing_thread = threading.Thread(target=typing_worker, args=(stop_event,service,chat_d))
