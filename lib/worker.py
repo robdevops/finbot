@@ -504,6 +504,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			typing_stop.set()
 		payload.sort(key=last_col)
 		payload.reverse()
+		if payload:
 			payload.insert(0, f"{webhook.bold('Beta over 1.5 and mkt cap under 1B', service)}")
 			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_buy:
