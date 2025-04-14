@@ -37,7 +37,7 @@ def write(service, url, payload_string, chat_id=None, message_id=None):
 
 def payload_wrapper(service, url, payload, chat_id=None, message_id=None):
 	if not payload:
-		print(service + ": Nothing to send")
+		print(service + ": Nothing to send") # informational
 	else:
 		payload_string = '\n'.join(payload)
 		print("Preparing outbound to", service, str(len(payload_string)), "bytes")
@@ -122,7 +122,8 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None):
 		print(r.status_code, f"error {service} sendPhoto", r.reason, caption, file=sys.stderr)
 		return None
 
-def pleaseHold(service, chat_id, action='typing', message_id=None):
+def pleaseHold(action='typing', service, chat_id):
+	"""typing notify. I am run in a thread and repeated every 5 seconds"""
 	if service == 'telegram':
 		url = webhooks['telegram'] + "sendChatAction?chat_id=" + str(chat_id)
 		headers = {}
@@ -146,4 +147,4 @@ def pleaseHold(service, chat_id, action='typing', message_id=None):
 			url = 'https://slack.com/api/chat.postMessage'
 		elif service == "telegram":
 			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-		write(service, url, payload_string, chat_id, message_id)
+		write(service, url, payload_string, chat_id, message_id=None)

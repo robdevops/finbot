@@ -68,6 +68,9 @@ def main(environ, start_response):
 		if "text" in inbound["message"]:
 			message = inbound["message"]["text"]
 			print("[Telegram]:", user, message)
+			#if message.startswith("Upcoming earnings for the next month") and user == telegram.getMe().get('username'):
+			#	telegram.pinChatMessage(message_id, chat_id)
+			# todo need to return sendMessage to get message_id and chat_id
 		elif "photo" in inbound["message"]:
 			message = ''
 			if "caption" in inbound["message"]:
