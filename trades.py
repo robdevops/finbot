@@ -28,10 +28,13 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 				ticker = util.transform_to_yahoo(symbol, market)
 				tickers.add(ticker)
 			try:
+				print("DEBUG tickers: ", tickers, file=sys.stderr)
 				market_data = yahoo.fetch(tickers)
 			except Exception as e:
 				print("Warning: could not fetch Yahoo:", e, file=sys.stderr)
+		print("DEBUG yahoo data: ", json.dumps(market_data), file=sys.stderr)
 
+		print("DEBUG trades: ", json.dumps(trades), file=sys.stderr)
 		for trade in trades:
 			action=''
 			emoji=''
@@ -49,6 +52,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			else:
 				print("Skipping corporate action:", portfolio_name, date, transactionType, symbol)
 				continue
+
 
 			trade_id = int(trade['id'])
 			units = float(trade['quantity'])

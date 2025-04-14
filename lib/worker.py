@@ -325,18 +325,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_trades:
 		days = 1
 		portfolio_select = None
-		if m_trades.group(2):
-			arg = m_trades.group(2)
-			try:
-				days = util.days_from_human_days(arg)
-			except ValueError:
-				portfolio_select = arg
-		if m_trades.group(3):
-			arg = m_trades.group(3)
-			try:
-				days = util.days_from_human_days(arg)
-			except ValueError:
-				portfolio_select = arg
+		for arg in m_trades.groups()[1:3]:  # groups 2 and 3
+			if arg:
+				try:
+					days = util.days_from_human_days(arg)
+				except ValueError:
+					portfolio_select = arg
 		if service == 'telegram':
 			typing_stop = typing_start(service, chat_id)
 		else:

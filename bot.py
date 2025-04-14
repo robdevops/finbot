@@ -34,7 +34,7 @@ def main(environ, start_response):
 	inbound = json.loads(request_body)
 	if config_print_headers:
 		print_headers()
-	print_body() if debug else None
+	#print_body() if debug else None
 	if config_telegramOutgoingWebhook and uri == urlparse(config_telegramOutgoingWebhook).path:
 		service = 'telegram'
 		global botName
@@ -67,7 +67,7 @@ def main(environ, start_response):
 		file_id = None
 		if "text" in inbound["message"]:
 			message = inbound["message"]["text"]
-			print("[Telegram]:", user, message)
+			print("[Telegram]:", user, message, file=sys.stderr) if debug else None
 			#if message.startswith("Upcoming earnings for the next month") and user == telegram.getMe().get('username'):
 			#	telegram.pinChatMessage(message_id, chat_id)
 			# todo need to return sendMessage to get message_id and chat_id
@@ -112,7 +112,7 @@ def main(environ, start_response):
 			user = userRealName = '<@' + inbound['event']['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
 			botName = '@' + inbound['authorizations'][0]['user_id'] # QWERTY becomes @QWERTY
 			chat_id = inbound['event']['channel']
-			print(f"[{service}]:", user, message)
+			print(f"[{service}]:", user, message, sys.stderr) if debug else None
 			# this condition spawns a worker before returning
 		else:
 			print(f"[{service}]: unhandled 'type'", file=sys.stderr)
