@@ -130,7 +130,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if payload:
 			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_help:
-		if service == 'telegram' and not specific_stock:
+		if service == 'telegram':
 			typing_stop = typing_start(service, chat_id)
 		payload = reports.prepare_help(service, botName)
 		if payload:
@@ -243,11 +243,15 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				price_percent = int(arg.split('%')[0])
 			except ValueError:
 				specific_stock = str(arg).upper()
+		if service == 'telegram' and not specific_stock:
+			typing_stop = typing_start(service, chat_id)
 		try:
 			price.lambda_handler(chat_id, price_percent, service, user, specific_stock, interactive=True, premarket=False, interday=False, midsession=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
+		if service == 'telegram':
+			typing_stop.set()
 	elif m_price:
 		price_percent = config_price_percent
 		specific_stock = None
