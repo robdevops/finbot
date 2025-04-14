@@ -122,7 +122,7 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None):
 		print(r.status_code, f"error {service} sendPhoto", r.reason, caption, file=sys.stderr)
 		return None
 
-def pleaseHold(action='typing', service, chat_id):
+def pleaseHold(action, service, chat_id):
 	"""typing notify. I am run in a thread and repeated every 5 seconds"""
 	if service == 'telegram':
 		url = webhooks['telegram'] + "sendChatAction?chat_id=" + str(chat_id)
