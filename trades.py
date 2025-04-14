@@ -15,6 +15,9 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 	state_file = "finbot_sharesight_trades.json"
 
 	def prepare_trade_payload(service, trades):
+		if not len(trades):
+			print("No trades provided to prepare_trade_payload()", file=sys.stderr)
+			return None
 		payload_staging = []
 		dates = set()
 		sharesight_url = "https://portfolio.sharesight.com/holdings/"
@@ -28,13 +31,11 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 				ticker = util.transform_to_yahoo(symbol, market)
 				tickers.add(ticker)
 			try:
-				print("DEBUG tickers: ", tickers, file=sys.stderr)
+				print("Fetching tickers from Yahoo: ", tickers, file=sys.stderr)
 				market_data = yahoo.fetch(tickers)
 			except Exception as e:
 				print("Warning: could not fetch Yahoo:", e, file=sys.stderr)
-		print("DEBUG yahoo data: ", json.dumps(market_data), file=sys.stderr)
 
-		print("DEBUG trades: ", json.dumps(trades), file=sys.stderr)
 		for trade in trades:
 			action=''
 			emoji=''
@@ -100,8 +101,6 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 				if date == trade[0]:
 					payload.append(' '.join(trade[2:]))
 
-		if interactive and not payload: # easter egg 4
-			payload = [f"{user} No trades {util.days_english(days, 'in the past ')}. {random.choice(noTradesVerb)}"]
 		return payload
 
 	# MAIN #
@@ -127,17 +126,19 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 		for portfolio in portfolios:
 			portfolio_id = portfolios[portfolio]
 			trades = trades + sharesight.get_trades(portfolio, portfolio_id, days)
-		if trades:
-			print(len(trades), "trades found since", start_date)
-		else:
-			print("No trades found since", start_date)
+		if not len(trades):
+			print("No trades found for the selected period", file=sys.stderr)
+			return None
 
 	# Prep and send payloads
 	if not webhooks:
 		print("Error: no services enabled in .env", file=sys.stderr)
 		sys.exit(1)
 	if interactive:
-		payload = prepare_trade_payload(service, trades)
+		if len(trades):
+			payload = prepare_trade_payload(service, trades)
+		else:
+			payload = [f"{user} No trades {util.days_english(days, 'in the past ')}. {random.choice(noTradesVerb)}"]
 		if service == "slack":
 			url = 'https://slack.com/api/chat.postMessage'
 		elif service == "telegram":

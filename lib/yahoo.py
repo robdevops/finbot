@@ -99,6 +99,9 @@ def rmCrumb():
 
 def fetch(tickers):
 	# DO NOT CACHE MORE THAN 5 mins
+	if not len(tickers):
+		print("no tickers provided to yahoo.fetch()", file=sys.stderr)
+		return None
 	tickers = sorted(set(tickers)) # de-dupe
 	tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
 	if config_cache:
