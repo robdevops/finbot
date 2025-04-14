@@ -231,7 +231,7 @@ noTradesVerb = [
 	"But I'm sure that's just a rounding error",
 	"Nothing + nothing = more nothing. Well played",
 	"Or maybe there was. They don't pay me for this you know",
-	"I guess that's right. Maybe... I'm kinda busy with ChatGPT in another window",
+	"I guess that's right. I'm kinda busy with ChatGPT in another window",
 	"I like this contrarian play you're having on 'being in it to win it'",
 	"With your stock picking skills, this is probably for the best"
 ]
