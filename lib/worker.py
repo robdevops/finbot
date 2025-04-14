@@ -1,7 +1,7 @@
 import re, random
 import datetime
 import sys
-import threading, time
+import threading
 from lib.config import *
 from lib import util
 from lib import webhook
@@ -13,12 +13,13 @@ import price
 import shorts
 import trades
 
-def typing_worker(stop_event, service, chat_id, max_loops=6, action='typing'):
+def typing_worker(stop_event, service, chat_id, max_loops=3, action='typing'):
 	loop_count = 0
 	while not stop_event.is_set() and loop_count < max_loops:
 		webhook.pleaseHold(action, service, chat_id)
 		loop_count += 1
-		time.sleep(6)
+		if stop_event.wait(7):
+			break
 
 def typing_start(service, chat_id):
 	if service == 'telegram':
