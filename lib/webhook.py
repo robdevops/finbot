@@ -129,8 +129,8 @@ def pleaseHold(action, service, chat_id):
 		headers = {}
 		data = {
 			'chat_id': chat_id,
-			'action': action,
-			'reply_to_message_id': message_id}
+			'action': action
+		}
 		try:
 			r = requests.post(url, data=data, headers=headers, timeout=config_http_timeout)
 		except Exception as e:
