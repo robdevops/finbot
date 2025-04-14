@@ -19,6 +19,7 @@ def typing_worker(stop_event, service, chat_id, max_loops=3, action='typing'):
 		webhook.pleaseHold(action, service, chat_id)
 		loop_count += 1
 		if stop_event.wait(7):
+			print("Stopping typing indicator", file=sys.stderr)
 			break
 
 def typing_start(service, chat_id):
