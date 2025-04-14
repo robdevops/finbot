@@ -13,7 +13,7 @@ import price
 import shorts
 import trades
 
-def typing_worker(stop_event, max_loops=6, action='typing'):
+def typing_worker(stop_event, service, chat_id, max_loops=6, action='typing'):
 	loop_count = 0
 	while not stop_event.is_set() and loop_count < max_loops:
 		webhook.pleaseHold(action, service, chat_id)
@@ -22,10 +22,10 @@ def typing_worker(stop_event, max_loops=6, action='typing'):
 
 def typing(action, service, chat_id):
 	if service == 'telegram':
-		match action:
+		match action:/hjg
 			case "start":
 				stop_event = threading.Event()
-				typing_thread = threading.Thread(target=typing_worker, args=(stop_event,), kwargs={'action': 'typing'})
+				typing_thread = threading.Thread(target=typing_worker, args=(stop_event,service,chat_d))
 				typing_thread.start()
 			case "stop":
 				stop_event.set()
