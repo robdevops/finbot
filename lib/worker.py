@@ -127,10 +127,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		if payload:
+			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_help:
 		payload = reports.prepare_help(service, botName)
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		if payload:
+			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_hello:
 		# easter egg 1
 		def alliterate():
@@ -353,6 +355,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		if service == 'telegram':
 			typing_stop.set()
+		if payload:
+			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_marketcap:
 		if m_marketcap.group(3) and m_marketcap.group(3) not in ('top', 'bottom'):
 			ticker = m_marketcap.group(3).upper()
@@ -376,7 +380,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			except Exception as e:
 				print(e, file=sys.stderr)
 				webhook.payload_wrapper(service, url, [e], chat_id)
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		if payload:
+			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_peg:
 		action = 'peg'
 		ticker_select = None
@@ -578,7 +583,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				payload = [f"{ticker} not found"]
 		else:
 			payload = [".profile: please try again specifying a ticker"]
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		if payload:
+			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_stockfinancial:
 		print("starting stock detail")
 		if m_stockfinancial.group(2):
@@ -588,4 +594,5 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		if payload:
+			webhook.payload_wrapper(service, url, payload, chat_id)
