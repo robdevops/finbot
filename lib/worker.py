@@ -129,11 +129,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_help:
-		if service == 'telegram':
-			typing_stop = typing_start(service, chat_id)
 		payload = reports.prepare_help(service, botName)
-		if service == 'telegram':
-			typing_stop.set()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_hello:
 		# easter egg 1
@@ -375,8 +371,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_marketcap:
 		if m_marketcap.group(3) and m_marketcap.group(3) not in ('top', 'bottom'):
-			if service == 'telegram' and not specific_stock:
-				typing_stop = typing_start(service, chat_id)
 			ticker = m_marketcap.group(3).upper()
 			ticker = util.transform_to_yahoo(ticker)
 			market_data = yahoo.fetch_detail(ticker, 600)
@@ -393,6 +387,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			action = 'top'
 			if m_marketcap.group(3):
 				action = m_marketcap.group(3)
+			if service == 'telegram' and not specific_stock:
+				typing_stop = typing_start(service, chat_id)
 			try:
 				payload = reports.prepare_marketcap_payload(service, action, length=15)
 			except Exception as e:
@@ -439,7 +435,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				action = 'bottom pe'
 			else:
 				ticker_select = arg
-		if service == 'telegram' and not_ticker_select:
+		if service == 'telegram' and not ticker_select:
 			typing_stop = typing_start(service, chat_id)
 		try:
 			payload = reports.prepare_value_payload(service, action, ticker_select, length=15)
@@ -462,7 +458,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				action = 'negative forward pe'
 			else:
 				ticker_select = arg
-		if service == 'telegram' and not_ticker_select:
+		if service == 'telegram' and not ticker_select:
 			typing_stop = typing_start(service, chat_id)
 		try:
 			payload = reports.prepare_value_payload(service, action, ticker_select, length=15)
@@ -550,10 +546,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		graph = None
 		errorstring = False
 		if m_history.group(3):
-			if service == 'telegram':
-				typing_stop = typing_start(service, chat_id)
 			ticker = m_history.group(3).upper()
 			ticker = util.transform_to_yahoo(ticker)
+			if service == 'telegram':
+				typing_stop = typing_start(service, chat_id)
 			try:
 				market_data = yahoo.fetch_detail(ticker, 600)
 			except Exception as e:
@@ -583,14 +579,14 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		else:
 			payload = [".history: please try again specifying a ticker"]
 		caption = '\n'.join(payload)
-		if service == 'telegram':
-			typing_stop.set()
 		if graph:
 			try:
 				webhook.sendPhoto(chat_id, graph, caption, service)
 			except Exception as e:
 				print(e, file=sys.stderr)
 				webhook.payload_wrapper(service, url, [e], chat_id)
+			if service == 'telegram':
+				typing_stop.set()
 		else:
 			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_plan:
