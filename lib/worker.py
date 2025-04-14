@@ -130,9 +130,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if payload:
 			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_help:
+		if service == 'telegram' and not specific_stock:
+			typing_stop = typing_start(service, chat_id)
 		payload = reports.prepare_help(service, botName)
 		if payload:
 			webhook.payload_wrapper(service, url, payload, chat_id)
+		if service == 'telegram':
+			typing_stop.set()
 	elif m_hello:
 		# easter egg 1
 		def alliterate():
@@ -167,11 +171,15 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			except ValueError:
 				specific_stock = str(arg).upper()
 				days = config_future_days
+			if service == 'telegram' and not specific_stock:
+				typing_stop = typing_start(service, chat_id)
 		try:
 			cal.lambda_handler(chat_id, days, service, specific_stock, message_id=None, interactive=True, earnings=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
+		if service == 'telegram':
+			typing_stop.set()
 	elif m_dividend:
 		days = config_future_days
 		specific_stock = None
@@ -359,6 +367,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_marketcap:
 		if m_marketcap.group(3) and m_marketcap.group(3) not in ('top', 'bottom'):
+			if service == 'telegram' and not specific_stock:
+				typing_stop = typing_start(service, chat_id)
 			ticker = m_marketcap.group(3).upper()
 			ticker = util.transform_to_yahoo(ticker)
 			market_data = yahoo.fetch_detail(ticker, 600)
@@ -382,6 +392,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				webhook.payload_wrapper(service, url, [e], chat_id)
 		if payload:
 			webhook.payload_wrapper(service, url, payload, chat_id)
+		if service == 'telegram' and not specific_stock:
+			typing_stop.set()
 	elif m_peg:
 		action = 'peg'
 		ticker_select = None
@@ -446,6 +458,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		elif ticker_select:
 			webhook.payload_wrapper(service, url, [f"No Forward P/E found for {ticker_select}"], chat_id)
 	elif m_beta:
+		if service == 'telegram':
+			typing_stop = typing_start(service, chat_id)
 		def last_col(e):
 			return float(e.split()[-1])
 		payload = []
@@ -476,10 +490,15 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if payload:
 			payload.insert(0, f"{webhook.bold('Beta over 1.5 and mkt cap under 1B', service)}")
 			webhook.payload_wrapper(service, url, payload, chat_id)
+		if service == 'telegram':
+			typing_stop.set()
 	elif m_buy:
 		action='buy'
-		message = [f"Fetching {action} ratings..."]
-		webhook.payload_wrapper(service, url, message, chat_id)
+		if service == 'telegram':
+			typing_stop = typing_start(service, chat_id)
+		else:
+			message = [f"Fetching {action} ratings..."]
+			webhook.payload_wrapper(service, url, message, chat_id)
 		try:
 			payload = reports.prepare_rating_payload(service, action, length=15)
 		except Exception as e:
@@ -490,10 +509,15 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		else:
 			payload = [f"No stocks meet {action} criteria"]
 			webhook.payload_wrapper(service, url, payload, chat_id)
+		if service == 'telegram':
+			typing_stop.set()
 	elif m_sell:
 		action='sell'
-		message = [f"Fetching {action} ratings..."]
-		webhook.payload_wrapper(service, url, message, chat_id)
+		if service == 'telegram':
+			typing_stop = typing_start(service, chat_id)
+		else:
+			message = [f"Fetching {action} ratings..."]
+			webhook.payload_wrapper(service, url, message, chat_id)
 		try:
 			payload = reports.prepare_rating_payload(service, action, length=15)
 		except Exception as e:
@@ -504,11 +528,15 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		else:
 			payload = [f"No stocks meet {action} criteria"]
 			webhook.payload_wrapper(service, url, payload, chat_id)
+		if service == 'telegram':
+			typing_stop.set()
 	elif m_history:
 		payload = []
 		graph = None
 		errorstring = False
 		if m_history.group(3):
+			if service == 'telegram':
+				typing_stop = typing_start(service, chat_id)
 			ticker = m_history.group(3).upper()
 			ticker = util.transform_to_yahoo(ticker)
 			try:
@@ -548,6 +576,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				webhook.payload_wrapper(service, url, [e], chat_id)
 		else:
 			webhook.payload_wrapper(service, url, payload, chat_id)
+		if service == 'telegram':
+			typing_stop.set()
 	elif m_plan:
 		filename = 'finbot_plan.json'
 		plan = util.json_load(filename, persist=True)
@@ -566,6 +596,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_profile:
 		if m_profile.group(3):
+			if service == 'telegram':
+				typing_stop = typing_start(service, chat_id)
 			ticker = m_profile.group(3).upper()
 			ticker = util.transform_to_yahoo(ticker)
 			try:
@@ -585,8 +617,11 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			payload = [".profile: please try again specifying a ticker"]
 		if payload:
 			webhook.payload_wrapper(service, url, payload, chat_id)
+		if service == 'telegram':
+			typing_stop.set()
 	elif m_stockfinancial:
-		print("starting stock detail")
+		if service == 'telegram':
+			typing_stop = typing_start(service, chat_id)
 		if m_stockfinancial.group(2):
 			ticker = m_stockfinancial.group(2).upper()
 		try:
@@ -596,3 +631,5 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		if payload:
 			webhook.payload_wrapper(service, url, payload, chat_id)
+		if service == 'telegram':
+			typing_stop.set()
