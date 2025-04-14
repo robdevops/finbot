@@ -133,10 +133,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if service == 'telegram':
 			typing_stop = typing_start(service, chat_id)
 		payload = reports.prepare_help(service, botName)
-		if payload:
-			webhook.payload_wrapper(service, url, payload, chat_id)
 		if service == 'telegram':
 			typing_stop.set()
+		if payload:
+			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_hello:
 		# easter egg 1
 		def alliterate():
