@@ -27,6 +27,7 @@ def typing(action, service, chat_id):
 				stop_event = threading.Event()
 				typing_thread = threading.Thread(target=typing_worker, args=(stop_event,service,chat_id))
 				typing_thread.start()
+				return stop_event
 			case "stop":
 				stop_event.set()
 
@@ -210,7 +211,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				portfolio_select = arg
 		if days > 0:
 			if service == 'telegram':
-				typing('start', service, chat_id)
+				typing_stop = typing('start', service, chat_id)
 			else:
 				# easter egg 3
 				if portfolio_select:
@@ -223,7 +224,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			except Exception as e:
 				print(e, file=sys.stderr)
 				webhook.payload_wrapper(service, url, [e], chat_id)
-			typing('stop', service, chat_id)
+			typing_stop.set()
 	elif m_session:
 		price_percent = config_price_percent
 		specific_stock = None
