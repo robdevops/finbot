@@ -175,7 +175,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
+		if not specific_stock and service == 'telegram':
 			typing_stop.set()
 	elif m_dividend:
 		days = config_future_days
