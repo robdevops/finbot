@@ -314,7 +314,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_trades:
 		days = 1
 		portfolio_select = None
-		for arg in m_trades.groups()[1:3]:  # groups 2 and 3
+		for arg in m_trades.groups()[1:3]:	# groups 2 and 3
 			if arg:
 				try:
 					days = util.days_from_human_days(arg)
@@ -385,15 +385,15 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		ticker_select = None
 		arg = m_peg.group(1)
 		if arg:
-		    match arg:
-		        case 'top':
-		            action = 'peg'
-		        case 'bottom':
-		            action = 'bottom peg'
-		        case _ if 'neg' in arg:
-		            action = 'negative peg'
-		        case _:
-		            ticker_select = arg
+			match arg:
+				case 'top':
+					action = 'peg'
+				case 'bottom':
+					action = 'bottom peg'
+				case _ if 'neg' in arg:
+					action = 'negative peg'
+				case _:
+					ticker_select = arg
 		if not ticker_select:
 			if service == 'telegram':
 				typing_stop = typing_start(service, chat_id)
@@ -435,15 +435,15 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		ticker_select = None
 		if m_forwardpe.group(1):
 			arg = m_forwardpe.group(1)
-		    match arg:
-		        case 'top':
-		            action = 'forward pe'
-		        case 'bottom':
-		            action = 'bottom forward pe'
-		        case _ if 'neg' in arg:
-		            action = 'negative forward pe'
-		        case _:
-		            ticker_select = arg
+			match arg:
+				case 'top':
+					action = 'forward pe'
+				case 'bottom':
+					action = 'bottom forward pe'
+				case _ if 'neg' in arg:
+					action = 'negative forward pe'
+				case _:
+					ticker_select = arg
 		if service == 'telegram' and not ticker_select:
 			typing_stop = typing_start(service, chat_id)
 		try:
