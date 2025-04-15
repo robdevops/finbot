@@ -35,87 +35,89 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif service == 'telegram':
 		url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
 
-	dividend_command = r"^([\!\.]\s?|" + botName + r"\s+)dividends?\s*([\w\.\:\-]+)*"
+	prefix = r"^(?:[\!\.]\s?|" + botName + r"\s+)"
+
+	dividend_command = prefix + r"dividends?\s*([\w\.\:\-]+)*"
 	m_dividend = re.match(dividend_command, message, re.IGNORECASE)
 
-	earnings_command = r"^([\!\.]\s?|" + botName + r"\s+)(earnings?|earrings?)\s*([\w\.\:\-]+)*"
+	earnings_command = prefix + r"(?:earnings?|earrings?)\s*([\w\.\:\-]+)*"
 	m_earnings = re.match(earnings_command, message, re.IGNORECASE)
 
-	hello_command = r"^([\!\.]\s?|" + botName + r"\s+)(hi$|hello)|^(hi|hello)\s+" + botName
+	hello_command = prefix + r"(?:hi$|hello)|^(?:hi|hello)\s+" + botName
 	m_hello = re.match(hello_command, message, re.IGNORECASE)
 
-	help_command = r"^([\!\.]\s?|" + botName + r"\s+)(help|usage)"
+	help_command = prefix + r"(?:help|usage)"
 	m_help = re.match(help_command, message, re.IGNORECASE)
 
-	session_command = r"^([\!\.]\s?|^" + botName + r"\s+)session\s*([\w\.\:\-]+)*"
+	session_command = prefix + r"session\s*([\w\.\:\-]+)*"
 	m_session = re.match(session_command, message, re.IGNORECASE)
 
-	holdings_command = r"^([\!\.]\s?|^" + botName + r"\s+)holdings?\s*([\w\s]+)*"
+	holdings_command = prefix + r"holdings?\s*([\w\s]+)*"
 	m_holdings = re.match(holdings_command, message, re.IGNORECASE)
 
-	marketcap_command = r"^([\!\.]\s?|^" + botName + r"\s+)(marketcap|maletas|marketer)\s*([\w\.\:\-]+)*"
+	marketcap_command = prefix + r"(?:marketcap|maletas|marketer)\s*([\w\.\:\-]+)*"
 	m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
-	plan_command = r"^([\!\.]\s?|^" + botName + r"\s+)plan\s*(.*)"
+	plan_command = prefix + r"plan\s*(.*)"
 	m_plan = re.match(plan_command, message, re.IGNORECASE)
 
-	pe_command = r"^([\!\.]\s?|^" + botName + r"\s+)pe\s*([\w\.\:\-\s]+)*"
+	pe_command = prefix + r"pe\s*([\w\.\:\-\s]+)*"
 	m_pe = re.match(pe_command, message, re.IGNORECASE)
 
-	forwardpe_command = r"^([\!\.]\s?|^" + botName + r"\s+)(fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*"
+	forwardpe_command = prefix + r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*"
 	m_forwardpe = re.match(forwardpe_command, message, re.IGNORECASE)
 
-	peg_command = r"^([\!\.]\s?|^" + botName + r"\s+)peg\s*([\w\.\:\-\s]+)*"
+	peg_command = prefix + r"peg\s*([\w\.\:\-\s]+)*"
 	m_peg = re.match(peg_command, message, re.IGNORECASE)
 
-	beta_command = r"^([\!\.]\s?|^" + botName + r"\s+)beta\s*([\w\.\:\-]+)*"
+	beta_command = prefix + r"beta\s*([\w\.\:\-]+)*"
 	m_beta = re.match(beta_command, message, re.IGNORECASE)
 
-	buy_command = r"^([\!\.]\s?|^" + botName + r"\s+)buy"
+	buy_command = prefix + r"buy"
 	m_buy = re.match(buy_command, message, re.IGNORECASE)
 
-	sell_command = r"^([\!\.]\s?|^" + botName + r"\s+)sell"
+	sell_command = prefix + r"sell"
 	m_sell = re.match(sell_command, message, re.IGNORECASE)
 
-	history_command = r"^([\!\.]\s?|^" + botName + r"\s+)(history|hospital|visual)\s*([\w\.\:\-]+)*"
+	history_command = prefix + r"(?:history|hospital|visual)\s*([\w\.\:\-]+)*"
 	m_history = re.match(history_command, message, re.IGNORECASE)
 
-	performance_command = r"^([\!\.]\s?|^" + botName + r"\s+)performance?\s*([\w]+)*\s*([\w\s]+)*"
+	performance_command = prefix + r"performance?\s*([\w]+)*\s*([\w\s]+)*"
 	m_performance = re.match(performance_command, message, re.IGNORECASE)
 
-	premarket_command = r"^([\!\.]\s?|^" + botName + r"\s+)(premarket|postmarket|permarket)\s*([\w\.\:\-]+)*"
+	premarket_command = prefix + r"(?:premarket|postmarket|permarket)\s*([\w\.\:\-]+)*"
 	m_premarket = re.match(premarket_command, message, re.IGNORECASE)
 
-	price_command = r"^([\!\.]\s?|^" + botName + r"\s+)(prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=\-\^]+)*\s*([\w\%]+)*"
+	price_command = prefix + r"(?:prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=\-\^]+)*\s*([\w\%]+)*"
 	m_price = re.match(price_command, message, re.IGNORECASE)
 
-	shorts_command = r"^([\!\.]\s?|^" + botName + r"\s+)shorts?\s*([\w\.\:\-]+)*"
+	shorts_command = prefix + r"shorts?\s*([\w\.\:\-]+)*"
 	m_shorts = re.match(shorts_command, message, re.IGNORECASE)
 
-	stockfinancial_command = r"^([\!\.]\s?|^" + botName + r"\s+)([\w\.\:\-]+)"
+	stockfinancial_command = prefix + r"(?P<ticker>[\w\.\:\-]+)"
 	m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
-	profile_command = r"^([\!\.]\s?|^" + botName + r"\s+)(about|bio|profile|professor|proudly|proteja|properties|possible)\s*([\w\.\:\-]+)*"
+	profile_command = prefix + r"(?:about|bio|profile|professor|proudly|proteja|properties|possible)\s*(?P<ticker>[\w\.\:\-]+)*"
 	m_profile = re.match(profile_command, message, re.IGNORECASE)
 
-	thanks_command = r"^([\!\.]\s?|^" + botName + r"\s+)(thanks|thank you)|^(thanks|thank you)\s+" + botName
+	thanks_command = prefix + r"(?:thanks|thank you)|^(?:thanks|thank you)\s+" + botName
 	m_thanks = re.match(thanks_command, message, re.IGNORECASE)
 
-	trades_command = r"^([\!\.]\s?|^" + botName + r"\s+)trades?\s*([\w]+)*\s*([\w\s]+)*"
+	trades_command = prefix + r"trades?\s*([\w]+)*\s*([\w\s]+)*"
 	m_trades = re.match(trades_command, message, re.IGNORECASE)
 
-	watchlist_command = r"^([\!\.]\s?|^" + botName + r"\s+)(watchlist|wishlist)\s*([\w]+)*\s*([\w\.\:\-\^]+)*"
+	watchlist_command = prefix + r"(?:watchlist|wishlist)\s*(?P<action>[\w]+)*\s*(?P<ticker>[\w\.\:\-\^]+)*"
 	m_watchlist = re.match(watchlist_command, message, re.IGNORECASE)
 
-	super_command = r"^([\!\.]\s?|" + botName + r"\s+)(super|smsf|payout)\s*([\w\.\:\-]+)*"
+	super_command = prefix + r"(?:super|smsf|payout)\s*([\w\.\:\-]+)*"
 	m_super = re.match(super_command, message, re.IGNORECASE)
 
 	if m_watchlist:
 		action = None
 		ticker = None
-		if m_watchlist.group(3) and m_watchlist.group(4):
-			action = m_watchlist.group(3).lower()
-			ticker = m_watchlist.group(4).upper()
+		if m_watchlist.group('action') and m_watchlist.group('ticker'):
+			action = m_watchlist.group('action').lower()
+			ticker = m_watchlist.group('ticker').upper()
 		if action:
 			if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
 				action = 'delete'
@@ -159,8 +161,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_earnings:
 		days = config_future_days
 		specific_stock = None
-		if m_earnings.group(3):
-			arg = m_earnings.group(3)
+		if m_earnings.group(1):
+			arg = m_earnings.group(1)
 			try:
 				days = util.days_from_human_days(arg)
 			except ValueError:
@@ -178,8 +180,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_dividend:
 		days = config_future_days
 		specific_stock = None
-		if m_dividend.group(2):
-			arg = m_dividend.group(2)
+		if m_dividend.group(1):
+			arg = m_dividend.group(1)
 			try:
 				days = util.days_from_human_days(arg)
 			except ValueError:
@@ -200,18 +202,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_performance:
 		portfolio_select = None
 		days = config_past_days
-		if m_performance.group(2):
-			arg = m_performance.group(2)
-			try:
-				days = util.days_from_human_days(arg)
-			except ValueError:
-				portfolio_select = arg
-		if m_performance.group(3):
-			arg = m_performance.group(3)
-			try:
-				days = util.days_from_human_days(arg)
-			except ValueError:
-				portfolio_select = arg
+		for arg in m_performance.groups()[1:3]:  # groups 2 and 3
+			if arg:
+				try:
+					days = util.days_from_human_days(arg)
+				except ValueError:
+					portfolio_select = arg
 		if days > 0:
 			if service == 'telegram':
 				typing_stop = typing_start(service, chat_id)
@@ -232,8 +228,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_session:
 		price_percent = config_price_percent
 		specific_stock = None
-		if m_session.group(2):
-			arg = m_session.group(2)
+		if m_session.group(1):
+			arg = m_session.group(1)
 			try:
 				price_percent = int(arg.split('%')[0])
 			except ValueError:
@@ -245,33 +241,25 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
+		if service == 'telegram'::
 			typing_stop.set()
 	elif m_price:
 		price_percent = config_price_percent
 		specific_stock = None
 		days = None
 		interday = True
-		if m_price.group(3):
-			arg = m_price.group(3)
+		for arg in m_price.groups()[0:2]:  # group(1) and group(2)
+			if not arg:
+				continue
+		try:
+			days = util.days_from_human_days(arg)
+			interday = False
+		except ValueError:
 			try:
-				days = util.days_from_human_days(arg)
-				interday = False
+				price_percent = float(arg.split('%')[0])
 			except ValueError:
-				try:
-					price_percent = float(arg.split('%')[0])
-				except ValueError:
+				if arg == m_price.group(1):
 					specific_stock = str(arg).upper()
-		if m_price.group(4):
-			arg = m_price.group(4)
-			try:
-				days = util.days_from_human_days(arg)
-				interday = False
-			except ValueError:
-			   try:
-				   price_percent = int(arg.split('%')[0])
-			   except ValueError:
-				   pass
 		if days and days > 0 and not specific_stock:
 			if service == 'telegram':
 				typing_stop = typing_start(service, chat_id)
@@ -289,8 +277,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_premarket:
 		premarket_percent = config_price_percent
 		specific_stock = None
-		if m_premarket.group(3):
-			arg = m_premarket.group(3)
+		if m_premarket.group(1):
+			arg = m_premarket.group(1)
 			try:
 				premarket_percent = int(arg.split('%')[0])
 			except ValueError:
@@ -308,8 +296,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		print("starting shorts report...")
 		shorts_percent = config_shorts_percent
 		specific_stock = None
-		if m_shorts.group(2):
-			arg = m_shorts.group(2)
+		if m_shorts.group(1):
+			arg = m_shorts.group(1)
 			try:
 				shorts_percent = int(arg.split('%')[0])
 			except ValueError:
@@ -350,8 +338,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			typing_stop.set()
 	elif m_holdings:
 		portfolioName = None
-		if m_holdings.group(2):
-			portfolioName = m_holdings.group(2)
+		if m_holdings.group(1):
+			portfolioName = m_holdings.group(1)
 		if service == 'telegram':
 			typing_stop = typing_start(service, chat_id)
 		else:
@@ -365,8 +353,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			typing_stop.set()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_marketcap:
-		if m_marketcap.group(3) and m_marketcap.group(3) not in ('top', 'bottom'):
-			ticker = m_marketcap.group(3).upper()
+		if m_marketcap.group(1) and m_marketcap.group(1) not in ('top', 'bottom'):
+			ticker = m_marketcap.group(1).upper()
 			ticker = util.transform_to_yahoo(ticker)
 			market_data = yahoo.fetch_detail(ticker, 600)
 			if ticker in market_data and 'market_cap' in market_data[ticker]:
@@ -380,8 +368,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				payload = [f"Mkt cap not found for {ticker}"]
 		else:
 			action = 'top'
-			if m_marketcap.group(3):
-				action = m_marketcap.group(3)
+			if m_marketcap.group(1):
+				action = m_marketcap.group(1)
 			if service == 'telegram' and not specific_stock:
 				typing_stop = typing_start(service, chat_id)
 			try:
@@ -395,16 +383,17 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_peg:
 		action = 'peg'
 		ticker_select = None
-		if m_peg.group(2):
-			arg = m_peg.group(2)
-			if arg == 'top':
-				action = 'peg'
-			elif arg == 'bottom':
-				action = 'bottom peg'
-			elif 'neg' in arg:
-				action = 'negative peg'
-			else:
-				ticker_select = arg
+		arg = m_peg.group(1)
+		if arg:
+		    match arg:
+		        case 'top':
+		            action = 'peg'
+		        case 'bottom':
+		            action = 'bottom peg'
+		        case _ if 'neg' in arg:
+		            action = 'negative peg'
+		        case _:
+		            ticker_select = arg
 		if not ticker_select:
 			if service == 'telegram':
 				typing_stop = typing_start(service, chat_id)
@@ -422,14 +411,15 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_pe:
 		action = 'pe'
 		ticker_select = None
-		if m_pe.group(2):
-			arg = m_pe.group(2)
-			if arg == 'top':
-				action = 'pe'
-			elif arg == 'bottom':
-				action = 'bottom pe'
-			else:
-				ticker_select = arg
+		if m_pe.group(1):
+			arg = m_pe.group(1)
+		    match arg:
+		        case 'top':
+		            action = 'pe'
+		        case 'bottom':
+		            action = 'bottom pe'
+		        case _:
+		            ticker_select = arg
 		if service == 'telegram' and not ticker_select:
 			typing_stop = typing_start(service, chat_id)
 		try:
@@ -443,16 +433,17 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_forwardpe:
 		action = 'forward pe'
 		ticker_select = None
-		if m_forwardpe.group(3):
-			arg = m_forwardpe.group(3)
-			if arg == 'top':
-				action = 'forward pe'
-			elif arg == 'bottom':
-				action = 'bottom forward pe'
-			elif 'neg' in arg:
-				action = 'negative forward pe'
-			else:
-				ticker_select = arg
+		if m_forwardpe.group(1):
+			arg = m_forwardpe.group(1)
+		    match arg:
+		        case 'top':
+		            action = 'forward pe'
+		        case 'bottom':
+		            action = 'bottom forward pe'
+		        case _ if 'neg' in arg:
+		            action = 'negative forward pe'
+		        case _:
+		            ticker_select = arg
 		if service == 'telegram' and not ticker_select:
 			typing_stop = typing_start(service, chat_id)
 		try:
@@ -512,11 +503,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		if service == 'telegram':
 			typing_stop.set()
-		if payload:
-			webhook.payload_wrapper(service, url, payload, chat_id)
-		else:
-			payload = [f"No stocks meet {action} criteria"]
-			webhook.payload_wrapper(service, url, payload, chat_id)
+		payload = payload or [f"No stocks meet {action} criteria"]
+		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_sell:
 		action='sell'
 		if service == 'telegram':
@@ -531,17 +519,14 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		if service == 'telegram':
 			typing_stop.set()
-		if payload:
-			webhook.payload_wrapper(service, url, payload, chat_id)
-		else:
-			payload = [f"No stocks meet {action} criteria"]
-			webhook.payload_wrapper(service, url, payload, chat_id)
+		payload = payload or [f"No stocks meet {action} criteria"]
+		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_history:
 		payload = []
 		graph = None
 		errorstring = False
-		if m_history.group(3):
-			ticker = m_history.group(3).upper()
+		if m_history.group(1):
+			ticker = m_history.group(1).upper()
 			ticker = util.transform_to_yahoo(ticker)
 			if service == 'telegram':
 				typing_stop = typing_start(service, chat_id)
@@ -590,8 +575,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if not plan:
 			plan = dict()
 		payload = []
-		if m_plan.group(2) and not m_plan.group(2).startswith('@'):
-			plan[user] = m_plan.group(2)
+		if m_plan.group(1) and not m_plan.group(1).startswith('@'):
+			plan[user] = m_plan.group(1)
 			util.json_write(filename, plan, persist=True)
 		for k,v in plan.items():
 			payload.append(f"{webhook.bold(k.removeprefix('@'), service)}: {webhook.italic(v, service)}\n")
@@ -601,8 +586,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		payload = [heading, "28 January", "28 April", "28 July", "28 October"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_profile:
-		if m_profile.group(3):
-			ticker = m_profile.group(3).upper()
+		if m_profile.group('ticker'):
+			ticker = m_profile.group('ticker').upper()
 			ticker = util.transform_to_yahoo(ticker)
 			if service == 'telegram':
 				typing_stop = typing_start(service, chat_id)
@@ -627,8 +612,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_stockfinancial:
 		if service == 'telegram':
 			typing_stop = typing_start(service, chat_id)
-		if m_stockfinancial.group(2):
-			ticker = m_stockfinancial.group(2).upper()
+		if m_stockfinancial.group('ticker'):
+			ticker = m_stockfinancial.group('ticker').upper()
 		try:
 			payload = reports.prepare_stockfinancial_payload(service, user, ticker)
 		except Exception as e:
