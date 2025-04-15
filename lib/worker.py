@@ -615,7 +615,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			print(e, file=sys.stderr)
 			pass
 		if len(payload_bio):
-			payload.append("")
+			payload_bio.append("")
 		try:
 			payload_financial = reports.prepare_stockfinancial_payload(service, user, ticker)
 		except Exception as e:
