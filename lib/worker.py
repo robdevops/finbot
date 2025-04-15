@@ -241,7 +241,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
+		if service == 'telegram' and not specific_stock:
 			typing_stop.set()
 	elif m_price:
 		price_percent = config_price_percent
