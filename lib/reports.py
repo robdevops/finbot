@@ -196,9 +196,10 @@ def prepare_holdings_payload(portfolioName, service, user):
 			payload.append( item )
 	return payload
 
-def prepare_bio_payload(service, user, ticker, market_data):
+def prepare_bio_payload(service, user, ticker):
 	ticker = ticker_orig = util.transform_to_yahoo(ticker)
 	payload = []
+	market_data = yahoo.fetch_detail(ticker, 600)
 
 	print("")
 

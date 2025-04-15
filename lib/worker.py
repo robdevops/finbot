@@ -591,14 +591,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			ticker = util.transform_to_yahoo(ticker)
 			if service == 'telegram':
 				typing_stop = typing_start(service, chat_id)
-			try:
-				market_data = yahoo.fetch_detail(ticker, 600)
-			except Exception as e:
-				print(e, file=sys.stderr)
-				webhook.payload_wrapper(service, url, [e], chat_id)
 			if ticker in market_data:
 				try:
-					payload = reports.prepare_bio_payload(service, user, ticker, market_data)
+					payload = reports.prepare_bio_payload(service, user, ticker)
 				except Exception as e:
 					print(e, file=sys.stderr)
 					webhook.payload_wrapper(service, url, [e], chat_id)
@@ -615,10 +610,18 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if m_stockfinancial.group('ticker'):
 			ticker = m_stockfinancial.group('ticker').upper()
 		try:
-			payload = reports.prepare_stockfinancial_payload(service, user, ticker)
+			payload_bio = reports.prepare_bio_payload(service, user, ticker)
+		except Exception as e:
+			print(e, file=sys.stderr)
+			pass
+		if len(payload_bio):
+			payload.append("")
+		try:
+			payload_financial = reports.prepare_stockfinancial_payload(service, user, ticker)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		if service == 'telegram':
 			typing_stop.set()
+		payload = payload_bio + payload_financial
 		webhook.payload_wrapper(service, url, payload, chat_id)
