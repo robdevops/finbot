@@ -251,15 +251,15 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		for arg in m_price.groups()[0:2]:  # group(1) and group(2)
 			if not arg:
 				continue
-		try:
-			days = util.days_from_human_days(arg)
-			interday = False
-		except ValueError:
 			try:
-				price_percent = float(arg.split('%')[0])
+				days = util.days_from_human_days(arg)
+				interday = False
 			except ValueError:
-				if arg == m_price.group(1):
-					specific_stock = str(arg).upper()
+				try:
+					price_percent = float(arg.split('%')[0])
+				except ValueError:
+					if arg == m_price.group(1):
+						specific_stock = str(arg).upper()
 		if days and days > 0 and not specific_stock:
 			if service == 'telegram':
 				typing_stop = typing_start(service, chat_id)
