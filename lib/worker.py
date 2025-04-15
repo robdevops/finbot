@@ -197,7 +197,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
+		if not specific_stock and service == 'telegram':
 			typing_stop.set()
 	elif m_performance:
 		portfolio_select = None
@@ -382,7 +382,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_peg:
 		action = 'peg'
-		ticker_select = None
+		specific_stock = None
 		arg = m_peg.group(1)
 		if arg:
 			match arg:
@@ -393,24 +393,24 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				case _ if 'neg' in arg:
 					action = 'negative peg'
 				case _:
-					ticker_select = arg
-		if not ticker_select:
+					specific_stock = arg
+		if not specific_stock:
 			if service == 'telegram':
 				typing_stop = typing_start(service, chat_id)
 			else:
 				message = [f"Fetching {action.upper()}s..."]
 				webhook.payload_wrapper(service, url, message, chat_id)
 		try:
-			payload = reports.prepare_value_payload(service, action, ticker_select, length=15)
+			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		webhook.payload_wrapper(service, url, payload, chat_id)
-		if service == 'telegram' and not ticker_select:
+		if service == 'telegram' and not specific_stock:
 			typing_stop.set()
 	elif m_pe:
 		action = 'pe'
-		ticker_select = None
+		specific_stock = None
 		if m_pe.group(1):
 			arg = m_pe.group(1)
 			match arg:
@@ -419,20 +419,20 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				case 'bottom':
 					action = 'bottom pe'
 				case _:
-					ticker_select = arg
-		if service == 'telegram' and not ticker_select:
+					specific_stock = arg
+		if service == 'telegram' and not specific_stock:
 			typing_stop = typing_start(service, chat_id)
 		try:
-			payload = reports.prepare_value_payload(service, action, ticker_select, length=15)
+			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram' and not ticker_select:
+		if service == 'telegram' and not specific_stock:
 			typing_stop.set()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_forwardpe:
 		action = 'forward pe'
-		ticker_select = None
+		specific_stock = None
 		if m_forwardpe.group(1):
 			arg = m_forwardpe.group(1)
 			match arg:
@@ -443,15 +443,15 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				case _ if 'neg' in arg:
 					action = 'negative forward pe'
 				case _:
-					ticker_select = arg
-		if service == 'telegram' and not ticker_select:
+					specific_stock = arg
+		if service == 'telegram' and not specific_stock:
 			typing_stop = typing_start(service, chat_id)
 		try:
-			payload = reports.prepare_value_payload(service, action, ticker_select, length=15)
+			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram' and not ticker_select:
+		if service == 'telegram' and not specific_stock:
 			typing_stop.set()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_beta:
