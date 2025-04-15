@@ -35,7 +35,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif service == 'telegram':
 		url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
 
-	prefix = r"^(?:[\!\.]\s?|" + botName + r"\s+)"
+	prefix = r"^(?:[\!\.\/]\s?|" + botName + r"\s+)"
 
 	dividend_command = prefix + r"dividends?\s*([\w\.\:\-]+)*"
 	m_dividend = re.match(dividend_command, message, re.IGNORECASE)
