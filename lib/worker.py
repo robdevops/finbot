@@ -413,13 +413,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		ticker_select = None
 		if m_pe.group(1):
 			arg = m_pe.group(1)
-		    match arg:
-		        case 'top':
-		            action = 'pe'
-		        case 'bottom':
-		            action = 'bottom pe'
-		        case _:
-		            ticker_select = arg
+			match arg:
+				case 'top':
+					action = 'pe'
+				case 'bottom':
+					action = 'bottom pe'
+				case _:
+					ticker_select = arg
 		if service == 'telegram' and not ticker_select:
 			typing_stop = typing_start(service, chat_id)
 		try:
