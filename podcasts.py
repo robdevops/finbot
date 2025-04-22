@@ -94,8 +94,7 @@ def fetch_new_episodes(feed_url, seen):
 		ago = how_long_ago(pub_raw) if pub_raw else ""
 
 		episode_title = (item.findtext("title") or "Untitled").strip()
-		full_title = f"{podcast_name}: {episode_title}"
-		new_episodes.append({"podcast": podcast_name, "title": full_title, "url": media_url, "ago": ago})
+		new_episodes.append({"podcast": podcast_name, "title": episode_title, "url": media_url, "ago": ago})
 		seen.append(guid)
 
 	return new_episodes
