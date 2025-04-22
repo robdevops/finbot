@@ -239,7 +239,7 @@ noTradesVerb = [
 filename = 'var/finbot_adr.json'
 if os.path.isfile(filename):
 	with open(filename, "r", encoding="utf-8") as f:
-		primary_listing = json.loads(f.read())
+		primary_listing = json.load(f)
 
 yahoo_country = {
 	'Argentina': 'BA',

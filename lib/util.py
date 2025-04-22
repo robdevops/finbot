@@ -274,7 +274,7 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
 				ttl = maxSeconds - cacheFileAge
 				print("cache hit:", cacheFile, "TTL:", td_to_human(ttl), file=sys.stderr)
 			with open(cacheFile, "r", encoding="utf-8") as f:
-				cacheDict = json.loads(f.read())
+				cacheDict = json.load(f)
 			return cacheDict
 		print("cache expired:", cacheFile, file=sys.stderr) if debug else None
 		return None
@@ -290,7 +290,7 @@ def json_write(filename, data, persist=False):
 	def opener(filename, flags):
 		return os.open(filename, flags, 0o640)
 	with open(filename, "w", opener=opener, encoding="utf-8") as f:
-		f.write(json.dumps(data, indent=4))
+		json.dump(data, f, indent=4)
 	os.umask(0o022)
 
 def json_load(filename, persist=False):
@@ -300,7 +300,7 @@ def json_load(filename, persist=False):
 		filename = config_cache_dir + "/" + filename
 	if os.path.isfile(filename):
 		with open(filename, "r", encoding="utf-8") as f:
-			data = json.loads(f.read())
+			data = json.load(f)
 	else:
 		data = None
 	return data
