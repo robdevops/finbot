@@ -55,7 +55,8 @@ def how_long_ago(pub_raw):
 			return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
 		else:
 			return f"{seconds} second{'s' if seconds != 1 else ''} ago"
-	except Exception:
+	except Exception as e:
+		print(f"Error in how_long_ago: {e}")
 		return ""
 
 def fetch_new_episodes(feed_url, seen):
@@ -117,7 +118,6 @@ def main():
 
 	seen = sorted(set(seen))
 	if seen != seen_earlier:
-		save_seen(seen, seen_file)
 		if not webhooks:
 			raise KeyError("no services enabled in .env")
 		for service, url in webhooks.items():
@@ -131,6 +131,9 @@ def main():
 				payload.append(f"{podcast_name}: {link}, {ago}")
 			#print(service, payload, ago)
 			webhook.payload_wrapper(service, url, payload)
+		save_seen(seen, seen_file)
+	else:
+		print("no new episodes found")
 
 if __name__ == "__main__":
 	main()
