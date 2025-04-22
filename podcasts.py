@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 import os
 import hashlib
@@ -73,7 +75,7 @@ def fetch_new_episodes(feed_url, seen):
 
 def main():
 	if len(sys.argv) != 2:
-		print("Usage: python podcast_fetcher.py <podcast_feed_url>")
+		print("Usage:", sys.argv[0], "<podcast_feed_url>")
 		sys.exit(1)
 
 	feed_url = sys.argv[1]
