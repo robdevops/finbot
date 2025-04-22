@@ -3,6 +3,7 @@
 import sys
 import os
 import hashlib
+import string
 import requests
 import xml.etree.ElementTree as ET
 from lib.config import *
@@ -91,10 +92,20 @@ def fetch_new_episodes(feed_url, seen):
 			continue
 
 		pub_raw = item.findtext("pubDate")
+		published_dt = parsedate_to_datetime(pub_raw) if pub_raw else datetime.min
 		ago = how_long_ago(pub_raw) if pub_raw else ""
 
 		episode_title = (item.findtext("title") or "Untitled").strip()
-		new_episodes.append({"podcast": podcast_name, "title": episode_title, "url": media_url, "ago": ago})
+		new_episodes.append({
+			"podcast": podcast_name,
+			"title": episode_title,
+			"url": media_url,
+			"ago": ago,
+			"published_dt": published_dt
+		})
+		new_episodes.sort(key=lambda ep: ep["published_dt"], reverse=True)
+		new_episodes = new_episodes[:5]
+
 		seen.append(guid)
 
 	return new_episodes
@@ -125,12 +136,12 @@ def main():
 				url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
 			for ep in new_episodes:
 				podcast_name = ep['podcast']
-				link = util.link(ep['url'], ep['title'], service)
-				ago = ep['ago']
-				payload.append(f"{podcast_name}: {link}, {ago}")
-			#print(service, payload, ago)
+				title = ep['title'].removeprefix(podcast_name).lstrip(string.punctuation + " ")
+				link = util.link(ep['url'], title, service)
+				payload.append(f"{podcast_name}: {link} ({ep['ago']})")
 			webhook.payload_wrapper(service, url, payload)
-		save_seen(seen, seen_file)
+			#print(service, json.dumps(payload, indent=4))
+		save_seen(seen, seen_file) # save this to the end so that exceptions don't cause episodes to be missed
 	else:
 		print("no new episodes found")
 
