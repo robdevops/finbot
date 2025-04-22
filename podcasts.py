@@ -8,6 +8,8 @@ import xml.etree.ElementTree as ET
 from lib.config import *
 from lib import webhook
 from lib import util
+from email.utils import parsedate_to_datetime
+from datetime import datetime, timezone
 
 NAMESPACES = {
 	"media": "http://search.yahoo.com/mrss/",
@@ -21,12 +23,10 @@ def get_seen_filename(url):
 def load_seen(filename):
 	if os.path.exists(filename):
 		with open(filename, "r") as f:
-			return set(json.load(f))
-	return set()
+			return json.load(f)
+	return []
 
 def save_seen(seen, filename):
-	seen = list(seen)
-	seen.sort()
 	with open(filename, "w") as f:
 		json.dump(list(seen), f)
 
@@ -34,6 +34,29 @@ def fetch_and_parse_feed(url):
 	resp = requests.get(url)
 	resp.raise_for_status()
 	return ET.fromstring(resp.content)
+
+def how_long_ago(pub_raw):
+	try:
+		pub_date = parsedate_to_datetime(pub_raw)
+		if pub_date.tzinfo is None:
+			pub_date = pub_date.replace(tzinfo=timezone.utc)
+		now = datetime.now(timezone.utc)
+		delta = now - pub_date
+
+		days = delta.days
+		seconds = delta.seconds
+		if days > 0:
+			return f"{days} day{'s' if days != 1 else ''} ago"
+		elif seconds > 3600:
+			hours = seconds // 3600
+			return f"{hours} hour{'s' if hours != 1 else ''} ago"
+		elif seconds > 60:
+			minutes = seconds // 60
+			return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+		else:
+			return f"{seconds} second{'s' if seconds != 1 else ''} ago"
+	except Exception:
+		return ""
 
 def fetch_new_episodes(feed_url, seen):
 	root = fetch_and_parse_feed(feed_url)
@@ -66,41 +89,48 @@ def fetch_new_episodes(feed_url, seen):
 		if not media_url:
 			continue
 
+		pub_raw = item.findtext("pubDate")
+		ago = how_long_ago(pub_raw) if pub_raw else ""
+
 		episode_title = (item.findtext("title") or "Untitled").strip()
 		full_title = f"{podcast_name}: {episode_title}"
-		new_episodes.append({"podcast": podcast_name, "title": full_title, "url": media_url})
-		seen.add(guid)
+		new_episodes.append({"podcast": podcast_name, "title": full_title, "url": media_url, "ago": ago})
+		seen.append(guid)
 
 	return new_episodes
 
 def main():
 	if len(sys.argv) != 2:
-		print("Usage:", sys.argv[0], "<podcast_feed_url>")
+		print("Usage:", sys.argv[0], "\"<podcast_feed_url>\"")
 		sys.exit(1)
 
 	feed_url = sys.argv[1]
 	seen_file = get_seen_filename(feed_url)
 	seen = load_seen(seen_file)
+	seen_earlier = seen.copy()
+
 	try:
 		new_episodes = fetch_new_episodes(feed_url, seen)
 	except Exception as e:
 		print(f"Error: {e}")
 		sys.exit(1)
 
-	save_seen(seen, seen_file)
-
-	if not webhooks:
-		print("Error: no services enabled in .env", file=sys.stderr)
-		sys.exit(1)
-	for service, url in webhooks.items():
-		payload = []
-		if service == "telegram":
-			url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
-		for ep in new_episodes:
-			link = util.link(ep['url'], ep['title'], service)
-			payload.append(f"{ep['podcast']}: {link}")
-		#print(service, payload)
-		webhook.payload_wrapper(service, url, payload)
+	seen = sorted(set(seen))
+	if seen != seen_earlier:
+		save_seen(seen, seen_file)
+		if not webhooks:
+			raise KeyError("no services enabled in .env")
+		for service, url in webhooks.items():
+			payload = []
+			if service == "telegram":
+				url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
+			for ep in new_episodes:
+				podcast_name = ep['podcast']
+				link = util.link(ep['url'], ep['title'], service)
+				ago = ep['ago']
+				payload.append(f"{podcast_name}: {link}, {ago}")
+			#print(service, payload, ago)
+			webhook.payload_wrapper(service, url, payload)
 
 if __name__ == "__main__":
 	main()
