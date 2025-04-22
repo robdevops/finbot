@@ -28,7 +28,7 @@ def load_seen(filename):
 
 def save_seen(seen, filename):
 	with open(filename, "w") as f:
-		json.dump(list(seen), f)
+		json.dump(list(seen), f, indent=4)
 
 def fetch_and_parse_feed(url):
 	resp = requests.get(url)
