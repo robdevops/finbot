@@ -75,8 +75,8 @@ def main():
 			link = util.link(ep['url'], ep['title'], service)
 			#print(f"{ep['podcast']}: {link}")
 			payload.append(f"{ep['podcast']}: {link}")
-		print(payload)
-		#webhook.payload_wrapper(service, url, payload)
+		#print(payload)
+		webhook.payload_wrapper(service, url, payload)
 
 if __name__ == "__main__":
 	main()
