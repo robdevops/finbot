@@ -97,8 +97,8 @@ def main():
 		for ep in new_episodes:
 			link = util.link(ep['url'], ep['title'], service)
 			payload.append(f"{ep['podcast']}: {link}")
-		print(service, payload)
-		#webhook.payload_wrapper(service, url, payload)
+		#print(service, payload)
+		webhook.payload_wrapper(service, url, payload)
 
 if __name__ == "__main__":
 	main()
