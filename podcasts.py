@@ -141,7 +141,7 @@ def main():
 				payload.append(f"{podcast_name}: {link} ({ep['ago']})")
 			webhook.payload_wrapper(service, url, payload)
 			#print(service, json.dumps(payload, indent=4))
-		save_seen(seen, seen_file) # save this to the end so that exceptions don't cause episodes to be missed
+		save_seen(seen, seen_file) # do this last so we pick up these episodes next run if we error
 	else:
 		print("no new episodes found")
 
