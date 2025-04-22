@@ -44,7 +44,6 @@ def fetch_new_episodes(feed_url, seen):
 		episode_title = entry.get("title", "Untitled").strip()
 		full_title = f"{podcast_name}: {episode_title}"
 
-		#new_episodes.append([full_title, media_url])
 		new_episodes.append({"podcast": podcast_name, "title": episode_title, "url": media_url})
 
 		seen.add(guid)
@@ -73,9 +72,8 @@ def main():
 			url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
 		for ep in new_episodes:
 			link = util.link(ep['url'], ep['title'], service)
-			#print(f"{ep['podcast']}: {link}")
 			payload.append(f"{ep['podcast']}: {link}")
-		#print(payload)
+		#print(service, payload)
 		webhook.payload_wrapper(service, url, payload)
 
 if __name__ == "__main__":
