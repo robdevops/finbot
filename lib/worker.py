@@ -168,8 +168,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			except ValueError:
 				specific_stock = str(arg).upper()
 				days = config_future_days
-			if service == 'telegram' and not specific_stock:
-				typing_stop = typing_start(service, chat_id)
+		if service == 'telegram' and not specific_stock:
+			typing_stop = typing_start(service, chat_id)
 		try:
 			cal.lambda_handler(chat_id, days, service, specific_stock, message_id=None, interactive=True, earnings=True)
 		except Exception as e:
