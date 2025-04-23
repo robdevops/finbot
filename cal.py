@@ -17,6 +17,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 		soon = now + datetime.timedelta(days=days)
 		dates = set()
 		for ticker in market_data.copy():
+			ticker_primary = ticker
 			emoji = util.flag_from_ticker(ticker)
 			if market_data[ticker]['quoteType'] == 'ETF':
 				continue
@@ -28,7 +29,6 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 				timestamp = datetime.datetime.fromtimestamp(timestamp)
 			except (KeyError):
 				title_orig = market_data[ticker]['profile_title']
-				ticker_primary = ticker
 				if ticker in primary_listing: # dict from lib.config
 					ticker_primary = primary_listing[ticker]
 				elif ticker.endswith('.AX') and 'financialCurrency' in market_data[ticker] and market_data[ticker]['financialCurrency'] == 'NZD':
