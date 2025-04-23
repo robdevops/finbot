@@ -138,7 +138,8 @@ def main():
 				podcast_name = ep['podcast']
 				title = ep['title'].removeprefix(podcast_name).lstrip(string.punctuation + " ")
 				link = util.link(ep['url'], title, service)
-				payload.append(f"{podcast_name}: {link} ({ep['ago']})")
+				emoji = "📣"
+				payload.append(f"{emoji} {podcast_name}: {link} ({ep['ago']})")
 			webhook.payload_wrapper(service, url, payload)
 			#print(service, json.dumps(payload, indent=4))
 		save_seen(seen, seen_file) # do this last so we pick up these episodes next run if we error

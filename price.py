@@ -79,7 +79,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				emoji = '🔼'
 			else:
 				emoji = "▪️"
-			#flag = util.flag_from_ticker(ticker)
 			exchange = exchange_human = market_data[ticker]['profile_exchange']
 			exchange_human = util.exchange_human(exchange)
 			if exchange in ('Taipei Exchange', 'CCC') or ticker.startswith('^'):

@@ -177,7 +177,9 @@ def flag_from_ticker(ticker):
 	flag = ''
 	if '.' in ticker:
 		suffix = ticker.split('.')[1]
-		if suffix == 'AX':
+		if suffix == 'AS':
+			flag = '🇳🇱'
+		elif suffix == 'AX':
 			flag = '🇦🇺'
 		elif suffix == 'HK':
 			flag = '🇭🇰'
@@ -185,6 +187,10 @@ def flag_from_ticker(ticker):
 			flag = '🇰🇷'
 		elif suffix == 'L':
 			flag = '🇬🇧'
+		elif suffix == 'NS':
+			flag = '🇮🇳'
+		elif suffix == 'NZ':
+			flag = '🇳🇿'
 		elif suffix in ('TW', 'TWO'):
 			flag = '🇹🇼'
 		elif suffix == 'TO':

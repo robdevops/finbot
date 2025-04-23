@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
-import json, datetime, sys
+import json
+import datetime
+import sys
 
 from lib.config import *
-from lib import sharesight
 from lib import util
 from lib import webhook
 from lib import yahoo
@@ -16,6 +17,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 		soon = now + datetime.timedelta(days=days)
 		dates = set()
 		for ticker in market_data.copy():
+			emoji = util.flag_from_ticker(ticker)
 			if market_data[ticker]['quoteType'] == 'ETF':
 				continue
 			try:
@@ -27,14 +29,14 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 			except (KeyError):
 				title_orig = market_data[ticker]['profile_title']
 				ticker_primary = ticker
-				if ticker in primary_listing:
+				if ticker in primary_listing: # dict from lib.config
 					ticker_primary = primary_listing[ticker]
 				elif ticker.endswith('.AX') and 'financialCurrency' in market_data[ticker] and market_data[ticker]['financialCurrency'] == 'NZD':
 					ticker_primary = ticker.replace('.AX', '.NZ') # fixes GTK.AX and SKO.AX
 				market_data = market_data | yahoo.fetch_detail(ticker_primary)
 				if 'profile_country' in market_data[ticker_primary]: # country is only available after fetch_detail
 					country = market_data[ticker_primary]['profile_country']
-					if country in yahoo_country and '.' not in ticker_primary:
+					if country in yahoo_country and '.' not in ticker_primary: # yahoo_country dict in lib.conig
 						ticker_primary = ticker_primary + '.' + yahoo_country[country] # fixes ASML and INFY
 						market_data = market_data | yahoo.fetch_detail(ticker_primary)
 				if ticker_primary not in market_data or title_orig != market_data[ticker_primary]['profile_title']:
@@ -51,6 +53,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 				title = market_data[ticker]['profile_title']
 				ticker_link = util.yahoo_link(ticker, service)
 				dates.add(timestamp.date()) # (2023, 12, 30)
+				emoji = util.flag_from_ticker(ticker_primary)
 				payload_staging.append([emoji, title, f'({ticker_link})', timestamp])
 
 		def numeric_date(e):
