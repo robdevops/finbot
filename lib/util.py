@@ -513,7 +513,7 @@ def make_paragraphs(walloftext):
 	return output
 
 def days_english(days, prefix='the past ', article=''):
-	if days == 0:
+	if days is None or days == 0:
 		return 'today'
 	elif days == 1:
 		return prefix + article + 'day'

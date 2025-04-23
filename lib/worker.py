@@ -260,7 +260,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				except ValueError:
 					if arg == m_price.group(1):
 						specific_stock = str(arg).upper()
-		if days and days > 0 and not specific_stock:
+		if not specific_stock:
 			if service == 'telegram':
 				typing_stop = typing_start(service, chat_id)
 			else:
@@ -272,7 +272,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram' and days and days > 0 and not specific_stock:
+		if service == 'telegram' and not specific_stock:
 			typing_stop.set()
 	elif m_premarket:
 		premarket_percent = config_price_percent
