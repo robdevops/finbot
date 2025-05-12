@@ -8,6 +8,7 @@ import pandas as pd
 import pytz
 from pandas.tseries.offsets import BDay as businessday
 import sys
+import shutil
 import lib.telegram as telegram
 from lib.config import *
 from lib import util
