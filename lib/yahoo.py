@@ -40,7 +40,7 @@ def getCookie(maxAge=1209600): # 14 days
 	except Exception as e:
 		print(e, file=sys.stderr)
 	if r.status_code not in {200, 404}:
-		print(r.status_code, r.text, "returned by", url, file=sys.stderr)
+		print(r.status_code, r.text.rstrip(), "returned by", url, file=sys.stderr)
 
 	# parse
 	if not 'set-cookie' in r.headers:
@@ -79,7 +79,7 @@ def getCrumb(seconds=1209600): # 14 days
 			print(e, file=sys.stderr)
 		else:
 			if r.status_code != 200:
-				print(r.status_code, r.text, "returned by", url, file=sys.stderr)
+				print(r.status_code, r.text.rstrip(), "returned by", url, file=sys.stderr)
 				continue
 			break
 	else:
@@ -87,7 +87,7 @@ def getCrumb(seconds=1209600): # 14 days
 		return 'jkQEU8yLqxs'
 	if config_cache:
 		util.json_write(cacheFile, r.text)
-	print("Got new crumb:", r.text, file=sys.stderr)
+	print("Got new crumb:", r.text.rstrip(), file=sys.stderr)
 	return r.text
 
 def rmCrumb():
@@ -274,7 +274,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 			else:
 				if r.status_code != 200:
 					print('x', sep=' ', end='', flush=True, file=sys.stderr)
-					print(r.text, file=sys.stderr) if debug else None
+					print(r.text.rstrip(), file=sys.stderr) if debug else None
 					continue
 				break
 		else:
