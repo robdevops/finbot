@@ -93,9 +93,11 @@ def getCrumb(seconds=1209600): # 14 days
 def rmCrumb():
 	cacheFile = "finbot_yahoo_crumb.json"
 	cacheFile = config_cache_dir + "/" + cacheFile
-	p = Path(cacheFile)
-	if p.is_file():
-		p.unlink(missing_ok=True)
+	dst = Path(cacheFile + '.old')
+	src = Path(cacheFile)
+	if src.is_file():
+		dst.unlink(missing_ok=True)
+		shutil.move(src, dst)
 
 def fetch(tickers):
 	# DO NOT CACHE MORE THAN 5 mins
