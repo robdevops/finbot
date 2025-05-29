@@ -32,9 +32,7 @@ def getCookie(maxAge=1209600): # 14 days
 
 	# request
 	cookie = None
-	user_agent_key = "User-Agent"
-	user_agent_value = "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.137 Safari/605.1.15"
-	headers = {user_agent_key: user_agent_value}
+	headers = {'User-Agent': 'Mozilla/5.0'}
 	url = 'https://fc.yahoo.com/' # 404, but that is ok because cookie is in response header
 	try:
 		r = requests.get(url, headers=headers)
@@ -70,7 +68,7 @@ def getCrumb(seconds=1209600): # 14 days
 		cache = util.read_cache(cacheFile, seconds)
 		if cache:
 			return cache
-	headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.137 Safari/605.1.15', 'Cookie': cookie}
+	headers = {'User-Agent': 'Mozilla/5.0', 'Cookie': cookie}
 	yahoo_urls = ['https://query2.finance.yahoo.com/v1/test/getcrumb']
 	yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
 	for url in yahoo_urls:
