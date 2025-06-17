@@ -132,7 +132,6 @@ def prepare_help(service, botName):
 
 	payload.append(webhook.bold("\nCompany info:", service))
 	payload.append('.SYMBOL')
-	payload.append(".profile SYMBOL")
 	payload.append(".dividend [period|SYMBOL]")
 	payload.append(".earnings [period|SYMBOL]")
 	payload.append(".marketcap [SYMBOL|bottom|top]")
@@ -216,7 +215,9 @@ def prepare_holdings_payload_new(portfolioName, service, user):
 			portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
 			payload.sort()
 			if payload:
-				payload.insert(0, webhook.bold("Holdings for " + portfoliosReverseLookup[portfolioId], service))
+				count = len(holdings)
+				portfolio_name = portfoliosReverseLookup[portfolioId]
+				payload.insert(0, webhook.bold(f"Holdings for {portfolio_name} ({count})", service))
 		else:
 			payload = [ f"{user} {portfolioName} portfolio not found. I only know about:" ]
 			for item in portfolios:
