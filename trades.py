@@ -26,6 +26,10 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			for trade in trades: # this first loop is to consolidate yahoo.fetch into a single call
 				if trade['transaction_type'] not in {'BUY', 'SELL'}:
 					continue
+				if portfolio_select and trade['portfolio'].lower() != portfolio_select.lower():
+					continue
+				if not interactive and int(trade['id']) in known_trades:
+					continue
 				symbol = trade['symbol']
 				market = trade['market']
 				ticker = util.transform_to_yahoo(symbol, market)
@@ -43,6 +47,12 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			date = trade['transaction_date'] # 2023-12-30
 			transactionType = trade['transaction_type']
 			symbol = trade['symbol']
+			if portfolio_select and portfolio_name.lower() != portfolio_select.lower():
+				continue
+			trade_id = int(trade['id'])
+			if not interactive and trade_id in known_trades:
+				print("Skipping known trade_id:", trade_id, date, portfolio_name, transactionType, symbol)
+				continue
 			market = trade['market']
 			if transactionType == 'BUY':
 				action = 'bought'
@@ -53,9 +63,6 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			else:
 				print("Skipping corporate action:", portfolio_name, date, transactionType, symbol)
 				continue
-
-
-			trade_id = int(trade['id'])
 			units = float(trade['quantity'])
 			price = float(trade['price'])
 			currency = trade['brokerage_currency_code']
@@ -71,12 +78,6 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			ticker = util.transform_to_yahoo(symbol, market)
 			dt_date = datetime.datetime.strptime(date, '%Y-%m-%d').date() # (2023, 12, 30)
 
-			if portfolio_select and portfolio_name.lower() != portfolio_select.lower():
-				continue
-
-			if not interactive and trade_id in known_trades:
-				print("Skipping known trade_id:", trade_id, date, portfolio_name, transactionType, symbol)
-				continue
 			newtrades.add(trade_id) # sneaky update global set
 			dates.add(dt_date)
 
