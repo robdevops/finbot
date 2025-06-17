@@ -20,7 +20,6 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			return None
 		payload_staging = []
 		dates = set()
-		sharesight_url = "https://portfolio.sharesight.com/holdings/"
 		if config_trades_use_yahoo:
 			tickers = set()
 			for trade in trades: # this first loop is to consolidate yahoo.fetch into a single call
@@ -86,7 +85,9 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			currency_temp = util.currency_from_market(market)
 			if currency_temp:
 				currency = currency_temp
-			trade_url = sharesight_url + holding_id + '/trades/' + str(trade_id) + '/edit'
+			sharesight_url = "https://portfolio.sharesight.com/holdings/"
+			#trade_url = sharesight_url + holding_id + '/trades/' + str(trade_id) + '/edit'
+			trade_url = sharesight_url + holding_id + '/dashboard/transactions'
 			trade_link = util.link(trade_url, action, service)
 			holding_link = util.finance_link(symbol, market, service)
 			payload_staging.append([dt_date, trade_id, emoji, portfolio_name, trade_link, currency, f'{value}', holding_link, flag])
