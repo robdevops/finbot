@@ -174,7 +174,7 @@ def flag_from_market(market):
 		flag = '🇯🇵'
 	elif market == 'TSX':
 		flag = '🇨🇦'
-	elif market in {'NASDAQ', 'NYSE', 'BATS'} or 'Nasdaq' in market:
+	elif market in {'NASDAQ', 'NYSE', 'BATS', 'AMEX'} or 'Nasdaq' in market:
 		flag = '🇺🇸'
 	elif market in {'WAR'}:
 		flag = '🇵🇱'
