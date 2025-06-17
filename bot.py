@@ -32,8 +32,7 @@ def main(environ, start_response):
 	# process request
 	uri = environ['PATH_INFO']
 	inbound = json.loads(request_body)
-	if config_print_headers:
-		print_headers()
+	print_headers() if config_print_headers else None
 	#print_body() if debug else None
 	if config_telegramOutgoingWebhook and uri == urlparse(config_telegramOutgoingWebhook).path:
 		service = 'telegram'

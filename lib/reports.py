@@ -196,6 +196,39 @@ def prepare_holdings_payload(portfolioName, service, user):
 			payload.append( item )
 	return payload
 
+def prepare_holdings_payload_new(portfolioName, service, user):
+	payload = []
+	portfolios = sharesight.get_portfolios()
+	portfoliosLower = {k.lower():v for k,v in portfolios.items()}
+	if portfolioName:
+		if portfolioName.lower() in portfoliosLower:
+			portfolioId = portfoliosLower[portfolioName.lower()]
+			holdings = sharesight.get_holdings_new(portfolioName, portfolioId)
+			for holding in holdings:
+				ticker = holding['code']
+				title  = holding['name']
+				title = util.transform_title(title)
+				exchange = holding['market_code']
+				holding_id = holding['holding_id']
+				#ticker_link = util.finance_link(ticker, exchange, service)
+				url = f"https://portfolio.sharesight.com/holdings/{holding_id}/dashboard/transactions"
+				ticker_link = util.link(url, title, service)
+				flag = util.flag_from_market(exchange)
+				payload.append(f"{flag} {title} ({ticker_link})")
+			portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
+			payload.sort()
+			if payload:
+				payload.insert(0, webhook.bold("Holdings for " + portfoliosReverseLookup[portfolioId], service))
+		else:
+			payload = [ f"{user} {portfolioName} portfolio not found. I only know about:" ]
+			for item in portfolios:
+				payload.append( item )
+	else:
+		payload = [ f".holdings: Please try again specifying a portfolio:" ]
+		for item in portfolios:
+			payload.append( item )
+	return payload
+
 def prepare_bio_payload(service, user, ticker):
 	ticker = ticker_orig = util.transform_to_yahoo(ticker)
 	payload = []

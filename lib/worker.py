@@ -345,7 +345,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		else:
 			webhook.payload_wrapper(service, url, ["fetching holdings"], chat_id)
 		try:
-			payload = reports.prepare_holdings_payload(portfolioName, service, user)
+			payload = reports.prepare_holdings_payload_new(portfolioName, service, user)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)

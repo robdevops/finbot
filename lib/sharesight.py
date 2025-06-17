@@ -120,6 +120,7 @@ def get_holdings(portfolio_name, portfolio_id):
 	for item in data['report']['holdings']:
 		code = item['instrument']['code']
 		holdings[code] = item['instrument']
+		holdings['holding_id'] = item['id']
 	tickers = set()
 	for holding in holdings:
 		symbol = holdings[holding]['code']
@@ -128,6 +129,17 @@ def get_holdings(portfolio_name, portfolio_id):
 		tickers.add(ticker)
 	tickers = sorted(set(tickers))
 	return tickers
+
+def get_holdings_new(portfolio_name, portfolio_id):
+	print("Fetching Sharesight holdings", portfolio_name, end=": ")
+	data = get_performance(portfolio_id, 0)
+	print(len(data['report']['holdings']))
+	holdings = {}
+	for item in data['report']['holdings']:
+		code = item['instrument']['code']
+		holdings[code] = item['instrument']
+		holdings[code]['holding_id'] = item['id']
+	return holdings
 
 def get_holdings_wrapper():
 	tickers = set()
