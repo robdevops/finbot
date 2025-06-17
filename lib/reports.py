@@ -208,7 +208,7 @@ def prepare_holdings_payload_new(portfolioName, service, user):
 				exchange = v['market_code']
 				#ticker_link = util.finance_link(ticker, exchange, service)
 				holding_id = v['holding_id']
-				url = f"https://portfolio.sharesight.com/holdings/{holding_id}/dashboard/transactions"
+				url = f"https://portfolio.sharesight.com/holdings/{holding_id}/dashboard"
 				ticker_link = util.link(url, ticker, service)
 				flag = util.flag_from_market(exchange)
 				payload.append(f"{flag} {title} ({ticker_link})")
