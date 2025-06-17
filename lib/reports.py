@@ -204,15 +204,13 @@ def prepare_holdings_payload_new(portfolioName, service, user):
 		if portfolioName.lower() in portfoliosLower:
 			portfolioId = portfoliosLower[portfolioName.lower()]
 			holdings = sharesight.get_holdings_new(portfolioName, portfolioId)
-			for holding in holdings:
-				ticker = holding['code']
-				title  = holding['name']
-				title = util.transform_title(title)
-				exchange = holding['market_code']
-				holding_id = holding['holding_id']
+			for ticker,v in holdings.items():
+				title = util.transform_title(v['name'])
+				exchange = v['market_code']
 				#ticker_link = util.finance_link(ticker, exchange, service)
+				holding_id = v['holding_id']
 				url = f"https://portfolio.sharesight.com/holdings/{holding_id}/dashboard/transactions"
-				ticker_link = util.link(url, title, service)
+				ticker_link = util.link(url, ticker, service)
 				flag = util.flag_from_market(exchange)
 				payload.append(f"{flag} {title} ({ticker_link})")
 			portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
