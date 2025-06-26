@@ -120,7 +120,7 @@ def get_holdings(portfolio_name, portfolio_id):
 	for item in data['report']['holdings']:
 		code = item['instrument']['code']
 		holdings[code] = item['instrument']
-		holdings['holding_id'] = item['id']
+		holdings[code]['holding_id'] = item['id']
 	tickers = set()
 	for holding in holdings:
 		symbol = holdings[holding]['code']
