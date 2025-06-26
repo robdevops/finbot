@@ -45,51 +45,51 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 			except (KeyError, ValueError):
 				continue
 
-			newprofit = False
-			newcashflow = False
-			detail = yahoo.fetch_detail(ticker)
-			if ticker in detail:
-				if 'net_income' in detail[ticker] and detail[ticker]['net_income'] > 0:
-					newprofit = True
-				if 'free_cashflow' in detail[ticker] and detail[ticker]['free_cashflow'] > 0:
-					newcashflow = True
-			try:
-				oldprofit = records[ticker]['profit']
-				oldcashflow = records[ticker]['cashflow']
-			except (KeyError, TypeError):
-				oldprofit = newprofit
-				oldcashflow = newcashflow
+			#newprofit = False
+			#newcashflow = False
+			#detail = yahoo.fetch_detail(ticker)
+			#if ticker in detail:
+			#	if 'net_income' in detail[ticker] and detail[ticker]['net_income'] > 0:
+			#		newprofit = True
+			#	if 'free_cashflow' in detail[ticker] and detail[ticker]['free_cashflow'] > 0:
+			#		newcashflow = True
+			#try:
+			#	oldprofit = records[ticker]['profit']
+			#	oldcashflow = records[ticker]['cashflow']
+			#except (KeyError, TypeError):
+			#	oldprofit = newprofit
+			#	oldcashflow = newcashflow
 
 			title = market_data[ticker]['profile_title']
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 			emoji = util.flag_from_ticker(ticker)
 			records[ticker]['high'] = newhigh
 			records[ticker]['low'] = newlow
-			records[ticker]['profit'] = newprofit
-			records[ticker]['cashflow'] = newcashflow
+			#records[ticker]['profit'] = newprofit
+			#records[ticker]['cashflow'] = newcashflow
 			if newhigh > oldhigh:
 				print("DEBUG", ticker, newhigh, "is higher than", oldhigh) if debug else None
 				payloadhigh.append(f"{emoji} {title} ({ticker_link})")
 			if newlow < oldlow:
 				print("DEBUG", ticker, newlow, "is lower than", oldlow) if debug else None
 				payloadlow.append(f"{emoji} {title} ({ticker_link})")
-			if oldprofit == False and newprofit == True:
-				print("DEBUG", ticker, "profitability changed", oldprofit, newprofit) if debug else None
-				payloadprofit.append(f"{emoji} {title} ({ticker_link})")
-				#else:
-				#payloadprofitneg.append(f"{emoji} {title} ({ticker_link})")
-			if oldcashflow != newcashflow:
-				print("DEBUG", ticker, "cashflow changed", oldcashflow, newcashflow) if debug else None
-				if newcashflow:
-					payloadcashflow.append(f"{emoji} {title} ({ticker_link})")
-				else:
-					payloadcashflowneg.append(f"{emoji} {title} ({ticker_link})")
+			#if oldprofit == False and newprofit == True:
+			#	print("DEBUG", ticker, "profitability changed", oldprofit, newprofit) if debug else None
+			#	payloadprofit.append(f"{emoji} {title} ({ticker_link})")
+			#	#else:
+			#	#payloadprofitneg.append(f"{emoji} {title} ({ticker_link})")
+			#if oldcashflow != newcashflow:
+			#	print("DEBUG", ticker, "cashflow changed", oldcashflow, newcashflow) if debug else None
+			#	if newcashflow:
+			#		payloadcashflow.append(f"{emoji} {title} ({ticker_link})")
+			#	else:
+			#		payloadcashflowneg.append(f"{emoji} {title} ({ticker_link})")
 		payloadlow.sort()
 		payloadhigh.sort()
-		payloadprofit.sort()
-		payloadcashflow.sort()
-		payloadprofitneg.sort()
-		payloadcashflowneg.sort()
+		#payloadprofit.sort()
+		#payloadcashflow.sort()
+		#payloadprofitneg.sort()
+		#payloadcashflowneg.sort()
 		if payloadhigh:
 			message = 'Record high:'
 			message = webhook.bold(message, service)
@@ -101,30 +101,30 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 			message = webhook.bold(message, service)
 			payload.append(message)
 			payload = payload + payloadlow
-		if payloadprofit:
-			payload.append("")
-			message = 'Became profitable'
-			message = webhook.bold(message, service)
-			payload.append(message)
-			payload = payload + payloadprofit
-		if payloadcashflow:
-			payload.append("")
-			message = 'Became cashflow positive'
-			message = webhook.bold(message, service)
-			payload.append(message)
-			payload = payload + payloadcashflow
-		if payloadprofitneg:
-			payload.append("")
-			message = 'Became unprofitable'
-			message = webhook.bold(message, service)
-			payload.append(message)
-			payload = payload + payloadprofitneg
-		if payloadcashflowneg:
-			payload.append("")
-			message = 'Became cashflow negative'
-			message = webhook.bold(message, service)
-			payload.append(message)
-			payload = payload + payloadcashflowneg
+		#if payloadprofit:
+		#	payload.append("")
+		#	message = 'Became profitable'
+		#	message = webhook.bold(message, service)
+		#	payload.append(message)
+		#	payload = payload + payloadprofit
+		#if payloadcashflow:
+		#	payload.append("")
+		#	message = 'Became cashflow positive'
+		#	message = webhook.bold(message, service)
+		#	payload.append(message)
+		#	payload = payload + payloadcashflow
+		#if payloadprofitneg:
+		#	payload.append("")
+		#	message = 'Became unprofitable'
+		#	message = webhook.bold(message, service)
+		#	payload.append(message)
+		#	payload = payload + payloadprofitneg
+		#if payloadcashflowneg:
+		#	payload.append("")
+		#	message = 'Became cashflow negative'
+		#	message = webhook.bold(message, service)
+		#	payload.append(message)
+		#	payload = payload + payloadcashflowneg
 		payload = [i[0] for i in groupby(payload)] # de-dupe white space
 		return payload, records
 
