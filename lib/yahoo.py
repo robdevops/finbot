@@ -253,7 +253,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 	crumb = getCrumb()
 	base_url = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/'
 	#headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-	headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'Cookie': cookie}
+	headers={'User-Agent': 'Mozilla/5.0', 'Cookie': cookie}
 	local_market_data[ticker] = dict()
 	cache = None
 	if config_cache:
