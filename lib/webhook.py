@@ -75,6 +75,8 @@ def italic(message, service):
 		message = '_' + message + '_'
 	return message
 
+italics = italic
+
 def strike(message, service):
 	if service == 'telegram':
 		message = '<s>' + message + '</s>'
@@ -83,6 +85,8 @@ def strike(message, service):
 	elif service == 'discord':
 		message = '~~' + message + '~~'
 	return message
+
+alias strikethrough = strike
 
 def sendPhoto(chat_id, image_data, caption, service, message_id=None):
 	if service == 'telegram':
