@@ -33,7 +33,7 @@ def lambda_handler():
 				stake_note = util.link('https://hellostake.com/au/support/stake-super/employer-and-personal-contributions/33442327233305#h_01JQAPN9A6ZM41NZKP6XZWN1KP', 'note about XX PCC in transaction description', service)
 				payload.append(webhook.italics("* Organisation must be " + abr_link, service))
 				payload.append(webhook.italics("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. For Stake users, see " + stake_note, service))
-				payload.append(webhook.italics("‡ " + work_link))
+				payload.append(webhook.italics("‡ " + work_link, service))
 				payload.append(webhook.italics("§ Must translate directly to specific investment decisions (e.g. not general finance news)", service))
 				payload.append ("")
 				payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)
