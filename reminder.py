@@ -34,7 +34,7 @@ def lambda_handler():
 				stake_note = util.link('https://hellostake.com/au/support/stake-super/employer-and-personal-contributions/33442327233305#h_01JQAPN9A6ZM41NZKP6XZWN1KP', 'note about XX PCC in transaction description', service)
 				work_link = util.link('https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim', 'eligible work expenses', service)
 				payload.append(webhook.italics("* Organisation must be " + abr_link, service))
-				payload.append(webhook.italics("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. For Stake users, see " + stake_note, service))
+				payload.append(webhook.italics("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. Stake users: see " + stake_note, service))
 				payload.append(webhook.italics("‡ See " + work_link, service))
 				payload.append(webhook.italics("§ Must relate directly to specific trades and gains/income (e.g. not general finance news)", service))
 			if month_and_day == '07-07':
