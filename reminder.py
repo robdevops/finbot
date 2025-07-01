@@ -22,6 +22,8 @@ def lambda_handler():
 			if month_and_day in {'01-28', '04-28', '07-28', '10-28'}:
 				payload.append("🤑 Quarterly Superannuation payout deadline" + flag)
 			if month_and_day == '06-23':
+				payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)
+				payload.append ("")
 				payload.append("💰 Finalise any deductables by EOF June 30: " + flag)
 				payload.append("• donations*")
 				payload.append("• Super contributions†")
@@ -34,9 +36,7 @@ def lambda_handler():
 				payload.append(webhook.italics("* Organisation must be " + abr_link, service))
 				payload.append(webhook.italics("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. For Stake users, see " + stake_note, service))
 				payload.append(webhook.italics("‡ See " + work_link, service))
-				payload.append(webhook.italics("§ Must translate directly to specific trades and gains/income (e.g. not general finance news)", service))
-				payload.append ("")
-				payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)
+				payload.append(webhook.italics("§ Must relate directly to specific trades and gains/income (e.g. not general finance news)", service))
 			if month_and_day == '10-24':
 				payload.append("😓 Self-service individual tax returns are due Oct 31" + flag)
 			if month_and_day == '10-31':
