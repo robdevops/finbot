@@ -37,12 +37,12 @@ def lambda_handler():
 				payload.append(webhook.italics("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. For Stake users, see " + stake_note, service))
 				payload.append(webhook.italics("‡ See " + work_link, service))
 				payload.append(webhook.italics("§ Must relate directly to specific trades and gains/income (e.g. not general finance news)", service))
+			if month_and_day == '07-07':
+				payload.append("✍️ Submit 'Notice of Intent to Claim' for any post-tax Super contributions. The fund must acknowledge them before you lodge your tax return" + flag)
 			if month_and_day == '10-24':
 				payload.append("😓 Self-service individual tax returns are due Oct 31" + flag)
 			if month_and_day == '10-31':
 				payload.append("😰 Self-service individual tax returns are due today" + flag)
-			if month_and_day == '07-07':
-				payload.append("✍️ Submit 'Notice of Intent to Claim' for any post-tax Super contributions. The fund must acknowledge them before you lodge your tax return" + flag)
 		#if config_country_code in {'AU', 'BD', 'EG', 'ET', 'KE', 'NP', 'PK'}:
 		if month_and_day == '06-30':
 				payload.append("🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰")
