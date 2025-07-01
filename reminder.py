@@ -22,8 +22,20 @@ def lambda_handler():
 			if month_and_day in {'01-28', '04-28', '07-28', '10-28'}:
 				payload.append("🤑 Quarterly Superannuation payout deadline" + flag)
 			if month_and_day == '06-23':
-				payload.append("💰 Finalise any deductable donations, Super contributions, work expenses, or investment subscriptions by EOFY June 30" + flag)
-				payload.append(f"😐 Allow for transfer time with Super, as contributions can only be deducted for the year the fund {webhook.italic('receives', service)} them" + flag)
+				payload.append("💰 Finalise any deductables by EOF June 30: " + flag)
+				payload.append("• donations*")
+				payload.append("• Super contributions†")
+				payload.append("• work expenses‡")
+				payload.append("• investment subscriptions§")
+				payload.append ("")
+				abr_link = util.link('https://abr.business.gov.au/', 'DGR-registered', service)
+				work_link = util.link('https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim', 'eligible work expenses', service)
+				stake_note = util.link('https://hellostake.com/au/support/stake-super/employer-and-personal-contributions/33442327233305#h_01JQAPN9A6ZM41NZKP6XZWN1KP', 'note about XX PCC in transaction description', service)
+				payload.append(webhook.italics("* Organisation must be " + abr_link, service))
+				payload.append(webhook.italics("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. For Stake users, see " + stake_note, service))
+				payload.append(webhook.italics("‡ " + work link))
+				payload.append(webhook.italics("§ Must translate directly to specific investment decisions (e.g. not general finance news)", service))
+				payload.append ("")
 				payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)
 			if month_and_day == '10-24':
 				payload.append("😓 Self-service individual tax returns are due Oct 31" + flag)
