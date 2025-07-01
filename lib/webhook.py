@@ -86,7 +86,7 @@ def strike(message, service):
 		message = '~~' + message + '~~'
 	return message
 
-alias strikethrough = strike
+strikethrough = strike
 
 def sendPhoto(chat_id, image_data, caption, service, message_id=None):
 	if service == 'telegram':
