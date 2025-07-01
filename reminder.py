@@ -23,7 +23,7 @@ def lambda_handler():
 				payload.append("🤑 Quarterly Superannuation payout deadline" + flag)
 			if month_and_day == '06-23':
 				payload.append("💰 Finalise any deductable donations, Super contributions, work expenses, or investment subscriptions by EOFY June 30" + flag)
-				payload.append(f"😐 Allow for transfer time with Super, as contributions can only be deducted for the year the fund {webhook.italics('receives', service)} them" + flag)
+				payload.append(f"😐 Allow for transfer time with Super, as contributions can only be deducted for the year the fund {webhook.italic('receives', service)} them" + flag)
 				payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)
 			if month_and_day == '10-24':
 				payload.append("😓 Self-service individual tax returns are due Oct 31" + flag)
