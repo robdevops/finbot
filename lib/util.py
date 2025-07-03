@@ -19,6 +19,7 @@ def transform_title(title):
 		title = title.title()
 	title = title.replace(' - ', ' ')
 	title = title.replace('Roundhill ETF Trust ', '')
+	title = title.replace('BlackRock Institutional Trust N.A. ', '')
 	title = title.replace('Listed Funds Trust', '')
 	title = title.replace('GraniteShares ETF Trust', '')
 	title = title.replace('ProShares Trust', '')
@@ -174,7 +175,7 @@ def flag_from_market(market):
 		flag = '🇯🇵'
 	elif market == 'TSX':
 		flag = '🇨🇦'
-	elif market in {'NASDAQ', 'NYSE', 'BATS', 'AMEX'} or 'Nasdaq' in market:
+	elif market in {'BATS', 'AMEX'} or market.lower().startswith('nasdaq') or market.lower().startswith('nyse'):
 		flag = '🇺🇸'
 	elif market in {'WAR'}:
 		flag = '🇵🇱'

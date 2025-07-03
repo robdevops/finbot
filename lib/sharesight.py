@@ -143,7 +143,7 @@ def get_holdings_wrapper():
 	tickers = sorted(set(tickers))
 	return tickers
 
-def get_performance(portfolio_id, days, cache_seconds=299):
+def get_performance(portfolio_id, days, config_cache_seconds=299):
 	start_date = datetime.datetime.now() - datetime.timedelta(days=days)
 	start_date = start_date.strftime('%Y-%m-%d') # 2023-04-25
 	if config_cache:
