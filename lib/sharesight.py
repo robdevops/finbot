@@ -123,11 +123,6 @@ def get_holdings(portfolio_name, portfolio_id):
 	return sorted(tickers)
 
 def get_holdings_new(portfolio_name, portfolio_id):
-	if config_cache:
-		cache_file = "finbot_sharesight_holdings_" + str(portfolio_id) + ".json"
-		cache = util.read_cache(cache_file, 299)
-		if cache:
-			return cache
 	print("Fetching Sharesight holdings", portfolio_name, end=": ")
 	data = get_performance(portfolio_id, 0)
 	print(len(data['report']['holdings']))
@@ -136,8 +131,6 @@ def get_holdings_new(portfolio_name, portfolio_id):
 		code = item['instrument']['code']
 		holdings[code] = item['instrument']
 		holdings[code]['holding_id'] = item['id']
-	if config_cache and holdings:
-		util.json_write(cache_file, holdings)
 	return holdings
 
 def get_holdings_wrapper():
@@ -150,7 +143,7 @@ def get_holdings_wrapper():
 	tickers = sorted(set(tickers))
 	return tickers
 
-def get_performance(portfolio_id, days):
+def get_performance(portfolio_id, days, cache_seconds=299):
 	start_date = datetime.datetime.now() - datetime.timedelta(days=days)
 	start_date = start_date.strftime('%Y-%m-%d') # 2023-04-25
 	if config_cache:
