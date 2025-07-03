@@ -1,0 +1,1067 @@
+{
+	"report": {
+		"id": "PerformanceReport_684141",
+		"portfolio_id": 684141,
+		"portfolio_tz_name": "Australia/Sydney",
+		"value": 1000.00,
+		"grouping": "ungrouped",
+		"currency": {
+			"code": "AUD",
+			"id": 2,
+			"symbol": "$",
+			"qualified_symbol": "AU$"
+		},
+		"start_date": "2025-07-02",
+		"end_date": "2025-07-02",
+		"include_sales": false,
+		"capital_gain": -69.9,
+		"capital_gain_percent": -0.05,
+		"payout_gain": 0.0,
+		"payout_gain_percent": 0.0,
+		"currency_gain": 214.94,
+		"currency_gain_percent": 0.14,
+		"total_gain": 145.04,
+		"total_gain_percent": 0.1,
+		"percentages_annualised": false,
+		"holdings": [
+			{
+				"id": 21732985,
+				"instrument": {
+					"code": "ARM",
+					"country_id": 49,
+					"crypto": false,
+					"currency_code": "USD",
+					"expires_on": null,
+					"expired": false,
+					"id": 2622893,
+					"market_code": "NASDAQ",
+					"name": "Arm Holdings plc. - ADR",
+					"supported_denominations": null,
+					"tz_name": "America/New_York",
+					"industry_classification_name": "Semiconductors",
+					"sector_classification_name": "Electronic Technology",
+					"friendly_instrument_description": "Depository Receipt",
+					"friendly_instrument_description_code": "depository_receipt",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/NASDAQ/light/ARM.svg",
+						"dark_url": "https://logo-assets.sharesight.com/NASDAQ/dark/ARM.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 38.0,
+				"value": 9045.24,
+				"instrument_price": 156.33,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 0.0,
+				"capital_gain_percent": 0.0,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 13.91,
+				"currency_gain_percent": 0.15,
+				"total_gain": 13.91,
+				"total_gain_percent": 0.15,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 20932509,
+				"instrument": {
+					"code": "AVGO",
+					"country_id": 49,
+					"crypto": false,
+					"currency_code": "USD",
+					"expires_on": null,
+					"expired": false,
+					"id": 1879420,
+					"market_code": "NASDAQ",
+					"name": "Broadcom Inc",
+					"supported_denominations": null,
+					"tz_name": "America/New_York",
+					"industry_classification_name": "Semiconductors",
+					"sector_classification_name": "Electronic Technology",
+					"friendly_instrument_description": "Ordinary Shares",
+					"friendly_instrument_description_code": "ordinary_shares",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/NASDAQ/light/AVGO.svg",
+						"dark_url": "https://logo-assets.sharesight.com/NASDAQ/dark/AVGO.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 31.0,
+				"value": 12496.12,
+				"instrument_price": 264.74,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 0.0,
+				"capital_gain_percent": 0.0,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 19.22,
+				"currency_gain_percent": 0.15,
+				"total_gain": 19.22,
+				"total_gain_percent": 0.15,
+				"number_of_unconfirmed_transactions": 1
+			},
+			{
+				"id": 13989577,
+				"instrument": {
+					"code": "CRWD",
+					"country_id": 49,
+					"crypto": false,
+					"currency_code": "USD",
+					"expires_on": null,
+					"expired": false,
+					"id": 1938954,
+					"market_code": "NASDAQ",
+					"name": "Crowdstrike Holdings Inc - Ordinary Shares - Class A",
+					"supported_denominations": null,
+					"tz_name": "America/New_York",
+					"industry_classification_name": "Packaged Software",
+					"sector_classification_name": "Technology Services",
+					"friendly_instrument_description": "Ordinary Shares",
+					"friendly_instrument_description_code": "ordinary_shares",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/NASDAQ/light/CRWD.svg",
+						"dark_url": "https://logo-assets.sharesight.com/NASDAQ/dark/CRWD.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 57.0,
+				"value": 42706.68,
+				"instrument_price": 492.07,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 0.0,
+				"capital_gain_percent": 0.0,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 65.68,
+				"currency_gain_percent": 0.15,
+				"total_gain": 65.68,
+				"total_gain_percent": 0.15,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 14065097,
+				"instrument": {
+					"code": "DUOL",
+					"country_id": 49,
+					"crypto": false,
+					"currency_code": "USD",
+					"expires_on": null,
+					"expired": false,
+					"id": 2160570,
+					"market_code": "NASDAQ",
+					"name": "Duolingo Inc - Ordinary Shares - Class A",
+					"supported_denominations": null,
+					"tz_name": "America/New_York",
+					"industry_classification_name": "Packaged Software",
+					"sector_classification_name": "Technology Services",
+					"friendly_instrument_description": "Ordinary Shares",
+					"friendly_instrument_description_code": "ordinary_shares",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/NASDAQ/light/DUOL.svg",
+						"dark_url": "https://logo-assets.sharesight.com/NASDAQ/dark/DUOL.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 20.0,
+				"value": 12274.22,
+				"instrument_price": 403.06,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 0.0,
+				"capital_gain_percent": 0.0,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 18.88,
+				"currency_gain_percent": 0.15,
+				"total_gain": 18.88,
+				"total_gain_percent": 0.15,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 20967220,
+				"instrument": {
+					"code": "FANG",
+					"country_id": 2,
+					"crypto": false,
+					"currency_code": "AUD",
+					"expires_on": null,
+					"expired": false,
+					"id": 1971927,
+					"market_code": "ASX",
+					"name": "Global X Fang+ Etf",
+					"supported_denominations": null,
+					"tz_name": "Australia/Sydney",
+					"industry_classification_name": "Investment Trusts/Mutual Funds",
+					"sector_classification_name": "Miscellaneous",
+					"friendly_instrument_description": "Exchange Traded Fund",
+					"friendly_instrument_description_code": "exchange_traded_fund",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/ASX/light/FANG.svg",
+						"dark_url": "https://logo-assets.sharesight.com/ASX/dark/FANG.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "AUD",
+					"id": 2,
+					"symbol": "$",
+					"qualified_symbol": "AU$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 105.0,
+				"value": 3462.9,
+				"instrument_price": 32.98,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": -42.0,
+				"capital_gain_percent": -1.2,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 0.0,
+				"currency_gain_percent": 0.0,
+				"total_gain": -42.0,
+				"total_gain_percent": -1.2,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 18638010,
+				"instrument": {
+					"code": "FTNT",
+					"country_id": 49,
+					"crypto": false,
+					"currency_code": "USD",
+					"expires_on": null,
+					"expired": false,
+					"id": 26879,
+					"market_code": "NASDAQ",
+					"name": "Fortinet Inc",
+					"supported_denominations": null,
+					"tz_name": "America/New_York",
+					"industry_classification_name": "Information Technology Services",
+					"sector_classification_name": "Technology Services",
+					"friendly_instrument_description": "Ordinary Shares",
+					"friendly_instrument_description_code": "ordinary_shares",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/NASDAQ/light/FTNT.svg",
+						"dark_url": "https://logo-assets.sharesight.com/NASDAQ/dark/FTNT.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 11.0,
+				"value": 1715.59,
+				"instrument_price": 102.43,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 0.0,
+				"capital_gain_percent": 0.0,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 2.64,
+				"currency_gain_percent": 0.15,
+				"total_gain": 2.64,
+				"total_gain_percent": 0.15,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 24503631,
+				"instrument": {
+					"code": "GNP",
+					"country_id": 2,
+					"crypto": false,
+					"currency_code": "AUD",
+					"expires_on": null,
+					"expired": false,
+					"id": 2021928,
+					"market_code": "ASX",
+					"name": "Genusplus Group Ltd",
+					"supported_denominations": null,
+					"tz_name": "Australia/Sydney",
+					"industry_classification_name": "Engineering & Construction",
+					"sector_classification_name": "Industrial Services",
+					"friendly_instrument_description": "Ordinary Shares",
+					"friendly_instrument_description_code": "ordinary_shares",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/ASX/light/GNP.svg",
+						"dark_url": "https://logo-assets.sharesight.com/ASX/dark/GNP.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "AUD",
+					"id": 2,
+					"symbol": "$",
+					"qualified_symbol": "AU$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 291.0,
+				"value": 1184.37,
+				"instrument_price": 4.07,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": -14.55,
+				"capital_gain_percent": -1.21,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 0.0,
+				"currency_gain_percent": 0.0,
+				"total_gain": -14.55,
+				"total_gain_percent": -1.21,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 22907935,
+				"instrument": {
+					"code": "IVV",
+					"country_id": 2,
+					"crypto": false,
+					"currency_code": "AUD",
+					"expires_on": null,
+					"expired": false,
+					"id": 2383,
+					"market_code": "ASX",
+					"name": "Ishares S&P 500 Etf",
+					"supported_denominations": null,
+					"tz_name": "Australia/Sydney",
+					"industry_classification_name": "Investment Trusts/Mutual Funds",
+					"sector_classification_name": "Miscellaneous",
+					"friendly_instrument_description": "Exchange Traded Fund",
+					"friendly_instrument_description_code": "exchange_traded_fund",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/ASX/light/IVV.svg",
+						"dark_url": "https://logo-assets.sharesight.com/ASX/dark/IVV.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "AUD",
+					"id": 2,
+					"symbol": "$",
+					"qualified_symbol": "AU$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 18.0,
+				"value": 1131.84,
+				"instrument_price": 62.88,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 3.96,
+				"capital_gain_percent": 0.35,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 0.0,
+				"currency_gain_percent": 0.0,
+				"total_gain": 3.96,
+				"total_gain_percent": 0.35,
+				"number_of_unconfirmed_transactions": 1
+			},
+			{
+				"id": 22991292,
+				"instrument": {
+					"code": "MAGS",
+					"country_id": 49,
+					"crypto": false,
+					"currency_code": "USD",
+					"expires_on": null,
+					"expired": false,
+					"id": 3089645,
+					"market_code": "BATS",
+					"name": "Listed Funds Trust - Roundhill Magnificent Seven ETF",
+					"supported_denominations": null,
+					"tz_name": "America/New_York",
+					"industry_classification_name": "Investment Trusts/Mutual Funds",
+					"sector_classification_name": "Miscellaneous",
+					"friendly_instrument_description": "Exchange Traded Fund",
+					"friendly_instrument_description_code": "exchange_traded_fund",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/BATS/light/MAGS.svg",
+						"dark_url": "https://logo-assets.sharesight.com/BATS/dark/MAGS.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 173.0,
+				"value": 14390.35,
+				"instrument_price": 54.63,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 0.0,
+				"capital_gain_percent": 0.0,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 22.13,
+				"currency_gain_percent": 0.15,
+				"total_gain": 22.13,
+				"total_gain_percent": 0.15,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 19055825,
+				"instrument": {
+					"code": "NDQ",
+					"country_id": 2,
+					"crypto": false,
+					"currency_code": "AUD",
+					"expires_on": null,
+					"expired": false,
+					"id": 1160462,
+					"market_code": "ASX",
+					"name": "Betashares Nasdaq 100 Etf",
+					"supported_denominations": null,
+					"tz_name": "Australia/Sydney",
+					"industry_classification_name": "Investment Trusts/Mutual Funds",
+					"sector_classification_name": "Miscellaneous",
+					"friendly_instrument_description": "Exchange Traded Fund",
+					"friendly_instrument_description_code": "exchange_traded_fund",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/ASX/light/NDQ.svg",
+						"dark_url": "https://logo-assets.sharesight.com/ASX/dark/NDQ.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "AUD",
+					"id": 2,
+					"symbol": "$",
+					"qualified_symbol": "AU$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 22.0,
+				"value": 1111.66,
+				"instrument_price": 50.53,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": -3.96,
+				"capital_gain_percent": -0.35,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 0.0,
+				"currency_gain_percent": 0.0,
+				"total_gain": -3.96,
+				"total_gain_percent": -0.35,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 20859032,
+				"instrument": {
+					"code": "NVDA",
+					"country_id": 49,
+					"crypto": false,
+					"currency_code": "USD",
+					"expires_on": null,
+					"expired": false,
+					"id": 24699,
+					"market_code": "NASDAQ",
+					"name": "NVIDIA Corp",
+					"supported_denominations": null,
+					"tz_name": "America/New_York",
+					"industry_classification_name": "Semiconductors",
+					"sector_classification_name": "Electronic Technology",
+					"friendly_instrument_description": "Ordinary Shares",
+					"friendly_instrument_description_code": "ordinary_shares",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/NASDAQ/light/NVDA.svg",
+						"dark_url": "https://logo-assets.sharesight.com/NASDAQ/dark/NVDA.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 13.0,
+				"value": 3034.45,
+				"instrument_price": 153.3,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 0.0,
+				"capital_gain_percent": 0.0,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 4.67,
+				"currency_gain_percent": 0.15,
+				"total_gain": 4.67,
+				"total_gain_percent": 0.15,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 24788600,
+				"instrument": {
+					"code": "PMGOLD",
+					"country_id": 2,
+					"crypto": false,
+					"currency_code": "AUD",
+					"expires_on": null,
+					"expired": false,
+					"id": 46910,
+					"market_code": "ASX",
+					"name": "PERTH MINT GOLD STRUCTURED PRODUCT",
+					"supported_denominations": null,
+					"tz_name": "Australia/Sydney",
+					"industry_classification_name": "Investment Trusts/Mutual Funds",
+					"sector_classification_name": "Miscellaneous",
+					"friendly_instrument_description": "Not Classified",
+					"friendly_instrument_description_code": "not_classified",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/ASX/light/PMGOLD.svg",
+						"dark_url": "https://logo-assets.sharesight.com/ASX/dark/PMGOLD.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "AUD",
+					"id": 2,
+					"symbol": "$",
+					"qualified_symbol": "AU$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 10.0,
+				"value": 505.5,
+				"instrument_price": 50.55,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 1.5,
+				"capital_gain_percent": 0.3,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 0.0,
+				"currency_gain_percent": 0.0,
+				"total_gain": 1.5,
+				"total_gain_percent": 0.3,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 20859027,
+				"instrument": {
+					"code": "QLD",
+					"country_id": 49,
+					"crypto": false,
+					"currency_code": "USD",
+					"expires_on": null,
+					"expired": false,
+					"id": 44598,
+					"market_code": "NYSE",
+					"name": "ProShares Trust - ProShares Ultra QQQ 2x Shares",
+					"supported_denominations": null,
+					"tz_name": "America/New_York",
+					"industry_classification_name": "Investment Trusts/Mutual Funds",
+					"sector_classification_name": "Miscellaneous",
+					"friendly_instrument_description": "Exchange Traded Fund",
+					"friendly_instrument_description_code": "exchange_traded_fund",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/NYSE/light/QLD.svg",
+						"dark_url": "https://logo-assets.sharesight.com/NYSE/dark/QLD.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 106.0,
+				"value": 18667.37,
+				"instrument_price": 115.66,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 0.0,
+				"capital_gain_percent": 0.0,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 28.71,
+				"currency_gain_percent": 0.15,
+				"total_gain": 28.71,
+				"total_gain_percent": 0.15,
+				"number_of_unconfirmed_transactions": 1
+			},
+			{
+				"id": 20585320,
+				"instrument": {
+					"code": "SEMI",
+					"country_id": 2,
+					"crypto": false,
+					"currency_code": "AUD",
+					"expires_on": null,
+					"expired": false,
+					"id": 2165430,
+					"market_code": "ASX",
+					"name": "Global X Semiconductor Etf",
+					"supported_denominations": null,
+					"tz_name": "Australia/Sydney",
+					"industry_classification_name": "Investment Trusts/Mutual Funds",
+					"sector_classification_name": "Miscellaneous",
+					"friendly_instrument_description": "Exchange Traded Fund",
+					"friendly_instrument_description_code": "exchange_traded_fund",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/ASX/light/SEMI.svg",
+						"dark_url": "https://logo-assets.sharesight.com/ASX/dark/SEMI.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "AUD",
+					"id": 2,
+					"symbol": "$",
+					"qualified_symbol": "AU$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 94.0,
+				"value": 1637.48,
+				"instrument_price": 17.42,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": -21.62,
+				"capital_gain_percent": -1.3,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 0.0,
+				"currency_gain_percent": 0.0,
+				"total_gain": -21.62,
+				"total_gain_percent": -1.3,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 20698937,
+				"instrument": {
+					"code": "SMH",
+					"country_id": 49,
+					"crypto": false,
+					"currency_code": "USD",
+					"expires_on": null,
+					"expired": false,
+					"id": 1965968,
+					"market_code": "NASDAQ",
+					"name": "VanEck ETF Trust - VanEck Semiconductor ETF",
+					"supported_denominations": null,
+					"tz_name": "America/New_York",
+					"industry_classification_name": "Investment Trusts/Mutual Funds",
+					"sector_classification_name": "Miscellaneous",
+					"friendly_instrument_description": "Exchange Traded Fund",
+					"friendly_instrument_description_code": "exchange_traded_fund",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/NASDAQ/light/SMH.svg",
+						"dark_url": "https://logo-assets.sharesight.com/NASDAQ/dark/SMH.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 16.0,
+				"value": 6720.03,
+				"instrument_price": 275.84,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 0.0,
+				"capital_gain_percent": 0.0,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 10.34,
+				"currency_gain_percent": 0.15,
+				"total_gain": 10.34,
+				"total_gain_percent": 0.15,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 13946910,
+				"instrument": {
+					"code": "S",
+					"country_id": 49,
+					"crypto": false,
+					"currency_code": "USD",
+					"expires_on": null,
+					"expired": false,
+					"id": 2148831,
+					"market_code": "NYSE",
+					"name": "SentinelOne Inc - Ordinary Shares - Class A",
+					"supported_denominations": null,
+					"tz_name": "America/New_York",
+					"industry_classification_name": "Packaged Software",
+					"sector_classification_name": "Technology Services",
+					"friendly_instrument_description": "Ordinary Shares",
+					"friendly_instrument_description_code": "ordinary_shares",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/NYSE/light/S.svg",
+						"dark_url": "https://logo-assets.sharesight.com/NYSE/dark/S.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 552.0,
+				"value": 15280.13,
+				"instrument_price": 18.18,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 0.0,
+				"capital_gain_percent": 0.0,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 23.5,
+				"currency_gain_percent": 0.15,
+				"total_gain": 23.5,
+				"total_gain_percent": 0.15,
+				"number_of_unconfirmed_transactions": 0
+			},
+			{
+				"id": 23756192,
+				"instrument": {
+					"code": "TSM",
+					"country_id": 49,
+					"crypto": false,
+					"currency_code": "USD",
+					"expires_on": null,
+					"expired": false,
+					"id": 23766,
+					"market_code": "NYSE",
+					"name": "Taiwan Semiconductor Manufacturing - ADR",
+					"supported_denominations": null,
+					"tz_name": "America/New_York",
+					"industry_classification_name": "Semiconductors",
+					"sector_classification_name": "Electronic Technology",
+					"friendly_instrument_description": "Depository Receipt",
+					"friendly_instrument_description_code": "depository_receipt",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/NYSE/light/TSM.svg",
+						"dark_url": "https://logo-assets.sharesight.com/NYSE/dark/TSM.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 10.0,
+				"value": 3421.04,
+				"instrument_price": 224.68,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": 0.0,
+				"capital_gain_percent": 0.0,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 5.26,
+				"currency_gain_percent": 0.15,
+				"total_gain": 5.26,
+				"total_gain_percent": 0.15,
+				"number_of_unconfirmed_transactions": 1
+			},
+			{
+				"id": 24503629,
+				"instrument": {
+					"code": "VBTC",
+					"country_id": 2,
+					"crypto": false,
+					"currency_code": "AUD",
+					"expires_on": null,
+					"expired": false,
+					"id": 2845246,
+					"market_code": "ASX",
+					"name": "Vaneck Bitcoin Etf",
+					"supported_denominations": null,
+					"tz_name": "Australia/Sydney",
+					"industry_classification_name": "Investment Trusts/Mutual Funds",
+					"sector_classification_name": "Miscellaneous",
+					"friendly_instrument_description": "Exchange Traded Fund",
+					"friendly_instrument_description_code": "exchange_traded_fund",
+					"logo": {
+						"light_url": "https://logo-assets.sharesight.com/ASX/light/VBTC.svg",
+						"dark_url": "https://logo-assets.sharesight.com/ASX/dark/VBTC.svg"
+					}
+				},
+				"instrument_currency": {
+					"code": "AUD",
+					"id": 2,
+					"symbol": "$",
+					"qualified_symbol": "AU$"
+				},
+				"valid_position": true,
+				"inception_date": null,
+				"quantity": 15.0,
+				"value": 493.5,
+				"instrument_price": 32.9,
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				},
+				"labels": [],
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": -1.05,
+				"capital_gain_percent": -0.21,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 0.0,
+				"currency_gain_percent": 0.0,
+				"total_gain": -1.05,
+				"total_gain_percent": -0.21,
+				"number_of_unconfirmed_transactions": 0
+			}
+		],
+		"sub_totals": [
+			{
+				"value": 150281.4,
+				"group_id": 1,
+				"group_name": "All Holdings",
+				"capital_gain": -69.9,
+				"capital_gain_percent": -0.05,
+				"payout_gain": 0.0,
+				"payout_gain_percent": 0.0,
+				"currency_gain": 214.94,
+				"currency_gain_percent": 0.14,
+				"total_gain": 145.04,
+				"total_gain_percent": 0.1
+			}
+		],
+		"cash_accounts": [
+			{
+				"id": 125677,
+				"key": 125677,
+				"name": "Stake AUD",
+				"source": null,
+				"value": -871.07,
+				"currency": {
+					"code": "AUD",
+					"id": 2,
+					"symbol": "$",
+					"qualified_symbol": "AU$"
+				},
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				}
+			},
+			{
+				"id": 125678,
+				"key": 125678,
+				"name": "Stake USD",
+				"source": null,
+				"value": 9888.91,
+				"currency": {
+					"code": "USD",
+					"id": 5,
+					"symbol": "$",
+					"qualified_symbol": "US$"
+				},
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				}
+			},
+			{
+				"id": 125951,
+				"key": 125951,
+				"name": "unassigned",
+				"source": null,
+				"value": 0.0,
+				"currency": {
+					"code": "AUD",
+					"id": 2,
+					"symbol": "$",
+					"qualified_symbol": "AU$"
+				},
+				"portfolio": {
+					"id": 684141,
+					"consolidated": false,
+					"name": "RobSMSF",
+					"external_identifier": null
+				}
+			}
+		]
+	},
+	"api_transaction": {
+		"id": 948351480,
+		"version": 3,
+		"action": "/api/v3/portfolios/684141/performance",
+		"timestamp": "2025-07-02T11:10:08.000Z"
+	},
+	"links": {
+		"portfolio": "https://api.sharesight.com/api/v3/portfolios/684141?consolidated=false",
+		"self": "https://api.sharesight.com/api/v3/portfolios/684141/performance?consolidated=false&end_date=2025-07-02&grouping=ungrouped&include_limited=false&include_sales=false&report_combined=false&start_date=2025-07-02"
+	}
+}

@@ -1,0 +1,61 @@
+{
+	"portfolios": [
+		{
+			"id": 445825,
+			"consolidated": false,
+			"name": "Rob",
+			"external_identifier": null,
+			"holding_id": null,
+			"tz_name": "Australia/Sydney",
+			"default_sale_allocation_method": "fifo",
+			"cg_discount": "Individuals / Trust",
+			"financial_year_end": "06-30",
+			"interest_method": "simple",
+			"country_code": "AU",
+			"currency_code": "AUD",
+			"inception_date": "2019-01-04",
+			"access_level": "OWNER",
+			"user_id": 390186,
+			"owner_name": "Rob",
+			"rwtr_rate": 33.0,
+			"trader": true,
+			"disable_automatic_transactions": false,
+			"tax_entity_type": "non_registered",
+			"trade_sync_cash_account_id": null,
+			"payout_sync_cash_account_id": 125965
+		},
+		{
+			"id": 684141,
+			"consolidated": false,
+			"name": "RobSMSF",
+			"external_identifier": null,
+			"holding_id": null,
+			"tz_name": "Australia/Sydney",
+			"default_sale_allocation_method": "fifo",
+			"cg_discount": "Self Managed Super Fund",
+			"financial_year_end": "06-30",
+			"interest_method": "simple",
+			"country_code": "AU",
+			"currency_code": "AUD",
+			"inception_date": "2021-08-16",
+			"access_level": "OWNER",
+			"user_id": 390186,
+			"owner_name": "Rob",
+			"rwtr_rate": 33.0,
+			"trader": true,
+			"disable_automatic_transactions": false,
+			"tax_entity_type": "non_registered",
+			"trade_sync_cash_account_id": null,
+			"payout_sync_cash_account_id": 125677
+		}
+	],
+	"api_transaction": {
+		"id": 948624395,
+		"version": 3,
+		"action": "/api/v3/portfolios",
+		"timestamp": "2025-07-03T00:00:04.000Z"
+	},
+	"links": {
+		"self": "https://api.sharesight.com/api/v3/portfolios?consolidated=false"
+	}
+}

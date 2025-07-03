@@ -1,0 +1,71 @@
+{
+	"trades": [
+		{
+			"id": 104446451,
+			"unique_identifier": "218343570",
+			"transaction_date": "2025-06-17",
+			"quantity": 15.0,
+			"price": 33.71,
+			"cost_base": null,
+			"exchange_rate": 1.0,
+			"brokerage": 3.0,
+			"brokerage_currency_code": "AUD",
+			"value": 508.65,
+			"paid_on": null,
+			"company_event_id": null,
+			"comments": "Automatically created from an email sent by Stake Australia on 17 Jun 2025. The contract number for this trade is 218343570.",
+			"portfolio_id": 684141,
+			"holding_id": 20967220,
+			"state": "confirmed",
+			"transaction_type": "BUY",
+			"instrument_id": 1971927,
+			"symbol": "FANG",
+			"market": "ASX",
+			"attachment_filename": null,
+			"attachment_id": null,
+			"confirmed": true,
+			"links": {
+				"portfolio": "https://api.sharesight.com/api/v2/portfolios/684141"
+			},
+			"portfolio": "RobSMSF"
+		},
+		{
+			"id": 104446458,
+			"unique_identifier": "218343688",
+			"transaction_date": "2025-06-17",
+			"quantity": 141.0,
+			"price": 3.57,
+			"cost_base": null,
+			"exchange_rate": 1.0,
+			"brokerage": 3.0,
+			"brokerage_currency_code": "AUD",
+			"value": 506.37,
+			"paid_on": null,
+			"company_event_id": null,
+			"comments": "Automatically created from an email sent by Stake Australia on 17 Jun 2025. The contract number for this trade is 218343688.",
+			"portfolio_id": 684141,
+			"holding_id": 24503631,
+			"state": "confirmed",
+			"transaction_type": "BUY",
+			"instrument_id": 2021928,
+			"symbol": "GNP",
+			"market": "ASX",
+			"attachment_filename": null,
+			"attachment_id": null,
+			"confirmed": true,
+			"links": {
+				"portfolio": "https://api.sharesight.com/api/v2/portfolios/684141"
+			},
+			"portfolio": "RobSMSF"
+		}
+	],
+	"api_transaction": {
+		"id": 940201133,
+		"version": 2,
+		"action": "/api/v2/portfolios/684141/trades.json",
+		"timestamp": "2025-06-17T05:48:18.000Z"
+	},
+	"links": {
+		"self": "https://api.sharesight.com/api/v2/portfolios/684141/trades?start_date=2025-06-16"
+	}
+}
