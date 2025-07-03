@@ -595,10 +595,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			return
 		if service == 'telegram':
 			typing_stop = typing_start(service, chat_id)
+		who = {}
 		payload = []
 		try:
 			portfolios = sharesight.get_portfolios()
 			for portfolio_name, portfolio_id in portfolios.items():
+				who[portfolio_name] = []
 				holdings = sharesight.get_holdings_new(portfolio_name, portfolio_id)
 				for k,v in holdings.items():
 					if v['code'].upper() == arg:
@@ -608,10 +610,14 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 						holding_id = v['holding_id']
 						link = util.link(f"https://portfolio.sharesight.com/holdings/{holding_id}/dashboard", arg, service)
 						flag = util.flag_from_market(market_code)
-						payload.append(f"{portfolio_name}: {name} ({link}) {flag}")
+						who[portfolio_name].append(f"{name} ({link}) {flag}")
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
+		for k,v in who.items():
+			payload.append(webhook.bold(f"{k}:", service)
+			payload.append("")
+			payload.append("\n".join(v))
 		if service == 'telegram':
 			typing_stop.set()
 		webhook.payload_wrapper(service, url, payload, chat_id)
