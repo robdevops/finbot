@@ -607,30 +607,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if service == 'telegram':
 			typing_stop.set()
 		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_stockfinancial:
-		if service == 'telegram':
-			typing_stop = typing_start(service, chat_id)
-		if m_stockfinancial.group('ticker'):
-			ticker = m_stockfinancial.group('ticker').upper()
-		try:
-			payload_bio = reports.prepare_bio_payload(service, user, ticker)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			pass
-		if len(payload_bio):
-			payload_bio.append("")
-		try:
-			payload_financial = reports.prepare_stockfinancial_payload(service, user, ticker)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
-			typing_stop.set()
-		payload = payload_bio + payload_financial
-		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_who:
-		if m_who.group(1):
-			arg = m_who.group(1)
+		if m_who.group('ticker'):
+			arg = m_who.group('ticker')
 		else:
 			payload = [".who: please try again specifying a ticker"]
 			webhook.payload_wrapper(service, url, payload, chat_id)
@@ -657,5 +636,27 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		if service == 'telegram':
 			typing_stop.set()
+		webhook.payload_wrapper(service, url, payload, chat_id)
+	# m_stockfinancial is a catch-all, so other matches must be above it
+	elif m_stockfinancial:
+		if service == 'telegram':
+			typing_stop = typing_start(service, chat_id)
+		if m_stockfinancial.group('ticker'):
+			ticker = m_stockfinancial.group('ticker').upper()
+		try:
+			payload_bio = reports.prepare_bio_payload(service, user, ticker)
+		except Exception as e:
+			print(e, file=sys.stderr)
+			pass
+		if len(payload_bio):
+			payload_bio.append("")
+		try:
+			payload_financial = reports.prepare_stockfinancial_payload(service, user, ticker)
+		except Exception as e:
+			print(e, file=sys.stderr)
+			webhook.payload_wrapper(service, url, [e], chat_id)
+		if service == 'telegram':
+			typing_stop.set()
+		payload = payload_bio + payload_financial
 		webhook.payload_wrapper(service, url, payload, chat_id)
 
