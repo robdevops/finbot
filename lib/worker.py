@@ -599,7 +599,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		try:
 			portfolios = sharesight.get_portfolios()
 			for portfolio_name, portfolio_id in portfolios.items():
-				holdings = sharesight_get_holdings_new(portfolio_name, portfolio_id)
+				holdings = sharesight.get_holdings_new(portfolio_name, portfolio_id)
 				for holding in holdings:
 					i = holding["instrument"]
 					if i["code"] == arg:
