@@ -109,6 +109,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	watchlist_command = prefix + r"(?:watchlist|wishlist)\s*(?P<action>[\w]+)*\s*(?P<ticker>[\w\.\:\-\^]+)*"
 	m_watchlist = re.match(watchlist_command, message, re.IGNORECASE)
 
+	who_command = prefix + r"(?:who)\s*(?P<ticker>[\w\.\:\-\^]+)*"
+	m_who = re.match(watchlist_command, message, re.IGNORECASE)
+
 	super_command = prefix + r"(?:super|smsf|payout)\s*([\w\.\:\-]+)*"
 	m_super = re.match(super_command, message, re.IGNORECASE)
 
@@ -625,3 +628,34 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			typing_stop.set()
 		payload = payload_bio + payload_financial
 		webhook.payload_wrapper(service, url, payload, chat_id)
+	elif m_who:
+		if m_who.group(1):
+			arg = m_who.group(1)
+		else:
+			payload = [".who: please try again specifying a ticker"]
+			webhook.payload_wrapper(service, url, payload, chat_id)
+			return
+		if service == 'telegram':
+			typing_stop = typing_start(service, chat_id)
+		payload = []
+		try:
+			portfolios = sharesight.get_portfolios()
+			for portfolio_name, portfolio_id in portfolios.items():
+				holdings = sharesight_get_holdings_new(portfolio_name, portfolio_id)
+				for holding in holdings:
+					i = holding["instrument"]
+					if i["code"] == arg:
+						market_code = i["market_code"]
+						name = i["name"]
+						name = util.transform_title(name)
+						holding_id = i['holding_id']
+						link = util.link(f"https://portfolio.sharesight.com/holdings/{holding_id}/dashboard", arg, service)
+						flag = util.flag_from_market(market_code)
+						payload.append(f"{portfolio_name}: {name} ({link}) {flag}")
+		except Exception as e:
+			print(e, file=sys.stderr)
+			webhook.payload_wrapper(service, url, [e], chat_id)
+		if service == 'telegram':
+			typing_stop.set()
+		webhook.payload_wrapper(service, url, payload, chat_id)
+

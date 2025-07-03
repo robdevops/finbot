@@ -129,6 +129,7 @@ def prepare_help(service, botName):
 	payload.append(webhook.bold("Tracked securities:", service))
 	payload.append(".holdings")
 	payload.append(".watchlist [add|del SYMBOL]")
+	payload.append(".who SYMBOL")
 
 	payload.append(webhook.bold("\nCompany info:", service))
 	payload.append('.SYMBOL')

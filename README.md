@@ -58,6 +58,7 @@ Where:
 .trades [period] [portfolio]
 .value [pe|forward pe|peg|bottom pe|bottom forward pe|bottom peg|negative forward pe|negative peg]
 .watchlist [add|del symbol]
+.who symbol
 ```
 
 Alternative syntax:
@@ -79,6 +80,7 @@ Alternative syntax:
 @botname trades [period] [portfolio]
 @botname value [pe|forward pe|peg]
 @botname watchlist [add|del symbol]
+@botname who symbol
 ```
 
 Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
