@@ -615,9 +615,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		for k,v in who.items():
-			payload.append(webhook.bold(f"{k}:", service)
-			payload.append("")
-			payload.append("\n".join(v))
+			if v:
+				payload.append(webhook.bold(f"{k}:", service)
+				payload.append("\n".join(v))
+				payload.append("")
 		if service == 'telegram':
 			typing_stop.set()
 		webhook.payload_wrapper(service, url, payload, chat_id)
