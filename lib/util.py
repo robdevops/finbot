@@ -23,7 +23,6 @@ def transform_title(title):
 	title = title.replace('Listed Funds Trust', '')
 	title = title.replace('GraniteShares ETF Trust', '')
 	title = title.replace('ProShares Trust', '')
-	title = title.replace('Ishares', 'iShares')
 	title = title.replace('VanEck ETF Trust', '')
 	title = title.replace('Direxion Shares ETF Trust', '')
 	title = title.replace(' of California', '')
@@ -115,6 +114,7 @@ def transform_title(title):
 		title = title.replace(' and', '')
 	title = title.replace(' Usd', ' USD')
 	title = title.replace('  ', ' ')
+	title = title.replace('Ishares', 'iShares')
 	return title
 
 def categorise_tickers(tickers):
