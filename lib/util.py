@@ -19,7 +19,7 @@ def transform_title(title):
 		title = title.title()
 	title = title.replace(' - ', ' ')
 	title = title.replace('Roundhill ETF Trust ', '')
-	title = title.replace('BlackRock Institutional Trust N.A. ', '')
+	title = title.replace('BlackRock Institutional Trust Company N.A. - ', '')
 	title = title.replace('Listed Funds Trust', '')
 	title = title.replace('GraniteShares ETF Trust', '')
 	title = title.replace('ProShares Trust', '')
