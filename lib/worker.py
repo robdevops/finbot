@@ -7,6 +7,7 @@ from lib import util
 from lib import webhook
 from lib import yahoo
 from lib import reports
+from lib import sharesight
 import cal
 import performance
 import price
