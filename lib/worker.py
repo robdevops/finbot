@@ -600,13 +600,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			portfolios = sharesight.get_portfolios()
 			for portfolio_name, portfolio_id in portfolios.items():
 				holdings = sharesight.get_holdings_new(portfolio_name, portfolio_id)
-				for holding in holdings:
-					i = holding["instrument"]
-					if i["code"] == arg:
-						market_code = i["market_code"]
-						name = i["name"]
+				for h in holdings:
+					if h["code"] == arg:
+						market_code = h["market_code"]
+						name = h["name"]
 						name = util.transform_title(name)
-						holding_id = i['holding_id']
+						holding_id = h['holding_id']
 						link = util.link(f"https://portfolio.sharesight.com/holdings/{holding_id}/dashboard", arg, service)
 						flag = util.flag_from_market(market_code)
 						payload.append(f"{portfolio_name}: {name} ({link}) {flag}")
