@@ -113,24 +113,21 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
 	return data['trades']
 
 def get_holdings(portfolio_name, portfolio_id):
-	print("Fetching Sharesight holdings", portfolio_name, end=": ")
-	data = get_performance(portfolio_id, 0)
-	print(len(data['report']['holdings']))
-	holdings = {}
-	for item in data['report']['holdings']:
-		code = item['instrument']['code']
-		holdings[code] = item['instrument']
-		holdings[code]['holding_id'] = item['id']
 	tickers = set()
+	holdings = get_holdings_new(portfolio_name, portfolio_id)
 	for holding in holdings:
 		symbol = holdings[holding]['code']
 		market = holdings[holding]['market_code']
 		ticker = util.transform_to_yahoo(symbol, market)
 		tickers.add(ticker)
-	tickers = sorted(set(tickers))
-	return tickers
+	return sorted(tickers)
 
 def get_holdings_new(portfolio_name, portfolio_id):
+	if config_cache:
+		cache_file = "finbot_sharesight_holdings_" + str(portfolio_id) + ".json"
+		cache = util.read_cache(cache_file, 299)
+		if cache:
+			return sorted(set(cache))
 	print("Fetching Sharesight holdings", portfolio_name, end=": ")
 	data = get_performance(portfolio_id, 0)
 	print(len(data['report']['holdings']))
@@ -139,6 +136,8 @@ def get_holdings_new(portfolio_name, portfolio_id):
 		code = item['instrument']['code']
 		holdings[code] = item['instrument']
 		holdings[code]['holding_id'] = item['id']
+	if config_cache and holdings:
+		util.json_write(cache_file, holdings)
 	return holdings
 
 def get_holdings_wrapper():
