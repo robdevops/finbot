@@ -172,39 +172,9 @@ def prepare_holdings_payload(portfolioName, service, user):
 	if portfolioName:
 		if portfolioName.lower() in portfoliosLower:
 			portfolioId = portfoliosLower[portfolioName.lower()]
-			tickers = sharesight.get_holdings(portfolioName, portfolioId)
-			market_data = yahoo.fetch(tickers)
-			print("")
-			for item in market_data:
-				ticker = market_data[item]['ticker']
-				title = market_data[item]['profile_title']
-				exchange = market_data[ticker]['profile_exchange']
-				ticker_link = util.finance_link(ticker, exchange, service)
-				flag = util.flag_from_ticker(ticker)
-				payload.append(f"{flag} {title} ({ticker_link})")
-			portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
-			payload.sort()
-			if payload:
-				payload.insert(0, webhook.bold("Holdings for " + portfoliosReverseLookup[portfolioId], service))
-		else:
-			payload = [ f"{user} {portfolioName} portfolio not found. I only know about:" ]
-			for item in portfolios:
-				payload.append( item )
-	else:
-		payload = [ f".holdings: Please try again specifying a portfolio:" ]
-		for item in portfolios:
-			payload.append( item )
-	return payload
-
-def prepare_holdings_payload_new(portfolioName, service, user):
-	payload = []
-	portfolios = sharesight.get_portfolios()
-	portfoliosLower = {k.lower():v for k,v in portfolios.items()}
-	if portfolioName:
-		if portfolioName.lower() in portfoliosLower:
-			portfolioId = portfoliosLower[portfolioName.lower()]
 			holdings = sharesight.get_holdings_new(portfolioName, portfolioId)
-			for ticker,v in holdings.items():
+			for k,v in holdings.items():
+				ticker = v['code']
 				title = util.transform_title(v['name'])
 				exchange = v['market_code']
 				#ticker_link = util.finance_link(ticker, exchange, service)

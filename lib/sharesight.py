@@ -129,8 +129,10 @@ def get_holdings_new(portfolio_name, portfolio_id):
 	holdings = {}
 	for item in data['report']['holdings']:
 		code = item['instrument']['code']
-		holdings[code] = item['instrument']
-		holdings[code]['holding_id'] = item['id']
+		market_code = item['instrument']['market_code']
+		symbol = code + ":" + market_code
+		holdings[symbol] = item['instrument']
+		holdings[symbol]['holding_id'] = item['id']
 	return holdings
 
 def get_holdings_wrapper():

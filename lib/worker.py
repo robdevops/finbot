@@ -346,7 +346,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		else:
 			webhook.payload_wrapper(service, url, ["fetching holdings"], chat_id)
 		try:
-			payload = reports.prepare_holdings_payload_new(portfolioName, service, user)
+			payload = reports.prepare_holdings_payload(portfolioName, service, user)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
@@ -588,7 +588,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_who:
 		if m_who.group('ticker'):
-			arg = m_who.group('ticker').lower()
+			arg = m_who.group('ticker').upper()
 		else:
 			payload = [".who: please try again specifying a ticker"]
 			webhook.payload_wrapper(service, url, payload, chat_id)
@@ -601,7 +601,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			for portfolio_name, portfolio_id in portfolios.items():
 				holdings = sharesight.get_holdings_new(portfolio_name, portfolio_id)
 				for k,v in holdings.items():
-					if k.lower() == arg:
+					if v['code'].upper() == arg:
 						market_code = v["market_code"]
 						name = v["name"]
 						name = util.transform_title(name)
