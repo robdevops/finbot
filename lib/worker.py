@@ -97,9 +97,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	stockfinancial_command = prefix + r"(?P<ticker>[\w\.\:\-]+)"
 	m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
 
-	profile_command = prefix + r"(?:about|bio|profile|professor|proudly|proteja|properties|possible)\s*(?P<ticker>[\w\.\:\-]+)*"
-	m_profile = re.match(profile_command, message, re.IGNORECASE)
-
 	thanks_command = prefix + r"(?:thanks|thank you)|^(?:thanks|thank you)\s+" + botName
 	m_thanks = re.match(thanks_command, message, re.IGNORECASE)
 
@@ -110,7 +107,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	m_watchlist = re.match(watchlist_command, message, re.IGNORECASE)
 
 	who_command = prefix + r"(?:who)\s*(?P<ticker>[\w\.\:\-\^]+)*"
-	m_who = re.match(watchlist_command, message, re.IGNORECASE)
+	m_who = re.match(who_command, message, re.IGNORECASE)
 
 	super_command = prefix + r"(?:super|smsf|payout)\s*([\w\.\:\-]+)*"
 	m_super = re.match(super_command, message, re.IGNORECASE)
@@ -587,25 +584,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_super:
 		heading = webhook.bold('Super payout deadlines:', service)
 		payload = [heading, "28 January", "28 April", "28 July", "28 October"]
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_profile:
-		if m_profile.group('ticker'):
-			ticker = m_profile.group('ticker').upper()
-			ticker = util.transform_to_yahoo(ticker)
-			if service == 'telegram':
-				typing_stop = typing_start(service, chat_id)
-			if ticker in market_data:
-				try:
-					payload = reports.prepare_bio_payload(service, user, ticker)
-				except Exception as e:
-					print(e, file=sys.stderr)
-					webhook.payload_wrapper(service, url, [e], chat_id)
-			else:
-				payload = [f"{ticker} not found"]
-		else:
-			payload = [".profile: please try again specifying a ticker"]
-		if service == 'telegram':
-			typing_stop.set()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_who:
 		if m_who.group('ticker'):
