@@ -127,7 +127,7 @@ def get_holdings_new(portfolio_name, portfolio_id):
 		cache_file = "finbot_sharesight_holdings_" + str(portfolio_id) + ".json"
 		cache = util.read_cache(cache_file, 299)
 		if cache:
-			return sorted(set(cache))
+			return cache
 	print("Fetching Sharesight holdings", portfolio_name, end=": ")
 	data = get_performance(portfolio_id, 0)
 	print(len(data['report']['holdings']))
