@@ -616,7 +616,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		for k,v in who.items():
 			if v:
-				payload.append(webhook.bold(f"{k}:", service)
+				payload.append(webhook.bold(f"{k}:", service))
 				payload.append("\n".join(v))
 				payload.append("")
 		if service == 'telegram':
