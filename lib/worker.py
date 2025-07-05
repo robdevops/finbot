@@ -550,20 +550,23 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 					webhook.payload_wrapper(service, url, [e], chat_id)
 					return
 				if isinstance(price_history, str):
-					errorstring=price_history
-					print(errorstring, file=sys.stderr)
-					payload = [errorstring]
-				else:
-					payload.append(webhook.bold(f"{title} ({ticker_link}) performance history", service))
-					for interval in ('Max', '10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
-						if interval in price_history:
-							percent = price_history[interval]
-							emoji = util.get_emoji(percent)
-							payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent:,}%")
+					e = price_history
+					print(e, file=sys.stderr)
+					webhook.payload_wrapper(service, url, [e], chat_id)
+					return
+				payload.append(webhook.bold(f"{title} ({ticker_link}) performance history", service))
+				for interval in ('Max', '10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
+					if interval in price_history:
+						percent = price_history[interval]
+						emoji = util.get_emoji(percent)
+						payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent:,}%")
 			else:
-				payload = [f".history: Data not found for {ticker}"]
+				webhook.payload_wrapper(service, url, [".history: no data found for ticker {ticker}"], chat_id)
+				return
+			return
 		else:
-			payload = [".history: please try again specifying a ticker"]
+			webhook.payload_wrapper(service, url, ["Usage: .history TICKER"], chat_id)
+			return
 		caption = '\n'.join(payload)
 		if graph:
 			try:
