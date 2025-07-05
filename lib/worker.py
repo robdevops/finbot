@@ -44,6 +44,10 @@ class TypingIndicator:
 		self._stop_event.set()
 		self._thread.join()
 
+	def is_active(self):
+		return self.service == 'telegram' and self._thread is not None and self._thread.is_alive()
+
+
 def process_request(service, chat_id, user, message, botName, userRealName, message_id):
 	if service == 'slack':
 		url = 'https://slack.com/api/chat.postMessage'
@@ -205,7 +209,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if not specific_stock:
 			typing = TypingIndicator(service, chat_id)
 			typing.start()
-			else:
+			if not typing.is_active():
 				payload = [ f"Fetching ex-dividend dates for {util.days_english(days, 'the next ')} 🔍" ]
 				webhook.payload_wrapper(service, url, payload, chat_id)
 		try:
@@ -409,7 +413,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if not specific_stock:
 			typing = TypingIndicator(service, chat_id)
 			typing.start()
-			else:
+			if not typing.is_active():
 				message = [f"Fetching {action.upper()}s..."]
 				webhook.payload_wrapper(service, url, message, chat_id)
 		try:
@@ -506,7 +510,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		action='buy'
 		typing = TypingIndicator(service, chat_id)
 		typing.start()
-		else:
+		if not typing.is_active():
 			message = [f"Fetching {action} ratings..."]
 			webhook.payload_wrapper(service, url, message, chat_id)
 		try:
@@ -521,7 +525,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		action='sell'
 		typing = TypingIndicator(service, chat_id)
 		typing.start()
-		else:
+		if not typing.is_active():
 			message = [f"Fetching {action} ratings..."]
 			webhook.payload_wrapper(service, url, message, chat_id)
 		try:
