@@ -581,7 +581,7 @@ def graph(df, title, ylabel):
 		color = 'green' # green
 	else:
 		color = 'grey' # black if unchanged
-	plt.title(title)
+	plt.title(title, pad=20)
 	plt.ylabel(ylabel)
 	df['Date'] = df['Date'].map(lambda x: datetime.datetime.strptime(str(x), '%Y-%m-%d'))
 	plt.gcf().autofmt_xdate()
@@ -589,7 +589,7 @@ def graph(df, title, ylabel):
 	plt.plot(x,y, color=color, alpha=0.9, linewidth=0.7)
 	plt.grid(color='grey', linestyle='-', alpha=0.5, linewidth=0.2)
 	plt.box(False)
-	plt.tight_layout()
+	plt.tight_layout(pad=2.0)
 	scale(x, y)
 	label(x,y, atype='min')
 	label(x,y, atype='max')
