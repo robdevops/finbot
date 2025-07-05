@@ -44,7 +44,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					continue
 			elif days:
 				try:
-					percent = market_data.get(ticker, {}).get('percent_change_period') # sharesight value
+					percent = market_data[ticker]['percent_change_period'] # sharesight value
 				except KeyError:
 					if config_performance_use_sharesight:
 						continue
@@ -89,13 +89,13 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				ticker_link = util.yahoo_link(ticker, service)
 			if not interactive and not payload and config_demote_leveraged and '2x' in title.lower():
 				if abs(percent) >= threshold * 1.3:
-					payload.append([emoji, title, f'({ticker_link}) {percent:,}'])
+					payload.append([emoji, title, f'({ticker_link})', percent])
 					exchange_set.add(exchange_human)
 				elif abs(percent) >= threshold:
 					skipped_volatile.append(ticker)
 			elif not interactive and not payload and config_demote_leveraged and '3x' in title.lower():
 				if abs(percent) >= threshold * 1.3:
-					payload.append([emoji, title, f'({ticker_link}) {percent:,}'])
+					payload.append([emoji, title, f'({ticker_link})', percent])
 					exchange_set.add(exchange_human)
 				elif abs(percent) >= threshold:
 					skipped_volatile.append(ticker)
@@ -104,10 +104,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				if market_data[ticker]['market_cap'] < 150000000: # 150M
 					if market_data[ticker]['market_cap'] < 10000000: # 10M
 						if abs(percent) >= threshold * (multiplier * 1.3):
-							payload.append([emoji, title, f'({ticker_link}) {percent:,}'])
+							payload.append([emoji, title, f'({ticker_link})', percent])
 							exchange_set.add(exchange_human)
 					elif abs(percent) >= threshold * multiplier:
-						payload.append([emoji, title, f'({ticker_link}) {percent:,}'])
+						payload.append([emoji, title, f'({ticker_link})', percent])
 						exchange_set.add(exchange_human)
 					elif abs(percent) >= threshold:
 						skipped_volatile.append(ticker)
@@ -115,24 +115,24 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					market_data = market_data | yahoo.fetch_detail(ticker)
 					if not 'beta' in market_data[ticker] or market_data[ticker]['beta'] > 1.5:
 						if abs(percent) >= threshold * multiplier:
-							payload.append([emoji, title, f'({ticker_link}) {percent:,}'])
+							payload.append([emoji, title, f'({ticker_link})', percent])
 							exchange_set.add(exchange_human)
 						elif abs(percent) >= threshold:
 							skipped_volatile.append(ticker)
 					elif abs(percent) >= threshold:
-						payload.append([emoji, title, f'({ticker_link}) {percent:,}'])
+						payload.append([emoji, title, f'({ticker_link})', percent])
 						exchange_set.add(exchange_human)
 			elif abs(percent) >= threshold: # abs catches negative percentages
-				payload.append([emoji, title, f'({ticker_link}) {percent:,}'])
+				payload.append([emoji, title, f'({ticker_link})', percent])
 				exchange_set.add(exchange_human)
 			elif specific_stock and interactive:
-				payload.append([emoji, title, f'({ticker_link}) {percent:,}'])
+				payload.append([emoji, title, f'({ticker_link})', percent])
 				exchange_set.add(exchange_human)
 		def last_element(e):
 			return e[-1]
 		payload.sort(key=last_element)
 		for i, e in enumerate(payload):
-			e[-1] = str(round(e[-1])) + '%'
+			e[-1] = f'{round(e[-1]):,}%'
 			payload[i] = ' '.join(e)
 		if payload:
 			if not specific_stock:
