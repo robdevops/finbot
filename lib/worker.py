@@ -543,7 +543,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			try:
 				title = market_data[ticker]['profile_title']
 			except KeyError:
-				webhook.payload_wrapper(service, url, [".history: no data found for ticker {ticker}"], chat_id)
+				webhook.payload_wrapper(service, url, [f".history: no data found for ticker {ticker}"], chat_id)
 				return
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, days=1825, brief=False)
 			if ticker in market_data and 'percent_change' in market_data[ticker]:
@@ -565,7 +565,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 						emoji = util.get_emoji(percent)
 						payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent:,}%")
 			else:
-				webhook.payload_wrapper(service, url, [".history: no data found for ticker {ticker}"], chat_id)
+				webhook.payload_wrapper(service, url, [f".history: no data found for ticker {ticker}"], chat_id)
 				return
 			return
 		else:
