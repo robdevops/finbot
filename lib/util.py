@@ -593,7 +593,7 @@ def graph(df, title, ylabel):
 	scale(x, y)
 	label(x,y, atype='min')
 	label(x,y, atype='max')
-	label(x,y, atype='last')
+	#label(x,y, atype='last')
 	buf = io.BytesIO()
 	plt.savefig(buf, format='png', bbox_inches='tight')
 	plt.clf()
