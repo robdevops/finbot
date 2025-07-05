@@ -775,7 +775,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	if days:
 		title_days = min(days, max_days)
 		percent = percent_dict.get(days, '')
-		title = f"{company_name} ({ticker}) {title_days} days {percent}% Last: {price)}"
+		title = f"{company_name} ({ticker}) {title_days} days {percent}% Last: {price}"
 		caption.append(title)
 	else:
 		caption.extend(f"{k}: {v}%" for k, v in percent_dict.items())
