@@ -14,21 +14,35 @@ import price
 import shorts
 import trades
 
-def typing_worker(stop_event, service, chat_id, max_loops=3, action='typing'):
-	loop_count = 0
-	while not stop_event.is_set() and loop_count < max_loops:
-		webhook.pleaseHold(action, service, chat_id)
-		loop_count += 1
-		if stop_event.wait(7):
-			print("Stopping typing indicator", file=sys.stderr)
-			break
+class TypingIndicator:
+	def __init__(self, service, chat_id, max_loops=3, action='typing'):
+		self.service = service
+		self.chat_id = chat_id
+		self.max_loops = max_loops
+		self.action = action
+		self._stop_event = threading.Event()
+		self._thread = None
 
-def typing_start(service, chat_id):
-	if service == 'telegram':
-		stop_event = threading.Event()
-		typing_thread = threading.Thread(target=typing_worker, args=(stop_event,service,chat_id))
-		typing_thread.start()
-		return stop_event
+	def _worker(self):
+		loop_count = 0
+		while not self._stop_event.is_set() and loop_count < self.max_loops:
+			webhook.pleaseHold(self.action, self.service, self.chat_id)
+			loop_count += 1
+			if self._stop_event.wait(7):
+				print("Stopping typing indicator", file=sys.stderr)
+				break
+
+	def start(self):
+		if self.service != 'telegram':
+			return
+		self._thread = threading.Thread(target=self._worker)
+		self._thread.start()
+
+	def stop(self):
+		if self.service != 'telegram' or not self._thread:
+			return
+		self._stop_event.set()
+		self._thread.join()
 
 def process_request(service, chat_id, user, message, botName, userRealName, message_id):
 	if service == 'slack':
@@ -169,15 +183,16 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			except ValueError:
 				specific_stock = str(arg).upper()
 				days = config_future_days
-		if service == 'telegram' and not specific_stock:
-			typing_stop = typing_start(service, chat_id)
+		if not specific_stock:
+			typing = TypingIndicator(service, chat_id)
+			typing.start()
 		try:
 			cal.lambda_handler(chat_id, days, service, specific_stock, message_id=None, interactive=True, earnings=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if not specific_stock and service == 'telegram':
-			typing_stop.set()
+		if not specific_stock:
+			typing.stop()
 	elif m_dividend:
 		days = config_future_days
 		specific_stock = None
@@ -188,8 +203,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			except ValueError:
 				specific_stock = str(arg).upper()
 		if not specific_stock:
-			if service == 'telegram':
-				typing_stop = typing_start(service, chat_id)
+			typing = TypingIndicator(service, chat_id)
+			typing.start()
 			else:
 				payload = [ f"Fetching ex-dividend dates for {util.days_english(days, 'the next ')} 🔍" ]
 				webhook.payload_wrapper(service, url, payload, chat_id)
@@ -198,8 +213,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if not specific_stock and service == 'telegram':
-			typing_stop.set()
+		if not specific_stock:
+			typing.stop()
 	elif m_performance:
 		portfolio_select = None
 		days = config_past_days
@@ -210,8 +225,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				except ValueError:
 					portfolio_select = arg
 		if days > 0:
-			if service == 'telegram':
-				typing_stop = typing_start(service, chat_id)
+			typing = TypingIndicator(service, chat_id)
+			typing.start()
 			else:
 				# easter egg 3
 				if portfolio_select:
@@ -224,8 +239,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			except Exception as e:
 				print(e, file=sys.stderr)
 				webhook.payload_wrapper(service, url, [e], chat_id)
-			if service == 'telegram':
-				typing_stop.set()
+			typing.stop()
 	elif m_session:
 		price_percent = config_price_percent
 		specific_stock = None
@@ -235,15 +249,16 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				price_percent = int(arg.split('%')[0])
 			except ValueError:
 				specific_stock = str(arg).upper()
-		if service == 'telegram' and not specific_stock:
-			typing_stop = typing_start(service, chat_id)
+		if not specific_stock:
+			typing = TypingIndicator(service, chat_id)
+			typing.start()
 		try:
 			price.lambda_handler(chat_id, price_percent, service, user, specific_stock, interactive=True, premarket=False, interday=False, midsession=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram' and not specific_stock:
-			typing_stop.set()
+		if not specific_stock:
+			typing.stop()
 	elif m_price:
 		price_percent = config_price_percent
 		specific_stock = None
@@ -262,8 +277,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 					if arg == m_price.group(1):
 						specific_stock = str(arg).upper()
 		if not specific_stock:
-			if service == 'telegram':
-				typing_stop = typing_start(service, chat_id)
+			typing.stop()
 			else:
 				# easter egg 4
 				payload = [ f"{random.choice(searchVerb)} stock performance from {util.days_english(days)} 🔍" ]
@@ -273,8 +287,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram' and not specific_stock:
-			typing_stop.set()
+		if not specific_stock:
+			typing.stop()
 	elif m_premarket:
 		premarket_percent = config_price_percent
 		specific_stock = None
@@ -284,15 +298,14 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				premarket_percent = int(arg.split('%')[0])
 			except ValueError:
 				specific_stock = str(arg).upper()
-		if service == 'telegram':
-			typing_stop = typing_start(service, chat_id)
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
 		try:
 			price.lambda_handler(chat_id, premarket_percent, service, user, specific_stock, interactive=True, premarket=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
-			typing_stop.set()
+		typing.stop()
 	elif m_shorts:
 		print("starting shorts report...")
 		shorts_percent = config_shorts_percent
@@ -303,15 +316,14 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				shorts_percent = int(arg.split('%')[0])
 			except ValueError:
 				specific_stock = str(arg).upper()
-		if service == 'telegram':
-			typing_stop = typing_start(service, chat_id)
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
 		try:
 			shorts.lambda_handler(chat_id, shorts_percent, specific_stock, service, interactive=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
-			typing_stop.set()
+		typing.stop()
 	elif m_trades:
 		days = 1
 		portfolio_select = None
@@ -321,8 +333,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 					days = util.days_from_human_days(arg)
 				except ValueError:
 					portfolio_select = arg
-		if service == 'telegram':
-			typing_stop = typing_start(service, chat_id)
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
 		else:
 			# easter egg 5
 			if portfolio_select:
@@ -335,14 +347,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
-			typing_stop.set()
+		typing.stop()
 	elif m_holdings:
 		portfolioName = None
 		if m_holdings.group(1):
 			portfolioName = m_holdings.group(1)
-		if service == 'telegram':
-			typing_stop = typing_start(service, chat_id)
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
 		else:
 			webhook.payload_wrapper(service, url, ["fetching holdings"], chat_id)
 		try:
@@ -350,8 +361,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
-			typing_stop.set()
+		typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_marketcap:
 		if m_marketcap.group(1) and m_marketcap.group(1) not in ('top', 'bottom'):
@@ -371,15 +381,16 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			action = 'top'
 			if m_marketcap.group(1):
 				action = m_marketcap.group(1)
-			if service == 'telegram' and not specific_stock:
-				typing_stop = typing_start(service, chat_id)
+			if not specific_stock:
+				typing = TypingIndicator(service, chat_id)
+				typing.start()
 			try:
 				payload = reports.prepare_marketcap_payload(service, action, length=15)
 			except Exception as e:
 				print(e, file=sys.stderr)
 				webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram' and not specific_stock:
-			typing_stop.set()
+		if not specific_stock:
+			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_peg:
 		action = 'peg'
@@ -396,8 +407,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				case _:
 					specific_stock = arg
 		if not specific_stock:
-			if service == 'telegram':
-				typing_stop = typing_start(service, chat_id)
+			typing = TypingIndicator(service, chat_id)
+			typing.start()
 			else:
 				message = [f"Fetching {action.upper()}s..."]
 				webhook.payload_wrapper(service, url, message, chat_id)
@@ -407,8 +418,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		webhook.payload_wrapper(service, url, payload, chat_id)
-		if service == 'telegram' and not specific_stock:
-			typing_stop.set()
+		if not specific_stock:
+			typing.stop()
 	elif m_pe:
 		action = 'pe'
 		specific_stock = None
@@ -421,15 +432,16 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 					action = 'bottom pe'
 				case _:
 					specific_stock = arg
-		if service == 'telegram' and not specific_stock:
-			typing_stop = typing_start(service, chat_id)
+		if not specific_stock:
+			typing = TypingIndicator(service, chat_id)
+			typing.start()
 		try:
 			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram' and not specific_stock:
-			typing_stop.set()
+		if not specific_stock:
+			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_forwardpe:
 		action = 'forward pe'
@@ -445,23 +457,24 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 					action = 'negative forward pe'
 				case _:
 					specific_stock = arg
-		if service == 'telegram' and not specific_stock:
-			typing_stop = typing_start(service, chat_id)
+		if not specific_stock:
+			typing = TypingIndicator(service, chat_id)
+			typing.start()
 		try:
 			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram' and not specific_stock:
-			typing_stop.set()
+		if not specific_stock:
+			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_beta:
 		def last_col(e):
 			return float(e.split()[-1])
 		payload = []
 		market_data = {}
-		if service == 'telegram':
-			typing_stop = typing_start(service, chat_id)
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
 		try:
 			tickers = util.get_holdings_and_watchlist()
 		except Exception as e:
@@ -483,8 +496,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 				flag = util.flag_from_ticker(ticker)
 				payload.append(f"{flag} {profile_title} ({ticker_link}) {beta}")
-		if service == 'telegram':
-			typing_stop.set()
+		typing.stop()
 		payload.sort(key=last_col)
 		payload.reverse()
 		if payload:
@@ -492,8 +504,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_buy:
 		action='buy'
-		if service == 'telegram':
-			typing_stop = typing_start(service, chat_id)
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
 		else:
 			message = [f"Fetching {action} ratings..."]
 			webhook.payload_wrapper(service, url, message, chat_id)
@@ -502,14 +514,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
-			typing_stop.set()
+		typing.stop()
 		payload = payload or [f"No stocks meet {action} criteria"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_sell:
 		action='sell'
-		if service == 'telegram':
-			typing_stop = typing_start(service, chat_id)
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
 		else:
 			message = [f"Fetching {action} ratings..."]
 			webhook.payload_wrapper(service, url, message, chat_id)
@@ -518,12 +529,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
-			typing_stop.set()
+		typing.stop()
 		payload = payload or [f"No stocks meet {action} criteria"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_history:
-		typing_stop = typing_start(service, chat_id) if service == 'telegram' else None
 		if not m_history.group('ticker') or m_history.group('extra'):
 			webhook.payload_wrapper(service, url, ["Usage: .history TICKER"], chat_id)
 			return
@@ -532,10 +541,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		errorstring = False
 		ticker = m_history.group('ticker').upper()
 		ticker = util.transform_to_yahoo(ticker)
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
 		try:
 			market_data = yahoo.fetch_detail(ticker, 600)
 		except Exception as e:
 			print(e, file=sys.stderr)
+			typing.stop()
 			webhook.payload_wrapper(service, url, ["Error", e], chat_id)
 			return
 		title = market_data.get(ticker, {}).get('profile_title', '')
@@ -545,11 +557,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				price_history, graph = yahoo.price_history(ticker)
 			except Exception as e:
 				print(e, file=sys.stderr)
+				typing.stop()
 				webhook.payload_wrapper(service, url, ["Error", e], chat_id)
 				return
 			if isinstance(price_history, str):
 				e = price_history
 				print(e, file=sys.stderr)
+				typing.stop()
 				webhook.payload_wrapper(service, url, ["Error", e], chat_id)
 				return
 			payload.append(webhook.bold(f"{title} ({ticker_link}) performance history", service))
@@ -566,10 +580,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				webhook.sendPhoto(chat_id, graph, caption, service)
 			except Exception as e:
 				print(e, file=sys.stderr)
+				typing.stop()
 				webhook.payload_wrapper(service, url, ["Error", e], chat_id)
 				return
 		else:
 			webhook.payload_wrapper(service, url, payload, chat_id)
+		typing.stop()
 	elif m_plan:
 		filename = 'finbot_plan.json'
 		plan = util.json_load(filename, persist=True)
@@ -593,8 +609,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			payload = [".who: please try again specifying a ticker"]
 			webhook.payload_wrapper(service, url, payload, chat_id)
 			return
-		if service == 'telegram':
-			typing_stop = typing_start(service, chat_id)
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
 		who = {}
 		payload = []
 		try:
@@ -619,13 +635,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				payload.append(webhook.bold(f"{k}:", service))
 				payload.append("\n".join(v))
 				payload.append("")
-		if service == 'telegram':
-			typing_stop.set()
+		typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	# m_stockfinancial is a catch-all, so other matches must be above it
 	elif m_stockfinancial:
-		if service == 'telegram':
-			typing_stop = typing_start(service, chat_id)
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
 		if m_stockfinancial.group('ticker'):
 			ticker = m_stockfinancial.group('ticker').upper()
 		try:
@@ -640,8 +655,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
-		if service == 'telegram':
-			typing_stop.set()
+		typing.stop()
 		payload = payload_bio + payload_financial
 		webhook.payload_wrapper(service, url, payload, chat_id)
 
