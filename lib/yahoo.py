@@ -767,36 +767,33 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 					continue
 			percent = (stock.get('regularMarketPrice') - past_price) / past_price * 100
 			percent_dict[period] = round(percent)
-	if graph:
-		if days and days < 2:
-			return percent_dict, None
-		caption = []
-		company_name = util.transform_title(stock.get('shortName', ''))
-		if days:
-			title_days = days
-			if days > max_days:
-				title_days = max_days
-			title = f"{company_name} ({ticker}) {title_days} days {percent_dict[days]}% Last: {stock.get('regularMarketPrice', '')}"
-			caption.append(title)
-		else:
-			for k,v in percent_dict.items():
-				caption.append(str(k) + ": " + str(v) + '%')
-			if 'Max' in percent_dict:
-				title = f"{company_name} ({ticker}) Max {percent_dict.get('Max', '')}% Last: {stock.get('regularMarketPrice', '')}"
-			else:
-				title = f"{company_name} ({ticker}) 10Y {percent_dict.get('10Y', '')}% Last: {stock.get('regularMarketPrice', '')}"
-		caption = '\n'.join(caption)
-		image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
-		image_cache = util.read_binary_cache(image_cache_file, seconds)
-		if config_cache and image_cache and graphCache:
-			image_data = image_cache
-		else:
-			buf = util.graph(df, title, stock.get('currency'))
-			#bytesio_to_file(buf, 'temp.png')
-			buf.seek(0)
-			image_data = buf
-			util.write_binary_cache(image_cache_file, image_data)
-			buf.seek(0)
+	if not graph or (days and days < 2):
+		return percent_dict, None
+	company_name = util.transform_title(stock.get('shortName', ''))
+	price = stock.get('regularMarketPrice', '')
+	caption = []
+	if days:
+	    title_days = min(days, max_days)
+		percent = percent_dict.get(days, '')
+	    title = f"{company_name} ({ticker}) {title_days} days {percent}% Last: {price)}"
+	    caption.append(title)
+	else:
+	    caption.extend(f"{k}: {v}%" for k, v in percent_dict.items())
+	    label = "Max" if "Max" in percent_dict else "10Y"
+		percent = percent_dict.get(label, '')
+	    title = f"{company_name} ({ticker}) {label} {percent}% Last: {price}"
+	caption = '\n'.join(caption)
+	image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
+	image_cache = util.read_binary_cache(image_cache_file, seconds)
+	if config_cache and image_cache and graphCache:
+		image_data = image_cache
+	else:
+		buf = util.graph(df, title, stock.get('currency'))
+		#bytesio_to_file(buf, 'temp.png')
+		buf.seek(0)
+		image_data = buf
+		util.write_binary_cache(image_cache_file, image_data)
+		buf.seek(0)
 	return percent_dict, image_data
 
 def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds):
