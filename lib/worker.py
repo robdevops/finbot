@@ -539,7 +539,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			webhook.payload_wrapper(service, url, ["Error", e], chat_id)
 			return
 		title = market_data.get(ticker, {}).get('profile_title', '')
-		ticker_link = util.finance_link(ticker, market_dataget(ticker), {}.get('profile_exchange', ''), service, days=1825, brief=False)
+		ticker_link = util.finance_link(ticker, market_data.get(ticker), {}.get('profile_exchange', ''), service, days=1825, brief=False)
 		if ticker in market_data and 'percent_change' in market_data[ticker]:
 			try:
 				price_history, graph = yahoo.price_history(ticker)
