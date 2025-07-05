@@ -523,41 +523,36 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		payload = payload or [f"No stocks meet {action} criteria"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_history:
+		if service == 'telegram':
+			typing_stop = typing_start(service, chat_id)
 		payload = []
 		graph = None
 		errorstring = False
 		if m_history.group('extra'):
-			webhook.payload_wrapper(service, url, ["Usage: .history TICKER"], chat_id)
-			return
+			payload.append("Usage: .history TICKER")
 		if m_history.group('ticker'):
 			ticker = m_history.group('ticker').upper()
 			ticker = util.transform_to_yahoo(ticker)
-			if service == 'telegram':
-				typing_stop = typing_start(service, chat_id)
 			try:
 				market_data = yahoo.fetch_detail(ticker, 600)
 			except Exception as e:
 				print(e, file=sys.stderr)
-				webhook.payload_wrapper(service, url, [e], chat_id)
-				return
+				payload.append("Error:", e)
 			try:
 				title = market_data[ticker]['profile_title']
 			except KeyError:
-				webhook.payload_wrapper(service, url, [f".history: no data found for ticker {ticker}"], chat_id)
-				return
+				payload.append(f".history: no data found for ticker {ticker}")
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, days=1825, brief=False)
 			if ticker in market_data and 'percent_change' in market_data[ticker]:
 				try:
 					price_history, graph = yahoo.price_history(ticker)
 				except Exception as e:
 					print(e, file=sys.stderr)
-					webhook.payload_wrapper(service, url, [e], chat_id)
-					return
+					payload.append("Error:", e)
 				if isinstance(price_history, str):
 					e = price_history
 					print(e, file=sys.stderr)
-					webhook.payload_wrapper(service, url, [e], chat_id)
-					return
+					payload.append("Error:", e)
 				payload.append(webhook.bold(f"{title} ({ticker_link}) performance history", service))
 				for interval in ('Max', '10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
 					if interval in price_history:
@@ -565,20 +560,16 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 						emoji = util.get_emoji(percent)
 						payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent:,}%")
 			else:
-				webhook.payload_wrapper(service, url, [f".history: no data found for ticker {ticker}"], chat_id)
-				return
-			return
+				payload.append(f".history: no data found for ticker {ticker}")
 		else:
-			webhook.payload_wrapper(service, url, ["Usage: .history TICKER"], chat_id)
-			return
+			payload.append("Usage: .history TICKER")
 		caption = '\n'.join(payload)
 		if graph:
 			try:
 				webhook.sendPhoto(chat_id, graph, caption, service)
 			except Exception as e:
 				print(e, file=sys.stderr)
-				webhook.payload_wrapper(service, url, [e], chat_id)
-				return
+				payload.append("Error:", e)
 			if service == 'telegram':
 				typing_stop.set()
 		else:
