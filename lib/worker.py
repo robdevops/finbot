@@ -554,7 +554,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 						if interval in price_history:
 							percent = price_history[interval]
 							emoji = util.get_emoji(percent)
-							payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent}%")
+							payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent:,}%")
 			else:
 				payload = [f".history: Data not found for {ticker}"]
 		else:
