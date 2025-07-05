@@ -80,7 +80,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	sell_command = prefix + r"sell"
 	m_sell = re.match(sell_command, message, re.IGNORECASE)
 
-	history_command = prefix + r"(?:history|hospital|visual)\s*([\w\.\:\-]+)*"
+	history_command = prefix + r"(?:history|hospital|visual)\s*(?P<ticker>[\w\.\:\-]+)\s*(?P<extra>[\w\%]+)*"
 	m_history = re.match(history_command, message, re.IGNORECASE)
 
 	performance_command = prefix + r"performance?\s*([\w]+)*\s*([\w\s]+)*"
@@ -203,7 +203,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_performance:
 		portfolio_select = None
 		days = config_past_days
-		for arg in m_performance.groups()[1:3]:  # groups 2 and 3
+		for arg in m_performance.groups()[1:3]:  # groups 2 and 3, allow arbitrary order
 			if arg:
 				try:
 					days = util.days_from_human_days(arg)
@@ -526,8 +526,11 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		payload = []
 		graph = None
 		errorstring = False
-		if m_history.group(1):
-			ticker = m_history.group(1).upper()
+		if m_history.group('extra'):
+			webhook.payload_wrapper(service, url, ["Usage: .history TICKER"], chat_id)
+			return
+		if m_history.group('ticker'):
+			ticker = m_history.group('ticker').upper()
 			ticker = util.transform_to_yahoo(ticker)
 			if service == 'telegram':
 				typing_stop = typing_start(service, chat_id)
@@ -536,6 +539,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			except Exception as e:
 				print(e, file=sys.stderr)
 				webhook.payload_wrapper(service, url, [e], chat_id)
+				return
 			title = market_data[ticker]['profile_title']
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, days=1825, brief=False)
 			if ticker in market_data and 'percent_change' in market_data[ticker]:
@@ -544,6 +548,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				except Exception as e:
 					print(e, file=sys.stderr)
 					webhook.payload_wrapper(service, url, [e], chat_id)
+					return
 				if isinstance(price_history, str):
 					errorstring=price_history
 					print(errorstring, file=sys.stderr)
@@ -566,6 +571,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			except Exception as e:
 				print(e, file=sys.stderr)
 				webhook.payload_wrapper(service, url, [e], chat_id)
+				return
 			if service == 'telegram':
 				typing_stop.set()
 		else:
