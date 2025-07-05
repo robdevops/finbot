@@ -540,7 +540,11 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				print(e, file=sys.stderr)
 				webhook.payload_wrapper(service, url, [e], chat_id)
 				return
-			title = market_data[ticker]['profile_title']
+			try:
+				title = market_data[ticker]['profile_title']
+			except KeyError:
+				webhook.payload_wrapper(service, url, [".history: no data found for ticker {ticker}"], chat_id)
+				return
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, days=1825, brief=False)
 			if ticker in market_data and 'percent_change' in market_data[ticker]:
 				try:
