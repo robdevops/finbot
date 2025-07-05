@@ -231,7 +231,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if days > 0:
 			typing = TypingIndicator(service, chat_id)
 			typing.start()
-			else:
+			if not typing.is_active():
 				# easter egg 3
 				if portfolio_select:
 					payload = [ f"{random.choice(searchVerb)} portfolio performance for {webhook.bold(portfolio_select, service)} from {util.days_english(days)} 🔍" ]
@@ -282,7 +282,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 						specific_stock = str(arg).upper()
 		if not specific_stock:
 			typing.stop()
-			else:
+			if not typing.is_active():
 				# easter egg 4
 				payload = [ f"{random.choice(searchVerb)} stock performance from {util.days_english(days)} 🔍" ]
 				webhook.payload_wrapper(service, url, payload, chat_id)
@@ -339,7 +339,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 					portfolio_select = arg
 		typing = TypingIndicator(service, chat_id)
 		typing.start()
-		else:
+		if typing.is_active():
 			# easter egg 5
 			if portfolio_select:
 				payload = [ f"{random.choice(searchVerb)} trades for {webhook.bold(portfolio_select, service)} from {util.days_english(days)} 🔍" ]
@@ -358,7 +358,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			portfolioName = m_holdings.group(1)
 		typing = TypingIndicator(service, chat_id)
 		typing.start()
-		else:
+		if typing.is_active():
 			webhook.payload_wrapper(service, url, ["fetching holdings"], chat_id)
 		try:
 			payload = reports.prepare_holdings_payload(portfolioName, service, user)
