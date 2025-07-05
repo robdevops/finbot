@@ -771,19 +771,20 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 		if days and days < 2:
 			return percent_dict, None
 		caption = []
+		company_name = util.transform_title(stock.get('shortName', ''))
 		if days:
 			title_days = days
 			if days > max_days:
 				title_days = max_days
-			title = f"{stock.get('shortName', '')} ({ticker}) {title_days} days {percent_dict[days]}% Last: {stock.get('regularMarketPrice', '')}"
+			title = f"{company_name} ({ticker}) {title_days} days {percent_dict[days]}% Last: {stock.get('regularMarketPrice', '')}"
 			caption.append(title)
 		else:
 			for k,v in percent_dict.items():
 				caption.append(str(k) + ": " + str(v) + '%')
 			if 'Max' in percent_dict:
-				title = f"{stock.get('shortName')} ({ticker}) Max {percent_dict.get('Max', '')}% Last: {stock.get('regularMarketPrice', '')}"
+				title = f"{company_name} ({ticker}) Max {percent_dict.get('Max', '')}% Last: {stock.get('regularMarketPrice', '')}"
 			else:
-				title = f"{stock.get('shortName')} ({ticker}) 10Y {percent_dict.get('10Y', '')}% Last: {stock.get('regularMarketPrice', '')}"
+				title = f"{company_name} ({ticker}) 10Y {percent_dict.get('10Y', '')}% Last: {stock.get('regularMarketPrice', '')}"
 		caption = '\n'.join(caption)
 		image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
 		image_cache = util.read_binary_cache(image_cache_file, seconds)
