@@ -775,7 +775,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 			title_days = days
 			if days > max_days:
 				title_days = max_days
-			title = stock.get('shortName') + " (" + ticker + ") " + str(title_days) + " days " + str(percent_dict[days]) + '%. Current price:', stock.get('regularMarketPrice')
+			title = stock.get('shortName') + " (" + ticker + ") " + str(title_days) + " days " + str(percent_dict[days]) + '%. Current price:', str(stock.get('regularMarketPrice'))
 			caption.append(title)
 		else:
 			for k,v in percent_dict.items():
