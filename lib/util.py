@@ -2,6 +2,7 @@ import os
 import io
 import datetime
 import json
+import re
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -44,12 +45,14 @@ def transform_title(title):
 	title = title.replace(' p.l.c.', '')
 	title = title.replace(' P.l.c.', '')
 	title = title.replace(' P.L.C.', '')
+	title = title.replace(' UNITS', '')
 	if title.endswith(' AG'):
 		title = title.replace(' AG', '')
 	if title.endswith(' SE'):
 		title = title.replace(' SE', '')
 	if title.endswith(' Se'):
 		title = title.replace(' SE', '')
+	title = re.sub(r'\[\w+\]$', '', title)
 	title = title.replace('Microbalifesciences', 'Microba Life Sciences')
 	title = title.replace('Walt Disney Co (The)', 'Disney')
 	title = title.replace('Lisenergylimited', 'LI-S Energy')
