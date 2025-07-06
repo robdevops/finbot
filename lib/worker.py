@@ -396,34 +396,34 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if not specific_stock:
 			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_peg:
-		action = 'peg'
-		specific_stock = None
-		arg = m_peg.group(1)
-		if arg:
-			match arg:
-				case 'top':
-					action = 'peg'
-				case 'bottom':
-					action = 'bottom peg'
-				case _ if 'neg' in arg:
-					action = 'negative peg'
-				case _:
-					specific_stock = arg
-		if not specific_stock:
-			typing = TypingIndicator(service, chat_id)
-			typing.start()
-			if not typing.is_active():
-				message = [f"Fetching {action.upper()}s..."]
-				webhook.payload_wrapper(service, url, message, chat_id)
-		try:
-			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
-		webhook.payload_wrapper(service, url, payload, chat_id)
-		if not specific_stock:
-			typing.stop()
+	#elif m_peg:
+	#	action = 'peg'
+	#	specific_stock = None
+	#	arg = m_peg.group(1)
+	#	if arg:
+	#		match arg:
+	#			case 'top':
+	#				action = 'peg'
+	#			case 'bottom':
+	#				action = 'bottom peg'
+	#			case _ if 'neg' in arg:
+	#				action = 'negative peg'
+	#			case _:
+	#				specific_stock = arg
+	#	if not specific_stock:
+	#		typing = TypingIndicator(service, chat_id)
+	#		typing.start()
+	#		if not typing.is_active():
+	#			message = [f"Fetching {action.upper()}s..."]
+	#			webhook.payload_wrapper(service, url, message, chat_id)
+	#	try:
+	#		payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
+	#	except Exception as e:
+	#		print(e, file=sys.stderr)
+	#		webhook.payload_wrapper(service, url, [e], chat_id)
+	#	webhook.payload_wrapper(service, url, payload, chat_id)
+	#	if not specific_stock:
+	#		typing.stop()
 	elif m_pe:
 		action = 'pe'
 		specific_stock = None
