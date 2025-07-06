@@ -45,7 +45,7 @@ def transform_title(title):
 	title = title.replace(' p.l.c.', '')
 	title = title.replace(' P.l.c.', '')
 	title = title.replace(' P.L.C.', '')
-	title = title.replace(' UNITS', '')
+	title = title.replace(' Units', '')
 	if title.endswith(' AG'):
 		title = title.replace(' AG', '')
 	if title.endswith(' SE'):
