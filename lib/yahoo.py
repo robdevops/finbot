@@ -769,7 +769,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 			percent_dict[period] = round(percent)
 	if not graph or (days and days < 2):
 		return percent_dict, None
-	company_name = util.transform_title(stock.get('shortName', ''))
+	company_name = util.transform_title(stock.get('longName', ''))
 	price = stock.get('regularMarketPrice', '')
 	caption = []
 	if days:
