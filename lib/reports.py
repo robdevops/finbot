@@ -602,9 +602,9 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 		market_data = yahoo.fetch(tickers)
 		for ticker in market_data:
 			try:
-				if action == 'pe' or action == 'bottom pe':
+				if action in ('pe', 'bottom pe'):
 					ratio = market_data[ticker]['price_to_earnings_trailing']
-				elif action == 'forward pe' or action == 'bottom forward pe':
+				elif action in ('forward pe', 'bottom forward pe'):
 					if not ticker_select and market_data[ticker]['price_to_earnings_forward'] < 0:
 						continue
 					ratio = market_data[ticker]['price_to_earnings_forward']
@@ -612,7 +612,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 					if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
 						continue
 					ratio = market_data[ticker]['price_to_earnings_forward']
-				elif action == 'peg' or action == 'bottom peg':
+				elif action in ('peg', 'bottom peg'):
 					market_data = market_data | yahoo.fetch_detail(ticker)
 					if not ticker_select and market_data[ticker]['price_to_earnings_peg'] < 0:
 						continue
