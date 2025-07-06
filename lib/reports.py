@@ -149,7 +149,7 @@ def prepare_help(service, botName):
 	payload.append(".buy")
 	payload.append(".sell")
 	payload.append(".pe [SYMBOL|top|bottom]")
-	payload.append(".peg [SYMBOL|top|bottom|negative]")
+	#payload.append(".peg [SYMBOL|top|bottom|negative]")
 	payload.append(".forwardpe [SYMBOL|top|bottom|negative]")
 	payload.append(".shorts [percent|SYMBOL]")
 

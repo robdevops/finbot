@@ -86,8 +86,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	forwardpe_command = prefix + r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*"
 	m_forwardpe = re.match(forwardpe_command, message, re.IGNORECASE)
 
-	peg_command = prefix + r"peg\s*([\w\.\:\-\s]+)*"
-	m_peg = re.match(peg_command, message, re.IGNORECASE)
+	#peg_command = prefix + r"peg\s*([\w\.\:\-\s]+)*"
+	#m_peg = re.match(peg_command, message, re.IGNORECASE)
 
 	beta_command = prefix + r"beta\s*([\w\.\:\-]+)*"
 	m_beta = re.match(beta_command, message, re.IGNORECASE)
@@ -615,6 +615,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			return
 		typing = TypingIndicator(service, chat_id)
 		typing.start()
+		arg = re.split(r'[.:]', arg)[0]
 		who = {}
 		payload = []
 		try:
@@ -640,6 +641,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				payload.append("\n".join(v))
 				payload.append("")
 		typing.stop()
+		if not payload:
+			payload.append('no holdings found')
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	# m_stockfinancial is a catch-all, so other matches must be above it
 	elif m_stockfinancial:
