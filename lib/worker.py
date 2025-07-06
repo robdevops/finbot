@@ -74,7 +74,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	holdings_command = prefix + r"holdings?\s*([\w\s]+)*"
 	m_holdings = re.match(holdings_command, message, re.IGNORECASE)
 
-	marketcap_command = prefix + r"(?:marketcap|maletas|marketer)\s*([\w\.\:\-]+)*"
+	marketcap_command = prefix + r"(?:marketcap|maletas|marketer)\s*(?P<arg>[\w\.\:\-]+)*"
 	m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
 
 	plan_command = prefix + r"plan\s*(.*)"
@@ -368,32 +368,27 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_marketcap:
-		if m_marketcap.group(1) and m_marketcap.group(1) not in ('top', 'bottom'):
-			ticker = m_marketcap.group(1).upper()
-			ticker = util.transform_to_yahoo(ticker)
-			market_data = yahoo.fetch_detail(ticker, 600)
-			if ticker in market_data and 'market_cap' in market_data[ticker]:
-				market_cap = market_data[ticker]['market_cap']
-				market_cap_readable = util.humanUnits(market_cap)
-				title = market_data[ticker]['profile_title']
+		arg = m_marketcap.group('arg') or 'top'
+		if arg not in ('top', 'bottom'):
+			ticker = util.transform_to_yahoo(arg.upper())
+			data = yahoo.fetch_detail(ticker, 600)
+			data = data.get(ticker, {})
+			if 'market_cap' in data:
+				cap = util.humanUnits(data['market_cap'])
+				title = data.get('profile_title', ticker)
 				flag = util.flag_from_ticker(ticker)
-				link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-				payload = [f"{flag} {title} ({link}) mkt cap: {market_cap_readable}"]
+				link = util.finance_link(ticker, data.get('profile_exchange', ''), service)
+				payload = [f"{flag} {title} ({link}) mkt cap: {cap}"]
 			else:
 				payload = [f"Mkt cap not found for {ticker}"]
 		else:
-			action = 'top'
-			if m_marketcap.group(1):
-				action = m_marketcap.group(1)
-			if not specific_stock:
-				typing = TypingIndicator(service, chat_id)
-				typing.start()
+			typing = TypingIndicator(service, chat_id)
+			typing.start()
 			try:
-				payload = reports.prepare_marketcap_payload(service, action, length=15)
+				payload = reports.prepare_marketcap_payload(service, arg, length=15)
 			except Exception as e:
 				print(e, file=sys.stderr)
 				webhook.payload_wrapper(service, url, [e], chat_id)
-		if not specific_stock:
 			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	#elif m_peg:
