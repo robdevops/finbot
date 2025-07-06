@@ -642,7 +642,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				payload.append("")
 		typing.stop()
 		if not payload:
-			payload.append('no holdings found')
+			payload.append(f'{arg} not found in any portfolio')
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	# m_stockfinancial is a catch-all, so other matches must be above it
 	elif m_stockfinancial:
