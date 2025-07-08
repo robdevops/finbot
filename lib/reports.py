@@ -267,9 +267,9 @@ def prepare_bio_payload(service, user, ticker):
 	if location:
 		payload.append(webhook.bold("Location:", service) + " " + ', '.join(location))
 	if 'profile_industry' in market_data[ticker] and 'profile_sector' in market_data[ticker]:
-		payload.append(webhook.bold("Classification:", service) + f" {market_data[ticker]['profile_industry']}, {market_data[ticker]['profile_sector']}")
+		payload.append(webhook.bold("Classification: ", service) + f"{market_data[ticker]['profile_industry']}, {market_data[ticker]['profile_sector']}")
 	if 'profile_employees' in market_data[ticker]:
-		payload.append(webhook.bold("Employees:", service) + f" {market_data[ticker]['profile_employees']:,}")
+		payload.append(webhook.bold("Employees: ", service) + f"{market_data[ticker]['profile_employees']:,}")
 	if 'profile_website' in market_data[ticker]:
 		payload.append(webhook.bold("Website:", service) + f" {website}")
 	if 'profile_website' in market_data[ticker] and config_hyperlink:
@@ -281,11 +281,11 @@ def prepare_bio_payload(service, user, ticker):
 			seekingalphaURL='https://seekingalpha.com/symbol/' + ticker
 			finvizLink = util.link(finvizURL, 'finviz', service)
 			seekingalphaLink = util.link(seekingalphaURL, 'seekingalpha', service)
-			payload.append(webhook.bold("Links: ", service) + f"{website} | {exchangeLink} | {finvizLink} | {macrotrendsLink} | {seekingalphaLink}")
+			payload.append(webhook.bold("Links: ", service) + f"{exchangeLink} | {finvizLink} | {macrotrendsLink} | {seekingalphaLink}")
 		elif exchange == 'ASX':
-			payload.append(webhook.bold("Links: ", service) + f"{website} | {exchangeLink} | {shortmanLink}")
+			payload.append(webhook.bold("Links: ", service) + f"{exchangeLink} | {shortmanLink}")
 		else:
-			payload.append(webhook.bold("Links: ", service) + f"{website} | {exchangeLink}")
+			payload.append(webhook.bold("Links: ", service) + f"{exchangeLink}")
 	if ticker_orig == ticker:
 		payload.insert(0, webhook.bold(f"{profile_title} ({ticker_link})", service))
 	else:
