@@ -399,7 +399,7 @@ def prepare_profile_payload(service, user, ticker):
 			seekingalphaLink = util.link(seekingalphaURL, 'seekingalpha', service)
 			payload.append(webhook.bold("Links: ", service) + f"{website} | {exchangeLink} | {finvizLink} | {macrotrendsLink} | {seekingalphaLink}")
 		elif exchange == 'ASX':
-			payload.append(webhook.bold("Links: ", service) + f"{website} | exchangeLink} | {shortmanLink}")
+			payload.append(webhook.bold("Links: ", service) + f"{website} | {exchangeLink} | {shortmanLink}")
 		else:
 			payload.append(webhook.bold("Links: ", service) + f"{website} | {exchangeLink}")
 
