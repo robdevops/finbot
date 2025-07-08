@@ -326,7 +326,7 @@ def prepare_profile_payload(service, user, ticker):
 	if not market_data:
 		payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
 		return payload
-	profile_title = webhook.bold(market_data.get(ticker, {}).get('profile_title', ''), service)
+	profile_title = market_data.get(ticker, {}).get('profile_title', '')
 	if 'marketState' in market_data[ticker]:
 		marketState = market_data[ticker]['marketState'].rstrip()
 		if marketState == 'REGULAR':
@@ -596,11 +596,11 @@ def prepare_profile_payload(service, user, ticker):
 			payload.append("")
 		payload.append(footer)
 	if ticker_orig == ticker:
-		payload.insert(0, f"{profile_title} ({ticker_link}) {marketStateEmoji}")
+		payload.insert(0, f"{webhook.bold(profile_title), service)} ({ticker_link}) {marketStateEmoji}")
 	else:
 		payload.insert(0, f"I could not find {ticker_orig} but I found {ticker_link}:")
 		payload.insert(1, "")
-		payload.insert(2, f"{profile_title} ({ticker_link}) {marketStateEmoji}")
+		payload.insert(2, f"{webhook.bold(profile_title), service)} ({ticker_link}) {marketStateEmoji}")
 	payload = [i[0] for i in groupby(payload)] # de-dupe white space
 	if len(payload) < 2:
 		payload.append("no data found")
