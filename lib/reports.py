@@ -338,7 +338,7 @@ def prepare_profile_payload(service, user, ticker):
 	macrotrendsURL = 'https://www.google.com/search?q=site:macrotrends.net+' + profile_title + '+PE Ratio+' + ticker.split('.')[0] + '&btnI'
 	macrotrendsLink = util.link(macrotrendsURL, 'macrotrends', service)
 	gfinanceLink = util.gfinance_link(ticker, exchange, service, brief=True, text='google')
-	yahooLink = util.yahoo_link(ticker, exchange, service, brief=True, text='yahoo')
+	yahooLink = util.yahoo_link(ticker, service, brief=True, text='yahoo')
 
 	if 'profile_website' in market_data[ticker]:
 		website = website_text = market_data[ticker]['profile_website']
