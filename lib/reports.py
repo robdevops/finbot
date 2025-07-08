@@ -326,10 +326,22 @@ def prepare_profile_payload(service, user, ticker):
 	if not market_data:
 		payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
 		return payload
-	profile_title = market_data.get(ticker, {}).get('profile_title', '')
+	profile_title = webhook.bold(market_data.get(ticker, {}).get('profile_title', ''), service)
+	if 'marketState' in market_data[ticker]:
+		marketState = market_data[ticker]['marketState'].rstrip()
+		if marketState == 'REGULAR':
+			marketStateEmoji = '🟢'
+		elif marketState in {'PRE', 'POST'}:
+			marketStateEmoji = '🟠'
+		else:
+			marketStateEmoji = '🔴'
+	if 'profile_bio' in market_data[ticker]:
+		payload.append(util.make_paragraphs(market_data[ticker]['profile_bio']))
+
 	if 'profile_exchange' in market_data.get(ticker, {}):
 		exchange = market_data.get(ticker).get('profile_exchange')
 		exchange = exchange.replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq').replace('NYSEArca', 'NYSE')
+		exchangeLink = util.link(exchangeUrl, exchange, service)
 		swsURL = simplywallst.get_url(ticker, profile_title, exchange)
 		swsLink = util.link(swsURL, 'simplywall.st', service)
 		ticker_link = util.finance_link(ticker, exchange, service, brief=False)
@@ -362,7 +374,6 @@ def prepare_profile_payload(service, user, ticker):
 		exchangeUrl = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + ticker.split('.')[0]
 	else:
 		exchangeUrl = 'https://www.google.com/search?q=stock+exchange+' + exchange + '+' + ticker.split('.')[0] + '&btnI'
-	exchangeLink = util.link(exchangeUrl, exchange, service)
 	location = []
 	if 'profile_city' in market_data[ticker]:
 		location.append(market_data[ticker]['profile_city'])
@@ -371,9 +382,6 @@ def prepare_profile_payload(service, user, ticker):
 	if 'profile_country' in market_data[ticker]:
 		profile_country = market_data[ticker]['profile_country']
 		location.append(profile_country)
-	if 'profile_bio' in market_data[ticker]:
-		payload.append(util.make_paragraphs(market_data[ticker]['profile_bio']))
-
 	if payload:
 		payload.append("")
 
@@ -400,14 +408,9 @@ def prepare_profile_payload(service, user, ticker):
 		else:
 			payload.append(webhook.bold("Links: ", service) + f"{exchangeLink}")
 
-	if 'marketState' in market_data[ticker]:
-		marketState = market_data[ticker]['marketState'].rstrip()
-		if marketState == 'REGULAR':
-			marketStateEmoji = '🟢'
-		elif marketState in {'PRE', 'POST'}:
-			marketStateEmoji = '🟠'
-		else:
-			marketStateEmoji = '🔴'
+	if payload:
+		payload.append("")
+
 	if 'currency' in market_data[ticker] and 'market_cap' in market_data[ticker]:
 		currency = market_data[ticker]['currency']
 		market_cap = market_data[ticker]['market_cap']
