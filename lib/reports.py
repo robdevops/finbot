@@ -596,11 +596,11 @@ def prepare_profile_payload(service, user, ticker):
 			payload.append("")
 		payload.append(footer)
 	if ticker_orig == ticker:
-		payload.insert(0, f"{webhook.bold(profile_title), service)} ({ticker_link}) {marketStateEmoji}")
+		payload.insert(0, f"{webhook.bold(profile_title, service)} ({ticker_link}) {marketStateEmoji}")
 	else:
 		payload.insert(0, f"I could not find {ticker_orig} but I found {ticker_link}:")
 		payload.insert(1, "")
-		payload.insert(2, f"{webhook.bold(profile_title), service)} ({ticker_link}) {marketStateEmoji}")
+		payload.insert(2, f"{webhook.bold(profile_title, service)} ({ticker_link}) {marketStateEmoji}")
 	payload = [i[0] for i in groupby(payload)] # de-dupe white space
 	if len(payload) < 2:
 		payload.append("no data found")
