@@ -326,7 +326,7 @@ def prepare_profile_payload(service, user, ticker):
 	if not market_data:
 		payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
 		return payload
-	profile_title = market_data.get(ticker), {}.get('profile_title', '')
+	profile_title = market_data.get(ticker, {}).get('profile_title', '')
 	if 'profile_exchange' in market_data.get(ticker, {}):
 		exchange = market_data.get(ticker).get('profile_exchange')
 		exchange = exchange.replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq').replace('NYSEArca', 'NYSE')
