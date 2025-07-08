@@ -199,33 +199,146 @@ def prepare_holdings_payload(portfolioName, service, user):
 			payload.append( item )
 	return payload
 
-def prepare_bio_payload(service, user, ticker):
+def prepare_marketcap_payload(service, action='top', length=15):
+	def last_col(e):
+		try:
+			return float(e.split()[-1])
+		except ValueError:
+			pass
+	payload_staging = []
+	tickers = util.get_holdings_and_watchlist()
+	market_data = yahoo.fetch(tickers)
+	for ticker in market_data:
+		try:
+			market_cap = market_data[ticker]['market_cap']
+		except:
+			print(ticker, "no market cap", file=sys.stderr)
+			continue
+		market_cap_readable = util.humanUnits(market_cap)
+		title = market_data[ticker]['profile_title']
+		link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+		flag = util.flag_from_ticker(ticker)
+		payload_staging.append(f"{flag} {title} ({link}) mkt cap: {market_cap_readable} {market_cap}")
+	if payload_staging:
+		payload_staging.sort(key=last_col)
+		if action == 'top':
+			payload_staging.reverse()
+		payload_staging = payload_staging[:length]
+		payload = []
+		for line in payload_staging: # drop no longer needed sort key
+			words = line.split()
+			payload.append(' '.join(words[:-1]))
+		payload.insert(0, f"{webhook.bold(f'{action.title()} {length} tracked stocks by market cap', service)}")
+	return payload
+
+def prepare_rating_payload(service, action, length=15):
+		def score_col(e):
+			return (float(e.split()[-3]), int(e.split()[-2].removeprefix('(')))
+		payload = []
+		tickers = util.get_holdings_and_watchlist()
+		market_data = {}
+		for ticker in tickers:
+			try:
+				market_data = market_data | yahoo.fetch_detail(ticker)
+			except TypeError:
+				pass
+		for ticker in market_data:
+			if 'recommend' in market_data[ticker]:
+				recommend = market_data[ticker]['recommend'].replace('_', ' ')
+				recommend_index = market_data[ticker]['recommend_index']
+				recommend_analysts = market_data[ticker]['recommend_analysts']
+				if recommend_analysts > 1:
+					profile_title = market_data[ticker]['profile_title']
+					ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+					flag = util.flag_from_ticker(ticker)
+					if action == 'buy' and 'buy' in recommend:
+							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
+					elif action == 'sell' and (recommend == 'sell' or recommend == 'underperform'):
+							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
+		payload.sort(key=score_col)
+		payload = payload[:length]
+		if payload:
+			message = f"Top {length} analyst {action} ratings for tracked stocks"
+			payload.insert(0, f"{webhook.bold(message, service)}")
+		return payload
+
+def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
+		def last_col(e):
+			return float(e.split()[-1])
+		payload = []
+		if ticker_select:
+			tickers = [ticker_select]
+		else:
+			tickers = util.get_holdings_and_watchlist()
+		market_data = yahoo.fetch(tickers)
+		for ticker in market_data:
+			try:
+				if action in ('pe', 'bottom pe'):
+					ratio = market_data[ticker]['price_to_earnings_trailing']
+				elif action in ('forward pe', 'bottom forward pe'):
+					if not ticker_select and market_data[ticker]['price_to_earnings_forward'] < 0:
+						continue
+					ratio = market_data[ticker]['price_to_earnings_forward']
+				elif action == 'negative forward pe':
+					if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
+						continue
+					ratio = market_data[ticker]['price_to_earnings_forward']
+				elif action in ('peg', 'bottom peg'):
+					market_data = market_data | yahoo.fetch_detail(ticker)
+					if not ticker_select and market_data[ticker]['price_to_earnings_peg'] < 0:
+						continue
+					ratio = market_data[ticker]['price_to_earnings_peg']
+				elif action == 'negative peg':
+					market_data = market_data | yahoo.fetch_detail(ticker)
+					if not ticker_select and market_data[ticker]['price_to_earnings_peg'] >= 0:
+						continue
+					ratio = market_data[ticker]['price_to_earnings_peg']
+			except KeyError:
+				print(ticker, action, "value not found", file=sys.stderr)
+				continue
+			profile_title = market_data[ticker]['profile_title']
+			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+			flag = util.flag_from_ticker(ticker)
+			payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
+		payload.sort(key=last_col)
+		if not ticker_select:
+			heading_type = "Bottom" if 'bottom' in action else "Top"
+			heading_trail = action.replace('bottom ', '')
+			if 'bottom' in action:
+				payload.reverse()
+			payload = payload[:length]
+			if payload:
+				payload.insert(0, f"{webhook.bold(f'{heading_type} {length} tracked stocks by {heading_trail} ratio', service)}")
+		return payload
+
+def prepare_profile_payload(service, user, ticker):
+	cashflow = None
 	ticker = ticker_orig = util.transform_to_yahoo(ticker)
+	now = datetime.datetime.now()
 	payload = []
 	market_data = yahoo.fetch_detail(ticker, 600)
-
 	print("")
-
 	if ticker not in market_data and '.' not in ticker:
 		ticker = ticker + '.AX'
 		print("trying again with", ticker)
 		market_data = yahoo.fetch_detail(ticker, 600)
 		print("")
-	if ticker not in market_data:
+	if not market_data:
 		payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
 		return payload
-	profile_title = market_data[ticker]['profile_title']
-	exchange = market_data[ticker]['profile_exchange']
-	exchange = exchange.replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq').replace('NYSEArca', 'NYSE')
-	ticker_link = util.finance_link(ticker, exchange, service, brief=False)
-	profile_title = market_data[ticker]['profile_title']
-	swsURL = simplywallst.get_url(ticker, profile_title, exchange)
-	swsLink = util.link(swsURL, 'simplywall.st', service)
+	profile_title = market_data.get(ticker), {}.get('profile_title', '')
+	if 'profile_exchange' in market_data.get(ticker, {}):
+		exchange = market_data.get(ticker).get('profile_exchange')
+		exchange = exchange.replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq').replace('NYSEArca', 'NYSE')
+		swsURL = simplywallst.get_url(ticker, profile_title, exchange)
+		swsLink = util.link(swsURL, 'simplywall.st', service)
+		ticker_link = util.finance_link(ticker, exchange, service, brief=False)
+		swsURL = simplywallst.get_url(ticker, profile_title, exchange)
+		swsLink = util.link(swsURL, 'simplywall.st', service)
 	macrotrendsURL = 'https://www.google.com/search?q=site:macrotrends.net+' + profile_title + '+PE Ratio+' + ticker.split('.')[0] + '&btnI'
 	macrotrendsLink = util.link(macrotrendsURL, 'macrotrends', service)
 	gfinanceLink = util.gfinance_link(ticker, exchange, service, brief=True, text='google')
-	yahooUrl = 'https://au.finance.yahoo.com/quote/' + ticker
-	yahooLink = util.link(yahooUrl, 'yahoo', service)
+	yahooLink = util.yahoo_link(ticker, exchange, service, brief=True, text='yahoo')
 
 	if 'profile_website' in market_data[ticker]:
 		website = website_text = market_data[ticker]['profile_website']
@@ -286,35 +399,7 @@ def prepare_bio_payload(service, user, ticker):
 			payload.append(webhook.bold("Links: ", service) + f"{exchangeLink} | {shortmanLink}")
 		else:
 			payload.append(webhook.bold("Links: ", service) + f"{exchangeLink}")
-	if ticker_orig == ticker:
-		payload.insert(0, webhook.bold(f"{profile_title} ({ticker_link})", service))
-	else:
-		payload.insert(0, "Beep Boop. I could not find " + ticker_orig + ", but I found " + ticker_link)
-		payload.insert(1, "")
-		payload.insert(2, webhook.bold(f"{profile_title} ({ticker_link})", service))
-	if len(payload) < 2:
-		payload.append("no data found")
-	payload = [i[0] for i in groupby(payload)] # de-dupe white space
-	return payload
 
-def prepare_stockfinancial_payload(service, user, ticker):
-	cashflow = None
-	ticker = ticker_orig = util.transform_to_yahoo(ticker)
-	now = datetime.datetime.now()
-	payload = []
-	market_data = yahoo.fetch_detail(ticker, 600)
-	print("")
-	if ticker not in market_data and '.' not in ticker:
-		ticker = ticker + '.AX'
-		print("trying again with", ticker)
-		market_data = yahoo.fetch_detail(ticker, 600)
-		print("")
-	if not market_data:
-		payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
-		return payload
-	exchange = market_data[ticker]['profile_exchange']
-	ticker_link = util.finance_link(ticker, exchange, service, brief=False)
-	profile_title = market_data[ticker]['profile_title']
 	if 'marketState' in market_data[ticker]:
 		marketState = market_data[ticker]['marketState'].rstrip()
 		if marketState == 'REGULAR':
@@ -323,10 +408,6 @@ def prepare_stockfinancial_payload(service, user, ticker):
 			marketStateEmoji = '🟠'
 		else:
 			marketStateEmoji = '🔴'
-	if 'profile_exchange' in market_data[ticker]:
-		profile_exchange = market_data[ticker]['profile_exchange']
-		swsURL = simplywallst.get_url(ticker, profile_title, profile_exchange)
-		swsLink = util.link(swsURL, 'simplywall.st', service)
 	if 'currency' in market_data[ticker] and 'market_cap' in market_data[ticker]:
 		currency = market_data[ticker]['currency']
 		market_cap = market_data[ticker]['market_cap']
@@ -526,115 +607,3 @@ def prepare_stockfinancial_payload(service, user, ticker):
 	if len(payload) < 2:
 		payload.append("no data found")
 	return payload
-
-def prepare_marketcap_payload(service, action='top', length=15):
-	def last_col(e):
-		try:
-			return float(e.split()[-1])
-		except ValueError:
-			pass
-	payload_staging = []
-	tickers = util.get_holdings_and_watchlist()
-	market_data = yahoo.fetch(tickers)
-	for ticker in market_data:
-		try:
-			market_cap = market_data[ticker]['market_cap']
-		except:
-			print(ticker, "no market cap", file=sys.stderr)
-			continue
-		market_cap_readable = util.humanUnits(market_cap)
-		title = market_data[ticker]['profile_title']
-		link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-		flag = util.flag_from_ticker(ticker)
-		payload_staging.append(f"{flag} {title} ({link}) mkt cap: {market_cap_readable} {market_cap}")
-	if payload_staging:
-		payload_staging.sort(key=last_col)
-		if action == 'top':
-			payload_staging.reverse()
-		payload_staging = payload_staging[:length]
-		payload = []
-		for line in payload_staging: # drop no longer needed sort key
-			words = line.split()
-			payload.append(' '.join(words[:-1]))
-		payload.insert(0, f"{webhook.bold(f'{action.title()} {length} tracked stocks by market cap', service)}")
-	return payload
-
-def prepare_rating_payload(service, action, length=15):
-		def score_col(e):
-			return (float(e.split()[-3]), int(e.split()[-2].removeprefix('(')))
-		payload = []
-		tickers = util.get_holdings_and_watchlist()
-		market_data = {}
-		for ticker in tickers:
-			try:
-				market_data = market_data | yahoo.fetch_detail(ticker)
-			except TypeError:
-				pass
-		for ticker in market_data:
-			if 'recommend' in market_data[ticker]:
-				recommend = market_data[ticker]['recommend'].replace('_', ' ')
-				recommend_index = market_data[ticker]['recommend_index']
-				recommend_analysts = market_data[ticker]['recommend_analysts']
-				if recommend_analysts > 1:
-					profile_title = market_data[ticker]['profile_title']
-					ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-					flag = util.flag_from_ticker(ticker)
-					if action == 'buy' and 'buy' in recommend:
-							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
-					elif action == 'sell' and (recommend == 'sell' or recommend == 'underperform'):
-							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
-		payload.sort(key=score_col)
-		payload = payload[:length]
-		if payload:
-			message = f"Top {length} analyst {action} ratings for tracked stocks"
-			payload.insert(0, f"{webhook.bold(message, service)}")
-		return payload
-
-def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
-		def last_col(e):
-			return float(e.split()[-1])
-		payload = []
-		if ticker_select:
-			tickers = [ticker_select]
-		else:
-			tickers = util.get_holdings_and_watchlist()
-		market_data = yahoo.fetch(tickers)
-		for ticker in market_data:
-			try:
-				if action in ('pe', 'bottom pe'):
-					ratio = market_data[ticker]['price_to_earnings_trailing']
-				elif action in ('forward pe', 'bottom forward pe'):
-					if not ticker_select and market_data[ticker]['price_to_earnings_forward'] < 0:
-						continue
-					ratio = market_data[ticker]['price_to_earnings_forward']
-				elif action == 'negative forward pe':
-					if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
-						continue
-					ratio = market_data[ticker]['price_to_earnings_forward']
-				elif action in ('peg', 'bottom peg'):
-					market_data = market_data | yahoo.fetch_detail(ticker)
-					if not ticker_select and market_data[ticker]['price_to_earnings_peg'] < 0:
-						continue
-					ratio = market_data[ticker]['price_to_earnings_peg']
-				elif action == 'negative peg':
-					market_data = market_data | yahoo.fetch_detail(ticker)
-					if not ticker_select and market_data[ticker]['price_to_earnings_peg'] >= 0:
-						continue
-					ratio = market_data[ticker]['price_to_earnings_peg']
-			except KeyError:
-				print(ticker, action, "value not found", file=sys.stderr)
-				continue
-			profile_title = market_data[ticker]['profile_title']
-			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-			flag = util.flag_from_ticker(ticker)
-			payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
-		payload.sort(key=last_col)
-		if not ticker_select:
-			heading_type = "Bottom" if 'bottom' in action else "Top"
-			heading_trail = action.replace('bottom ', '')
-			if 'bottom' in action:
-				payload.reverse()
-			payload = payload[:length]
-			if payload:
-				payload.insert(0, f"{webhook.bold(f'{heading_type} {length} tracked stocks by {heading_trail} ratio', service)}")
-		return payload

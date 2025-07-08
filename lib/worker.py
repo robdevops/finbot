@@ -113,8 +113,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	shorts_command = prefix + r"shorts?\s*([\w\.\:\-]+)*"
 	m_shorts = re.match(shorts_command, message, re.IGNORECASE)
 
-	stockfinancial_command = prefix + r"(?P<ticker>[\w\.\:\-]+)"
-	m_stockfinancial = re.match(stockfinancial_command, message, re.IGNORECASE)
+	profile_command = prefix + r"(?P<ticker>[\w\.\:\-]+)"
+	m_profile = re.match(profile_command, message, re.IGNORECASE)
 
 	thanks_command = prefix + r"(?:thanks|thank you)|^(?:thanks|thank you)\s+" + botName
 	m_thanks = re.match(thanks_command, message, re.IGNORECASE)
@@ -639,25 +639,17 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		if not payload:
 			payload.append(f'{arg} not found in any portfolio')
 		webhook.payload_wrapper(service, url, payload, chat_id)
-	# m_stockfinancial is a catch-all, so other matches must be above it
-	elif m_stockfinancial:
+	# m_profile is a catch-all, so other matches must be above it
+	elif m_profile:
 		typing = TypingIndicator(service, chat_id)
 		typing.start()
-		if m_stockfinancial.group('ticker'):
-			ticker = m_stockfinancial.group('ticker').upper()
+		if m_profile.group('ticker'):
+			ticker = m_profile.group('ticker').upper()
 		try:
-			payload_bio = reports.prepare_bio_payload(service, user, ticker)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			pass
-		if len(payload_bio):
-			payload_bio.append("")
-		try:
-			payload_financial = reports.prepare_stockfinancial_payload(service, user, ticker)
+			payload = reports.prepare_profile_payload(service, user, ticker)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
 		typing.stop()
-		payload = payload_bio + payload_financial
 		webhook.payload_wrapper(service, url, payload, chat_id)
 
