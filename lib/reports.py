@@ -351,10 +351,6 @@ def prepare_profile_payload(service, user, ticker):
 	gfinanceLink = util.gfinance_link(ticker, exchange, service, brief=True, text='google')
 	yahooLink = util.yahoo_link(ticker, service, brief=True, text='yahoo')
 
-	if 'profile_website' in market_data[ticker]:
-		website = website_text = market_data[ticker]['profile_website']
-		website_text = util.strip_url(website)
-		website = util.link(website, website_text, service)
 	if exchange == 'ASX':
 		exchangeUrl = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
 		shortmanUrl = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
@@ -382,6 +378,10 @@ def prepare_profile_payload(service, user, ticker):
 	if 'profile_country' in market_data[ticker]:
 		profile_country = market_data[ticker]['profile_country']
 		location.append(profile_country)
+	if 'profile_website' in market_data[ticker]:
+		website = website_text = market_data[ticker]['profile_website']
+		website_text = util.strip_url(website)
+		website = util.link(website, website_text, service)
 	if payload:
 		payload.append("")
 
@@ -392,21 +392,16 @@ def prepare_profile_payload(service, user, ticker):
 	if 'profile_employees' in market_data[ticker]:
 		payload.append(webhook.bold("Employees: ", service) + f"{market_data[ticker]['profile_employees']:,}")
 	if 'profile_website' in market_data[ticker]:
-		payload.append(webhook.bold("Website:", service) + f" {website}")
-	if 'profile_website' in market_data[ticker] and config_hyperlink:
-		website = website_text = market_data[ticker]['profile_website']
-		website_text = util.strip_url(website)
-		website = util.link(website, website_text, service)
 		if 'NYSE' in exchange or 'Nasdaq' in exchange:
 			finvizURL='https://finviz.com/quote.ashx?t=' + ticker
 			seekingalphaURL='https://seekingalpha.com/symbol/' + ticker
 			finvizLink = util.link(finvizURL, 'finviz', service)
 			seekingalphaLink = util.link(seekingalphaURL, 'seekingalpha', service)
-			payload.append(webhook.bold("Links: ", service) + f"{exchangeLink} | {finvizLink} | {macrotrendsLink} | {seekingalphaLink}")
+			payload.append(webhook.bold("Links: ", service) + f"{website} | {exchangeLink} | {finvizLink} | {macrotrendsLink} | {seekingalphaLink}")
 		elif exchange == 'ASX':
-			payload.append(webhook.bold("Links: ", service) + f"{exchangeLink} | {shortmanLink}")
+			payload.append(webhook.bold("Links: ", service) + f"{website} | exchangeLink} | {shortmanLink}")
 		else:
-			payload.append(webhook.bold("Links: ", service) + f"{exchangeLink}")
+			payload.append(webhook.bold("Links: ", service) + f"{website} | {exchangeLink}")
 
 	if payload:
 		payload.append("")
