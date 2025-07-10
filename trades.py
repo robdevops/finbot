@@ -40,18 +40,20 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 				print("Warning: could not fetch Yahoo:", e, file=sys.stderr)
 
 		for trade in trades:
-			action=''
-			emoji=''
+			if trade['transaction_type'] not in {'BUY', 'SELL'}:
+				continue
 			portfolio_name = trade['portfolio'] # custom field
-			date = trade['transaction_date'] # 2023-12-30
-			transactionType = trade['transaction_type']
-			symbol = trade['symbol']
 			if portfolio_select and portfolio_name.lower() != portfolio_select.lower():
 				continue
 			trade_id = int(trade['id'])
+			date = trade['transaction_date'] # 2023-12-30
+			transactionType = trade['transaction_type']
+			symbol = trade['symbol']
 			if not interactive and trade_id in known_trades:
 				print("Skipping known trade_id:", trade_id, date, portfolio_name, transactionType, symbol)
 				continue
+			action=''
+			emoji=''
 			market = trade['market']
 			if transactionType == 'BUY':
 				action = 'bought'
