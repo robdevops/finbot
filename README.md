@@ -51,7 +51,6 @@ Where:
 .performance [period] [portfolio]
 .premarket [percent|symbol]
 .price [percent|symbol] [period]
-.profile symbol
 .rating [strong buy|buy|hold|underperform|sell]
 .session [percent|symbol]
 .shorts [percent|symbol]
@@ -73,7 +72,6 @@ Alternative syntax:
 @botname performance [period] [portfolio]
 @botname premarket [percent|symbol]
 @botname price [percent|symbol] [period]
-@botname profile symbol
 @botname rating [buy|hold|underperform|sell]
 @botname session [percent|symbol]
 @botname shorts [percent|symbol]
@@ -133,17 +131,6 @@ This report can only be run through the interactive bot. Example usage:
 ```
 ```
 @botname AAPL
-```
-
-### Company Profile
-![Screenshot showing stock profile on Slack](img/bio.png?raw=true "Screenshot showing stock profile on Slack")
-
-This report can only be run through the interactive bot. Example usage:
-```
-.profile [symbol]
-```
-```
-@botname profile [symbol]
 ```
 
 ### Trades
