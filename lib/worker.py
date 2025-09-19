@@ -222,7 +222,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	elif m_performance:
 		portfolio_select = None
 		days = config_past_days
-		for arg in m_performance.groups()[1:3]:  # groups 2 and 3, allow arbitrary order
+		for arg in m_performance.groups()[:2]:  # groups 2 and 3, allow arbitrary order
 			if arg:
 				try:
 					days = util.days_from_human_days(arg)
