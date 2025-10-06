@@ -98,7 +98,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	sell_command = prefix + r"sell"
 	m_sell = re.match(sell_command, message, re.IGNORECASE)
 
-	history_command = prefix + r"(?:history|hospital|visual|hoisery)\s*(?P<ticker>[\w\.\:\-]+)\s*(?P<extra>[\w\%]+)*"
+	history_command = prefix + r"(?:history|hospital|visual|hosiery)\s*(?P<ticker>[\w\.\:\-]+)\s*(?P<extra>[\w\%]+)*"
 	m_history = re.match(history_command, message, re.IGNORECASE)
 
 	performance_command = prefix + r"performance?\s*([\w]+)*\s*([\w\s]+)*"
