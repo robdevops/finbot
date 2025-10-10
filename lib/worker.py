@@ -281,7 +281,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 					if arg == m_price.group(1):
 						specific_stock = str(arg).upper()
 		if not specific_stock:
-			typing.stop()
+			typing = TypingIndicator(service, chat_id)
+			typing.start()
 			if not typing.is_active():
 				# easter egg 4
 				payload = [ f"{random.choice(searchVerb)} stock performance from {util.days_english(days)} 🔍" ]
