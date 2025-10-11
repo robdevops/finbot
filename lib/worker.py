@@ -80,7 +80,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	plan_command = prefix + r"plan\s*(.*)"
 	m_plan = re.match(plan_command, message, re.IGNORECASE)
 
-	pe_command = prefix + r"pe\s*([\w\.\:\-\s]+)*"
+	pe_command = prefix + r"pe(?:$|\s+)(?P<arg>[\w\.\:\-\s]+)*"
 	m_pe = re.match(pe_command, message, re.IGNORECASE)
 
 	forwardpe_command = prefix + r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*"
@@ -424,7 +424,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		action = 'pe'
 		specific_stock = None
 		if m_pe.group(1):
-			arg = m_pe.group(1)
+			arg = m_pe.group('arg')
 			match arg:
 				case 'top':
 					action = 'pe'
