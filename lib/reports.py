@@ -534,11 +534,11 @@ def prepare_profile_payload(service, user, ticker):
 
 	if 'regularMarketPrice' in market_data[ticker]:
 		regularMarketPrice = market_data[ticker]['regularMarketPrice']
-		currency = market_data[ticker]['currency']
+		currency = market_data.get(ticker, {}).get('currency')
 		prePostMarketPrice = None
 		marketState = market_data[ticker]['marketState']
 		if marketState != 'REGULAR' and 'prePostMarketPrice' in market_data[ticker]:
-			prePostMarketPrice = market_data[ticker]['prePostMarketPrice']
+			prePostMarketPrice = market_data.get(ticker, {}).get('prePostMarketPrice')
 			payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice:,.2f} ({prePostMarketPrice:,.2f} after hrs)")
 		else:
 			payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice:,.2f}" )
