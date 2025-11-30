@@ -600,7 +600,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_super:
 		heading = webhook.bold('Super payout deadlines:', service)
-		payload = [heading, webhook.strike("28 July 2025", service), "28 October 2025", "28 January 2026", "28 April 2026", "01 July 2026 commence payday super"]
+		payload = [heading, webhook.strike("28 July 2025", service), webhook.strike("28 October 2025", service), "28 January 2026", "28 April 2026", "01 July 2026 commence payday super"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_who:
 		if m_who.group('ticker'):

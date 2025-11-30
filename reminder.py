@@ -19,8 +19,10 @@ def lambda_handler():
 		year = str(localtime.strftime('%Y')) # 2023
 		if config_country_code == 'AU':
 			flag = "🇦🇺"
-			if month_and_day in {'01-28', '04-28', '07-28', '10-28'}:
+			if year == "2026" and month_and_day in {'01-28', '04-28'}:
 				payload.append("🤑 Quarterly Superannuation payout deadline" + flag)
+			if year == "2026" and month_and_day in {'07-01'}:
+				payload.append("🤑 Commence payday super" + flag)
 			if month_and_day == '06-23':
 				payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)
 				payload.append ("")
