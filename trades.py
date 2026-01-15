@@ -27,7 +27,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 					continue
 				if portfolio_select and trade['portfolio'].lower() != portfolio_select.lower():
 					continue
-				if not interactive and int(trade['id']) in known_trades:
+				if not interactive and str(trade['id']) in known_trades:
 					continue
 				symbol = trade['symbol']
 				market = trade['market']
@@ -50,7 +50,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			date = trade['transaction_date'] # 2023-12-30
 			transactionType = trade['transaction_type']
 			symbol = trade['symbol']
-			if not interactive and trade_id in known_trades:
+			if not interactive and str(trade_id) in known_trades:
 				print("Skipping known trade_id:", trade_id, date, portfolio_name, transactionType, symbol)
 				continue
 			action=''
