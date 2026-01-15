@@ -109,6 +109,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 
 	# MAIN #
 	newtrades = set()
+	trades = []
 	portfolios = sharesight.get_portfolios()
 
 	# Get trades from Sharesight
