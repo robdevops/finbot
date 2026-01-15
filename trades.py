@@ -45,6 +45,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			portfolio_name = trade['portfolio'] # custom field
 			if portfolio_select and portfolio_name.lower() != portfolio_select.lower():
 				continue
+			holding_id = str(trade['holding_id'])
 			trade_id = int(trade['id'])
 			date = trade['transaction_date'] # 2023-12-30
 			transactionType = trade['transaction_type']
@@ -75,7 +76,6 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 					print("Warning: could not get market for", ticker, "from Yahoo:", e, file=sys.stderr)
 			#value = round(trade['value']) # don't use - sharesight converts to local currency
 			value = round(price * units)
-			holding_id = str(trade['holding_id'])
 			ticker = util.transform_to_yahoo(symbol, market)
 			dt_date = datetime.datetime.strptime(date, '%Y-%m-%d').date() # (2023, 12, 30)
 
