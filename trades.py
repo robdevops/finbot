@@ -50,7 +50,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			date = trade['transaction_date'] # 2023-12-30
 			transactionType = trade['transaction_type']
 			symbol = trade['symbol']
-			if not interactive and f"{trade['portfolio_id']}:{holding_id}:{trade_id}" in known_trades:
+			if not interactive and trade_id in known_trades:
 				print("Skipping known trade_id:", trade_id, date, portfolio_name, transactionType, symbol)
 				continue
 			action=''
@@ -79,7 +79,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			ticker = util.transform_to_yahoo(symbol, market)
 			dt_date = datetime.datetime.strptime(date, '%Y-%m-%d').date() # (2023, 12, 30)
 
-			newtrades.add(f"{trade['portfolio_id']}:{holding_id}:{trade_id}") # sneaky update global set
+			newtrades[trade_id] = True # sneaky update global dict
 			dates.add(dt_date)
 
 			flag = util.flag_from_market(market)
@@ -112,7 +112,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 
 	# Get trades from Sharesight
 	trades = []
-	newtrades = set()
+	newtrades = {}
 	known_trades = util.json_load(state_file, persist=True) or []
 
 	if portfolio_select:
@@ -156,8 +156,8 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 
 	# write state file
 	if newtrades and not interactive:
-		known_trades = set(known_trades) | newtrades
-		util.json_write(state_file, list(known_trades), persist=True)
+		known_trades = known_trades | newtrades
+		util.json_write(state_file, known_trades, persist=True)
 
 	# make google cloud happy
 	return True
