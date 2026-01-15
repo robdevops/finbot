@@ -79,7 +79,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			ticker = util.transform_to_yahoo(symbol, market)
 			dt_date = datetime.datetime.strptime(date, '%Y-%m-%d').date() # (2023, 12, 30)
 
-			newtrades.add(trade_id) # sneaky update global set
+			newtrades.add(f"{trade['portfolio_id']}:{holding_id}:{trade_id}") # sneaky update global set
 			dates.add(dt_date)
 
 			flag = util.flag_from_market(market)
@@ -112,9 +112,8 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 
 	# Get trades from Sharesight
 	trades = []
-	known_trades = []
 	newtrades = set()
-	known_trades = util.json_load(state_file, persist=True)
+	known_trades = util.json_load(state_file, persist=True) or []
 
 	if portfolio_select:
 		portfoliosLower = {k.lower():v for k,v in portfolios.items()}
