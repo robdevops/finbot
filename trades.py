@@ -27,7 +27,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 					continue
 				if portfolio_select and trade['portfolio'].lower() != portfolio_select.lower():
 					continue
-				if not interactive and str(trade['id']) in known_trades:
+				if not interactive and int(trade['id']) in known_trades:
 					continue
 				symbol = trade['symbol']
 				market = trade['market']
@@ -45,12 +45,11 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			portfolio_name = trade['portfolio'] # custom field
 			if portfolio_select and portfolio_name.lower() != portfolio_select.lower():
 				continue
-			holding_id = str(trade['holding_id'])
 			trade_id = int(trade['id'])
 			date = trade['transaction_date'] # 2023-12-30
 			transactionType = trade['transaction_type']
 			symbol = trade['symbol']
-			if not interactive and str(trade_id) in known_trades:
+			if not interactive and trade_id in known_trades:
 				print("Skipping known trade_id:", trade_id, date, portfolio_name, transactionType, symbol)
 				continue
 			action=''
@@ -76,10 +75,11 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 					print("Warning: could not get market for", ticker, "from Yahoo:", e, file=sys.stderr)
 			#value = round(trade['value']) # don't use - sharesight converts to local currency
 			value = round(price * units)
+			holding_id = str(trade['holding_id'])
 			ticker = util.transform_to_yahoo(symbol, market)
 			dt_date = datetime.datetime.strptime(date, '%Y-%m-%d').date() # (2023, 12, 30)
 
-			newtrades[trade_id] = True # sneaky update global dict
+			newtrades.add(trade_id) # sneaky update global set
 			dates.add(dt_date)
 
 			flag = util.flag_from_market(market)
@@ -108,12 +108,11 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 		return payload
 
 	# MAIN #
+	newtrades = set()
 	portfolios = sharesight.get_portfolios()
 
 	# Get trades from Sharesight
-	trades = []
-	newtrades = {}
-	known_trades = util.json_load(state_file, persist=True) or {}
+	known_trades = set(util.json_load(state_file, persist=True)) or set()
 
 	if portfolio_select:
 		portfoliosLower = {k.lower():v for k,v in portfolios.items()}
@@ -156,8 +155,8 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 
 	# write state file
 	if newtrades and not interactive:
-		known_trades = known_trades | newtrades
-		util.json_write(state_file, known_trades, persist=True)
+		known_trades.update(newtrades)
+		util.json_write(state_file, list(known_trades), persist=True)
 
 	# make google cloud happy
 	return True
