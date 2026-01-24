@@ -20,9 +20,9 @@ def lambda_handler():
 		if config_country_code == 'AU':
 			flag = "🇦🇺"
 			if year == "2026" and month_and_day in {'01-28'}:
-				payload = [webhook.strike("28 July 2025", service), webhook.strike("28 October 2025", service), webhook.strike("28 January 2026", service), "28 April 2026", "01 July 2026 commence payday super"]
+				payload = [webhook.bold("🤑 Super payout deadline:", service), webhook.strike("28 Jul 2025", service), webhook.strike("28 Oct 2025", service), "28 Jan 2026 ✅", "28 Apr 2026", "01 Jul 2026 commence payday super"]
 			if year == "2026" and month_and_day in {'04-28'}:
-				payload = [webhook.strike("28 July 2025", service), webhook.strike("28 October 2025", service), webhook.strike("28 January 2026", service), webhook.strike("28 April 2026", service), "01 July 2026 commence payday super"]
+				payload = [webhook.bold("🤑 Super payout deadline:", service), webhook.strike("28 Jul 2025", service), webhook.strike("28 Oct 2025", service), webhook.strike("28 Jan 2026", service), "28 Apr 2026 ✅", "01 Jul 2026 commence payday super"]
 			if year == "2026" and month_and_day in {'07-01'}:
 				payload.append("🤑 Commence payday super ✅")
 			if month_and_day == '06-23':
