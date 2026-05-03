@@ -75,7 +75,7 @@ def transform_title(title):
 	title = title.replace('New York Re', '')
 	title = title.replace(' Australian', ' Aus')
 	title = title.replace(' Australia', ' Aus')
-	title = title.replace(' Infrastructure', 'Infra')
+	title = title.replace(' Infrastructure', ' Infra')
 	title = title.replace(' Manufacturing Company', ' ')
 	title = title.replace(' Limited', ' ')
 	title = title.replace(' Ltd', ' ')
