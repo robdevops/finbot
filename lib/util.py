@@ -308,6 +308,8 @@ def json_write(filename, data, persist=False):
 	def opener(filename, flags):
 		return os.open(filename, flags, 0o640)
 	with open(filename, "w", opener=opener, encoding="utf-8") as f:
+		if debug:
+			print("cache write:", filename, file=sys.stderr)
 		json.dump(data, f, indent=4)
 	os.umask(0o022)
 
