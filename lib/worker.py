@@ -110,6 +110,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	price_command = prefix + r"(?:prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=\-\^]+)*\s*([\w\%]+)*"
 	m_price = re.match(price_command, message, re.IGNORECASE)
 
+	top10_command = prefix + r"(?:top\d*)\s*([\w]+)"
+	m_top10 = re.match(top10_command, message, re.IGNORECASE)
+
 	shorts_command = prefix + r"shorts?\s*([\w\.\:\-]+)*"
 	m_shorts = re.match(shorts_command, message, re.IGNORECASE)
 
@@ -268,6 +271,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		specific_stock = None
 		days = None
 		interday = True
+		top = None
+		threshold = threshold=config_price_percent
 		for arg in m_price.groups()[0:2]:  # group(1) and group(2)
 			if not arg:
 				continue
@@ -279,7 +284,11 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 					price_percent = float(arg.split('%')[0])
 				except ValueError:
 					if arg == m_price.group(1):
-						specific_stock = str(arg).upper()
+						if arg == 'top':
+							price_percent=0
+							top=10
+						else:
+							specific_stock = str(arg).upper()
 		if not specific_stock:
 			typing = TypingIndicator(service, chat_id)
 			typing.start()
@@ -288,7 +297,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				payload = [ f"{random.choice(searchVerb)} stock performance from {util.days_english(days)} 🔍" ]
 				webhook.payload_wrapper(service, url, payload, chat_id)
 		try:
-			price.lambda_handler(chat_id, price_percent, service, user, specific_stock, interactive=True, premarket=False, interday=interday, days=days)
+			price.lambda_handler(chat_id=chat_id, threshold=price_percent, service=service, user=user, specific_stock=specific_stock, interactive=True, premarket=False, interday=interday, days=days, top=top)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)
@@ -307,6 +316,23 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		typing.start()
 		try:
 			price.lambda_handler(chat_id, premarket_percent, service, user, specific_stock, interactive=True, premarket=True)
+		except Exception as e:
+			print(e, file=sys.stderr)
+			webhook.payload_wrapper(service, url, [e], chat_id)
+		typing.stop()
+	elif m_top10:
+		specific_stock = None
+		if m_top10.group(1):
+			arg = m_top10.group(1)
+			try:
+				days = int(util.days_from_human_days(arg))
+			except ValueError:
+				print("DEBUG", arg, file=sys.stderr)
+				days = int(config_past_days)
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
+		try:
+			price.lambda_handler(chat_id, threshold=0, service=service, user=user, days=days, interactive=True, top=10)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)

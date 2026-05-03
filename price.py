@@ -10,7 +10,7 @@ from lib import util
 from lib import yahoo
 from lib import telegram
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False, top=None):
 	def prepare_price_payload(service, market_data, threshold):
 		payload = []
 		graph = False
@@ -128,9 +128,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			elif specific_stock and interactive:
 				payload.append([emoji, title, f'({ticker_link})', percent])
 				exchange_set.add(exchange_human)
-		def last_element(e):
-			return e[-1]
-		payload.sort(key=last_element)
+		payload.sort(key=lambda e: e[-1])
 		for i, e in enumerate(payload):
 			e[-1] = f'{round(e[-1]):,}%'
 			payload[i] = ' '.join(e)
@@ -141,17 +139,21 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					market_data = yahoo.fetch(skipped_volatile)
 					payload, graph = payload + prepare_price_payload(service, market_data, threshold)[0], graph
 				if midsession:
-					message = f'Tracking ≥ {threshold}% ({", ".join(exchange_set)}):'
+					heading = f'Tracking ≥ {threshold}% ({", ".join(exchange_set)}):'
 				elif premarket:
-					message = f'Tracking ≥ {threshold}% pre-market ({", ".join(exchange_set)}):'
+					heading = f'Tracking ≥ {threshold}% pre-market ({", ".join(exchange_set)}):'
 				elif close:
-					message = f'≥ {threshold}% at close ({", ".join(exchange_set)}):'
+					heading = f'≥ {threshold}% at close ({", ".join(exchange_set)}):'
+				elif top:
+					payload = payload[-top:]
+					payload.reverse()
+					heading = f'Top 10 performers {util.days_english(days, "in ", "the past ")}:'
 				elif days:
-					message = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}:'
+					heading = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}:'
 				else:
-					message = f'Day change ≥ {threshold}%:'
-				message = webhook.bold(message, service)
-				payload.insert(0, message)
+					heading = f'Day change ≥ {threshold}%:'
+				heading = webhook.bold(heading, service)
+				payload.insert(0, heading)
 		else:
 			if interactive:
 				if specific_stock:
@@ -183,7 +185,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 
 	# Yahoo market_data (specific_stock) or yahoo.price_history (days) is faster
 	# Note: Sharesight only works if specific_stock is a holding.
-	# Note2: Sharesight can only report performance for the time you bought it
+	# Note2: Sharesight can only report performance for the time you held it
 	#	so if you held NVDA for 1Y and request 5Y, you will only get 1Y performance
 	if (not specific_stock and days) or (config_performance_use_sharesight and days):
 		performance = sharesight.get_performance_wrapper(days)
@@ -226,7 +228,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 
 if __name__ == "__main__":
 	if len(sys.argv) > 1:
-		match sys.argv[1]:
+		arg = sys.argv[1]
+		match arg:
 			case 'midsession':
 				lambda_handler(midsession=True)
 			case 'interday':
@@ -235,8 +238,10 @@ if __name__ == "__main__":
 				lambda_handler(premarket=True)
 			case 'close':
 				lambda_handler(close=True)
+			case arg if arg.isdigit():
+				lambda_handler(threshold=0, days=int(arg), top=10)
 			case other:
-				print("Usage:", sys.argv[0], "[midsession|interday|premarket|close]", file=sys.stderr)
+				print("Usage:", sys.argv[0], "[midsession|interday|premarket|close|days (int)]", file=sys.stderr)
 
 	else:
 		print("Usage:", sys.argv[0], "[midsession|interday|premarket|close|days (int)]", file=sys.stderr)
