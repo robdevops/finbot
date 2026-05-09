@@ -51,8 +51,8 @@ def payload_wrapper(service, url, payload, chat_id=None, message_id=None):
 		if service == 'discord' and len(payload_string) > 2000:
 			print(service, "payload is over 2,000 bytes. Splitting.")
 			chunkLooper()
-		elif service != 'discord' and len(payload_string) > 4000:
-			print(service, "payload is over 4,000 bytes. Splitting.")
+		elif service != 'discord' and len(payload_string) > 4096:
+			print(service, "payload is over 4,096 bytes. Splitting.")
 			chunkLooper()
 		else:
 			write(service, url, payload_string, chat_id, message_id)
