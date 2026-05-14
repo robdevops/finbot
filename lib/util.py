@@ -352,7 +352,7 @@ def write_binary_cache(cacheFile, data):
 		f.write(data.getbuffer())
 	os.umask(0o022)
 
-def humanUnits(value, decimal_places=0):
+def humanUnits(value, decimal_places=2):
 	for unit in ['', 'K', 'M', 'B', 'T', 'Q']:
 		if value < 1000.0 or unit == 'Q':
 			break
