@@ -568,7 +568,9 @@ def prepare_profile_payload(service, user, ticker):
 		payload.append(webhook.bold("PEG ratio:", service) + f" {str(peg)}")
 	if 'price_to_sales' in market_data[ticker]:
 		price_to_sales = round(market_data[ticker]['price_to_sales'], 1)
-		payload.append(webhook.bold("PS ratio:", service) + f" {str(price_to_sales)}")
+		if price_to_sales > 15:
+				emoji = '⚠️ '
+		payload.append(webhook.bold("PS ratio:", service) + f" {str(price_to_sales)} {emoji}")
 
 	if payload:
 		payload.append("")
