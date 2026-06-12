@@ -562,6 +562,8 @@ def prepare_profile_payload(service, user, ticker):
 				emoji = '⚠️ '
 			if 'price_to_earnings_trailing' in market_data[ticker] and forwardPe > int(trailingPe):
 				emoji = '⚠️ '
+		if forwardPe < 0:
+				emoji = '⚠️ '
 		payload.append(webhook.bold("Forward P/E:", service) + f" {str(forwardPe)} {emoji}")
 	if 'price_to_earnings_peg' in market_data[ticker]:
 		peg = round(market_data[ticker]['price_to_earnings_peg'], 1)
