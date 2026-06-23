@@ -310,7 +310,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			if payload:
 				payload.insert(0, f"{webhook.bold(f'{heading_type} {length} tracked stocks by {heading_trail} ratio', service)}")
 		else:
-			payload.insert(0, action.title().replace(" Pe", "PE").replace(" Peg", "PEG" + " ratio"))
+			payload.insert(0, action.title().replace(" Pe", " PE").replace(" Peg", " PEG" + " ratio"))
 		return payload
 
 def prepare_profile_payload(service, user, ticker):
