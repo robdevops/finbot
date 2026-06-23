@@ -19,8 +19,6 @@ def lambda_handler():
 		year = str(localtime.strftime('%Y')) # 2023
 		if config_country_code == 'AU':
 			flag = "🇦🇺"
-			if year == "2026" and month_and_day == '04-28':
-				payload = [webhook.bold("🤑 Super payout deadline:", service), webhook.strike("28 Jul 2025", service), webhook.strike("28 Oct 2025", service), webhook.strike("28 Jan 2026", service), "28 Apr 2026 ✅", "01 Jul 2026 commence payday super"]
 			if year == "2026" and month_and_day == '07-01':
 				payload.append("🤑 Commence payday super ✅")
 			if month_and_day == '06-23':
@@ -45,6 +43,18 @@ def lambda_handler():
 				payload.append("😓 Self-service individual tax returns are due Oct 31" + flag)
 			if month_and_day == '10-31':
 				payload.append("😰 Self-service individual tax returns are due today" + flag)
+			if month_and_day == '26-06':
+					payload.append("ubank draw 2/6 https://www.ubank.com.au/campaigns/doubleyourpay → Winners (+ fund ≤ 5000 this month to enter next draw)")
+			if month_and_day == '24-07':
+					payload.append("ubank draw 3/6 https://www.ubank.com.au/campaigns/doubleyourpay → Winners (+ fund ≤ 5000 this month to enter next draw)")
+			if month_and_day == '25-08':
+					payload.append("ubank draw 4/6 https://www.ubank.com.au/campaigns/doubleyourpay → Winners (+ fund ≤ 5000 this month to enter next draw)")
+			if month_and_day == '25-09':
+					payload.append("ubank draw 5/6 https://www.ubank.com.au/campaigns/doubleyourpay → Winners (+ fund ≤ 5000 this month to enter next draw)")
+			if month_and_day == '27-10':
+					payload.append("ubank draw 6/6 https://www.ubank.com.au/campaigns/doubleyourpay → Winners")
+		if month_and_day == '06-02':
+				payload.append("CRWD 4-for-1 split")
 		#if config_country_code in {'AU', 'BD', 'EG', 'ET', 'KE', 'NP', 'PK'}:
 		if month_and_day == '06-30':
 				payload.append("🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰")
