@@ -522,6 +522,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				payload.append([flag, profile_title, f'({ticker_link})', beta, 'β'])
 		typing.stop()
 		payload.sort(key=lambda e: e[-2], reverse=True)
+		for e in payload:
+			e[-2] = str(e[-2])
 		payload = [' '.join(e) for e in payload]
 		if payload:
 			payload.insert(0, f"{webhook.bold('Beta over 1.5 and mkt cap under 2B', service)}")
