@@ -519,12 +519,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				profile_title = market_data[ticker]['profile_title']
 				ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 				flag = util.flag_from_ticker(ticker)
-				payload.append([flag, profile_title, f'({ticker_link})', beta])
+				payload.append([flag, profile_title, f'({ticker_link})', beta, 'β'])
 		typing.stop()
-		payload.sort(key=lambda e: e[-1], reverse=True)
-		for i, e in enumerate(payload):
-			e[-1] = str(e[-1]) + 'β'
-			payload[i] = ' '.join(e)
+		payload.sort(key=lambda e: e[-2], reverse=True)
+		payload = [' '.join(e) for e in payload]
 		if payload:
 			payload.insert(0, f"{webhook.bold('Beta over 1.5 and mkt cap under 2B', service)}")
 			webhook.payload_wrapper(service, url, payload, chat_id)
