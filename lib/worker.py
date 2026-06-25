@@ -514,14 +514,14 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				webhook.payload_wrapper(service, url, [e], chat_id)
 		for ticker in market_data:
 			try:
-				beta = round(market_data[ticker]['beta'], 2) + 'β'
+				beta = round(market_data[ticker]['beta'], 2)
 			except KeyError:
 				continue
 			if beta > 1.5 and market_data[ticker]['market_cap'] < 2000000000:
 				profile_title = market_data[ticker]['profile_title']
 				ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 				flag = util.flag_from_ticker(ticker)
-				payload.append(f"{flag} {profile_title} ({ticker_link}) {beta}")
+				payload.append(f"{flag} {profile_title} ({ticker_link}) {beta}β")
 		typing.stop()
 		payload.sort(key=last_col)
 		payload.reverse()
