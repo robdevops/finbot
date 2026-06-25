@@ -128,7 +128,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			elif specific_stock and interactive:
 				payload.append([emoji, title, f'({ticker_link})', percent])
 				exchange_set.add(exchange_human)
-		payload.sort(key=lambda e: e[-1])
+		payload.sort(key=lambda e: e[-1], reverse=True)
 		for i, e in enumerate(payload):
 			e[-1] = f'{round(e[-1]):,}%'
 			payload[i] = ' '.join(e)
