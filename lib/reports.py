@@ -245,7 +245,7 @@ def prepare_rating_payload(service, action, length=15):
 		for ticker in market_data:
 			if 'recommend' in market_data[ticker]:
 				recommend = market_data[ticker]['recommend'].replace('_', ' ')
-				recommend_index = market_data[ticker]['recommend_index']
+				recommend_index = round(market_data[ticker]['recommend_index'], 2)
 				recommend_analysts = market_data[ticker]['recommend_analysts']
 				if recommend_analysts > 1:
 					profile_title = market_data[ticker]['profile_title']
