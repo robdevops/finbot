@@ -495,8 +495,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_beta:
-		def last_col(e):
-			return float(e.split()[-1])
 		payload = []
 		market_data = {}
 		typing = TypingIndicator(service, chat_id)
@@ -521,12 +519,14 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				profile_title = market_data[ticker]['profile_title']
 				ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 				flag = util.flag_from_ticker(ticker)
-				payload.append(f"{flag} {profile_title} ({ticker_link}) {beta}β")
+				payload.append(f"[{flag} {profile_title} ({ticker_link}) {beta}]")
 		typing.stop()
-		payload.sort(key=last_col)
-		payload.reverse()
+		payload.sort(key=lambda e: e[-1], reverse=True)
+		for i,e in enumerate(payload):
+			e[-1] = f'{float(e[-1]):,}β'
+			payload[i] = ' '.join(e)
 		if payload:
-			payload.insert(0, f"{webhook.bold('Beta over 1.5 and mkt cap under 1B', service)}")
+			payload.insert(0, f"{webhook.bold('Beta over 1.5 and mkt cap under 2B', service)}")
 			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_buy:
 		action='buy'
