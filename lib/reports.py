@@ -252,9 +252,9 @@ def prepare_rating_payload(service, action, length=15):
 					ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 					flag = util.flag_from_ticker(ticker)
 					if action == 'buy' and 'buy' in recommend:
-							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
+							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} β ({recommend_analysts} analysts)")
 					elif action == 'sell' and (recommend == 'sell' or recommend == 'underperform'):
-							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
+							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} β ({recommend_analysts} analysts)")
 		payload.sort(key=score_col)
 		payload = payload[:length]
 		if payload:
