@@ -514,7 +514,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				webhook.payload_wrapper(service, url, [e], chat_id)
 		for ticker in market_data:
 			try:
-				beta = round(market_data[ticker]['beta'], 2)β
+				beta = round(market_data[ticker]['beta'], 2) + 'β'
 			except KeyError:
 				continue
 			if beta > 1.5 and market_data[ticker]['market_cap'] < 2000000000:
