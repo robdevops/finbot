@@ -519,7 +519,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				profile_title = market_data[ticker]['profile_title']
 				ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 				flag = util.flag_from_ticker(ticker)
-				payload.append(f"[{flag} {profile_title} ({ticker_link}) {beta}]")
+				payload.append([flag, profile_title, f'({ticker_link})', beta])
 		typing.stop()
 		payload.sort(key=lambda e: e[-1], reverse=True)
 		for i, e in enumerate(payload):
