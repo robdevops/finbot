@@ -273,12 +273,15 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 		market_data = yahoo.fetch(tickers)
 		for ticker in market_data:
 			try:
-				if action in ('pe', 'bottom pe'):
-					ratio = market_data[ticker]['price_to_earnings_trailing']
-				elif action in ('forward pe', 'bottom forward pe'):
-					if not ticker_select and market_data[ticker]['price_to_earnings_forward'] < 0:
+				if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
+					trailing_ratio = market_data[ticker]['price_to_earnings_trailing']
+					forward_ratio = market_data[ticker]['price_to_earnings_forward']
+				if action in ('forward pe', 'bottom forward pe'):
+					if not ticker_select and forward_ratio < 0:
 						continue
-					ratio = market_data[ticker]['price_to_earnings_forward']
+					ratio = forward_ratio
+				else:
+					ratio = trailing_ratio
 				elif action == 'negative forward pe':
 					if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
 						continue
@@ -299,7 +302,10 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			profile_title = market_data[ticker]['profile_title']
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 			flag = util.flag_from_ticker(ticker)
-			payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
+			if ticker_select and action in {'pe', 'forward pe'}:
+				payload.append(f"{flag} {profile_title} ({ticker_link}) PE trailing: {ratio}, forward: {forward_ratio}")
+			else:
+				payload.append(f"{flag} {profile_title} ({ticker_link}) {action} {ratio}")
 		payload.sort(key=last_col)
 		if not ticker_select:
 			heading_type = "Bottom" if 'bottom' in action else "Top"
@@ -309,8 +315,6 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			payload = payload[:length]
 			if payload:
 				payload.insert(0, f"{webhook.bold(f'{heading_type} {length} tracked stocks by {heading_trail} ratio', service)}")
-		else:
-			payload.insert(0, action.title().replace(" Pe", " PE").replace(" Peg", " PEG" + " ratio"))
 		return payload
 
 def prepare_profile_payload(service, user, ticker):
