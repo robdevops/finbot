@@ -313,7 +313,9 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			if 'bottom' in action:
 				payload.reverse()
 			payload = payload[:length]
-			if payload:
+			if not payload:
+				payload = [f"{action}: no data found"])
+			else:
 				payload.insert(0, f"{webhook.bold(f'{heading_type} {length} tracked stocks by {heading_trail} ratio', service)}")
 		return payload
 
