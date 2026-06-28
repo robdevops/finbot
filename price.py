@@ -145,21 +145,18 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				elif close:
 					heading = f'≥ {threshold}% at close ({", ".join(exchange_set)}):'
 				elif top:
-                                       payload_bottom = payload[-top:]
-                                       payload_bottom.reverse()
-                                       payload_bottom_heading = f'Bottom {top}:'
-                                       payload_bottom_heading = webhook.bold(payload_bottom_heading, service)
-                                       payload_bottom.insert(0, payload_bottom_heading)
-                                       payload = payload[:top]
-                                       heading = f'Top {top} performers {util.days_english(days, "in ", "the past ")}:'
+					payload_bottom = list(reversed(payload[-top:]))
+					payload_bottom.insert(0, webhook.bold(f'Bottom {top}:', service))
+					payload = payload[:top]
+					heading = f'Top {top} performers {util.days_english(days, "in ", "the past ")}:'
 				elif days:
 					heading = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}:'
 				else:
 					heading = f'Day change ≥ {threshold}%:'
 				heading = webhook.bold(heading, service)
 				payload.insert(0, heading)
-                               if top:
-                                       payload = payload + [''] + payload_bottom
+				if top:
+					payload.extend([''] + payload_bottom)
 		else:
 			if interactive:
 				if specific_stock:
