@@ -303,7 +303,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 			flag = util.flag_from_ticker(ticker)
 			if ticker_select and action in {'pe', 'forward pe'}:
-				payload.append(f"{flag} {profile_title} ({ticker_link}) PE trailing: {ratio}, forward: {forward_ratio}")
+				payload.append(f"{flag} {profile_title} ({ticker_link}) PE: trailing {ratio}, forward {forward_ratio}")
 			else:
 				payload.append(f"{flag} {profile_title} ({ticker_link}) {action} {ratio}")
 		payload.sort(key=last_col)
