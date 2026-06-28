@@ -86,8 +86,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	forwardpe_command = prefix + r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*"
 	m_forwardpe = re.match(forwardpe_command, message, re.IGNORECASE)
 
-	#peg_command = prefix + r"peg\s*([\w\.\:\-\s]+)*"
-	#m_peg = re.match(peg_command, message, re.IGNORECASE)
+	peg_command = prefix + r"peg\s*([\w\.\:\-\s]+)*"
+	m_peg = re.match(peg_command, message, re.IGNORECASE)
 
 	beta_command = prefix + r"beta\s*([\w\.\:\-]+)*"
 	m_beta = re.match(beta_command, message, re.IGNORECASE)
