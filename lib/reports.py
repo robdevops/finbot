@@ -276,12 +276,12 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 				if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
 					trailing_ratio = market_data[ticker]['price_to_earnings_trailing']
 					forward_ratio = market_data[ticker]['price_to_earnings_forward']
-				if action in ('forward pe', 'bottom forward pe'):
-					if not ticker_select and forward_ratio < 0:
-						continue
-					ratio = forward_ratio
-				else:
-					ratio = trailing_ratio
+					if action in ('forward pe', 'bottom forward pe'):
+						if not ticker_select and forward_ratio < 0:
+							continue
+						ratio = forward_ratio
+					else:
+						ratio = trailing_ratio
 				elif action == 'negative forward pe':
 					if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
 						continue
