@@ -305,7 +305,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			if ticker_select and action in {'pe', 'forward pe'}:
 				payload.append(f"{flag} {profile_title} ({ticker_link}) PE: trailing {ratio}, forward {forward_ratio}")
 			else:
-				payload.append(f"{flag} {profile_title} ({ticker_link}) {action} {ratio}")
+				payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
 		payload.sort(key=last_col)
 		if not ticker_select:
 			heading_type = "Bottom" if 'bottom' in action else "Top"
