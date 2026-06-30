@@ -312,7 +312,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			if pe_parts:
 				line += f" PE: {', '.join(pe_parts)}"
 
-payload.append(line)
+		payload.append(line)
 		payload.sort(key=last_col)
 		if not ticker_select:
 			heading_type = "Bottom" if 'bottom' in action else "Top"
