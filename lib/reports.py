@@ -272,45 +272,46 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			tickers = util.get_holdings_and_watchlist()
 		market_data = yahoo.fetch(tickers)
 		for ticker in market_data:
-			try:
-				if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
-					trailing_ratio = market_data[ticker]['price_to_earnings_trailing']
-					forward_ratio = market_data[ticker]['price_to_earnings_forward']
-					if action in ('forward pe', 'bottom forward pe'):
-						if not ticker_select and forward_ratio < 0:
-							continue
-						ratio = forward_ratio
-					else:
-						ratio = trailing_ratio
-				elif action == 'negative forward pe':
-					if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
-						continue
-					ratio = market_data[ticker]['price_to_earnings_forward']
-				elif action in ('peg', 'bottom peg'):
-					market_data = market_data | yahoo.fetch_detail(ticker)
-					if not ticker_select and market_data[ticker]['price_to_earnings_peg'] < 0:
-						continue
-					ratio = market_data[ticker]['price_to_earnings_peg']
-				elif action == 'negative peg':
-					market_data = market_data | yahoo.fetch_detail(ticker)
-					if not ticker_select and market_data[ticker]['price_to_earnings_peg'] >= 0:
-						continue
-					ratio = market_data[ticker]['price_to_earnings_peg']
-			except KeyError:
-				print(ticker, action, "value not found", file=sys.stderr)
-				continue
-			profile_title = market_data[ticker]['profile_title']
-			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-			flag = util.flag_from_ticker(ticker)
-			pe_parts = []
-			if ratio:
-			    pe_parts.append(f"trailing {ratio}")
-			if forward_ratio:
-			    pe_parts.append(f"forward {forward_ratio}")
-			line = f"{flag} {profile_title} ({ticker_link})"
-			if pe_parts:
-			    line += f" PE: {', '.join(pe_parts)}"
-		payload.append(line)
+		try:
+		    if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
+		        trailing_ratio = market_data[ticker]['price_to_earnings_trailing']
+		        forward_ratio = market_data[ticker]['price_to_earnings_forward']
+		        if action in ('forward pe', 'bottom forward pe'):
+		            if not ticker_select and forward_ratio < 0:
+		                continue
+		            ratio = forward_ratio
+		        else:
+		            ratio = trailing_ratio
+		    elif action == 'negative forward pe':
+		        if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
+		            continue
+		        ratio = market_data[ticker]['price_to_earnings_forward']
+		    elif action in ('peg', 'bottom peg'):
+		        market_data = market_data | yahoo.fetch_detail(ticker)
+		        if not ticker_select and market_data[ticker]['price_to_earnings_peg'] < 0:
+		            continue
+		        ratio = market_data[ticker]['price_to_earnings_peg']
+		    elif action == 'negative peg':
+		        market_data = market_data | yahoo.fetch_detail(ticker)
+		        if not ticker_select and market_data[ticker]['price_to_earnings_peg'] >= 0:
+		            continue
+		        ratio = market_data[ticker]['price_to_earnings_peg']
+		except KeyError:
+		    print(ticker, action, "value not found", file=sys.stderr)
+		    continue
+		profile_title = market_data[ticker]['profile_title']
+		ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+		flag = util.flag_from_ticker(ticker)
+		show_both = (
+		    ticker_select
+		    and action in {'pe', 'forward pe'}
+		    and trailing_ratio is not None
+		    and forward_ratio is not None
+		)
+		if show_both:
+		    payload.append(f"{flag} {profile_title} ({ticker_link}) PE: trailing {trailing_ratio}, forward {forward_ratio}")
+		else:
+		    payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
 		payload.sort(key=last_col)
 		if not ticker_select:
 			heading_type = "Bottom" if 'bottom' in action else "Top"
