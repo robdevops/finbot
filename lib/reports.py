@@ -296,22 +296,22 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			        if not ticker_select and market_data[ticker]['price_to_earnings_peg'] >= 0:
 			            continue
 			        ratio = market_data[ticker]['price_to_earnings_peg']
-		except KeyError:
-		    print(ticker, action, "value not found", file=sys.stderr)
-		    continue
-		profile_title = market_data[ticker]['profile_title']
-		ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-		flag = util.flag_from_ticker(ticker)
-		show_both = (
-		    ticker_select
-		    and action in {'pe', 'forward pe'}
-		    and trailing_ratio is not None
-		    and forward_ratio is not None
-		)
-		if show_both:
-		    payload.append(f"{flag} {profile_title} ({ticker_link}) PE: trailing {trailing_ratio}, forward {forward_ratio}")
-		else:
-		    payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
+			except KeyError:
+			    print(ticker, action, "value not found", file=sys.stderr)
+			    continue
+			profile_title = market_data[ticker]['profile_title']
+			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+			flag = util.flag_from_ticker(ticker)
+			show_both = (
+			    ticker_select
+			    and action in {'pe', 'forward pe'}
+			    and trailing_ratio is not None
+			    and forward_ratio is not None
+			)
+			if show_both:
+			    payload.append(f"{flag} {profile_title} ({ticker_link}) PE: trailing {trailing_ratio}, forward {forward_ratio}")
+			else:
+			    payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
 		payload.sort(key=last_col)
 		if not ticker_select:
 			heading_type = "Bottom" if 'bottom' in action else "Top"
