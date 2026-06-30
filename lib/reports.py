@@ -204,7 +204,7 @@ def prepare_marketcap_payload(service, action='top', length=15):
 		try:
 			return float(e.split()[-1])
 		except ValueError:
-			pass
+			return float('-inf')  # or float('inf'), depending on where you want missing values to sort
 	payload_staging = []
 	tickers = util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
