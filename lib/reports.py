@@ -269,60 +269,60 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 		except ValueError:
 			return float('-inf')  # or float('inf'), depending on where you want missing values to sort
 		payload = []
-		if ticker_select:
-			tickers = [ticker_select]
-		else:
-			tickers = util.get_holdings_and_watchlist()
-		market_data = yahoo.fetch(tickers)
-		for ticker in market_data:
-			trailing_ratio = None
-			forward_ratio = None
-			peg_ratio = None
-			ratio = None
-			try:
-				if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
-					trailing_ratio = market_data.get(ticker).get('price_to_earnings_trailing')
-					forward_ratio = market_data.get(ticker).get('price_to_earnings_forward')
-					if action in ('forward pe', 'bottom forward pe'):
-						if not ticker_select and forward_ratio is not None and forward_ratio < 0:
-							continue
-						ratio = forward_ratio
-					else:
-						if not ticker_select and trailing_ratio is not None and trailing_ratio < 0:
-							continue
-						ratio = trailing_ratio
-				elif action == 'negative forward pe':
-					forward_ratio = market_data.get(ticker).get('price_to_earnings_forward')
-					if not ticker_select and (forward_ratio is None or forward_ratio >= 0):
+	if ticker_select:
+		tickers = [ticker_select]
+	else:
+		tickers = util.get_holdings_and_watchlist()
+	market_data = yahoo.fetch(tickers)
+	for ticker in market_data:
+		trailing_ratio = None
+		forward_ratio = None
+		peg_ratio = None
+		ratio = None
+		try:
+			if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
+				trailing_ratio = market_data.get(ticker).get('price_to_earnings_trailing')
+				forward_ratio = market_data.get(ticker).get('price_to_earnings_forward')
+				if action in ('forward pe', 'bottom forward pe'):
+					if not ticker_select and forward_ratio is not None and forward_ratio < 0:
 						continue
 					ratio = forward_ratio
-				elif action in ('peg', 'bottom peg'):
-					market_data = market_data | yahoo.fetch_detail(ticker)
-					peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
-					if not ticker_select and peg_ratio is not None and peg_ratio < 0:
+				else:
+					if not ticker_select and trailing_ratio is not None and trailing_ratio < 0:
 						continue
-					ratio = peg_ratio
-				elif action == 'negative peg':
-					market_data = market_data | yahoo.fetch_detail(ticker)
-					peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
-					if not ticker_select and (peg_ratio is None or peg_ratio >= 0):
-						continue
-					ratio = peg_ratio
-			except KeyError:
-				print(ticker, action, "value not found", file=sys.stderr)
-				continue
-			profile_title = market_data.get(ticker).get('profile_title')
-			ticker_link = util.finance_link(ticker, market_data.get(ticker).get('profile_exchange'), service)
-			flag = util.flag_from_ticker(ticker)
-			if ticker_select and action in {'pe', 'forward pe'}:
-				parts = []
-				if trailing_ratio is not None:
-					parts.append(f"trailing {trailing_ratio}")
-				if forward_ratio is not None:
-					parts.append(f"forward {forward_ratio}")
-					payload.append(f"{flag} {profile_title} ({ticker_link}) PE: {', '.join(parts)}")
-			else:
-				payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
+					ratio = trailing_ratio
+			elif action == 'negative forward pe':
+				forward_ratio = market_data.get(ticker).get('price_to_earnings_forward')
+				if not ticker_select and (forward_ratio is None or forward_ratio >= 0):
+					continue
+				ratio = forward_ratio
+			elif action in ('peg', 'bottom peg'):
+				market_data = market_data | yahoo.fetch_detail(ticker)
+				peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
+				if not ticker_select and peg_ratio is not None and peg_ratio < 0:
+					continue
+				ratio = peg_ratio
+			elif action == 'negative peg':
+				market_data = market_data | yahoo.fetch_detail(ticker)
+				peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
+				if not ticker_select and (peg_ratio is None or peg_ratio >= 0):
+					continue
+				ratio = peg_ratio
+		except KeyError:
+			print(ticker, action, "value not found", file=sys.stderr)
+			continue
+		profile_title = market_data.get(ticker).get('profile_title')
+		ticker_link = util.finance_link(ticker, market_data.get(ticker).get('profile_exchange'), service)
+		flag = util.flag_from_ticker(ticker)
+		if ticker_select and action in {'pe', 'forward pe'}:
+			parts = []
+			if trailing_ratio is not None:
+				parts.append(f"trailing {trailing_ratio}")
+			if forward_ratio is not None:
+				parts.append(f"forward {forward_ratio}")
+				payload.append(f"{flag} {profile_title} ({ticker_link}) PE: {', '.join(parts)}")
+		else:
+			payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
 		payload.sort(key=last_col)
 		if not ticker_select:
 			heading_type = "Bottom" if 'bottom' in action else "Top"
