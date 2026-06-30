@@ -305,20 +305,20 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 					if not ticker_select and (peg_ratio is None or peg_ratio >= 0):
 						continue
 					ratio = peg_ratio
-			 except KeyError:
+			except KeyError:
 				print(ticker, action, "value not found", file=sys.stderr)
 				continue
-			 profile_title = market_data[ticker]['profile_title']
-			 ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-			 flag = util.flag_from_ticker(ticker)
-			 if ticker_select and action in {'pe', 'forward pe'}:
+			profile_title = market_data[ticker]['profile_title']
+			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+			flag = util.flag_from_ticker(ticker)
+			if ticker_select and action in {'pe', 'forward pe'}:
 				parts = []
 				if trailing_ratio is not None:
 					parts.append(f"trailing {trailing_ratio}")
 				if forward_ratio is not None:
 					parts.append(f"forward {forward_ratio}")
 					payload.append(f"{flag} {profile_title} ({ticker_link}) PE: {', '.join(parts)}")
-			 else:
+			else:
 				payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
 		payload.sort(key=last_col)
 		if not ticker_select:
@@ -603,10 +603,10 @@ def prepare_profile_payload(service, user, ticker):
 
 	price_history, graph = yahoo.price_history(ticker)
 	for interval in ('5Y', '1Y', '1M', '1D'):
-	   if interval in price_history:
-		   percent = price_history[interval]
-		   emoji = util.get_emoji(percent)
-		   payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent}%")
+		if interval in price_history:
+			percent = price_history[interval]
+			emoji = util.get_emoji(percent)
+			payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent}%")
 	percent_change = market_data[ticker]['percent_change']
 	marketState = market_data[ticker]['marketState']
 	if marketState != 'REGULAR' and 'percent_change_premarket' in market_data[ticker]:
