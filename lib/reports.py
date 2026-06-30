@@ -204,7 +204,7 @@ def prepare_marketcap_payload(service, action='top', length=15):
 		try:
 			return float(e.split()[-1])
 		except ValueError:
-			return float('-inf')  # or float('inf'), depending on where you want missing values to sort
+			return float('-inf')	# or float('inf'), depending on where you want missing values to sort
 	payload_staging = []
 	tickers = util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
@@ -267,7 +267,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 		try:
 			return float(e.split()[-1])
 		except ValueError:
-			return float('-inf')  # or float('inf'), depending on where you want missing values to sort
+			return float('-inf')	# or float('inf'), depending on where you want missing values to sort
 	payload = []
 	if ticker_select:
 		tickers = [ticker_select]
@@ -281,8 +281,8 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 		ratio = None
 		try:
 			if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
-			   trailing_ratio = market_data[ticker].get('price_to_earnings_trailing')
-			   forward_ratio = market_data[ticker].get('price_to_earnings_forward')
+				trailing_ratio = market_data[ticker].get('price_to_earnings_trailing')
+				forward_ratio = market_data[ticker].get('price_to_earnings_forward')
 				if action in ('forward pe', 'bottom forward pe'):
 					if not ticker_select and forward_ratio is not None and forward_ratio < 0:
 						continue
@@ -292,19 +292,19 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 						continue
 					ratio = trailing_ratio
 			elif action == 'negative forward pe':
-			   forward_ratio = market_data[ticker].get('price_to_earnings_forward')
+				forward_ratio = market_data[ticker].get('price_to_earnings_forward')
 				if not ticker_select and (forward_ratio is None or forward_ratio >= 0):
 					continue
 				ratio = forward_ratio
 			elif action in ('peg', 'bottom peg'):
 				market_data = market_data | yahoo.fetch_detail(ticker)
-			   peg_ratio = market_data[ticker].get('price_to_earnings_peg')
+				peg_ratio = market_data[ticker].get('price_to_earnings_peg')
 				if not ticker_select and peg_ratio is not None and peg_ratio < 0:
 					continue
 				ratio = peg_ratio
 			elif action == 'negative peg':
 				market_data = market_data | yahoo.fetch_detail(ticker)
-			   peg_ratio = market_data[ticker].get('price_to_earnings_peg')
+				peg_ratio = market_data[ticker].get('price_to_earnings_peg')
 				if not ticker_select and (peg_ratio is None or peg_ratio >= 0):
 					continue
 				ratio = peg_ratio
@@ -483,13 +483,13 @@ def prepare_profile_payload(service, user, ticker):
 		revenueYs = doDelta(market_data[ticker]['revenueY'])
 		earningsYs = doDelta(market_data[ticker]['earningsY'])
 		if revenueQs:
-			payload.append(f"{revenueQs}  quarterly revenue delta")
+			payload.append(f"{revenueQs}	quarterly revenue delta")
 		if earningsQs:
-			payload.append(f"{earningsQs}  quarterly earnings delta")
+			payload.append(f"{earningsQs}	quarterly earnings delta")
 		if revenueYs:
-			payload.append(f"{revenueYs}  annual revenue delta")
+			payload.append(f"{revenueYs}	annual revenue delta")
 		if earningsYs:
-			payload.append(f"{earningsYs}  annual earnings delta")
+			payload.append(f"{earningsYs}	annual earnings delta")
 
 	if payload:
 		payload.append("")
