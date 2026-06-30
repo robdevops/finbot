@@ -268,7 +268,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			return float(e.split()[-1])
 		except ValueError:
 			return float('-inf')  # or float('inf'), depending on where you want missing values to sort
-		payload = []
+	payload = []
 	if ticker_select:
 		tickers = [ticker_select]
 	else:
