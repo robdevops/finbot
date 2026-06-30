@@ -278,8 +278,8 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			ratio = None
 			try:
 				if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
-					trailing_ratio = market_data[ticker]['price_to_earnings_trailing']
-					forward_ratio = market_data[ticker]['price_to_earnings_forward']
+					trailing_ratio = market_data(ticker).get('price_to_earnings_trailing')
+					forward_ratio = market_data.get(ticker).get('price_to_earnings_forward')
 					if action in ('forward pe', 'bottom forward pe'):
 						if not ticker_select and forward_ratio is not None and forward_ratio < 0:
 							continue
@@ -289,27 +289,27 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 							continue
 						ratio = trailing_ratio
 				elif action == 'negative forward pe':
-					forward_ratio = market_data[ticker]['price_to_earnings_forward']
+					forward_ratio = market_data.get(ticker).get('price_to_earnings_forward')
 					if not ticker_select and (forward_ratio is None or forward_ratio >= 0):
 						continue
 					ratio = forward_ratio
 				elif action in ('peg', 'bottom peg'):
 					market_data = market_data | yahoo.fetch_detail(ticker)
-					peg_ratio = market_data[ticker]['price_to_earnings_peg']
+					peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
 					if not ticker_select and peg_ratio is not None and peg_ratio < 0:
 						continue
 					ratio = peg_ratio
 				elif action == 'negative peg':
 					market_data = market_data | yahoo.fetch_detail(ticker)
-					peg_ratio = market_data[ticker]['price_to_earnings_peg']
+					peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
 					if not ticker_select and (peg_ratio is None or peg_ratio >= 0):
 						continue
 					ratio = peg_ratio
 			except KeyError:
 				print(ticker, action, "value not found", file=sys.stderr)
 				continue
-			profile_title = market_data[ticker]['profile_title']
-			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+			profile_title = market_data.get(ticker).get('profile_title')
+			ticker_link = util.finance_link(ticker, market_data.get(ticker).get('profile_exchange'), service)
 			flag = util.flag_from_ticker(ticker)
 			if ticker_select and action in {'pe', 'forward pe'}:
 				parts = []
