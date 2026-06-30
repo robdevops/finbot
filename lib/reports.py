@@ -278,7 +278,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 					forward_ratio = md.get('price_to_earnings_forward')
 					trailing_ratio = md.get('price_to_earnings_trailing')
 					if action in ('forward pe', 'bottom forward pe'):
-						if not ticker_select and forward_ratio < 0:
+						if not ticker_select and (forward_ratio is None or forward_ratio < 0):
 							continue
 						ratio = forward_ratio
 					else:
