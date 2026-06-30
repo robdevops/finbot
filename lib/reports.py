@@ -322,8 +322,8 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 				payload = [f"{action}: no data found"]
 			else:
 				payload.insert(0, f"{webhook.bold(f'{heading_type} {length} tracked stocks by {heading_trail} ratio', service)}")
-		if not payload:
-			payload = [f"{ticker_select.upper()} {action}: no data found"]
+		#if not payload:
+		#	payload = [f"{ticker_select.upper()} {action}: no data found"]
 		return payload
 
 def prepare_profile_payload(service, user, ticker):
