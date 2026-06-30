@@ -274,8 +274,9 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 		for ticker in market_data:
 			try:
 				if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
-					trailing_ratio = market_data[ticker]['price_to_earnings_trailing']
-					forward_ratio = market_data[ticker]['price_to_earnings_forward']
+					md = market_data.get(ticker, {})
+					forward_ratio = md.get('price_to_earnings_forward')
+					trailing_ratio = md.get('price_to_earnings_trailing')
 					if action in ('forward pe', 'bottom forward pe'):
 						if not ticker_select and forward_ratio < 0:
 							continue
@@ -302,10 +303,16 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			profile_title = market_data[ticker]['profile_title']
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 			flag = util.flag_from_ticker(ticker)
-			if ticker_select and action in {'pe', 'forward pe'}:
-				payload.append(f"{flag} {profile_title} ({ticker_link}) PE: trailing {ratio}, forward {forward_ratio}")
-			else:
-				payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
+			pe_parts = []
+			if ratio:
+				pe_parts.append(f"trailing {ratio}")
+			if forward_ratio:
+				pe_parts.append(f"forward {forward_ratio}")
+				line = f"{flag} {profile_title} ({ticker_link})"
+			if pe_parts:
+				line += f" PE: {', '.join(pe_parts)}"
+
+payload.append(line)
 		payload.sort(key=last_col)
 		if not ticker_select:
 			heading_type = "Bottom" if 'bottom' in action else "Top"
