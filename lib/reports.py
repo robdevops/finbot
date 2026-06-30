@@ -274,19 +274,19 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 		for ticker in market_data:
 			try:
 				if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
-					md = market_data.get(ticker, {})
-					forward_ratio = md.get('price_to_earnings_forward')
-					trailing_ratio = md.get('price_to_earnings_trailing')
-					if action in ('forward pe', 'bottom forward pe'):
-						if not ticker_select and forward_ratio is not None and forward_ratio < 0:
-							continue
-						ratio = forward_ratio
-					else:
-						ratio = trailing_ratio
+				    md = market_data.get(ticker, {})
+				    forward_ratio = md.get('price_to_earnings_forward')
+				    trailing_ratio = md.get('price_to_earnings_trailing')
+				    if action in ('forward pe', 'bottom forward pe'):
+				        if not ticker_select and (forward_ratio is None or forward_ratio < 0):
+				            continue
+				        ratio = forward_ratio
+				    else:
+				        ratio = trailing_ratio
 				elif action == 'negative forward pe':
-					if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
-						continue
-					ratio = market_data[ticker]['price_to_earnings_forward']
+				    if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
+				        continue
+				    ratio = market_data[ticker]['price_to_earnings_forward']
 				elif action in ('peg', 'bottom peg'):
 					market_data = market_data | yahoo.fetch_detail(ticker)
 					if not ticker_select and market_data[ticker]['price_to_earnings_peg'] < 0:
