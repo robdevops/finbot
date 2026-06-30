@@ -272,30 +272,30 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			tickers = util.get_holdings_and_watchlist()
 		market_data = yahoo.fetch(tickers)
 		for ticker in market_data:
-		try:
-		    if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
-		        trailing_ratio = market_data[ticker]['price_to_earnings_trailing']
-		        forward_ratio = market_data[ticker]['price_to_earnings_forward']
-		        if action in ('forward pe', 'bottom forward pe'):
-		            if not ticker_select and forward_ratio < 0:
-		                continue
-		            ratio = forward_ratio
-		        else:
-		            ratio = trailing_ratio
-		    elif action == 'negative forward pe':
-		        if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
-		            continue
-		        ratio = market_data[ticker]['price_to_earnings_forward']
-		    elif action in ('peg', 'bottom peg'):
-		        market_data = market_data | yahoo.fetch_detail(ticker)
-		        if not ticker_select and market_data[ticker]['price_to_earnings_peg'] < 0:
-		            continue
-		        ratio = market_data[ticker]['price_to_earnings_peg']
-		    elif action == 'negative peg':
-		        market_data = market_data | yahoo.fetch_detail(ticker)
-		        if not ticker_select and market_data[ticker]['price_to_earnings_peg'] >= 0:
-		            continue
-		        ratio = market_data[ticker]['price_to_earnings_peg']
+			try:
+			    if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
+			        trailing_ratio = market_data[ticker]['price_to_earnings_trailing']
+			        forward_ratio = market_data[ticker]['price_to_earnings_forward']
+			        if action in ('forward pe', 'bottom forward pe'):
+			            if not ticker_select and forward_ratio < 0:
+			                continue
+			            ratio = forward_ratio
+			        else:
+			            ratio = trailing_ratio
+			    elif action == 'negative forward pe':
+			        if not ticker_select and market_data[ticker]['price_to_earnings_forward'] >= 0:
+			            continue
+			        ratio = market_data[ticker]['price_to_earnings_forward']
+			    elif action in ('peg', 'bottom peg'):
+			        market_data = market_data | yahoo.fetch_detail(ticker)
+			        if not ticker_select and market_data[ticker]['price_to_earnings_peg'] < 0:
+			            continue
+			        ratio = market_data[ticker]['price_to_earnings_peg']
+			    elif action == 'negative peg':
+			        market_data = market_data | yahoo.fetch_detail(ticker)
+			        if not ticker_select and market_data[ticker]['price_to_earnings_peg'] >= 0:
+			            continue
+			        ratio = market_data[ticker]['price_to_earnings_peg']
 		except KeyError:
 		    print(ticker, action, "value not found", file=sys.stderr)
 		    continue
