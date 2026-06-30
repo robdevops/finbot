@@ -89,7 +89,7 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 	if market_data:
 		for item in market_data:
 			flag = util.flag_from_ticker(item)
-			item_link = util.finance_link(item, market_data[item]['profile_exchange'], service)
+			item_link = util.finance_link(item, market_data.get(item).get('profile_exchange'), service)
 			profile_title = market_data[item]['profile_title']
 			if item == ticker and action == 'delete':
 				pass
@@ -278,7 +278,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			ratio = None
 			try:
 				if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
-					trailing_ratio = market_data(ticker).get('price_to_earnings_trailing')
+					trailing_ratio = market_data.get(ticker).get('price_to_earnings_trailing')
 					forward_ratio = market_data.get(ticker).get('price_to_earnings_forward')
 					if action in ('forward pe', 'bottom forward pe'):
 						if not ticker_select and forward_ratio is not None and forward_ratio < 0:
