@@ -131,9 +131,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 	who_command = prefix + r"(?:who)\s*(?P<ticker>[\w\.\:\-\^]+)*"
 	m_who = re.match(who_command, message, re.IGNORECASE)
 
-	super_command = prefix + r"(?:super|smsf|payout)\s*([\w\.\:\-]+)*"
-	m_super = re.match(super_command, message, re.IGNORECASE)
-
 	if m_watchlist:
 		action = None
 		ticker = None
@@ -623,10 +620,6 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			util.json_write(filename, plan, persist=True)
 		for k,v in plan.items():
 			payload.append(f"{webhook.bold(k.removeprefix('@'), service)}: {webhook.italic(v, service)}\n")
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_super:
-		heading = webhook.bold('Super payout deadlines:', service)
-		payload = [heading, webhook.strike("28 July 2025", service), webhook.strike("28 October 2025", service), webhook.strike("28 January 2026", service), webhook.strike("28 April 2026", service), "01 July 2026 commence payday super"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_who:
 		if m_who.group('ticker'):
