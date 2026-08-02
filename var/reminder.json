@@ -12,19 +12,9 @@
     "message": "🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰"
   },
   {
-    "month_day": "07-02",
-	"year": "2026",
-    "message": "CRWD 4-for-1 split"
-  },
-  {
     "month_day": "07-07",
     "gate_country": "AU",
     "message": "✍️ Submit 'Notice of Intent to Claim' for any post-tax Super contributions. The fund must acknowledge them before you lodge your tax return{flag}"
-  },
-  {
-    "month_day": "07-10",
-	"year": "2026",
-    "message": "SK Hynix (SKHY) begins trading on NASDAQ"
   },
   {
     "month_day": "08-26",
@@ -57,6 +47,6 @@
   {
     "month_day": "11-12",
 	"year": "2026",
-    "message": "SPCX 5M mensiversary. This ends the statistically most risky period for price finding after an IPO."
+    "message": "SPCX 5th mensiversary. This ends the statistically most risky period for price finding after an IPO."
   }
 ]
