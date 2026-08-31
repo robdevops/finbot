@@ -646,7 +646,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 						holding_id = v['holding_id']
 						link = util.link(f"https://portfolio.sharesight.com/holdings/{holding_id}/dashboard", arg, service)
 						flag = util.flag_from_market(market_code)
-						who[portfolio_name].append(f"{name} ({link}) {flag}")
+						who[portfolio_name].append(f"{flag} {name} ({link})")
 		except Exception as e:
 			print(e, file=sys.stderr)
 			webhook.payload_wrapper(service, url, [e], chat_id)

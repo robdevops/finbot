@@ -17,12 +17,6 @@
     "message": "✍️ Submit 'Notice of Intent to Claim' for any post-tax Super contributions. The fund must acknowledge them before you lodge your tax return{flag}"
   },
   {
-    "month_day": "08-26",
-	"year": "2026",
-    "gate_country": "AU",
-    "message": "ubank draw 4/6 https://www.ubank.com.au/campaigns/doubleyourpay → Winners (+ fund ≤ 5000 this month to enter next draw)"
-  },
-  {
     "month_day": "09-26",
 	"year": "2026",
     "gate_country": "AU",
@@ -47,6 +41,6 @@
   {
     "month_day": "11-12",
 	"year": "2026",
-    "message": "SPCX 5th mensiversary. This ends the statistically most risky period for price finding after an IPO."
+    "message": "SPCX 5th mensiversary. End of (statistically) most risky price finding period after an IPO."
   }
 ]
