@@ -613,6 +613,64 @@ def graph(df, title, ylabel):
 	fig.savefig(buf, format='png', facecolor=bg) # no bbox_inches='tight': keep exact 1280x800
 	return buf
 
+def compare_graph(series, title, subtitle=''):
+	"""Rebased % change lines for 2-6 tickers. series: list of (label, pandas Series of closes), already cropped to the period.
+	Returns PNG bytes (1280x800, Telegram's photo size)."""
+	from matplotlib.figure import Figure
+	from matplotlib.ticker import MaxNLocator, FuncFormatter
+	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
+	# categorical slots 1-5 and 7 of the validated dark palette; red/green are skipped because they mean down/up
+	colors = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9']
+	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
+	ax = fig.add_axes([0.085, 0.09, 0.70, 0.74], facecolor=bg)
+	rebased = []
+	for label, y in series:
+		rebased.append((label, (y / y.iloc[0] - 1) * 100))
+	ax.axhline(0, color=ink2, linewidth=0.8, alpha=0.6, zorder=1)
+	for (label, y), color in zip(rebased, colors):
+		ax.plot(y.index, y.values, color=color, linewidth=1.5, solid_capstyle='round', zorder=3)
+	lo = min(y.min() for _, y in rebased)
+	hi = max(y.max() for _, y in rebased)
+	span = (hi - lo) or 1.0
+	ax.set_ylim(min(lo, 0) - span * 0.06, max(hi, 0) + span * 0.06)
+	ax.margins(x=0.01)
+	ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
+	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+.0f}%" if v else "0%"))
+	ax.grid(axis='y', color=grid, linewidth=0.6)
+	ax.set_axisbelow(True)
+	for side in ax.spines.values():
+		side.set_visible(False)
+	ax.tick_params(colors=ink2, labelsize=7, length=0, pad=4)
+	locator = mdates.AutoDateLocator(minticks=3, maxticks=6)
+	ax.xaxis.set_major_locator(locator)
+	ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+
+	# direct end-labels in the right margin, spread so they never overlap
+	ymin, ymax = ax.get_ylim()
+	ends = sorted(((y.iloc[-1], i) for i, (_, y) in enumerate(rebased)))
+	pos = [(v - ymin) / (ymax - ymin) for v, _ in ends]
+	gap = 0.065
+	for i in range(1, len(pos)):
+		pos[i] = max(pos[i], pos[i - 1] + gap)
+	overflow = pos[-1] - 0.97
+	if overflow > 0: # too high: shift the stack down, then re-enforce the floor
+		pos = [p - overflow for p in pos]
+		for i in range(len(pos) - 2, -1, -1):
+			pos[i] = min(pos[i], pos[i + 1] - gap)
+	for (value, i), p in zip(ends, pos):
+		label, y = rebased[i]
+		color = colors[i]
+		ax.plot([1.015], [p], marker='s', markersize=4, color=color, transform=ax.transAxes, clip_on=False, zorder=4)
+		ax.annotate(f"{label}  {value:+.1f}%", xy=(y.index[-1], value), xycoords='data', xytext=(1.03, p), textcoords='axes fraction',
+			ha='left', va='center', fontsize=7.5, color=ink, annotation_clip=False,
+			arrowprops=dict(arrowstyle='-', color=color, linewidth=0.7, alpha=0.7, shrinkA=0, shrinkB=2, relpos=(0, 0.5)))
+	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	if subtitle:
+		fig.text(0.03, 0.865, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+	buf = io.BytesIO()
+	fig.savefig(buf, format='png', facecolor=bg)
+	return buf
+
 def get_emoji(number):
 	if number > 0:
 		#return '🔺'

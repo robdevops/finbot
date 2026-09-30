@@ -2,6 +2,7 @@ from itertools import pairwise
 import json, re
 import datetime
 import sys
+import pandas as pd
 from lib.config import *
 from lib import sharesight
 from lib import util
@@ -129,6 +130,56 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 		payload = payload[:1] # confirmation only; don't list the whole watchlist
 	return payload
 
+def prepare_compare(service, args):
+	"""Compare 2-6 tickers as rebased % change. A trailing time period (3m/1y/90d/ytd) is optional;
+	without one, the span is the earliest date covered by every ticker. Returns (caption_lines, image)."""
+	usage = ['Usage: .compare SYMBOL SYMBOL [SYMBOL...up to 6] [period]']
+	period_days = None
+	args = list(args)
+	if args:
+		try:
+			period_days = util.days_from_human_days(args[-1])
+			args.pop()
+		except ValueError:
+			pass
+	tickers = list(dict.fromkeys(util.transform_to_yahoo(a.upper()) for a in args)) # de-duplicated, order kept
+	if not 2 <= len(tickers) <= 6:
+		return usage, None
+	names, labels, closes = {}, {}, {}
+	for ticker in tickers:
+		name, currency, series = yahoo.price_series(ticker)
+		names[ticker] = name
+		closes[ticker] = series
+	common_start = max(series.index[0] for series in closes.values())
+	start = common_start
+	note = ''
+	if period_days:
+		requested = pd.Timestamp(datetime.datetime.now().date() - datetime.timedelta(days=period_days))
+		if requested >= common_start:
+			start = requested
+		else:
+			note = f" (requested {util.days_english(period_days)}, limited by shortest history)"
+	cropped = []
+	for ticker in tickers:
+		series = closes[ticker]
+		base = series[series.index <= start]
+		base_value = base.iloc[-1] if len(base) else series.iloc[0] # last close on/before the start date
+		series = pd.concat([pd.Series([base_value], index=[start]), series[series.index > start]])
+		cropped.append((ticker, series))
+	if any(len(series) < 2 for _, series in cropped):
+		raise RuntimeError("not enough price history in that period to compare")
+	span_days = (datetime.datetime.now().date() - start.date()).days
+	period_label = util.days_english(period_days) if period_days and not note else f"{span_days} days"
+	title = ' vs '.join(t.split('.')[0] for t in tickers)
+	subtitle = f"% change over {period_label}, since {start:%d %b %Y}" + note
+	image = util.compare_graph([(t.split('.')[0], series) for t, series in cropped], title, subtitle)
+	image.seek(0)
+	caption = [webhook.bold(f"Comparison: {period_label}, since {start:%d %b %Y}", service) + note]
+	results = sorted(((series.iloc[-1] / series.iloc[0] - 1) * 100, t) for t, series in cropped)
+	for pct, t in reversed(results):
+		caption.append(f"{util.get_emoji(pct)} {names[t]} ({t}): {pct:+.1f}%")
+	return caption, image
+
 def prepare_help(service, botName):
 	payload = []
 	payload.append(webhook.bold("Tracked securities:", service))
@@ -144,6 +195,7 @@ def prepare_help(service, botName):
 
 	payload.append(webhook.bold("\nPrice:", service))
 	payload.append(".beta")
+	payload.append(".compare SYMBOL SYMBOL [...] [period]")
 	payload.append(".history SYMBOL")
 	payload.append(".performance [period] [portfolio]")
 	payload.append(".price [percent|SYMBOL] [period]")

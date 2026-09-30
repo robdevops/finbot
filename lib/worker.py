@@ -105,6 +105,9 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 	sell_command = prefix + r"sell"
 	m_sell = re.match(sell_command, message, re.IGNORECASE)
 
+	compare_command = prefix + r"compare\s+(?P<args>[\w\.\:\-\^\=\s]+)"
+	m_compare = re.match(compare_command, message, re.IGNORECASE)
+
 	history_command = prefix + r"(?:history|hospital|visual|hosiery)\s*(?P<ticker>[\w\.\:\-]+)\s*(?P<extra>[\w\%]+)*"
 	m_history = re.match(history_command, message, re.IGNORECASE)
 
@@ -562,6 +565,17 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		typing.stop()
 		payload = payload or [f"No stocks meet {action} criteria"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
+	elif m_compare:
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
+		try:
+			payload, graph = reports.prepare_compare(service, m_compare.group('args').split())
+		finally:
+			typing.stop()
+		if graph:
+			webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service)
+		else:
+			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_history:
 		if not m_history.group('ticker') or m_history.group('extra'):
 			webhook.payload_wrapper(service, url, ["Usage: .history TICKER"], chat_id)
