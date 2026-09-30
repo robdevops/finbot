@@ -579,7 +579,7 @@ def graph(df, title, ylabel):
 	"""Render a price chart as PNG bytes, sized for Telegram (1280px wide, no server-side resampling)."""
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
-	from matplotlib.ticker import MaxNLocator
+	from matplotlib.ticker import MaxNLocator, FuncFormatter
 	import pandas as pd
 	# palette: dark surface, muted ink, green/red for up/down (red/green separated in lightness as well as hue)
 	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
@@ -603,6 +603,7 @@ def graph(df, title, ylabel):
 	ax.set_ylim(y.min() - span * 0.22, y.max() + span * 0.17)
 	ax.margins(x=0.02)
 	ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
+	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.2f}".rstrip('0').rstrip('.'))) # 66,000 / 1.5
 	ax.grid(axis='y', color=grid, linewidth=0.6)
 	ax.set_axisbelow(True)
 	for side in ax.spines.values():

@@ -133,15 +133,20 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 def prepare_compare(service, args):
 	"""Compare 2-6 tickers as rebased % change. A trailing time period (3m/1y/90d/ytd) is optional;
 	without one, the span is the earliest date covered by every ticker. Returns (caption_lines, image)."""
-	usage = ['Usage: .compare SYMBOL SYMBOL [SYMBOL...up to 6] [period]']
+	usage = ['Usage: .compare SYMBOL SYMBOL [SYMBOL...up to 6] [period|max]  (default: 10 years)']
 	period_days = None
+	full_history = False
 	args = list(args)
 	if args:
-		try:
-			period_days = util.days_from_human_days(args[-1])
+		if args[-1].lower() in ('max', 'all'):
+			full_history = True
 			args.pop()
-		except ValueError:
-			pass
+		else:
+			try:
+				period_days = util.days_from_human_days(args[-1])
+				args.pop()
+			except ValueError:
+				pass
 	tickers = list(dict.fromkeys(util.transform_to_yahoo(a.upper()) for a in args)) # de-duplicated, order kept
 	if not 2 <= len(tickers) <= 6:
 		return usage, None
@@ -153,6 +158,9 @@ def prepare_compare(service, args):
 	common_start = max(series.index[0] for series in closes.values())
 	start = common_start
 	note = ''
+	if not period_days and not full_history: # default window; ask for a longer period (or max) to go further
+		default_start = pd.Timestamp(datetime.datetime.now().date() - datetime.timedelta(days=3655))
+		start = max(common_start, default_start)
 	if period_days:
 		requested = pd.Timestamp(datetime.datetime.now().date() - datetime.timedelta(days=period_days))
 		if requested >= common_start:
@@ -195,7 +203,7 @@ def prepare_help(service, botName):
 
 	payload.append(webhook.bold("\nPrice:", service))
 	payload.append(".beta")
-	payload.append(".compare SYMBOL SYMBOL [...] [period]")
+	payload.append(".compare SYMBOL SYMBOL [...] [period|max]")
 	payload.append(".history SYMBOL")
 	payload.append(".performance [period] [portfolio]")
 	payload.append(".price [percent|SYMBOL] [period]")
