@@ -555,6 +555,16 @@ def days_english(days, prefix='the past ', article=''):
 	else:
 		return prefix + str(days) + ' days'
 
+def fit_left_margin(fig, ax, pad_px=18):
+	"""Widen the left margin so the longest Y tick label is never clipped; the right edge stays put."""
+	renderer = fig.canvas.get_renderer()
+	fig.canvas.draw()
+	widest = max((t.get_window_extent(renderer).width for t in ax.get_yticklabels() if t.get_text()), default=0)
+	need = (widest + ax.yaxis.get_tick_padding() * fig.dpi / 72 + pad_px) / fig.bbox.width
+	x0, y0, w, h = ax.get_position().bounds
+	if need > x0:
+		ax.set_position([need, y0, w - (need - x0), h])
+
 def style_date_axis(ax, start, end, ink):
 	"""Larger, explicit date ticks: format follows the span, few enough ticks that they never collide."""
 	days = (end - start).days
@@ -568,6 +578,7 @@ def style_date_axis(ax, start, end, ink):
 def graph(df, title, ylabel):
 	"""Render a price chart as PNG bytes, sized for Telegram (1280px wide, no server-side resampling)."""
 	from matplotlib.figure import Figure
+	from matplotlib.backends.backend_agg import FigureCanvasAgg
 	from matplotlib.ticker import MaxNLocator
 	import pandas as pd
 	# palette: dark surface, muted ink, green/red for up/down (red/green separated in lightness as well as hue)
@@ -581,6 +592,7 @@ def graph(df, title, ylabel):
 	arrow = '▲' if last > first else '▼' if last < first else '■'
 
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg) # 1280x800
+	FigureCanvasAgg(fig)
 	ax = fig.add_axes([0.075, 0.105, 0.885, 0.755], facecolor=bg)
 	ax.fill_between(x, y, y.min() - (y.max() - y.min()) * 0.15, color=color, alpha=0.14, linewidth=0)
 	ax.plot(x, y, color=color, linewidth=1.6, solid_capstyle='round')
@@ -597,6 +609,7 @@ def graph(df, title, ylabel):
 		side.set_visible(False)
 	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
 	style_date_axis(ax, x.iloc[0], x.iloc[-1], ink)
+	fit_left_margin(fig, ax)
 
 	def annotate(i, name, above):
 		xd, yv = x.iloc[i], y.iloc[i]
@@ -625,11 +638,13 @@ def compare_graph(series, title, subtitle=''):
 	"""Rebased % change lines for 2-6 tickers. series: list of (label, pandas Series of closes), already cropped to the period.
 	Returns PNG bytes (1280x800, Telegram's photo size)."""
 	from matplotlib.figure import Figure
+	from matplotlib.backends.backend_agg import FigureCanvasAgg
 	from matplotlib.ticker import MaxNLocator, FuncFormatter
 	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
 	# categorical slots 1-5 and 7 of the validated dark palette; red/green are skipped because they mean down/up
 	colors = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9']
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
+	FigureCanvasAgg(fig)
 	ax = fig.add_axes([0.075, 0.105, 0.72, 0.755], facecolor=bg)
 	rebased = []
 	for label, y in series:
@@ -643,13 +658,15 @@ def compare_graph(series, title, subtitle=''):
 	ax.set_ylim(min(lo, 0) - span * 0.06, max(hi, 0) + span * 0.06)
 	ax.margins(x=0.01)
 	ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
-	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+.0f}%" if v else "0%"))
+	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+,.0f}%" if v else "0%"))
 	ax.grid(axis='y', color=grid, linewidth=0.6)
 	ax.set_axisbelow(True)
 	for side in ax.spines.values():
 		side.set_visible(False)
 	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
 	style_date_axis(ax, min(y.index[0] for _, y in rebased), max(y.index[-1] for _, y in rebased), ink)
+
+	fit_left_margin(fig, ax)
 
 	# direct end-labels in the right margin, spread so they never overlap
 	ymin, ymax = ax.get_ylim()
