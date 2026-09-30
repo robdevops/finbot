@@ -5,6 +5,7 @@ import datetime
 import sys
 
 from lib.config import *
+from lib import telegram
 from lib import util
 from lib import webhook
 from lib import yahoo
@@ -87,6 +88,14 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 				else:
 					payload = [f"No events found for the next { f'{days} days' if days != 1 else 'day' }"]
 		return payload
+
+	def pin_if_earnings(service, result):
+		if earnings and not specific_stock and service == 'telegram' and result:
+			try:
+				sent = result['result']
+				telegram.pinChatMessage(sent['chat']['id'], sent['message_id'])
+			except (KeyError, TypeError):
+				print("Unable to pin: unexpected response", file=sys.stderr)
 
 	# MAIN #
 	if specific_stock:

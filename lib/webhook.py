@@ -31,6 +31,10 @@ def write(service, url, payload_string, chat_id=None, message_id=None):
 		return None
 	if r.status_code == 200:
 		print(r.status_code, "OK outbound to", service, file=sys.stderr)
+		try:
+			return r.json()
+		except ValueError:
+			return {}
 	else:
 		print(r.status_code, "error outbound to", service, file=sys.stderr)
 		return None
@@ -44,18 +48,22 @@ def payload_wrapper(service, url, payload, chat_id=None, message_id=None):
 		print("Payload: " + payload_string) if debug else None
 		def chunkLooper():
 			chunks = util.chunker(payload, config_chunk_maxlines)
+			first = None
 			for idx, chunk in enumerate(chunks):
 				idx > 0 and time.sleep(0.5)
 				payload_chunk = '\n'.join(chunk)
-				write(service, url, payload_chunk)
+				result = write(service, url, payload_chunk)
+				if idx == 0:
+					first = result
+			return first # response for the first chunk
 		if service == 'discord' and len(payload_string) > 2000:
 			print(service, "payload is over 2,000 bytes. Splitting.")
-			chunkLooper()
+			return chunkLooper()
 		elif service != 'discord' and len(payload_string) > 4096:
 			print(service, "payload is over 4,096 bytes. Splitting.")
-			chunkLooper()
+			return chunkLooper()
 		else:
-			write(service, url, payload_string, chat_id, message_id)
+			return write(service, url, payload_string, chat_id, message_id)
 
 def bold(message, service):
 	if service == 'telegram':
