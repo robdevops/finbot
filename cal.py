@@ -140,9 +140,9 @@ if __name__ == "__main__":
 	if len(sys.argv) > 1:
 		match sys.argv[1]:
 			case 'earnings':
-				lambda_handler(earnings=True)
+				webhook.guarded('cal.py earnings', lambda_handler, earnings=True)
 			case 'ex-dividend':
-				lambda_handler(dividend=True)
+				webhook.guarded('cal.py ex-dividend', lambda_handler, dividend=True)
 			case other:
 				print("Usage:", sys.argv[0], "[earnings|ex-dividend]", file=sys.stderr)
 	else:

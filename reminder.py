@@ -91,4 +91,4 @@ def lambda_handler():
 	return True
 
 if __name__ == "__main__":
-	lambda_handler()
+	webhook.guarded('reminder.py', lambda_handler)

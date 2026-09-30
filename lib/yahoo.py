@@ -38,6 +38,7 @@ def getCookie(maxAge=1209600): # 14 days
 		r = requests.get(url, headers=headers)
 	except Exception as e:
 		print(e, file=sys.stderr)
+		r = requests.Response() # empty: falls through to the fallback cookie below
 	if r.status_code not in {200, 404}:
 		print(r.status_code, r.text.rstrip(), "returned by", url, file=sys.stderr)
 
@@ -129,7 +130,7 @@ def fetch(tickers):
 			break
 	else:
 		print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
-		sys.exit(1)
+		raise RuntimeError("Yahoo API unavailable")
 	data = r.json()
 	data = data['quoteResponse']
 	if data['result'] is None or data['error'] is not None:

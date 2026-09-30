@@ -31,13 +31,13 @@ def get_token():
 		r = requests.post(url, data=config_sharesight_auth, timeout=config_http_timeout)
 	except Exception as e:
 		print("Error", str(e), url, file=sys.stderr)
-		sys.exit(1)
+		raise RuntimeError(f"Sharesight auth request failed: {e}")
 	if r.status_code != 200:
 		print(r.status_code, "error", url, file=sys.stderr)
 	data = r.json()
 	if 'error' in data:
 		print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
-		sys.exit(1)
+		raise RuntimeError(f"Sharesight auth error: {data['error']}")
 	if config_cache and 'access_token' in data:
 		util.json_write(cacheFile, data)
 	print("Got Sharesight token:", data['access_token'], file=sys.stderr) if debug else None
@@ -59,13 +59,13 @@ def get_portfolios():
 			r = requests.get(url, headers={'Content-type': 'application/json'}, auth=BearerAuth(token), timeout=config_http_timeout)
 		except Exception as e:
 			print("Error", str(e), url, file=sys.stderr)
-			sys.exit(1)
+			raise RuntimeError(f"Sharesight portfolios request failed: {e}")
 		if r.status_code != 200:
 			print(r.status_code, "error", url, file=sys.stderr)
 		data = r.json()
 		if 'error' in data:
 			print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
-			sys.exit(1)
+			raise RuntimeError(f"Sharesight portfolios error: {data['error']}")
 		if config_cache and 'portfolios' in data:
 			util.json_write(cache_file, data)
 	for portfolio in data['portfolios']:
@@ -78,7 +78,7 @@ def get_portfolios():
 			portfolio_dict[portfolio['name']] = portfolio['id']
 	if not len(portfolio_dict):
 		print("No portfolios found. Exiting.", file=sys.stderr)
-		sys.exit(1)
+		raise RuntimeError(f"No Sharesight portfolios found")
 	print(portfolio_dict)
 	return portfolio_dict
 
@@ -98,14 +98,14 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
 		r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
 	except Exception as e:
 		print("Error", str(e), url, file=sys.stderr)
-		sys.exit(1)
+		raise RuntimeError(f"Sharesight trades request failed: {e}")
 	if r.status_code != 200:
 		print(r.status_code, "error", url, file=sys.stderr)
 	data = r.json()
 	print(len(data['trades']))
 	if 'error' in data:
 		print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
-		sys.exit(1)
+		raise RuntimeError(f"Sharesight trades error: {data['error']}")
 	for trade in data['trades']:
 		trade['portfolio'] = portfolio_name # inject custom field
 	if config_cache and 'trades' in data:
@@ -160,13 +160,13 @@ def get_performance(portfolio_id, days, config_cache_seconds=299):
 		r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
 	except Exception as e:
 		print("Error", str(e), url, file=sys.stderr)
-		sys.exit(1)
+		raise RuntimeError(f"Sharesight performance request failed: {e}")
 	if r.status_code != 200:
 		print(r.status_code, "error", url, file=sys.stderr)
 	data = r.json()
 	if 'error' in data:
 		print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
-		sys.exit(1)
+		raise RuntimeError(f"Sharesight performance error: {data['error']}")
 	if config_cache and 'report' in data:
 		util.json_write(cache_file, data)
 	return data
@@ -178,5 +178,5 @@ def get_performance_wrapper(days=config_past_days):
 		performance[portfolio_id] = get_performance(portfolio_id, days)
 		if not performance[portfolio_id]:
 			print("Could not get performance for portfolio:", portfolio_id, file=sys.stderr)
-			sys.exit(1)
+			raise RuntimeError(f"Sharesight returned no performance for portfolio {portfolio_id}")
 	return performance

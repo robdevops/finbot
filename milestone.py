@@ -156,4 +156,4 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 	return True
 
 if __name__ == "__main__":
-	lambda_handler()
+	webhook.guarded('milestone.py', lambda_handler)

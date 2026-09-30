@@ -234,15 +234,15 @@ if __name__ == "__main__":
 		arg = sys.argv[1]
 		match arg:
 			case 'midsession':
-				lambda_handler(midsession=True)
+				webhook.guarded('price.py midsession', lambda_handler, midsession=True)
 			case 'interday':
-				lambda_handler(interday=True)
+				webhook.guarded('price.py interday', lambda_handler, interday=True)
 			case 'premarket':
-				lambda_handler(premarket=True)
+				webhook.guarded('price.py premarket', lambda_handler, premarket=True)
 			case 'close':
-				lambda_handler(close=True)
+				webhook.guarded('price.py close', lambda_handler, close=True)
 			case arg if arg.isdigit():
-				lambda_handler(threshold=0, days=int(arg), top=10)
+				webhook.guarded(f'price.py {arg}', lambda_handler, threshold=0, days=int(arg), top=10)
 			case other:
 				print("Usage:", sys.argv[0], "[midsession|interday|premarket|close|days (int)]", file=sys.stderr)
 

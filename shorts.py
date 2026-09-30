@@ -88,4 +88,4 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
 	return True
 
 if __name__ == "__main__":
-	lambda_handler()
+	webhook.guarded('shorts.py', lambda_handler)

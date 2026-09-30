@@ -1,7 +1,9 @@
 import json
 import time
 import requests
+import re
 import sys
+import traceback
 
 from lib.config import *
 from lib import util
@@ -39,10 +41,69 @@ def write(service, url, payload_string, chat_id=None, message_id=None):
 		print(r.status_code, "error outbound to", service, file=sys.stderr)
 		return None
 
+def chat_url(service, chat_id):
+	"""Outbound URL for posting to a chat."""
+	if service == 'slack':
+		return 'https://slack.com/api/chat.postMessage'
+	if service == 'telegram':
+		return webhooks['telegram'] + 'sendMessage?chat_id=' + str(chat_id)
+	return webhooks.get(service)
+
+def error_line(e, context=None, limit=200):
+	"""One-line, secret-free summary of an exception (or string)."""
+	if isinstance(e, BaseException):
+		text = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+	else:
+		text = str(e)
+	text = re.sub(r'bot\d+:[\w-]+', 'bot<redacted>', text) # Telegram tokens appear in request URLs
+	text = re.sub(r'(?i)(token|crumb|auth\w*|key)=[^&\s]+', r'\1=<redacted>', text)
+	text = ' '.join(text.split())
+	if len(text) > limit:
+		text = text[:limit - 1] + '…'
+	return f"⚠️ {context}: {text}" if context else f"⚠️ {text}"
+
+def report_error(e, service=None, chat_id=None, context=None):
+	"""Send a one-line error summary to the initiating chat, else to every default channel in .env.
+	Never raises: error reporting must not become a second failure."""
+	try:
+		line = error_line(e, context)
+		print(line, file=sys.stderr)
+		if isinstance(e, BaseException):
+			traceback.print_exception(e, file=sys.stderr)
+		if service and chat_id:
+			targets = [(service, chat_url(service, chat_id))]
+			chat = chat_id
+		else:
+			targets = []
+			for svc, url in webhooks.items():
+				if svc == 'telegram':
+					if not config_telegramChatID:
+						continue
+					url = chat_url(svc, config_telegramChatID)
+				targets.append((svc, url))
+			chat = None
+		for svc, url in targets:
+			if url:
+				try:
+					write(svc, url, line, chat)
+				except Exception as send_error:
+					print("Failed to report error to", svc, ":", send_error, file=sys.stderr)
+	except Exception as reporting_error:
+		print("Failed to report error:", reporting_error, file=sys.stderr)
+
+def guarded(context, func, *args, **kwargs):
+	"""Run a cron entry point; on failure report one line to the default channel and exit non-zero."""
+	try:
+		return func(*args, **kwargs)
+	except Exception as e:
+		report_error(e, context=context)
+		sys.exit(1)
+
 def payload_wrapper(service, url, payload, chat_id=None, message_id=None):
 	if not payload:
 		print(service + ": Nothing to send") # informational
 	else:
+		payload = [str(line) for line in payload]
 		payload_string = '\n'.join(payload)
 		print("Preparing outbound to", service, str(len(payload_string)), "bytes")
 		print("Payload: " + payload_string) if debug else None
