@@ -799,7 +799,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 
 def price_series(ticker):
 	"""Daily closes for a ticker via the same fetch/parse path as price_history(): (name, currency, pandas Series indexed by datetime)."""
-	data = fetch_chart_json(ticker)
+	data = fetch_chart_json(ticker, full=True)
 	if isinstance(data, tuple): # fetch_chart_json returns (errorstring, None) on failure
 		raise RuntimeError(data[0])
 	df = chart_json_to_df(data)
@@ -811,16 +811,17 @@ def price_series(ticker):
 	name = util.transform_title(stock.get('longName') or stock.get('shortName') or ticker)
 	return name, stock.get('currency'), series
 
-def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds):
+def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds, full=False):
+	"""full=True requests Yahoo's entire history (cached separately) instead of the last `days`."""
 	now = datetime.datetime.now()
 	if config_cache:
-		cacheFile = "finbot_yahoo_history_" + ticker + ".json"
+		cacheFile = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
 		cache = util.read_cache(cacheFile, seconds)
 		if cache:
 			return cache
 	cookie = getCookie()
 	crumb = getCrumb()
-	start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
+	start = '0' if full else str(int((now - datetime.timedelta(days=days)).timestamp()))
 	end = str(int(now.timestamp()))
 	interval = '1d'
 	url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
