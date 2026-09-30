@@ -167,7 +167,7 @@ def prepare_compare(service, args):
 		if requested >= common_start:
 			start = requested
 		else:
-			note = f" (requested {util.days_english(period_days)}, limited by shortest history)"
+			note = " (limited by shortest history)"
 	cropped = []
 	for ticker in tickers:
 		series = closes[ticker]
@@ -183,7 +183,7 @@ def prepare_compare(service, args):
 	subtitle = f"% change over {period_label}, since {start:%d %b %Y}" + note
 	image = util.compare_graph([(t.split('.')[0], series) for t, series in cropped], title, subtitle)
 	image.seek(0)
-	caption = [webhook.bold(f"Comparison: {period_label}, since {start:%d %b %Y}", service) + note]
+	caption = [webhook.bold(f"{period_label}, since {start:%d %b %Y}", service) + note]
 	results = sorted(((series.iloc[-1] / series.iloc[0] - 1) * 100, t) for t, series in cropped)
 	for pct, t in reversed(results):
 		link = util.finance_link(t, exchanges[t], service, days=span_days, brief=False)
