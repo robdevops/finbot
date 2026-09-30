@@ -85,6 +85,9 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 					print(ticker, "not found")
 		elif ticker not in market_data:
 			watchlist.remove(ticker)
+	def described(): # "Full Name (TICKER)" for the ticker being changed
+		title = ((market_data or {}).get(ticker) or {}).get('profile_title')
+		return webhook.bold(f"{title} ({ticker_link})" if title else ticker_link, service)
 	payload = []
 	if market_data:
 		for item in market_data:
@@ -102,26 +105,28 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 		return re.findall('[A-Z].*', e)
 	payload.sort(key=profile_title_sort)
 	if action == 'delete':
-		if ticker not in market_data:
+		if not market_data or ticker not in market_data:
 			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker, service) + " to remove it")
 		else:
-			payload.insert(0, f"Ok {user}, I deleted " + webhook.bold(ticker_link, service))
+			payload.insert(0, f"Ok {user}, I deleted " + described())
 	elif action == 'add':
 		if ticker not in market_data:
 			payload = ["Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " to add it"]
 		elif transformed and duplicate:
-			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " and I'm already tracking " + webhook.bold(ticker_link, service))
+			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " and I'm already tracking " + described())
 		elif transformed:
-			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " so I added " + webhook.bold(ticker_link, service))
+			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " so I added " + described())
 		elif duplicate:
-			payload.insert(0, f"{user}, I'm already tracking " + webhook.bold(ticker_link, service))
+			payload.insert(0, f"{user}, I'm already tracking " + described())
 		else:
-			payload.insert(0, f"Ok {user}, I added " + webhook.bold(ticker_link, service))
+			payload.insert(0, f"Ok {user}, I added " + described())
 	elif not action and payload:
 		payload.insert(0, f"Hi {user}, I'm currently tracking:")
 	else:
 		payload.append('Watchlist is empty. Try ".watchlist add SYMBOL" to create it')
 	util.json_write('finbot_watchlist.json', watchlist, persist=True)
+	if action in ('add', 'delete'):
+		payload = payload[:1] # confirmation only; don't list the whole watchlist
 	return payload
 
 def prepare_help(service, botName):
