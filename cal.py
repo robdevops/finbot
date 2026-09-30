@@ -5,6 +5,7 @@ import datetime
 import sys
 
 from lib.config import *
+from lib import telegram
 from lib import util
 from lib import webhook
 from lib import yahoo
@@ -88,6 +89,19 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 					payload = [f"No events found for the next { f'{days} days' if days != 1 else 'day' }"]
 		return payload
 
+	def pin_if_earnings(service, results):
+		"""Pin every message of the Telegram earnings report (several if it was chunked)."""
+		if not (earnings and not specific_stock and service == 'telegram' and results):
+			return
+		sent = []
+		for result in results:
+			try:
+				sent.append((result['result']['chat']['id'], result['result']['message_id']))
+			except (KeyError, TypeError):
+				print("Unable to pin: unexpected response", file=sys.stderr)
+		for chat, message_id in reversed(sent): # pin last-to-first so the report's first message ends up on top
+			telegram.pinChatMessage(chat, message_id)
+
 	# MAIN #
 	if specific_stock:
 		ticker = util.transform_to_yahoo(specific_stock)
@@ -116,13 +130,15 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 			url = 'https://slack.com/api/chat.postMessage'
 		elif service == "telegram":
 			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-		webhook.payload_wrapper(service, url, payload, chat_id, message_id)
+		results = webhook.payload_wrapper(service, url, payload, chat_id, message_id)
+		pin_if_earnings(service, results)
 	else:
 		for service, url in webhooks.items():
 			payload = prepare_payload(service, market_data, config_future_days)
 			if service == "telegram":
 				url = url + "sendMessage?chat_id=" + config_telegramChatID
-			webhook.payload_wrapper(service, url, payload)
+			results = webhook.payload_wrapper(service, url, payload)
+			pin_if_earnings(service, results)
 
 	# make google cloud happy
 	return True
@@ -131,9 +147,9 @@ if __name__ == "__main__":
 	if len(sys.argv) > 1:
 		match sys.argv[1]:
 			case 'earnings':
-				lambda_handler(earnings=True)
+				webhook.guarded('cal.py earnings', lambda_handler, earnings=True)
 			case 'ex-dividend':
-				lambda_handler(dividend=True)
+				webhook.guarded('cal.py ex-dividend', lambda_handler, dividend=True)
 			case other:
 				print("Usage:", sys.argv[0], "[earnings|ex-dividend]", file=sys.stderr)
 	else:

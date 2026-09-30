@@ -34,12 +34,15 @@ if config_telegramBotToken:
 def pinChatMessage(chat_id, message_id):
 	telegram_url = webhooks['telegram'] + 'pinChatMessage'
 	payload = {
-		'channel': chat_id,
+		'chat_id': chat_id,
 		'message_id': message_id,
 		'disable_notification': 'true'
 	}
-	response = requests.post(url, headers=headers, params=payload, timeout=config_http_timeout)
-	return response.json()['result']
+	response = requests.post(telegram_url, params=payload, timeout=config_http_timeout)
+	output = response.json()
+	if not output.get('ok'):
+		print("pinChatMessage failed:", output.get('description'), file=sys.stderr)
+	return output.get('result')
 
 #def unpinChatMessage():
 #	telegram_url = webhooks['telegram'] + 'unpinChatMessage'

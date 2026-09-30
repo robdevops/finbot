@@ -38,6 +38,7 @@ def getCookie(maxAge=1209600): # 14 days
 		r = requests.get(url, headers=headers)
 	except Exception as e:
 		print(e, file=sys.stderr)
+		r = requests.Response() # empty: falls through to the fallback cookie below
 	if r.status_code not in {200, 404}:
 		print(r.status_code, r.text.rstrip(), "returned by", url, file=sys.stderr)
 
@@ -129,7 +130,7 @@ def fetch(tickers):
 			break
 	else:
 		print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
-		sys.exit(1)
+		raise RuntimeError("Yahoo API unavailable")
 	data = r.json()
 	data = data['quoteResponse']
 	if data['result'] is None or data['error'] is not None:
@@ -796,16 +797,31 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 		buf.seek(0)
 	return percent_dict, image_data
 
-def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds):
+def price_series(ticker):
+	"""Daily closes for a ticker via the same fetch/parse path as price_history(): (name, exchange, pandas Series indexed by datetime)."""
+	data = fetch_chart_json(ticker, full=True)
+	if isinstance(data, tuple): # fetch_chart_json returns (errorstring, None) on failure
+		raise RuntimeError(data[0])
+	df = chart_json_to_df(data)
+	stock = chart_json_to_stock_basics(data) or {}
+	df = df[df['Close'].notnull()]
+	if df.empty:
+		raise RuntimeError(f"no price history for {ticker}")
+	series = pd.Series(df['Close'].astype(float).values, index=pd.to_datetime(df['Date'].astype(str)), name=ticker)
+	name = util.transform_title(stock.get('longName') or stock.get('shortName') or ticker)
+	return name, stock.get('fullExchangeName') or stock.get('exchangeName') or '', series
+
+def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds, full=False):
+	"""full=True requests Yahoo's entire history (cached separately) instead of the last `days`."""
 	now = datetime.datetime.now()
 	if config_cache:
-		cacheFile = "finbot_yahoo_history_" + ticker + ".json"
+		cacheFile = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
 		cache = util.read_cache(cacheFile, seconds)
 		if cache:
 			return cache
 	cookie = getCookie()
 	crumb = getCrumb()
-	start =  str(int((now - datetime.timedelta(days=days)).timestamp()))
+	start = '0' if full else str(int((now - datetime.timedelta(days=days)).timestamp()))
 	end = str(int(now.timestamp()))
 	interval = '1d'
 	url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
@@ -848,7 +864,6 @@ def chart_json_to_df(chart_json):
 	# Rename columns to capitalize first letter
 	df.columns = [col.capitalize() for col in df.columns]
 
-	print(df, file=sys.stderr) if debug else None
 	return df
 
 def chart_json_to_stock_basics(chart_json):

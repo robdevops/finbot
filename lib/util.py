@@ -396,7 +396,7 @@ def finance_link(symbol, exchange, service='telegram', days=1, brief=True, text=
 	if config_hyperlinkProvider == 'google':
 		link = gfinance_link(symbol, exchange, service, days, brief, text)
 	else:
-		link = yahoo_link(ticker, service, brief, text)
+		link = yahoo_link(symbol, service, brief, text)
 	return link
 
 def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True, text=None):
@@ -555,62 +555,144 @@ def days_english(days, prefix='the past ', article=''):
 	else:
 		return prefix + str(days) + ' days'
 
+def fit_left_margin(fig, ax, pad_px=18):
+	"""Widen the left margin so the longest Y tick label is never clipped; the right edge stays put."""
+	renderer = fig.canvas.get_renderer()
+	fig.canvas.draw()
+	widest = max((t.get_window_extent(renderer).width for t in ax.get_yticklabels() if t.get_text()), default=0)
+	need = (widest + ax.yaxis.get_tick_padding() * fig.dpi / 72 + pad_px) / fig.bbox.width
+	x0, y0, w, h = ax.get_position().bounds
+	if need > x0:
+		ax.set_position([need, y0, w - (need - x0), h])
+
+def style_date_axis(ax, start, end, ink):
+	"""Larger, explicit date ticks: format follows the span, few enough ticks that they never collide."""
+	days = (end - start).days
+	fmt = '%Y' if days > 1460 else '%b %Y' if days > 150 else '%d %b'
+	ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=3, maxticks=5))
+	ax.xaxis.set_major_formatter(mdates.DateFormatter(fmt))
+	ax.tick_params(axis='x', colors=ink, labelsize=10, length=3, width=0.8, pad=6)
+	for label in ax.get_xticklabels():
+		label.set_fontweight('medium')
+
 def graph(df, title, ylabel):
-	def label(x,y, atype, ax=None):
-		if atype == 'min':
-			xpoint = x[np.argmin(y)]
-			ypoint = y.min()
-			text = f"Min {ypoint:.2f}\n{xpoint}"
-			xytext = (100,100)
-		elif atype == 'max':
-			xpoint = x[np.argmax(y)]
-			ypoint = y.max()
-			text = f"Max {ypoint:.2f}\n{xpoint}"
-			xytext=(70,70)
-		elif atype == 'last':
-			xpoint = x.iloc[-1]
-			ypoint = y.iloc[-1]
-			text = f"Last {ypoint:.2f}\n{xpoint}"
-			xytext=(0,-50)
-		if not ax:
-			ax=plt.gca()
-		bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72, alpha=.5)
-		arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=60", alpha=.5)
-		kw = dict(arrowprops=arrowprops, bbox=bbox_props, ha="right", va="top")
-		ax.annotate(text, xy=(xpoint, ypoint), xytext=xytext, textcoords='offset pixels', **kw)
-	def scale(x, y, ax=None):
-		if not ax:
-			ax=plt.gca()
-		ymax = y.max()
-		ymin = y.min()
-		ax.set_ylim(top=ymax+(ymax/6))
-		ax.set_ylim(bottom=ymin-(ymin*0.1))
-	x = df['Date']
-	y = df['Close']
-	first = df['Close'].iloc[0]
-	last = df['Close'].iloc[-1]
-	if first > last:
-		color = 'red' # red
-	elif first < last:
-		color = 'green' # green
-	else:
-		color = 'grey' # black if unchanged
-	plt.title(title, pad=20)
-	plt.ylabel(ylabel)
-	df['Date'] = df['Date'].map(lambda x: datetime.datetime.strptime(str(x), '%Y-%m-%d'))
-	plt.gcf().autofmt_xdate()
-	plt.fill_between(x,y, color=color, alpha=0.3, linewidth=0.5)
-	plt.plot(x,y, color=color, alpha=0.9, linewidth=0.7)
-	plt.grid(color='grey', linestyle='-', alpha=0.5, linewidth=0.2)
-	plt.box(False)
-	plt.tight_layout(pad=2.0)
-	scale(x, y)
-	label(x,y, atype='min')
-	label(x,y, atype='max')
-	#label(x,y, atype='last')
+	"""Render a price chart as PNG bytes, sized for Telegram (1280px wide, no server-side resampling)."""
+	from matplotlib.figure import Figure
+	from matplotlib.backends.backend_agg import FigureCanvasAgg
+	from matplotlib.ticker import MaxNLocator, FuncFormatter
+	import pandas as pd
+	# palette: dark surface, muted ink, green/red for up/down (red/green separated in lightness as well as hue)
+	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
+	up, down, flat = '#34d399', '#fb7185', '#9aa4b2'
+	x = pd.to_datetime(df['Date'].astype(str))
+	y = df['Close'].astype(float)
+	first, last = y.iloc[0], y.iloc[-1]
+	color = up if last > first else down if last < first else flat
+	pct = (last - first) / first * 100 if first else 0
+	arrow = '▲' if last > first else '▼' if last < first else '■'
+
+	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg) # 1280x800
+	FigureCanvasAgg(fig)
+	ax = fig.add_axes([0.075, 0.105, 0.885, 0.755], facecolor=bg)
+	ax.fill_between(x, y, y.min() - (y.max() - y.min()) * 0.15, color=color, alpha=0.14, linewidth=0)
+	ax.plot(x, y, color=color, linewidth=1.6, solid_capstyle='round')
+	ax.plot([x.iloc[-1]], [last], marker='o', markersize=5, color=color, markeredgecolor=bg, markeredgewidth=1.5, clip_on=False)
+
+	# headroom above/below so annotations never leave the plot
+	span = (y.max() - y.min()) or max(abs(y.max()) * 0.02, 1e-9)
+	ax.set_ylim(y.min() - span * 0.22, y.max() + span * 0.17)
+	ax.margins(x=0.02)
+	ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
+	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.2f}".rstrip('0').rstrip('.'))) # 66,000 / 1.5
+	ax.grid(axis='y', color=grid, linewidth=0.6)
+	ax.set_axisbelow(True)
+	for side in ax.spines.values():
+		side.set_visible(False)
+	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
+	style_date_axis(ax, x.iloc[0], x.iloc[-1], ink)
+	fit_left_margin(fig, ax)
+
+	def annotate(i, name, above):
+		xd, yv = x.iloc[i], y.iloc[i]
+		frac = (mdates.date2num(xd) - mdates.date2num(x.iloc[0])) / max(mdates.date2num(x.iloc[-1]) - mdates.date2num(x.iloc[0]), 1)
+		# anchor text toward the inside of the plot so it cannot run off either edge
+		ha = 'left' if frac < 0.25 else 'right' if frac > 0.75 else 'center'
+		dx = {'left': 4, 'right': -4, 'center': 0}[ha]
+		ax.annotate(f"{name} {yv:,.2f}\n{xd:%d %b %Y}", xy=(xd, yv), xytext=(dx, 9 if above else -9),
+			textcoords='offset points', ha=ha, va='bottom' if above else 'top',
+			fontsize=7, color=ink, linespacing=1.3, annotation_clip=False)
+		ax.plot([xd], [yv], marker='o', markersize=4, color=ink, markeredgecolor=bg, markeredgewidth=1, zorder=5)
+	imax, imin = int(np.argmax(y.values)), int(np.argmin(y.values))
+	if imax != len(y) - 1:
+		annotate(imax, 'High', True)
+	if imin != len(y) - 1 and imin != imax:
+		annotate(imin, 'Low', False)
+
+	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	fig.text(0.03, 0.910, f"{last:,.2f} {ylabel or ''}   {arrow} {abs(pct):.2f}%  over period", color=color, fontsize=8.5, ha='left', va='center')
+
 	buf = io.BytesIO()
-	plt.savefig(buf, format='png', bbox_inches='tight')
-	plt.clf()
+	fig.savefig(buf, format='png', facecolor=bg) # no bbox_inches='tight': keep exact 1280x800
+	return buf
+
+def compare_graph(series, title, subtitle=''):
+	"""Rebased % change lines for 2-6 tickers. series: list of (label, pandas Series of closes), already cropped to the period.
+	Returns PNG bytes (1280x800, Telegram's photo size)."""
+	from matplotlib.figure import Figure
+	from matplotlib.backends.backend_agg import FigureCanvasAgg
+	from matplotlib.ticker import MaxNLocator, FuncFormatter
+	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
+	# categorical slots 1-5 and 7 of the validated dark palette; red/green are skipped because they mean down/up
+	colors = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9']
+	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
+	FigureCanvasAgg(fig)
+	ax = fig.add_axes([0.075, 0.105, 0.72, 0.755], facecolor=bg)
+	rebased = []
+	for label, y in series:
+		rebased.append((label, (y / y.iloc[0] - 1) * 100))
+	ax.axhline(0, color=ink2, linewidth=0.8, alpha=0.6, zorder=1)
+	for (label, y), color in zip(rebased, colors):
+		ax.plot(y.index, y.values, color=color, linewidth=1.5, solid_capstyle='round', zorder=3)
+	lo = min(y.min() for _, y in rebased)
+	hi = max(y.max() for _, y in rebased)
+	span = (hi - lo) or 1.0
+	ax.set_ylim(min(lo, 0) - span * 0.06, max(hi, 0) + span * 0.06)
+	ax.margins(x=0.01)
+	ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
+	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+,.0f}%" if v else "0%"))
+	ax.grid(axis='y', color=grid, linewidth=0.6)
+	ax.set_axisbelow(True)
+	for side in ax.spines.values():
+		side.set_visible(False)
+	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
+	style_date_axis(ax, min(y.index[0] for _, y in rebased), max(y.index[-1] for _, y in rebased), ink)
+
+	fit_left_margin(fig, ax)
+
+	# direct end-labels in the right margin, spread so they never overlap
+	ymin, ymax = ax.get_ylim()
+	ends = sorted(((y.iloc[-1], i) for i, (_, y) in enumerate(rebased)))
+	pos = [(v - ymin) / (ymax - ymin) for v, _ in ends]
+	gap = 0.065
+	for i in range(1, len(pos)):
+		pos[i] = max(pos[i], pos[i - 1] + gap)
+	overflow = pos[-1] - 0.97
+	if overflow > 0: # too high: shift the stack down, then re-enforce the floor
+		pos = [p - overflow for p in pos]
+		for i in range(len(pos) - 2, -1, -1):
+			pos[i] = min(pos[i], pos[i + 1] - gap)
+	for (value, i), p in zip(ends, pos):
+		label, y = rebased[i]
+		color = colors[i]
+		ax.plot([1.015], [p], marker='s', markersize=4, color=color, transform=ax.transAxes, clip_on=False, zorder=4)
+		ax.annotate(f"{label}  {value:+.1f}%", xy=(y.index[-1], value), xycoords='data', xytext=(1.03, p), textcoords='axes fraction',
+			ha='left', va='center', fontsize=7.5, color=ink, annotation_clip=False,
+			arrowprops=dict(arrowstyle='-', color=color, linewidth=0.7, alpha=0.7, shrinkA=0, shrinkB=2, relpos=(0, 0.5)))
+	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	if subtitle:
+		fig.text(0.03, 0.910, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+	buf = io.BytesIO()
+	fig.savefig(buf, format='png', facecolor=bg)
 	return buf
 
 def get_emoji(number):

@@ -35,7 +35,7 @@ class TypingIndicator:
 	def start(self):
 		if self.service != 'telegram':
 			return
-		self._thread = threading.Thread(target=self._worker)
+		self._thread = threading.Thread(target=self._worker, daemon=True)
 		self._thread.start()
 
 	def stop(self):
@@ -49,6 +49,13 @@ class TypingIndicator:
 
 
 def process_request(service, chat_id, user, message, botName, userRealName, message_id):
+	"""Entry point for inbound chat requests: any failure becomes a one-line reply in the originating chat."""
+	try:
+		_process_request(service, chat_id, user, message, botName, userRealName, message_id)
+	except Exception as e:
+		webhook.report_error(e, service, chat_id, context=message.split()[0][:30] if message.split() else None)
+
+def _process_request(service, chat_id, user, message, botName, userRealName, message_id):
 	if service == 'slack':
 		url = 'https://slack.com/api/chat.postMessage'
 	elif service == 'telegram':
@@ -97,6 +104,9 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 
 	sell_command = prefix + r"sell"
 	m_sell = re.match(sell_command, message, re.IGNORECASE)
+
+	compare_command = prefix + r"compare\s+(?P<args>[\w\.\:\-\^\=\s]+)"
+	m_compare = re.match(compare_command, message, re.IGNORECASE)
 
 	history_command = prefix + r"(?:history|hospital|visual|hosiery)\s*(?P<ticker>[\w\.\:\-]+)\s*(?P<extra>[\w\%]+)*"
 	m_history = re.match(history_command, message, re.IGNORECASE)
@@ -148,7 +158,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			payload = reports.prepare_watchlist(service, user, action, ticker)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_help:
 		payload = reports.prepare_help(service, botName)
@@ -194,7 +204,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			cal.lambda_handler(chat_id, days, service, specific_stock, message_id=None, interactive=True, earnings=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		if not specific_stock:
 			typing.stop()
 	elif m_dividend:
@@ -216,7 +226,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			cal.lambda_handler(chat_id, days, service, specific_stock, message_id=None, interactive=True, earnings=False, dividend=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		if not specific_stock:
 			typing.stop()
 	elif m_performance:
@@ -242,7 +252,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=None, interactive=True)
 			except Exception as e:
 				print(e, file=sys.stderr)
-				webhook.payload_wrapper(service, url, [e], chat_id)
+				raise
 			typing.stop()
 	elif m_session:
 		price_percent = config_price_percent
@@ -260,7 +270,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			price.lambda_handler(chat_id, price_percent, service, user, specific_stock, interactive=True, premarket=False, interday=False, midsession=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		if not specific_stock:
 			typing.stop()
 	elif m_price:
@@ -297,7 +307,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			price.lambda_handler(chat_id=chat_id, threshold=price_percent, service=service, user=user, specific_stock=specific_stock, interactive=True, premarket=False, interday=interday, days=days, top=top)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		if not specific_stock:
 			typing.stop()
 	elif m_premarket:
@@ -315,7 +325,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			price.lambda_handler(chat_id, premarket_percent, service, user, specific_stock, interactive=True, premarket=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		typing.stop()
 	elif m_top10:
 		specific_stock = None
@@ -332,7 +342,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			price.lambda_handler(chat_id, threshold=0, service=service, user=user, days=days, interactive=True, top=10)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		typing.stop()
 	elif m_shorts:
 		print("starting shorts report...")
@@ -350,7 +360,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			shorts.lambda_handler(chat_id, shorts_percent, specific_stock, service, interactive=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		typing.stop()
 	elif m_trades:
 		days = 1
@@ -374,7 +384,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			trades.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=None, interactive=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		typing.stop()
 	elif m_holdings:
 		portfolioName = None
@@ -388,7 +398,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			payload = reports.prepare_holdings_payload(portfolioName, service, user)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_marketcap:
@@ -412,7 +422,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 				payload = reports.prepare_marketcap_payload(service, arg, length=15)
 			except Exception as e:
 				print(e, file=sys.stderr)
-				webhook.payload_wrapper(service, url, [e], chat_id)
+				raise
 			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_peg:
@@ -439,7 +449,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		webhook.payload_wrapper(service, url, payload, chat_id)
 		if not specific_stock:
 			typing.stop()
@@ -462,7 +472,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		if not specific_stock:
 			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
@@ -487,7 +497,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		if not specific_stock:
 			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
@@ -500,13 +510,13 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			tickers = util.get_holdings_and_watchlist()
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		for ticker in tickers:
 			try:
 				market_data = market_data | yahoo.fetch_detail(ticker)
 			except Exception as e:
-				print(e, file=sys.stderr)
-				webhook.payload_wrapper(service, url, [e], chat_id)
+				print(e, file=sys.stderr) # skip this ticker; keep the rest
+				continue
 		for ticker in market_data:
 			try:
 				beta = round(market_data[ticker]['beta'], 1)
@@ -536,7 +546,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			payload = reports.prepare_rating_payload(service, action, length=15)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		typing.stop()
 		payload = payload or [f"No stocks meet {action} criteria"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
@@ -551,10 +561,21 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			payload = reports.prepare_rating_payload(service, action, length=15)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		typing.stop()
 		payload = payload or [f"No stocks meet {action} criteria"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
+	elif m_compare:
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
+		try:
+			payload, graph = reports.prepare_compare(service, m_compare.group('args').split())
+		finally:
+			typing.stop()
+		if graph:
+			webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service)
+		else:
+			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_history:
 		if not m_history.group('ticker') or m_history.group('extra'):
 			webhook.payload_wrapper(service, url, ["Usage: .history TICKER"], chat_id)
@@ -571,8 +592,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except Exception as e:
 			print(e, file=sys.stderr)
 			typing.stop()
-			webhook.payload_wrapper(service, url, ["Error", e], chat_id)
-			return
+			raise
 		title = market_data.get(ticker, {}).get('profile_title', '')
 		ticker_link = util.finance_link(ticker, market_data.get(ticker, {}).get('profile_exchange', ''), service, days=1825, brief=False)
 		if ticker in market_data and 'percent_change' in market_data[ticker]:
@@ -581,14 +601,10 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			except Exception as e:
 				print(e, file=sys.stderr)
 				typing.stop()
-				webhook.payload_wrapper(service, url, ["Error", e], chat_id)
-				return
+				raise
 			if isinstance(price_history, str):
-				e = price_history
-				print(e, file=sys.stderr)
 				typing.stop()
-				webhook.payload_wrapper(service, url, ["Error", e], chat_id)
-				return
+				raise RuntimeError(price_history)
 			payload.append(webhook.bold(f"{title} ({ticker_link}) performance history", service))
 			for interval in ('Max', '10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
 				if interval in price_history:
@@ -604,8 +620,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			except Exception as e:
 				print(e, file=sys.stderr)
 				typing.stop()
-				webhook.payload_wrapper(service, url, ["Error", e], chat_id)
-				return
+				raise
 		else:
 			webhook.payload_wrapper(service, url, payload, chat_id)
 		typing.stop()
@@ -649,7 +664,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 						who[portfolio_name].append(f"{flag} {name} ({link})")
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		for k,v in who.items():
 			if v:
 				payload.append(webhook.bold(f"{k}:", service))
@@ -669,7 +684,7 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			payload = reports.prepare_profile_payload(service, user, ticker)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			webhook.payload_wrapper(service, url, [e], chat_id)
+			raise
 		typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 

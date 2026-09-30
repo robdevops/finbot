@@ -123,7 +123,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			portfolio_select = portfoliosReverseLookup[portfolio_id] # correct-case output
 		else:
 			print("Portfolio not found:", portfolio_select, file=sys.stderr)
-			sys.exit(1)
+			raise ValueError(f"portfolio not found: {portfolio_select}")
 		trades = trades + sharesight.get_trades(portfolio_select, portfolio_id, days)
 	else:
 		for portfolio in portfolios:
@@ -163,4 +163,4 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 	return True
 
 if __name__ == "__main__":
-	lambda_handler()
+	webhook.guarded('trades.py', lambda_handler)

@@ -159,8 +159,7 @@ def main():
 		try:
 				new_episodes = fetch_new_episodes(feed_url, seen)
 		except Exception as e:
-				print(f"Error: {e}")
-				sys.exit(1)
+				raise RuntimeError(f"fetching feed {feed_url}: {e}")
 
 		seen = sorted(set(seen))
 		if seen != seen_earlier:
@@ -184,4 +183,4 @@ def main():
 				print("no new episodes found")
 
 if __name__ == "__main__":
-		main()
+		webhook.guarded('podcasts.py', main)

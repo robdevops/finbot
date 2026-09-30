@@ -9,11 +9,24 @@ from urllib.parse import urlparse
 
 from lib.config import *
 from lib import worker
+from lib import webhook
 if config_telegramBotToken:
 	from lib import telegram
 	botName = telegram.botName
 
 def main(environ, start_response):
+	"""WSGI entry point. Never lets an exception escape: failures are reported as one line to the default channel."""
+	try:
+		return handle(environ, start_response)
+	except Exception as e:
+		webhook.report_error(e, context=environ.get('PATH_INFO', 'bot'))
+		try:
+			start_response('500 Internal Server Error', [('Content-type', 'text/plain')], sys.exc_info())
+		except Exception:
+			pass
+		return [b'']
+
+def handle(environ, start_response):
 	def print_body():
 		try:
 			print(f"inbound {uri} ", json.dumps(inbound, indent=4), file=sys.stderr)

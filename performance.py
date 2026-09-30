@@ -68,7 +68,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 	# Prep and send payloads
 	if not len(performance):
 		print("Error: no Sharesight data found", file=sys.stderr)
-		sys.exit(1)
+		raise RuntimeError("no Sharesight data found")
 	if not webhooks:
 		print("Error: no services enabled in .env", file=sys.stderr)
 		sys.exit(1)
@@ -99,7 +99,7 @@ if __name__ == "__main__":
 		except ValueError:
 			print("Usage:", sys.argv[0], "[integer]", file=sys.stderr)
 			sys.exit(1)
-		lambda_handler(past_days=days)
+		webhook.guarded('performance.py', lambda_handler, past_days=days)
 	else:
-		lambda_handler()
+		webhook.guarded('performance.py', lambda_handler)
 

@@ -2,6 +2,7 @@ from itertools import pairwise
 import json, re
 import datetime
 import sys
+import pandas as pd
 from lib.config import *
 from lib import sharesight
 from lib import util
@@ -85,6 +86,9 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 					print(ticker, "not found")
 		elif ticker not in market_data:
 			watchlist.remove(ticker)
+	def described(): # "Full Name (TICKER)" for the ticker being changed
+		title = ((market_data or {}).get(ticker) or {}).get('profile_title')
+		return webhook.bold(f"{title} ({ticker_link})" if title else ticker_link, service)
 	payload = []
 	if market_data:
 		for item in market_data:
@@ -102,27 +106,91 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 		return re.findall('[A-Z].*', e)
 	payload.sort(key=profile_title_sort)
 	if action == 'delete':
-		if ticker not in market_data:
+		if not market_data or ticker not in market_data:
 			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker, service) + " to remove it")
 		else:
-			payload.insert(0, f"Ok {user}, I deleted " + webhook.bold(ticker_link, service))
+			payload.insert(0, f"Ok {user}, I deleted " + described())
 	elif action == 'add':
 		if ticker not in market_data:
 			payload = ["Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " to add it"]
 		elif transformed and duplicate:
-			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " and I'm already tracking " + webhook.bold(ticker_link, service))
+			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " and I'm already tracking " + described())
 		elif transformed:
-			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " so I added " + webhook.bold(ticker_link, service))
+			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " so I added " + described())
 		elif duplicate:
-			payload.insert(0, f"{user}, I'm already tracking " + webhook.bold(ticker_link, service))
+			payload.insert(0, f"{user}, I'm already tracking " + described())
 		else:
-			payload.insert(0, f"Ok {user}, I added " + webhook.bold(ticker_link, service))
+			payload.insert(0, f"Ok {user}, I added " + described())
 	elif not action and payload:
 		payload.insert(0, f"Hi {user}, I'm currently tracking:")
 	else:
 		payload.append('Watchlist is empty. Try ".watchlist add SYMBOL" to create it')
 	util.json_write('finbot_watchlist.json', watchlist, persist=True)
+	if action in ('add', 'delete'):
+		payload = payload[:1] # confirmation only; don't list the whole watchlist
 	return payload
+
+def prepare_compare(service, args):
+	"""Compare 2-6 tickers as rebased % change. A trailing time period (3m/1y/90d/ytd) is optional;
+	without one, the span is the earliest date covered by every ticker. Returns (caption_lines, image)."""
+	usage = ['Usage: .compare SYMBOL SYMBOL [SYMBOL...up to 6] [period|max]  (default: 10 years)']
+	period_days = None
+	full_history = False
+	args = list(args)
+	if args:
+		if args[-1].lower() in ('max', 'all'):
+			full_history = True
+			args.pop()
+		else:
+			try:
+				period_days = util.days_from_human_days(args[-1])
+				args.pop()
+			except ValueError:
+				pass
+	tickers = list(dict.fromkeys(util.transform_to_yahoo(a.upper()) for a in args)) # de-duplicated, order kept
+	if not 2 <= len(tickers) <= 6:
+		return usage, None
+	names, exchanges, closes = {}, {}, {}
+	for ticker in tickers:
+		name, exchange, series = yahoo.price_series(ticker)
+		names[ticker] = name
+		exchanges[ticker] = exchange
+		closes[ticker] = series
+	limiting = max(closes, key=lambda t: closes[t].index[0]) # ticker with the shortest history
+	common_start = closes[limiting].index[0]
+	start = common_start
+	note = ''
+	if not period_days and not full_history: # default window; ask for a longer period (or max) to go further
+		default_start = pd.Timestamp(datetime.datetime.now().date() - datetime.timedelta(days=3655))
+		start = max(common_start, default_start)
+	if period_days:
+		requested = pd.Timestamp(datetime.datetime.now().date() - datetime.timedelta(days=period_days))
+		if requested >= common_start:
+			start = requested
+		else:
+			note = f" (limited by {limiting} history)"
+	cropped = []
+	for ticker in tickers:
+		series = closes[ticker]
+		base = series[series.index <= start]
+		base_value = base.iloc[-1] if len(base) else series.iloc[0] # last close on/before the start date
+		series = pd.concat([pd.Series([base_value], index=[start]), series[series.index > start]])
+		cropped.append((ticker, series))
+	if any(len(series) < 2 for _, series in cropped):
+		raise RuntimeError("not enough price history in that period to compare")
+	span_days = (datetime.datetime.now().date() - start.date()).days
+	period_label = util.days_english(period_days) if period_days and not note else f"{span_days} days"
+	by_performance = sorted(cropped, key=lambda item: item[1].iloc[-1] / item[1].iloc[0], reverse=True)
+	title = ' vs '.join(t.split('.')[0] for t, _ in by_performance) # best first; line colours stay tied to input order
+	subtitle = f"% change over {period_label}, since {start:%d %b %Y}" + note
+	image = util.compare_graph([(t.split('.')[0], series) for t, series in cropped], title, subtitle)
+	image.seek(0)
+	caption = [webhook.bold(f"{period_label}, since {start:%d %b %Y}", service) + note]
+	results = sorted(((series.iloc[-1] / series.iloc[0] - 1) * 100, t) for t, series in cropped)
+	for pct, t in reversed(results):
+		link = util.finance_link(t, exchanges[t], service, days=span_days, brief=False)
+		caption.append(f"{util.get_emoji(pct)} {names[t]} ({link}): {pct:+.1f}%")
+	return caption, image
 
 def prepare_help(service, botName):
 	payload = []
@@ -139,6 +207,7 @@ def prepare_help(service, botName):
 
 	payload.append(webhook.bold("\nPrice:", service))
 	payload.append(".beta")
+	payload.append(".compare SYMBOL SYMBOL [...] [period|max]")
 	payload.append(".history SYMBOL")
 	payload.append(".performance [period] [portfolio]")
 	payload.append(".price [percent|SYMBOL] [period]")
