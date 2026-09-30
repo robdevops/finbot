@@ -556,61 +556,61 @@ def days_english(days, prefix='the past ', article=''):
 		return prefix + str(days) + ' days'
 
 def graph(df, title, ylabel):
-	def label(x,y, atype, ax=None):
-		if atype == 'min':
-			xpoint = x[np.argmin(y)]
-			ypoint = y.min()
-			text = f"Min {ypoint:.2f}\n{xpoint}"
-			xytext = (100,100)
-		elif atype == 'max':
-			xpoint = x[np.argmax(y)]
-			ypoint = y.max()
-			text = f"Max {ypoint:.2f}\n{xpoint}"
-			xytext=(70,70)
-		elif atype == 'last':
-			xpoint = x.iloc[-1]
-			ypoint = y.iloc[-1]
-			text = f"Last {ypoint:.2f}\n{xpoint}"
-			xytext=(0,-50)
-		if not ax:
-			ax=plt.gca()
-		bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72, alpha=.5)
-		arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=60", alpha=.5)
-		kw = dict(arrowprops=arrowprops, bbox=bbox_props, ha="right", va="top")
-		ax.annotate(text, xy=(xpoint, ypoint), xytext=xytext, textcoords='offset pixels', **kw)
-	def scale(x, y, ax=None):
-		if not ax:
-			ax=plt.gca()
-		ymax = y.max()
-		ymin = y.min()
-		ax.set_ylim(top=ymax+(ymax/6))
-		ax.set_ylim(bottom=ymin-(ymin*0.1))
-	x = df['Date']
-	y = df['Close']
-	first = df['Close'].iloc[0]
-	last = df['Close'].iloc[-1]
-	if first > last:
-		color = 'red' # red
-	elif first < last:
-		color = 'green' # green
-	else:
-		color = 'grey' # black if unchanged
-	plt.title(title, pad=20)
-	plt.ylabel(ylabel)
-	df['Date'] = df['Date'].map(lambda x: datetime.datetime.strptime(str(x), '%Y-%m-%d'))
-	plt.gcf().autofmt_xdate()
-	plt.fill_between(x,y, color=color, alpha=0.3, linewidth=0.5)
-	plt.plot(x,y, color=color, alpha=0.9, linewidth=0.7)
-	plt.grid(color='grey', linestyle='-', alpha=0.5, linewidth=0.2)
-	plt.box(False)
-	plt.tight_layout(pad=2.0)
-	scale(x, y)
-	label(x,y, atype='min')
-	label(x,y, atype='max')
-	#label(x,y, atype='last')
+	"""Render a price chart as PNG bytes, sized for Telegram (1280px wide, no server-side resampling)."""
+	from matplotlib.figure import Figure
+	from matplotlib.ticker import MaxNLocator
+	import pandas as pd
+	# palette: dark surface, muted ink, green/red for up/down (red/green separated in lightness as well as hue)
+	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
+	up, down, flat = '#34d399', '#fb7185', '#9aa4b2'
+	x = pd.to_datetime(df['Date'].astype(str))
+	y = df['Close'].astype(float)
+	first, last = y.iloc[0], y.iloc[-1]
+	color = up if last > first else down if last < first else flat
+	pct = (last - first) / first * 100 if first else 0
+	arrow = '▲' if last > first else '▼' if last < first else '■'
+
+	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg) # 1280x800
+	ax = fig.add_axes([0.085, 0.09, 0.88, 0.74], facecolor=bg)
+	ax.fill_between(x, y, y.min() - (y.max() - y.min()) * 0.15, color=color, alpha=0.14, linewidth=0)
+	ax.plot(x, y, color=color, linewidth=1.6, solid_capstyle='round')
+	ax.plot([x.iloc[-1]], [last], marker='o', markersize=5, color=color, markeredgecolor=bg, markeredgewidth=1.5, clip_on=False)
+
+	# headroom above/below so annotations never leave the plot
+	span = (y.max() - y.min()) or max(abs(y.max()) * 0.02, 1e-9)
+	ax.set_ylim(y.min() - span * 0.22, y.max() + span * 0.30)
+	ax.margins(x=0.02)
+	ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
+	ax.grid(axis='y', color=grid, linewidth=0.6)
+	ax.set_axisbelow(True)
+	for side in ax.spines.values():
+		side.set_visible(False)
+	ax.tick_params(colors=ink2, labelsize=7, length=0, pad=4)
+	locator = mdates.AutoDateLocator(minticks=3, maxticks=6)
+	ax.xaxis.set_major_locator(locator)
+	ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+
+	def annotate(i, name, above):
+		xd, yv = x.iloc[i], y.iloc[i]
+		frac = (mdates.date2num(xd) - mdates.date2num(x.iloc[0])) / max(mdates.date2num(x.iloc[-1]) - mdates.date2num(x.iloc[0]), 1)
+		# anchor text toward the inside of the plot so it cannot run off either edge
+		ha = 'left' if frac < 0.25 else 'right' if frac > 0.75 else 'center'
+		dx = {'left': 4, 'right': -4, 'center': 0}[ha]
+		ax.annotate(f"{name} {yv:,.2f}\n{xd:%d %b %Y}", xy=(xd, yv), xytext=(dx, 9 if above else -9),
+			textcoords='offset points', ha=ha, va='bottom' if above else 'top',
+			fontsize=7, color=ink, linespacing=1.3, annotation_clip=False)
+		ax.plot([xd], [yv], marker='o', markersize=4, color=ink, markeredgecolor=bg, markeredgewidth=1, zorder=5)
+	imax, imin = int(np.argmax(y.values)), int(np.argmin(y.values))
+	if imax != len(y) - 1:
+		annotate(imax, 'High', True)
+	if imin != len(y) - 1 and imin != imax:
+		annotate(imin, 'Low', False)
+
+	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	fig.text(0.03, 0.865, f"{last:,.2f} {ylabel or ''}   {arrow} {abs(pct):.2f}%  over period", color=color, fontsize=8.5, ha='left', va='center')
+
 	buf = io.BytesIO()
-	plt.savefig(buf, format='png', bbox_inches='tight')
-	plt.clf()
+	fig.savefig(buf, format='png', facecolor=bg) # no bbox_inches='tight': keep exact 1280x800
 	return buf
 
 def get_emoji(number):
