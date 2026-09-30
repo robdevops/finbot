@@ -568,7 +568,6 @@ def style_date_axis(ax, start, end, ink):
 def graph(df, title, ylabel):
 	"""Render a price chart as PNG bytes, sized for Telegram (1280px wide, no server-side resampling)."""
 	from matplotlib.figure import Figure
-	from matplotlib.backends.backend_agg import FigureCanvasAgg
 	from matplotlib.ticker import MaxNLocator
 	import pandas as pd
 	# palette: dark surface, muted ink, green/red for up/down (red/green separated in lightness as well as hue)
@@ -582,15 +581,14 @@ def graph(df, title, ylabel):
 	arrow = '▲' if last > first else '▼' if last < first else '■'
 
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg) # 1280x800
-	FigureCanvasAgg(fig)
-	ax = fig.add_axes([0.075, 0.105, 0.885, 0.745], facecolor=bg)
+	ax = fig.add_axes([0.075, 0.105, 0.885, 0.755], facecolor=bg)
 	ax.fill_between(x, y, y.min() - (y.max() - y.min()) * 0.15, color=color, alpha=0.14, linewidth=0)
 	ax.plot(x, y, color=color, linewidth=1.6, solid_capstyle='round')
 	ax.plot([x.iloc[-1]], [last], marker='o', markersize=5, color=color, markeredgecolor=bg, markeredgewidth=1.5, clip_on=False)
 
 	# headroom above/below so annotations never leave the plot
 	span = (y.max() - y.min()) or max(abs(y.max()) * 0.02, 1e-9)
-	ax.set_ylim(y.min() - span * 0.22, y.max() + span * 0.10)
+	ax.set_ylim(y.min() - span * 0.22, y.max() + span * 0.17)
 	ax.margins(x=0.02)
 	ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
 	ax.grid(axis='y', color=grid, linewidth=0.6)
@@ -599,9 +597,6 @@ def graph(df, title, ylabel):
 		side.set_visible(False)
 	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
 	style_date_axis(ax, x.iloc[0], x.iloc[-1], ink)
-	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
-	sub = fig.text(0.03, 0.865, f"{last:,.2f} {ylabel or ''}   {arrow} {abs(pct):.2f}%  over period", color=color, fontsize=8.5, ha='left', va='center')
-	sub_right = sub.get_window_extent(fig.canvas.get_renderer()).x1 # px; labels must clear the subtitle
 
 	def annotate(i, name, above):
 		xd, yv = x.iloc[i], y.iloc[i]
@@ -609,14 +604,9 @@ def graph(df, title, ylabel):
 		# anchor text toward the inside of the plot so it cannot run off either edge
 		ha = 'left' if frac < 0.25 else 'right' if frac > 0.75 else 'center'
 		dx = {'left': 4, 'right': -4, 'center': 0}[ha]
-		kw = dict(textcoords='offset points', ha=ha, va='bottom' if above else 'top', fontsize=7, color=ink, linespacing=1.3, annotation_clip=False)
-		xytext = (dx, 9 if above else -9)
-		point_px = ax.transData.transform((mdates.date2num(xd), yv))[0]
-		if above and point_px < sub_right + 12: # would sit under the subtitle: slide right past it, with a leader line
-			kw['ha'] = 'left'
-			xytext = ((sub_right + 12 - point_px) * 72 / fig.dpi, 9)
-			kw['arrowprops'] = dict(arrowstyle='-', color=ink2, linewidth=0.6, shrinkA=0, shrinkB=2, relpos=(0, 0))
-		ax.annotate(f"{name} {yv:,.2f}\n{xd:%d %b %Y}", xy=(xd, yv), xytext=xytext, **kw)
+		ax.annotate(f"{name} {yv:,.2f}\n{xd:%d %b %Y}", xy=(xd, yv), xytext=(dx, 9 if above else -9),
+			textcoords='offset points', ha=ha, va='bottom' if above else 'top',
+			fontsize=7, color=ink, linespacing=1.3, annotation_clip=False)
 		ax.plot([xd], [yv], marker='o', markersize=4, color=ink, markeredgecolor=bg, markeredgewidth=1, zorder=5)
 	imax, imin = int(np.argmax(y.values)), int(np.argmin(y.values))
 	if imax != len(y) - 1:
@@ -624,6 +614,8 @@ def graph(df, title, ylabel):
 	if imin != len(y) - 1 and imin != imax:
 		annotate(imin, 'Low', False)
 
+	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	fig.text(0.03, 0.910, f"{last:,.2f} {ylabel or ''}   {arrow} {abs(pct):.2f}%  over period", color=color, fontsize=8.5, ha='left', va='center')
 
 	buf = io.BytesIO()
 	fig.savefig(buf, format='png', facecolor=bg) # no bbox_inches='tight': keep exact 1280x800
@@ -638,7 +630,7 @@ def compare_graph(series, title, subtitle=''):
 	# categorical slots 1-5 and 7 of the validated dark palette; red/green are skipped because they mean down/up
 	colors = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9']
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
-	ax = fig.add_axes([0.075, 0.105, 0.72, 0.745], facecolor=bg)
+	ax = fig.add_axes([0.075, 0.105, 0.72, 0.755], facecolor=bg)
 	rebased = []
 	for label, y in series:
 		rebased.append((label, (y / y.iloc[0] - 1) * 100))
@@ -678,9 +670,9 @@ def compare_graph(series, title, subtitle=''):
 		ax.annotate(f"{label}  {value:+.1f}%", xy=(y.index[-1], value), xycoords='data', xytext=(1.03, p), textcoords='axes fraction',
 			ha='left', va='center', fontsize=7.5, color=ink, annotation_clip=False,
 			arrowprops=dict(arrowstyle='-', color=color, linewidth=0.7, alpha=0.7, shrinkA=0, shrinkB=2, relpos=(0, 0.5)))
-	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
 	if subtitle:
-		fig.text(0.03, 0.865, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+		fig.text(0.03, 0.910, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
 	buf = io.BytesIO()
 	fig.savefig(buf, format='png', facecolor=bg)
 	return buf
