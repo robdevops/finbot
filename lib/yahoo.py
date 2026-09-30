@@ -863,7 +863,6 @@ def chart_json_to_df(chart_json):
 	# Rename columns to capitalize first letter
 	df.columns = [col.capitalize() for col in df.columns]
 
-	print(df, file=sys.stderr) if debug else None
 	return df
 
 def chart_json_to_stock_basics(chart_json):
