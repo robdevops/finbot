@@ -555,6 +555,16 @@ def days_english(days, prefix='the past ', article=''):
 	else:
 		return prefix + str(days) + ' days'
 
+def style_date_axis(ax, start, end, ink):
+	"""Larger, explicit date ticks: format follows the span, few enough ticks that they never collide."""
+	days = (end - start).days
+	fmt = '%Y' if days > 1460 else '%b %Y' if days > 150 else '%d %b'
+	ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=3, maxticks=5))
+	ax.xaxis.set_major_formatter(mdates.DateFormatter(fmt))
+	ax.tick_params(axis='x', colors=ink, labelsize=10, length=3, width=0.8, pad=6)
+	for label in ax.get_xticklabels():
+		label.set_fontweight('medium')
+
 def graph(df, title, ylabel):
 	"""Render a price chart as PNG bytes, sized for Telegram (1280px wide, no server-side resampling)."""
 	from matplotlib.figure import Figure
@@ -571,7 +581,7 @@ def graph(df, title, ylabel):
 	arrow = '▲' if last > first else '▼' if last < first else '■'
 
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg) # 1280x800
-	ax = fig.add_axes([0.085, 0.09, 0.88, 0.74], facecolor=bg)
+	ax = fig.add_axes([0.085, 0.105, 0.88, 0.725], facecolor=bg)
 	ax.fill_between(x, y, y.min() - (y.max() - y.min()) * 0.15, color=color, alpha=0.14, linewidth=0)
 	ax.plot(x, y, color=color, linewidth=1.6, solid_capstyle='round')
 	ax.plot([x.iloc[-1]], [last], marker='o', markersize=5, color=color, markeredgecolor=bg, markeredgewidth=1.5, clip_on=False)
@@ -585,10 +595,8 @@ def graph(df, title, ylabel):
 	ax.set_axisbelow(True)
 	for side in ax.spines.values():
 		side.set_visible(False)
-	ax.tick_params(colors=ink2, labelsize=7, length=0, pad=4)
-	locator = mdates.AutoDateLocator(minticks=3, maxticks=6)
-	ax.xaxis.set_major_locator(locator)
-	ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+	ax.tick_params(colors=ink2, labelsize=9, length=0, pad=4)
+	style_date_axis(ax, x.iloc[0], x.iloc[-1], ink)
 
 	def annotate(i, name, above):
 		xd, yv = x.iloc[i], y.iloc[i]
@@ -622,7 +630,7 @@ def compare_graph(series, title, subtitle=''):
 	# categorical slots 1-5 and 7 of the validated dark palette; red/green are skipped because they mean down/up
 	colors = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9']
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
-	ax = fig.add_axes([0.085, 0.09, 0.70, 0.74], facecolor=bg)
+	ax = fig.add_axes([0.085, 0.105, 0.70, 0.725], facecolor=bg)
 	rebased = []
 	for label, y in series:
 		rebased.append((label, (y / y.iloc[0] - 1) * 100))
@@ -640,10 +648,8 @@ def compare_graph(series, title, subtitle=''):
 	ax.set_axisbelow(True)
 	for side in ax.spines.values():
 		side.set_visible(False)
-	ax.tick_params(colors=ink2, labelsize=7, length=0, pad=4)
-	locator = mdates.AutoDateLocator(minticks=3, maxticks=6)
-	ax.xaxis.set_major_locator(locator)
-	ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+	ax.tick_params(colors=ink2, labelsize=9, length=0, pad=4)
+	style_date_axis(ax, min(y.index[0] for _, y in rebased), max(y.index[-1] for _, y in rebased), ink)
 
 	# direct end-labels in the right margin, spread so they never overlap
 	ymin, ymax = ax.get_ylim()
