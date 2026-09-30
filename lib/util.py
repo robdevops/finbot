@@ -583,7 +583,7 @@ def graph(df, title, ylabel):
 
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg) # 1280x800
 	FigureCanvasAgg(fig)
-	ax = fig.add_axes([0.075, 0.13, 0.885, 0.72], facecolor=bg)
+	ax = fig.add_axes([0.075, 0.105, 0.885, 0.745], facecolor=bg)
 	ax.fill_between(x, y, y.min() - (y.max() - y.min()) * 0.15, color=color, alpha=0.14, linewidth=0)
 	ax.plot(x, y, color=color, linewidth=1.6, solid_capstyle='round')
 	ax.plot([x.iloc[-1]], [last], marker='o', markersize=5, color=color, markeredgecolor=bg, markeredgewidth=1.5, clip_on=False)
@@ -638,7 +638,7 @@ def compare_graph(series, title, subtitle=''):
 	# categorical slots 1-5 and 7 of the validated dark palette; red/green are skipped because they mean down/up
 	colors = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9']
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
-	ax = fig.add_axes([0.075, 0.13, 0.72, 0.72], facecolor=bg)
+	ax = fig.add_axes([0.075, 0.105, 0.72, 0.745], facecolor=bg)
 	rebased = []
 	for label, y in series:
 		rebased.append((label, (y / y.iloc[0] - 1) * 100))
