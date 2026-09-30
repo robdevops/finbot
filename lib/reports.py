@@ -156,7 +156,8 @@ def prepare_compare(service, args):
 		names[ticker] = name
 		exchanges[ticker] = exchange
 		closes[ticker] = series
-	common_start = max(series.index[0] for series in closes.values())
+	limiting = max(closes, key=lambda t: closes[t].index[0]) # ticker with the shortest history
+	common_start = closes[limiting].index[0]
 	start = common_start
 	note = ''
 	if not period_days and not full_history: # default window; ask for a longer period (or max) to go further
@@ -167,7 +168,7 @@ def prepare_compare(service, args):
 		if requested >= common_start:
 			start = requested
 		else:
-			note = " (limited by shortest history)"
+			note = f" (limited by {limiting} history)"
 	cropped = []
 	for ticker in tickers:
 		series = closes[ticker]
