@@ -100,6 +100,7 @@ def guarded(context, func, *args, **kwargs):
 		sys.exit(1)
 
 def payload_wrapper(service, url, payload, chat_id=None, message_id=None):
+	"""Returns a list with the response of each message sent (several if the payload was chunked)."""
 	if not payload:
 		print(service + ": Nothing to send") # informational
 	else:
@@ -109,14 +110,12 @@ def payload_wrapper(service, url, payload, chat_id=None, message_id=None):
 		print("Payload: " + payload_string) if debug else None
 		def chunkLooper():
 			chunks = util.chunker(payload, config_chunk_maxlines)
-			first = None
+			results = []
 			for idx, chunk in enumerate(chunks):
 				idx > 0 and time.sleep(0.5)
 				payload_chunk = '\n'.join(chunk)
-				result = write(service, url, payload_chunk)
-				if idx == 0:
-					first = result
-			return first # response for the first chunk
+				results.append(write(service, url, payload_chunk, chat_id))
+			return results
 		if service == 'discord' and len(payload_string) > 2000:
 			print(service, "payload is over 2,000 bytes. Splitting.")
 			return chunkLooper()
@@ -124,7 +123,7 @@ def payload_wrapper(service, url, payload, chat_id=None, message_id=None):
 			print(service, "payload is over 4,096 bytes. Splitting.")
 			return chunkLooper()
 		else:
-			return write(service, url, payload_string, chat_id, message_id)
+			return [write(service, url, payload_string, chat_id, message_id)]
 
 def bold(message, service):
 	if service == 'telegram':

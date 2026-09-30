@@ -39,7 +39,10 @@ def pinChatMessage(chat_id, message_id):
 		'disable_notification': 'true'
 	}
 	response = requests.post(telegram_url, params=payload, timeout=config_http_timeout)
-	return response.json().get('result')
+	output = response.json()
+	if not output.get('ok'):
+		print("pinChatMessage failed:", output.get('description'), file=sys.stderr)
+	return output.get('result')
 
 #def unpinChatMessage():
 #	telegram_url = webhooks['telegram'] + 'unpinChatMessage'
