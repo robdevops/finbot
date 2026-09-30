@@ -36,9 +36,9 @@ def pinChatMessage(chat_id, message_id):
 	payload = {
 		'chat_id': chat_id,
 		'message_id': message_id,
-		'disable_notification': 'true'
+		'disable_notification': True # no "pinned a message" notification
 	}
-	response = requests.post(telegram_url, params=payload, timeout=config_http_timeout)
+	response = requests.post(telegram_url, json=payload, timeout=config_http_timeout)
 	output = response.json()
 	if not output.get('ok'):
 		print("pinChatMessage failed:", output.get('description'), file=sys.stderr)
