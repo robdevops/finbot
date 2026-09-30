@@ -180,7 +180,8 @@ def prepare_compare(service, args):
 		raise RuntimeError("not enough price history in that period to compare")
 	span_days = (datetime.datetime.now().date() - start.date()).days
 	period_label = util.days_english(period_days) if period_days and not note else f"{span_days} days"
-	title = ' vs '.join(t.split('.')[0] for t in tickers)
+	by_performance = sorted(cropped, key=lambda item: item[1].iloc[-1] / item[1].iloc[0], reverse=True)
+	title = ' vs '.join(t.split('.')[0] for t, _ in by_performance) # best first; line colours stay tied to input order
 	subtitle = f"% change over {period_label}, since {start:%d %b %Y}" + note
 	image = util.compare_graph([(t.split('.')[0], series) for t, series in cropped], title, subtitle)
 	image.seek(0)
