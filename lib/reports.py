@@ -150,10 +150,11 @@ def prepare_compare(service, args):
 	tickers = list(dict.fromkeys(util.transform_to_yahoo(a.upper()) for a in args)) # de-duplicated, order kept
 	if not 2 <= len(tickers) <= 6:
 		return usage, None
-	names, labels, closes = {}, {}, {}
+	names, exchanges, closes = {}, {}, {}
 	for ticker in tickers:
-		name, currency, series = yahoo.price_series(ticker)
+		name, exchange, series = yahoo.price_series(ticker)
 		names[ticker] = name
+		exchanges[ticker] = exchange
 		closes[ticker] = series
 	common_start = max(series.index[0] for series in closes.values())
 	start = common_start
@@ -185,7 +186,8 @@ def prepare_compare(service, args):
 	caption = [webhook.bold(f"Comparison: {period_label}, since {start:%d %b %Y}", service) + note]
 	results = sorted(((series.iloc[-1] / series.iloc[0] - 1) * 100, t) for t, series in cropped)
 	for pct, t in reversed(results):
-		caption.append(f"{util.get_emoji(pct)} {names[t]} ({t}): {pct:+.1f}%")
+		link = util.finance_link(t, exchanges[t], service, days=span_days, brief=False)
+		caption.append(f"{util.get_emoji(pct)} {names[t]} ({link}): {pct:+.1f}%")
 	return caption, image
 
 def prepare_help(service, botName):

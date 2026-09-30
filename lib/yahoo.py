@@ -798,7 +798,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	return percent_dict, image_data
 
 def price_series(ticker):
-	"""Daily closes for a ticker via the same fetch/parse path as price_history(): (name, currency, pandas Series indexed by datetime)."""
+	"""Daily closes for a ticker via the same fetch/parse path as price_history(): (name, exchange, pandas Series indexed by datetime)."""
 	data = fetch_chart_json(ticker, full=True)
 	if isinstance(data, tuple): # fetch_chart_json returns (errorstring, None) on failure
 		raise RuntimeError(data[0])
@@ -809,7 +809,7 @@ def price_series(ticker):
 		raise RuntimeError(f"no price history for {ticker}")
 	series = pd.Series(df['Close'].astype(float).values, index=pd.to_datetime(df['Date'].astype(str)), name=ticker)
 	name = util.transform_title(stock.get('longName') or stock.get('shortName') or ticker)
-	return name, stock.get('currency'), series
+	return name, stock.get('fullExchangeName') or stock.get('exchangeName') or '', series
 
 def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds, full=False):
 	"""full=True requests Yahoo's entire history (cached separately) instead of the last `days`."""
