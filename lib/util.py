@@ -581,21 +581,21 @@ def graph(df, title, ylabel):
 	arrow = '▲' if last > first else '▼' if last < first else '■'
 
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg) # 1280x800
-	ax = fig.add_axes([0.085, 0.105, 0.88, 0.725], facecolor=bg)
+	ax = fig.add_axes([0.075, 0.105, 0.885, 0.755], facecolor=bg)
 	ax.fill_between(x, y, y.min() - (y.max() - y.min()) * 0.15, color=color, alpha=0.14, linewidth=0)
 	ax.plot(x, y, color=color, linewidth=1.6, solid_capstyle='round')
 	ax.plot([x.iloc[-1]], [last], marker='o', markersize=5, color=color, markeredgecolor=bg, markeredgewidth=1.5, clip_on=False)
 
 	# headroom above/below so annotations never leave the plot
 	span = (y.max() - y.min()) or max(abs(y.max()) * 0.02, 1e-9)
-	ax.set_ylim(y.min() - span * 0.22, y.max() + span * 0.30)
+	ax.set_ylim(y.min() - span * 0.22, y.max() + span * 0.17)
 	ax.margins(x=0.02)
 	ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
 	ax.grid(axis='y', color=grid, linewidth=0.6)
 	ax.set_axisbelow(True)
 	for side in ax.spines.values():
 		side.set_visible(False)
-	ax.tick_params(colors=ink2, labelsize=9, length=0, pad=4)
+	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
 	style_date_axis(ax, x.iloc[0], x.iloc[-1], ink)
 
 	def annotate(i, name, above):
@@ -614,8 +614,8 @@ def graph(df, title, ylabel):
 	if imin != len(y) - 1 and imin != imax:
 		annotate(imin, 'Low', False)
 
-	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
-	fig.text(0.03, 0.865, f"{last:,.2f} {ylabel or ''}   {arrow} {abs(pct):.2f}%  over period", color=color, fontsize=8.5, ha='left', va='center')
+	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	fig.text(0.03, 0.910, f"{last:,.2f} {ylabel or ''}   {arrow} {abs(pct):.2f}%  over period", color=color, fontsize=8.5, ha='left', va='center')
 
 	buf = io.BytesIO()
 	fig.savefig(buf, format='png', facecolor=bg) # no bbox_inches='tight': keep exact 1280x800
@@ -630,7 +630,7 @@ def compare_graph(series, title, subtitle=''):
 	# categorical slots 1-5 and 7 of the validated dark palette; red/green are skipped because they mean down/up
 	colors = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9']
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
-	ax = fig.add_axes([0.085, 0.105, 0.70, 0.725], facecolor=bg)
+	ax = fig.add_axes([0.075, 0.105, 0.72, 0.755], facecolor=bg)
 	rebased = []
 	for label, y in series:
 		rebased.append((label, (y / y.iloc[0] - 1) * 100))
@@ -648,7 +648,7 @@ def compare_graph(series, title, subtitle=''):
 	ax.set_axisbelow(True)
 	for side in ax.spines.values():
 		side.set_visible(False)
-	ax.tick_params(colors=ink2, labelsize=9, length=0, pad=4)
+	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
 	style_date_axis(ax, min(y.index[0] for _, y in rebased), max(y.index[-1] for _, y in rebased), ink)
 
 	# direct end-labels in the right margin, spread so they never overlap
@@ -670,9 +670,9 @@ def compare_graph(series, title, subtitle=''):
 		ax.annotate(f"{label}  {value:+.1f}%", xy=(y.index[-1], value), xycoords='data', xytext=(1.03, p), textcoords='axes fraction',
 			ha='left', va='center', fontsize=7.5, color=ink, annotation_clip=False,
 			arrowprops=dict(arrowstyle='-', color=color, linewidth=0.7, alpha=0.7, shrinkA=0, shrinkB=2, relpos=(0, 0.5)))
-	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
 	if subtitle:
-		fig.text(0.03, 0.865, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+		fig.text(0.03, 0.910, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
 	buf = io.BytesIO()
 	fig.savefig(buf, format='png', facecolor=bg)
 	return buf
