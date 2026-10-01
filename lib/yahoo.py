@@ -906,6 +906,8 @@ def historic_high(ticker):
 	df = df[df.High.notnull()]
 	df.drop(df.index[:1], inplace=True)
 	df.reset_index(drop=True, inplace=True)
+	if df.empty: # e.g. total-return indices such as ^SPTTGD carry no High/Low data
+		return None
 	highrow = df.iloc[df['High'].argmax()]
 	lowrow = df.iloc[df['Low'].argmin()]
 	if debug:
