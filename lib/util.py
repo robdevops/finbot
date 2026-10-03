@@ -695,6 +695,12 @@ def compare_graph(series, title, subtitle=''):
 	fig.savefig(buf, format='png', facecolor=bg)
 	return buf
 
+def signed_percent(value, decimals=None):
+	"""12 -> '+12%', -3.5 -> '-3.5%', 0 -> '0%'; thousands separated. decimals=None keeps the value's own digits."""
+	if value == 0:
+		return '0%'
+	return f"{value:+,}%" if decimals is None else f"{value:+,.{decimals}f}%"
+
 def get_emoji(number):
 	if number > 0:
 		#return '🔺'

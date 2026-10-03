@@ -66,7 +66,7 @@ def history_payload(ticker, service, highlight=None):
 			label = webhook.bold(interval + ':', service)
 			if interval == highlight:
 				label = '● ' + label
-			lines.append(f"{util.get_emoji(percent)} {label} {percent:,}%")
+			lines.append(f"{util.get_emoji(percent)} {label} {util.signed_percent(percent)}")
 	return lines, table
 
 def build(kind, tickers, period, service='telegram'):
@@ -99,7 +99,7 @@ def build(kind, tickers, period, service='telegram'):
 		else:
 			link = util.yahoo_link(ticker, service)
 		emoji = '🔻' if percent < 0 else '🔼' if percent > 0 else '▪️'
-		return f"{emoji} {title} ({link}) {round(percent):,}%", image
+		return f"{emoji} {title} ({link}) {util.signed_percent(round(percent))}", image
 	if kind == 'c':
 		args = list(tickers) + ([f'{days}d'] if days else ['max'])
 		caption, image = reports.prepare_compare(service, args)

@@ -131,7 +131,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				exchange_set.add(exchange_human)
 		payload.sort(key=lambda e: e[-1], reverse=True)
 		for i, e in enumerate(payload):
-			e[-1] = f'{round(e[-1]):,}%'
+			e[-1] = util.signed_percent(round(e[-1]))
 			payload[i] = ' '.join(e)
 		if payload:
 			if not specific_stock:
