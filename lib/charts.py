@@ -46,7 +46,7 @@ def keyboard(kind, tickers, active=None):
 	row = []
 	for key in BUTTONS[kind]:
 		label = PERIODS[key][0]
-		row.append({'text': ('● ' + label) if key == active else label, 'callback_data': f"c|{kind}|{key}|{ref}"})
+		row.append({'text': ('▶ ' + label) if key == active else label, 'callback_data': f"c|{kind}|{key}|{ref}"})
 	return {'inline_keyboard': [row]}
 
 def history_payload(ticker, service, highlight=None):
