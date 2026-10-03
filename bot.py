@@ -58,6 +58,16 @@ def handle(environ, start_response):
 			print_headers()
 			print("Fatal: Telegram authorisation header is present but incorrect. Expected:", config_telegramOutgoingToken, file=sys.stderr)
 			return [b'<h1>Unauthorized</h1>']
+		if "callback_query" in inbound: # chart period buttons
+			cq = inbound["callback_query"]
+			cq_message = cq.get("message")
+			if not cq_message or not cq.get("data"):
+				return [b'Unsupported']
+			if cq_message["chat"]["type"] == "private" and str(cq["from"]["id"]) not in config_telegramAllowedUserIDs:
+				print(cq["from"]["id"], "is not whitelisted. Ignoring button press.", file=sys.stderr)
+				return [b'<h1>Unauthorized</h1>']
+			threading.Thread(target=worker.process_callback, args=('telegram', cq["id"], str(cq_message["chat"]["id"]), str(cq_message["message_id"]), cq["data"])).start()
+			return [b'']
 		if "message" not in inbound:
 			return [b'Unsupported']
 		message_id = str(inbound["message"]["message_id"])

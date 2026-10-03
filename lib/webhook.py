@@ -156,7 +156,7 @@ def strike(message, service):
 
 strikethrough = strike
 
-def sendPhoto(chat_id, image_data, caption, service, message_id=None):
+def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_markup=None):
 	if service == 'telegram':
 		url = webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
 		headers = {}
@@ -168,6 +168,8 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None):
 			'disable_web_page_preview': True,
 			'allow_sending_without_reply': True,
 			'reply_to_message_id': message_id}
+		if reply_markup:
+			data['reply_markup'] = json.dumps(reply_markup) # inline keyboard (Telegram only)
 		files = {"photo": ('image.png', image_data)}
 	elif service == 'slack':
 		url = 'https://slack.com/api/files.upload'
@@ -190,9 +192,32 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None):
 				print(output['error_code'], output['description'], file=sys.stderr)
 			elif service == 'slack':
 				print(output['error'], file=sys.stderr)
+		return output
 	else:
 		print(r.status_code, f"error {service} sendPhoto", r.reason, caption, file=sys.stderr)
 		return None
+
+def editMessageMedia(chat_id, message_id, image_data, caption, reply_markup=None):
+	"""Telegram: replace a photo message's image and caption in place."""
+	url = webhooks['telegram'] + 'editMessageMedia'
+	media = {'type': 'photo', 'media': 'attach://photo', 'caption': caption, 'parse_mode': 'HTML'}
+	data = {'chat_id': chat_id, 'message_id': message_id, 'media': json.dumps(media)}
+	if reply_markup:
+		data['reply_markup'] = json.dumps(reply_markup)
+	if hasattr(image_data, 'seek'):
+		image_data.seek(0)
+	try:
+		r = requests.post(url, data=data, files={'photo': ('image.png', image_data)}, timeout=config_http_timeout)
+		output = r.json()
+	except Exception as e:
+		print("Failure executing editMessageMedia:", str(e), file=sys.stderr)
+		return None
+	if not output.get('ok'):
+		description = output.get('description', r.reason)
+		if 'not modified' not in description: # pressing the active period again is harmless
+			print(output.get('error_code'), description, file=sys.stderr)
+			raise RuntimeError(f"Telegram: {description}")
+	return output
 
 def pleaseHold(action, service, chat_id):
 	"""typing notify. I am run in a thread and repeated every 5 seconds"""

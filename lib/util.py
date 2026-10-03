@@ -685,7 +685,7 @@ def compare_graph(series, title, subtitle=''):
 		label, y = rebased[i]
 		color = colors[i]
 		ax.plot([1.015], [p], marker='s', markersize=4, color=color, transform=ax.transAxes, clip_on=False, zorder=4)
-		ax.annotate(f"{label}  {value:+.1f}%", xy=(y.index[-1], value), xycoords='data', xytext=(1.03, p), textcoords='axes fraction',
+		ax.annotate(f"{label}  {value:+,.1f}%", xy=(y.index[-1], value), xycoords='data', xytext=(1.03, p), textcoords='axes fraction',
 			ha='left', va='center', fontsize=7.5, color=ink, annotation_clip=False,
 			arrowprops=dict(arrowstyle='-', color=color, linewidth=0.7, alpha=0.7, shrinkA=0, shrinkB=2, relpos=(0, 0.5)))
 	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')

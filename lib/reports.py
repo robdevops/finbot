@@ -1,5 +1,5 @@
 from itertools import pairwise
-import json, re
+import hashlib, json, re
 import datetime
 import sys
 import pandas as pd
@@ -130,7 +130,7 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 		payload = payload[:1] # confirmation only; don't list the whole watchlist
 	return payload
 
-def prepare_compare(service, args):
+def prepare_compare(service, args, with_inputs=False):
 	"""Compare 2-6 tickers as rebased % change. A trailing time period (3m/1y/90d/ytd) is optional;
 	without one, the span is the earliest date covered by every ticker. Returns (caption_lines, image)."""
 	usage = ['Usage: .compare SYMBOL SYMBOL [SYMBOL...up to 6] [period|max]  (default: 10 years)']
@@ -149,7 +149,16 @@ def prepare_compare(service, args):
 				pass
 	tickers = list(dict.fromkeys(util.transform_to_yahoo(a.upper()) for a in args)) # de-duplicated, order kept
 	if not 2 <= len(tickers) <= 6:
-		return usage, None
+		return (usage, None, tickers, period_days) if with_inputs else (usage, None)
+	result = lambda caption, image: (caption, image, tickers, period_days) if with_inputs else (caption, image)
+	spec = period_days or ('max' if full_history else 'default')
+	cache_key = hashlib.sha1(f"{service}|{','.join(tickers)}|{spec}".encode()).hexdigest()[:16]
+	image_cache_file, caption_cache_file = f"finbot_compare_{cache_key}.png", f"finbot_compare_{cache_key}.json"
+	if config_cache:
+		cached_image = util.read_binary_cache(image_cache_file)
+		cached_caption = util.read_cache(caption_cache_file)
+		if cached_image and cached_caption:
+			return result(cached_caption, cached_image)
 	names, exchanges, closes = {}, {}, {}
 	for ticker in tickers:
 		name, exchange, series = yahoo.price_series(ticker)
@@ -189,8 +198,12 @@ def prepare_compare(service, args):
 	results = sorted(((series.iloc[-1] / series.iloc[0] - 1) * 100, t) for t, series in cropped)
 	for pct, t in reversed(results):
 		link = util.finance_link(t, exchanges[t], service, days=span_days, brief=False)
-		caption.append(f"{util.get_emoji(pct)} {names[t]} ({link}): {pct:+.1f}%")
-	return caption, image
+		caption.append(f"{util.get_emoji(pct)} {names[t]} ({link}): {pct:+,.1f}%")
+	if config_cache:
+		util.write_binary_cache(image_cache_file, image)
+		util.json_write(caption_cache_file, caption)
+		image.seek(0)
+	return result(caption, image)
 
 def prepare_help(service, botName):
 	payload = []
