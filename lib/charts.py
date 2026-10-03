@@ -46,7 +46,7 @@ def keyboard(kind, tickers, active=None):
 	row = []
 	for key in BUTTONS[kind]:
 		label = PERIODS[key][0]
-		row.append({'text': ('▶ ' + label) if key == active else label, 'callback_data': f"c|{kind}|{key}|{ref}"})
+		row.append({'text': ('➤ ' + label) if key == active else label, 'callback_data': f"c|{kind}|{key}|{ref}"})
 	return {'inline_keyboard': [row]}
 
 def history_payload(ticker, service, highlight=None):
@@ -65,7 +65,7 @@ def history_payload(ticker, service, highlight=None):
 			percent = table[interval]
 			label = webhook.bold(interval + ':', service)
 			if interval == highlight:
-				label = '▶ ' + label
+				label = '➤ ' + label
 			lines.append(f"{util.get_emoji(percent)} {label} {percent:,}%")
 	return lines, table
 
