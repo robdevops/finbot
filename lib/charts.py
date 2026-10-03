@@ -8,9 +8,9 @@ from lib import webhook
 from lib import yahoo
 from lib import reports
 
-PERIODS = {'w': ('Week', 7), 'm': ('Month', 30), 'q': ('Quarter', 90), 'x': ('Max', None)}
-BUTTONS = {'h': 'wmqx', 'p': 'wmq', 'c': 'wmqx'} # chart kind -> buttons offered (h=history, p=price, c=compare)
-HIGHLIGHT = {'w': '7D', 'm': '1M', 'q': '3M', 'x': 'Max'} # history table row for each button
+PERIODS = {'w': ('Week', 7), 'm': ('Month', 30), 'q': ('Quarter', 90), 'y': ('1Y', 365), 'x': ('Max', None)}
+BUTTONS = {'h': 'wmqx', 'p': 'wmqy', 'c': 'wmqx'} # chart kind -> buttons offered (h=history, p=price, c=compare)
+HIGHLIGHT = {'w': '7D', 'm': '1M', 'q': '3M', 'y': '1Y', 'x': 'Max'} # history table row for each button
 MAX_CALLBACK_BYTES = 64 # Telegram limit on callback_data
 REF_FILE = 'finbot_chart_buttons.json'
 
