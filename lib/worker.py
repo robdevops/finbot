@@ -592,7 +592,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		if graph:
 			markup = None
 			if service == 'telegram':
-				markup = charts.keyboard('c', compare_tickers, charts.period_for_days(compare_days))
+				markup = charts.keyboard('c', compare_tickers, charts.period_for_days(compare_days) if compare_days else 'x')
 			webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service, reply_markup=markup)
 		else:
 			webhook.payload_wrapper(service, url, payload, chat_id)
@@ -611,7 +611,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		finally:
 			typing.stop()
 		if graph:
-			webhook.sendPhoto(chat_id, graph, caption, service, reply_markup=charts.keyboard('h', [ticker]) if service == 'telegram' else None)
+			webhook.sendPhoto(chat_id, graph, caption, service, reply_markup=charts.keyboard('h', [ticker], 'x') if service == 'telegram' else None)
 		else:
 			webhook.payload_wrapper(service, url, caption.split('\n'), chat_id)
 	elif m_plan:

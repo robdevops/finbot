@@ -74,7 +74,7 @@ def build(kind, tickers, period, service='telegram'):
 	days = PERIODS[period][1] if period else None
 	if kind == 'h':
 		ticker = tickers[0]
-		lines, table = history_payload(ticker, service, HIGHLIGHT.get(period))
+		lines, table = history_payload(ticker, service, HIGHLIGHT.get(period or 'x')) # default view is the full history
 		if table is None:
 			raise RuntimeError(lines[0])
 		percent, image = yahoo.price_history(ticker, days) if days else yahoo.price_history(ticker)
