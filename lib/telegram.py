@@ -7,7 +7,7 @@ from lib.config import *
 def setWebhook():
 	telegram_url = webhooks['telegram'] + 'setWebhook'
 	print("registering", config_telegramOutgoingWebhook, file=sys.stderr)
-	params = {'url': config_telegramOutgoingWebhook, "allowed_updates": "message", 'secret_token': config_telegramOutgoingToken}
+	params = {'url': config_telegramOutgoingWebhook, "allowed_updates": json.dumps(['message', 'callback_query']), 'secret_token': config_telegramOutgoingToken}
 	response = requests.post(telegram_url, params=params, timeout=config_http_timeout)
 	print(response.text)
 
@@ -43,6 +43,16 @@ def pinChatMessage(chat_id, message_id):
 	if not output.get('ok'):
 		print("pinChatMessage failed:", output.get('description'), file=sys.stderr)
 	return output.get('result')
+
+def answerCallbackQuery(callback_query_id, text=None):
+	"""Acknowledge a button press (stops the client's loading spinner)."""
+	payload = {'callback_query_id': callback_query_id}
+	if text:
+		payload['text'] = text
+	try:
+		requests.post(webhooks['telegram'] + 'answerCallbackQuery', json=payload, timeout=config_http_timeout)
+	except Exception as e:
+		print("answerCallbackQuery failed:", e, file=sys.stderr)
 
 #def unpinChatMessage():
 #	telegram_url = webhooks['telegram'] + 'unpinChatMessage'

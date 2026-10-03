@@ -7,6 +7,8 @@ from lib import util
 from lib import webhook
 from lib import yahoo
 from lib import reports
+from lib import charts
+from lib import telegram
 from lib import sharesight
 import cal
 import performance
@@ -47,6 +49,21 @@ class TypingIndicator:
 	def is_active(self):
 		return self.service == 'telegram' and self._thread is not None and self._thread.is_alive()
 
+
+def process_callback(service, callback_id, chat_id, message_id, data):
+	"""Button press on a chart message: rebuild it for the chosen period and edit it in place."""
+	try:
+		parts = data.split('|', 3)
+		if len(parts) != 4 or parts[0] != 'c' or parts[1] not in charts.BUTTONS or parts[2] not in charts.PERIODS:
+			return
+		_, kind, period, ref = parts
+		tickers = charts.resolve(ref)
+		caption, image = charts.build(kind, tickers, period, service)
+		webhook.editMessageMedia(chat_id, message_id, image, caption, charts.keyboard(kind, tickers, period))
+	except Exception as e:
+		webhook.report_error(e, service, chat_id, context='chart')
+	finally:
+		telegram.answerCallbackQuery(callback_id) # answered last so the button shows a spinner while we work
 
 def process_request(service, chat_id, user, message, botName, userRealName, message_id):
 	"""Entry point for inbound chat requests: any failure becomes a one-line reply in the originating chat."""
@@ -569,61 +586,34 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		typing = TypingIndicator(service, chat_id)
 		typing.start()
 		try:
-			payload, graph = reports.prepare_compare(service, m_compare.group('args').split())
+			payload, graph, compare_tickers, compare_days = reports.prepare_compare(service, m_compare.group('args').split(), with_inputs=True)
 		finally:
 			typing.stop()
 		if graph:
-			webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service)
+			markup = None
+			if service == 'telegram':
+				markup = charts.keyboard('c', compare_tickers, charts.period_for_days(compare_days))
+			webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service, reply_markup=markup)
 		else:
 			webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_history:
 		if not m_history.group('ticker') or m_history.group('extra'):
 			webhook.payload_wrapper(service, url, ["Usage: .history TICKER"], chat_id)
 			return
-		payload = []
-		graph = None
-		errorstring = False
-		ticker = m_history.group('ticker').upper()
-		ticker = util.transform_to_yahoo(ticker)
+		ticker = util.transform_to_yahoo(m_history.group('ticker').upper())
 		typing = TypingIndicator(service, chat_id)
 		typing.start()
 		try:
-			market_data = yahoo.fetch_detail(ticker, 600)
+			caption, graph = charts.build('h', [ticker], None, service)
 		except Exception as e:
 			print(e, file=sys.stderr)
-			typing.stop()
 			raise
-		title = market_data.get(ticker, {}).get('profile_title', '')
-		ticker_link = util.finance_link(ticker, market_data.get(ticker, {}).get('profile_exchange', ''), service, days=1825, brief=False)
-		if ticker in market_data and 'percent_change' in market_data[ticker]:
-			try:
-				price_history, graph = yahoo.price_history(ticker)
-			except Exception as e:
-				print(e, file=sys.stderr)
-				typing.stop()
-				raise
-			if isinstance(price_history, str):
-				typing.stop()
-				raise RuntimeError(price_history)
-			payload.append(webhook.bold(f"{title} ({ticker_link}) performance history", service))
-			for interval in ('Max', '10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
-				if interval in price_history:
-					percent = price_history[interval]
-					emoji = util.get_emoji(percent)
-					payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent:,}%")
-		else:
-			payload.append(f".history: no data found for ticker {ticker}")
+		finally:
+			typing.stop()
 		if graph:
-			try:
-				caption = '\n'.join(payload)
-				webhook.sendPhoto(chat_id, graph, caption, service)
-			except Exception as e:
-				print(e, file=sys.stderr)
-				typing.stop()
-				raise
+			webhook.sendPhoto(chat_id, graph, caption, service, reply_markup=charts.keyboard('h', [ticker]) if service == 'telegram' else None)
 		else:
-			webhook.payload_wrapper(service, url, payload, chat_id)
-		typing.stop()
+			webhook.payload_wrapper(service, url, caption.split('\n'), chat_id)
 	elif m_plan:
 		filename = 'finbot_plan.json'
 		plan = util.json_load(filename, persist=True)

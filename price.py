@@ -9,6 +9,7 @@ from lib import webhook
 from lib import util
 from lib import yahoo
 from lib import telegram
+from lib import charts
 
 def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False, top=None):
 	def prepare_price_payload(service, market_data, threshold):
@@ -219,7 +220,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
 		if graph:
 			caption = '\n'.join(payload)
-			webhook.sendPhoto(chat_id, graph, caption, service)
+			markup = None
+			if service == 'telegram' and specific_stock:
+				markup = charts.keyboard('p', [specific_stock], charts.period_for_days(days))
+			webhook.sendPhoto(chat_id, graph, caption, service, reply_markup=markup)
 		else:
 			webhook.payload_wrapper(service, url, payload, chat_id)
 	else:
