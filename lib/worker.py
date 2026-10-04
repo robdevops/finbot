@@ -179,7 +179,10 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_help:
 		payload = reports.prepare_help(service, botName)
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		markup = None
+		if service == 'telegram' and int(chat_id) > 0: # positive chat ids are DMs; groups are negative
+			markup = charts.command_keyboard()
+		webhook.payload_wrapper(service, url, payload, chat_id, reply_markup=markup)
 	elif m_hello:
 		# easter egg 1
 		def alliterate():

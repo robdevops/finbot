@@ -8,7 +8,7 @@ import traceback
 from lib.config import *
 from lib import util
 
-def write(service, url, payload_string, chat_id=None, message_id=None):
+def write(service, url, payload_string, chat_id=None, message_id=None, reply_markup=None):
 	headers = {'Content-type': 'application/json'}
 	payload = {'text': payload_string}
 	if 'slack.com' in url:
@@ -26,6 +26,8 @@ def write(service, url, payload_string, chat_id=None, message_id=None):
 		payload['disable_notification'] = 'true'
 		payload['allow_sending_without_reply'] = 'true'
 		payload['reply_to_message_id'] = message_id
+		if reply_markup:
+			payload['reply_markup'] = reply_markup # keyboard (Telegram only)
 	try:
 		r = requests.post(url, headers=headers, json=payload, timeout=config_http_timeout)
 	except:
@@ -99,7 +101,7 @@ def guarded(context, func, *args, **kwargs):
 		report_error(e, context=context)
 		sys.exit(1)
 
-def payload_wrapper(service, url, payload, chat_id=None, message_id=None):
+def payload_wrapper(service, url, payload, chat_id=None, message_id=None, reply_markup=None):
 	"""Returns a list with the response of each message sent (several if the payload was chunked)."""
 	if not payload:
 		print(service + ": Nothing to send") # informational
@@ -114,7 +116,8 @@ def payload_wrapper(service, url, payload, chat_id=None, message_id=None):
 			for idx, chunk in enumerate(chunks):
 				idx > 0 and time.sleep(0.5)
 				payload_chunk = '\n'.join(chunk)
-				results.append(write(service, url, payload_chunk, chat_id))
+				last = idx == len(chunks) - 1
+				results.append(write(service, url, payload_chunk, chat_id, reply_markup=reply_markup if last else None))
 			return results
 		if service == 'discord' and len(payload_string) > 2000:
 			print(service, "payload is over 2,000 bytes. Splitting.")
@@ -123,7 +126,7 @@ def payload_wrapper(service, url, payload, chat_id=None, message_id=None):
 			print(service, "payload is over 4,096 bytes. Splitting.")
 			return chunkLooper()
 		else:
-			return [write(service, url, payload_string, chat_id, message_id)]
+			return [write(service, url, payload_string, chat_id, message_id, reply_markup)]
 
 def bold(message, service):
 	if service == 'telegram':

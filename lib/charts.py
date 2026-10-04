@@ -40,6 +40,13 @@ def resolve(ref):
 		return tickers
 	return ref.split(',')
 
+COMMAND_BUTTONS = ['.watchlist', '.dividend', '.earnings', '.marketcap', '.beta', '.performance', '.price', '.session', '.premarket', '.buy', '.sell', '.pe', '.peg', '.shorts', '.trades']
+
+def command_keyboard(per_row=3):
+	"""Persistent reply keyboard of the common commands (Telegram DMs); a press sends the command text as a message."""
+	rows = [[{'text': c} for c in COMMAND_BUTTONS[i:i + per_row]] for i in range(0, len(COMMAND_BUTTONS), per_row)]
+	return {'keyboard': rows, 'resize_keyboard': True, 'is_persistent': True}
+
 def keyboard(kind, tickers, active=None):
 	"""Telegram inline keyboard; the active period is marked."""
 	ref = _ref(tickers)
