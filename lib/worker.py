@@ -508,13 +508,13 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			typing = TypingIndicator(service, chat_id)
 			typing.start()
 		try:
-			payload, chart = reports.prepare_value_payload(service, action, specific_stock, length=15, with_chart=True)
+			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			raise
 		if not specific_stock:
 			typing.stop()
-		deliver(service, url, chat_id, payload, chart)
+		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_forwardpe:
 		action = 'forward pe'
 		specific_stock = None

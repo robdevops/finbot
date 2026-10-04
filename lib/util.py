@@ -790,10 +790,13 @@ def column_chart(rows, title, subtitle='', value_fmt=None, threshold=None, axis_
 	texts = draw_labels(0)
 	canvas.draw()
 	boxes = [t.get_window_extent(canvas.get_renderer()) for t in texts]
-	if any(a.x1 > b.x0 for a, b in zip(boxes, boxes[1:])): # neighbours collide: stand the labels upright
+	if any(a.x1 + 6 > b.x0 for a, b in zip(boxes, boxes[1:])): # labels that merely touch count as colliding # neighbours collide: stand the labels upright
 		for t in texts:
 			t.remove()
-		ax.set_ylim(bottom - (span * 0.30 if bottom < 0 else 0), top + span * 0.34)
+		if ylim: # keep the caller's zoom, add room above for upright labels
+			ax.set_ylim(ylim[0], ylim[1] + (ylim[1] - ylim[0]) * 0.25)
+		else:
+			ax.set_ylim(bottom - (span * 0.30 if bottom < 0 else 0), top + span * 0.34)
 		draw_labels(90)
 	fit_left_margin(fig, ax)
 	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
