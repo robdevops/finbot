@@ -9,7 +9,8 @@ from lib import yahoo
 from lib import reports
 
 PERIODS = {'w': ('7D', 7), 'm': ('1M', 30), 'q': ('3M', 90), 'y': ('1Y', 365), 'x': ('Max', None)}
-BUTTONS = {'h': 'wmqyx', 'p': 'wmqy', 'c': 'wmqyx'} # chart kind -> buttons offered (h=history, p=price, c=compare)
+BUTTONS = {'h': 'wmqyx', 'p': 'wmqyx', 'c': 'wmqyx', 'f': 'wmqyx', 'l': 'wmqyx'} # chart kind -> buttons offered (h=history, p=price chart, c=compare, f=performance, l=price list)
+MAX_DAYS = 3650 # what Max means for the Sharesight-based reports
 HIGHLIGHT = {'w': '7D', 'm': '1M', 'q': '3M', 'y': '1Y', 'x': 'Max'} # history table row for each button
 MAX_CALLBACK_BYTES = 64 # Telegram limit on callback_data
 REF_FILE = 'finbot_chart_buttons.json'
@@ -96,7 +97,7 @@ def build(kind, tickers, period, service='telegram'):
 		percent, image = yahoo.price_history(ticker, days, graphCache=False)
 		if isinstance(percent, str):
 			raise RuntimeError(percent)
-		percent = float(percent.get(days, percent.get('Max')))
+		percent = float(percent.get(days, percent.get('Max', next(iter(percent.values()), 0))))
 		title = market_data[ticker]['profile_title']
 		exchange = market_data[ticker]['profile_exchange']
 		if exchange in ('Taipei Exchange', 'CCC') or ticker.startswith('^'):
@@ -113,4 +114,17 @@ def build(kind, tickers, period, service='telegram'):
 		if not image:
 			raise RuntimeError(caption[0])
 		return '\n'.join(caption), image
+	if kind == 'f': # performance: tickers = [portfolio name or '']
+		import performance
+		payload, image = performance.lambda_handler(past_days=days or MAX_DAYS, service=service, portfolio_select=tickers[0] or None, interactive=True, return_result=True)
+		if not image:
+			raise RuntimeError(payload[0] if payload else 'no performance data')
+		return '\n'.join(payload), image
+	if kind == 'l': # price list: tickers = [threshold, top]
+		import price
+		threshold, top = float(tickers[0]), int(tickers[1])
+		payload, image = price.lambda_handler(threshold=threshold, service=service, interactive=True, days=days or MAX_DAYS, top=top or None, return_result=True)
+		if not image:
+			raise RuntimeError(payload[0] if payload else 'no price data')
+		return '\n'.join(payload), image
 	raise ValueError(f"unknown chart kind {kind}")

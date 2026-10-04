@@ -742,7 +742,7 @@ def bar_graph(top_rows, bottom_rows, title, subtitle=''):
 	buf.seek(0) # rewind, or the upload sends an empty file
 	return buf
 
-def column_chart(rows, title, subtitle='', value_fmt=None, threshold=None, axis_fmt=None):
+def column_chart(rows, title, subtitle='', value_fmt=None, threshold=None, axis_fmt=None, ylim=None):
 	"""Single row of bars, blue above 0 and red below, x axis at 0%. rows: [(label, value)] in display order.
 	value_fmt formats the label (default: signed whole percent). threshold draws a dashed reference line. Returns PNG bytes."""
 	from matplotlib.figure import Figure
@@ -765,6 +765,8 @@ def column_chart(rows, title, subtitle='', value_fmt=None, threshold=None, axis_
 	top, bottom = max(max(values), 0, threshold or 0), min(min(values), 0)
 	span = (top - bottom) or 1.0
 	ax.set_ylim(bottom - (span * 0.20 if bottom < 0 else 0), top + span * 0.20)
+	if ylim:
+		ax.set_ylim(*ylim)
 	ax.set_xlim(-0.6, len(rows) - 0.4)
 	ax.set_xticks([])
 	ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
@@ -801,6 +803,59 @@ def column_chart(rows, title, subtitle='', value_fmt=None, threshold=None, axis_
 	fig.savefig(buf, format='png', facecolor=bg)
 	buf.seek(0)
 	return buf
+
+def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshold=None):
+	"""Horizontal bars for long lists, first row at the top; blue for >= 0, red below, axis at 0. rows: [(label, value)]."""
+	from matplotlib.figure import Figure
+	from matplotlib.backends.backend_agg import FigureCanvasAgg
+	from matplotlib.ticker import MaxNLocator, FuncFormatter
+	value_fmt = value_fmt or (lambda v: signed_percent(round(v)))
+	axis_fmt = axis_fmt or (lambda v: '0%' if v == 0 else f"{v:+g}%")
+	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
+	up, down = '#3987e5', '#fb7185'
+	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
+	FigureCanvasAgg(fig)
+	ax = fig.add_axes([0.14, 0.05, 0.82, 0.80], facecolor=bg)
+	values = [v for _, v in rows]
+	ys = list(range(len(rows)))
+	ax.barh(ys, values, height=0.7, color=[up if v >= 0 else down for v in values], zorder=3)
+	ax.axvline(0, color=ink2, linewidth=1.0, zorder=4)
+	if threshold is not None:
+		ax.axvline(threshold, color=ink2, linewidth=0.9, linestyle=(0, (4, 3)), zorder=4)
+	top, bottom = max(max(values), 0, threshold or 0), min(min(values), 0)
+	span = (top - bottom) or 1.0
+	ax.set_xlim(bottom - (span * 0.16 if bottom < 0 else 0), top + span * 0.16)
+	ax.set_ylim(len(rows) - 0.4, -0.6) # first row on top
+	ax.set_yticks(ys)
+	ax.set_yticklabels([label for label, _ in rows])
+	ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
+	ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: axis_fmt(v)))
+	ax.grid(axis='x', color=grid, linewidth=0.6)
+	ax.set_axisbelow(True)
+	for side in ax.spines.values():
+		side.set_visible(False)
+	size = 8 if len(rows) <= 28 else 6.5
+	ax.tick_params(axis='y', colors=ink, labelsize=size, length=0, pad=4)
+	ax.tick_params(axis='x', colors=ink2, labelsize=8, length=0, pad=4, top=False, labeltop=False)
+	for y, (label, v) in zip(ys, rows):
+		ax.annotate(value_fmt(v), xy=(v, y), xytext=(4 if v >= 0 else -4, 0), textcoords='offset points',
+			ha='left' if v >= 0 else 'right', va='center', fontsize=size, color=ink, annotation_clip=False)
+	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	if subtitle:
+		fig.text(0.03, 0.885, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+	buf = io.BytesIO()
+	fig.savefig(buf, format='png', facecolor=bg)
+	buf.seek(0)
+	return buf
+
+def rows_chart(rows, title, subtitle='', **kw):
+	"""Bars for a list of (label, value): vertical columns up to 16 rows, horizontal bars beyond that. Over 40 rows keeps the first and last 20."""
+	if len(rows) > 40:
+		rows = rows[:20] + rows[-20:]
+	if len(rows) > 16:
+		kw.pop('ylim', None)
+		return hbar_chart(rows, title, subtitle, **kw)
+	return column_chart(rows, title, subtitle, **kw)
 
 def signed_percent(value, decimals=None):
 	"""12 -> '+12%', -3.5 -> '-3.5%', 0 -> '0%'; thousands separated. decimals=None keeps the value's own digits."""

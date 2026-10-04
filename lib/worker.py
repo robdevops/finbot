@@ -50,6 +50,17 @@ class TypingIndicator:
 		return self.service == 'telegram' and self._thread is not None and self._thread.is_alive()
 
 
+def deliver(service, url, chat_id, payload, chart=None):
+	"""Send a report: as a bar chart (heading as caption) where the service can take an image, else as text."""
+	if chart and chart.get('rows') and service in ('telegram', 'slack'):
+		spec = dict(chart)
+		rows, title = spec.pop('rows'), spec.pop('title')
+		subtitle = spec.pop('subtitle', '')
+		image = util.rows_chart(rows, title, subtitle, **spec)
+		webhook.sendPhoto(chat_id, image, payload[0].rstrip(':') if payload else title, service)
+	else:
+		webhook.payload_wrapper(service, url, payload, chat_id)
+
 def process_callback(service, callback_id, chat_id, message_id, data):
 	"""Button press on a chart message: rebuild it for the chosen period and edit it in place."""
 	try:
@@ -423,6 +434,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_marketcap:
 		arg = m_marketcap.group('arg') or 'top'
+		chart = None
 		if arg not in ('top', 'bottom'):
 			ticker = util.transform_to_yahoo(arg.upper())
 			data = yahoo.fetch_detail(ticker, 600)
@@ -439,12 +451,12 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			typing = TypingIndicator(service, chat_id)
 			typing.start()
 			try:
-				payload = reports.prepare_marketcap_payload(service, arg, length=15)
+				payload, chart = reports.prepare_marketcap_payload(service, arg, length=15, with_chart=True)
 			except Exception as e:
 				print(e, file=sys.stderr)
 				raise
 			typing.stop()
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		deliver(service, url, chat_id, payload, chart)
 	elif m_peg:
 		action = 'peg'
 		specific_stock = None
@@ -466,11 +478,11 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 				message = [f"Fetching {action.upper()}s..."]
 				webhook.payload_wrapper(service, url, message, chat_id)
 		try:
-			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
+			payload, chart = reports.prepare_value_payload(service, action, specific_stock, length=15, with_chart=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			raise
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		deliver(service, url, chat_id, payload, chart)
 		if not specific_stock:
 			typing.stop()
 	elif m_pe:
@@ -489,13 +501,13 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			typing = TypingIndicator(service, chat_id)
 			typing.start()
 		try:
-			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
+			payload, chart = reports.prepare_value_payload(service, action, specific_stock, length=15, with_chart=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			raise
 		if not specific_stock:
 			typing.stop()
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		deliver(service, url, chat_id, payload, chart)
 	elif m_forwardpe:
 		action = 'forward pe'
 		specific_stock = None
@@ -523,6 +535,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_beta:
 		payload = []
+		chart = None
 		market_data = {}
 		typing = TypingIndicator(service, chat_id)
 		typing.start()
@@ -537,6 +550,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			except Exception as e:
 				print(e, file=sys.stderr) # skip this ticker; keep the rest
 				continue
+		chart_rows = []
 		for ticker in market_data:
 			try:
 				beta = round(market_data[ticker]['beta'], 1)
@@ -547,14 +561,18 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 				ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 				flag = util.flag_from_ticker(ticker)
 				payload.append([flag, profile_title, f'({ticker_link})', beta, 'β'])
+				chart_rows.append((ticker.split('.')[0], float(beta)))
 		payload.sort(key=lambda e: e[-2], reverse=True)
 		for e in payload:
 			e[-2] = str(e[-2])
 		payload = [' '.join(e) for e in payload]
 		typing.stop()
 		if payload:
-			payload.insert(0, f"{webhook.bold('Beta over 1.5 and mkt cap under 2B', service)}")
-			webhook.payload_wrapper(service, url, payload, chat_id)
+			heading = 'Beta over 1.5 and mkt cap under 2B'
+			payload.insert(0, f"{webhook.bold(heading, service)}")
+			chart_rows.sort(key=lambda row: row[1], reverse=True)
+			chart = {'rows': chart_rows, 'title': heading, 'value_fmt': lambda v: f"{v:g}", 'axis_fmt': lambda v: f"{v:g}"}
+			deliver(service, url, chat_id, payload, chart)
 	elif m_buy:
 		action='buy'
 		typing = TypingIndicator(service, chat_id)
@@ -563,13 +581,13 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			message = [f"Fetching {action} ratings..."]
 			webhook.payload_wrapper(service, url, message, chat_id)
 		try:
-			payload = reports.prepare_rating_payload(service, action, length=15)
+			payload, chart = reports.prepare_rating_payload(service, action, length=15, with_chart=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			raise
 		typing.stop()
 		payload = payload or [f"No stocks meet {action} criteria"]
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		deliver(service, url, chat_id, payload, chart)
 	elif m_sell:
 		action='sell'
 		typing = TypingIndicator(service, chat_id)
@@ -578,13 +596,13 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			message = [f"Fetching {action} ratings..."]
 			webhook.payload_wrapper(service, url, message, chat_id)
 		try:
-			payload = reports.prepare_rating_payload(service, action, length=15)
+			payload, chart = reports.prepare_rating_payload(service, action, length=15, with_chart=True)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			raise
 		typing.stop()
 		payload = payload or [f"No stocks meet {action} criteria"]
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		deliver(service, url, chat_id, payload, chart)
 	elif m_compare:
 		typing = TypingIndicator(service, chat_id)
 		typing.start()

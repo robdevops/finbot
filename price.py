@@ -17,8 +17,8 @@ class Row(list):
 		super().__init__(parts)
 		self.ticker = ticker
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False, top=None):
-	def prepare_price_payload(service, market_data, threshold):
+def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False, top=None, return_result=False):
+	def prepare_price_payload(service, market_data, threshold, _rows_out=None):
 		payload = []
 		graph = False
 		marketStates = []
@@ -137,6 +137,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				exchange_set.add(exchange_human)
 		payload.sort(key=lambda e: e[-1], reverse=True)
 		chart_rows = [(e.ticker, e[-1]) for e in payload if isinstance(e, Row)]
+		if _rows_out is not None: # called from the volatile-stocks pass: hand the rows back instead of charting
+			_rows_out.extend(chart_rows)
 		for i, e in enumerate(payload):
 			e[-1] = util.signed_percent(round(e[-1]))
 			payload[i] = ' '.join(e)
@@ -145,7 +147,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				if skipped_volatile:
 					# run through again, since we already have a payload. only triggers if the first ticker met volatilty threshold
 					market_data = yahoo.fetch(skipped_volatile)
-					payload, graph = payload + prepare_price_payload(service, market_data, threshold)[0], graph
+					payload, graph = payload + prepare_price_payload(service, market_data, threshold, _rows_out=chart_rows)[0], graph
+					chart_rows.sort(key=lambda row: row[1], reverse=True)
 				if midsession:
 					heading = f'Tracking ≥ {threshold}% ({", ".join(exchange_set)}):'
 				elif premarket:
@@ -163,10 +166,12 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					heading = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}:'
 				else:
 					heading = f'Day change ≥ {threshold}%:'
-				caption_heading = webhook.bold(heading.rstrip(':'), service) # chart captions don't end in a colon
+				heading_plain = heading.rstrip(':') # chart captions don't end in a colon
+				caption_heading = webhook.bold(heading_plain, service)
 				heading = webhook.bold(heading, service)
 				payload.insert(0, heading)
-				if top and chart_top and (interactive or service == 'telegram'): # Slack/Discord cron posts have no way to upload an image
+				can_chart = _rows_out is None and (interactive or service == 'telegram') # Slack/Discord cron posts have no way to upload an image
+				if top and chart_top and can_chart:
 					def short(ticker):
 						return ticker.split('.')[0].removesuffix('-USD')
 					top_rows = [(short(t), p) for t, p in chart_top]
@@ -176,6 +181,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					payload = [caption_heading] # the chart replaces the lists
 				elif top:
 					payload.extend([''] + payload_bottom)
+				elif chart_rows and can_chart:
+					rows = [(t.split('.')[0].removesuffix('-USD'), p) for t, p in chart_rows]
+					graph = util.rows_chart(rows, heading_plain)
+					payload = [caption_heading]
 		else:
 			if interactive:
 				if specific_stock:
@@ -226,12 +235,15 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					print("Notice:", os.path.basename(__file__), ticker, "has no data", file=sys.stderr)
 					continue
 
+	list_buttons = not specific_stock and not (midsession or premarket or close) # period buttons suit the daily and N-day lists, not intraday ones
 	# Prep and send payloads
 	if not webhooks:
 		print("Error: no services enabled in .env", file=sys.stderr)
 		sys.exit(1)
 	if interactive:
 		payload, graph = prepare_price_payload(service, market_data, threshold)
+		if return_result: # period buttons rebuild the report without sending it
+			return payload, graph
 		if service == "slack":
 			url = 'https://slack.com/api/chat.postMessage'
 		elif service == "telegram":
@@ -241,6 +253,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			markup = None
 			if service == 'telegram' and specific_stock:
 				markup = charts.keyboard('p', [specific_stock], charts.period_for_days(days))
+			elif service == 'telegram' and list_buttons:
+				markup = charts.keyboard('l', [f"{threshold:g}", str(top or 0)], charts.period_for_days(days))
 			webhook.sendPhoto(chat_id, graph, caption, service, reply_markup=markup)
 		else:
 			webhook.payload_wrapper(service, url, payload, chat_id)
@@ -250,7 +264,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			if service == "telegram":
 				url = url + "sendMessage?chat_id=" + str(chat_id)
 			if graph and service == 'telegram':
-				webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service)
+				markup = charts.keyboard('l', [f"{threshold:g}", str(top or 0)], charts.period_for_days(days)) if list_buttons else None
+				webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service, reply_markup=markup)
 				continue
 			webhook.payload_wrapper(service, url, payload, chat_id)
 

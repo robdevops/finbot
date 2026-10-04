@@ -8,8 +8,9 @@ from lib import sharesight
 from lib import webhook
 from lib import util
 from lib import yahoo
+from lib import charts
 
-def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=None, user='', portfolio_select=None, message_id=None, interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=None, user='', portfolio_select=None, message_id=None, interactive=False, return_result=False):
 	def get_emoji(percent):
 		if percent < 0:
 			emoji = "🔻"
@@ -85,12 +86,15 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 		sys.exit(1)
 	if interactive:
 		payload, graph = prepare_performance_payload(service, performance, portfolios)
+		if return_result: # period buttons rebuild the report without sending it
+			return payload, graph
 		if service == "slack":
 			url = 'https://slack.com/api/chat.postMessage'
 		elif service == "telegram":
 			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
 		if graph:
-			webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service)
+			markup = charts.keyboard('f', [portfolio_select or ''], charts.period_for_days(past_days)) if service == 'telegram' else None
+			webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service, reply_markup=markup)
 		else:
 			webhook.payload_wrapper(service, url, payload, chat_id, message_id)
 	else:
@@ -102,7 +106,8 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 			else:
 				chat_id = None
 			if graph:
-				webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service)
+				markup = charts.keyboard('f', [''], charts.period_for_days(past_days)) if service == 'telegram' else None
+				webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service, reply_markup=markup)
 				continue
 			webhook.payload_wrapper(service, url, payload, chat_id)
 
