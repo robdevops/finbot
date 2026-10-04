@@ -1,6 +1,8 @@
 """Period buttons (Week | Month | Quarter | Max) for Telegram chart messages, and the rebuild behind them."""
 import hashlib
+import json
 import sys
+import threading
 
 from lib.config import *
 from lib import util
@@ -9,7 +11,8 @@ from lib import yahoo
 from lib import reports
 
 PERIODS = {'w': ('7D', 7), 'm': ('1M', 30), 'q': ('3M', 90), 'y': ('1Y', 365), 'x': ('Max', None)}
-BUTTONS = {'h': 'wmqyx', 'p': 'wmqy', 'c': 'wmqyx'} # chart kind -> buttons offered (h=history, p=price, c=compare)
+BUTTONS = {'h': 'wmqyx', 'p': 'wmqyx', 'c': 'wmqyx', 'f': 'wmqyx', 'l': 'wmqyx'} # chart kind -> buttons offered (h=history, p=price chart, c=compare, f=performance, l=price list)
+MAX_DAYS = 3650 # what Max means for the Sharesight-based reports
 HIGHLIGHT = {'w': '7D', 'm': '1M', 'q': '3M', 'y': '1Y', 'x': 'Max'} # history table row for each button
 MAX_CALLBACK_BYTES = 64 # Telegram limit on callback_data
 REF_FILE = 'finbot_chart_buttons.json'
@@ -39,6 +42,53 @@ def resolve(ref):
 			raise KeyError("these buttons have expired, please re-run the command")
 		return tickers
 	return ref.split(',')
+
+COMMAND_BUTTONS = ['.watchlist', '.dividend', '.earnings', '.marketcap', '.beta', '.performance', '.price', '.session', '.premarket', '.buy', '.sell', '.pe', '.peg', '.shorts', '.trades']
+
+def command_keyboard(per_row=3):
+	"""Persistent reply keyboard of the common commands (Telegram DMs); a press sends the command text as a message."""
+	rows = [[{'text': c} for c in COMMAND_BUTTONS[i:i + per_row]] for i in range(0, len(COMMAND_BUTTONS), per_row)]
+	return {'keyboard': rows, 'resize_keyboard': True, 'is_persistent': True}
+
+KEYBOARD_FILE = 'finbot_keyboards.json' # chat id -> version of the command keyboard that chat last received
+_keyboard_lock = threading.Lock()
+
+def keyboard_version():
+	return hashlib.sha1(json.dumps(command_keyboard(), sort_keys=True).encode()).hexdigest()[:8]
+
+def mark_keyboard(chat_id):
+	"""Record that this chat now has the current command keyboard."""
+	with _keyboard_lock:
+		state = util.json_load(KEYBOARD_FILE, persist=True) or {}
+		state[str(chat_id)] = keyboard_version()
+		util.json_write(KEYBOARD_FILE, state, persist=True)
+
+def push_keyboard(chat_id):
+	"""Telegram can only change a reply keyboard by sending a message, so send a short one carrying it."""
+	result = webhook.write('telegram', webhook.chat_url('telegram', chat_id), '⌨️ Keyboard updated', chat_id, reply_markup=command_keyboard())
+	if result is not None:
+		mark_keyboard(chat_id)
+	return result
+
+def ensure_keyboard(chat_id):
+	"""DMs only (positive chat ids): bring a chat's keyboard up to date if its buttons have changed or it never had them."""
+	if int(chat_id) <= 0:
+		return
+	with _keyboard_lock:
+		current = (util.json_load(KEYBOARD_FILE, persist=True) or {}).get(str(chat_id)) == keyboard_version()
+	if not current:
+		push_keyboard(chat_id)
+
+def refresh_keyboards():
+	"""At startup: update every chat we know of whose keyboard is out of date."""
+	with _keyboard_lock:
+		state = util.json_load(KEYBOARD_FILE, persist=True) or {}
+	for chat_id, version in state.items():
+		if version != keyboard_version():
+			try:
+				push_keyboard(chat_id)
+			except Exception as e:
+				print("keyboard refresh failed for", chat_id, e, file=sys.stderr)
 
 def keyboard(kind, tickers, active=None):
 	"""Telegram inline keyboard; the active period is marked."""
@@ -89,7 +139,7 @@ def build(kind, tickers, period, service='telegram'):
 		percent, image = yahoo.price_history(ticker, days, graphCache=False)
 		if isinstance(percent, str):
 			raise RuntimeError(percent)
-		percent = float(percent.get(days, percent.get('Max')))
+		percent = float(percent.get(days, percent.get('Max', next(iter(percent.values()), 0))))
 		title = market_data[ticker]['profile_title']
 		exchange = market_data[ticker]['profile_exchange']
 		if exchange in ('Taipei Exchange', 'CCC') or ticker.startswith('^'):
@@ -106,4 +156,17 @@ def build(kind, tickers, period, service='telegram'):
 		if not image:
 			raise RuntimeError(caption[0])
 		return '\n'.join(caption), image
+	if kind == 'f': # performance: tickers = [portfolio name or '']
+		import performance
+		payload, image = performance.lambda_handler(past_days=days or MAX_DAYS, service=service, portfolio_select=tickers[0] or None, interactive=True, return_result=True)
+		if not image:
+			raise RuntimeError(payload[0] if payload else 'no performance data')
+		return '\n'.join(payload), image
+	if kind == 'l': # price list: tickers = [threshold, top]
+		import price
+		threshold, top = float(tickers[0]), int(tickers[1])
+		payload, image = price.lambda_handler(threshold=threshold, service=service, interactive=True, days=days or MAX_DAYS, top=top or None, return_result=True)
+		if not image:
+			raise RuntimeError(payload[0] if payload else 'no price data')
+		return '\n'.join(payload), image
 	raise ValueError(f"unknown chart kind {kind}")

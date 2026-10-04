@@ -633,6 +633,7 @@ def graph(df, title, ylabel):
 
 	buf = io.BytesIO()
 	fig.savefig(buf, format='png', facecolor=bg) # no bbox_inches='tight': keep exact 1280x800
+	buf.seek(0)
 	return buf
 
 def compare_graph(series, title, subtitle=''):
@@ -693,7 +694,188 @@ def compare_graph(series, title, subtitle=''):
 		fig.text(0.03, 0.910, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
 	buf = io.BytesIO()
 	fig.savefig(buf, format='png', facecolor=bg)
+	buf.seek(0) # rewind, or the upload sends an empty file
 	return buf
+
+def bar_graph(top_rows, bottom_rows, title, subtitle=''):
+	"""Two stacked rows of bars sharing one x axis at 0%: the best performers rise in blue, the worst hang in red.
+	top_rows: [(label, percent)] best first. bottom_rows: [(label, percent)] worst first. Returns PNG bytes (1280x800)."""
+	from matplotlib.figure import Figure
+	from matplotlib.backends.backend_agg import FigureCanvasAgg
+	from matplotlib.ticker import MaxNLocator, FuncFormatter
+	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
+	up, down = '#3987e5', '#fb7185' # blue / red, as requested
+	top_rows = [r for r in top_rows if r[1] >= 0]
+	bottom_rows = [r for r in bottom_rows if r[1] < 0]
+	slots = max(len(top_rows), len(bottom_rows), 1)
+	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
+	canvas = FigureCanvasAgg(fig)
+	ax = fig.add_axes([0.075, 0.03, 0.905, 0.82], facecolor=bg)
+	ax.bar(range(len(top_rows)), [v for _, v in top_rows], width=0.66, color=up, zorder=3)
+	ax.bar(range(len(bottom_rows)), [v for _, v in bottom_rows], width=0.66, color=down, zorder=3)
+	ax.axhline(0, color=ink2, linewidth=1.0, zorder=4) # x axis sits at 0%
+	top = max([v for _, v in top_rows], default=0)
+	bottom = min([v for _, v in bottom_rows], default=0)
+	span = (top - bottom) or 1.0
+	ax.set_ylim(bottom - (span * 0.20 if bottom < 0 else 0), top + (span * 0.20 if top > 0 else 0))
+	ax.set_xlim(-0.6, slots - 0.4)
+	ax.set_xticks([])
+	ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
+	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: signed_percent(round(v))))
+	ax.grid(axis='y', color=grid, linewidth=0.6)
+	ax.set_axisbelow(True)
+	for side in ax.spines.values():
+		side.set_visible(False)
+	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
+	for x, (label, v) in enumerate(top_rows):
+		ax.annotate(f"{label}\n{signed_percent(round(v))}", xy=(x, v), xytext=(0, 4), textcoords='offset points',
+			ha='center', va='bottom', fontsize=8.5, color=ink, linespacing=1.25, annotation_clip=False)
+	for x, (label, v) in enumerate(bottom_rows):
+		ax.annotate(f"{label}\n{signed_percent(round(v))}", xy=(x, v), xytext=(0, -4), textcoords='offset points',
+			ha='center', va='top', fontsize=8.5, color=ink, linespacing=1.25, annotation_clip=False)
+	fit_left_margin(fig, ax)
+	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	if subtitle:
+		fig.text(0.03, 0.885, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+	buf = io.BytesIO()
+	fig.savefig(buf, format='png', facecolor=bg)
+	buf.seek(0) # rewind, or the upload sends an empty file
+	return buf
+
+def column_chart(rows, title, subtitle='', value_fmt=None, threshold=None, axis_fmt=None, ylim=None):
+	"""Single row of bars, blue above 0 and red below, x axis at 0%. rows: [(label, value)] in display order.
+	value_fmt formats the label (default: signed whole percent). threshold draws a dashed reference line. Returns PNG bytes."""
+	from matplotlib.figure import Figure
+	from matplotlib.backends.backend_agg import FigureCanvasAgg
+	from matplotlib.ticker import MaxNLocator, FuncFormatter
+	value_fmt = value_fmt or (lambda v: signed_percent(round(v)))
+	axis_fmt = axis_fmt or (lambda v: '0%' if v == 0 else f"{v:+g}%")
+	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
+	up, down = '#3987e5', '#fb7185'
+	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
+	canvas = FigureCanvasAgg(fig)
+	ax = fig.add_axes([0.075, 0.03, 0.905, 0.82], facecolor=bg)
+	values = [v for _, v in rows]
+	xs = list(range(len(rows)))
+	width = 0.66 if len(rows) > 3 else 0.5
+	ax.bar(xs, values, width=width, color=[up if v >= 0 else down for v in values], zorder=3)
+	ax.axhline(0, color=ink2, linewidth=1.0, zorder=4)
+	if threshold is not None:
+		ax.axhline(threshold, color=ink2, linewidth=0.9, linestyle=(0, (4, 3)), zorder=4)
+	top, bottom = max(max(values), 0, threshold or 0), min(min(values), 0)
+	span = (top - bottom) or 1.0
+	ax.set_ylim(bottom - (span * 0.20 if bottom < 0 else 0), top + span * 0.20)
+	if ylim:
+		ax.set_ylim(*ylim)
+	ax.set_xlim(-0.6, len(rows) - 0.4)
+	ax.set_xticks([])
+	ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
+	if threshold is not None: # label the reference line on the y axis, dropping any tick it would crowd
+		lo, hi = ax.get_ylim()
+		ax.set_yticks([t for t in ax.get_yticks() if abs(t - threshold) > (hi - lo) * 0.05] + [threshold])
+	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: axis_fmt(v)))
+	ax.grid(axis='y', color=grid, linewidth=0.6)
+	ax.set_axisbelow(True)
+	for side in ax.spines.values():
+		side.set_visible(False)
+	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
+	def draw_labels(rotation):
+		texts = []
+		for x, (label, v) in zip(xs, rows):
+			above = v >= 0
+			text = f"{label}  {value_fmt(v)}" if rotation else f"{label}\n{value_fmt(v)}"
+			texts.append(ax.annotate(text, xy=(x, v), xytext=(0, 4 if above else -4), textcoords='offset points',
+				ha='center', va='bottom' if above else 'top', rotation=rotation, fontsize=8.5, color=ink, linespacing=1.25, annotation_clip=False))
+		return texts
+	texts = draw_labels(0)
+	canvas.draw()
+	boxes = [t.get_window_extent(canvas.get_renderer()) for t in texts]
+	if any(a.x1 + 6 > b.x0 for a, b in zip(boxes, boxes[1:])): # labels that merely touch count as colliding # neighbours collide: stand the labels upright
+		for t in texts:
+			t.remove()
+		if ylim: # keep the caller's zoom, add room above for upright labels
+			ax.set_ylim(ylim[0], ylim[1] + (ylim[1] - ylim[0]) * 0.25)
+		else:
+			ax.set_ylim(bottom - (span * 0.30 if bottom < 0 else 0), top + span * 0.34)
+		draw_labels(90)
+	fit_left_margin(fig, ax)
+	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	if subtitle:
+		fig.text(0.03, 0.885, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+	buf = io.BytesIO()
+	fig.savefig(buf, format='png', facecolor=bg)
+	buf.seek(0)
+	return buf
+
+def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshold=None):
+	"""Horizontal bars for long lists, first row at the top; blue for >= 0, red below, axis at 0. rows: [(label, value)].
+	Each row's label sits right at the zero line (beside the bar's base) and its value at the bar's tip."""
+	from matplotlib.figure import Figure
+	from matplotlib.backends.backend_agg import FigureCanvasAgg
+	from matplotlib.ticker import MaxNLocator, FuncFormatter
+	value_fmt = value_fmt or (lambda v: signed_percent(round(v)))
+	axis_fmt = axis_fmt or (lambda v: '0%' if v == 0 else f"{v:+g}%")
+	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
+	up, down = '#3987e5', '#fb7185'
+	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
+	canvas = FigureCanvasAgg(fig)
+	ax = fig.add_axes([0.04, 0.05, 0.92, 0.80], facecolor=bg)
+	values = [v for _, v in rows]
+	ys = list(range(len(rows)))
+	ax.barh(ys, values, height=0.7, color=[up if v >= 0 else down for v in values], zorder=3)
+	ax.axvline(0, color=ink2, linewidth=1.0, zorder=4)
+	if threshold is not None:
+		ax.axvline(threshold, color=ink2, linewidth=0.9, linestyle=(0, (4, 3)), zorder=4)
+	top, bottom = max(max(values), 0, threshold or 0), min(min(values), 0)
+	span = (top - bottom) or 1.0
+	lo0 = bottom - (span * 0.16 if bottom < 0 else 0)
+	hi0 = top + span * 0.16
+	ax.set_xlim(lo0, hi0)
+	ax.set_ylim(len(rows) - 0.4, -0.6) # first row on top
+	ax.set_yticks([])
+	ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
+	ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: axis_fmt(v)))
+	ax.grid(axis='x', color=grid, linewidth=0.6)
+	ax.set_axisbelow(True)
+	for side in ax.spines.values():
+		side.set_visible(False)
+	size = 8 if len(rows) <= 28 else 6.5
+	ax.tick_params(axis='x', colors=ink2, labelsize=8, length=0, pad=4)
+	base_labels = []
+	for y, (label, v) in zip(ys, rows):
+		base_labels.append(ax.annotate(label, xy=(0, y), xytext=(-4 if v >= 0 else 4, 0), textcoords='offset points',
+			ha='right' if v >= 0 else 'left', va='center', fontsize=size, color=ink, annotation_clip=False, zorder=5))
+		ax.annotate(value_fmt(v), xy=(v, y), xytext=(4 if v >= 0 else -4, 0), textcoords='offset points',
+			ha='left' if v >= 0 else 'right', va='center', fontsize=size, color=ink, annotation_clip=False)
+	# make room beside the zero line for the base labels: bars rising from 0 have theirs on the left, falling bars on the right
+	renderer = canvas.get_renderer()
+	canvas.draw()
+	label_left = max([t.get_window_extent(renderer).width for t, (_, v) in zip(base_labels, rows) if v >= 0], default=0) + 12
+	label_right = max([t.get_window_extent(renderer).width for t, (_, v) in zip(base_labels, rows) if v < 0], default=0) + 12
+	width = ax.get_window_extent(renderer).width
+	lo, hi = lo0, hi0
+	for _ in range(4): # the pixels-per-unit scale depends on the limits, so settle it iteratively
+		if any(v >= 0 for v in values):
+			lo = min(lo0, -label_left * (hi - lo) / width)
+		if any(v < 0 for v in values):
+			hi = max(hi0, label_right * (hi - lo) / width)
+	ax.set_xlim(lo, hi)
+	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	if subtitle:
+		fig.text(0.03, 0.885, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+	buf = io.BytesIO()
+	fig.savefig(buf, format='png', facecolor=bg)
+	buf.seek(0)
+	return buf
+
+def rows_chart(rows, title, subtitle='', **kw):
+	"""Bars for a list of (label, value): vertical columns up to 16 rows, horizontal bars beyond that. Over 40 rows keeps the first and last 20."""
+	if len(rows) > 40:
+		rows = rows[:20] + rows[-20:]
+	if len(rows) > 16:
+		kw.pop('ylim', None)
+		return hbar_chart(rows, title, subtitle, **kw)
+	return column_chart(rows, title, subtitle, **kw)
 
 def signed_percent(value, decimals=None):
 	"""12 -> '+12%', -3.5 -> '-3.5%', 0 -> '0%'; thousands separated. decimals=None keeps the value's own digits."""

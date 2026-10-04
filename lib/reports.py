@@ -313,10 +313,11 @@ def prepare_marketcap_payload(service, action='top', length=15):
 		payload.insert(0, f"{webhook.bold(f'{action.title()} {length} tracked stocks by market cap', service)}")
 	return payload
 
-def prepare_rating_payload(service, action, length=15):
+def prepare_rating_payload(service, action, length=15, with_chart=False):
 		def score_col(e):
 			return (float(e.split()[-3]), int(e.split()[-2].removeprefix('(')))
 		payload = []
+		chart_rows = [] # (ticker, rating, analysts), kept in step with payload
 		tickers = util.get_holdings_and_watchlist()
 		market_data = {}
 		for ticker in tickers:
@@ -335,16 +336,26 @@ def prepare_rating_payload(service, action, length=15):
 					flag = util.flag_from_ticker(ticker)
 					if action == 'buy' and 'buy' in recommend:
 							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
+							chart_rows.append((ticker.split('.')[0], recommend_index, recommend_analysts))
 					elif action == 'sell' and (recommend == 'sell' or recommend == 'underperform'):
 							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
+							chart_rows.append((ticker.split('.')[0], recommend_index, recommend_analysts))
 		payload.sort(key=score_col)
+		chart_rows.sort(key=lambda row: (row[1], row[2])) # same order as score_col
 		payload = payload[:length]
+		chart = None
 		if payload:
 			message = f"Top {length} analyst {action} ratings for tracked stocks"
 			payload.insert(0, f"{webhook.bold(message, service)}")
-		return payload
+			shown = [(t, r) for t, r, _ in chart_rows[:length]]
+			low, high = min(r for _, r in shown), max(r for _, r in shown)
+			spread = (high - low) or 0.2
+			# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
+			chart = {'rows': shown, 'title': message, 'subtitle': 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
+				'value_fmt': lambda v: f"{v:g}", 'axis_fmt': lambda v: f"{v:g}", 'ylim': (max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25))}
+		return (payload, chart) if with_chart else payload
 
-def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
+def prepare_value_payload(service, action='pe', ticker_select=None, length=15, with_chart=False):
 	def last_col(e):
 		try:
 			return float(e.split()[-1])
@@ -352,10 +363,8 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			return float('-inf')
 
 	payload = []
-	if ticker_select:
-		tickers = [ticker_select]
-	else:
-		tickers = util.get_holdings_and_watchlist()
+	chart_rows = [] # (ticker, ratio)
+	tickers = [ticker_select] if ticker_select else util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
 	for ticker in market_data:
 		trailing_ratio = None
@@ -408,18 +417,24 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			payload.append(f"{flag} {profile_title} ({ticker_link}) PE: {', '.join(parts)}")
 		else:
 			payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
+			chart_rows.append((ticker.split('.')[0], float(ratio)))
 	payload.sort(key=last_col)
+	chart_rows.sort(key=lambda row: row[1])
+	chart = None
 	if not ticker_select:
 		heading_type = "Bottom" if 'bottom' in action else "Top"
 		heading_trail = action.replace('bottom ', '')
 		if 'bottom' in action:
 			payload.reverse()
+			chart_rows.reverse()
 		payload = payload[:length]
 		if not payload:
 			payload = [f"{action}: no data found"]
 		else:
-			payload.insert(0, f"{webhook.bold(f'{heading_type} {length} tracked stocks by {heading_trail} ratio', service)}")
-	return payload
+			heading = f'{heading_type} {length} tracked stocks by {heading_trail} ratio'
+			payload.insert(0, f"{webhook.bold(heading, service)}")
+			chart = {'rows': chart_rows[:length], 'title': heading, 'value_fmt': lambda v: f"{v:g}", 'axis_fmt': lambda v: f"{v:g}"}
+	return (payload, chart) if with_chart else payload
 
 def prepare_profile_payload(service, user, ticker):
 	cashflow = None

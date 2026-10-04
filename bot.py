@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from lib.config import *
 from lib import worker
+from lib import charts
 from lib import webhook
 if config_telegramBotToken:
 	from lib import telegram
@@ -63,29 +64,18 @@ def handle(environ, start_response):
 			cq_message = cq.get("message")
 			if not cq_message or not cq.get("data"):
 				return [b'Unsupported']
-			if cq_message["chat"]["type"] == "private" and str(cq["from"]["id"]) not in config_telegramAllowedUserIDs:
-				print(cq["from"]["id"], "is not whitelisted. Ignoring button press.", file=sys.stderr)
-				return [b'<h1>Unauthorized</h1>']
 			threading.Thread(target=worker.process_callback, args=('telegram', cq["id"], str(cq_message["chat"]["id"]), str(cq_message["message_id"]), cq["data"])).start()
 			return [b'']
 		if "message" not in inbound:
 			return [b'Unsupported']
 		message_id = str(inbound["message"]["message_id"])
 		chat_id = str(inbound["message"]["chat"]["id"])
-		user_id = str(inbound["message"]["from"]["id"])
-		chat_type = inbound["message"]["chat"]["type"]
 		if "username" in inbound["message"]["from"]:
 			user = userRealname = '@' + inbound["message"]["from"]["username"]
 			if len(inbound["message"]["from"]["first_name"]):
 				userRealName = inbound["message"]["from"]["first_name"]
 		else:
 			user = userRealName = '@' + inbound["message"]["from"]["first_name"]
-		if chat_type == "private": # Anyone can find and PM the bot so we need to be careful
-			if user_id in config_telegramAllowedUserIDs:
-				print(user_id, user, userRealName, "is whitelisted for private message")
-			else:
-				print(user_id, user, userRealName, "is not whitelisted. Ignoring.", file=sys.stderr)
-				return [b'<h1>Unauthorized</h1>']
 		file_id = None
 		if "text" in inbound["message"]:
 			message = inbound["message"]["text"]
@@ -161,6 +151,8 @@ if __name__ == '__main__':
 	httpd = pywsgi.WSGIServer((config_ip, config_port), main)
 	httpd.secure_repr = False if debug else None
 	print(f'Opening socket on http://{config_ip}:{config_port}', file=sys.stderr)
+	if config_telegramBotToken:
+		threading.Thread(target=charts.refresh_keyboards, daemon=True).start() # update stale DM keyboards in the background
 	try:
 		httpd.serve_forever()
 	except OSError as e:
