@@ -27,14 +27,16 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 		if isinstance(percent, str):
 			errorstring=percent
 			print(errorstring, file=sys.stderr)
-			return errorstring
+			return errorstring, None
 		else:
 			percent = percent[past_days]
 			emoji = get_emoji(percent)
 			link = util.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
-			return f"{emoji} {link} {percent}%"
+			return f"{emoji} {link} {percent}%", percent
 	def prepare_performance_payload(service, performance, portfolios):
 		payload = []
+		chart_rows = []
+		graph = False
 		for portfolio_id in performance:
 			portfolio_url = "https://portfolio.sharesight.com/portfolios/" + str(portfolio_id)
 			portfolio_name = performance[portfolio_id]['report']['holdings'][0]['portfolio']['name']
@@ -44,13 +46,21 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 			total_percent = float(performance[portfolio_id]['report']['total_gain_percent'])
 			emoji = get_emoji(percent)
 			payload.append(f"{emoji} {portfolio_link} {percent}%")
+			chart_rows.append((portfolio_name, percent))
 		if len(payload):
-			payload.append(stock_performance('SPY', 'NYSEARCA', 'S&P 500'))
-			payload.append(stock_performance('QQQ', 'NasdaqGM', 'NASDAQ 100'))
-			message = f"Performance over {util.days_english(past_days)}"
-			message = webhook.bold(message, service)
+			for ticker, market, text in (('SPY', 'NYSEARCA', 'S&P 500'), ('QQQ', 'NasdaqGM', 'NASDAQ 100')):
+				line, benchmark_percent = stock_performance(ticker, market, text)
+				payload.append(line)
+				if benchmark_percent is not None:
+					chart_rows.append((text, float(benchmark_percent)))
+			period = util.days_english(past_days)
+			message = webhook.bold(f"Performance over {period}", service)
 			payload.insert(0, message)
-		return payload
+			if chart_rows and (interactive or service == 'telegram'): # Slack/Discord cron posts have no way to upload an image
+				subtitle = f"% change {'' if period == 'today' else 'over '}{period}"
+				graph = util.column_chart(chart_rows, "Performance", subtitle, lambda v: util.signed_percent(v, 2))
+				payload = [message] # the chart replaces the list
+		return payload, graph
 
 	# MAIN #
 	portfolios = sharesight.get_portfolios()
@@ -73,20 +83,26 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 		print("Error: no services enabled in .env", file=sys.stderr)
 		sys.exit(1)
 	if interactive:
-		payload = prepare_performance_payload(service, performance, portfolios)
+		payload, graph = prepare_performance_payload(service, performance, portfolios)
 		if service == "slack":
 			url = 'https://slack.com/api/chat.postMessage'
 		elif service == "telegram":
 			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-		webhook.payload_wrapper(service, url, payload, chat_id, message_id)
+		if graph:
+			webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service)
+		else:
+			webhook.payload_wrapper(service, url, payload, chat_id, message_id)
 	else:
 		for service, url in webhooks.items():
-			payload = prepare_performance_payload(service, performance, portfolios)
+			payload, graph = prepare_performance_payload(service, performance, portfolios)
 			if service == "telegram":
 				chat_id = config_telegramChatID
 				url = url + "sendMessage?chat_id=" + str(chat_id)
 			else:
 				chat_id = None
+			if graph:
+				webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service)
+				continue
 			webhook.payload_wrapper(service, url, payload, chat_id)
 
 	# make google cloud happy
