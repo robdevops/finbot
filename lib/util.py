@@ -633,6 +633,7 @@ def graph(df, title, ylabel):
 
 	buf = io.BytesIO()
 	fig.savefig(buf, format='png', facecolor=bg) # no bbox_inches='tight': keep exact 1280x800
+	buf.seek(0)
 	return buf
 
 def compare_graph(series, title, subtitle=''):
@@ -693,6 +694,7 @@ def compare_graph(series, title, subtitle=''):
 		fig.text(0.03, 0.910, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
 	buf = io.BytesIO()
 	fig.savefig(buf, format='png', facecolor=bg)
+	buf.seek(0) # rewind, or the upload sends an empty file
 	return buf
 
 def bar_graph(rows, title, subtitle=''):
@@ -744,6 +746,7 @@ def bar_graph(rows, title, subtitle=''):
 		fig.text(0.03, 0.885, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
 	buf = io.BytesIO()
 	fig.savefig(buf, format='png', facecolor=bg)
+	buf.seek(0) # rewind, or the upload sends an empty file
 	return buf
 
 def signed_percent(value, decimals=None):

@@ -182,6 +182,8 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_mark
 			data['thread_ts'] = message_id
 			data['reply_broadcast'] = 'true'
 		files = {'file': ('image.png', image_data)}
+	if hasattr(image_data, 'seek'):
+		image_data.seek(0)
 	try:
 		r = requests.post(url, data=data, headers=headers, files=files, timeout=config_http_timeout)
 	except Exception as e:
@@ -197,7 +199,7 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_mark
 				print(output['error'], file=sys.stderr)
 		return output
 	else:
-		print(r.status_code, f"error {service} sendPhoto", r.reason, caption, file=sys.stderr)
+		print(r.status_code, f"error {service} sendPhoto", r.reason, r.text[:300], caption, file=sys.stderr)
 		return None
 
 def editMessageMedia(chat_id, message_id, image_data, caption, reply_markup=None):
