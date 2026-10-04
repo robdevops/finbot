@@ -442,7 +442,6 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_marketcap:
 		arg = m_marketcap.group('arg') or 'top'
-		chart = None
 		if arg not in ('top', 'bottom'):
 			ticker = util.transform_to_yahoo(arg.upper())
 			data = yahoo.fetch_detail(ticker, 600)
@@ -459,12 +458,12 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			typing = TypingIndicator(service, chat_id)
 			typing.start()
 			try:
-				payload, chart = reports.prepare_marketcap_payload(service, arg, length=15, with_chart=True)
+				payload = reports.prepare_marketcap_payload(service, arg, length=15)
 			except Exception as e:
 				print(e, file=sys.stderr)
 				raise
 			typing.stop()
-		deliver(service, url, chat_id, payload, chart)
+		webhook.payload_wrapper(service, url, payload, chat_id)
 	elif m_peg:
 		action = 'peg'
 		specific_stock = None

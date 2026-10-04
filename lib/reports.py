@@ -281,14 +281,13 @@ def prepare_holdings_payload(portfolioName, service, user):
 			payload.append( item )
 	return payload
 
-def prepare_marketcap_payload(service, action='top', length=15, with_chart=False):
+def prepare_marketcap_payload(service, action='top', length=15):
 	def last_col(e):
 		try:
 			return float(e.split()[-1])
 		except ValueError:
 			return float('-inf')	# or float('inf'), depending on where you want missing values to sort
 	payload_staging = []
-	chart_rows = []
 	tickers = util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
 	for ticker in market_data:
@@ -302,8 +301,6 @@ def prepare_marketcap_payload(service, action='top', length=15, with_chart=False
 		link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 		flag = util.flag_from_ticker(ticker)
 		payload_staging.append(f"{flag} {title} ({link}) mkt cap: {market_cap_readable} {market_cap}")
-		chart_rows.append((ticker.split('.')[0], float(market_cap)))
-	chart = None
 	if payload_staging:
 		payload_staging.sort(key=last_col)
 		if action == 'top':
@@ -313,11 +310,8 @@ def prepare_marketcap_payload(service, action='top', length=15, with_chart=False
 		for line in payload_staging: # drop no longer needed sort key
 			words = line.split()
 			payload.append(' '.join(words[:-1]))
-		heading = f'{action.title()} {length} tracked stocks by market cap'
-		payload.insert(0, f"{webhook.bold(heading, service)}")
-		chart_rows.sort(key=lambda row: row[1], reverse=(action == 'top'))
-		chart = {'rows': chart_rows[:length], 'title': heading, 'value_fmt': lambda v: util.humanUnits(v, 1), 'axis_fmt': lambda v: util.humanUnits(v, 0)}
-	return (payload, chart) if with_chart else payload
+		payload.insert(0, f"{webhook.bold(f'{action.title()} {length} tracked stocks by market cap', service)}")
+	return payload
 
 def prepare_rating_payload(service, action, length=15, with_chart=False):
 		def score_col(e):
