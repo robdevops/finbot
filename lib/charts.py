@@ -8,7 +8,7 @@ from lib import webhook
 from lib import yahoo
 from lib import reports
 
-PERIODS = {'w': ('1W', 7), 'm': ('1M', 30), 'q': ('3M', 90), 'y': ('1Y', 365), 'x': ('Max', None)}
+PERIODS = {'w': ('7D', 7), 'm': ('1M', 30), 'q': ('3M', 90), 'y': ('1Y', 365), 'x': ('Max', None)}
 BUTTONS = {'h': 'wmqyx', 'p': 'wmqy', 'c': 'wmqyx'} # chart kind -> buttons offered (h=history, p=price, c=compare)
 HIGHLIGHT = {'w': '7D', 'm': '1M', 'q': '3M', 'y': '1Y', 'x': 'Max'} # history table row for each button
 MAX_CALLBACK_BYTES = 64 # Telegram limit on callback_data
