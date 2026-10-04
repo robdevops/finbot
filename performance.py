@@ -58,6 +58,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 			payload.insert(0, message)
 			if chart_rows and (interactive or service == 'telegram'): # Slack/Discord cron posts have no way to upload an image
 				subtitle = f"% change {'' if period == 'today' else 'over '}{period}"
+				chart_rows.sort(key=lambda row: row[1], reverse=True) # best first
 				graph = util.column_chart(chart_rows, "Performance", subtitle, lambda v: util.signed_percent(v, 2))
 				payload = [message] # the chart replaces the list
 		return payload, graph
