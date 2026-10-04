@@ -697,25 +697,28 @@ def compare_graph(series, title, subtitle=''):
 	buf.seek(0) # rewind, or the upload sends an empty file
 	return buf
 
-def bar_graph(rows, title, subtitle=''):
-	"""Diverging bars of % change: blue above the zero line, red below. rows: [(label, percent)] sorted high to low.
-	Returns PNG bytes (1280x800, Telegram's photo size)."""
+def bar_graph(top_rows, bottom_rows, title, subtitle=''):
+	"""Two stacked rows of bars sharing one x axis at 0%: the best performers rise in blue, the worst hang in red.
+	top_rows: [(label, percent)] best first. bottom_rows: [(label, percent)] worst first. Returns PNG bytes (1280x800)."""
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
 	from matplotlib.ticker import MaxNLocator, FuncFormatter
 	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
 	up, down = '#3987e5', '#fb7185' # blue / red, as requested
+	top_rows = [r for r in top_rows if r[1] >= 0]
+	bottom_rows = [r for r in bottom_rows if r[1] < 0]
+	slots = max(len(top_rows), len(bottom_rows), 1)
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
 	canvas = FigureCanvasAgg(fig)
-	ax = fig.add_axes([0.075, 0.075, 0.905, 0.775], facecolor=bg)
-	values = [v for _, v in rows]
-	xs = range(len(rows))
-	ax.bar(xs, values, width=0.68, color=[up if v >= 0 else down for v in values], zorder=3)
+	ax = fig.add_axes([0.075, 0.03, 0.905, 0.82], facecolor=bg)
+	ax.bar(range(len(top_rows)), [v for _, v in top_rows], width=0.66, color=up, zorder=3)
+	ax.bar(range(len(bottom_rows)), [v for _, v in bottom_rows], width=0.66, color=down, zorder=3)
 	ax.axhline(0, color=ink2, linewidth=1.0, zorder=4) # x axis sits at 0%
-	top, bottom = max(max(values), 0), min(min(values), 0)
+	top = max([v for _, v in top_rows], default=0)
+	bottom = min([v for _, v in bottom_rows], default=0)
 	span = (top - bottom) or 1.0
 	ax.set_ylim(bottom - (span * 0.20 if bottom < 0 else 0), top + (span * 0.20 if top > 0 else 0))
-	ax.set_xlim(-0.7, len(rows) - 0.3)
+	ax.set_xlim(-0.6, slots - 0.4)
 	ax.set_xticks([])
 	ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
 	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: signed_percent(round(v))))
@@ -724,22 +727,12 @@ def bar_graph(rows, title, subtitle=''):
 	for side in ax.spines.values():
 		side.set_visible(False)
 	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
-	def draw_labels(rotation):
-		texts = []
-		for x, (label, v) in zip(xs, rows):
-			above = v >= 0
-			text = f"{label}  {signed_percent(round(v))}" if rotation else f"{label}\n{signed_percent(round(v))}"
-			texts.append(ax.annotate(text, xy=(x, v), xytext=(0, 4 if above else -4), textcoords='offset points',
-				ha='center', va='bottom' if above else 'top', rotation=rotation, fontsize=7.5, color=ink, linespacing=1.25, annotation_clip=False))
-		return texts
-	texts = draw_labels(0)
-	canvas.draw()
-	boxes = [t.get_window_extent(canvas.get_renderer()) for t in texts]
-	if any(a.x1 > b.x0 for a, b in zip(boxes, boxes[1:])): # neighbours collide: stand the labels upright
-		for t in texts:
-			t.remove()
-		ax.set_ylim(bottom - (span * 0.26 if bottom < 0 else 0), top + (span * 0.36 if top > 0 else 0)) # upright labels are taller
-		draw_labels(90)
+	for x, (label, v) in enumerate(top_rows):
+		ax.annotate(f"{label}\n{signed_percent(round(v))}", xy=(x, v), xytext=(0, 4), textcoords='offset points',
+			ha='center', va='bottom', fontsize=8.5, color=ink, linespacing=1.25, annotation_clip=False)
+	for x, (label, v) in enumerate(bottom_rows):
+		ax.annotate(f"{label}\n{signed_percent(round(v))}", xy=(x, v), xytext=(0, -4), textcoords='offset points',
+			ha='center', va='top', fontsize=8.5, color=ink, linespacing=1.25, annotation_clip=False)
 	fit_left_margin(fig, ax)
 	fig.text(0.03, 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
 	if subtitle:

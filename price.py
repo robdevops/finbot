@@ -168,9 +168,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				if top and chart_top and (interactive or service == 'telegram'): # Slack/Discord cron posts have no way to upload an image
 					def short(ticker):
 						return ticker.split('.')[0].removesuffix('-USD')
-					rows = [(short(t), p) for t, p in chart_top + chart_bottom]
+					top_rows = [(short(t), p) for t, p in chart_top]
+					bottom_rows = [(short(t), p) for t, p in reversed(chart_bottom)] # worst first
 					subtitle = f"% change {util.days_english(days, 'in ', 'the past ')}"
-					graph = util.bar_graph(rows, f"Top & bottom {top}", subtitle)
+					graph = util.bar_graph(top_rows, bottom_rows, f"Top & bottom {top}", subtitle)
 					payload = [heading] # the chart replaces the lists
 				elif top:
 					payload.extend([''] + payload_bottom)
