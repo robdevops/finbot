@@ -1,6 +1,8 @@
 """Period buttons (Week | Month | Quarter | Max) for Telegram chart messages, and the rebuild behind them."""
 import hashlib
+import json
 import sys
+import threading
 
 from lib.config import *
 from lib import util
@@ -47,6 +49,46 @@ def command_keyboard(per_row=3):
 	"""Persistent reply keyboard of the common commands (Telegram DMs); a press sends the command text as a message."""
 	rows = [[{'text': c} for c in COMMAND_BUTTONS[i:i + per_row]] for i in range(0, len(COMMAND_BUTTONS), per_row)]
 	return {'keyboard': rows, 'resize_keyboard': True, 'is_persistent': True}
+
+KEYBOARD_FILE = 'finbot_keyboards.json' # chat id -> version of the command keyboard that chat last received
+_keyboard_lock = threading.Lock()
+
+def keyboard_version():
+	return hashlib.sha1(json.dumps(command_keyboard(), sort_keys=True).encode()).hexdigest()[:8]
+
+def mark_keyboard(chat_id):
+	"""Record that this chat now has the current command keyboard."""
+	with _keyboard_lock:
+		state = util.json_load(KEYBOARD_FILE, persist=True) or {}
+		state[str(chat_id)] = keyboard_version()
+		util.json_write(KEYBOARD_FILE, state, persist=True)
+
+def push_keyboard(chat_id):
+	"""Telegram can only change a reply keyboard by sending a message, so send a short one carrying it."""
+	result = webhook.write('telegram', webhook.chat_url('telegram', chat_id), '⌨️ Keyboard updated', chat_id, reply_markup=command_keyboard())
+	if result is not None:
+		mark_keyboard(chat_id)
+	return result
+
+def ensure_keyboard(chat_id):
+	"""DMs only (positive chat ids): bring a chat's keyboard up to date if its buttons have changed or it never had them."""
+	if int(chat_id) <= 0:
+		return
+	with _keyboard_lock:
+		current = (util.json_load(KEYBOARD_FILE, persist=True) or {}).get(str(chat_id)) == keyboard_version()
+	if not current:
+		push_keyboard(chat_id)
+
+def refresh_keyboards():
+	"""At startup: update every chat we know of whose keyboard is out of date."""
+	with _keyboard_lock:
+		state = util.json_load(KEYBOARD_FILE, persist=True) or {}
+	for chat_id, version in state.items():
+		if version != keyboard_version():
+			try:
+				push_keyboard(chat_id)
+			except Exception as e:
+				print("keyboard refresh failed for", chat_id, e, file=sys.stderr)
 
 def keyboard(kind, tickers, active=None):
 	"""Telegram inline keyboard; the active period is marked."""

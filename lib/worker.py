@@ -63,18 +63,19 @@ def deliver(service, url, chat_id, payload, chart=None):
 
 def process_callback(service, callback_id, chat_id, message_id, data):
 	"""Button press on a chart message: rebuild it for the chosen period and edit it in place."""
+	parts = data.split('|', 3)
+	valid = len(parts) == 4 and parts[0] == 'c' and parts[1] in charts.BUTTONS and parts[2] in charts.PERIODS
+	# answering now shows Telegram's toast bubble ("Loading 3M…") while the new chart is built
+	telegram.answerCallbackQuery(callback_id, f"Loading {charts.PERIODS[parts[2]][0]}…" if valid else None)
+	if not valid:
+		return
 	try:
-		parts = data.split('|', 3)
-		if len(parts) != 4 or parts[0] != 'c' or parts[1] not in charts.BUTTONS or parts[2] not in charts.PERIODS:
-			return
 		_, kind, period, ref = parts
 		tickers = charts.resolve(ref)
 		caption, image = charts.build(kind, tickers, period, service)
 		webhook.editMessageMedia(chat_id, message_id, image, caption, charts.keyboard(kind, tickers, period))
 	except Exception as e:
 		webhook.report_error(e, service, chat_id, context='chart')
-	finally:
-		telegram.answerCallbackQuery(callback_id) # answered last so the button shows a spinner while we work
 
 def process_request(service, chat_id, user, message, botName, userRealName, message_id):
 	"""Entry point for inbound chat requests: any failure becomes a one-line reply in the originating chat."""
@@ -82,6 +83,11 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		_process_request(service, chat_id, user, message, botName, userRealName, message_id)
 	except Exception as e:
 		webhook.report_error(e, service, chat_id, context=message.split()[0][:30] if message.split() else None)
+	if service == 'telegram':
+		try:
+			charts.ensure_keyboard(chat_id) # keep DM keyboards current after the reply
+		except Exception as e:
+			print("keyboard update failed:", e, file=sys.stderr)
 
 def _process_request(service, chat_id, user, message, botName, userRealName, message_id):
 	if service == 'slack':
@@ -194,6 +200,8 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		if service == 'telegram' and int(chat_id) > 0: # positive chat ids are DMs; groups are negative
 			markup = charts.command_keyboard()
 		webhook.payload_wrapper(service, url, payload, chat_id, reply_markup=markup)
+		if markup:
+			charts.mark_keyboard(chat_id) # this chat now has the current keyboard
 	elif m_hello:
 		# easter egg 1
 		def alliterate():
