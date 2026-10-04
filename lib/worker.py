@@ -89,7 +89,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 	hello_command = prefix + r"(?:hi$|hello)|^(?:hi|hello)\s+" + botName
 	m_hello = re.match(hello_command, message, re.IGNORECASE)
 
-	help_command = prefix + r"(?:help|usage)"
+	help_command = prefix + r"(?:help|usage|start)" # /start is what Telegram sends when a chat opens
 	m_help = re.match(help_command, message, re.IGNORECASE)
 
 	session_command = prefix + r"session\s*([\w\.\:\-]+)*"
