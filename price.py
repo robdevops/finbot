@@ -11,6 +11,12 @@ from lib import yahoo
 from lib import telegram
 from lib import charts
 
+class Row(list):
+	"""A report line that remembers its ticker, so the numbers can be charted."""
+	def __init__(self, ticker, parts):
+		super().__init__(parts)
+		self.ticker = ticker
+
 def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False, top=None):
 	def prepare_price_payload(service, market_data, threshold):
 		payload = []
@@ -90,13 +96,13 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				ticker_link = util.yahoo_link(ticker, service)
 			if not interactive and not payload and config_demote_leveraged and '2x' in title.lower():
 				if abs(percent) >= threshold * 1.3:
-					payload.append([emoji, title, f'({ticker_link})', percent])
+					payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
 					exchange_set.add(exchange_human)
 				elif abs(percent) >= threshold:
 					skipped_volatile.append(ticker)
 			elif not interactive and not payload and config_demote_leveraged and '3x' in title.lower():
 				if abs(percent) >= threshold * 1.3:
-					payload.append([emoji, title, f'({ticker_link})', percent])
+					payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
 					exchange_set.add(exchange_human)
 				elif abs(percent) >= threshold:
 					skipped_volatile.append(ticker)
@@ -105,10 +111,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				if market_data[ticker]['market_cap'] < 150000000: # 150M
 					if market_data[ticker]['market_cap'] < 10000000: # 10M
 						if abs(percent) >= threshold * (multiplier * 1.3):
-							payload.append([emoji, title, f'({ticker_link})', percent])
+							payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
 							exchange_set.add(exchange_human)
 					elif abs(percent) >= threshold * multiplier:
-						payload.append([emoji, title, f'({ticker_link})', percent])
+						payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
 						exchange_set.add(exchange_human)
 					elif abs(percent) >= threshold:
 						skipped_volatile.append(ticker)
@@ -116,20 +122,21 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					market_data = market_data | yahoo.fetch_detail(ticker)
 					if not 'beta' in market_data[ticker] or market_data[ticker]['beta'] > 1.5:
 						if abs(percent) >= threshold * multiplier:
-							payload.append([emoji, title, f'({ticker_link})', percent])
+							payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
 							exchange_set.add(exchange_human)
 						elif abs(percent) >= threshold:
 							skipped_volatile.append(ticker)
 					elif abs(percent) >= threshold:
-						payload.append([emoji, title, f'({ticker_link})', percent])
+						payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
 						exchange_set.add(exchange_human)
 			elif abs(percent) >= threshold: # abs catches negative percentages
-				payload.append([emoji, title, f'({ticker_link})', percent])
+				payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
 				exchange_set.add(exchange_human)
 			elif specific_stock and interactive:
-				payload.append([emoji, title, f'({ticker_link})', percent])
+				payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
 				exchange_set.add(exchange_human)
 		payload.sort(key=lambda e: e[-1], reverse=True)
+		chart_rows = [(e.ticker, e[-1]) for e in payload if isinstance(e, Row)]
 		for i, e in enumerate(payload):
 			e[-1] = util.signed_percent(round(e[-1]))
 			payload[i] = ' '.join(e)
@@ -148,6 +155,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				elif top:
 					payload_bottom = list(reversed(payload[-top:]))
 					payload_bottom.insert(0, webhook.bold(f'Bottom {top}:', service))
+					chart_top = chart_rows[:top]
+					chart_bottom = [row for row in chart_rows[-top:] if row not in chart_top]
 					payload = payload[:top]
 					heading = f'Top {top} performers {util.days_english(days, "in ", "the past ")}:'
 				elif days:
@@ -156,7 +165,14 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					heading = f'Day change ≥ {threshold}%:'
 				heading = webhook.bold(heading, service)
 				payload.insert(0, heading)
-				if top:
+				if top and chart_top and (interactive or service == 'telegram'): # Slack/Discord cron posts have no way to upload an image
+					def short(ticker):
+						return ticker.split('.')[0].removesuffix('-USD')
+					rows = [(short(t), p) for t, p in chart_top + chart_bottom]
+					subtitle = f"% change {util.days_english(days, 'in ', 'the past ')}"
+					graph = util.bar_graph(rows, f"Top & bottom {top}", subtitle)
+					payload = [heading] # the chart replaces the lists
+				elif top:
 					payload.extend([''] + payload_bottom)
 		else:
 			if interactive:
@@ -231,6 +247,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			payload, graph = prepare_price_payload(service, market_data, threshold)
 			if service == "telegram":
 				url = url + "sendMessage?chat_id=" + str(chat_id)
+			if graph and service == 'telegram':
+				webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service)
+				continue
 			webhook.payload_wrapper(service, url, payload, chat_id)
 
 if __name__ == "__main__":
