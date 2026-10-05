@@ -759,11 +759,12 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	# each row's label sits beside the bar's base (left of the zero line for rising bars, right of it for falling ones)
 	base_labels = []
 	value_labels = []
+	drop = -0.365 * size # baseline sits half a cap height below the bar's centre, so the capitals are centred on the bar
 	for y, label, v in real:
-		base_labels.append(ax.annotate(label, xy=(base, y), xytext=(-4, 0), textcoords='offset points', ha='right', va='center',
+		base_labels.append(ax.annotate(label, xy=(base, y), xytext=(-4, drop), textcoords='offset points', ha='right', va='baseline',
 			fontsize=size, color=ink, annotation_clip=False, zorder=5))
-		value_labels.append(ax.annotate(value_fmt(v), xy=(v, y), xytext=(4 if v >= 0 else -4, 0), textcoords='offset points',
-			ha='left' if v >= 0 else 'right', va='center', fontsize=size, color=ink, annotation_clip=False))
+		value_labels.append(ax.annotate(value_fmt(v), xy=(v, y), xytext=(4 if v >= 0 else -4, drop), textcoords='offset points',
+			ha='left' if v >= 0 else 'right', va='baseline', fontsize=size, color=ink, annotation_clip=False))
 	renderer = canvas.get_renderer()
 	canvas.draw()
 	label_width = [t.get_window_extent(renderer).width for t in base_labels]
@@ -790,7 +791,7 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 		lo, hi = new_lo, new_hi
 	ax.set_xlim(lo, hi)
 	for t, (_, _, v) in zip(base_labels, real):
-		t.xyann = (-4 if v >= 0 else 4, 0)
+		t.xyann = (-4 if v >= 0 else 4, drop)
 		t.set_ha('right' if v >= 0 else 'left')
 	fig.text(0.03, 0.945 if not subtitle else 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
 	if subtitle:
