@@ -1,6 +1,7 @@
 import json
 import sys
 import datetime
+import concurrent.futures
 import requests
 from lib.config import *
 import lib.util as util
@@ -174,9 +175,12 @@ def get_performance(portfolio_id, days, config_cache_seconds=299):
 def get_performance_wrapper(days=config_past_days):
 	performance = {}
 	portfolios = get_portfolios()
-	for portfolio_name, portfolio_id in portfolios.items():
-		performance[portfolio_id] = get_performance(portfolio_id, days)
-		if not performance[portfolio_id]:
-			print("Could not get performance for portfolio:", portfolio_id, file=sys.stderr)
-			raise RuntimeError(f"Sharesight returned no performance for portfolio {portfolio_id}")
+	get_token() # make sure there is a fresh token before the requests below fan out and would each fetch their own
+	with concurrent.futures.ThreadPoolExecutor(max_workers=len(portfolios)) as executor: # one request per portfolio, in parallel
+		futures = {portfolio_id: executor.submit(get_performance, portfolio_id, days) for portfolio_id in portfolios.values()}
+		for portfolio_id, future in futures.items():
+			performance[portfolio_id] = future.result()
+			if not performance[portfolio_id]:
+				print("Could not get performance for portfolio:", portfolio_id, file=sys.stderr)
+				raise RuntimeError(f"Sharesight returned no performance for portfolio {portfolio_id}")
 	return performance

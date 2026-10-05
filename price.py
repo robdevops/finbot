@@ -237,6 +237,11 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					print("Notice:", os.path.basename(__file__), ticker, "has no data", file=sys.stderr)
 					continue
 
+	if days and not specific_stock and not config_performance_use_sharesight:
+		# tickers Sharesight has no performance for (watchlist items) fall back to Yahoo history; fetch those together up front
+		not_in_sharesight = [t for t in market_data if 'percent_change_period' not in market_data[t]]
+		yahoo.prefetch_history(not_in_sharesight)
+
 	list_buttons = not specific_stock and not (midsession or premarket or close) # period buttons suit the daily and N-day lists, not intraday ones
 	# Prep and send payloads
 	if not webhooks:
