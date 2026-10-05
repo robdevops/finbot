@@ -59,7 +59,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					if config_performance_use_sharesight:
 						continue
 					# wishlist items will come here
-					print("Could not find", ticker, "in Sharesight data. Trying Yahoo", file=sys.stderr) if debug else None
+					# not a holding (e.g. watchlist): use Yahoo history instead, summarised once in the main section below
 					if specific_stock:
 						percent, graph = yahoo.price_history(ticker, days, graphCache=False)
 						if isinstance(percent, str) and interactive:
@@ -240,6 +240,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 	if days and not specific_stock and not config_performance_use_sharesight:
 		# tickers Sharesight has no performance for (watchlist items) fall back to Yahoo history; fetch those together up front
 		not_in_sharesight = [t for t in market_data if 'percent_change_period' not in market_data[t]]
+		print(f"{len(not_in_sharesight)} of {len(market_data)} tickers are not holdings; using Yahoo price history for them (cache hits are normal)", file=sys.stderr) if debug else None
 		yahoo.prefetch_history(not_in_sharesight)
 
 	list_buttons = not specific_stock and not (midsession or premarket or close) # period buttons suit the daily and N-day lists, not intraday ones
