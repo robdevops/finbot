@@ -756,14 +756,14 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	em_px = min(bar_px * 1.3, 0.28 * (0.96 - left) * fig.get_figwidth() * dpi / (0.62 * longest)) # text height follows the bar thickness
 	size = max(5, min(30, em_px * 72 / dpi))
 	ax.tick_params(axis='x', colors=ink2, labelsize=8, length=0, pad=4)
-	# row labels go inside their bars (white on blue, black on red) when the bar is long enough, else beside the base
+	# each row's label sits beside the bar's base (left of the zero line for rising bars, right of it for falling ones)
 	base_labels = []
 	value_labels = []
 	for y, label, v in real:
 		base_labels.append(ax.annotate(label, xy=(base, y), xytext=(-4, 0), textcoords='offset points', ha='right', va='center',
-			fontsize=size, fontweight='bold', color=ink, annotation_clip=False, zorder=5)) # measured bold: that is how it is drawn inside bars
+			fontsize=size, color=ink, annotation_clip=False, zorder=5))
 		value_labels.append(ax.annotate(value_fmt(v), xy=(v, y), xytext=(4 if v >= 0 else -4, 0), textcoords='offset points',
-			ha='left' if v >= 0 else 'right', va='center', fontsize=size, fontweight='bold', color=ink, annotation_clip=False))
+			ha='left' if v >= 0 else 'right', va='center', fontsize=size, color=ink, annotation_clip=False))
 	renderer = canvas.get_renderer()
 	canvas.draw()
 	label_width = [t.get_window_extent(renderer).width for t in base_labels]
@@ -773,7 +773,7 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	inside = [True] * len(real)
 	for _ in range(12): # the pixels-per-unit scale depends on the limits, which depend on how many labels sit outside: settle it iteratively
 		per_unit = width / (hi - lo)
-		inside = [abs(v - base) * per_unit >= w + 6 * dpi / 72 + 8 for (_, _, v), w in zip(real, label_width)] # text + its 6pt inset + a little slack
+		inside = [False] * len(real) # labels all sit outside the bars, at the base
 		# room for the text that sits outside the bars: tip values, and base labels of bars too short to hold theirs
 		new_lo, new_hi = lo0, hi0
 		for (_, _, v), w, vw, ins in zip(real, label_width, value_width, inside):
@@ -789,15 +789,9 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 			break
 		lo, hi = new_lo, new_hi
 	ax.set_xlim(lo, hi)
-	for t, (_, _, v), ins in zip(base_labels, real, inside):
-		if ins: # inside the bar, at its base
-			t.xyann = (6 if v >= 0 else -6, 0)
-			t.set_ha('left' if v >= 0 else 'right')
-			t.set_color('#ffffff' if v >= 0 else '#111111')
-		else: # bar too short to hold it: beside the base
-			t.xyann = (-4 if v >= 0 else 4, 0)
-			t.set_ha('right' if v >= 0 else 'left')
-			t.set_fontweight('normal')
+	for t, (_, _, v) in zip(base_labels, real):
+		t.xyann = (-4 if v >= 0 else 4, 0)
+		t.set_ha('right' if v >= 0 else 'left')
 	fig.text(0.03, 0.945 if not subtitle else 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
 	if subtitle:
 		fig.text(0.03, 0.885, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
