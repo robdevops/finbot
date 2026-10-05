@@ -721,7 +721,7 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	canvas = FigureCanvasAgg(fig)
 	top_edge = 0.85 if subtitle else 0.89
 	left = 0.14 if xlim else 0.04 # zoomed charts keep their labels outside the plot
-	ax = fig.add_axes([left, 0.05, 0.96 - left, top_edge - 0.05], facecolor=bg)
+	ax = fig.add_axes([left, 0.02, 0.96 - left, top_edge - 0.02], facecolor=bg)
 	real = [(y, label, v) for y, (label, v) in enumerate(rows) if v is not None]
 	values = [v for _, _, v in real]
 	n = len(rows)
@@ -738,23 +738,15 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	ax.set_xlim(lo0, hi0)
 	ax.set_ylim(n - 0.4, -0.6) # first row on top
 	ax.set_yticks([])
-	ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
-	if threshold is not None: # label the reference line on the axis, dropping any tick it would crowd
-		ax.figure.canvas.draw()
-		lo, hi = ax.get_xlim()
-		ax.set_xticks([t for t in ax.get_xticks() if abs(t - threshold) > (hi - lo) * 0.05] + [threshold])
-	ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: axis_fmt(v)))
-	ax.grid(axis='x', color=grid, linewidth=0.6)
-	ax.set_axisbelow(True)
+	ax.xaxis.set_visible(False) # no x axis labels or grid lines: every bar carries its own value
 	for side in ax.spines.values():
 		side.set_visible(False)
 	dpi = fig.dpi
-	axes_px = (top_edge - 0.05) * fig.get_figheight() * dpi
+	axes_px = (top_edge - 0.02) * fig.get_figheight() * dpi
 	bar_px = 0.72 * axes_px / n
 	longest = max([len(str(label)) for _, label, _ in real] + [3])
 	em_px = min(bar_px * 1.3, 0.28 * (0.96 - left) * fig.get_figwidth() * dpi / (0.62 * longest)) # text height follows the bar thickness
 	size = max(5, min(30, em_px * 72 / dpi))
-	ax.tick_params(axis='x', colors=ink2, labelsize=8, length=0, pad=4)
 	# each row's label sits beside the bar's base (left of the zero line for rising bars, right of it for falling ones)
 	base_labels = []
 	value_labels = []
