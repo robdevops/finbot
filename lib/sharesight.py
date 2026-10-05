@@ -1,6 +1,8 @@
 import json
 import sys
+import time
 import datetime
+import concurrent.futures
 import requests
 from lib.config import *
 import lib.util as util
@@ -145,7 +147,7 @@ def get_holdings_wrapper():
 	tickers = sorted(set(tickers))
 	return tickers
 
-def get_performance(portfolio_id, days, config_cache_seconds=299):
+def get_performance(portfolio_id, days, config_cache_seconds=900): # cache for 15 minutes
 	start_date = datetime.datetime.now() - datetime.timedelta(days=days)
 	start_date = start_date.strftime('%Y-%m-%d') # 2023-04-25
 	if config_cache:
@@ -156,14 +158,20 @@ def get_performance(portfolio_id, days, config_cache_seconds=299):
 	token = get_token()
 	endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
 	url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + start_date
-	try:
-		r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
-	except Exception as e:
-		print("Error", str(e), url, file=sys.stderr)
-		raise RuntimeError(f"Sharesight performance request failed: {e}")
-	if r.status_code != 200:
-		print(r.status_code, "error", url, file=sys.stderr)
-	data = r.json()
+	for attempt in range(5): # Sharesight allows only a few requests in flight at once; back off and retry when it says so
+		try:
+			r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
+		except Exception as e:
+			print("Error", str(e), url, file=sys.stderr)
+			raise RuntimeError(f"Sharesight performance request failed: {e}")
+		if r.status_code != 200:
+			print(r.status_code, "error", url, file=sys.stderr)
+		data = r.json()
+		if 'error' in data and 'parallel' in str(data['error']).lower() and attempt < 4:
+			print("Sharesight busy:", data['error'], "- retrying", file=sys.stderr)
+			time.sleep(1 + attempt)
+			continue
+		break
 	if 'error' in data:
 		print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
 		raise RuntimeError(f"Sharesight performance error: {data['error']}")
@@ -171,12 +179,17 @@ def get_performance(portfolio_id, days, config_cache_seconds=299):
 		util.json_write(cache_file, data)
 	return data
 
+MAX_PARALLEL = 2 # Sharesight rejects more than ~3 concurrent requests per account, and other chats may be querying too
+
 def get_performance_wrapper(days=config_past_days):
 	performance = {}
 	portfolios = get_portfolios()
-	for portfolio_name, portfolio_id in portfolios.items():
-		performance[portfolio_id] = get_performance(portfolio_id, days)
-		if not performance[portfolio_id]:
-			print("Could not get performance for portfolio:", portfolio_id, file=sys.stderr)
-			raise RuntimeError(f"Sharesight returned no performance for portfolio {portfolio_id}")
+	get_token() # make sure there is a fresh token before the requests below fan out and would each fetch their own
+	with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(portfolios), MAX_PARALLEL)) as executor: # a couple of requests at a time
+		futures = {portfolio_id: executor.submit(get_performance, portfolio_id, days) for portfolio_id in portfolios.values()}
+		for portfolio_id, future in futures.items():
+			performance[portfolio_id] = future.result()
+			if not performance[portfolio_id]:
+				print("Could not get performance for portfolio:", portfolio_id, file=sys.stderr)
+				raise RuntimeError(f"Sharesight returned no performance for portfolio {portfolio_id}")
 	return performance

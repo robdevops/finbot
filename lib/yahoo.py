@@ -1,3 +1,4 @@
+import concurrent.futures
 import datetime
 from dateutil.relativedelta import relativedelta
 import hashlib
@@ -810,6 +811,16 @@ def price_series(ticker):
 	series = pd.Series(df['Close'].astype(float).values, index=pd.to_datetime(df['Date'].astype(str)), name=ticker)
 	name = util.transform_title(stock.get('longName') or stock.get('shortName') or ticker)
 	return name, stock.get('fullExchangeName') or stock.get('exchangeName') or '', series
+
+def prefetch_history(tickers, workers=8):
+	"""Warm the price-history cache for many tickers at once, so the per-ticker lookups that follow are cache hits."""
+	def warm(ticker):
+		try:
+			fetch_chart_json(ticker)
+		except Exception as e:
+			print("prefetch failed for", ticker, e, file=sys.stderr)
+	with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+		list(executor.map(warm, tickers))
 
 def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds, full=False):
 	"""full=True requests Yahoo's entire history (cached separately) instead of the last `days`."""

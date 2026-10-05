@@ -352,7 +352,7 @@ def prepare_rating_payload(service, action, length=15, with_chart=False):
 			spread = (high - low) or 0.2
 			# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
 			chart = {'rows': shown, 'title': message, 'subtitle': 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
-				'value_fmt': lambda v: f"{v:g}", 'axis_fmt': lambda v: f"{v:g}", 'ylim': (max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25))}
+				'value_fmt': lambda v: f"{v:g}", 'axis_fmt': lambda v: f"{v:g}", 'xlim': (max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25))}
 		return (payload, chart) if with_chart else payload
 
 def prepare_value_payload(service, action='pe', ticker_select=None, length=15, with_chart=False):

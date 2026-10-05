@@ -24,11 +24,14 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 		marketStates = []
 		skipped_volatile = []
 		exchange_set = set()
+		latest = None # date of the freshest price, for the heading
 		multiplier = config_volatility_multiplier
 		for ticker in market_data:
 			marketState = market_data[ticker]['marketState']
 			marketStates.append(marketState)
 			regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime'])
+			if latest is None or regularMarketTime.date() > latest:
+				latest = regularMarketTime.date()
 			now = datetime.datetime.now()
 			if midsession and marketState != "REGULAR":
 				# skip stocks not in session
@@ -56,7 +59,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					if config_performance_use_sharesight:
 						continue
 					# wishlist items will come here
-					print("Could not find", ticker, "in Sharesight data. Trying Yahoo", file=sys.stderr) if debug else None
+					# not a holding (e.g. watchlist): use Yahoo history instead, summarised once in the main section below
 					if specific_stock:
 						percent, graph = yahoo.price_history(ticker, days, graphCache=False)
 						if isinstance(percent, str) and interactive:
@@ -149,23 +152,25 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					market_data = yahoo.fetch(skipped_volatile)
 					payload, graph = payload + prepare_price_payload(service, market_data, threshold, _rows_out=chart_rows)[0], graph
 					chart_rows.sort(key=lambda row: row[1], reverse=True)
+				as_of = latest or datetime.date.today()
+				on = util.date_short(as_of, True)
 				if midsession:
-					heading = f'Tracking ≥ {threshold}% ({", ".join(exchange_set)})'
+					heading = f'≥ {threshold}% mid-session, {on} ({", ".join(exchange_set)})'
 				elif premarket:
-					heading = f'Tracking ≥ {threshold}% pre-market ({", ".join(exchange_set)})'
+					heading = f'≥ {threshold}% pre-market, {on} ({", ".join(exchange_set)})'
 				elif close:
-					heading = f'≥ {threshold}% at close ({", ".join(exchange_set)})'
+					heading = f'≥ {threshold}% at close, {on} ({", ".join(exchange_set)})'
 				elif top:
 					payload_bottom = list(reversed(payload[-top:]))
 					payload_bottom.insert(0, webhook.bold(f'Bottom {top}', service))
 					chart_top = chart_rows[:top]
 					chart_bottom = [row for row in chart_rows[-top:] if row not in chart_top]
 					payload = payload[:top]
-					heading = f'Top {top} performers {util.days_english(days, "in ", "the past ")}'
+					heading = f'Top {top} performers {util.date_range_english(days, as_of)}'
 				elif days:
-					heading = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}'
+					heading = f'Price movement {threshold}%, {util.date_range_english(days, as_of)}'
 				else:
-					heading = f'Day change ≥ {threshold}%'
+					heading = f'{threshold}% at close, {on}'
 				heading_plain = heading.rstrip(':') # chart title
 				heading = webhook.bold(heading, service)
 				payload.insert(0, heading)
@@ -231,6 +236,12 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				except KeyError:
 					print("Notice:", os.path.basename(__file__), ticker, "has no data", file=sys.stderr)
 					continue
+
+	if days and not specific_stock and not config_performance_use_sharesight:
+		# tickers Sharesight has no performance for (watchlist items) fall back to Yahoo history; fetch those together up front
+		not_in_sharesight = [t for t in market_data if 'percent_change_period' not in market_data[t]]
+		print(f"{len(not_in_sharesight)} of {len(market_data)} tickers are not holdings; using Yahoo price history for them (cache hits are normal)", file=sys.stderr) if debug else None
+		yahoo.prefetch_history(not_in_sharesight)
 
 	list_buttons = not specific_stock and not (midsession or premarket or close) # period buttons suit the daily and N-day lists, not intraday ones
 	# Prep and send payloads
