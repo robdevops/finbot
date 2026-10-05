@@ -510,7 +510,7 @@ def transform_to_yahoo(ticker, market=None):
 		market = 'T'
 	if market == 'TLV':
 		market = 'TA'
-	if market in {'NASDAQ', 'NYSE', 'BATS', 'OTCMKTS'}:
+	if market in {'NASDAQ', 'NYSE', 'BATS', 'OTCMKTS', 'AMEX', 'NYSEARCA'}: # US venues: Yahoo symbols carry no suffix
 		return ticker
 	if market in {'A', 'B', 'C'}: # class shares
 		return ticker + '-' + market
