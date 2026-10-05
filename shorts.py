@@ -39,7 +39,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
 
 		if payload:
 			if not specific_stock:
-				message = f'Tracked stocks shorted over {threshold}%:'
+				message = f'Tracked stocks shorted over {threshold}%'
 				message = webhook.bold(message, service)
 				payload.insert(0, message)
 				if chart_rows and (interactive or service == 'telegram'): # Slack/Discord cron posts have no way to upload an image

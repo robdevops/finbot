@@ -150,22 +150,22 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					payload, graph = payload + prepare_price_payload(service, market_data, threshold, _rows_out=chart_rows)[0], graph
 					chart_rows.sort(key=lambda row: row[1], reverse=True)
 				if midsession:
-					heading = f'Tracking ≥ {threshold}% ({", ".join(exchange_set)}):'
+					heading = f'Tracking ≥ {threshold}% ({", ".join(exchange_set)})'
 				elif premarket:
-					heading = f'Tracking ≥ {threshold}% pre-market ({", ".join(exchange_set)}):'
+					heading = f'Tracking ≥ {threshold}% pre-market ({", ".join(exchange_set)})'
 				elif close:
-					heading = f'≥ {threshold}% at close ({", ".join(exchange_set)}):'
+					heading = f'≥ {threshold}% at close ({", ".join(exchange_set)})'
 				elif top:
 					payload_bottom = list(reversed(payload[-top:]))
-					payload_bottom.insert(0, webhook.bold(f'Bottom {top}:', service))
+					payload_bottom.insert(0, webhook.bold(f'Bottom {top}', service))
 					chart_top = chart_rows[:top]
 					chart_bottom = [row for row in chart_rows[-top:] if row not in chart_top]
 					payload = payload[:top]
-					heading = f'Top {top} performers {util.days_english(days, "in ", "the past ")}:'
+					heading = f'Top {top} performers {util.days_english(days, "in ", "the past ")}'
 				elif days:
-					heading = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}:'
+					heading = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}'
 				else:
-					heading = f'Day change ≥ {threshold}%:'
+					heading = f'Day change ≥ {threshold}%'
 				heading_plain = heading.rstrip(':') # chart title
 				heading = webhook.bold(heading, service)
 				payload.insert(0, heading)
