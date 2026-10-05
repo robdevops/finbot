@@ -44,8 +44,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
 				payload.insert(0, message)
 				if chart_rows and (interactive or service == 'telegram'): # Slack/Discord cron posts have no way to upload an image
 					chart_rows.sort(key=lambda row: row[1], reverse=True)
-					graph = util.column_chart(chart_rows, f"Shorted over {threshold}%", f"% of shares shorted; dashed line is the {threshold}% threshold",
-						lambda v: f"{round(v)}%", threshold=threshold, axis_fmt=lambda v: f"{v:g}%")
+					graph = util.rows_chart(chart_rows, f"Shorted over {threshold}%", f"% of shares shorted; dashed line is the {threshold}% threshold",
+						value_fmt=lambda v: f"{round(v)}%", threshold=threshold, axis_fmt=lambda v: f"{v:g}%")
 		else:
 			if interactive:
 				if specific_stock:
