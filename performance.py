@@ -33,9 +33,10 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 			percent = percent[past_days]
 			emoji = get_emoji(percent)
 			link = util.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
-			return f"{emoji} {link} {percent}%", percent
+			return f"{emoji} {link} {util.signed_percent(percent, 2)}", percent
 	def prepare_performance_payload(service, performance, portfolios):
 		payload = []
+		lines = [] # (percent, text), sorted into payload below
 		chart_rows = []
 		graph = False
 		for portfolio_id in performance:
@@ -46,14 +47,18 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 			percent = float(performance[portfolio_id]['report']['capital_gain_percent'])
 			total_percent = float(performance[portfolio_id]['report']['total_gain_percent'])
 			emoji = get_emoji(percent)
-			payload.append(f"{emoji} {portfolio_link} {percent}%")
+			lines.append((percent, f"{emoji} {portfolio_link} {util.signed_percent(percent, 2)}"))
 			chart_rows.append((portfolio_name, percent))
-		if len(payload):
+		if len(lines):
 			for ticker, market, text in (('SPY', 'NYSEARCA', 'S&P 500'), ('QQQ', 'NasdaqGM', 'NASDAQ 100')):
 				line, benchmark_percent = stock_performance(ticker, market, text)
-				payload.append(line)
 				if benchmark_percent is not None:
+					lines.append((float(benchmark_percent), line))
 					chart_rows.append((text, float(benchmark_percent)))
+				else:
+					lines.append((float('-inf'), line)) # an error message sorts last
+			lines.sort(key=lambda item: item[0], reverse=True)
+			payload = [line for _, line in lines]
 			period = util.days_english(past_days)
 			message = webhook.bold(f"Performance over {period}", service)
 			payload.insert(0, message)
@@ -61,7 +66,6 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 				subtitle = f"% change {'' if period == 'today' else 'over '}{period}"
 				chart_rows.sort(key=lambda row: row[1], reverse=True) # best first
 				graph = util.column_chart(chart_rows, "Performance", subtitle, lambda v: util.signed_percent(v, 2))
-				payload = [message] # the chart replaces the list
 		return payload, graph
 
 	# MAIN #

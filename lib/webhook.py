@@ -159,8 +159,25 @@ def strike(message, service):
 
 strikethrough = strike
 
+def fit_caption(caption, limit=1024):
+	"""Telegram rejects photo captions over 1024 visible characters. Keep whole lines that fit and say how many were left out."""
+	def visible(text):
+		return len(re.sub(r'<[^>]+>', '', text))
+	if visible(caption) <= limit:
+		return caption
+	lines = caption.split('\n')
+	kept = []
+	for line in lines:
+		more = len(lines) - len(kept) - 1
+		note = f"\n…and {more} more in the chart"
+		if visible('\n'.join(kept + [line])) + len(note) > limit:
+			break
+		kept.append(line)
+	return '\n'.join(kept) + f"\n…and {len(lines) - len(kept)} more in the chart"
+
 def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_markup=None):
 	if service == 'telegram':
+		caption = fit_caption(caption)
 		url = webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
 		headers = {}
 		data = {
@@ -205,6 +222,7 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_mark
 def editMessageMedia(chat_id, message_id, image_data, caption, reply_markup=None):
 	"""Telegram: replace a photo message's image and caption in place."""
 	url = webhooks['telegram'] + 'editMessageMedia'
+	caption = fit_caption(caption)
 	media = {'type': 'photo', 'media': 'attach://photo', 'caption': caption, 'parse_mode': 'HTML'}
 	data = {'chat_id': chat_id, 'message_id': message_id, 'media': json.dumps(media)}
 	if reply_markup:

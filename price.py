@@ -166,10 +166,11 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					heading = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}:'
 				else:
 					heading = f'Day change ≥ {threshold}%:'
-				heading_plain = heading.rstrip(':') # chart captions don't end in a colon
-				caption_heading = webhook.bold(heading_plain, service)
+				heading_plain = heading.rstrip(':') # chart title
 				heading = webhook.bold(heading, service)
 				payload.insert(0, heading)
+				if top:
+					payload.extend([''] + payload_bottom)
 				can_chart = _rows_out is None and (interactive or service == 'telegram') # Slack/Discord cron posts have no way to upload an image
 				if top and chart_top and can_chart:
 					def short(ticker):
@@ -178,13 +179,9 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					bottom_rows = [(short(t), p) for t, p in reversed(chart_bottom)] # worst first
 					subtitle = f"% change {util.days_english(days, 'in ', 'the past ')}"
 					graph = util.bar_graph(top_rows, bottom_rows, f"Top & bottom {top}", subtitle)
-					payload = [caption_heading] # the chart replaces the lists
-				elif top:
-					payload.extend([''] + payload_bottom)
-				elif chart_rows and can_chart:
+				elif not top and chart_rows and can_chart:
 					rows = [(t.split('.')[0].removesuffix('-USD'), p) for t, p in chart_rows]
 					graph = util.rows_chart(rows, heading_plain)
-					payload = [caption_heading]
 		else:
 			if interactive:
 				if specific_stock:
