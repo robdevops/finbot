@@ -535,6 +535,16 @@ def make_paragraphs(walloftext):
 	output = '\n\n'.join(output)
 	return output
 
+def date_short(d, year=False):
+	"""5 Oct (or 5 Oct 2026)."""
+	return f"{d.day} {d:%b}" + (f" {d.year}" if year else "")
+
+def date_range_english(days, end):
+	"""'28 Sep - 5 Oct' for the `days` ending on `end`; adds years when the range crosses a year boundary."""
+	start = end - datetime.timedelta(days=days)
+	years = start.year != end.year
+	return f"{date_short(start, years)} - {date_short(end, years)}"
+
 def days_english(days, prefix='the past ', article=''):
 	if days is None or days == 0:
 		return 'today'

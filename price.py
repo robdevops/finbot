@@ -24,11 +24,14 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 		marketStates = []
 		skipped_volatile = []
 		exchange_set = set()
+		latest = None # date of the freshest price, for the heading
 		multiplier = config_volatility_multiplier
 		for ticker in market_data:
 			marketState = market_data[ticker]['marketState']
 			marketStates.append(marketState)
 			regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime'])
+			if latest is None or regularMarketTime.date() > latest:
+				latest = regularMarketTime.date()
 			now = datetime.datetime.now()
 			if midsession and marketState != "REGULAR":
 				# skip stocks not in session
@@ -149,23 +152,25 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					market_data = yahoo.fetch(skipped_volatile)
 					payload, graph = payload + prepare_price_payload(service, market_data, threshold, _rows_out=chart_rows)[0], graph
 					chart_rows.sort(key=lambda row: row[1], reverse=True)
+				as_of = latest or datetime.date.today()
+				on = util.date_short(as_of)
 				if midsession:
-					heading = f'Tracking ≥ {threshold}% ({", ".join(exchange_set)})'
+					heading = f'≥ {threshold}% mid-session, {on} ({", ".join(exchange_set)})'
 				elif premarket:
-					heading = f'Tracking ≥ {threshold}% pre-market ({", ".join(exchange_set)})'
+					heading = f'≥ {threshold}% pre-market, {on} ({", ".join(exchange_set)})'
 				elif close:
-					heading = f'≥ {threshold}% at close ({", ".join(exchange_set)})'
+					heading = f'≥ {threshold}% at close, {on} ({", ".join(exchange_set)})'
 				elif top:
 					payload_bottom = list(reversed(payload[-top:]))
 					payload_bottom.insert(0, webhook.bold(f'Bottom {top}', service))
 					chart_top = chart_rows[:top]
 					chart_bottom = [row for row in chart_rows[-top:] if row not in chart_top]
 					payload = payload[:top]
-					heading = f'Top {top} performers {util.days_english(days, "in ", "the past ")}'
+					heading = f'Top {top} performers {util.date_range_english(days, as_of)}'
 				elif days:
-					heading = f'Moved ≥ {threshold}% {util.days_english(days, "in ", "a ")}'
+					heading = f'{threshold}% {util.date_range_english(days, as_of)}'
 				else:
-					heading = f'Day change ≥ {threshold}%'
+					heading = f'{threshold}% at close, {on}'
 				heading_plain = heading.rstrip(':') # chart title
 				heading = webhook.bold(heading, service)
 				payload.insert(0, heading)
