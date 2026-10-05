@@ -153,7 +153,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					payload, graph = payload + prepare_price_payload(service, market_data, threshold, _rows_out=chart_rows)[0], graph
 					chart_rows.sort(key=lambda row: row[1], reverse=True)
 				as_of = latest or datetime.date.today()
-				on = util.date_short(as_of)
+				on = util.date_short(as_of, True)
 				if midsession:
 					heading = f'≥ {threshold}% mid-session, {on} ({", ".join(exchange_set)})'
 				elif premarket:
