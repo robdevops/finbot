@@ -724,8 +724,8 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 		ax.axvline(threshold, color=ink2, linewidth=0.9, linestyle=(0, (4, 3)), zorder=4)
 	top, bottom = max(max(values), 0, threshold or 0), min(min(values), 0)
 	span = (top - bottom) or 1.0
-	lo0 = xlim[0] if xlim else bottom - (span * 0.16 if bottom < 0 else 0)
-	hi0 = xlim[1] if xlim else top + span * 0.16
+	lo0 = xlim[0] if xlim else bottom
+	hi0 = xlim[1] if xlim else top
 	ax.set_xlim(lo0, hi0)
 	ax.set_ylim(n - 0.4, -0.6) # first row on top
 	ax.set_yticks([])
@@ -739,27 +739,55 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	ax.set_axisbelow(True)
 	for side in ax.spines.values():
 		side.set_visible(False)
-	size = 12 if n <= 8 else 10 if n <= 16 else 8 if n <= 28 else 6.5 # text scales with the room each row gets
+	dpi = fig.dpi
+	axes_px = (top_edge - 0.05) * fig.get_figheight() * dpi
+	bar_px = 0.72 * axes_px / n
+	longest = max([len(str(label)) for _, label, _ in real] + [3])
+	em_px = min(bar_px * 1.3, 0.28 * (0.96 - left) * fig.get_figwidth() * dpi / (0.62 * longest)) # text height follows the bar thickness
+	size = max(5, min(30, em_px * 72 / dpi))
 	ax.tick_params(axis='x', colors=ink2, labelsize=8, length=0, pad=4)
+	# row labels go inside their bars (white on blue, black on red) when the bar is long enough, else beside the base
 	base_labels = []
+	value_labels = []
 	for y, label, v in real:
-		base_labels.append((ax.annotate(label, xy=(base, y), xytext=(-4 if v >= 0 else 4, 0), textcoords='offset points',
-			ha='right' if v >= 0 else 'left', va='center', fontsize=size, color=ink, annotation_clip=False, zorder=5), v))
-		ax.annotate(value_fmt(v), xy=(v, y), xytext=(4 if v >= 0 else -4, 0), textcoords='offset points',
-			ha='left' if v >= 0 else 'right', va='center', fontsize=size, color=ink, annotation_clip=False)
-	if not xlim: # make room beside the zero line for the base labels: rising bars have theirs on the left, falling bars on the right
-		renderer = canvas.get_renderer()
-		canvas.draw()
-		label_left = max([t.get_window_extent(renderer).width for t, v in base_labels if v >= 0], default=0) + 12
-		label_right = max([t.get_window_extent(renderer).width for t, v in base_labels if v < 0], default=0) + 12
-		width = ax.get_window_extent(renderer).width
-		lo, hi = lo0, hi0
-		for _ in range(4): # the pixels-per-unit scale depends on the limits, so settle it iteratively
-			if any(v >= 0 for v in values):
-				lo = min(lo0, -label_left * (hi - lo) / width)
-			if any(v < 0 for v in values):
-				hi = max(hi0, label_right * (hi - lo) / width)
-		ax.set_xlim(lo, hi)
+		base_labels.append(ax.annotate(label, xy=(base, y), xytext=(-4, 0), textcoords='offset points', ha='right', va='center',
+			fontsize=size, fontweight='bold', color=ink, annotation_clip=False, zorder=5)) # measured bold: that is how it is drawn inside bars
+		value_labels.append(ax.annotate(value_fmt(v), xy=(v, y), xytext=(4 if v >= 0 else -4, 0), textcoords='offset points',
+			ha='left' if v >= 0 else 'right', va='center', fontsize=size, fontweight='bold', color=ink, annotation_clip=False))
+	renderer = canvas.get_renderer()
+	canvas.draw()
+	label_width = [t.get_window_extent(renderer).width for t in base_labels]
+	value_width = [t.get_window_extent(renderer).width for t in value_labels]
+	width = ax.get_window_extent(renderer).width
+	lo, hi = lo0, hi0
+	inside = [True] * len(real)
+	for _ in range(12): # the pixels-per-unit scale depends on the limits, which depend on how many labels sit outside: settle it iteratively
+		per_unit = width / (hi - lo)
+		inside = [abs(v - base) * per_unit >= w + 6 * dpi / 72 + 8 for (_, _, v), w in zip(real, label_width)] # text + its 6pt inset + a little slack
+		# room for the text that sits outside the bars: tip values, and base labels of bars too short to hold theirs
+		new_lo, new_hi = lo0, hi0
+		for (_, _, v), w, vw, ins in zip(real, label_width, value_width, inside):
+			if v >= 0:
+				new_hi = max(new_hi, v + (vw + 12) / per_unit)
+				if not ins and not xlim:
+					new_lo = min(new_lo, base - (w + 12) / per_unit)
+			else:
+				new_lo = min(new_lo, v - (vw + 12) / per_unit)
+				if not ins and not xlim:
+					new_hi = max(new_hi, base + (w + 12) / per_unit)
+		if abs(new_lo - lo) < 1e-6 * (hi - lo) and abs(new_hi - hi) < 1e-6 * (hi - lo):
+			break
+		lo, hi = new_lo, new_hi
+	ax.set_xlim(lo, hi)
+	for t, (_, _, v), ins in zip(base_labels, real, inside):
+		if ins: # inside the bar, at its base
+			t.xyann = (6 if v >= 0 else -6, 0)
+			t.set_ha('left' if v >= 0 else 'right')
+			t.set_color('#ffffff' if v >= 0 else '#111111')
+		else: # bar too short to hold it: beside the base
+			t.xyann = (-4 if v >= 0 else 4, 0)
+			t.set_ha('right' if v >= 0 else 'left')
+			t.set_fontweight('normal')
 	fig.text(0.03, 0.945 if not subtitle else 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
 	if subtitle:
 		fig.text(0.03, 0.885, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
