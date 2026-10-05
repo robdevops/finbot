@@ -32,22 +32,20 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
 
 		def last_element(e):
 			return e[-1]
-		payload.sort(key=last_element)
+		payload.sort(key=last_element, reverse=True) # largest first, matching the chart
 		for i, e in enumerate(payload):
 			e[-1] = str(round(e[-1])) + '%'
 			payload[i] = ' '.join(e)
 
 		if payload:
 			if not specific_stock:
-				message = f'Tracked stocks shorted over {threshold}%:'
-				caption_message = webhook.bold(message.rstrip(':'), service) # chart captions don't end in a colon
+				message = f'Tracked stocks shorted over {threshold}%'
 				message = webhook.bold(message, service)
 				payload.insert(0, message)
 				if chart_rows and (interactive or service == 'telegram'): # Slack/Discord cron posts have no way to upload an image
 					chart_rows.sort(key=lambda row: row[1], reverse=True)
 					graph = util.column_chart(chart_rows, f"Shorted over {threshold}%", f"% of shares shorted; dashed line is the {threshold}% threshold",
 						lambda v: f"{round(v)}%", threshold=threshold, axis_fmt=lambda v: f"{v:g}%")
-					payload = [caption_message] # the chart replaces the list
 		else:
 			if interactive:
 				if specific_stock:

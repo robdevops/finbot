@@ -51,13 +51,13 @@ class TypingIndicator:
 
 
 def deliver(service, url, chat_id, payload, chart=None):
-	"""Send a report: as a bar chart (heading as caption) where the service can take an image, else as text."""
+	"""Send a report: as a bar chart (the text list as caption) where the service can take an image, else as text."""
 	if chart and chart.get('rows') and service in ('telegram', 'slack'):
 		spec = dict(chart)
 		rows, title = spec.pop('rows'), spec.pop('title')
 		subtitle = spec.pop('subtitle', '')
 		image = util.rows_chart(rows, title, subtitle, **spec)
-		webhook.sendPhoto(chat_id, image, payload[0].rstrip(':') if payload else title, service)
+		webhook.sendPhoto(chat_id, image, '\n'.join(payload) if payload else title, service)
 	else:
 		webhook.payload_wrapper(service, url, payload, chat_id)
 
