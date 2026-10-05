@@ -83,10 +83,8 @@ def refresh_keyboards():
 	"""At startup: update every chat we know of whose keyboard is out of date."""
 	with _keyboard_lock:
 		state = util.json_load(KEYBOARD_FILE, persist=True) or {}
-	for chat_id in config_telegramPrivateChatIDs: # chats named in .env, even if they have never been recorded
-		state.setdefault(str(chat_id), None)
 	for chat_id, version in state.items():
-		if version != keyboard_version() and int(chat_id) > 0:
+		if version != keyboard_version():
 			try:
 				push_keyboard(chat_id)
 			except Exception as e:

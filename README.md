@@ -466,13 +466,11 @@ The webhook is only used for the trade notifications and scheduled reports. The 
 * In the .env file, set `telegramChatID` to the chat group or channel id.
    * For channels and supergroups, `telegramChatID` should be negative and 13 characters. Prepend `-100` if necessary.
    * Be aware a group id can change if you edit group settings and it becomes a "supergroup". Currently, the bot does not automatically handle this.
-* Optionally, set `telegramPrivateChatIDs` to space-separated user ids of private chats (DMs). At startup the bot sends each a message carrying the command keyboard, so existing chats get it without typing `/start`.
 * Example .env entry:
 ```
 telegramBotToken = '0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA'
 telegramChatID = -1001000000000
 ```
-  Optional: `telegramPrivateChatIDs = '5467329077 1865241926'`
 
 ### Portfolios
 Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `exclude_portfolios` in the .env file:
