@@ -168,7 +168,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 					payload = payload[:top]
 					heading = f'Top {top} performers {util.date_range_english(days, as_of)}'
 				elif days:
-					heading = f'{threshold}% {util.date_range_english(days, as_of)}'
+					heading = f'Price movement {threshold}%, {util.date_range_english(days, as_of)}'
 				else:
 					heading = f'{threshold}% at close, {on}'
 				heading_plain = heading.rstrip(':') # chart title
