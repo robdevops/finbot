@@ -43,7 +43,7 @@ def resolve(ref):
 		return tickers
 	return ref.split(',')
 
-COMMAND_BUTTONS = ['.watchlist', '.dividend', '.earnings', '.marketcap', '.beta', '.performance', '.price', '.session', '.premarket', '.buy', '.sell', '.pe', '.peg', '.shorts', '.trades']
+COMMAND_BUTTONS = sorted(['.watchlist', '.dividend', '.earnings', '.marketcap', '.beta', '.performance', '.price', '.session', '.premarket', '.buy', '.sell', '.pe', '.peg', '.shorts', '.trades'])
 
 def command_keyboard(per_row=3):
 	"""Persistent reply keyboard of the common commands (Telegram DMs); a press sends the command text as a message."""
@@ -83,8 +83,10 @@ def refresh_keyboards():
 	"""At startup: update every chat we know of whose keyboard is out of date."""
 	with _keyboard_lock:
 		state = util.json_load(KEYBOARD_FILE, persist=True) or {}
+	for chat_id in config_telegramPrivateChatIDs: # chats named in .env, even if they have never been recorded
+		state.setdefault(str(chat_id), None)
 	for chat_id, version in state.items():
-		if version != keyboard_version():
+		if version != keyboard_version() and int(chat_id) > 0:
 			try:
 				push_keyboard(chat_id)
 			except Exception as e:

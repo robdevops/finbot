@@ -53,6 +53,7 @@ config_slackOutgoingWebhook = os.getenv('slackOutgoingWebhook', False)
 config_telegramBotToken = os.getenv('telegramBotToken', False)
 config_telegramOutgoingWebhook = os.getenv('telegramOutgoingWebhook', False)
 config_telegramChatID = os.getenv('telegramChatID', False)
+config_telegramPrivateChatIDs = os.getenv('telegramPrivateChatIDs', '').split() # DMs that get the command keyboard at startup, e.g. "5467329077 1865241926"
 config_telegramOutgoingToken = os.getenv('telegramOutgoingToken', False)
 config_timezone = os.getenv('timezone', 'Australia/Melbourne')
 config_trades_use_yahoo = os.getenv("trades_use_yahoo", 'True').lower() in ('true', '1', 't') # set False if Yahoo breaks
