@@ -2,7 +2,7 @@
 
 import gevent.monkey
 gevent.monkey.patch_all()
-import json, os, re, sys
+import json, os, re, subprocess, sys
 from gevent import pywsgi
 import threading
 from urllib.parse import urlparse
@@ -145,7 +145,16 @@ def handle(environ, start_response):
 	# Return an empty response to the client
 	return [b'']
 
+def git_version():
+	"""Short hash of the checked-out commit, or 'unknown' when git or the repository is unavailable."""
+	try:
+		return subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=os.path.dirname(os.path.abspath(__file__)),
+			capture_output=True, text=True, timeout=5, check=True).stdout.strip() or 'unknown'
+	except Exception:
+		return 'unknown'
+
 if __name__ == '__main__':
+	print(f'Starting finbot {git_version()}', file=sys.stderr)
 	if os.getuid() == 0:
 		print("Running as superuser. This is not recommended.", file=sys.stderr)
 	httpd = pywsgi.WSGIServer((config_ip, config_port), main)
