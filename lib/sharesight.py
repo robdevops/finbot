@@ -2,10 +2,21 @@ import json
 import sys
 import time
 import datetime
-import concurrent.futures
+import threading
 import requests
 from lib.config import *
 import lib.util as util
+
+MAX_CONCURRENT = 1 # Sharesight rejects parallel requests beyond a few per account: allow one at a time across all chats and threads
+_request_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
+
+def _get(url, **kwargs):
+	with _request_slots:
+		return requests.get(url, **kwargs)
+
+def _post(url, **kwargs):
+	with _request_slots:
+		return requests.post(url, **kwargs)
 
 class BearerAuth(requests.auth.AuthBase):
 	def __init__(self, token):
@@ -30,7 +41,7 @@ def get_token():
 	print("Fetching Sharesight auth token")
 	url = "https://api.sharesight.com/oauth2/token"
 	try:
-		r = requests.post(url, data=config_sharesight_auth, timeout=config_http_timeout)
+		r = _post(url, data=config_sharesight_auth, timeout=config_http_timeout)
 	except Exception as e:
 		print("Error", str(e), url, file=sys.stderr)
 		raise RuntimeError(f"Sharesight auth request failed: {e}")
@@ -58,7 +69,7 @@ def get_portfolios():
 		print("Fetching Sharesight portfolios")
 		url = "https://api.sharesight.com/api/v3/portfolios"
 		try:
-			r = requests.get(url, headers={'Content-type': 'application/json'}, auth=BearerAuth(token), timeout=config_http_timeout)
+			r = _get(url, headers={'Content-type': 'application/json'}, auth=BearerAuth(token), timeout=config_http_timeout)
 		except Exception as e:
 			print("Error", str(e), url, file=sys.stderr)
 			raise RuntimeError(f"Sharesight portfolios request failed: {e}")
@@ -97,7 +108,7 @@ def get_trades(portfolio_name, portfolio_id, days=config_past_days):
 	url = 'https://api.sharesight.com/api/v2/portfolios/'
 	url = url + str(portfolio_id) + '/trades.json' + '?start_date=' + start_date
 	try:
-		r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
+		r = _get(url, auth=BearerAuth(token), timeout=config_http_timeout)
 	except Exception as e:
 		print("Error", str(e), url, file=sys.stderr)
 		raise RuntimeError(f"Sharesight trades request failed: {e}")
@@ -160,7 +171,7 @@ def get_performance(portfolio_id, days, config_cache_seconds=900): # cache for 1
 	url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + start_date
 	for attempt in range(5): # Sharesight allows only a few requests in flight at once; back off and retry when it says so
 		try:
-			r = requests.get(url, auth=BearerAuth(token), timeout=config_http_timeout)
+			r = _get(url, auth=BearerAuth(token), timeout=config_http_timeout)
 		except Exception as e:
 			print("Error", str(e), url, file=sys.stderr)
 			raise RuntimeError(f"Sharesight performance request failed: {e}")
@@ -179,17 +190,12 @@ def get_performance(portfolio_id, days, config_cache_seconds=900): # cache for 1
 		util.json_write(cache_file, data)
 	return data
 
-MAX_PARALLEL = 2 # Sharesight rejects more than ~3 concurrent requests per account, and other chats may be querying too
-
 def get_performance_wrapper(days=config_past_days):
 	performance = {}
 	portfolios = get_portfolios()
-	get_token() # make sure there is a fresh token before the requests below fan out and would each fetch their own
-	with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(portfolios), MAX_PARALLEL)) as executor: # a couple of requests at a time
-		futures = {portfolio_id: executor.submit(get_performance, portfolio_id, days) for portfolio_id in portfolios.values()}
-		for portfolio_id, future in futures.items():
-			performance[portfolio_id] = future.result()
-			if not performance[portfolio_id]:
-				print("Could not get performance for portfolio:", portfolio_id, file=sys.stderr)
-				raise RuntimeError(f"Sharesight returned no performance for portfolio {portfolio_id}")
+	for portfolio_name, portfolio_id in portfolios.items():
+		performance[portfolio_id] = get_performance(portfolio_id, days)
+		if not performance[portfolio_id]:
+			print("Could not get performance for portfolio:", portfolio_id, file=sys.stderr)
+			raise RuntimeError(f"Sharesight returned no performance for portfolio {portfolio_id}")
 	return performance
