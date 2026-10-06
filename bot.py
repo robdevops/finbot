@@ -90,6 +90,8 @@ def handle(environ, start_response):
 			photo = inbound["message"]["photo"][-1]
 			file_id = photo["file_id"]
 			print("[Telegram photo]:", user, file_id, message)
+		elif IGNORED_TELEGRAM_CONTENT & inbound["message"].keys():
+			return [b''] # stickers, GIFs, voice notes and the like: nothing to answer, nothing worth logging
 		else:
 			print(f"[{service}]: unhandled: 'message' without 'text/photo'", file=sys.stderr)
 			return [b'<h1>Unhandled</h1>']
@@ -144,6 +146,8 @@ def handle(environ, start_response):
 
 	# Return an empty response to the client
 	return [b'']
+
+IGNORED_TELEGRAM_CONTENT = {'sticker', 'animation', 'voice', 'video', 'video_note', 'audio', 'document', 'contact', 'location', 'venue', 'poll', 'dice'}
 
 def git_version():
 	"""Short hash of the checked-out commit, or 'unknown' when git or the repository is unavailable."""
