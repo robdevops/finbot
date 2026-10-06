@@ -43,7 +43,7 @@ def resolve(ref):
 		return tickers
 	return ref.split(',')
 
-COMMAND_BUTTONS = ['.watchlist', '.dividend', '.earnings', '.marketcap', '.beta', '.performance', '.price', '.session', '.premarket', '.buy', '.sell', '.pe', '.peg', '.shorts', '.trades']
+COMMAND_BUTTONS = sorted(['.watchlist', '.dividend', '.earnings', '.marketcap', '.beta', '.performance', '.price', '.session', '.premarket', '.buy', '.sell', '.pe', '.peg', '.shorts', '.trades'])
 
 def command_keyboard(per_row=3):
 	"""Persistent reply keyboard of the common commands (Telegram DMs); a press sends the command text as a message."""
