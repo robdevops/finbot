@@ -1,5 +1,8 @@
 .*
 !.gitignore
+!.python-version
+!.claude
+.claude/settings.local.json
 __pycache__/
 *.bak
 todo.txt

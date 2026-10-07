@@ -6,7 +6,7 @@ import io
 import json
 import requests
 import pandas as pd
-import pytz
+import zoneinfo
 from pandas.tseries.offsets import BDay as businessday
 import sys
 import shutil
@@ -690,7 +690,7 @@ def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_
 	data = fetch_chart_json(ticker)
 	df = chart_json_to_df(data)
 	stock = chart_json_to_stock_basics(data)
-	tz = pytz.timezone(stock.get('exchangeTimezoneName'))
+	tz = zoneinfo.ZoneInfo(stock.get('exchangeTimezoneName'))
 	regularMarketTime = datetime.datetime.fromtimestamp(stock.get('regularMarketTime')).astimezone(tz).date()
 
 	# temporarily disabled while testing new method

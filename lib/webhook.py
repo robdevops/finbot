@@ -2,6 +2,7 @@ import json
 import time
 import requests
 import re
+from itertools import batched
 import sys
 import traceback
 
@@ -111,7 +112,7 @@ def payload_wrapper(service, url, payload, chat_id=None, message_id=None, reply_
 		print("Preparing outbound to", service, str(len(payload_string)), "bytes")
 		print("Payload: " + payload_string) if debug else None
 		def chunkLooper():
-			chunks = util.chunker(payload, config_chunk_maxlines)
+			chunks = list(batched(payload, config_chunk_maxlines))
 			results = []
 			for idx, chunk in enumerate(chunks):
 				idx > 0 and time.sleep(0.5)

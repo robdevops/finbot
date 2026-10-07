@@ -28,10 +28,10 @@
 * Most features require a Sharesight paid plan, preferably with automatic trade imports, and an API key
 * Discord/Slack webhooks / Telegram bot user
 * Interactive commands require a public web server with domain name and matching certificate to proxy chat commands to the bot.
-* Python ≥ 3.10
-* Python modules:
+* Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum)
+* Python modules, pinned to versions with 3.13 support in `requirements.txt`:
 ```
-datetime python-dotenv requests gevent pandas matplotlib numpy
+python-dotenv python-dateutil requests gevent pandas matplotlib numpy
 ```
 
 ### Supported commands
@@ -426,6 +426,10 @@ cd ~/finbot
 ```
 ```
 pip3 install -r requirements.txt
+```
+Or, with [uv](https://docs.astral.sh/uv/), which also fetches the exact Python from `.python-version`:
+```
+uv venv && uv pip install -r requirements.txt
 ```
 
 ## Setup
