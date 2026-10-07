@@ -1,6 +1,6 @@
 """Shared fixture: points finbot at a temp cache dir and replaces every external service
 (Telegram, Yahoo, Sharesight, Short Man) with canned data. Nothing here touches the network."""
-import os, sys, tempfile, time, unittest
+import io, os, sys, tempfile, time, unittest
 import pandas as pd
 from unittest import mock
 
@@ -11,7 +11,11 @@ os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegr
 
 from lib import webhook, util, yahoo, sharesight, shortman, worker, charts, telegram, reports
 import performance, shorts, price, reminder, cal, trades, milestone, rating
+import bot # imported once up front: it monkey-patches with gevent, which must not happen mid-test
 
+REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),
+    (sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'), (sharesight, 'get_performance_wrapper'))}
+REAL_GET_HOLDINGS = util.get_holdings_and_watchlist
 REAL_PAYLOAD_WRAPPER = webhook.payload_wrapper # FinbotCase replaces it; tests of the real thing use this
 TICKERS = [f'T{i}' for i in range(25)]
 BOT = '@bot'
@@ -51,6 +55,8 @@ class FinbotCase(unittest.TestCase):
         for m in (performance, shorts, price, cal, trades, milestone, rating, worker, reminder):
             self.patch(m, 'webhooks', webhook.webhooks)
         self.sent = []
+        self.errors = []
+        self.patch(webhook, 'report_error', lambda e, *a, **k: self.errors.append(webhook.error_line(e, k.get('context'))))
         self.patch(webhook, 'sendPhoto', lambda chat, img, cap, svc, **k: self.sent.append(('photo', len(img.read()), cap.split('\n')[0])))
         self.patch(webhook, 'payload_wrapper', lambda svc, url, payload, *a, **k: self.sent.append(('text', payload)) or [])
         self.patch(util, 'get_holdings_and_watchlist', lambda: TICKERS)
@@ -75,5 +81,7 @@ class FinbotCase(unittest.TestCase):
     def command(self, text, chat='55'):
         """Run a chat message through the real command parser and handlers."""
         self.sent.clear()
+        self.errors.clear()
         worker.process_request('telegram', chat, '@u', text, BOT, 'U', '1')
+        self.assertEqual(self.errors, [], f'{text} crashed') # the worker reports crashes instead of raising
         return list(self.sent)

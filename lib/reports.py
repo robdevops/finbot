@@ -301,6 +301,7 @@ def prepare_marketcap_payload(service, action='top', length=15):
 		link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 		flag = util.flag_from_ticker(ticker)
 		payload_staging.append(f"{flag} {title} ({link}) mkt cap: {market_cap_readable} {market_cap}")
+	payload = ['No market cap data found']
 	if payload_staging:
 		payload_staging.sort(key=last_col)
 		if action == 'top':

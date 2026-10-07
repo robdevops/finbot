@@ -104,7 +104,7 @@ def fetch(tickers):
 	# DO NOT CACHE MORE THAN 5 mins
 	if not len(tickers):
 		print("no tickers provided to yahoo.fetch()", file=sys.stderr)
-		return None
+		return {}
 	tickers = sorted(set(tickers)) # de-dupe
 	tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
 	if config_cache:
@@ -136,7 +136,7 @@ def fetch(tickers):
 	data = data['quoteResponse']
 	if data['result'] is None or data['error'] is not None:
 		print(f"{tickers}†", sep=' ', end='', flush=True, file=sys.stderr)
-		return None
+		return {} # callers iterate the result
 	for item in data['result']:
 		ticker = item['symbol']
 		try:
@@ -292,7 +292,7 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 			# upgradeDowngradeHistory
 	try:
 		profile_title = data['quoteSummary']['result'][0]['price']['longName']
-	except (KeyError, IndexError, ValueError):
+	except (KeyError, IndexError, ValueError, TypeError): # TypeError: Yahoo answers result=null for unknown symbols
 		print(ticker + 'x', sep=' ', end='', flush=True, file=sys.stderr)
 		return {}
 	if profile_title is None:

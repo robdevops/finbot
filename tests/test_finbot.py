@@ -33,7 +33,6 @@ class Plumbing(FinbotCase):
             reminder.lambda_handler()
 
     def test_bot_handler(self):
-        import bot
         def post(message):
             body = json.dumps({'update_id': 1, 'message': dict({'message_id': 5, 'chat': {'id': 55, 'type': 'private'},
                 'from': {'id': 9, 'first_name': 'Rob'}, 'date': 1}, **message)}).encode()
