@@ -49,7 +49,7 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 		ticker_link = util.finance_link(ticker, ticker, service)
 	duplicate = False
 	transformed = False
-	watchlist = util.json_load('finbot_watchlist.json', persist=True)
+	watchlist = util.json_load('finbot_watchlist.json', persist=True) or [] # absent until the first add
 	if action == 'add':
 		if ticker in watchlist:
 			duplicate = True

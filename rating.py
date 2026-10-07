@@ -49,9 +49,9 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 		else:
 			if interactive:
 				if specific_stock:
-					payload = [f"{emoji}No rating changes found for {tickers[0]}"]
+					payload = [f"No rating changes found for {tickers[0]}"]
 				else:
-					payload = [f"{emoji}No rating changes found"]
+					payload = ["No rating changes found"]
 		return payload, new
 
 	# MAIN #

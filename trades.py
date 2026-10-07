@@ -113,7 +113,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 	portfolios = sharesight.get_portfolios()
 
 	# Get trades from Sharesight
-	known_trades = set(util.json_load(state_file, persist=True)) or set()
+	known_trades = set(util.json_load(state_file, persist=True) or ())
 
 	if portfolio_select:
 		portfoliosLower = {k.lower():v for k,v in portfolios.items()}
