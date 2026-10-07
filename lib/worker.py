@@ -270,7 +270,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			typing.stop()
 	elif m_performance:
 		portfolio_select = None
-		days = config_past_days
+		days = config_past_days or 7 # performance needs a period; past_days = 0 means "today" elsewhere
 		for arg in m_performance.groups()[:2]:  # groups 2 and 3, allow arbitrary order
 			if arg:
 				try:
@@ -330,7 +330,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 					price_percent = float(arg.split('%')[0])
 				except ValueError:
 					if arg == m_price.group(1):
-						if arg == 'top':
+						if arg in ('top', 'bottom'): # one chart shows both ends
 							price_percent=0
 							top=10
 						else:

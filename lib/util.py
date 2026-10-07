@@ -749,6 +749,14 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	canvas.draw()
 	label_width = [t.get_window_extent(renderer).width for t in base_labels]
 	value_width = [t.get_window_extent(renderer).width for t in value_labels]
+	if xlim: # zoomed charts put the labels in the left margin: shrink the text until the widest label fits inside the image
+		room = left * fig.get_figwidth() * dpi - 30 # also leaves the 4pt gap before the bar base
+		if max(label_width) > room:
+			for t in base_labels + value_labels:
+				t.set_fontsize(t.get_fontsize() * room / max(label_width))
+			canvas.draw()
+			label_width = [t.get_window_extent(renderer).width for t in base_labels]
+			value_width = [t.get_window_extent(renderer).width for t in value_labels]
 	width = ax.get_window_extent(renderer).width
 	lo, hi = lo0, hi0
 	inside = [True] * len(real)
@@ -828,7 +836,7 @@ def days_from_human_days(arg):
 
 def get_holdings_and_watchlist():
 	tickers = set(sharesight.get_holdings_wrapper())
-	tickers.update(json_load('finbot_watchlist.json', persist=True))
+	tickers.update(json_load('finbot_watchlist.json', persist=True) or []) # absent until the first add
 	if 'GOOG' in tickers and 'GOOGL' in tickers:
 		tickers.remove("GOOGL")
 	tickers = sorted(set(tickers))
