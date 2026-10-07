@@ -2,6 +2,7 @@
 !.gitignore
 !.python-version
 !.claude
+!.github
 .claude/settings.local.json
 __pycache__/
 *.bak
