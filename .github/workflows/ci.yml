@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '23 19 * * 0' # weekly (Sunday, UTC): catches upstream package changes between commits
+  workflow_dispatch: # manual run from the Actions tab
 
 jobs:
   test:
