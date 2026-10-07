@@ -2,17 +2,14 @@ import os
 import io
 import datetime
 import json
+from pathlib import Path
 import re
 import sys
 import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from lib import sharesight
 from lib.config import *
 
-
-def chunker(seq, size):
-	return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
 def transform_title(title):
 	title = title.replace(' FPO', '')
@@ -300,9 +297,7 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
 			if debug:
 				ttl = maxSeconds - cacheFileAge
 				print("cache hit:", cacheFile, "TTL:", td_to_human(ttl), file=sys.stderr)
-			with open(cacheFile, "r", encoding="utf-8") as f:
-				cacheDict = json.load(f)
-			return cacheDict
+			return json.loads(Path(cacheFile).read_text(encoding="utf-8"))
 		print("cache expired:", cacheFile, file=sys.stderr) if debug else None
 		return None
 	print("cache miss:", cacheFile, file=sys.stderr) if debug else None
@@ -327,12 +322,8 @@ def json_load(filename, persist=False):
 		filename = config_var_dir + "/" + filename
 	else:
 		filename = config_cache_dir + "/" + filename
-	if os.path.isfile(filename):
-		with open(filename, "r", encoding="utf-8") as f:
-			data = json.load(f)
-	else:
-		data = None
-	return data
+	path = Path(filename)
+	return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
 	cacheFile = config_cache_dir + "/" + cacheFile
@@ -344,9 +335,7 @@ def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
 			if debug:
 				ttl = maxSeconds - cacheFileAge
 				print("cache hit", cacheFile, "TTL:", td_to_human(ttl), file=sys.stderr)
-			with open(cacheFile, "rb") as f:
-				data = io.BytesIO(f.read())
-			return data
+			return io.BytesIO(Path(cacheFile).read_bytes())
 		print("cache expired:", cacheFile, file=sys.stderr) if debug else None
 		return None
 	print("cache miss:", cacheFile, file=sys.stderr)

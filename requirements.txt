@@ -1,7 +1,8 @@
-DateTime==4.9
-gevent==22.10.2
-python-dotenv==0.21.0
-requests==2.28.1
-matplotlib==3.6.3
-pandas==1.5.3
-numpy==1.24.2
+# Targets Python 3.13.5 (see .python-version). Lower bounds are the first releases with 3.13 support.
+gevent>=24.11.1
+matplotlib>=3.9.2
+numpy>=2.1.0,<3
+pandas>=2.2.3,<3 # 3.x not yet tried
+python-dateutil>=2.9.0
+python-dotenv>=1.0.1
+requests>=2.32.3

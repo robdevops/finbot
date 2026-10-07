@@ -3,7 +3,7 @@
 import sys
 import json
 import datetime
-import pytz
+import zoneinfo
 from pathlib import Path
 from dateutil.relativedelta import relativedelta
 from lib.config import *
@@ -21,7 +21,7 @@ def load_reminders():
 def lambda_handler():
 	def prepare_finance_calendar_payload(service):
 		payload = []
-		tz = pytz.timezone(config_timezone)
+		tz = zoneinfo.ZoneInfo(config_timezone)
 		localtime = datetime.datetime.now(tz)
 
 		month_and_day = str(localtime.strftime('%m-%d')) # 09-20
