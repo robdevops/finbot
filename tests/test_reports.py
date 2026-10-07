@@ -13,8 +13,8 @@ class Commands(FinbotCase):
                 self.assertTrue(self.command(cmd), f'{cmd} sent nothing')
 
     def test_chart_commands(self):
-        for cmd in ('.price', '.price 7d', '.price top', '.session', '.premarket', '.postmarket',
-                    '.performance 7d', '.performance 1y', '.shorts', '.peg', '.buy', '.sell', '.beta', '.top10 week'):
+        for cmd in ('.price', '.price 7d', '.price top', '.price bottom', '.session', '.premarket', '.postmarket',
+                    '.performance', '.performance 7d', '.performance 1y', '.shorts', '.peg', '.buy', '.sell', '.beta', '.top10 week'):
             with self.subTest(cmd=cmd):
                 out = self.command(cmd)
                 self.assertTrue(out, f'{cmd} sent nothing')
