@@ -263,6 +263,14 @@ class SharesightKeepWarm(ProviderCase):
         self.assertEqual(len(sharesight.get_performance(684141, 0)['report']['holdings']), 18)
         self.assertEqual(calls, [])
 
+    def test_holdings_wrapper_is_served_entirely_from_the_warmed_cache(self):
+        calls = self.serve_sharesight()
+        sharesight.warm_once()
+        calls.clear()
+        tickers = sharesight.get_holdings_wrapper() # get_portfolios() + get_holdings() per portfolio, no cache of its own
+        self.assertIn('ARM', tickers)
+        self.assertEqual(calls, [])
+
     def test_failed_refresh_keeps_the_old_cache(self):
         self.serve_sharesight()
         sharesight.warm_once()
