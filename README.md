@@ -494,6 +494,8 @@ cache = True
 cache_seconds = 82800
 ```
 
+While `bot.py` is running (with `cache = True` and Sharesight configured), a background job keeps the Sharesight portfolio list (`cache_seconds`) and each portfolio's holdings report (1 day, 15 minute cache) refreshed at 90% of their cache lifetime, so chat requests do not wait on Sharesight. If a refresh fails, the previous cache keeps being served and the job retries after 5 minutes.
+
 ### Hyperlinks
 These .env file options relate to hyperlinks:
 

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import time
 import numpy as np
 import matplotlib.dates as mdates
 from lib import sharesight
@@ -302,6 +303,13 @@ def read_cache(cacheFile, maxSeconds=config_cache_seconds):
 		return None
 	print("cache miss:", cacheFile, file=sys.stderr) if debug else None
 	return None
+
+def cache_age(cacheFile):
+	"""Seconds since the cache file was written, or None when it does not exist."""
+	try:
+		return time.time() - os.path.getmtime(config_cache_dir + "/" + cacheFile)
+	except OSError:
+		return None
 
 def json_write(filename, data, persist=False):
 	if persist:
