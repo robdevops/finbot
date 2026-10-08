@@ -10,18 +10,19 @@ from lib import webhook
 from lib import yahoo
 from lib import reports
 
-PERIODS = {'w': ('7D', 7), 'm': ('1M', 30), 'q': ('3M', 90), 'y': ('1Y', 365), 'x': ('Max', None)}
-BUTTONS = {'h': 'wmqyx', 'p': 'wmqyx', 'c': 'wmqyx', 'f': 'wmqyx', 'l': 'wmqyx'} # chart kind -> buttons offered (h=history, p=price chart, c=compare, f=performance, l=price list)
+PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'q': ('3M', 90), 'y': ('1Y', 365), 'x': ('Max', None)}
+BUTTONS = {'h': 'wmqyx', 'p': 'wmqyx', 'c': 'wmqyx', 'f': 'wmqyx', 'l': 'dwmqyx'} # chart kind -> buttons offered (h=history, p=price chart, c=compare, f=performance, l=price list)
 MAX_DAYS = 3650 # what Max means for the Sharesight-based reports
 HIGHLIGHT = {'w': '7D', 'm': '1M', 'q': '3M', 'y': '1Y', 'x': 'Max'} # history table row for each button
 MAX_CALLBACK_BYTES = 64 # Telegram limit on callback_data
 REF_FILE = 'finbot_chart_buttons.json'
 
-def period_for_days(days):
-	"""Button key for a day count, if it is one of the button periods."""
+def period_for_days(days, default=None):
+	"""Button key for a day count, if it is one of the button periods; `default` when it is not (or days is None)."""
 	for key, (_, d) in PERIODS.items():
 		if d and d == days:
 			return key
+	return default
 
 def _ref(tickers):
 	"""Tickers as callback data: inline if it fits, else a short id persisted to disk."""
@@ -165,7 +166,10 @@ def build(kind, tickers, period, service='telegram'):
 	if kind == 'l': # price list: tickers = [threshold, top]
 		import price
 		threshold, top = float(tickers[0]), int(tickers[1])
-		payload, image = price.lambda_handler(threshold=threshold, service=service, interactive=True, days=days or MAX_DAYS, top=top or None, return_result=True)
+		if period == 'd': # today's moves: the command's default view, not a 1-day lookback
+			payload, image = price.lambda_handler(threshold=threshold, service=service, interactive=True, interday=True, top=top or None, return_result=True)
+		else:
+			payload, image = price.lambda_handler(threshold=threshold, service=service, interactive=True, days=days or MAX_DAYS, top=top or None, return_result=True)
 		if not image:
 			raise RuntimeError(payload[0] if payload else 'no price data')
 		return '\n'.join(payload), image

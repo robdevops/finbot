@@ -55,9 +55,10 @@ class FinbotCase(unittest.TestCase):
         for m in (performance, shorts, price, cal, trades, milestone, rating, worker, reminder):
             self.patch(m, 'webhooks', webhook.webhooks)
         self.sent = []
+        self.markups = [] # reply_markup of each photo sent
         self.errors = []
         self.patch(webhook, 'report_error', lambda e, *a, **k: self.errors.append(webhook.error_line(e, k.get('context'))))
-        self.patch(webhook, 'sendPhoto', lambda chat, img, cap, svc, **k: self.sent.append(('photo', len(img.read()), cap.split('\n')[0])))
+        self.patch(webhook, 'sendPhoto', lambda chat, img, cap, svc, **k: (self.sent.append(('photo', len(img.read()), cap.split('\n')[0])), self.markups.append(k.get('reply_markup'))))
         self.patch(webhook, 'payload_wrapper', lambda svc, url, payload, *a, **k: self.sent.append(('text', payload)) or [])
         self.patch(util, 'get_holdings_and_watchlist', lambda: TICKERS)
         self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
@@ -81,6 +82,7 @@ class FinbotCase(unittest.TestCase):
     def command(self, text, chat='55'):
         """Run a chat message through the real command parser and handlers."""
         self.sent.clear()
+        self.markups.clear()
         self.errors.clear()
         worker.process_request('telegram', chat, '@u', text, BOT, 'U', '1')
         self.assertEqual(self.errors, [], f'{text} crashed') # the worker reports crashes instead of raising
