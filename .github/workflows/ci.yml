@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '23 19 * * 0' # weekly (Sunday, UTC): catches upstream package changes between commits
+  workflow_dispatch: # manual run from the Actions tab
 
 jobs:
   test:
@@ -21,3 +24,25 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m compileall -q bot.py *.py lib util
       - run: python -m unittest discover -s tests -v
+
+  notify:
+    # Telegram alert when the weekly run fails. Needs repository secrets TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
+    needs: test
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram message
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::warning::TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID secrets are not set; no notification sent"
+            exit 0
+          fi
+          curl -sS --fail-with-body "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "disable_web_page_preview=true" \
+            --data-urlencode "text=⚠️ ${GITHUB_REPOSITORY}: weekly tests failed
+          ${RUN_URL}" > /dev/null

@@ -1,6 +1,6 @@
 """Yahoo, Sharesight and Telegram parsing and failure handling, driven by the real API responses saved under doc/.
 HTTP is mocked at the requests layer, so the production parsing code runs unchanged."""
-import copy, json, os, unittest
+import copy, datetime, json, os, unittest
 from unittest import mock
 from tests.common import *
 
@@ -214,6 +214,95 @@ class SharesightApi(ProviderCase):
                 self.http(sharesight, failure)
                 with self.assertRaises(RuntimeError):
                     sharesight.get_performance(684141, 7)
+
+
+class SharesightKeepWarm(ProviderCase):
+    """The background refresher keeps the portfolio list and the holdings report (days=0) cached ahead of their TTLs."""
+
+    def serve_sharesight(self):
+        portfolios = sample('sharesight', 'finbot_sharesight_portfolios.json')
+        performance = sample('sharesight', 'finbot_sharesight_performance_684141_0.json')
+        calls = []
+        def get(url, **kwargs):
+            calls.append(url)
+            return Resp(performance if '/performance' in url else portfolios)
+        self.patch(sharesight.requests, 'get', get)
+        return calls
+
+    def age(self, cache_file, seconds):
+        path = os.path.join(util.config_cache_dir, cache_file)
+        old = os.path.getmtime(path) - seconds
+        os.utime(path, (old, old))
+
+    def test_cold_cache_is_filled_then_left_alone(self):
+        calls = self.serve_sharesight()
+        self.assertEqual(sharesight.warm_once(), 3) # portfolio list + one holdings report per portfolio (2)
+        self.assertEqual(sum('/performance' in c for c in calls), 2)
+        self.assertTrue(all('start_date=' + datetime.date.today().isoformat() in c for c in calls if '/performance' in c)) # days=0
+        self.assertEqual(sharesight.warm_once(), 0)
+        self.assertEqual(len(calls), 3) # nothing refetched while fresh
+
+    def test_refreshes_before_the_ttl_runs_out(self):
+        calls = self.serve_sharesight()
+        sharesight.warm_once()
+        calls.clear()
+        self.age(sharesight.performance_cache_file(684141, 0), 0.95 * sharesight.PERFORMANCE_TTL) # 95% of its lifetime
+        self.assertEqual(sharesight.warm_once(), 1)
+        self.assertEqual(len(calls), 1)
+        self.assertIn('684141/performance', calls[0])
+        calls.clear()
+        self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * sharesight.config_cache_seconds)
+        self.assertEqual(sharesight.warm_once(), 1)
+        self.assertTrue(calls[0].endswith('/portfolios'))
+
+    def test_a_request_never_waits_on_a_cache_the_job_has_warmed(self):
+        calls = self.serve_sharesight()
+        sharesight.warm_once()
+        calls.clear()
+        self.assertEqual(sharesight.get_portfolios(), {'Rob': 445825, 'RobSMSF': 684141})
+        self.assertEqual(len(sharesight.get_performance(684141, 0)['report']['holdings']), 18)
+        self.assertEqual(calls, [])
+
+    def test_holdings_wrapper_is_served_entirely_from_the_warmed_cache(self):
+        calls = self.serve_sharesight()
+        sharesight.warm_once()
+        calls.clear()
+        tickers = sharesight.get_holdings_wrapper() # get_portfolios() + get_holdings() per portfolio, no cache of its own
+        self.assertIn('ARM', tickers)
+        self.assertEqual(calls, [])
+
+    def test_failed_refresh_keeps_the_old_cache(self):
+        self.serve_sharesight()
+        sharesight.warm_once()
+        self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * sharesight.config_cache_seconds)
+        self.http(sharesight, ConnectionError('down'))
+        with self.assertRaises(RuntimeError):
+            sharesight.warm_once()
+        self.assertEqual(sharesight.get_portfolios(), {'Rob': 445825, 'RobSMSF': 684141}) # still served from the cache
+
+    def test_loop_survives_failures_and_backs_off(self):
+        class Stop:
+            def __init__(self): self.waits = []
+            def is_set(self): return len(self.waits) >= 2
+            def wait(self, seconds): self.waits.append(seconds)
+        outcomes = [RuntimeError('boom'), 0]
+        def warm():
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+        self.patch(sharesight, 'warm_once', warm)
+        stop = Stop()
+        sharesight.keep_warm(poll=30, retry=300, stop=stop)
+        self.assertEqual(stop.waits, [300, 30]) # slow retry after the failure, normal polling after success
+
+    def test_refresh_flag_bypasses_a_fresh_cache(self):
+        calls = self.serve_sharesight()
+        sharesight.get_portfolios()
+        sharesight.get_portfolios()
+        self.assertEqual(len(calls), 1)
+        sharesight.get_portfolios(refresh=True)
+        self.assertEqual(len(calls), 2)
 
 
 class TelegramSending(FinbotCase):

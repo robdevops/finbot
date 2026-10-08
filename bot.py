@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from lib.config import *
 from lib import worker
 from lib import charts
+from lib import sharesight
 from lib import webhook
 if config_telegramBotToken:
 	from lib import telegram
@@ -166,6 +167,8 @@ if __name__ == '__main__':
 	print(f'Opening socket on http://{config_ip}:{config_port}', file=sys.stderr)
 	if config_telegramBotToken:
 		threading.Thread(target=charts.refresh_keyboards, daemon=True).start() # update stale DM keyboards in the background
+	if config_cache and config_sharesight_auth.get('client_id'):
+		threading.Thread(target=sharesight.keep_warm, daemon=True).start() # keep the portfolio list and holdings report cached
 	try:
 		httpd.serve_forever()
 	except OSError as e:

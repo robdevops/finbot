@@ -1,6 +1,6 @@
 # Targets Python 3.13.5 (see .python-version). Lower bounds are the first releases with 3.13 support.
 gevent>=24.11.1
-matplotlib>=3.9.2
+matplotlib>=3.9.2,<4
 numpy>=2.1.0,<3
 pandas>=2.2.3,<3 # 3.x not yet tried
 python-dateutil>=2.9.0

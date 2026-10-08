@@ -56,11 +56,18 @@ def get_token():
 	print("Got Sharesight token:", data['access_token'], file=sys.stderr) if debug else None
 	return data['access_token']
 
-def get_portfolios():
+PORTFOLIOS_CACHE = "finbot_sharesight_portfolios.json" # ttl: config_cache_seconds
+PERFORMANCE_TTL = config_performance_cache_seconds # seconds; the cache lifetime of a performance report
+
+def performance_cache_file(portfolio_id, days):
+	return "finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'
+
+def get_portfolios(refresh=False):
+	"""refresh=True skips the cache read and fetches again (the cache is rewritten)."""
 	portfolio_dict = {}
 	cache = None
-	if config_cache:
-		cache_file = "finbot_sharesight_portfolios.json"
+	cache_file = PORTFOLIOS_CACHE
+	if config_cache and not refresh:
 		cache = util.read_cache(cache_file, config_cache_seconds)
 		if cache:
 			data = cache
@@ -158,11 +165,11 @@ def get_holdings_wrapper():
 	tickers = sorted(set(tickers))
 	return tickers
 
-def get_performance(portfolio_id, days, config_cache_seconds=900): # cache for 15 minutes
+def get_performance(portfolio_id, days, config_cache_seconds=PERFORMANCE_TTL, refresh=False):
 	start_date = datetime.datetime.now() - datetime.timedelta(days=days)
 	start_date = start_date.strftime('%Y-%m-%d') # 2023-04-25
-	if config_cache:
-		cache_file = "finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'
+	cache_file = performance_cache_file(portfolio_id, days)
+	if config_cache and not refresh:
 		cache = util.read_cache(cache_file, config_cache_seconds)
 		if cache:
 			return cache
@@ -199,3 +206,32 @@ def get_performance_wrapper(days=config_past_days):
 			print("Could not get performance for portfolio:", portfolio_id, file=sys.stderr)
 			raise RuntimeError(f"Sharesight returned no performance for portfolio {portfolio_id}")
 	return performance
+
+def warm_once(margin=0.9):
+	"""Refresh the portfolio list and each portfolio's holdings report (days=0) once they reach `margin` of their cache lifetime,
+	so a request never has to wait on Sharesight. Returns the number of fetches made."""
+	fetched = 0
+	age = util.cache_age(PORTFOLIOS_CACHE)
+	if age is None or age >= margin * config_cache_seconds:
+		get_portfolios(refresh=True)
+		fetched += 1
+	for portfolio_name, portfolio_id in get_portfolios().items():
+		age = util.cache_age(performance_cache_file(portfolio_id, 0))
+		if age is None or age >= margin * PERFORMANCE_TTL:
+			get_performance(portfolio_id, 0, refresh=True)
+			fetched += 1
+	return fetched
+
+def keep_warm(poll=30, retry=300, stop=None):
+	"""Background loop: keep the portfolio list and holdings report cached. Never raises; after a failure it waits `retry` seconds."""
+	while not (stop and stop.is_set()):
+		wait = poll
+		try:
+			warm_once()
+		except Exception as e:
+			print("Sharesight cache refresh failed:", e, file=sys.stderr)
+			wait = retry
+		if stop:
+			stop.wait(wait)
+		else:
+			time.sleep(wait)
