@@ -89,7 +89,6 @@ def get_portfolios(refresh=False):
 		if config_cache and 'portfolios' in data:
 			util.json_write(cache_file, data)
 	for portfolio in data['portfolios']:
-		print("Found portfolio:", portfolio['name'], file=sys.stderr)
 		if str(portfolio['id']) in config_exclude_portfolios:
 			print(portfolio['id'], "(" + portfolio['name'] + ") in exclusion list. Skipping.")
 		elif str(portfolio['id']) not in config_include_portfolios and config_include_portfolios:
