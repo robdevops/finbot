@@ -246,12 +246,12 @@ class SharesightKeepWarm(ProviderCase):
         calls = self.serve_sharesight()
         sharesight.warm_once()
         calls.clear()
-        self.age(sharesight.performance_cache_file(684141, 0), sharesight.PERFORMANCE_TTL - 5) # within a few seconds of its lifetime
+        self.age(sharesight.performance_cache_file(684141, 0), 0.95 * sharesight.PERFORMANCE_TTL) # 95% of its lifetime
         self.assertEqual(sharesight.warm_once(), 1)
         self.assertEqual(len(calls), 1)
         self.assertIn('684141/performance', calls[0])
         calls.clear()
-        self.age(sharesight.PORTFOLIOS_CACHE, sharesight.config_cache_seconds - 5)
+        self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * sharesight.config_cache_seconds)
         self.assertEqual(sharesight.warm_once(), 1)
         self.assertTrue(calls[0].endswith('/portfolios'))
 
@@ -274,7 +274,7 @@ class SharesightKeepWarm(ProviderCase):
     def test_failed_refresh_keeps_the_old_cache(self):
         self.serve_sharesight()
         sharesight.warm_once()
-        self.age(sharesight.PORTFOLIOS_CACHE, sharesight.config_cache_seconds - 5)
+        self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * sharesight.config_cache_seconds)
         self.http(sharesight, ConnectionError('down'))
         with self.assertRaises(RuntimeError):
             sharesight.warm_once()
@@ -297,12 +297,12 @@ class SharesightKeepWarm(ProviderCase):
         sharesight.keep_warm(retry=300, stop=stop)
         self.assertEqual(stop.waits, [300, 3000]) # slow retry after the failure, then sleep until the next cache is due
 
-    def test_next_due_is_the_ttl_minus_a_few_seconds(self):
+    def test_next_due_is_90_percent_of_the_ttl(self):
         self.serve_sharesight()
         self.assertEqual(sharesight.next_due(), 0) # cold cache
         sharesight.warm_once()
         due = sharesight.next_due()
-        self.assertAlmostEqual(due, min(sharesight.config_cache_seconds, sharesight.PERFORMANCE_TTL) - 10, delta=5)
+        self.assertAlmostEqual(due, 0.9 * min(sharesight.config_cache_seconds, sharesight.PERFORMANCE_TTL), delta=5)
 
     def test_refresh_flag_bypasses_a_fresh_cache(self):
         calls = self.serve_sharesight()
