@@ -492,9 +492,12 @@ Many objects are cached for just under one day by default. Cache is controlled b
 ```
 cache = True
 cache_seconds = 82800
+performance_cache_seconds = 1800
 ```
 
-While `bot.py` is running (with `cache = True` and Sharesight configured), a background job keeps the Sharesight portfolio list (`cache_seconds`) and each portfolio's holdings report (1 day, 15 minute cache) refreshed at 90% of their cache lifetime, so chat requests do not wait on Sharesight. If a refresh fails, the previous cache keeps being served and the job retries after 5 minutes.
+`performance_cache_seconds` (default 30 minutes) is the cache lifetime of Sharesight performance reports.
+
+While `bot.py` is running (with `cache = True` and Sharesight configured), a background job keeps the Sharesight portfolio list (`cache_seconds`) and each portfolio's holdings report (1 day, `performance_cache_seconds` cache) refreshed at 90% of their cache lifetime, so chat requests do not wait on Sharesight. If a refresh fails, the previous cache keeps being served and the job retries after 5 minutes.
 
 ### Hyperlinks
 These .env file options relate to hyperlinks:

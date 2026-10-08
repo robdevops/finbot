@@ -57,7 +57,7 @@ def get_token():
 	return data['access_token']
 
 PORTFOLIOS_CACHE = "finbot_sharesight_portfolios.json" # ttl: config_cache_seconds
-PERFORMANCE_TTL = 900 # seconds; the cache lifetime of a performance report
+PERFORMANCE_TTL = config_performance_cache_seconds # seconds; the cache lifetime of a performance report
 
 def performance_cache_file(portfolio_id, days):
 	return "finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'

@@ -246,7 +246,7 @@ class SharesightKeepWarm(ProviderCase):
         calls = self.serve_sharesight()
         sharesight.warm_once()
         calls.clear()
-        self.age(sharesight.performance_cache_file(684141, 0), 0.95 * sharesight.PERFORMANCE_TTL) # 95% of its 15 minutes
+        self.age(sharesight.performance_cache_file(684141, 0), 0.95 * sharesight.PERFORMANCE_TTL) # 95% of its lifetime
         self.assertEqual(sharesight.warm_once(), 1)
         self.assertEqual(len(calls), 1)
         self.assertIn('684141/performance', calls[0])
