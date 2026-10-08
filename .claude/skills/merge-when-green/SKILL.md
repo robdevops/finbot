@@ -1,9 +1,11 @@
 ---
 name: merge-when-green
-description: Open a pull request for the current branch if needed, wait for CI to pass, then merge it with a merge commit and reset the working branch to main. Use when the user says "merge", "pr and merge", "pr merge", or "merge when green". Never merges while CI is red or still running.
+description: Open a pull request for the current branch if needed, wait for CI to pass, then merge it with a merge commit and reset the working branch to main. This is the default for finished work in this repo: once tests pass, merge without waiting to be asked. Also use when the user says "merge", "pr", "pr and merge", or "merge when green". Never merges while CI is red or still running.
 ---
 
 # Merge when green
+
+**Default (the owner's standing instruction):** when a PR for this branch exists and every required check has passed, merge it. Do not wait for a separate "merge" message. Opening a PR for finished, committed work is likewise expected; do not leave work sitting on the branch. The "Never" rules below still apply: red or missing checks, conflicts, or unresolved human review requests mean stop and tell the user.
 
 Repo: `robdevops/finbot`. Base branch: `main`. Work branch: the one named in the session instructions (`claude/...`).
 Use the GitHub MCP tools (`mcp__github__*`; load them with ToolSearch if they are not in the tool list). There is no `gh` CLI.
