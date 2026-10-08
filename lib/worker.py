@@ -64,7 +64,7 @@ def deliver(service, url, chat_id, payload, chart=None):
 def process_callback(service, callback_id, chat_id, message_id, data):
 	"""Button press on a chart message: rebuild it for the chosen period and edit it in place."""
 	parts = data.split('|', 3)
-	valid = len(parts) == 4 and parts[0] == 'c' and parts[1] in charts.BUTTONS and parts[2] in charts.PERIODS
+	valid = len(parts) == 4 and parts[0] == 'c' and parts[1] in charts.BUTTONS and parts[2] in charts.BUTTONS[parts[1]]
 	# answering now shows Telegram's toast bubble ("Loading 3M…") while the new chart is built
 	telegram.answerCallbackQuery(callback_id, f"Loading {charts.PERIODS[parts[2]][0]}…" if valid else None)
 	if not valid:
@@ -270,7 +270,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			typing.stop()
 	elif m_performance:
 		portfolio_select = None
-		days = config_past_days or 7 # performance needs a period; past_days = 0 means "today" elsewhere
+		days = charts.PERIODS['m'][1] # default view is the 1M button
 		for arg in m_performance.groups()[:2]:  # groups 2 and 3, allow arbitrary order
 			if arg:
 				try:

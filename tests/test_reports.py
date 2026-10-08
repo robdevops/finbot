@@ -99,6 +99,53 @@ class ScheduledReports(FinbotCase):
         self.assertTrue(self.sent)
 
 
+class PeriodButtons(FinbotCase):
+    """Default views line up with the buttons: the highlighted button is the period actually shown."""
+
+    def buttons(self, command):
+        self.command(command)
+        self.assertTrue(self.markups and self.markups[0], f'{command} sent no buttons')
+        return [b['text'] for b in self.markups[0]['inline_keyboard'][0]]
+
+    def test_performance_defaults_to_one_month(self):
+        self.assertEqual(self.buttons('.performance'), ['7D', '● 1M', '3M', '1Y', 'Max'])
+        self.assertIn('month', self.sent[0][2]) # "Performance over the past month", not 4 weeks
+
+    def test_performance_period_argument_moves_the_marker(self):
+        self.assertEqual(self.buttons('.performance 7d'), ['● 7D', '1M', '3M', '1Y', 'Max'])
+        self.assertEqual(self.buttons('.performance 1y'), ['7D', '1M', '3M', '● 1Y', 'Max'])
+
+    def test_price_list_has_a_1d_button_marked_by_default(self):
+        self.assertEqual(self.buttons('.price'), ['● 1D', '7D', '1M', '3M', '1Y', 'Max'])
+        self.assertEqual(self.buttons('.price top'), ['● 1D', '7D', '1M', '3M', '1Y', 'Max'])
+        self.assertEqual(self.buttons('.price 1m'), ['1D', '7D', '● 1M', '3M', '1Y', 'Max'])
+
+    def test_other_charts_do_not_offer_1d(self):
+        for command in ('.performance', '.compare T1 T2'):
+            with self.subTest(command=command):
+                self.assertNotIn('1D', [b.lstrip('● ') for b in self.buttons(command)])
+
+    def press(self, data):
+        edits, toasts = [], []
+        self.patch(webhook, 'editMessageMedia', lambda chat, msg, img, caption, markup=None: edits.append((caption.split('\n')[0], markup)))
+        self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
+        worker.process_callback('telegram', 'cb', '55', '9', data)
+        return edits, toasts
+
+    def test_pressing_1d_rebuilds_todays_list_and_moves_the_marker(self):
+        edits, toasts = self.press('c|l|d|3,0')
+        self.assertEqual(toasts, ['Loading 1D…'])
+        self.assertEqual(self.errors, [])
+        self.assertEqual(len(edits), 1)
+        self.assertEqual([b['text'] for b in edits[0][1]['inline_keyboard'][0]][0], '● 1D')
+
+    def test_a_button_a_chart_does_not_offer_is_ignored(self):
+        edits, toasts = self.press('c|f|d|') # performance has no 1D
+        self.assertEqual((edits, toasts), ([], [None]))
+        edits, toasts = self.press('c|l|zz|3,0')
+        self.assertEqual((edits, toasts), ([], [None]))
+
+
 class Podcasts(unittest.TestCase):
     def test_format_helpers(self):
         import podcasts

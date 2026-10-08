@@ -262,7 +262,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			if service == 'telegram' and specific_stock:
 				markup = charts.keyboard('p', [specific_stock], charts.period_for_days(days))
 			elif service == 'telegram' and list_buttons:
-				markup = charts.keyboard('l', [f"{threshold:g}", str(top or 0)], charts.period_for_days(days))
+				markup = charts.keyboard('l', [f"{threshold:g}", str(top or 0)], charts.period_for_days(days, 'd' if not days else None))
 			webhook.sendPhoto(chat_id, graph, caption, service, reply_markup=markup)
 		else:
 			webhook.payload_wrapper(service, url, payload, chat_id)
@@ -272,7 +272,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 			if service == "telegram":
 				url = url + "sendMessage?chat_id=" + str(chat_id)
 			if graph and service == 'telegram':
-				markup = charts.keyboard('l', [f"{threshold:g}", str(top or 0)], charts.period_for_days(days)) if list_buttons else None
+				markup = charts.keyboard('l', [f"{threshold:g}", str(top or 0)], charts.period_for_days(days, 'd' if not days else None)) if list_buttons else None
 				webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service, reply_markup=markup)
 				continue
 			webhook.payload_wrapper(service, url, payload, chat_id)
