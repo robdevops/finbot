@@ -8,7 +8,7 @@ The owner chats back and forth; every message that asks for a change gets a chan
 
 ## The work branch is the dev branch
 The work branch named in the session instructions (`claude/...`) is the persistent dev branch. The owner's test environment pulls it and restarts the service, so:
-- **Never rewrite its history**: no reset to `main`, no rebase, no amend of pushed commits, no force-push. A force-push breaks `git pull` on the test environment.
+- **Never rewrite the work branch's history, and never reset the branch after a merge**: no reset to `main`, no rebase, no amend of pushed commits, no force-push. A force-push breaks `git pull` on the test environment. After a merge, leave the branch as it is.
 - If the owner wants a fixed name such as `dev`, they will say so; only push to another branch with their explicit permission.
 
 ## Facts
