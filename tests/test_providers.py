@@ -292,9 +292,17 @@ class SharesightKeepWarm(ProviderCase):
                 raise outcome
             return outcome
         self.patch(sharesight, 'warm_once', warm)
+        self.patch(sharesight, 'next_due', lambda: 3000)
         stop = Stop()
-        sharesight.keep_warm(poll=30, retry=300, stop=stop)
-        self.assertEqual(stop.waits, [300, 30]) # slow retry after the failure, normal polling after success
+        sharesight.keep_warm(retry=300, stop=stop)
+        self.assertEqual(stop.waits, [300, 3000]) # slow retry after the failure, then sleep until the next cache is due
+
+    def test_next_due_is_90_percent_of_the_ttl(self):
+        self.serve_sharesight()
+        self.assertEqual(sharesight.next_due(), 0) # cold cache
+        sharesight.warm_once()
+        due = sharesight.next_due()
+        self.assertAlmostEqual(due, 0.9 * min(sharesight.config_cache_seconds, sharesight.PERFORMANCE_TTL), delta=5)
 
     def test_refresh_flag_bypasses_a_fresh_cache(self):
         calls = self.serve_sharesight()
