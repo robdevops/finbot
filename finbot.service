@@ -11,6 +11,7 @@ StandardOutput=null
 StandardError=journal
 SyslogIdentifier=finbot
 Environment=PYTHONUNBUFFERED=1
+#Environment=DATA_DIR=/var/lib/finbot
 
 [Install]
 WantedBy=multi-user.target

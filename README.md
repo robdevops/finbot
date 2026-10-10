@@ -393,7 +393,7 @@ Notifies when Yahoo Finance analyst rating consensus changes category (e.g. from
 
 Tracks additional securities which are not in your Sharesight holdings. The various reports will include wishlist items as if they are holdings.
 
-It is stored in `var/cache/finbot_watchlist.json` by default. It is a JSON array literal containing Yahoo symbols. Example:
+It is stored in `var/finbot_watchlist.json` by default. It is a JSON array literal containing Yahoo symbols. Example:
 ```
 ["2454.TW", "3217.TWO", "ASO.AX", "STEM"]
 ```
@@ -433,10 +433,25 @@ uv venv && uv pip install -r requirements.txt
 ```
 
 ## Setup
-Configuration is set by the .env file in the main directory. Example:
+Configuration is set by a `.env` file. Start from the shipped template:
 ```
+cp ~/finbot/defaults/env.example ~/finbot/.env
 vi ~/finbot/.env
 ```
+Settings are read from, in order of precedence: real environment variables, `$DATA_DIR/.env`, then `~/finbot/.env`.
+
+### Data directory
+All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`), e.g. for a Docker bind mount that survives rebuilds:
+```
+docker run -v /srv/finbot:/data -e DATA_DIR=/data ...
+```
+Reference data (`finbot_adr.json`, `finbot_sws_*.json`, `reminder.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
+```
+util/sync_defaults.py          # dry run
+util/sync_defaults.py --apply  # copy missing files (and a starter .env)
+util/sync_defaults.py --force  # also overwrite changed files, keeping .bak copies
+```
+On AWS Lambda only `/tmp` is writable and ephemeral, so mount EFS and point `DATA_DIR` at it. S3 is not supported yet.
 
 ### Sharesight
 * Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to the .env file. Example:

@@ -1,11 +1,12 @@
 import os
 import json
+from lib.config import data_file
 
 def get_url(symbol, name, exchange):
 	sws = {}
 	files = ['finbot_sws_custom.json', 'finbot_sws_asx200.json', 'finbot_sws_sp500.json', 'finbot_sws_nasdaq100.json']
 	for file in files:
-		file = 'var/' + file
+		file = data_file(file)
 		sws = sws | read_cache(file)
 	if symbol in sws:
 		return sws[symbol]

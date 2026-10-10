@@ -10,11 +10,9 @@ from lib.config import *
 from lib import util
 from lib import webhook
 
-REMINDERS_FILE = Path(__file__).parent / "var/reminder.json"
-
 
 def load_reminders():
-	with open(REMINDERS_FILE, "r", encoding="utf-8") as f:
+	with open(data_file("reminder.json"), "r", encoding="utf-8") as f:
 		return json.load(f)
 
 

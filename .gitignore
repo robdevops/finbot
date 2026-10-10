@@ -11,5 +11,4 @@ script.zip
 .env
 var/cache/*
 var/*.json
-!var/reminder.json
 
