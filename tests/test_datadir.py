@@ -1,4 +1,4 @@
-import os, subprocess, sys, tempfile, unittest
+import os, shutil, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from lib import config
 from util import sync_defaults
@@ -65,6 +65,21 @@ class EnvFileTests(FinbotCase):
 			e = dict(os.environ, FINBOT_ENV=str(f), foo_setting='from_env')
 			out = subprocess.run([str(REPO / 'bin' / 'run'), 'sh', '-c', 'echo "$foo_setting"'], env=e, capture_output=True, text=True, check=True).stdout.strip()
 			self.assertEqual(out, 'from_env')
+
+	def test_bin_run_bare_script_name(self):
+		with tempfile.TemporaryDirectory() as d: # fake checkout so no real finbot script runs
+			(Path(d) / 'bin').mkdir()
+			shutil.copy(REPO / 'bin' / 'run', Path(d) / 'bin' / 'run')
+			script = Path(d, 'hello.sh')
+			script.write_text('#!/bin/sh\necho "hello $1"\n')
+			script.chmod(0o755)
+			e = dict(os.environ, FINBOT_ENV='/nonexistent')
+			run = str(Path(d) / 'bin' / 'run')
+			for name in ('hello.sh', './hello.sh'):
+				out = subprocess.run([run, name, 'x'], env=e, capture_output=True, text=True, check=True, cwd='/').stdout.strip()
+				self.assertEqual(out, 'hello x')
+			out = subprocess.run([run, 'sh', '-c', 'echo ok'], env=e, capture_output=True, text=True, check=True, cwd='/').stdout.strip()
+			self.assertEqual(out, 'ok') # PATH commands unaffected
 
 	def test_migrate_env(self):
 		from util import migrate_env

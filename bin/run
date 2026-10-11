@@ -1,6 +1,6 @@
 #!/bin/sh
 # Run a finbot command with its settings loaded from the env file (for cron).
-# Usage: bin/run ./price.py midsession
+# Usage: bin/run price.py midsession   (./price.py also works)
 # Env file: $FINBOT_ENV, else .env in the checkout. Same KEY=value semantics as systemd
 # EnvironmentFile and docker --env-file (values taken literally, nothing is executed).
 # Variables already set in the environment are kept.
@@ -19,4 +19,9 @@ if [ -r "$env_file" ]; then
 	done < "$env_file"
 fi
 cd "$dir" || exit 1
+# a bare script name that exists in the checkout (trades.py) means ./trades.py
+case $1 in
+	*/*) ;;
+	*) if [ -f "$1" ]; then cmd=$1; shift; set -- "./$cmd" "$@"; fi ;;
+esac
 exec "$@"
