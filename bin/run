@@ -1,0 +1,22 @@
+#!/bin/sh
+# Run a finbot command with its settings loaded from the env file (for cron).
+# Usage: bin/run ./price.py midsession
+# Env file: $FINBOT_ENV, else .env in the checkout. Same KEY=value semantics as systemd
+# EnvironmentFile and docker --env-file (values taken literally, nothing is executed).
+# Variables already set in the environment are kept.
+dir=$(cd "$(dirname "$0")/.." && pwd)
+env_file=${FINBOT_ENV:-$dir/.env}
+if [ -r "$env_file" ]; then
+	while IFS= read -r line || [ -n "$line" ]; do
+		case $line in
+			''|'#'*|';'*) continue ;;
+			*=*) key=${line%%=*}; value=${line#*=} ;;
+			*) continue ;;
+		esac
+		if ! printenv "$key" >/dev/null 2>&1; then
+			export "$key=$value"
+		fi
+	done < "$env_file"
+fi
+cd "$dir" || exit 1
+exec "$@"

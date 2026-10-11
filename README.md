@@ -31,7 +31,7 @@
 * Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum)
 * Python modules, pinned to versions with 3.13 support in `requirements.txt`:
 ```
-python-dotenv python-dateutil requests gevent pandas matplotlib numpy
+python-dateutil requests gevent pandas matplotlib numpy
 ```
 
 ### Supported commands
@@ -433,17 +433,23 @@ uv venv && uv pip install -r requirements.txt
 ```
 
 ## Setup
-Configuration is set by a `.env` file. Start from the shipped template:
+Configuration is read from environment variables. Start from the shipped template:
 ```
 cp ~/finbot/defaults/env.example ~/finbot/.env
 vi ~/finbot/.env
 ```
-Settings are read from, in order of precedence: real environment variables, `$DATA_DIR/.env`, then `~/finbot/.env`.
+The file is plain `KEY=value` lines: no spaces around `=`, no quotes, no trailing comments (comments go on their own line). The same file works everywhere:
+* **systemd:** `finbot.service` loads it with `EnvironmentFile=`.
+* **cron:** `crontab.txt` runs jobs through `bin/run`, which loads the file (`FINBOT_ENV=/path` to use another one) and keeps variables already set in the environment.
+* **Docker:** `--env-file /srv/finbot/.env` (or `-e`).
+* **AWS Lambda:** set them as function environment variables.
+
+Upgrading from the old dotenv format (`key = 'value' # comment`)? Convert it once with `util/migrate_env.py --write`; the original is kept as `.env.bak`.
 
 ### Data directory
 All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`), e.g. for a Docker bind mount that survives rebuilds:
 ```
-docker run -v /srv/finbot:/data -e DATA_DIR=/data ...
+docker run -v /srv/finbot:/data -e DATA_DIR=/data --env-file /srv/finbot/.env ...
 ```
 Reference data (`finbot_adr.json`, `finbot_sws_*.json`, `reminder.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
 ```
@@ -451,6 +457,8 @@ util/sync_defaults.py          # dry run
 util/sync_defaults.py --apply  # copy missing files (and a starter .env)
 util/sync_defaults.py --force  # also overwrite changed files, keeping .bak copies
 ```
+In Docker, run the schedule in a second container from the same image (for example with [supercronic](https://github.com/aptible/supercronic) and `crontab.txt`), sharing the same data mount and env file.
+
 On AWS Lambda only `/tmp` is writable and ephemeral, so mount EFS and point `DATA_DIR` at it. S3 is not supported yet.
 
 ### Sharesight
