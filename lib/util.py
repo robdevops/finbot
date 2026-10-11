@@ -7,9 +7,9 @@ import re
 import sys
 import time
 import numpy as np
+from lib.config import * # first: sets MPLCONFIGDIR before matplotlib is imported
 import matplotlib.dates as mdates
 from lib import sharesight
-from lib.config import *
 
 
 def transform_title(title):

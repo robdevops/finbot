@@ -457,6 +457,8 @@ util/sync_defaults.py          # dry run
 util/sync_defaults.py --apply  # copy missing files (and a starter .env)
 util/sync_defaults.py --force  # also overwrite changed files, keeping .bak copies
 ```
+With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
+
 In Docker, run the schedule in a second container from the same image (for example with [supercronic](https://github.com/aptible/supercronic) and `crontab.txt`), sharing the same data mount and env file.
 
 On AWS Lambda only `/tmp` is writable and ephemeral, so mount EFS and point `DATA_DIR` at it. S3 is not supported yet.

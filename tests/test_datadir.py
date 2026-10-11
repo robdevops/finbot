@@ -28,6 +28,23 @@ class DataDirTests(FinbotCase):
 		out = run_config("import sys; from lib import config as c; print(c.config_price_percent, 'dotenv' in sys.modules)", price_percent='3.3')
 		self.assertEqual(out.split()[-2:], ['3.3', 'False'])
 
+	def test_state_directory_fallback(self):
+		show = "from lib import config as c; print(c.config_var_dir, c.config_cache_dir, c.os.environ['MPLCONFIGDIR'])"
+		with tempfile.TemporaryDirectory() as d:
+			e = {k: v for k, v in os.environ.items() if k not in ('DATA_DIR', 'MPLCONFIGDIR')}
+			def run(**env):
+				return subprocess.run([sys.executable, '-c', show], cwd=REPO, env=dict(e, **env), capture_output=True, text=True, check=True).stdout.split()[-3:]
+			self.assertEqual(run(STATE_DIRECTORY=d + ':/x/y'), [d, d + '/cache', d + '/cache/matplotlib'])
+			self.assertEqual(run(STATE_DIRECTORY='/x/y', DATA_DIR=d)[0], d) # DATA_DIR wins
+			self.assertEqual(run(DATA_DIR=d, MPLCONFIGDIR='/custom')[2], '/custom') # explicit value kept
+
+	def test_util_import_sets_mplconfigdir_without_home(self):
+		e = {k: v for k, v in os.environ.items() if k not in ('MPLCONFIGDIR', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'HOME')}
+		code = "import os; from lib import util; print(os.environ['MPLCONFIGDIR'])"
+		with tempfile.TemporaryDirectory() as d:
+			out = subprocess.run([sys.executable, '-c', code], cwd=REPO, env=dict(e, DATA_DIR=d), capture_output=True, text=True, check=True).stdout.strip()
+			self.assertEqual(out.split()[-1], d + '/cache/matplotlib')
+
 	def test_data_file_override_and_fallback(self):
 		name = 'finbot_adr.json'
 		self.assertEqual(config.data_file(name), str(REPO / 'defaults' / name))

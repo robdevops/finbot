@@ -6,7 +6,8 @@ from pathlib import Path
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 os.chdir(REPO_DIR)
-config_data_dir = (os.getenv('DATA_DIR') or 'var').rstrip('/') or '/'
+# DATA_DIR, else systemd's StateDirectory= (first entry), else var/ in the checkout
+config_data_dir = (os.getenv('DATA_DIR') or os.getenv('STATE_DIRECTORY', '').split(':')[0] or 'var').rstrip('/') or '/'
 config_sharesight_auth = {
 		"grant_type": 'client_credentials',
 		"code": os.getenv('sharesight_code'),
@@ -31,6 +32,9 @@ for _dir in (config_var_dir, config_cache_dir):
 		os.makedirs(_dir, exist_ok=True)
 	except OSError as e: # e.g. read-only filesystem (Lambda)
 		print("can't create", _dir, e)
+
+# matplotlib needs a writable config/cache dir; without a home directory (systemd DynamicUser, containers) it fails
+os.environ.setdefault('MPLCONFIGDIR', os.path.abspath(config_cache_dir + '/matplotlib'))
 
 def data_file(name):
 	# user copy in the data dir wins over the shipped default in defaults/
