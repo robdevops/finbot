@@ -797,8 +797,9 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	buf.seek(0) # rewind, or the upload sends an empty file
 	return buf
 
-SHORTS_VERDICTS = ((10, 'bermuda shorts'), (15, 'cargo shorts'), (20, 'boxers'), (25, 'gym shorts'), (30, 'cutoffs'),
-	(35, 'short shorts'), (40, 'daisy dukes'), (45, 'hot pants'), (50, 'board shorts'), (55, 'speedos'), (70, 'budgie smugglers'), (85, 'just a belt'), (float('inf'), 'never nudes'))
+SHORTS_VERDICTS = ((16, 'board shorts'), (17, 'cargo shorts'), (18, 'gym shorts'), (19, 'boxers'), # one point each around the default threshold
+	(29, 'cutoffs'), (39, 'short shorts'), (49, 'daisy dukes'), (59, 'hot pants'), (69, 'speedos'), (79, 'budgie smugglers'), (89, 'just a belt'),
+	(float('inf'), 'never nudes')) # the extreme ones step in every 10 points
 
 def shorts_verdict(percent):
 	"""The more shorted, the shorter the shorts."""
@@ -887,7 +888,7 @@ def shorts_chart(rows, threshold, step=5):
 		pct_texts.append((ax.text(end + 14, cy, f"{round(value)}%", color=ink, fontsize=size, fontweight='bold', ha='left', va='center'), cy, value))
 	canvas.draw() # measure the percentages, then put each verdict right after its own
 	for text, cy, value in pct_texts:
-		verdict = ax.text(text.get_window_extent(canvas.get_renderer()).x1 + 10, cy, shorts_verdict(value), color=ink, fontsize=size * 0.62, fontstyle='italic', ha='left', va='center')
+		verdict = ax.text(text.get_window_extent(canvas.get_renderer()).x1 + 10, cy, shorts_verdict(round(value)), color=ink, fontsize=size * 0.62, fontstyle='italic', ha='left', va='center')
 		extent = verdict.get_window_extent(canvas.get_renderer())
 		if extent.x1 > W - 16: # never run off the image: shrink to fit
 			verdict.set_fontsize(verdict.get_fontsize() * (W - 16 - extent.x0) / extent.width)
