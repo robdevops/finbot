@@ -846,8 +846,9 @@ def shorts_chart(rows, threshold, step=5):
 				part.set_clip_path(clip)
 
 	# decor: a big sun in sunglasses whose rays run under everything to the edges, and the sea
-	R = 100 # the sun's radius; it sits in the top right corner, touching both edges
-	sx, sy, rays = W - R, R, 16
+	R = 100 # the sun's radius; it sits in the top right corner
+	margin = 5 # gap between the sun and the top and right edges
+	sx, sy, rays = W - R - margin, R + margin, 16
 	for k in range(0, rays, 2): # every other wedge, so the rays alternate with the sky
 		a0, a1 = k * 2 * math.pi / rays, (k + 1) * 2 * math.pi / rays
 		ax.add_patch(Polygon([(sx, sy), (sx + 2000 * math.cos(a0), sy + 2000 * math.sin(a0)), (sx + 2000 * math.cos(a1), sy + 2000 * math.sin(a1))],
