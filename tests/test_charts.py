@@ -95,8 +95,8 @@ class ImageSanity(unittest.TestCase):
             rows = [(f'T{i}', 60.0 - i) for i in range(n)]
             self.check_image(util.shorts_chart(rows, 15), f'shorts {n} rows', bg=SKY, edge_clean=False)
         self.check_image(util.shorts_chart([('A VERY LONG LABEL', 15.0), ('B', 0.4)], 15), 'shorts long label and tiny value', bg=SKY, edge_clean=False)
-        self.assertEqual([util.shorts_verdict(p) for p in (9.9, 10, 17, 32, 44, 47, 52, 60, 71, 200)],
-                         ['bermuda shorts', 'cargo shorts', 'board shorts', 'short shorts', 'hot pants', 'boxers', 'speedos', 'budgie smugglers', 'just a belt', 'just a belt'])
+        self.assertEqual([util.shorts_verdict(p) for p in (9.9, 10, 17, 32, 44, 47, 52, 60, 71, 85, 200)],
+                         ['bermuda shorts', 'cargo shorts', 'board shorts', 'short shorts', 'hot pants', 'boxers', 'speedos', 'budgie smugglers', 'just a belt', 'never nudes', 'never nudes'])
 
     def test_bar_graph_has_top_and_bottom(self):
         self.check_image(util.bar_graph([('AAA', 9)], [('ZZZ', -9)], 'Top and bottom'), 'bar_graph')

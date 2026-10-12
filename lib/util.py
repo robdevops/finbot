@@ -798,7 +798,7 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	return buf
 
 SHORTS_VERDICTS = ((10, 'bermuda shorts'), (15, 'cargo shorts'), (20, 'board shorts'), (25, 'gym shorts'), (30, 'cutoffs'),
-	(35, 'short shorts'), (40, 'daisy dukes'), (45, 'hot pants'), (50, 'boxers'), (55, 'speedos'), (70, 'budgie smugglers'), (float('inf'), 'just a belt'))
+	(35, 'short shorts'), (40, 'daisy dukes'), (45, 'hot pants'), (50, 'boxers'), (55, 'speedos'), (70, 'budgie smugglers'), (85, 'just a belt'), (float('inf'), 'never nudes'))
 
 def shorts_verdict(percent):
 	"""The more shorted, the shorter the shorts."""
