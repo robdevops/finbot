@@ -797,8 +797,8 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	buf.seek(0) # rewind, or the upload sends an empty file
 	return buf
 
-SHORTS_VERDICTS = ((16, 'board shorts'), (17, 'cargo shorts'), (18, 'gym shorts'), (19, 'boxers'), # one point each around the default threshold
-	(29, 'cutoffs'), (39, 'short shorts'), (49, 'daisy dukes'), (59, 'hot pants'), (69, 'speedos'), (79, 'budgie smugglers'), (89, 'just a belt'),
+SHORTS_VERDICTS = ((5, 'board shorts'), (10, 'cargo shorts'), (15, 'boxers'), (20, 'gym shorts'), # five points each at the bottom
+	(30, 'cutoffs'), (40, 'short shorts'), (50, 'daisy dukes'), (60, 'hot pants'), (70, 'speedos'), (80, 'budgie smugglers'), (90, 'just a belt'),
 	(float('inf'), 'never nudes')) # the extreme ones step in every 10 points
 
 def shorts_verdict(percent):
