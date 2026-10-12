@@ -863,7 +863,7 @@ def shorts_chart(rows, threshold, step=5):
 	for dx, dy, r, c in ((-0.05, -0.06, 0.93, '#ffb90a'), (-0.1, -0.12, 0.78, '#ffc21f'), (-0.16, -0.2, 0.55, '#ffcb35')): # fake gradient
 		ax.add_patch(Circle(at(dx, dy), r * R, facecolor=c, edgecolor='none'))
 	brown = '#5a3d37'
-	for (u, v), w, h in (((-0.46, -0.07), 0.16, 0.29), ((0.31, -0.37), 0.16, 0.26)): # lopsided eyes
+	for (u, v), w, h in (((-0.46, -0.07), 0.21, 0.25), ((0.31, -0.37), 0.20, 0.24)): # lopsided eyes
 		ax.add_patch(Ellipse(at(u, v), w * R, h * R, facecolor=brown, edgecolor='none'))
 	nose = np.array([(-0.07, -0.35), (0.05, -0.26), (0.15, -0.13), (0.18, 0.0), (0.10, 0.10), (-0.03, 0.16)])
 	nose = nose.mean(axis=0) + 0.62 * (nose - nose.mean(axis=0)) # dainty: a smaller squiggle
@@ -871,14 +871,11 @@ def shorts_chart(rows, threshold, step=5):
 	curve = [0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3)
 		for p0, p1, p2, p3 in zip(pts, pts[1:], pts[2:], pts[3:]) for t in np.linspace(0, 1, 12)]
 	ax.plot([sx + u * R for u, _ in curve], [sy + v * R for _, v in curve], color='#e07b1a', linewidth=2.6, solid_capstyle='round')
-	c0, c1, c2, c3 = (np.array(c) for c in ((-0.50, 0.36), (-0.30, 0.80), (0.35, 0.82), (0.68, 0.20))) # big, closed, tilted with the face
-	t = np.linspace(0, 1, 40)[:, None]
-	centre = (1 - t) ** 3 * c0 + 3 * (1 - t) ** 2 * t * c1 + 3 * (1 - t) * t ** 2 * c2 + t ** 3 * c3
-	slope = 3 * (1 - t) ** 2 * (c1 - c0) + 6 * (1 - t) * t * (c2 - c1) + 3 * t ** 2 * (c3 - c2)
-	normal = np.hstack([-slope[:, 1:], slope[:, :1]]) / np.linalg.norm(slope, axis=1, keepdims=True)
-	half = 0.035 * np.sin(np.pi * t) ** 0.7 # a thin crescent that tapers to nothing at both ends, like the other features
-	outline = np.vstack([centre + normal * half, (centre - normal * half)[::-1]])
-	ax.add_patch(Polygon([at(u, v) for u, v in outline], closed=True, facecolor=brown, edgecolor='none'))
+	mouth_pts = [(-0.47, 0.47), (0.73, 0.0), (0.75, 0.35), (0.45, 0.74), (0.1, 0.74), (-0.15, 0.74), (-0.42, 0.62), (-0.47, 0.47), (-0.47, 0.47)]
+	mc = (0.13, 0.37) # the mouth shrinks towards its middle
+	mouth = Path([at(mc[0] + 0.65 * (u - mc[0]), mc[1] + 0.65 * (v - mc[1])) for u, v in mouth_pts],
+		[Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CLOSEPOLY])
+	ax.add_patch(PathPatch(mouth, facecolor='#2b2118', edgecolor='none'))
 	ax.add_patch(Rectangle((0, 748), W, H - 748, facecolor=sea, edgecolor='none'))
 	for cx in range(0, W + 36, 36):
 		ax.add_patch(Circle((cx, 748), 19, facecolor=foam, edgecolor='none'))
