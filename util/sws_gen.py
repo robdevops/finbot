@@ -40,7 +40,7 @@ def do_sws_bulk(file):
     symbols = get_symbols(file)
     mydict = build_dict(symbols, market)
     cache_file = 'finbot_sws_' + file.split('.')[0] + '.json'
-    write_cache(mydict, cache_file)
+    write_cache(mydict, (os.getenv('DATA_DIR') or 'var') + '/' + cache_file)
     return mydict
 
 def write_cache(mydict, cache_file):

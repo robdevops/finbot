@@ -7,9 +7,9 @@ from unittest import mock
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
-os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
+os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok', telegramChatID='1')
 
-from lib import webhook, util, yahoo, sharesight, shortman, worker, charts, telegram, reports
+from lib import config, webhook, util, yahoo, sharesight, shortman, worker, charts, telegram, reports
 import performance, shorts, price, reminder, cal, trades, milestone, rating
 import bot # imported once up front: it monkey-patches with gevent, which must not happen mid-test
 
@@ -51,6 +51,7 @@ class FinbotCase(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.patch(util, 'config_var_dir', tmp.name)
         self.patch(util, 'config_cache_dir', tmp.name)
+        self.patch(config, 'config_var_dir', tmp.name)
         self.patch(webhook, 'webhooks', {'telegram': 'https://api.telegram.org/botX/'})
         for m in (performance, shorts, price, cal, trades, milestone, rating, worker, reminder):
             self.patch(m, 'webhooks', webhook.webhooks)

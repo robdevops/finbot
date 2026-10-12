@@ -7,9 +7,9 @@ import re
 import sys
 import time
 import numpy as np
+from lib.config import * # first: sets MPLCONFIGDIR before matplotlib is imported
 import matplotlib.dates as mdates
 from lib import sharesight
-from lib.config import *
 
 
 def transform_title(title):
@@ -804,6 +804,46 @@ def rows_chart(rows, title, subtitle='', **kw):
 	if 'ylim' in kw: # older name for the zoomed value axis
 		kw['xlim'] = kw.pop('ylim')
 	return hbar_chart(rows, title, subtitle, **kw)
+
+def pie_chart(rows, title, subtitle=''):
+	"""Pie of (label, value) rows, largest first, with a legend of name and share. At most 8 named slices
+	(the dark categorical slots, in fixed order); a slice labelled 'Other' is gray. Returns PNG bytes (1280x800)."""
+	from matplotlib.figure import Figure
+	from matplotlib.backends.backend_agg import FigureCanvasAgg
+	from matplotlib.patches import Rectangle
+	bg, ink, ink2 = '#14181f', '#eef1f5', '#9aa4b2'
+	slots = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767']
+	other = '#6b7280'
+	total = sum(v for _, v in rows) or 1.0
+	colors, n = [], 0
+	for label, _ in rows:
+		if label == 'Other':
+			colors.append(other)
+		else:
+			colors.append(slots[n % len(slots)])
+			n += 1
+	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
+	FigureCanvasAgg(fig)
+	ax = fig.add_axes([0.02, 0.02, 0.525, 0.84], facecolor=bg) # square: 0.84 * 4in = 0.525 * 6.4in
+	ax.pie([v for _, v in rows], colors=colors, startangle=90, counterclock=False,
+		wedgeprops={'edgecolor': bg, 'linewidth': 2}) # 2px surface gap between slices
+	ax.set_xlim(-1.03, 1.03) # matplotlib's default 1.25 leaves a wide margin around the pie
+	ax.set_ylim(-1.03, 1.03)
+	ax.set_aspect('equal')
+	step = min(0.075, 0.74 / max(len(rows), 1))
+	y = 0.5 + step * (len(rows) - 1) / 2 - 0.03 # legend block centred on the pie
+	for (label, value), color in zip(rows, colors):
+		fig.add_artist(Rectangle((0.57, y - 0.014), 0.018, 0.028, transform=fig.transFigure, facecolor=color, edgecolor='none'))
+		fig.text(0.60, y, label if len(label) <= 28 else label[:27] + '…', color=ink, fontsize=8.5, ha='left', va='center')
+		fig.text(0.97, y, f"{value / total * 100:.1f}%", color=ink2, fontsize=8.5, ha='right', va='center')
+		y -= step
+	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	if subtitle:
+		fig.text(0.03, 0.910, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+	buf = io.BytesIO()
+	fig.savefig(buf, format='png', facecolor=bg)
+	buf.seek(0)
+	return buf
 
 def bar_graph(top_rows, bottom_rows, title, subtitle=''):
 	"""Top performers then, after a gap, the worst performers: the same order as the caption's two lists."""

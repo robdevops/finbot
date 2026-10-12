@@ -209,6 +209,7 @@ def prepare_help(service, botName):
 	payload = []
 	payload.append(webhook.bold("Tracked securities:", service))
 	payload.append(".holdings")
+	payload.append(".pie PORTFOLIO [sector]")
 	payload.append(".watchlist [add|del SYMBOL]")
 	payload.append(".who SYMBOL")
 
@@ -280,6 +281,39 @@ def prepare_holdings_payload(portfolioName, service, user):
 		for item in portfolios:
 			payload.append( item )
 	return payload
+
+def prepare_pie(portfolio_name, by, service, max_slices=8):
+	"""Portfolio value by industry (or by='sector'). Returns (payload, chart); chart is None unless there is something to draw."""
+	portfolios = sharesight.get_portfolios()
+	lookup = {k.lower(): (k, v) for k, v in portfolios.items()}
+	if not portfolio_name or portfolio_name.lower() not in lookup:
+		payload = [".pie: please try again specifying a portfolio:" if not portfolio_name else f"{portfolio_name} portfolio not found. I only know about:"]
+		return payload + list(portfolios), None
+	name, portfolio_id = lookup[portfolio_name.lower()]
+	key = 'sector_classification_name' if by == 'sector' else 'industry_classification_name'
+	totals = {}
+	for holding in sharesight.get_holdings_new(name, portfolio_id).values():
+		try:
+			value = float(holding.get('value'))
+		except (TypeError, ValueError):
+			continue
+		if value > 0:
+			label = holding.get(key) or 'Unclassified'
+			totals[label] = totals.get(label, 0.0) + value
+	if not totals:
+		return [f"{name} has no holdings with a value"], None
+	rows = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
+	if len(rows) > max_slices:
+		rest = sum(v for _, v in rows[max_slices - 1:])
+		rows = rows[:max_slices - 1]
+		rows.append(('Other', rest))
+	total = sum(v for _, v in rows)
+	title = f"{name} by {by}"
+	payload = [webhook.bold(title, service)]
+	payload += [f"{label}: {value / total * 100:.1f}%" for label, value in rows]
+	noun = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries')}[by]
+	subtitle = f"{len(totals)} {noun[0] if len(totals) == 1 else noun[1]}"
+	return payload, {'pie': True, 'rows': rows, 'title': title, 'subtitle': subtitle}
 
 def prepare_marketcap_payload(service, action='top', length=15):
 	def last_col(e):

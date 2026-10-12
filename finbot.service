@@ -4,6 +4,7 @@ Description=Finbot interactive chat bot
 [Service]
 Type=simple
 User=CHANGEME
+# Or, instead of User=: DynamicUser=yes plus StateDirectory=finbot (state goes to /var/lib/finbot automatically)
 ExecStart=/home/CHANGEME/finbot/bot.py
 Restart=on-failure
 RestartSec=30s
@@ -11,6 +12,7 @@ StandardOutput=null
 StandardError=journal
 SyslogIdentifier=finbot
 Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/home/CHANGEME/finbot/.env
 
 [Install]
 WantedBy=multi-user.target
