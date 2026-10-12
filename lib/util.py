@@ -872,6 +872,17 @@ def shorts_chart(rows, threshold, step=5):
 	mouth = Path([at(mc[0] + 0.65 * (u - mc[0]), mc[1] + 0.65 * (v - mc[1])) for u, v in mouth_pts],
 		[Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CLOSEPOLY])
 	ax.add_patch(PathPatch(mouth, facecolor='#2b2118', edgecolor='none'))
+	# a ridiculously tiny top hat, cocked on the sun's upper left
+	phi = math.radians(-50) # how far round from the top of the sun it sits
+	out, along = np.array((math.sin(phi), -math.cos(phi))), np.array((math.cos(phi), math.sin(phi)))
+	seat = np.array((sx, sy)) + out * R * 0.98
+	def hat(x0, x1, y0, y1, color, x1_top=None, edge=ink): # a trapezoid in hat coordinates: x along the brim, y up out of the sun, in sun radii
+		xt = x1 if x1_top is None else x1_top
+		ax.add_patch(Polygon([tuple(seat + R * (along * x + out * y)) for x, y in ((x0, y0), (x1, y0), (xt, y1), (-xt if x0 < 0 else x0, y1))],
+			closed=True, facecolor=color, edgecolor=edge, linewidth=1.2, joinstyle='round'))
+	hat(-0.11, 0.11, 0.02, 0.23, '#14181f', 0.10) # crown
+	hat(-0.108, 0.108, 0.03, 0.10, '#e63946', 0.106, edge='none') # band
+	hat(-0.21, 0.21, -0.015, 0.03, '#14181f') # brim
 	ax.add_patch(Rectangle((0, 748), W, H - 748, facecolor=sea, edgecolor='none'))
 	for cx in range(0, W + 36, 36):
 		ax.add_patch(Circle((cx, 748), 19, facecolor=foam, edgecolor='none'))
