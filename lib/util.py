@@ -812,8 +812,7 @@ def shorts_chart(rows, threshold, step=5):
 	import math
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
-	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse, PathPatch, FancyBboxPatch
-	from matplotlib.transforms import Affine2D
+	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse, PathPatch
 	from matplotlib.path import Path
 	sky, ink, sea, foam, ray = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff', '#ffd23f'
 	colors = ['#ff3d81', '#00b8a0', '#ff8a00', '#7a5cff', '#5bc215']
@@ -875,17 +874,6 @@ def shorts_chart(rows, threshold, step=5):
 	mouth = Path([at(-0.47, 0.47), at(0.73, 0.0), at(0.75, 0.35), at(0.45, 0.74), at(0.1, 0.74), at(-0.15, 0.74), at(-0.42, 0.62), at(-0.47, 0.47), at(-0.47, 0.47)],
 		[Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CLOSEPOLY])
 	ax.add_patch(PathPatch(mouth, facecolor='#2b2118', edgecolor='none'))
-	slant = math.atan2(0.0 - 0.47, 0.73 + 0.47) # the mouth's top edge runs from (-0.47, 0.47) to (0.73, 0.0)
-	top_u = 0.05
-	top_v = 0.47 + (top_u + 0.47) * math.tan(slant) - 0.02 # the tongue's top edge sits just above the mouth's edge
-	tx, ty = at(top_u, top_v + 0.40) # centre of the tongue; its top edge's midpoint lands on that spot
-	tongue = FancyBboxPatch((tx - 0.30 * R, ty - 0.40 * R), 0.60 * R, 0.80 * R, boxstyle=f'round,pad=0,rounding_size={0.26 * R}',
-		facecolor='#ff3d81', edgecolor='none')
-	shear = Affine2D().translate(-tx, -ty).skew(0, slant).translate(tx, ty) # the top edge follows the mouth, the sides hang straight down
-	tongue.set_transform(shear + ax.transData)
-	ax.add_patch(tongue)
-	crease = [(tx, ty - 0.30 * R), (tx, ty + 0.12 * R)]
-	ax.plot([x for x, _ in crease], [y for _, y in crease], color='#d92f6c', linewidth=3.5, solid_capstyle='round') # the crease down the tongue
 	ax.add_patch(Rectangle((0, 748), W, H - 748, facecolor=sea, edgecolor='none'))
 	for cx in range(0, W + 36, 36):
 		ax.add_patch(Circle((cx, 748), 19, facecolor=foam, edgecolor='none'))
