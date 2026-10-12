@@ -812,7 +812,9 @@ def shorts_chart(rows, threshold, step=5):
 	import math
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
-	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse
+	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse, PathPatch, FancyBboxPatch
+	from matplotlib.transforms import Affine2D
+	from matplotlib.path import Path
 	sky, ink, sea, foam, ray = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff', '#ffd23f'
 	colors = ['#ff3d81', '#00b8a0', '#ff8a00', '#7a5cff', '#5bc215']
 	W, H = 1280, 800
@@ -845,16 +847,40 @@ def shorts_chart(rows, threshold, step=5):
 				part.set_clip_path(clip)
 
 	# decor: a big sun in sunglasses whose rays run under everything to the edges, and the sea
-	sx, sy, rays = 1190, 70, 16
+	sx, sy, rays = 1165, 100, 16
 	for k in range(0, rays, 2): # every other wedge, so the rays alternate with the sky
 		a0, a1 = k * 2 * math.pi / rays, (k + 1) * 2 * math.pi / rays
 		ax.add_patch(Polygon([(sx, sy), (sx + 2000 * math.cos(a0), sy + 2000 * math.sin(a0)), (sx + 2000 * math.cos(a1), sy + 2000 * math.sin(a1))],
 			closed=True, facecolor=ray, edgecolor='none', zorder=-1))
-	ax.add_patch(Circle((sx, sy), 104, facecolor='#ffb703', edgecolor=ink, linewidth=3.5))
-	for dx in (-44, 44):
-		ax.add_patch(Ellipse((sx + dx, sy - 12), 72, 52, facecolor=ink, edgecolor=ink))
-	ax.plot([sx - 10, sx + 10], [sy - 12, sy - 12], color=ink, linewidth=6)
-	ax.plot([sx - 40, sx + 40], [sy + 44, sy + 44], color=ink, linewidth=6, solid_capstyle='round') # unbothered smile
+	R = 100
+	def at(u, v): # face coordinates in sun radii, y down
+		return (sx + u * R, sy + v * R)
+	spikes = []
+	for k in range(13): # a ring of pointed spikes: tips at 1.5 radii, valleys at the disc edge
+		tip, valley = (k + 0.5) * 2 * math.pi / 13 - math.pi / 2, k * 2 * math.pi / 13 - math.pi / 2
+		spikes += [at(1.04 * math.cos(valley), 1.04 * math.sin(valley)), at(1.5 * math.cos(tip), 1.5 * math.sin(tip))]
+	ax.add_patch(Polygon(spikes, closed=True, facecolor='#ffbf1f', edgecolor='none'))
+	ax.add_patch(Circle((sx, sy), R, facecolor='#ffb000', edgecolor='none'))
+	for dx, dy, r, c in ((-0.05, -0.06, 0.93, '#ffb90a'), (-0.1, -0.12, 0.78, '#ffc21f'), (-0.16, -0.2, 0.55, '#ffcb35')): # fake gradient
+		ax.add_patch(Circle(at(dx, dy), r * R, facecolor=c, edgecolor='none'))
+	brown = '#5a3d37'
+	for (u, v), w, h in (((-0.46, -0.07), 0.16, 0.29), ((0.31, -0.37), 0.16, 0.26)): # lopsided eyes
+		ax.add_patch(Ellipse(at(u, v), w * R, h * R, facecolor=brown, edgecolor='none'))
+	nose = np.array([(-0.07, -0.35), (0.05, -0.26), (0.15, -0.13), (0.18, 0.0), (0.10, 0.10), (-0.03, 0.16)])
+	pts = np.vstack([nose[0], nose, nose[-1]]) # Catmull-Rom through the points, so the squiggle is smooth
+	curve = [0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3)
+		for p0, p1, p2, p3 in zip(pts, pts[1:], pts[2:], pts[3:]) for t in np.linspace(0, 1, 12)]
+	ax.plot([sx + u * R for u, _ in curve], [sy + v * R for _, v in curve], color='#e07b1a', linewidth=4.5, solid_capstyle='round')
+	mouth = Path([at(-0.47, 0.47), at(0.73, 0.0), at(0.75, 0.35), at(0.45, 0.74), at(0.1, 0.74), at(-0.15, 0.74), at(-0.42, 0.62), at(-0.47, 0.47), at(-0.47, 0.47)],
+		[Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CLOSEPOLY])
+	ax.add_patch(PathPatch(mouth, facecolor='#2b2118', edgecolor='none'))
+	tx, ty = at(0.10, 0.66) # a rounded tongue, tilted along the slant of the face
+	tongue = FancyBboxPatch((tx - 0.30 * R, ty - 0.40 * R), 0.60 * R, 0.80 * R, boxstyle=f'round,pad=0,rounding_size={0.26 * R}',
+		facecolor='#ff3d81', edgecolor='none')
+	tongue.set_transform(Affine2D().rotate_deg_around(tx, ty, -17) + ax.transData)
+	ax.add_patch(tongue)
+	crease = Affine2D().rotate_deg_around(tx, ty, -17).transform([(tx, ty - 0.30 * R), (tx, ty + 0.12 * R)])
+	ax.plot(crease[:, 0], crease[:, 1], color='#d92f6c', linewidth=3.5, solid_capstyle='round') # the crease down the tongue
 	ax.add_patch(Rectangle((0, 748), W, H - 748, facecolor=sea, edgecolor='none'))
 	for cx in range(0, W + 36, 36):
 		ax.add_patch(Circle((cx, 748), 19, facecolor=foam, edgecolor='none'))
@@ -865,7 +891,7 @@ def shorts_chart(rows, threshold, step=5):
 	title_end = title.get_window_extent(canvas.get_renderer()).x1
 	shorts(title_end + 16, 22, 56, 50, '#ff3d81')
 
-	top, bottom = 170, 726
+	top, bottom = 205, 726
 	n = len(rows)
 	row_h = min((bottom - top) / n, 110)
 	top += ((bottom - top) - row_h * n) / 2 # few rows sit in the middle of the beach, not the top
