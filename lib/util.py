@@ -824,9 +824,11 @@ def pie_chart(rows, title, subtitle=''):
 			n += 1
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
 	FigureCanvasAgg(fig)
-	ax = fig.add_axes([0.03, 0.04, 0.5, 0.80], facecolor=bg)
+	ax = fig.add_axes([0.02, 0.02, 0.525, 0.84], facecolor=bg) # square: 0.84 * 4in = 0.525 * 6.4in
 	ax.pie([v for _, v in rows], colors=colors, startangle=90, counterclock=False,
 		wedgeprops={'edgecolor': bg, 'linewidth': 2}) # 2px surface gap between slices
+	ax.set_xlim(-1.03, 1.03) # matplotlib's default 1.25 leaves a wide margin around the pie
+	ax.set_ylim(-1.03, 1.03)
 	ax.set_aspect('equal')
 	step = min(0.075, 0.74 / max(len(rows), 1))
 	y = 0.5 + step * (len(rows) - 1) / 2 - 0.03 # legend block centred on the pie
