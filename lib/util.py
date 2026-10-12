@@ -817,8 +817,8 @@ def shorts_chart(rows, threshold, step=5):
 	sky, ink, sea, foam, ray = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff', '#ffd23f'
 	colors = ['#ff3d81', '#00b8a0', '#ff8a00', '#7a5cff', '#5bc215']
 	W, H = 1280, 800
-	if len(rows) > 20: # pairs of shorts need height: keep the most and the least shorted
-		rows = rows[:10] + rows[-10:]
+	if len(rows) > 24: # pairs of shorts need height: keep the most and the least shorted
+		rows = rows[:12] + rows[-12:]
 	rows = [(label if len(label) <= 10 else label[:9] + '…', value) for label, value in rows]
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=sky)
 	canvas = FigureCanvasAgg(fig)
@@ -846,7 +846,7 @@ def shorts_chart(rows, threshold, step=5):
 				part.set_clip_path(clip)
 
 	# decor: a big sun in sunglasses whose rays run under everything to the edges, and the sea
-	R = 150 # the sun's radius; it sits in the top right corner, touching both edges
+	R = 100 # the sun's radius; it sits in the top right corner, touching both edges
 	sx, sy, rays = W - R, R, 16
 	for k in range(0, rays, 2): # every other wedge, so the rays alternate with the sky
 		a0, a1 = k * 2 * math.pi / rays, (k + 1) * 2 * math.pi / rays
@@ -881,7 +881,7 @@ def shorts_chart(rows, threshold, step=5):
 	title_end = title.get_window_extent(canvas.get_renderer()).x1
 	shorts(title_end + 16, 22, 56, 50, '#ff3d81')
 
-	top, bottom = 300, 726 # below the sun
+	top, bottom = 205, 726 # below the sun
 	n = len(rows)
 	row_h = min((bottom - top) / n, 110)
 	top += ((bottom - top) - row_h * n) / 2 # few rows sit in the middle of the beach, not the top
