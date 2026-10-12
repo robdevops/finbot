@@ -887,7 +887,7 @@ def shorts_chart(rows, threshold, step=5):
 	canvas.draw() # measure the percentages, then put each verdict right after its own
 	for text, cy, value in pct_texts:
 		ax.text(text.get_window_extent(canvas.get_renderer()).x1 + 10, cy, shorts_verdict(value), color=ink, fontsize=size * 0.62, fontstyle='italic', ha='left', va='center')
-	ax.text(W / 2, 777, 'past performance is not indicative of future shorts', color='white', fontsize=8, fontweight='bold', ha='center', va='center')
+	ax.text(W / 2, 777, 'past fashion is not indicative of future fashion', color='white', fontsize=8, fontweight='bold', ha='center', va='center')
 	line_x = x0 + threshold / step * icon_w
 	ax.plot([line_x, line_x], [top - 12, bottom], color=ink, linewidth=1.8, linestyle=(0, (5, 4)), zorder=0)
 	ax.text(line_x, top - 18, f"the {threshold}% fashion line", color=ink, fontsize=7.5, fontweight='bold', ha='center', va='bottom')
