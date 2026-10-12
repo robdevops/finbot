@@ -812,8 +812,7 @@ def shorts_chart(rows, threshold, step=5):
 	import math
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
-	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse, PathPatch, FancyBboxPatch
-	from matplotlib.transforms import Affine2D
+	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse, PathPatch
 	from matplotlib.path import Path
 	sky, ink, sea, foam, ray = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff', '#ffd23f'
 	colors = ['#ff3d81', '#00b8a0', '#ff8a00', '#7a5cff', '#5bc215']
@@ -858,27 +857,10 @@ def shorts_chart(rows, threshold, step=5):
 	ax.add_patch(Circle((sx, sy), R, facecolor='#ffb000', edgecolor='none'))
 	for dx, dy, r, c in ((-0.05, -0.06, 0.93, '#ffb90a'), (-0.1, -0.12, 0.78, '#ffc21f'), (-0.16, -0.2, 0.55, '#ffcb35')): # fake gradient
 		ax.add_patch(Circle(at(dx, dy), r * R, facecolor=c, edgecolor='none'))
-	# cool sunnies, tilted with the face: two dark lenses with a gloss streak, a bridge and arms to the edge of the sun
-	left, right = np.array((-0.448, -0.075)), np.array((0.298, -0.365))
-	tilt = math.atan2(*(right - left)[::-1]) # the glasses' axis, rising to the right
-	axis = np.array((math.cos(tilt), math.sin(tilt)))
-	lens_w, lens_h = 0.56, 0.40
-	frame = '#14181f'
-	for a0, a1 in ((left - axis * 0.26, left - axis * 0.40), (right + axis * 0.26, right + axis * 0.38)): # arms, out along the axis
-		ax.plot(*zip(at(*a0), at(*a1)), color=frame, linewidth=3, solid_capstyle='round')
-	ax.plot(*zip(at(*(left + axis * 0.2)), at(*(right - axis * 0.2))), color=frame, linewidth=3.5)
-	for centre in (left, right):
-		cx, cy = at(*centre)
-		lens = FancyBboxPatch((cx - lens_w / 2 * R, cy - lens_h / 2 * R), lens_w * R, lens_h * R, boxstyle=f'round,pad=0,rounding_size={0.10 * R}',
-			facecolor=frame, edgecolor='none')
-		turn = Affine2D().rotate_around(cx, cy, tilt) + ax.transData
-		lens.set_transform(turn)
-		ax.add_patch(lens)
-		gloss = Polygon([(cx + dx * R, cy + dy * R) for dx, dy in ((-0.17, -0.14), (-0.07, -0.14), (-0.14, 0.14), (-0.24, 0.14))],
-			closed=True, facecolor='white', alpha=0.28, edgecolor='none')
-		gloss.set_transform(turn)
-		ax.add_patch(gloss)
-	nose = np.array([(-0.07, -0.35), (0.05, -0.26), (0.15, -0.13), (0.18, 0.0), (0.10, 0.10), (-0.03, 0.16)]) + (0.0, 0.2) # below the sunnies
+	brown = '#5a3d37'
+	for (u, v), w, h in (((-0.46, -0.07), 0.21, 0.25), ((0.31, -0.37), 0.20, 0.24)): # lopsided eyes
+		ax.add_patch(Ellipse(at(u, v), w * R, h * R, facecolor=brown, edgecolor='none'))
+	nose = np.array([(-0.07, -0.35), (0.05, -0.26), (0.15, -0.13), (0.18, 0.0), (0.10, 0.10), (-0.03, 0.16)])
 	nose = nose.mean(axis=0) + 0.62 * (nose - nose.mean(axis=0)) # dainty: a smaller squiggle
 	pts = np.vstack([nose[0], nose, nose[-1]]) # Catmull-Rom through the points, so the squiggle is smooth
 	curve = [0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3)
