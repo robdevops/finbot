@@ -891,7 +891,7 @@ def shorts_chart(rows, threshold, step=5):
 		extent = verdict.get_window_extent(canvas.get_renderer())
 		if extent.x1 > W - 16: # never run off the image: shrink to fit
 			verdict.set_fontsize(verdict.get_fontsize() * (W - 16 - extent.x0) / extent.width)
-	ax.text(W / 2, 784, 'past fashion is not indicative of future fashion', color='white', fontsize=8, fontweight='bold', ha='center', va='center')
+	ax.text(W / 2, 784, 'past fashion not indicative of future fashion', color='white', fontsize=8, fontweight='bold', fontstyle='italic', ha='center', va='center')
 	line_x = x0 + threshold / step * icon_w
 	ax.plot([line_x, line_x], [top - 12, bottom], color=ink, linewidth=1.8, linestyle=(0, (5, 4)), zorder=0)
 	ax.text(line_x, top - 18, f"{threshold}% fashion line", color=ink, fontsize=7.5, fontweight='bold', ha='center', va='bottom')
