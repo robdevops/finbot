@@ -867,10 +867,11 @@ def shorts_chart(rows, threshold, step=5):
 	for (u, v), w, h in (((-0.46, -0.07), 0.16, 0.29), ((0.31, -0.37), 0.16, 0.26)): # lopsided eyes
 		ax.add_patch(Ellipse(at(u, v), w * R, h * R, facecolor=brown, edgecolor='none'))
 	nose = np.array([(-0.07, -0.35), (0.05, -0.26), (0.15, -0.13), (0.18, 0.0), (0.10, 0.10), (-0.03, 0.16)])
+	nose = nose.mean(axis=0) + 0.62 * (nose - nose.mean(axis=0)) # dainty: a smaller squiggle
 	pts = np.vstack([nose[0], nose, nose[-1]]) # Catmull-Rom through the points, so the squiggle is smooth
 	curve = [0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3)
 		for p0, p1, p2, p3 in zip(pts, pts[1:], pts[2:], pts[3:]) for t in np.linspace(0, 1, 12)]
-	ax.plot([sx + u * R for u, _ in curve], [sy + v * R for _, v in curve], color='#e07b1a', linewidth=4.5, solid_capstyle='round')
+	ax.plot([sx + u * R for u, _ in curve], [sy + v * R for _, v in curve], color='#e07b1a', linewidth=2.6, solid_capstyle='round')
 	mouth = Path([at(-0.47, 0.47), at(0.73, 0.0), at(0.75, 0.35), at(0.45, 0.74), at(0.1, 0.74), at(-0.15, 0.74), at(-0.42, 0.62), at(-0.47, 0.47), at(-0.47, 0.47)],
 		[Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CLOSEPOLY])
 	ax.add_patch(PathPatch(mouth, facecolor='#2b2118', edgecolor='none'))
