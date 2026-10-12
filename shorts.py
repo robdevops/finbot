@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import json, random, re, sys
+import json, re, sys
 from lib.config import *
 from lib import sharesight
 from lib import webhook
@@ -41,7 +41,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
 			if not specific_stock:
 				message = f'Tracked stocks shorted over {threshold}%'
 				message = webhook.bold(message, service)
-				payload.insert(0, webhook.italic(random.choice(shortsPuns), service))
 				payload.insert(0, message)
 				if chart_rows and (interactive or service == 'telegram'): # Slack/Discord cron posts have no way to upload an image
 					chart_rows.sort(key=lambda row: row[1], reverse=True)

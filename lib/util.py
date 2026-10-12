@@ -797,7 +797,8 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	buf.seek(0) # rewind, or the upload sends an empty file
 	return buf
 
-SHORTS_VERDICTS = ((20, 'cargo shorts'), (30, 'board shorts'), (45, 'daisy dukes'), (float('inf'), 'speedo'))
+SHORTS_VERDICTS = ((10, 'bermuda shorts'), (15, 'cargo shorts'), (20, 'board shorts'), (25, 'gym shorts'), (30, 'cutoffs'),
+	(35, 'short shorts'), (40, 'daisy dukes'), (45, 'hot pants'), (50, 'boxers'), (55, 'speedos'), (70, 'budgie smugglers'), (float('inf'), 'just a belt'))
 
 def shorts_verdict(percent):
 	"""The more shorted, the shorter the shorts."""
@@ -869,7 +870,7 @@ def shorts_chart(rows, threshold, step=5):
 	size = max(6, min(18, row_h * 0.5 * 72 / 200 * 2))
 	label_w = max(len(str(label)) for label, _ in rows) * size * 200 / 72 * 0.62
 	x0 = 40 + label_w + 16
-	room = 40 + 260 # right-hand text: percent and verdict
+	room = 40 + 400 # right-hand text: percent and verdict
 	max_icons = max(math.ceil(max(v for _, v in rows) / step), 1)
 	icon_w = min((W - room - x0) / max_icons, row_h * 1.1 * 0.9, 120)
 	icon_h = icon_w / 1.1
@@ -886,8 +887,11 @@ def shorts_chart(rows, threshold, step=5):
 		pct_texts.append((ax.text(end + 14, cy, f"{round(value)}%", color=ink, fontsize=size, fontweight='bold', ha='left', va='center'), cy, value))
 	canvas.draw() # measure the percentages, then put each verdict right after its own
 	for text, cy, value in pct_texts:
-		ax.text(text.get_window_extent(canvas.get_renderer()).x1 + 10, cy, shorts_verdict(value), color=ink, fontsize=size * 0.62, fontstyle='italic', ha='left', va='center')
-	ax.text(W / 2, 777, 'past fashion is not indicative of future fashion', color='white', fontsize=8, fontweight='bold', ha='center', va='center')
+		verdict = ax.text(text.get_window_extent(canvas.get_renderer()).x1 + 10, cy, shorts_verdict(value), color=ink, fontsize=size * 0.62, fontstyle='italic', ha='left', va='center')
+		extent = verdict.get_window_extent(canvas.get_renderer())
+		if extent.x1 > W - 16: # never run off the image: shrink to fit
+			verdict.set_fontsize(verdict.get_fontsize() * (W - 16 - extent.x0) / extent.width)
+	ax.text(W / 2, 782, 'past fashion is not indicative of future fashion', color='white', fontsize=8, fontweight='bold', ha='center', va='center')
 	line_x = x0 + threshold / step * icon_w
 	ax.plot([line_x, line_x], [top - 12, bottom], color=ink, linewidth=1.8, linestyle=(0, (5, 4)), zorder=0)
 	ax.text(line_x, top - 18, f"the {threshold}% fashion line", color=ink, fontsize=7.5, fontweight='bold', ha='center', va='bottom')
