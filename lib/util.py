@@ -875,11 +875,8 @@ def shorts_chart(rows, threshold, step=5):
 	for cx in range(0, W + 36, 36):
 		ax.add_patch(Circle((cx, 748), 19, facecolor=foam, edgecolor='none'))
 
-	title = ax.text(40, 52, 'Shorts', color=ink, fontsize=21, fontweight='bold', ha='left', va='center')
+	ax.text(40, 52, 'Shorts', color=ink, fontsize=21, fontweight='bold', ha='left', va='center')
 	ax.text(40, 104, f"each pair of shorts = {step}% of shares shorted", color=ink, fontsize=9.5, ha='left', va='center')
-	canvas.draw()
-	title_end = title.get_window_extent(canvas.get_renderer()).x1
-	shorts(title_end + 16, 22, 56, 50, '#ff3d81')
 
 	top, bottom = 205, 726 # below the sun
 	n = len(rows)
