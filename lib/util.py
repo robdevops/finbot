@@ -895,7 +895,7 @@ def shorts_chart(rows, threshold, step=5):
 	ax.text(W / 2, 784, 'past fashion not indicative of future fashion', color='white', fontsize=8, fontweight='bold', fontstyle='italic', ha='center', va='center')
 	line_x = x0 + threshold / step * icon_w
 	ax.plot([line_x, line_x], [top - 12, bottom], color=ink, linewidth=1.8, linestyle=(0, (5, 4)), zorder=0)
-	ax.text(line_x, top - 18, f"{threshold}% fashion line", color=ink, fontsize=7.5, fontweight='bold', ha='center', va='bottom')
+	ax.text(line_x, top - 18, f"{threshold}% outrageous line", color=ink, fontsize=7.5, fontweight='bold', ha='center', va='bottom')
 
 	buf = io.BytesIO()
 	fig.savefig(buf, format='png', facecolor=sky)
