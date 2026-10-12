@@ -873,13 +873,13 @@ def shorts_chart(rows, threshold, step=5):
 		[Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CLOSEPOLY])
 	ax.add_patch(PathPatch(mouth, facecolor='#2b2118', edgecolor='none'))
 	# a ridiculously tiny straw beach hat, cocked on the sun's upper left
-	phi = math.radians(-50) # how far round from the top of the sun it sits
+	phi = math.radians(-25) # how far round from the top of the sun it sits: nearly on top, leaning with the face
 	out, along = np.array((math.sin(phi), -math.cos(phi))), np.array((math.cos(phi), math.sin(phi)))
-	seat = np.array((sx, sy)) + out * R * 0.97
+	seat = np.array((sx, sy)) + out * R * 0.94
 	def hat(points, color, edge='#a8741a'): # points in hat coordinates: x along the brim, y up out of the sun, in sun radii
 		ax.add_patch(Polygon([tuple(seat + R * (along * x + out * y)) for x, y in points], closed=True, facecolor=color, edgecolor=edge, linewidth=1.2, joinstyle='round'))
 	arc = np.linspace(0, math.pi, 24)
-	hat([(0.15 * math.cos(t), 0.02 + 0.17 * math.sin(t)) for t in arc], '#f2d27a') # the dome of the crown
+	hat([(0.15 * math.cos(t), 0.02 + 0.16 * math.sin(t)) for t in arc], '#f2d27a') # the dome of the crown
 	hat([(-0.149, 0.03), (0.149, 0.03), (0.143, 0.085), (-0.143, 0.085)], '#ff3d81', edge='none') # ribbon
 	hat([(0.30 * math.cos(t), 0.05 * math.sin(2 * math.pi - t) + 0.005) for t in np.linspace(0, 2 * math.pi, 40)], '#f2d27a') # the wide brim
 	ax.add_patch(Rectangle((0, 748), W, H - 748, facecolor=sea, edgecolor='none'))
