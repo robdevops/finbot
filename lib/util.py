@@ -871,8 +871,14 @@ def shorts_chart(rows, threshold, step=5):
 	curve = [0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3)
 		for p0, p1, p2, p3 in zip(pts, pts[1:], pts[2:], pts[3:]) for t in np.linspace(0, 1, 12)]
 	ax.plot([sx + u * R for u, _ in curve], [sy + v * R for _, v in curve], color='#e07b1a', linewidth=2.6, solid_capstyle='round')
-	smile = Path([at(-0.50, 0.36), at(-0.30, 0.80), at(0.35, 0.82), at(0.68, 0.20)], [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]) # big, closed, tilted with the face
-	ax.add_patch(PathPatch(smile, facecolor='none', edgecolor='#2b2118', linewidth=6, capstyle='round'))
+	c0, c1, c2, c3 = (np.array(c) for c in ((-0.50, 0.36), (-0.30, 0.80), (0.35, 0.82), (0.68, 0.20))) # big, closed, tilted with the face
+	t = np.linspace(0, 1, 40)[:, None]
+	centre = (1 - t) ** 3 * c0 + 3 * (1 - t) ** 2 * t * c1 + 3 * (1 - t) * t ** 2 * c2 + t ** 3 * c3
+	slope = 3 * (1 - t) ** 2 * (c1 - c0) + 6 * (1 - t) * t * (c2 - c1) + 3 * t ** 2 * (c3 - c2)
+	normal = np.hstack([-slope[:, 1:], slope[:, :1]]) / np.linalg.norm(slope, axis=1, keepdims=True)
+	half = 0.035 * np.sin(np.pi * t) ** 0.7 # a thin crescent that tapers to nothing at both ends, like the other features
+	outline = np.vstack([centre + normal * half, (centre - normal * half)[::-1]])
+	ax.add_patch(Polygon([at(u, v) for u, v in outline], closed=True, facecolor=brown, edgecolor='none'))
 	ax.add_patch(Rectangle((0, 748), W, H - 748, facecolor=sea, edgecolor='none'))
 	for cx in range(0, W + 36, 36):
 		ax.add_patch(Circle((cx, 748), 19, facecolor=foam, edgecolor='none'))
