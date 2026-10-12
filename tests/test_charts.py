@@ -15,7 +15,9 @@ from tests.common import *
 
 GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'golden')
 BG, BLUE, RED = (0x14, 0x18, 0x1f), (0x39, 0x87, 0xe5), (0xfb, 0x71, 0x85)
-SKY = (0xff, 0xe6, 0x6d) # the shorts chart's yellow
+SKY = (0xff, 0xe6, 0x6d) # the shorts chart's yellow, and the deeper yellow of its sun rays
+RAY = (0xff, 0xd2, 0x3f)
+SHORTS_BG = (SKY, RAY)
 
 MIXED = [('AAA', 42), ('BBB', 17), ('CCC', 3), ('', None), ('DDD', -5), ('EEE', -30)]
 
@@ -64,7 +66,8 @@ class ImageSanity(unittest.TestCase):
         pixels = np.asarray(image)
         self.assertGreater(len({tuple(p) for p in pixels.reshape(-1, 3)[::97]}), 8, f'{name} looks blank')
         self.assertGreater(pixels.std(), 5, f'{name} looks blank')
-        np.testing.assert_array_equal(pixels[0, 0], bg, err_msg=name)
+        allowed = bg if isinstance(bg[0], tuple) else (bg,)
+        self.assertIn(tuple(int(c) for c in pixels[0, 0]), allowed, name)
         if not edge_clean: # the shorts beach draws its sea right to the edge
             return
         edge = np.concatenate([pixels[:3].reshape(-1, 3), pixels[-3:].reshape(-1, 3), pixels[:, :3].reshape(-1, 3), pixels[:, -3:].reshape(-1, 3)])
@@ -74,7 +77,7 @@ class ImageSanity(unittest.TestCase):
         for name, make in CHARTS.items():
             with self.subTest(chart=name):
                 if name == 'shorts':
-                    self.check_image(make(), name, bg=SKY, edge_clean=False)
+                    self.check_image(make(), name, bg=SHORTS_BG, edge_clean=False)
                 else:
                     self.check_image(make(), name)
 
@@ -93,8 +96,8 @@ class ImageSanity(unittest.TestCase):
     def test_shorts_chart_sizes_and_verdicts(self):
         for n in (1, 5, 45):
             rows = [(f'T{i}', 60.0 - i) for i in range(n)]
-            self.check_image(util.shorts_chart(rows, 15), f'shorts {n} rows', bg=SKY, edge_clean=False)
-        self.check_image(util.shorts_chart([('A VERY LONG LABEL', 15.0), ('B', 0.4)], 15), 'shorts long label and tiny value', bg=SKY, edge_clean=False)
+            self.check_image(util.shorts_chart(rows, 15), f'shorts {n} rows', bg=SHORTS_BG, edge_clean=False)
+        self.check_image(util.shorts_chart([('A VERY LONG LABEL', 15.0), ('B', 0.4)], 15), 'shorts long label and tiny value', bg=SHORTS_BG, edge_clean=False)
         tiers = [(0, 'board shorts'), (4.9, 'board shorts'), (5, 'cargo shorts'), (10, 'boxers'), (15, 'gym shorts'), (20, 'cutoffs'),
                  (30, 'short shorts'), (40, 'daisy dukes'), (50, 'hot pants'), (60, 'speedos'), (70, 'budgie smugglers'),
                  (80, 'just a belt'), (90, 'never nudes'), (200, 'never nudes')]

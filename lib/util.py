@@ -813,7 +813,7 @@ def shorts_chart(rows, threshold, step=5):
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
 	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse
-	sky, ink, sea, foam = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff'
+	sky, ink, sea, foam, ray = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff', '#ffd23f'
 	colors = ['#ff3d81', '#00b8a0', '#ff8a00', '#7a5cff', '#5bc215']
 	W, H = 1280, 800
 	if len(rows) > 24: # pairs of shorts need height: keep the most and the least shorted
@@ -844,15 +844,17 @@ def shorts_chart(rows, threshold, step=5):
 			if clip is not None:
 				part.set_clip_path(clip)
 
-	# decor: a sun in sunglasses, and the sea
-	ax.add_patch(Circle((1185, 100), 52, facecolor='#ffb703', edgecolor=ink, linewidth=2))
-	for k in range(12):
-		a = k * math.pi / 6
-		ax.plot([1185 + 62 * math.cos(a), 1185 + 82 * math.cos(a)], [100 + 62 * math.sin(a), 100 + 82 * math.sin(a)], color='#ffb703', linewidth=3, solid_capstyle='round')
-	for dx in (-22, 22):
-		ax.add_patch(Ellipse((1185 + dx, 94), 36, 26, facecolor=ink, edgecolor=ink))
-	ax.plot([1185 - 5, 1185 + 5], [94, 94], color=ink, linewidth=3)
-	ax.plot([1165, 1205], [122, 122], color=ink, linewidth=3, solid_capstyle='round') # unbothered smile
+	# decor: a big sun in sunglasses whose rays run under everything to the edges, and the sea
+	sx, sy, rays = 1190, 70, 16
+	for k in range(0, rays, 2): # every other wedge, so the rays alternate with the sky
+		a0, a1 = k * 2 * math.pi / rays, (k + 1) * 2 * math.pi / rays
+		ax.add_patch(Polygon([(sx, sy), (sx + 2000 * math.cos(a0), sy + 2000 * math.sin(a0)), (sx + 2000 * math.cos(a1), sy + 2000 * math.sin(a1))],
+			closed=True, facecolor=ray, edgecolor='none', zorder=-1))
+	ax.add_patch(Circle((sx, sy), 104, facecolor='#ffb703', edgecolor=ink, linewidth=3.5))
+	for dx in (-44, 44):
+		ax.add_patch(Ellipse((sx + dx, sy - 12), 72, 52, facecolor=ink, edgecolor=ink))
+	ax.plot([sx - 10, sx + 10], [sy - 12, sy - 12], color=ink, linewidth=6)
+	ax.plot([sx - 40, sx + 40], [sy + 44, sy + 44], color=ink, linewidth=6, solid_capstyle='round') # unbothered smile
 	ax.add_patch(Rectangle((0, 748), W, H - 748, facecolor=sea, edgecolor='none'))
 	for cx in range(0, W + 36, 36):
 		ax.add_patch(Circle((cx, 748), 19, facecolor=foam, edgecolor='none'))
