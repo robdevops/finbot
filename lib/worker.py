@@ -52,7 +52,10 @@ class TypingIndicator:
 
 def deliver(service, url, chat_id, payload, chart=None):
 	"""Send a report: as a bar chart (the text list as caption) where the service can take an image, else as text."""
-	if chart and chart.get('rows') and service in ('telegram', 'slack'):
+	if chart and chart.get('pie') and chart.get('rows') and service in ('telegram', 'slack'):
+		image = util.pie_chart(chart['rows'], chart['title'], chart.get('subtitle', ''))
+		webhook.sendPhoto(chat_id, image, '\n'.join(payload) if payload else chart['title'], service)
+	elif chart and chart.get('rows') and service in ('telegram', 'slack'):
 		spec = dict(chart)
 		rows, title = spec.pop('rows'), spec.pop('title')
 		subtitle = spec.pop('subtitle', '')
@@ -129,6 +132,9 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 
 	peg_command = prefix + r"peg\s*([\w\.\:\-\s]+)*"
 	m_peg = re.match(peg_command, message, re.IGNORECASE)
+
+	pie_command = prefix + r"pie(?:$|\s+)(?P<args>[\w\s\-\.&]*)"
+	m_pie = re.match(pie_command, message, re.IGNORECASE)
 
 	beta_command = prefix + r"beta\s*([\w\.\:\-]+)*"
 	m_beta = re.match(beta_command, message, re.IGNORECASE)
@@ -580,6 +586,21 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			chart_rows.sort(key=lambda row: row[1], reverse=True)
 			chart = {'rows': chart_rows, 'title': heading, 'value_fmt': lambda v: f"{v:g}", 'axis_fmt': lambda v: f"{v:g}"}
 			deliver(service, url, chat_id, payload, chart)
+	elif m_pie:
+		words = m_pie.group('args').split()
+		by = 'industry'
+		if words and words[-1].lower() in ('sector', 'sectors', 'industry', 'industries'):
+			by = 'sector' if words.pop().lower().startswith('sector') else 'industry'
+		typing = TypingIndicator(service, chat_id)
+		typing.start()
+		try:
+			payload, chart = reports.prepare_pie(' '.join(words), by, service)
+		except Exception as e:
+			print(e, file=sys.stderr)
+			raise
+		finally:
+			typing.stop()
+		deliver(service, url, chat_id, payload, chart)
 	elif m_buy:
 		action='buy'
 		typing = TypingIndicator(service, chat_id)

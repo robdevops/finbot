@@ -49,6 +49,7 @@ Where:
 .holdings portfolio
 .marketcap [symbol|top|bottom]
 .performance [period] [portfolio]
+.pie portfolio [sector]
 .premarket [percent|symbol]
 .price [percent|symbol] [period]
 .rating [strong buy|buy|hold|underperform|sell]
@@ -70,6 +71,7 @@ Alternative syntax:
 @botname holdings [portfolio]
 @botname marketcap [symbol|top|bottom]
 @botname performance [period] [portfolio]
+@botname pie portfolio [sector]
 @botname premarket [percent|symbol]
 @botname price [percent|symbol] [period]
 @botname rating [buy|hold|underperform|sell]

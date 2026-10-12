@@ -152,6 +152,7 @@ def get_holdings_new(portfolio_name, portfolio_id):
 		symbol = code + ":" + market_code
 		holdings[symbol] = item['instrument']
 		holdings[symbol]['holding_id'] = item['id']
+		holdings[symbol]['value'] = item.get('value')
 	return holdings
 
 def get_holdings_wrapper():

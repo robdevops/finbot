@@ -157,3 +157,42 @@ class Podcasts(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PieCommand(FinbotCase):
+    def setUp(self):
+        super().setUp()
+        def holdings(name, pid):
+            data = [('A', 'Semiconductors', 'Electronic Technology', 500), ('B', 'Semiconductors', 'Electronic Technology', 300),
+                    ('C', 'Biotechnology', 'Health Technology', 200), ('D', None, None, 100), ('E', 'Gold', 'Minerals', 0)]
+            return {c + ':NASDAQ': {'code': c, 'market_code': 'NASDAQ', 'industry_classification_name': i,
+                                    'sector_classification_name': s, 'value': v} for c, i, s, v in data}
+        self.patch(sharesight, 'get_holdings_new', holdings)
+
+    def test_by_industry_default(self):
+        sent = self.command('.pie Rob')
+        self.assertEqual(sent[0][0], 'photo')
+        self.assertIn('Rob by industry', sent[0][2])
+
+    def test_by_sector_and_payload(self):
+        payload, chart = reports.prepare_pie('rob', 'sector', 'telegram')
+        self.assertEqual([r[0] for r in chart['rows']], ['Electronic Technology', 'Health Technology', 'Unclassified'])
+        self.assertIn('Electronic Technology: 72.7%', payload) # 800 of 1100; zero-value Gold is left out
+        self.assertEqual(self.command('.pie Rob sector')[0][0], 'photo')
+
+    def test_folds_into_other_and_renders(self):
+        self.patch(sharesight, 'get_holdings_new', lambda n, p: {f'T{i}:X': {'code': f'T{i}', 'industry_classification_name': f'Ind {i}', 'value': 100 - i} for i in range(12)})
+        payload, chart = reports.prepare_pie('Rob', 'industry', 'telegram')
+        self.assertEqual(len(chart['rows']), 8)
+        self.assertEqual(chart['rows'][-1][0], 'Other')
+        self.assertTrue(util.pie_chart(chart['rows'], chart['title'], chart['subtitle']).read().startswith(b'\x89PNG'))
+
+    def test_unknown_or_missing_portfolio_lists_known(self):
+        for text, first in (('.pie', '.pie: please try again'), ('.pie Nope', 'Nope portfolio not found')):
+            sent = self.command(text)
+            self.assertTrue(sent[0][1][0].startswith(first), text)
+            self.assertIn('Rob', sent[0][1])
+
+    def test_text_only_service(self):
+        worker.deliver('discord', 'u', '1', ['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
+        self.assertEqual(self.sent[-1][0], 'text')
