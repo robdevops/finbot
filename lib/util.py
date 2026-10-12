@@ -849,8 +849,9 @@ def shorts_chart(rows, threshold, step=5):
 	R = 100 # the sun's radius; it sits in the top right corner
 	margin = 5 # gap between the sun and the top and right edges
 	sx, sy, rays = W - R - margin, R + margin, 16
+	tilt = math.radians(-1) # beams turned 1 degree counter-clockwise (angles run clockwise here, as y points down)
 	for k in range(0, rays, 2): # every other wedge, so the rays alternate with the sky
-		a0, a1 = k * 2 * math.pi / rays, (k + 1) * 2 * math.pi / rays
+		a0, a1 = k * 2 * math.pi / rays + tilt, (k + 1) * 2 * math.pi / rays + tilt
 		ax.add_patch(Polygon([(sx, sy), (sx + 2000 * math.cos(a0), sy + 2000 * math.sin(a0)), (sx + 2000 * math.cos(a1), sy + 2000 * math.sin(a1))],
 			closed=True, facecolor=ray, edgecolor='none', zorder=-1))
 	def at(u, v): # face coordinates in sun radii, y down
