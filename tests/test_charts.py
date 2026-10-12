@@ -15,6 +15,7 @@ from tests.common import *
 
 GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'golden')
 BG, BLUE, RED = (0x14, 0x18, 0x1f), (0x39, 0x87, 0xe5), (0xfb, 0x71, 0x85)
+SKY = (0xff, 0xe6, 0x6d) # the shorts chart's yellow
 
 MIXED = [('AAA', 42), ('BBB', 17), ('CCC', 3), ('', None), ('DDD', -5), ('EEE', -30)]
 
@@ -40,6 +41,7 @@ CHARTS = {
     'hbar_mixed': lambda: util.hbar_chart(MIXED, 'Price movement 5.0%, 5 Sep - 5 Oct 2026', 'subtitle here'),
     'price_line': lambda: util.graph(price_frame(), 'Apple Inc (AAPL)', 'USD'),
     'compare_lines': lambda: util.compare_graph(compare_series(), 'Compare 120 days', 'subtitle here'),
+    'shorts': lambda: util.shorts_chart([('GME', 47.3), ('AMC', 32.1), ('TSLA', 21.6), ('AAPL', 15.2)], 15),
 }
 # inputs that have broken chart code before or are likely to: sizes, signs, long names, zeros, a single row
 EDGE_ROWS = {
@@ -56,20 +58,25 @@ EDGE_ROWS = {
 
 
 class ImageSanity(unittest.TestCase):
-    def check_image(self, buf, name):
+    def check_image(self, buf, name, bg=BG, edge_clean=True):
         image = decode(buf)
         self.assertEqual(image.size, (1280, 800), name)
         pixels = np.asarray(image)
         self.assertGreater(len({tuple(p) for p in pixels.reshape(-1, 3)[::97]}), 8, f'{name} looks blank')
         self.assertGreater(pixels.std(), 5, f'{name} looks blank')
-        np.testing.assert_array_equal(pixels[0, 0], BG, err_msg=name)
+        np.testing.assert_array_equal(pixels[0, 0], bg, err_msg=name)
+        if not edge_clean: # the shorts beach draws its sea right to the edge
+            return
         edge = np.concatenate([pixels[:3].reshape(-1, 3), pixels[-3:].reshape(-1, 3), pixels[:, :3].reshape(-1, 3), pixels[:, -3:].reshape(-1, 3)])
-        self.assertTrue((edge == BG).all(), f'{name}: something is drawn on the image edge (clipped text or bars?)')
+        self.assertTrue((edge == bg).all(), f'{name}: something is drawn on the image edge (clipped text or bars?)')
 
     def test_each_chart_type(self):
         for name, make in CHARTS.items():
             with self.subTest(chart=name):
-                self.check_image(make(), name)
+                if name == 'shorts':
+                    self.check_image(make(), name, bg=SKY, edge_clean=False)
+                else:
+                    self.check_image(make(), name)
 
     def test_edge_case_rows(self):
         for name, rows in EDGE_ROWS.items():
@@ -82,6 +89,16 @@ class ImageSanity(unittest.TestCase):
         self.check_image(util.hbar_chart([('WWWWWWWW', 1.2), ('MMM', 3.4)], 'Ratings', xlim=(0.9, 4.0)), 'zoomed wide labels')
         self.check_image(util.hbar_chart([(f'T{i}', 1 + i / 10) for i in range(15)], 'Ratings', xlim=(0.9, 3.0)), 'zoomed 15 rows')
         self.check_image(util.hbar_chart(MIXED, 'Threshold', threshold=10), 'threshold')
+
+    def test_shorts_chart_sizes_and_verdicts(self):
+        for n in (1, 5, 45):
+            rows = [(f'T{i}', 60.0 - i) for i in range(n)]
+            self.check_image(util.shorts_chart(rows, 15), f'shorts {n} rows', bg=SKY, edge_clean=False)
+        self.check_image(util.shorts_chart([('A VERY LONG LABEL', 15.0), ('B', 0.4)], 15), 'shorts long label and tiny value', bg=SKY, edge_clean=False)
+        tiers = [(0, 'board shorts'), (4.9, 'board shorts'), (5, 'cargo shorts'), (10, 'boxers'), (15, 'gym shorts'), (20, 'cutoffs'),
+                 (30, 'short shorts'), (40, 'daisy dukes'), (50, 'hot pants'), (60, 'speedos'), (70, 'budgie smugglers'),
+                 (80, 'just a belt'), (90, 'never nudes'), (200, 'never nudes')]
+        self.assertEqual([util.shorts_verdict(p) for p, _ in tiers], [name for _, name in tiers])
 
     def test_bar_graph_has_top_and_bottom(self):
         self.check_image(util.bar_graph([('AAA', 9)], [('ZZZ', -9)], 'Top and bottom'), 'bar_graph')
@@ -204,11 +221,19 @@ class ReportChartInputs(FinbotCase):
         values = [v for _, v in chart['rows'] if v is not None]
         self.assertEqual(values, sorted(values, reverse=True))
 
-    def test_shorts_is_sorted_and_titled(self):
-        chart = self.run_report(lambda: self.command('.shorts'))
-        values = [v for _, v in chart['rows'] if v is not None]
+    def test_shorts_is_sorted_and_carries_the_threshold(self):
+        captured = []
+        real = util.shorts_chart
+        def spy(rows, threshold, *a, **k):
+            captured.append((list(rows), threshold))
+            return real(rows, threshold, *a, **k)
+        self.patch(util, 'shorts_chart', spy)
+        self.command('.shorts')
+        self.assertTrue(captured, 'no chart was drawn')
+        rows, threshold = captured[0]
+        values = [v for _, v in rows]
         self.assertEqual(values, sorted(values, reverse=True))
-        self.assertTrue(chart['title'])
+        self.assertTrue(all(v > threshold for v in values))
 
 
 class GoldenImages(unittest.TestCase):
@@ -235,6 +260,7 @@ class GoldenImages(unittest.TestCase):
 
     def test_hbar_mixed(self): self.check('hbar_mixed')
     def test_price_line(self): self.check('price_line')
+    def test_shorts(self): self.check('shorts')
     def test_compare_lines(self): self.check('compare_lines')
 
 
