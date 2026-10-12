@@ -812,8 +812,9 @@ def shorts_chart(rows, threshold, step=5):
 	import math
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
-	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse
-	sky, ink, sea, foam = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff'
+	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse, PathPatch
+	from matplotlib.path import Path
+	sky, ink, sea, foam, ray = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff', '#ffd23f'
 	colors = ['#ff3d81', '#00b8a0', '#ff8a00', '#7a5cff', '#5bc215']
 	W, H = 1280, 800
 	if len(rows) > 24: # pairs of shorts need height: keep the most and the least shorted
@@ -844,26 +845,42 @@ def shorts_chart(rows, threshold, step=5):
 			if clip is not None:
 				part.set_clip_path(clip)
 
-	# decor: a sun in sunglasses, and the sea
-	ax.add_patch(Circle((1185, 100), 52, facecolor='#ffb703', edgecolor=ink, linewidth=2))
-	for k in range(12):
-		a = k * math.pi / 6
-		ax.plot([1185 + 62 * math.cos(a), 1185 + 82 * math.cos(a)], [100 + 62 * math.sin(a), 100 + 82 * math.sin(a)], color='#ffb703', linewidth=3, solid_capstyle='round')
-	for dx in (-22, 22):
-		ax.add_patch(Ellipse((1185 + dx, 94), 36, 26, facecolor=ink, edgecolor=ink))
-	ax.plot([1185 - 5, 1185 + 5], [94, 94], color=ink, linewidth=3)
-	ax.plot([1165, 1205], [122, 122], color=ink, linewidth=3, solid_capstyle='round') # unbothered smile
+	# decor: a big sun in sunglasses whose rays run under everything to the edges, and the sea
+	R = 100 # the sun's radius; it sits in the top right corner
+	margin = 5 # gap between the sun and the top and right edges
+	sx, sy, rays = W - R - margin, R + margin, 16
+	tilt = math.radians(-1) # beams turned 1 degree counter-clockwise (angles run clockwise here, as y points down)
+	for k in range(0, rays, 2): # every other wedge, so the rays alternate with the sky
+		a0, a1 = k * 2 * math.pi / rays + tilt, (k + 1) * 2 * math.pi / rays + tilt
+		ax.add_patch(Polygon([(sx, sy), (sx + 2000 * math.cos(a0), sy + 2000 * math.sin(a0)), (sx + 2000 * math.cos(a1), sy + 2000 * math.sin(a1))],
+			closed=True, facecolor=ray, edgecolor='none', zorder=-1))
+	def at(u, v): # face coordinates in sun radii, y down
+		return (sx + u * R, sy + v * R)
+	ax.add_patch(Circle((sx, sy), R, facecolor='#ffb000', edgecolor='none'))
+	for dx, dy, r, c in ((-0.05, -0.06, 0.93, '#ffb90a'), (-0.1, -0.12, 0.78, '#ffc21f'), (-0.16, -0.2, 0.55, '#ffcb35')): # fake gradient
+		ax.add_patch(Circle(at(dx, dy), r * R, facecolor=c, edgecolor='none'))
+	brown = '#5a3d37'
+	for (u, v), w, h in (((-0.46, -0.07), 0.21, 0.25), ((0.31, -0.37), 0.20, 0.24)): # lopsided eyes
+		ax.add_patch(Ellipse(at(u, v), w * R, h * R, facecolor=brown, edgecolor='none'))
+	nose = np.array([(-0.07, -0.35), (0.05, -0.26), (0.15, -0.13), (0.18, 0.0), (0.10, 0.10), (-0.03, 0.16)])
+	nose = nose.mean(axis=0) + 0.62 * (nose - nose.mean(axis=0)) # dainty: a smaller squiggle
+	pts = np.vstack([nose[0], nose, nose[-1]]) # Catmull-Rom through the points, so the squiggle is smooth
+	curve = [0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3)
+		for p0, p1, p2, p3 in zip(pts, pts[1:], pts[2:], pts[3:]) for t in np.linspace(0, 1, 12)]
+	ax.plot([sx + u * R for u, _ in curve], [sy + v * R for _, v in curve], color='#e07b1a', linewidth=2.6, solid_capstyle='round')
+	mouth_pts = [(-0.47, 0.47), (0.73, 0.0), (0.75, 0.35), (0.45, 0.74), (0.1, 0.74), (-0.15, 0.74), (-0.42, 0.62), (-0.47, 0.47), (-0.47, 0.47)]
+	mc = (0.13, 0.37) # the mouth shrinks towards its middle
+	mouth = Path([at(mc[0] + 0.65 * (u - mc[0]), mc[1] + 0.65 * (v - mc[1])) for u, v in mouth_pts],
+		[Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CLOSEPOLY])
+	ax.add_patch(PathPatch(mouth, facecolor='#2b2118', edgecolor='none'))
 	ax.add_patch(Rectangle((0, 748), W, H - 748, facecolor=sea, edgecolor='none'))
 	for cx in range(0, W + 36, 36):
 		ax.add_patch(Circle((cx, 748), 19, facecolor=foam, edgecolor='none'))
 
-	title = ax.text(40, 52, 'Shorts', color=ink, fontsize=21, fontweight='bold', ha='left', va='center')
+	ax.text(40, 52, 'Shorts', color=ink, fontsize=21, fontweight='bold', ha='left', va='center')
 	ax.text(40, 104, f"each pair of shorts = {step}% of shares shorted", color=ink, fontsize=9.5, ha='left', va='center')
-	canvas.draw()
-	title_end = title.get_window_extent(canvas.get_renderer()).x1
-	shorts(title_end + 16, 22, 56, 50, '#ff3d81')
 
-	top, bottom = 170, 726
+	top, bottom = 205, 726 # below the sun
 	n = len(rows)
 	row_h = min((bottom - top) / n, 110)
 	top += ((bottom - top) - row_h * n) / 2 # few rows sit in the middle of the beach, not the top
@@ -892,7 +909,7 @@ def shorts_chart(rows, threshold, step=5):
 		extent = verdict.get_window_extent(canvas.get_renderer())
 		if extent.x1 > W - 16: # never run off the image: shrink to fit
 			verdict.set_fontsize(verdict.get_fontsize() * (W - 16 - extent.x0) / extent.width)
-	ax.text(W / 2, 784, 'past fashion not indicative of future fashion', color='white', fontsize=8, fontweight='bold', fontstyle='italic', ha='center', va='center')
+	ax.text(W / 2, 784, 'past fashion not indicative of future fashion', color='white', fontsize=8, fontstyle='italic', ha='center', va='center')
 	line_x = x0 + threshold / step * icon_w
 	ax.plot([line_x, line_x], [top - 12, bottom], color=ink, linewidth=1.8, linestyle=(0, (5, 4)), zorder=0)
 	ax.text(line_x, top - 18, f"{threshold}% outrageous line", color=ink, fontsize=7.5, fontweight='bold', ha='center', va='bottom')
