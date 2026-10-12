@@ -797,6 +797,106 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	buf.seek(0) # rewind, or the upload sends an empty file
 	return buf
 
+SHORTS_VERDICTS = ((20, 'cargo shorts'), (30, 'board shorts'), (45, 'daisy dukes'), (float('inf'), 'speedo'))
+
+def shorts_verdict(percent):
+	"""The more shorted, the shorter the shorts."""
+	return next(name for limit, name in SHORTS_VERDICTS if percent < limit)
+
+def shorts_chart(rows, threshold, step=5):
+	"""Short interest as a pictogram: each row is a run of cartoon shorts, one pair per `step` percent (the last pair cropped).
+	rows: [(label, percent)], largest first. Loud on purpose and drawn from patches, since matplotlib cannot render colour emoji.
+	Returns PNG bytes (1280x800)."""
+	import math
+	from matplotlib.figure import Figure
+	from matplotlib.backends.backend_agg import FigureCanvasAgg
+	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse
+	sky, ink, sea, foam = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff'
+	colors = ['#ff3d81', '#00b8a0', '#ff8a00', '#7a5cff', '#5bc215']
+	W, H = 1280, 800
+	if len(rows) > 24: # pairs of shorts need height: keep the most and the least shorted
+		rows = rows[:12] + rows[-12:]
+	rows = [(label if len(label) <= 10 else label[:9] + '…', value) for label, value in rows]
+	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=sky)
+	canvas = FigureCanvasAgg(fig)
+	ax = fig.add_axes([0, 0, 1, 1], facecolor=sky)
+	ax.set_xlim(0, W)
+	ax.set_ylim(H, 0) # pixels, y down
+	ax.axis('off')
+
+	def shorts(x, y, w, h, color, frac=1.0, lw=1.6):
+		"""One pair, top-left at (x, y); frac < 1 crops it from the right."""
+		def P(px, py):
+			return (x + px * w, y + py * h)
+		belt = '#' + ''.join(f"{int(int(color[i:i + 2], 16) * 0.7):02x}" for i in (1, 3, 5))
+		legs = Polygon([P(0.04, 0.2), P(0.96, 0.2), P(1.0, 0.97), P(0.56, 0.97), P(0.5, 0.58), P(0.44, 0.97), P(0.0, 0.97)],
+			closed=True, facecolor=color, edgecolor=ink, linewidth=lw, joinstyle='round')
+		waist = Rectangle(P(0.04, 0.0), 0.92 * w, 0.22 * h, facecolor=belt, edgecolor=ink, linewidth=lw)
+		parts = [legs, waist]
+		for dx, dy in ((0.2, 0.5), (0.3, 0.78), (0.72, 0.5), (0.8, 0.78), (0.14, 0.8)): # polka dots
+			parts.append(Circle(P(dx, dy), 0.045 * w, facecolor='white', edgecolor='none'))
+		parts.append(Rectangle(P(0.47, 0.0), 0.06 * w, 0.22 * h, facecolor='#ffd23f', edgecolor=ink, linewidth=lw * 0.6)) # belt buckle
+		clip = Rectangle((x - 2, y - 2), w * frac + 2, h + 4, transform=ax.transData) if frac < 1 else None
+		for part in parts:
+			ax.add_patch(part)
+			if clip is not None:
+				part.set_clip_path(clip)
+
+	# decor: a sun in sunglasses, and the sea
+	ax.add_patch(Circle((1185, 100), 52, facecolor='#ffb703', edgecolor=ink, linewidth=2))
+	for k in range(12):
+		a = k * math.pi / 6
+		ax.plot([1185 + 62 * math.cos(a), 1185 + 82 * math.cos(a)], [100 + 62 * math.sin(a), 100 + 82 * math.sin(a)], color='#ffb703', linewidth=3, solid_capstyle='round')
+	for dx in (-22, 22):
+		ax.add_patch(Ellipse((1185 + dx, 94), 36, 26, facecolor=ink, edgecolor=ink))
+	ax.plot([1185 - 5, 1185 + 5], [94, 94], color=ink, linewidth=3)
+	ax.plot([1165, 1205], [122, 122], color=ink, linewidth=3, solid_capstyle='round') # unbothered smile
+	ax.add_patch(Rectangle((0, 748), W, H - 748, facecolor=sea, edgecolor='none'))
+	for cx in range(0, W + 36, 36):
+		ax.add_patch(Circle((cx, 748), 19, facecolor=foam, edgecolor='none'))
+
+	title = ax.text(40, 52, 'Shorts', color=ink, fontsize=21, fontweight='bold', ha='left', va='center')
+	ax.text(40, 104, f"each pair of shorts = {step}% of shares shorted", color=ink, fontsize=9.5, ha='left', va='center')
+	canvas.draw()
+	title_end = title.get_window_extent(canvas.get_renderer()).x1
+	shorts(title_end + 16, 22, 56, 50, '#ff3d81')
+
+	top, bottom = 170, 726
+	n = len(rows)
+	row_h = min((bottom - top) / n, 110)
+	top += ((bottom - top) - row_h * n) / 2 # few rows sit in the middle of the beach, not the top
+	bottom = top + row_h * n
+	size = max(6, min(18, row_h * 0.5 * 72 / 200 * 2))
+	label_w = max(len(str(label)) for label, _ in rows) * size * 200 / 72 * 0.62
+	x0 = 40 + label_w + 16
+	room = 40 + 260 # right-hand text: percent and verdict
+	max_icons = max(math.ceil(max(v for _, v in rows) / step), 1)
+	icon_w = min((W - room - x0) / max_icons, row_h * 1.1 * 0.9, 120)
+	icon_h = icon_w / 1.1
+	lw = max(0.6, min(1.6, icon_w / 45))
+	pct_texts = []
+	for i, (label, value) in enumerate(rows):
+		cy = top + (i + 0.5) * row_h
+		ax.text(x0 - 14, cy, label, color=ink, fontsize=size, fontweight='bold', ha='right', va='center')
+		whole, frac = divmod(value / step, 1)
+		color = colors[i % len(colors)]
+		for k in range(int(whole) + (1 if frac > 0.02 else 0)):
+			shorts(x0 + k * icon_w, cy - icon_h / 2, icon_w * 0.92, icon_h, color, frac if k == int(whole) and frac > 0.02 else 1.0, lw)
+		end = x0 + (value / step) * icon_w
+		pct_texts.append((ax.text(end + 14, cy, f"{round(value)}%", color=ink, fontsize=size, fontweight='bold', ha='left', va='center'), cy, value))
+	canvas.draw() # measure the percentages, then put each verdict right after its own
+	for text, cy, value in pct_texts:
+		ax.text(text.get_window_extent(canvas.get_renderer()).x1 + 10, cy, shorts_verdict(value), color=ink, fontsize=size * 0.62, fontstyle='italic', ha='left', va='center')
+	ax.text(W / 2, 777, 'past performance is not indicative of future shorts', color='white', fontsize=8, fontweight='bold', ha='center', va='center')
+	line_x = x0 + threshold / step * icon_w
+	ax.plot([line_x, line_x], [top - 12, bottom], color=ink, linewidth=1.8, linestyle=(0, (5, 4)), zorder=0)
+	ax.text(line_x, top - 18, f"the {threshold}% fashion line", color=ink, fontsize=7.5, fontweight='bold', ha='center', va='bottom')
+
+	buf = io.BytesIO()
+	fig.savefig(buf, format='png', facecolor=sky)
+	buf.seek(0)
+	return buf
+
 def rows_chart(rows, title, subtitle='', **kw):
 	"""Horizontal bars for a list of (label, value). Over 40 rows keeps the first and last 20."""
 	if len(rows) > 40:

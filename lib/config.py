@@ -200,6 +200,17 @@ verb = [
 	'act like I comprehend'
 ]
 
+shortsPuns = [
+	"Briefs encounters of the shortest kind",
+	"Bermuda is not where these shorts are going",
+	"Summer's coming. So are the shorts",
+	"Pants are optional; shorts are not",
+	"These tickers are wearing shorts in October",
+	"Shorts: because someone has to be underdressed",
+	"No legs to stand on, plenty of legs to wear them",
+	"Nothing to see here except a lot of leg"
+]
+
 searchVerb = [
 	'Asking ChatGPT for',
 	'Avoiding eye contact with',
