@@ -812,7 +812,7 @@ def shorts_chart(rows, threshold, step=5):
 	import math
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
-	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse, PathPatch, FancyBboxPatch
+	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse, PathPatch
 	from matplotlib.transforms import Affine2D
 	from matplotlib.path import Path
 	sky, ink, sea, foam, ray = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff', '#ffd23f'
@@ -876,7 +876,10 @@ def shorts_chart(rows, threshold, step=5):
 		[Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CLOSEPOLY])
 	ax.add_patch(PathPatch(mouth, facecolor='#2b2118', edgecolor='none'))
 	tx, ty = at(0.10, 0.66) # a rounded tongue, tilted along the slant of the face
-	tongue = FancyBboxPatch((tx - 0.30 * R, ty - 0.40 * R), 0.60 * R, 0.80 * R, boxstyle=f'round,pad=0,rounding_size={0.26 * R}',
+	x0, x1, y0, y1, r = tx - 0.30 * R, tx + 0.30 * R, ty - 0.40 * R, ty + 0.40 * R, 0.26 * R # square at the top, rounded at the tip
+	k = 0.5523 * r
+	tongue = PathPatch(Path([(x0, y0), (x1, y0), (x1, y1 - r), (x1, y1 - r + k), (x1 - r + k, y1), (x1 - r, y1), (x0 + r, y1), (x0 + r - k, y1), (x0, y1 - r + k), (x0, y1 - r), (x0, y0)],
+		[Path.MOVETO, Path.LINETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CLOSEPOLY]),
 		facecolor='#ff3d81', edgecolor='none')
 	tongue.set_transform(Affine2D().rotate_deg_around(tx, ty, -17) + ax.transData)
 	ax.add_patch(tongue)
