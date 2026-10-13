@@ -207,33 +207,37 @@ def prepare_compare(service, args, with_inputs=False):
 	return result(caption, image)
 
 def prepare_jobs_payload(service, args):
-	"""`.jobs` lists the scheduled jobs; `.jobs run <number|command>` runs one now, as cron would."""
+	"""`.jobs` lists the scheduled commands, each once; `.jobs run <number|command>` runs one now, as cron would.
+	Returns (payload, reply_markup): Telegram gets a button per command."""
 	scheduler = jobs.current
 	if scheduler is None:
-		return ['Scheduled jobs are off (scheduler=False)']
+		return ['Scheduled jobs are off (scheduler=False)'], None
 	args = (args or '').strip()
 	if not args:
-		rows = scheduler.describe()
-		if not rows:
-			return ['No scheduled jobs']
-		payload = [webhook.bold('Scheduled jobs:', service)]
-		for number, job, next_run, last in rows:
-			line = f"{number}. {job.text}\n    next {next_run:%a %H:%M %Z}"
-			if last:
-				line += f", last {last:%a %H:%M %Z}"
-			if job.running:
-				line += ", running now"
-			payload.append(line)
-		payload.append("\nRun one with .jobs run NUMBER")
-		return payload
+		commands = scheduler.commands()
+		if not commands:
+			return ['No scheduled jobs'], None
+		payload = [webhook.bold('Scheduled commands:', service)]
+		for number, (label, _, _) in enumerate(commands, 1):
+			payload.append(f"{number}. {label}" + (' (running)' if label in scheduler.busy else ''))
+		payload.append("\nRun one with .jobs run NUMBER" + (' or tap it' if service == 'telegram' else ''))
+		markup = None
+		if service == 'telegram':
+			buttons = [{'text': f"{number}. {label}"[:30], 'callback_data': f"j|{number}|{jobs.checksum(label)}"} for number, (label, _, _) in enumerate(commands, 1)]
+			markup = {'inline_keyboard': [buttons[i:i + 2] for i in range(0, len(buttons), 2)]}
+		return payload, markup
 	m = re.fullmatch(r'run(?:\s+(.+))?', args, re.IGNORECASE)
 	if not m or not m.group(1):
-		return ['Usage: .jobs [run NUMBER|COMMAND]']
+		return ['Usage: .jobs [run NUMBER|COMMAND]'], None
+	return [run_job_line(scheduler, m.group(1))], None
+
+def run_job_line(scheduler, text):
+	"""Run a scheduled command now and say how it went in one line."""
 	try:
-		label, outcome = scheduler.run_now(m.group(1))
+		label, outcome = scheduler.run_now(text)
 	except jobs.ScheduleError as e:
-		return [str(e)]
-	return [f"{label}: {outcome}"]
+		return str(e)
+	return f"{label}: {outcome}"
 
 def prepare_help(service, botName):
 	payload = []

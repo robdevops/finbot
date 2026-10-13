@@ -65,8 +65,28 @@ def deliver(service, url, chat_id, payload, chart=None):
 	else:
 		webhook.payload_wrapper(service, url, payload, chat_id)
 
+def process_job_callback(service, callback_id, chat_id, data):
+	"""A command button of .jobs: run that command now and answer in the chat."""
+	try:
+		_, number, crc = data.split('|')
+		command = jobs.current.commands()[int(number) - 1]
+		if jobs.checksum(command[0]) != crc:
+			raise IndexError
+	except (ValueError, IndexError, AttributeError):
+		telegram.answerCallbackQuery(callback_id, 'The schedule changed')
+		webhook.payload_wrapper(service, webhook.chat_url(service, chat_id), ['The schedule changed; send .jobs again'], chat_id)
+		return
+	telegram.answerCallbackQuery(callback_id, f'Running {command[0]}…'[:100])
+	try:
+		line = reports.run_job_line(jobs.current, command[0])
+		webhook.payload_wrapper(service, webhook.chat_url(service, chat_id), [line], chat_id)
+	except Exception as e:
+		webhook.report_error(e, service, chat_id, context='jobs')
+
 def process_callback(service, callback_id, chat_id, message_id, data):
-	"""Button press on a chart message: rebuild it for the chosen period and edit it in place."""
+	"""Button press: run a scheduled command from .jobs, or rebuild a chart message for the chosen period and edit it in place."""
+	if data.startswith('j|'):
+		return process_job_callback(service, callback_id, chat_id, data)
 	parts = data.split('|', 3)
 	valid = len(parts) == 4 and parts[0] == 'c' and parts[1] in charts.BUTTONS and parts[2] in charts.BUTTONS[parts[1]]
 	# answering now shows Telegram's toast bubble ("Loading 3M…") while the new chart is built
@@ -721,10 +741,10 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		typing = TypingIndicator(service, chat_id, max_loops=10)
 		typing.start()
 		try:
-			payload = reports.prepare_jobs_payload(service, m_jobs.group('args'))
+			payload, markup = reports.prepare_jobs_payload(service, m_jobs.group('args'))
 		finally:
 			typing.stop()
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		webhook.payload_wrapper(service, url, payload, chat_id, reply_markup=markup)
 	# m_profile is a catch-all, so other matches must be above it
 	elif m_profile:
 		typing = TypingIndicator(service, chat_id)

@@ -10,6 +10,7 @@ import os
 import re
 import shlex
 import sys
+import zlib
 import zoneinfo
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,6 +31,11 @@ JOB_TIMEOUT = 15 * 60 # seconds a job may run before it is abandoned and reporte
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')
 OPERATOR = re.compile(r'\d*>>?&?\d*|&>>?|;|&&|\|\|?|&|[<`$(){}]') # what a shell reads as more than a word, outside quotes
 REDIRECT = re.compile(r'\d*>>?&?\d*|&>>?') # > file, >> file, 2>&1, &> file
+
+
+def checksum(label):
+	"""Short stand-in for a command in a Telegram button, whose data is limited to 64 bytes: detects a changed schedule."""
+	return format(zlib.crc32(label.encode()) & 0xffff, '04x')
 
 
 class ScheduleError(ValueError):
@@ -187,6 +193,7 @@ class Scheduler:
 		self.jobs = []
 		self.base = {} # key -> the time after which the next run is due
 		self.last = {}
+		self.busy = set() # labels of the commands running now, scheduled or manual
 
 	def load(self):
 		"""Read the schedule file. A file with no usable line keeps the schedule that is running."""
@@ -253,68 +260,73 @@ class Scheduler:
 		return self.execute(job, job.commands)
 
 	def execute(self, job, commands):
-		"""Run commands as `job`, which is marked running meanwhile. Returns 'done', 'timed out' or 'failed'."""
-		job.running = True
-		outcome = 'done'
+		"""Run commands one after another. `job` (None for a manual run of one command) is marked running meanwhile. A command that
+		is already running, scheduled or manual, is skipped. Returns 'done', 'timed out', 'failed' or 'already running'."""
+		if job:
+			job.running = True
+		outcome, label = 'done', ''
 		timeout = gevent.Timeout(JOB_TIMEOUT)
 		timeout.start()
 		try:
 			for label, module, kwargs in commands:
+				if label in self.busy:
+					print(f'schedule: {label} is already running, skipping it', file=sys.stderr)
+					outcome = 'already running'
+					continue
+				self.busy.add(label)
 				print(f'schedule: running {label}', file=sys.stderr)
 				try:
 					module.lambda_handler(**kwargs)
+				except gevent.Timeout:
+					raise
 				except (Exception, SystemExit) as e:
 					webhook.report_error(e, context=label)
 					outcome = 'failed'
+				finally:
+					self.busy.discard(label)
 		except gevent.Timeout as t:
 			if t is not timeout:
 				raise
-			webhook.report_error(TimeoutError(f'still running after {JOB_TIMEOUT // 60} minutes'), context=job.text)
+			webhook.report_error(TimeoutError(f'still running after {JOB_TIMEOUT // 60} minutes'), context=label)
 			outcome = 'timed out'
 		finally:
 			timeout.close()
-			job.running = False
+			if job:
+				job.running = False
 		return outcome
 
-	def describe(self, now=None):
-		"""One row per job: (number, job, next fire time, last fire time or None), the times in the job's own zone."""
-		now = now or self.clock()
-		rows = []
-		for number, job in enumerate(self.jobs, 1):
-			base = self.base.get(job.key, now)
-			try:
-				last = datetime.datetime.fromisoformat(self.last[job.key]).astimezone(job.zone)
-			except (KeyError, ValueError):
-				last = None
-			rows.append((number, job, self.next_fire(job, base), last))
-		return rows
+	def commands(self):
+		"""Every scheduled command once, in the order first seen: [(label, module, kwargs)]. The time, comments, redirects and
+		the other commands of a line are not part of it."""
+		unique = {}
+		for job in self.jobs:
+			for command in job.commands:
+				unique.setdefault(command[0], command)
+		return list(unique.values())
 
 	def select(self, text):
-		"""(job, commands) for `.jobs run <text>`: a job number runs that whole line, command text runs that one command if it is
-		in the schedule. Raises ScheduleError."""
+		"""The scheduled command for `.jobs run <text>`: a number from the list, or the command itself. Raises ScheduleError."""
 		text = text.strip()
+		commands = self.commands()
 		if text.isdigit():
-			if not 1 <= int(text) <= len(self.jobs):
-				raise ScheduleError(f'no job {text}; send .jobs to list them')
-			job = self.jobs[int(text) - 1]
-			return job, job.commands
+			if not 1 <= int(text) <= len(commands):
+				raise ScheduleError(f'no command {text}; send .jobs to list them')
+			return commands[int(text) - 1]
 		try:
 			wanted = parse_command(text)
 		except ScheduleError as e:
-			raise ScheduleError(f'{e}; send .jobs to list the jobs')
-		for job in self.jobs:
-			labels = [label for label, _, _ in job.commands]
-			if all(label in labels for label, _, _ in wanted):
-				return job, [command for command in job.commands if command[0] in [label for label, _, _ in wanted]]
-		raise ScheduleError(f"'{text}' is not in the schedule; send .jobs to list the jobs")
+			raise ScheduleError(f'{e}; send .jobs to list the commands')
+		if len(wanted) != 1:
+			raise ScheduleError('run one command at a time; send .jobs to list them')
+		for command in commands:
+			if command[0] == wanted[0][0]:
+				return command
+		raise ScheduleError(f"'{text}' is not in the schedule; send .jobs to list the commands")
 
 	def run_now(self, text):
-		"""`.jobs run`: a scheduled job or command, now, as cron would run it; its schedule is unchanged. Returns (label, outcome)."""
-		job, commands = self.select(text)
-		label = '; '.join(label for label, _, _ in commands)
-		if job.running:
-			return label, 'already running'
-		return label, self.execute(job, commands)
+		"""`.jobs run`: one scheduled command, now, as cron would run it; the schedule is unchanged. Returns (label, outcome)."""
+		command = self.select(text)
+		return command[0], self.execute(None, [command])
 
 	def tick(self):
 		"""Start what is due; returns the seconds until the next fire time."""
