@@ -62,6 +62,7 @@ class DataDirTests(FinbotCase):
 		mine.write_text('{"mine": 1}')
 		sync_defaults.sync(apply=True)
 		self.assertEqual(mine.read_text(), '{"mine": 1}') # never overwritten without --force
+		self.assertNotIn('finbot_adr.json', [n for n, _ in sync_defaults.sync()]) # existing files are not listed by default
 		sync_defaults.sync(force=True)
 		self.assertNotEqual(mine.read_text(), '{"mine": 1}')
 		self.assertEqual(Path(str(mine) + '.bak').read_text(), '{"mine": 1}')

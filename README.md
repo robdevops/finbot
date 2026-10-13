@@ -483,7 +483,7 @@ Reference data (`finbot_adr.json`, `finbot_sws_*.json`, `reminder.json`) ships i
 ```
 util/sync_defaults.py          # dry run
 util/sync_defaults.py --apply  # copy missing files (including a starter preferences.conf)
-util/sync_defaults.py --force  # also overwrite changed files, keeping .bak copies
+util/sync_defaults.py --force  # also list and overwrite changed files, keeping .bak copies
 util/sync_defaults.py --dest /srv/finbot --apply  # target another directory instead of the data directory
 ```
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.

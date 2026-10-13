@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare the shipped defaults/ with the data dir (DATA_DIR, default var/), or with the directory given by --dest.
-Dry run by default. --apply copies files that are missing; --force also overwrites
-differing files (the old copy is kept as .bak). Existing files are never touched otherwise."""
+Dry run by default. Existing files are skipped and not listed. --apply copies files that are missing;
+--force also lists and overwrites differing files (the old copy is kept as .bak)."""
 
 import argparse
 import filecmp
@@ -29,6 +29,8 @@ def sync(apply=False, force=False, dest=None):
 			status = 'missing'
 		elif filecmp.cmp(src, dest, shallow=False):
 			continue
+		elif not force:
+			continue # existing files are skipped unless --force
 		else:
 			status = 'differs'
 		if name == 'preferences.conf' and status == 'differs':
