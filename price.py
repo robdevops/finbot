@@ -17,7 +17,9 @@ class Row(list):
 		super().__init__(parts)
 		self.ticker = ticker
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False, top=None, return_result=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False, top=None, return_result=False):
+	if threshold is UNSET:
+		threshold = config_price_percent
 	def prepare_price_payload(service, market_data, threshold, _rows_out=None):
 		payload = []
 		graph = False
@@ -246,7 +248,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 	list_buttons = not specific_stock and not (midsession or premarket or close) # period buttons suit the daily and N-day lists, not intraday ones
 	# Prep and send payloads
 	if not webhooks:
-		print("Error: no services enabled in .env", file=sys.stderr)
+		print("Error: no services enabled in finbot.env", file=sys.stderr)
 		sys.exit(1)
 	if interactive:
 		payload, graph = prepare_price_payload(service, market_data, threshold)

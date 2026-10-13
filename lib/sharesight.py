@@ -57,7 +57,6 @@ def get_token():
 	return data['access_token']
 
 PORTFOLIOS_CACHE = "finbot_sharesight_portfolios.json" # ttl: config_cache_seconds
-PERFORMANCE_TTL = config_performance_cache_seconds # seconds; the cache lifetime of a performance report
 
 def performance_cache_file(portfolio_id, days):
 	return "finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'
@@ -101,7 +100,9 @@ def get_portfolios(refresh=False):
 	print(portfolio_dict)
 	return portfolio_dict
 
-def get_trades(portfolio_name, portfolio_id, days=config_past_days):
+def get_trades(portfolio_name, portfolio_id, days=UNSET):
+	if days is UNSET:
+		days = config_past_days
 	if config_cache:
 		cache_file = "finbot_sharesight_trades_" + str(portfolio_id) + "_" + str(days) + ".json"
 		cache = util.read_cache(cache_file, 299) # max freq 5 min
@@ -165,7 +166,9 @@ def get_holdings_wrapper():
 	tickers = sorted(set(tickers))
 	return tickers
 
-def get_performance(portfolio_id, days, config_cache_seconds=PERFORMANCE_TTL, refresh=False):
+def get_performance(portfolio_id, days, config_cache_seconds=UNSET, refresh=False):
+	if config_cache_seconds is UNSET:
+		config_cache_seconds = config_performance_cache_seconds
 	start_date = datetime.datetime.now() - datetime.timedelta(days=days)
 	start_date = start_date.strftime('%Y-%m-%d') # 2023-04-25
 	cache_file = performance_cache_file(portfolio_id, days)
@@ -197,7 +200,9 @@ def get_performance(portfolio_id, days, config_cache_seconds=PERFORMANCE_TTL, re
 		util.json_write(cache_file, data)
 	return data
 
-def get_performance_wrapper(days=config_past_days):
+def get_performance_wrapper(days=UNSET):
+	if days is UNSET:
+		days = config_past_days
 	performance = {}
 	portfolios = get_portfolios()
 	for portfolio_name, portfolio_id in portfolios.items():
@@ -220,7 +225,7 @@ def warm(margin=0.9):
 		portfolios = get_portfolios()
 	for portfolio_name, portfolio_id in portfolios.items():
 		age = util.cache_age(performance_cache_file(portfolio_id, 0))
-		if age is None or age >= margin * PERFORMANCE_TTL:
+		if age is None or age >= margin * config_performance_cache_seconds:
 			get_performance(portfolio_id, 0, refresh=True)
 			fetched += 1
 	return fetched, portfolios
@@ -237,7 +242,7 @@ def next_due(margin=0.9, portfolios=None):
 	waits.append(0 if age is None else margin * config_cache_seconds - age)
 	for portfolio_name, portfolio_id in (get_portfolios() if portfolios is None else portfolios).items():
 		age = util.cache_age(performance_cache_file(portfolio_id, 0))
-		waits.append(0 if age is None else margin * PERFORMANCE_TTL - age)
+		waits.append(0 if age is None else margin * config_performance_cache_seconds - age)
 	return max(0, min(waits))
 
 def keep_warm(min_wait=5, retry=300, stop=None):

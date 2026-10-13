@@ -21,6 +21,7 @@ from gevent import subprocess
 from croniter import croniter
 
 from lib.config import *
+from lib import config
 from lib import util
 from lib import webhook
 import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, shorts, trades
@@ -45,7 +46,8 @@ def checksum(label):
 def run_child(label, module, kwargs):
 	"""Run a command in its own process (python -m lib.jobrun) and return its exit status. The child inherits the environment,
 	user and output of the bot, so it behaves like the old cron job. A timeout or any other interruption stops the child."""
-	proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', module.__name__, json.dumps(kwargs)], cwd=ROOT)
+	env = dict(os.environ, **config.child_environment()) # the preferences this process runs on, not whatever the file says now
+	proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', module.__name__, json.dumps(kwargs)], cwd=ROOT, env=env)
 	try:
 		return proc.wait()
 	except BaseException:

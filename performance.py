@@ -10,7 +10,9 @@ from lib import util
 from lib import yahoo
 from lib import charts
 
-def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, service=None, user='', portfolio_select=None, message_id=None, interactive=False, return_result=False):
+def lambda_handler(chat_id=config_telegramChatID, past_days=UNSET, service=None, user='', portfolio_select=None, message_id=None, interactive=False, return_result=False):
+	if past_days is UNSET:
+		past_days = config_past_days
 	def get_emoji(percent):
 		if percent < 0:
 			emoji = "🔻"
@@ -86,7 +88,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 		print("Error: no Sharesight data found", file=sys.stderr)
 		raise RuntimeError("no Sharesight data found")
 	if not webhooks:
-		print("Error: no services enabled in .env", file=sys.stderr)
+		print("Error: no services enabled in finbot.env", file=sys.stderr)
 		sys.exit(1)
 	if interactive:
 		payload, graph = prepare_performance_payload(service, performance, portfolios)

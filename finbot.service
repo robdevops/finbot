@@ -6,14 +6,18 @@ Type=simple
 User=CHANGEME
 # Or, instead of User=: DynamicUser=yes plus StateDirectory=finbot (state goes to /var/lib/finbot automatically)
 ExecStart=/home/CHANGEME/finbot/bot.py
+# systemctl reload finbot (or: systemctl kill -s HUP finbot) re-reads preferences.conf and schedule.cron without a restart
 ExecReload=/bin/kill -HUP $MAINPID
+# Refuse to start on a mistake in finbot.env or preferences.conf (the bot never reads finbot.env itself, so this is where its typos are caught). "+" runs it as root.
+ExecStartPre=+/home/CHANGEME/finbot/util/check_config.py /opt/finbot.env
 Restart=on-failure
 RestartSec=30s
 StandardOutput=null
 StandardError=journal
 SyslogIdentifier=finbot
 Environment=PYTHONUNBUFFERED=1
-EnvironmentFile=/home/CHANGEME/finbot/.env
+# finbot.env is the startup file: systemd loads it (as root), the bot only inherits the values. chmod 600. A change needs a restart.
+EnvironmentFile=/opt/finbot.env
 
 [Install]
 WantedBy=multi-user.target

@@ -141,14 +141,14 @@ This report can only be run through the interactive bot. Example usage:
 ![trade update in Slack](img/trades.png?raw=true "Trade update in Slack")
 
 `trades.py` sends recent Sharesight trades to your configured chat services.
-By default, this report searches Sharesight for trades from the current day only. You can override this with `past_days` in the .env file, or by providing a number as argument when triggered through the chat bot.
+By default, this report searches Sharesight for trades from the current day only. You can override this with `past_days` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot.
 
-Without persistent storage, it is recommended to leave `past_days = 0` to avoid duplicate trade notifications. In this case, the schedule must run the report exactly once per day, after market close.
+Without persistent storage, it is recommended to leave `past_days=0` to avoid duplicate trade notifications. In this case, the schedule must run the report exactly once per day, after market close.
 
-With persistent storage, it is recommended to set `past_days = 30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to schedule it every 20 minutes.
+With persistent storage, it is recommended to set `past_days=30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to schedule it every 20 minutes.
 
 ```
-past_days = 30
+past_days=30
 ```
 
 Cron trigger:
@@ -176,14 +176,14 @@ You can also specify a portfolio name to get trades for just that portfolio:
 ![Price chart triggered from Slack](img/finbot_price.png?raw=true "Price chart triggered from Slack")
 ![Price alert triggered by Cron](img/price.png?raw=true "Price alert triggered by Cron")
 
-`prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 10% but you can change it by setting `price_percent` in the .env file, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
+`prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 10% but you can change it by setting `price_percent` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
 If `demote_volatile` is `true`, stocks with a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) under 150M, or a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a market cap of under 1B will have their alert threshold (`price_percent`) doubled.
 
 Config example:
 ```
-price_percent = 9.4
-demote_volatile = True
+price_percent=9.4
+demote_volatile=True
 ```
 
 Cron trigger:
@@ -234,11 +234,11 @@ Or a specific stock. In this case, the output includes a graph.
 ### Portfolio performance
 ![Screenshot of Portfolio performance notification on Slack](img/performance.png?raw=true "Screenshot performance notification on Slack")
 
-`performance.py` reports on Sharesight portfolio performance over a given period. The default is set by `past_days` in the .env file, which can be overridden at runtime by specifying an integer as the argument.
+`performance.py` reports on Sharesight portfolio performance over a given period. The default is set by `past_days` in the `preferences.conf`, which can be overridden at runtime by specifying an integer as the argument.
 
 Config example:
 ```
-past_days = 28
+past_days=28
 ```
 
 Cron trigger:
@@ -265,13 +265,13 @@ Interactively, you can also specify a portfolio:
 ### Events calendar
 ![earnings message in Slack](img/earnings.png?raw=true "Earnings message in Slack")
 
-`cal.py` sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the .env file for triggering the report from Cron, or can be specified as an argument when triggered through the chat bot.
+`cal.py` sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the `preferences.conf` for triggering the report from Cron, or can be specified as an argument when triggered through the chat bot.
 
 **Finance Explainer:** When a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 
 **Finance Explainer:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
 ```
-future_days = 7
+future_days=7
 ```
 
 Cron execution:
@@ -298,11 +298,11 @@ Interactive trigger (ex-dividend):
 ### Highly shorted stock warnings
 ![short warnings in Slack](img/shorts.png?raw=true "Short warnings in Slack")
 
-`shorts.py` sends short interest warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. This can be specified in the .env file for running the report from Cron, or as an argument when triggered through the chat bot.
+`shorts.py` sends short interest warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. This can be specified in the `preferences.conf` for running the report from Cron, or as an argument when triggered through the chat bot.
 
 **Finance Explainer:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely.
 ```
-shorts_percent = 15
+shorts_percent=15
 ```
 
 Interactive trigger:
@@ -437,28 +437,71 @@ uv venv && uv pip install -r requirements.txt
 ```
 
 ## Setup
-Configuration is read from environment variables. Start from the shipped template:
+Configuration is split into two files by **when a change can take effect**. Start by creating both from the shipped templates:
 ```
-cp ~/finbot/defaults/env.example ~/finbot/.env
-vi ~/finbot/.env
+sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo vi /opt/finbot.env
+util/sync_defaults.py --apply     # copies preferences.conf into the data directory (never overwrites)
+vi <data directory>/preferences.conf
 ```
-The file is plain `KEY=value` lines: no spaces around `=`, no quotes, no trailing comments (comments go on their own line). The same file works everywhere:
-* **systemd:** `finbot.service` loads it with `EnvironmentFile=`.
-* **Scheduled jobs:** they run inside `bot.py` (see [Scheduling](#scheduling)), so they share its environment. For a one-off run, see [Running a report by hand](#scheduling).
-* **Docker:** `--env-file /srv/finbot/.env` (or `-e`).
+
+| | **`finbot.env`: the startup file** | `preferences.conf` |
+|---|---|---|
+| Holds | where finbot runs, who it talks to, where it reports: `DATA_DIR`, `ip`, `port`, `telegramChatID`, `scheduler`, `scheduler_catchup` and the 11 credentials and endpoints (17 keys) | how it behaves: every other setting (25 keys) |
+| Read by | **your launcher, never by the bot**. The bot only inherits the values in its environment (see below). | **the bot itself**, from `<data directory>/preferences.conf`, at start and on every reload |
+| A change takes effect | after a **restart** | on a **reload**: `sudo systemctl kill -s HUP finbot` (or `systemctl reload finbot` if your unit has `ExecReload=`, as the shipped one does), `docker kill -s HUP <container>`, or `kill -HUP <pid>` |
+| Protection | root-owned, `chmod 600`. It holds the credentials, and the bot cannot read or change it. | lives in the data directory, so it holds nothing sensitive |
+| Format | flat `KEY=value` lines | flat `KEY=value` lines: **not** an INI file, no `[sections]` |
+
+Both files are plain `KEY=value`: no spaces around `=`, no quotes, no trailing comments (comments go on their own line). The two files never overlap, and **finbot refuses to start if a key is in the wrong one** or is not a known key at all (a typo such as `futur_days`). The error names the file, the line and where the key belongs. A preference key (such as `future_days`) arriving through the environment is refused the same way.
+
+**Load `finbot.env` with your launcher:**
+* **systemd:** `EnvironmentFile=/opt/finbot.env` in `finbot.service`, plus `ExecStartPre=+.../util/check_config.py /opt/finbot.env` so a typo stops the start (the shipped unit has both).
+* **Docker:** `--env-file /opt/finbot.env`. Docker keeps quotes literally, so use none. Run `util/check_config.py /opt/finbot.env` first if you want the same check.
+* **init.d / shell:** `util/check_config.py /opt/finbot.env && set -a && . /opt/finbot.env && set +a && ./bot.py` (`set -a` is what exports the values to the bot).
+* **Scheduled jobs:** they are started by `bot.py` (see [Scheduling](#scheduling)), so they run on the same settings. For a one-off run, see [Running a report by hand](#scheduling).
 * **AWS Lambda:** set them as function environment variables.
 
-Upgrading from the old dotenv format (`key = 'value' # comment`)? Convert it once with `util/migrate_env.py --write`; the original is kept as `.env.bak`.
+**Changing settings:** edit `preferences.conf`, then reload. The log shows what changed (`config: future_days 7 -> 30`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
+
+### finbot.env: why these keys need a restart
+`finbot.env` is the startup file. These are the keys in it, and why none of them can be changed by a reload:
+
+| Key | Why a reload cannot apply it | Kind |
+|---|---|---|
+| `ip`, `port` | `bot.py` binds the socket once. A new address means closing and reopening it, dropping in-flight requests, and usually changing the reverse proxy. | technical |
+| `DATA_DIR` (and systemd's `STATE_DIRECTORY`) | It locates everything else: `preferences.conf`, `schedule.cron`, the state files and the cache, and `MPLCONFIGDIR`, which matplotlib reads once. Moving it would orphan the seen-trades, ratings and milestone state. | technical |
+| `telegramBotToken` | At start finbot registers its inbound URL with Telegram and learns the bot's `@username`, which it uses as the command prefix. A new token is a different bot. | technical |
+| `telegramOutgoingWebhook`, `telegramOutgoingToken` | These are what was registered with Telegram at start, and the bot matches every request against them. Changing only the local side makes Telegram keep sending the old URL and secret, and every inbound message is rejected. | technical |
+| `slackOutgoingWebhook`, `slackOutgoingToken` | The same for Slack: they must match what your Slack app sends. | technical |
+| `sharesight_code`, `sharesight_client_id`, `sharesight_client_secret` | They mint the Sharesight token, which is cached on disk for about 30 minutes. After a change the cached token still belongs to the old account until it expires. `code` is also a one-time OAuth value. | technical |
+| `telegramChatID` | Could be reloaded, but it decides where scheduled reports go (trades, performance, ratings), and `preferences.conf` sits in the writable data directory. A report destination should not be editable by anything with write access there, and a typo would silently send reports to the wrong chat. | deliberate |
+| `scheduler`, `scheduler_catchup` | Whether the scheduler runs is decided at start. A live toggle would need machinery to stop a thread and handle jobs in flight, for something that rarely changes. | deliberate |
+| `slackBotToken` | The outbound Slack credential. A typo would silently stop Slack replies. | deliberate |
+| `slack_webhook`, `discord_webhook` | They define which services every report goes to. A typo would silently redirect or drop all reports. | deliberate |
+
+"Technical" means a reload cannot do it without more machinery than it is worth. "Deliberate" means it could be done and is held back on purpose.
+
+### If a file is missing or wrong
+| Situation | At start | On reload |
+|---|---|---|
+| No `preferences.conf` | Fine: built-in defaults (and a log line saying reload has nothing to re-read) | `ERROR`, nothing reloaded, finbot keeps running |
+| `preferences.conf` unreadable, malformed, unknown or misplaced key, bad value | **Refuses to start** (exit 1), naming file and line | `ERROR`, nothing applied, finbot keeps running on its previous settings |
+| A preference key in the environment (`finbot.env`) | **Refuses to start** | not applicable |
+| `finbot.env` missing or unreadable | Your launcher fails before finbot starts | not applicable |
+| `finbot.env` edited while running | not applicable | not noticed: restart |
+| `preferences.conf` edited, no reload sent | not applicable | nothing changes, scheduled jobs included, until you reload |
+
+**Upgrading from one `.env`?** Run `util/migrate_env.py --write` first if it is in the old dotenv format (`key = 'value' # comment`), then `util/split_env.py /opt/finbot.env`. It writes `finbot.env.new` and `preferences.conf.new` next to it, never overwriting, and lists any key it dropped or did not recognise. Until you split, finbot refuses to start because the one file mixes both kinds of key.
 
 ### Data directory
 All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`), e.g. for a Docker bind mount that survives rebuilds:
 ```
-docker run -v /srv/finbot:/data -e DATA_DIR=/data --env-file /srv/finbot/.env ...
+docker run -v /srv/finbot:/data -e DATA_DIR=/data --env-file /opt/finbot.env ...
 ```
 Reference data (`finbot_adr.json`, `finbot_sws_*.json`, `reminder.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
 ```
 util/sync_defaults.py          # dry run
-util/sync_defaults.py --apply  # copy missing files (and a starter .env)
+util/sync_defaults.py --apply  # copy missing files (including a starter preferences.conf)
 util/sync_defaults.py --force  # also overwrite changed files, keeping .bak copies
 ```
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
@@ -468,11 +511,11 @@ In Docker, one container is enough: `bot.py` runs the schedule too, so there is 
 On AWS Lambda only `/tmp` is writable and ephemeral, so mount EFS and point `DATA_DIR` at it. S3 is not supported yet.
 
 ### Sharesight
-* Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to the .env file. Example:
+* Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to `finbot.env`. Example:
 ```
-sharesight_code = '01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f'
-sharesight_client_id = '01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f'
-sharesight_client_secret = '01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f'
+sharesight_code=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
+sharesight_client_id=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
+sharesight_client_secret=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 ```
 
 ### Discord
@@ -480,13 +523,13 @@ Discord support is currently only for trade notifications and scheduled reports.
 The Discord webhook can be provisioned in Discord under _Server Settings > Integrations > Webhooks_.
 Example:
 ```
-discord_webhook = 'https://discord.com/api/webhooks/1009998000000000000/aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbb'
+discord_webhook=https://discord.com/api/webhooks/1009998000000000000/aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbb
 ```
 
 ### Slack
-A Slack webhook can be provisioned by creating a new app from scratch at https://api.slack.com/apps/ then navigating to _Incoming Webhooks_. Once the link is generated, add it to the .env file. Example:
+A Slack webhook can be provisioned by creating a new app from scratch at https://api.slack.com/apps/ then navigating to _Incoming Webhooks_. Once the link is generated, add it to `finbot.env`. Example:
 ```
-slack_webhook = 'https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA'
+slack_webhook=https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA
 ```
 The webhook is only used for the trade notifications and scheduled reports. The interactive bot requires further configuration of this Slack app (see below).
 
@@ -495,59 +538,59 @@ The webhook is only used for the trade notifications and scheduled reports. The 
 * Add your bot to a group or channel.
 * For security, run `/setjoingroups` and set to `Disabled`
 * Optionally, make the bot a group admin (for interactive features).
-* In the .env file, set `telegramBotToken` to the token BotFather gave you.
-* In the .env file, set `telegramChatID` to the chat group or channel id.
+* In `finbot.env`, set `telegramBotToken` to the token BotFather gave you.
+* In `finbot.env`, set `telegramChatID` to the chat group or channel id.
    * For channels and supergroups, `telegramChatID` should be negative and 13 characters. Prepend `-100` if necessary.
    * Be aware a group id can change if you edit group settings and it becomes a "supergroup". Currently, the bot does not automatically handle this.
-* Example .env entry:
+* Example `finbot.env` entry:
 ```
-telegramBotToken = '0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA'
-telegramChatID = -1001000000000
+telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
+telegramChatID=-1001000000000
 ```
 
 ### Portfolios
-Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `exclude_portfolios` in the .env file:
+Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `exclude_portfolios` in the `preferences.conf`:
 ```
-exclude_portfolios = "100003 100004"
+exclude_portfolios=100003 100004
 ```
 
 Alternatively, you can include only specific portfolios:
 ```
-include_portfolios = "100001 100002"
+include_portfolios=100001 100002
 ```
 
 ### Caching
 Many objects are cached for just under one day by default. Cache is controlled by the settings below. Trades IDs are stored on disk, but trade queries generally don't result in a cache hit for functional reasons.
 ```
-cache = True
-cache_seconds = 82800
-performance_cache_seconds = 1800
+cache=True
+cache_seconds=82800
+performance_cache_seconds=1800
 ```
 
 `performance_cache_seconds` (default 30 minutes) is the cache lifetime of Sharesight performance reports.
 
-While `bot.py` is running (with `cache = True` and Sharesight configured), a background job keeps the Sharesight portfolio list (`cache_seconds`) and each portfolio's holdings report (1 day, `performance_cache_seconds` cache) refreshed at 90% of their cache lifetime, so chat requests do not wait on Sharesight. If a refresh fails, the previous cache keeps being served and the job retries after 5 minutes.
+While `bot.py` is running (with `cache=True` and Sharesight configured), a background job keeps the Sharesight portfolio list (`cache_seconds`) and each portfolio's holdings report (1 day, `performance_cache_seconds` cache) refreshed at 90% of their cache lifetime, so chat requests do not wait on Sharesight. If a refresh fails, the previous cache keeps being served and the job retries after 5 minutes.
 
 ### Hyperlinks
-These .env file options relate to hyperlinks:
+These `preferences.conf` options relate to hyperlinks:
 
 * `hyperlink`, if set to `False`, disables all hyperlinks. Note: it can not disable syntax highlighting and false positives by chat clients that try to detect domains. Setting it to `False` can be useful for chat networks like Discord that can't easily disable link previews. Defaults to `True`.
 ```
-hyperlink = True
+hyperlink=True
 ```
 
 * `hyperlinkFooter` appends hyperlinks to the company website and to a Google search for the ticker on simplywall.st  for the symbol lookup report. Possible values are `True` or `False`. Defaults to `False`.
 
 ```
-hyperlinkFooter = True
+hyperlinkFooter=True
 ```
 
 * `hyperlinkProvider` configures where to send ticker hyperlinks. Available values are `google` and `yahoo`. If set to `google`, it is only used where practical, as Google does not publish earnings date, ex-dividend date, premarket price, or short interest figures. Defaults to `yahoo`.
 ```
-hyperlinkProvider = google
+hyperlinkProvider=google
 ```
 ```
-hyperlinkProvider = yahoo
+hyperlinkProvider=yahoo
 ```
 
 ## Scheduling
@@ -592,7 +635,7 @@ The script prints its output on your terminal and sends its report to your chat 
 
 ## Interactive bot setup
 The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
-It defaults to listening on http://127.0.0.1:5000/, which can be changed with `ip` and `port` in the .env file.
+It defaults to listening on http://127.0.0.1:5000/, which can be changed with `ip` and `port` in `finbot.env`.
 
 Example frontend https server config (nginx):
 ```
@@ -624,19 +667,19 @@ Note: The utils folder contains scripts to generate `/etc/nginx/aws_subnets` and
 
 #### Telegram
 * Message BotFather to create a bot user.
-  * Set .env file `telegramBotToken` to the token given by BotFather.
+  * Set `telegramBotToken` in `finbot.env` to the token given by BotFather.
   * Add your Telegram bot user to a group
     * Give the bot group admin access so it can read the group chat.
     * For security, message BotFather and disable `/setjoingroups`.
-* Set .env `telegramOutgoingWebhook` to your web server (e.g. https://www.example.com:8443/telegram).
+* Set `telegramOutgoingWebhook` in `finbot.env` to your web server (e.g. https://www.example.com:8443/telegram).
 * Set `telegramOutgoingToken` to a password of your choosing. Telegram will use this to authenticate with finbot.
 With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
 
 #### Slack
 Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app).
-* From _Basic Information > Verification Token_, copy _Verification token_ into the .env file variable `slackOutgoingToken`. This allows Slack to authenticate with finbot.
-* In the .env file, put your web server URL (e.g. https://www.example.com:8443/slack) into `slackOutgoingWebhook`
-* Save the .env file and (re)start `bot.py`
+* From _Basic Information > Verification Token_, copy _Verification token_ into `finbot.env` as `slackOutgoingToken`. This allows Slack to authenticate with finbot.
+* In `finbot.env`, put your web server URL (e.g. https://www.example.com:8443/slack) into `slackOutgoingWebhook`
+* Save `finbot.env` and restart `bot.py`
 * Under _Event Subscriptions_:
   * Go to _Enable Events > On > Request URL_ and enter your web server URL (e.g. https://www.example.com:8443/slack). At this time, if the bot is reachable, it will auto respond to Slack's verification request.
   * Go down to _Subscribe to bot events_ and add event `app_mention` for the bot to see _@botname_ mentions.
@@ -649,11 +692,11 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
   * Scroll down to _Scopes > Bot Token Scopes_, and add: `chat:write` and `files:write`.
   * Scroll up to _OAuth Tokens for Your Workspace_:
     * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_
-    * Copy _Bot User OAuth Token_ into .env file `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies.
+    * Copy _Bot User OAuth Token_ into `finbot.env` as `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies.
     * Restart `bot.py`
 
 ### Daemonize (systemd)
-`finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User` and `ExecStart`, then enable and start it (`systemctl reload finbot` re-reads the [schedule](#scheduling)):
+`finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User`, `ExecStart` and the path of [`finbot.env`](#setup) (`EnvironmentFile=`, and the `ExecStartPre=` check), then enable and start it. `systemctl reload finbot` re-reads `preferences.conf` and the [schedule](#scheduling) without a restart; a change to `finbot.env` needs `systemctl restart finbot`:
 
 ```
 sudo cp -v finbot.service /etc/systemd/system/
@@ -673,7 +716,7 @@ journalctl -fu finbot
 ```
 
 ## Limitations
-* Discord shows garbage link previews from Sharesight. Set `hyperlink = False`, or disable this for each Discord client under _Settings > Text & Images > Embeds and link previews_ (must be repeated for each participating Discord client).
+* Discord shows garbage link previews from Sharesight. Set `hyperlink=False`, or disable this for each Discord client under _Settings > Text & Images > Embeds and link previews_ (must be repeated for each participating Discord client).
 
 ## Suggestions
 * Is my code is doing something the hard way?

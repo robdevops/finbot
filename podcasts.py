@@ -159,7 +159,7 @@ def lambda_handler(feed_url):
 		seen = sorted(set(seen))
 		if seen != seen_earlier:
 				if not webhooks:
-						raise KeyError("no services enabled in .env")
+						raise KeyError("no services enabled in finbot.env")
 				for service, url in webhooks.items():
 						payload = []
 						if service == "telegram":

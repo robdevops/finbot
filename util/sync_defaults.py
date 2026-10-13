@@ -21,7 +21,9 @@ def sync(apply=False, force=False):
 	for src in sorted((REPO_DIR / 'defaults').iterdir()):
 		if not src.is_file():
 			continue
-		name = '.env' if src.name == 'env.example' else src.name
+		if src.name == 'finbot.env':
+			continue # the startup file is not data: it holds credentials, lives wherever the launcher loads it from, and the bot never reads it
+		name = src.name
 		dest = dest_dir / name
 		if not dest.exists():
 			status = 'missing'
@@ -29,8 +31,8 @@ def sync(apply=False, force=False):
 			continue
 		else:
 			status = 'differs'
-		if name == '.env' and status == 'differs':
-			continue # a configured .env is never replaced
+		if name == 'preferences.conf' and status == 'differs':
+			continue # configured preferences are never replaced
 		changes.append((name, status))
 		if apply and (status == 'missing' or force):
 			dest_dir.mkdir(parents=True, exist_ok=True)

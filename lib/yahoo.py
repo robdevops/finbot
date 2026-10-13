@@ -248,7 +248,9 @@ def fetch(tickers):
 		util.json_write(cacheFile, yahoo_output)
 	return yahoo_output
 
-def fetch_detail(ticker, seconds=config_cache_seconds):
+def fetch_detail(ticker, seconds=UNSET):
+	if seconds is UNSET:
+		seconds = config_cache_seconds
 	now = datetime.datetime.now()
 	local_market_data = {}
 	cookie = getCookie()
@@ -679,7 +681,11 @@ def fetch_detail(ticker, seconds=config_cache_seconds):
 	local_market_data[ticker] = dict(sorted(local_market_data[ticker].items()))
 	return local_market_data
 
-def price_history(ticker, days=None, seconds=config_cache_seconds, graph=config_graph, graphCache=True):
+def price_history(ticker, days=None, seconds=UNSET, graph=UNSET, graphCache=True):
+	if graph is UNSET:
+		graph = config_graph
+	if seconds is UNSET:
+		seconds = config_cache_seconds
 	percent_dict = {}
 	price = []
 	image_data = None
@@ -822,8 +828,10 @@ def prefetch_history(tickers, workers=8):
 	with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
 		list(executor.map(warm, tickers))
 
-def fetch_chart_json(ticker, days=3665, seconds=config_cache_seconds, full=False):
+def fetch_chart_json(ticker, days=3665, seconds=UNSET, full=False):
 	"""full=True requests Yahoo's entire history (cached separately) instead of the last `days`."""
+	if seconds is UNSET:
+		seconds = config_cache_seconds
 	now = datetime.datetime.now()
 	if config_cache:
 		cacheFile = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"

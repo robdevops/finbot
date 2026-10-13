@@ -77,7 +77,7 @@ def lambda_handler():
 
 	# Prep and send payloads
 	if not webhooks:
-		print("Error: no services enabled in .env", file=sys.stderr)
+		print("Error: no services enabled in finbot.env", file=sys.stderr)
 		sys.exit(1)
 	for service, url in webhooks.items():
 		payload = prepare_finance_calendar_payload(service)

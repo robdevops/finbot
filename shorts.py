@@ -8,7 +8,9 @@ from lib import util
 from lib import yahoo
 from lib import shortman
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percent, specific_stock=None, service=None, interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, specific_stock=None, service=None, interactive=False):
+	if threshold is UNSET:
+		threshold = config_shorts_percent
 	def prepare_shorts_payload(service, market_data):
 		payload = []
 		chart_rows = []
@@ -73,7 +75,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_shorts_percen
 
 	# Prep and send payloads
 	if not webhooks:
-		print("Error: no services enabled in .env", file=sys.stderr)
+		print("Error: no services enabled in finbot.env", file=sys.stderr)
 		sys.exit(1)
 	if interactive:
 		payload, graph = prepare_shorts_payload(service, market_data)

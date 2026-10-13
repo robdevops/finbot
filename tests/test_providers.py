@@ -246,7 +246,7 @@ class SharesightKeepWarm(ProviderCase):
         calls = self.serve_sharesight()
         sharesight.warm_once()
         calls.clear()
-        self.age(sharesight.performance_cache_file(684141, 0), 0.95 * sharesight.PERFORMANCE_TTL) # 95% of its lifetime
+        self.age(sharesight.performance_cache_file(684141, 0), 0.95 * sharesight.config_performance_cache_seconds) # 95% of its lifetime
         self.assertEqual(sharesight.warm_once(), 1)
         self.assertEqual(len(calls), 1)
         self.assertIn('684141/performance', calls[0])
@@ -314,7 +314,7 @@ class SharesightKeepWarm(ProviderCase):
         self.assertEqual(sharesight.next_due(), 0) # cold cache
         sharesight.warm_once()
         due = sharesight.next_due()
-        self.assertAlmostEqual(due, 0.9 * min(sharesight.config_cache_seconds, sharesight.PERFORMANCE_TTL), delta=5)
+        self.assertAlmostEqual(due, 0.9 * min(sharesight.config_cache_seconds, sharesight.config_performance_cache_seconds), delta=5)
 
     def test_refresh_flag_bypasses_a_fresh_cache(self):
         calls = self.serve_sharesight()

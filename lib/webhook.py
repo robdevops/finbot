@@ -66,7 +66,7 @@ def error_line(e, context=None, limit=200):
 	return f"⚠️ {context}: {text}" if context else f"⚠️ {text}"
 
 def report_error(e, service=None, chat_id=None, context=None):
-	"""Send a one-line error summary to the initiating chat, else to every default channel in .env.
+	"""Send a one-line error summary to the initiating chat, else to every default channel in finbot.env.
 	Never raises: error reporting must not become a second failure."""
 	try:
 		line = error_line(e, context)

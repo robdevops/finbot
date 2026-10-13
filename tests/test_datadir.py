@@ -56,7 +56,8 @@ class DataDirTests(FinbotCase):
 		self.assertFalse(Path(config.config_var_dir, 'finbot_adr.json').exists()) # dry run
 		sync_defaults.sync(apply=True)
 		self.assertTrue(Path(config.config_var_dir, 'finbot_adr.json').exists())
-		self.assertTrue(Path(config.config_var_dir, '.env').exists())
+		self.assertTrue(Path(config.config_var_dir, 'preferences.conf').exists())
+		self.assertFalse(Path(config.config_var_dir, 'finbot.env').exists()) # the startup file is never copied into the data dir
 		mine = Path(config.config_var_dir, 'finbot_adr.json')
 		mine.write_text('{"mine": 1}')
 		sync_defaults.sync(apply=True)

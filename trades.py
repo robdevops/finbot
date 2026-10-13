@@ -9,7 +9,9 @@ from lib import webhook
 from lib import util
 from lib import yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service=None, user='', portfolio_select=None, message_id=None, interactive=False):
+def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, user='', portfolio_select=None, message_id=None, interactive=False):
+	if days is UNSET:
+		days = config_past_days
 	start_date = datetime.datetime.now() - datetime.timedelta(days=days)
 	start_date = start_date.strftime('%Y-%m-%d') # 2022-08-20
 	state_file = "finbot_sharesight_trades.json"
@@ -124,7 +126,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 
 	# Prep and send payloads
 	if not webhooks:
-		print("Error: no services enabled in .env", file=sys.stderr)
+		print("Error: no services enabled in finbot.env", file=sys.stderr)
 		sys.exit(1)
 	if interactive:
 		if len(trades):
