@@ -1,0 +1,27 @@
+# The scheduled reports, run by the bot (bot.py). Same time syntax as crontab(5): minute hour day-of-month month day-of-week,
+# or an @macro such as @daily. The command is a finbot script and its arguments; separate several with ";" to run them in turn.
+# Times are in the server's own time zone, like cron; add a line "CRON_TZ=Australia/Melbourne" above a job to pin one.
+# To change the schedule, copy this file to the data directory (util/sync_defaults.py --apply), edit the copy, then:
+#   systemctl reload finbot
+
+# Every 20 minutes on weekdays
+*/20 * * * Mon-Fri trades.py
+
+# Mid-session
+00 01 * * Mon-Fri price.py midsession # AU
+15 17 * * Mon-Fri price.py midsession # US
+
+# Daily
+30  21 * * * reminder.py
+
+# Daily on weekdays
+29  21 * * Mon-Fri price.py interday
+10  11 * * Mon-Fri price.py premarket
+
+# Weekly
+28  21 * * Sat cal.py earnings; cal.py ex-dividend; price.py 7; performance.py 7; rating.py
+
+# Monthly
+27  21 1 * * shorts.py; price.py 28; performance.py 28
+
+

@@ -2,13 +2,14 @@
 
 import gevent.monkey
 gevent.monkey.patch_all()
-import json, os, re, subprocess, sys
+import json, os, re, signal, subprocess, sys
 from gevent import pywsgi
 import threading
 from urllib.parse import urlparse
 
 from lib.config import *
 from lib import worker
+from lib import jobs
 from lib import charts
 from lib import sharesight
 from lib import webhook
@@ -169,6 +170,11 @@ if __name__ == '__main__':
 		threading.Thread(target=charts.refresh_keyboards, daemon=True).start() # update stale DM keyboards in the background
 	if config_cache and config_sharesight_auth.get('client_id'):
 		threading.Thread(target=sharesight.keep_warm, daemon=True).start() # keep the portfolio list and holdings report cached
+	if config_scheduler:
+		scheduler = jobs.Scheduler(lambda: data_file('schedule.cron'))
+		if scheduler.load():
+			gevent.signal_handler(signal.SIGHUP, scheduler.reload) # systemctl reload finbot: pick up an edited schedule
+			threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	try:
 		httpd.serve_forever()
 	except OSError as e:

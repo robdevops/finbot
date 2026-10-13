@@ -25,6 +25,8 @@ if os.getenv('telegramBotToken'):
 
 config_alliterate = os.getenv("alliterate", 'False').lower() in ('true', '1', 't')
 config_cache = os.getenv("cache", 'True').lower() in ('true', '1', 't')
+config_scheduler = os.getenv("scheduler", 'True').lower() in ('true', '1', 't') # run the scheduled reports (schedule.cron) inside bot.py
+config_scheduler_catchup = int(os.getenv('scheduler_catchup', 5)) # minutes: a run missed while the bot was down still fires if it was due this recently
 config_var_dir = config_data_dir
 config_cache_dir = config_data_dir + '/cache'
 for _dir in (config_var_dir, config_cache_dir):

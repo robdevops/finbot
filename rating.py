@@ -91,5 +91,8 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 	# make google cloud happy
 	return True
 
+def job(argv):
+	return 'rating.py', {}
+
 if __name__ == "__main__":
-	webhook.guarded('rating.py', lambda_handler)
+	webhook.cli(sys.argv[0], job, lambda_handler)

@@ -31,7 +31,7 @@
 * Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum)
 * Python modules, pinned to versions with 3.13 support in `requirements.txt`:
 ```
-python-dateutil requests gevent pandas matplotlib numpy
+croniter python-dateutil requests gevent pandas matplotlib numpy
 ```
 
 ### Supported commands
@@ -83,9 +83,9 @@ Alternative syntax:
 @botname who symbol
 ```
 
-Trade notifications are peformed by polling the Sharesight trades API from a cron job, and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
+Trade notifications are peformed by polling the Sharesight trades API on a schedule (see [Scheduling](#scheduling)), and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 
-The other various reports can also run from cron (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they will either report to all configured chat networks, or reply to the chat which triggered them.
+The other various reports can also run on a schedule (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they will either report to all configured chat networks, or reply to the chat which triggered them.
 
 The interactive bot component requires you to host a web service on a domain with a trusted certificate. It subscribes to push updates from native Slack apps / Telegram bots, and reacts to certain regex seen in chat. It provides:
 * Stock lookup (financials, company profile, price charts)
@@ -141,9 +141,9 @@ This report can only be run through the interactive bot. Example usage:
 `trades.py` sends recent Sharesight trades to your configured chat services.
 By default, this report searches Sharesight for trades from the current day only. You can override this with `past_days` in the .env file, or by providing a number as argument when triggered through the chat bot.
 
-Without persistent storage, it is recommended to leave `past_days = 0` to avoid duplicate trade notifications. In this case, the cron that triggers the report must do so exactly once per day, after market close.
+Without persistent storage, it is recommended to leave `past_days = 0` to avoid duplicate trade notifications. In this case, the schedule must run the report exactly once per day, after market close.
 
-With persistent storage, it is recommended to set `past_days = 30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to set the cron frequency to 20 minutes.
+With persistent storage, it is recommended to set `past_days = 30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to schedule it every 20 minutes.
 
 ```
 past_days = 30
@@ -442,7 +442,7 @@ vi ~/finbot/.env
 ```
 The file is plain `KEY=value` lines: no spaces around `=`, no quotes, no trailing comments (comments go on their own line). The same file works everywhere:
 * **systemd:** `finbot.service` loads it with `EnvironmentFile=`.
-* **cron:** `crontab.txt` runs jobs through `bin/run`, which loads the file (`FINBOT_ENV=/path` to use another one) and keeps variables already set in the environment.
+* **Scheduled jobs:** they run inside `bot.py` (see [Scheduling](#scheduling)), so they share its environment. For a one-off run from a shell, `bin/run price.py 7` loads the file (`FINBOT_ENV=/path` to use another one) and keeps variables already set in the environment.
 * **Docker:** `--env-file /srv/finbot/.env` (or `-e`).
 * **AWS Lambda:** set them as function environment variables.
 
@@ -461,7 +461,7 @@ util/sync_defaults.py --force  # also overwrite changed files, keeping .bak copi
 ```
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
 
-In Docker, run the schedule in a second container from the same image (for example with [supercronic](https://github.com/aptible/supercronic) and `crontab.txt`), sharing the same data mount and env file.
+In Docker, one container is enough: `bot.py` runs the schedule too, so there is no cron or scheduler sidecar to set up.
 
 On AWS Lambda only `/tmp` is writable and ephemeral, so mount EFS and point `DATA_DIR` at it. S3 is not supported yet.
 
@@ -548,33 +548,38 @@ hyperlinkProvider = google
 hyperlinkProvider = yahoo
 ```
 
-## Scheduling example
-Recommended for a machine set to UTC:
+## Scheduling
+The scheduled reports (trades, price alerts, reminders, calendar, performance, shorts and rating) run inside `bot.py`, so they use the same user, sandbox, environment and data directory as the bot. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory.
+
+The schedule is `defaults/schedule.cron`, written in **cron-compatible syntax**: five time fields (minute, hour, day of month, month, day of week; `*/20`, `Mon-Fri`, ranges and lists work) or an `@macro` such as `@daily`, then a finbot script and its arguments. Several commands separated by `;` run one after another. `MAILTO=`, `SHELL=`, `PATH=` and `HOME=` lines are ignored. Anything else a crontab allows (a user column, pipes, other programs) is not supported: such a line is reported at startup and skipped. Existing crontab lines can be pasted as they are: `bin/run`, `cd ...;`, `> /dev/null` redirects and `{ a; b ;}` groups are understood.
 ```
 # Every 20 minutes on weekdays
-*/20 * * * Mon-Fri ~/finbot/trades.py &> /dev/null
+*/20 * * * Mon-Fri trades.py
 
-# Mid-session
-00 01 * * Mon-Fri ~/finbot/price.py midsession &> /dev/null # AU
-15 17 * * Mon-Fri ~/finbot/price.py midsession &> /dev/null # US
-
-# Daily
-30  21 * * * ~/finbot/reminder.py > /dev/null
-
-# Daily on weekdays
-29  21 * * Mon-Fri ~/finbot/price.py interday &> /dev/null
-10  11 * * Mon-Fri ~/finbot/price.py premarket &> /dev/null
-
-# Weekly
-28  21 * * Sat { cd ~/finbot/; ./cal.py earnings; ./cal.py ex-dividend; ./price.py 7; ./performance.py 7; ./rating.py ;} &> /dev/null
-
-# Monthly
-27  21 1 * * { cd ~/finbot/; ./shorts.py; ./price.py 28; ./performance.py 28 ;} &> /dev/null
+# Weekly, one after the other
+28  21 * * Sat cal.py earnings; cal.py ex-dividend; price.py 7; performance.py 7; rating.py
 ```
-The above can be installed with:
+The default times suit a server set to UTC. Like cron, they follow the server's own time zone; put `CRON_TZ=Australia/Melbourne` on a line of its own above a job to pin another zone.
+
+**To change a job**, copy the schedule to the data directory, edit the copy, and reload (no restart, so the bot stays up):
 ```
-(crontab -l ; cat ~/finbot/crontab.txt)| crontab -
+util/sync_defaults.py --apply       # copies schedule.cron to the data directory if it is not there yet
+sudoedit /var/lib/finbot/schedule.cron
+sudo systemctl reload finbot        # the bot re-reads the file, and logs each job with its next run time
 ```
+The bot logs the schedule when it starts or reloads (`journalctl -u finbot`). If the edited file has no usable line the previous schedule keeps running.
+
+Behaviour worth knowing:
+* A run that was due while the bot was down (a restart, a deploy) still fires once if it was due within the last `scheduler_catchup` minutes (default 5). A restart right after a run does not repeat it.
+* A job still running when it is next due is skipped, and a job that takes more than 15 minutes is abandoned and reported.
+* Failures are reported to your chat channels, as before.
+* Set `scheduler = False` in the environment file to turn the scheduler off, for example if you prefer cron or systemd timers and run the scripts yourself.
+
+**Running a report by hand.** Under `DynamicUser=yes` you cannot simply log in as the bot's user, so run the script as a transient unit with the same dynamic user and state directory. `User=finbot` makes it the same user as `finbot.service`; leave it out and systemd would allocate a different one, which cannot read the bot's state:
+```
+sudo systemd-run --pty --wait --collect -p DynamicUser=yes -p User=finbot -p StateDirectory=finbot -p EnvironmentFile=/opt/finbot.env /opt/finbot/price.py 7
+```
+The script prints its output on your terminal and sends its report to your chat channels as usual. Outside systemd, run it as your own user: `bin/run price.py 7`.
 
 ## Interactive bot setup
 The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
@@ -639,7 +644,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
     * Restart `bot.py`
 
 ### Daemonize (systemd)
-`finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User` and `ExecStart`, then enable and start it:
+`finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User` and `ExecStart`, then enable and start it (`systemctl reload finbot` re-reads the [schedule](#scheduling)):
 
 ```
 sudo cp -v finbot.service /etc/systemd/system/

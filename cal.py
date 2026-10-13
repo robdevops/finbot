@@ -143,14 +143,15 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 	# make google cloud happy
 	return True
 
+def job(argv):
+	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
+	match argv:
+		case ['earnings']:
+			return 'cal.py earnings', {'earnings': True}
+		case ['ex-dividend']:
+			return 'cal.py ex-dividend', {'dividend': True}
+		case _:
+			raise ValueError('[earnings|ex-dividend]')
+
 if __name__ == "__main__":
-	if len(sys.argv) > 1:
-		match sys.argv[1]:
-			case 'earnings':
-				webhook.guarded('cal.py earnings', lambda_handler, earnings=True)
-			case 'ex-dividend':
-				webhook.guarded('cal.py ex-dividend', lambda_handler, dividend=True)
-			case other:
-				print("Usage:", sys.argv[0], "[earnings|ex-dividend]", file=sys.stderr)
-	else:
-		print("Usage:", sys.argv[0], "[earnings|ex-dividend]", file=sys.stderr)
+	webhook.cli(sys.argv[0], job, lambda_handler)

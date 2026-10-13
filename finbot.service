@@ -6,6 +6,7 @@ Type=simple
 User=CHANGEME
 # Or, instead of User=: DynamicUser=yes plus StateDirectory=finbot (state goes to /var/lib/finbot automatically)
 ExecStart=/home/CHANGEME/finbot/bot.py
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=30s
 StandardOutput=null

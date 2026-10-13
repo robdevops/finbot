@@ -94,13 +94,25 @@ def report_error(e, service=None, chat_id=None, context=None):
 	except Exception as reporting_error:
 		print("Failed to report error:", reporting_error, file=sys.stderr)
 
-def guarded(context, func, *args, **kwargs):
-	"""Run a cron entry point; on failure report one line to the default channel and exit non-zero."""
+def guarded(context, func, *args, exit=True, **kwargs):
+	"""Run a scheduled entry point; on failure report one line to the default channel, then exit non-zero (exit=True, for the
+	command line) or just return None (exit=False, when the bot runs it in-process). A SystemExit inside counts as a failure."""
 	try:
 		return func(*args, **kwargs)
-	except Exception as e:
+	except (Exception, SystemExit) as e:
 		report_error(e, context=context)
+		if exit:
+			sys.exit(1)
+
+def cli(script, job, handler, argv=None):
+	"""Command line entry point of a report script: parse its arguments with `job(argv) -> (label, kwargs)`, print the usage on
+	a bad argument, else run the handler guarded."""
+	try:
+		label, kwargs = job(sys.argv[1:] if argv is None else argv)
+	except ValueError as e:
+		print("Usage:", script, e, file=sys.stderr)
 		sys.exit(1)
+	guarded(label, handler, **kwargs)
 
 def payload_wrapper(service, url, payload, chat_id=None, message_id=None, reply_markup=None):
 	"""Returns a list with the response of each message sent (several if the payload was chunked)."""
