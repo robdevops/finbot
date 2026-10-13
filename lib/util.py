@@ -707,7 +707,7 @@ def compare_graph(series, title, subtitle=''):
 	buf.seek(0) # rewind, or the upload sends an empty file
 	return buf
 
-SESSION_TINTS = {'midsession': '#34d399', 'premarket': '#fb923c'} # subtle green / orange wash; at close stays plain
+SESSION_TINTS = {'midsession': '#34d399', 'premarket': '#facc15'} # subtle green / yellow wash; at close stays plain
 
 def tinted(bg, color, amount=0.07):
 	"""bg blended a little way towards color, as a hex string."""
@@ -718,7 +718,7 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	"""Horizontal bars that mirror the caption list, first row on top, filling the whole 1280x800 canvas.
 	Blue for >= 0, red below. Each row's label sits at the bar's base and its value at the tip.
 	rows: [(label, value)]; a (label, None) row is a blank spacer. xlim zooms the value axis (bars then start at its left edge).
-	session: 'midsession' or 'premarket' washes the background green or orange."""
+	session: 'midsession' or 'premarket' washes the background green or yellow."""
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
 	from matplotlib.ticker import MaxNLocator, FuncFormatter
