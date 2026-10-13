@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Convert an old dotenv-style .env (key = 'value' # comment) to the strict KEY=value format
-that systemd EnvironmentFile, docker --env-file and bin/run all read the same way.
+that systemd EnvironmentFile and docker --env-file read the same way.
 Prints the result; --write replaces the file and keeps the original as .bak."""
 
 import argparse

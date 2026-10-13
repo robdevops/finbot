@@ -67,37 +67,6 @@ class DataDirTests(FinbotCase):
 
 
 class EnvFileTests(FinbotCase):
-	def test_bin_run_exports_env_file_and_execs(self):
-		with tempfile.TemporaryDirectory() as d:
-			f = Path(d, 'f.env')
-			f.write_text('# comment\nfoo_setting=bar baz\n')
-			e = dict(os.environ, FINBOT_ENV=str(f))
-			out = subprocess.run([str(REPO / 'bin' / 'run'), 'sh', '-c', 'echo "$foo_setting:$PWD"'], env=e, capture_output=True, text=True, check=True).stdout.strip()
-			self.assertEqual(out, 'bar baz:' + str(REPO))
-
-	def test_bin_run_keeps_existing_environment(self):
-		with tempfile.TemporaryDirectory() as d:
-			f = Path(d, 'f.env')
-			f.write_text('foo_setting=from_file\n')
-			e = dict(os.environ, FINBOT_ENV=str(f), foo_setting='from_env')
-			out = subprocess.run([str(REPO / 'bin' / 'run'), 'sh', '-c', 'echo "$foo_setting"'], env=e, capture_output=True, text=True, check=True).stdout.strip()
-			self.assertEqual(out, 'from_env')
-
-	def test_bin_run_bare_script_name(self):
-		with tempfile.TemporaryDirectory() as d: # fake checkout so no real finbot script runs
-			(Path(d) / 'bin').mkdir()
-			shutil.copy(REPO / 'bin' / 'run', Path(d) / 'bin' / 'run')
-			script = Path(d, 'hello.sh')
-			script.write_text('#!/bin/sh\necho "hello $1"\n')
-			script.chmod(0o755)
-			e = dict(os.environ, FINBOT_ENV='/nonexistent')
-			run = str(Path(d) / 'bin' / 'run')
-			for name in ('hello.sh', './hello.sh'):
-				out = subprocess.run([run, name, 'x'], env=e, capture_output=True, text=True, check=True, cwd='/').stdout.strip()
-				self.assertEqual(out, 'hello x')
-			out = subprocess.run([run, 'sh', '-c', 'echo ok'], env=e, capture_output=True, text=True, check=True, cwd='/').stdout.strip()
-			self.assertEqual(out, 'ok') # PATH commands unaffected
-
 	def test_migrate_env(self):
 		from util import migrate_env
 		old = "# c\nkey = 'val' # note\nnum = 5\nexport tok = \"a b\"\nbare\nurl=http://x/#frag\n\n"

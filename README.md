@@ -442,7 +442,7 @@ vi ~/finbot/.env
 ```
 The file is plain `KEY=value` lines: no spaces around `=`, no quotes, no trailing comments (comments go on their own line). The same file works everywhere:
 * **systemd:** `finbot.service` loads it with `EnvironmentFile=`.
-* **Scheduled jobs:** they run inside `bot.py` (see [Scheduling](#scheduling)), so they share its environment. For a one-off run from a shell, `bin/run price.py 7` loads the file (`FINBOT_ENV=/path` to use another one) and keeps variables already set in the environment.
+* **Scheduled jobs:** they run inside `bot.py` (see [Scheduling](#scheduling)), so they share its environment. For a one-off run, see [Running a report by hand](#scheduling).
 * **Docker:** `--env-file /srv/finbot/.env` (or `-e`).
 * **AWS Lambda:** set them as function environment variables.
 
@@ -553,7 +553,7 @@ The scheduled reports run inside `bot.py`, so they use the same user, sandbox, e
 
 The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"` and `cleanup.py [days]` (deletes cache files older than `days`, default 30). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
 
-The schedule is `defaults/schedule.cron`, written in **cron-compatible syntax**: five time fields (minute, hour, day of month, month, day of week; `*/20`, `Mon-Fri`, ranges and lists work) or an `@macro` such as `@daily`, then a finbot script and its arguments. Quote an argument that has spaces or special characters (a feed URL with `&`, say). Several commands separated by `;` run one after another. `MAILTO=`, `SHELL=`, `PATH=` and `HOME=` lines are ignored. Anything else a crontab allows (a user column, pipes, other programs) is not supported: such a line is reported at startup and skipped. Existing crontab lines can be pasted as they are: `bin/run`, `cd ...;`, `> /dev/null` redirects and `{ a; b ;}` groups are understood.
+The schedule is `defaults/schedule.cron`, written in **cron-compatible syntax**: five time fields (minute, hour, day of month, month, day of week; `*/20`, `Mon-Fri`, ranges and lists work) or an `@macro` such as `@daily`, then a finbot script and its arguments. Quote an argument that has spaces or special characters (a feed URL with `&`, say). Several commands separated by `;` run one after another. `MAILTO=`, `SHELL=`, `PATH=` and `HOME=` lines are ignored. Anything else a crontab allows (a user column, pipes, other programs) is not supported: such a line is reported at startup and skipped. Existing crontab lines can be pasted as they are: an old `bin/run` prefix, `cd ...;`, `> /dev/null` redirects and `{ a; b ;}` groups are understood.
 ```
 # Every 20 minutes on weekdays
 */20 * * * Mon-Fri trades.py
@@ -584,7 +584,7 @@ Behaviour worth knowing:
 ```
 sudo systemd-run --pty --wait --collect -p DynamicUser=yes -p StateDirectory=finbot -p EnvironmentFile=/opt/finbot.env /opt/finbot/price.py 7
 ```
-The script prints its output on your terminal and sends its report to your chat channels as usual. The transient unit gets its own dynamic user, and systemd may re-own the state directory to it for the run: check `ls -ln /var/lib/private/finbot` afterwards and `systemctl restart finbot` if the bot can no longer write there. The chat commands (`.price 7d`, `.performance 7d`, ...) run the same reports inside the bot, without any of this. Outside systemd, run a script as your own user: `bin/run price.py 7`.
+The script prints its output on your terminal and sends its report to your chat channels as usual. The transient unit gets its own dynamic user, and systemd may re-own the state directory to it for the run: check `ls -ln /var/lib/private/finbot` afterwards and `systemctl restart finbot` if the bot can no longer write there. The chat commands (`.price 7d`, `.performance 7d`, ...) run the same reports inside the bot, without any of this. Outside systemd, run a script from the checkout as your own user with the settings loaded into the shell: `set -a; . ./.env; set +a; ./price.py 7` (this works while no value in the file contains spaces).
 
 ## Interactive bot setup
 The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
