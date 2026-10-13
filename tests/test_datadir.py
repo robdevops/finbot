@@ -66,6 +66,14 @@ class DataDirTests(FinbotCase):
 		self.assertNotEqual(mine.read_text(), '{"mine": 1}')
 		self.assertEqual(Path(str(mine) + '.bak').read_text(), '{"mine": 1}')
 
+	def test_sync_defaults_to_another_destination(self):
+		other = Path(config.config_var_dir, 'elsewhere')
+		self.assertIn(('finbot_adr.json', 'missing'), sync_defaults.sync(dest=other))
+		self.assertFalse(other.exists()) # dry run
+		sync_defaults.sync(apply=True, dest=other)
+		self.assertTrue((other / 'finbot_adr.json').exists())
+		self.assertFalse(Path(config.config_var_dir, 'finbot_adr.json').exists()) # the data dir is untouched
+
 
 class EnvFileTests(FinbotCase):
 	def test_migrate_env(self):
