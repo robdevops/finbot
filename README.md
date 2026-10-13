@@ -141,14 +141,14 @@ This report can only be run through the interactive bot. Example usage:
 ![trade update in Slack](img/trades.png?raw=true "Trade update in Slack")
 
 `trades.py` sends recent Sharesight trades to your configured chat services.
-By default, this report searches Sharesight for trades from the current day only. You can override this with `past_days` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot.
+By default, this report searches Sharesight for trades from the past 28 days (`past_days`). You can override this in `preferences.conf`, or by providing a number as argument when triggered through the chat bot.
 
-Without persistent storage, it is recommended to leave `past_days=0` to avoid duplicate trade notifications. In this case, the schedule must run the report exactly once per day, after market close.
+Without persistent storage, set `past_days=0` to avoid duplicate trade notifications. In this case, the schedule must run the report exactly once per day, after market close.
 
-With persistent storage, it is recommended to set `past_days=30`. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to schedule it every 20 minutes.
+With persistent storage, the default of `past_days=28` suits. This is useful if Sharesight imports trades with past dates for any reason. Note that the initial run will notify on all historical trades for the `past_days` period. It is recommended to schedule it every 20 minutes.
 
 ```
-past_days=30
+past_days=28
 ```
 
 Cron trigger:
@@ -176,13 +176,13 @@ You can also specify a portfolio name to get trades for just that portfolio:
 ![Price chart triggered from Slack](img/finbot_price.png?raw=true "Price chart triggered from Slack")
 ![Price alert triggered by Cron](img/price.png?raw=true "Price alert triggered by Cron")
 
-`prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 10% but you can change it by setting `price_percent` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
+`prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 5% but you can change it by setting `price_percent` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
 If `demote_volatile` is `true`, stocks with a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) under 150M, or a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a market cap of under 1B will have their alert threshold (`price_percent`) doubled.
 
 Config example:
 ```
-price_percent=9.4
+price_percent=5
 demote_volatile=True
 ```
 
@@ -271,7 +271,7 @@ Interactively, you can also specify a portfolio:
 
 **Finance Explainer:** When a stock goes ex-dividend, the share price [typically drops](https://www.investopedia.com/articles/stocks/07/ex_dividend.asp) by the amount of the dividend paid. If you buy right before the ex-dividend date, you can expect an unrealised capital loss, plus a tax obligation for the dividend. Thus, you may wish to wait for the ex-dividend date before buying more of this stock.
 ```
-future_days=7
+future_days=30
 ```
 
 Cron execution:
@@ -461,7 +461,7 @@ Both files are plain `KEY=value`: no spaces around `=`, no quotes, no trailing c
 * **Scheduled jobs:** they are started by `bot.py` (see [Scheduling](#scheduling)), so they run on the same settings. For a one-off run, see [Running a report by hand](#scheduling).
 * **AWS Lambda:** set them as function environment variables.
 
-**Changing settings:** edit `preferences.conf`, then reload. The log shows what changed (`config: future_days 7 -> 30`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
+**Changing settings:** edit `preferences.conf`, then reload. The log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
 
 ### If a file is missing or wrong
 | Situation | At start | On reload |
@@ -561,13 +561,13 @@ These `preferences.conf` options relate to hyperlinks:
 hyperlink=True
 ```
 
-* `hyperlinkFooter` appends hyperlinks to the company website and to a Google search for the ticker on simplywall.st  for the symbol lookup report. Possible values are `True` or `False`. Defaults to `False`.
+* `hyperlinkFooter` appends hyperlinks to the company website and to a Google search for the ticker on simplywall.st  for the symbol lookup report. Possible values are `True` or `False`. Defaults to `True`.
 
 ```
 hyperlinkFooter=True
 ```
 
-* `hyperlinkProvider` configures where to send ticker hyperlinks. Available values are `google` and `yahoo`. If set to `google`, it is only used where practical, as Google does not publish earnings date, ex-dividend date, premarket price, or short interest figures. Defaults to `yahoo`.
+* `hyperlinkProvider` configures where to send ticker hyperlinks. Available values are `google` and `yahoo`. If set to `google`, it is only used where practical, as Google does not publish earnings date, ex-dividend date, premarket price, or short interest figures. Defaults to `google`.
 ```
 hyperlinkProvider=google
 ```
