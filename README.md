@@ -463,24 +463,6 @@ Both files are plain `KEY=value`: no spaces around `=`, no quotes, no trailing c
 
 **Changing settings:** edit `preferences.conf`, then reload. The log shows what changed (`config: future_days 7 -> 30`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
 
-### finbot.env: why these keys need a restart
-`finbot.env` is the startup file. These are the keys in it, and why none of them can be changed by a reload:
-
-| Key | Why a reload cannot apply it | Kind |
-|---|---|---|
-| `ip`, `port` | `bot.py` binds the socket once. A new address means closing and reopening it, dropping in-flight requests, and usually changing the reverse proxy. | technical |
-| `DATA_DIR` (and systemd's `STATE_DIRECTORY`) | It locates everything else: `preferences.conf`, `schedule.cron`, the state files and the cache, and `MPLCONFIGDIR`, which matplotlib reads once. Moving it would orphan the seen-trades, ratings and milestone state. | technical |
-| `telegramBotToken` | At start finbot registers its inbound URL with Telegram and learns the bot's `@username`, which it uses as the command prefix. A new token is a different bot. | technical |
-| `telegramOutgoingWebhook`, `telegramOutgoingToken` | These are what was registered with Telegram at start, and the bot matches every request against them. Changing only the local side makes Telegram keep sending the old URL and secret, and every inbound message is rejected. | technical |
-| `slackOutgoingWebhook`, `slackOutgoingToken` | The same for Slack: they must match what your Slack app sends. | technical |
-| `sharesight_code`, `sharesight_client_id`, `sharesight_client_secret` | They mint the Sharesight token, which is cached on disk for about 30 minutes. After a change the cached token still belongs to the old account until it expires. `code` is also a one-time OAuth value. | technical |
-| `telegramChatID` | Could be reloaded, but it decides where scheduled reports go (trades, performance, ratings), and `preferences.conf` sits in the writable data directory. A report destination should not be editable by anything with write access there, and a typo would silently send reports to the wrong chat. | deliberate |
-| `scheduler`, `scheduler_catchup` | Whether the scheduler runs is decided at start. A live toggle would need machinery to stop a thread and handle jobs in flight, for something that rarely changes. | deliberate |
-| `slackBotToken` | The outbound Slack credential. A typo would silently stop Slack replies. | deliberate |
-| `slack_webhook`, `discord_webhook` | They define which services every report goes to. A typo would silently redirect or drop all reports. | deliberate |
-
-"Technical" means a reload cannot do it without more machinery than it is worth. "Deliberate" means it could be done and is held back on purpose.
-
 ### If a file is missing or wrong
 | Situation | At start | On reload |
 |---|---|---|
