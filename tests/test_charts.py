@@ -159,6 +159,15 @@ class Contracts(unittest.TestCase):
         blue, red = count([('A', 5), ('B', -3)])
         self.assertGreater(blue, 1000); self.assertGreater(red, 1000)
 
+    def test_session_tints_the_background(self):
+        corner = lambda session: tuple(np.asarray(decode(util.hbar_chart(MIXED, 'T', session=session)))[2, 2][:3])
+        plain, close, mid, pre = corner(None), corner('close'), corner('midsession'), corner('premarket')
+        self.assertEqual(plain, (0x14, 0x18, 0x1f))
+        self.assertTrue(close[0] > close[1] and close[0] > plain[0]) # red
+        self.assertTrue(mid[1] > mid[0] and mid[1] > plain[1]) # green
+        self.assertTrue(pre[0] > pre[1] and pre[0] > pre[2] and pre[0] > plain[0]) # orange
+        self.assertLess(max(abs(a - b) for a, b in zip(close, plain)), 20) # subtle
+
     def test_longer_bar_is_drawn_longer(self):
         pixels = np.asarray(decode(util.hbar_chart([('A', 40), ('B', 10)], 'T')))
         blue_rows = np.where((pixels == BLUE).all(axis=2).any(axis=1))[0]

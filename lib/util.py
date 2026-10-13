@@ -707,10 +707,18 @@ def compare_graph(series, title, subtitle=''):
 	buf.seek(0) # rewind, or the upload sends an empty file
 	return buf
 
-def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshold=None, xlim=None):
+SESSION_TINTS = {'close': '#fb7185', 'midsession': '#34d399', 'premarket': '#fb923c'} # subtle red / green / orange wash
+
+def tinted(bg, color, amount=0.07):
+	"""bg blended a little way towards color, as a hex string."""
+	mix = lambda i: round(int(bg[i:i + 2], 16) * (1 - amount) + int(color[i:i + 2], 16) * amount)
+	return '#{:02x}{:02x}{:02x}'.format(mix(1), mix(3), mix(5))
+
+def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshold=None, xlim=None, session=None):
 	"""Horizontal bars that mirror the caption list, first row on top, filling the whole 1280x800 canvas.
 	Blue for >= 0, red below. Each row's label sits at the bar's base and its value at the tip.
-	rows: [(label, value)]; a (label, None) row is a blank spacer. xlim zooms the value axis (bars then start at its left edge)."""
+	rows: [(label, value)]; a (label, None) row is a blank spacer. xlim zooms the value axis (bars then start at its left edge).
+	session: 'close', 'midsession' or 'premarket' washes the background red, green or orange."""
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
 	from matplotlib.ticker import MaxNLocator, FuncFormatter
@@ -718,6 +726,8 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	axis_fmt = axis_fmt or (lambda v: '0%' if v == 0 else f"{v:+g}%")
 	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
 	up, down = '#3987e5', '#fb7185'
+	if session in SESSION_TINTS:
+		bg = tinted(bg, SESSION_TINTS[session])
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
 	canvas = FigureCanvasAgg(fig)
 	top_edge = 0.85 if subtitle else 0.89
