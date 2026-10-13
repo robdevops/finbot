@@ -186,7 +186,7 @@ def preference_values(getenv):
 		'config_cache_seconds': r.int('cache_seconds', 43200),
 		'config_chunk_maxlines': r.int('chunk_maxlines', 20),
 		'config_country_code': r.str('country_code', 'AU'),
-		'debug': r.bool('debug', True),
+		'debug': r.bool('debug', False),
 		'config_demote_leveraged': r.bool('demote_leveraged', True),
 		'config_demote_volatile': r.bool('demote_volatile', True),
 		'config_exclude_portfolios': r.str('exclude_portfolios', '').split(),

@@ -15,7 +15,7 @@ DEFAULTS = {'config_past_days': 28, 'config_future_days': 30, 'config_price_perc
 	'config_alliterate': False, 'config_hyperlink': True, 'config_hyperlinkFooter': True, 'config_hyperlinkProvider': 'google',
 	'config_demote_volatile': True, 'config_demote_leveraged': True, 'config_volatility_multiplier': 2.0, 'config_exclude_portfolios': [],
 	'config_include_portfolios': [], 'config_trades_use_yahoo': True, 'config_performance_use_sharesight': False,
-	'config_print_headers': False, 'debug': True}
+	'config_print_headers': False, 'debug': False}
 
 
 def keys_in(path):
@@ -149,7 +149,7 @@ class Reload(unittest.TestCase):
 
 	def test_a_change_reaches_config_and_every_module_that_copied_it(self):
 		self.write('future_days=45\nprice_percent=7\nshorts_percent=12\nexclude_portfolios=1156263\nalliterate=1\nhyperlinkProvider=yahoo\n'
-			'hyperlinkFooter=false\ndebug=0\ngraph=0\ndemote_volatile=0\nvolatility_multiplier=3\npast_days=14\n')
+			'hyperlinkFooter=false\ndebug=1\ngraph=0\ndemote_volatile=0\nvolatility_multiplier=3\npast_days=14\n')
 		changes = config.reload()
 		self.assertEqual(len(changes), 12)
 		self.assertIn('future_days 30 -> 45', changes)
@@ -161,7 +161,7 @@ class Reload(unittest.TestCase):
 		self.assertEqual(worker.config_future_days, 45)
 		self.assertEqual((config.config_exclude_portfolios, config.config_alliterate, config.config_hyperlinkProvider, config.config_hyperlinkFooter),
 			(['1156263'], True, 'yahoo', False))
-		self.assertEqual((worker.debug, config.debug, yahoo.config_graph, price.config_demote_volatile, price.config_volatility_multiplier), (False, False, False, False, 3.0))
+		self.assertEqual((worker.debug, config.debug, yahoo.config_graph, price.config_demote_volatile, price.config_volatility_multiplier), (True, True, False, False, 3.0))
 		self.assertEqual(config.reload(), []) # nothing more to change
 
 	def test_a_value_removed_from_the_file_goes_back_to_its_default(self):
