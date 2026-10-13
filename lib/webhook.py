@@ -232,6 +232,21 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_mark
 		print(r.status_code, f"error {service} sendPhoto", r.reason, r.text[:300], caption, file=sys.stderr)
 		return None
 
+def editMessageText(chat_id, message_id, text, reply_markup=None):
+	"""Telegram: replace a text message's text and buttons in place. Returns None if it could not be edited."""
+	payload = {'chat_id': chat_id, 'message_id': message_id, 'text': text, 'parse_mode': 'HTML', 'disable_web_page_preview': True}
+	if reply_markup is not None:
+		payload['reply_markup'] = reply_markup
+	try:
+		output = requests.post(webhooks['telegram'] + 'editMessageText', json=payload, timeout=config_http_timeout).json()
+	except Exception as e:
+		print("Failure executing editMessageText:", str(e), file=sys.stderr)
+		return None
+	if not output.get('ok'):
+		print(output.get('error_code'), output.get('description'), file=sys.stderr)
+		return None
+	return output
+
 def editMessageMedia(chat_id, message_id, image_data, caption, reply_markup=None):
 	"""Telegram: replace a photo message's image and caption in place."""
 	url = webhooks['telegram'] + 'editMessageMedia'

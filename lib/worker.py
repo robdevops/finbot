@@ -65,14 +65,15 @@ def deliver(service, url, chat_id, payload, chart=None):
 	else:
 		webhook.payload_wrapper(service, url, payload, chat_id)
 
-def process_job_callback(service, callback_id, chat_id, data):
+def process_job_callback(service, callback_id, chat_id, message_id, data):
 	"""A command button of .jobs: run that command now and answer in the chat."""
 	try:
 		_, number, crc = data.split('|') # only a command offered by .jobs can be picked; anything else is refused
 		command = jobs.current.pick(number, crc)
 	except (ValueError, jobs.ScheduleError, AttributeError):
-		telegram.answerCallbackQuery(callback_id, 'The schedule changed')
-		webhook.payload_wrapper(service, webhook.chat_url(service, chat_id), ['The schedule changed; send .jobs again'], chat_id)
+		telegram.answerCallbackQuery(callback_id, 'Buttons updated, try again')
+		payload, markup = reports.prepare_jobs_payload(service, '') # the list as it is now, in place of the stale one
+		webhook.editMessageText(chat_id, message_id, '\n'.join(payload), markup or {'inline_keyboard': []})
 		return
 	telegram.answerCallbackQuery(callback_id, f'Running {jobs.display(command[0])}…'[:100])
 	try:
@@ -83,7 +84,7 @@ def process_job_callback(service, callback_id, chat_id, data):
 def process_callback(service, callback_id, chat_id, message_id, data):
 	"""Button press: run a scheduled command from .jobs, or rebuild a chart message for the chosen period and edit it in place."""
 	if data.startswith('j|'):
-		return process_job_callback(service, callback_id, chat_id, data)
+		return process_job_callback(service, callback_id, chat_id, message_id, data)
 	parts = data.split('|', 3)
 	valid = len(parts) == 4 and parts[0] == 'c' and parts[1] in charts.BUTTONS and parts[2] in charts.BUTTONS[parts[1]]
 	# answering now shows Telegram's toast bubble ("Loading 3M…") while the new chart is built
