@@ -20,6 +20,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			return None
 		payload_staging = []
 		dates = set()
+		market_data = {}
 		if config_trades_use_yahoo:
 			tickers = set()
 			for trade in trades: # this first loop is to consolidate yahoo.fetch into a single call
@@ -33,11 +34,12 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 				market = trade['market']
 				ticker = util.transform_to_yahoo(symbol, market)
 				tickers.add(ticker)
-			try:
-				print("Fetching tickers from Yahoo: ", tickers, file=sys.stderr)
-				market_data = yahoo.fetch(tickers)
-			except Exception as e:
-				print("Warning: could not fetch Yahoo:", e, file=sys.stderr)
+			if tickers: # nothing new in this portfolio is the usual case on a scheduled run
+				try:
+					print("Fetching tickers from Yahoo: ", tickers, file=sys.stderr)
+					market_data = yahoo.fetch(tickers)
+				except Exception as e:
+					print("Warning: could not fetch Yahoo:", e, file=sys.stderr)
 
 		for trade in trades:
 			if trade['transaction_type'] not in {'BUY', 'SELL'}:
