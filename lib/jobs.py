@@ -296,13 +296,13 @@ class Scheduler:
 		return outcome
 
 	def commands(self):
-		"""Every scheduled command once, in the order first seen: [(label, module, kwargs)]. The time, comments, redirects and
-		the other commands of a line are not part of it."""
+		"""Every scheduled command once, sorted by name: [(label, module, kwargs)]. The time, comments, redirects and the other
+		commands of a line are not part of it."""
 		unique = {}
 		for job in self.jobs:
 			for command in job.commands:
 				unique.setdefault(command[0], command)
-		return list(unique.values())
+		return [unique[label] for label in sorted(unique)]
 
 	def select(self, text):
 		"""The scheduled command for `.jobs run <text>`: a number from the list, or the command itself. Raises ScheduleError."""

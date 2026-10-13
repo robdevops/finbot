@@ -237,7 +237,8 @@ def run_job_line(scheduler, text):
 		label, outcome = scheduler.run_now(text)
 	except jobs.ScheduleError as e:
 		return str(e)
-	return f"{label}: {outcome}"
+	number = [command[0] for command in scheduler.commands()].index(label) + 1
+	return f"{number}. {label}: {outcome}"
 
 def prepare_help(service, botName):
 	payload = []

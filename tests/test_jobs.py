@@ -317,10 +317,11 @@ class ManualRuns(SchedulerBase):
         self.patch(jobs.SCRIPTS['price'], 'lambda_handler', lambda **k: self.ran.append(('price', k)))
 
     def test_commands_are_unique_clean_and_in_order(self):
-        self.assertEqual([label for label, _, _ in self.s.commands()], ['trades.py', 'price.py close', 'price.py 7'])
+        self.assertEqual([label for label, _, _ in self.s.commands()], ['price.py 7', 'price.py close', 'trades.py'])
 
     def test_select_by_number_or_command_text(self):
         self.assertEqual(self.s.select('2')[0], 'price.py close')
+        self.assertEqual(self.s.select('3')[0], 'trades.py')
         self.assertEqual(self.s.select('  "price.py" close > /dev/null')[0], 'price.py close')
         self.assertEqual(self.s.select('~/finbot/price.py 7')[0], 'price.py 7')
 
@@ -339,13 +340,13 @@ class ManualRuns(SchedulerBase):
 
     def test_run_now_refuses_while_the_command_is_running_and_reports_failures(self):
         self.s.busy.add('trades.py')
-        self.assertEqual(self.s.run_now('1'), ('trades.py', 'already running'))
+        self.assertEqual(self.s.run_now('3'), ('trades.py', 'already running'))
         self.assertEqual(self.ran, [])
         self.s.busy.clear()
         def boom(**k):
             raise RuntimeError('boom')
         self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', boom)
-        self.assertEqual(self.s.run_now('1'), ('trades.py', 'failed'))
+        self.assertEqual(self.s.run_now('3'), ('trades.py', 'failed'))
         self.assertTrue(any('boom' in e for e in self.errors))
         self.assertEqual(self.s.busy, set())
 
@@ -357,7 +358,7 @@ class ManualRuns(SchedulerBase):
     def test_run_now_times_out(self):
         self.patch(jobs, 'JOB_TIMEOUT', 0.05)
         self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', lambda **k: gevent.sleep(5))
-        self.assertEqual(self.s.run_now('1'), ('trades.py', 'timed out'))
+        self.assertEqual(self.s.run_now('3'), ('trades.py', 'timed out'))
         self.assertEqual(self.s.busy, set())
 
     def list_in_chat(self, text='.jobs'):
@@ -366,17 +367,17 @@ class ManualRuns(SchedulerBase):
     def test_list_in_chat_is_just_the_commands(self):
         for alias in ('.jobs', '.cron', '.crons', '@' + BOT.lstrip('@') + ' jobs'):
             text = '\n'.join(map(str, self.list_in_chat(alias)))
-            for line in ('1. trades.py', '2. price.py close', '3. price.py 7'):
+            for line in ('1. price.py 7', '2. price.py close', '3. trades.py'):
                 self.assertIn(line, text, alias)
             for noise in ('*/20', '#', 'Mon-Fri', 'next', 'last', '/dev/null', 'weekly'):
                 self.assertNotIn(noise, text, alias)
         self.s.busy.add('price.py 7')
-        self.assertIn('3. price.py 7 (running)', '\n'.join(map(str, self.list_in_chat())))
+        self.assertIn('1. price.py 7 (running)', '\n'.join(map(str, self.list_in_chat())))
 
     def test_telegram_gets_a_button_per_command_and_slack_does_not(self):
         payload, markup = reports.prepare_jobs_payload('telegram', '')
         buttons = [b for row in markup['inline_keyboard'] for b in row]
-        self.assertEqual([b['text'] for b in buttons], ['1. trades.py', '2. price.py close', '3. price.py 7'])
+        self.assertEqual([b['text'] for b in buttons], ['1. price.py 7', '2. price.py close', '3. trades.py'])
         for b in buttons:
             self.assertLessEqual(len(b['callback_data'].encode()), 64)
         payload, markup = reports.prepare_jobs_payload('slack', '')
@@ -396,7 +397,7 @@ class ManualRuns(SchedulerBase):
         self.sent.clear()
         worker.process_callback('telegram', 'cb1', '55', '9', data)
         self.assertEqual(self.ran, [('price', {'close': True})])
-        self.assertEqual(self.sent, [('text', ['price.py close: done'])])
+        self.assertEqual(self.sent, [('text', ['2. price.py close: done'])])
         self.assertEqual(sent, ['Running price.py close…'])
 
     def test_button_from_an_old_schedule_is_refused(self):
@@ -407,10 +408,10 @@ class ManualRuns(SchedulerBase):
         self.assertEqual([m[1][0] for m in self.sent], ['The schedule changed; send .jobs again'] * 2)
 
     def test_run_in_chat(self):
-        self.assertEqual(self.command('.jobs run 1'), [('text', ['trades.py: done'])])
+        self.assertEqual(self.command('.jobs run 3'), [('text', ['3. trades.py: done'])])
         self.assertEqual(self.ran, [('trades', {})])
         self.ran.clear()
-        self.assertEqual(self.command('.cron run price.py close')[0][1], ['price.py close: done'])
+        self.assertEqual(self.command('.cron run price.py close')[0][1], ['2. price.py close: done'])
         self.assertEqual(self.ran, [('price', {'close': True})])
 
     def test_run_in_chat_refusals(self):
@@ -424,7 +425,7 @@ class ManualRuns(SchedulerBase):
     def test_scheduler_off(self):
         self.patch(jobs, 'current', None)
         self.assertIn('off', self.list_in_chat('.jobs')[0])
-        self.assertIn('off', self.list_in_chat('.jobs run 1')[0])
+        self.assertIn('off', self.list_in_chat('.jobs run 3')[0])
 
     def test_job_is_still_a_ticker(self):
         self.assertNotIn('Scheduled', str(self.command('.job')))
