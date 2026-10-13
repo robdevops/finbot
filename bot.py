@@ -186,6 +186,7 @@ if __name__ == '__main__':
 	if config_scheduler:
 		scheduler = jobs.Scheduler(lambda: data_file('schedule.cron'))
 		if scheduler.load():
+			jobs.current = scheduler # for the .jobs chat command
 			gevent.signal_handler(signal.SIGHUP, scheduler.reload) # systemctl reload finbot: pick up an edited schedule
 			threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	else:
