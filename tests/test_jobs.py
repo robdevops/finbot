@@ -160,11 +160,12 @@ class SchedulerFlag(unittest.TestCase):
         repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         return subprocess.run([sys.executable, '-c', code], cwd=repo, env=e, capture_output=True, text=True, check=True).stdout.split()[-1]
 
-    def test_off_by_default_and_on_for_true(self):
-        self.assertEqual(self.flag(), 'False')
+    def test_on_by_default_and_off_for_false(self):
+        self.assertEqual(self.flag(), 'True')
         for value in ('True', 'true', '1', 't'):
             self.assertEqual(self.flag(scheduler=value), 'True', value)
-        self.assertEqual(self.flag(scheduler='False'), 'False')
+        for value in ('False', 'false', '0', 'no'):
+            self.assertEqual(self.flag(scheduler=value), 'False', value)
 
 
 class SchedulerTests(FinbotCase):

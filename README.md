@@ -461,7 +461,7 @@ util/sync_defaults.py --force  # also overwrite changed files, keeping .bak copi
 ```
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
 
-In Docker, one container is enough: with `scheduler=True` `bot.py` runs the schedule too, so there is no cron or scheduler sidecar to set up.
+In Docker, one container is enough: `bot.py` runs the schedule too, so there is no cron or scheduler sidecar to set up.
 
 On AWS Lambda only `/tmp` is writable and ephemeral, so mount EFS and point `DATA_DIR` at it. S3 is not supported yet.
 
@@ -549,7 +549,7 @@ hyperlinkProvider = yahoo
 ```
 
 ## Scheduling
-The scheduled reports run inside `bot.py`, so they use the same user, sandbox, environment and data directory as the bot. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory. **This is off by default.** Turn it on with `scheduler=True` in the environment file, after removing the equivalent entries from any old crontab (otherwise every job runs twice), and restart the bot.
+The scheduled reports run inside `bot.py`, so they use the same user, sandbox, environment and data directory as the bot. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory. **This is on by default.** Remove the equivalent entries from any old crontab before the first start, otherwise every job runs twice; or set `scheduler=False` in the environment file to keep using cron.
 
 The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"` and `cleanup.py [days]` (deletes cache files older than `days`, default 30). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
 
@@ -578,7 +578,7 @@ Behaviour worth knowing:
 * A run that was due while the bot was down (a restart, a deploy) still fires once if it was due within the last `scheduler_catchup` minutes (default 5). A restart right after a run does not repeat it.
 * A job still running when it is next due is skipped, and a job that takes more than 15 minutes is abandoned and reported.
 * Failures are reported to your chat channels, as before.
-* With `scheduler=False` (the default) nothing is scheduled by the bot, so you can keep using cron or systemd timers and run the scripts yourself.
+* With `scheduler=False` nothing is scheduled by the bot, so you can keep using cron or systemd timers and run the scripts yourself.
 
 **Running a report by hand.** Under `DynamicUser=yes` you cannot simply log in as the bot's user, so run the script as a transient unit with a dynamic user and the same state directory:
 ```

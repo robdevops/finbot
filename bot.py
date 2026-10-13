@@ -189,7 +189,7 @@ if __name__ == '__main__':
 			gevent.signal_handler(signal.SIGHUP, scheduler.reload) # systemctl reload finbot: pick up an edited schedule
 			threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	else:
-		print('Scheduled reports are off (set scheduler=True to run schedule.cron from the bot)', file=sys.stderr)
+		print('Scheduled reports are off (scheduler=False)', file=sys.stderr)
 		gevent.signal_handler(signal.SIGHUP, lambda: print('Reload ignored: scheduled reports are off', file=sys.stderr)) # SIGHUP would otherwise end the process
 	try:
 		httpd.serve_forever()
