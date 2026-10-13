@@ -4,6 +4,7 @@ import datetime
 import sys
 import pandas as pd
 from lib.config import *
+from lib import jobs
 from lib import sharesight
 from lib import util
 from lib import webhook
@@ -205,6 +206,35 @@ def prepare_compare(service, args, with_inputs=False):
 		image.seek(0)
 	return result(caption, image)
 
+def prepare_jobs_payload(service, args):
+	"""`.jobs` lists the scheduled jobs; `.jobs run <number|command>` runs one now, as cron would."""
+	scheduler = jobs.current
+	if scheduler is None:
+		return ['Scheduled jobs are off (scheduler=False)']
+	args = (args or '').strip()
+	if not args:
+		rows = scheduler.describe()
+		if not rows:
+			return ['No scheduled jobs']
+		payload = [webhook.bold('Scheduled jobs:', service)]
+		for number, job, next_run, last in rows:
+			line = f"{number}. {job.text}\n    next {next_run:%a %H:%M %Z}"
+			if last:
+				line += f", last {last:%a %H:%M %Z}"
+			if job.running:
+				line += ", running now"
+			payload.append(line)
+		payload.append("\nRun one with .jobs run NUMBER")
+		return payload
+	m = re.fullmatch(r'run(?:\s+(.+))?', args, re.IGNORECASE)
+	if not m or not m.group(1):
+		return ['Usage: .jobs [run NUMBER|COMMAND]']
+	try:
+		label, outcome = scheduler.run_now(m.group(1))
+	except jobs.ScheduleError as e:
+		return [str(e)]
+	return [f"{label}: {outcome}"]
+
 def prepare_help(service, botName):
 	payload = []
 	payload.append(webhook.bold("Tracked securities:", service))
@@ -238,6 +268,9 @@ def prepare_help(service, botName):
 
 	payload.append(webhook.bold("\nTrades:", service))
 	payload.append(".trades [period] [portfolio]")
+
+	payload.append(webhook.bold("\nScheduled jobs:", service))
+	payload.append(".jobs [run NUMBER|COMMAND]")
 
 	payload.append(webhook.bold("\nAlternative syntax:", service))
 	if service == 'slack':

@@ -10,6 +10,7 @@ from lib import reports
 from lib import charts
 from lib import telegram
 from lib import sharesight
+from lib import jobs
 import cal
 import performance
 import price
@@ -165,6 +166,9 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 
 	shorts_command = prefix + r"shorts?\s*([\w\.\:\-]+)*"
 	m_shorts = re.match(shorts_command, message, re.IGNORECASE)
+
+	jobs_command = prefix + r"(?:jobs|crons?)(?:\s+(?P<args>.*?))?\s*$"
+	m_jobs = re.match(jobs_command, message, re.IGNORECASE)
 
 	profile_command = prefix + r"(?P<ticker>[\w\.\:\-]+)"
 	m_profile = re.match(profile_command, message, re.IGNORECASE)
@@ -712,6 +716,14 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		typing.stop()
 		if not payload:
 			payload.append(f'{arg} not found in any portfolio')
+		webhook.payload_wrapper(service, url, payload, chat_id)
+	elif m_jobs:
+		typing = TypingIndicator(service, chat_id, max_loops=10)
+		typing.start()
+		try:
+			payload = reports.prepare_jobs_payload(service, m_jobs.group('args'))
+		finally:
+			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
 	# m_profile is a catch-all, so other matches must be above it
 	elif m_profile:

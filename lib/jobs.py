@@ -1,7 +1,7 @@
 """The scheduled reports (formerly cron jobs), run by the bot itself.
 
 The schedule is a file in crontab syntax: five time fields (or an @macro) and then a finbot script with its arguments, e.g.
-`*/20 * * * Mon-Fri trades.py` or `28 21 * * Sat cal.py earnings; price.py 7`. Pasted crontab lines (`bin/run price.py > /dev/null`,
+`*/20 * * * Mon-Fri trades.py` or `28 21 * * Sat cal.py earnings; price.py 7`. Pasted crontab lines (`./price.py > /dev/null`,
 `{ a; b ;}`) are accepted too. Running in the bot means the jobs share its user, sandbox, environment and cache."""
 import datetime
 import json
@@ -24,6 +24,7 @@ import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, 
 
 SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance': performance, 'podcasts': podcasts, 'price': price,
 	'rating': rating, 'reminder': reminder, 'shorts': shorts, 'trades': trades}
+current = None # the running Scheduler, set by bot.py; the chat commands use it
 STATE_FILE = 'finbot_jobs.json' # last fire time of every job, so a restart neither repeats a run nor loses one
 JOB_TIMEOUT = 15 * 60 # seconds a job may run before it is abandoned and reported
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')
@@ -116,15 +117,11 @@ def split_commands(tokens):
 
 
 def parse_command(text):
-	"""'~/finbot/bin/run price.py midsession > /dev/null' -> [('price.py midsession', price, {...})]. Raises ScheduleError."""
+	"""'~/finbot/price.py midsession > /dev/null' -> [('price.py midsession', price, {...})]. Raises ScheduleError."""
 	commands = []
 	for words in split_commands(tokenize(text)):
 		while words and re.fullmatch(r'\w+=\S*', words[0]):
 			words.pop(0) # FOO=bar prefix
-		if not words or words[0] == 'cd':
-			continue # empty, or a `cd ~/finbot` from an old crontab line
-		if os.path.basename(words[0]) == 'run': # the bin/run wrapper
-			words.pop(0)
 		if not words:
 			continue
 		name = os.path.basename(words[0]).removesuffix('.py')
@@ -252,21 +249,72 @@ class Scheduler:
 		"""One job: its commands in order. Skipped if the previous run is still going; abandoned after JOB_TIMEOUT."""
 		if job.running:
 			print(f'schedule: {job.text} is still running, skipping {fire_time:%H:%M}', file=sys.stderr)
-			return
+			return 'already running'
+		return self.execute(job, job.commands)
+
+	def execute(self, job, commands):
+		"""Run commands as `job`, which is marked running meanwhile. Returns 'done', 'timed out' or 'failed'."""
 		job.running = True
+		outcome = 'done'
 		timeout = gevent.Timeout(JOB_TIMEOUT)
 		timeout.start()
 		try:
-			for label, module, kwargs in job.commands:
+			for label, module, kwargs in commands:
 				print(f'schedule: running {label}', file=sys.stderr)
-				webhook.guarded(label, module.lambda_handler, exit=False, **kwargs)
+				try:
+					module.lambda_handler(**kwargs)
+				except (Exception, SystemExit) as e:
+					webhook.report_error(e, context=label)
+					outcome = 'failed'
 		except gevent.Timeout as t:
 			if t is not timeout:
 				raise
 			webhook.report_error(TimeoutError(f'still running after {JOB_TIMEOUT // 60} minutes'), context=job.text)
+			outcome = 'timed out'
 		finally:
 			timeout.close()
 			job.running = False
+		return outcome
+
+	def describe(self, now=None):
+		"""One row per job: (number, job, next fire time, last fire time or None), the times in the job's own zone."""
+		now = now or self.clock()
+		rows = []
+		for number, job in enumerate(self.jobs, 1):
+			base = self.base.get(job.key, now)
+			try:
+				last = datetime.datetime.fromisoformat(self.last[job.key]).astimezone(job.zone)
+			except (KeyError, ValueError):
+				last = None
+			rows.append((number, job, self.next_fire(job, base), last))
+		return rows
+
+	def select(self, text):
+		"""(job, commands) for `.jobs run <text>`: a job number runs that whole line, command text runs that one command if it is
+		in the schedule. Raises ScheduleError."""
+		text = text.strip()
+		if text.isdigit():
+			if not 1 <= int(text) <= len(self.jobs):
+				raise ScheduleError(f'no job {text}; send .jobs to list them')
+			job = self.jobs[int(text) - 1]
+			return job, job.commands
+		try:
+			wanted = parse_command(text)
+		except ScheduleError as e:
+			raise ScheduleError(f'{e}; send .jobs to list the jobs')
+		for job in self.jobs:
+			labels = [label for label, _, _ in job.commands]
+			if all(label in labels for label, _, _ in wanted):
+				return job, [command for command in job.commands if command[0] in [label for label, _, _ in wanted]]
+		raise ScheduleError(f"'{text}' is not in the schedule; send .jobs to list the jobs")
+
+	def run_now(self, text):
+		"""`.jobs run`: a scheduled job or command, now, as cron would run it; its schedule is unchanged. Returns (label, outcome)."""
+		job, commands = self.select(text)
+		label = '; '.join(label for label, _, _ in commands)
+		if job.running:
+			return label, 'already running'
+		return label, self.execute(job, commands)
 
 	def tick(self):
 		"""Start what is due; returns the seconds until the next fire time."""

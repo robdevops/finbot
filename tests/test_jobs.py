@@ -34,8 +34,8 @@ class ParseTests(unittest.TestCase):
 
     def test_pasted_crontab_lines(self):
         text = ('MAILTO=me\n'
-                '*/20 * * * Mon-Fri ~/finbot/bin/run trades.py > ~/finbot.trades 2>&1\n'
-                '28  21 * * Sat { cd ~/finbot/; ./cal.py earnings; ./price.py 7 ;} &> /dev/null # weekly (UTC)\n'
+                '*/20 * * * Mon-Fri ~/finbot/trades.py > ~/finbot.trades 2>&1\n'
+                '28  21 * * Sat { ./cal.py earnings; ./price.py 7 ;} &> /dev/null # weekly (UTC)\n'
                 '@daily /opt/finbot/reminder.py\n')
         parsed, errors = jobs.parse_schedule(text, UTC)
         self.assertEqual(errors, [])
@@ -58,10 +58,15 @@ class ParseTests(unittest.TestCase):
 
     def test_redirects_and_braces_are_dropped(self):
         for command in ('trades.py > /dev/null', 'trades.py >/dev/null 2>&1', 'trades.py &> /dev/null', 'trades.py >> ~/x 2>&1',
-                        '{ trades.py ;} > ~/x', 'cd /opt/finbot; bin/run trades.py', '/opt/finbot/bin/run trades.py # note (x)'):
+                        '{ trades.py ;} > ~/x', '/opt/finbot/trades.py # note (x)'):
             parsed, errors = jobs.parse_schedule(f'0 1 * * * {command}\n', UTC)
             self.assertEqual(errors, [], command)
             self.assertEqual([label for label, _, _ in parsed[0].commands], ['trades.py'], command)
+
+    def test_bin_run_wrapper_is_no_longer_accepted(self):
+        for command in ('bin/run trades.py', 'cd /opt/finbot; trades.py'):
+            parsed, errors = jobs.parse_schedule(f'0 1 * * * {command}\n', UTC)
+            self.assertEqual((parsed, len(errors)), ([], 1), command)
 
     def test_bad_lines_are_skipped_and_named(self):
         text = '0 1 * * * ls | wc -l\n0 1 * * * price.py bogus\n0 1 * * * nothere.py\n61 1 * * * trades.py\n0 1 * *\nFOO=bar\n5 4 * * * shorts.py\n'
@@ -298,6 +303,96 @@ class SchedulerTests(FinbotCase):
                 s.run_forever()
         self.assertEqual(calls, [30, 30, 30])
         self.assertTrue(any('tick failed' in e for e in self.errors))
+
+
+class ManualRuns(SchedulerTests):
+    def setUp(self):
+        super().setUp()
+        self.file.write_text('*/20 * * * Mon-Fri trades.py\n28 21 * * Sat price.py close; trades.py\n')
+        self.s = self.scheduler()
+        self.patch(jobs, 'current', self.s)
+        self.patch(jobs.SCRIPTS['price'], 'lambda_handler', lambda **k: self.ran.append(('price', k)))
+
+    def test_select_by_number_runs_the_whole_line(self):
+        job, commands = self.s.select('2')
+        self.assertEqual([label for label, _, _ in commands], ['price.py close', 'trades.py'])
+
+    def test_select_by_command_text_runs_only_that_command(self):
+        job, commands = self.s.select('price.py close')
+        self.assertEqual([label for label, _, _ in commands], ['price.py close'])
+        job, commands = self.s.select('  "price.py" close > /dev/null')
+        self.assertEqual(job, self.s.jobs[1])
+
+    def test_select_refuses_what_is_not_scheduled(self):
+        for text in ('0', '3', 'price.py 99', 'cal.py earnings', 'nonsense', 'ls | wc', ''):
+            with self.assertRaises(jobs.ScheduleError, msg=text):
+                self.s.select(text)
+
+    def test_run_now_runs_and_leaves_the_schedule_alone(self):
+        base, last = dict(self.s.base), dict(self.s.last)
+        self.assertEqual(self.s.run_now('2'), ('price.py close; trades.py', 'done'))
+        self.assertEqual([name for name, _ in self.ran], ['price', 'trades'])
+        self.assertEqual((self.s.base, self.s.last), (base, last))
+        self.assertFalse(self.s.jobs[1].running)
+
+    def test_run_now_refuses_while_running_and_reports_failures(self):
+        self.s.jobs[0].running = True
+        self.assertEqual(self.s.run_now('1'), ('trades.py', 'already running'))
+        self.assertEqual(self.ran, [])
+        self.s.jobs[0].running = False
+        def boom(**k):
+            raise RuntimeError('boom')
+        self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', boom)
+        self.assertEqual(self.s.run_now('1'), ('trades.py', 'failed'))
+        self.assertTrue(any('boom' in e for e in self.errors))
+        self.assertFalse(self.s.jobs[0].running)
+
+    def test_run_now_times_out(self):
+        self.patch(jobs, 'JOB_TIMEOUT', 0.05)
+        self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', lambda **k: gevent.sleep(5))
+        self.assertEqual(self.s.run_now('1'), ('trades.py', 'timed out'))
+        self.assertFalse(self.s.jobs[0].running)
+
+    def test_describe(self):
+        self.s.last[self.s.jobs[0].key] = at(13, 21, 0).isoformat()
+        rows = self.s.describe(at(13, 21, 3))
+        self.assertEqual([r[0] for r in rows], [1, 2])
+        self.assertEqual(rows[0][2], at(13, 21, 20))
+        self.assertEqual(rows[0][3], at(13, 21, 0))
+        self.assertIsNone(rows[1][3])
+
+    def test_list_in_chat(self):
+        self.s.last[self.s.jobs[0].key] = at(13, 21, 0).isoformat()
+        self.s.jobs[1].running = True
+        for alias in ('.jobs', '.cron', '.crons', '@' + BOT.lstrip('@') + ' jobs'):
+            text = '\n'.join(map(str, self.command(alias)[0][1]))
+            self.assertIn('1. */20 * * * Mon-Fri trades.py', text, alias)
+            self.assertIn('2. 28 21 * * Sat price.py close; trades.py', text, alias)
+            self.assertIn('running now', text, alias)
+            self.assertIn('last Tue 21:00', text, alias)
+
+    def test_run_in_chat(self):
+        reply = self.command('.jobs run 1')
+        self.assertEqual(self.ran, [('trades', {})])
+        self.assertEqual(reply, [('text', ['trades.py: done'])])
+        self.ran.clear()
+        self.assertEqual(self.command('.cron run price.py close')[0][1], ['price.py close: done'])
+        self.assertEqual(self.ran, [('price', {'close': True})])
+
+    def test_run_in_chat_refusals(self):
+        self.assertIn('not in the schedule', self.command('.jobs run cal.py earnings')[0][1][0])
+        self.assertIn('no job 9', self.command('.jobs run 9')[0][1][0])
+        self.assertIn('Usage', self.command('.jobs run')[0][1][0])
+        self.assertIn('Usage', self.command('.jobs bogus')[0][1][0])
+        self.assertEqual(self.ran, [])
+
+    def test_scheduler_off(self):
+        self.patch(jobs, 'current', None)
+        self.assertIn('off', self.command('.jobs')[0][1][0])
+        self.assertIn('off', self.command('.jobs run 1')[0][1][0])
+
+    def test_job_is_still_a_ticker(self):
+        self.assertNotIn('Scheduled jobs', str(self.command('.job')))
 
 
 if __name__ == '__main__':
