@@ -10,7 +10,9 @@ from lib import util
 from lib import webhook
 from lib import yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, service=None, specific_stock=None, message_id=None, interactive=False, earnings=False, dividend=False):
+def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, specific_stock=None, message_id=None, interactive=False, earnings=False, dividend=False):
+	if days is UNSET:
+		days = config_future_days
 	def prepare_payload(service, market_data, days):
 		payload_staging = []
 		emoji = "📣"
@@ -122,7 +124,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_future_days, servi
 
 	# Prep and send payloads
 	if not webhooks:
-		print("Error: no services enabled in .env", file=sys.stderr)
+		print("Error: no services enabled in finbot.env", file=sys.stderr)
 		sys.exit(1)
 	if interactive:
 		payload = prepare_payload(service, market_data, days)

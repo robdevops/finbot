@@ -141,7 +141,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 
 	# Prep and send payloads
 	if not webhooks:
-		print("Error: no services enabled in .env", file=sys.stderr)
+		print("Error: no services enabled in finbot.env", file=sys.stderr)
 		sys.exit(1)
 	else:
 		for service, url in webhooks.items():

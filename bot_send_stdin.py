@@ -12,7 +12,7 @@ if os.isatty(sys.stdin.fileno()):
 payload = [line.strip() for line in sys.stdin if line.strip()]
 
 if not webhooks:
-	print("Error: no services enabled in .env", file=sys.stderr)
+	print("Error: no services enabled in finbot.env", file=sys.stderr)
 	sys.exit(1)
 for service, url in webhooks.items():
 	if service == "telegram":

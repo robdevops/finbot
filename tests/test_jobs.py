@@ -1,5 +1,5 @@
 """The in-process scheduler (lib/jobs.py): schedule file parsing, each script's job(argv), and firing with a fake clock."""
-import datetime, hashlib, os, subprocess, sys, tempfile, time, unittest, zoneinfo
+import datetime, hashlib, json, os, subprocess, sys, tempfile, time, unittest, zoneinfo
 from pathlib import Path
 from unittest import mock
 import gevent
@@ -187,7 +187,7 @@ class SchedulerBase(FinbotCase):
 
     def scheduler(self, catchup=5):
         s = jobs.Scheduler(lambda: self.file, catchup=catchup, clock=self.clock, sleep=lambda seconds: None,
-                           spawn=lambda f, *a: f(*a), zone=UTC)
+                           spawn=lambda f, *a: f(*a), zone=UTC, runner=jobs.run_in_process)
         self.assertTrue(s.load())
         return s
 
@@ -404,16 +404,25 @@ class ManualRuns(SchedulerBase):
         self.assertEqual(self.sent, [('text', ['7. price close: done'])])
         self.assertEqual(sent, ['Running price close…'])
 
+    def stale_buttons(self):
+        """Capture the toast and the in-place edit that a refused button press produces."""
+        self.toasts, self.edits = [], []
+        self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: self.toasts.append(text))
+        self.patch(webhook, 'editMessageText', lambda chat, mid, text, markup=None: self.edits.append((chat, mid, text, markup)))
+
     def test_forged_button_data_never_runs_anything_else(self):
-        self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: None)
+        self.stale_buttons()
         good = jobs.checksum('trades.py')
         for data in ('j|-1|' + good, 'j|0|' + good, 'j|9|' + good, 'j|8|0000', 'j|8|', 'j|8', 'j|8|' + good + '|x', 'j||' + good,
                      'j|٨|' + good, 'j| 8|' + good, 'j|8.0|' + good, 'j|trades.py|' + good, 'j|1|' + good, 'j|8|price.py close',
                      'j|8|' + good.upper() + 'x', 'j|99999999999999999999|' + good):
             self.sent.clear()
+            self.toasts.clear(); self.edits.clear()
             worker.process_callback('telegram', 'cb', '55', '9', data)
             self.assertEqual(self.ran, [], data)
-            self.assertEqual([m[1][0] for m in self.sent], ['The schedule changed; send .jobs again'], data)
+            self.assertEqual(self.toasts, ['Buttons updated, try again'], data)
+            self.assertEqual(len(self.edits), 1, data)
+            self.assertEqual(self.sent, [], data) # no new message, the old one is edited
         # cleanup and podcasts are scheduled but cannot be picked, by number or by their checksum
         for label in ('cleanup.py', 'podcasts.py'):
             for n in range(1, 12):
@@ -422,12 +431,20 @@ class ManualRuns(SchedulerBase):
         worker.process_callback('telegram', 'cb', '55', '9', 'j|8|' + good) # the genuine button still works
         self.assertEqual(self.ran, [('trades', {})])
 
-    def test_button_from_an_old_schedule_is_refused(self):
-        self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: None)
+    def test_button_from_an_old_schedule_updates_the_message(self):
+        self.stale_buttons()
         worker.process_callback('telegram', 'cb1', '55', '9', 'j|7|0000')
         worker.process_callback('telegram', 'cb1', '55', '9', 'j|9|0000')
         self.assertEqual(self.ran, [])
-        self.assertEqual([m[1][0] for m in self.sent], ['The schedule changed; send .jobs again'] * 2)
+        self.assertEqual(self.sent, [])
+        self.assertEqual(self.toasts, ['Buttons updated, try again'] * 2)
+        chat, mid, text, markup = self.edits[0]
+        self.assertEqual((chat, mid), ('55', '9')) # the message with the old buttons is edited in place
+        self.assertIn('7. price close', text)
+        self.assertEqual(markup, reports.prepare_jobs_payload('telegram', '')[1]) # with the current buttons
+        self.patch(jobs, 'current', None) # scheduler off: the list is replaced by the notice and the buttons removed
+        worker.process_callback('telegram', 'cb1', '55', '9', 'j|7|0000')
+        self.assertEqual(self.edits[-1][2:], ('Scheduled jobs are off (scheduler=False)', {'inline_keyboard': []}))
 
     def test_run_in_chat(self):
         self.assertEqual(self.command('.jobs run 8'), [('text', ['8. trades: done'])])
@@ -451,6 +468,63 @@ class ManualRuns(SchedulerBase):
 
     def test_job_is_still_a_ticker(self):
         self.assertNotIn('Scheduled', str(self.command('.job')))
+
+class ChildProcess(FinbotCase):
+    """Jobs run in their own process, so heavy work cannot hold up the bot's web server."""
+
+    def sleeper(self, seconds):
+        real = jobs.subprocess.Popen
+        self.children = []
+        def popen(args, **kw):
+            self.children.append(real([sys.executable, '-c', f'import time; time.sleep({seconds})']))
+            return self.children[-1]
+        self.patch(jobs.subprocess, 'Popen', popen)
+
+    def test_every_command_can_be_handed_to_a_child(self):
+        parsed, _ = jobs.parse_schedule(DEFAULT_SCHEDULE.read_text(), UTC)
+        for job in parsed:
+            for label, module, kwargs in job.commands:
+                self.assertEqual(json.loads(json.dumps(kwargs)), kwargs, label)
+
+    def test_a_real_child_runs_the_handler_and_reports_its_exit_status(self):
+        with tempfile.TemporaryDirectory() as data:
+            env = {'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
+            with mock.patch.dict(os.environ, env):
+                self.assertEqual(jobs.run_child('cleanup.py', cleanup, {}), 0)
+                self.assertNotEqual(jobs.run_child('cleanup.py 0', cleanup, {'days': 'not a number'}), 0)
+
+    def test_scheduler_reports_a_failed_child(self):
+        file = Path(tempfile.mkdtemp(), 'schedule.cron')
+        file.write_text('* * * * * trades.py\n')
+        s = jobs.Scheduler(lambda: file, zone=UTC, runner=lambda label, module, kwargs: 1)
+        self.assertTrue(s.load())
+        self.assertEqual(s.run_now('1'), ('trades.py', 'failed'))
+        self.assertEqual(s.busy, set())
+
+    def test_the_event_loop_keeps_running_while_a_child_works(self):
+        self.sleeper(1)
+        ticks = []
+        def ticker():
+            for _ in range(5):
+                gevent.sleep(0.1)
+                ticks.append(time.monotonic())
+        greenlet = gevent.spawn(ticker)
+        started = time.monotonic()
+        self.assertEqual(jobs.run_child('cleanup.py', cleanup, {}), 0)
+        greenlet.join()
+        self.assertGreater(time.monotonic() - started, 0.9)
+        self.assertEqual(len(ticks), 5) # the loop was not blocked by the child
+        self.assertLess(ticks[-1] - started, 0.8)
+
+    def test_a_timeout_kills_the_child(self):
+        self.sleeper(30)
+        started = time.monotonic()
+        with self.assertRaises(gevent.Timeout):
+            with gevent.Timeout(0.3):
+                jobs.run_child('cleanup.py', cleanup, {})
+        self.assertLess(time.monotonic() - started, 5)
+        self.assertIsNotNone(self.children[0].poll()) # the child was stopped, not left running
+
 
 
 if __name__ == '__main__':

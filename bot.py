@@ -9,6 +9,7 @@ import threading
 from urllib.parse import urlparse
 
 from lib.config import *
+from lib import config
 from lib import worker
 from lib import jobs
 from lib import charts
@@ -67,6 +68,8 @@ def handle(environ, start_response):
 			cq_message = cq.get("message")
 			if not cq_message or not cq.get("data"):
 				return [b'Unsupported']
+			sender = cq.get("from", {})
+			print("[Telegram button]:", '@' + sender["username"] if "username" in sender else sender.get("first_name", "unknown"), "chat", cq_message["chat"]["id"], cq["data"], file=sys.stderr)
 			threading.Thread(target=worker.process_callback, args=('telegram', cq["id"], str(cq_message["chat"]["id"]), str(cq_message["message_id"]), cq["data"])).start()
 			return [b'']
 		if "message" not in inbound:
@@ -172,8 +175,32 @@ def git_version(checkout=None):
 	except (OSError, IndexError):
 		return 'unknown'
 
+scheduler = None
+
+def reload_all(*args):
+	"""SIGHUP: re-read preferences.conf and, if the scheduler is running, schedule.cron. Each reports its own errors; a bad
+	preferences.conf leaves the running config untouched."""
+	try:
+		changes = config.reload()
+		for change in changes:
+			print('config:', change, file=sys.stderr)
+		print(f"config: reloaded {config.preferences_path}, {len(changes)} change{'' if len(changes) == 1 else 's'}", file=sys.stderr)
+	except config.ConfigError as e:
+		for line in e.errors:
+			print('ERROR config:', line, file=sys.stderr)
+	if scheduler:
+		scheduler.reload()
+
 if __name__ == '__main__':
 	print(f'Starting finbot {git_version()}', file=sys.stderr)
+	try:
+		config.check_startup_environment()
+	except config.ConfigError as e:
+		for line in e.errors:
+			print('ERROR config:', line, file=sys.stderr)
+		sys.exit(1)
+	for line in config.startup_report():
+		print('config:', line, file=sys.stderr)
 	if os.getuid() == 0:
 		print("Running as superuser. This is not recommended.", file=sys.stderr)
 	httpd = pywsgi.WSGIServer((config_ip, config_port), main)
@@ -187,11 +214,12 @@ if __name__ == '__main__':
 		scheduler = jobs.Scheduler(lambda: data_file('schedule.cron'))
 		if scheduler.load():
 			jobs.current = scheduler # for the .jobs chat command
-			gevent.signal_handler(signal.SIGHUP, scheduler.reload) # systemctl reload finbot: pick up an edited schedule
 			threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
+		else:
+			scheduler = None
 	else:
 		print('Scheduled reports are off (scheduler=False)', file=sys.stderr)
-		gevent.signal_handler(signal.SIGHUP, lambda: print('Reload ignored: scheduled reports are off', file=sys.stderr)) # SIGHUP would otherwise end the process
+	gevent.signal_handler(signal.SIGHUP, reload_all) # systemctl kill -s HUP finbot: pick up edited preferences.conf and schedule.cron
 	try:
 		httpd.serve_forever()
 	except OSError as e:

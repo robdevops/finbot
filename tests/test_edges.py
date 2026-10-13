@@ -120,6 +120,17 @@ class WsgiRejections(FinbotCase):
         odd = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'new_chat_members': []}}
         self.assertIn(b'Unhandled', self.request(body=odd, headers=secret)[0])
 
+    def test_button_presses_are_logged(self):
+        calls = []
+        self.patch(worker, 'process_callback', lambda *a: calls.append(a))
+        secret = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
+        for sender, who in (({'username': 'rob', 'first_name': 'Rob'}, '@rob'), ({'first_name': 'Ann'}, 'Ann'), ({}, 'unknown')):
+            body = json.dumps({'callback_query': {'id': '1', 'from': sender, 'data': 'j|7|abcd', 'message': {'message_id': 9, 'chat': {'id': 55}}}}).encode()
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                bot.main({'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(body), **secret}, lambda *a, **k: None)
+            self.assertIn(f'[Telegram button]: {who} chat 55 j|7|abcd', err.getvalue())
+
 
 if __name__ == '__main__':
     unittest.main()

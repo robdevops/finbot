@@ -17,9 +17,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import gevent
+from gevent import subprocess
 from croniter import croniter
 
 from lib.config import *
+from lib import config
 from lib import util
 from lib import webhook
 import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, shorts, trades
@@ -28,6 +30,7 @@ SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance'
 	'rating': rating, 'reminder': reminder, 'shorts': shorts, 'trades': trades}
 current = None # the running Scheduler, set by bot.py; the chat commands use it
 HIDDEN = ('cleanup', 'podcasts') # scheduled, but not offered in the chat list
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_FILE = 'finbot_jobs.json' # last fire time of every job, so a restart neither repeats a run nor loses one
 JOB_TIMEOUT = 15 * 60 # seconds a job may run before it is abandoned and reported
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')
@@ -38,6 +41,29 @@ REDIRECT = re.compile(r'\d*>>?&?\d*|&>>?') # > file, >> file, 2>&1, &> file
 def checksum(label):
 	"""Short stand-in for a command in a Telegram button, whose data is limited to 64 bytes: detects a changed schedule."""
 	return format(zlib.crc32(label.encode()) & 0xffff, '04x')
+
+
+def run_child(label, module, kwargs):
+	"""Run a command in its own process (python -m lib.jobrun) and return its exit status. The child inherits the environment,
+	user and output of the bot, so it behaves like the old cron job. A timeout or any other interruption stops the child."""
+	env = dict(os.environ, **config.child_environment()) # the preferences this process runs on, not whatever the file says now
+	proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', module.__name__, json.dumps(kwargs)], cwd=ROOT, env=env)
+	try:
+		return proc.wait()
+	except BaseException:
+		proc.terminate()
+		try:
+			proc.wait(timeout=10)
+		except subprocess.TimeoutExpired:
+			proc.kill()
+			proc.wait()
+		raise
+
+
+def run_in_process(label, module, kwargs):
+	"""The runner for tests: call the handler here instead of in a child process."""
+	module.lambda_handler(**kwargs)
+	return 0
 
 
 def display(label):
@@ -190,12 +216,13 @@ class Scheduler:
 	"""Fires the jobs of a schedule file. `path` is a callable returning the file (the data dir copy wins over the default, so a
 	new copy is found on reload). `clock`, `sleep` and `spawn` can be replaced, which the tests do."""
 
-	def __init__(self, path, catchup=config_scheduler_catchup, clock=None, sleep=None, spawn=None, zone=None):
+	def __init__(self, path, catchup=config_scheduler_catchup, clock=None, sleep=None, spawn=None, zone=None, runner=None):
 		self.path = path
 		self.catchup = datetime.timedelta(minutes=catchup)
 		self.clock = clock or (lambda: datetime.datetime.now(datetime.timezone.utc))
 		self.sleep = sleep or gevent.sleep
 		self.spawn = spawn or gevent.spawn
+		self.runner = runner or run_child # (label, module, kwargs) -> exit status
 		self.zone = zone
 		self.jobs = []
 		self.base = {} # key -> the time after which the next run is due
@@ -283,7 +310,8 @@ class Scheduler:
 				self.busy.add(label)
 				print(f'schedule: running {label}', file=sys.stderr)
 				try:
-					module.lambda_handler(**kwargs)
+					if self.runner(label, module, kwargs):
+						outcome = 'failed' # the child has already reported why
 				except gevent.Timeout:
 					raise
 				except (Exception, SystemExit) as e:

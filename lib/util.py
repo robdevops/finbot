@@ -288,7 +288,9 @@ def get_currency_symbol(currency):
 		currency_symbol = '฿'
 	return currency_symbol
 
-def read_cache(cacheFile, maxSeconds=config_cache_seconds):
+def read_cache(cacheFile, maxSeconds=UNSET):
+	if maxSeconds is UNSET:
+		maxSeconds = config_cache_seconds
 	cacheFile = config_cache_dir + "/" + cacheFile
 	if os.path.isfile(cacheFile):
 		maxSeconds = datetime.timedelta(seconds=maxSeconds)
@@ -333,7 +335,9 @@ def json_load(filename, persist=False):
 	path = Path(filename)
 	return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
-def read_binary_cache(cacheFile, maxSeconds=config_cache_seconds):
+def read_binary_cache(cacheFile, maxSeconds=UNSET):
+	if maxSeconds is UNSET:
+		maxSeconds = config_cache_seconds
 	cacheFile = config_cache_dir + "/" + cacheFile
 	if os.path.isfile(cacheFile):
 		maxSeconds = datetime.timedelta(seconds=maxSeconds)
