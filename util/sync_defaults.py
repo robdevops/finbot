@@ -47,6 +47,7 @@ if __name__ == '__main__':
 	ap.add_argument('--apply', action='store_true', help='copy missing files')
 	ap.add_argument('--force', action='store_true', help='also overwrite differing files (keeps .bak); implies --apply')
 	args = ap.parse_args()
+	print(f"{REPO_DIR / 'defaults'} -> {Path(config.config_var_dir).resolve()}")
 	for name, status in sync(args.apply or args.force, args.force):
 		done = args.force or (args.apply and status == 'missing')
 		print(('updated ' if done else 'would update ') + name + ' (' + status + ')')

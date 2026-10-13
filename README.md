@@ -459,7 +459,6 @@ Both files are plain `KEY=value`: no spaces around `=`, no quotes, no trailing c
 * **Docker:** `--env-file /opt/finbot.env`. Docker keeps quotes literally, so use none. Run `util/check_config.py /opt/finbot.env` first if you want the same check.
 * **init.d / shell:** `util/check_config.py /opt/finbot.env && set -a && . /opt/finbot.env && set +a && ./bot.py` (`set -a` is what exports the values to the bot).
 * **Scheduled jobs:** they are started by `bot.py` (see [Scheduling](#scheduling)), so they run on the same settings. For a one-off run, see [Running a report by hand](#scheduling).
-* **AWS Lambda:** set them as function environment variables.
 
 **Changing settings:** edit `preferences.conf`, then reload. The log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
 
@@ -489,8 +488,6 @@ util/sync_defaults.py --force  # also overwrite changed files, keeping .bak copi
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
 
 In Docker, one container is enough: `bot.py` runs the schedule too, so there is no cron or scheduler sidecar to set up.
-
-On AWS Lambda only `/tmp` is writable and ephemeral, so mount EFS and point `DATA_DIR` at it. S3 is not supported yet.
 
 ### Sharesight
 * Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to `finbot.env`. Example:
@@ -576,7 +573,7 @@ hyperlinkProvider=yahoo
 ```
 
 ## Scheduling
-The scheduled reports are started by `bot.py`, each run in its own child process (`python -m lib.jobrun`), so they use the same user, sandbox, environment and data directory as the bot, while heavy work (charts, large reports) cannot hold up incoming chat webhooks. A run that exceeds 15 minutes is stopped. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory. **This is on by default.** Remove the equivalent entries from any old crontab before the first start, otherwise every job runs twice; or set `scheduler=False` in the environment file to keep using cron.
+The scheduled reports are started by `bot.py`, each run in its own child process (`python -m lib.jobrun`), so they use the same user, sandbox, environment and data directory as the bot, while heavy work (charts, large reports) cannot hold up incoming chat webhooks. A run that exceeds 5 minutes is stopped. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory. **This is on by default.** Remove the equivalent entries from any old crontab before the first start, otherwise every job runs twice; or set `scheduler=False` in the environment file to keep using cron.
 
 The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"` and `cleanup.py [days]` (deletes cache files older than `days`, default 30). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
 
@@ -605,7 +602,7 @@ The bot logs the number of jobs when it starts or reloads, and each job as it ru
 
 Behaviour worth knowing:
 * A run that was due while the bot was down (a restart, a deploy) still fires once if it was due within the last `scheduler_catchup` minutes (default 5). A restart right after a run does not repeat it.
-* A job still running when it is next due is skipped, and a job that takes more than 15 minutes is abandoned and reported.
+* A job still running when it is next due is skipped, and a job that takes more than 5 minutes is abandoned and reported.
 * Failures are reported to your chat channels, as before.
 * With `scheduler=False` nothing is scheduled by the bot, so you can keep using cron or systemd timers and run the scripts yourself.
 
