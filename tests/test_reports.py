@@ -90,6 +90,15 @@ class ScheduledReports(FinbotCase):
         trades.lambda_handler(interactive=True, service='telegram', chat_id='5')
         self.assertTrue(self.sent)
 
+    def test_trades_asks_yahoo_only_for_new_trades(self):
+        fetched = []
+        self.patch(yahoo, 'fetch', lambda tickers: fetched.append(set(tickers)) or {t: market_entry(t) for t in tickers})
+        trades.lambda_handler()
+        self.assertEqual(fetched, [{'T1'}])
+        fetched.clear()
+        trades.lambda_handler() # the trade is known now: nothing to report and nothing to fetch
+        self.assertEqual(fetched, [])
+
     def test_milestone(self):
         milestone.lambda_handler(interactive=True, service='telegram', chat_id='5')
         self.assertTrue(self.sent)

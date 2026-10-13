@@ -20,50 +20,42 @@ def lambda_handler(chat_id=config_telegramChatID, days=config_past_days, service
 			return None
 		payload_staging = []
 		dates = set()
+		wanted = [] # the trades to report: buys and sells in the chosen portfolio that are new (or all of them, when interactive)
+		for trade in trades:
+			if trade['transaction_type'] not in {'BUY', 'SELL'}:
+				continue
+			if portfolio_select and trade['portfolio'].lower() != portfolio_select.lower():
+				continue
+			if not interactive and int(trade['id']) in known_trades:
+				print("Skipping known trade_id:", trade['id'], trade['transaction_date'], trade['portfolio'], trade['transaction_type'], trade['symbol'])
+				continue
+			wanted.append(trade)
+		if not wanted: # the usual case on a scheduled run
+			return []
+		market_data = {}
 		if config_trades_use_yahoo:
-			tickers = set()
-			for trade in trades: # this first loop is to consolidate yahoo.fetch into a single call
-				if trade['transaction_type'] not in {'BUY', 'SELL'}:
-					continue
-				if portfolio_select and trade['portfolio'].lower() != portfolio_select.lower():
-					continue
-				if not interactive and int(trade['id']) in known_trades:
-					continue
-				symbol = trade['symbol']
-				market = trade['market']
-				ticker = util.transform_to_yahoo(symbol, market)
-				tickers.add(ticker)
+			tickers = {util.transform_to_yahoo(trade['symbol'], trade['market']) for trade in wanted} # one yahoo.fetch for all
 			try:
 				print("Fetching tickers from Yahoo: ", tickers, file=sys.stderr)
 				market_data = yahoo.fetch(tickers)
 			except Exception as e:
 				print("Warning: could not fetch Yahoo:", e, file=sys.stderr)
 
-		for trade in trades:
-			if trade['transaction_type'] not in {'BUY', 'SELL'}:
-				continue
+		for trade in wanted:
 			portfolio_name = trade['portfolio'] # custom field
-			if portfolio_select and portfolio_name.lower() != portfolio_select.lower():
-				continue
 			trade_id = int(trade['id'])
 			date = trade['transaction_date'] # 2023-12-30
 			transactionType = trade['transaction_type']
 			symbol = trade['symbol']
-			if not interactive and trade_id in known_trades:
-				print("Skipping known trade_id:", trade_id, date, portfolio_name, transactionType, symbol)
-				continue
 			action=''
 			emoji=''
 			market = trade['market']
 			if transactionType == 'BUY':
 				action = 'bought'
 				emoji = '💸'
-			elif transactionType == 'SELL':
+			else: # SELL
 				action = 'sold'
 				emoji = '🤑'
-			else:
-				print("Skipping corporate action:", portfolio_name, date, transactionType, symbol)
-				continue
 			units = float(trade['quantity'])
 			price = float(trade['price'])
 			currency = trade['brokerage_currency_code']

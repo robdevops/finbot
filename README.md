@@ -47,6 +47,7 @@ Where:
 .earnings [period|symbol]
 .history symbol
 .holdings portfolio
+.jobs [run number|command]
 .marketcap [symbol|top|bottom]
 .performance [period] [portfolio]
 .pie portfolio [sector]
@@ -69,6 +70,7 @@ Alternative syntax:
 @botname earnings [period|symbol]
 @botname history symbol
 @botname holdings [portfolio]
+@botname jobs [run number|command]
 @botname marketcap [symbol|top|bottom]
 @botname performance [period] [portfolio]
 @botname pie portfolio [sector]
@@ -553,7 +555,7 @@ The scheduled reports run inside `bot.py`, so they use the same user, sandbox, e
 
 The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"` and `cleanup.py [days]` (deletes cache files older than `days`, default 30). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
 
-The schedule is `defaults/schedule.cron`, written in **cron-compatible syntax**: five time fields (minute, hour, day of month, month, day of week; `*/20`, `Mon-Fri`, ranges and lists work) or an `@macro` such as `@daily`, then a finbot script and its arguments. Quote an argument that has spaces or special characters (a feed URL with `&`, say). Several commands separated by `;` run one after another. `MAILTO=`, `SHELL=`, `PATH=` and `HOME=` lines are ignored. Anything else a crontab allows (a user column, pipes, other programs) is not supported: such a line is reported at startup and skipped. Existing crontab lines can be pasted as they are: an old `bin/run` prefix, `cd ...;`, `> /dev/null` redirects and `{ a; b ;}` groups are understood.
+The schedule is `defaults/schedule.cron`, written in **cron-compatible syntax**: five time fields (minute, hour, day of month, month, day of week; `*/20`, `Mon-Fri`, ranges and lists work) or an `@macro` such as `@daily`, then a finbot script and its arguments. Quote an argument that has spaces or special characters (a feed URL with `&`, say). Several commands separated by `;` run one after another. `MAILTO=`, `SHELL=`, `PATH=` and `HOME=` lines are ignored. Anything else a crontab allows (a user column, pipes, other programs) is not supported: such a line is reported at startup and skipped. Existing crontab lines can be pasted as they are: `> /dev/null` redirects, `{ a; b ;}` groups and a path before the script name are understood.
 ```
 # Every 20 minutes on weekdays
 */20 * * * Mon-Fri trades.py
@@ -573,6 +575,8 @@ sudoedit /var/lib/finbot/schedule.cron
 sudo systemctl reload finbot        # the bot re-reads the file and logs how many jobs it loaded
 ```
 The bot logs the number of jobs when it starts or reloads, and each job as it runs (`journalctl -u finbot`); a line it cannot use is reported by name. If the edited file has no usable line the previous schedule keeps running.
+
+**To run a job from chat**, send `.jobs` (also `.cron`, `.crons` or `.schedule`): it lists the scheduled commands, each once and without times, comments or `.py` (`cleanup` and `podcasts` are scheduled but not listed), and on Telegram adds a button per command. `.jobs run 2` (or tapping the button) runs that command now, and `.jobs run price.py close` runs it by name; anything not in the schedule is refused, and so is a chain such as `a; b` (run them one at a time). A manual run is exactly a cron run: it reports to all configured chat networks, updates the same state (seen trades, ratings and so on), and does not change the schedule. Anyone who can message the bot can do this; a command that is already running is not started twice.
 
 Behaviour worth knowing:
 * A run that was due while the bot was down (a restart, a deploy) still fires once if it was due within the last `scheduler_catchup` minutes (default 5). A restart right after a run does not repeat it.
