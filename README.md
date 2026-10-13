@@ -462,15 +462,61 @@ Both files are plain `KEY=value`: no spaces around `=`, no quotes, no trailing c
 
 **Changing settings:** edit `preferences.conf`, then reload. The log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
 
-### If a file is missing or wrong
-| Situation | At start | On reload |
+### `finbot.env` items
+All 17 keys, read by your launcher. A change needs a restart. Blank means unset.
+
+| Key | Default | Description |
 |---|---|---|
-| No `preferences.conf` | Fine: built-in defaults (and a log line saying reload has nothing to re-read) | `ERROR`, nothing reloaded, finbot keeps running |
-| `preferences.conf` unreadable, malformed, unknown or misplaced key, bad value | **Refuses to start** (exit 1), naming file and line | `ERROR`, nothing applied, finbot keeps running on its previous settings |
-| A preference key in the environment (`finbot.env`) | **Refuses to start** | not applicable |
-| `finbot.env` missing or unreadable | Your launcher fails before finbot starts | not applicable |
-| `finbot.env` edited while running | not applicable | not noticed: restart |
-| `preferences.conf` edited, no reload sent | not applicable | nothing changes, scheduled jobs included, until you reload |
+| `DATA_DIR` | `var/` in the checkout (`$STATE_DIRECTORY` under systemd `StateDirectory=`) | Where state and cache live |
+| `ip` | `127.0.0.1` | Address the bot listens on |
+| `port` | `5000` | Port the bot listens on |
+| `scheduler` | `True` | Run the scheduled reports (`schedule.cron`) inside the bot |
+| `scheduler_catchup` | `5` | Minutes: a run missed while the bot was down still fires if it was due this recently |
+| `telegramChatID` | | Chat group or channel id that scheduled reports go to on Telegram |
+| `sharesight_code` | | Sharesight API access |
+| `sharesight_client_id` | | Sharesight API access |
+| `sharesight_client_secret` | | Sharesight API access |
+| `slack_webhook` | | Slack incoming webhook, for outbound reports |
+| `discord_webhook` | | Discord webhook, for outbound reports |
+| `telegramBotToken` | | Telegram bot token, for outbound reports |
+| `slackBotToken` | | Slack bot token, for outbound messages and uploads |
+| `telegramOutgoingWebhook` | | Telegram webhook path the bot accepts (interactive mode) |
+| `telegramOutgoingToken` | | Secret token Telegram must present (interactive mode) |
+| `slackOutgoingWebhook` | | Slack webhook path the bot accepts (interactive mode) |
+| `slackOutgoingToken` | | Token Slack must present (interactive mode) |
+
+### `preferences.conf` items
+All 25 keys, read by the bot itself. A change takes effect on a reload.
+
+| Key | Default | Description |
+|---|---|---|
+| `past_days` | `28` | How many days back reports look |
+| `future_days` | `30` | How many days ahead the events calendar looks |
+| `price_percent` | `5` | Price alert threshold, percent |
+| `shorts_percent` | `15` | Short interest alert threshold, percent |
+| `demote_volatile` | `True` | Volatile (small cap, high beta) stocks need a bigger move to alert |
+| `demote_leveraged` | `True` | Leveraged (2x, 3x) funds need a bigger move to alert |
+| `volatility_multiplier` | `2` | How much bigger a move volatile stocks need |
+| `exclude_portfolios` | | Sharesight portfolio IDs to leave out, space separated |
+| `include_portfolios` | | Sharesight portfolio IDs to report on, space separated (empty: all that are not excluded) |
+| `trades_use_yahoo` | `True` | Use Yahoo for trades; set `False` if Yahoo breaks |
+| `performance_use_sharesight` | `False` | Use Sharesight rather than Yahoo for performance over a period |
+| `alliterate` | `False` | Greeting uses alliterating adjectives (easter egg) |
+| `graph` | `True` | Send charts with reports |
+| `hyperlink` | `True` | Hyperlink tickers in reports |
+| `hyperlinkFooter` | `True` | Add a website link footer to stock lookups |
+| `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` |
+| `chunk_maxlines` | `20` | Maximum lines per message before a report is split |
+| `country_code` | `AU` | Country, used by the reminder report |
+| `timezone` | `Australia/Melbourne` | Time zone, used by the reminder report |
+| `cache` | `True` | Cache Yahoo and Sharesight responses |
+| `cache_seconds` | `43200` | Cache lifetime in seconds (12 hours) |
+| `performance_cache_seconds` | `1800` | Cache lifetime of Sharesight performance reports in seconds |
+| `http_timeout` | `18` | Seconds to wait on outbound HTTP requests |
+| `debug` | `False` | Extra diagnostics in the log |
+| `print_headers` | `False` | Log inbound request headers |
+
+A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied.
 
 **Upgrading from one `.env`?** Run `util/migrate_env.py --write` first if it is in the old dotenv format (`key = 'value' # comment`), then `util/split_env.py /opt/finbot.env`. It writes `finbot.env.new` and `preferences.conf.new` next to it, never overwriting, and lists any key it dropped or did not recognise. Until you split, finbot refuses to start because the one file mixes both kinds of key.
 
