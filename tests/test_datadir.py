@@ -52,7 +52,7 @@ class DataDirTests(FinbotCase):
 		self.assertEqual(config.data_file(name), config.config_var_dir + '/' + name)
 
 	def test_sync_defaults(self):
-		self.assertIn(('finbot_adr.json', 'missing'), sync_defaults.sync())
+		self.assertIn(('finbot_adr.json', 'would copy'), sync_defaults.sync())
 		self.assertFalse(Path(config.config_var_dir, 'finbot_adr.json').exists()) # dry run
 		sync_defaults.sync(apply=True)
 		self.assertTrue(Path(config.config_var_dir, 'finbot_adr.json').exists())
@@ -62,14 +62,14 @@ class DataDirTests(FinbotCase):
 		mine.write_text('{"mine": 1}')
 		sync_defaults.sync(apply=True)
 		self.assertEqual(mine.read_text(), '{"mine": 1}') # never overwritten without --force
-		self.assertNotIn('finbot_adr.json', [n for n, _ in sync_defaults.sync()]) # existing files are not listed by default
+		self.assertIn(('finbot_adr.json', 'skipped - destination differs'), sync_defaults.sync()) # existing files are skipped, and said so
 		sync_defaults.sync(force=True)
 		self.assertNotEqual(mine.read_text(), '{"mine": 1}')
 		self.assertEqual(Path(str(mine) + '.bak').read_text(), '{"mine": 1}')
 
 	def test_sync_defaults_to_another_destination(self):
 		other = Path(config.config_var_dir, 'elsewhere')
-		self.assertIn(('finbot_adr.json', 'missing'), sync_defaults.sync(dest=other))
+		self.assertIn(('finbot_adr.json', 'would copy'), sync_defaults.sync(dest=other))
 		self.assertFalse(other.exists()) # dry run
 		sync_defaults.sync(apply=True, dest=other)
 		self.assertTrue((other / 'finbot_adr.json').exists())
