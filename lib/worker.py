@@ -187,7 +187,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 	shorts_command = prefix + r"shorts?\s*([\w\.\:\-]+)*"
 	m_shorts = re.match(shorts_command, message, re.IGNORECASE)
 
-	jobs_command = prefix + r"(?:jobs|crons?)(?:\s+(?P<args>.*?))?\s*$"
+	jobs_command = prefix + r"(?:jobs|crons?|schedule)(?:\s+(?P<args>.*?))?\s*$"
 	m_jobs = re.match(jobs_command, message, re.IGNORECASE)
 
 	profile_command = prefix + r"(?P<ticker>[\w\.\:\-]+)"

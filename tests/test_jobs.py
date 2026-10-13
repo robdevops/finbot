@@ -365,7 +365,7 @@ class ManualRuns(SchedulerBase):
         return self.command(text)[0][1]
 
     def test_list_in_chat_is_just_the_commands(self):
-        for alias in ('.jobs', '.cron', '.crons', '@' + BOT.lstrip('@') + ' jobs'):
+        for alias in ('.jobs', '.cron', '.crons', '.schedule', '@' + BOT.lstrip('@') + ' jobs'):
             text = '\n'.join(map(str, self.list_in_chat(alias)))
             for line in ('1. price.py 7', '2. price.py close', '3. trades.py'):
                 self.assertIn(line, text, alias)
