@@ -51,6 +51,9 @@ if __name__ == '__main__':
 	ap.add_argument('--dest', metavar='DIR', help='destination directory (default: the data dir, DATA_DIR or var/)')
 	args = ap.parse_args()
 	print(f"{REPO_DIR / 'defaults'} -> {Path(args.dest or config.config_var_dir).resolve()}")
-	for name, status in sync(args.apply or args.force, args.force, args.dest):
+	changes = sync(args.apply or args.force, args.force, args.dest)
+	for name, status in changes:
 		done = args.force or (args.apply and status == 'missing')
 		print(('updated ' if done else 'would update ') + name + ' (' + status + ')')
+	if not changes:
+		print('nothing to copy: every default already exists there' + ('' if args.force else ' (existing files are skipped; --force overwrites those that differ)'))
