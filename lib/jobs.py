@@ -26,6 +26,7 @@ import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, 
 SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance': performance, 'podcasts': podcasts, 'price': price,
 	'rating': rating, 'reminder': reminder, 'shorts': shorts, 'trades': trades}
 current = None # the running Scheduler, set by bot.py; the chat commands use it
+HIDDEN = ('cleanup', 'podcasts') # scheduled, but not offered in the chat list
 STATE_FILE = 'finbot_jobs.json' # last fire time of every job, so a restart neither repeats a run nor loses one
 JOB_TIMEOUT = 15 * 60 # seconds a job may run before it is abandoned and reported
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')
@@ -36,6 +37,11 @@ REDIRECT = re.compile(r'\d*>>?&?\d*|&>>?') # > file, >> file, 2>&1, &> file
 def checksum(label):
 	"""Short stand-in for a command in a Telegram button, whose data is limited to 64 bytes: detects a changed schedule."""
 	return format(zlib.crc32(label.encode()) & 0xffff, '04x')
+
+
+def display(label):
+	"""A command as shown in chat: 'price.py close' -> 'price close'."""
+	return re.sub(r'^(\w+)\.py', r'\1', label)
 
 
 class ScheduleError(ValueError):
@@ -296,13 +302,15 @@ class Scheduler:
 		return outcome
 
 	def commands(self):
-		"""Every scheduled command once, sorted by name: [(label, module, kwargs)]. The time, comments, redirects and the other
-		commands of a line are not part of it."""
+		"""Every offered scheduled command once, sorted by name with numbers in numeric order: [(label, module, kwargs)]. The time,
+		comments, redirects and the other commands of a line are not part of it; HIDDEN scripts are left out."""
 		unique = {}
 		for job in self.jobs:
 			for command in job.commands:
-				unique.setdefault(command[0], command)
-		return [unique[label] for label in sorted(unique)]
+				if command[1] not in [SCRIPTS[name] for name in HIDDEN]:
+					unique.setdefault(command[0], command)
+		natural = lambda label: [int(part) if part.isdigit() else part for part in re.split(r'(\d+)', label.lower())]
+		return [unique[label] for label in sorted(unique, key=natural)]
 
 	def select(self, text):
 		"""The scheduled command for `.jobs run <text>`: a number from the list, or the command itself. Raises ScheduleError."""

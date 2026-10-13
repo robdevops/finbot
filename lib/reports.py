@@ -219,11 +219,11 @@ def prepare_jobs_payload(service, args):
 			return ['No scheduled jobs'], None
 		payload = [webhook.bold('Scheduled commands:', service)]
 		for number, (label, _, _) in enumerate(commands, 1):
-			payload.append(f"{number}. {label}" + (' (running)' if label in scheduler.busy else ''))
+			payload.append(f"{number}. {jobs.display(label)}" + (' (running)' if label in scheduler.busy else ''))
 		payload.append("\nRun one with .jobs run NUMBER" + (' or tap it' if service == 'telegram' else ''))
 		markup = None
 		if service == 'telegram':
-			buttons = [{'text': f"{number}. {label}"[:30], 'callback_data': f"j|{number}|{jobs.checksum(label)}"} for number, (label, _, _) in enumerate(commands, 1)]
+			buttons = [{'text': f"{number}. {jobs.display(label)}"[:30], 'callback_data': f"j|{number}|{jobs.checksum(label)}"} for number, (label, _, _) in enumerate(commands, 1)]
 			markup = {'inline_keyboard': [buttons[i:i + 2] for i in range(0, len(buttons), 2)]}
 		return payload, markup
 	m = re.fullmatch(r'run(?:\s+(.+))?', args, re.IGNORECASE)
@@ -238,7 +238,7 @@ def run_job_line(scheduler, text):
 	except jobs.ScheduleError as e:
 		return str(e)
 	number = [command[0] for command in scheduler.commands()].index(label) + 1
-	return f"{number}. {label}: {outcome}"
+	return f"{number}. {jobs.display(label)}: {outcome}"
 
 def prepare_help(service, botName):
 	payload = []

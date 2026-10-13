@@ -311,28 +311,31 @@ class ManualRuns(SchedulerBase):
     def setUp(self):
         super().setUp()
         self.file.write_text('# a comment\n*/20 * * * Mon-Fri trades.py > /dev/null\n28 21 * * Sat price.py close; trades.py # weekly\n'
-                             '5 4 * * * { price.py close ;}\n6 4 * * * price.py 7\n')
+                             '5 4 * * * { price.py close ;}\n6 4 * * * price.py 7\n'
+                             '0 3 * * * performance.py 365; performance.py 7; performance.py 90; performance.py 30; performance.py 180\n'
+                             '0 2 * * * cleanup.py\n1 * * * * podcasts.py "https://example.com/feed"\n')
         self.s = self.scheduler()
         self.patch(jobs, 'current', self.s)
         self.patch(jobs.SCRIPTS['price'], 'lambda_handler', lambda **k: self.ran.append(('price', k)))
 
     def test_commands_are_unique_clean_and_in_order(self):
-        self.assertEqual([label for label, _, _ in self.s.commands()], ['price.py 7', 'price.py close', 'trades.py'])
+        self.assertEqual([label for label, _, _ in self.s.commands()], ['performance.py 7', 'performance.py 30', 'performance.py 90', 'performance.py 180',
+                                                                       'performance.py 365', 'price.py 7', 'price.py close', 'trades.py'])
 
     def test_select_by_number_or_command_text(self):
-        self.assertEqual(self.s.select('2')[0], 'price.py close')
-        self.assertEqual(self.s.select('3')[0], 'trades.py')
+        self.assertEqual(self.s.select('7')[0], 'price.py close')
+        self.assertEqual(self.s.select('8')[0], 'trades.py')
         self.assertEqual(self.s.select('  "price.py" close > /dev/null')[0], 'price.py close')
         self.assertEqual(self.s.select('~/finbot/price.py 7')[0], 'price.py 7')
 
     def test_select_refuses_what_is_not_offered(self):
-        for text in ('0', '4', 'price.py 99', 'cal.py earnings', 'nonsense', 'ls | wc', '', 'price.py close; trades.py'):
+        for text in ('0', '9', 'cleanup.py', 'podcasts.py "https://example.com/feed"', 'price.py 99', 'cal.py earnings', 'nonsense', 'ls | wc', '', 'price.py close; trades.py'):
             with self.assertRaises(jobs.ScheduleError, msg=text):
                 self.s.select(text)
 
     def test_run_now_runs_one_command_and_leaves_the_schedule_alone(self):
         base, last = dict(self.s.base), dict(self.s.last)
-        self.assertEqual(self.s.run_now('2'), ('price.py close', 'done'))
+        self.assertEqual(self.s.run_now('7'), ('price.py close', 'done'))
         self.assertEqual(self.ran, [('price', {'close': True})])
         self.assertEqual((self.s.base, self.s.last), (base, last))
         self.assertTrue(all(not job.running for job in self.s.jobs))
@@ -340,13 +343,13 @@ class ManualRuns(SchedulerBase):
 
     def test_run_now_refuses_while_the_command_is_running_and_reports_failures(self):
         self.s.busy.add('trades.py')
-        self.assertEqual(self.s.run_now('3'), ('trades.py', 'already running'))
+        self.assertEqual(self.s.run_now('8'), ('trades.py', 'already running'))
         self.assertEqual(self.ran, [])
         self.s.busy.clear()
         def boom(**k):
             raise RuntimeError('boom')
         self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', boom)
-        self.assertEqual(self.s.run_now('3'), ('trades.py', 'failed'))
+        self.assertEqual(self.s.run_now('8'), ('trades.py', 'failed'))
         self.assertTrue(any('boom' in e for e in self.errors))
         self.assertEqual(self.s.busy, set())
 
@@ -358,7 +361,7 @@ class ManualRuns(SchedulerBase):
     def test_run_now_times_out(self):
         self.patch(jobs, 'JOB_TIMEOUT', 0.05)
         self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', lambda **k: gevent.sleep(5))
-        self.assertEqual(self.s.run_now('3'), ('trades.py', 'timed out'))
+        self.assertEqual(self.s.run_now('8'), ('trades.py', 'timed out'))
         self.assertEqual(self.s.busy, set())
 
     def list_in_chat(self, text='.jobs'):
@@ -367,17 +370,18 @@ class ManualRuns(SchedulerBase):
     def test_list_in_chat_is_just_the_commands(self):
         for alias in ('.jobs', '.cron', '.crons', '.schedule', '@' + BOT.lstrip('@') + ' jobs'):
             text = '\n'.join(map(str, self.list_in_chat(alias)))
-            for line in ('1. price.py 7', '2. price.py close', '3. trades.py'):
+            for line in ('1. performance 7', '2. performance 30', '5. performance 365', '6. price 7', '7. price close', '8. trades'):
                 self.assertIn(line, text, alias)
-            for noise in ('*/20', '#', 'Mon-Fri', 'next', 'last', '/dev/null', 'weekly'):
+            for noise in ('*/20', '#', 'Mon-Fri', 'next', 'last', '/dev/null', 'weekly', '.py', 'cleanup', 'podcasts'):
                 self.assertNotIn(noise, text, alias)
         self.s.busy.add('price.py 7')
-        self.assertIn('1. price.py 7 (running)', '\n'.join(map(str, self.list_in_chat())))
+        self.assertIn('6. price 7 (running)', '\n'.join(map(str, self.list_in_chat())))
 
     def test_telegram_gets_a_button_per_command_and_slack_does_not(self):
         payload, markup = reports.prepare_jobs_payload('telegram', '')
         buttons = [b for row in markup['inline_keyboard'] for b in row]
-        self.assertEqual([b['text'] for b in buttons], ['1. price.py 7', '2. price.py close', '3. trades.py'])
+        self.assertEqual([b['text'] for b in buttons], ['1. performance 7', '2. performance 30', '3. performance 90', '4. performance 180',
+                                                      '5. performance 365', '6. price 7', '7. price close', '8. trades'])
         for b in buttons:
             self.assertLessEqual(len(b['callback_data'].encode()), 64)
         payload, markup = reports.prepare_jobs_payload('slack', '')
@@ -393,30 +397,30 @@ class ManualRuns(SchedulerBase):
         sent = []
         self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: sent.append(text))
         markup = reports.prepare_jobs_payload('telegram', '')[1]
-        data = next(b['callback_data'] for row in markup['inline_keyboard'] for b in row if b['text'].startswith('2.'))
+        data = next(b['callback_data'] for row in markup['inline_keyboard'] for b in row if b['text'].startswith('7.'))
         self.sent.clear()
         worker.process_callback('telegram', 'cb1', '55', '9', data)
         self.assertEqual(self.ran, [('price', {'close': True})])
-        self.assertEqual(self.sent, [('text', ['2. price.py close: done'])])
-        self.assertEqual(sent, ['Running price.py close…'])
+        self.assertEqual(self.sent, [('text', ['7. price close: done'])])
+        self.assertEqual(sent, ['Running price close…'])
 
     def test_button_from_an_old_schedule_is_refused(self):
         self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: None)
-        worker.process_callback('telegram', 'cb1', '55', '9', 'j|2|0000')
+        worker.process_callback('telegram', 'cb1', '55', '9', 'j|7|0000')
         worker.process_callback('telegram', 'cb1', '55', '9', 'j|9|0000')
         self.assertEqual(self.ran, [])
         self.assertEqual([m[1][0] for m in self.sent], ['The schedule changed; send .jobs again'] * 2)
 
     def test_run_in_chat(self):
-        self.assertEqual(self.command('.jobs run 3'), [('text', ['3. trades.py: done'])])
+        self.assertEqual(self.command('.jobs run 8'), [('text', ['8. trades: done'])])
         self.assertEqual(self.ran, [('trades', {})])
         self.ran.clear()
-        self.assertEqual(self.command('.cron run price.py close')[0][1], ['2. price.py close: done'])
+        self.assertEqual(self.command('.cron run price close')[0][1], ['7. price close: done'])
         self.assertEqual(self.ran, [('price', {'close': True})])
 
     def test_run_in_chat_refusals(self):
         self.assertIn('not in the schedule', self.list_in_chat('.jobs run cal.py earnings')[0])
-        self.assertIn('no command 9', self.list_in_chat('.jobs run 9')[0])
+        self.assertIn('no command 99', self.list_in_chat('.jobs run 99')[0])
         self.assertIn('one command at a time', self.list_in_chat('.jobs run price.py close; trades.py')[0])
         self.assertIn('Usage', self.list_in_chat('.jobs run')[0])
         self.assertIn('Usage', self.list_in_chat('.jobs bogus')[0])
@@ -425,7 +429,7 @@ class ManualRuns(SchedulerBase):
     def test_scheduler_off(self):
         self.patch(jobs, 'current', None)
         self.assertIn('off', self.list_in_chat('.jobs')[0])
-        self.assertIn('off', self.list_in_chat('.jobs run 3')[0])
+        self.assertIn('off', self.list_in_chat('.jobs run 8')[0])
 
     def test_job_is_still_a_ticker(self):
         self.assertNotIn('Scheduled', str(self.command('.job')))
