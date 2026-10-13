@@ -211,9 +211,7 @@ class Scheduler:
 		for job in jobs:
 			self.base[job.key] = old.get(job.key) or self.start_base(job, now)
 		self.jobs = jobs
-		print(f'schedule: {len(jobs)} jobs from {path}', file=sys.stderr)
-		for job in jobs:
-			print(f'schedule:   {job.text}  (next {self.next_fire(job, now):%a %d %b %H:%M %Z})', file=sys.stderr)
+		print(f"schedule: {len(jobs)} job{'' if len(jobs) == 1 else 's'} from {path}", file=sys.stderr)
 		return True
 
 	def reload(self, *args):

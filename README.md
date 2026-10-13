@@ -570,9 +570,9 @@ The default times suit a server set to UTC. Like cron, they follow the server's 
 ```
 util/sync_defaults.py --apply       # copies schedule.cron to the data directory if it is not there yet
 sudoedit /var/lib/finbot/schedule.cron
-sudo systemctl reload finbot        # the bot re-reads the file, and logs each job with its next run time
+sudo systemctl reload finbot        # the bot re-reads the file and logs how many jobs it loaded
 ```
-The bot logs the schedule when it starts or reloads (`journalctl -u finbot`). If the edited file has no usable line the previous schedule keeps running.
+The bot logs the number of jobs when it starts or reloads, and each job as it runs (`journalctl -u finbot`); a line it cannot use is reported by name. If the edited file has no usable line the previous schedule keeps running.
 
 Behaviour worth knowing:
 * A run that was due while the bot was down (a restart, a deploy) still fires once if it was due within the last `scheduler_catchup` minutes (default 5). A restart right after a run does not repeat it.
