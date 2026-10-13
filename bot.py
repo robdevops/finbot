@@ -67,6 +67,8 @@ def handle(environ, start_response):
 			cq_message = cq.get("message")
 			if not cq_message or not cq.get("data"):
 				return [b'Unsupported']
+			sender = cq.get("from", {})
+			print("[Telegram button]:", '@' + sender["username"] if "username" in sender else sender.get("first_name", "unknown"), "chat", cq_message["chat"]["id"], cq["data"], file=sys.stderr)
 			threading.Thread(target=worker.process_callback, args=('telegram', cq["id"], str(cq_message["chat"]["id"]), str(cq_message["message_id"]), cq["data"])).start()
 			return [b'']
 		if "message" not in inbound:
