@@ -17,13 +17,30 @@ jobs:
         python-version: ['3.x', '3.13.5'] # latest release, and the production version
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+        with:
+          fetch-depth: 0 # the base branch is needed to see what a pull request changes
+      - id: changes
+        # A pull request that only touches docs skips the steps below. The job still runs and reports success, so the
+        # required checks pass at once. Pushes to main, the weekly run and manual runs always test everything.
+        run: |
+          code=true
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            if ! git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qvE '^(README\.md|CLAUDE\.md|img/)'; then
+              code=false
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+      - if: steps.changes.outputs.code == 'true'
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -r requirements.txt
-      - run: python -m compileall -q bot.py *.py lib util
-      - run: python -m unittest discover -s tests -v
+      - if: steps.changes.outputs.code == 'true'
+        run: pip install -r requirements.txt
+      - if: steps.changes.outputs.code == 'true'
+        run: python -m compileall -q bot.py *.py lib util
+      - if: steps.changes.outputs.code == 'true'
+        run: python -m unittest discover -s tests -v
 
   notify:
     # Telegram alert when the weekly run fails. Needs repository secrets TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
