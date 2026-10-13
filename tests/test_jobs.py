@@ -1,11 +1,11 @@
 """The in-process scheduler (lib/jobs.py): schedule file parsing, each script's job(argv), and firing with a fake clock."""
-import datetime, os, tempfile, unittest, zoneinfo
+import datetime, hashlib, os, subprocess, sys, tempfile, time, unittest, zoneinfo
 from pathlib import Path
 from unittest import mock
 import gevent
 from tests.common import *
 from lib import jobs
-import cal, performance, price
+import cal, cleanup, performance, podcasts, price
 
 UTC = zoneinfo.ZoneInfo('UTC')
 DEFAULT_SCHEDULE = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / 'defaults' / 'schedule.cron'
@@ -27,7 +27,7 @@ class ParseTests(unittest.TestCase):
     def test_shipped_schedule_has_no_errors(self):
         parsed, errors = jobs.parse_schedule(DEFAULT_SCHEDULE.read_text(), UTC)
         self.assertEqual(errors, [])
-        self.assertEqual(len(parsed), 8)
+        self.assertEqual(len(parsed), 9)
         weekly = next(j for j in parsed if j.expr == '28 21 * * Sat')
         self.assertEqual([label for label, _, _ in weekly.commands],
                          ['cal.py earnings', 'cal.py ex-dividend', 'price.py 7', 'performance.py 7', 'rating.py'])
@@ -41,6 +41,27 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual([[label for label, _, _ in j.commands] for j in parsed],
                          [['trades.py'], ['cal.py earnings', 'price.py 7'], ['reminder.py']])
+
+    def test_quoted_arguments_may_hold_anything(self):
+        url = 'https://example.com/feed?a=1&b=2;c>d $x |y'
+        parsed, errors = jobs.parse_schedule(f'01 0-10,23 * * Mon-Fri podcasts.py "{url}" > ~/out 2>&1 # hourly (UTC)\n', UTC)
+        self.assertEqual(errors, [])
+        self.assertEqual(parsed[0].commands[0][2], {'feed_url': url})
+        parsed, errors = jobs.parse_schedule(f"5 4 * * * podcasts.py '{url}'; shorts.py\n", UTC)
+        self.assertEqual([(label[:9], kw) for label, _, kw in parsed[0].commands], [('podcasts.', {'feed_url': url}), ('shorts.py', {})])
+
+    def test_unquoted_shell_syntax_is_still_refused(self):
+        for line in ('0 1 * * * trades.py | tee x', '0 1 * * * trades.py && shorts.py & ', '0 1 * * * trades.py $(date)', '0 1 * * * trades.py `x`',
+                     '0 1 * * * trades.py < in', '0 1 * * * (trades.py)', '0 1 * * * trades.py "unterminated'):
+            parsed, errors = jobs.parse_schedule(line + '\n', UTC)
+            self.assertEqual((parsed, len(errors)), ([], 1), line)
+
+    def test_redirects_and_braces_are_dropped(self):
+        for command in ('trades.py > /dev/null', 'trades.py >/dev/null 2>&1', 'trades.py &> /dev/null', 'trades.py >> ~/x 2>&1',
+                        '{ trades.py ;} > ~/x', 'cd /opt/finbot; bin/run trades.py', '/opt/finbot/bin/run trades.py # note (x)'):
+            parsed, errors = jobs.parse_schedule(f'0 1 * * * {command}\n', UTC)
+            self.assertEqual(errors, [], command)
+            self.assertEqual([label for label, _, _ in parsed[0].commands], ['trades.py'], command)
 
     def test_bad_lines_are_skipped_and_named(self):
         text = '0 1 * * * ls | wc -l\n0 1 * * * price.py bogus\n0 1 * * * nothere.py\n61 1 * * * trades.py\n0 1 * *\nFOO=bar\n5 4 * * * shorts.py\n'
@@ -77,9 +98,26 @@ class JobArguments(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.job(bad)
 
+    def test_podcasts(self):
+        url = 'https://example.com/podcast.rss'
+        label, kwargs = podcasts.job([url])
+        self.assertEqual(kwargs, {'feed_url': url})
+        self.assertIn('finbot_podcast_seen_' + label.split()[1], podcasts.get_seen_filename(url)) # the label is the start of the state file's hash
+        self.assertEqual(label, 'podcasts.py ' + hashlib.md5(url.encode()).hexdigest()[:8])
+        for bad in ([], [url, url]):
+            with self.assertRaises(ValueError):
+                podcasts.job(bad)
+
+    def test_cleanup_arguments(self):
+        self.assertEqual(cleanup.job([]), ('cleanup.py', {}))
+        self.assertEqual(cleanup.job(['7']), ('cleanup.py 7', {'days': 7}))
+        for bad in (['x'], ['1', '2']):
+            with self.assertRaises(ValueError):
+                cleanup.job(bad)
+
     def test_plain_scripts(self):
         for name, module in jobs.SCRIPTS.items():
-            if name not in ('cal', 'performance', 'price'):
+            if name not in ('cal', 'cleanup', 'performance', 'podcasts', 'price'):
                 self.assertEqual(module.job([]), (name + '.py', {}))
 
     def test_cli_prints_usage_and_exits(self):
@@ -92,6 +130,41 @@ class JobArguments(unittest.TestCase):
         calls = []
         webhook.cli('price.py', price.job, lambda **k: calls.append(k), ['midsession'])
         self.assertEqual(calls, [{'midsession': True}])
+
+
+class CleanupJob(FinbotCase):
+    def test_removes_only_old_finbot_cache_files(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__('shutil').rmtree(folder, ignore_errors=True))
+        self.patch(cleanup, 'config_cache_dir', folder)
+        old, new = time.time() - 40 * 86400, time.time() - 5 * 86400
+        for name, stamp in (('finbot_old.json', old), ('finbot_new.json', new), ('other_old.json', old), ('finbot_old.png', old)):
+            path = os.path.join(folder, name)
+            Path(path).write_text('x')
+            os.utime(path, (stamp, stamp))
+        os.mkdir(os.path.join(folder, 'finbot_dir'))
+        os.utime(os.path.join(folder, 'finbot_dir'), (old, old))
+        self.assertEqual(cleanup.lambda_handler(30), 2)
+        self.assertEqual(sorted(os.listdir(folder)), ['finbot_dir', 'finbot_new.json', 'other_old.json'])
+
+    def test_missing_cache_dir_is_fine(self):
+        self.patch(cleanup, 'config_cache_dir', '/nonexistent/finbot-cache')
+        self.assertEqual(cleanup.lambda_handler(30), 0)
+
+
+class SchedulerFlag(unittest.TestCase):
+    def flag(self, **env):
+        code = 'from lib import config; print(config.config_scheduler)'
+        e = {k: v for k, v in os.environ.items() if k != 'scheduler'}
+        e.update(env)
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return subprocess.run([sys.executable, '-c', code], cwd=repo, env=e, capture_output=True, text=True, check=True).stdout.split()[-1]
+
+    def test_off_by_default_and_on_for_true(self):
+        self.assertEqual(self.flag(), 'False')
+        for value in ('True', 'true', '1', 't'):
+            self.assertEqual(self.flag(scheduler=value), 'True', value)
+        self.assertEqual(self.flag(scheduler='False'), 'False')
 
 
 class SchedulerTests(FinbotCase):

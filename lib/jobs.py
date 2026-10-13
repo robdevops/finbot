@@ -20,14 +20,15 @@ from croniter import croniter
 from lib.config import *
 from lib import util
 from lib import webhook
-import cal, milestone, performance, price, rating, reminder, shorts, trades
+import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, shorts, trades
 
-SCRIPTS = {'cal': cal, 'milestone': milestone, 'performance': performance, 'price': price, 'rating': rating, 'reminder': reminder,
-	'shorts': shorts, 'trades': trades}
+SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance': performance, 'podcasts': podcasts, 'price': price,
+	'rating': rating, 'reminder': reminder, 'shorts': shorts, 'trades': trades}
 STATE_FILE = 'finbot_jobs.json' # last fire time of every job, so a restart neither repeats a run nor loses one
 JOB_TIMEOUT = 15 * 60 # seconds a job may run before it is abandoned and reported
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')
-REDIRECT = re.compile(r'(?<!\S)(?:&|\d*)>>?&?\s*\S+') # > /dev/null, 2>&1, >> file, &> file
+OPERATOR = re.compile(r'\d*>>?&?\d*|&>>?|;|&&|\|\|?|&|[<`$(){}]') # what a shell reads as more than a word, outside quotes
+REDIRECT = re.compile(r'\d*>>?&?\d*|&>>?') # > file, >> file, 2>&1, &> file
 
 
 class ScheduleError(ValueError):
@@ -57,18 +58,67 @@ def local_zone():
 		return zoneinfo.ZoneInfo('UTC')
 
 
+def tokenize(text):
+	"""A command line as ('word', text) and ('op', text) tokens. Quoted text is always a word, whatever it contains."""
+	tokens, word, started, i = [], '', False, 0
+	def flush():
+		nonlocal word, started
+		if started:
+			tokens.append(('word', word))
+		word, started = '', False
+	while i < len(text):
+		c = text[i]
+		if c.isspace():
+			flush()
+			i += 1
+		elif c in '\'"':
+			end = text.find(c, i + 1)
+			if end < 0:
+				raise ScheduleError('No closing quotation')
+			word, started, i = word + text[i + 1:end], True, end + 1
+		elif c == '\\' and i + 1 < len(text):
+			word, started, i = word + text[i + 1], True, i + 2
+		elif c == '#' and not started: # a trailing comment
+			break
+		elif m := OPERATOR.match(text, i):
+			if word.isdigit() and m.group().startswith('>'): # the 2 of 2>&1 belongs to the redirect
+				word, started = '', False
+			flush()
+			tokens.append(('op', m.group()))
+			i = m.end()
+		else:
+			word, started, i = word + c, True, i + 1
+	flush()
+	return tokens
+
+
+def split_commands(tokens):
+	"""Word lists, one per command: split on unquoted ; and &&, redirects and braces dropped, any other shell syntax refused."""
+	commands, current, target = [], [], False
+	for kind, value in tokens:
+		if target: # the file of a redirect
+			target = False
+			if kind == 'word':
+				continue
+		if kind == 'word':
+			current.append(value)
+		elif value in (';', '&&'):
+			commands.append(current)
+			current = []
+		elif value in ('{', '}'):
+			continue
+		elif REDIRECT.fullmatch(value):
+			target = not re.search(r'&\d+$', value) # 2>&1 has no file after it, > /dev/null does
+		else:
+			raise ScheduleError('only finbot scripts can be scheduled, not shell commands')
+	commands.append(current)
+	return [words for words in commands if words]
+
+
 def parse_command(text):
 	"""'~/finbot/bin/run price.py midsession > /dev/null' -> [('price.py midsession', price, {...})]. Raises ScheduleError."""
-	text = re.sub(r'(?<!\S)#.*$', '', text) # a trailing comment
-	text = REDIRECT.sub(' ', text.replace('{', ' ').replace('}', ' '))
-	if re.search(r'[|`$<()]|&(?!&)', text):
-		raise ScheduleError('only finbot scripts can be scheduled, not shell commands')
 	commands = []
-	for segment in re.split(r'\s*(?:;|&&)\s*', text):
-		try:
-			words = shlex.split(segment, comments=True)
-		except ValueError as e:
-			raise ScheduleError(str(e))
+	for words in split_commands(tokenize(text)):
 		while words and re.fullmatch(r'\w+=\S*', words[0]):
 			words.pop(0) # FOO=bar prefix
 		if not words or words[0] == 'cd':

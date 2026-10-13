@@ -32,7 +32,7 @@ def save_seen(seen, filename):
 				json.dump(list(seen), f, indent=4)
 
 def fetch_and_parse_feed(url):
-		resp = requests.get(url)
+		resp = requests.get(url, timeout=30)
 		resp.raise_for_status()
 		return ET.fromstring(resp.content)
 
@@ -146,12 +146,7 @@ def fetch_new_episodes(feed_url, seen):
 
 		return new_episodes
 
-def main():
-		if len(sys.argv) != 2:
-				print("Usage:", sys.argv[0], "\"<podcast_feed_url>\"")
-				sys.exit(1)
-
-		feed_url = sys.argv[1]
+def lambda_handler(feed_url):
 		seen_file = get_seen_filename(feed_url)
 		seen = load_seen(seen_file)
 		seen_earlier = seen.copy()
@@ -182,5 +177,13 @@ def main():
 		else:
 				print("no new episodes found")
 
+def job(argv):
+	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
+	match argv:
+		case [feed_url]:
+			return 'podcasts.py ' + hashlib.md5(feed_url.encode()).hexdigest()[:8], {'feed_url': feed_url} # the label matches the seen file's name
+		case _:
+			raise ValueError('"<podcast_feed_url>"')
+
 if __name__ == "__main__":
-		webhook.guarded('podcasts.py', main)
+	webhook.cli(sys.argv[0], job, lambda_handler)

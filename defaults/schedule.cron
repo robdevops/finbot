@@ -21,6 +21,9 @@
 # Weekly
 28  21 * * Sat cal.py earnings; cal.py ex-dividend; price.py 7; performance.py 7; rating.py
 
+# Housekeeping: delete cache files older than 30 days
+51  18 * * Sat cleanup.py 30
+
 # Monthly
 27  21 1 * * shorts.py; price.py 28; performance.py 28
 

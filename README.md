@@ -461,7 +461,7 @@ util/sync_defaults.py --force  # also overwrite changed files, keeping .bak copi
 ```
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
 
-In Docker, one container is enough: `bot.py` runs the schedule too, so there is no cron or scheduler sidecar to set up.
+In Docker, one container is enough: with `scheduler=True` `bot.py` runs the schedule too, so there is no cron or scheduler sidecar to set up.
 
 On AWS Lambda only `/tmp` is writable and ephemeral, so mount EFS and point `DATA_DIR` at it. S3 is not supported yet.
 
@@ -549,15 +549,20 @@ hyperlinkProvider = yahoo
 ```
 
 ## Scheduling
-The scheduled reports (trades, price alerts, reminders, calendar, performance, shorts and rating) run inside `bot.py`, so they use the same user, sandbox, environment and data directory as the bot. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory.
+The scheduled reports run inside `bot.py`, so they use the same user, sandbox, environment and data directory as the bot. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory. **This is off by default.** Turn it on with `scheduler=True` in the environment file, after removing the equivalent entries from any old crontab (otherwise every job runs twice), and restart the bot.
 
-The schedule is `defaults/schedule.cron`, written in **cron-compatible syntax**: five time fields (minute, hour, day of month, month, day of week; `*/20`, `Mon-Fri`, ranges and lists work) or an `@macro` such as `@daily`, then a finbot script and its arguments. Several commands separated by `;` run one after another. `MAILTO=`, `SHELL=`, `PATH=` and `HOME=` lines are ignored. Anything else a crontab allows (a user column, pipes, other programs) is not supported: such a line is reported at startup and skipped. Existing crontab lines can be pasted as they are: `bin/run`, `cd ...;`, `> /dev/null` redirects and `{ a; b ;}` groups are understood.
+The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"` and `cleanup.py [days]` (deletes cache files older than `days`, default 30). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
+
+The schedule is `defaults/schedule.cron`, written in **cron-compatible syntax**: five time fields (minute, hour, day of month, month, day of week; `*/20`, `Mon-Fri`, ranges and lists work) or an `@macro` such as `@daily`, then a finbot script and its arguments. Quote an argument that has spaces or special characters (a feed URL with `&`, say). Several commands separated by `;` run one after another. `MAILTO=`, `SHELL=`, `PATH=` and `HOME=` lines are ignored. Anything else a crontab allows (a user column, pipes, other programs) is not supported: such a line is reported at startup and skipped. Existing crontab lines can be pasted as they are: `bin/run`, `cd ...;`, `> /dev/null` redirects and `{ a; b ;}` groups are understood.
 ```
 # Every 20 minutes on weekdays
 */20 * * * Mon-Fri trades.py
 
 # Weekly, one after the other
 28  21 * * Sat cal.py earnings; cal.py ex-dividend; price.py 7; performance.py 7; rating.py
+
+# New episodes, hourly
+01 0-10,23 * * Mon-Fri podcasts.py "https://example.com/podcast.rss"
 ```
 The default times suit a server set to UTC. Like cron, they follow the server's own time zone; put `CRON_TZ=Australia/Melbourne` on a line of its own above a job to pin another zone.
 
@@ -573,13 +578,13 @@ Behaviour worth knowing:
 * A run that was due while the bot was down (a restart, a deploy) still fires once if it was due within the last `scheduler_catchup` minutes (default 5). A restart right after a run does not repeat it.
 * A job still running when it is next due is skipped, and a job that takes more than 15 minutes is abandoned and reported.
 * Failures are reported to your chat channels, as before.
-* Set `scheduler = False` in the environment file to turn the scheduler off, for example if you prefer cron or systemd timers and run the scripts yourself.
+* With `scheduler=False` (the default) nothing is scheduled by the bot, so you can keep using cron or systemd timers and run the scripts yourself.
 
-**Running a report by hand.** Under `DynamicUser=yes` you cannot simply log in as the bot's user, so run the script as a transient unit with the same dynamic user and state directory. `User=finbot` makes it the same user as `finbot.service`; leave it out and systemd would allocate a different one, which cannot read the bot's state:
+**Running a report by hand.** Under `DynamicUser=yes` you cannot simply log in as the bot's user, so run the script as a transient unit with a dynamic user and the same state directory:
 ```
-sudo systemd-run --pty --wait --collect -p DynamicUser=yes -p User=finbot -p StateDirectory=finbot -p EnvironmentFile=/opt/finbot.env /opt/finbot/price.py 7
+sudo systemd-run --pty --wait --collect -p DynamicUser=yes -p StateDirectory=finbot -p EnvironmentFile=/opt/finbot.env /opt/finbot/price.py 7
 ```
-The script prints its output on your terminal and sends its report to your chat channels as usual. Outside systemd, run it as your own user: `bin/run price.py 7`.
+The script prints its output on your terminal and sends its report to your chat channels as usual. The transient unit gets its own dynamic user, and systemd may re-own the state directory to it for the run: check `ls -ln /var/lib/private/finbot` afterwards and `systemctl restart finbot` if the bot can no longer write there. The chat commands (`.price 7d`, `.performance 7d`, ...) run the same reports inside the bot, without any of this. Outside systemd, run a script as your own user: `bin/run price.py 7`.
 
 ## Interactive bot setup
 The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
