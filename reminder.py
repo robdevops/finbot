@@ -88,5 +88,8 @@ def lambda_handler():
 	# make google cloud happy
 	return True
 
+def job(argv):
+	return 'reminder.py', {}
+
 if __name__ == "__main__":
-	webhook.guarded('reminder.py', lambda_handler)
+	webhook.cli(sys.argv[0], job, lambda_handler)

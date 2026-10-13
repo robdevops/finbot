@@ -13,4 +13,4 @@ The work branch named in the session instructions (`claude/...`) is the persiste
 
 ## Facts
 - Python 3.13.5; tests are offline and need no network (`tests/`). CI runs them on the latest 3.x and 3.13.5.
-- Production runs the Debian system packages; `requirements.txt` is for pip/uv users and CI.
+- Production runs the Debian system packages (including `python3-croniter`, for the scheduler in `lib/jobs.py`); `requirements.txt` is for pip/uv users and CI.

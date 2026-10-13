@@ -118,14 +118,15 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=config_past_days, se
 	# make google cloud happy
 	return True
 
-if __name__ == "__main__":
-	if len(sys.argv) > 1:
-		try:
-			days = int(sys.argv[1])
-		except ValueError:
-			print("Usage:", sys.argv[0], "[integer]", file=sys.stderr)
-			sys.exit(1)
-		webhook.guarded('performance.py', lambda_handler, past_days=days)
-	else:
-		webhook.guarded('performance.py', lambda_handler)
+def job(argv):
+	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
+	match argv:
+		case []:
+			return 'performance.py', {}
+		case [days] if days.isdigit():
+			return f'performance.py {days}', {'past_days': int(days)}
+		case _:
+			raise ValueError('[integer]')
 
+if __name__ == "__main__":
+	webhook.cli(sys.argv[0], job, lambda_handler)

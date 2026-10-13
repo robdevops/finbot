@@ -277,22 +277,15 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=config_price_percent
 				continue
 			webhook.payload_wrapper(service, url, payload, chat_id)
 
-if __name__ == "__main__":
-	if len(sys.argv) > 1:
-		arg = sys.argv[1]
-		match arg:
-			case 'midsession':
-				webhook.guarded('price.py midsession', lambda_handler, midsession=True)
-			case 'interday':
-				webhook.guarded('price.py interday', lambda_handler, interday=True)
-			case 'premarket':
-				webhook.guarded('price.py premarket', lambda_handler, premarket=True)
-			case 'close':
-				webhook.guarded('price.py close', lambda_handler, close=True)
-			case arg if arg.isdigit():
-				webhook.guarded(f'price.py {arg}', lambda_handler, threshold=0, days=int(arg), top=10)
-			case other:
-				print("Usage:", sys.argv[0], "[midsession|interday|premarket|close|days (int)]", file=sys.stderr)
+def job(argv):
+	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
+	match argv:
+		case ['midsession' | 'interday' | 'premarket' | 'close' as arg]:
+			return f'price.py {arg}', {arg: True}
+		case [days] if days.isdigit():
+			return f'price.py {days}', {'threshold': 0, 'days': int(days), 'top': 10}
+		case _:
+			raise ValueError('[midsession|interday|premarket|close|days (int)]')
 
-	else:
-		print("Usage:", sys.argv[0], "[midsession|interday|premarket|close|days (int)]", file=sys.stderr)
+if __name__ == "__main__":
+	webhook.cli(sys.argv[0], job, lambda_handler)

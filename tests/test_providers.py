@@ -290,12 +290,24 @@ class SharesightKeepWarm(ProviderCase):
             outcome = outcomes.pop(0)
             if isinstance(outcome, Exception):
                 raise outcome
-            return outcome
-        self.patch(sharesight, 'warm_once', warm)
-        self.patch(sharesight, 'next_due', lambda: 3000)
+            return outcome, {}
+        self.patch(sharesight, 'warm', warm)
+        self.patch(sharesight, 'next_due', lambda portfolios=None: 3000)
         stop = Stop()
         sharesight.keep_warm(retry=300, stop=stop)
         self.assertEqual(stop.waits, [300, 3000]) # slow retry after the failure, then sleep until the next cache is due
+
+    def test_a_warming_pass_reads_the_cached_portfolio_list_once(self):
+        self.serve_sharesight()
+        sharesight.warm_once() # fill the caches
+        reads = []
+        real = util.read_cache
+        self.patch(util, 'read_cache', lambda name, *a, **k: (reads.append(name), real(name, *a, **k))[1])
+        fetched, portfolios = sharesight.warm() # what one pass of keep_warm does
+        due = sharesight.next_due(portfolios=portfolios)
+        self.assertEqual((fetched, reads), (0, [sharesight.PORTFOLIOS_CACHE]))
+        self.assertAlmostEqual(due, sharesight.next_due(), delta=1) # the same answer as reading the list again
+        self.assertEqual(portfolios, {'Rob': 445825, 'RobSMSF': 684141})
 
     def test_next_due_is_90_percent_of_the_ttl(self):
         self.serve_sharesight()

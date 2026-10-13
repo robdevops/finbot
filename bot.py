@@ -2,13 +2,15 @@
 
 import gevent.monkey
 gevent.monkey.patch_all()
-import json, os, re, subprocess, sys
+import json, os, re, signal, sys
+from pathlib import Path
 from gevent import pywsgi
 import threading
 from urllib.parse import urlparse
 
 from lib.config import *
 from lib import worker
+from lib import jobs
 from lib import charts
 from lib import sharesight
 from lib import webhook
@@ -150,12 +152,24 @@ def handle(environ, start_response):
 
 IGNORED_TELEGRAM_CONTENT = {'sticker', 'animation', 'voice', 'video', 'video_note', 'audio', 'document', 'contact', 'location', 'venue', 'poll', 'dice'}
 
-def git_version():
-	"""Short hash of the checked-out commit, or 'unknown' when git or the repository is unavailable."""
+def git_version(checkout=None):
+	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no "dubious
+	ownership" refusal when the service user does not own the checkout. 'unknown' when it cannot be read."""
 	try:
-		return subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=os.path.dirname(os.path.abspath(__file__)),
-			capture_output=True, text=True, timeout=5, check=True).stdout.strip() or 'unknown'
-	except Exception:
+		git = Path(checkout or os.path.dirname(os.path.abspath(__file__))) / '.git'
+		if git.is_file(): # a linked worktree or submodule: .git is a file saying "gitdir: <path>"
+			git = (git.parent / git.read_text().split(':', 1)[1].strip()).resolve()
+		common = (git / (git / 'commondir').read_text().strip()).resolve() if (git / 'commondir').is_file() else git # refs of a worktree
+		head = (git / 'HEAD').read_text().strip()
+		if head.startswith('ref:'):
+			ref = head.split(':', 1)[1].strip()
+			if (common / ref).is_file():
+				head = (common / ref).read_text().strip()
+			else: # the branch is only in packed-refs
+				packed = (common / 'packed-refs').read_text().splitlines()
+				head = next((line.split()[0] for line in packed if line.endswith(' ' + ref)), '')
+		return head[:7] if re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', head) else 'unknown'
+	except (OSError, IndexError):
 		return 'unknown'
 
 if __name__ == '__main__':
@@ -169,6 +183,14 @@ if __name__ == '__main__':
 		threading.Thread(target=charts.refresh_keyboards, daemon=True).start() # update stale DM keyboards in the background
 	if config_cache and config_sharesight_auth.get('client_id'):
 		threading.Thread(target=sharesight.keep_warm, daemon=True).start() # keep the portfolio list and holdings report cached
+	if config_scheduler:
+		scheduler = jobs.Scheduler(lambda: data_file('schedule.cron'))
+		if scheduler.load():
+			gevent.signal_handler(signal.SIGHUP, scheduler.reload) # systemctl reload finbot: pick up an edited schedule
+			threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
+	else:
+		print('Scheduled reports are off (scheduler=False)', file=sys.stderr)
+		gevent.signal_handler(signal.SIGHUP, lambda: print('Reload ignored: scheduled reports are off', file=sys.stderr)) # SIGHUP would otherwise end the process
 	try:
 		httpd.serve_forever()
 	except OSError as e:
