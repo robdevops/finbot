@@ -311,11 +311,13 @@ class Startup(unittest.TestCase):
 		self.assertEqual(out.returncode, 1)
 		self.assertIn('future_days is a preference', out.stderr)
 
-	def test_startup_report_names_keys_never_values(self):
-		with mock.patch.dict(os.environ, {'slack_webhook': 'https://secret.example/abc', 'port': '5000'}):
-			text = '\n'.join(config.startup_report())
-		self.assertIn('slack_webhook', text)
-		self.assertNotIn('secret.example', text)
+	def test_startup_report_is_a_short_count_never_names_or_values(self):
+		with mock.patch.dict(os.environ, {'slack_webhook': 'https://secret.example/abc', 'port': '5000'}, clear=True):
+			lines = config.startup_report()
+		self.assertEqual(lines[0], 'startup environment provides 2 of 17 startup keys (values hidden)')
+		self.assertLessEqual(len('config: ' + lines[0]), 90) # the path in the second line depends on where DATA_DIR is
+		self.assertNotIn('secret.example', ''.join(lines))
+		self.assertNotIn('slack_webhook', ''.join(lines))
 
 
 class SigHup(unittest.TestCase):

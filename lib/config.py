@@ -298,9 +298,9 @@ def check_startup_environment():
 
 
 def startup_report():
-	"""Lines for the log at start: where the config came from (names only, never values)."""
+	"""Lines for the log at start: where the config came from (a count, never names or values; util/check_config.py names the problems)."""
 	provided = [key for key in STARTUP_KEYS if key in os.environ]
-	lines = ['startup environment provides: ' + (', '.join(provided) or 'nothing') + ' (values hidden)']
+	lines = [f'startup environment provides {len(provided)} of {len(STARTUP_KEYS)} startup keys (values hidden)']
 	if os.path.isfile(preferences_path):
 		lines.append(f'preferences from {preferences_path} ({len(_preferences)} set; reload with SIGHUP)')
 	else:
