@@ -439,11 +439,9 @@ uv venv && uv pip install -r requirements.txt
 ## Setup
 Configuration is split into two files -- finbot.env for startup environment variables, and preferences.conf for values that can be changed at runtime.
 
-Start by creating both from the shipped templates:
+Copy the shipped template:
 ```
-sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo vi /opt/finbot.env
-util/sync_defaults.py [-d DEST] --apply     # copies preferences.conf into the data directory (never overwrites)
-vi <data directory>/preferences.conf
+sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env
 ```
 
 ### `finbot.env`
@@ -476,7 +474,11 @@ All 17 keys, read by your launcher. A change needs a restart. Blank means unset.
 | `slackOutgoingToken` | | Token Slack must present (interactive mode) |
 
 ### `preferences.conf` items
-**Changing settings:** edit `preferences.conf`, then reload. The log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
+
+Copies preferences.conf and metadata files into the data directory (never overwrites)
+```
+util/sync_defaults.py [-d DEST] --apply
+```
 
 All 25 keys, read by the bot itself. A change takes effect on a reload.
 
@@ -509,6 +511,8 @@ All 25 keys, read by the bot itself. A change takes effect on a reload.
 | `print_headers` | `False` | Log inbound request headers |
 
 A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied.
+
+edit `preferences.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
 
 **Upgrading from one `.env`?** Run `util/migrate_env.py --write` first if it is in the old dotenv format (`key = 'value' # comment`), then `util/split_env.py /opt/finbot.env`. It writes `finbot.env.new` and `preferences.conf.new` next to it, never overwriting, and lists any key it dropped or did not recognise. Until you split, finbot refuses to start because the one file mixes both kinds of key.
 
