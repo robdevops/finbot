@@ -68,18 +68,15 @@ def deliver(service, url, chat_id, payload, chart=None):
 def process_job_callback(service, callback_id, chat_id, data):
 	"""A command button of .jobs: run that command now and answer in the chat."""
 	try:
-		_, number, crc = data.split('|')
-		command = jobs.current.commands()[int(number) - 1]
-		if jobs.checksum(command[0]) != crc:
-			raise IndexError
-	except (ValueError, IndexError, AttributeError):
+		_, number, crc = data.split('|') # only a command offered by .jobs can be picked; anything else is refused
+		command = jobs.current.pick(number, crc)
+	except (ValueError, jobs.ScheduleError, AttributeError):
 		telegram.answerCallbackQuery(callback_id, 'The schedule changed')
 		webhook.payload_wrapper(service, webhook.chat_url(service, chat_id), ['The schedule changed; send .jobs again'], chat_id)
 		return
 	telegram.answerCallbackQuery(callback_id, f'Running {jobs.display(command[0])}…'[:100])
 	try:
-		line = reports.run_job_line(jobs.current, command[0])
-		webhook.payload_wrapper(service, webhook.chat_url(service, chat_id), [line], chat_id)
+		webhook.payload_wrapper(service, webhook.chat_url(service, chat_id), [reports.job_line(jobs.current, *jobs.current.run_command(command))], chat_id)
 	except Exception as e:
 		webhook.report_error(e, service, chat_id, context='jobs')
 

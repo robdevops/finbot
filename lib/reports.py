@@ -234,9 +234,11 @@ def prepare_jobs_payload(service, args):
 def run_job_line(scheduler, text):
 	"""Run a scheduled command now and say how it went in one line."""
 	try:
-		label, outcome = scheduler.run_now(text)
+		return job_line(scheduler, *scheduler.run_now(text))
 	except jobs.ScheduleError as e:
 		return str(e)
+
+def job_line(scheduler, label, outcome):
 	number = [command[0] for command in scheduler.commands()].index(label) + 1
 	return f"{number}. {jobs.display(label)}: {outcome}"
 

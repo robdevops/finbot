@@ -404,6 +404,24 @@ class ManualRuns(SchedulerBase):
         self.assertEqual(self.sent, [('text', ['7. price close: done'])])
         self.assertEqual(sent, ['Running price close…'])
 
+    def test_forged_button_data_never_runs_anything_else(self):
+        self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: None)
+        good = jobs.checksum('trades.py')
+        for data in ('j|-1|' + good, 'j|0|' + good, 'j|9|' + good, 'j|8|0000', 'j|8|', 'j|8', 'j|8|' + good + '|x', 'j||' + good,
+                     'j|٨|' + good, 'j| 8|' + good, 'j|8.0|' + good, 'j|trades.py|' + good, 'j|1|' + good, 'j|8|price.py close',
+                     'j|8|' + good.upper() + 'x', 'j|99999999999999999999|' + good):
+            self.sent.clear()
+            worker.process_callback('telegram', 'cb', '55', '9', data)
+            self.assertEqual(self.ran, [], data)
+            self.assertEqual([m[1][0] for m in self.sent], ['The schedule changed; send .jobs again'], data)
+        # cleanup and podcasts are scheduled but cannot be picked, by number or by their checksum
+        for label in ('cleanup.py', 'podcasts.py'):
+            for n in range(1, 12):
+                with self.assertRaises(jobs.ScheduleError):
+                    self.s.pick(str(n), jobs.checksum(label))
+        worker.process_callback('telegram', 'cb', '55', '9', 'j|8|' + good) # the genuine button still works
+        self.assertEqual(self.ran, [('trades', {})])
+
     def test_button_from_an_old_schedule_is_refused(self):
         self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: None)
         worker.process_callback('telegram', 'cb1', '55', '9', 'j|7|0000')

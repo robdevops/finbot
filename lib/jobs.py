@@ -4,6 +4,7 @@ The schedule is a file in crontab syntax: five time fields (or an @macro) and th
 `*/20 * * * Mon-Fri trades.py` or `28 21 * * Sat cal.py earnings; price.py 7`. Pasted crontab lines (`./price.py > /dev/null`,
 `{ a; b ;}`) are accepted too. Running in the bot means the jobs share its user, sandbox, environment and cache."""
 import datetime
+import hmac
 import json
 import math
 import os
@@ -331,10 +332,24 @@ class Scheduler:
 				return command
 		raise ScheduleError(f"'{text}' is not in the schedule; send .jobs to list the commands")
 
+	def pick(self, number, crc):
+		"""The offered command a button stands for. Button data is untrusted input: the number must be plain digits within the
+		list and the checksum must match that very command, else ScheduleError."""
+		commands = self.commands()
+		if not (number.isascii() and number.isdigit() and 1 <= int(number) <= len(commands)):
+			raise ScheduleError('no such command')
+		command = commands[int(number) - 1]
+		if not hmac.compare_digest(checksum(command[0]), crc):
+			raise ScheduleError('the schedule changed')
+		return command
+
+	def run_command(self, command):
+		"""Run one command returned by select() or pick(). Returns (label, outcome)."""
+		return command[0], self.execute(None, [command])
+
 	def run_now(self, text):
 		"""`.jobs run`: one scheduled command, now, as cron would run it; the schedule is unchanged. Returns (label, outcome)."""
-		command = self.select(text)
-		return command[0], self.execute(None, [command])
+		return self.run_command(self.select(text))
 
 	def tick(self):
 		"""Start what is due; returns the seconds until the next fire time."""
