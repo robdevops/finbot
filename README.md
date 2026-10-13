@@ -444,14 +444,6 @@ util/sync_defaults.py --apply     # copies preferences.conf into the data direct
 vi <data directory>/preferences.conf
 ```
 
-| | **`finbot.env`: the startup file** | `preferences.conf` |
-|---|---|---|
-| Holds | where finbot runs, who it talks to, where it reports: `DATA_DIR`, `ip`, `port`, `telegramChatID`, `scheduler`, `scheduler_catchup` and the 11 credentials and endpoints (17 keys) | how it behaves: every other setting (25 keys) |
-| Read by | **your launcher, never by the bot**. The bot only inherits the values in its environment (see below). | **the bot itself**, from `<data directory>/preferences.conf`, at start and on every reload |
-| A change takes effect | after a **restart** | on a **reload**: `sudo systemctl kill -s HUP finbot` (or `systemctl reload finbot` if your unit has `ExecReload=`, as the shipped one does), `docker kill -s HUP <container>`, or `kill -HUP <pid>` |
-| Protection | root-owned, `chmod 600`. It holds the credentials, and the bot cannot read or change it. | lives in the data directory, so it holds nothing sensitive |
-| Format | flat `KEY=value` lines | flat `KEY=value` lines: **not** an INI file, no `[sections]` |
-
 Both files are plain `KEY=value`: no spaces around `=`, no quotes, no trailing comments (comments go on their own line). The two files never overlap, and **finbot refuses to start if a key is in the wrong one** or is not a known key at all (a typo such as `futur_days`). The error names the file, the line and where the key belongs. A preference key (such as `future_days`) arriving through the environment is refused the same way.
 
 **Load `finbot.env` with your launcher:**
