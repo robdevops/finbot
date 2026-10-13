@@ -207,27 +207,35 @@ def get_performance_wrapper(days=config_past_days):
 			raise RuntimeError(f"Sharesight returned no performance for portfolio {portfolio_id}")
 	return performance
 
-def warm_once(margin=0.9):
+def warm(margin=0.9):
 	"""Refresh the portfolio list and each portfolio's holdings report (days=0) once they reach `margin` of their cache lifetime,
-	so a request never has to wait on Sharesight. Returns the number of fetches made."""
+	so a request never has to wait on Sharesight. Returns (the number of fetches made, the portfolios): the caller can hand
+	the portfolios on instead of reading the cached list again."""
 	fetched = 0
 	age = util.cache_age(PORTFOLIOS_CACHE)
 	if age is None or age >= config_cache_seconds * margin:
-		get_portfolios(refresh=True)
+		portfolios = get_portfolios(refresh=True)
 		fetched += 1
-	for portfolio_name, portfolio_id in get_portfolios().items():
+	else:
+		portfolios = get_portfolios()
+	for portfolio_name, portfolio_id in portfolios.items():
 		age = util.cache_age(performance_cache_file(portfolio_id, 0))
 		if age is None or age >= margin * PERFORMANCE_TTL:
 			get_performance(portfolio_id, 0, refresh=True)
 			fetched += 1
-	return fetched
+	return fetched, portfolios
 
-def next_due(margin=0.9):
-	"""Seconds until the soonest warmed cache needs refreshing (0 if one already does)."""
+def warm_once(margin=0.9):
+	"""warm(), returning only the number of fetches made."""
+	return warm(margin)[0]
+
+def next_due(margin=0.9, portfolios=None):
+	"""Seconds until the soonest warmed cache needs refreshing (0 if one already does). `portfolios` is the list warm() just
+	used; without it the cached list is read."""
 	waits = []
 	age = util.cache_age(PORTFOLIOS_CACHE)
 	waits.append(0 if age is None else margin * config_cache_seconds - age)
-	for portfolio_name, portfolio_id in get_portfolios().items():
+	for portfolio_name, portfolio_id in (get_portfolios() if portfolios is None else portfolios).items():
 		age = util.cache_age(performance_cache_file(portfolio_id, 0))
 		waits.append(0 if age is None else margin * PERFORMANCE_TTL - age)
 	return max(0, min(waits))
@@ -237,8 +245,8 @@ def keep_warm(min_wait=5, retry=300, stop=None):
 	Never raises; after a failure it waits `retry` seconds."""
 	while not (stop and stop.is_set()):
 		try:
-			warm_once()
-			wait = max(min_wait, next_due())
+			fetched, portfolios = warm()
+			wait = max(min_wait, next_due(portfolios=portfolios))
 		except Exception as e:
 			print("Sharesight cache refresh failed:", e, file=sys.stderr)
 			wait = retry
