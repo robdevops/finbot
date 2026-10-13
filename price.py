@@ -188,7 +188,8 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None,
 					graph = util.bar_graph(top_rows, bottom_rows, f"Top & bottom {top}", subtitle)
 				elif not top and chart_rows and can_chart:
 					rows = [(t.split('.')[0].removesuffix('-USD'), p) for t, p in chart_rows]
-					graph = util.rows_chart(rows, heading_plain)
+					session = 'midsession' if midsession else 'premarket' if premarket else 'close' if close else None
+					graph = util.rows_chart(rows, heading_plain, session=session)
 		else:
 			if interactive:
 				if specific_stock:
