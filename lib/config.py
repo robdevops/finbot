@@ -205,7 +205,7 @@ def preference_values(getenv):
 		'config_shorts_percent': r.int('shorts_percent', 15),
 		'config_timezone': r.str('timezone', 'Australia/Melbourne'),
 		'config_trades_use_yahoo': r.bool('trades_use_yahoo', True), # set False if Yahoo breaks
-		'config_volatility_multiplier': r.float('volatility_multiplier', getenv('volatile_multiplier', 2)), # volatile_multiplier: the old name, environment only
+		'config_volatility_multiplier': r.float('volatility_multiplier', 2),
 	}
 	r.check()
 	return values
@@ -290,9 +290,11 @@ def check_startup_environment():
 	"""For bot.py at start. Preferences must come from preferences.conf, not from the environment that finbot.env fills."""
 	if os.environ.get(PASSED):
 		return
-	raise_if = [f'{key} is a preference; move it from finbot.env to {PREFERENCES_FILE}' for key in PREFERENCE_KEYS if key in os.environ]
-	if raise_if:
-		raise ConfigError(raise_if)
+	problems = [f'{key} is a preference; move it from finbot.env to {PREFERENCES_FILE}' for key in PREFERENCE_KEYS if key in os.environ]
+	if 'volatile_multiplier' in os.environ: # the old name, from before the split: it never worked as a preference
+		problems.append(f'volatile_multiplier was renamed to volatility_multiplier, a preference; move it from finbot.env to {PREFERENCES_FILE}')
+	if problems:
+		raise ConfigError(problems)
 
 
 def startup_report():

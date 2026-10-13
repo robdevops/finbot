@@ -29,7 +29,7 @@ class Tables(unittest.TestCase):
 		self.assertEqual((len(config.STARTUP_KEYS), len(config.PREFERENCE_KEYS)), (17, 25))
 		source = (REPO / 'lib' / 'config.py').read_text()
 		read = set(re.findall(r"""(?:\br\.\w+|getenv)\(\s*['"]([A-Za-z_]+)['"]""", source))
-		read -= {'volatile_multiplier', 'STATE_DIRECTORY'} # the old name (environment only) and systemd's own variable
+		read -= {'STATE_DIRECTORY'} # systemd's own variable, a source for DATA_DIR
 		self.assertEqual(read, set(config.STARTUP_KEYS) | set(config.PREFERENCE_KEYS))
 
 	def test_secrets_are_startup_keys(self):
@@ -110,10 +110,13 @@ class Parsing(unittest.TestCase):
 			values = config.preference_values(config._getenv_for({'future_days': '30'}))
 		self.assertEqual((values['config_future_days'], values['config_past_days'], values['config_shorts_percent']), (30, 4, 15))
 
-	def test_the_old_environment_name_of_the_multiplier_still_works(self):
+	def test_the_old_multiplier_name_is_gone_everywhere(self):
 		with mock.patch.dict(os.environ, {'volatile_multiplier': '3'}):
-			self.assertEqual(config.preference_values(config._getenv_for({}))['config_volatility_multiplier'], 3.0)
-			self.assertEqual(config.preference_values(config._getenv_for({'volatility_multiplier': '4'}))['config_volatility_multiplier'], 4.0)
+			self.assertEqual(config.preference_values(config._getenv_for({}))['config_volatility_multiplier'], 2.0) # not read any more
+			with self.assertRaises(config.ConfigError) as caught:
+				config.check_startup_environment()
+		self.assertIn('volatile_multiplier was renamed to volatility_multiplier', caught.exception.errors[0])
+		self.assertEqual(config.preference_values(config._getenv_for({'volatility_multiplier': '4'}))['config_volatility_multiplier'], 4.0)
 
 	def test_startup_file_linting(self):
 		path = Path(tempfile.mkdtemp(), 'finbot.env')
