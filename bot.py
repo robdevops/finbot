@@ -2,7 +2,8 @@
 
 import gevent.monkey
 gevent.monkey.patch_all()
-import json, os, re, signal, subprocess, sys
+import json, os, re, signal, sys
+from pathlib import Path
 from gevent import pywsgi
 import threading
 from urllib.parse import urlparse
@@ -151,12 +152,24 @@ def handle(environ, start_response):
 
 IGNORED_TELEGRAM_CONTENT = {'sticker', 'animation', 'voice', 'video', 'video_note', 'audio', 'document', 'contact', 'location', 'venue', 'poll', 'dice'}
 
-def git_version():
-	"""Short hash of the checked-out commit, or 'unknown' when git or the repository is unavailable."""
+def git_version(checkout=None):
+	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no "dubious
+	ownership" refusal when the service user does not own the checkout. 'unknown' when it cannot be read."""
 	try:
-		return subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=os.path.dirname(os.path.abspath(__file__)),
-			capture_output=True, text=True, timeout=5, check=True).stdout.strip() or 'unknown'
-	except Exception:
+		git = Path(checkout or os.path.dirname(os.path.abspath(__file__))) / '.git'
+		if git.is_file(): # a linked worktree or submodule: .git is a file saying "gitdir: <path>"
+			git = (git.parent / git.read_text().split(':', 1)[1].strip()).resolve()
+		common = (git / (git / 'commondir').read_text().strip()).resolve() if (git / 'commondir').is_file() else git # refs of a worktree
+		head = (git / 'HEAD').read_text().strip()
+		if head.startswith('ref:'):
+			ref = head.split(':', 1)[1].strip()
+			if (common / ref).is_file():
+				head = (common / ref).read_text().strip()
+			else: # the branch is only in packed-refs
+				packed = (common / 'packed-refs').read_text().splitlines()
+				head = next((line.split()[0] for line in packed if line.endswith(' ' + ref)), '')
+		return head[:7] if re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', head) else 'unknown'
+	except (OSError, IndexError):
 		return 'unknown'
 
 if __name__ == '__main__':
