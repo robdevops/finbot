@@ -52,4 +52,5 @@ if __name__ == '__main__':
 	args = ap.parse_args()
 	print(f"{REPO_DIR / 'defaults'} -> {Path(args.dest or config.config_var_dir).resolve()}")
 	for name, outcome in sync(args.apply or args.force, args.force, args.dest):
-		print(f"{name} [{outcome}]")
+		label = {'copied': '', 'skipped - destination identical': '', 'skipped - destination differs': '[differs]'}.get(outcome, f'[{outcome}]')
+		print(f"{name} {label}".rstrip())
