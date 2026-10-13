@@ -1,5 +1,5 @@
 """The in-process scheduler (lib/jobs.py): schedule file parsing, each script's job(argv), and firing with a fake clock."""
-import datetime, hashlib, os, subprocess, sys, tempfile, time, unittest, zoneinfo
+import datetime, hashlib, json, os, subprocess, sys, tempfile, time, unittest, zoneinfo
 from pathlib import Path
 from unittest import mock
 import gevent
@@ -187,7 +187,7 @@ class SchedulerBase(FinbotCase):
 
     def scheduler(self, catchup=5):
         s = jobs.Scheduler(lambda: self.file, catchup=catchup, clock=self.clock, sleep=lambda seconds: None,
-                           spawn=lambda f, *a: f(*a), zone=UTC)
+                           spawn=lambda f, *a: f(*a), zone=UTC, runner=jobs.run_in_process)
         self.assertTrue(s.load())
         return s
 
@@ -451,6 +451,63 @@ class ManualRuns(SchedulerBase):
 
     def test_job_is_still_a_ticker(self):
         self.assertNotIn('Scheduled', str(self.command('.job')))
+
+class ChildProcess(FinbotCase):
+    """Jobs run in their own process, so heavy work cannot hold up the bot's web server."""
+
+    def sleeper(self, seconds):
+        real = jobs.subprocess.Popen
+        self.children = []
+        def popen(args, **kw):
+            self.children.append(real([sys.executable, '-c', f'import time; time.sleep({seconds})']))
+            return self.children[-1]
+        self.patch(jobs.subprocess, 'Popen', popen)
+
+    def test_every_command_can_be_handed_to_a_child(self):
+        parsed, _ = jobs.parse_schedule(DEFAULT_SCHEDULE.read_text(), UTC)
+        for job in parsed:
+            for label, module, kwargs in job.commands:
+                self.assertEqual(json.loads(json.dumps(kwargs)), kwargs, label)
+
+    def test_a_real_child_runs_the_handler_and_reports_its_exit_status(self):
+        with tempfile.TemporaryDirectory() as data:
+            env = {'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
+            with mock.patch.dict(os.environ, env):
+                self.assertEqual(jobs.run_child('cleanup.py', cleanup, {}), 0)
+                self.assertNotEqual(jobs.run_child('cleanup.py 0', cleanup, {'days': 'not a number'}), 0)
+
+    def test_scheduler_reports_a_failed_child(self):
+        file = Path(tempfile.mkdtemp(), 'schedule.cron')
+        file.write_text('* * * * * trades.py\n')
+        s = jobs.Scheduler(lambda: file, zone=UTC, runner=lambda label, module, kwargs: 1)
+        self.assertTrue(s.load())
+        self.assertEqual(s.run_now('1'), ('trades.py', 'failed'))
+        self.assertEqual(s.busy, set())
+
+    def test_the_event_loop_keeps_running_while_a_child_works(self):
+        self.sleeper(1)
+        ticks = []
+        def ticker():
+            for _ in range(5):
+                gevent.sleep(0.1)
+                ticks.append(time.monotonic())
+        greenlet = gevent.spawn(ticker)
+        started = time.monotonic()
+        self.assertEqual(jobs.run_child('cleanup.py', cleanup, {}), 0)
+        greenlet.join()
+        self.assertGreater(time.monotonic() - started, 0.9)
+        self.assertEqual(len(ticks), 5) # the loop was not blocked by the child
+        self.assertLess(ticks[-1] - started, 0.8)
+
+    def test_a_timeout_kills_the_child(self):
+        self.sleeper(30)
+        started = time.monotonic()
+        with self.assertRaises(gevent.Timeout):
+            with gevent.Timeout(0.3):
+                jobs.run_child('cleanup.py', cleanup, {})
+        self.assertLess(time.monotonic() - started, 5)
+        self.assertIsNotNone(self.children[0].poll()) # the child was stopped, not left running
+
 
 
 if __name__ == '__main__':

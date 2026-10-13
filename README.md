@@ -551,7 +551,7 @@ hyperlinkProvider = yahoo
 ```
 
 ## Scheduling
-The scheduled reports run inside `bot.py`, so they use the same user, sandbox, environment and data directory as the bot. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory. **This is on by default.** Remove the equivalent entries from any old crontab before the first start, otherwise every job runs twice; or set `scheduler=False` in the environment file to keep using cron.
+The scheduled reports are started by `bot.py`, each run in its own child process (`python -m lib.jobrun`), so they use the same user, sandbox, environment and data directory as the bot, while heavy work (charts, large reports) cannot hold up incoming chat webhooks. A run that exceeds 15 minutes is stopped. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory. **This is on by default.** Remove the equivalent entries from any old crontab before the first start, otherwise every job runs twice; or set `scheduler=False` in the environment file to keep using cron.
 
 The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"` and `cleanup.py [days]` (deletes cache files older than `days`, default 30). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
 
