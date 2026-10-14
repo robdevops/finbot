@@ -224,6 +224,17 @@ class SchedulerTests(SchedulerBase):
         s = self.scheduler()
         self.assertEqual([t for _, t in s.due(self.clock.now)], [at(13, 21, 40)]) # 21:20 is older than 5 minutes: skipped
 
+    def test_a_corrupt_state_file_is_reported_and_the_schedule_starts_afresh(self):
+        Path(util.config_var_dir, jobs.STATE_FILE).write_text('{"*/20 * * * Mon-Fri|UTC|trades.py": "2026-10-13T21:') # cut off mid-write
+        s = self.scheduler()
+        self.assertEqual((s.last, len(self.errors)), ({}, 1))
+        self.assertIn('cannot read finbot_jobs.json', self.errors[0])
+        self.clock.now = at(13, 21, 20)
+        self.assertEqual(len(s.due(self.clock.now)), 1) # runs as usual, and the record is written afresh
+        self.assertEqual(util.json_load(jobs.STATE_FILE, persist=True), {s.jobs[0].key: at(13, 21, 20).isoformat()})
+        s.reload() # and a reload is no trouble either
+        self.assertEqual(len(self.errors), 1)
+
     def test_no_record_means_nothing_is_missed(self):
         self.clock.now = at(13, 21, 43)
         s = self.scheduler()

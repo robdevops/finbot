@@ -242,7 +242,12 @@ class Scheduler:
 		if not jobs and self.jobs:
 			print('schedule: no usable line in', path, '- keeping the current schedule', file=sys.stderr)
 			return False
-		self.last = util.json_load(STATE_FILE, persist=True) or {}
+		try:
+			last = util.json_load(STATE_FILE, persist=True)
+		except (OSError, ValueError) as e: # unreadable or not JSON: carry on as if there were no record, the next run rewrites it
+			webhook.report_error(ScheduleError(f'cannot read {STATE_FILE}, starting without a record of past runs: {e}'), context='schedule')
+			last = None
+		self.last = last if isinstance(last, dict) else {}
 		now = self.clock()
 		old = {job.key: self.base[job.key] for job in self.jobs if job.key in self.base}
 		self.base = {}

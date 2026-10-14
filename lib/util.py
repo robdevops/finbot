@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import tempfile
 import time
 import numpy as np
 from lib.config import * # first: sets MPLCONFIGDIR before matplotlib is imported
@@ -313,19 +314,36 @@ def cache_age(cacheFile):
 	except OSError:
 		return None
 
+def write_file(path, data, sync=False):
+	"""Write `data` (bytes) to `path` whole or not at all, mode 0640: it goes to a temp file beside it, which then replaces the file,
+	so a failure part way (a full disk, a kill) leaves the old file as it was. sync=True also flushes it to disk, for state that
+	must survive a power cut. The process umask is left alone."""
+	path = os.path.realpath(path) # through a symlink, as an in-place write would
+	fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=os.path.basename(path) + '.', suffix='.tmp')
+	try:
+		with os.fdopen(fd, 'wb') as f:
+			f.write(data)
+			if sync:
+				f.flush()
+				os.fsync(f.fileno())
+		os.chmod(tmp, 0o640)
+		os.replace(tmp, path)
+	except BaseException:
+		try:
+			os.unlink(tmp)
+		except OSError:
+			pass
+		raise
+
 def json_write(filename, data, persist=False):
+	"""A cache file, or with persist=True a state file in the data directory (also flushed to disk). See write_file."""
 	if persist:
 		filename = config_var_dir + "/" + filename
 	else:
 		filename = config_cache_dir + "/" + filename
-	os.umask(0)
-	def opener(filename, flags):
-		return os.open(filename, flags, 0o640)
-	with open(filename, "w", opener=opener, encoding="utf-8") as f:
-		if debug:
-			print("cache write:", filename, file=sys.stderr)
-		json.dump(data, f, indent=4)
-	os.umask(0o022)
+	if debug:
+		print("cache write:", filename, file=sys.stderr)
+	write_file(filename, json.dumps(data, indent=4).encode('utf-8'), sync=persist)
 
 def json_load(filename, persist=False):
 	if persist:
@@ -354,14 +372,8 @@ def read_binary_cache(cacheFile, maxSeconds=UNSET):
 	return None
 
 def write_binary_cache(cacheFile, data):
-	cacheFile = config_cache_dir + "/" + cacheFile
-	os.umask(0)
-	def opener(path, flags):
-		return os.open(path, flags, 0o640)
-	with open(cacheFile, "wb", opener=opener) as f:
-		data.seek(0)
-		f.write(data.getbuffer())
-	os.umask(0o022)
+	data.seek(0)
+	write_file(config_cache_dir + "/" + cacheFile, data.getvalue())
 
 def humanUnits(value, decimal_places=2):
 	for unit in ['', 'K', 'M', 'B', 'T', 'Q']:

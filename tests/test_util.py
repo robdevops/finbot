@@ -1,5 +1,6 @@
 """Pure helpers in lib/util.py: table-driven pass and fail cases."""
-import datetime, unittest
+import datetime, json, unittest
+from pathlib import Path
 from tests.common import *
 
 
@@ -74,6 +75,26 @@ class StateFiles(FinbotCase):
         self.assertIsNone(util.json_load('absent.json', persist=True))
         util.json_write('state.json', {'a': [1, 2]}, persist=True)
         self.assertEqual(util.json_load('state.json', persist=True), {'a': [1, 2]})
+
+    def test_a_failed_write_leaves_the_old_file_and_the_umask_alone(self):
+        util.json_write('state.json', {'a': 1}, persist=True)
+        path = Path(util.config_var_dir, 'state.json')
+        previous = os.umask(0o027)
+        self.addCleanup(os.umask, previous)
+        def disk_full(*a, **k):
+            raise OSError(28, 'No space left on device')
+        for broken in ('replace', 'fsync'):
+            with self.subTest(broken=broken), mock.patch.object(util.os, broken, disk_full):
+                with self.assertRaises(OSError):
+                    util.json_write('state.json', {'a': 2}, persist=True)
+            self.assertEqual(json.loads(path.read_text()), {'a': 1}) # whole or not at all
+            self.assertEqual(os.listdir(util.config_var_dir), ['state.json']) # no temp file left behind
+        with mock.patch.object(util.os, 'replace', disk_full), self.assertRaises(OSError):
+            util.write_binary_cache('img.png', io.BytesIO(b'png'))
+        self.assertEqual(os.listdir(util.config_var_dir), ['state.json'])
+        self.assertEqual(os.umask(0o027), 0o027) # the umask was not touched
+        util.json_write('state.json', {'a': 3}, persist=True)
+        self.assertEqual((json.loads(path.read_text()), oct(path.stat().st_mode & 0o777)), ({'a': 3}, '0o640'))
 
     def test_read_cache_missing_or_expired_is_falsy(self):
         self.assertFalse(util.read_cache('absent.json', 60))
