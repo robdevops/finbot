@@ -471,7 +471,7 @@ All 17 keys, read by your launcher. A change needs a restart. Blank means unset.
 | `slack_webhook` | | Slack incoming webhook, for outbound reports |
 | `discord_webhook` | | Discord webhook, for outbound reports |
 | `telegramBotToken` | | Telegram bot token, for outbound reports |
-| `slackBotToken` | | Slack bot token, for outbound messages and uploads |
+| `slackBotToken` | | Slack bot token, for replies in Slack |
 | `telegramOutgoingWebhook` | | Telegram webhook path the bot accepts (interactive mode) |
 | `telegramOutgoingToken` | | Secret token Telegram must present (interactive mode) |
 | `slackOutgoingWebhook` | | Slack webhook path the bot accepts (interactive mode) |
@@ -694,7 +694,7 @@ Note: The utils folder contains scripts to generate `/etc/nginx/aws_subnets` and
 With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
 
 #### Slack
-Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app).
+Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app). Replies in Slack are text: charts go to Telegram only, since Slack retired the file upload API finbot used.
 * From _Basic Information > Verification Token_, copy _Verification token_ into `finbot.env` as `slackOutgoingToken`. This allows Slack to authenticate with finbot.
 * In `finbot.env`, put your web server URL (e.g. https://www.example.com:8443/slack) into `slackOutgoingWebhook`
 * Save `finbot.env` and restart `bot.py`
@@ -707,7 +707,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
       * Check the box _App Home > Allow users to send Slash commands and messages from the messages tab_
   * Save Changes
 * Under _OAuth & Permissions_:
-  * Scroll down to _Scopes > Bot Token Scopes_, and add: `chat:write` and `files:write`.
+  * Scroll down to _Scopes > Bot Token Scopes_, and add: `chat:write`.
   * Scroll up to _OAuth Tokens for Your Workspace_:
     * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_
     * Copy _Bot User OAuth Token_ into `finbot.env` as `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies.

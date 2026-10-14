@@ -384,6 +384,47 @@ class TelegramSending(FinbotCase):
         self.assertEqual(webhook.guarded('job', lambda: 'fine'), 'fine')
 
 
+class ChartDelivery(FinbotCase):
+    """Charts go to Telegram only. A report whose chart cannot be sent goes out as text instead of vanishing."""
+
+    def setUp(self):
+        super().setUp()
+        self.patch(webhook, 'sendPhoto', REAL_SEND_PHOTO)
+
+    def test_slack_replies_are_text_and_no_chart_is_drawn_for_them(self):
+        def refuse(*a, **k):
+            raise AssertionError('a chart was drawn for Slack')
+        for name in ('rows_chart', 'pie_chart', 'bar_graph', 'shorts_chart'):
+            self.patch(util, name, refuse)
+        webhook.webhooks['slack'] = 'https://hooks.slack.com/services/x'
+        for cmd in ('.beta', '.pie Rob', '.buy', '.sell', '.peg', '.price', '.price top', '.price T1 7d', '.performance 7d', '.shorts', '.history T1', '.compare T1 T2'):
+            with self.subTest(cmd=cmd):
+                self.sent.clear(); self.errors.clear()
+                worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U', '1')
+                self.assertEqual(self.errors, [])
+                self.assertTrue(self.sent)
+                self.assertEqual({kind for kind, *_ in self.sent}, {'text'})
+
+    def test_a_chart_telegram_refuses_goes_out_as_text(self):
+        def post(outcome):
+            def fake(url, **kwargs):
+                if isinstance(outcome, Exception):
+                    raise outcome
+                return outcome
+            return fake
+        text = [('text', ['Heading', 'line 2'])]
+        for outcome, expect in ((Resp({'ok': False, 'error_code': 400, 'description': "Bad Request: can't parse entities"}, status=400), text),
+                                (Resp(None, status=502), text), (ConnectionError('down'), text),
+                                (webhook.requests.exceptions.ReadTimeout('slow'), []), # it may have arrived after all: no duplicate
+                                (Resp({'ok': True, 'result': {'message_id': 1}}), [])):
+            with self.subTest(outcome=outcome):
+                self.sent.clear()
+                self.patch(webhook.requests, 'post', post(outcome))
+                with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+                    webhook.sendPhoto('5', io.BytesIO(b'png'), 'Heading\nline 2', 'telegram', reply_markup={'inline_keyboard': []})
+                self.assertEqual(self.sent, expect)
+
+
 class TelegramWebhook(FinbotCase):
     """bot.py registers the webhook once as it starts. Importing lib.telegram, as every job process does, touches nothing."""
 

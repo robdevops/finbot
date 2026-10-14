@@ -190,15 +190,22 @@ def fit_caption(caption, limit=1024):
 		kept.append(line)
 	return '\n'.join(kept) + f"\n…and {len(lines) - len(kept)} more in the chart"
 
+def takes_charts(service):
+	"""Whether a reply to `service` can carry a chart image. Only Telegram: Slack retired its upload API (files.upload), and the Slack
+	and Discord webhooks never took images. Elsewhere a report goes out as text."""
+	return service == 'telegram'
+
 def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_markup=None):
-	if service == 'telegram':
-		caption = fit_caption(caption)
+	"""Telegram: the chart, with the report as its caption (trimmed to fit). Where a chart cannot go (takes_charts), or Telegram
+	refuses it, the report is sent as text instead, without the chart's buttons, so it does not vanish with its chart; but not after
+	a read timeout, when the chart may have arrived after all."""
+	if takes_charts(service):
 		url = webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
 		headers = {}
 		data = {
 			'disable_notification': True,
 			'chat_id': chat_id,
-			'caption': caption,
+			'caption': fit_caption(caption),
 			'parse_mode': 'HTML',
 			'disable_web_page_preview': True,
 			'allow_sending_without_reply': True,
@@ -206,33 +213,26 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_mark
 		if reply_markup:
 			data['reply_markup'] = json.dumps(reply_markup) # inline keyboard (Telegram only)
 		files = {"photo": ('image.png', image_data)}
-	elif service == 'slack':
-		url = 'https://slack.com/api/files.upload'
-		headers = {'Authorization': 'Bearer ' + config_slackBotToken}
-		data = {'channels': chat_id, 'initial_comment': caption}
-		if message_id:
-			data['thread_ts'] = message_id
-			data['reply_broadcast'] = 'true'
-		files = {'file': ('image.png', image_data)}
-	if hasattr(image_data, 'seek'):
-		image_data.seek(0)
-	try:
-		r = requests.post(url, data=data, headers=headers, files=files, timeout=config_http_timeout)
-	except Exception as e:
-	  print("Failure executing request:", url, data, str(e))
-	  return None
-	if r.status_code == 200:
-		print(r.status_code, f"OK {service} sendPhoto", caption)
-		output = r.json()
-		if not output['ok']:
-			if service == 'telegram':
-				print(output['error_code'], output['description'], file=sys.stderr)
-			elif service == 'slack':
-				print(output['error'], file=sys.stderr)
-		return output
-	else:
-		print(r.status_code, f"error {service} sendPhoto", r.reason, r.text[:300], caption, file=sys.stderr)
-		return None
+		if hasattr(image_data, 'seek'):
+			image_data.seek(0)
+		try:
+			r = requests.post(url, data=data, headers=headers, files=files, timeout=config_http_timeout)
+		except requests.exceptions.ReadTimeout as e:
+			print("sendPhoto timed out, the chart may still arrive:", e, file=sys.stderr)
+			return None
+		except Exception as e:
+			print("Failure executing request:", url, data, str(e))
+		else:
+			try:
+				output = r.json()
+			except ValueError:
+				output = {}
+			if r.status_code == 200 and output.get('ok'):
+				print(r.status_code, f"OK {service} sendPhoto", data['caption'])
+				return output
+			print(r.status_code, f"error {service} sendPhoto", output.get('error_code'), output.get('description') or r.text[:300], file=sys.stderr)
+		print("chart not sent, sending the report as text", file=sys.stderr)
+	return payload_wrapper(service, chat_url(service, chat_id) if chat_id else webhooks.get(service), caption.split('\n'), chat_id, message_id)
 
 def editMessageText(chat_id, message_id, text, reply_markup=None):
 	"""Telegram: replace a text message's text and buttons in place. Returns None if it could not be edited."""

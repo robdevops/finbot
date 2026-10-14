@@ -52,11 +52,11 @@ class TypingIndicator:
 
 
 def deliver(service, url, chat_id, payload, chart=None):
-	"""Send a report: as a bar chart (the text list as caption) where the service can take an image, else as text."""
-	if chart and chart.get('pie') and chart.get('rows') and service in ('telegram', 'slack'):
+	"""Send a report: as a chart (the text list as caption) where the service can take an image (webhook.takes_charts), else as text."""
+	if chart and chart.get('pie') and chart.get('rows') and webhook.takes_charts(service):
 		image = util.pie_chart(chart['rows'], chart['title'], chart.get('subtitle', ''))
 		webhook.sendPhoto(chat_id, image, '\n'.join(payload) if payload else chart['title'], service)
-	elif chart and chart.get('rows') and service in ('telegram', 'slack'):
+	elif chart and chart.get('rows') and webhook.takes_charts(service):
 		spec = dict(chart)
 		rows, title = spec.pop('rows'), spec.pop('title')
 		subtitle = spec.pop('subtitle', '')

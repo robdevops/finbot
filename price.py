@@ -63,7 +63,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None,
 					# wishlist items will come here
 					# not a holding (e.g. watchlist): use Yahoo history instead, summarised once in the main section below
 					if specific_stock:
-						percent, graph = yahoo.price_history(ticker, days, graphCache=False)
+						percent, graph = yahoo.price_history(ticker, days, graph=config_graph and webhook.takes_charts(service), graphCache=False)
 						if isinstance(percent, str) and interactive:
 							errormessage = percent
 							print("Error", errormessage, file=sys.stderr)
@@ -178,7 +178,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None,
 				payload.insert(0, heading)
 				if top:
 					payload.extend([''] + payload_bottom)
-				can_chart = _rows_out is None and (interactive or service == 'telegram') # Slack/Discord cron posts have no way to upload an image
+				can_chart = _rows_out is None and webhook.takes_charts(service)
 				if top and chart_top and can_chart:
 					def short(ticker):
 						return ticker.split('.')[0].removesuffix('-USD')
