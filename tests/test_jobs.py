@@ -150,7 +150,8 @@ class CleanupJob(FinbotCase):
 	def test_removes_only_old_finbot_cache_files(self):
 		folder = tempfile.mkdtemp()
 		self.addCleanup(lambda: __import__('shutil').rmtree(folder, ignore_errors=True))
-		self.patch(cleanup, 'config_cache_dir', folder)
+		self.env(cache_dir=folder)
+
 		old, new = time.time() - 40 * 86400, time.time() - 5 * 86400
 		for name, stamp in (('finbot_old.json', old), ('finbot_new.json', new), ('other_old.json', old), ('finbot_old.png', old)):
 			path = os.path.join(folder, name)
@@ -164,7 +165,8 @@ class CleanupJob(FinbotCase):
 	def test_a_temp_file_being_written_is_left_alone(self):
 		folder = tempfile.mkdtemp()
 		self.addCleanup(lambda: __import__('shutil').rmtree(folder, ignore_errors=True))
-		self.patch(cleanup, 'config_cache_dir', folder)
+		self.env(cache_dir=folder)
+
 		for name, stamp in (('finbot_a.json.x1.tmp', time.time() - 5), ('finbot_b.json.x2.tmp', time.time() - 40 * 86400)):
 			Path(folder, name).write_text('x')
 			os.utime(Path(folder, name), (stamp, stamp))
@@ -172,13 +174,14 @@ class CleanupJob(FinbotCase):
 		self.assertEqual(os.listdir(folder), ['finbot_a.json.x1.tmp'])
 
 	def test_missing_cache_dir_is_fine(self):
-		self.patch(cleanup, 'config_cache_dir', '/nonexistent/finbot-cache')
+		self.env(cache_dir='/nonexistent/finbot-cache')
+
 		self.assertEqual(cleanup.lambda_handler(30), 0)
 
 
 class SchedulerFlag(unittest.TestCase):
 	def flag(self, **env):
-		code = 'from lib import config; print(config.config_scheduler)'
+		code = 'from lib import config; print(config.env.scheduler)'
 		e = {k: v for k, v in os.environ.items() if k != 'scheduler'}
 		e.update(env)
 		repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -244,7 +247,7 @@ class SchedulerTests(SchedulerBase):
 		self.assertEqual([t for _, t in s.due(self.clock.now)], [at(13, 21, 40)]) # 21:20 is older than 5 minutes: skipped
 
 	def test_a_corrupt_state_file_is_reported_and_the_schedule_starts_afresh(self):
-		Path(util.config_var_dir, jobs.STATE_FILE).write_text('{"*/20 * * * Mon-Fri|UTC|trades.py": "2026-10-13T21:') # cut off mid-write
+		Path(config.env.data_dir, jobs.STATE_FILE).write_text('{"*/20 * * * Mon-Fri|UTC|trades.py": "2026-10-13T21:') # cut off mid-write
 		s = self.scheduler()
 		self.assertEqual((s.last, len(self.errors)), ({}, 1))
 		self.assertIn('cannot read finbot_jobs.json', self.errors[0])
@@ -389,7 +392,7 @@ class DaylightSaving(unittest.TestCase):
 		file.write_text('CRON_TZ=Australia/Melbourne\n0 9 * * * trades.py\n')
 		clock = Clock(self.mel(2026, 10, 3, 12).astimezone(UTC))
 		s = jobs.Scheduler(lambda: file, clock=clock, zone=UTC, runner=lambda *a: 0)
-		with mock.patch.object(util, 'config_var_dir', tempfile.mkdtemp()), contextlib.redirect_stderr(io.StringIO()):
+		with mock.patch.object(config, 'env', dataclasses.replace(config.env, data_dir=tempfile.mkdtemp())), contextlib.redirect_stderr(io.StringIO()):
 			self.assertTrue(s.load())
 			fired = []
 			while clock.now < self.mel(2026, 10, 5, 12):

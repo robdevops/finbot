@@ -4,7 +4,7 @@ import sys
 import datetime
 import zoneinfo
 from dateutil.relativedelta import relativedelta
-from lib.config import *
+from lib import config
 from lib import util
 from lib import webhook
 
@@ -12,20 +12,20 @@ from lib import webhook
 def lambda_handler():
 	def prepare_finance_calendar_payload(service):
 		payload = []
-		tz = zoneinfo.ZoneInfo(config_timezone)
+		tz = zoneinfo.ZoneInfo(config.prefs.timezone)
 		localtime = datetime.datetime.now(tz)
 
 		month_and_day = str(localtime.strftime('%m-%d')) # 09-20
 		year = str(localtime.strftime('%Y')) # 2023
 
 		# --- Simple, static one-line reminders loaded from reminders.json ---
-		for reminder in data_json("reminder.json", []):
+		for reminder in config.data_json("reminder.json", []):
 			if reminder.get("month_day") != month_and_day:
 				continue
 			if reminder.get("year") and reminder["year"] != year:
 				continue
 			gate_country = reminder.get("gate_country")
-			if gate_country and config_country_code != gate_country:
+			if gate_country and config.prefs.country_code != gate_country:
 				continue
 			message = reminder["message"]
 			if "{flag}" in message:
@@ -36,7 +36,7 @@ def lambda_handler():
 			payload.append(message)
 
 		# --- Complex, dynamically-computed reminders (kept in code) ---
-		if config_country_code == 'AU':
+		if config.prefs.country_code == 'AU':
 			flag = "🇦🇺"
 			if month_and_day == '06-23':
 				payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)

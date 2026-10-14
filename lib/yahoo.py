@@ -6,7 +6,7 @@ import requests
 import threading
 import zoneinfo
 import sys
-from lib.config import *
+from lib import config
 from lib import net
 from lib import util
 from http.cookies import SimpleCookie
@@ -24,7 +24,7 @@ def getCookie(maxAge=1209600): # 14 days
 			return cache[0][0] + '=' + cache[0][1]
 		url = 'https://fc.yahoo.com/' # 404, but that is ok because cookie is in response header
 		try:
-			r = net.get(url, headers=HEADERS, timeout=config_http_timeout)
+			r = net.get(url, headers=HEADERS, timeout=config.prefs.http_timeout)
 		except Exception as e:
 			print(net.redact(e), file=sys.stderr)
 			r = requests.Response() # empty: falls through to the fallback cookie below
@@ -45,13 +45,13 @@ def getCrumb(seconds=1209600): # 14 days
 	with _auth:
 		cookie = getCookie()
 		cacheFile = "finbot_yahoo_crumb.json"
-		if config_cache and (cache := util.read_cache(cacheFile, seconds)):
+		if config.prefs.cache and (cache := util.read_cache(cacheFile, seconds)):
 			return cache
 		r = _get_first(_hosts('/v1/test/getcrumb'), {**HEADERS, 'Cookie': cookie})
 		if r is None:
 			print("Exhausted Yahoo API attempts. Returning fallback crumb", file=sys.stderr)
 			return 'jkQEU8yLqxs'
-		if config_cache:
+		if config.prefs.cache:
 			util.json_write(cacheFile, r.text)
 		print("Got a new Yahoo crumb", file=sys.stderr)
 		return r.text
@@ -77,7 +77,7 @@ def _get_first(urls, headers):
 	"""The answer of the first URL that answers 200, or None when none does. Each failure is logged."""
 	for url in urls:
 		try:
-			r = net.get(url, headers=headers, timeout=config_http_timeout)
+			r = net.get(url, headers=headers, timeout=config.prefs.http_timeout)
 		except Exception as e:
 			print(net.redact(e), file=sys.stderr)
 			continue
@@ -146,7 +146,7 @@ def fetch(tickers):
 		return {}
 	tickers = sorted(set(tickers)) # de-dupe
 	cacheFile = "finbot_yahoo_" + hashlib.sha256("_".join(tickers).encode()).hexdigest() + '.json'
-	if config_cache and (cache := util.read_cache(cacheFile, 300)):
+	if config.prefs.cache and (cache := util.read_cache(cacheFile, 300)):
 		return cache
 	cookie, crumb = credentials()
 	r = _get_first(_hosts('/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)), {**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie})
@@ -172,7 +172,7 @@ def fetch(tickers):
 		if stamps: # the first still to come, else the announced date
 			quote['earnings_date'] = next((stamp for stamp in stamps if stamp > now), stamps[0])
 		yahoo_output[item['symbol']] = quote
-	if config_cache:
+	if config.prefs.cache:
 		util.json_write(cacheFile, yahoo_output)
 	return yahoo_output
 
@@ -227,13 +227,13 @@ DETAIL_FIELDS = ( # (key, path in the quoteSummary result[, conversion]); a fiel
 )
 RECOMMENDATION = ('recommend', 'recommend_index', 'recommend_analysts') # all three, or none
 
-def fetch_detail(ticker, seconds=UNSET):
+def fetch_detail(ticker, seconds=None):
 	"""quoteSummary for one ticker: {ticker: {...}}, or {} when Yahoo has nothing usable (no name or no price)."""
-	if seconds is UNSET:
-		seconds = config_cache_seconds
+	if seconds is None:
+		seconds = config.prefs.cache_seconds
 	now = datetime.datetime.now()
 	cacheFile = "finbot_yahoo_detail_" + ticker + '.json'
-	data = util.read_cache(cacheFile, seconds) if config_cache else None
+	data = util.read_cache(cacheFile, seconds) if config.prefs.cache else None
 	if data:
 		print('.', sep=' ', end='', flush=True)
 	else:
@@ -245,7 +245,7 @@ def fetch_detail(ticker, seconds=UNSET):
 			print(ticker + '†', sep=' ', end='', flush=True)
 			return {} # catches some delisted stocks like "DRNA"
 		data = r.json()
-		if config_cache:
+		if config.prefs.cache:
 			util.json_write(cacheFile, data)
 	result = dig(data, 'quoteSummary', 'result', 0)
 	if result is None: # Yahoo answers result=null for unknown symbols
@@ -303,13 +303,13 @@ def fetch_detail(ticker, seconds=UNSET):
 		detail['insiderSell'], detail['insiderSellValue'] = totals['Sale']
 	return {ticker: dict(sorted(detail.items()))}
 
-def price_history(ticker, days=None, seconds=UNSET, graph=UNSET, graphCache=True):
+def price_history(ticker, days=None, seconds=None, graph=None, graphCache=True):
 	"""({period: percent change}, chart image or None): the change over `days`, else over each standard period. Raises
 	RuntimeError when the history cannot be fetched or has no prices."""
-	if graph is UNSET:
-		graph = config_graph
-	if seconds is UNSET:
-		seconds = config_cache_seconds
+	if graph is None:
+		graph = config.prefs.graph
+	if seconds is None:
+		seconds = config.prefs.cache_seconds
 	import pandas as pd
 	from pandas.tseries.offsets import BDay as businessday
 	percent_dict = {}
@@ -364,10 +364,10 @@ def price_history(ticker, days=None, seconds=UNSET, graph=UNSET, graphCache=True
 		label = "Max" if "Max" in percent_dict else "10Y"
 		title = f"{company_name} ({ticker}) {label} {util.signed_percent(percent_dict[label])} Last: {price}"
 	image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
-	if config_cache and graphCache and (image := util.read_binary_cache(image_cache_file, seconds)):
+	if config.prefs.cache and graphCache and (image := util.read_binary_cache(image_cache_file, seconds)):
 		return percent_dict, image
 	image = util.graph(df, title, stock.get('currency'))
-	if config_cache:
+	if config.prefs.cache:
 		util.write_binary_cache(image_cache_file, image)
 	return percent_dict, image
 
@@ -436,28 +436,28 @@ def prefetch_history(tickers, workers=8):
 		if isinstance(result, Exception):
 			print("prefetch failed for", ticker, result, file=sys.stderr)
 
-def fetch_chart_json(ticker, days=3665, seconds=UNSET, full=False):
+def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
 	"""Yahoo's daily chart for the last `days`, or with full=True its entire history (cached separately). Raises RuntimeError when
 	Yahoo cannot be reached or refuses."""
-	if seconds is UNSET:
-		seconds = config_cache_seconds
+	if seconds is None:
+		seconds = config.prefs.cache_seconds
 	now = datetime.datetime.now()
 	cacheFile = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
-	if config_cache and (cache := util.read_cache(cacheFile, seconds)):
+	if config.prefs.cache and (cache := util.read_cache(cacheFile, seconds)):
 		return cache
 	cookie, crumb = credentials()
 	start = '0' if full else str(int((now - datetime.timedelta(days=days)).timestamp()))
 	url = f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?period1={start}&period2={int(now.timestamp())}&interval=1d&crumb={crumb}'
-	print("Fetching", net.redact(url), file=sys.stderr) if debug else None
+	print("Fetching", net.redact(url), file=sys.stderr) if config.prefs.debug else None
 	try:
-		r = net.get(url, headers={**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie}, timeout=config_http_timeout)
+		r = net.get(url, headers={**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie}, timeout=config.prefs.http_timeout)
 	except Exception as e:
 		raise RuntimeError(f"Yahoo unreachable for {ticker}: {net.redact(e)}") from e
 	if r.status_code != 200:
 		raise RuntimeError(f"{r.status_code} error for {ticker} from Yahoo's chart API")
 	print('↓', sep=' ', end='', flush=True)
 	data = r.json()
-	if config_cache:
+	if config.prefs.cache:
 		util.json_write(cacheFile, data)
 	return data
 
@@ -484,7 +484,7 @@ def historic_high(ticker):
 		raise RuntimeError(f"no high/low history for {ticker}")
 	highrow = df.iloc[df['High'].argmax()]
 	lowrow = df.iloc[df['Low'].argmin()]
-	if debug:
+	if config.prefs.debug:
 		print(ticker, "High", highrow['Date'], round(highrow['High'], 2), file=sys.stderr)
 		print(ticker, "Low", lowrow['Date'], round(lowrow['Low'], 2), file=sys.stderr)
 	return round(highrow['High'], 2), round(lowrow['Low'], 2)

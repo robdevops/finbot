@@ -6,7 +6,8 @@ import random
 import re
 import sys
 import threading
-from lib.config import *
+from lib import config
+from lib import words
 from lib import util
 from lib import webhook
 from lib import reports
@@ -215,11 +216,11 @@ def on_help(request, m):
 		charts.mark_keyboard(request.chat_id) # this chat now has the current keyboard
 
 def on_hello(request, m):
-	"""Easter egg: a greeting, alliterated when config_alliterate is on."""
-	verbs = verb + [f"{webhook.strike(said, request.service)} I mean {meant}" for said, meant in (('study', 'meet'), ('observe', 'see'), ('profile', 'know'))]
+	"""Easter egg: a greeting, alliterated when the alliterate preference is on."""
+	verbs = words.verb + [f"{webhook.strike(said, request.service)} I mean {meant}" for said, meant in (('study', 'meet'), ('observe', 'see'), ('profile', 'know'))]
 	while True:
-		first, second = random.choice(adjectives), random.choice(adjectives_two)
-		if not config_alliterate or first[0].lower() == second[0].lower():
+		first, second = random.choice(words.adjectives), random.choice(words.adjectives_two)
+		if not config.prefs.alliterate or first[0].lower() == second[0].lower():
 			break
 	request.say([f"{first.capitalize()} {second} to {random.choice(verbs)} you, {request.user_name}! 😇"])
 
@@ -229,11 +230,11 @@ def on_thanks(request, m):
 	"""Easter egg: you're welcome, glitching one time in a thousand and on April Fools' Day."""
 	today = datetime.date.today()
 	glitch = webhook.strike(GLITCH, request.service) if random.randrange(1, 1000) == 1 or (today.month, today.day) == (4, 1) else ''
-	request.say([f"{glitch}You're {random.choice(adjectives)} welcome, {request.user_name}! 😇"])
+	request.say([f"{glitch}You're {random.choice(words.adjectives)} welcome, {request.user_name}! 😇"])
 
 def on_calendar(request, m):
 	"""Upcoming earnings or ex-dividend dates."""
-	days, ticker = period_or_ticker(m.group('arg'), config_future_days)
+	days, ticker = period_or_ticker(m.group('arg'), config.prefs.future_days)
 	event = 'ex-dividend' if m.group('kind').lower().startswith('div') else 'earnings'
 	with request.typing():
 		cal.lambda_handler(request.chat_id, days, request.service, ticker, interactive=True, event=event)
@@ -246,14 +247,14 @@ def on_performance(request, m):
 
 def on_session(request, m):
 	"""Mid-session moves (.session), or pre-market ones (.premarket, also post-market)."""
-	threshold, ticker = percent_or_ticker(m.group('arg'), config_price_percent)
+	threshold, ticker = percent_or_ticker(m.group('arg'), config.prefs.price_percent)
 	premarket = m.group('kind').lower() != 'session'
 	with request.typing():
 		price.lambda_handler(request.chat_id, threshold, request.service, request.user, ticker, interactive=True, midsession=not premarket, premarket=premarket)
 
 def on_price(request, m):
 	""".price [percent|SYMBOL|top|bottom] [period]: a bare number is a percent, as on the other commands; a period has its unit."""
-	threshold, ticker, days, top = config_price_percent, None, None, None
+	threshold, ticker, days, top = config.prefs.price_percent, None, None, None
 	for i, arg in enumerate(m.groups()):
 		if not arg:
 			continue
@@ -271,7 +272,7 @@ def on_price(request, m):
 		price.lambda_handler(request.chat_id, threshold, request.service, request.user, ticker, interactive=True, interday=days is None, days=days, top=top)
 
 def on_shorts(request, m):
-	threshold, ticker = percent_or_ticker(m.group(1), config_shorts_percent)
+	threshold, ticker = percent_or_ticker(m.group(1), config.prefs.shorts_percent)
 	with request.typing():
 		shorts.lambda_handler(request.chat_id, threshold, ticker, request.service, interactive=True)
 

@@ -1,3 +1,4 @@
+import dataclasses
 import difflib
 import json
 import os
@@ -13,15 +14,9 @@ from pathlib import Path
 REPO_DIR = Path(__file__).resolve().parent.parent
 os.chdir(REPO_DIR)
 
-UNSET = object() # "argument not given": a default that follows a preference is resolved when the function runs, so a reload is seen
-
 STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'telegramChatID', 'scheduler', 'scheduler_catchup',
 	'sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook')
-PREFERENCE_KEYS = ('alliterate', 'cache', 'cache_seconds', 'chunk_maxlines', 'country_code', 'debug', 'demote_leveraged', 'demote_volatile',
-	'exclude_portfolios', 'future_days', 'graph', 'http_timeout', 'hyperlink', 'hyperlinkFooter', 'hyperlinkProvider', 'include_portfolios',
-	'min_analysts', 'past_days', 'performance_cache_seconds', 'performance_use_sharesight', 'price_percent', 'print_headers', 'shorts_percent', 'timezone',
-	'trades_use_yahoo', 'volatility_multiplier')
 SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook') # never printed
 PREFERENCES_FILE = 'preferences.conf'
@@ -155,31 +150,34 @@ class _Reader:
 			raise ConfigError(self.errors)
 
 
+@dataclasses.dataclass(frozen=True)
+class Env:
+	"""The startup settings: finbot.env, which the launcher loads into the environment. Fixed for the life of the process."""
+	data_dir: str # state: watchlist, seen trades, ratings, the schedule's record, preferences.conf
+	cache_dir: str # data_dir/cache
+	ip: str
+	port: int
+	scheduler: bool # run the scheduled reports (schedule.cron) inside bot.py
+	scheduler_catchup: int # minutes: a run missed while the bot was down still fires if it was due this recently
+	telegramChatID: str # '' when unset, like every token below
+	telegramBotToken: str
+	telegramOutgoingWebhook: str
+	telegramOutgoingToken: str
+	slackBotToken: str
+	slackOutgoingWebhook: str
+	slackOutgoingToken: str
+	sharesight_auth: dict
+	webhooks: dict # service -> outbound URL: Telegram's Bot API base, the Slack and Discord incoming webhooks
+
+	@property
+	def preferences_path(self):
+		return self.data_dir + '/' + PREFERENCES_FILE
+
+
 def startup_values(getenv):
-	"""The settings fixed when the bot starts (finbot.env), computed from getenv(name, default)."""
+	"""The settings fixed when the bot starts (finbot.env), computed from getenv(name, default). Raises ConfigError."""
 	r = _Reader(getenv)
 	data_dir = (getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or 'var').rstrip('/') or '/'
-	values = {
-		'config_data_dir': data_dir,
-		'config_sharesight_auth': {
-			"grant_type": 'client_credentials',
-			"code": getenv('sharesight_code'),
-			"client_id": getenv('sharesight_client_id'),
-			"client_secret": getenv('sharesight_client_secret'),
-			"redirect_uri": 'urn:ietf:wg:oauth:2.0:oob'
-		},
-		'config_scheduler': r.bool('scheduler', True), # run the scheduled reports (schedule.cron) inside bot.py
-		'config_scheduler_catchup': r.int('scheduler_catchup', 5), # minutes: a run missed while the bot was down still fires if it was due this recently
-		'config_ip': r.str('ip', '127.0.0.1'),
-		'config_port': r.int('port', 5000),
-		'config_slackBotToken': r.str('slackBotToken', False),
-		'config_slackOutgoingToken': r.str('slackOutgoingToken', False),
-		'config_slackOutgoingWebhook': r.str('slackOutgoingWebhook', False),
-		'config_telegramBotToken': r.str('telegramBotToken', False),
-		'config_telegramOutgoingWebhook': r.str('telegramOutgoingWebhook', False),
-		'config_telegramChatID': r.str('telegramChatID', False),
-		'config_telegramOutgoingToken': r.str('telegramOutgoingToken', False),
-	}
 	hooks = {}
 	if getenv('slack_webhook'):
 		hooks['slack'] = getenv('slack_webhook').rstrip('/')
@@ -187,47 +185,102 @@ def startup_values(getenv):
 		hooks['discord'] = getenv('discord_webhook').rstrip('/').removesuffix('/slack') # the native endpoint, not the Slack-compatible one
 	if getenv('telegramBotToken'):
 		hooks['telegram'] = 'https://api.telegram.org/bot' + getenv('telegramBotToken').rstrip('/') + '/'
-	values['webhooks'] = hooks
+	env = Env(
+		data_dir=data_dir,
+		cache_dir=data_dir + '/cache',
+		ip=r.str('ip', '127.0.0.1'),
+		port=r.int('port', 5000),
+		scheduler=r.bool('scheduler', True),
+		scheduler_catchup=r.int('scheduler_catchup', 5),
+		telegramChatID=r.str('telegramChatID', ''),
+		telegramBotToken=r.str('telegramBotToken', ''),
+		telegramOutgoingWebhook=r.str('telegramOutgoingWebhook', ''),
+		telegramOutgoingToken=r.str('telegramOutgoingToken', ''),
+		slackBotToken=r.str('slackBotToken', ''),
+		slackOutgoingWebhook=r.str('slackOutgoingWebhook', ''),
+		slackOutgoingToken=r.str('slackOutgoingToken', ''),
+		sharesight_auth={
+			"grant_type": 'client_credentials',
+			"code": getenv('sharesight_code'),
+			"client_id": getenv('sharesight_client_id'),
+			"client_secret": getenv('sharesight_client_secret'),
+			"redirect_uri": 'urn:ietf:wg:oauth:2.0:oob'
+		},
+		webhooks=hooks)
 	r.check()
-	return values
+	return env
 
 
-def preference_values(getenv):
-	"""The preferences (preferences.conf), computed from getenv(name, default). Raises ConfigError listing every bad value."""
+@dataclasses.dataclass(frozen=True)
+class Prefs:
+	"""The preferences: preferences.conf, which the bot reads at start and on every reload. Read them as config.prefs.<name> when
+	they are used, never into a default or a module constant, so that a reload is seen."""
+	alliterate: bool
+	cache: bool
+	cache_seconds: int
+	chunk_maxlines: int
+	country_code: str
+	debug: bool
+	demote_leveraged: bool
+	demote_volatile: bool
+	exclude_portfolios: tuple
+	future_days: int
+	graph: bool
+	http_timeout: int
+	hyperlink: bool
+	hyperlinkFooter: bool
+	hyperlinkProvider: str
+	include_portfolios: tuple
+	min_analysts: int # .buy, .sell and .forward pe list only stocks this many analysts cover
+	past_days: int
+	performance_cache_seconds: int # Sharesight performance reports (30 minutes)
+	performance_use_sharesight: bool
+	price_percent: float
+	print_headers: bool
+	shorts_percent: int
+	timezone: str
+	trades_use_yahoo: bool # set False if Yahoo breaks
+	volatility_multiplier: float
+	source: dict = dataclasses.field(default_factory=dict, compare=False, repr=False) # the file's own lines, for job processes
+
+
+def preference_values(getenv, source=None):
+	"""The preferences (preferences.conf), computed from getenv(name, default); `source` is the file's own {key: value}. Raises
+	ConfigError listing every bad value."""
 	r = _Reader(getenv)
-	values = {
-		'config_alliterate': r.bool('alliterate', False),
-		'config_cache': r.bool('cache', True),
-		'config_cache_seconds': r.int('cache_seconds', 43200),
-		'config_chunk_maxlines': r.int('chunk_maxlines', 20),
-		'config_country_code': r.str('country_code', 'AU'),
-		'debug': r.bool('debug', False),
-		'config_demote_leveraged': r.bool('demote_leveraged', True),
-		'config_demote_volatile': r.bool('demote_volatile', True),
-		'config_exclude_portfolios': r.str('exclude_portfolios', '').split(),
-		'config_future_days': r.int('future_days', 30),
-		'config_graph': r.bool('graph', True),
-		'config_http_timeout': r.int('http_timeout', 18),
-		'config_hyperlink': r.bool('hyperlink', True),
-		'config_hyperlinkFooter': r.bool('hyperlinkFooter', True),
-		'config_hyperlinkProvider': r.str('hyperlinkProvider', 'google').lower(),
-		'config_include_portfolios': r.str('include_portfolios', '').split(),
-		'config_min_analysts': r.int('min_analysts', 7), # .buy, .sell and .forward pe list only stocks this many analysts cover
-		'config_past_days': r.int('past_days', 28),
-		'config_performance_cache_seconds': r.int('performance_cache_seconds', 1800), # Sharesight performance reports (30 minutes)
-		'config_performance_use_sharesight': r.bool('performance_use_sharesight', False),
-		'config_price_percent': r.float('price_percent', 5),
-		'config_print_headers': r.bool('print_headers', False),
-		'config_shorts_percent': r.int('shorts_percent', 15),
-		'config_timezone': r.str('timezone', 'Australia/Melbourne'),
-		'config_trades_use_yahoo': r.bool('trades_use_yahoo', True), # set False if Yahoo breaks
-		'config_volatility_multiplier': r.float('volatility_multiplier', 2),
-	}
+	prefs = Prefs(
+		alliterate=r.bool('alliterate', False),
+		cache=r.bool('cache', True),
+		cache_seconds=r.int('cache_seconds', 43200),
+		chunk_maxlines=r.int('chunk_maxlines', 20),
+		country_code=r.str('country_code', 'AU'),
+		debug=r.bool('debug', False),
+		demote_leveraged=r.bool('demote_leveraged', True),
+		demote_volatile=r.bool('demote_volatile', True),
+		exclude_portfolios=tuple(r.str('exclude_portfolios', '').split()),
+		future_days=r.int('future_days', 30),
+		graph=r.bool('graph', True),
+		http_timeout=r.int('http_timeout', 18),
+		hyperlink=r.bool('hyperlink', True),
+		hyperlinkFooter=r.bool('hyperlinkFooter', True),
+		hyperlinkProvider=r.str('hyperlinkProvider', 'google').lower(),
+		include_portfolios=tuple(r.str('include_portfolios', '').split()),
+		min_analysts=r.int('min_analysts', 7),
+		past_days=r.int('past_days', 28),
+		performance_cache_seconds=r.int('performance_cache_seconds', 1800),
+		performance_use_sharesight=r.bool('performance_use_sharesight', False),
+		price_percent=r.float('price_percent', 5),
+		print_headers=r.bool('print_headers', False),
+		shorts_percent=r.int('shorts_percent', 15),
+		timezone=r.str('timezone', 'Australia/Melbourne'),
+		trades_use_yahoo=r.bool('trades_use_yahoo', True),
+		volatility_multiplier=r.float('volatility_multiplier', 2),
+		source=dict(source or {}))
 	r.check()
-	return values
+	return prefs
 
 
-PREFERENCE_NAMES = frozenset(preference_values(lambda name, default=None: default)) # the config_* names a reload can change
+PREFERENCE_KEYS = tuple(field.name for field in dataclasses.fields(Prefs) if field.compare) # preferences.conf's keys: what a reload can change
 
 
 def _getenv_for(preferences):
@@ -250,16 +303,14 @@ def _fail(e):
 
 
 try:
-	globals().update(startup_values(os.environ.get))
-	config_var_dir = config_data_dir
-	config_cache_dir = config_data_dir + '/cache'
-	preferences_path = config_data_dir + '/' + PREFERENCES_FILE
+	env = startup_values(os.environ.get)
+	preferences_path = env.preferences_path
 	_preferences = {} if os.environ.get(PASSED) else (read_preferences(preferences_path) or {})
-	globals().update(preference_values(_getenv_for(_preferences)))
+	prefs = preference_values(_getenv_for(_preferences), _preferences)
 except ConfigError as e:
 	_fail(e)
 
-for _dir in (config_var_dir, config_cache_dir):
+for _dir in (env.data_dir, env.cache_dir):
 	if os.environ.get('FINBOT_CHECK_ONLY'): # util/check_config.py, possibly run as root: must not create directories the service user then cannot write
 		break
 	try:
@@ -268,11 +319,11 @@ for _dir in (config_var_dir, config_cache_dir):
 		print("can't create", _dir, e)
 
 # matplotlib needs a writable config/cache dir; without a home directory (systemd DynamicUser, containers) it fails
-os.environ.setdefault('MPLCONFIGDIR', os.path.abspath(config_cache_dir + '/matplotlib'))
+os.environ.setdefault('MPLCONFIGDIR', os.path.abspath(env.cache_dir + '/matplotlib'))
 
 def data_file(name):
 	# user copy in the data dir wins over the shipped default in defaults/
-	user = config_var_dir + '/' + name
+	user = env.data_dir + '/' + name
 	return user if os.path.isfile(user) else str(REPO_DIR / 'defaults' / name)
 
 _data_files = {} # path -> (modification time, parsed JSON)
@@ -294,33 +345,22 @@ def data_json(name, default=None):
 
 
 def reload():
-	"""Re-read preferences.conf and apply it everywhere: this module and every module that copied a name with `from lib.config import *`.
+	"""Re-read preferences.conf and apply it: config.prefs is replaced in one assignment, so a request never sees half of a reload.
 	All or nothing. Returns one line per change; raises ConfigError (nothing applied) if the file is missing, unreadable or invalid."""
-	global _preferences
+	global prefs
 	new = read_preferences(preferences_path)
 	if new is None:
 		raise ConfigError(f'reload requested but {preferences_path} does not exist; nothing reloaded')
-	values = preference_values(_getenv_for(new))
-	changes = []
-	for name, value in values.items():
-		old = globals()[name]
-		if old == value:
-			continue
-		changes.append(f"{name.removeprefix('config_')} {old!r} -> {value!r}")
-		for module in list(sys.modules.values()):
-			namespace = getattr(module, '__dict__', None)
-			try:
-				if namespace is not None and name in namespace and namespace[name] == old:
-					namespace[name] = value
-			except Exception:
-				pass
-	_preferences = new
+	values = preference_values(_getenv_for(new), new)
+	changes = [f"{name} {getattr(prefs, name)!r} -> {getattr(values, name)!r}" for name in PREFERENCE_KEYS
+		if getattr(prefs, name) != getattr(values, name)]
+	prefs = values
 	return changes
 
 
 def child_environment():
 	"""For a job process: the preferences this process runs on, so it never sees a file edited since the last reload."""
-	return dict(_preferences, **{PASSED: '1'})
+	return dict(prefs.source, **{PASSED: '1'})
 
 
 def check_startup_environment():
@@ -334,7 +374,7 @@ def check_startup_environment():
 	if OLD_ENV.exists():
 		problems.append(f'{OLD_ENV} is the old single config file, which finbot no longer reads; it will not start while the file is there')
 		problems.append(f'split it with {REPO_DIR}/util/split_env.py, which writes finbot.env.new and preferences.conf.new beside it; put finbot.env '
-			f'where your launcher loads it and {PREFERENCES_FILE} in {config_data_dir}, then delete {OLD_ENV}')
+			f'where your launcher loads it and {PREFERENCES_FILE} in {env.data_dir}, then delete {OLD_ENV}')
 	if problems:
 		raise ConfigError(problems)
 
@@ -344,208 +384,15 @@ def startup_report():
 	provided = [key for key in STARTUP_KEYS if key in os.environ]
 	lines = [f'startup environment provides {len(provided)} of {len(STARTUP_KEYS)} startup keys (values hidden)']
 	if os.path.isfile(preferences_path):
-		lines.append(f'preferences from {preferences_path} ({len(_preferences)} set; reload with SIGHUP)')
+		lines.append(f'preferences from {preferences_path} ({len(prefs.source)} set; reload with SIGHUP)')
 	else:
-		lines.append(f'no {PREFERENCES_FILE} in {config_data_dir}, using the defaults; reload will have nothing to re-read')
+		lines.append(f'no {PREFERENCES_FILE} in {env.data_dir}, using the defaults; reload will have nothing to re-read')
 	return lines
 
 
 def startup_warnings():
 	"""Problems in finbot.env that do not stop the start, a line each: a setting that leaves part of the bot unable to work."""
 	warnings = []
-	if config_slackOutgoingWebhook and not config_slackBotToken:
+	if env.slackOutgoingWebhook and not env.slackBotToken:
 		warnings.append('slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply')
 	return warnings
-
-
-adjectives = [
-	'absolutely',
-	'amazingly',
-	'awfully',
-	'bitchingly',
-	'bloodly',
-	'comfortably',
-	'darned',
-	'distinctly',
-	'especially',
-	'ever so',
-	'enjoyably',
-	'exceedingly',
-	'exceptionally',
-	'extraordinarily',
-	'extremely',
-	'flatteringly',
-	'fortunately',
-	'fortuitously',
-	'greatly',
-	'honourably',
-	'hugely',
-	'humblingly',
-	'inordinately',
-	'jolly',
-	'joyfully',
-	'keenly',
-	'kindly',
-	'knowingly',
-	'luckily',
-	'memorably',
-	'mostly',
-	'needlessly',
-	'overwhelmingly',
-	'pleasurably',
-	'questionably',
-	'rewardingly',
-	'serendipitously',
-	'seriously',
-	'significantly',
-	'so',
-	'super',
-	'supremely',
-	'surprisingly',
-	'terribly',
-	'terrifically',
-	'thoroughly',
-	'totally',
-	'tremendously',
-	'uber',
-	'uncomprehensibly',
-	'unexceptionably',
-	'unquestionably',
-	'unmentionably',
-	'unusually',
-	'discomfortingly',
-	'incomprehensibly',
-	'very',
-	'wholesomely',
-	'xtra',
-	'yawningly',
-	'zealously'
-]
-
-adjectives_two = [
-	'amazing',
-	'bitching',
-	'comforting',
-	'comprehensible',
-	'dapper',
-	'enjoyable',
-	'exceptional',
-	'extraordinary',
-	'flattering',
-	'fortuitous',
-	'fortunate',
-	'great',
-	'grateful',
-	'honouring',
-	'huge',
-	'humbling',
-	'inordinate',
-	'joyous',
-	'keen',
-	'knowing',
-	'kind',
-	'lucky',
-	'memorable',
-	'mentionable',
-	'nice',
-	'overwhelming',
-	'pleasurable',
-	'questionable',
-	'rewarding',
-	'serendipitous',
-	'significant',
-	'special',
-	'super',
-	'terrific',
-	'tremendous',
-	'useful',
-	'virtuous',
-	'wholesome',
-	'xenial',
-	'yawning',
-	'zany'
-]
-
-verb = [
-	'pretend to greet',
-	'apparently share this moment with',
-	'coincide in temporal reality with',
-	'cross digital paths with',
-	'simulate becoming acquainted with',
-	'fire photons at',
-	'traverse cyberspace with',
-	'co-exist in spacetime with',
-	'fire electrons at',
-	'encode character sets with',
-	'convert utf-8 to binary and then back to utf-8 with',
-	'update this pixel matrix with',
-	'lose money with',
-	'maintain character with',
-	'act like I comprehend'
-]
-
-noTradesVerb = [
-	"The money is probably resting in another account",
-	"Oh well. The market would have just gone down anyway",
-	"Heating bills don't pay themselves you know",
-	"You were fearful when others were also fearful",
-	"I bet you're regretting that extra 1¢ on your limit order now",
-	"This is why you can't have nice things",
-	"But I'm sure that's just a rounding error",
-	"Nothing + nothing = more nothing. Well played",
-	"Or maybe there was. They don't pay me for this you know",
-	"I guess that's right. I'm kinda busy with ChatGPT in another window",
-	"I like this contrarian play you're having on 'being in it to win it'",
-	"With your stock picking skills, this is probably for the best"
-]
-
-primary_listing = data_json('finbot_adr.json', {}) # ADR -> its primary listing
-
-yahoo_country = {
-	'Argentina': 'BA',
-	'Austria': 'VI',
-	'Australia': 'AX',
-	'Belgium': 'BR',
-	'Brazil': 'SA',
-	'Canada': 'TO',
-	'Chile': 'SN',
-	'Colombia': 'CL',
-	'Czech Republic': 'PR',
-	'Denmark': 'CO',
-	'Estonia': 'TL',
-	'Finland': 'HE',
-	'France': 'PA',
-	'Germany': 'DE',
-	'Hungary': 'BD',
-	'Iceland': 'IC',
-	'India': 'NS',
-	'Indonesia': 'JK',
-	'Ireland': 'IR',
-	'Israel': 'TA',
-	'Italy': 'MI',
-	'Latvia': 'RG',
-	'Lithuania': 'VS',
-	'Mexico': 'MX',
-	'Netherlands': 'AS',
-	'New Zealand': 'NZ',
-	'Norway': 'OL',
-	'Portugal': 'LS',
-	'Qatar': 'QA',
-	'Saudi Arabia': 'SR',
-	'South Africa': 'JO',
-	'Spain': 'MC',
-	'Sweden': 'ST',
-	'Switzerland': 'SW',
-	'Thailand': 'BK',
-	'Turkey': 'IS',
-	'United Kingdom': 'L',
-	'Venezuela': 'CR'
-	# markets with numeric tickers purposefully omitted
-}
-
-# `from lib.config import *` is how the other modules get their config_* names; keep the loader machinery out of their namespaces
-_INTERNAL = {'difflib', 're', 'sys', 'ConfigError', 'key_problem', 'parse_assignments', 'read_text', 'read_preferences', 'read_startup_file',
-	'startup_values', 'preference_values', 'reload', 'child_environment', 'print_errors', 'check_startup_environment', 'startup_report', 'preferences_path',
-	'startup_warnings', 'STARTUP_KEYS', 'PREFERENCE_KEYS', 'SECRET_KEYS', 'PREFERENCES_FILE', 'PASSED', 'PREFERENCE_NAMES', 'OLD_ENV',
-	'TRUE_WORDS', 'FALSE_WORDS'}
-__all__ = [name for name in dir() if not name.startswith('_') and name not in _INTERNAL]

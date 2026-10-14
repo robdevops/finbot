@@ -1,11 +1,11 @@
 import json
 import sys
-from lib.config import *
+from lib import config
 from lib import net
 
 def call(method, **kwargs):
 	"""POST a Bot API method and return its result. Raises RuntimeError with Telegram's description when it answers not ok."""
-	response = net.post(webhooks['telegram'] + method, timeout=config_http_timeout, **kwargs)
+	response = net.post(config.env.webhooks['telegram'] + method, timeout=config.prefs.http_timeout, **kwargs)
 	try:
 		output = response.json()
 	except ValueError:
@@ -22,12 +22,12 @@ def try_call(method, **kwargs):
 		print(f"Telegram {method} failed:", net.redact(e), file=sys.stderr)
 
 def setWebhook():
-	print("registering", config_telegramOutgoingWebhook, file=sys.stderr)
-	params = {'url': config_telegramOutgoingWebhook, "allowed_updates": json.dumps(['message', 'callback_query']), 'secret_token': config_telegramOutgoingToken}
+	print("registering", config.env.telegramOutgoingWebhook, file=sys.stderr)
+	params = {'url': config.env.telegramOutgoingWebhook, "allowed_updates": json.dumps(['message', 'callback_query']), 'secret_token': config.env.telegramOutgoingToken}
 	return call('setWebhook', params=params)
 
 def delWebhook():
-	print("deregistering", config_telegramOutgoingWebhook, file=sys.stderr)
+	print("deregistering", config.env.telegramOutgoingWebhook, file=sys.stderr)
 	return call('setWebhook', params={'url': ''}) # unsubscribe
 
 def getMe():

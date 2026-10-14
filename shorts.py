@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 
 import sys
-from lib.config import *
+from lib import config
 from lib import webhook
 from lib import util
 from lib import yahoo
 from lib import shortman
 
-def lambda_handler(chat_id=None, threshold=UNSET, specific_stock=None, service=None, interactive=False):
-	if threshold is UNSET:
-		threshold = config_shorts_percent
+def lambda_handler(chat_id=None, threshold=None, specific_stock=None, service=None, interactive=False):
+	if threshold is None:
+		threshold = config.prefs.shorts_percent
 	def prepare_shorts_payload(service, market_data):
 		found = [] # (percent, line, chart label)
 		for ticker in tickers:

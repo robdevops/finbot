@@ -2,7 +2,7 @@
 
 import sys
 
-from lib.config import *
+from lib import config
 from lib import sharesight
 from lib import webhook
 from lib import util
@@ -31,11 +31,11 @@ def benchmark(ticker, market, text, past_days, service):
 	link = util.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
 	return f"{util.get_emoji(percent)} {link} {util.signed_percent(percent, 2)}", percent
 
-def report(service, past_days=UNSET, portfolio_select=None, interactive=False, performance=None):
+def report(service, past_days=None, portfolio_select=None, interactive=False, performance=None):
 	"""(payload, chart) of the performance report for one service: each portfolio and the benchmarks, best first. performance:
 	gather()'s, fetched when not given."""
-	if past_days is UNSET:
-		past_days = config_past_days
+	if past_days is None:
+		past_days = config.prefs.past_days
 	if performance is None:
 		performance = gather(past_days, portfolio_select)
 	lines = [] # (percent, text), sorted into the payload below
@@ -61,9 +61,9 @@ def report(service, past_days=UNSET, portfolio_select=None, interactive=False, p
 		graph = util.rows_chart(chart_rows, "Performance", f"% change {'' if period == 'today' else 'over '}{period}", value_fmt=lambda v: util.signed_percent(v, 2))
 	return payload, graph
 
-def lambda_handler(chat_id=None, past_days=UNSET, service=None, user='', portfolio_select=None, interactive=False):
-	if past_days is UNSET:
-		past_days = config_past_days
+def lambda_handler(chat_id=None, past_days=None, service=None, user='', portfolio_select=None, interactive=False):
+	if past_days is None:
+		past_days = config.prefs.past_days
 	performance = gather(past_days, portfolio_select)
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		payload, graph = report(service, past_days, portfolio_select, interactive, performance)

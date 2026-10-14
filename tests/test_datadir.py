@@ -16,21 +16,21 @@ def run_config(code, **env):
 
 class DataDirTests(FinbotCase):
 	def test_default_unchanged(self):
-		out = run_config("from lib import config as c; print(c.config_var_dir, c.config_cache_dir)")
+		out = run_config("from lib import config as c; print(c.env.data_dir, c.env.cache_dir)")
 		self.assertEqual(out.split()[-2:], ['var', 'var/cache'])
 
 	def test_data_dir_moves_var_and_cache(self):
 		with tempfile.TemporaryDirectory() as d:
-			out = run_config("from lib import config as c; print(c.config_var_dir, c.config_cache_dir)", DATA_DIR=d)
+			out = run_config("from lib import config as c; print(c.env.data_dir, c.env.cache_dir)", DATA_DIR=d)
 			self.assertEqual(out.split()[-2:], [d, d + '/cache'])
 			self.assertTrue(os.path.isdir(d + '/cache'))
 
 	def test_config_reads_environment_only(self):
-		out = run_config("import sys; from lib import config as c; print(c.config_price_percent, 'dotenv' in sys.modules)", price_percent='3.3')
+		out = run_config("import sys; from lib import config as c; print(c.prefs.price_percent, 'dotenv' in sys.modules)", price_percent='3.3')
 		self.assertEqual(out.split()[-2:], ['3.3', 'False'])
 
 	def test_state_directory_fallback(self):
-		show = "from lib import config as c; print(c.config_var_dir, c.config_cache_dir, c.os.environ['MPLCONFIGDIR'])"
+		show = "from lib import config as c; print(c.env.data_dir, c.env.cache_dir, c.os.environ['MPLCONFIGDIR'])"
 		with tempfile.TemporaryDirectory() as d:
 			e = {k: v for k, v in os.environ.items() if k not in ('DATA_DIR', 'MPLCONFIGDIR')}
 			def run(**env):
@@ -49,11 +49,11 @@ class DataDirTests(FinbotCase):
 	def test_data_file_override_and_fallback(self):
 		name = 'finbot_adr.json'
 		self.assertEqual(config.data_file(name), str(REPO / 'defaults' / name))
-		Path(config.config_var_dir, name).write_text('{}')
-		self.assertEqual(config.data_file(name), config.config_var_dir + '/' + name)
+		Path(config.env.data_dir, name).write_text('{}')
+		self.assertEqual(config.data_file(name), config.env.data_dir + '/' + name)
 
 	def test_a_data_file_is_parsed_again_only_when_it_changes(self):
-		path = Path(config.config_var_dir, 'finbot_adr.json')
+		path = Path(config.env.data_dir, 'finbot_adr.json')
 		path.write_text('{"A": "B"}')
 		self.assertEqual(config.data_json('finbot_adr.json'), {'A': 'B'})
 		with mock.patch('json.load', side_effect=AssertionError('parsed again')):
@@ -64,12 +64,12 @@ class DataDirTests(FinbotCase):
 
 	def test_sync_defaults(self):
 		self.assertIn(('finbot_adr.json', 'would copy'), sync_defaults.sync())
-		self.assertFalse(Path(config.config_var_dir, 'finbot_adr.json').exists()) # dry run
+		self.assertFalse(Path(config.env.data_dir, 'finbot_adr.json').exists()) # dry run
 		sync_defaults.sync(apply=True)
-		self.assertTrue(Path(config.config_var_dir, 'finbot_adr.json').exists())
-		self.assertTrue(Path(config.config_var_dir, 'preferences.conf').exists())
-		self.assertFalse(Path(config.config_var_dir, 'finbot.env').exists()) # the startup file is never copied into the data dir
-		mine = Path(config.config_var_dir, 'finbot_adr.json')
+		self.assertTrue(Path(config.env.data_dir, 'finbot_adr.json').exists())
+		self.assertTrue(Path(config.env.data_dir, 'preferences.conf').exists())
+		self.assertFalse(Path(config.env.data_dir, 'finbot.env').exists()) # the startup file is never copied into the data dir
+		mine = Path(config.env.data_dir, 'finbot_adr.json')
 		mine.write_text('{"mine": 1}')
 		sync_defaults.sync(apply=True)
 		self.assertEqual(mine.read_text(), '{"mine": 1}') # never overwritten without --force
@@ -79,9 +79,9 @@ class DataDirTests(FinbotCase):
 		self.assertEqual(Path(str(mine) + '.bak').read_text(), '{"mine": 1}')
 
 	def test_sync_defaults_to_another_destination(self):
-		other = Path(config.config_var_dir, 'elsewhere')
+		other = Path(config.env.data_dir, 'elsewhere')
 		self.assertIn(('finbot_adr.json', 'would copy'), sync_defaults.sync(dest=other))
 		self.assertFalse(other.exists()) # dry run
 		sync_defaults.sync(apply=True, dest=other)
 		self.assertTrue((other / 'finbot_adr.json').exists())
-		self.assertFalse(Path(config.config_var_dir, 'finbot_adr.json').exists()) # the data dir is untouched
+		self.assertFalse(Path(config.env.data_dir, 'finbot_adr.json').exists()) # the data dir is untouched

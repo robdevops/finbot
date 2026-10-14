@@ -12,7 +12,6 @@ from gevent import pywsgi
 import threading
 from urllib.parse import urlparse
 
-from lib.config import *
 from lib import config
 from lib import worker
 from lib import jobs
@@ -73,19 +72,19 @@ def handle(environ, start_response):
 	def reply(status, body=b''):
 		start_response(status, [('Content-type', 'application/json')])
 		return [body]
-	print_headers() if config_print_headers else None
+	print_headers() if config.prefs.print_headers else None
 	# route on the path first, and turn strangers away before reading the body
 	uri = environ.get('PATH_INFO', '')
-	if config_telegramOutgoingWebhook and uri == urlparse(config_telegramOutgoingWebhook).path:
+	if config.env.telegramOutgoingWebhook and uri == urlparse(config.env.telegramOutgoingWebhook).path:
 		service = 'telegram'
-	elif config_slackOutgoingWebhook and uri == urlparse(config_slackOutgoingWebhook).path:
+	elif config.env.slackOutgoingWebhook and uri == urlparse(config.env.slackOutgoingWebhook).path:
 		service = 'slack'
 	else:
 		print("Unknown URI", repr(uri), file=sys.stderr)
 		return reply('404 Not Found', b'<h1>404</h1>')
 	if service == 'telegram': # Telegram proves itself with a header
 		secret = environ.get('HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN')
-		if secret != config_telegramOutgoingToken:
+		if secret != config.env.telegramOutgoingToken:
 			print_headers()
 			print("Fatal: Telegram authorisation header", "not present" if secret is None else "is present but incorrect", file=sys.stderr)
 			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
@@ -125,7 +124,7 @@ def handle(environ, start_response):
 			user = userRealName = '@' + first_name
 		if "text" in msg:
 			message = msg["text"]
-			print("[Telegram]:", user, message, file=sys.stderr) if debug else None
+			print("[Telegram]:", user, message, file=sys.stderr) if config.prefs.debug else None
 		elif "photo" in msg:
 			message = msg.get("caption", '')
 			file_id = msg["photo"][-1]["file_id"]
@@ -140,7 +139,7 @@ def handle(environ, start_response):
 			print("warning: Slack authorisation field not present", file=sys.stderr)
 			print_body()
 			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
-		if inbound['token'] != config_slackOutgoingToken:
+		if inbound['token'] != config.env.slackOutgoingToken:
 			print("Slack auth incorrect", file=sys.stderr)
 			print_body()
 			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
@@ -170,7 +169,7 @@ def handle(environ, start_response):
 			user = userRealName = '<@' + event['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
 			bot_name = '@' + bot_user # QWERTY becomes @QWERTY
 			chat_id = event['channel']
-			print(f"[{service}]:", user, message, file=sys.stderr) if debug else None
+			print(f"[{service}]:", user, message, file=sys.stderr) if config.prefs.debug else None
 			# this condition spawns a worker before returning
 		else:
 			print(f"[{service}]: unhandled 'type'", file=sys.stderr)
@@ -188,7 +187,7 @@ def git_version(checkout=None):
 	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no "dubious
 	ownership" refusal when the service user does not own the checkout. 'unknown' when it cannot be read."""
 	try:
-		git = Path(checkout or REPO_DIR) / '.git'
+		git = Path(checkout or config.REPO_DIR) / '.git'
 		if git.is_file(): # a linked worktree or submodule: .git is a file saying "gitdir: <path>"
 			git = (git.parent / git.read_text().split(':', 1)[1].strip()).resolve()
 		common = (git / (git / 'commondir').read_text().strip()).resolve() if (git / 'commondir').is_file() else git # refs of a worktree
@@ -226,7 +225,7 @@ def flush_cache(*args):
 		with yahoo._auth:
 			removed = cleanup.lambda_handler(days=0)
 		sharesight.wake()
-		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config_cache_dir}", file=sys.stderr)
+		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}", file=sys.stderr)
 	except Exception as e:
 		print('ERROR', webhook.error_line(e, 'cache flush'), file=sys.stderr)
 
@@ -243,8 +242,8 @@ if __name__ == '__main__':
 		print('ERROR config:', line, file=sys.stderr)
 	if os.getuid() == 0:
 		print("Running as superuser. This is not recommended.", file=sys.stderr)
-	if config_scheduler: # read before anything else happens: an impossible time in it stops the start
-		scheduler = jobs.Scheduler(lambda: data_file('schedule.cron'))
+	if config.env.scheduler: # read before anything else happens: an impossible time in it stops the start
+		scheduler = jobs.Scheduler(lambda: config.data_file('schedule.cron'))
 		try:
 			if not scheduler.load():
 				scheduler = None
@@ -256,18 +255,18 @@ if __name__ == '__main__':
 	else:
 		print('Scheduled reports are off (scheduler=False)', file=sys.stderr)
 	util.render_off_hub() # charts drawn in a thread of their own: no chat waits while another's chart is drawn
-	httpd = pywsgi.WSGIServer((config_ip, config_port), main)
-	httpd.secure_repr = False if debug else None
-	print(f'Opening socket on http://{config_ip}:{config_port}', file=sys.stderr)
-	if config_telegramBotToken and config_telegramOutgoingWebhook:
+	httpd = pywsgi.WSGIServer((config.env.ip, config.env.port), main)
+	httpd.secure_repr = False if config.prefs.debug else None
+	print(f'Opening socket on http://{config.env.ip}:{config.env.port}', file=sys.stderr)
+	if config.env.telegramBotToken and config.env.telegramOutgoingWebhook:
 		try:
 			botName = telegram.register() # here and only here: the job processes import lib.telegram too
 		except Exception as e:
 			print('ERROR', webhook.error_line(e, 'telegram webhook'), file=sys.stderr)
 			sys.exit(1)
-	if config_telegramBotToken:
+	if config.env.telegramBotToken:
 		threading.Thread(target=charts.refresh_keyboards, daemon=True).start() # update stale DM keyboards in the background
-	if config_sharesight_auth.get('client_id'):
+	if config.env.sharesight_auth.get('client_id'):
 		threading.Thread(target=sharesight.keep_warm, daemon=True).start() # keep the portfolio list and holdings report cached, while cache is on
 	if scheduler:
 		jobs.current = scheduler # for the .jobs chat command

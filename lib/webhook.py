@@ -6,7 +6,7 @@ import re
 import sys
 import traceback
 
-from lib.config import *
+from lib import config
 from lib import net
 from lib import telegram
 
@@ -28,10 +28,10 @@ def write(service, url, payload_string, chat_id=None, reply_markup=None):
 		payload['unfurl_links'] = False # no link previews: Slack reads these from the body, not the headers
 		payload['unfurl_media'] = False
 		if chat_id:
-			if not config_slackBotToken:
+			if not config.env.slackBotToken:
 				print(f"ERROR slack: a reply to channel {chat_id} needs slackBotToken in finbot.env; not sent", file=sys.stderr)
 				return None
-			headers['Authorization'] = 'Bearer ' + config_slackBotToken
+			headers['Authorization'] = 'Bearer ' + config.env.slackBotToken
 			payload['channel'] = chat_id
 	elif 'api.telegram.org' in url:
 		payload['parse_mode'] = 'HTML'
@@ -40,7 +40,7 @@ def write(service, url, payload_string, chat_id=None, reply_markup=None):
 		if reply_markup:
 			payload['reply_markup'] = reply_markup # keyboard (Telegram only)
 	try:
-		r = net.post(url, headers=headers, json=payload, timeout=config_http_timeout)
+		r = net.post(url, headers=headers, json=payload, timeout=config.prefs.http_timeout)
 	except Exception as e:
 		print("Failure sending to", service + ":", net.redact(e), file=sys.stderr)
 		return None
@@ -59,14 +59,14 @@ def chat_url(service, chat_id):
 	if service == 'slack':
 		return 'https://slack.com/api/chat.postMessage'
 	if service == 'telegram':
-		return webhooks['telegram'] + 'sendMessage?chat_id=' + str(chat_id)
-	return webhooks.get(service)
+		return config.env.webhooks['telegram'] + 'sendMessage?chat_id=' + str(chat_id)
+	return config.env.webhooks.get(service)
 
 def default_chats():
 	"""Where a scheduled report goes: [(service, url, chat id)]. Telegram posts into telegramChatID (left out without one); Slack and
 	Discord post through their incoming webhooks, which take no chat id. Raises RuntimeError when there is nowhere to post."""
-	chats = [(service, chat_url(service, config_telegramChatID), config_telegramChatID) if service == 'telegram' else (service, url, None)
-		for service, url in webhooks.items() if service != 'telegram' or config_telegramChatID]
+	chats = [(service, chat_url(service, config.env.telegramChatID), config.env.telegramChatID) if service == 'telegram' else (service, url, None)
+		for service, url in config.env.webhooks.items() if service != 'telegram' or config.env.telegramChatID]
 	if not chats:
 		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slack_webhook or discord_webhook')
 	return chats
@@ -139,12 +139,12 @@ def payload_wrapper(service, url, payload, chat_id=None, reply_markup=None):
 	payload = [str(line) for line in payload]
 	payload_string = '\n'.join(payload)
 	print("Preparing outbound to", service, str(len(payload_string)), "bytes")
-	print("Payload: " + payload_string) if debug else None
+	print("Payload: " + payload_string) if config.prefs.debug else None
 	limit = DISCORD_LIMIT if service == 'discord' else 4096
 	if len(payload_string) <= limit:
 		return [write(service, url, payload_string, chat_id, reply_markup)]
 	print(service, f"payload is over {limit:,} bytes. Splitting.")
-	chunks = chunked(payload, limit, config_chunk_maxlines)
+	chunks = chunked(payload, limit, config.prefs.chunk_maxlines)
 	results = []
 	for idx, chunk in enumerate(chunks):
 		if idx:
@@ -222,11 +222,11 @@ def takes_charts(service, reply=True):
 	"""Whether a report to `service` can carry a chart image: never with the graph preference off; on Telegram and Discord always;
 	on Slack in a reply to a chat (`reply`), uploaded into its channel with the bot token, but not in a scheduled report, which goes
 	through the incoming webhook and takes text only. Elsewhere a report goes out as text."""
-	return config_graph and (service in ('telegram', 'discord') or (service == 'slack' and reply and bool(config_slackBotToken)))
+	return config.prefs.graph and (service in ('telegram', 'discord') or (service == 'slack' and reply and bool(config.env.slackBotToken)))
 
 def telegram_photo(chat_id, image_data, caption, reply_markup=None):
 	"""sendPhoto, the report as its caption (trimmed to fit). Telegram's answer, MAYBE_SENT, or None if it was refused."""
-	url = webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
+	url = config.env.webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
 	data = {
 		'disable_notification': True,
 		'chat_id': chat_id,
@@ -238,7 +238,7 @@ def telegram_photo(chat_id, image_data, caption, reply_markup=None):
 	if hasattr(image_data, 'seek'):
 		image_data.seek(0)
 	try:
-		r = net.post(url, data=data, files={"photo": ('image.png', image_data)}, timeout=config_http_timeout)
+		r = net.post(url, data=data, files={"photo": ('image.png', image_data)}, timeout=config.prefs.http_timeout)
 	except requests.exceptions.ReadTimeout as e:
 		print("Telegram sendPhoto timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
 		return MAYBE_SENT
@@ -263,8 +263,8 @@ def discord_photo(image_data, caption):
 	payload = {'content': fit_caption(caption, DISCORD_LIMIT, len), 'flags': SUPPRESS_EMBEDS, 'allowed_mentions': NO_MENTIONS,
 		'attachments': [{'id': 0, 'filename': 'chart.png'}]}
 	try:
-		r = net.post(discord_url(webhooks['discord']), data={'payload_json': json.dumps(payload)},
-			files={'files[0]': ('chart.png', image_data, 'image/png')}, timeout=config_http_timeout)
+		r = net.post(discord_url(config.env.webhooks['discord']), data={'payload_json': json.dumps(payload)},
+			files={'files[0]': ('chart.png', image_data, 'image/png')}, timeout=config.prefs.http_timeout)
 	except requests.exceptions.ReadTimeout as e:
 		print("Discord chart timed out, it may still arrive:", net.redact(e), file=sys.stderr)
 		return MAYBE_SENT
@@ -282,9 +282,9 @@ def discord_photo(image_data, caption):
 
 def slack_api(method, **data):
 	"""POST a Slack Web API method as the bot, form-encoded, and return its answer. Raises RuntimeError with Slack's error if not ok."""
-	if not config_slackBotToken:
+	if not config.env.slackBotToken:
 		raise RuntimeError(f"Slack {method}: needs slackBotToken in finbot.env")
-	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + config_slackBotToken}, data=data, timeout=config_http_timeout)
+	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + config.env.slackBotToken}, data=data, timeout=config.prefs.http_timeout)
 	try:
 		output = r.json()
 	except ValueError:
@@ -302,7 +302,7 @@ def slack_photo(chat_id, image_data, caption):
 	data = image_data.read() if hasattr(image_data, 'read') else bytes(image_data)
 	try:
 		ticket = slack_api('files.getUploadURLExternal', filename='chart.png', length=len(data))
-		r = net.post(ticket['upload_url'], data=data, timeout=config_http_timeout)
+		r = net.post(ticket['upload_url'], data=data, timeout=config.prefs.http_timeout)
 		if r.status_code != 200:
 			raise RuntimeError(f"Slack upload: {r.status_code} {r.text[:200]}")
 		share = {'files': json.dumps([{'id': ticket['file_id']}]), 'channel_id': chat_id, 'initial_comment': caption}
@@ -335,7 +335,7 @@ def sendPhoto(chat_id, image_data, caption, service, reply_markup=None):
 		return output
 	if chartable:
 		print("chart not sent, sending the report as text", file=sys.stderr)
-	return payload_wrapper(service, chat_url(service, chat_id) if chat_id else webhooks.get(service), caption.split('\n'), chat_id)
+	return payload_wrapper(service, chat_url(service, chat_id) if chat_id else config.env.webhooks.get(service), caption.split('\n'), chat_id)
 
 def editMessageText(chat_id, message_id, text, reply_markup=None):
 	"""Telegram: replace a text message's text and buttons in place. A failure is only logged."""

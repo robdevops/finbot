@@ -218,11 +218,12 @@ class YahooChart(ProviderCase):
 
 	def test_with_the_cache_off_no_chart_is_written(self):
 		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
-		self.patch(yahoo, 'config_cache', False)
+		self.prefs(cache=False)
+
 		self.http(yahoo, Resp(self.chart([100.0] * 30 + [110.0])))
 		table, image = yahoo.price_history('T1', 7, graph=True)
 		self.assertIsNotNone(image)
-		self.assertEqual([name for name in os.listdir(util.config_cache_dir) if name.startswith('finbot_graph_')], [])
+		self.assertEqual([name for name in os.listdir(config.env.cache_dir) if name.startswith('finbot_graph_')], [])
 
 	def test_price_series_raises_on_failure_and_on_empty_history(self):
 		self.http(yahoo, Resp(status=500))
@@ -242,10 +243,13 @@ class SharesightApi(ProviderCase):
 
 	def test_portfolio_exclusion_and_inclusion(self):
 		self.http(sharesight, Resp(sample('sharesight', 'finbot_sharesight_portfolios.json')))
-		self.patch(sharesight, 'config_exclude_portfolios', ['445825'])
+		self.prefs(exclude_portfolios=['445825'])
+
 		self.assertEqual(sharesight.get_portfolios(), {'RobSMSF': 684141})
-		self.patch(sharesight, 'config_exclude_portfolios', [])
-		self.patch(sharesight, 'config_include_portfolios', ['445825'])
+		self.prefs(exclude_portfolios=[])
+
+		self.prefs(include_portfolios=['445825'])
+
 		self.assertEqual(sharesight.get_portfolios(), {'Rob': 445825})
 
 	def test_portfolio_failures_raise(self):
@@ -306,7 +310,7 @@ class SharesightKeepWarm(ProviderCase):
 		return calls
 
 	def age(self, cache_file, seconds):
-		path = os.path.join(util.config_cache_dir, cache_file)
+		path = os.path.join(config.env.cache_dir, cache_file)
 		old = os.path.getmtime(path) - seconds
 		os.utime(path, (old, old))
 
@@ -322,12 +326,12 @@ class SharesightKeepWarm(ProviderCase):
 		calls = self.serve_sharesight()
 		sharesight.warm()[0]
 		calls.clear()
-		self.age(sharesight.performance_cache_file(684141, 0), 0.95 * sharesight.config_performance_cache_seconds) # 95% of its lifetime
+		self.age(sharesight.performance_cache_file(684141, 0), 0.95 * config.prefs.performance_cache_seconds) # 95% of its lifetime
 		self.assertEqual(sharesight.warm()[0], 1)
 		self.assertEqual(len(calls), 1)
 		self.assertIn('684141/performance', calls[0])
 		calls.clear()
-		self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * sharesight.config_cache_seconds)
+		self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * config.prefs.cache_seconds)
 		self.assertEqual(sharesight.warm()[0], 1)
 		self.assertTrue(calls[0].endswith('/portfolios'))
 
@@ -350,7 +354,7 @@ class SharesightKeepWarm(ProviderCase):
 	def test_failed_refresh_keeps_the_old_cache(self):
 		self.serve_sharesight()
 		sharesight.warm()[0]
-		self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * sharesight.config_cache_seconds)
+		self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * config.prefs.cache_seconds)
 		self.http(sharesight, ConnectionError('down'))
 		with self.assertRaises(RuntimeError):
 			sharesight.warm()[0]
@@ -380,11 +384,12 @@ class SharesightKeepWarm(ProviderCase):
 			def wait(self, seconds):
 				self.waits.append(seconds)
 				if len(self.waits) == 2:
-					sharesight.config_cache = True # what a reload that switches it on does
+					config.prefs = dataclasses.replace(config.prefs, cache=True) # what a reload that switches it on does
 		passes = []
 		self.patch(sharesight, 'warm', lambda: (passes.append(1), (0, {}))[1])
 		self.patch(sharesight, 'next_due', lambda portfolios=None: 3000)
-		self.patch(sharesight, 'config_cache', False)
+		self.prefs(cache=False)
+
 		stop = Stop()
 		sharesight.keep_warm(idle=60, stop=stop)
 		self.assertEqual((stop.waits, len(passes)), ([60, 60, 3000, 3000], 2)) # idle while off: no Sharesight request every 5 seconds
@@ -418,7 +423,7 @@ class SharesightKeepWarm(ProviderCase):
 		self.assertEqual(sharesight.next_due(), 0) # cold cache
 		sharesight.warm()[0]
 		due = sharesight.next_due()
-		self.assertAlmostEqual(due, 0.9 * min(sharesight.config_cache_seconds, sharesight.config_performance_cache_seconds), delta=5)
+		self.assertAlmostEqual(due, 0.9 * min(config.prefs.cache_seconds, config.prefs.performance_cache_seconds), delta=5)
 
 	def test_refresh_flag_bypasses_a_fresh_cache(self):
 		calls = self.serve_sharesight()
@@ -460,8 +465,9 @@ class TelegramSending(FinbotCase):
 	def test_error_reports_are_escaped_for_telegram_and_slack(self):
 		sent = []
 		self.patch(webhook, 'write', lambda service, url, text, *a, **k: sent.append((service, text)))
-		self.patch(webhook, 'webhooks', {'telegram': 'https://api.telegram.org/botX/', 'slack': 'https://hooks.slack.com/x', 'discord': 'https://discord.com/x/slack'})
-		self.patch(webhook, 'config_telegramChatID', '5')
+		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/', 'slack': 'https://hooks.slack.com/x', 'discord': 'https://discord.com/x/slack'})
+		self.env(telegramChatID='5')
+
 		error = RuntimeError("404 for ZZ at https://x/?a=1&crumb=abc; '<' not supported between <urllib3.connection>")
 		with contextlib.redirect_stderr(io.StringIO()):
 			REAL_REPORT_ERROR(error, context='.compare <b>')
@@ -513,14 +519,17 @@ class ChartDelivery(FinbotCase):
 		return [Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': 'F1'}), Resp(None, text='OK - 3'), Resp({'ok': True, 'files': [{'id': 'F1'}]})]
 
 	def test_where_charts_can_go(self):
-		self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
+		self.env(slackBotToken='xoxb-test')
+
 		cases = (('telegram',), ('telegram', False), ('slack',), ('slack', False), ('discord', False))
 		self.assertEqual([webhook.takes_charts(*case) for case in cases], [True, True, True, False, True]) # Slack: replies, not scheduled reports
-		self.patch(webhook, 'config_slackBotToken', False)
+		self.env(slackBotToken=False)
+
 		self.assertFalse(webhook.takes_charts('slack'))
 
 	def test_slack_replies_upload_their_charts(self):
-		self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
+		self.env(slackBotToken='xoxb-test')
+
 		for cmd, heading in (('.beta', '*Beta over 1.5'), ('.price', '*5% at close'), ('.compare T1 T2', '*')):
 			with self.subTest(cmd=cmd):
 				calls = self.slack_answers(*self.upload_steps())
@@ -538,7 +547,8 @@ class ChartDelivery(FinbotCase):
 				self.assertNotIn(share['data']['initial_comment'].split('\n'), [payload for _, payload in self.sent]) # not sent again as text
 
 	def test_a_slack_upload_that_fails_goes_out_as_text(self):
-		self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
+		self.env(slackBotToken='xoxb-test')
+
 		good = self.upload_steps()
 		text = [('text', ['*Heading*', 'line 2'])]
 		for outcomes, expect in (([Resp({'ok': False, 'error': 'missing_scope'})], text), ([ConnectionError('down')], text),
@@ -554,8 +564,9 @@ class ChartDelivery(FinbotCase):
 				self.assertEqual(self.sent, expect)
 
 	def test_scheduled_reports_to_slack_stay_text(self):
-		self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
-		webhook.webhooks['slack'] = 'https://hooks.slack.com/services/x' # an incoming webhook cannot upload
+		self.env(slackBotToken='xoxb-test')
+
+		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/x'}) # an incoming webhook cannot upload
 		sent = []
 		self.patch(webhook, 'sendPhoto', lambda chat, image, caption, service, **k: sent.append((service, 'chart')))
 		self.patch(webhook, 'payload_wrapper', lambda service, url, payload, *a, **k: sent.append((service, 'text')) or [])
@@ -566,12 +577,13 @@ class ChartDelivery(FinbotCase):
 				self.assertEqual(sorted(set(sent)), [('slack', 'text'), ('telegram', 'chart')])
 
 	def test_slack_without_a_bot_token_gets_text_and_no_chart_is_drawn(self):
-		self.patch(webhook, 'config_slackBotToken', False)
+		self.env(slackBotToken=False)
+
 		def refuse(*a, **k):
 			raise AssertionError('a chart was drawn for Slack')
 		for name in ('rows_chart', 'pie_chart', 'bar_graph', 'shorts_chart'):
 			self.patch(util, name, refuse)
-		webhook.webhooks['slack'] = 'https://hooks.slack.com/services/x'
+		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/x'})
 		for cmd in ('.beta', '.pie Rob', '.buy', '.sell', '.peg', '.price', '.price top', '.price T1 7d', '.performance 7d', '.shorts', '.history T1', '.compare T1 T2'):
 			with self.subTest(cmd=cmd):
 				self.sent.clear(); self.errors.clear()
@@ -582,8 +594,10 @@ class ChartDelivery(FinbotCase):
 
 	def test_the_graph_preference_off_sends_no_chart_anywhere(self):
 		"""graph=False means no charts, as the README says; it used to hold back only the price-line charts."""
-		self.patch(webhook, 'config_graph', False)
-		self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
+		self.prefs(graph=False)
+
+		self.env(slackBotToken='xoxb-test')
+
 		posts = []
 		self.patch(webhook.net, 'post', lambda url, **k: posts.append(url) or Resp({'ok': True, 'result': True}))
 		for service, chat in (('telegram', '55'), ('slack', 'C1')):
@@ -621,7 +635,7 @@ class DiscordWebhook(FinbotCase):
 
 	def setUp(self):
 		super().setUp()
-		self.patch(webhook, 'webhooks', {'discord': self.URL})
+		self.env(webhooks={'discord': self.URL})
 		self.patch(webhook, 'payload_wrapper', REAL_PAYLOAD_WRAPPER)
 		self.patch(webhook, 'sendPhoto', REAL_SEND_PHOTO)
 		self.posts = []
@@ -667,7 +681,8 @@ class SlackSending(FinbotCase):
 		self.patch(webhook.net, 'post', lambda url, **kwargs: self.posts.append((url, kwargs)) or Resp({'ok': True}))
 
 	def test_link_previews_are_turned_off_in_the_body(self):
-		self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
+		self.env(slackBotToken='xoxb-test')
+
 		webhook.write('slack', 'https://slack.com/api/chat.postMessage', 'hi', 'C1')
 		webhook.write('slack', 'https://hooks.slack.com/services/T/B/x', 'hi')
 		self.assertEqual(len(self.posts), 2)
@@ -677,7 +692,8 @@ class SlackSending(FinbotCase):
 				self.assertNotIn('unfurl_links', kwargs['headers'])
 
 	def test_a_reply_without_a_bot_token_is_logged_not_sent(self):
-		self.patch(webhook, 'config_slackBotToken', False)
+		self.env(slackBotToken=False)
+
 		err = io.StringIO()
 		with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
 			for cmd in ('.help', '.price', '.compare T1 T2'):
@@ -686,7 +702,8 @@ class SlackSending(FinbotCase):
 		self.assertEqual(err.getvalue().count('ERROR slack: a reply to channel C1 needs slackBotToken in finbot.env; not sent'), 3)
 
 	def test_the_slack_api_says_what_is_missing(self):
-		self.patch(webhook, 'config_slackBotToken', False)
+		self.env(slackBotToken=False)
+
 		with self.assertRaisesRegex(RuntimeError, 'Slack files.getUploadURLExternal: needs slackBotToken in finbot.env'):
 			webhook.slack_api('files.getUploadURLExternal', filename='chart.png', length=1) # it used to be a TypeError
 		self.assertEqual(self.posts, [])
@@ -697,8 +714,9 @@ class TelegramWebhook(FinbotCase):
 
 	def setUp(self):
 		super().setUp()
-		self.patch(telegram, 'webhooks', {'telegram': 'https://api.telegram.org/botX/'})
-		self.patch(telegram, 'config_telegramOutgoingWebhook', 'https://example.com/telegram')
+		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/'})
+		self.env(telegramOutgoingWebhook='https://example.com/telegram')
+
 
 	def test_register_unregisters_registers_and_names_the_bot(self):
 		calls = []

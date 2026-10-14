@@ -3,19 +3,23 @@
 import datetime
 import sys
 
-from lib.config import *
+from lib import config
 from lib import telegram
 from lib import util
 from lib import webhook
 from lib import yahoo
 
+def primary_listings():
+	"""{ADR or second listing: its primary listing}, from finbot_adr.json: read when used, so an edit is seen without a restart."""
+	return config.data_json('finbot_adr.json', {})
+
 EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'), 'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
 
-def lambda_handler(chat_id=None, days=UNSET, service=None, specific_stock=None, interactive=False, event='earnings'):
+def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, interactive=False, event='earnings'):
 	"""The tracked stocks' (or one stock's) upcoming earnings or ex-dividend dates, as `event` says. A scheduled earnings report
 	is pinned on Telegram."""
-	if days is UNSET:
-		days = config_future_days
+	if days is None:
+		days = config.prefs.future_days
 	field, heading = EVENTS[event]
 	def prepare_payload(service, market_data):
 		now = datetime.datetime.now()
@@ -27,14 +31,14 @@ def lambda_handler(chat_id=None, days=UNSET, service=None, specific_stock=None, 
 			ticker_primary = ticker
 			if field not in market_data[ticker]: # an ADR or a second listing: its primary listing may have the date
 				title_orig = market_data[ticker]['profile_title']
-				if ticker in primary_listing: # dict from lib.config
-					ticker_primary = primary_listing[ticker]
+				if ticker in primary_listings():
+					ticker_primary = primary_listings()[ticker]
 				elif ticker.endswith('.AX') and market_data[ticker].get('financialCurrency') == 'NZD':
 					ticker_primary = ticker.replace('.AX', '.NZ') # fixes GTK.AX and SKO.AX
 				market_data = market_data | yahoo.fetch_detail(ticker_primary)
 				country = market_data.get(ticker_primary, {}).get('profile_country') # only in the details
-				if country in yahoo_country and '.' not in ticker_primary: # dict from lib.config
-					ticker_primary = ticker_primary + '.' + yahoo_country[country] # fixes ASML and INFY
+				if country in util.YAHOO_COUNTRY and '.' not in ticker_primary:
+					ticker_primary = ticker_primary + '.' + util.YAHOO_COUNTRY[country] # fixes ASML and INFY
 					market_data = market_data | yahoo.fetch_detail(ticker_primary)
 				primary = market_data.get(ticker_primary, {})
 				if primary.get('profile_title') != title_orig or field not in primary: # not the same company, or no date there either

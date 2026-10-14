@@ -141,12 +141,12 @@ class CommandArguments(FinbotCase):
 		self.assertIn('Top 15 tracked stocks by pe ratio', str(self.command('.pe top '))) # trailing space and all
 
 	def test_hello_leaves_the_word_list_as_it_was(self):
-		before = list(worker.verb)
+		before = list(words.verb)
 		for _ in range(30):
 			line = self.command('.hello')[0][1][0]
 			self.assertNotIn("('", line) # a verb, not a tuple of them
 			self.assertTrue(line.endswith(' you, U! 😇'), line)
-		self.assertEqual(worker.verb, before)
+		self.assertEqual(words.verb, before)
 		self.assertEqual(self.command('hi there'), []) # hello by name only: "hi @bot"
 
 
@@ -177,8 +177,10 @@ class WsgiRejections(FinbotCase):
 		self.assertEqual(self.errors, [])
 
 	def test_strangers_cannot_post_into_the_chats(self):
-		self.patch(bot, 'config_slackOutgoingWebhook', 'https://example.com/slack')
-		self.patch(bot, 'config_slackOutgoingToken', 'stok')
+		self.env(slackOutgoingWebhook='https://example.com/slack')
+
+		self.env(slackOutgoingToken='stok')
+
 		for path, body, headers, status in (('/', b'', {}, '404 Not Found'), ('/wp-login.php', b'log=x&pwd=y', {}, '404 Not Found'),
 				('/telegram', b'log=x', {}, '403 Forbidden'), ('/telegram', {'message': {}}, {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'wrong'}, '403 Forbidden'),
 				('/slack', b'', {}, '400 Bad Request'), ('/slack', b'token=stok', {}, '400 Bad Request'), ('/slack', {'type': 'event_callback'}, {}, '403 Forbidden'),
@@ -238,8 +240,10 @@ class SlackEvents(FinbotCase):
 
 	def setUp(self):
 		super().setUp()
-		self.patch(bot, 'config_slackOutgoingWebhook', 'https://example.com/slack')
-		self.patch(bot, 'config_slackOutgoingToken', 'stok')
+		self.env(slackOutgoingWebhook='https://example.com/slack')
+
+		self.env(slackOutgoingToken='stok')
+
 		self.requests = []
 		self.patch(worker, 'process_request', lambda *a: self.requests.append(a))
 
@@ -319,7 +323,8 @@ class SecretsStayOutOfLogs(FinbotCase):
 		def refuse(url, **kwargs):
 			raise ConnectionError(f"Max retries exceeded with url: {url} (headers {kwargs.get('headers')})")
 		self.patch(webhook.net, 'post', refuse)
-		self.patch(webhook, 'config_slackBotToken', 'xoxb-SECRET')
+		self.env(slackBotToken='xoxb-SECRET')
+
 		log = self.stderr_of(lambda: webhook.write('telegram', self.SECRET_URL, 'hi', '1'))
 		log += self.stderr_of(lambda: webhook.write('slack', 'https://hooks.slack.com/services/T0/B0/SECRETpath', 'hi', 'C1'))
 		self.assertIn('Failure sending', log)

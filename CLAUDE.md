@@ -20,7 +20,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 ## Facts
 - Python 3.13.5; tests are offline and need no network (`tests/`). CI runs them on the latest 3.x and 3.13.5, except for pull requests that change only README.md, CLAUDE.md or `img/*.png` (install, compile and tests are skipped; the allowlist in `.github/workflows/ci.yml` must never include a path a test reads).
 - Production runs the Debian system packages (including `python3-croniter`, for the scheduler in `lib/jobs.py`); `requirements.txt` is for pip/uv users and CI.
-- A new preference goes in five places: `PREFERENCE_KEYS` and `preference_values` (`lib/config.py`), `defaults/preferences.conf`, the README's preferences table, and `DEFAULTS` plus the key count in `tests/test_config.py`. The tests catch all but the README (no test may read README.md: CI skips the tests for a README-only change).
+- A new preference goes in five places: a `Prefs` field and its line in `preference_values` (`lib/config.py`), `defaults/preferences.conf`, the README's preferences table, and `DEFAULTS` plus the key count in `tests/test_config.py`. The tests catch all but the README (no test may read README.md: CI skips the tests for a README-only change).
 - If Yahoo and Sharesight are unreachable (the cloud environment's network policy can block them), check behaviour against the offline fixtures in `tests/common.py`. For a refactor, compare old and new output: load `git show HEAD:<file>` as a module beside the new one and diff what both produce for the same inputs.
 
 ## Code map (open the one file you need)
@@ -34,8 +34,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `lib/charts.py`: Telegram period buttons and the rebuild behind them. `lib/util.py`: formatting, links, market tables, cache and
   state files, all matplotlib rendering.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, cached in `DATA_DIR/cache`.
-- `lib/config.py`: finbot.env + preferences.conf → `config_*` names (star-imported), reload. `lib/jobs.py` + `lib/jobrun.py`: the
-  scheduler; each run is a child process.
+- `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on each reload).
+  `lib/jobs.py` + `lib/jobrun.py`: the scheduler; each run is a child process.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent: `('text', lines)` or
   `('photo', size, caption)`.
 - Which test file: commands and scheduled reports `test_reports`; failures, bad input, WSGI and Slack events `test_edges`;
@@ -44,6 +44,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `test_finbot`.
 
 ## Conventions
+- Read settings as `config.env.<name>` / `config.prefs.<name>` where they are used, never into a default or module constant (a
+  reload must be seen); in tests, `self.env(...)` / `self.prefs(...)` change them.
 - A report is a list of lines. Markup through `webhook.bold/italic(text, service)`, user-written text through
   `webhook.escape(text, service)`, links through `util.link`/`util.finance_link`.
 - Tabs everywhere, tests included (`.editorconfig`). New and changed lines stay under 120 characters (an edit quotes whole lines).

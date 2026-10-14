@@ -8,7 +8,7 @@ import re
 import sys
 import tempfile
 import time
-from lib.config import * # first: sets MPLCONFIGDIR before matplotlib is imported (lazily, by the chart functions)
+from lib import config # first: sets MPLCONFIGDIR before matplotlib is imported (lazily, by the chart functions)
 from lib import sharesight
 
 
@@ -88,6 +88,48 @@ MARKETS = { # Sharesight market code -> (flag, currency); no currency where a ma
 	'WAR': ('🇵🇱', 'PLN'),
 }
 
+YAHOO_COUNTRY = { # country -> its Yahoo ticker suffix, for a listing that has none (cal.py)
+	'Argentina': 'BA',
+	'Austria': 'VI',
+	'Australia': 'AX',
+	'Belgium': 'BR',
+	'Brazil': 'SA',
+	'Canada': 'TO',
+	'Chile': 'SN',
+	'Colombia': 'CL',
+	'Czech Republic': 'PR',
+	'Denmark': 'CO',
+	'Estonia': 'TL',
+	'Finland': 'HE',
+	'France': 'PA',
+	'Germany': 'DE',
+	'Hungary': 'BD',
+	'Iceland': 'IC',
+	'India': 'NS',
+	'Indonesia': 'JK',
+	'Ireland': 'IR',
+	'Israel': 'TA',
+	'Italy': 'MI',
+	'Latvia': 'RG',
+	'Lithuania': 'VS',
+	'Mexico': 'MX',
+	'Netherlands': 'AS',
+	'New Zealand': 'NZ',
+	'Norway': 'OL',
+	'Portugal': 'LS',
+	'Qatar': 'QA',
+	'Saudi Arabia': 'SR',
+	'South Africa': 'JO',
+	'Spain': 'MC',
+	'Sweden': 'ST',
+	'Switzerland': 'SW',
+	'Thailand': 'BK',
+	'Turkey': 'IS',
+	'United Kingdom': 'L',
+	'Venezuela': 'CR'
+	# markets with numeric tickers purposefully omitted
+}
+
 def flag_from_market(market):
 	if market in MARKETS:
 		return MARKETS[market][0]
@@ -104,20 +146,20 @@ def currency_from_market(market):
 
 def cache_path(name, persist=False):
 	"""Where a cache file lives, or with persist=True a state file (in the data directory)."""
-	return (config_var_dir if persist else config_cache_dir) + "/" + name
+	return (config.env.data_dir if persist else config.env.cache_dir) + "/" + name
 
 def _fresh_cache(cacheFile, maxSeconds):
-	"""The cache file's path if it was written less than maxSeconds ago (config_cache_seconds when UNSET), else None."""
-	if maxSeconds is UNSET:
-		maxSeconds = config_cache_seconds
+	"""The cache file's path if it was written less than maxSeconds ago (the cache_seconds preference when None), else None."""
+	if maxSeconds is None:
+		maxSeconds = config.prefs.cache_seconds
 	path, age = cache_path(cacheFile), cache_age(cacheFile)
 	if age is None:
-		print("cache miss:", path, file=sys.stderr) if debug else None
+		print("cache miss:", path, file=sys.stderr) if config.prefs.debug else None
 		return None
 	if age >= maxSeconds:
-		print("cache expired:", path, file=sys.stderr) if debug else None
+		print("cache expired:", path, file=sys.stderr) if config.prefs.debug else None
 		return None
-	print("cache hit:", path, "TTL:", td_to_human(datetime.timedelta(seconds=maxSeconds - age)), file=sys.stderr) if debug else None
+	print("cache hit:", path, "TTL:", td_to_human(datetime.timedelta(seconds=maxSeconds - age)), file=sys.stderr) if config.prefs.debug else None
 	return path
 
 def _read_fresh(cacheFile, maxSeconds, read):
@@ -130,7 +172,7 @@ def _read_fresh(cacheFile, maxSeconds, read):
 	except FileNotFoundError:
 		return None
 
-def read_cache(cacheFile, maxSeconds=UNSET):
+def read_cache(cacheFile, maxSeconds=None):
 	"""A cache file's JSON, or None when it is missing or older than maxSeconds."""
 	return _read_fresh(cacheFile, maxSeconds, lambda path: json.loads(path.read_text(encoding="utf-8")))
 
@@ -165,7 +207,7 @@ def write_file(path, data, sync=False):
 def json_write(filename, data, persist=False):
 	"""A cache file, or with persist=True a state file in the data directory (also flushed to disk). See write_file."""
 	path = cache_path(filename, persist)
-	if debug:
+	if config.prefs.debug:
 		print("cache write:", path, file=sys.stderr)
 	write_file(path, json.dumps(data, indent=4).encode('utf-8'), sync=persist)
 
@@ -173,7 +215,7 @@ def json_load(filename, persist=False):
 	path = Path(cache_path(filename, persist))
 	return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
-def read_binary_cache(cacheFile, maxSeconds=UNSET):
+def read_binary_cache(cacheFile, maxSeconds=None):
 	"""A cache file's bytes (as a file object), or None when it is missing or older than maxSeconds."""
 	return _read_fresh(cacheFile, maxSeconds, lambda path: io.BytesIO(path.read_bytes()))
 
@@ -201,7 +243,7 @@ def security_line(flag, title, link):
 def link(url, text, service='telegram'):
 	"""text linking to url in the service's markup: HTML on Telegram, <url|text> on Slack, a masked link on Discord (the angle
 	brackets keep its preview away; brackets in the text and parentheses in the url would end it early)."""
-	if not config_hyperlink:
+	if not config.prefs.hyperlink:
 		return text
 	if service == 'telegram':
 		return '<a href="' + url + '">' + text + '</a>'
@@ -212,7 +254,7 @@ def link(url, text, service='telegram'):
 	return text
 
 def finance_link(symbol, exchange, service='telegram', days=1, brief=True, text=None):
-	if config_hyperlinkProvider == 'google':
+	if config.prefs.hyperlinkProvider == 'google':
 		return gfinance_link(symbol, exchange, service, days, brief, text)
 	return yahoo_link(symbol, service, brief, text)
 
@@ -252,7 +294,7 @@ def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True, text
 			text = ticker
 		else:
 			text = symbol # US
-	if service in {'telegram', 'discord', 'slack'} and config_hyperlink:
+	if service in {'telegram', 'discord', 'slack'} and config.prefs.hyperlink:
 		return link(url + ticker + '?window=' + window, text, service)
 	return symbol
 
@@ -380,8 +422,10 @@ def render_off_hub():
 	deadlock matplotlib under gevent's patched locks. matplotlib is imported here, at start, instead of by the first chart. Job
 	processes and the tests draw in place."""
 	global _render_pool
+	import importlib
 	from gevent.threadpool import ThreadPool
-	import matplotlib.backends.backend_agg, matplotlib.dates, matplotlib.figure, matplotlib.patches, matplotlib.path, matplotlib.ticker # noqa: F401
+	for module in ('matplotlib.backends.backend_agg', 'matplotlib.dates', 'matplotlib.figure', 'matplotlib.patches', 'matplotlib.path', 'matplotlib.ticker'):
+		importlib.import_module(module)
 	_render_pool = ThreadPool(1)
 
 def _drawn(draw):

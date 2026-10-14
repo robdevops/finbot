@@ -3,7 +3,7 @@ import time
 import datetime
 import threading
 import requests
-from lib.config import *
+from lib import config
 from lib import net
 import lib.util as util
 
@@ -21,7 +21,7 @@ def _post(url, **kwargs):
 def _request(send, url, what, **kwargs):
 	"""Send a request to Sharesight and return the JSON answer. A request that fails raises RuntimeError naming `what`."""
 	try:
-		r = send(url, timeout=config_http_timeout, **kwargs)
+		r = send(url, timeout=config.prefs.http_timeout, **kwargs)
 	except Exception as e:
 		print("Error", net.redact(e), url, file=sys.stderr)
 		raise RuntimeError(f"Sharesight {what} request failed: {e}")
@@ -43,27 +43,27 @@ class BearerAuth(requests.auth.AuthBase):
 		return r
 
 def get_token():
-	if config_cache:
+	if config.prefs.cache:
 		cacheFile = "finbot_sharesight_token.json"
 		cache = util.json_load(cacheFile)
 		if cache:
 			cache_expiry = datetime.datetime.fromtimestamp(cache['created_at'] + cache['expires_in'])
 			ttl = cache_expiry - datetime.datetime.now()
 			if ttl > datetime.timedelta(seconds=20):
-				print("cache hit:", cacheFile, "TTL:", util.td_to_human(ttl), file=sys.stderr) if debug else None
+				print("cache hit:", cacheFile, "TTL:", util.td_to_human(ttl), file=sys.stderr) if config.prefs.debug else None
 				return cache['access_token']
 			else:
-				print("cache miss:", cacheFile, file=sys.stderr) if debug else None
+				print("cache miss:", cacheFile, file=sys.stderr) if config.prefs.debug else None
 
 	print("Fetching Sharesight auth token")
-	data = _request(_post, "https://api.sharesight.com/oauth2/token", 'auth', data=config_sharesight_auth)
+	data = _request(_post, "https://api.sharesight.com/oauth2/token", 'auth', data=config.env.sharesight_auth)
 	_check(data, 'auth')
-	if config_cache and 'access_token' in data:
+	if config.prefs.cache and 'access_token' in data:
 		util.json_write(cacheFile, data)
-	print("Got a Sharesight token", file=sys.stderr) if debug else None
+	print("Got a Sharesight token", file=sys.stderr) if config.prefs.debug else None
 	return data['access_token']
 
-PORTFOLIOS_CACHE = "finbot_sharesight_portfolios.json" # ttl: config_cache_seconds
+PORTFOLIOS_CACHE = "finbot_sharesight_portfolios.json" # ttl: the cache_seconds preference
 
 def performance_cache_file(portfolio_id, days):
 	return "finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'
@@ -71,18 +71,18 @@ def performance_cache_file(portfolio_id, days):
 def get_portfolios(refresh=False):
 	"""refresh=True skips the cache read and fetches again (the cache is rewritten)."""
 	portfolio_dict = {}
-	data = util.read_cache(PORTFOLIOS_CACHE, config_cache_seconds) if config_cache and not refresh else None
+	data = util.read_cache(PORTFOLIOS_CACHE, config.prefs.cache_seconds) if config.prefs.cache and not refresh else None
 	if not data:
 		token = get_token()
 		print("Fetching Sharesight portfolios")
 		data = _request(_get, "https://api.sharesight.com/api/v3/portfolios", 'portfolios', headers={'Content-type': 'application/json'}, auth=BearerAuth(token))
 		_check(data, 'portfolios')
-		if config_cache and 'portfolios' in data:
+		if config.prefs.cache and 'portfolios' in data:
 			util.json_write(PORTFOLIOS_CACHE, data)
 	for portfolio in data['portfolios']:
-		if str(portfolio['id']) in config_exclude_portfolios:
+		if str(portfolio['id']) in config.prefs.exclude_portfolios:
 			print(portfolio['id'], "(" + portfolio['name'] + ") in exclusion list. Skipping.")
-		elif str(portfolio['id']) not in config_include_portfolios and config_include_portfolios:
+		elif str(portfolio['id']) not in config.prefs.include_portfolios and config.prefs.include_portfolios:
 			print("Exclusion list is defined and does not contain", portfolio['id'], "(" + portfolio['name'] + "). Skipping.")
 		else:
 			portfolio_dict[portfolio['name']] = portfolio['id']
@@ -109,10 +109,10 @@ def pick_portfolios(name=None, portfolios=None):
 		raise PortfolioNotFound(name, portfolios)
 	return dict([found])
 
-def get_trades(portfolio_name, portfolio_id, days=UNSET):
-	if days is UNSET:
-		days = config_past_days
-	if config_cache:
+def get_trades(portfolio_name, portfolio_id, days=None):
+	if days is None:
+		days = config.prefs.past_days
+	if config.prefs.cache:
 		cache_file = "finbot_sharesight_trades_" + str(portfolio_id) + "_" + str(days) + ".json"
 		cache = util.read_cache(cache_file, 299) # max freq 5 min
 		if cache:
@@ -128,7 +128,7 @@ def get_trades(portfolio_name, portfolio_id, days=UNSET):
 	_check(data, 'trades')
 	for trade in data['trades']:
 		trade['portfolio'] = portfolio_name # inject custom field
-	if config_cache and 'trades' in data:
+	if config.prefs.cache and 'trades' in data:
 		util.json_write(cache_file, data)
 	return data['trades']
 
@@ -165,14 +165,14 @@ def get_holdings_wrapper():
 		tickers.update(get_holdings(portfolio_name, portfolio_id))
 	return sorted(tickers)
 
-def get_performance(portfolio_id, days, config_cache_seconds=UNSET, refresh=False):
-	if config_cache_seconds is UNSET:
-		config_cache_seconds = config_performance_cache_seconds
+def get_performance(portfolio_id, days, seconds=None, refresh=False):
+	if seconds is None:
+		seconds = config.prefs.performance_cache_seconds
 	start_date = datetime.datetime.now() - datetime.timedelta(days=days)
 	start_date = start_date.strftime('%Y-%m-%d') # 2023-04-25
 	cache_file = performance_cache_file(portfolio_id, days)
-	if config_cache and not refresh:
-		cache = util.read_cache(cache_file, config_cache_seconds)
+	if config.prefs.cache and not refresh:
+		cache = util.read_cache(cache_file, seconds)
 		if cache:
 			return cache
 	token = get_token()
@@ -186,13 +186,13 @@ def get_performance(portfolio_id, days, config_cache_seconds=UNSET, refresh=Fals
 			continue
 		break
 	_check(data, 'performance')
-	if config_cache and 'report' in data:
+	if config.prefs.cache and 'report' in data:
 		util.json_write(cache_file, data)
 	return data
 
-def get_performance_wrapper(days=UNSET):
-	if days is UNSET:
-		days = config_past_days
+def get_performance_wrapper(days=None):
+	if days is None:
+		days = config.prefs.past_days
 	performance = {}
 	portfolios = get_portfolios()
 	for portfolio_name, portfolio_id in portfolios.items():
@@ -208,14 +208,14 @@ def warm(margin=0.9):
 	the portfolios on instead of reading the cached list again."""
 	fetched = 0
 	age = util.cache_age(PORTFOLIOS_CACHE)
-	if age is None or age >= config_cache_seconds * margin:
+	if age is None or age >= config.prefs.cache_seconds * margin:
 		portfolios = get_portfolios(refresh=True)
 		fetched += 1
 	else:
 		portfolios = get_portfolios()
 	for portfolio_name, portfolio_id in portfolios.items():
 		age = util.cache_age(performance_cache_file(portfolio_id, 0))
-		if age is None or age >= margin * config_performance_cache_seconds:
+		if age is None or age >= margin * config.prefs.performance_cache_seconds:
 			get_performance(portfolio_id, 0, refresh=True)
 			fetched += 1
 	return fetched, portfolios
@@ -225,10 +225,10 @@ def next_due(margin=0.9, portfolios=None):
 	used; without it the cached list is read."""
 	waits = []
 	age = util.cache_age(PORTFOLIOS_CACHE)
-	waits.append(0 if age is None else margin * config_cache_seconds - age)
+	waits.append(0 if age is None else margin * config.prefs.cache_seconds - age)
 	for portfolio_name, portfolio_id in (get_portfolios() if portfolios is None else portfolios).items():
 		age = util.cache_age(performance_cache_file(portfolio_id, 0))
-		waits.append(0 if age is None else margin * config_performance_cache_seconds - age)
+		waits.append(0 if age is None else margin * config.prefs.performance_cache_seconds - age)
 	return max(0, min(waits))
 
 _wake = threading.Event() # set by wake(): the caches were flushed, refill them now
@@ -242,7 +242,7 @@ def keep_warm(min_wait=5, retry=300, idle=60, stop=None):
 	While the cache preference is off (a reload can switch it either way) it fetches nothing, since nothing would be written and
 	everything would always be due, and looks again every `idle` seconds. Never raises; after a failure it waits `retry` seconds."""
 	while not (stop and stop.is_set()):
-		if not config_cache:
+		if not config.prefs.cache:
 			wait = idle
 		else:
 			try:

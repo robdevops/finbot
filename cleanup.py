@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import os, sys, time
-from lib.config import *
+from lib import config
 from lib import webhook
 
 def lambda_handler(days=30):
@@ -11,7 +11,7 @@ def lambda_handler(days=30):
 	cutoff = now - days * 86400
 	removed = 0
 	try:
-		entries = list(os.scandir(config_cache_dir))
+		entries = list(os.scandir(config.env.cache_dir))
 	except FileNotFoundError:
 		return 0
 	for entry in entries:
@@ -23,7 +23,7 @@ def lambda_handler(days=30):
 				removed += 1
 			except OSError as e:
 				print("cleanup: can't remove", entry.path, e, file=sys.stderr)
-	print(f"cleanup: removed {removed} cache files older than {days} days from {config_cache_dir}")
+	print(f"cleanup: removed {removed} cache files older than {days} days from {config.env.cache_dir}")
 	return removed
 
 def job(argv):

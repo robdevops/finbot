@@ -2,7 +2,7 @@ from itertools import pairwise
 import hashlib, re
 import datetime
 import sys
-from lib.config import *
+from lib import config
 from lib import sharesight
 from lib import util
 from lib import webhook
@@ -165,7 +165,7 @@ def prepare_compare(service, args):
 	spec = period_days or ('max' if full_history else 'default')
 	cache_key = hashlib.sha1(f"{service}|{','.join(tickers)}|{spec}".encode()).hexdigest()[:16]
 	image_cache_file, caption_cache_file = f"finbot_compare_{cache_key}.png", f"finbot_compare_{cache_key}.json"
-	if config_cache:
+	if config.prefs.cache:
 		cached_image = util.read_binary_cache(image_cache_file)
 		cached_caption = util.read_cache(caption_cache_file)
 		if cached_image and cached_caption:
@@ -209,7 +209,7 @@ def prepare_compare(service, args):
 	for pct, t in reversed(results):
 		link = util.finance_link(t, exchanges[t], service, days=span_days, brief=False)
 		caption.append(f"{util.get_emoji(pct)} {names[t]} ({link}): {pct:+,.1f}%")
-	if config_cache:
+	if config.prefs.cache:
 		util.write_binary_cache(image_cache_file, image)
 		util.json_write(caption_cache_file, caption)
 		image.seek(0)
@@ -386,7 +386,7 @@ def prepare_rating_payload(service, action, length=15):
 	rating first (1 is a strong buy, 5 a strong sell); on equal ratings, the one more analysts give first."""
 	found = [] # (rating, analysts, line, ticker)
 	for ticker, data in yahoo.fetch_details(util.get_holdings_and_watchlist()).items():
-		if 'recommend' not in data or data['recommend_analysts'] < config_min_analysts:
+		if 'recommend' not in data or data['recommend_analysts'] < config.prefs.min_analysts:
 			continue
 		recommend = data['recommend'].replace('_', ' ')
 		if (action == 'buy' and 'buy' in recommend) or (action == 'sell' and recommend in ('sell', 'underperform')):
@@ -396,8 +396,8 @@ def prepare_rating_payload(service, action, length=15):
 	found = sorted(found, key=lambda row: (row[0] if action == 'buy' else -row[0], -row[1]))[:length]
 	payload = [line for _, _, line, _ in found]
 	if not payload:
-		return [f"No tracked stocks rated {action} by {config_min_analysts}+ analysts"], None
-	message = f"Top {length} analyst {action} ratings for tracked stocks ({config_min_analysts}+ analysts)"
+		return [f"No tracked stocks rated {action} by {config.prefs.min_analysts}+ analysts"], None
+	message = f"Top {length} analyst {action} ratings for tracked stocks ({config.prefs.min_analysts}+ analysts)"
 	shown = [(ticker.split('.')[0], rating) for rating, _, _, ticker in found]
 	low, high = min(r for _, r in shown), max(r for _, r in shown)
 	spread = (high - low) or 0.2
@@ -417,7 +417,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 		market_data |= yahoo.fetch_details(market_data, strict=bool(ticker_select))
 	covered = None # for a forward P/E list: the tickers enough analysts cover
 	if 'forward' in action and not ticker_select:
-		covered = {ticker for ticker, detail in yahoo.fetch_details(market_data).items() if detail.get('recommend_analysts', 0) >= config_min_analysts}
+		covered = {ticker for ticker, detail in yahoo.fetch_details(market_data).items() if detail.get('recommend_analysts', 0) >= config.prefs.min_analysts}
 	for ticker in market_data:
 		if covered is not None and ticker not in covered:
 			continue
@@ -476,9 +476,9 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			payload.reverse()
 			chart_rows.reverse()
 		payload = payload[:length]
-		coverage = f" ({config_min_analysts}+ analysts)" if covered is not None else ''
+		coverage = f" ({config.prefs.min_analysts}+ analysts)" if covered is not None else ''
 		if not payload:
-			payload = [f"No tracked stocks with {config_min_analysts}+ analysts have a {heading_trail} ratio" if covered is not None else f"{action}: no data found"]
+			payload = [f"No tracked stocks with {config.prefs.min_analysts}+ analysts have a {heading_trail} ratio" if covered is not None else f"{action}: no data found"]
 		else:
 			heading = f'{heading_type} {length} tracked stocks by {heading_trail} ratio{coverage}'
 			payload.insert(0, f"{webhook.bold(heading, service)}")
@@ -668,7 +668,7 @@ def prepare_profile_payload(service, user, ticker):
 				payload.append(f"{util.get_emoji(data[key])} {webhook.bold(label, service)} {data[key]:,}%")
 				break
 
-	if 'profile_website' in data and config_hyperlinkFooter and config_hyperlink:
+	if 'profile_website' in data and config.prefs.hyperlinkFooter and config.prefs.hyperlink:
 		if payload:
 			payload.append("")
 		payload.append(f"{gfinance_link} | {util.yahoo_link(ticker, service, brief=True, text='yahoo')} | {sws_link}")

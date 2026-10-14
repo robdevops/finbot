@@ -20,7 +20,6 @@ import gevent
 from gevent import subprocess
 from croniter import croniter, CroniterBadDateError
 
-from lib.config import *
 from lib import config
 from lib import jobrun
 from lib import util
@@ -47,7 +46,7 @@ def run_child(label, module, kwargs):
 	"""Run a command in its own process (python -m lib.jobrun) and return its exit status. The child inherits the environment,
 	user and output of the bot, so it behaves like the old cron job. A timeout or any other interruption stops the child."""
 	env = dict(os.environ, **config.child_environment()) # the preferences this process runs on, not whatever the file says now
-	proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', module.__name__, json.dumps(kwargs)], cwd=REPO_DIR, env=env)
+	proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', module.__name__, json.dumps(kwargs)], cwd=config.REPO_DIR, env=env)
 	try:
 		return proc.wait()
 	except BaseException:
@@ -240,9 +239,9 @@ class Scheduler:
 	"""Fires the jobs of a schedule file. `path` is a callable returning the file (the data dir copy wins over the default, so a
 	new copy is found on reload). `clock`, `sleep` and `spawn` can be replaced, which the tests do."""
 
-	def __init__(self, path, catchup=config_scheduler_catchup, clock=None, sleep=None, spawn=None, zone=None, runner=None):
+	def __init__(self, path, catchup=None, clock=None, sleep=None, spawn=None, zone=None, runner=None):
 		self.path = path
-		self.catchup = datetime.timedelta(minutes=catchup)
+		self.catchup = datetime.timedelta(minutes=config.env.scheduler_catchup if catchup is None else catchup)
 		self.clock = clock or (lambda: datetime.datetime.now(datetime.timezone.utc))
 		self.sleep = sleep or gevent.sleep
 		self.spawn = spawn or gevent.spawn

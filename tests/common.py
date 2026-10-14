@@ -1,6 +1,6 @@
 """Shared fixture: points finbot at a temp cache dir and replaces every external service
 (Telegram, Yahoo, Sharesight, Short Man) with canned data. Nothing here touches the network."""
-import collections, io, os, sys, tempfile, time, unittest
+import collections, dataclasses, io, os, sys, tempfile, time, unittest
 import pandas as pd
 from unittest import mock
 
@@ -10,7 +10,7 @@ os.chdir(ROOT)
 os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok', telegramChatID='1')
 
 import bot # first, and once: it monkey-patches with gevent, which must happen before requests imports ssl and never mid-test
-from lib import config, webhook, util, yahoo, sharesight, shortman, worker, charts, telegram, reports
+from lib import config, webhook, util, yahoo, sharesight, shortman, worker, charts, telegram, reports, words
 import performance, shorts, price, reminder, cal, trades, milestone, rating
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (yahoo, 'price_history'),
@@ -51,19 +51,22 @@ class FinbotCase(unittest.TestCase):
 		p.start()
 		self.addCleanup(p.stop)
 
+	def env(self, **changes):
+		"""Startup settings for this test: config.env with these fields changed."""
+		self.patch(config, 'env', dataclasses.replace(config.env, **changes))
+
+	def prefs(self, **changes):
+		"""Preferences for this test: config.prefs with these fields changed (what a reload would do)."""
+		self.patch(config, 'prefs', dataclasses.replace(config.prefs, **changes))
+
 	def setUp(self):
 		fake = mock.Mock(status_code=200, text='{}')
 		fake.json.return_value = {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 5}}}
 		self.patch(__import__('requests').Session, 'request', mock.Mock(return_value=fake)) # no real network traffic
 		tmp = tempfile.TemporaryDirectory()
 		self.addCleanup(tmp.cleanup)
-		self.patch(util, 'config_var_dir', tmp.name)
-		self.patch(util, 'config_cache_dir', tmp.name)
-		self.patch(config, 'config_var_dir', tmp.name)
-		self.patch(webhook, 'webhooks', {'telegram': 'https://api.telegram.org/botX/'})
+		self.env(data_dir=tmp.name, cache_dir=tmp.name, webhooks={'telegram': 'https://api.telegram.org/botX/'})
 		self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
-		for m in (performance, shorts, price, cal, trades, milestone, rating, worker, reminder, telegram):
-			self.patch(m, 'webhooks', webhook.webhooks)
 		self.sent = []
 		self.markups = [] # reply_markup of each photo sent
 		self.errors = []

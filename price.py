@@ -3,7 +3,7 @@
 import sys
 import datetime
 
-from lib.config import *
+from lib import config
 from lib import sharesight
 from lib import webhook
 from lib import util
@@ -15,10 +15,10 @@ def gather(specific_stock=None, days=None):
 	Sharesight has none for (the watchlist) their Yahoo history, fetched together up front."""
 	tickers = [util.transform_to_yahoo(specific_stock)] if specific_stock else util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
-	if config_demote_volatile: # trigger_bar compares market caps, in US dollars
+	if config.prefs.demote_volatile: # trigger_bar compares market caps, in US dollars
 		yahoo.add_usd_market_caps(market_data)
 	# Sharesight reports a holding's performance only for the time it was held: held for 1Y and asked for 5Y, it gives 1Y
-	if days and (not specific_stock or config_performance_use_sharesight):
+	if days and (not specific_stock or config.prefs.performance_use_sharesight):
 		for data in sharesight.get_performance_wrapper(days).values():
 			for holding in data['report']['holdings']:
 				ticker = util.transform_to_yahoo(holding['instrument']['code'], holding['instrument']['market_code'])
@@ -26,40 +26,40 @@ def gather(specific_stock=None, days=None):
 					market_data[ticker]['percent_change_period'] = float(holding['capital_gain_percent'])
 				elif ticker in tickers:
 					print("Notice: price.py:", ticker, "has no data", file=sys.stderr)
-		if not specific_stock and not config_performance_use_sharesight:
+		if not specific_stock and not config.prefs.performance_use_sharesight:
 			yahoo.prefetch_history([t for t in market_data if 'percent_change_period' not in market_data[t]])
 	return tickers, market_data
 
 def needs_beta(quote):
 	"""Whether trigger_bar must know this ticker's beta: a small cap between US$150M and US$1B, which counts as volatile when its
 	beta is over 1.5. The beta is only in Yahoo's details."""
-	return config_demote_volatile and 1.5e8 <= quote.get('market_cap_usd', float('inf')) < 1e9
+	return config.prefs.demote_volatile and 1.5e8 <= quote.get('market_cap_usd', float('inf')) < 1e9
 
 def trigger_bar(ticker, quote, threshold, details=None):
 	"""The move this ticker needs before it alone sends a scheduled report: more for leveraged ETFs (demote_leveraged) and volatile
 	small caps (demote_volatile; their market caps in US dollars), else the threshold itself. details: Yahoo's details of the
 	tickers that need_beta, fetched together; without it this ticker's are fetched here."""
 	title = quote['profile_title'].lower()
-	if config_demote_leveraged and ('2x' in title or '3x' in title):
+	if config.prefs.demote_leveraged and ('2x' in title or '3x' in title):
 		return threshold * 1.3
 	cap = quote.get('market_cap_usd')
-	if config_demote_volatile and cap is not None and cap < 1e9:
+	if config.prefs.demote_volatile and cap is not None and cap < 1e9:
 		if cap < 1e7:
-			return threshold * config_volatility_multiplier * 1.3
+			return threshold * config.prefs.volatility_multiplier * 1.3
 		if cap < 1.5e8:
-			return threshold * config_volatility_multiplier
+			return threshold * config.prefs.volatility_multiplier
 		beta = (yahoo.fetch_detail(ticker) if details is None else details).get(ticker, {}).get('beta')
 		if beta is None or beta > 1.5:
-			return threshold * config_volatility_multiplier
+			return threshold * config.prefs.volatility_multiplier
 	return threshold
 
-def report(service, threshold=UNSET, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False,
+def report(service, threshold=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False,
 		days=None, close=False, top=None, market=None):
 	"""(payload, chart) of the price report for one service: the moves of `threshold` percent or more (or the top and bottom `top`),
 	today's, over `days`, at the close, mid-session or pre-market. A scheduled report goes out only when one ticker passes its
 	trigger_bar; it then lists every ticker past the threshold. market: gather()'s (tickers, market data), fetched when not given."""
-	if threshold is UNSET:
-		threshold = config_price_percent
+	if threshold is None:
+		threshold = config.prefs.price_percent
 	tickers, market_data = market or gather(specific_stock, days)
 	now = datetime.datetime.now()
 	rows = [] # (ticker, percent, report line without its percent)
@@ -88,10 +88,10 @@ def report(service, threshold=UNSET, user='', specific_stock=None, interactive=F
 		elif days:
 			percent = quote.get('percent_change_period') # Sharesight's figure, for a holding
 			if percent is None:
-				if config_performance_use_sharesight:
+				if config.prefs.performance_use_sharesight:
 					continue
 				if specific_stock: # the one ticker asked for: no history is reported in one line
-					history, graph = yahoo.price_history(ticker, days, graph=config_graph and webhook.takes_charts(service, interactive), graphCache=False)
+					history, graph = yahoo.price_history(ticker, days, graph=config.prefs.graph and webhook.takes_charts(service, interactive), graphCache=False)
 				else:
 					try:
 						history, _ = yahoo.price_history(ticker, days, graph=False)
@@ -161,10 +161,10 @@ def report(service, threshold=UNSET, user='', specific_stock=None, interactive=F
 			payload = [f"{user}, no price movements meet threshold {threshold:g}%"]
 	return payload, graph
 
-def lambda_handler(chat_id=None, threshold=UNSET, service=None, user='', specific_stock=None, interactive=False, midsession=False,
+def lambda_handler(chat_id=None, threshold=None, service=None, user='', specific_stock=None, interactive=False, midsession=False,
 		premarket=False, interday=False, days=None, close=False, top=None):
-	if threshold is UNSET:
-		threshold = config_price_percent
+	if threshold is None:
+		threshold = config.prefs.price_percent
 	market = gather(specific_stock, days)
 	def buttons(service): # a chart's period buttons: one ticker's chart, and the daily and N-day lists (not the intraday ones)
 		if service != 'telegram':

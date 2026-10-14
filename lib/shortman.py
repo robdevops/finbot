@@ -1,5 +1,5 @@
 import sys
-from lib.config import *
+from lib import config
 from lib import net
 
 def fetch(market_data):
@@ -7,7 +7,7 @@ def fetch(market_data):
 	print("Fetching ASX shorts from Shortman")
 	url = 'https://www.shortman.com.au/downloadeddata/latest.csv'
 	try:
-		r = net.get(url, timeout=config_http_timeout)
+		r = net.get(url, timeout=config.prefs.http_timeout)
 	except Exception as e:
 		print("Failure fetching", url, net.redact(e), file=sys.stderr)
 		return market_data # the ASX short interest is missing, the rest of the report is not

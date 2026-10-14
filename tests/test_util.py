@@ -96,7 +96,7 @@ class StateFiles(FinbotCase):
 
 	def test_a_failed_write_leaves_the_old_file_and_the_umask_alone(self):
 		util.json_write('state.json', {'a': 1}, persist=True)
-		path = Path(util.config_var_dir, 'state.json')
+		path = Path(config.env.data_dir, 'state.json')
 		previous = os.umask(0o027)
 		self.addCleanup(os.umask, previous)
 		def disk_full(*a, **k):
@@ -106,10 +106,10 @@ class StateFiles(FinbotCase):
 				with self.assertRaises(OSError):
 					util.json_write('state.json', {'a': 2}, persist=True)
 			self.assertEqual(json.loads(path.read_text()), {'a': 1}) # whole or not at all
-			self.assertEqual(os.listdir(util.config_var_dir), ['state.json']) # no temp file left behind
+			self.assertEqual(os.listdir(config.env.data_dir), ['state.json']) # no temp file left behind
 		with mock.patch.object(util.os, 'replace', disk_full), self.assertRaises(OSError):
 			util.write_binary_cache('img.png', io.BytesIO(b'png'))
-		self.assertEqual(os.listdir(util.config_var_dir), ['state.json'])
+		self.assertEqual(os.listdir(config.env.data_dir), ['state.json'])
 		self.assertEqual(os.umask(0o027), 0o027) # the umask was not touched
 		util.json_write('state.json', {'a': 3}, persist=True)
 		self.assertEqual((json.loads(path.read_text()), oct(path.stat().st_mode & 0o777)), ({'a': 3}, '0o640'))

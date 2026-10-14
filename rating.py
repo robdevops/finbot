@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import sys
-from lib.config import *
 from lib import webhook
 from lib import util
 from lib import yahoo

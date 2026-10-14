@@ -1,5 +1,5 @@
 """The two config files: finbot.env (the startup file, loaded by the launcher) and preferences.conf (read by the bot, reloadable)."""
-import ast, contextlib, inspect, io, os, re, subprocess, sys, tempfile, unittest
+import ast, contextlib, dataclasses, io, os, re, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
 from lib import config
@@ -9,13 +9,17 @@ from lib import reports, sharesight, util, worker, yahoo
 import performance, price, shorts, trades
 
 REPO = Path(config.__file__).resolve().parent.parent
-DEFAULTS = {'config_past_days': 28, 'config_future_days': 30, 'config_price_percent': 5.0, 'config_shorts_percent': 15,
-	'config_cache_seconds': 43200, 'config_performance_cache_seconds': 1800, 'config_graph': True, 'config_http_timeout': 18,
-	'config_chunk_maxlines': 20, 'config_country_code': 'AU', 'config_timezone': 'Australia/Melbourne', 'config_cache': True,
-	'config_alliterate': False, 'config_hyperlink': True, 'config_hyperlinkFooter': True, 'config_hyperlinkProvider': 'google',
-	'config_demote_volatile': True, 'config_demote_leveraged': True, 'config_volatility_multiplier': 2.0, 'config_exclude_portfolios': [],
-	'config_include_portfolios': [], 'config_trades_use_yahoo': True, 'config_performance_use_sharesight': False,
-	'config_print_headers': False, 'config_min_analysts': 7, 'debug': False}
+DEFAULTS = {'past_days': 28, 'future_days': 30, 'price_percent': 5.0, 'shorts_percent': 15, 'cache_seconds': 43200,
+	'performance_cache_seconds': 1800, 'graph': True, 'http_timeout': 18, 'chunk_maxlines': 20, 'country_code': 'AU',
+	'timezone': 'Australia/Melbourne', 'cache': True, 'alliterate': False, 'hyperlink': True, 'hyperlinkFooter': True,
+	'hyperlinkProvider': 'google', 'demote_volatile': True, 'demote_leveraged': True, 'volatility_multiplier': 2.0, 'exclude_portfolios': (),
+	'include_portfolios': (), 'trades_use_yahoo': True, 'performance_use_sharesight': False, 'print_headers': False, 'min_analysts': 7,
+	'debug': False}
+
+
+def fields(prefs):
+	"""A Prefs as {name: value}, without the file's own lines."""
+	return {name: getattr(prefs, name) for name in config.PREFERENCE_KEYS}
 
 
 def keys_in(path):
@@ -38,13 +42,13 @@ class Tables(unittest.TestCase):
 
 	def test_the_preference_defaults_are_the_old_defaults(self):
 		values = config.preference_values(lambda name, default=None: default)
-		self.assertEqual(values, DEFAULTS)
+		self.assertEqual(fields(values), DEFAULTS)
 
 	def test_templates_have_every_key_and_the_real_defaults(self):
 		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'preferences.conf')), sorted(config.PREFERENCE_KEYS))
 		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'finbot.env')), sorted(config.STARTUP_KEYS))
 		prefs = config.read_preferences(REPO / 'defaults' / 'preferences.conf')
-		self.assertEqual(config.preference_values(config._getenv_for(prefs)), DEFAULTS) # the template changes nothing
+		self.assertEqual(fields(config.preference_values(config._getenv_for(prefs))), DEFAULTS) # the template changes nothing
 		startup = config.read_startup_file(REPO / 'defaults' / 'finbot.env')
 		config.startup_values(lambda name, default=None: startup.get(name, default)) # and is valid as it stands
 		self.assertFalse((REPO / 'defaults' / 'env.example').exists())
@@ -101,14 +105,14 @@ class Parsing(unittest.TestCase):
 	def test_booleans_take_the_usual_words_and_refuse_a_typo(self):
 		for word, value in (('True', True), ('yes', True), ('ON', True), ('1', True), ('false', False), ('No', False), ('off', False), ('0', False)):
 			with self.subTest(word=word):
-				self.assertIs(config.preference_values(config._getenv_for({'graph': word}))['config_graph'], value)
+				self.assertIs(config.preference_values(config._getenv_for({'graph': word})).graph, value)
 		with self.assertRaises(config.ConfigError) as caught: # it used to mean False without a word
 			config.preference_values(config._getenv_for({'graph': 'Ture'}))
 		self.assertIn("graph='Ture' is not true or false", caught.exception.errors[0])
 
 	def test_a_blank_value_means_the_default(self):
 		values = config.preference_values(config._getenv_for({'cache': '', 'future_days': '', 'country_code': ''}))
-		self.assertEqual((values['config_cache'], values['config_future_days'], values['config_country_code']), (True, 30, 'AU'))
+		self.assertEqual((values.cache, values.future_days, values.country_code), (True, 30, 'AU'))
 
 	def test_unreadable_file_is_an_error_naming_it(self):
 		path = Path(tempfile.mkdtemp(), 'preferences.conf')
@@ -120,15 +124,15 @@ class Parsing(unittest.TestCase):
 	def test_precedence_file_then_environment_then_default(self):
 		with mock.patch.dict(os.environ, {'future_days': '5', 'past_days': '4'}):
 			values = config.preference_values(config._getenv_for({'future_days': '30'}))
-		self.assertEqual((values['config_future_days'], values['config_past_days'], values['config_shorts_percent']), (30, 4, 15))
+		self.assertEqual((values.future_days, values.past_days, values.shorts_percent), (30, 4, 15))
 
 	def test_the_old_multiplier_name_is_gone_everywhere(self):
 		with mock.patch.dict(os.environ, {'volatile_multiplier': '3'}):
-			self.assertEqual(config.preference_values(config._getenv_for({}))['config_volatility_multiplier'], 2.0) # not read any more
+			self.assertEqual(config.preference_values(config._getenv_for({})).volatility_multiplier, 2.0) # not read any more
 			with self.assertRaises(config.ConfigError) as caught:
 				config.check_startup_environment()
 		self.assertIn('volatile_multiplier was renamed to volatility_multiplier', caught.exception.errors[0])
-		self.assertEqual(config.preference_values(config._getenv_for({'volatility_multiplier': '4'}))['config_volatility_multiplier'], 4.0)
+		self.assertEqual(config.preference_values(config._getenv_for({'volatility_multiplier': '4'})).volatility_multiplier, 4.0)
 
 	def test_startup_file_linting(self):
 		path = Path(tempfile.mkdtemp(), 'finbot.env')
@@ -159,22 +163,18 @@ class Reload(unittest.TestCase):
 	def write(self, text):
 		self.file.write_text(text)
 
-	def test_a_change_reaches_config_and_every_module_that_copied_it(self):
+	def test_a_change_is_seen_at_once(self):
 		self.write('future_days=45\nprice_percent=7\nshorts_percent=12\nexclude_portfolios=1156263\nalliterate=1\nhyperlinkProvider=yahoo\n'
 			'hyperlinkFooter=false\ndebug=1\ngraph=0\ndemote_volatile=0\nvolatility_multiplier=3\npast_days=14\nmin_analysts=3\n')
+		before = config.prefs
 		changes = config.reload()
 		self.assertEqual(len(changes), 13)
-		self.assertEqual(reports.config_min_analysts, 3) # .buy, .sell and .forward pe read it
 		self.assertIn('future_days 30 -> 45', changes)
-		want = {'config_future_days': 45, 'config_past_days': 14, 'config_price_percent': 7.0}
-		for module in (config, cal, worker, price, trades, performance, shorts, sharesight, yahoo, util):
-			for name, value in want.items():
-				if hasattr(module, name):
-					self.assertEqual(getattr(module, name), value, f'{module.__name__}.{name}')
-		self.assertEqual(worker.config_future_days, 45)
-		self.assertEqual((config.config_exclude_portfolios, config.config_alliterate, config.config_hyperlinkProvider, config.config_hyperlinkFooter),
-			(['1156263'], True, 'yahoo', False))
-		self.assertEqual((worker.debug, config.debug, yahoo.config_graph, price.config_demote_volatile, price.config_volatility_multiplier), (True, True, False, False, 3.0))
+		self.assertIsNot(config.prefs, before) # one new object: no request sees half a reload
+		self.assertEqual((config.prefs.future_days, config.prefs.past_days, config.prefs.price_percent, config.prefs.min_analysts), (45, 14, 7.0, 3))
+		self.assertEqual((config.prefs.exclude_portfolios, config.prefs.alliterate, config.prefs.hyperlinkProvider, config.prefs.hyperlinkFooter),
+			(('1156263',), True, 'yahoo', False))
+		self.assertEqual((config.prefs.debug, config.prefs.graph, config.prefs.demote_volatile, config.prefs.volatility_multiplier), (True, False, False, 3.0))
 		self.assertEqual(config.reload(), []) # nothing more to change
 
 	def test_a_value_removed_from_the_file_goes_back_to_its_default(self):
@@ -182,10 +182,10 @@ class Reload(unittest.TestCase):
 		config.reload()
 		self.write('# empty\n')
 		self.assertEqual(config.reload(), ['future_days 45 -> 30'])
-		self.assertEqual(cal.config_future_days, 30)
+		self.assertEqual(config.prefs.future_days, 30)
 
 	def test_defaults_that_follow_a_preference_are_read_when_called(self):
-		cache_file = Path(config.config_cache_dir, 'finbot_test_reload.json')
+		cache_file = Path(config.env.cache_dir, 'finbot_test_reload.json')
 		cache_file.write_text('{"a": 1}')
 		self.addCleanup(cache_file.unlink)
 		past = cache_file.stat().st_mtime - 100
@@ -205,7 +205,7 @@ class Reload(unittest.TestCase):
 			self.write(text)
 			with self.assertRaises(config.ConfigError):
 				config.reload()
-			self.assertEqual((config.config_future_days, cal.config_future_days), (45, 45))
+			self.assertEqual(config.prefs.future_days, 45)
 
 	def test_a_missing_file_is_an_error_and_keeps_the_running_values(self):
 		self.write('future_days=45\n')
@@ -214,33 +214,27 @@ class Reload(unittest.TestCase):
 		with self.assertRaises(config.ConfigError) as caught:
 			config.reload()
 		self.assertIn('does not exist; nothing reloaded', caught.exception.errors[0])
-		self.assertEqual(cal.config_future_days, 45)
+		self.assertEqual(config.prefs.future_days, 45)
 		self.file.write_text('')
 
-	def test_signature_defaults_are_the_sentinel_not_a_frozen_value(self):
-		sites = [(cal.lambda_handler, 'days'), (trades.lambda_handler, 'days'), (performance.lambda_handler, 'past_days'),
-			(price.lambda_handler, 'threshold'), (shorts.lambda_handler, 'threshold'), (sharesight.get_trades, 'days'),
-			(sharesight.get_performance, 'config_cache_seconds'), (sharesight.get_performance_wrapper, 'days'), (util.read_cache, 'maxSeconds'),
-			(util.read_binary_cache, 'maxSeconds'), (yahoo.fetch_detail, 'seconds'), (yahoo.price_history, 'seconds'),
-			(yahoo.price_history, 'graph'), (yahoo.fetch_chart_json, 'seconds')]
-		for func, param in sites:
-			self.assertIs(inspect.signature(func).parameters[param].default, config.UNSET, f'{func.__module__}.{func.__name__}({param})')
-
-	def test_no_function_default_or_module_constant_freezes_a_preference(self):
-		names = set(config.PREFERENCE_NAMES)
+	def test_nothing_copies_the_config_or_freezes_a_preference(self):
+		"""Modules read config.prefs.<name> when they run, so that a reload is seen: no star import (which copied every name into
+		each module), and no function default or module constant computed from a preference."""
+		def reads_prefs(node):
+			return any(isinstance(n, ast.Attribute) and n.attr == 'prefs' and isinstance(n.value, ast.Name) and n.value.id == 'config' for n in ast.walk(node))
 		offenders = []
-		for path in sorted([*(REPO / 'lib').glob('*.py'), *REPO.glob('*.py')]):
-			if path.name == 'config.py':
-				continue
+		for path in sorted([*(REPO / 'lib').glob('*.py'), *REPO.glob('*.py'), *(REPO / 'util').glob('*.py')]):
 			tree = ast.parse(path.read_text())
 			for node in ast.walk(tree):
+				if isinstance(node, ast.ImportFrom) and node.module == 'lib.config':
+					offenders.append(f'{path.name}:{node.lineno} from lib.config import {", ".join(a.name for a in node.names)}')
 				if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
 					for default in [*node.args.defaults, *[d for d in node.args.kw_defaults if d]]:
-						if {n.id for n in ast.walk(default) if isinstance(n, ast.Name)} & names:
+						if reads_prefs(default):
 							offenders.append(f'{path.name}:{node.lineno} default of {node.name}')
-			for node in tree.body: # module-level constants copied from a preference
-				if isinstance(node, ast.Assign) and {n.id for n in ast.walk(node.value) if isinstance(n, ast.Name)} & names:
-					offenders.append(f'{path.name}:{node.lineno} module constant {[t.id for t in node.targets if isinstance(t, ast.Name)]}')
+			for node in tree.body:
+				if isinstance(node, ast.Assign) and reads_prefs(node.value):
+					offenders.append(f'{path.name}:{node.lineno} module constant')
 		self.assertEqual(offenders, [])
 
 	def test_a_job_process_runs_on_the_snapshot_not_the_edited_file(self):
@@ -251,7 +245,7 @@ class Reload(unittest.TestCase):
 		self.write('future_days=99\n') # edited, no reload sent
 		data = tempfile.mkdtemp()
 		Path(data, 'preferences.conf').write_text('future_days=99\n')
-		show = "from lib import config as c; print(c.config_future_days)"
+		show = "from lib import config as c; print(c.prefs.future_days)"
 		run = lambda **extra: subprocess.run([sys.executable, '-c', show], cwd=REPO, capture_output=True, text=True, check=True,
 			env={**{k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k != config.PASSED}, 'DATA_DIR': data, **extra}).stdout.split()[-1]
 		self.assertEqual(run(**env), '45') # the parent's values, and the file is not read
@@ -273,7 +267,7 @@ class Reload(unittest.TestCase):
 
 
 class Startup(unittest.TestCase):
-	def run_config(self, code='from lib import config as c; print(c.config_future_days)', prefs=None, **env):
+	def run_config(self, code='from lib import config as c; print(c.prefs.future_days)', prefs=None, **env):
 		data = tempfile.mkdtemp()
 		if prefs is not None:
 			Path(data, 'preferences.conf').write_text(prefs)
@@ -338,14 +332,12 @@ class Startup(unittest.TestCase):
 	def test_a_discord_webhook_uses_the_native_endpoint(self):
 		for url in ('https://discord.com/api/webhooks/1/abc', 'https://discord.com/api/webhooks/1/abc/slack/'): # the old setup's suffix
 			values = config.startup_values(lambda name, default=None: url if name == 'discord_webhook' else default)
-			self.assertEqual(values['webhooks']['discord'], 'https://discord.com/api/webhooks/1/abc')
+			self.assertEqual(values.webhooks['discord'], 'https://discord.com/api/webhooks/1/abc')
 
 	def test_slack_commands_without_a_bot_token_are_warned_about(self):
-		with mock.patch.object(config, 'config_slackOutgoingWebhook', 'https://example.com/slack'):
-			with mock.patch.object(config, 'config_slackBotToken', False):
-				self.assertEqual(config.startup_warnings(), ['slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply'])
-			with mock.patch.object(config, 'config_slackBotToken', 'xoxb-1'):
-				self.assertEqual(config.startup_warnings(), [])
+		for token, warnings in (('', ['slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply']), ('xoxb-1', [])):
+			with mock.patch.object(config, 'env', dataclasses.replace(config.env, slackOutgoingWebhook='https://example.com/slack', slackBotToken=token)):
+				self.assertEqual(config.startup_warnings(), warnings)
 
 	def test_startup_report_is_a_short_count_never_names_or_values(self):
 		with mock.patch.dict(os.environ, {'slack_webhook': 'https://secret.example/abc', 'port': '5000'}, clear=True):
@@ -379,7 +371,7 @@ class SigHup(unittest.TestCase):
 				bot.reload_all()
 			self.assertIn('ERROR config:', err.getvalue())
 			self.assertEqual(scheduler.reload.call_count, 2)
-			self.assertEqual(cal.config_future_days, 45)
+			self.assertEqual(config.prefs.future_days, 45)
 
 	def test_reload_with_the_scheduler_off_still_reloads_preferences(self):
 		file = Path(tempfile.mkdtemp(), 'preferences.conf')
@@ -388,7 +380,7 @@ class SigHup(unittest.TestCase):
 		with mock.patch.object(config, 'preferences_path', str(file)), mock.patch.object(bot, 'scheduler', None):
 			with contextlib.redirect_stderr(io.StringIO()):
 				bot.reload_all()
-			self.assertEqual(cal.config_future_days, 11)
+			self.assertEqual(config.prefs.future_days, 11)
 
 
 class Tools(unittest.TestCase):

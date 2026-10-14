@@ -3,17 +3,18 @@
 import random, sys
 import datetime
 
-from lib.config import *
+from lib import config
+from lib import words
 from lib import sharesight
 from lib import webhook
 from lib import util
 from lib import yahoo
 
-def lambda_handler(chat_id=None, days=UNSET, service=None, user='', portfolio_select=None, interactive=False):
+def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_select=None, interactive=False):
 	"""The buys and sells of the past `days`, in every portfolio or the one named: on a scheduled run only those not reported
 	before. Raises sharesight.PortfolioNotFound for a name that is none of them."""
-	if days is UNSET:
-		days = config_past_days
+	if days is None:
+		days = config.prefs.past_days
 	state_file = "finbot_sharesight_trades.json"
 
 	def prepare_trade_payload(service, trades):
@@ -30,7 +31,7 @@ def lambda_handler(chat_id=None, days=UNSET, service=None, user='', portfolio_se
 		if not wanted: # the usual case on a scheduled run
 			return []
 		market_data = {}
-		if config_trades_use_yahoo:
+		if config.prefs.trades_use_yahoo:
 			tickers = {util.transform_to_yahoo(trade['symbol'], trade['market']) for trade in wanted} # one yahoo.fetch for all
 			try:
 				print("Fetching tickers from Yahoo: ", tickers, file=sys.stderr)
@@ -48,7 +49,7 @@ def lambda_handler(chat_id=None, days=UNSET, service=None, user='', portfolio_se
 			units = float(trade['quantity'])
 			price = float(trade['price'])
 			currency = trade['brokerage_currency_code']
-			if config_trades_use_yahoo:
+			if config.prefs.trades_use_yahoo:
 				ticker = util.transform_to_yahoo(symbol, market)
 				try:
 					market = market_data[ticker]['profile_exchange']
@@ -94,7 +95,7 @@ def lambda_handler(chat_id=None, days=UNSET, service=None, user='', portfolio_se
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		payload = prepare_trade_payload(service, trades)
 		if interactive and not payload: # no trades, or none of them a buy or a sell
-			payload = [f"{user} No trades {util.days_english(days, 'in the past ')}. {random.choice(noTradesVerb)}"]
+			payload = [f"{user} No trades {util.days_english(days, 'in the past ')}. {random.choice(words.noTradesVerb)}"]
 		webhook.send(service, url, chat, payload)
 
 	# write state file

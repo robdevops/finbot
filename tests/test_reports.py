@@ -95,17 +95,19 @@ class ReportFunctions(FinbotCase):
 	def test_a_small_cap_quoted_in_won_needs_the_bigger_move_too(self):
 		"""demote_volatile compares market caps in US dollars: unconverted, a small cap quoted in won was never small."""
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | ({'regularMarketPrice': 1380.0} if t == 'KRW=X' else {'currency': 'KRW', 'market_cap': 1e11}) for t in ts})
-		self.patch(price, 'config_demote_volatile', True)
+		self.prefs(demote_volatile=True)
+
 		quote = price.gather()[1]['T1']
 		self.assertAlmostEqual(quote['market_cap_usd'], 1e11 / 1380.0) # US$72M
-		self.assertEqual(price.trigger_bar('T1', quote, 5), 5 * price.config_volatility_multiplier)
+		self.assertEqual(price.trigger_bar('T1', quote, 5), 5 * config.prefs.volatility_multiplier)
 
 	def test_the_small_caps_betas_are_fetched_together(self):
 		"""A scheduled price report asks for the beta of each small cap that moved (US$150M to US$1B): together, not one by one."""
 		calls = []
 		self.patch(yahoo, 'fetch_details', lambda tickers, strict=False: calls.append(sorted(tickers)) or {t: market_entry(t) for t in tickers})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: self.fail('a beta fetched on its own'))
-		self.patch(price, 'config_demote_volatile', True)
+		self.prefs(demote_volatile=True)
+
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'market_cap': 5e8} for t in ts})
 		price.lambda_handler()
 		self.assertEqual(len(calls), 1)
@@ -125,7 +127,7 @@ class ReportFunctions(FinbotCase):
 		self.assertIn('forward pe ratio (7+ analysts)', heading)
 		self.assertEqual(listed('negative forward pe')[1], ['T3'])
 		self.assertIn('Co T2', str(reports.prepare_value_payload('telegram', 'forward pe', 'T2'))) # one ticker asked for: shown
-		self.patch(reports, 'config_min_analysts', 13) # the one setting moves .buy and .forward pe together
+		self.prefs(min_analysts=13) # the one setting moves .buy and .forward pe together
 		self.assertEqual(reports.prepare_value_payload('telegram', 'forward pe')[0], ['No tracked stocks with 13+ analysts have a forward pe ratio'])
 		self.assertEqual(reports.prepare_rating_payload('telegram', 'buy')[0], ['No tracked stocks rated buy by 13+ analysts'])
 
@@ -216,7 +218,7 @@ class ScheduledReports(FinbotCase):
 
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
 		"""T1 has no earnings date, so its primary listing is looked up; Yahoo knowing nothing of it used to crash the report."""
-		self.patch(cal, 'primary_listing', {'T1': 'T1.XX'})
+		self.patch(cal, 'primary_listings', lambda: {'T1': 'T1.XX'})
 		self.patch(yahoo, 'fetch', lambda ts: {t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1.XX' else {t: market_entry(t)})
 		cal.lambda_handler(event='earnings')
@@ -290,8 +292,9 @@ class ScheduledReports(FinbotCase):
 	def test_slack_webhook_without_a_bot_token_gets_scheduled_reports(self):
 		"""Scheduled reports reach Slack through its incoming webhook, which takes no channel and no token. They used to send
 		Telegram's chat id along, which made write() need slackBotToken and crash without one, before Telegram got its copy."""
-		self.patch(webhook, 'config_slackBotToken', False)
-		webhook.webhooks['slack'] = 'https://hooks.slack.com/services/T/B/x'
+		self.env(slackBotToken=False)
+
+		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/T/B/x'})
 		self.patch(webhook, 'payload_wrapper', REAL_PAYLOAD_WRAPPER)
 		self.patch(webhook, 'sendPhoto', REAL_SEND_PHOTO)
 		posts = []
@@ -307,7 +310,7 @@ class ScheduledReports(FinbotCase):
 				self.assertTrue(any(host == 'api.telegram.org' for host, _, _ in posts))
 
 	def test_nowhere_to_post_is_an_error(self):
-		self.patch(webhook, 'webhooks', {})
+		self.env(webhooks={})
 		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
 			price.lambda_handler()
 
@@ -422,7 +425,7 @@ class PieCommand(FinbotCase):
 			self.assertIn('Rob', sent[0][1])
 
 	def test_a_service_that_takes_no_images_gets_text(self):
-		self.patch(webhook, 'config_slackBotToken', False) # Slack replies carry charts only with the bot token
+		self.env(slackBotToken=False) # Slack replies carry charts only with the bot token
 		worker.Request('slack', 'C1', '@u', 'U', BOT).deliver(['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
 		self.assertEqual(self.sent[-1][0], 'text')
 
