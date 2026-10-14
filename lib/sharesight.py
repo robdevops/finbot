@@ -1,7 +1,8 @@
-import sys
-import time
+import dataclasses
 import datetime
+import sys
 import threading
+import time
 import requests
 from lib import config
 from lib import cache
@@ -95,20 +96,51 @@ def get_portfolios(refresh=False):
 
 class PortfolioNotFound(LookupError):
 	"""No portfolio is called what was asked for. `lines` is the answer to give: the name, and the portfolios there are."""
-	def __init__(self, name, portfolios):
-		self.lines = [f"{name} portfolio not found. I only know about:"] + list(portfolios)
+	def __init__(self, name, names):
+		self.lines = [f"{name} portfolio not found. I only know about:"] + list(names)
 		super().__init__(' '.join(self.lines))
 
-def pick_portfolios(name=None, portfolios=None):
-	"""{name as Sharesight spells it: id} of the portfolio called `name` (in any case), or of every portfolio when no name is given.
-	`portfolios` is get_portfolios() when not given. Raises PortfolioNotFound."""
-	portfolios = get_portfolios() if portfolios is None else portfolios
-	if not name:
-		return portfolios
-	found = {k.lower(): (k, v) for k, v in portfolios.items()}.get(name.lower())
-	if not found:
-		raise PortfolioNotFound(name, portfolios)
-	return dict([found])
+@dataclasses.dataclass(frozen=True)
+class Portfolio:
+	"""A Sharesight portfolio. Its methods ask Sharesight through the module functions (cached, one request at once)."""
+	name: str # as Sharesight spells it
+	id: int
+
+	def performance(self, days=None):
+		"""Sharesight's performance report over the past `days` (past_days when None); days=0 gives today's holdings."""
+		return get_performance(self.id, config.prefs.past_days if days is None else days)
+
+	def holdings(self):
+		"""{'CODE:MARKET': Sharesight's instrument, with the holding's id and value added} of what it holds."""
+		holdings = {}
+		for item in self.performance(0)['report']['holdings']:
+			instrument = item['instrument']
+			key = instrument['code'] + ':' + instrument['market_code']
+			holdings[key] = instrument | {'holding_id': item['id'], 'value': item.get('value')}
+		return holdings
+
+	def tickers(self):
+		"""What it holds, as Yahoo tickers, sorted."""
+		return sorted({util.transform_to_yahoo(each['code'], each['market_code']) for each in self.holdings().values()})
+
+	def trades(self, days=None):
+		"""Its trades of the past `days` (the past_days preference when None)."""
+		return get_trades(self.name, self.id, days)
+
+def portfolios(select=None):
+	"""The portfolios to report on (after include_portfolios and exclude_portfolios), or the one called `select`, in any
+	case. Raises PortfolioNotFound for a name that is none of them."""
+	found = [Portfolio(name, portfolio_id) for name, portfolio_id in get_portfolios().items()]
+	if not select:
+		return found
+	chosen = [portfolio for portfolio in found if portfolio.name.lower() == select.lower()]
+	if not chosen:
+		raise PortfolioNotFound(select, [portfolio.name for portfolio in found])
+	return chosen
+
+def tickers():
+	"""Every portfolio's holdings as Yahoo tickers, sorted."""
+	return sorted({ticker for portfolio in portfolios() for ticker in portfolio.tickers()})
 
 def get_trades(portfolio_name, portfolio_id, days=None):
 	if days is None:
@@ -133,39 +165,6 @@ def get_trades(portfolio_name, portfolio_id, days=None):
 		cache.write(cache_file, data)
 	return data['trades']
 
-def get_holdings(portfolio_name, portfolio_id):
-	tickers = set()
-	holdings = get_holdings_new(portfolio_name, portfolio_id)
-	for holding in holdings:
-		symbol = holdings[holding]['code']
-		market = holdings[holding]['market_code']
-		ticker = util.transform_to_yahoo(symbol, market)
-		tickers.add(ticker)
-	return sorted(tickers)
-
-def get_holdings_new(portfolio_name, portfolio_id):
-	print("Fetching Sharesight holdings", portfolio_name, end=": ")
-	data = get_performance(portfolio_id, 0)
-	print(len(data['report']['holdings']))
-	holdings = {}
-	for item in data['report']['holdings']:
-		code = item['instrument']['code']
-		market_code = item['instrument']['market_code']
-		symbol = code + ":" + market_code
-		holdings[symbol] = item['instrument']
-		holdings[symbol]['holding_id'] = item['id']
-		holdings[symbol]['value'] = item.get('value')
-	return holdings
-
-def get_holdings_wrapper():
-	tickers = set()
-	portfolios = get_portfolios()
-	if not portfolios:
-		return None
-	for portfolio_name, portfolio_id in portfolios.items():
-		tickers.update(get_holdings(portfolio_name, portfolio_id))
-	return sorted(tickers)
-
 def get_performance(portfolio_id, days, seconds=None, refresh=False):
 	if seconds is None:
 		seconds = config.prefs.performance_cache_seconds
@@ -187,21 +186,11 @@ def get_performance(portfolio_id, days, seconds=None, refresh=False):
 			continue
 		break
 	_check(data, 'performance')
-	if config.prefs.cache and 'report' in data:
+	if 'report' not in data:
+		raise RuntimeError(f"Sharesight sent no performance report for portfolio {portfolio_id}")
+	if config.prefs.cache:
 		cache.write(cache_file, data)
 	return data
-
-def get_performance_wrapper(days=None):
-	if days is None:
-		days = config.prefs.past_days
-	performance = {}
-	portfolios = get_portfolios()
-	for portfolio_name, portfolio_id in portfolios.items():
-		performance[portfolio_id] = get_performance(portfolio_id, days)
-		if not performance[portfolio_id]:
-			print("Could not get performance for portfolio:", portfolio_id, file=sys.stderr)
-			raise RuntimeError(f"Sharesight returned no performance for portfolio {portfolio_id}")
-	return performance
 
 def warm(margin=0.9):
 	"""Refresh the portfolio list and each portfolio's holdings report (days=0) once they reach `margin` of their cache lifetime,

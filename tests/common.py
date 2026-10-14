@@ -14,7 +14,7 @@ from lib import cache, config, state, webhook, util, yahoo, sharesight, shortman
 import performance, shorts, price, reminder, cal, trades, milestone, rating
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (yahoo, 'price_history'),
-	(sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'), (sharesight, 'get_performance_wrapper'))}
+	(sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'))}
 REAL_GET_HOLDINGS = util.get_holdings_and_watchlist
 REAL_PAYLOAD_WRAPPER = webhook.payload_wrapper # FinbotCase replaces it; tests of the real thing use this
 REAL_REPORT_ERROR = webhook.report_error # likewise
@@ -84,7 +84,6 @@ class FinbotCase(unittest.TestCase):
 		self.patch(shortman, 'fetch', lambda md: md)
 		holdings = [{'id': i, 'instrument': {'code': t, 'market_code': 'NASDAQ'}, 'portfolio': {'name': 'Rob'},
 					 'capital_gain_percent': str(i * 4 - 40), 'value': '1000'} for i, t in enumerate(TICKERS)]
-		self.patch(sharesight, 'get_performance_wrapper', lambda d: {1: {'report': {'holdings': holdings}}})
 		self.patch(sharesight, 'get_portfolios', lambda: {'Rob': 1})
 		self.patch(sharesight, 'get_performance', lambda pid, d, *a: {'report': {
 			'holdings': holdings, 'currency_gain_percent': '0', 'capital_gain_percent': '2.5', 'total_gain_percent': '0'}})

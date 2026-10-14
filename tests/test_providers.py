@@ -41,7 +41,7 @@ class ProviderCase(FinbotCase):
 		super().setUp()
 		# these tests exercise the real parsers, so undo the canned data from the base fixture
 		for module, name in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (sharesight, 'get_portfolios'),
-							 (sharesight, 'get_trades'), (sharesight, 'get_performance'), (sharesight, 'get_performance_wrapper')):
+							 (sharesight, 'get_trades'), (sharesight, 'get_performance')):
 			self.patch(module, name, REAL[(module.__name__, name)])
 		self.patch(yahoo, 'getCookie', lambda *a, **k: 'A=B')
 		self.patch(yahoo, 'getCrumb', lambda *a, **k: 'crumb')
@@ -185,7 +185,7 @@ class YahooChart(ProviderCase):
 		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts}) # quotes as canned in the base fixture, charts over HTTP
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
-		self.patch(sharesight, 'get_performance_wrapper', lambda d: {}) # no Sharesight figures: every ticker needs its Yahoo history
+		self.patch(sharesight, 'get_portfolios', lambda: {}) # no Sharesight figures: every ticker needs its history
 		good = Resp(self.chart([100.0] * 20 + [110.0]))
 		def get(url, **kwargs):
 			return Resp(status=404) if '/chart/T3?' in url or '/chart/SPY?' in url else good
@@ -277,7 +277,7 @@ class SharesightApi(ProviderCase):
 	def test_performance_and_holdings_from_real_response(self):
 		self.http(sharesight, Resp(sample('sharesight', 'finbot_sharesight_performance_684141_0.json')))
 		self.assertEqual(len(sharesight.get_performance(684141, 0)['report']['holdings']), 18)
-		tickers = sharesight.get_holdings('RobSMSF', 684141)
+		tickers = sharesight.Portfolio('RobSMSF', 684141).tickers()
 		self.assertIn('ARM', tickers) # US venues carry no Yahoo suffix
 		self.assertEqual(tickers, sorted(tickers))
 
@@ -294,6 +294,12 @@ class SharesightApi(ProviderCase):
 				self.http(sharesight, failure)
 				with self.assertRaises(RuntimeError):
 					sharesight.get_performance(684141, 7)
+
+	def test_an_answer_without_a_report_says_so(self):
+		self.http(sharesight, Resp({}))
+		with self.assertRaisesRegex(RuntimeError, 'no performance report for portfolio 684141'):
+			sharesight.get_performance(684141, 7)
+		self.assertIsNone(cache.read(sharesight.performance_cache_file(684141, 7))) # and is not cached
 
 
 class SharesightKeepWarm(ProviderCase):
@@ -343,11 +349,11 @@ class SharesightKeepWarm(ProviderCase):
 		self.assertEqual(len(sharesight.get_performance(684141, 0)['report']['holdings']), 18)
 		self.assertEqual(calls, [])
 
-	def test_holdings_wrapper_is_served_entirely_from_the_warmed_cache(self):
+	def test_every_holding_is_served_from_the_warmed_cache(self):
 		calls = self.serve_sharesight()
 		sharesight.warm()[0]
 		calls.clear()
-		tickers = sharesight.get_holdings_wrapper() # get_portfolios() + get_holdings() per portfolio, no cache of its own
+		tickers = sharesight.tickers() # the portfolio list and each portfolio's holdings report, no cache of its own
 		self.assertIn('ARM', tickers)
 		self.assertEqual(calls, [])
 

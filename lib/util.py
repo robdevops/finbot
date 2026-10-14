@@ -767,7 +767,7 @@ def days_from_human_days(arg):
 	return int(arg.removesuffix('Y')) * 365
 
 def get_holdings_and_watchlist():
-	tickers = set(sharesight.get_holdings_wrapper())
+	tickers = set(sharesight.tickers())
 	tickers.update(watchlist.tickers())
 	if 'GOOG' in tickers and 'GOOGL' in tickers:
 		tickers.remove("GOOGL")

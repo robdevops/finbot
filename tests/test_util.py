@@ -163,7 +163,7 @@ class StateFiles(FinbotCase):
 
 	def test_holdings_and_watchlist_without_a_watchlist_file(self):
 		# first run: no watchlist exists yet
-		self.patch(util.sharesight, 'get_holdings_wrapper', lambda: ['AAPL', 'GOOG', 'GOOGL'])
+		self.patch(util.sharesight, 'tickers', lambda: ['AAPL', 'GOOG', 'GOOGL'])
 		self.patch(util, 'get_holdings_and_watchlist', REAL_GET_HOLDINGS)
 		self.assertEqual(util.get_holdings_and_watchlist(), ['AAPL', 'GOOG']) # GOOGL dropped when GOOG is present
 		state.save('finbot_watchlist.json', ['MSFT'])

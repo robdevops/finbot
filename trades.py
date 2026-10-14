@@ -89,9 +89,8 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 
 	# MAIN #
 	newtrades = set()
-	portfolios = sharesight.pick_portfolios(portfolio_select)
 	known_trades = set(state.load(state_file, []))
-	trades = [trade for name, portfolio_id in portfolios.items() for trade in sharesight.get_trades(name, portfolio_id, days)]
+	trades = [trade for portfolio in sharesight.portfolios(portfolio_select) for trade in portfolio.trades(days)]
 
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		payload = prepare_trade_payload(service, trades)

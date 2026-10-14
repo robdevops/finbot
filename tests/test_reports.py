@@ -400,12 +400,12 @@ class Podcasts(FinbotCase):
 class PieCommand(FinbotCase):
 	def setUp(self):
 		super().setUp()
-		def holdings(name, pid):
+		def holdings(portfolio):
 			data = [('A', 'Semiconductors', 'Electronic Technology', 500), ('B', 'Semiconductors', 'Electronic Technology', 300),
 					('C', 'Biotechnology', 'Health Technology', 200), ('D', None, None, 100), ('E', 'Gold', 'Minerals', 0)]
 			return {c + ':NASDAQ': {'code': c, 'market_code': 'NASDAQ', 'industry_classification_name': i,
 									'sector_classification_name': s, 'value': v} for c, i, s, v in data}
-		self.patch(sharesight, 'get_holdings_new', holdings)
+		self.patch(sharesight.Portfolio, 'holdings', holdings)
 
 	def test_by_industry_default(self):
 		sent = self.command('.pie Rob')
@@ -419,7 +419,9 @@ class PieCommand(FinbotCase):
 		self.assertEqual(self.command('.pie Rob sector')[0][0], 'photo')
 
 	def test_folds_into_other_and_renders(self):
-		self.patch(sharesight, 'get_holdings_new', lambda n, p: {f'T{i}:X': {'code': f'T{i}', 'industry_classification_name': f'Ind {i}', 'value': 100 - i} for i in range(12)})
+		holdings = {f'T{i}:X': {'code': f'T{i}', 'industry_classification_name': f'Ind {i}', 'value': 100 - i}
+			for i in range(12)}
+		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: holdings)
 		payload, chart = reports.prepare_pie('Rob', 'industry', 'telegram')
 		self.assertEqual(len(chart['rows']), 8)
 		self.assertEqual(chart['rows'][-1][0], 'Other')

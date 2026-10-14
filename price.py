@@ -19,8 +19,8 @@ def gather(specific_stock=None, days=None):
 		yahoo.add_usd_market_caps(market_data)
 	# Sharesight reports a holding's performance only for the time it was held: held for 1Y and asked for 5Y, it gives 1Y
 	if days and (not specific_stock or config.prefs.performance_use_sharesight):
-		for data in sharesight.get_performance_wrapper(days).values():
-			for holding in data['report']['holdings']:
+		for portfolio in sharesight.portfolios():
+			for holding in portfolio.performance(days)['report']['holdings']:
 				ticker = util.transform_to_yahoo(holding['instrument']['code'], holding['instrument']['market_code'])
 				if ticker in market_data:
 					market_data[ticker]['percent_change_period'] = float(holding['capital_gain_percent'])

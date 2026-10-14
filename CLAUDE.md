@@ -34,6 +34,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `lib/charts.py`: Telegram period buttons and the rebuild behind them. `lib/util.py`: formatting, links, market tables, all
   matplotlib rendering.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, cached in `DATA_DIR/cache`.
+  `sharesight.portfolios(name=None)` gives `Portfolio` objects: `holdings()`, `tickers()`, `performance(days)`,
+  `trades(days)`.
 - `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save. `lib/watchlist.py`: the watchlist.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on each reload).

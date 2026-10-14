@@ -44,7 +44,6 @@ class UpstreamEmpty(FinbotCase):
 	def test_sharesight_down_is_reported_once(self):
 		def down(*a, **k):
 			raise RuntimeError('Sharesight performance error: boom')
-		self.patch(sharesight, 'get_performance_wrapper', down)
 		self.patch(sharesight, 'get_performance', down)
 		self.patch(sharesight, 'get_portfolios', down)
 		self.sent.clear(); self.errors.clear()
@@ -133,7 +132,8 @@ class PortfolioNames(FinbotCase):
 				self.assertEqual(self.command(cmd), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
 
 	def test_a_portfolio_name_in_any_case(self):
-		self.patch(sharesight, 'get_holdings_new', lambda name, pid: {'T1:NASDAQ': {'code': 'T1', 'market_code': 'NASDAQ', 'name': 'Co T1', 'holding_id': 1}})
+		holding = {'code': 'T1', 'market_code': 'NASDAQ', 'name': 'Co T1', 'holding_id': 1}
+		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: {'T1:NASDAQ': holding})
 		self.assertIn('Holdings for Rob (1)', str(self.command('.holdings rob')))
 
 	def test_trades_with_no_buy_or_sell_still_get_an_answer(self):

@@ -250,36 +250,37 @@ def prepare_help(service, botName):
 
 def prepare_holdings_payload(portfolio_name, service):
 	"""The holdings of the portfolio called `portfolio_name`. Raises sharesight.PortfolioNotFound."""
-	portfolios = sharesight.get_portfolios()
 	if not portfolio_name:
-		return [".holdings: please try again specifying a portfolio:"] + list(portfolios)
-	(name, portfolio_id), = sharesight.pick_portfolios(portfolio_name, portfolios).items()
-	holdings = sharesight.get_holdings_new(name, portfolio_id)
+		names = [portfolio.name for portfolio in sharesight.portfolios()]
+		return [".holdings: please try again specifying a portfolio:"] + names
+	portfolio, = sharesight.portfolios(portfolio_name)
+	holdings = portfolio.holdings()
 	payload = sorted(holding_line(holding, service) for holding in holdings.values())
 	if payload:
-		payload.insert(0, webhook.bold(f"Holdings for {name} ({len(holdings)})", service))
+		payload.insert(0, webhook.bold(f"Holdings for {portfolio.name} ({len(holdings)})", service))
 	return payload
 
 def prepare_who(service, code):
 	"""Which portfolios hold `code` (a ticker without its exchange), each holding linked to Sharesight."""
 	payload = []
-	for portfolio_name, portfolio_id in sharesight.get_portfolios().items():
-		holdings = sharesight.get_holdings_new(portfolio_name, portfolio_id)
-		found = [holding_line(holding, service, code) for holding in holdings.values() if holding['code'].upper() == code]
+	for portfolio in sharesight.portfolios():
+		found = [holding_line(holding, service, code)
+			for holding in portfolio.holdings().values() if holding['code'].upper() == code]
 		if found:
-			payload += [webhook.bold(f"{portfolio_name}:", service), "\n".join(found), ""]
+			payload += [webhook.bold(f"{portfolio.name}:", service), "\n".join(found), ""]
 	return payload or [f'{code} not found in any portfolio']
 
 def prepare_pie(portfolio_name, by, service, max_slices=8):
 	"""Portfolio value by industry (or by='sector'). Returns (payload, chart); chart is None unless there is something to draw.
 	Raises sharesight.PortfolioNotFound."""
-	portfolios = sharesight.get_portfolios()
 	if not portfolio_name:
-		return [".pie: please try again specifying a portfolio:"] + list(portfolios), None
-	(name, portfolio_id), = sharesight.pick_portfolios(portfolio_name, portfolios).items()
+		names = [portfolio.name for portfolio in sharesight.portfolios()]
+		return [".pie: please try again specifying a portfolio:"] + names, None
+	portfolio, = sharesight.portfolios(portfolio_name)
+	name = portfolio.name
 	key = 'sector_classification_name' if by == 'sector' else 'industry_classification_name'
 	totals = {}
-	for holding in sharesight.get_holdings_new(name, portfolio_id).values():
+	for holding in portfolio.holdings().values():
 		try:
 			value = float(holding.get('value'))
 		except (TypeError, ValueError):
