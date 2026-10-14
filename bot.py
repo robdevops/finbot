@@ -17,6 +17,7 @@ from lib import worker
 from lib import jobs
 from lib import charts
 from lib import sharesight
+from lib import net
 from lib import telegram
 from lib import webhook
 
@@ -36,7 +37,7 @@ def main(environ, start_response):
 			status = '200 OK'
 		else:
 			print(f"request to {environ.get('PATH_INFO')!r} failed:", webhook.error_line(e), file=sys.stderr)
-			traceback.print_exc()
+			print(net.redact(traceback.format_exc()), end='', file=sys.stderr)
 			status = '500 Internal Server Error'
 		try:
 			start_response(status, [('Content-type', 'text/plain')], sys.exc_info())
@@ -46,13 +47,11 @@ def main(environ, start_response):
 
 def handle(environ, start_response):
 	def print_body():
-		try:
-			print(f"inbound {uri} ", json.dumps(inbound, indent=4), file=sys.stderr)
-		except Exception as e:
-			print(e, "raw body: ", inbound, file=sys.stderr)
+		shown = {k: '<redacted>' if k == 'token' else v for k, v in inbound.items()} # Slack's verification token
+		print(f"inbound {uri} ", json.dumps(shown, indent=4, default=str), file=sys.stderr)
 	def print_headers():
-		for item in sorted(environ.items()):
-			print(item, file=sys.stderr)
+		for name, value in sorted(environ.items()):
+			print((name, '<redacted>' if name == 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' else value), file=sys.stderr)
 	def reply(status, body=b''):
 		start_response(status, [('Content-type', 'application/json')])
 		return [body]

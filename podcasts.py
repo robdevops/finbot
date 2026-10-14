@@ -4,9 +4,9 @@ import sys
 import os
 import hashlib
 import string
-import requests
 import xml.etree.ElementTree as ET
 from lib.config import *
+from lib import net
 from lib import webhook
 from lib import util
 from email.utils import parsedate_to_datetime
@@ -32,7 +32,7 @@ def save_seen(seen, filename):
 				json.dump(list(seen), f, indent=4)
 
 def fetch_and_parse_feed(url):
-		resp = requests.get(url, timeout=30)
+		resp = net.get(url, timeout=30)
 		resp.raise_for_status()
 		return ET.fromstring(resp.content)
 

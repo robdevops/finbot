@@ -4,6 +4,7 @@ import datetime
 import threading
 import requests
 from lib.config import *
+from lib import net
 import lib.util as util
 
 MAX_CONCURRENT = 1 # Sharesight rejects parallel requests beyond a few per account: allow one at a time across all chats and threads
@@ -11,18 +12,18 @@ _request_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
 
 def _get(url, **kwargs):
 	with _request_slots:
-		return requests.get(url, **kwargs)
+		return net.get(url, **kwargs)
 
 def _post(url, **kwargs):
 	with _request_slots:
-		return requests.post(url, **kwargs)
+		return net.post(url, **kwargs)
 
 def _request(send, url, what, **kwargs):
 	"""Send a request to Sharesight and return the JSON answer. A request that fails raises RuntimeError naming `what`."""
 	try:
 		r = send(url, timeout=config_http_timeout, **kwargs)
 	except Exception as e:
-		print("Error", str(e), url, file=sys.stderr)
+		print("Error", net.redact(e), url, file=sys.stderr)
 		raise RuntimeError(f"Sharesight {what} request failed: {e}")
 	if r.status_code != 200:
 		print(r.status_code, "error", url, file=sys.stderr)
@@ -59,7 +60,7 @@ def get_token():
 	_check(data, 'auth')
 	if config_cache and 'access_token' in data:
 		util.json_write(cacheFile, data)
-	print("Got Sharesight token:", data['access_token'], file=sys.stderr) if debug else None
+	print("Got a Sharesight token", file=sys.stderr) if debug else None
 	return data['access_token']
 
 PORTFOLIOS_CACHE = "finbot_sharesight_portfolios.json" # ttl: config_cache_seconds

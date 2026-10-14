@@ -7,6 +7,7 @@ import threading
 import zoneinfo
 import sys
 from lib.config import *
+from lib import net
 from lib import util
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -33,7 +34,7 @@ def getCookie(maxAge=1209600): # 14 days
 		headers = {'User-Agent': 'Mozilla/5.0'}
 		url = 'https://fc.yahoo.com/' # 404, but that is ok because cookie is in response header
 		try:
-			r = requests.get(url, headers=headers)
+			r = net.get(url, headers=headers, timeout=config_http_timeout)
 		except Exception as e:
 			print(e, file=sys.stderr)
 			r = requests.Response() # empty: falls through to the fallback cookie below
@@ -56,7 +57,7 @@ def getCookie(maxAge=1209600): # 14 days
 			cookie = cookielist[0][0] + '=' + str(cookielist[0][1])
 			#if config_cache:
 			util.json_write(cacheFile, cookielist)
-			print("Got new cookie:", cookie, file=sys.stderr)
+			print("Got a new Yahoo cookie", file=sys.stderr)
 			rmCrumb() # we must invalidate the non-matching crumb
 			return cookie
 
@@ -73,9 +74,9 @@ def getCrumb(seconds=1209600): # 14 days
 		yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
 		for url in yahoo_urls:
 			try:
-				r = requests.get(url, headers=headers, timeout=config_http_timeout)
+				r = net.get(url, headers=headers, timeout=config_http_timeout)
 			except Exception as e:
-				print(e, file=sys.stderr)
+				print(net.redact(e), file=sys.stderr)
 			else:
 				if r.status_code != 200:
 					print(r.status_code, r.text.rstrip(), "returned by", url, file=sys.stderr)
@@ -86,7 +87,7 @@ def getCrumb(seconds=1209600): # 14 days
 			return 'jkQEU8yLqxs'
 		if config_cache:
 			util.json_write(cacheFile, r.text)
-		print("Got new crumb:", r.text.rstrip(), file=sys.stderr)
+		print("Got a new Yahoo crumb", file=sys.stderr)
 		return r.text
 
 def rmCrumb():
@@ -130,12 +131,12 @@ def fetch(tickers):
 	headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Cookie': cookie}
 	for url in yahoo_urls:
 		try:
-			r = requests.get(url, headers=headers, timeout=config_http_timeout)
+			r = net.get(url, headers=headers, timeout=config_http_timeout)
 		except Exception as e:
-			print(e, "at", url, file=sys.stderr)
+			print(net.redact(e), file=sys.stderr)
 		else:
 			if r.status_code != 200:
-				print(r.status_code, "at", url, file=sys.stderr)
+				print(r.status_code, "at", net.redact(url), file=sys.stderr)
 				continue
 			break
 	else:
@@ -279,11 +280,11 @@ def fetch_detail(ticker, seconds=UNSET):
 		yahoo_urls = [base_url + ticker + '?modules=calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions' + '&crumb=' + crumb]
 		yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
 		for url in yahoo_urls:
-			print(url, file=sys.stderr) if debug else None
+			print(net.redact(url), file=sys.stderr) if debug else None
 			try:
-				r = requests.get(url, headers=headers, timeout=config_http_timeout)
+				r = net.get(url, headers=headers, timeout=config_http_timeout)
 			except Exception as e:
-				print(e, file=sys.stderr)
+				print(net.redact(e), file=sys.stderr)
 			else:
 				if r.status_code != 200:
 					print('x', sep=' ', end='', flush=True, file=sys.stderr)
@@ -560,17 +561,17 @@ def fetch_chart_json(ticker, days=3665, seconds=UNSET, full=False):
 	url = url + ticker + '?period1=' + start + '&period2=' + end + '&interval=' + interval
 	url = url + '&crumb=' + crumb
 	headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-	print("Fetching", url, file=sys.stderr) if debug else None
+	print("Fetching", net.redact(url), file=sys.stderr) if debug else None
 	try:
-		r = requests.get(url, headers=headers, timeout=config_http_timeout)
+		r = net.get(url, headers=headers, timeout=config_http_timeout)
 	except Exception as e:
-		errorstring = f"General failure for {ticker} at {url}: {e}"
+		errorstring = net.redact(f"General failure for {ticker} at {url}: {e}")
 		print(errorstring, file=sys.stderr)
 		return errorstring, None
 	if r.status_code == 200:
 		print('↓', sep=' ', end='', flush=True)
 	else:
-		errorstring=f"{r.status_code} error for {ticker} at {url}"
+		errorstring = net.redact(f"{r.status_code} error for {ticker} at {url}")
 		print(errorstring, file=sys.stderr)
 		return errorstring, None
 	data = r.json()

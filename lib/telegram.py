@@ -1,11 +1,11 @@
 import json
-import requests
 import sys
 from lib.config import *
+from lib import net
 
 def call(method, **kwargs):
 	"""POST a Bot API method and return its result. Raises RuntimeError with Telegram's description when it answers not ok."""
-	response = requests.post(webhooks['telegram'] + method, timeout=config_http_timeout, **kwargs)
+	response = net.post(webhooks['telegram'] + method, timeout=config_http_timeout, **kwargs)
 	try:
 		output = response.json()
 	except ValueError:
@@ -41,7 +41,7 @@ def pinChatMessage(chat_id, message_id):
 		'message_id': message_id,
 		'disable_notification': True # no "pinned a message" notification
 	}
-	response = requests.post(telegram_url, json=payload, timeout=config_http_timeout)
+	response = net.post(telegram_url, json=payload, timeout=config_http_timeout)
 	output = response.json()
 	if not output.get('ok'):
 		print("pinChatMessage failed:", output.get('description'), file=sys.stderr)
@@ -53,9 +53,9 @@ def answerCallbackQuery(callback_query_id, text=None):
 	if text:
 		payload['text'] = text
 	try:
-		requests.post(webhooks['telegram'] + 'answerCallbackQuery', json=payload, timeout=config_http_timeout)
+		net.post(webhooks['telegram'] + 'answerCallbackQuery', json=payload, timeout=config_http_timeout)
 	except Exception as e:
-		print("answerCallbackQuery failed:", e, file=sys.stderr)
+		print("answerCallbackQuery failed:", net.redact(e), file=sys.stderr)
 
 #def unpinChatMessage():
 #	telegram_url = webhooks['telegram'] + 'unpinChatMessage'

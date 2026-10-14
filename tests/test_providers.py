@@ -1,5 +1,5 @@
 """Yahoo, Sharesight and Telegram parsing and failure handling, driven by the real API responses saved under doc/.
-HTTP is mocked at the requests layer, so the production parsing code runs unchanged."""
+HTTP is mocked at lib.net, so the production parsing code runs unchanged."""
 import contextlib, copy, datetime, io, json, os, subprocess, unittest
 from unittest import mock
 from tests.common import *
@@ -22,7 +22,7 @@ class Resp:
 
 
 def serve(*responses):
-    """requests.get replacement: replays the responses in order (exceptions are raised); the last one repeats."""
+    """net.get replacement: replays the responses in order (exceptions are raised); the last one repeats."""
     queue = list(responses)
     calls = []
     def get(url, **kwargs):
@@ -49,7 +49,7 @@ class ProviderCase(FinbotCase):
 
     def http(self, module, *responses):
         getter = serve(*responses)
-        self.patch(module.requests, 'get', getter)
+        self.patch(module.net, 'get', getter)
         return getter
 
 
@@ -182,7 +182,7 @@ class YahooChart(ProviderCase):
         good = Resp(self.chart([100.0] * 20 + [110.0]))
         def get(url, **kwargs):
             return Resp(status=404) if '/chart/T3?' in url or '/chart/SPY?' in url else good
-        self.patch(yahoo.requests, 'get', get)
+        self.patch(yahoo.net, 'get', get)
         def slack(text): # Slack: the reports come as text
             self.sent.clear(); self.errors.clear()
             worker.process_request('slack', 'C1', '<@U1>', text, BOT, 'U', '1')
@@ -281,7 +281,7 @@ class SharesightKeepWarm(ProviderCase):
         def get(url, **kwargs):
             calls.append(url)
             return Resp(performance if '/performance' in url else portfolios)
-        self.patch(sharesight.requests, 'get', get)
+        self.patch(sharesight.net, 'get', get)
         return calls
 
     def age(self, cache_file, seconds):
@@ -404,7 +404,7 @@ class TelegramSending(FinbotCase):
             if isinstance(outcome, Exception):
                 raise outcome
             return outcome
-        self.patch(webhook.requests, 'post', fake)
+        self.patch(webhook.net, 'post', fake)
         return webhook.write('telegram', 'https://api.telegram.org/botX/sendMessage?chat_id=5', 'hi', '5')
 
     def test_success_returns_json(self):
@@ -465,7 +465,7 @@ class ChartDelivery(FinbotCase):
         self.patch(webhook, 'sendPhoto', REAL_SEND_PHOTO)
 
     def slack_answers(self, *outcomes):
-        """requests.post for the upload steps: the outcomes in turn (an exception is raised). Returns the calls made."""
+        """net.post for the upload steps: the outcomes in turn (an exception is raised). Returns the calls made."""
         calls = []
         def post(url, **kwargs):
             calls.append((url, kwargs))
@@ -473,7 +473,7 @@ class ChartDelivery(FinbotCase):
             if isinstance(outcome, Exception):
                 raise outcome
             return outcome
-        self.patch(webhook.requests, 'post', post)
+        self.patch(webhook.net, 'post', post)
         return calls
 
     def upload_steps(self):
@@ -561,7 +561,7 @@ class ChartDelivery(FinbotCase):
                                 (Resp({'ok': True, 'result': {'message_id': 1}}), [])):
             with self.subTest(outcome=outcome):
                 self.sent.clear()
-                self.patch(webhook.requests, 'post', post(outcome))
+                self.patch(webhook.net, 'post', post(outcome))
                 with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
                     webhook.sendPhoto('5', io.BytesIO(b'png'), 'Heading\nline 2', 'telegram', reply_markup={'inline_keyboard': []})
                 self.assertEqual(self.sent, expect)
@@ -580,13 +580,13 @@ class TelegramWebhook(FinbotCase):
         def post(url, **kwargs):
             calls.append((url.rsplit('/', 1)[1], kwargs.get('params', {}).get('url')))
             return Resp({'ok': True, 'result': {'username': 'finbot'} if url.endswith('getMe') else True})
-        self.patch(telegram.requests, 'post', post)
+        self.patch(telegram.net, 'post', post)
         with contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(telegram.register(), '@finbot')
         self.assertEqual(calls, [('setWebhook', ''), ('setWebhook', 'https://example.com/telegram'), ('getMe', None)])
 
     def test_a_refused_call_raises(self):
-        self.patch(telegram.requests, 'post', lambda url, **k: Resp({'ok': False, 'description': 'Bad Request: bad webhook: HTTPS url must be provided'}))
+        self.patch(telegram.net, 'post', lambda url, **k: Resp({'ok': False, 'description': 'Bad Request: bad webhook: HTTPS url must be provided'}))
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(RuntimeError) as caught:
             telegram.register()
         self.assertIn('HTTPS url must be provided', str(caught.exception))

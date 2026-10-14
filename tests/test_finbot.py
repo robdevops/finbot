@@ -17,7 +17,7 @@ class Plumbing(FinbotCase):
             posted.append(kwargs['json'])
             return Response()
 
-        with mock.patch.object(webhook.requests, 'post', post), mock.patch.object(webhook.time, 'sleep', lambda s: None):
+        with mock.patch.object(webhook.net, 'post', post), mock.patch.object(webhook.time, 'sleep', lambda s: None):
             results = REAL_PAYLOAD_WRAPPER('telegram', 'https://api.telegram.org/botX/sendMessage?chat_id=5',
                 ['x' * 60] * 300, '5', reply_markup={'keyboard': []})
         self.assertGreater(len(results), 1)

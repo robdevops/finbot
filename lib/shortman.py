@@ -1,13 +1,13 @@
-import requests
 import sys
 from lib.config import *
+from lib import net
 
 def fetch(market_data):
     local_market_data = market_data.copy()
     print("Fetching ASX shorts from Shortman")
     url = 'https://www.shortman.com.au/downloadeddata/latest.csv'
     try:
-        r = requests.get(url, timeout=config_http_timeout)
+        r = net.get(url, timeout=config_http_timeout)
     except:
         print("Failure fetching", url, file=sys.stderr)
         return {}

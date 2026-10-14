@@ -8,6 +8,7 @@ import sys
 import traceback
 
 from lib.config import *
+from lib import net
 
 def write(service, url, payload_string, chat_id=None, message_id=None, reply_markup=None):
 	headers = {'Content-type': 'application/json'}
@@ -30,9 +31,9 @@ def write(service, url, payload_string, chat_id=None, message_id=None, reply_mar
 		if reply_markup:
 			payload['reply_markup'] = reply_markup # keyboard (Telegram only)
 	try:
-		r = requests.post(url, headers=headers, json=payload, timeout=config_http_timeout)
-	except:
-		print("Failure executing request:", url, headers, payload, file=sys.stderr)
+		r = net.post(url, headers=headers, json=payload, timeout=config_http_timeout)
+	except Exception as e:
+		print("Failure sending to", service + ":", net.redact(e), file=sys.stderr)
 		return None
 	if r.status_code == 200:
 		print(r.status_code, "OK outbound to", service, file=sys.stderr)
@@ -58,9 +59,7 @@ def error_line(e, context=None, limit=200):
 		text = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
 	else:
 		text = str(e)
-	text = re.sub(r'bot\d+:[\w-]+', 'bot<redacted>', text) # Telegram tokens appear in request URLs
-	text = re.sub(r'(?i)(token|crumb|auth\w*|key)=[^&\s]+', r'\1=<redacted>', text)
-	text = ' '.join(text.split())
+	text = ' '.join(net.redact(text).split())
 	if len(text) > limit:
 		text = text[:limit - 1] + '…'
 	return f"⚠️ {context}: {text}" if context else f"⚠️ {text}"
@@ -73,7 +72,7 @@ def report_error(e, service=None, chat_id=None, context=None):
 		line = error_line(e, context)
 		print(line, file=sys.stderr)
 		if isinstance(e, BaseException):
-			traceback.print_exception(e, file=sys.stderr)
+			print(net.redact(''.join(traceback.format_exception(e))), end='', file=sys.stderr) # request errors carry their URL
 		if service and chat_id:
 			targets = [(service, chat_url(service, chat_id))]
 			chat = chat_id
@@ -201,12 +200,12 @@ def telegram_photo(chat_id, image_data, caption, message_id=None, reply_markup=N
 	if hasattr(image_data, 'seek'):
 		image_data.seek(0)
 	try:
-		r = requests.post(url, data=data, files={"photo": ('image.png', image_data)}, timeout=config_http_timeout)
+		r = net.post(url, data=data, files={"photo": ('image.png', image_data)}, timeout=config_http_timeout)
 	except requests.exceptions.ReadTimeout as e:
-		print("Telegram sendPhoto timed out, the chart may still arrive:", e, file=sys.stderr)
+		print("Telegram sendPhoto timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
 		return MAYBE_SENT
 	except Exception as e:
-		print("Failure executing request:", url, data, str(e))
+		print("Telegram sendPhoto failed:", net.redact(e), file=sys.stderr)
 		return None
 	try:
 		output = r.json()
@@ -220,7 +219,7 @@ def telegram_photo(chat_id, image_data, caption, message_id=None, reply_markup=N
 
 def slack_api(method, **data):
 	"""POST a Slack Web API method as the bot, form-encoded, and return its answer. Raises RuntimeError with Slack's error if not ok."""
-	r = requests.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + config_slackBotToken}, data=data, timeout=config_http_timeout)
+	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + config_slackBotToken}, data=data, timeout=config_http_timeout)
 	try:
 		output = r.json()
 	except ValueError:
@@ -238,7 +237,7 @@ def slack_photo(chat_id, image_data, caption, message_id=None):
 	data = image_data.read() if hasattr(image_data, 'read') else bytes(image_data)
 	try:
 		ticket = slack_api('files.getUploadURLExternal', filename='chart.png', length=len(data))
-		r = requests.post(ticket['upload_url'], data=data, timeout=config_http_timeout)
+		r = net.post(ticket['upload_url'], data=data, timeout=config_http_timeout)
 		if r.status_code != 200:
 			raise RuntimeError(f"Slack upload: {r.status_code} {r.text[:200]}")
 		share = {'files': json.dumps([{'id': ticket['file_id']}]), 'channel_id': chat_id, 'initial_comment': caption}
@@ -247,10 +246,10 @@ def slack_photo(chat_id, image_data, caption, message_id=None):
 		try:
 			output = slack_api('files.completeUploadExternal', **share)
 		except requests.exceptions.ReadTimeout as e:
-			print("Slack files.completeUploadExternal timed out, the chart may still arrive:", e, file=sys.stderr)
+			print("Slack files.completeUploadExternal timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
 			return MAYBE_SENT
 	except Exception as e:
-		print("Slack chart upload failed:", e, file=sys.stderr)
+		print("Slack chart upload failed:", net.redact(e), file=sys.stderr)
 		return None
 	print("OK slack chart upload to", chat_id, file=sys.stderr)
 	return output
@@ -279,9 +278,9 @@ def editMessageText(chat_id, message_id, text, reply_markup=None):
 	if reply_markup is not None:
 		payload['reply_markup'] = reply_markup
 	try:
-		output = requests.post(webhooks['telegram'] + 'editMessageText', json=payload, timeout=config_http_timeout).json()
+		output = net.post(webhooks['telegram'] + 'editMessageText', json=payload, timeout=config_http_timeout).json()
 	except Exception as e:
-		print("Failure executing editMessageText:", str(e), file=sys.stderr)
+		print("Failure executing editMessageText:", net.redact(e), file=sys.stderr)
 		return None
 	if not output.get('ok'):
 		print(output.get('error_code'), output.get('description'), file=sys.stderr)
@@ -299,10 +298,10 @@ def editMessageMedia(chat_id, message_id, image_data, caption, reply_markup=None
 	if hasattr(image_data, 'seek'):
 		image_data.seek(0)
 	try:
-		r = requests.post(url, data=data, files={'photo': ('image.png', image_data)}, timeout=config_http_timeout)
+		r = net.post(url, data=data, files={'photo': ('image.png', image_data)}, timeout=config_http_timeout)
 		output = r.json()
 	except Exception as e:
-		print("Failure executing editMessageMedia:", str(e), file=sys.stderr)
+		print("Failure executing editMessageMedia:", net.redact(e), file=sys.stderr)
 		return None
 	if not output.get('ok'):
 		description = output.get('description', r.reason)
@@ -322,9 +321,9 @@ def pleaseHold(action, service, chat_id):
 		'action': action
 	}
 	try:
-		r = requests.post(url, data=data, timeout=config_http_timeout)
+		r = net.post(url, data=data, timeout=config_http_timeout)
 	except Exception as e:
-		print("Failure executing request:", url, data, str(e))
+		print("Typing indicator failed:", net.redact(e), file=sys.stderr)
 		return None
 	if r.status_code == 200:
 		print(r.status_code, "OK typing indicator to", service, file=sys.stderr)

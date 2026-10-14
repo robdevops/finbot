@@ -213,6 +213,51 @@ class SlackEvents(FinbotCase):
         self.assertEqual(bot.botName, '@finbot_tg')
 
 
+class SecretsStayOutOfLogs(FinbotCase):
+    """A failed request's error message carries its URL: the Telegram token, a Slack or Discord webhook path, a Yahoo crumb."""
+    SECRET_URL = 'https://api.telegram.org/bot123456:SECRET-tok_en/sendMessage?chat_id=1'
+
+    def stderr_of(self, call):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            call()
+        return err.getvalue()
+
+    def test_a_failed_send_logs_no_token(self):
+        def refuse(url, **kwargs):
+            raise ConnectionError(f"Max retries exceeded with url: {url} (headers {kwargs.get('headers')})")
+        self.patch(webhook.net, 'post', refuse)
+        self.patch(webhook, 'config_slackBotToken', 'xoxb-SECRET')
+        log = self.stderr_of(lambda: webhook.write('telegram', self.SECRET_URL, 'hi', '1'))
+        log += self.stderr_of(lambda: webhook.write('slack', 'https://hooks.slack.com/services/T0/B0/SECRETpath', 'hi', 'C1'))
+        self.assertIn('Failure sending', log)
+        for secret in ('SECRET-tok_en', 'SECRETpath', 'xoxb-SECRET'):
+            self.assertNotIn(secret, log)
+
+    def test_the_traceback_of_a_reported_error_is_redacted(self):
+        self.patch(webhook, 'report_error', REAL_REPORT_ERROR)
+        self.patch(webhook, 'write', lambda *a, **k: None)
+        try:
+            raise ConnectionError('failed: ' + self.SECRET_URL)
+        except ConnectionError as e:
+            log = self.stderr_of(lambda: webhook.report_error(e, 'telegram', '55', context='x'))
+        self.assertIn('Traceback', log)
+        self.assertIn('bot<redacted>', log)
+        self.assertNotIn('SECRET-tok_en', log)
+
+
+class SharedSession(unittest.TestCase):
+    def test_the_session_keeps_no_cookies(self):
+        """Yahoo's cookie goes in an explicit header: a stored one would be sent to fc.yahoo.com, which then sets no new one."""
+        import email.message, urllib.request
+        from lib import net
+        headers = email.message.Message()
+        headers['Set-Cookie'] = 'A3=d=AQAB; Max-Age=31557600; Domain=.yahoo.com; Path=/; Secure'
+        response = type('Response', (), {'info': lambda self: headers})()
+        net.session.cookies.extract_cookies(response, urllib.request.Request('https://fc.yahoo.com/'))
+        self.assertEqual(len(net.session.cookies), 0)
+
+
 class StartupSignals(unittest.TestCase):
     """A reload (SIGHUP) that arrives while the bot is still starting must not kill it."""
 
