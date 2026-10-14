@@ -691,7 +691,7 @@ Note: The utils folder contains scripts to generate `/etc/nginx/aws_subnets` and
     * For security, message BotFather and disable `/setjoingroups`.
 * Set `telegramOutgoingWebhook` in `finbot.env` to your web server (e.g. https://www.example.com:8443/telegram).
 * Set `telegramOutgoingToken` to a password of your choosing. Telegram will use this to authenticate with finbot.
-With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
+With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`. It unregisters and registers the webhook as it starts (and only then, which also wakes up a stale connection); if Telegram refuses, finbot does not start and the log says why.
 
 #### Slack
 Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app). Replies in Slack are text: charts go to Telegram only, since Slack retired the file upload API finbot used.
