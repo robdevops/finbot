@@ -62,7 +62,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=UNSET, service=None,
 			period = util.days_english(past_days)
 			message = webhook.bold(f"Performance over {period}", service)
 			payload.insert(0, message)
-			if chart_rows and webhook.takes_charts(service):
+			if chart_rows and webhook.takes_charts(service, interactive):
 				subtitle = f"% change {'' if period == 'today' else 'over '}{period}"
 				chart_rows.sort(key=lambda row: row[1], reverse=True) # best first
 				graph = util.rows_chart(chart_rows, "Performance", subtitle, value_fmt=lambda v: util.signed_percent(v, 2))

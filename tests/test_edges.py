@@ -51,6 +51,15 @@ class UpstreamEmpty(FinbotCase):
         worker.process_request('telegram', '55', '@u', '.performance 7d', BOT, 'U', '1')
         self.assertEqual(len(self.errors), 1)
 
+    def test_a_failed_command_stops_typing_before_saying_why(self):
+        def down(*a, **k):
+            raise RuntimeError('Sharesight performance error: boom')
+        self.patch(sharesight, 'get_portfolios', down)
+        typing_when_reported = []
+        self.patch(webhook, 'report_error', lambda e, *a, **k: typing_when_reported.append([t.is_active() for t in self.typing]))
+        worker.process_request('telegram', '55', '@u', '.performance 7d', BOT, 'U', '1')
+        self.assertEqual(typing_when_reported, [[False]]) # its one indicator had stopped when the error line went out
+
     def test_no_holdings_and_empty_watchlist(self):
         self.patch(util, 'get_holdings_and_watchlist', lambda: [])
         for cmd in ('.watchlist', '.price', '.earnings'):

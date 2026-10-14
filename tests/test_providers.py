@@ -456,13 +456,84 @@ class TelegramSending(FinbotCase):
 
 
 class ChartDelivery(FinbotCase):
-    """Charts go to Telegram only. A report whose chart cannot be sent goes out as text instead of vanishing."""
+    """Charts go to Telegram, and to Slack in replies (uploaded into the channel). A report whose chart cannot be sent goes out as
+    text instead of vanishing."""
+    UPLOAD_URL = 'https://files.slack.com/upload/v1/abc'
 
     def setUp(self):
         super().setUp()
         self.patch(webhook, 'sendPhoto', REAL_SEND_PHOTO)
 
-    def test_slack_replies_are_text_and_no_chart_is_drawn_for_them(self):
+    def slack_answers(self, *outcomes):
+        """requests.post for the upload steps: the outcomes in turn (an exception is raised). Returns the calls made."""
+        calls = []
+        def post(url, **kwargs):
+            calls.append((url, kwargs))
+            outcome = outcomes[len(calls) - 1]
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+        self.patch(webhook.requests, 'post', post)
+        return calls
+
+    def upload_steps(self):
+        return [Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': 'F1'}), Resp(None, text='OK - 3'), Resp({'ok': True, 'files': [{'id': 'F1'}]})]
+
+    def test_where_charts_can_go(self):
+        self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
+        cases = (('telegram',), ('telegram', False), ('slack',), ('slack', False), ('discord',))
+        self.assertEqual([webhook.takes_charts(*case) for case in cases], [True, True, True, False, False]) # Slack: replies, not scheduled reports
+        self.patch(webhook, 'config_slackBotToken', False)
+        self.assertFalse(webhook.takes_charts('slack'))
+
+    def test_slack_replies_upload_their_charts(self):
+        self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
+        for cmd, heading in (('.beta', '*Beta over 1.5'), ('.price', '*5.0% at close'), ('.compare T1 T2', '*')):
+            with self.subTest(cmd=cmd):
+                calls = self.slack_answers(*self.upload_steps())
+                self.sent.clear(); self.errors.clear()
+                worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U', '1')
+                self.assertEqual(self.errors, [])
+                self.assertEqual([url for url, _ in calls], ['https://slack.com/api/files.getUploadURLExternal', self.UPLOAD_URL,
+                                                             'https://slack.com/api/files.completeUploadExternal'])
+                (_, ticket), (_, upload), (_, share) = calls
+                self.assertEqual(ticket['headers'], {'Authorization': 'Bearer xoxb-test'})
+                self.assertTrue(upload['data'].startswith(b'\x89PNG')) # the chart's bytes, as the body
+                self.assertEqual((ticket['data']['filename'], ticket['data']['length']), ('chart.png', len(upload['data'])))
+                self.assertEqual((share['data']['channel_id'], json.loads(share['data']['files'])), ('C1', [{'id': 'F1'}]))
+                self.assertTrue(share['data']['initial_comment'].startswith(heading), share['data']['initial_comment'][:80]) # the report
+                self.assertNotIn(share['data']['initial_comment'].split('\n'), [payload for _, payload in self.sent]) # not sent again as text
+
+    def test_a_slack_upload_that_fails_goes_out_as_text(self):
+        self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
+        good = self.upload_steps()
+        text = [('text', ['*Heading*', 'line 2'])]
+        for outcomes, expect in (([Resp({'ok': False, 'error': 'missing_scope'})], text), ([ConnectionError('down')], text),
+                                 ([good[0], Resp(None, status=500, text='nope')], text),
+                                 ([good[0], good[1], Resp({'ok': False, 'error': 'not_in_channel'})], text),
+                                 ([good[0], good[1], webhook.requests.exceptions.ReadTimeout('slow')], []), # it may have been shared after all
+                                 (good, [])):
+            with self.subTest(outcomes=outcomes):
+                self.slack_answers(*outcomes)
+                self.sent.clear()
+                with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+                    webhook.sendPhoto('C1', io.BytesIO(b'png'), '*Heading*\nline 2', 'slack')
+                self.assertEqual(self.sent, expect)
+
+    def test_scheduled_reports_to_slack_stay_text(self):
+        self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
+        webhook.webhooks['slack'] = 'https://hooks.slack.com/services/x' # an incoming webhook cannot upload
+        sent = []
+        self.patch(webhook, 'sendPhoto', lambda chat, image, caption, service, **k: sent.append((service, 'chart')))
+        self.patch(webhook, 'payload_wrapper', lambda service, url, payload, *a, **k: sent.append((service, 'text')) or [])
+        for report in (price.lambda_handler, lambda: performance.lambda_handler(past_days=7), shorts.lambda_handler):
+            with self.subTest(report=report):
+                sent.clear()
+                report()
+                self.assertEqual(sorted(set(sent)), [('slack', 'text'), ('telegram', 'chart')])
+
+    def test_slack_without_a_bot_token_gets_text_and_no_chart_is_drawn(self):
+        self.patch(webhook, 'config_slackBotToken', False)
         def refuse(*a, **k):
             raise AssertionError('a chart was drawn for Slack')
         for name in ('rows_chart', 'pie_chart', 'bar_graph', 'shorts_chart'):

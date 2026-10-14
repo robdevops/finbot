@@ -190,47 +190,98 @@ def fit_caption(caption, limit=1024):
 		kept.append(line)
 	return '\n'.join(kept) + f"\n…and {len(lines) - len(kept)} more in the chart"
 
-def takes_charts(service):
-	"""Whether a reply to `service` can carry a chart image. Only Telegram: Slack retired its upload API (files.upload), and the Slack
-	and Discord webhooks never took images. Elsewhere a report goes out as text."""
-	return service == 'telegram'
+MAYBE_SENT = object() # a read timeout on the request that posts a chart: it may have arrived, so no text copy follows
+
+def takes_charts(service, reply=True):
+	"""Whether a report to `service` can carry a chart image: on Telegram always; on Slack in a reply to a chat (`reply`), uploaded
+	into its channel with the bot token, but not in a scheduled report, which goes through the incoming webhook and takes text only;
+	never on Discord. Elsewhere a report goes out as text."""
+	return service == 'telegram' or (service == 'slack' and reply and bool(config_slackBotToken))
+
+def telegram_photo(chat_id, image_data, caption, message_id=None, reply_markup=None):
+	"""sendPhoto, the report as its caption (trimmed to fit). Telegram's answer, MAYBE_SENT, or None if it was refused."""
+	url = webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
+	data = {
+		'disable_notification': True,
+		'chat_id': chat_id,
+		'caption': fit_caption(caption),
+		'parse_mode': 'HTML',
+		'disable_web_page_preview': True,
+		'allow_sending_without_reply': True,
+		'reply_to_message_id': message_id}
+	if reply_markup:
+		data['reply_markup'] = json.dumps(reply_markup) # inline keyboard (Telegram only)
+	if hasattr(image_data, 'seek'):
+		image_data.seek(0)
+	try:
+		r = requests.post(url, data=data, files={"photo": ('image.png', image_data)}, timeout=config_http_timeout)
+	except requests.exceptions.ReadTimeout as e:
+		print("Telegram sendPhoto timed out, the chart may still arrive:", e, file=sys.stderr)
+		return MAYBE_SENT
+	except Exception as e:
+		print("Failure executing request:", url, data, str(e))
+		return None
+	try:
+		output = r.json()
+	except ValueError:
+		output = {}
+	if r.status_code == 200 and output.get('ok'):
+		print(r.status_code, "OK telegram sendPhoto", data['caption'])
+		return output
+	print(r.status_code, "error telegram sendPhoto", output.get('error_code'), output.get('description') or r.text[:300], file=sys.stderr)
+	return None
+
+def slack_api(method, **data):
+	"""POST a Slack Web API method as the bot, form-encoded, and return its answer. Raises RuntimeError with Slack's error if not ok."""
+	r = requests.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + config_slackBotToken}, data=data, timeout=config_http_timeout)
+	try:
+		output = r.json()
+	except ValueError:
+		output = {}
+	if not output.get('ok'):
+		raise RuntimeError(f"Slack {method}: {output.get('error') or r.status_code}")
+	return output
+
+def slack_photo(chat_id, image_data, caption, message_id=None):
+	"""Upload the chart into a Slack channel with the report as its message, the way Slack takes files since it retired files.upload:
+	ask for an upload URL, send the bytes there, then complete the upload into the channel (the bot needs the files:write and
+	files:read scopes). Slack's answer, MAYBE_SENT, or None if a step failed."""
+	if hasattr(image_data, 'seek'):
+		image_data.seek(0)
+	data = image_data.read() if hasattr(image_data, 'read') else bytes(image_data)
+	try:
+		ticket = slack_api('files.getUploadURLExternal', filename='chart.png', length=len(data))
+		r = requests.post(ticket['upload_url'], data=data, timeout=config_http_timeout)
+		if r.status_code != 200:
+			raise RuntimeError(f"Slack upload: {r.status_code} {r.text[:200]}")
+		share = {'files': json.dumps([{'id': ticket['file_id']}]), 'channel_id': chat_id, 'initial_comment': caption}
+		if message_id:
+			share['thread_ts'] = message_id
+		try:
+			output = slack_api('files.completeUploadExternal', **share)
+		except requests.exceptions.ReadTimeout as e:
+			print("Slack files.completeUploadExternal timed out, the chart may still arrive:", e, file=sys.stderr)
+			return MAYBE_SENT
+	except Exception as e:
+		print("Slack chart upload failed:", e, file=sys.stderr)
+		return None
+	print("OK slack chart upload to", chat_id, file=sys.stderr)
+	return output
 
 def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_markup=None):
-	"""Telegram: the chart, with the report as its caption (trimmed to fit). Where a chart cannot go (takes_charts), or Telegram
-	refuses it, the report is sent as text instead, without the chart's buttons, so it does not vanish with its chart; but not after
-	a read timeout, when the chart may have arrived after all."""
-	if takes_charts(service):
-		url = webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
-		headers = {}
-		data = {
-			'disable_notification': True,
-			'chat_id': chat_id,
-			'caption': fit_caption(caption),
-			'parse_mode': 'HTML',
-			'disable_web_page_preview': True,
-			'allow_sending_without_reply': True,
-			'reply_to_message_id': message_id}
-		if reply_markup:
-			data['reply_markup'] = json.dumps(reply_markup) # inline keyboard (Telegram only)
-		files = {"photo": ('image.png', image_data)}
-		if hasattr(image_data, 'seek'):
-			image_data.seek(0)
-		try:
-			r = requests.post(url, data=data, headers=headers, files=files, timeout=config_http_timeout)
-		except requests.exceptions.ReadTimeout as e:
-			print("sendPhoto timed out, the chart may still arrive:", e, file=sys.stderr)
-			return None
-		except Exception as e:
-			print("Failure executing request:", url, data, str(e))
-		else:
-			try:
-				output = r.json()
-			except ValueError:
-				output = {}
-			if r.status_code == 200 and output.get('ok'):
-				print(r.status_code, f"OK {service} sendPhoto", data['caption'])
-				return output
-			print(r.status_code, f"error {service} sendPhoto", output.get('error_code'), output.get('description') or r.text[:300], file=sys.stderr)
+	"""The chart, with the report as its caption: on Telegram, or uploaded into the Slack channel of a reply. Where a chart cannot go
+	(takes_charts), or the service refuses it, the report is sent as text instead, without the chart's buttons, so it does not vanish
+	with its chart; but not after a read timeout on the request that posts it, when the chart may have arrived after all."""
+	output = None
+	if service == 'telegram':
+		output = telegram_photo(chat_id, image_data, caption, message_id, reply_markup)
+	elif takes_charts(service, reply=bool(chat_id)):
+		output = slack_photo(chat_id, image_data, caption, message_id)
+	if output is MAYBE_SENT:
+		return None
+	if output:
+		return output
+	if takes_charts(service, reply=bool(chat_id)):
 		print("chart not sent, sending the report as text", file=sys.stderr)
 	return payload_wrapper(service, chat_url(service, chat_id) if chat_id else webhooks.get(service), caption.split('\n'), chat_id, message_id)
 
