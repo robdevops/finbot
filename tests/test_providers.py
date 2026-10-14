@@ -1,6 +1,6 @@
 """Yahoo, Sharesight and Telegram parsing and failure handling, driven by the real API responses saved under doc/.
 HTTP is mocked at the requests layer, so the production parsing code runs unchanged."""
-import copy, datetime, json, os, unittest
+import contextlib, copy, datetime, io, json, os, subprocess, unittest
 from unittest import mock
 from tests.common import *
 
@@ -366,6 +366,53 @@ class TelegramSending(FinbotCase):
         self.assertEqual(raised.exception.code, 1)
         self.assertEqual(len(reported), 1)
         self.assertEqual(webhook.guarded('job', lambda: 'fine'), 'fine')
+
+
+class TelegramWebhook(FinbotCase):
+    """bot.py registers the webhook once as it starts. Importing lib.telegram, as every job process does, touches nothing."""
+
+    def setUp(self):
+        super().setUp()
+        self.patch(telegram, 'webhooks', {'telegram': 'https://api.telegram.org/botX/'})
+        self.patch(telegram, 'config_telegramOutgoingWebhook', 'https://example.com/telegram')
+
+    def test_register_unregisters_registers_and_names_the_bot(self):
+        calls = []
+        def post(url, **kwargs):
+            calls.append((url.rsplit('/', 1)[1], kwargs.get('params', {}).get('url')))
+            return Resp({'ok': True, 'result': {'username': 'finbot'} if url.endswith('getMe') else True})
+        self.patch(telegram.requests, 'post', post)
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(telegram.register(), '@finbot')
+        self.assertEqual(calls, [('setWebhook', ''), ('setWebhook', 'https://example.com/telegram'), ('getMe', None)])
+
+    def test_a_refused_call_raises(self):
+        self.patch(telegram.requests, 'post', lambda url, **k: Resp({'ok': False, 'description': 'Bad Request: bad webhook: HTTPS url must be provided'}))
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(RuntimeError) as caught:
+            telegram.register()
+        self.assertIn('HTTPS url must be provided', str(caught.exception))
+
+    def test_importing_never_calls_telegram(self):
+        code = ('import requests\n'
+                'def refuse(*a, **k): raise SystemExit("network call on import")\n'
+                'requests.Session.request = refuse\n'
+                'from lib import telegram, yahoo, worker, jobrun\n'
+                'print("quiet")')
+        with tempfile.TemporaryDirectory() as data:
+            out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True,
+                env={**os.environ, 'DATA_DIR': data, 'telegramBotToken': '123:abc', 'telegramOutgoingWebhook': 'https://example.com/telegram'})
+        self.assertEqual(out.stdout.split()[-1:], ['quiet'], out.stderr)
+
+    def test_the_bot_will_not_start_unregistered_and_never_logs_the_token(self):
+        with tempfile.TemporaryDirectory() as data:
+            env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS and 'proxy' not in k.lower()}
+            env.update(DATA_DIR=data, port='0', scheduler='False', telegramBotToken='123456:SECRET-token', telegramOutgoingToken='tok',
+                       telegramOutgoingWebhook='https://example.com/telegram',
+                       HTTPS_PROXY='http://127.0.0.1:9', https_proxy='http://127.0.0.1:9') # unreachable, so the registration fails at once and offline
+            out = subprocess.run([sys.executable, 'bot.py'], cwd=ROOT, env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn('ERROR ⚠️ telegram webhook:', out.stderr)
+        self.assertNotIn('SECRET-token', out.stderr + out.stdout)
 
 
 if __name__ == '__main__':

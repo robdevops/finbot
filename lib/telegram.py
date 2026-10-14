@@ -1,35 +1,38 @@
-import concurrent.futures
 import json
 import requests
 import sys
 from lib.config import *
 
+def call(method, **kwargs):
+	"""POST a Bot API method and return its result. Raises RuntimeError with Telegram's description when it answers not ok."""
+	response = requests.post(webhooks['telegram'] + method, timeout=config_http_timeout, **kwargs)
+	try:
+		output = response.json()
+	except ValueError:
+		output = {}
+	if not output.get('ok'):
+		raise RuntimeError(f"Telegram {method}: {output.get('description') or response.status_code}")
+	return output['result']
+
 def setWebhook():
-	telegram_url = webhooks['telegram'] + 'setWebhook'
 	print("registering", config_telegramOutgoingWebhook, file=sys.stderr)
 	params = {'url': config_telegramOutgoingWebhook, "allowed_updates": json.dumps(['message', 'callback_query']), 'secret_token': config_telegramOutgoingToken}
-	response = requests.post(telegram_url, params=params, timeout=config_http_timeout)
-	print(response.text)
+	return call('setWebhook', params=params)
 
 def delWebhook():
-	telegram_url = webhooks['telegram'] + 'setWebhook'
 	print("deregistering", config_telegramOutgoingWebhook, file=sys.stderr)
-	params = {'url': ''} # unsubscribe
-	response = requests.post(telegram_url, params=params, timeout=config_http_timeout)
-	print(response.text)
+	return call('setWebhook', params={'url': ''}) # unsubscribe
 
 def getMe():
-	telegram_url = webhooks['telegram'] + 'getMe'
-	response = requests.post(telegram_url, timeout=config_http_timeout)
-	return response.json()['result']
+	return call('getMe')
 
-if config_telegramBotToken:
+def register():
+	"""Called once by bot.py as it starts, never on import (the job processes and the tests import this module too): unregister and
+	register the webhook again, which wakes up a stale connection on Telegram's side, then return the bot's @username. Raises
+	RuntimeError, or a requests error, if any of the three calls fails."""
 	delWebhook()
-	with concurrent.futures.ThreadPoolExecutor() as executor:
-		executor.submit(setWebhook)
-		#executor.submit(setMyCommands)
-		thread = executor.submit(getMe)
-		botName = '@' + thread.result()['username']
+	setWebhook()
+	return '@' + getMe()['username']
 
 def pinChatMessage(chat_id, message_id):
 	telegram_url = webhooks['telegram'] + 'pinChatMessage'

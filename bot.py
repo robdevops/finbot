@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 
+import signal
+if __name__ == '__main__':
+	signal.signal(signal.SIGHUP, signal.SIG_IGN) # ignored until startup is done (the reload handler is installed last): its default action kills the bot
 import gevent.monkey
 gevent.monkey.patch_all()
-import json, os, re, signal, sys
+import json, os, re, sys, traceback
 from pathlib import Path
 from gevent import pywsgi
 import threading
@@ -14,19 +17,29 @@ from lib import worker
 from lib import jobs
 from lib import charts
 from lib import sharesight
+from lib import telegram
 from lib import webhook
-if config_telegramBotToken:
-	from lib import telegram
-	botName = telegram.botName
+
+botName = None # the Telegram bot's @username, from telegram.register() at start
+AUTHENTICATED = 'finbot.authenticated' # set in a request's WSGI environ once it has passed its service's check
+SLACK_USER_SUBTYPES = (None, 'thread_broadcast') # Slack message subtypes a person writes; the others are bot posts, edits, joins and the like
 
 def main(environ, start_response):
-	"""WSGI entry point. Never lets an exception escape: failures are reported as one line to the default channel."""
+	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is reported as one line to the
+	default channel and answered 200, so the service does not retry it into the chat again. Before authentication a failure is only
+	logged: a stranger must not be able to post into the chats."""
 	try:
 		return handle(environ, start_response)
 	except Exception as e:
-		webhook.report_error(e, context=environ.get('PATH_INFO', 'bot'))
+		if environ.get(AUTHENTICATED):
+			webhook.report_error(e, context=environ.get('PATH_INFO', 'bot'))
+			status = '200 OK'
+		else:
+			print(f"request to {environ.get('PATH_INFO')!r} failed:", webhook.error_line(e), file=sys.stderr)
+			traceback.print_exc()
+			status = '500 Internal Server Error'
 		try:
-			start_response('500 Internal Server Error', [('Content-type', 'text/plain')], sys.exc_info())
+			start_response(status, [('Content-type', 'text/plain')], sys.exc_info())
 		except Exception:
 			pass
 		return [b'']
@@ -40,40 +53,50 @@ def handle(environ, start_response):
 	def print_headers():
 		for item in sorted(environ.items()):
 			print(item, file=sys.stderr)
-	request_body = environ['wsgi.input'].read()
+	def reply(status, body=b''):
+		start_response(status, [('Content-type', 'application/json')])
+		return [body]
 	user=''
 	userRealName=''
-	# prepare response
-	status = '200 OK'
-	headers = [('Content-type', 'application/json')]
-	start_response(status, headers)
-	# process request
-	uri = environ['PATH_INFO']
-	inbound = json.loads(request_body)
 	print_headers() if config_print_headers else None
-	#print_body() if debug else None
+	# route on the path first, and turn strangers away before reading the body
+	uri = environ.get('PATH_INFO', '')
 	if config_telegramOutgoingWebhook and uri == urlparse(config_telegramOutgoingWebhook).path:
 		service = 'telegram'
-		global botName
-		if 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' not in environ:
+	elif config_slackOutgoingWebhook and uri == urlparse(config_slackOutgoingWebhook).path:
+		service = 'slack'
+	else:
+		print("Unknown URI", repr(uri), file=sys.stderr)
+		return reply('404 Not Found', b'<h1>404</h1>')
+	if service == 'telegram': # Telegram proves itself with a header
+		secret = environ.get('HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN')
+		if secret != config_telegramOutgoingToken:
 			print_headers()
-			print("Fatal:", service, "authorisation header not present", file=sys.stderr)
-			return [b'<h1>Unauthorized</h1>']
-		if environ['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] != config_telegramOutgoingToken:
-			print_headers()
-			print("Fatal: Telegram authorisation header is present but incorrect. Expected:", config_telegramOutgoingToken, file=sys.stderr)
-			return [b'<h1>Unauthorized</h1>']
+			print("Fatal: Telegram authorisation header", "not present" if secret is None else "is present but incorrect", file=sys.stderr)
+			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
+		environ[AUTHENTICATED] = True
+	try:
+		inbound = json.loads(environ['wsgi.input'].read())
+	except ValueError:
+		print(f"[{service}]: request body is not JSON", file=sys.stderr)
+		return reply('400 Bad Request', b'<h1>Bad Request</h1>')
+	if not isinstance(inbound, dict):
+		print(f"[{service}]: request body is not a JSON object", file=sys.stderr)
+		return reply('400 Bad Request', b'<h1>Bad Request</h1>')
+	#print_body() if debug else None
+	if service == 'telegram':
+		bot_name = botName
 		if "callback_query" in inbound: # chart period buttons
 			cq = inbound["callback_query"]
 			cq_message = cq.get("message")
 			if not cq_message or not cq.get("data"):
-				return [b'Unsupported']
+				return reply('200 OK', b'Unsupported')
 			sender = cq.get("from", {})
 			print("[Telegram button]:", '@' + sender["username"] if "username" in sender else sender.get("first_name", "unknown"), "chat", cq_message["chat"]["id"], cq["data"], file=sys.stderr)
 			threading.Thread(target=worker.process_callback, args=('telegram', cq["id"], str(cq_message["chat"]["id"]), str(cq_message["message_id"]), cq["data"])).start()
-			return [b'']
+			return reply('200 OK')
 		if "message" not in inbound:
-			return [b'Unsupported']
+			return reply('200 OK', b'Unsupported')
 		message_id = str(inbound["message"]["message_id"])
 		chat_id = str(inbound["message"]["chat"]["id"])
 		if "username" in inbound["message"]["from"]:
@@ -97,61 +120,58 @@ def handle(environ, start_response):
 			file_id = photo["file_id"]
 			print("[Telegram photo]:", user, file_id, message)
 		elif IGNORED_TELEGRAM_CONTENT & inbound["message"].keys():
-			return [b''] # stickers, GIFs, voice notes and the like: nothing to answer, nothing worth logging
+			return reply('200 OK') # stickers, GIFs, voice notes and the like: nothing to answer, nothing worth logging
 		else:
 			print(f"[{service}]: unhandled: 'message' without 'text/photo'", file=sys.stderr)
-			return [b'<h1>Unhandled</h1>']
-	elif config_slackOutgoingWebhook and uri == urlparse(config_slackOutgoingWebhook).path:
-		service = 'slack'
+			return reply('200 OK', b'<h1>Unhandled</h1>')
+	else: # Slack puts its token in the body
 		if 'token' not in inbound:
 			print("warning: Slack authorisation field not present", file=sys.stderr)
 			print_body()
-			return [b'<h1>Unauthorized</h1>']
-		if inbound['token'] == config_slackOutgoingToken:
-			print("Incoming Slack request authenticated")
-		else:
-			print("Slack auth incorrect. Expected:", config_slackOutgoingToken, "Got:", inbound['token'], file=sys.stderr)
+			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
+		if inbound['token'] != config_slackOutgoingToken:
+			print("Slack auth incorrect", file=sys.stderr)
 			print_body()
-			return [b'<h1>Unauthorized</h1>']
+			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
+		environ[AUTHENTICATED] = True
+		print("Incoming Slack request authenticated")
 		if 'type' not in inbound:
 			print(f"[{service}]: unhandled: no 'type'", file=sys.stderr)
-			return [b'Unhandled']
+			return reply('200 OK', b'Unhandled')
 		if inbound['type'] == 'url_verification':
 			response = json.dumps({"challenge": inbound["challenge"]})
 			print("replying with", response, file=sys.stderr)
-			response = bytes(response, "utf-8")
-			return [response]
+			return reply('200 OK', bytes(response, "utf-8"))
 		if inbound['type'] == 'event_callback':
-			if inbound["event"]["type"] not in ('message', 'app_mention') or "text" not in inbound['event']:
-				print(f"[{service}]: unhandled event callback type", inbound["event"]["type"], file=sys.stderr)
-				return [b'<h1>Unhandled</h1>']
-			message_id = str(inbound["event"]["ts"])
-			message = inbound['event']['text']
+			event = inbound['event']
+			bot_user = inbound['authorizations'][0]['user_id'] # QWERTY
+			if event.get('bot_id') or event.get('subtype') not in SLACK_USER_SUBTYPES or not event.get('user') or event['user'] == bot_user:
+				return reply('200 OK') # not written by a person: answering a bot (this one's replies and webhook reports included) could loop
+			if event["type"] not in ('message', 'app_mention') or "text" not in event:
+				print(f"[{service}]: unhandled event callback type", event["type"], file=sys.stderr)
+				return reply('200 OK', b'<h1>Unhandled</h1>')
+			message_id = str(event["ts"])
+			message = event['text']
 			message = re.sub(r'<http://.*\|([\w\.]+)>', r'\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
 			message = re.sub(r'<(@[\w\.]+)>', r'\g<1>', message) # <@QWERTY> becomes @QWERTY
-			user = userRealName = '<@' + inbound['event']['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
-			botName = '@' + inbound['authorizations'][0]['user_id'] # QWERTY becomes @QWERTY
-			chat_id = inbound['event']['channel']
+			user = userRealName = '<@' + event['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
+			bot_name = '@' + bot_user # QWERTY becomes @QWERTY
+			chat_id = event['channel']
 			print(f"[{service}]:", user, message, sys.stderr) if debug else None
 			# this condition spawns a worker before returning
 		else:
 			print(f"[{service}]: unhandled 'type'", file=sys.stderr)
-			return [b'<h1>Unhandled</h1>']
-	else:
-		print("Unknown URI", uri, file=sys.stderr)
-		status = "404 Not Found"
-		start_response(status, headers)
-		return [b'<h1>404</h1>']
+			return reply('200 OK', b'<h1>Unhandled</h1>')
 
 	def runWorker():
-		worker.process_request(service, chat_id, user, message, botName, userRealName, message_id)
+		worker.process_request(service, chat_id, user, message, bot_name, userRealName, message_id)
 
 	# process in a background thread so we don't keep the requesting client waiting
 	t = threading.Thread(target=runWorker)
 	t.start()
 
 	# Return an empty response to the client
-	return [b'']
+	return reply('200 OK')
 
 IGNORED_TELEGRAM_CONTENT = {'sticker', 'animation', 'voice', 'video', 'video_note', 'audio', 'document', 'contact', 'location', 'venue', 'poll', 'dice'}
 
@@ -206,6 +226,12 @@ if __name__ == '__main__':
 	httpd = pywsgi.WSGIServer((config_ip, config_port), main)
 	httpd.secure_repr = False if debug else None
 	print(f'Opening socket on http://{config_ip}:{config_port}', file=sys.stderr)
+	if config_telegramBotToken and config_telegramOutgoingWebhook:
+		try:
+			botName = telegram.register() # here and only here: the job processes import lib.telegram too
+		except Exception as e:
+			print('ERROR', webhook.error_line(e, 'telegram webhook'), file=sys.stderr)
+			sys.exit(1)
 	if config_telegramBotToken:
 		threading.Thread(target=charts.refresh_keyboards, daemon=True).start() # update stale DM keyboards in the background
 	if config_cache and config_sharesight_auth.get('client_id'):
@@ -219,7 +245,7 @@ if __name__ == '__main__':
 			scheduler = None
 	else:
 		print('Scheduled reports are off (scheduler=False)', file=sys.stderr)
-	gevent.signal_handler(signal.SIGHUP, reload_all) # systemctl kill -s HUP finbot: pick up edited preferences.conf and schedule.cron
+	gevent.signal_handler(signal.SIGHUP, reload_all) # startup is done. systemctl reload finbot: pick up edited preferences.conf and schedule.cron
 	try:
 		httpd.serve_forever()
 	except OSError as e:
