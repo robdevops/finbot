@@ -13,7 +13,6 @@ from lib import yahoo
 
 def lambda_handler():
 	def prepare_milestone_payload(service, market_data):
-		emoji = '⭐'
 		payload = []
 		payloadhigh = []
 		payloadlow = []
@@ -67,9 +66,6 @@ def lambda_handler():
 
 	if records:
 		util.json_write('finbot_milestone.json', records, persist=True)
-
-	# make google cloud happy
-	return True
 
 def job(argv):
 	return 'milestone.py', {}

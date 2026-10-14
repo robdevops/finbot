@@ -7,7 +7,7 @@ from lib import util
 from lib import yahoo
 from lib import shortman
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, specific_stock=None, service=None, interactive=False):
+def lambda_handler(chat_id=None, threshold=UNSET, specific_stock=None, service=None, interactive=False):
 	if threshold is UNSET:
 		threshold = config_shorts_percent
 	def prepare_shorts_payload(service, market_data):
@@ -47,9 +47,6 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, specific_stoc
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		payload, graph = prepare_shorts_payload(service, market_data)
 		webhook.send(service, url, chat, payload, graph)
-
-	# make google cloud happy
-	return True
 
 def job(argv):
 	return 'shorts.py', {}

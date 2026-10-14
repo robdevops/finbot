@@ -19,7 +19,7 @@ class UpstreamEmpty(FinbotCase):
             with self.subTest(cmd=cmd):
                 if cmd in self.ONE_LINE_ERROR:
                     self.sent.clear(); self.errors.clear()
-                    worker.process_request('telegram', '55', '@u', cmd, BOT, 'U', '1')
+                    worker.process_request('telegram', '55', '@u', cmd, BOT, 'U')
                     self.assertLessEqual(len(self.errors), 1, cmd)
                 else:
                     self.command(cmd)
@@ -37,7 +37,7 @@ class UpstreamEmpty(FinbotCase):
         for cmd in ('.price', '.peg', '.T1', '.compare T1 T2'):
             with self.subTest(cmd=cmd):
                 self.sent.clear(); self.errors.clear()
-                worker.process_request('telegram', '55', '@u', cmd, BOT, 'U', '1')
+                worker.process_request('telegram', '55', '@u', cmd, BOT, 'U')
                 self.assertEqual(len(self.errors), 1, cmd) # exactly one one-line report, not a traceback to the user
                 self.assertTrue(self.errors[0].startswith('⚠️'))
 
@@ -48,7 +48,7 @@ class UpstreamEmpty(FinbotCase):
         self.patch(sharesight, 'get_performance', down)
         self.patch(sharesight, 'get_portfolios', down)
         self.sent.clear(); self.errors.clear()
-        worker.process_request('telegram', '55', '@u', '.performance 7d', BOT, 'U', '1')
+        worker.process_request('telegram', '55', '@u', '.performance 7d', BOT, 'U')
         self.assertEqual(len(self.errors), 1)
 
     def test_a_failed_command_stops_typing_before_saying_why(self):
@@ -57,7 +57,7 @@ class UpstreamEmpty(FinbotCase):
         self.patch(sharesight, 'get_portfolios', down)
         typing_when_reported = []
         self.patch(webhook, 'report_error', lambda e, *a, **k: typing_when_reported.append([t.is_active() for t in self.typing]))
-        worker.process_request('telegram', '55', '@u', '.performance 7d', BOT, 'U', '1')
+        worker.process_request('telegram', '55', '@u', '.performance 7d', BOT, 'U')
         self.assertEqual(typing_when_reported, [[False]]) # its one indicator had stopped when the error line went out
 
     def test_no_holdings_and_empty_watchlist(self):
@@ -91,7 +91,7 @@ class BadArguments(FinbotCase):
             raise RuntimeError(f'no price history for {t}')
         self.patch(yahoo, 'price_series', no_history)
         self.sent.clear(); self.errors.clear()
-        worker.process_request('telegram', '55', '@u', '.compare T1 T2', BOT, 'U', '1')
+        worker.process_request('telegram', '55', '@u', '.compare T1 T2', BOT, 'U')
         self.assertEqual(len(self.errors), 1)
 
     def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
@@ -273,7 +273,7 @@ class UserTextIsEscaped(FinbotCase):
         self.assertIn('<i>buy &lt;cheap&gt; &amp; hold</i>', reply[0])
         self.assertEqual(self.command('.plan')[0][1], reply) # and the same way again
         self.sent.clear()
-        worker.process_request('slack', 'C1', '<@U1>', '.plan sell &lt;dear&gt;', BOT, 'U', '1') # Slack escapes what it sends
+        worker.process_request('slack', 'C1', '<@U1>', '.plan sell &lt;dear&gt;', BOT, 'U') # Slack escapes what it sends
         text = '\n'.join(self.sent[0][1])
         self.assertIn('*<@U1>*', text) # a Slack mention stays markup
         self.assertIn('_sell &lt;dear&gt;_', text) # escaped once, not twice

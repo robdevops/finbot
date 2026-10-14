@@ -61,14 +61,14 @@ def report(service, past_days=UNSET, portfolio_select=None, interactive=False, p
 		graph = util.rows_chart(chart_rows, "Performance", f"% change {'' if period == 'today' else 'over '}{period}", value_fmt=lambda v: util.signed_percent(v, 2))
 	return payload, graph
 
-def lambda_handler(chat_id=config_telegramChatID, past_days=UNSET, service=None, user='', portfolio_select=None, message_id=None, interactive=False):
+def lambda_handler(chat_id=None, past_days=UNSET, service=None, user='', portfolio_select=None, interactive=False):
 	if past_days is UNSET:
 		past_days = config_past_days
 	performance = gather(past_days, portfolio_select)
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		payload, graph = report(service, past_days, portfolio_select, interactive, performance)
 		buttons = charts.keyboard('f', [portfolio_select or ''], charts.period_for_days(past_days)) if graph and service == 'telegram' else None
-		webhook.send(service, url, chat, payload, graph, reply_markup=buttons, message_id=message_id)
+		webhook.send(service, url, chat, payload, graph, reply_markup=buttons)
 
 def job(argv):
 	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""

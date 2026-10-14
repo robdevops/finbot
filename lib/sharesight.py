@@ -220,10 +220,6 @@ def warm(margin=0.9):
 			fetched += 1
 	return fetched, portfolios
 
-def warm_once(margin=0.9):
-	"""warm(), returning only the number of fetches made."""
-	return warm(margin)[0]
-
 def next_due(margin=0.9, portfolios=None):
 	"""Seconds until the soonest warmed cache needs refreshing (0 if one already does). `portfolios` is the list warm() just
 	used; without it the cached list is read."""

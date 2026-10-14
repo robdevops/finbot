@@ -154,7 +154,7 @@ def report(service, threshold=UNSET, user='', specific_stock=None, interactive=F
 			payload = [f"{user}, no price movements meet threshold {threshold:g}%"]
 	return payload, graph
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None, user='', specific_stock=None, interactive=False, midsession=False,
+def lambda_handler(chat_id=None, threshold=UNSET, service=None, user='', specific_stock=None, interactive=False, midsession=False,
 		premarket=False, interday=False, days=None, close=False, top=None):
 	if threshold is UNSET:
 		threshold = config_price_percent

@@ -95,7 +95,6 @@ def handle(environ, start_response):
 			return reply('200 OK', b'Unsupported')
 		msg = inbound["message"]
 		sender = msg["from"]
-		message_id = str(msg["message_id"])
 		chat_id = str(msg["chat"]["id"])
 		first_name = html.escape(sender["first_name"], quote=False) # replies are Telegram HTML: a name is text, not markup
 		if "username" in sender:
@@ -141,7 +140,6 @@ def handle(environ, start_response):
 			if event["type"] not in ('message', 'app_mention') or "text" not in event:
 				print(f"[{service}]: unhandled event callback type", event["type"], file=sys.stderr)
 				return reply('200 OK', b'<h1>Unhandled</h1>')
-			message_id = str(event["ts"])
 			message = event['text']
 			message = re.sub(r'<http://.*\|([\w\.]+)>', r'\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
 			message = re.sub(r'<(@[\w\.]+)>', r'\g<1>', message) # <@QWERTY> becomes @QWERTY
@@ -155,7 +153,7 @@ def handle(environ, start_response):
 			return reply('200 OK', b'<h1>Unhandled</h1>')
 
 	# process in a background thread so we don't keep the requesting client waiting
-	threading.Thread(target=worker.process_request, args=(service, chat_id, user, message, bot_name, userRealName, message_id)).start()
+	threading.Thread(target=worker.process_request, args=(service, chat_id, user, message, bot_name, userRealName)).start()
 
 	# Return an empty response to the client
 	return reply('200 OK')

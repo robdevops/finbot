@@ -11,7 +11,7 @@ from lib import yahoo
 
 EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'), 'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
 
-def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, specific_stock=None, message_id=None, interactive=False, event='earnings'):
+def lambda_handler(chat_id=None, days=UNSET, service=None, specific_stock=None, interactive=False, event='earnings'):
 	"""The tracked stocks' (or one stock's) upcoming earnings or ex-dividend dates, as `event` says. A scheduled earnings report
 	is pinned on Telegram."""
 	if days is UNSET:
@@ -78,10 +78,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, spec
 		print("")
 
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
-		pin_if_earnings(service, webhook.send(service, url, chat, prepare_payload(service, market_data), message_id=message_id))
-
-	# make google cloud happy
-	return True
+		pin_if_earnings(service, webhook.send(service, url, chat, prepare_payload(service, market_data)))
 
 def job(argv):
 	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""

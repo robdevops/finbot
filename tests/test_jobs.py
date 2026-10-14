@@ -483,7 +483,7 @@ class ManualRuns(SchedulerBase):
     def test_the_chat_command_passes_the_keyboard_on(self):
         seen = []
         self.patch(webhook, 'payload_wrapper', lambda svc, url, payload, *a, **k: seen.append(k.get('reply_markup')) or [])
-        worker.process_request('telegram', '55', '@u', '.jobs', BOT, 'U', '1')
+        worker.process_request('telegram', '55', '@u', '.jobs', BOT, 'U')
         self.assertEqual(len(seen[0]['inline_keyboard'][0]), 2)
 
     def test_button_press_runs_that_command(self):
@@ -580,6 +580,8 @@ class ChildProcess(FinbotCase):
                 self.assertEqual(json.loads(json.dumps(kwargs)), kwargs, label)
 
     def test_a_real_child_runs_the_handler_and_reports_its_exit_status(self):
+        real = jobs.subprocess.Popen
+        self.patch(jobs.subprocess, 'Popen', lambda args, **kw: real(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kw))
         with tempfile.TemporaryDirectory() as data:
             env = {'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
             with mock.patch.dict(os.environ, env):

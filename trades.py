@@ -9,7 +9,7 @@ from lib import webhook
 from lib import util
 from lib import yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, user='', portfolio_select=None, message_id=None, interactive=False):
+def lambda_handler(chat_id=None, days=UNSET, service=None, user='', portfolio_select=None, interactive=False):
 	"""The buys and sells of the past `days`, in every portfolio or the one named: on a scheduled run only those not reported
 	before. Raises sharesight.PortfolioNotFound for a name that is none of them."""
 	if days is UNSET:
@@ -95,15 +95,12 @@ def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, user
 		payload = prepare_trade_payload(service, trades)
 		if interactive and not payload: # no trades, or none of them a buy or a sell
 			payload = [f"{user} No trades {util.days_english(days, 'in the past ')}. {random.choice(noTradesVerb)}"]
-		webhook.send(service, url, chat, payload, message_id=message_id)
+		webhook.send(service, url, chat, payload)
 
 	# write state file
 	if newtrades and not interactive:
 		known_trades.update(newtrades)
 		util.json_write(state_file, list(known_trades), persist=True)
-
-	# make google cloud happy
-	return True
 
 def job(argv):
 	return 'trades.py', {}

@@ -6,7 +6,7 @@ from lib import webhook
 from lib import util
 from lib import yahoo
 
-def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=None, interactive=False):
+def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=False):
 	"""Analysts' consensus ratings that changed since the last scheduled run, which records the ratings it saw."""
 	def prepare_rating_payload(service, market_data):
 		def get_emoji(old, new):
@@ -65,9 +65,6 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 
 	if new and not interactive: # added to what is recorded: a ticker missing from this run keeps its last rating
 		util.json_write('finbot_rating.json', old | new, persist=True)
-
-	# make google cloud happy
-	return True
 
 def job(argv):
 	return 'rating.py', {}

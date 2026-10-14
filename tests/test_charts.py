@@ -87,11 +87,10 @@ class ImageSanity(unittest.TestCase):
                 self.check_image(util.hbar_chart(rows, 'Title', 'sub'), name)
                 self.check_image(util.rows_chart(rows, 'Title'), name + '/rows_chart')
 
-    def test_zoomed_axis_and_threshold(self):
+    def test_zoomed_axis(self):
         self.check_image(util.hbar_chart([('AAA', 1.2), ('BBB', 3.4)], 'Ratings', xlim=(0.9, 4.0)), 'zoomed')
         self.check_image(util.hbar_chart([('WWWWWWWW', 1.2), ('MMM', 3.4)], 'Ratings', xlim=(0.9, 4.0)), 'zoomed wide labels')
         self.check_image(util.hbar_chart([(f'T{i}', 1 + i / 10) for i in range(15)], 'Ratings', xlim=(0.9, 3.0)), 'zoomed 15 rows')
-        self.check_image(util.hbar_chart(MIXED, 'Threshold', threshold=10), 'threshold')
 
     def test_shorts_chart_sizes_and_verdicts(self):
         for n in (1, 5, 45):

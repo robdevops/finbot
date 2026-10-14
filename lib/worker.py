@@ -129,7 +129,7 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 	except Exception as e:
 		webhook.report_error(e, service, chat_id, context='chart')
 
-def process_request(service, chat_id, user, message, botName, userRealName, message_id):
+def process_request(service, chat_id, user, message, botName, userRealName):
 	"""Entry point for inbound chat requests: the first command in COMMANDS that fits the message answers it (a message that fits
 	none gets no answer). Any failure becomes a one-line reply in the originating chat, after the typing stops."""
 	request = Request(service, chat_id, user, userRealName, botName)

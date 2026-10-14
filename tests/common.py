@@ -9,9 +9,9 @@ sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok', telegramChatID='1')
 
+import bot # first, and once: it monkey-patches with gevent, which must happen before requests imports ssl and never mid-test
 from lib import config, webhook, util, yahoo, sharesight, shortman, worker, charts, telegram, reports
 import performance, shorts, price, reminder, cal, trades, milestone, rating
-import bot # imported once up front: it monkey-patches with gevent, which must not happen mid-test
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (yahoo, 'price_history'),
     (sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'), (sharesight, 'get_performance_wrapper'))}
@@ -103,6 +103,6 @@ class FinbotCase(unittest.TestCase):
         self.sent.clear()
         self.markups.clear()
         self.errors.clear()
-        worker.process_request('telegram', chat, '@u', text, BOT, 'U', '1')
+        worker.process_request('telegram', chat, '@u', text, BOT, 'U')
         self.assertEqual(self.errors, [], f'{text} crashed') # the worker reports crashes instead of raising
         return list(self.sent)

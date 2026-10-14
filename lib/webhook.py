@@ -11,7 +11,7 @@ from lib.config import *
 from lib import net
 from lib import telegram
 
-def write(service, url, payload_string, chat_id=None, message_id=None, reply_markup=None):
+def write(service, url, payload_string, chat_id=None, reply_markup=None):
 	headers = {'Content-type': 'application/json'}
 	payload = {'text': payload_string}
 	if 'slack.com' in url:
@@ -23,15 +23,10 @@ def write(service, url, payload_string, chat_id=None, message_id=None, reply_mar
 				return None
 			headers['Authorization'] = 'Bearer ' + config_slackBotToken
 			payload['channel'] = chat_id
-			if message_id:
-				payload['thread_ts'] = message_id
-				payload['reply_broadcast'] = 'true'
 	elif 'api.telegram.org' in url:
 		payload['parse_mode'] = 'HTML'
 		payload['disable_web_page_preview'] = 'true'
 		payload['disable_notification'] = 'true'
-		payload['allow_sending_without_reply'] = 'true'
-		payload['reply_to_message_id'] = message_id
 		if reply_markup:
 			payload['reply_markup'] = reply_markup # keyboard (Telegram only)
 	try:
@@ -70,12 +65,12 @@ def destinations(interactive, service, chat_id):
 	"""Where a report goes: back to the chat that asked for it (interactive), else to the default chats."""
 	return [(service, chat_url(service, chat_id), chat_id)] if interactive else default_chats()
 
-def send(service, url, chat_id, payload, image=None, reply_markup=None, message_id=None):
+def send(service, url, chat_id, payload, image=None, reply_markup=None):
 	"""A report: its chart with the text as caption when there is one (sendPhoto falls back to the text where a chart cannot go),
 	else the text. reply_markup is the chart's buttons. Returns what payload_wrapper or sendPhoto did."""
 	if image:
-		return sendPhoto(chat_id, image, '\n'.join(payload), service, message_id=message_id, reply_markup=reply_markup)
-	return payload_wrapper(service, url, payload, chat_id, message_id)
+		return sendPhoto(chat_id, image, '\n'.join(payload), service, reply_markup=reply_markup)
+	return payload_wrapper(service, url, payload, chat_id)
 
 def error_line(e, context=None, limit=200):
 	"""One-line, secret-free summary of an exception (or string)."""
@@ -126,7 +121,7 @@ def cli(script, job, handler, argv=None):
 		sys.exit(1)
 	guarded(label, handler, **kwargs)
 
-def payload_wrapper(service, url, payload, chat_id=None, message_id=None, reply_markup=None):
+def payload_wrapper(service, url, payload, chat_id=None, reply_markup=None):
 	"""Returns a list with the response of each message sent (several if the payload was chunked)."""
 	if not payload:
 		print(service + ": Nothing to send") # informational
@@ -137,7 +132,7 @@ def payload_wrapper(service, url, payload, chat_id=None, message_id=None, reply_
 	print("Payload: " + payload_string) if debug else None
 	limit = 2000 if service == 'discord' else 4096
 	if len(payload_string) <= limit:
-		return [write(service, url, payload_string, chat_id, message_id, reply_markup)]
+		return [write(service, url, payload_string, chat_id, reply_markup)]
 	print(service, f"payload is over {limit:,} bytes. Splitting.")
 	chunks = list(batched(payload, config_chunk_maxlines))
 	results = []
@@ -201,7 +196,7 @@ def takes_charts(service, reply=True):
 	incoming webhook and takes text only; never on Discord. Elsewhere a report goes out as text."""
 	return config_graph and (service == 'telegram' or (service == 'slack' and reply and bool(config_slackBotToken)))
 
-def telegram_photo(chat_id, image_data, caption, message_id=None, reply_markup=None):
+def telegram_photo(chat_id, image_data, caption, reply_markup=None):
 	"""sendPhoto, the report as its caption (trimmed to fit). Telegram's answer, MAYBE_SENT, or None if it was refused."""
 	url = webhooks['telegram'] + "sendPhoto?chat_id=" + str(chat_id)
 	data = {
@@ -209,9 +204,7 @@ def telegram_photo(chat_id, image_data, caption, message_id=None, reply_markup=N
 		'chat_id': chat_id,
 		'caption': fit_caption(caption),
 		'parse_mode': 'HTML',
-		'disable_web_page_preview': True,
-		'allow_sending_without_reply': True,
-		'reply_to_message_id': message_id}
+		'disable_web_page_preview': True}
 	if reply_markup:
 		data['reply_markup'] = json.dumps(reply_markup) # inline keyboard (Telegram only)
 	if hasattr(image_data, 'seek'):
@@ -247,7 +240,7 @@ def slack_api(method, **data):
 		raise RuntimeError(f"Slack {method}: {output.get('error') or r.status_code}")
 	return output
 
-def slack_photo(chat_id, image_data, caption, message_id=None):
+def slack_photo(chat_id, image_data, caption):
 	"""Upload the chart into a Slack channel with the report as its message, the way Slack takes files since it retired files.upload:
 	ask for an upload URL, send the bytes there, then complete the upload into the channel (the bot needs the files:write and
 	files:read scopes). Slack's answer, MAYBE_SENT, or None if a step failed."""
@@ -260,8 +253,6 @@ def slack_photo(chat_id, image_data, caption, message_id=None):
 		if r.status_code != 200:
 			raise RuntimeError(f"Slack upload: {r.status_code} {r.text[:200]}")
 		share = {'files': json.dumps([{'id': ticket['file_id']}]), 'channel_id': chat_id, 'initial_comment': caption}
-		if message_id:
-			share['thread_ts'] = message_id
 		try:
 			output = slack_api('files.completeUploadExternal', **share)
 		except requests.exceptions.ReadTimeout as e:
@@ -273,23 +264,23 @@ def slack_photo(chat_id, image_data, caption, message_id=None):
 	print("OK slack chart upload to", chat_id, file=sys.stderr)
 	return output
 
-def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_markup=None):
+def sendPhoto(chat_id, image_data, caption, service, reply_markup=None):
 	"""The chart, with the report as its caption: on Telegram, or uploaded into the Slack channel of a reply. Where a chart cannot go
 	(takes_charts), or the service refuses it, the report is sent as text instead, without the chart's buttons, so it does not vanish
 	with its chart; but not after a read timeout on the request that posts it, when the chart may have arrived after all."""
 	output = None
 	chartable = takes_charts(service, reply=bool(chat_id))
 	if chartable and service == 'telegram':
-		output = telegram_photo(chat_id, image_data, caption, message_id, reply_markup)
+		output = telegram_photo(chat_id, image_data, caption, reply_markup)
 	elif chartable:
-		output = slack_photo(chat_id, image_data, caption, message_id)
+		output = slack_photo(chat_id, image_data, caption)
 	if output is MAYBE_SENT:
 		return None
 	if output:
 		return output
 	if chartable:
 		print("chart not sent, sending the report as text", file=sys.stderr)
-	return payload_wrapper(service, chat_url(service, chat_id) if chat_id else webhooks.get(service), caption.split('\n'), chat_id, message_id)
+	return payload_wrapper(service, chat_url(service, chat_id) if chat_id else webhooks.get(service), caption.split('\n'), chat_id)
 
 def editMessageText(chat_id, message_id, text, reply_markup=None):
 	"""Telegram: replace a text message's text and buttons in place. A failure is only logged."""

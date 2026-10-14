@@ -47,7 +47,7 @@ class Commands(FinbotCase):
             with self.subTest(cmd=cmd):
                 self.assertTrue(self.command(cmd), f'{cmd} sent nothing')
 
-    def test_trades_and_rating_report_when_nothing_is_stored(self):
+    def test_trades_and_watchlist_report_when_nothing_is_stored(self):
         # first run: no state files exist yet, which used to crash these
         for cmd in ('.trades', '.watchlist'):
             self.assertTrue(self.command(cmd), cmd)
@@ -376,10 +376,6 @@ class Podcasts(FinbotCase):
         self.assertEqual(self.sent, []) # all seen now
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
 class PieCommand(FinbotCase):
     def setUp(self):
         super().setUp()
@@ -417,3 +413,7 @@ class PieCommand(FinbotCase):
     def test_text_only_service(self):
         worker.Request('discord', '1', '@u', 'U', BOT).deliver(['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
         self.assertEqual(self.sent[-1][0], 'text')
+
+
+if __name__ == '__main__':
+    unittest.main()

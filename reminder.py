@@ -71,9 +71,6 @@ def lambda_handler():
 	for service, url, chat in webhook.default_chats():
 		webhook.send(service, url, chat, prepare_finance_calendar_payload(service))
 
-	# make google cloud happy
-	return True
-
 def job(argv):
 	return 'reminder.py', {}
 

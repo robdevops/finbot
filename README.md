@@ -22,6 +22,20 @@
   * Shared watch list
   * List stocks (holdings + watchlist) by P/E, Forward P/E, PEG, market cap, or Yahoo analyst consensus
 
+### Chat networks
+What finbot can do on each network. Telegram takes everything; the others take what their APIs allow.
+
+| Feature | Telegram | Slack | Discord |
+|---|---|---|---|
+| Chat commands | ✓ | ✓ | ✗ (a webhook only posts) |
+| "typing…" while a command works | ✓ | ✗ (Slack has no typing notice for bots) | ✗ |
+| Charts in replies | ✓ | ✓ with `slackBotToken` | n/a |
+| Charts in scheduled reports | ✓ | ✗ (the incoming webhook takes text only) | ✗ |
+| Period and job buttons | ✓ | ✗ | ✗ |
+| No link previews | ✓ | ✓ | ✗ (set `hyperlink=False`) |
+| Linked tickers | ✓ | ✓ | ✓ |
+| Charts updated in place by their buttons | ✓ | ✗ | ✗ |
+
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
 ### Requirements
@@ -37,53 +51,38 @@ croniter python-dateutil requests gevent pandas matplotlib numpy
 ### Supported commands
 
 Where:
-* _percent_ is a number followed by '%'
-* _period_ is a number followed by 'd' 'w' 'm' or 'y'
+* _percent_ is a number, optionally followed by '%'
+* _period_ is a number followed by 'd', 'w', 'm' or 'y', or 'ytd'
 * _portfolio_ is a Sharesight portfolio name
 * _symbol_ is a Yahoo Finance symbol
 ```
 .symbol
+.beta
+.buy
+.sell
+.compare symbol symbol [symbol...] [period|max]
 .dividend [period|symbol]
 .earnings [period|symbol]
+.forward pe [symbol|top|bottom|negative]
 .history symbol
 .holdings portfolio
 .jobs [run number|command]
 .marketcap [symbol|top|bottom]
+.pe [symbol|top|bottom]
+.peg [symbol|top|bottom|negative]
 .performance [period] [portfolio]
 .pie portfolio [sector]
+.plan [your plan]
 .premarket [percent|symbol]
-.price [percent|symbol] [period]
-.rating [strong buy|buy|hold|underperform|sell]
+.price [percent|symbol|top|bottom] [period]
 .session [percent|symbol]
 .shorts [percent|symbol]
 .trades [period] [portfolio]
-.value [pe|forward pe|peg|bottom pe|bottom forward pe|bottom peg|negative forward pe|negative peg]
 .watchlist [add|del symbol]
 .who symbol
 ```
 
-Alternative syntax:
-
-```
-@botname <symbol>
-@botname dividend [period|symbol]
-@botname earnings [period|symbol]
-@botname history symbol
-@botname holdings [portfolio]
-@botname jobs [run number|command]
-@botname marketcap [symbol|top|bottom]
-@botname performance [period] [portfolio]
-@botname pie portfolio [sector]
-@botname premarket [percent|symbol]
-@botname price [percent|symbol] [period]
-@botname rating [buy|hold|underperform|sell]
-@botname session [percent|symbol]
-@botname shorts [percent|symbol]
-@botname trades [period] [portfolio]
-@botname value [pe|forward pe|peg]
-@botname watchlist [add|del symbol]
-@botname who symbol
-```
+`!` or `/` work in place of the dot, and so does the bot's name: `@botname price 7d`, `@botname AAPL`. `.help` lists the commands in chat.
 
 Trade notifications are peformed by polling the Sharesight trades API on a schedule (see [Scheduling](#scheduling)), and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 
@@ -176,7 +175,7 @@ You can also specify a portfolio name to get trades for just that portfolio:
 ![Price chart triggered from Slack](img/finbot_price.png?raw=true "Price chart triggered from Slack")
 ![Price alert triggered by Cron](img/price.png?raw=true "Price alert triggered by Cron")
 
-`prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 5% but you can change it by setting `price_percent` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
+`price.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 5% but you can change it by setting `price_percent` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
 If `demote_volatile` is `true`, stocks with a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) under US$150M, or a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a market cap of under US$1B will have their alert threshold (`price_percent`) doubled. A market cap in another currency is converted at Yahoo's exchange rate.
 
@@ -451,7 +450,7 @@ sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finb
 * **init.d / shell:** `util/check_config.py /opt/finbot.env && set -a && . /opt/finbot.env && set +a && ./bot.py` (`set -a` is what exports the values to the bot).
 * **Scheduled jobs:** they are started by `bot.py` (see [Scheduling](#scheduling)), so they run on the same settings. For a one-off run, see [Running a report by hand](#scheduling).
 
-All 17 keys, read by your launcher. A change needs a restart. Blank means unset.
+The startup keys, read by your launcher. A change needs a restart. Blank means unset.
 
 | Key | Default | Description |
 |---|---|---|
@@ -480,7 +479,7 @@ Copies preferences.conf and metadata files into the data directory (never overwr
 util/sync_defaults.py [-d DEST] --apply
 ```
 
-All 26 keys, read by the bot itself. A change takes effect on a reload. A true/false preference takes `true`/`false`, `yes`/`no`, `on`/`off` or `1`/`0`; anything else is a mistake, reported like any other. A blank value means the default.
+The preferences, read by the bot itself. A change takes effect on a reload. A true/false preference takes `true`/`false`, `yes`/`no`, `on`/`off` or `1`/`0`; anything else is a mistake, reported like any other. A blank value means the default.
 
 | Key | Default | Description |
 |---|---|---|
@@ -583,10 +582,10 @@ include_portfolios=100001 100002
 ```
 
 ### Caching
-Many objects are cached for just under one day by default. Cache is controlled by the settings below. Trades IDs are stored on disk, but trade queries generally don't result in a cache hit for functional reasons.
+Many objects are cached for 12 hours by default (`cache_seconds`). Cache is controlled by the settings below. Trades IDs are stored on disk, but trade queries generally don't result in a cache hit for functional reasons.
 ```
 cache=True
-cache_seconds=82800
+cache_seconds=43200
 performance_cache_seconds=1800
 ```
 

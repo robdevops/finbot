@@ -353,11 +353,9 @@ def style_date_axis(ax, start, end, ink):
 	import matplotlib.dates as mdates
 	days = (end - start).days
 	fmt = '%Y' if days > 1460 else '%b %Y' if days > 150 else '%d %b'
-	ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=3, maxticks=5))
+	ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=2, maxticks=5)) # minticks=3 warns on a 2-day span
 	ax.xaxis.set_major_formatter(mdates.DateFormatter(fmt))
 	ax.tick_params(axis='x', colors=ink, labelsize=10, length=3, width=0.8, pad=6)
-	for label in ax.get_xticklabels():
-		label.set_fontweight('medium')
 
 PALETTE = ('#14181f', '#eef1f5', '#9aa4b2', '#2a313c') # charts: dark surface, ink, muted ink, grid lines
 
@@ -496,7 +494,7 @@ def tinted(bg, color, amount=0.07):
 	mix = lambda i: round(int(bg[i:i + 2], 16) * (1 - amount) + int(color[i:i + 2], 16) * amount)
 	return '#{:02x}{:02x}{:02x}'.format(mix(1), mix(3), mix(5))
 
-def hbar_chart(rows, title, subtitle='', value_fmt=None, threshold=None, xlim=None, session=None):
+def hbar_chart(rows, title, subtitle='', value_fmt=None, xlim=None, session=None):
 	"""Horizontal bars that mirror the caption list, first row on top, filling the whole 1280x800 canvas.
 	Blue for >= 0, red below. Each row's label sits at the bar's base and its value at the tip.
 	rows: [(label, value)]; a (label, None) row is a blank spacer. xlim zooms the value axis (bars then start at its left edge).
@@ -517,11 +515,11 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, threshold=None, xlim=No
 	base = max(xlim[0], 0) if xlim else 0
 	if not xlim:
 		ax.axvline(0, color=ink2, linewidth=1.0, zorder=4)
-	if threshold is not None:
-		ax.axvline(threshold, color=ink2, linewidth=0.9, linestyle=(0, (4, 3)), zorder=4)
-	top, bottom = max(max(values), 0, threshold or 0), min(min(values), 0)
+	top, bottom = max(max(values), 0), min(min(values), 0)
 	lo0 = xlim[0] if xlim else bottom
 	hi0 = xlim[1] if xlim else top
+	if hi0 <= lo0: # every value zero: give the axis a width, or the scale below divides by zero
+		hi0 = lo0 + 1
 	ax.set_xlim(lo0, hi0)
 	ax.set_ylim(n - 0.4, -0.6) # first row on top
 	ax.set_yticks([])

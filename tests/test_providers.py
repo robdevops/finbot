@@ -183,7 +183,7 @@ class YahooChart(ProviderCase):
         self.patch(yahoo.net, 'get', get)
         def slack(text): # Slack: the reports come as text
             self.sent.clear(); self.errors.clear()
-            worker.process_request('slack', 'C1', '<@U1>', text, BOT, 'U', '1')
+            worker.process_request('slack', 'C1', '<@U1>', text, BOT, 'U')
             self.assertEqual(self.errors, [], text)
             return '\n'.join(map(str, self.sent[-1][1]))
         price_list = slack('.price 7d') # T3 is left out, the rest are listed
@@ -197,7 +197,7 @@ class YahooChart(ProviderCase):
         self.assertIn('NASDAQ 100', report)
         self.command('.T3') # the profile goes out without its history lines
         self.sent.clear(); self.errors.clear()
-        worker.process_request('telegram', '55', '@u', '.price T3 7d', BOT, 'U', '1')
+        worker.process_request('telegram', '55', '@u', '.price T3 7d', BOT, 'U')
         self.assertEqual(len(self.errors), 1) # the one ticker asked for: one line saying why
         self.assertTrue(self.errors[0].startswith('⚠️ .price: RuntimeError: 404 error for T3'))
 
@@ -303,28 +303,28 @@ class SharesightKeepWarm(ProviderCase):
 
     def test_cold_cache_is_filled_then_left_alone(self):
         calls = self.serve_sharesight()
-        self.assertEqual(sharesight.warm_once(), 3) # portfolio list + one holdings report per portfolio (2)
+        self.assertEqual(sharesight.warm()[0], 3) # portfolio list + one holdings report per portfolio (2)
         self.assertEqual(sum('/performance' in c for c in calls), 2)
         self.assertTrue(all('start_date=' + datetime.date.today().isoformat() in c for c in calls if '/performance' in c)) # days=0
-        self.assertEqual(sharesight.warm_once(), 0)
+        self.assertEqual(sharesight.warm()[0], 0)
         self.assertEqual(len(calls), 3) # nothing refetched while fresh
 
     def test_refreshes_before_the_ttl_runs_out(self):
         calls = self.serve_sharesight()
-        sharesight.warm_once()
+        sharesight.warm()[0]
         calls.clear()
         self.age(sharesight.performance_cache_file(684141, 0), 0.95 * sharesight.config_performance_cache_seconds) # 95% of its lifetime
-        self.assertEqual(sharesight.warm_once(), 1)
+        self.assertEqual(sharesight.warm()[0], 1)
         self.assertEqual(len(calls), 1)
         self.assertIn('684141/performance', calls[0])
         calls.clear()
         self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * sharesight.config_cache_seconds)
-        self.assertEqual(sharesight.warm_once(), 1)
+        self.assertEqual(sharesight.warm()[0], 1)
         self.assertTrue(calls[0].endswith('/portfolios'))
 
     def test_a_request_never_waits_on_a_cache_the_job_has_warmed(self):
         calls = self.serve_sharesight()
-        sharesight.warm_once()
+        sharesight.warm()[0]
         calls.clear()
         self.assertEqual(sharesight.get_portfolios(), {'Rob': 445825, 'RobSMSF': 684141})
         self.assertEqual(len(sharesight.get_performance(684141, 0)['report']['holdings']), 18)
@@ -332,7 +332,7 @@ class SharesightKeepWarm(ProviderCase):
 
     def test_holdings_wrapper_is_served_entirely_from_the_warmed_cache(self):
         calls = self.serve_sharesight()
-        sharesight.warm_once()
+        sharesight.warm()[0]
         calls.clear()
         tickers = sharesight.get_holdings_wrapper() # get_portfolios() + get_holdings() per portfolio, no cache of its own
         self.assertIn('ARM', tickers)
@@ -340,11 +340,11 @@ class SharesightKeepWarm(ProviderCase):
 
     def test_failed_refresh_keeps_the_old_cache(self):
         self.serve_sharesight()
-        sharesight.warm_once()
+        sharesight.warm()[0]
         self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * sharesight.config_cache_seconds)
         self.http(sharesight, ConnectionError('down'))
         with self.assertRaises(RuntimeError):
-            sharesight.warm_once()
+            sharesight.warm()[0]
         self.assertEqual(sharesight.get_portfolios(), {'Rob': 445825, 'RobSMSF': 684141}) # still served from the cache
 
     def test_loop_survives_failures_and_backs_off(self):
@@ -382,7 +382,7 @@ class SharesightKeepWarm(ProviderCase):
 
     def test_a_warming_pass_reads_the_cached_portfolio_list_once(self):
         self.serve_sharesight()
-        sharesight.warm_once() # fill the caches
+        sharesight.warm()[0] # fill the caches
         reads = []
         real = util.read_cache
         self.patch(util, 'read_cache', lambda name, *a, **k: (reads.append(name), real(name, *a, **k))[1])
@@ -395,7 +395,7 @@ class SharesightKeepWarm(ProviderCase):
     def test_next_due_is_90_percent_of_the_ttl(self):
         self.serve_sharesight()
         self.assertEqual(sharesight.next_due(), 0) # cold cache
-        sharesight.warm_once()
+        sharesight.warm()[0]
         due = sharesight.next_due()
         self.assertAlmostEqual(due, 0.9 * min(sharesight.config_cache_seconds, sharesight.config_performance_cache_seconds), delta=5)
 
@@ -504,7 +504,7 @@ class ChartDelivery(FinbotCase):
             with self.subTest(cmd=cmd):
                 calls = self.slack_answers(*self.upload_steps())
                 self.sent.clear(); self.errors.clear()
-                worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U', '1')
+                worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U')
                 self.assertEqual(self.errors, [])
                 self.assertEqual([url for url, _ in calls], ['https://slack.com/api/files.getUploadURLExternal', self.UPLOAD_URL,
                                                              'https://slack.com/api/files.completeUploadExternal'])
@@ -554,7 +554,7 @@ class ChartDelivery(FinbotCase):
         for cmd in ('.beta', '.pie Rob', '.buy', '.sell', '.peg', '.price', '.price top', '.price T1 7d', '.performance 7d', '.shorts', '.history T1', '.compare T1 T2'):
             with self.subTest(cmd=cmd):
                 self.sent.clear(); self.errors.clear()
-                worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U', '1')
+                worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U')
                 self.assertEqual(self.errors, [])
                 self.assertTrue(self.sent)
                 self.assertEqual({kind for kind, *_ in self.sent}, {'text'})
@@ -569,7 +569,7 @@ class ChartDelivery(FinbotCase):
             for cmd in ('.price', '.price top', '.performance 7d', '.shorts', '.buy', '.peg', '.beta', '.compare T1 T2', '.pie Rob'):
                 with self.subTest(service=service, cmd=cmd):
                     self.sent.clear(); self.errors.clear()
-                    worker.process_request(service, chat, '@u', cmd, BOT, 'U', '1')
+                    worker.process_request(service, chat, '@u', cmd, BOT, 'U')
                     self.assertEqual(self.errors, [])
                     self.assertEqual({kind for kind, *_ in self.sent}, {'text'})
         self.assertEqual([url for url in posts if 'sendPhoto' in url or 'files.' in url], [])
@@ -619,7 +619,7 @@ class SlackSending(FinbotCase):
         err = io.StringIO()
         with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
             for cmd in ('.help', '.price', '.compare T1 T2'):
-                worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U', '1')
+                worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U')
         self.assertEqual((self.posts, self.errors), ([], []))
         self.assertEqual(err.getvalue().count('ERROR slack: a reply to channel C1 needs slackBotToken in finbot.env; not sent'), 3)
 
