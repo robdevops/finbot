@@ -132,8 +132,8 @@ MARKETS = { # Sharesight market code -> (flag, currency); no currency where a ma
 	'BMV': ('🇲🇽', 'MXN'),
 	'BKK': ('🇹🇭', 'THB'),
 	'BVMF': ('🇧🇷', 'BRL'),
-	'SHE': ('🇨🇳', 'CNY'), 'SGX': ('🇨🇳', 'CNY'), 'SHA': ('🇨🇳', 'CNY'),
-	'CPSE': ('🇩🇰', 'DEK'),
+	'SHE': ('🇨🇳', 'CNY'), 'SHA': ('🇨🇳', 'CNY'),
+	'CPSE': ('🇩🇰', 'DKK'),
 	**dict.fromkeys(('EURONEXT', 'AMS', 'ATH', 'BIT', 'BME', 'DUB', 'EBR', 'EPA', 'ETR', 'FWB', 'FRA', 'VIE'), ('🇪🇺', 'EUR')),
 	'HKG': ('🇭🇰', None),
 	'ICSE': ('🇮🇸', 'ISK'),
@@ -145,7 +145,9 @@ MARKETS = { # Sharesight market code -> (flag, currency); no currency where a ma
 	'SWX': ('🇨🇭', 'CHF'), 'VTX': ('🇨🇭', 'CHF'),
 	'TAI': ('🇹🇼', 'TWD'), 'TPE': ('🇹🇼', 'TWD'),
 	'TASE': ('🇮🇱', 'ILS'),
+	'NZX': ('🇳🇿', 'NZD'),
 	'OB': ('🇳🇴', 'NOK'),
+	'SGX': ('🇸🇬', 'SGD'),
 	'TSE': ('🇯🇵', 'JPY'),
 	'TSX': ('🇨🇦', 'CAD'),
 	'NASDAQ': ('🇺🇸', 'USD'), 'NYSE': ('🇺🇸', 'USD'), 'BATS': ('🇺🇸', 'USD'), 'AMEX': ('🇺🇸', None),
@@ -157,7 +159,8 @@ def flag_from_market(market):
 		return MARKETS[market][0]
 	return '🇺🇸' if market.lower().startswith(('nasdaq', 'nyse')) else ''
 
-TICKER_FLAGS = {'AS': '🇳🇱', 'AX': '🇦🇺', 'HK': '🇭🇰', 'KS': '🇰🇷', 'KQ': '🇰🇷', 'L': '🇬🇧', 'NS': '🇮🇳', 'NZ': '🇳🇿', 'TW': '🇹🇼', 'TWO': '🇹🇼', 'TO': '🇨🇦'} # Yahoo suffix -> flag
+TICKER_FLAGS = {'AS': '🇳🇱', 'AX': '🇦🇺', 'HK': '🇭🇰', 'KS': '🇰🇷', 'KQ': '🇰🇷', 'L': '🇬🇧', 'NS': '🇮🇳', 'NZ': '🇳🇿', 'SI': '🇸🇬', 'T': '🇯🇵', 'TA': '🇮🇱',
+	'TW': '🇹🇼', 'TWO': '🇹🇼', 'TO': '🇨🇦'} # Yahoo suffix -> flag
 
 def flag_from_ticker(ticker):
 	return TICKER_FLAGS.get(ticker.split('.')[1], '') if '.' in ticker else '🇺🇸'
@@ -333,10 +336,11 @@ def exchange_human(exchange):
 	return VENUES.get(exchange, (None, None))[1] or exchange
 
 YAHOO_SUFFIX = { # exchange code (Sharesight, Google) -> Yahoo's ticker suffix
-	'ASX': 'AX', 'HKG': 'HK', 'KRX': 'KS', 'KOSDAQ': 'KQ', 'LSE': 'L',
+	'ASX': 'AX', 'HKG': 'HK', 'KRX': 'KS', 'KOSDAQ': 'KQ', 'LSE': 'L', 'NZX': 'NZ', 'SGX': 'SI',
 	'TAI': 'TW', # Taiwan in YF and Sharesight; TPE in GF
 	'TPE': 'TWO', # Taipei in YF, Taiwan in GF (GF format will not work as input); missing from GF
-	'TSE': 'TO', 'TYO': 'T', 'TLV': 'TA',
+	'TSE': 'T', 'TYO': 'T', # Tokyo: TSE in Sharesight (Google's TSE is Toronto, which Sharesight calls TSX), TYO in GF
+	'TSX': 'TO', 'TLV': 'TA',
 }
 
 def transform_to_yahoo(ticker, market=None):

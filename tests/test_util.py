@@ -20,9 +20,18 @@ class Parsing(unittest.TestCase):
     def test_transform_to_yahoo(self):
         for args, expected in ((('AAPL',), 'AAPL'), (('FANG', 'ASX'), 'FANG.AX'), (('ARM', 'NASDAQ'), 'ARM'),
                                (('ARM:NASDAQ',), 'ARM'), (('BHP.AX',), 'BHP.AX'), (('0700', 'HKG'), '0700.HK'),
-                               (('BRK', 'B'), 'BRK-B'), (('2330', 'TAI'), '2330.TW'), (('VOD', 'LSE'), 'VOD.L')):
+                               (('BRK', 'B'), 'BRK-B'), (('2330', 'TAI'), '2330.TW'), (('VOD', 'LSE'), 'VOD.L'),
+                               (('7203', 'TSE'), '7203.T'), (('SHOP', 'TSX'), 'SHOP.TO'), (('AIR', 'NZX'), 'AIR.NZ'), (('D05', 'SGX'), 'D05.SI')):
             with self.subTest(args=args):
                 self.assertEqual(util.transform_to_yahoo(*args), expected)
+
+    def test_each_market_has_its_own_flag_and_currency(self): # Sharesight's market codes: TSE is Tokyo, TSX Toronto, SGX Singapore
+        for market, ticker, flag, currency in (('TSE', '7203.T', '🇯🇵', 'JPY'), ('TSX', 'SHOP.TO', '🇨🇦', 'CAD'), ('NZX', 'AIR.NZ', '🇳🇿', 'NZD'),
+                                               ('SGX', 'D05.SI', '🇸🇬', 'SGD'), ('CPSE', None, '🇩🇰', 'DKK')):
+            with self.subTest(market=market):
+                self.assertEqual((util.flag_from_market(market), util.currency_from_market(market)), (flag, currency))
+                if ticker:
+                    self.assertEqual(util.flag_from_ticker(ticker), flag)
 
     def test_transform_title(self):
         self.assertEqual(util.transform_title('APPLE INC'), 'Apple')
