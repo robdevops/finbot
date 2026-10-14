@@ -21,6 +21,26 @@ class Commands(FinbotCase):
                 self.assertTrue(out, f'{cmd} sent nothing')
                 self.assertTrue(any(kind == 'photo' for kind, *_ in out), f'{cmd} sent no chart: {out}')
 
+    def test_one_button_asks_for_both_ratings_reports(self):
+        for text in ('.buy & sell', '.buy sell', '.buy/sell', '.buy and sell'):
+            with self.subTest(text=text):
+                captions = [caption for kind, _, caption in self.command(text) if kind == 'photo']
+                self.assertEqual(len(captions), 2, captions)
+                self.assertIn('analyst buy ratings', captions[0])
+                self.assertIn('analyst sell ratings', captions[1])
+        self.assertIn('analyst sell ratings', str(self.command('.sell & buy')[0])) # in the order asked
+        self.assertEqual(len(self.command('.buy & buy')), 1) # each report once
+
+    def test_the_keyboard_is_alphabetical_and_every_button_is_a_command(self):
+        buttons = [button['text'] for row in charts.command_keyboard()['keyboard'] for button in row]
+        self.assertEqual(buttons, sorted(buttons))
+        self.assertEqual(len(buttons), 15)
+        self.assertIn('.buy & sell', buttons)
+        self.assertIn('.forward pe', buttons)
+        for text in buttons: # not taken for a ticker by the catch-all .SYMBOL
+            with self.subTest(text=text):
+                self.assertIsNot(next(handler for pattern, handler in worker.COMMANDS if worker.match(pattern, text, BOT)), worker.on_profile)
+
     def test_history_and_compare(self):
         for cmd in ('.history T1', '.compare T1 T2', '.compare T1 T2 3m'):
             with self.subTest(cmd=cmd):

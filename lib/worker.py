@@ -322,10 +322,11 @@ def on_pie(request, m):
 	request.deliver(payload, chart)
 
 def on_rating(request, m):
-	action = m.group(1).lower()
-	with request.typing():
-		payload, chart = reports.prepare_rating_payload(request.service, action, length=15)
-	request.deliver(payload, chart)
+	"""The analysts' strongest buy ratings (.buy), sell ratings (.sell), or both (.buy & sell, a keyboard button), as asked."""
+	for action in dict.fromkeys(word.lower() for word in m.group('first', 'second') if word): # each once, in the order asked
+		with request.typing():
+			payload, chart = reports.prepare_rating_payload(request.service, action, length=15)
+		request.deliver(payload, chart)
 
 def on_compare(request, m):
 	with request.typing():
@@ -387,7 +388,7 @@ COMMANDS = [ # (pattern, function): tried in this order, the first match answers
 	(r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*", on_ratio('forward pe', negative=True)),
 	(r"beta\s*([\w\.\:\-]+)*", on_beta),
 	(r"pie(?:$|\s+)(?P<args>[\w\s\-\.&]*)", on_pie),
-	(r"(buy|sell)", on_rating),
+	(r"(?P<first>buy|sell)(?:\s*(?:&|and|/|\+)?\s*(?P<second>buy|sell))?", on_rating), # .buy & sell (or .buy sell): both
 	(r"compare(?:\s+(?P<args>[\w\.\:\-\^\=\s]+))?", on_compare),
 	(r"(?:history|hospital|visual|hosiery)\s*(?P<ticker>[\w\.\:\-]+)?\s*(?P<extra>[\w\%]+)*", on_history),
 	(r"plan\s*(.*)", on_plan),
