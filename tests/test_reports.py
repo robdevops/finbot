@@ -421,8 +421,9 @@ class PieCommand(FinbotCase):
             self.assertTrue(sent[0][1][0].startswith(first), text)
             self.assertIn('Rob', sent[0][1])
 
-    def test_text_only_service(self):
-        worker.Request('discord', '1', '@u', 'U', BOT).deliver(['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
+    def test_a_service_that_takes_no_images_gets_text(self):
+        self.patch(webhook, 'config_slackBotToken', False) # Slack replies carry charts only with the bot token
+        worker.Request('slack', 'C1', '@u', 'U', BOT).deliver(['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
         self.assertEqual(self.sent[-1][0], 'text')
 
 

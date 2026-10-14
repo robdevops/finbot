@@ -25,6 +25,13 @@ class Plumbing(FinbotCase):
         self.assertIn('reply_markup', posted[-1])
         self.assertTrue(all('reply_markup' not in p for p in posted[:-1]))
 
+    def test_chunks_respect_both_the_line_count_and_the_size(self):
+        chunks = webhook.chunked(['a' * 30] * 10 + ['b' * 500], limit=100, max_lines=4)
+        self.assertEqual([len(chunk) for chunk in chunks], [3, 3, 3, 1, 1]) # 3 x 30 plus newlines is 92; a fourth would pass 100
+        self.assertTrue(all(len('\n'.join(chunk)) <= 100 for chunk in chunks))
+        self.assertEqual(chunks[-1], ['b' * 99 + '…']) # a line over the limit on its own is cut short
+        self.assertEqual(webhook.chunked(['x'] * 9, limit=4096, max_lines=4), [['x'] * 4, ['x'] * 4, ['x']])
+
     def test_zoneinfo_offset_is_not_lmt(self):
         tz = zoneinfo.ZoneInfo('Australia/Melbourne')
         self.assertEqual(datetime.datetime(2022, 8, 18, tzinfo=tz).utcoffset(), datetime.timedelta(hours=10))

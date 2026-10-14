@@ -514,8 +514,8 @@ class ChartDelivery(FinbotCase):
 
     def test_where_charts_can_go(self):
         self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
-        cases = (('telegram',), ('telegram', False), ('slack',), ('slack', False), ('discord',))
-        self.assertEqual([webhook.takes_charts(*case) for case in cases], [True, True, True, False, False]) # Slack: replies, not scheduled reports
+        cases = (('telegram',), ('telegram', False), ('slack',), ('slack', False), ('discord', False))
+        self.assertEqual([webhook.takes_charts(*case) for case in cases], [True, True, True, False, True]) # Slack: replies, not scheduled reports
         self.patch(webhook, 'config_slackBotToken', False)
         self.assertFalse(webhook.takes_charts('slack'))
 
@@ -613,6 +613,47 @@ class ChartDelivery(FinbotCase):
                 with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
                     webhook.sendPhoto('5', io.BytesIO(b'png'), 'Heading\nline 2', 'telegram', reply_markup={'inline_keyboard': []})
                 self.assertEqual(self.sent, expect)
+
+
+class DiscordWebhook(FinbotCase):
+    """Discord's own webhook endpoint (the Slack-compatible one takes no flags): no link previews, no pings, charts attached."""
+    URL = 'https://discord.com/api/webhooks/1/abc'
+
+    def setUp(self):
+        super().setUp()
+        self.patch(webhook, 'webhooks', {'discord': self.URL})
+        self.patch(webhook, 'payload_wrapper', REAL_PAYLOAD_WRAPPER)
+        self.patch(webhook, 'sendPhoto', REAL_SEND_PHOTO)
+        self.posts = []
+        self.patch(webhook.net, 'post', lambda url, **kwargs: self.posts.append((url, kwargs)) or Resp({'id': '1'}))
+
+    def test_text_goes_to_the_native_endpoint_without_previews_or_pings(self):
+        webhook.write('discord', self.URL, 'hello @everyone')
+        url, kwargs = self.posts[0]
+        self.assertEqual(url, self.URL + '?wait=true') # without wait Discord answers 204, which counted as a failure
+        self.assertEqual(kwargs['json'], {'content': 'hello @everyone', 'flags': 4, 'allowed_mentions': {'parse': []}})
+
+    def test_a_scheduled_report_carries_its_chart(self):
+        price.lambda_handler()
+        (url, kwargs), = self.posts
+        self.assertEqual(url, self.URL + '?wait=true')
+        payload = json.loads(kwargs['data']['payload_json'])
+        self.assertEqual((payload['flags'], payload['allowed_mentions'], payload['attachments'][0]['filename']), (4, {'parse': []}, 'chart.png'))
+        self.assertTrue(payload['content'].startswith('**5% at close'), payload['content'][:60])
+        self.assertLessEqual(len(payload['content']), 2000)
+        name, image, kind = kwargs['files']['files[0]']
+        self.assertEqual((name, kind), ('chart.png', 'image/png'))
+        self.assertTrue(image.read().startswith(b'\x89PNG'))
+
+    def test_a_long_report_is_split_by_size(self):
+        line = 'x' * 150
+        webhook.payload_wrapper('discord', self.URL, [line] * 30)
+        sizes = [len(kwargs['json']['content']) for _, kwargs in self.posts]
+        self.assertGreater(len(sizes), 2)
+        self.assertTrue(all(size <= 2000 for size in sizes), sizes) # 20 lines a chunk used to make 3,019 characters
+
+    def test_links_are_masked_links(self):
+        self.assertEqual(util.link('https://x.example/a(b)', 'T[1]', 'discord'), '[T\\[1\\]](<https://x.example/a%28b%29>)')
 
 
 class SlackSending(FinbotCase):

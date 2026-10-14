@@ -335,6 +335,11 @@ class Startup(unittest.TestCase):
 		self.assertIn(f'{old} is the old single config file, which finbot no longer reads', caught.exception.errors[0])
 		self.assertIn('/util/split_env.py, which writes finbot.env.new and preferences.conf.new', caught.exception.errors[1])
 
+	def test_a_discord_webhook_uses_the_native_endpoint(self):
+		for url in ('https://discord.com/api/webhooks/1/abc', 'https://discord.com/api/webhooks/1/abc/slack/'): # the old setup's suffix
+			values = config.startup_values(lambda name, default=None: url if name == 'discord_webhook' else default)
+			self.assertEqual(values['webhooks']['discord'], 'https://discord.com/api/webhooks/1/abc')
+
 	def test_slack_commands_without_a_bot_token_are_warned_about(self):
 		with mock.patch.object(config, 'config_slackOutgoingWebhook', 'https://example.com/slack'):
 			with mock.patch.object(config, 'config_slackBotToken', False):

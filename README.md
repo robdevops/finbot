@@ -30,9 +30,9 @@ What finbot can do on each network. Telegram takes everything; the others take w
 | Chat commands | ✓ | ✓ | ✗ (a webhook only posts) |
 | "typing…" while a command works | ✓ | ✗ (Slack has no typing notice for bots) | ✗ |
 | Charts in replies | ✓ | ✓ with `slackBotToken` | n/a |
-| Charts in scheduled reports | ✓ | ✗ (the incoming webhook takes text only) | ✗ |
+| Charts in scheduled reports | ✓ | ✗ (the incoming webhook takes text only) | ✓ |
 | Period and job buttons | ✓ | ✗ | ✗ |
-| No link previews | ✓ | ✓ | ✗ (set `hyperlink=False`) |
+| No link previews | ✓ | ✓ | ✓ |
 | Linked tickers | ✓ | ✓ | ✓ |
 | Charts updated in place by their buttons | ✓ | ✗ | ✗ |
 
@@ -541,12 +541,13 @@ sharesight_client_secret=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e9981
 ```
 
 ### Discord
-Discord support is currently only for trade notifications and scheduled reports.
-The Discord webhook can be provisioned in Discord under _Server Settings > Integrations > Webhooks_.
+A Discord webhook takes the trade notifications and scheduled reports, with their charts attached and without link previews.
+Provision it in Discord under _Server Settings > Integrations > Webhooks_.
 Example:
 ```
 discord_webhook=https://discord.com/api/webhooks/1009998000000000000/aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbb
 ```
+A URL ending in `/slack`, from older setups, works as it is: finbot uses Discord's own endpoint either way.
 
 ### Slack
 A Slack webhook can be provisioned by creating a new app from scratch at https://api.slack.com/apps/ then navigating to _Incoming Webhooks_. Once the link is generated, add it to `finbot.env`. Example:
@@ -608,7 +609,7 @@ While `bot.py` is running with Sharesight configured and `cache=True` (a reload 
 ### Hyperlinks
 These `preferences.conf` options relate to hyperlinks:
 
-* `hyperlink`, if set to `False`, disables all hyperlinks. Note: it can not disable syntax highlighting and false positives by chat clients that try to detect domains. Setting it to `False` can be useful for chat networks like Discord that can't easily disable link previews. Defaults to `True`.
+* `hyperlink`, if set to `False`, disables all hyperlinks. Note: it can not disable syntax highlighting and false positives by chat clients that try to detect domains. Defaults to `True`.
 ```
 hyperlink=True
 ```
@@ -749,9 +750,6 @@ You can now monitor the bot's stderr with :
 ```
 journalctl -fu finbot
 ```
-
-## Limitations
-* Discord shows garbage link previews from Sharesight. Set `hyperlink=False`, or disable this for each Discord client under _Settings > Text & Images > Embeds and link previews_ (must be repeated for each participating Discord client).
 
 ## Suggestions
 * Is my code is doing something the hard way?

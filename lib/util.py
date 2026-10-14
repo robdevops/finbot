@@ -199,13 +199,17 @@ def security_line(flag, title, link):
 	return f"{flag} {title} ({link})" if flag else f"{title} ({link})"
 
 def link(url, text, service='telegram'):
-	if service == 'telegram' and config_hyperlink:
-		hyperlink = '<a href="' + url + '">' + text + '</a>'
-	elif service in {'discord', 'slack'} and config_hyperlink:
-		hyperlink = '<' + url + '|' + text + '>'
-	else:
-		hyperlink = text
-	return hyperlink
+	"""text linking to url in the service's markup: HTML on Telegram, <url|text> on Slack, a masked link on Discord (the angle
+	brackets keep its preview away; brackets in the text and parentheses in the url would end it early)."""
+	if not config_hyperlink:
+		return text
+	if service == 'telegram':
+		return '<a href="' + url + '">' + text + '</a>'
+	if service == 'slack':
+		return '<' + url + '|' + text + '>'
+	if service == 'discord':
+		return '[' + text.replace('[', '\\[').replace(']', '\\]') + '](<' + url.replace('(', '%28').replace(')', '%29') + '>)'
+	return text
 
 def finance_link(symbol, exchange, service='telegram', days=1, brief=True, text=None):
 	if config_hyperlinkProvider == 'google':

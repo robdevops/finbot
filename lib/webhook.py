@@ -3,7 +3,6 @@ import json
 import time
 import requests
 import re
-from itertools import batched
 import sys
 import traceback
 
@@ -11,10 +10,21 @@ from lib.config import *
 from lib import net
 from lib import telegram
 
+DISCORD_LIMIT = 2000 # characters in a Discord message
+SUPPRESS_EMBEDS = 4 # Discord message flag: no link previews
+NO_MENTIONS = {'parse': []} # Discord: text that looks like @everyone or a mention pings nobody
+
+def discord_url(url):
+	"""A Discord webhook URL that answers with the message posted (200) instead of an empty 204."""
+	return url + ('&' if '?' in url else '?') + 'wait=true'
+
 def write(service, url, payload_string, chat_id=None, reply_markup=None):
 	headers = {'Content-type': 'application/json'}
 	payload = {'text': payload_string}
-	if 'slack.com' in url:
+	if service == 'discord': # the native webhook endpoint: Discord's Slack-compatible one takes no flags
+		payload = {'content': payload_string, 'flags': SUPPRESS_EMBEDS, 'allowed_mentions': NO_MENTIONS}
+		url = discord_url(url)
+	elif 'slack.com' in url:
 		payload['unfurl_links'] = False # no link previews: Slack reads these from the body, not the headers
 		payload['unfurl_media'] = False
 		if chat_id:
@@ -130,11 +140,11 @@ def payload_wrapper(service, url, payload, chat_id=None, reply_markup=None):
 	payload_string = '\n'.join(payload)
 	print("Preparing outbound to", service, str(len(payload_string)), "bytes")
 	print("Payload: " + payload_string) if debug else None
-	limit = 2000 if service == 'discord' else 4096
+	limit = DISCORD_LIMIT if service == 'discord' else 4096
 	if len(payload_string) <= limit:
 		return [write(service, url, payload_string, chat_id, reply_markup)]
 	print(service, f"payload is over {limit:,} bytes. Splitting.")
-	chunks = list(batched(payload, config_chunk_maxlines))
+	chunks = chunked(payload, limit, config_chunk_maxlines)
 	results = []
 	for idx, chunk in enumerate(chunks):
 		if idx:
@@ -142,6 +152,22 @@ def payload_wrapper(service, url, payload, chat_id=None, reply_markup=None):
 		last = idx == len(chunks) - 1
 		results.append(write(service, url, '\n'.join(chunk), chat_id, reply_markup=reply_markup if last else None))
 	return results
+
+def chunked(lines, limit, max_lines):
+	"""The lines in messages of at most max_lines lines and limit characters each, whichever comes first; a line longer than limit
+	on its own is cut short."""
+	chunks, current, size = [], [], 0
+	for line in lines:
+		if len(line) > limit:
+			line = line[:limit - 1] + '…'
+		if current and (len(current) >= max_lines or size + 1 + len(line) > limit):
+			chunks.append(current)
+			current, size = [], 0
+		size += len(line) + (1 if current else 0)
+		current.append(line)
+	if current:
+		chunks.append(current)
+	return chunks
 
 MARKUP = { # how each service marks text up: style -> service -> (before, after)
 	'bold': {'telegram': ('<b>', '</b>'), 'slack': ('*', '*'), 'discord': ('**', '**')},
@@ -172,10 +198,12 @@ def strike(message, service):
 	return _styled('strike', message, service)
 
 
-def fit_caption(caption, limit=1024):
-	"""Telegram rejects photo captions over 1024 visible characters. Keep whole lines that fit and say how many were left out."""
-	def visible(text):
-		return len(re.sub(r'<[^>]+>', '', text))
+def fit_caption(caption, limit=1024, visible=None):
+	"""Telegram rejects photo captions over 1024 visible characters; Discord takes 2,000 characters, markup included
+	(visible=len). Keep whole lines that fit and say how many were left out."""
+	if visible is None:
+		def visible(text):
+			return len(re.sub(r'<[^>]+>', '', text))
 	if visible(caption) <= limit:
 		return caption
 	lines = caption.split('\n')
@@ -191,10 +219,10 @@ def fit_caption(caption, limit=1024):
 MAYBE_SENT = object() # a read timeout on the request that posts a chart: it may have arrived, so no text copy follows
 
 def takes_charts(service, reply=True):
-	"""Whether a report to `service` can carry a chart image: never with the graph preference off; on Telegram always; on Slack in
-	a reply to a chat (`reply`), uploaded into its channel with the bot token, but not in a scheduled report, which goes through the
-	incoming webhook and takes text only; never on Discord. Elsewhere a report goes out as text."""
-	return config_graph and (service == 'telegram' or (service == 'slack' and reply and bool(config_slackBotToken)))
+	"""Whether a report to `service` can carry a chart image: never with the graph preference off; on Telegram and Discord always;
+	on Slack in a reply to a chat (`reply`), uploaded into its channel with the bot token, but not in a scheduled report, which goes
+	through the incoming webhook and takes text only. Elsewhere a report goes out as text."""
+	return config_graph and (service in ('telegram', 'discord') or (service == 'slack' and reply and bool(config_slackBotToken)))
 
 def telegram_photo(chat_id, image_data, caption, reply_markup=None):
 	"""sendPhoto, the report as its caption (trimmed to fit). Telegram's answer, MAYBE_SENT, or None if it was refused."""
@@ -225,6 +253,31 @@ def telegram_photo(chat_id, image_data, caption, reply_markup=None):
 		print(r.status_code, "OK telegram sendPhoto", data['caption'])
 		return output
 	print(r.status_code, "error telegram sendPhoto", output.get('error_code'), output.get('description') or r.text[:300], file=sys.stderr)
+	return None
+
+def discord_photo(image_data, caption):
+	"""The chart on the Discord webhook, with the report as its message (trimmed to Discord's 2,000 characters), no link previews.
+	Discord's answer, MAYBE_SENT, or None if it was refused."""
+	if hasattr(image_data, 'seek'):
+		image_data.seek(0)
+	payload = {'content': fit_caption(caption, DISCORD_LIMIT, len), 'flags': SUPPRESS_EMBEDS, 'allowed_mentions': NO_MENTIONS,
+		'attachments': [{'id': 0, 'filename': 'chart.png'}]}
+	try:
+		r = net.post(discord_url(webhooks['discord']), data={'payload_json': json.dumps(payload)},
+			files={'files[0]': ('chart.png', image_data, 'image/png')}, timeout=config_http_timeout)
+	except requests.exceptions.ReadTimeout as e:
+		print("Discord chart timed out, it may still arrive:", net.redact(e), file=sys.stderr)
+		return MAYBE_SENT
+	except Exception as e:
+		print("Discord chart failed:", net.redact(e), file=sys.stderr)
+		return None
+	if r.status_code == 200:
+		print(r.status_code, "OK discord chart", file=sys.stderr)
+		try:
+			return r.json() or {}
+		except ValueError:
+			return {}
+	print(r.status_code, "error discord chart", net.redact(r.text[:300]), file=sys.stderr)
 	return None
 
 def slack_api(method, **data):
@@ -272,6 +325,8 @@ def sendPhoto(chat_id, image_data, caption, service, reply_markup=None):
 	chartable = takes_charts(service, reply=bool(chat_id))
 	if chartable and service == 'telegram':
 		output = telegram_photo(chat_id, image_data, caption, reply_markup)
+	elif chartable and service == 'discord':
+		output = discord_photo(image_data, caption)
 	elif chartable:
 		output = slack_photo(chat_id, image_data, caption)
 	if output is MAYBE_SENT:

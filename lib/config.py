@@ -184,7 +184,7 @@ def startup_values(getenv):
 	if getenv('slack_webhook'):
 		hooks['slack'] = getenv('slack_webhook').rstrip('/')
 	if getenv('discord_webhook'):
-		hooks['discord'] = getenv('discord_webhook').rstrip('/').removesuffix('/slack') + '/slack'
+		hooks['discord'] = getenv('discord_webhook').rstrip('/').removesuffix('/slack') # the native endpoint, not the Slack-compatible one
 	if getenv('telegramBotToken'):
 		hooks['telegram'] = 'https://api.telegram.org/bot' + getenv('telegramBotToken').rstrip('/') + '/'
 	values['webhooks'] = hooks
