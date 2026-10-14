@@ -264,6 +264,32 @@ class SlackEvents(FinbotCase):
         self.assertEqual(bot.botName, '@finbot_tg')
 
 
+class UserTextIsEscaped(FinbotCase):
+    """Replies go out as Telegram HTML: text a user wrote is shown, never read as markup. One stray < in a .plan entry made Telegram
+    refuse that reply and every .plan reply after it."""
+
+    def test_a_plan_is_shown_as_text(self):
+        reply = self.command('.plan buy <cheap> & hold')[0][1]
+        self.assertIn('<i>buy &lt;cheap&gt; &amp; hold</i>', reply[0])
+        self.assertEqual(self.command('.plan')[0][1], reply) # and the same way again
+        self.sent.clear()
+        worker.process_request('slack', 'C1', '<@U1>', '.plan sell &lt;dear&gt;', BOT, 'U', '1') # Slack escapes what it sends
+        text = '\n'.join(self.sent[0][1])
+        self.assertIn('*<@U1>*', text) # a Slack mention stays markup
+        self.assertIn('_sell &lt;dear&gt;_', text) # escaped once, not twice
+        self.assertIn('_buy &lt;cheap&gt; &amp; hold_', text)
+
+    def test_a_telegram_name_is_escaped_where_it_arrives(self):
+        requests = []
+        self.patch(worker, 'process_request', lambda *a: requests.append(a))
+        body = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A<b>&'}, 'text': '.hello'}}
+        env = {'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(json.dumps(body).encode()), 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
+        with contextlib.redirect_stderr(io.StringIO()):
+            bot.main(env, lambda *a, **k: None)
+        gevent.sleep(0.05) # the worker runs in a (gevent) thread
+        self.assertEqual((requests[0][2], requests[0][5]), ('@A&lt;b&gt;&amp;', '@A&lt;b&gt;&amp;')) # the handle and the name
+
+
 class SecretsStayOutOfLogs(FinbotCase):
     """A failed request's error message carries its URL: the Telegram token, a Slack or Discord webhook path, a Yahoo crumb."""
     SECRET_URL = 'https://api.telegram.org/bot123456:SECRET-tok_en/sendMessage?chat_id=1'

@@ -12,10 +12,10 @@ from lib import charts
 BENCHMARKS = (('SPY', 'NYSEARCA', 'S&P 500'), ('QQQ', 'NasdaqGM', 'NASDAQ 100'))
 
 def gather(past_days, portfolio_select=None):
-	"""{portfolio id: Sharesight's performance report over past_days} of every portfolio, or of the one named (in any case). Raises
-	sharesight.PortfolioNotFound for a name that is none of them, and RuntimeError when there is no report."""
+	"""{portfolio id: (its name, Sharesight's performance report over past_days)} of every portfolio, or of the one named (in any
+	case). Raises sharesight.PortfolioNotFound for a name that is none of them, and RuntimeError when there is no report."""
 	portfolios = sharesight.pick_portfolios(portfolio_select)
-	performance = {portfolio_id: sharesight.get_performance(portfolio_id, past_days) for portfolio_id in portfolios.values()}
+	performance = {portfolio_id: (name, sharesight.get_performance(portfolio_id, past_days)) for name, portfolio_id in portfolios.items()}
 	if not performance:
 		print("Error: no Sharesight data found", file=sys.stderr)
 		raise RuntimeError("no Sharesight data found")
@@ -40,8 +40,7 @@ def report(service, past_days=UNSET, portfolio_select=None, interactive=False, p
 		performance = gather(past_days, portfolio_select)
 	lines = [] # (percent, text), sorted into the payload below
 	chart_rows = []
-	for portfolio_id, data in performance.items():
-		name = data['report']['holdings'][0]['portfolio']['name']
+	for portfolio_id, (name, data) in performance.items(): # the name from the portfolio list: one with no holdings names none
 		link = util.link("https://portfolio.sharesight.com/portfolios/" + str(portfolio_id), name, service)
 		percent = float(data['report']['capital_gain_percent'])
 		lines.append((percent, f"{util.get_emoji(percent)} {link} {util.signed_percent(percent, 2)}"))

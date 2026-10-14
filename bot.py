@@ -5,7 +5,7 @@ if __name__ == '__main__':
 	signal.signal(signal.SIGHUP, signal.SIG_IGN) # ignored until startup is done (the reload handler is installed last): its default action kills the bot
 import gevent.monkey
 gevent.monkey.patch_all()
-import json, os, re, sys, traceback
+import html, json, os, re, sys, traceback
 from pathlib import Path
 from gevent import pywsgi
 import threading
@@ -97,11 +97,12 @@ def handle(environ, start_response):
 		sender = msg["from"]
 		message_id = str(msg["message_id"])
 		chat_id = str(msg["chat"]["id"])
+		first_name = html.escape(sender["first_name"], quote=False) # replies are Telegram HTML: a name is text, not markup
 		if "username" in sender:
 			user = '@' + sender["username"]
-			userRealName = sender["first_name"] or user # what to call them: the handle when the first name is blank
+			userRealName = first_name or user # what to call them: the handle when the first name is blank
 		else:
-			user = userRealName = '@' + sender["first_name"]
+			user = userRealName = '@' + first_name
 		if "text" in msg:
 			message = msg["text"]
 			print("[Telegram]:", user, message, file=sys.stderr) if debug else None
@@ -205,6 +206,8 @@ if __name__ == '__main__':
 		sys.exit(1)
 	for line in config.startup_report():
 		print('config:', line, file=sys.stderr)
+	for line in config.startup_warnings():
+		print('ERROR config:', line, file=sys.stderr)
 	if os.getuid() == 0:
 		print("Running as superuser. This is not recommended.", file=sys.stderr)
 	if config_scheduler: # read before anything else happens: an impossible time in it stops the start

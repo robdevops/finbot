@@ -110,20 +110,34 @@ def read_startup_file(path):
 	return values
 
 
+TRUE_WORDS = ('true', '1', 't', 'yes', 'y', 'on')
+FALSE_WORDS = ('false', '0', 'f', 'no', 'n', 'off')
+
+
 class _Reader:
-	"""Typed reads from a getenv(name, default); a bad value is remembered, the default used, and all problems raised together."""
+	"""Typed reads from a getenv(name, default); a bad value is remembered, the default used, and all problems raised together.
+	A blank value means unset: the default."""
 	def __init__(self, getenv):
 		self.getenv = getenv
 		self.errors = []
 
+	def value(self, name, default):
+		value = self.getenv(name, default)
+		return default if value == '' else value
+
 	def str(self, name, default=None):
-		return self.getenv(name, default)
+		return self.value(name, default)
 
 	def bool(self, name, default):
-		return str(self.getenv(name, default)).lower() in ('true', '1', 't')
+		value = self.value(name, default)
+		word = str(value).strip().lower()
+		if word in TRUE_WORDS or word in FALSE_WORDS:
+			return word in TRUE_WORDS
+		self.errors.append(f"{name}={value!r} is not true or false")
+		return default
 
 	def number(self, kind, name, default):
-		value = self.getenv(name, default)
+		value = self.value(name, default)
 		try:
 			return kind(value)
 		except ValueError:
@@ -327,6 +341,14 @@ def startup_report():
 	return lines
 
 
+def startup_warnings():
+	"""Problems in finbot.env that do not stop the start, a line each: a setting that leaves part of the bot unable to work."""
+	warnings = []
+	if config_slackOutgoingWebhook and not config_slackBotToken:
+		warnings.append('slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply')
+	return warnings
+
+
 adjectives = [
 	'absolutely',
 	'amazingly',
@@ -515,5 +537,6 @@ yahoo_country = {
 # `from lib.config import *` is how the other modules get their config_* names; keep the loader machinery out of their namespaces
 _INTERNAL = {'difflib', 're', 'sys', 'ConfigError', 'key_problem', 'parse_assignments', 'read_text', 'read_preferences', 'read_startup_file',
 	'startup_values', 'preference_values', 'reload', 'child_environment', 'print_errors', 'check_startup_environment', 'startup_report', 'preferences_path',
-	'STARTUP_KEYS', 'PREFERENCE_KEYS', 'SECRET_KEYS', 'PREFERENCES_FILE', 'PASSED', 'PREFERENCE_NAMES', 'OLD_ENV'}
+	'startup_warnings', 'STARTUP_KEYS', 'PREFERENCE_KEYS', 'SECRET_KEYS', 'PREFERENCES_FILE', 'PASSED', 'PREFERENCE_NAMES', 'OLD_ENV',
+	'TRUE_WORDS', 'FALSE_WORDS'}
 __all__ = [name for name in dir() if not name.startswith('_') and name not in _INTERNAL]

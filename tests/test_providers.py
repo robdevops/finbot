@@ -201,6 +201,20 @@ class YahooChart(ProviderCase):
         self.assertEqual(len(self.errors), 1) # the one ticker asked for: one line saying why
         self.assertTrue(self.errors[0].startswith('⚠️ .price: RuntimeError: 404 error for T3'))
 
+    def test_the_chart_request_carries_the_cookie_of_its_crumb(self):
+        headers = []
+        self.patch(yahoo.net, 'get', lambda url, **kwargs: headers.append(kwargs.get('headers', {})) or Resp(self.chart([100.0] * 5)))
+        yahoo.fetch_chart_json('T1', full=True)
+        self.assertEqual(headers[0].get('Cookie'), 'A=B') # the crumb used to go without its cookie
+
+    def test_with_the_cache_off_no_chart_is_written(self):
+        self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
+        self.patch(yahoo, 'config_cache', False)
+        self.http(yahoo, Resp(self.chart([100.0] * 30 + [110.0])))
+        table, image = yahoo.price_history('T1', 7, graph=True)
+        self.assertIsNotNone(image)
+        self.assertEqual([name for name in os.listdir(util.config_cache_dir) if name.startswith('finbot_graph_')], [])
+
     def test_price_series_raises_on_failure_and_on_empty_history(self):
         self.http(yahoo, Resp(status=500))
         with self.assertRaises(RuntimeError):
@@ -545,6 +559,21 @@ class ChartDelivery(FinbotCase):
                 self.assertTrue(self.sent)
                 self.assertEqual({kind for kind, *_ in self.sent}, {'text'})
 
+    def test_the_graph_preference_off_sends_no_chart_anywhere(self):
+        """graph=False means no charts, as the README says; it used to hold back only the price-line charts."""
+        self.patch(webhook, 'config_graph', False)
+        self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
+        posts = []
+        self.patch(webhook.net, 'post', lambda url, **k: posts.append(url) or Resp({'ok': True, 'result': True}))
+        for service, chat in (('telegram', '55'), ('slack', 'C1')):
+            for cmd in ('.price', '.price top', '.performance 7d', '.shorts', '.buy', '.peg', '.beta', '.compare T1 T2', '.pie Rob'):
+                with self.subTest(service=service, cmd=cmd):
+                    self.sent.clear(); self.errors.clear()
+                    worker.process_request(service, chat, '@u', cmd, BOT, 'U', '1')
+                    self.assertEqual(self.errors, [])
+                    self.assertEqual({kind for kind, *_ in self.sent}, {'text'})
+        self.assertEqual([url for url in posts if 'sendPhoto' in url or 'files.' in url], [])
+
     def test_a_chart_telegram_refuses_goes_out_as_text(self):
         def post(outcome):
             def fake(url, **kwargs):
@@ -563,6 +592,42 @@ class ChartDelivery(FinbotCase):
                 with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
                     webhook.sendPhoto('5', io.BytesIO(b'png'), 'Heading\nline 2', 'telegram', reply_markup={'inline_keyboard': []})
                 self.assertEqual(self.sent, expect)
+
+
+class SlackSending(FinbotCase):
+    """Slack replies go through chat.postMessage with the bot token; scheduled reports through the incoming webhook."""
+
+    def setUp(self):
+        super().setUp()
+        self.patch(webhook, 'payload_wrapper', REAL_PAYLOAD_WRAPPER)
+        self.patch(webhook, 'sendPhoto', REAL_SEND_PHOTO)
+        self.posts = []
+        self.patch(webhook.net, 'post', lambda url, **kwargs: self.posts.append((url, kwargs)) or Resp({'ok': True}))
+
+    def test_link_previews_are_turned_off_in_the_body(self):
+        self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
+        webhook.write('slack', 'https://slack.com/api/chat.postMessage', 'hi', 'C1')
+        webhook.write('slack', 'https://hooks.slack.com/services/T/B/x', 'hi')
+        self.assertEqual(len(self.posts), 2)
+        for url, kwargs in self.posts:
+            with self.subTest(url=url): # they used to go in the headers, where Slack does not look
+                self.assertEqual((kwargs['json']['unfurl_links'], kwargs['json']['unfurl_media']), (False, False))
+                self.assertNotIn('unfurl_links', kwargs['headers'])
+
+    def test_a_reply_without_a_bot_token_is_logged_not_sent(self):
+        self.patch(webhook, 'config_slackBotToken', False)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            for cmd in ('.help', '.price', '.compare T1 T2'):
+                worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U', '1')
+        self.assertEqual((self.posts, self.errors), ([], []))
+        self.assertEqual(err.getvalue().count('ERROR slack: a reply to channel C1 needs slackBotToken in finbot.env; not sent'), 3)
+
+    def test_the_slack_api_says_what_is_missing(self):
+        self.patch(webhook, 'config_slackBotToken', False)
+        with self.assertRaisesRegex(RuntimeError, 'Slack files.getUploadURLExternal: needs slackBotToken in finbot.env'):
+            webhook.slack_api('files.getUploadURLExternal', filename='chart.png', length=1) # it used to be a TypeError
+        self.assertEqual(self.posts, [])
 
 
 class TelegramWebhook(FinbotCase):

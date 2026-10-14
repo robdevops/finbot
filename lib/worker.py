@@ -350,7 +350,11 @@ def on_plan(request, m):
 	if m.group(1) and not m.group(1).startswith('@'):
 		plan[request.user] = m.group(1)
 		util.json_write('finbot_plan.json', plan, persist=True)
-	request.say([f"{webhook.bold(k.removeprefix('@'), request.service)}: {webhook.italic(v, request.service)}\n" for k, v in plan.items()])
+	def who(user): # a Slack user is a mention (<@U123>), which is markup to keep; elsewhere a handle is text
+		user = user.removeprefix('@')
+		return user if request.service == 'slack' else webhook.escape(user, request.service)
+	request.say([f"{webhook.bold(who(k), request.service)}: {webhook.italic(webhook.escape(v, request.service), request.service)}\n"
+		for k, v in plan.items()])
 
 def on_who(request, m):
 	if not m.group('ticker'):

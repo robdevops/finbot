@@ -60,6 +60,12 @@ class ReportFunctions(FinbotCase):
     def test_prepare_help(self):
         self.assertTrue(reports.prepare_help('telegram', BOT))
 
+    def test_a_portfolio_with_no_holdings_is_reported_by_name(self):
+        """Its name used to be read from its first holding: an empty portfolio crashed .performance."""
+        self.patch(sharesight, 'get_performance', lambda pid, d, *a: {'report': {'holdings': [], 'capital_gain_percent': '0.0'}})
+        payload, _ = performance.report('telegram', 7)
+        self.assertTrue(any('>Rob</a>' in line for line in payload), payload)
+
     def test_prepare_holdings(self):
         self.assertTrue(reports.prepare_holdings_payload(None, 'telegram'))
 

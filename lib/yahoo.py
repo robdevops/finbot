@@ -56,6 +56,13 @@ def getCrumb(seconds=1209600): # 14 days
 		print("Got a new Yahoo crumb", file=sys.stderr)
 		return r.text
 
+def credentials():
+	"""(cookie, crumb), taken together under the lock: a crumb is only good with the cookie it was issued for, and a renewal
+	between two separate calls could pair a new cookie with an old crumb."""
+	with _auth:
+		crumb = getCrumb() # renews the cookie too, when due
+		return getCookie(), crumb
+
 def rmCrumb():
 	"""Set the cached crumb aside (as .old): it belongs to the cookie being replaced."""
 	crumb = Path(util.cache_path("finbot_yahoo_crumb.json"))
@@ -141,8 +148,7 @@ def fetch(tickers):
 	cacheFile = "finbot_yahoo_" + hashlib.sha256("_".join(tickers).encode()).hexdigest() + '.json'
 	if config_cache and (cache := util.read_cache(cacheFile, 300)):
 		return cache
-	cookie = getCookie()
-	crumb = getCrumb()
+	cookie, crumb = credentials()
 	r = _get_first(_hosts('/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)), {**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie})
 	if r is None:
 		print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
@@ -226,8 +232,7 @@ def fetch_detail(ticker, seconds=UNSET):
 	if seconds is UNSET:
 		seconds = config_cache_seconds
 	now = datetime.datetime.now()
-	cookie = getCookie()
-	crumb = getCrumb()
+	cookie, crumb = credentials()
 	cacheFile = "finbot_yahoo_detail_" + ticker + '.json'
 	data = util.read_cache(cacheFile, seconds) if config_cache else None
 	if data:
@@ -362,7 +367,8 @@ def price_history(ticker, days=None, seconds=UNSET, graph=UNSET, graphCache=True
 	if config_cache and graphCache and (image := util.read_binary_cache(image_cache_file, seconds)):
 		return percent_dict, image
 	image = util.graph(df, title, stock.get('currency'))
-	util.write_binary_cache(image_cache_file, image)
+	if config_cache:
+		util.write_binary_cache(image_cache_file, image)
 	return percent_dict, image
 
 def price_series(ticker):
@@ -439,12 +445,12 @@ def fetch_chart_json(ticker, days=3665, seconds=UNSET, full=False):
 	cacheFile = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
 	if config_cache and (cache := util.read_cache(cacheFile, seconds)):
 		return cache
-	crumb = getCrumb() # renews the cookie too, when due
+	cookie, crumb = credentials()
 	start = '0' if full else str(int((now - datetime.timedelta(days=days)).timestamp()))
 	url = f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?period1={start}&period2={int(now.timestamp())}&interval=1d&crumb={crumb}'
 	print("Fetching", net.redact(url), file=sys.stderr) if debug else None
 	try:
-		r = net.get(url, headers={**HEADERS, 'Content-type': 'application/json'}, timeout=config_http_timeout)
+		r = net.get(url, headers={**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie}, timeout=config_http_timeout)
 	except Exception as e:
 		raise RuntimeError(f"Yahoo unreachable for {ticker}: {net.redact(e)}") from e
 	if r.status_code != 200:

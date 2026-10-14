@@ -15,11 +15,11 @@ def write(service, url, payload_string, chat_id=None, message_id=None, reply_mar
 	headers = {'Content-type': 'application/json'}
 	payload = {'text': payload_string}
 	if 'slack.com' in url:
-		headers['unfurl_links'] = 'false'
-		headers['unfurl_media'] = 'false'
+		payload['unfurl_links'] = False # no link previews: Slack reads these from the body, not the headers
+		payload['unfurl_media'] = False
 		if chat_id:
 			if not config_slackBotToken:
-				print("Slack: replying in a channel needs slackBotToken in finbot.env", file=sys.stderr)
+				print(f"ERROR slack: a reply to channel {chat_id} needs slackBotToken in finbot.env; not sent", file=sys.stderr)
 				return None
 			headers['Authorization'] = 'Bearer ' + config_slackBotToken
 			payload['channel'] = chat_id
@@ -154,6 +154,13 @@ MARKUP = { # how each service marks text up: style -> service -> (before, after)
 	'strike': {'telegram': ('<s>', '</s>'), 'slack': ('~', '~'), 'discord': ('~~', '~~')},
 }
 
+def escape(text, service):
+	"""Text a user wrote (a .plan entry, a name) made safe to show: Telegram's HTML and Slack's markup both take &amp; &lt; &gt;.
+	It is unescaped first because it may arrive escaped already (Slack escapes what it sends; bot.py escapes Telegram names):
+	escaping twice would show &amp;amp;. Discord's markdown shows entities as they are, so it gets the plain text."""
+	text = html.unescape(str(text))
+	return text if service == 'discord' else html.escape(text, quote=False)
+
 def _styled(style, message, service):
 	if service not in MARKUP[style]:
 		return message
@@ -189,10 +196,10 @@ def fit_caption(caption, limit=1024):
 MAYBE_SENT = object() # a read timeout on the request that posts a chart: it may have arrived, so no text copy follows
 
 def takes_charts(service, reply=True):
-	"""Whether a report to `service` can carry a chart image: on Telegram always; on Slack in a reply to a chat (`reply`), uploaded
-	into its channel with the bot token, but not in a scheduled report, which goes through the incoming webhook and takes text only;
-	never on Discord. Elsewhere a report goes out as text."""
-	return service == 'telegram' or (service == 'slack' and reply and bool(config_slackBotToken))
+	"""Whether a report to `service` can carry a chart image: never with the graph preference off; on Telegram always; on Slack in
+	a reply to a chat (`reply`), uploaded into its channel with the bot token, but not in a scheduled report, which goes through the
+	incoming webhook and takes text only; never on Discord. Elsewhere a report goes out as text."""
+	return config_graph and (service == 'telegram' or (service == 'slack' and reply and bool(config_slackBotToken)))
 
 def telegram_photo(chat_id, image_data, caption, message_id=None, reply_markup=None):
 	"""sendPhoto, the report as its caption (trimmed to fit). Telegram's answer, MAYBE_SENT, or None if it was refused."""
@@ -229,6 +236,8 @@ def telegram_photo(chat_id, image_data, caption, message_id=None, reply_markup=N
 
 def slack_api(method, **data):
 	"""POST a Slack Web API method as the bot, form-encoded, and return its answer. Raises RuntimeError with Slack's error if not ok."""
+	if not config_slackBotToken:
+		raise RuntimeError(f"Slack {method}: needs slackBotToken in finbot.env")
 	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + config_slackBotToken}, data=data, timeout=config_http_timeout)
 	try:
 		output = r.json()
@@ -270,7 +279,7 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_mark
 	with its chart; but not after a read timeout on the request that posts it, when the chart may have arrived after all."""
 	output = None
 	chartable = takes_charts(service, reply=bool(chat_id))
-	if service == 'telegram':
+	if chartable and service == 'telegram':
 		output = telegram_photo(chat_id, image_data, caption, message_id, reply_markup)
 	elif chartable:
 		output = slack_photo(chat_id, image_data, caption, message_id)

@@ -98,6 +98,18 @@ class Parsing(unittest.TestCase):
 		self.assertEqual(len(caught.exception.errors), 2)
 		self.assertIn("future_days='abc' is not a whole number", caught.exception.errors[0])
 
+	def test_booleans_take_the_usual_words_and_refuse_a_typo(self):
+		for word, value in (('True', True), ('yes', True), ('ON', True), ('1', True), ('false', False), ('No', False), ('off', False), ('0', False)):
+			with self.subTest(word=word):
+				self.assertIs(config.preference_values(config._getenv_for({'graph': word}))['config_graph'], value)
+		with self.assertRaises(config.ConfigError) as caught: # it used to mean False without a word
+			config.preference_values(config._getenv_for({'graph': 'Ture'}))
+		self.assertIn("graph='Ture' is not true or false", caught.exception.errors[0])
+
+	def test_a_blank_value_means_the_default(self):
+		values = config.preference_values(config._getenv_for({'cache': '', 'future_days': '', 'country_code': ''}))
+		self.assertEqual((values['config_cache'], values['config_future_days'], values['config_country_code']), (True, 30, 'AU'))
+
 	def test_unreadable_file_is_an_error_naming_it(self):
 		path = Path(tempfile.mkdtemp(), 'preferences.conf')
 		path.mkdir() # reading a directory fails like a permission error would
@@ -322,6 +334,13 @@ class Startup(unittest.TestCase):
 		self.assertEqual(len(caught.exception.errors), 2)
 		self.assertIn(f'{old} is the old single config file, which finbot no longer reads', caught.exception.errors[0])
 		self.assertIn('/util/split_env.py, which writes finbot.env.new and preferences.conf.new', caught.exception.errors[1])
+
+	def test_slack_commands_without_a_bot_token_are_warned_about(self):
+		with mock.patch.object(config, 'config_slackOutgoingWebhook', 'https://example.com/slack'):
+			with mock.patch.object(config, 'config_slackBotToken', False):
+				self.assertEqual(config.startup_warnings(), ['slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply'])
+			with mock.patch.object(config, 'config_slackBotToken', 'xoxb-1'):
+				self.assertEqual(config.startup_warnings(), [])
 
 	def test_startup_report_is_a_short_count_never_names_or_values(self):
 		with mock.patch.dict(os.environ, {'slack_webhook': 'https://secret.example/abc', 'port': '5000'}, clear=True):

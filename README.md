@@ -480,7 +480,7 @@ Copies preferences.conf and metadata files into the data directory (never overwr
 util/sync_defaults.py [-d DEST] --apply
 ```
 
-All 26 keys, read by the bot itself. A change takes effect on a reload.
+All 26 keys, read by the bot itself. A change takes effect on a reload. A true/false preference takes `true`/`false`, `yes`/`no`, `on`/`off` or `1`/`0`; anything else is a mistake, reported like any other. A blank value means the default.
 
 | Key | Default | Description |
 |---|---|---|
@@ -716,7 +716,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
     * Adding scopes to an app that is already installed takes effect only after _Reinstall to Workspace_.
   * Scroll up to _OAuth Tokens for Your Workspace_:
     * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_
-    * Copy _Bot User OAuth Token_ into `finbot.env` as `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies.
+    * Copy _Bot User OAuth Token_ into `finbot.env` as `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies. Without it Slack commands get no reply: the log says so at startup, and again for each reply.
     * Restart `bot.py`
 
 ### Daemonize (systemd)
