@@ -385,7 +385,7 @@ COMMANDS = [ # (pattern, function): tried in this order, the first match answers
 	(r"(?:marketcap|maletas|marketer)\s*([\w\.\:\-]+)*", on_marketcap),
 	(r"peg\s*([\w\.\:\-\s]+)*", on_ratio('peg', negative=True, chart=True)),
 	(r"pe(?:$|\s+)([\w\.\:\-\s]+)*", on_ratio('pe')),
-	(r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*", on_ratio('forward pe', negative=True)),
+	(r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*", on_ratio('forward pe', negative=True, chart=True)),
 	(r"beta\s*([\w\.\:\-]+)*", on_beta),
 	(r"pie(?:$|\s+)(?P<args>[\w\s\-\.&]*)", on_pie),
 	(r"(?P<first>buy|sell)(?:\s*(?:&|and|/|\+)?\s*(?P<second>buy|sell))?", on_rating), # .buy & sell (or .buy sell): both

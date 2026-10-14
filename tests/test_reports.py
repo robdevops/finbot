@@ -15,7 +15,8 @@ class Commands(FinbotCase):
 
     def test_chart_commands(self):
         for cmd in ('.price', '.price 7d', '.price top', '.price bottom', '.session', '.premarket', '.postmarket',
-                    '.performance', '.performance 7d', '.performance 1y', '.shorts', '.peg', '.buy', '.sell', '.beta', '.price top 7d'):
+                    '.performance', '.performance 7d', '.performance 1y', '.shorts', '.peg', '.buy', '.sell', '.beta', '.price top 7d',
+                    '.forward pe', '.fpe bottom'):
             with self.subTest(cmd=cmd):
                 out = self.command(cmd)
                 self.assertTrue(out, f'{cmd} sent nothing')
