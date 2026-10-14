@@ -11,47 +11,24 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, specific_stoc
 	if threshold is UNSET:
 		threshold = config_shorts_percent
 	def prepare_shorts_payload(service, market_data):
-		payload = []
-		chart_rows = []
-		graph = False
-		emoji = "🩳"
+		found = [] # (percent, line, chart label)
 		for ticker in tickers:
 			try:
 				short_percent = float(market_data[ticker]['short_percent'])
 			except (KeyError, ValueError):
 				continue
-			if '.AX' in ticker:
-				url = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0]
-				short_interest_link = util.link(url, ticker.split('.')[0], service)
-			else:
-				url = 'https://finance.yahoo.com/quote/' + ticker + '/key-statistics?p=' + ticker
-				short_interest_link = util.link(url, ticker.split('.')[0], service)
-			title = market_data[ticker]['profile_title']
 			if short_percent > threshold or specific_stock:
-				payload.append([emoji, title, f'({short_interest_link})', short_percent])
-				chart_rows.append((ticker.split('.')[0], short_percent))
-
-		def last_element(e):
-			return e[-1]
-		payload.sort(key=last_element, reverse=True) # largest first, matching the chart
-		for i, e in enumerate(payload):
-			e[-1] = str(round(e[-1])) + '%'
-			payload[i] = ' '.join(e)
-
-		if payload:
-			if not specific_stock:
-				message = f'Tracked stocks shorted over {threshold:g}%'
-				message = webhook.bold(message, service)
-				payload.insert(0, message)
-				if chart_rows and webhook.takes_charts(service, interactive):
-					chart_rows.sort(key=lambda row: row[1], reverse=True)
-					graph = util.shorts_chart(chart_rows, threshold)
-		else:
-			if interactive:
-				if specific_stock:
-					payload = [f"{emoji}No short interest found for {tickers[0]}"]
-				else:
-					payload = [f"{emoji}No stocks shorted over {threshold:g}%. Try specifying a number."]
+				code = ticker.split('.')[0]
+				url = 'https://www.shortman.com.au/stock?q=' + code if ticker.endswith('.AX') else 'https://finance.yahoo.com/quote/' + ticker + '/key-statistics?p=' + ticker
+				found.append((short_percent, f"🩳 {market_data[ticker]['profile_title']} ({util.link(url, code, service)}) {round(short_percent)}%", code))
+		found.sort(key=lambda row: row[0], reverse=True) # largest first, as the chart has them
+		payload, graph = [line for _, line, _ in found], None
+		if payload and not specific_stock:
+			payload.insert(0, webhook.bold(f'Tracked stocks shorted over {threshold:g}%', service))
+			if webhook.takes_charts(service, interactive):
+				graph = util.shorts_chart([(code, percent) for percent, _, code in found], threshold)
+		elif not payload and interactive:
+			payload = [f"🩳 No short interest found for {tickers[0]}" if specific_stock else f"🩳 No stocks shorted over {threshold:g}%. Try specifying a number."]
 		return payload, graph
 
 	# MAIN #
