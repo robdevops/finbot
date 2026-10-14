@@ -238,6 +238,13 @@ class ScheduledReports(FinbotCase):
 		trades.lambda_handler() # the trade is known now: nothing to report and nothing to fetch
 		self.assertEqual(fetched, [])
 
+	def test_a_scheduled_run_keeps_the_trades_another_run_recorded_meanwhile(self):
+		meanwhile = lambda tickers: state.save('finbot_sharesight_trades.json', [999]) or {t: market_entry(t) for t in tickers}
+		self.patch(yahoo, 'fetch', meanwhile) # called after the seen trades were read, before the new ones are recorded
+		trades.lambda_handler()
+		known = state.load('finbot_sharesight_trades.json')
+		self.assertEqual((known[0], len(known)), (999, 2))
+
 	def test_milestone(self):
 		milestone.lambda_handler()
 		self.assertTrue(self.sent)

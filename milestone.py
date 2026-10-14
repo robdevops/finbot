@@ -17,7 +17,7 @@ def lambda_handler():
 		payload = []
 		payloadhigh = []
 		payloadlow = []
-		records = state.load('finbot_milestone.json') or {}
+		changed = {} # ticker -> its records after this run
 		for ticker in tickers:
 			try:
 				oldhigh, oldlow = records[ticker]['record_high'], records[ticker]['record_low']
@@ -34,7 +34,7 @@ def lambda_handler():
 			title = market_data[ticker]['profile_title']
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 			emoji = util.flag_from_ticker(ticker)
-			records[ticker] = {'record_high': max(oldhigh, newhigh), 'record_low': min(oldlow, newlow)} # all-time: a 52-week high below it is no record
+			changed[ticker] = {'record_high': max(oldhigh, newhigh), 'record_low': min(oldlow, newlow)} # all-time: a 52-week high below it is no record
 			if newhigh > oldhigh:
 				print("DEBUG", ticker, newhigh, "is higher than", oldhigh) if config.prefs.debug else None
 				payloadhigh.append(f"{emoji} {title} ({ticker_link})")
@@ -55,18 +55,20 @@ def lambda_handler():
 			payload.append(message)
 			payload = payload + payloadlow
 		payload = [i[0] for i in groupby(payload)] # de-dupe white space
-		return payload, records
+		return payload, changed
 
 	# MAIN #
 
 	tickers = util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
+	records, changed = state.load('finbot_milestone.json', {}), {}
 	for service, url, chat in webhook.default_chats():
-		payload, records = prepare_milestone_payload(service, market_data)
+		payload, changed = prepare_milestone_payload(service, market_data)
 		webhook.send(service, url, chat, payload)
 
-	if records:
-		state.save('finbot_milestone.json', records)
+	if changed:
+		with state.edit('finbot_milestone.json', {}) as recorded:
+			recorded.update(changed)
 
 def job(argv):
 	return 'milestone.py', {}

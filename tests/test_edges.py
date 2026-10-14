@@ -1,5 +1,5 @@
 """Failure and no-data scenarios: empty or broken upstream data, bad requests, rejected callers."""
-import contextlib, io, json, os, signal, subprocess, sys, tempfile, time, unittest
+import contextlib, io, json, os, signal, subprocess, sys, tempfile, threading, time, unittest
 from pathlib import Path
 import gevent
 from tests.common import *
@@ -78,6 +78,33 @@ class WatchlistActions(FinbotCase):
 		self.command('.watchlist rm MSFT')
 		self.assertEqual(state.load('finbot_watchlist.json'), [])
 		self.assertIn('not a valid watchlist action', str(self.command('.watchlist frobnicate MSFT')))
+
+	def test_a_bare_symbol_yahoo_does_not_know_is_tried_on_the_asx(self):
+		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if t.endswith('.AX')})
+		self.assertIn('so I added', str(self.command('.watchlist add BHP')))
+		self.assertIn('already tracking', str(self.command('.watchlist add BHP')))
+		self.assertIn('could not find', str(self.command('.watchlist add BHP.L'))) # a ticker with a market is not retried
+		self.assertEqual(watchlist.tickers(), ['BHP.AX'])
+
+	def test_two_chats_adding_at_once_both_count(self):
+		# Yahoo is asked before the file is opened: both adds used to read the list, wait on Yahoo, and the later write won
+		def slow_fetch(tickers):
+			time.sleep(0.01)
+			return {t: market_entry(t) for t in tickers}
+		self.patch(yahoo, 'fetch', slow_fetch)
+		threads = [threading.Thread(target=reports.prepare_watchlist, args=('telegram', '@u', 'add', t)) for t in ('T1', 'T2')]
+		for thread in threads:
+			thread.start()
+		for thread in threads:
+			thread.join()
+		self.assertEqual(sorted(watchlist.tickers()), ['T1', 'T2'])
+
+	def test_removing_a_ticker_yahoo_no_longer_knows(self):
+		state.save('finbot_watchlist.json', ['GONE', 'T1'])
+		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if t != 'GONE'})
+		self.assertIn('I deleted', str(self.command('.watchlist rm GONE')))
+		self.assertIn('could not find', str(self.command('.watchlist rm GONE')))
+		self.assertEqual(watchlist.tickers(), ['T1'])
 
 
 class BadArguments(FinbotCase):

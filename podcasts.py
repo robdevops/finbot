@@ -88,7 +88,7 @@ def fetch_new_episodes(feed_url, seen):
 def lambda_handler(feed_url):
 	"""Post the feed's newest episodes not posted before, then record every new one as seen."""
 	seen_file = get_seen_filename(feed_url)
-	seen = set(state.load(seen_file) or [])
+	seen = set(state.load(seen_file, []))
 	try:
 		episodes, guids = fetch_new_episodes(feed_url, seen)
 	except Exception as e:
@@ -104,7 +104,8 @@ def lambda_handler(feed_url):
 			duration = f" {episode['duration']}" if episode['duration'] else ""
 			payload.append(f"📣 {podcast_name}: {util.link(episode['url'], title, service)}{duration} ({episode['ago']})")
 		webhook.send(service, url, chat, payload)
-	state.save(seen_file, sorted(seen | guids)) # last, so that a failure above leaves these episodes for next run
+	with state.edit(seen_file, []) as recorded: # last, so that a failure above leaves these episodes for next run
+		recorded[:] = sorted(guids.union(recorded))
 
 def job(argv):
 	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""

@@ -1,5 +1,5 @@
 """Pure helpers in lib/util.py: table-driven pass and fail cases."""
-import datetime, json, unittest
+import datetime, json, threading, unittest
 from pathlib import Path
 from tests.common import *
 
@@ -113,6 +113,32 @@ class StateFiles(FinbotCase):
 		self.assertEqual(os.umask(0o027), 0o027) # the umask was not touched
 		state.save('state.json', {'a': 3})
 		self.assertEqual((json.loads(path.read_text()), oct(path.stat().st_mode & 0o777)), ({'a': 3}, '0o640'))
+
+	def test_edit_writes_only_a_change_and_never_changes_the_default(self):
+		default = {'seen': []}
+		with state.edit('edit.json', default):
+			pass
+		self.assertIsNone(state.load('edit.json')) # nothing changed, nothing written
+		with state.edit('edit.json', default) as data:
+			data['seen'].append(1)
+		self.assertEqual((state.load('edit.json'), default), ({'seen': [1]}, {'seen': []}))
+		with self.assertRaises(ValueError), state.edit('edit.json', default) as data:
+			data['seen'].append(2)
+			raise ValueError
+		self.assertEqual(state.load('edit.json'), {'seen': [1]}) # a block that fails writes nothing
+
+	def test_edits_at_once_all_count(self):
+		# each edit reads the file after the one before it wrote, so none overwrites another with what it read earlier
+		def edit(key):
+			with state.edit('edit.json', {}) as data:
+				time.sleep(0.01) # the other edits start meanwhile
+				data[key] = True
+		threads = [threading.Thread(target=edit, args=(key,)) for key in 'abc']
+		for thread in threads:
+			thread.start()
+		for thread in threads:
+			thread.join()
+		self.assertEqual(state.load('edit.json'), dict.fromkeys('abc', True))
 
 	def test_read_cache_missing_or_expired_is_falsy(self):
 		self.assertFalse(cache.read('absent.json', 60))

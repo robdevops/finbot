@@ -430,6 +430,15 @@ def fetch_details(tickers, strict=False):
 			details |= detail
 	return details
 
+def resolve(ticker, lookup):
+	"""(ticker, lookup(ticker)) for a ticker Yahoo knows: a bare symbol it does not know is tried on the ASX (BHP: BHP.AX).
+	lookup is fetch-shaped ({ticker: data}, without the tickers Yahoo does not know); its {} means Yahoo knows neither."""
+	found = lookup(ticker)
+	if ticker not in found and '.' not in ticker:
+		ticker += '.AX'
+		found = lookup(ticker)
+	return ticker, found
+
 def prefetch_history(tickers, workers=8):
 	"""Warm the price-history cache for many tickers at once, so the per-ticker lookups that follow are cache hits."""
 	tickers = list(tickers)

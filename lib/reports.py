@@ -4,7 +4,7 @@ import datetime
 import sys
 from lib import config
 from lib import cache
-from lib import state
+from lib import watchlist
 from lib import sharesight
 from lib import util
 from lib import webhook
@@ -57,91 +57,37 @@ def doDelta(inputList):
 	return deltaString
 
 def prepare_watchlist(service, user, action=None, ticker=None):
-	if ticker:
-		ticker = ticker_orig = util.transform_to_yahoo(ticker)
-		ticker_link = util.finance_link(ticker, ticker, service)
-	duplicate = False
-	transformed = False
-	watchlist = state.load('finbot_watchlist.json') or [] # absent until the first add
-	if action == 'add':
-		if ticker in watchlist:
-			duplicate = True
-		else:
-			watchlist.append(ticker)
-	if len(watchlist):
-		market_data = yahoo.fetch(watchlist)
-	else:
-		market_data = None
-	print("")
+	"""The .watchlist reply: the companies watched, or one line on adding ('add') or removing ('delete') a ticker."""
+	if action:
+		return [watchlist_change(service, user, action, util.transform_to_yahoo(ticker))]
+	watched = watchlist.tickers()
+	market_data = yahoo.fetch(watched) if watched else {}
+	lines = sorted((f"{util.flag_from_ticker(t)} {quote['profile_title']} ({util.finance_link(t, quote.get('profile_exchange'), service)})"
+		for t, quote in market_data.items()), key=lambda line: re.findall('[A-Z].*', line)) # by name, the flag aside
+	if not lines:
+		return ['Watchlist is empty. Try ".watchlist add SYMBOL" to create it']
+	return [f"Hi {user}, I'm currently tracking:"] + lines
+
+def watchlist_change(service, user, action, asked):
+	"""The reply to adding or removing `asked` (a Yahoo ticker)."""
+	def described(ticker, quote): # "Full Name (TICKER)", bold
+		quote = quote or {}
+		link = util.finance_link(ticker, quote.get('profile_exchange') or ticker, service)
+		return webhook.bold(f"{quote['profile_title']} ({link})" if quote.get('profile_title') else link, service)
 	if action == 'delete':
-		if ticker in watchlist:
-			watchlist.remove(ticker)
-		else:
-			print(ticker, "not in watchlist")
-	if action == 'add':
-		if '.' not in ticker and ticker not in market_data:
-			watchlist.remove(ticker)
-			ticker = ticker + '.AX'
-			transformed = True
-			ticker_link = util.finance_link(ticker, ticker, service)
-			print(ticker_orig, "not found. Trying", ticker)
-			if ticker in watchlist:
-				print(ticker, "already in watchlist")
-				duplicate = True
-			else:
-				watchlist.append(ticker)
-				market_data = yahoo.fetch(watchlist)
-				print("")
-				if ticker in market_data:
-					print("found", ticker)
-				else:
-					watchlist.remove(ticker)
-					print(ticker, "not found")
-		elif ticker not in market_data:
-			watchlist.remove(ticker)
-	def described(): # "Full Name (TICKER)" for the ticker being changed
-		title = ((market_data or {}).get(ticker) or {}).get('profile_title')
-		return webhook.bold(f"{title} ({ticker_link})" if title else ticker_link, service)
-	payload = []
-	if market_data:
-		for item in market_data:
-			flag = util.flag_from_ticker(item)
-			item_link = util.finance_link(item, market_data.get(item).get('profile_exchange'), service)
-			profile_title = market_data[item]['profile_title']
-			if item == ticker and action == 'delete':
-				pass
-			elif item == ticker and action == 'add': # highlight requested item
-				text = webhook.bold(webhook.italic(f"{flag} {profile_title} ({item_link})", service), service)
-				payload.append(text)
-			else:
-				payload.append(f"{flag} {profile_title} ({item_link})")
-	def profile_title_sort(e): # disregards markup in sort command
-		return re.findall('[A-Z].*', e)
-	payload.sort(key=profile_title_sort)
-	if action == 'delete':
-		if not market_data or ticker not in market_data:
-			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker, service) + " to remove it")
-		else:
-			payload.insert(0, f"Ok {user}, I deleted " + described())
-	elif action == 'add':
-		if ticker not in market_data:
-			payload = ["Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " to add it"]
-		elif transformed and duplicate:
-			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " and I'm already tracking " + described())
-		elif transformed:
-			payload.insert(0, "Beep Boop. I could not find " + webhook.bold(ticker_orig, service) + " so I added " + described())
-		elif duplicate:
-			payload.insert(0, f"{user}, I'm already tracking " + described())
-		else:
-			payload.insert(0, f"Ok {user}, I added " + described())
-	elif not action and payload:
-		payload.insert(0, f"Hi {user}, I'm currently tracking:")
-	else:
-		payload.append('Watchlist is empty. Try ".watchlist add SYMBOL" to create it')
-	state.save('finbot_watchlist.json', watchlist)
-	if action in ('add', 'delete'):
-		payload = payload[:1] # confirmation only; don't list the whole watchlist
-	return payload
+		if asked not in watchlist.tickers():
+			return f"Beep Boop. I could not find {webhook.bold(asked, service)} to remove it"
+		quote = yahoo.fetch([asked]).get(asked)
+		watchlist.remove(asked)
+		return f"Ok {user}, I deleted {described(asked, quote)}"
+	found, quote = watchlist.find(asked)
+	if not quote:
+		return f"Beep Boop. I could not find {webhook.bold(asked, service)} to add it"
+	added = watchlist.add(found)
+	if found != asked:
+		done = "so I added" if added else "and I'm already tracking"
+		return f"Beep Boop. I could not find {webhook.bold(asked, service)} {done} {described(found, quote)}"
+	return f"Ok {user}, I added {described(found, quote)}" if added else f"{user}, I'm already tracking {described(found, quote)}"
 
 def prepare_compare(service, args):
 	"""Compare 2-6 tickers as rebased % change. A trailing time period (3m/1y/90d/ytd) is optional;
@@ -508,16 +454,10 @@ MARKET_STATE_EMOJI = {'REGULAR': '🟢', 'PRE': '🟠', 'POST': '🟠'} # any ot
 
 def prepare_profile_payload(service, user, ticker):
 	"""The .SYMBOL report: what Yahoo knows about one company. A field Yahoo did not send leaves its line out."""
-	ticker = ticker_orig = util.transform_to_yahoo(ticker)
+	ticker_orig = util.transform_to_yahoo(ticker)
 	now = datetime.datetime.now()
 	payload = []
-	market_data = yahoo.fetch_detail(ticker, 600)
-	print("")
-	if ticker not in market_data and '.' not in ticker:
-		ticker = ticker + '.AX'
-		print("trying again with", ticker)
-		market_data = yahoo.fetch_detail(ticker, 600)
-		print("")
+	ticker, market_data = yahoo.resolve(ticker_orig, lambda symbol: yahoo.fetch_detail(symbol, 600))
 	if ticker not in market_data:
 		return [f"{user} 🛑 Beep Boop. I could not find {ticker_orig}"]
 	data = market_data[ticker]

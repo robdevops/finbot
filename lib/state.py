@@ -37,11 +37,12 @@ def _lock(name):
 @contextlib.contextmanager
 def edit(name, default):
 	"""Change a state file in place: `with state.edit(name, {}) as data: data[key] = value`. The file is read as the block starts
-	and written when it ends without an error; meanwhile no other edit of the same file runs in this process, so two chats
-	changing it at once both count. Keep slow work, a network call say, outside the block."""
+	(a copy of `default` when there is none yet) and written as the block ends without an error, if the block changed it.
+	Meanwhile no other edit of the same file runs in this process, so two chats changing it at once both count. Keep slow work,
+	a network call say, outside the block."""
 	with _lock(name):
-		data = load(name)
-		if data is None:
-			data = copy.deepcopy(default)
+		data = load(name, copy.deepcopy(default))
+		before = copy.deepcopy(data)
 		yield data
-		save(name, data)
+		if data != before:
+			save(name, data)

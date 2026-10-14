@@ -348,10 +348,10 @@ def on_history(request, m):
 	request.send(caption.split('\n'), image, charts.keyboard('h', [ticker], 'x') if image and request.service == 'telegram' else None)
 
 def on_plan(request, m):
-	plan = state.load('finbot_plan.json') or {}
 	if m.group(1) and not m.group(1).startswith('@'):
-		plan[request.user] = m.group(1)
-		state.save('finbot_plan.json', plan)
+		with state.edit('finbot_plan.json', {}) as plans:
+			plans[request.user] = m.group(1)
+	plan = state.load('finbot_plan.json', {})
 	def who(user): # a Slack user is a mention (<@U123>), which is markup to keep; elsewhere a handle is text
 		user = user.removeprefix('@')
 		return user if request.service == 'slack' else webhook.escape(user, request.service)

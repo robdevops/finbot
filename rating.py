@@ -55,8 +55,7 @@ def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=
 	# MAIN #
 
 	tickers = [util.transform_to_yahoo(specific_stock)] if specific_stock else util.get_holdings_and_watchlist()
-	old = state.load('finbot_rating.json')
-	old = old if isinstance(old, dict) else {} # absent until the first run
+	old = state.load('finbot_rating.json', {})
 	market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
 
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
@@ -64,7 +63,8 @@ def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=
 		webhook.send(service, url, chat, payload)
 
 	if new and not interactive: # added to what is recorded: a ticker missing from this run keeps its last rating
-		state.save('finbot_rating.json', old | new)
+		with state.edit('finbot_rating.json', {}) as ratings:
+			ratings.update(new)
 
 def job(argv):
 	return 'rating.py', {}

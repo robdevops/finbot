@@ -35,7 +35,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   matplotlib rendering.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, cached in `DATA_DIR/cache`.
 - `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
-  change one with `with state.edit(name, default) as data:`, never load-then-save.
+  change one with `with state.edit(name, default) as data:`, never load-then-save. `lib/watchlist.py`: the watchlist.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on each reload).
   `lib/jobs.py` + `lib/jobrun.py`: the scheduler; each run is a child process.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent: `('text', lines)` or

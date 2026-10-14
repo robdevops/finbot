@@ -4,7 +4,7 @@ import datetime
 import re
 from lib import config # first: sets MPLCONFIGDIR before matplotlib is imported (lazily, by the chart functions)
 from lib import sharesight
-from lib import state
+from lib import watchlist
 
 
 TITLE_TRIMS = [ # transform_title: (text, replacement), in order, as each sees what the ones before it made
@@ -768,7 +768,7 @@ def days_from_human_days(arg):
 
 def get_holdings_and_watchlist():
 	tickers = set(sharesight.get_holdings_wrapper())
-	tickers.update(state.load('finbot_watchlist.json', [])) # absent until the first add
+	tickers.update(watchlist.tickers())
 	if 'GOOG' in tickers and 'GOOGL' in tickers:
 		tickers.remove("GOOGL")
 	return sorted(tickers)
