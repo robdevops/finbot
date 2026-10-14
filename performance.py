@@ -5,7 +5,9 @@ import sys
 from lib import config
 from lib import sharesight
 from lib import webhook
-from lib import util
+from lib import formats
+from lib import links
+from lib import render
 from lib import yahoo
 from lib import charts
 
@@ -28,8 +30,8 @@ def benchmark(ticker, market, text, past_days, service):
 	except Exception as e: # the rest of the report still goes out
 		print(ticker, e, file=sys.stderr)
 		return f"⚠️ {text}: no price history", None
-	link = util.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
-	return f"{util.get_emoji(percent)} {link} {util.signed_percent(percent, 2)}", percent
+	link = links.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
+	return f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}", percent
 
 def report(service, past_days=None, portfolio_select=None, interactive=False, performance=None):
 	"""(payload, chart) of the performance report for one service: each portfolio and the benchmarks, best first. performance:
@@ -41,9 +43,9 @@ def report(service, past_days=None, portfolio_select=None, interactive=False, pe
 	lines = [] # (percent, text), sorted into the payload below
 	chart_rows = []
 	for portfolio_id, (name, data) in performance.items(): # the name from the portfolio list: one with no holdings names none
-		link = util.link("https://portfolio.sharesight.com/portfolios/" + str(portfolio_id), name, service)
+		link = links.link("https://portfolio.sharesight.com/portfolios/" + str(portfolio_id), name, service)
 		percent = float(data['report']['capital_gain_percent'])
-		lines.append((percent, f"{util.get_emoji(percent)} {link} {util.signed_percent(percent, 2)}"))
+		lines.append((percent, f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}"))
 		chart_rows.append((name, percent))
 	if not lines:
 		return [], None
@@ -53,12 +55,12 @@ def report(service, past_days=None, portfolio_select=None, interactive=False, pe
 		if percent is not None:
 			chart_rows.append((text, float(percent)))
 	lines.sort(key=lambda item: item[0], reverse=True)
-	period = util.days_english(past_days)
+	period = formats.days_english(past_days)
 	payload = [webhook.bold(f"Performance over {period}", service)] + [line for _, line in lines]
 	graph = None
 	if webhook.takes_charts(service, interactive):
 		chart_rows.sort(key=lambda row: row[1], reverse=True) # best first
-		graph = util.rows_chart(chart_rows, "Performance", f"% change {'' if period == 'today' else 'over '}{period}", value_fmt=lambda v: util.signed_percent(v, 2))
+		graph = render.rows_chart(chart_rows, "Performance", f"% change {'' if period == 'today' else 'over '}{period}", value_fmt=lambda v: formats.signed_percent(v, 2))
 	return payload, graph
 
 def lambda_handler(chat_id=None, past_days=None, service=None, user='', portfolio_select=None, interactive=False):

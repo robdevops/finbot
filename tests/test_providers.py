@@ -588,7 +588,7 @@ class ChartDelivery(FinbotCase):
 		def refuse(*a, **k):
 			raise AssertionError('a chart was drawn for Slack')
 		for name in ('rows_chart', 'pie_chart', 'bar_graph', 'shorts_chart'):
-			self.patch(util, name, refuse)
+			self.patch(render, name, refuse)
 		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/x'})
 		for cmd in ('.beta', '.pie Rob', '.buy', '.sell', '.peg', '.price', '.price top', '.price T1 7d', '.performance 7d', '.shorts', '.history T1', '.compare T1 T2'):
 			with self.subTest(cmd=cmd):
@@ -673,7 +673,7 @@ class DiscordWebhook(FinbotCase):
 		self.assertTrue(all(size <= 2000 for size in sizes), sizes) # 20 lines a chunk used to make 3,019 characters
 
 	def test_links_are_masked_links(self):
-		self.assertEqual(util.link('https://x.example/a(b)', 'T[1]', 'discord'), '[T\\[1\\]](<https://x.example/a%28b%29>)')
+		self.assertEqual(links.link('https://x.example/a(b)', 'T[1]', 'discord'), '[T\\[1\\]](<https://x.example/a%28b%29>)')
 
 
 class SlackSending(FinbotCase):

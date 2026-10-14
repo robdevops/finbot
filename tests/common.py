@@ -10,12 +10,12 @@ os.chdir(ROOT)
 os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok', telegramChatID='1')
 
 import bot # first, and once: it monkey-patches with gevent, which must happen before requests imports ssl and never mid-test
-from lib import cache, config, state, webhook, util, yahoo, sharesight, shortman, worker, charts, telegram, reports, watchlist, words
+from lib import cache, config, state, webhook, formats, links, markets, render, yahoo, sharesight, shortman, worker, charts, telegram, reports, watchlist, words
 import performance, shorts, price, reminder, cal, trades, milestone, rating
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (yahoo, 'price_history'),
 	(sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'))}
-REAL_GET_HOLDINGS = util.get_holdings_and_watchlist
+REAL_GET_HOLDINGS = watchlist.with_holdings
 REAL_PAYLOAD_WRAPPER = webhook.payload_wrapper # FinbotCase replaces it; tests of the real thing use this
 REAL_REPORT_ERROR = webhook.report_error # likewise
 REAL_SEND_PHOTO = webhook.sendPhoto # likewise
@@ -73,7 +73,7 @@ class FinbotCase(unittest.TestCase):
 		self.patch(webhook, 'report_error', lambda e, *a, **k: self.errors.append(webhook.error_line(e, k.get('context'))))
 		self.patch(webhook, 'sendPhoto', lambda chat, img, cap, svc, **k: (self.sent.append(('photo', len(img.read()), cap.split('\n')[0])), self.markups.append(k.get('reply_markup'))))
 		self.patch(webhook, 'payload_wrapper', lambda svc, url, payload, *a, **k: self.sent.append(('text', payload)) or [])
-		self.patch(util, 'get_holdings_and_watchlist', lambda: TICKERS)
+		self.patch(watchlist, 'with_holdings', lambda: TICKERS)
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
 		self.patch(yahoo, 'price_history', lambda t, days=None, **k: ({days: 1.5} if days else {'Max': 5, '1Y': 3}, None))

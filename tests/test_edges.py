@@ -60,7 +60,7 @@ class UpstreamEmpty(FinbotCase):
 		self.assertEqual(typing_when_reported, [[False]]) # its one indicator had stopped when the error line went out
 
 	def test_no_holdings_and_empty_watchlist(self):
-		self.patch(util, 'get_holdings_and_watchlist', lambda: [])
+		self.patch(watchlist, 'with_holdings', lambda: [])
 		for cmd in ('.watchlist', '.price', '.earnings'):
 			with self.subTest(cmd=cmd):
 				self.command(cmd)

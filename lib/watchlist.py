@@ -1,5 +1,6 @@
 """The watchlist: tickers followed beside the Sharesight holdings, in DATA_DIR/finbot_watchlist.json. Every call reads the file,
 so the bot and its scheduled reports (other processes) always see the same list."""
+from lib import sharesight
 from lib import state
 from lib import yahoo
 
@@ -34,3 +35,11 @@ def remove(ticker):
 			return False
 		watched.remove(ticker)
 	return True
+
+
+def with_holdings():
+	"""The watchlist and every Sharesight holding: the tickers the scheduled reports cover, sorted."""
+	followed = set(sharesight.tickers()) | set(tickers())
+	if 'GOOG' in followed and 'GOOGL' in followed:
+		followed.remove("GOOGL")
+	return sorted(followed)

@@ -4,7 +4,9 @@ import sys
 from itertools import groupby
 from lib import state
 from lib import webhook
-from lib import util
+from lib import links
+from lib import markets
+from lib import watchlist
 from lib import yahoo
 
 # BUGS:
@@ -31,8 +33,8 @@ def lambda_handler():
 			except (KeyError, ValueError):
 				continue # likewise: a ticker is recorded only with both of its new values
 			title = market_data[ticker]['profile_title']
-			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-			emoji = util.flag_from_ticker(ticker)
+			ticker_link = links.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+			emoji = markets.flag_from_ticker(ticker)
 			changed[ticker] = {'record_high': max(oldhigh, newhigh), 'record_low': min(oldlow, newlow)} # all-time: a 52-week high below it is no record
 			if newhigh > oldhigh:
 				payloadhigh.append(f"{emoji} {title} ({ticker_link})")
@@ -56,7 +58,7 @@ def lambda_handler():
 
 	# MAIN #
 
-	tickers = util.get_holdings_and_watchlist()
+	tickers = watchlist.with_holdings()
 	market_data = yahoo.fetch(tickers)
 	records, changed = state.load('finbot_milestone.json', {}), {}
 	for service, url, chat in webhook.default_chats():

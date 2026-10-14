@@ -3,7 +3,8 @@ import hashlib
 import json
 import sys
 
-from lib import util
+from lib import formats
+from lib import links
 from lib import state
 from lib import webhook
 from lib import yahoo
@@ -94,7 +95,7 @@ def history_payload(ticker, service, highlight=None, graph=False):
 	the full history's chart with graph=True (if the graph preference is on), else None."""
 	market_data = yahoo.fetch_detail(ticker, 600)
 	title = market_data.get(ticker, {}).get('profile_title', '')
-	ticker_link = util.finance_link(ticker, market_data.get(ticker, {}).get('profile_exchange', ''), service, days=1825, brief=False)
+	ticker_link = links.finance_link(ticker, market_data.get(ticker, {}).get('profile_exchange', ''), service, days=1825, brief=False)
 	if ticker not in market_data or 'percent_change' not in market_data[ticker]:
 		return [f".history: no data found for ticker {ticker}"], None, None
 	table, image = yahoo.price_history(ticker) if graph else yahoo.price_history(ticker, graph=False)
@@ -105,7 +106,7 @@ def history_payload(ticker, service, highlight=None, graph=False):
 			label = webhook.bold(interval + ':', service)
 			if interval == highlight:
 				label = '● ' + label
-			lines.append(f"{util.get_emoji(percent)} {label} {util.signed_percent(percent)}")
+			lines.append(f"{formats.get_emoji(percent)} {label} {formats.signed_percent(percent)}")
 	return lines, table, image
 
 def build(kind, tickers, period, service='telegram'):
@@ -126,8 +127,8 @@ def build(kind, tickers, period, service='telegram'):
 			raise RuntimeError(f"no data found for {ticker}")
 		percent, image = yahoo.price_history(ticker, days, graphCache=False)
 		percent = float(percent.get(days, percent.get('Max', next(iter(percent.values()), 0))))
-		link = util.quote_link(ticker, market_data[ticker]['profile_exchange'], service, days=days)
-		return f"{util.get_emoji(percent)} {market_data[ticker]['profile_title']} ({link}) {util.signed_percent(round(percent))}", image
+		link = links.quote_link(ticker, market_data[ticker]['profile_exchange'], service, days=days)
+		return f"{formats.get_emoji(percent)} {market_data[ticker]['profile_title']} ({link}) {formats.signed_percent(round(percent))}", image
 	if kind == 'c':
 		args = list(tickers) + ([f'{days}d'] if days else ['max'])
 		caption, image, *_ = reports.prepare_compare(service, args)

@@ -21,7 +21,7 @@ from lib import net
 from lib import telegram
 from lib import webhook
 from lib import yahoo
-from lib import util
+from lib import render
 import cleanup
 
 botName = None # the Telegram bot's @username, from telegram.register() at start
@@ -251,7 +251,7 @@ if __name__ == '__main__':
 			sys.exit(1)
 	else:
 		print('Scheduled reports are off (scheduler=False)', file=sys.stderr)
-	util.render_off_hub() # charts drawn in a thread of their own: no chat waits while another's chart is drawn
+	render.render_off_hub() # charts drawn in a thread of their own: no chat waits while another's chart is drawn
 	httpd = pywsgi.WSGIServer((config.env.ip, config.env.port), main)
 	httpd.secure_repr = False if config.prefs.debug else None
 	print(f'Opening socket on http://{config.env.ip}:{config.env.port}', file=sys.stderr)

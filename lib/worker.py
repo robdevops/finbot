@@ -9,7 +9,9 @@ import threading
 from lib import config
 from lib import state
 from lib import words
-from lib import util
+from lib import formats
+from lib import markets
+from lib import render
 from lib import webhook
 from lib import reports
 from lib import charts
@@ -94,7 +96,7 @@ class Request:
 			return
 		spec = dict(chart)
 		rows, title, subtitle = spec.pop('rows'), spec.pop('title'), spec.pop('subtitle', '')
-		image = util.pie_chart(rows, title, subtitle) if spec.pop('pie', False) else util.rows_chart(rows, title, subtitle, **spec)
+		image = render.pie_chart(rows, title, subtitle) if spec.pop('pie', False) else render.rows_chart(rows, title, subtitle, **spec)
 		webhook.sendPhoto(self.chat_id, image, '\n'.join(payload) if payload else title, self.service)
 
 def process_job_callback(service, callback_id, chat_id, message_id, data):
@@ -168,7 +170,7 @@ def period_or_ticker(arg, default):
 	if not arg:
 		return default, None
 	try:
-		return util.days_from_human_days(arg), None
+		return formats.days_from_human_days(arg), None
 	except ValueError:
 		return default, arg.upper()
 
@@ -188,7 +190,7 @@ def period_and_portfolio(text, days):
 	for i in (0, -1):
 		if words:
 			try:
-				days = util.days_from_human_days(words[i])
+				days = formats.days_from_human_days(words[i])
 			except ValueError:
 				continue
 			del words[i]
@@ -263,7 +265,7 @@ def on_price(request, m):
 			threshold = parse_percent(arg)
 		except ValueError:
 			try:
-				days = util.days_from_human_days(arg)
+				days = formats.days_from_human_days(arg)
 			except ValueError:
 				if i == 0 and arg in ('top', 'bottom'): # one chart shows both ends
 					threshold, top = 0, 10
@@ -303,7 +305,7 @@ def on_ratio(kind, negative=False, chart=False):
 		elif negative and 'neg' in arg:
 			action = f'negative {kind}'
 		elif arg and arg != 'top':
-			ticker = util.transform_to_yahoo(arg.upper())
+			ticker = markets.transform_to_yahoo(arg.upper())
 		with request.typing():
 			payload, spec = reports.prepare_value_payload(request.service, action, ticker, length=15)
 		request.deliver(payload, spec if chart else None)
@@ -342,7 +344,7 @@ def on_history(request, m):
 	if not m.group('ticker') or m.group('extra'):
 		request.say(["Usage: .history SYMBOL"])
 		return
-	ticker = util.transform_to_yahoo(m.group('ticker').upper())
+	ticker = markets.transform_to_yahoo(m.group('ticker').upper())
 	with request.typing():
 		caption, image = charts.build('h', [ticker], None, request.service)
 	request.send(caption.split('\n'), image, charts.keyboard('h', [ticker], 'x') if image and request.service == 'telegram' else None)

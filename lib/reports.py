@@ -6,7 +6,10 @@ from lib import config
 from lib import cache
 from lib import watchlist
 from lib import sharesight
-from lib import util
+from lib import formats
+from lib import links
+from lib import markets
+from lib import render
 from lib import webhook
 from lib import yahoo
 from lib import simplywallst
@@ -21,8 +24,8 @@ def last_col(line):
 
 def holding_line(holding, service, text=None):
 	"""'🇦🇺 Title (CODE)' for a Sharesight holding, CODE (or `text`) linking to the holding on Sharesight."""
-	link = util.link(f"https://portfolio.sharesight.com/holdings/{holding['holding_id']}/dashboard", holding['code'] if text is None else text, service)
-	return f"{util.flag_from_market(holding['market_code'])} {util.transform_title(holding['name'])} ({link})"
+	link = links.link(f"https://portfolio.sharesight.com/holdings/{holding['holding_id']}/dashboard", holding['code'] if text is None else text, service)
+	return f"{markets.flag_from_market(holding['market_code'])} {formats.transform_title(holding['name'])} ({link})"
 
 def doDelta(inputList):
 	deltaString = ''
@@ -59,10 +62,10 @@ def doDelta(inputList):
 def prepare_watchlist(service, user, action=None, ticker=None):
 	"""The .watchlist reply: the companies watched, or one line on adding ('add') or removing ('delete') a ticker."""
 	if action:
-		return [watchlist_change(service, user, action, util.transform_to_yahoo(ticker))]
+		return [watchlist_change(service, user, action, markets.transform_to_yahoo(ticker))]
 	watched = watchlist.tickers()
 	market_data = yahoo.fetch(watched) if watched else {}
-	lines = sorted((f"{util.flag_from_ticker(t)} {quote['profile_title']} ({util.finance_link(t, quote.get('profile_exchange'), service)})"
+	lines = sorted((f"{markets.flag_from_ticker(t)} {quote['profile_title']} ({links.finance_link(t, quote.get('profile_exchange'), service)})"
 		for t, quote in market_data.items()), key=lambda line: re.findall('[A-Z].*', line)) # by name, the flag aside
 	if not lines:
 		return ['Watchlist is empty. Try ".watchlist add SYMBOL" to create it']
@@ -72,7 +75,7 @@ def watchlist_change(service, user, action, asked):
 	"""The reply to adding or removing `asked` (a Yahoo ticker)."""
 	def described(ticker, quote): # "Full Name (TICKER)", bold
 		quote = quote or {}
-		link = util.finance_link(ticker, quote.get('profile_exchange') or ticker, service)
+		link = links.finance_link(ticker, quote.get('profile_exchange') or ticker, service)
 		return webhook.bold(f"{quote['profile_title']} ({link})" if quote.get('profile_title') else link, service)
 	if action == 'delete':
 		if asked not in watchlist.tickers():
@@ -103,11 +106,11 @@ def prepare_compare(service, args):
 			args.pop()
 		else:
 			try:
-				period_days = util.days_from_human_days(args[-1])
+				period_days = formats.days_from_human_days(args[-1])
 				args.pop()
 			except ValueError:
 				pass
-	tickers = list(dict.fromkeys(util.transform_to_yahoo(a.upper()) for a in args)) # de-duplicated, order kept
+	tickers = list(dict.fromkeys(markets.transform_to_yahoo(a.upper()) for a in args)) # de-duplicated, order kept
 	if not 2 <= len(tickers) <= 6:
 		return usage, None, tickers, period_days
 	spec = period_days or ('max' if full_history else 'default')
@@ -146,17 +149,17 @@ def prepare_compare(service, args):
 	if any(len(series) < 2 for _, series in cropped):
 		raise RuntimeError("not enough price history in that period to compare")
 	span_days = (datetime.datetime.now().date() - start.date()).days
-	period_label = util.days_english(period_days) if period_days and not note else f"{span_days} days"
+	period_label = formats.days_english(period_days) if period_days and not note else f"{span_days} days"
 	by_performance = sorted(cropped, key=lambda item: item[1].iloc[-1] / item[1].iloc[0], reverse=True)
 	title = ' vs '.join(t.split('.')[0] for t, _ in by_performance) # best first; line colours stay tied to input order
 	subtitle = f"% change over {period_label}, since {start:%d %b %Y}" + note
-	image = util.compare_graph([(t.split('.')[0], series) for t, series in cropped], title, subtitle)
+	image = render.compare_graph([(t.split('.')[0], series) for t, series in cropped], title, subtitle)
 	image.seek(0)
 	caption = [webhook.bold(f"{period_label}, since {start:%d %b %Y}", service) + note]
 	results = sorted(((series.iloc[-1] / series.iloc[0] - 1) * 100, t) for t, series in cropped)
 	for pct, t in reversed(results):
-		link = util.finance_link(t, exchanges[t], service, days=span_days, brief=False)
-		caption.append(f"{util.get_emoji(pct)} {names[t]} ({link}): {pct:+,.1f}%")
+		link = links.finance_link(t, exchanges[t], service, days=span_days, brief=False)
+		caption.append(f"{formats.get_emoji(pct)} {names[t]} ({link}): {pct:+,.1f}%")
 	if config.prefs.cache:
 		cache.write_bytes(image_cache_file, image)
 		cache.write(caption_cache_file, caption)
@@ -245,7 +248,7 @@ def prepare_help(service, botName):
 	else:
 		payload.append(botName + ' price')
 	payload.append("")
-	payload.append(f"Full help on {util.link('https://github.com/robdevops/finbot', 'GitHub', service)}")
+	payload.append(f"Full help on {links.link('https://github.com/robdevops/finbot', 'GitHub', service)}")
 	return payload
 
 def prepare_holdings_payload(portfolio_name, service):
@@ -307,23 +310,23 @@ def prepare_marketcap_payload(service, action='top', length=15):
 	"""The `length` tracked stocks of largest (action 'top') or smallest ('bottom') market cap, compared in US dollars at Yahoo's
 	exchange rates: a market cap in won or yen is a far bigger number. Any other action is one ticker's, in its own currency too."""
 	if action not in ('top', 'bottom'):
-		ticker = util.transform_to_yahoo(action.upper())
+		ticker = markets.transform_to_yahoo(action.upper())
 		data = yahoo.add_usd_market_caps(yahoo.fetch_detail(ticker, 600)).get(ticker, {})
 		if 'market_cap' not in data:
 			return [f"Mkt cap not found for {ticker}"]
 		currency = yahoo.market_cap_currency(data) or ''
-		cap = f"{currency} {util.humanUnits(data['market_cap'])}".strip()
+		cap = f"{currency} {formats.humanUnits(data['market_cap'])}".strip()
 		if currency != 'USD' and 'market_cap_usd' in data:
-			cap += f" (USD {util.humanUnits(data['market_cap_usd'])})"
-		link = util.finance_link(ticker, data.get('profile_exchange', ''), service)
-		return [util.security_line(util.flag_from_ticker(ticker), data.get('profile_title', ticker), link) + f" mkt cap: {cap}"]
+			cap += f" (USD {formats.humanUnits(data['market_cap_usd'])})"
+		link = links.finance_link(ticker, data.get('profile_exchange', ''), service)
+		return [formats.security_line(markets.flag_from_ticker(ticker), data.get('profile_title', ticker), link) + f" mkt cap: {cap}"]
 	caps = [] # (market cap in US dollars, line)
-	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch(util.get_holdings_and_watchlist())).items():
+	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch(watchlist.with_holdings())).items():
 		if 'market_cap_usd' not in data:
 			print(ticker, "no market cap" if 'market_cap' not in data else f"no exchange rate for {data.get('currency')}", file=sys.stderr)
 			continue
-		link = util.finance_link(ticker, data['profile_exchange'], service)
-		caps.append((data['market_cap_usd'], util.security_line(util.flag_from_ticker(ticker), data['profile_title'], link) + f" mkt cap: {util.humanUnits(data['market_cap_usd'])}"))
+		link = links.finance_link(ticker, data['profile_exchange'], service)
+		caps.append((data['market_cap_usd'], formats.security_line(markets.flag_from_ticker(ticker), data['profile_title'], link) + f" mkt cap: {formats.humanUnits(data['market_cap_usd'])}"))
 	if not caps:
 		return ['No market cap data found']
 	caps.sort(key=lambda cap: cap[0], reverse=action == 'top')
@@ -334,14 +337,14 @@ def prepare_rating_payload(service, action, length=15):
 	and the consensus says little: ASX small caps covered by two to six brokers are nearly all a perfect 1.0 buy), the strongest
 	rating first (1 is a strong buy, 5 a strong sell); on equal ratings, the one more analysts give first."""
 	found = [] # (rating, analysts, line, ticker)
-	for ticker, data in yahoo.fetch_details(util.get_holdings_and_watchlist()).items():
+	for ticker, data in yahoo.fetch_details(watchlist.with_holdings()).items():
 		if 'recommend' not in data or data['recommend_analysts'] < config.prefs.min_analysts:
 			continue
 		recommend = data['recommend'].replace('_', ' ')
 		if (action == 'buy' and 'buy' in recommend) or (action == 'sell' and recommend in ('sell', 'underperform')):
 			rating, analysts = round(data['recommend_index'], 2), data['recommend_analysts']
-			link = util.finance_link(ticker, data['profile_exchange'], service)
-			found.append((rating, analysts, f"{util.flag_from_ticker(ticker)} {data['profile_title']} ({link}) {rating} ({analysts} analysts)", ticker))
+			link = links.finance_link(ticker, data['profile_exchange'], service)
+			found.append((rating, analysts, f"{markets.flag_from_ticker(ticker)} {data['profile_title']} ({link}) {rating} ({analysts} analysts)", ticker))
 	found = sorted(found, key=lambda row: (row[0] if action == 'buy' else -row[0], -row[1]))[:length]
 	payload = [line for _, _, line, _ in found]
 	if not payload:
@@ -360,7 +363,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 	take only stocks that min_analysts or more analysts cover, as .buy does."""
 	payload = []
 	chart_rows = [] # (ticker, ratio)
-	tickers = [ticker_select] if ticker_select else util.get_holdings_and_watchlist()
+	tickers = [ticker_select] if ticker_select else watchlist.with_holdings()
 	market_data = yahoo.fetch(tickers)
 	if action in ('peg', 'bottom peg', 'negative peg'): # the PEG is in Yahoo's details
 		market_data |= yahoo.fetch_details(market_data, strict=bool(ticker_select))
@@ -403,8 +406,8 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 		if ratio is None:
 			continue
 		profile_title = market_data.get(ticker).get('profile_title')
-		ticker_link = util.finance_link(ticker, market_data.get(ticker).get('profile_exchange'), service)
-		flag = util.flag_from_ticker(ticker)
+		ticker_link = links.finance_link(ticker, market_data.get(ticker).get('profile_exchange'), service)
+		flag = markets.flag_from_ticker(ticker)
 		if ticker_select and action in {'pe', 'forward pe'}:
 			parts = []
 			if trailing_ratio is not None:
@@ -437,13 +440,13 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 def prepare_beta_payload(service):
 	"""(payload, chart) of the tracked stocks with a beta over 1.5 and a market cap under US$2B, the highest beta first."""
 	found = [] # (beta, line, chart row)
-	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch_details(util.get_holdings_and_watchlist())).items():
+	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch_details(watchlist.with_holdings())).items():
 		if 'beta' not in data:
 			continue
 		beta = round(data['beta'], 1)
 		if beta > 1.5 and data.get('market_cap_usd', float('inf')) < 2e9:
-			link = util.finance_link(ticker, data['profile_exchange'], service)
-			found.append((beta, util.security_line(util.flag_from_ticker(ticker), data['profile_title'], link) + f" {beta} β", (ticker.split('.')[0], float(beta))))
+			link = links.finance_link(ticker, data['profile_exchange'], service)
+			found.append((beta, formats.security_line(markets.flag_from_ticker(ticker), data['profile_title'], link) + f" {beta} β", (ticker.split('.')[0], float(beta))))
 	if not found:
 		return ['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None
 	found.sort(key=lambda row: row[0], reverse=True)
@@ -455,7 +458,7 @@ MARKET_STATE_EMOJI = {'REGULAR': '🟢', 'PRE': '🟠', 'POST': '🟠'} # any ot
 
 def prepare_profile_payload(service, user, ticker):
 	"""The .SYMBOL report: what Yahoo knows about one company. A field Yahoo did not send leaves its line out."""
-	ticker_orig = util.transform_to_yahoo(ticker)
+	ticker_orig = markets.transform_to_yahoo(ticker)
 	now = datetime.datetime.now()
 	payload = []
 	ticker, market_data = yahoo.resolve(ticker_orig, lambda symbol: yahoo.fetch_detail(symbol, 600))
@@ -467,12 +470,12 @@ def prepare_profile_payload(service, user, ticker):
 	state = data.get('marketState', '').rstrip()
 	currency = data.get('currency', '')
 	exchange = data.get('profile_exchange', '').replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq').replace('NYSEArca', 'NYSE')
-	ticker_link = util.finance_link(ticker, exchange, service, brief=False)
-	gfinance_link = util.gfinance_link(ticker, exchange, service, brief=True, text='google') # all three before exchange is renamed below
-	sws_link = util.link(simplywallst.get_url(ticker, title, exchange), 'simplywall.st', service)
-	macrotrends_link = util.link('https://www.google.com/search?q=site:macrotrends.net+' + title + '+PE Ratio+' + code + '&btnI', 'macrotrends', service)
+	ticker_link = links.finance_link(ticker, exchange, service, brief=False)
+	gfinance_link = links.gfinance_link(ticker, exchange, service, brief=True, text='google') # all three before exchange is renamed below
+	sws_link = links.link(simplywallst.get_url(ticker, title, exchange), 'simplywall.st', service)
+	macrotrends_link = links.link('https://www.google.com/search?q=site:macrotrends.net+' + title + '+PE Ratio+' + code + '&btnI', 'macrotrends', service)
 	if 'profile_bio' in data:
-		payload.append(util.make_paragraphs(data['profile_bio']))
+		payload.append(formats.make_paragraphs(data['profile_bio']))
 
 	if exchange == 'ASX':
 		exchange_url = 'https://www2.asx.com.au/markets/company/' + code
@@ -490,7 +493,7 @@ def prepare_profile_payload(service, user, ticker):
 		exchange_url = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + code
 	else:
 		exchange_url = 'https://www.google.com/search?q=stock+exchange+' + exchange + '+' + code + '&btnI'
-	exchange_link = util.link(exchange_url, exchange, service)
+	exchange_link = links.link(exchange_url, exchange, service)
 	location = [data[key] for key in ('profile_city', 'profile_state', 'profile_country') if key in data]
 	if payload:
 		payload.append("")
@@ -502,19 +505,19 @@ def prepare_profile_payload(service, user, ticker):
 	if 'profile_employees' in data:
 		payload.append(webhook.bold("Employees: ", service) + f"{data['profile_employees']:,}")
 	if 'profile_website' in data:
-		links = [util.link(data['profile_website'], util.strip_url(data['profile_website']), service), exchange_link]
+		sites = [links.link(data['profile_website'], formats.strip_url(data['profile_website']), service), exchange_link]
 		if 'NYSE' in exchange or 'Nasdaq' in exchange:
-			links += [util.link('https://finviz.com/quote.ashx?t=' + ticker, 'finviz', service), macrotrends_link,
-				util.link('https://seekingalpha.com/symbol/' + ticker, 'seekingalpha', service)]
+			sites += [links.link('https://finviz.com/quote.ashx?t=' + ticker, 'finviz', service), macrotrends_link,
+				links.link('https://seekingalpha.com/symbol/' + ticker, 'seekingalpha', service)]
 		elif exchange == 'ASX':
-			links.append(util.link('https://www.shortman.com.au/stock?q=' + code.lower(), 'shortman', service))
-		payload.append(webhook.bold("Links: ", service) + ' | '.join(links))
+			sites.append(links.link('https://www.shortman.com.au/stock?q=' + code.lower(), 'shortman', service))
+		payload.append(webhook.bold("Links: ", service) + ' | '.join(sites))
 
 	if payload:
 		payload.append("")
 
 	if 'currency' in data and 'market_cap' in data:
-		payload.append(webhook.bold("Mkt cap:", service) + f" {yahoo.market_cap_currency(data)} {util.humanUnits(data['market_cap'])}") # GBP, not pence
+		payload.append(webhook.bold("Mkt cap:", service) + f" {yahoo.market_cap_currency(data)} {formats.humanUnits(data['market_cap'])}") # GBP, not pence
 	if all(key in data for key in ('shareholder_equity', 'total_debt', 'total_cash', 'profile_industry')) and data['shareholder_equity'] and 'Bank' not in data['profile_industry']:
 		net_debt_equity_ratio = round((data['total_debt'] - data['total_cash']) / data['shareholder_equity'] * 100)
 		if net_debt_equity_ratio > 0:
@@ -554,9 +557,9 @@ def prepare_profile_payload(service, user, ticker):
 			payload.append(webhook.bold(label, service) + (f" +{growth}% " if growth > 0 else f" {growth}% ⚠️ "))
 	if 'insiderBuy' in data:
 		if data['insiderBuy'] > data['insiderSell']:
-			payload.append(webhook.bold("Net insider action (3M):", service) + f" Buy {currency} {util.humanUnits(data['insiderBuyValue'])} ")
+			payload.append(webhook.bold("Net insider action (3M):", service) + f" Buy {currency} {formats.humanUnits(data['insiderBuyValue'])} ")
 		elif data['insiderBuy'] < data['insiderSell']:
-			payload.append(webhook.bold("Net insider action (3M):", service) + f" Sell {currency} {util.humanUnits(data['insiderSellValue'])}⚠️ ")
+			payload.append(webhook.bold("Net insider action (3M):", service) + f" Sell {currency} {formats.humanUnits(data['insiderSellValue'])}⚠️ ")
 	if 'short_percent' in data:
 		payload.append(webhook.bold("Shorted stock:", service) + f" {data['short_percent']}%" + ('⚠️ ' if data['short_percent'] > 10 else ''))
 	if 'recommend' in data:
@@ -600,17 +603,17 @@ def prepare_profile_payload(service, user, ticker):
 	for interval in ('5Y', '1Y', '1M', '1D'):
 		if interval in price_history:
 			percent = price_history[interval]
-			payload.append(f"{util.get_emoji(percent)} {webhook.bold(interval + ':', service)} {percent}%")
+			payload.append(f"{formats.get_emoji(percent)} {webhook.bold(interval + ':', service)} {percent}%")
 	if state != 'REGULAR':
 		for key, label in (('percent_change_premarket', 'Pre-market:'), ('percent_change_postmarket', 'Post-market:')):
 			if key in data:
-				payload.append(f"{util.get_emoji(data[key])} {webhook.bold(label, service)} {data[key]:,}%")
+				payload.append(f"{formats.get_emoji(data[key])} {webhook.bold(label, service)} {data[key]:,}%")
 				break
 
 	if 'profile_website' in data and config.prefs.hyperlinkFooter and config.prefs.hyperlink:
 		if payload:
 			payload.append("")
-		payload.append(f"{gfinance_link} | {util.yahoo_link(ticker, service, brief=True, text='yahoo')} | {sws_link}")
+		payload.append(f"{gfinance_link} | {links.yahoo_link(ticker, service, brief=True, text='yahoo')} | {sws_link}")
 	heading = f"{webhook.bold(title, service)} ({ticker_link}) {MARKET_STATE_EMOJI.get(state, '🔴') if state else ''}"
 	if ticker_orig == ticker:
 		payload.insert(0, heading)

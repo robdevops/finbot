@@ -5,7 +5,7 @@ from unittest import mock
 from lib import config
 from util import check_config, split_env
 import bot, cal
-from lib import cache, reports, sharesight, util, worker, yahoo
+from lib import cache, reports, sharesight, worker, yahoo
 import performance, price, shorts, trades
 
 REPO = Path(config.__file__).resolve().parent.parent

@@ -6,14 +6,18 @@ import datetime
 from lib import config
 from lib import sharesight
 from lib import webhook
-from lib import util
+from lib import formats
+from lib import links
+from lib import markets
+from lib import render
+from lib import watchlist
 from lib import yahoo
 from lib import charts
 
 def gather(specific_stock=None, days=None):
 	"""(tickers, market data) for a price report: Yahoo's quotes; over `days` each holding's Sharesight figure, and for the tickers
 	Sharesight has none for (the watchlist) their Yahoo history, fetched together up front."""
-	tickers = [util.transform_to_yahoo(specific_stock)] if specific_stock else util.get_holdings_and_watchlist()
+	tickers = [markets.transform_to_yahoo(specific_stock)] if specific_stock else watchlist.with_holdings()
 	market_data = yahoo.fetch(tickers)
 	if config.prefs.demote_volatile: # trigger_bar compares market caps, in US dollars
 		yahoo.add_usd_market_caps(market_data)
@@ -21,7 +25,7 @@ def gather(specific_stock=None, days=None):
 	if days and (not specific_stock or config.prefs.performance_use_sharesight):
 		for portfolio in sharesight.portfolios():
 			for holding in portfolio.performance(days)['report']['holdings']:
-				ticker = util.transform_to_yahoo(holding['instrument']['code'], holding['instrument']['market_code'])
+				ticker = markets.transform_to_yahoo(holding['instrument']['code'], holding['instrument']['market_code'])
 				if ticker in market_data:
 					market_data[ticker]['percent_change_period'] = float(holding['capital_gain_percent'])
 				elif ticker in tickers:
@@ -102,19 +106,19 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 		percent = float(percent)
 		if abs(percent) >= threshold or (specific_stock and interactive):
 			exchange = quote['profile_exchange']
-			exchanges.add(util.exchange_human(exchange))
-			rows.append((ticker, percent, f"{util.get_emoji(percent)} {quote['profile_title']} ({util.quote_link(ticker, exchange, service, days=days)})"))
+			exchanges.add(markets.exchange_human(exchange))
+			rows.append((ticker, percent, f"{formats.get_emoji(percent)} {quote['profile_title']} ({links.quote_link(ticker, exchange, service, days=days)})"))
 	if not triggered: # a scheduled report: is there a move big enough for its ticker? Small caps' betas are fetched together
 		details = yahoo.fetch_details([ticker for ticker, _, _ in rows if needs_beta(market_data[ticker])])
 		if not any(abs(percent) >= trigger_bar(ticker, market_data[ticker], threshold, details) for ticker, percent, _ in rows):
 			rows = []
 	rows.sort(key=lambda row: row[1], reverse=True)
-	payload = [f"{line} {util.signed_percent(round(percent))}" for _, percent, line in rows]
+	payload = [f"{line} {formats.signed_percent(round(percent))}" for _, percent, line in rows]
 	chart_rows = [(ticker, percent) for ticker, percent, _ in rows]
 	label = lambda chart_rows: [(ticker.split('.')[0].removesuffix('-USD'), percent) for ticker, percent in chart_rows]
 	if payload and not specific_stock:
 		as_of = latest or datetime.date.today()
-		on = util.date_short(as_of, True)
+		on = formats.date_short(as_of, True)
 		where = ", ".join(exchanges)
 		if midsession:
 			heading = f'≥ {threshold:g}% mid-session, {on} ({where})'
@@ -123,9 +127,9 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 		elif close:
 			heading = f'≥ {threshold:g}% at close, {on} ({where})'
 		elif top:
-			heading = f'Top {top} performers {util.date_range_english(days, as_of) if days else on}'
+			heading = f'Top {top} performers {formats.date_range_english(days, as_of) if days else on}'
 		elif days:
-			heading = f'Price movement {threshold:g}%, {util.date_range_english(days, as_of)}'
+			heading = f'Price movement {threshold:g}%, {formats.date_range_english(days, as_of)}'
 		else:
 			heading = f'{threshold:g}% at close, {on}'
 		chartable = webhook.takes_charts(service, interactive)
@@ -135,11 +139,11 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 			chart_top = chart_rows[:top]
 			chart_bottom = [row for row in reversed(chart_rows[-top:]) if row not in chart_top] # worst first
 			if chartable and chart_top:
-				graph = util.bar_graph(label(chart_top), label(chart_bottom), f"Top & bottom {top}", f"% change {util.days_english(days, 'in ', 'the past ')}")
+				graph = render.bar_graph(label(chart_top), label(chart_bottom), f"Top & bottom {top}", f"% change {formats.days_english(days, 'in ', 'the past ')}")
 		else:
 			payload.insert(0, webhook.bold(heading, service))
 			if chartable:
-				graph = util.rows_chart(label(chart_rows), heading, session='midsession' if midsession else 'premarket' if premarket else None)
+				graph = render.rows_chart(label(chart_rows), heading, session='midsession' if midsession else 'premarket' if premarket else None)
 	elif not payload and interactive:
 		if specific_stock:
 			if midsession:

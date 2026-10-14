@@ -9,7 +9,8 @@ import sys
 from lib import config
 from lib import cache
 from lib import net
-from lib import util
+from lib import formats
+from lib import render
 from http.cookies import SimpleCookie
 from pathlib import Path
 
@@ -164,7 +165,7 @@ def fetch(tickers):
 		title = next((name for name in (item.get('longName'), item.get('shortName')) if isinstance(name, str) and name), None)
 		if not title or item.get('regularMarketPrice') is None:
 			continue
-		quote = {'profile_title': util.transform_title(title), 'ticker': item['symbol'], 'regularMarketPrice': item['regularMarketPrice'],
+		quote = {'profile_title': formats.transform_title(title), 'ticker': item['symbol'], 'regularMarketPrice': item['regularMarketPrice'],
 			'currency': item.get('currency'), 'percent_change': 0.0, 'dividend': 0.0}
 		for key, field, convert in QUOTE_FIELDS:
 			if (value := _convert(convert, item.get(field))) is not None:
@@ -252,7 +253,7 @@ def fetch_detail(ticker, seconds=None):
 	if not title: # catches some delisted stocks like "DUB"
 		print(f"{ticker}†", sep=' ', end='', flush=True, file=sys.stderr)
 		return {}
-	detail = {'profile_title': util.transform_title(title)}
+	detail = {'profile_title': formats.transform_title(title)}
 	for key, path, *convert in DETAIL_FIELDS:
 		if (value := _convert(convert[0] if convert else None, dig(result, *path))) is not None:
 			detail[key] = value
@@ -354,16 +355,16 @@ def price_history(ticker, days=None, seconds=None, graph=None, graphCache=True):
 			percent_dict[period] = round((price - past_price) / past_price * 100)
 	if not graph or (days and days < 2):
 		return percent_dict, None
-	company_name = util.transform_title(stock.get('longName', ''))
+	company_name = formats.transform_title(stock.get('longName', ''))
 	if days:
-		title = f"{company_name} ({ticker}) {min(days, max_days)} days {util.signed_percent(percent_dict[days])} Last: {price}"
+		title = f"{company_name} ({ticker}) {min(days, max_days)} days {formats.signed_percent(percent_dict[days])} Last: {price}"
 	else:
 		label = "Max" if "Max" in percent_dict else "10Y"
-		title = f"{company_name} ({ticker}) {label} {util.signed_percent(percent_dict[label])} Last: {price}"
+		title = f"{company_name} ({ticker}) {label} {formats.signed_percent(percent_dict[label])} Last: {price}"
 	image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
 	if config.prefs.cache and graphCache and (image := cache.read_bytes(image_cache_file, seconds)):
 		return percent_dict, image
-	image = util.graph(df, title, stock.get('currency'))
+	image = render.graph(df, title, stock.get('currency'))
 	if config.prefs.cache:
 		cache.write_bytes(image_cache_file, image)
 	return percent_dict, image
@@ -379,7 +380,7 @@ def price_series(ticker):
 	if df.empty:
 		raise RuntimeError(f"no price history for {ticker}")
 	series = pd.Series(df['Close'].astype(float).values, index=pd.to_datetime(df['Date'].astype(str)), name=ticker)
-	name = util.transform_title(stock.get('longName') or stock.get('shortName') or ticker)
+	name = formats.transform_title(stock.get('longName') or stock.get('shortName') or ticker)
 	return name, stock.get('fullExchangeName') or stock.get('exchangeName') or '', series
 
 def fetch_each(get, tickers, workers=8):

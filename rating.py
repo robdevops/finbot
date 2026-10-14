@@ -3,7 +3,9 @@
 import sys
 from lib import webhook
 from lib import state
-from lib import util
+from lib import links
+from lib import markets
+from lib import watchlist
 from lib import yahoo
 
 def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=False):
@@ -28,7 +30,7 @@ def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=
 			except (KeyError, ValueError):
 				continue
 			title = market_data[ticker]['profile_title']
-			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
+			ticker_link = links.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
 			new[ticker] = [action, index]
 			try:
 				old_action, old_index = old[ticker]
@@ -54,7 +56,7 @@ def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=
 
 	# MAIN #
 
-	tickers = [util.transform_to_yahoo(specific_stock)] if specific_stock else util.get_holdings_and_watchlist()
+	tickers = [markets.transform_to_yahoo(specific_stock)] if specific_stock else watchlist.with_holdings()
 	old = state.load('finbot_rating.json', {})
 	market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
 

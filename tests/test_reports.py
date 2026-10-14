@@ -81,7 +81,7 @@ class ReportFunctions(FinbotCase):
 		fewer than 7 analysts and the stock is left out (T7, T8: the ASX small caps that are always a perfect 1.0)."""
 		ratings = {'T1': ('buy', 1.5, 7), 'T2': ('strong_buy', 1.2, 12), 'T3': ('buy', 1.5, 9), 'T7': ('strong_buy', 1.0, 6),
 				   'T4': ('sell', 4.2, 7), 'T5': ('underperform', 4.6, 10), 'T6': ('sell', 4.2, 8), 'T8': ('strong_buy', 1.0, 2)}
-		self.patch(util, 'get_holdings_and_watchlist', lambda: list(ratings))
+		self.patch(watchlist, 'with_holdings', lambda: list(ratings))
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | dict(zip(('recommend', 'recommend_index', 'recommend_analysts'), ratings[t]))})
 		def order(action):
 			payload, chart = reports.prepare_rating_payload('telegram', action)
@@ -89,7 +89,7 @@ class ReportFunctions(FinbotCase):
 		self.assertEqual(order('buy'), (['T2', 'T3', 'T1'], ['T2', 'T3', 'T1']))
 		self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
 		self.assertIn('(7+ analysts)', reports.prepare_rating_payload('telegram', 'buy')[0][0])
-		self.patch(util, 'get_holdings_and_watchlist', lambda: ['T7', 'T8'])
+		self.patch(watchlist, 'with_holdings', lambda: ['T7', 'T8'])
 		self.assertEqual(reports.prepare_rating_payload('telegram', 'buy'), (['No tracked stocks rated buy by 7+ analysts'], None))
 
 	def test_a_small_cap_quoted_in_won_needs_the_bigger_move_too(self):
@@ -116,7 +116,7 @@ class ReportFunctions(FinbotCase):
 	def test_forward_pe_lists_need_as_many_analysts_as_buy(self):
 		"""A forward P/E is analysts' estimate: with few of them it says little, as a perfect 1.0 buy from two brokers does."""
 		analysts = {'T1': 7, 'T2': 6, 'T3': 12, 'T4': 2}
-		self.patch(util, 'get_holdings_and_watchlist', lambda: list(analysts))
+		self.patch(watchlist, 'with_holdings', lambda: list(analysts))
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': -5 if t == 'T3' else 20} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
 		def listed(action):
@@ -140,7 +140,7 @@ class ReportFunctions(FinbotCase):
 					for t in tickers if t in fx or t in stocks}
 		self.patch(yahoo, 'fetch', fetch)
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: fetch([t]))
-		self.patch(util, 'get_holdings_and_watchlist', lambda: list(stocks))
+		self.patch(watchlist, 'with_holdings', lambda: list(stocks))
 		payload = reports.prepare_marketcap_payload('telegram')
 		self.assertIn('by market cap (USD)', payload[0])
 		self.assertEqual([line.split('Co ')[1].split(' ')[0] for line in payload[1:]], ['U1', 'K1.KS', 'L1.L', 'K2.KS']) # Z1: no rate, left out
@@ -425,7 +425,7 @@ class PieCommand(FinbotCase):
 		payload, chart = reports.prepare_pie('Rob', 'industry', 'telegram')
 		self.assertEqual(len(chart['rows']), 8)
 		self.assertEqual(chart['rows'][-1][0], 'Other')
-		self.assertTrue(util.pie_chart(chart['rows'], chart['title'], chart['subtitle']).read().startswith(b'\x89PNG'))
+		self.assertTrue(render.pie_chart(chart['rows'], chart['title'], chart['subtitle']).read().startswith(b'\x89PNG'))
 
 	def test_unknown_or_missing_portfolio_lists_known(self):
 		for text, first in (('.pie', '.pie: please try again'), ('.pie Nope', 'Nope portfolio not found')):

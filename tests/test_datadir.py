@@ -39,9 +39,9 @@ class DataDirTests(FinbotCase):
 			self.assertEqual(run(STATE_DIRECTORY='/x/y', DATA_DIR=d)[0], d) # DATA_DIR wins
 			self.assertEqual(run(DATA_DIR=d, MPLCONFIGDIR='/custom')[2], '/custom') # explicit value kept
 
-	def test_util_import_sets_mplconfigdir_without_home(self):
+	def test_render_import_sets_mplconfigdir_without_home(self):
 		e = {k: v for k, v in os.environ.items() if k not in ('MPLCONFIGDIR', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'HOME')}
-		code = "import os; from lib import util; import matplotlib.dates; print(os.environ['MPLCONFIGDIR'])" # util loads matplotlib lazily
+		code = "import os; from lib import render; import matplotlib.dates; print(os.environ['MPLCONFIGDIR'])" # render loads matplotlib lazily
 		with tempfile.TemporaryDirectory() as d:
 			out = subprocess.run([sys.executable, '-c', code], cwd=REPO, env=dict(e, DATA_DIR=d), capture_output=True, text=True, check=True).stdout.strip()
 			self.assertEqual(out.split()[-1], d + '/cache/matplotlib')

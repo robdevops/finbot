@@ -8,7 +8,9 @@ from lib import state
 from lib import words
 from lib import sharesight
 from lib import webhook
-from lib import util
+from lib import formats
+from lib import links
+from lib import markets
 from lib import yahoo
 
 def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_select=None, interactive=False):
@@ -32,7 +34,7 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 			return []
 		market_data = {}
 		if config.prefs.trades_use_yahoo:
-			tickers = {util.transform_to_yahoo(trade['symbol'], trade['market']) for trade in wanted} # one yahoo.fetch for all
+			tickers = {markets.transform_to_yahoo(trade['symbol'], trade['market']) for trade in wanted} # one yahoo.fetch for all
 			try:
 				print("Fetching tickers from Yahoo: ", tickers, file=sys.stderr)
 				market_data = yahoo.fetch(tickers)
@@ -50,7 +52,7 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 			price = float(trade['price'])
 			currency = trade['brokerage_currency_code']
 			if config.prefs.trades_use_yahoo:
-				ticker = util.transform_to_yahoo(symbol, market)
+				ticker = markets.transform_to_yahoo(symbol, market)
 				try:
 					market = market_data[ticker]['profile_exchange']
 				except Exception as e:
@@ -62,15 +64,15 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 			newtrades.add(trade_id) # recorded by the main body once the report is out
 			dates.add(dt_date)
 
-			flag = util.flag_from_market(market)
+			flag = markets.flag_from_market(market)
 			# lookup currency or fall back to less reliable sharesight currency
-			currency_temp = util.currency_from_market(market)
+			currency_temp = markets.currency_from_market(market)
 			if currency_temp:
 				currency = currency_temp
 			sharesight_url = "https://portfolio.sharesight.com/holdings/"
 			trade_url = sharesight_url + holding_id + '/dashboard/transactions'
-			trade_link = util.link(trade_url, action, service)
-			holding_link = util.finance_link(symbol, market, service)
+			trade_link = links.link(trade_url, action, service)
+			holding_link = links.finance_link(symbol, market, service)
 			payload_staging.append([dt_date, trade_id, emoji, portfolio_name, trade_link, currency, f'{value}', holding_link, flag])
 
 		payload = []
@@ -94,7 +96,7 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		payload = prepare_trade_payload(service, trades)
 		if interactive and not payload: # no trades, or none of them a buy or a sell
-			payload = [f"{user} No trades {util.days_english(days, 'in the past ')}. {random.choice(words.noTradesVerb)}"]
+			payload = [f"{user} No trades {formats.days_english(days, 'in the past ')}. {random.choice(words.noTradesVerb)}"]
 		webhook.send(service, url, chat, payload)
 
 	if newtrades and not interactive:

@@ -5,7 +5,10 @@ import sys
 
 from lib import config
 from lib import telegram
-from lib import util
+from lib import formats
+from lib import links
+from lib import markets
+from lib import watchlist
 from lib import webhook
 from lib import yahoo
 
@@ -37,15 +40,15 @@ def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, i
 					ticker_primary = ticker.replace('.AX', '.NZ') # fixes GTK.AX and SKO.AX
 				market_data = market_data | yahoo.fetch_detail(ticker_primary)
 				country = market_data.get(ticker_primary, {}).get('profile_country') # only in the details
-				if country in util.YAHOO_COUNTRY and '.' not in ticker_primary:
-					ticker_primary = ticker_primary + '.' + util.YAHOO_COUNTRY[country] # fixes ASML and INFY
+				if country in markets.YAHOO_COUNTRY and '.' not in ticker_primary:
+					ticker_primary = ticker_primary + '.' + markets.YAHOO_COUNTRY[country] # fixes ASML and INFY
 					market_data = market_data | yahoo.fetch_detail(ticker_primary)
 				primary = market_data.get(ticker_primary, {})
 				if primary.get('profile_title') != title_orig or field not in primary: # not the same company, or no date there either
 					continue
 			when = datetime.datetime.fromtimestamp(market_data[ticker_primary][field])
 			if now < when < soon or specific_stock:
-				found.append((when, util.flag_from_ticker(ticker_primary), market_data[ticker]['profile_title'], util.yahoo_link(ticker, service)))
+				found.append((when, markets.flag_from_ticker(ticker_primary), market_data[ticker]['profile_title'], links.yahoo_link(ticker, service)))
 		found.sort(key=lambda item: item[0])
 		payload = []
 		for date in sorted({when.date() for when, *_ in found}):
@@ -55,9 +58,9 @@ def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, i
 				if when.date() == date:
 					payload.append(f"{flag} {date:%b %d} {title} ({link})" if specific_stock else f"{flag} {title} ({link})")
 		if payload and not specific_stock:
-			payload.insert(0, webhook.bold(f"{heading} {util.days_english(days, 'for the next ')}:", service))
+			payload.insert(0, webhook.bold(f"{heading} {formats.days_english(days, 'for the next ')}:", service))
 		elif not payload and interactive:
-			payload = [f"No events found for {tickers[0]}" if specific_stock else f"No events found {util.days_english(days, 'for the next ')}"]
+			payload = [f"No events found for {tickers[0]}" if specific_stock else f"No events found {formats.days_english(days, 'for the next ')}"]
 		return payload
 
 	def pin_if_earnings(service, results):
@@ -74,7 +77,7 @@ def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, i
 			telegram.pinChatMessage(chat, message_id)
 
 	# MAIN #
-	tickers = [util.transform_to_yahoo(specific_stock)] if specific_stock else util.get_holdings_and_watchlist()
+	tickers = [markets.transform_to_yahoo(specific_stock)] if specific_stock else watchlist.with_holdings()
 	if event == 'earnings':
 		market_data = yahoo.fetch(tickers)
 	else: # ex-dividend dates are in Yahoo's details

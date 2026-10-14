@@ -7,7 +7,8 @@ import requests
 from lib import config
 from lib import cache
 from lib import net
-import lib.util as util
+from lib import formats
+from lib import markets
 
 MAX_CONCURRENT = 1 # Sharesight rejects parallel requests beyond a few per account: allow one at a time across all chats and threads
 _request_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
@@ -52,7 +53,7 @@ def get_token():
 			cache_expiry = datetime.datetime.fromtimestamp(cached['created_at'] + cached['expires_in'])
 			ttl = cache_expiry - datetime.datetime.now()
 			if ttl > datetime.timedelta(seconds=20):
-				print("cache hit:", cacheFile, "TTL:", util.td_to_human(ttl), file=sys.stderr) if config.prefs.debug else None
+				print("cache hit:", cacheFile, "TTL:", formats.td_to_human(ttl), file=sys.stderr) if config.prefs.debug else None
 				return cached['access_token']
 			else:
 				print("cache miss:", cacheFile, file=sys.stderr) if config.prefs.debug else None
@@ -113,7 +114,7 @@ class Portfolio:
 
 	def tickers(self):
 		"""What it holds, as Yahoo tickers, sorted."""
-		return sorted({util.transform_to_yahoo(each['code'], each['market_code']) for each in self.holdings().values()})
+		return sorted({markets.transform_to_yahoo(each['code'], each['market_code']) for each in self.holdings().values()})
 
 	def trades(self, days=None):
 		"""Its trades of the past `days` (the past_days preference when None)."""

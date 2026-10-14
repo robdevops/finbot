@@ -31,8 +31,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `price.py performance.py trades.py shorts.py cal.py rating.py milestone.py reminder.py podcasts.py cleanup.py`: reports that also
   run on a schedule; each has `lambda_handler()` and `job(argv)` (its schedule-line argument parser).
 - `lib/webhook.py`: sending (chunking, photos, Slack upload), markup, escaping, error reporting. `lib/telegram.py`: Bot API calls.
-- `lib/charts.py`: Telegram period buttons and the rebuild behind them. `lib/util.py`: formatting, links, market tables, all
-  matplotlib rendering.
+- `lib/charts.py`: Telegram period buttons and the rebuild behind them. `lib/markets.py`: market tables, flags, ticker
+  translation. `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: links. `lib/render.py`: every chart
+  (matplotlib).
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, cached in `DATA_DIR/cache`.
   `sharesight.portfolios(name=None)` gives `Portfolio` objects: `holdings()`, `tickers()`, `performance(days)`,
   `trades(days)`.
@@ -51,11 +52,11 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - Read settings as `config.env.<name>` / `config.prefs.<name>` where they are used, never into a default or module constant (a
   reload must be seen); in tests, `self.env(...)` / `self.prefs(...)` change them.
 - A report is a list of lines. Markup through `webhook.bold/italic(text, service)`, user-written text through
-  `webhook.escape(text, service)`, links through `util.link`/`util.finance_link`.
+  `webhook.escape(text, service)`, links through `links.link`/`links.finance_link`.
 - Tabs everywhere, tests included (`.editorconfig`). New and changed lines stay under 120 characters (an edit quotes whole lines).
 - Log with `print(..., file=sys.stderr)`. systemd discards stdout (`StandardOutput=null`), so the bot and its reports never
   print there (a test checks); only the util/ tools, run by hand, do.
-- A chart renderer in `lib/util.py` gets `@_drawn` (the bot draws in one native thread); it must not call another `@_drawn`
+- A chart renderer in `lib/render.py` gets `@_drawn` (the bot draws in one native thread); it must not call another `@_drawn`
   function, or that thread waits on itself.
 - A new command: `COMMANDS`, `prepare_help`, the README command list, and `command_keyboard` if it gets a button.
 
