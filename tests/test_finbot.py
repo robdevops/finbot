@@ -44,8 +44,8 @@ class Plumbing(FinbotCase):
             return out, err.getvalue()
         self.assertEqual(post({'sticker': {'file_id': 'x'}}), ([b''], '')) # stickers: silent, not logged
         self.assertGreaterEqual(len(bot.git_version()), 7)
-        self.assertEqual(bot.git_version(), subprocess.run(['git', 'rev-parse', '--short=7', 'HEAD'], cwd=bot.__file__.rsplit('/', 1)[0],
-                                                           capture_output=True, text=True).stdout.strip()) # matches what git says
+        head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=bot.__file__.rsplit('/', 1)[0], capture_output=True, text=True).stdout.strip()
+        self.assertEqual(bot.git_version(), head[:7]) # matches what git says
 
 
 class GitVersion(unittest.TestCase):
