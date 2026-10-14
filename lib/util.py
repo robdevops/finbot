@@ -815,7 +815,6 @@ def signed_percent(value, decimals=None):
 
 def get_emoji(number):
 	if number > 0:
-		#return '🔺'
 		return '🔼'
 	elif number < 0:
 		return '🔻'

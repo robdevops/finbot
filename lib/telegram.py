@@ -57,6 +57,3 @@ def answerCallbackQuery(callback_query_id, text=None):
 	except Exception as e:
 		print("answerCallbackQuery failed:", net.redact(e), file=sys.stderr)
 
-#def unpinChatMessage():
-#	telegram_url = webhooks['telegram'] + 'unpinChatMessage'
-

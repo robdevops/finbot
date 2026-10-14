@@ -624,7 +624,6 @@ def prepare_profile_payload(service, user, ticker):
 	if 'shareholder_equity' in market_data[ticker] and 'total_debt' in market_data[ticker]:
 		total_debt = market_data[ticker]['total_debt']
 		shareholder_equity = market_data[ticker]['shareholder_equity']
-		#debt_equity_ratio = round(total_debt / shareholder_equity * 100)
 		if 'profile_industry' in market_data[ticker] and 'total_cash' in market_data[ticker]:
 			if 'Bank' not in market_data[ticker]['profile_industry']:
 				emoji = ''
@@ -682,7 +681,6 @@ def prepare_profile_payload(service, user, ticker):
 	if 'revenueEstimateY' in market_data[ticker]:
 		emoji = ''
 		revenueEstimateY = int(round(market_data[ticker]['revenueEstimateY']))
-		#revenueAnalysts = market_data[ticker]['revenueAnalysts']
 		if revenueEstimateY <= 0:
 			emoji = '⚠️ '
 			prefix = ''
@@ -693,7 +691,6 @@ def prepare_profile_payload(service, user, ticker):
 		emoji = ''
 		prefix = ''
 		earningsEstimateY = int(round(market_data[ticker]['earningsEstimateY']))
-		#earningsAnalysts = market_data[ticker]['earningsAnalysts']
 		if earningsEstimateY <= 0:
 			emoji = '⚠️ '
 		else:

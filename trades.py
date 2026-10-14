@@ -67,8 +67,7 @@ def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, user
 					market = market_data[ticker]['profile_exchange']
 				except Exception as e:
 					print("Warning: could not get market for", ticker, "from Yahoo:", e, file=sys.stderr)
-			#value = round(trade['value']) # don't use - sharesight converts to local currency
-			value = round(price * units)
+			value = round(price * units) # not Sharesight's trade value, which it converts to the portfolio's currency
 			holding_id = str(trade['holding_id'])
 			ticker = util.transform_to_yahoo(symbol, market)
 			dt_date = datetime.datetime.strptime(date, '%Y-%m-%d').date() # (2023, 12, 30)
@@ -82,7 +81,6 @@ def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, user
 			if currency_temp:
 				currency = currency_temp
 			sharesight_url = "https://portfolio.sharesight.com/holdings/"
-			#trade_url = sharesight_url + holding_id + '/trades/' + str(trade_id) + '/edit'
 			trade_url = sharesight_url + holding_id + '/dashboard/transactions'
 			trade_link = util.link(trade_url, action, service)
 			holding_link = util.finance_link(symbol, market, service)

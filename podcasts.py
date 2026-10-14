@@ -60,10 +60,6 @@ def format_duration(duration_str):
 		hours = total_seconds // 3600
 		minutes = (total_seconds % 3600) // 60
 
-		#if hours > 0:
-		#		return f"{hours}h {minutes}m"
-		#else:
-		#		return f"{minutes}m"
 		return f"{hours:02d}:{minutes:02d}"
 
 

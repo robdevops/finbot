@@ -80,7 +80,6 @@ def handle(environ, start_response):
 	if not isinstance(inbound, dict):
 		print(f"[{service}]: request body is not a JSON object", file=sys.stderr)
 		return reply('400 Bad Request', b'<h1>Bad Request</h1>')
-	#print_body() if debug else None
 	if service == 'telegram':
 		bot_name = botName
 		if "callback_query" in inbound: # chart period buttons
@@ -106,9 +105,6 @@ def handle(environ, start_response):
 		if "text" in msg:
 			message = msg["text"]
 			print("[Telegram]:", user, message, file=sys.stderr) if debug else None
-			#if message.startswith("Upcoming earnings for the next month") and user == telegram.getMe().get('username'):
-			#	telegram.pinChatMessage(message_id, chat_id)
-			# todo need to return sendMessage to get message_id and chat_id
 		elif "photo" in msg:
 			message = msg.get("caption", '')
 			file_id = msg["photo"][-1]["file_id"]

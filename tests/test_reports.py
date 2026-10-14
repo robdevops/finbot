@@ -112,6 +112,18 @@ class ScheduledReports(FinbotCase):
         milestone.lambda_handler()
         self.assertTrue(self.sent)
 
+    def test_milestone_records_a_ticker_only_with_its_new_values(self):
+        """A first sighting without 52-week values used to be recorded as 0/0, so the next run reported a record high for it."""
+        self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0)) # beyond the 52-week range (120/80): nothing new
+        self.patch(yahoo, 'fetch', lambda ts: {t: {k: v for k, v in market_entry(t).items() if not k.startswith('fiftyTwoWeek')} for t in ts})
+        milestone.lambda_handler()
+        self.assertFalse(util.json_load('finbot_milestone.json', persist=True))
+        self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
+        self.sent.clear()
+        milestone.lambda_handler()
+        self.assertNotIn('Record high', str(self.sent))
+        self.assertEqual(util.json_load('finbot_milestone.json', persist=True)['T1'], {'high': 120.0, 'low': 80.0})
+
     def test_rating(self):
         rating.lambda_handler(interactive=True, service='telegram', chat_id='5')
         self.assertTrue(self.sent)
