@@ -374,7 +374,8 @@ def prepare_marketcap_payload(service, action='top', length=15):
 	return [webhook.bold(f'{action.title()} {length} tracked stocks by market cap', service)] + [line for _, line in caps[:length]]
 
 def prepare_rating_payload(service, action, length=15):
-	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by more than one analyst, by mean rating."""
+	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by more than one analyst, the strongest
+	rating first (1 is a strong buy, 5 a strong sell); on equal ratings, the one more analysts give first."""
 	found = [] # (rating, analysts, line, ticker)
 	for ticker, data in yahoo.fetch_details(util.get_holdings_and_watchlist()).items():
 		if 'recommend' not in data or data['recommend_analysts'] <= 1:
@@ -384,7 +385,7 @@ def prepare_rating_payload(service, action, length=15):
 			rating, analysts = round(data['recommend_index'], 2), data['recommend_analysts']
 			link = util.finance_link(ticker, data['profile_exchange'], service)
 			found.append((rating, analysts, f"{util.flag_from_ticker(ticker)} {data['profile_title']} ({link}) {rating} ({analysts} analysts)", ticker))
-	found = sorted(found, key=lambda row: row[:2])[:length]
+	found = sorted(found, key=lambda row: (row[0] if action == 'buy' else -row[0], -row[1]))[:length]
 	payload = [line for _, _, line, _ in found]
 	chart = None
 	if payload:

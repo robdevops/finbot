@@ -20,11 +20,10 @@ def lambda_handler():
 		records = util.json_load('finbot_milestone.json', persist=True) or {}
 		for ticker in tickers:
 			try:
-				oldhigh = records[ticker]['high']
-				oldlow = records[ticker]['low']
-			except (KeyError, TypeError):
+				oldhigh, oldlow = records[ticker]['record_high'], records[ticker]['record_low']
+			except (KeyError, TypeError): # first sighting, or a record kept before records were all-time (52-week, under 'high'/'low')
 				try:
-					oldhigh, oldlow = yahoo.historic_high(ticker) # first sighting: its history so far
+					oldhigh, oldlow = yahoo.historic_high(ticker) # its history so far
 				except (RuntimeError, KeyError, IndexError, ValueError):
 					continue # no usable history: nothing recorded, so a later run cannot take zeros for its record
 			try:
@@ -35,7 +34,7 @@ def lambda_handler():
 			title = market_data[ticker]['profile_title']
 			ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
 			emoji = util.flag_from_ticker(ticker)
-			records[ticker] = {'high': newhigh, 'low': newlow}
+			records[ticker] = {'record_high': max(oldhigh, newhigh), 'record_low': min(oldlow, newlow)} # all-time: a 52-week high below it is no record
 			if newhigh > oldhigh:
 				print("DEBUG", ticker, newhigh, "is higher than", oldhigh) if debug else None
 				payloadhigh.append(f"{emoji} {title} ({ticker_link})")

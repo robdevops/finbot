@@ -127,6 +127,15 @@ class CommandArguments(FinbotCase):
                 self.assertEqual(worker.percent_or_ticker(arg, 5), expected)
         self.assertIn('2.5%', str(self.command('.session 2.5'))) # a threshold, not a ticker called 2.5
 
+    def test_a_bare_number_on_price_is_a_percent(self):
+        """As on .session, .premarket and .shorts, and as the README has it; a period carries its unit."""
+        self.assertIn('3% at close', str(self.command('.price 3'))) # it used to be a 3-day report
+        self.assertIn('Price movement 3%', str(self.command('.price 3 7d'))) # the 3 used to be dropped
+        self.assertIn('Price movement 5%', str(self.command('.price 7d')))
+
+    def test_top_is_gone(self):
+        self.assertIn('Co TOP', str(self.command('.top 7d'))) # .price top 7d is the command; .top is a ticker now, like any word
+
     def test_a_ratio_command_reads_its_ticker_as_the_other_commands_do(self):
         self.assertIn('Co T1 ', str(self.command('.pe t1')))
         self.assertIn('Top 15 tracked stocks by pe ratio', str(self.command('.pe top '))) # trailing space and all

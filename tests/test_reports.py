@@ -15,11 +15,11 @@ class Commands(FinbotCase):
 
     def test_chart_commands(self):
         for cmd in ('.price', '.price 7d', '.price top', '.price bottom', '.session', '.premarket', '.postmarket',
-                    '.performance', '.performance 7d', '.performance 1y', '.shorts', '.peg', '.buy', '.sell', '.beta', '.top10 week'):
+                    '.performance', '.performance 7d', '.performance 1y', '.shorts', '.peg', '.buy', '.sell', '.beta', '.price top 7d'):
             with self.subTest(cmd=cmd):
                 out = self.command(cmd)
                 self.assertTrue(out, f'{cmd} sent nothing')
-                self.assertTrue(any(kind == 'photo' for kind, *_ in out) or cmd.startswith('.top10'), f'{cmd} sent no chart: {out}')
+                self.assertTrue(any(kind == 'photo' for kind, *_ in out), f'{cmd} sent no chart: {out}')
 
     def test_history_and_compare(self):
         for cmd in ('.history T1', '.compare T1 T2', '.compare T1 T2 3m'):
@@ -48,6 +48,18 @@ class ReportFunctions(FinbotCase):
     def test_prepare_rating(self):
         for action in ('buy', 'sell'):
             self.assertTrue(reports.prepare_rating_payload('telegram', action, length=5)[0])
+
+    def test_ratings_list_the_strongest_first(self):
+        """1 is a strong buy and 5 a strong sell: .sell used to list the mildest sells first. On equal ratings, more analysts first."""
+        ratings = {'T1': ('buy', 1.5, 3), 'T2': ('strong_buy', 1.2, 2), 'T3': ('buy', 1.5, 9),
+                   'T4': ('sell', 4.2, 3), 'T5': ('underperform', 4.6, 2), 'T6': ('sell', 4.2, 8)}
+        self.patch(util, 'get_holdings_and_watchlist', lambda: list(ratings))
+        self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | dict(zip(('recommend', 'recommend_index', 'recommend_analysts'), ratings[t]))})
+        def order(action):
+            payload, chart = reports.prepare_rating_payload('telegram', action)
+            return [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], [label for label, _ in chart['rows']]
+        self.assertEqual(order('buy'), (['T2', 'T3', 'T1'], ['T2', 'T3', 'T1']))
+        self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
 
     def test_prepare_value(self):
         for action, heading in (('pe', 'Top 5 tracked stocks by pe ratio'), ('bottom forward pe', 'Bottom 5 tracked stocks by forward pe ratio'),
@@ -150,7 +162,25 @@ class ScheduledReports(FinbotCase):
         self.sent.clear()
         milestone.lambda_handler()
         self.assertNotIn('Record high', str(self.sent))
-        self.assertEqual(util.json_load('finbot_milestone.json', persist=True)['T1'], {'high': 120.0, 'low': 80.0})
+        self.assertEqual(util.json_load('finbot_milestone.json', persist=True)['T1'], {'record_high': 150.0, 'record_low': 50.0}) # all-time
+
+    def test_milestone_records_are_all_time(self):
+        """A new 52-week high below the all-time high is no record. The record used to become the 52-week high after the first
+        run, so a stock far below its peak posted a record high each time it set a new 52-week one."""
+        self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
+        milestone.lambda_handler() # first sighting: the 52-week range (120/80) is inside the history (150/50)
+        for high, expected in ((130.0, False), (160.0, True), (155.0, False)):
+            with self.subTest(high=high):
+                self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'fiftyTwoWeekHigh': high} for t in ts})
+                self.sent.clear()
+                milestone.lambda_handler()
+                self.assertEqual('Record high' in str(self.sent), expected)
+
+    def test_a_52_week_record_kept_before_is_replaced_by_the_history(self):
+        util.json_write('finbot_milestone.json', {f'T{i}': {'high': 110.0, 'low': 90.0} for i in range(25)}, persist=True)
+        self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
+        milestone.lambda_handler() # 120 beats the old 52-week record of 110, but not the history's 150
+        self.assertNotIn('Record high', str(self.sent))
 
     def test_rating(self):
         rating.lambda_handler(interactive=True, service='telegram', chat_id='5')

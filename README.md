@@ -207,10 +207,10 @@ Interactive trigger (pre-market):
 
 Interactive trigger (mid-session):
 ```
-.midsession [percent]
+.session [percent]
 ```
 ```
-@botname midsession [percent]
+@botname session [percent]
 ```
 
 Interactive trigger (interday).
@@ -218,10 +218,10 @@ Interactive trigger (interday).
 .price [percent]
 ```
 ```
-@botname [percent]
+@botname price [percent]
 ```
 
-For interday, can also specify the time period.
+For interday, can also specify the time period. A bare number is the percent; a period carries its unit: `7d`, `2w`, `3m`, `1y` or `ytd`. For example, `.price 3 7d` lists the moves of 3% or more over the past week.
 ```
 .price [percent] [period]
 ```

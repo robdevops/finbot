@@ -252,15 +252,16 @@ def on_session(request, m):
 		price.lambda_handler(request.chat_id, threshold, request.service, request.user, ticker, interactive=True, midsession=not premarket, premarket=premarket)
 
 def on_price(request, m):
+	""".price [percent|SYMBOL|top|bottom] [period]: a bare number is a percent, as on the other commands; a period has its unit."""
 	threshold, ticker, days, top = config_price_percent, None, None, None
 	for i, arg in enumerate(m.groups()):
 		if not arg:
 			continue
 		try:
-			days = util.days_from_human_days(arg)
+			threshold = parse_percent(arg)
 		except ValueError:
 			try:
-				threshold = parse_percent(arg)
+				days = util.days_from_human_days(arg)
 			except ValueError:
 				if i == 0 and arg in ('top', 'bottom'): # one chart shows both ends
 					threshold, top = 0, 10
@@ -268,11 +269,6 @@ def on_price(request, m):
 					ticker = arg.upper()
 	with request.typing():
 		price.lambda_handler(request.chat_id, threshold, request.service, request.user, ticker, interactive=True, interday=days is None, days=days, top=top)
-
-def on_top(request, m):
-	days, _ = period_or_ticker(m.group(1), config_past_days)
-	with request.typing():
-		price.lambda_handler(request.chat_id, 0, request.service, request.user, days=days, interactive=True, top=10)
 
 def on_shorts(request, m):
 	threshold, ticker = percent_or_ticker(m.group(1), config_shorts_percent)
@@ -382,7 +378,6 @@ COMMANDS = [ # (pattern, function): tried in this order, the first match answers
 	(r"performance?\s*(?P<args>[\w\s]*)", on_performance),
 	(r"(?P<kind>session|premarket|postmarket|permarket)\s*(?P<arg>[\w\.\:\-]+)*", on_session),
 	(r"(?:prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=\-\^]+)*\s*([\w\%]+)*", on_price),
-	(r"(?:top\d*)\s*([\w]+)", on_top),
 	(r"shorts?\s*([\w\.\:\-]+)*", on_shorts),
 	(r"trades?\s*(?P<args>[\w\s]*)", on_trades),
 	(r"holdings?\s*([\w\s]+)*", on_holdings),
