@@ -1,3 +1,4 @@
+import functools
 import os
 import io
 import datetime
@@ -367,6 +368,28 @@ def style_date_axis(ax, start, end, ink):
 
 PALETTE = ('#14181f', '#eef1f5', '#9aa4b2', '#2a313c') # charts: dark surface, ink, muted ink, grid lines
 
+_render_pool = None # set by render_off_hub(): the bot draws its charts in one native thread
+
+def render_off_hub():
+	"""For the bot: draw charts in one native thread from now on, so that the gevent hub keeps serving every other chat while one
+	is drawn (the shorts pictogram takes over a second; in the hub that froze everything). One thread, because several at once
+	deadlock matplotlib under gevent's patched locks. matplotlib is imported here, at start, instead of by the first chart. Job
+	processes and the tests draw in place."""
+	global _render_pool
+	from gevent.threadpool import ThreadPool
+	import matplotlib.backends.backend_agg, matplotlib.dates, matplotlib.figure, matplotlib.patches, matplotlib.path, matplotlib.ticker # noqa: F401
+	_render_pool = ThreadPool(1)
+
+def _drawn(draw):
+	"""A chart function that draws in the render pool when there is one. Only for a function that calls none of the others: the
+	pool's one thread waiting on itself would never finish."""
+	@functools.wraps(draw)
+	def in_pool(*args, **kwargs):
+		if _render_pool is None:
+			return draw(*args, **kwargs)
+		return _render_pool.apply(draw, args, kwargs)
+	return in_pool
+
 def _figure(facecolor):
 	"""A 1280x800 figure (Telegram's photo size, so it is never resampled) and its Agg canvas."""
 	from matplotlib.figure import Figure
@@ -399,6 +422,7 @@ def _png(fig, facecolor):
 	buf.seek(0)
 	return buf
 
+@_drawn
 def graph(df, title, ylabel):
 	"""Render a price chart as PNG bytes, sized for Telegram (1280px wide, no server-side resampling)."""
 	from matplotlib.ticker import MaxNLocator, FuncFormatter
@@ -449,6 +473,7 @@ def graph(df, title, ylabel):
 
 	return _png(fig, bg)
 
+@_drawn
 def compare_graph(series, title, subtitle=''):
 	"""Rebased % change lines for 2-6 tickers. series: list of (label, pandas Series of closes), already cropped to the period.
 	Returns PNG bytes (1280x800, Telegram's photo size)."""
@@ -502,6 +527,7 @@ def tinted(bg, color, amount=0.07):
 	mix = lambda i: round(int(bg[i:i + 2], 16) * (1 - amount) + int(color[i:i + 2], 16) * amount)
 	return '#{:02x}{:02x}{:02x}'.format(mix(1), mix(3), mix(5))
 
+@_drawn
 def hbar_chart(rows, title, subtitle='', value_fmt=None, xlim=None, session=None):
 	"""Horizontal bars that mirror the caption list, first row on top, filling the whole 1280x800 canvas.
 	Blue for >= 0, red below. Each row's label sits at the bar's base and its value at the tip.
@@ -596,6 +622,7 @@ def shorts_verdict(percent):
 	"""The more shorted, the shorter the shorts."""
 	return next(name for limit, name in SHORTS_VERDICTS if percent < limit)
 
+@_drawn
 def shorts_chart(rows, threshold, step=5):
 	"""Short interest as a pictogram: each row is a run of cartoon shorts, one pair per `step` percent (the last pair cropped).
 	rows: [(label, percent)], largest first. Loud on purpose and drawn from patches, since matplotlib cannot render colour emoji.
@@ -711,6 +738,7 @@ def rows_chart(rows, title, subtitle='', **kw):
 		rows = rows[:20] + rows[-20:]
 	return hbar_chart(rows, title, subtitle, **kw)
 
+@_drawn
 def pie_chart(rows, title, subtitle=''):
 	"""Pie of (label, value) rows, largest first, with a legend of name and share. At most 8 named slices
 	(the dark categorical slots, in fixed order); a slice labelled 'Other' is gray. Returns PNG bytes (1280x800)."""

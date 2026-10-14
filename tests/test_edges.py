@@ -212,6 +212,15 @@ class WsgiRejections(FinbotCase):
         odd = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'new_chat_members': []}}
         self.assertIn(b'Unhandled', self.request(body=odd, headers=secret)[0])
 
+    def test_a_telegram_update_sent_again_runs_once(self):
+        calls = []
+        self.patch(worker, 'process_request', lambda *a: calls.append(a))
+        body = {'update_id': 7, 'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'text': '.price'}}
+        for _ in range(2): # Telegram sends an update again when it got no answer
+            self.assertEqual(self.request(body=body, headers=self.SECRET)[1], '200 OK')
+        gevent.sleep(0.05)
+        self.assertEqual(len(calls), 1)
+
     def test_button_presses_are_logged(self):
         calls = []
         self.patch(worker, 'process_callback', lambda *a: calls.append(a))
@@ -234,8 +243,8 @@ class SlackEvents(FinbotCase):
         self.requests = []
         self.patch(worker, 'process_request', lambda *a: self.requests.append(a))
 
-    def event(self, **event):
-        body = json.dumps({'token': 'stok', 'type': 'event_callback', 'authorizations': [{'user_id': 'UBOT'}],
+    def event(self, event_id=None, **event):
+        body = json.dumps({'token': 'stok', 'type': 'event_callback', 'authorizations': [{'user_id': 'UBOT'}], 'event_id': event_id,
             'event': dict({'type': 'message', 'channel': 'C1', 'ts': '1.2'}, **event)}).encode()
         status = []
         with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
@@ -257,6 +266,12 @@ class SlackEvents(FinbotCase):
         self.assertEqual(self.event(user='U2', subtype='thread_broadcast', text='.trades'), '200 OK')
         self.assertEqual([(r[0], r[1], r[2], r[3], r[4]) for r in self.requests],
                          [('slack', 'C1', '<@U1>', '.price @UBOT', '@UBOT'), ('slack', 'C1', '<@U2>', '.trades', '@UBOT')])
+
+    def test_a_retried_event_runs_once(self):
+        for _ in range(2): # Slack resends an event it got no answer to within 3 seconds, with the same event_id
+            self.assertEqual(self.event('Ev1', user='U1', text='.price'), '200 OK')
+        self.assertEqual(self.event('Ev2', user='U1', text='.price'), '200 OK')
+        self.assertEqual(len(self.requests), 2)
 
     def test_slack_does_not_change_the_telegram_bot_name(self):
         self.patch(bot, 'botName', '@finbot_tg')

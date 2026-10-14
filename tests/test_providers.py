@@ -117,6 +117,14 @@ class YahooDetail(ProviderCase):
         self.assertEqual(data['profile_title'], 'NVIDIA')
         self.assertTrue(data['profile_bio'])
 
+    def test_a_cached_detail_needs_no_cookie(self):
+        self.http(yahoo, Resp(self.combined()))
+        yahoo.fetch_detail('NVDA')
+        def refuse():
+            raise AssertionError('a cached detail took the Yahoo auth lock')
+        self.patch(yahoo, 'credentials', refuse)
+        self.assertIn('NVDA', yahoo.fetch_detail('NVDA'))
+
     def test_http_failure_gives_empty(self):
         for failure in (Resp(status=404), ConnectionError('down')):
             with self.subTest(failure=failure):

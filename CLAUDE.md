@@ -48,6 +48,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `webhook.escape(text, service)`, links through `util.link`/`util.finance_link`.
 - Tabs in code; in tests match the file. New and changed lines stay under 120 characters (an edit quotes whole lines).
 - stdout is discarded under systemd (`StandardOutput=null`): anything worth logging goes to stderr.
+- A chart renderer in `lib/util.py` gets `@_drawn` (the bot draws in one native thread); it must not call another `@_drawn`
+  function, or that thread waits on itself.
 - A new command: `COMMANDS`, `prepare_help`, the README command list, and `command_keyboard` if it gets a button.
 
 ## Saving tokens

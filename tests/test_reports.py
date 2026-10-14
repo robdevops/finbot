@@ -100,6 +100,17 @@ class ReportFunctions(FinbotCase):
         self.assertAlmostEqual(quote['market_cap_usd'], 1e11 / 1380.0) # US$72M
         self.assertEqual(price.trigger_bar('T1', quote, 5), 5 * price.config_volatility_multiplier)
 
+    def test_the_small_caps_betas_are_fetched_together(self):
+        """A scheduled price report asks for the beta of each small cap that moved (US$150M to US$1B): together, not one by one."""
+        calls = []
+        self.patch(yahoo, 'fetch_details', lambda tickers, strict=False: calls.append(sorted(tickers)) or {t: market_entry(t) for t in tickers})
+        self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: self.fail('a beta fetched on its own'))
+        self.patch(price, 'config_demote_volatile', True)
+        self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'market_cap': 5e8} for t in ts})
+        price.lambda_handler()
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(calls[0])
+
     def test_forward_pe_lists_need_as_many_analysts_as_buy(self):
         """A forward P/E is analysts' estimate: with few of them it says little, as a perfect 1.0 buy from two brokers does."""
         analysts = {'T1': 7, 'T2': 6, 'T3': 12, 'T4': 2}

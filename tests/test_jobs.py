@@ -630,6 +630,14 @@ class ChildProcess(FinbotCase):
                 self.assertEqual(self.errors, [f'⚠️ trades.py: RuntimeError: {reason}'] if reason else [])
                 self.assertEqual(s.busy, set())
 
+    def test_a_report_script_loads_neither_pandas_nor_the_scheduler(self):
+        """A job process imports only its own script: price used to pull in pandas and, through charts, reports and jobs, every
+        script there is."""
+        code = 'import sys, price, performance, trades, shorts, cal; print(sorted(m for m in ("pandas", "lib.jobs", "matplotlib") if m in sys.modules))'
+        with tempfile.TemporaryDirectory() as data:
+            out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True, env={**os.environ, 'DATA_DIR': data})
+        self.assertEqual(out.stdout.strip().splitlines()[-1:], ['[]'], out.stderr)
+
     def test_the_event_loop_keeps_running_while_a_child_works(self):
         self.sleeper(1)
         ticks = []

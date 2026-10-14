@@ -275,13 +275,22 @@ def data_file(name):
 	user = config_var_dir + '/' + name
 	return user if os.path.isfile(user) else str(REPO_DIR / 'defaults' / name)
 
+_data_files = {} # path -> (modification time, parsed JSON)
+
 def data_json(name, default=None):
-	"""A data file's JSON (the user's copy or the shipped default, as data_file has it), or `default` when there is neither."""
+	"""A data file's JSON (the user's copy or the shipped default, as data_file has it), or `default` when there is neither. Parsed
+	again only when the file changes; callers must not modify what they get."""
 	path = data_file(name)
-	if not os.path.isfile(path):
+	try:
+		mtime = os.path.getmtime(path)
+	except OSError:
 		return default
+	if (cached := _data_files.get(path)) and cached[0] == mtime:
+		return cached[1]
 	with open(path, encoding="utf-8") as f:
-		return json.load(f)
+		value = json.load(f)
+	_data_files[path] = (mtime, value)
+	return value
 
 
 def reload():

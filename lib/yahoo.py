@@ -232,13 +232,13 @@ def fetch_detail(ticker, seconds=UNSET):
 	if seconds is UNSET:
 		seconds = config_cache_seconds
 	now = datetime.datetime.now()
-	cookie, crumb = credentials()
 	cacheFile = "finbot_yahoo_detail_" + ticker + '.json'
 	data = util.read_cache(cacheFile, seconds) if config_cache else None
 	if data:
 		print('.', sep=' ', end='', flush=True)
 	else:
 		print('↓', sep=' ', end='', flush=True)
+		cookie, crumb = credentials() # only on a miss: a cached detail needs neither, nor the lock
 		modules = 'calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions'
 		r = _get_first(_hosts('/v10/finance/quoteSummary/' + ticker + '?modules=' + modules + '&crumb=' + crumb), {**HEADERS, 'Cookie': cookie})
 		if r is None:

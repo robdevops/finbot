@@ -1,4 +1,5 @@
-import os, shutil, subprocess, sys, tempfile, unittest
+import os, shutil, subprocess, sys, tempfile, time, unittest
+from unittest import mock
 from pathlib import Path
 from lib import config
 from util import sync_defaults
@@ -50,6 +51,16 @@ class DataDirTests(FinbotCase):
 		self.assertEqual(config.data_file(name), str(REPO / 'defaults' / name))
 		Path(config.config_var_dir, name).write_text('{}')
 		self.assertEqual(config.data_file(name), config.config_var_dir + '/' + name)
+
+	def test_a_data_file_is_parsed_again_only_when_it_changes(self):
+		path = Path(config.config_var_dir, 'finbot_adr.json')
+		path.write_text('{"A": "B"}')
+		self.assertEqual(config.data_json('finbot_adr.json'), {'A': 'B'})
+		with mock.patch('json.load', side_effect=AssertionError('parsed again')):
+			self.assertEqual(config.data_json('finbot_adr.json'), {'A': 'B'})
+		path.write_text('{"A": "C"}')
+		os.utime(path, (time.time() + 5, time.time() + 5)) # a later modification time
+		self.assertEqual(config.data_json('finbot_adr.json'), {'A': 'C'})
 
 	def test_sync_defaults(self):
 		self.assertIn(('finbot_adr.json', 'would copy'), sync_defaults.sync())

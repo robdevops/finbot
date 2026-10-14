@@ -4,7 +4,8 @@
   3. one golden image per chart type, compared with a tolerance. Refresh after an intended restyle with:
          UPDATE_GOLDEN=1 python -m unittest tests.test_charts
 """
-import datetime, io, os, unittest
+import datetime, io, os, time, unittest
+import gevent
 from unittest import mock
 import numpy as np
 import pandas as pd
@@ -110,6 +111,36 @@ class ImageSanity(unittest.TestCase):
         self.check_image(util.graph(flat, 'Flat', 'USD'), 'flat price')
         two = price_frame(2)
         self.check_image(util.graph(two, 'Two points', 'USD'), 'two points')
+
+
+class RenderPool(unittest.TestCase):
+    """The bot draws charts in one native thread (util.render_off_hub), so the gevent hub keeps serving while a chart is drawn."""
+
+    def setUp(self):
+        util.render_off_hub()
+        self.addCleanup(setattr, util, '_render_pool', None)
+
+    def test_charts_asked_for_at_once_all_finish(self):
+        jobs = [gevent.spawn(util.pie_chart, [('a', 1.0), ('b', 2.0)], f't{i}') for i in range(4)]
+        jobs += [gevent.spawn(util.hbar_chart, MIXED, 'T'), gevent.spawn(util.rows_chart, MIXED, 'T')]
+        gevent.joinall(jobs, timeout=120)
+        self.assertTrue(all(job.successful() for job in jobs), 'a chart did not finish (several native threads deadlock matplotlib)')
+        self.assertTrue(all(decode(job.value).size == (1280, 800) for job in jobs))
+
+    def test_the_hub_keeps_serving_while_a_chart_is_drawn(self):
+        gaps, done = [], []
+        def ticker():
+            last = time.monotonic()
+            while not done:
+                gevent.sleep(0.01)
+                now = time.monotonic()
+                gaps.append(now - last)
+                last = now
+        tick = gevent.spawn(ticker)
+        util.shorts_chart([(f'T{i}', 60.0 - 2 * i) for i in range(24)], 15) # about a second of drawing
+        done.append(True)
+        tick.join()
+        self.assertLess(max(gaps), 0.5) # drawn in the hub, the ticker stopped for the whole chart
 
 
 class Contracts(unittest.TestCase):

@@ -1,6 +1,6 @@
 """Shared fixture: points finbot at a temp cache dir and replaces every external service
 (Telegram, Yahoo, Sharesight, Short Man) with canned data. Nothing here touches the network."""
-import io, os, sys, tempfile, time, unittest
+import collections, io, os, sys, tempfile, time, unittest
 import pandas as pd
 from unittest import mock
 
@@ -61,6 +61,7 @@ class FinbotCase(unittest.TestCase):
         self.patch(util, 'config_cache_dir', tmp.name)
         self.patch(config, 'config_var_dir', tmp.name)
         self.patch(webhook, 'webhooks', {'telegram': 'https://api.telegram.org/botX/'})
+        self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
         for m in (performance, shorts, price, cal, trades, milestone, rating, worker, reminder, telegram):
             self.patch(m, 'webhooks', webhook.webhooks)
         self.sent = []

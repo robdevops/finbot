@@ -30,9 +30,15 @@ def gather(specific_stock=None, days=None):
 			yahoo.prefetch_history([t for t in market_data if 'percent_change_period' not in market_data[t]])
 	return tickers, market_data
 
-def trigger_bar(ticker, quote, threshold):
+def needs_beta(quote):
+	"""Whether trigger_bar must know this ticker's beta: a small cap between US$150M and US$1B, which counts as volatile when its
+	beta is over 1.5. The beta is only in Yahoo's details."""
+	return config_demote_volatile and 1.5e8 <= quote.get('market_cap_usd', float('inf')) < 1e9
+
+def trigger_bar(ticker, quote, threshold, details=None):
 	"""The move this ticker needs before it alone sends a scheduled report: more for leveraged ETFs (demote_leveraged) and volatile
-	small caps (demote_volatile; their market caps in US dollars), else the threshold itself."""
+	small caps (demote_volatile; their market caps in US dollars), else the threshold itself. details: Yahoo's details of the
+	tickers that need_beta, fetched together; without it this ticker's are fetched here."""
 	title = quote['profile_title'].lower()
 	if config_demote_leveraged and ('2x' in title or '3x' in title):
 		return threshold * 1.3
@@ -42,7 +48,7 @@ def trigger_bar(ticker, quote, threshold):
 			return threshold * config_volatility_multiplier * 1.3
 		if cap < 1.5e8:
 			return threshold * config_volatility_multiplier
-		beta = yahoo.fetch_detail(ticker).get(ticker, {}).get('beta')
+		beta = (yahoo.fetch_detail(ticker) if details is None else details).get(ticker, {}).get('beta')
 		if beta is None or beta > 1.5:
 			return threshold * config_volatility_multiplier
 	return threshold
@@ -100,9 +106,10 @@ def report(service, threshold=UNSET, user='', specific_stock=None, interactive=F
 			exchange = quote['profile_exchange']
 			exchanges.add(util.exchange_human(exchange))
 			rows.append((ticker, percent, f"{util.get_emoji(percent)} {quote['profile_title']} ({util.quote_link(ticker, exchange, service, days=days)})"))
-			triggered = triggered or abs(percent) >= trigger_bar(ticker, quote, threshold)
-	if not triggered:
-		rows = []
+	if not triggered: # a scheduled report: is there a move big enough for its ticker? Small caps' betas are fetched together
+		details = yahoo.fetch_details([ticker for ticker, _, _ in rows if needs_beta(market_data[ticker])])
+		if not any(abs(percent) >= trigger_bar(ticker, market_data[ticker], threshold, details) for ticker, percent, _ in rows):
+			rows = []
 	rows.sort(key=lambda row: row[1], reverse=True)
 	payload = [f"{line} {util.signed_percent(round(percent))}" for _, percent, line in rows]
 	chart_rows = [(ticker, percent) for ticker, percent, _ in rows]

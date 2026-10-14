@@ -6,7 +6,7 @@ if __name__ == '__main__':
 	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise the cache flush
 import gevent.monkey
 gevent.monkey.patch_all()
-import html, json, os, re, sys, traceback
+import collections, html, json, os, re, sys, traceback
 from pathlib import Path
 from gevent import pywsgi
 import threading
@@ -22,11 +22,26 @@ from lib import net
 from lib import telegram
 from lib import webhook
 from lib import yahoo
+from lib import util
 import cleanup
 
 botName = None # the Telegram bot's @username, from telegram.register() at start
 AUTHENTICATED = 'finbot.authenticated' # set in a request's WSGI environ once it has passed its service's check
 SLACK_USER_SUBTYPES = (None, 'thread_broadcast') # Slack message subtypes a person writes; the others are bot posts, edits, joins and the like
+_updates_seen = collections.OrderedDict() # (service, update id) of the last updates taken, oldest first
+
+def seen_before(service, update_id, keep=1000):
+	"""Whether this update was taken already: Telegram's update_id, Slack's event_id. Slack resends an event it got no answer to
+	within 3 seconds and Telegram one that failed, and a command must not run twice. An update without an id is never a repeat."""
+	if update_id is None:
+		return False
+	key = (service, update_id)
+	if key in _updates_seen:
+		return True
+	_updates_seen[key] = None
+	if len(_updates_seen) > keep:
+		_updates_seen.popitem(last=False)
+	return False
 
 def main(environ, start_response):
 	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is reported as one line to the
@@ -84,6 +99,9 @@ def handle(environ, start_response):
 		print(f"[{service}]: request body is not a JSON object", file=sys.stderr)
 		return reply('400 Bad Request', b'<h1>Bad Request</h1>')
 	if service == 'telegram':
+		if seen_before(service, inbound.get('update_id')):
+			print("[telegram]: update", inbound['update_id'], "seen already, not run again", file=sys.stderr)
+			return reply('200 OK')
 		bot_name = botName
 		if "callback_query" in inbound: # chart period buttons
 			cq = inbound["callback_query"]
@@ -136,6 +154,9 @@ def handle(environ, start_response):
 			print("replying with", response, file=sys.stderr)
 			return reply('200 OK', bytes(response, "utf-8"))
 		if inbound['type'] == 'event_callback':
+			if seen_before(service, inbound.get('event_id')):
+				print("[slack]: event", inbound['event_id'], "seen already (a retry), not run again", file=sys.stderr)
+				return reply('200 OK')
 			event = inbound['event']
 			bot_user = inbound['authorizations'][0]['user_id'] # QWERTY
 			if event.get('bot_id') or event.get('subtype') not in SLACK_USER_SUBTYPES or not event.get('user') or event['user'] == bot_user:
@@ -234,6 +255,7 @@ if __name__ == '__main__':
 			sys.exit(1)
 	else:
 		print('Scheduled reports are off (scheduler=False)', file=sys.stderr)
+	util.render_off_hub() # charts drawn in a thread of their own: no chat waits while another's chart is drawn
 	httpd = pywsgi.WSGIServer((config_ip, config_port), main)
 	httpd.secure_repr = False if debug else None
 	print(f'Opening socket on http://{config_ip}:{config_port}', file=sys.stderr)

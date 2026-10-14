@@ -2,9 +2,7 @@ from itertools import pairwise
 import hashlib, re
 import datetime
 import sys
-import pandas as pd
 from lib.config import *
-from lib import jobs
 from lib import sharesight
 from lib import util
 from lib import webhook
@@ -146,6 +144,7 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 def prepare_compare(service, args):
 	"""Compare 2-6 tickers as rebased % change. A trailing time period (3m/1y/90d/ytd) is optional;
 	without one, the span is the earliest date covered by every ticker. Returns (caption lines, image, tickers, period days)."""
+	import pandas as pd
 	usage = ['Usage: .compare SYMBOL SYMBOL [SYMBOL...up to 6] [period|max]  (default: 10 years)']
 	period_days = None
 	full_history = False
@@ -219,6 +218,7 @@ def prepare_compare(service, args):
 def prepare_jobs_payload(service, args):
 	"""`.jobs` lists the scheduled commands, each once; `.jobs run <number|command>` runs one now, as cron would.
 	Returns (payload, reply_markup): Telegram gets a button per command."""
+	from lib import jobs # here: jobs imports every script, and some scripts import this module
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['Scheduled jobs are off (scheduler=False)'], None
@@ -243,12 +243,14 @@ def prepare_jobs_payload(service, args):
 
 def run_job_line(scheduler, text):
 	"""Run a scheduled command now and say how it went in one line."""
+	from lib import jobs # here: jobs imports every script, and some scripts import this module
 	try:
 		return job_line(scheduler, *scheduler.run_now(text))
 	except jobs.ScheduleError as e:
 		return str(e)
 
 def job_line(scheduler, label, outcome):
+	from lib import jobs # here: jobs imports every script, and some scripts import this module
 	number = [command[0] for command in scheduler.commands()].index(label) + 1
 	return f"{number}. {jobs.display(label)}: {outcome}"
 
