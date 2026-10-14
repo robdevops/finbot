@@ -81,6 +81,10 @@ class FinbotCase(unittest.TestCase):
         self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{
             'id': 1, 'transaction_type': 'BUY', 'symbol': 'T1', 'market': 'NASDAQ', 'portfolio': name,
             'transaction_date': time.strftime('%Y-%m-%d'), 'quantity': '10', 'price': '5.0', 'value': '50', 'brokerage_currency_code': 'USD', 'holding_id': 7}])
+        typing = []
+        real_start = worker.TypingIndicator.start
+        self.patch(worker.TypingIndicator, 'start', lambda indicator: (typing.append(indicator), real_start(indicator)))
+        self.addCleanup(lambda: [indicator.stop() for indicator in typing]) # a command that failed leaves its indicator running: stop it with the test
 
     def command(self, text, chat='55'):
         """Run a chat message through the real command parser and handlers."""
