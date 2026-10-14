@@ -40,7 +40,7 @@ class DataDirTests(FinbotCase):
 
 	def test_util_import_sets_mplconfigdir_without_home(self):
 		e = {k: v for k, v in os.environ.items() if k not in ('MPLCONFIGDIR', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'HOME')}
-		code = "import os; from lib import util; print(os.environ['MPLCONFIGDIR'])"
+		code = "import os; from lib import util; import matplotlib.dates; print(os.environ['MPLCONFIGDIR'])" # util loads matplotlib lazily
 		with tempfile.TemporaryDirectory() as d:
 			out = subprocess.run([sys.executable, '-c', code], cwd=REPO, env=dict(e, DATA_DIR=d), capture_output=True, text=True, check=True).stdout.strip()
 			self.assertEqual(out.split()[-1], d + '/cache/matplotlib')

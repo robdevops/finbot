@@ -7,9 +7,7 @@ import re
 import sys
 import tempfile
 import time
-import numpy as np
-from lib.config import * # first: sets MPLCONFIGDIR before matplotlib is imported
-import matplotlib.dates as mdates
+from lib.config import * # first: sets MPLCONFIGDIR before matplotlib is imported (lazily, by the chart functions)
 from lib import sharesight
 
 
@@ -128,140 +126,53 @@ def transform_title(title):
 	title = title.replace('Ishares', 'iShares')
 	return title
 
+MARKETS = { # Sharesight market code -> (flag, currency); no currency where a market quotes in several (LSE and HKEX allow non-home currencies)
+	'ASX': ('🇦🇺', 'AUD'),
+	'BOM': ('🇮🇳', 'INR'), 'NSE': ('🇮🇳', 'INR'),
+	'BMV': ('🇲🇽', 'MXN'),
+	'BKK': ('🇹🇭', 'THB'),
+	'BVMF': ('🇧🇷', 'BRL'),
+	'SHE': ('🇨🇳', 'CNY'), 'SGX': ('🇨🇳', 'CNY'), 'SHA': ('🇨🇳', 'CNY'),
+	'CPSE': ('🇩🇰', 'DEK'),
+	**dict.fromkeys(('EURONEXT', 'AMS', 'ATH', 'BIT', 'BME', 'DUB', 'EBR', 'EPA', 'ETR', 'FWB', 'FRA', 'VIE'), ('🇪🇺', 'EUR')),
+	'HKG': ('🇭🇰', None),
+	'ICSE': ('🇮🇸', 'ISK'),
+	'JSE': ('🇿🇦', 'ZAR'),
+	'KRX': ('🇰🇷', 'KRW'), 'KOSDAQ': ('🇰🇷', 'KRW'),
+	'LSE': ('🇬🇧', 'GBP'), # better than trades.py using brokerage_currency_code, which is AUD on CMC
+	'MISX': ('🇷🇺', 'RUB'),
+	'OM': ('🇸🇪', 'SEK'), 'STO': ('🇸🇪', 'SEK'),
+	'SWX': ('🇨🇭', 'CHF'), 'VTX': ('🇨🇭', 'CHF'),
+	'TAI': ('🇹🇼', 'TWD'), 'TPE': ('🇹🇼', 'TWD'),
+	'TASE': ('🇮🇱', 'ILS'),
+	'OB': ('🇳🇴', 'NOK'),
+	'TSE': ('🇯🇵', 'JPY'),
+	'TSX': ('🇨🇦', 'CAD'),
+	'NASDAQ': ('🇺🇸', 'USD'), 'NYSE': ('🇺🇸', 'USD'), 'BATS': ('🇺🇸', 'USD'), 'AMEX': ('🇺🇸', None),
+	'WAR': ('🇵🇱', 'PLN'),
+}
+
 def flag_from_market(market):
-	flag=''
-	if market == 'ASX':
-		flag = '🇦🇺'
-	elif market in {'BOM', 'NSE'}:
-		flag = '🇮🇳'
-	elif market in {'BMV'}:
-		flag = '🇲🇽'
-	elif market in {'BKK'}:
-		flag = '🇹🇭'
-	elif market in {'BVMF'}:
-		flag = '🇧🇷'
-	elif market in {'SHE', 'SGX', 'SHA'}:
-		flag = '🇨🇳'
-	elif market == 'CPSE':
-		flag = '🇩🇰'
-	elif market in {'EURONEXT','AMS','ATH','BIT','BME','DUB','EBR','EPA','ETR','FWB','FRA','VIE'}:
-		flag = '🇪🇺'
-	elif market == 'HKG':
-		flag = '🇭🇰'
-	elif market == 'ICSE':
-		flag = '🇮🇸'
-	elif market in {'JSE'}:
-		flag = '🇿🇦'
-	elif market in {'KRX', 'KOSDAQ'}:
-		flag = '🇰🇷'
-	elif market == 'LSE':
-		flag = '🇬🇧'
-	elif market == 'MISX':
-		flag = '🇷🇺'
-	elif market in {'OM', 'STO'}:
-		flag = '🇸🇪'
-	elif market == 'SGX':
-		flag = '🇸🇬'
-	elif market in {'SWX', 'VTX'}:
-		flag = '🇨🇭'
-	elif market in {'TAI', 'TPE'}:
-		flag = '🇹🇼'
-	elif market == 'TASE':
-		flag = '🇮🇱'
-	elif market == 'OB':
-		flag = '🇳🇴'
-	elif market == 'TSE':
-		flag = '🇯🇵'
-	elif market == 'TSX':
-		flag = '🇨🇦'
-	elif market in {'BATS', 'AMEX'} or market.lower().startswith('nasdaq') or market.lower().startswith('nyse'):
-		flag = '🇺🇸'
-	elif market in {'WAR'}:
-		flag = '🇵🇱'
-	return flag
+	if market in MARKETS:
+		return MARKETS[market][0]
+	return '🇺🇸' if market.lower().startswith(('nasdaq', 'nyse')) else ''
+
+TICKER_FLAGS = {'AS': '🇳🇱', 'AX': '🇦🇺', 'HK': '🇭🇰', 'KS': '🇰🇷', 'KQ': '🇰🇷', 'L': '🇬🇧', 'NS': '🇮🇳', 'NZ': '🇳🇿', 'TW': '🇹🇼', 'TWO': '🇹🇼', 'TO': '🇨🇦'} # Yahoo suffix -> flag
 
 def flag_from_ticker(ticker):
-	flag = ''
-	if '.' in ticker:
-		suffix = ticker.split('.')[1]
-		if suffix == 'AS':
-			flag = '🇳🇱'
-		elif suffix == 'AX':
-			flag = '🇦🇺'
-		elif suffix == 'HK':
-			flag = '🇭🇰'
-		elif suffix in ('KS', 'KQ'):
-			flag = '🇰🇷'
-		elif suffix == 'L':
-			flag = '🇬🇧'
-		elif suffix == 'NS':
-			flag = '🇮🇳'
-		elif suffix == 'NZ':
-			flag = '🇳🇿'
-		elif suffix in ('TW', 'TWO'):
-			flag = '🇹🇼'
-		elif suffix == 'TO':
-			flag = '🇨🇦'
-	else:
-		flag = '🇺🇸'
-	return flag
+	return TICKER_FLAGS.get(ticker.split('.')[1], '') if '.' in ticker else '🇺🇸'
 
 def currency_from_market(market):
-	if market == 'ASX':
-		currency = 'AUD'
-	elif market in {'BOM', 'NSE'}:
-		currency = 'INR'
-	elif market in {'BMV'}:
-		currency = 'MXN'
-	elif market in {'BKK'}:
-		currency = 'THB'
-	elif market in {'BVMF'}:
-		currency = 'BRL'
-	elif market in {'SHE', 'SGX', 'SHA'}:
-		currency = 'CNY'
-	elif market == 'CPSE':
-		currency = 'DEK'
-	elif market in {'EURONEXT','AMS','ATH','BIT','BME','DUB','EBR','EPA','ETR','FWB','FRA','VIE'}:
-		currency = 'EUR'
-	elif market == 'ICSE':
-		currency = 'ISK'
-	elif market in {'JSE'}:
-		currency = 'ZAR'
-	elif market in {'KRX', 'KOSDAQ'}:
-		currency = 'KRW'
-	elif market == 'MISX':
-		currency = 'RUB'
-	elif market in {'OM', 'STO'}:
-		currency = 'SEK'
-	elif market == 'SGX':
-		currency = 'SGD'
-	elif market in {'SWX', 'VTX'}:
-		currency = 'CHF'
-	elif market in {'TAI', 'TPE'}:
-		currency = 'TWD'
-	elif market == 'TASE':
-		currency = 'ILS'
-	elif market == 'OB':
-		currency = 'NOK'
-	elif market == 'TSE':
-		currency = 'JPY'
-	elif market == 'TSX':
-		currency = 'CAD'
-	elif market in {'NASDAQ', 'NYSE', 'BATS'}:
-		currency = 'USD'
-	elif market in {'WAR'}:
-		currency = 'PLN'
-	elif market == 'LSE':
-		currency = 'GBP' # LSE allows non-home currencies, but this is better than trades.py using brokerage_currency_code which is AUD on CMC
-	else:
-		# note: LSE and HKE allow non-home currencies
-		return None
-	return currency
+	return MARKETS.get(market, (None, None))[1]
+
+def cache_path(name, persist=False):
+	"""Where a cache file lives, or with persist=True a state file (in the data directory)."""
+	return (config_var_dir if persist else config_cache_dir) + "/" + name
 
 def read_cache(cacheFile, maxSeconds=UNSET):
 	if maxSeconds is UNSET:
 		maxSeconds = config_cache_seconds
-	cacheFile = config_cache_dir + "/" + cacheFile
+	cacheFile = cache_path(cacheFile)
 	if os.path.isfile(cacheFile):
 		maxSeconds = datetime.timedelta(seconds=maxSeconds)
 		cacheFileMtime = datetime.datetime.fromtimestamp(os.path.getmtime(cacheFile))
@@ -279,7 +190,7 @@ def read_cache(cacheFile, maxSeconds=UNSET):
 def cache_age(cacheFile):
 	"""Seconds since the cache file was written, or None when it does not exist."""
 	try:
-		return time.time() - os.path.getmtime(config_cache_dir + "/" + cacheFile)
+		return time.time() - os.path.getmtime(cache_path(cacheFile))
 	except OSError:
 		return None
 
@@ -306,26 +217,19 @@ def write_file(path, data, sync=False):
 
 def json_write(filename, data, persist=False):
 	"""A cache file, or with persist=True a state file in the data directory (also flushed to disk). See write_file."""
-	if persist:
-		filename = config_var_dir + "/" + filename
-	else:
-		filename = config_cache_dir + "/" + filename
+	path = cache_path(filename, persist)
 	if debug:
-		print("cache write:", filename, file=sys.stderr)
-	write_file(filename, json.dumps(data, indent=4).encode('utf-8'), sync=persist)
+		print("cache write:", path, file=sys.stderr)
+	write_file(path, json.dumps(data, indent=4).encode('utf-8'), sync=persist)
 
 def json_load(filename, persist=False):
-	if persist:
-		filename = config_var_dir + "/" + filename
-	else:
-		filename = config_cache_dir + "/" + filename
-	path = Path(filename)
+	path = Path(cache_path(filename, persist))
 	return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 def read_binary_cache(cacheFile, maxSeconds=UNSET):
 	if maxSeconds is UNSET:
 		maxSeconds = config_cache_seconds
-	cacheFile = config_cache_dir + "/" + cacheFile
+	cacheFile = cache_path(cacheFile)
 	if os.path.isfile(cacheFile):
 		maxSeconds = datetime.timedelta(seconds=maxSeconds)
 		cacheFileMtime = datetime.datetime.fromtimestamp(os.path.getmtime(cacheFile))
@@ -342,7 +246,7 @@ def read_binary_cache(cacheFile, maxSeconds=UNSET):
 
 def write_binary_cache(cacheFile, data):
 	data.seek(0)
-	write_file(config_cache_dir + "/" + cacheFile, data.getvalue())
+	write_file(cache_path(cacheFile), data.getvalue())
 
 def humanUnits(value, decimal_places=2):
 	for unit in ['', 'K', 'M', 'B', 'T', 'Q']:
@@ -352,18 +256,9 @@ def humanUnits(value, decimal_places=2):
 	return f"{value:.{decimal_places}f} {unit}"
 
 def yahoo_link(ticker, service='telegram', brief=True, text=None):
-	yahoo_url = "https://au.finance.yahoo.com/quote/"
-	if brief and not text:
-		text = ticker.split('.')[0]
-	elif not text:
-		text = ticker
-	if service == 'telegram' and config_hyperlink:
-		ticker_link = '<a href="' + yahoo_url + ticker + '">' + text + '</a>'
-	elif service in {'discord', 'slack'} and config_hyperlink:
-		ticker_link = '<' + yahoo_url + ticker + '|' + text + '>'
-	else:
-		ticker_link = text
-	return ticker_link
+	if not text:
+		text = ticker.split('.')[0] if brief else ticker
+	return link("https://au.finance.yahoo.com/quote/" + ticker, text, service)
 
 def link(url, text, service='telegram'):
 	if service == 'telegram' and config_hyperlink:
@@ -376,10 +271,14 @@ def link(url, text, service='telegram'):
 
 def finance_link(symbol, exchange, service='telegram', days=1, brief=True, text=None):
 	if config_hyperlinkProvider == 'google':
-		link = gfinance_link(symbol, exchange, service, days, brief, text)
-	else:
-		link = yahoo_link(symbol, service, brief, text)
-	return link
+		return gfinance_link(symbol, exchange, service, days, brief, text)
+	return yahoo_link(symbol, service, brief, text)
+
+def quote_link(ticker, exchange, service='telegram', days=1):
+	"""finance_link, but to Yahoo for what Google Finance has no page for: Taipei Exchange, crypto (CCC) and indices (^)."""
+	if exchange in ('Taipei Exchange', 'CCC') or ticker.startswith('^'):
+		return yahoo_link(ticker, service)
+	return finance_link(ticker, exchange, service, days=days)
 
 def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True, text=None):
 	window = '1D'
@@ -411,59 +310,41 @@ def gfinance_link(symbol, exchange, service='telegram', days=1, brief=True, text
 			text = ticker
 		else:
 			text = symbol # US
-	if service == 'telegram' and config_hyperlink:
-		ticker_link = '<a href="' + url + ticker + '?window=' + window + '">' + text + '</a>'
-	elif service in {'discord', 'slack'} and config_hyperlink:
-		ticker_link = '<' + url + ticker + '?window=' + window + '|' + text + '>'
-	else:
-		ticker_link = symbol
-	return ticker_link
+	if service in {'telegram', 'discord', 'slack'} and config_hyperlink:
+		return link(url + ticker + '?window=' + window, text, service)
+	return symbol
+
+VENUES = { # the names Yahoo, Sharesight and Google give an exchange -> (Google Finance code, country)
+	**dict.fromkeys(('OTC', 'PNK', 'Other OTC', 'OTCPK'), ('OTCMKTS', None)),
+	**dict.fromkeys(('TO', 'TOR', 'Toronto'), ('TSE', 'CA')),
+	**dict.fromkeys(('TW', 'TWO', 'TAI', 'Taiwan', 'Taipei Exchange', 'Taipei'), ('TPE', 'TW')),
+	**dict.fromkeys(('HK', 'HKG', 'HKSE'), ('HKG', 'HK')),
+	**dict.fromkeys(('KQ', 'KOE', 'KOSDAQ'), ('KOSDAQ', 'KR')),
+	**dict.fromkeys(('KS', 'KRX', 'KSE', 'KSC'), ('KRX', 'KR')),
+	**dict.fromkeys(('L', 'LSE', 'London'), ('LON', 'UK')),
+	**dict.fromkeys(('T', 'TYO', 'JPX', 'Tokyo'), ('TYO', 'JP')),
+	**dict.fromkeys(('TA', 'TLV', 'Tel Aviv'), ('TLV', 'IL')),
+	**dict.fromkeys(('NZSE', 'NZE', 'New Zealand', 'Auckland'), (None, 'NZ')),
+}
 
 def transform_to_google(exchange):
 	if 'Nasdaq' in exchange:
-		exchange = 'NASDAQ'
-	elif exchange == 'Cboe US':
-		exchange = 'BATS'
-	elif exchange in {'OTC', 'PNK', 'Other OTC', 'OTCPK'}:
-		exchange = 'OTCMKTS'
-	elif exchange in {'TO', 'TOR', 'Toronto'}:
-		exchange = 'TSE'
-	elif exchange in {'TW', 'TWO', 'TAI', 'Taiwan', 'Taipei Exchange', 'Taipei'}:
-		exchange = 'TPE'
-	elif exchange in {'HK', 'HKG', 'HKSE'}:
-		exchange = 'HKG'
-	elif exchange in {'KQ', 'KOE', 'KOSDAQ'}:
-		exchange = 'KOSDAQ'
-	elif exchange in {'KS', 'KRX', 'KSE', 'KSC'}:
-		exchange = 'KRX'
-	elif exchange in {'L', 'LSE', 'London'}:
-		exchange = 'LON'
-	elif exchange in {'T', 'TYO', 'JPX', 'Tokyo'}:
-		exchange = 'TYO'
-	elif exchange in {'TA', 'TLV', 'Tel Aviv'}:
-		exchange = 'TLV'
-	return exchange
+		return 'NASDAQ'
+	if exchange == 'Cboe US':
+		return 'BATS'
+	return VENUES.get(exchange, (None, None))[0] or exchange
 
 def exchange_human(exchange):
 	if 'Nasdaq' in exchange or 'NYSE' in exchange or 'Other OTC' in exchange:
 		return 'US'
-	elif exchange in {'TO', 'TOR', 'Toronto'}:
-		return 'CA'
-	elif exchange in {'TW', 'TWO', 'TAI', 'Taiwan', 'Taipei Exchange', 'Taipei'}:
-		return 'TW'
-	elif exchange in {'HK', 'HKG', 'HKSE'}:
-		return 'HK'
-	elif exchange in {'KQ', 'KOE', 'KOSDAQ', 'KS', 'KRX', 'KSE', 'KSC'}:
-		return 'KR'
-	elif exchange in {'L', 'LSE', 'London'}:
-		return 'UK'
-	elif exchange in {'T', 'TYO', 'JPX', 'Tokyo'}:
-		return 'JP'
-	elif exchange in {'TA', 'TLV', 'Tel Aviv'}:
-		return 'IL'
-	elif exchange in {'NZSE', 'NZE', 'New Zealand', 'Auckland'}:
-		return 'NZ'
-	return exchange
+	return VENUES.get(exchange, (None, None))[1] or exchange
+
+YAHOO_SUFFIX = { # exchange code (Sharesight, Google) -> Yahoo's ticker suffix
+	'ASX': 'AX', 'HKG': 'HK', 'KRX': 'KS', 'KOSDAQ': 'KQ', 'LSE': 'L',
+	'TAI': 'TW', # Taiwan in YF and Sharesight; TPE in GF
+	'TPE': 'TWO', # Taipei in YF, Taiwan in GF (GF format will not work as input); missing from GF
+	'TSE': 'TO', 'TYO': 'T', 'TLV': 'TA',
+}
 
 def transform_to_yahoo(ticker, market=None):
 	split = ticker.replace(':', '.').split('.')
@@ -472,32 +353,12 @@ def transform_to_yahoo(ticker, market=None):
 		market = split[1]
 	if not market:
 		return ticker
-	if market == 'ASX':
-		market = 'AX'
-	if market == 'HKG':
-		market = 'HK'
-	if market == 'KRX':
-		market = 'KS'
-	if market == 'KOSDAQ':
-		market = 'KQ'
-	if market == 'LSE':
-		market = 'L'
-	if market == 'TAI': # Taiwan in YF, Sharesight
-		market = 'TW' # TPE in GF
-	if market == 'TPE': # Taipei in YF, Taiwan in GF. GF format will not work as input
-		market = 'TWO' # missing from GF
-	if market == 'TSE':
-		market = 'TO'
-	if market == 'TYO':
-		market = 'T'
-	if market == 'TLV':
-		market = 'TA'
+	market = YAHOO_SUFFIX.get(market, market)
 	if market in {'NASDAQ', 'NYSE', 'BATS', 'OTCMKTS', 'AMEX', 'NYSEARCA'}: # US venues: Yahoo symbols carry no suffix
 		return ticker
 	if market in {'A', 'B', 'C'}: # class shares
 		return ticker + '-' + market
-	ticker = ticker + '.' + market
-	return ticker
+	return ticker + '.' + market
 
 def strip_url(url):
 	url = url.removeprefix('https://www.')
@@ -558,6 +419,7 @@ def fit_left_margin(fig, ax, pad_px=18):
 
 def style_date_axis(ax, start, end, ink):
 	"""Larger, explicit date ticks: format follows the span, few enough ticks that they never collide."""
+	import matplotlib.dates as mdates
 	days = (end - start).days
 	fmt = '%Y' if days > 1460 else '%b %Y' if days > 150 else '%d %b'
 	ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=3, maxticks=5))
@@ -566,14 +428,30 @@ def style_date_axis(ax, start, end, ink):
 	for label in ax.get_xticklabels():
 		label.set_fontweight('medium')
 
-def graph(df, title, ylabel):
-	"""Render a price chart as PNG bytes, sized for Telegram (1280px wide, no server-side resampling)."""
+PALETTE = ('#14181f', '#eef1f5', '#9aa4b2', '#2a313c') # charts: dark surface, ink, muted ink, grid lines
+
+def _figure(facecolor):
+	"""A 1280x800 figure (Telegram's photo size, so it is never resampled) and its Agg canvas."""
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
+	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=facecolor)
+	return fig, FigureCanvasAgg(fig)
+
+def _png(fig, facecolor):
+	"""The figure as PNG bytes, rewound, or an upload sends an empty file. No bbox_inches='tight': it would change the 1280x800 size."""
+	buf = io.BytesIO()
+	fig.savefig(buf, format='png', facecolor=facecolor)
+	buf.seek(0)
+	return buf
+
+def graph(df, title, ylabel):
+	"""Render a price chart as PNG bytes, sized for Telegram (1280px wide, no server-side resampling)."""
 	from matplotlib.ticker import MaxNLocator, FuncFormatter
+	import matplotlib.dates as mdates
+	import numpy as np
 	import pandas as pd
 	# palette: dark surface, muted ink, green/red for up/down (red/green separated in lightness as well as hue)
-	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
+	bg, ink, ink2, grid = PALETTE
 	up, down, flat = '#34d399', '#fb7185', '#9aa4b2'
 	x = pd.to_datetime(df['Date'].astype(str))
 	y = df['Close'].astype(float)
@@ -582,8 +460,7 @@ def graph(df, title, ylabel):
 	pct = (last - first) / first * 100 if first else 0
 	arrow = '▲' if last > first else '▼' if last < first else '■'
 
-	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg) # 1280x800
-	FigureCanvasAgg(fig)
+	fig, _ = _figure(bg)
 	ax = fig.add_axes([0.075, 0.105, 0.885, 0.755], facecolor=bg)
 	ax.fill_between(x, y, y.min() - (y.max() - y.min()) * 0.15, color=color, alpha=0.14, linewidth=0)
 	ax.plot(x, y, color=color, linewidth=1.6, solid_capstyle='round')
@@ -622,22 +499,16 @@ def graph(df, title, ylabel):
 	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
 	fig.text(0.03, 0.910, f"{last:,.2f} {ylabel or ''}   {arrow} {abs(pct):.2f}%  over period", color=color, fontsize=8.5, ha='left', va='center')
 
-	buf = io.BytesIO()
-	fig.savefig(buf, format='png', facecolor=bg) # no bbox_inches='tight': keep exact 1280x800
-	buf.seek(0)
-	return buf
+	return _png(fig, bg)
 
 def compare_graph(series, title, subtitle=''):
 	"""Rebased % change lines for 2-6 tickers. series: list of (label, pandas Series of closes), already cropped to the period.
 	Returns PNG bytes (1280x800, Telegram's photo size)."""
-	from matplotlib.figure import Figure
-	from matplotlib.backends.backend_agg import FigureCanvasAgg
 	from matplotlib.ticker import MaxNLocator, FuncFormatter
-	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
+	bg, ink, ink2, grid = PALETTE
 	# categorical slots 1-5 and 7 of the validated dark palette; red/green are skipped because they mean down/up
 	colors = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9']
-	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
-	FigureCanvasAgg(fig)
+	fig, _ = _figure(bg)
 	ax = fig.add_axes([0.075, 0.105, 0.72, 0.755], facecolor=bg)
 	rebased = []
 	for label, y in series:
@@ -683,10 +554,7 @@ def compare_graph(series, title, subtitle=''):
 	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
 	if subtitle:
 		fig.text(0.03, 0.910, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
-	buf = io.BytesIO()
-	fig.savefig(buf, format='png', facecolor=bg)
-	buf.seek(0) # rewind, or the upload sends an empty file
-	return buf
+	return _png(fig, bg)
 
 SESSION_TINTS = {'midsession': '#34d399', 'premarket': '#facc15'} # subtle green / yellow wash; at close stays plain
 
@@ -695,22 +563,17 @@ def tinted(bg, color, amount=0.07):
 	mix = lambda i: round(int(bg[i:i + 2], 16) * (1 - amount) + int(color[i:i + 2], 16) * amount)
 	return '#{:02x}{:02x}{:02x}'.format(mix(1), mix(3), mix(5))
 
-def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshold=None, xlim=None, session=None):
+def hbar_chart(rows, title, subtitle='', value_fmt=None, threshold=None, xlim=None, session=None):
 	"""Horizontal bars that mirror the caption list, first row on top, filling the whole 1280x800 canvas.
 	Blue for >= 0, red below. Each row's label sits at the bar's base and its value at the tip.
 	rows: [(label, value)]; a (label, None) row is a blank spacer. xlim zooms the value axis (bars then start at its left edge).
 	session: 'midsession' or 'premarket' washes the background green or yellow."""
-	from matplotlib.figure import Figure
-	from matplotlib.backends.backend_agg import FigureCanvasAgg
-	from matplotlib.ticker import MaxNLocator, FuncFormatter
 	value_fmt = value_fmt or (lambda v: signed_percent(round(v)))
-	axis_fmt = axis_fmt or (lambda v: '0%' if v == 0 else f"{v:+g}%")
-	bg, ink, ink2, grid = '#14181f', '#eef1f5', '#9aa4b2', '#2a313c'
+	bg, ink, ink2, _ = PALETTE
 	up, down = '#3987e5', '#fb7185'
 	if session in SESSION_TINTS:
 		bg = tinted(bg, SESSION_TINTS[session])
-	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
-	canvas = FigureCanvasAgg(fig)
+	fig, canvas = _figure(bg)
 	top_edge = 0.85 if subtitle else 0.89
 	left = 0.14 if xlim else 0.04 # zoomed charts keep their labels outside the plot
 	ax = fig.add_axes([left, 0.02, 0.96 - left, top_edge - 0.02], facecolor=bg)
@@ -724,7 +587,6 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	if threshold is not None:
 		ax.axvline(threshold, color=ink2, linewidth=0.9, linestyle=(0, (4, 3)), zorder=4)
 	top, bottom = max(max(values), 0, threshold or 0), min(min(values), 0)
-	span = (top - bottom) or 1.0
 	lo0 = xlim[0] if xlim else bottom
 	hi0 = xlim[1] if xlim else top
 	ax.set_xlim(lo0, hi0)
@@ -762,20 +624,18 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 			value_width = [t.get_window_extent(renderer).width for t in value_labels]
 	width = ax.get_window_extent(renderer).width
 	lo, hi = lo0, hi0
-	inside = [True] * len(real)
-	for _ in range(12): # the pixels-per-unit scale depends on the limits, which depend on how many labels sit outside: settle it iteratively
+	for _ in range(12): # the pixels-per-unit scale depends on the limits, which depend on the text beside the bars: settle it iteratively
 		per_unit = width / (hi - lo)
-		inside = [False] * len(real) # labels all sit outside the bars, at the base
-		# room for the text that sits outside the bars: tip values, and base labels of bars too short to hold theirs
+		# room for the text outside the bars: each tip's value, and each base's label (zoomed charts keep those in the left margin)
 		new_lo, new_hi = lo0, hi0
-		for (_, _, v), w, vw, ins in zip(real, label_width, value_width, inside):
+		for (_, _, v), w, vw in zip(real, label_width, value_width):
 			if v >= 0:
 				new_hi = max(new_hi, v + (vw + 12) / per_unit)
-				if not ins and not xlim:
+				if not xlim:
 					new_lo = min(new_lo, base - (w + 12) / per_unit)
 			else:
 				new_lo = min(new_lo, v - (vw + 12) / per_unit)
-				if not ins and not xlim:
+				if not xlim:
 					new_hi = max(new_hi, base + (w + 12) / per_unit)
 		if abs(new_lo - lo) < 1e-6 * (hi - lo) and abs(new_hi - hi) < 1e-6 * (hi - lo):
 			break
@@ -787,10 +647,7 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, axis_fmt=None, threshol
 	fig.text(0.03, 0.945 if not subtitle else 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
 	if subtitle:
 		fig.text(0.03, 0.885, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
-	buf = io.BytesIO()
-	fig.savefig(buf, format='png', facecolor=bg)
-	buf.seek(0) # rewind, or the upload sends an empty file
-	return buf
+	return _png(fig, bg)
 
 SHORTS_VERDICTS = ((5, 'board shorts'), (10, 'cargo shorts'), (15, 'boxers'), (20, 'gym shorts'), # five points each at the bottom
 	(30, 'cutoffs'), (40, 'short shorts'), (50, 'daisy dukes'), (60, 'hot pants'), (70, 'speedos'), (80, 'budgie smugglers'), (90, 'just a belt'),
@@ -805,8 +662,7 @@ def shorts_chart(rows, threshold, step=5):
 	rows: [(label, percent)], largest first. Loud on purpose and drawn from patches, since matplotlib cannot render colour emoji.
 	Returns PNG bytes (1280x800)."""
 	import math
-	from matplotlib.figure import Figure
-	from matplotlib.backends.backend_agg import FigureCanvasAgg
+	import numpy as np
 	from matplotlib.patches import Polygon, Rectangle, Circle, Ellipse, PathPatch
 	from matplotlib.path import Path
 	sky, ink, sea, foam, ray = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff', '#ffd23f'
@@ -815,8 +671,7 @@ def shorts_chart(rows, threshold, step=5):
 	if len(rows) > 24: # pairs of shorts need height: keep the most and the least shorted
 		rows = rows[:12] + rows[-12:]
 	rows = [(label if len(label) <= 10 else label[:9] + '…', value) for label, value in rows]
-	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=sky)
-	canvas = FigureCanvasAgg(fig)
+	fig, canvas = _figure(sky)
 	ax = fig.add_axes([0, 0, 1, 1], facecolor=sky)
 	ax.set_xlim(0, W)
 	ax.set_ylim(H, 0) # pixels, y down
@@ -909,10 +764,7 @@ def shorts_chart(rows, threshold, step=5):
 	ax.plot([line_x, line_x], [top - 12, bottom], color=ink, linewidth=1.8, linestyle=(0, (5, 4)), zorder=0)
 	ax.text(line_x, top - 18, f"{threshold}% outrageous line", color=ink, fontsize=7.5, fontweight='bold', ha='center', va='bottom')
 
-	buf = io.BytesIO()
-	fig.savefig(buf, format='png', facecolor=sky)
-	buf.seek(0)
-	return buf
+	return _png(fig, sky)
 
 def rows_chart(rows, title, subtitle='', **kw):
 	"""Horizontal bars for a list of (label, value). Over 40 rows keeps the first and last 20."""
@@ -923,10 +775,8 @@ def rows_chart(rows, title, subtitle='', **kw):
 def pie_chart(rows, title, subtitle=''):
 	"""Pie of (label, value) rows, largest first, with a legend of name and share. At most 8 named slices
 	(the dark categorical slots, in fixed order); a slice labelled 'Other' is gray. Returns PNG bytes (1280x800)."""
-	from matplotlib.figure import Figure
-	from matplotlib.backends.backend_agg import FigureCanvasAgg
 	from matplotlib.patches import Rectangle
-	bg, ink, ink2 = '#14181f', '#eef1f5', '#9aa4b2'
+	bg, ink, ink2, _ = PALETTE
 	slots = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767']
 	other = '#6b7280'
 	total = sum(v for _, v in rows) or 1.0
@@ -937,8 +787,7 @@ def pie_chart(rows, title, subtitle=''):
 		else:
 			colors.append(slots[n % len(slots)])
 			n += 1
-	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=bg)
-	FigureCanvasAgg(fig)
+	fig, _ = _figure(bg)
 	ax = fig.add_axes([0.02, 0.02, 0.525, 0.84], facecolor=bg) # square: 0.84 * 4in = 0.525 * 6.4in
 	ax.pie([v for _, v in rows], colors=colors, startangle=90, counterclock=False,
 		wedgeprops={'edgecolor': bg, 'linewidth': 2}) # 2px surface gap between slices
@@ -955,10 +804,7 @@ def pie_chart(rows, title, subtitle=''):
 	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
 	if subtitle:
 		fig.text(0.03, 0.910, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
-	buf = io.BytesIO()
-	fig.savefig(buf, format='png', facecolor=bg)
-	buf.seek(0)
-	return buf
+	return _png(fig, bg)
 
 def bar_graph(top_rows, bottom_rows, title, subtitle=''):
 	"""Top performers then, after a gap, the worst performers: the same order as the caption's two lists."""
@@ -980,30 +826,24 @@ def get_emoji(number):
 		return '▪️'
 
 def days_from_human_days(arg):
+	"""7, 7d, 2w, 3m, 1y or ytd -> days. Raises ValueError for anything else."""
 	arg = arg.upper()
-	today = datetime.datetime.now().date()
 	if arg == 'YTD':
-		target = today.replace(day=1, month=1)
-		return (today - target).days
-	try:
-		days = int(arg.removesuffix('D'))
-	except ValueError:
+		today = datetime.datetime.now().date()
+		return (today - today.replace(day=1, month=1)).days
+	for suffix, days in (('D', 1), ('W', 7), ('M', 30)):
 		try:
-			days = int(arg.removesuffix('W')) * 7
+			return int(arg.removesuffix(suffix)) * days
 		except ValueError:
-			try:
-				days = int(arg.removesuffix('M')) * 30
-			except ValueError:
-				days = int(arg.removesuffix('Y')) * 365
-	return days
+			pass
+	return int(arg.removesuffix('Y')) * 365
 
 def get_holdings_and_watchlist():
 	tickers = set(sharesight.get_holdings_wrapper())
 	tickers.update(json_load('finbot_watchlist.json', persist=True) or []) # absent until the first add
 	if 'GOOG' in tickers and 'GOOGL' in tickers:
 		tickers.remove("GOOGL")
-	tickers = sorted(set(tickers))
-	return tickers
+	return sorted(tickers)
 
 def ordinal(num):
 	value = str(num)

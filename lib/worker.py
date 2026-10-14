@@ -620,7 +620,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			heading = 'Beta over 1.5 and mkt cap under 2B'
 			payload.insert(0, f"{webhook.bold(heading, service)}")
 			chart_rows.sort(key=lambda row: row[1], reverse=True)
-			chart = {'rows': chart_rows, 'title': heading, 'value_fmt': lambda v: f"{v:g}", 'axis_fmt': lambda v: f"{v:g}"}
+			chart = {'rows': chart_rows, 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
 			deliver(service, url, chat_id, payload, chart)
 	elif m_pie:
 		words = m_pie.group('args').split()
