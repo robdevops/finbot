@@ -682,6 +682,8 @@ def fetch_detail(ticker, seconds=UNSET):
 	return local_market_data
 
 def price_history(ticker, days=None, seconds=UNSET, graph=UNSET, graphCache=True):
+	"""({period: percent change}, chart image or None). If the chart cannot be fetched: (error string, None), which the callers
+	check for so that one failed ticker does not take a whole report down."""
 	if graph is UNSET:
 		graph = config_graph
 	if seconds is UNSET:
@@ -694,6 +696,8 @@ def price_history(ticker, days=None, seconds=UNSET, graph=UNSET, graphCache=True
 	interval = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
 
 	data = fetch_chart_json(ticker)
+	if isinstance(data, tuple): # (error string, None)
+		return data
 	df = chart_json_to_df(data)
 	stock = chart_json_to_stock_basics(data)
 	tz = zoneinfo.ZoneInfo(stock.get('exchangeTimezoneName'))
@@ -735,8 +739,12 @@ def price_history(ticker, days=None, seconds=UNSET, graph=UNSET, graphCache=True
 					percent_dict['Max'] = default_percent
 					continue
 			elif period == '1D':
-					#percent_dict['1D'] = market_data[ticker]['percent_change']
-					percent_dict['1D'] = default_percent
+				# against the previous session's close: the last close dated before the latest bar, in the exchange's time zone
+				sessions = pd.to_datetime(df['Timestamp'], unit='s', utc=True).dt.tz_convert(tz).dt.date
+				earlier = df[(sessions < sessions.iloc[-1]) & df['Close'].notnull()]
+				if earlier.empty:
+					continue
+				past_price = earlier['Close'].iloc[-1]
 			elif period == '5D':
 				#seek_date = now - datetime.timedelta(days = 5)
 				seek_date = now - businessday(5)

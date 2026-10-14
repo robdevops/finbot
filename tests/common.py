@@ -13,7 +13,7 @@ from lib import config, webhook, util, yahoo, sharesight, shortman, worker, char
 import performance, shorts, price, reminder, cal, trades, milestone, rating
 import bot # imported once up front: it monkey-patches with gevent, which must not happen mid-test
 
-REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),
+REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (yahoo, 'price_history'),
     (sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'), (sharesight, 'get_performance_wrapper'))}
 REAL_GET_HOLDINGS = util.get_holdings_and_watchlist
 REAL_PAYLOAD_WRAPPER = webhook.payload_wrapper # FinbotCase replaces it; tests of the real thing use this

@@ -148,6 +148,61 @@ class YahooChart(ProviderCase):
                 self.assertIsInstance(result, tuple)
                 self.assertIsNone(result[1])
 
+    @staticmethod
+    def chart(closes, failing=()):
+        """A v8 chart response with one daily bar per close, the last one today (14:30 UTC, New York's open)."""
+        today = datetime.datetime.now(datetime.timezone.utc).replace(hour=14, minute=30, second=0, microsecond=0)
+        stamps = [int((today - datetime.timedelta(days=len(closes) - 1 - i)).timestamp()) for i in range(len(closes))]
+        meta = {'currency': 'USD', 'symbol': 'T1', 'exchangeTimezoneName': 'America/New_York', 'regularMarketTime': stamps[-1],
+                'regularMarketPrice': closes[-1], 'longName': 'Co T1'}
+        quote = {'open': closes, 'high': closes, 'low': closes, 'close': closes, 'volume': [1] * len(closes)}
+        return {'chart': {'result': [{'meta': meta, 'timestamp': stamps, 'indicators': {'quote': [quote]}}], 'error': None}}
+
+    def test_1d_is_the_change_since_the_previous_close(self):
+        self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
+        self.http(yahoo, Resp(self.chart([90] * 30 + [100, 105, 110, 115, 120, 116.4]))) # up 20% in a week, down 3% today
+        table, image = yahoo.price_history('T1', graph=False)
+        self.assertEqual(table['1D'], -3)
+        self.assertGreater(table['5D'], 10) # the week, not the day
+
+    def test_a_failed_chart_fetch_is_handed_back_not_raised(self):
+        self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
+        for failure in (Resp(status=429), ConnectionError('down')):
+            with self.subTest(failure=failure):
+                self.http(yahoo, failure)
+                percent, image = yahoo.price_history('AAPL', 7, graph=False)
+                self.assertIsInstance(percent, str)
+                self.assertIsNone(image)
+
+    def test_one_failed_ticker_does_not_take_the_report_down(self):
+        self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
+        self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts}) # quotes as canned in the base fixture, charts over HTTP
+        self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
+        self.patch(sharesight, 'get_performance_wrapper', lambda d: {}) # no Sharesight figures: every ticker needs its Yahoo history
+        good = Resp(self.chart([100.0] * 20 + [110.0]))
+        def get(url, **kwargs):
+            return Resp(status=404) if '/chart/T3?' in url or '/chart/SPY?' in url else good
+        self.patch(yahoo.requests, 'get', get)
+        def slack(text): # Slack: the reports come as text
+            self.sent.clear(); self.errors.clear()
+            worker.process_request('slack', 'C1', '<@U1>', text, BOT, 'U', '1')
+            self.assertEqual(self.errors, [], text)
+            return '\n'.join(map(str, self.sent[-1][1]))
+        price_list = slack('.price 7d') # T3 is left out, the rest are listed
+        self.assertNotIn('Co T3 (', price_list)
+        self.assertIn('Co T4 (', price_list)
+        self.patch(sharesight, 'get_portfolios', lambda: {'Rob': 1})
+        self.patch(sharesight, 'get_performance', lambda pid, d, *a: {'report': {'holdings': [{'portfolio': {'name': 'Rob'}}],
+            'currency_gain_percent': '0', 'capital_gain_percent': '2.5', 'total_gain_percent': '0'}})
+        report = slack('.performance 7d') # the S&P 500 benchmark has no history
+        self.assertIn('⚠️ S&P 500: no price history', report)
+        self.assertIn('NASDAQ 100', report)
+        self.command('.T3') # the profile goes out without its history lines
+        self.sent.clear(); self.errors.clear()
+        worker.process_request('telegram', '55', '@u', '.price T3 7d', BOT, 'U', '1')
+        self.assertEqual(len(self.errors), 1) # the one ticker asked for: one line saying why
+        self.assertTrue(self.errors[0].startswith('⚠️ .price: RuntimeError: 404 error for T3'))
+
     def test_price_series_raises_on_failure_and_on_empty_history(self):
         self.http(yahoo, Resp(status=500))
         with self.assertRaises(RuntimeError):

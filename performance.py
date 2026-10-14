@@ -25,12 +25,10 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=UNSET, service=None,
 		try:
 			percent, graph = yahoo.price_history(ticker, days=past_days, graph=False)
 		except Exception as e:
-			errorstring=f"error: {e}"
-			print(errorstring, file=sys.stderr)
-		if isinstance(percent, str):
-			errorstring=percent
-			print(errorstring, file=sys.stderr)
-			return errorstring, None
+			percent = f"error: {e}"
+		if isinstance(percent, str): # no history for this benchmark: say so in its line, the rest of the report goes out
+			print(ticker, percent, file=sys.stderr)
+			return f"⚠️ {text}: no price history", None
 		else:
 			percent = percent[past_days]
 			emoji = get_emoji(percent)
