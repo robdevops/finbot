@@ -4,6 +4,7 @@ import random, sys
 import datetime
 
 from lib import config
+from lib import state
 from lib import words
 from lib import sharesight
 from lib import webhook
@@ -89,7 +90,7 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 	# MAIN #
 	newtrades = set()
 	portfolios = sharesight.pick_portfolios(portfolio_select)
-	known_trades = set(util.json_load(state_file, persist=True) or ())
+	known_trades = set(state.load(state_file) or ())
 	trades = [trade for name, portfolio_id in portfolios.items() for trade in sharesight.get_trades(name, portfolio_id, days)]
 
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
@@ -101,7 +102,7 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 	# write state file
 	if newtrades and not interactive:
 		known_trades.update(newtrades)
-		util.json_write(state_file, list(known_trades), persist=True)
+		state.save(state_file, list(known_trades))
 
 def job(argv):
 	return 'trades.py', {}

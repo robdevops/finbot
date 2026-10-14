@@ -241,7 +241,7 @@ class SchedulerTests(SchedulerBase):
 	def test_a_run_missed_within_the_catch_up_window_fires_once(self):
 		first = self.scheduler()
 		first.last = {first.jobs[0].key: at(13, 21, 0).isoformat()}
-		util.json_write(jobs.STATE_FILE, first.last, persist=True)
+		state.save(jobs.STATE_FILE, first.last)
 		self.clock.now = at(13, 21, 43)
 		s = self.scheduler()
 		self.assertEqual([t for _, t in s.due(self.clock.now)], [at(13, 21, 40)]) # 21:20 is older than 5 minutes: skipped
@@ -253,7 +253,7 @@ class SchedulerTests(SchedulerBase):
 		self.assertIn('cannot read finbot_jobs.json', self.errors[0])
 		self.clock.now = at(13, 21, 20)
 		self.assertEqual(len(s.due(self.clock.now)), 1) # runs as usual, and the record is written afresh
-		self.assertEqual(util.json_load(jobs.STATE_FILE, persist=True), {s.jobs[0].key: at(13, 21, 20).isoformat()})
+		self.assertEqual(state.load(jobs.STATE_FILE), {s.jobs[0].key: at(13, 21, 20).isoformat()})
 		s.reload() # and a reload is no trouble either
 		self.assertEqual(len(self.errors), 1)
 

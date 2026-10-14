@@ -90,37 +90,37 @@ class Formatting(unittest.TestCase):
 
 class StateFiles(FinbotCase):
 	def test_json_roundtrip_and_missing_file(self):
-		self.assertIsNone(util.json_load('absent.json', persist=True))
-		util.json_write('state.json', {'a': [1, 2]}, persist=True)
-		self.assertEqual(util.json_load('state.json', persist=True), {'a': [1, 2]})
+		self.assertIsNone(state.load('absent.json'))
+		state.save('state.json', {'a': [1, 2]})
+		self.assertEqual(state.load('state.json'), {'a': [1, 2]})
 
 	def test_a_failed_write_leaves_the_old_file_and_the_umask_alone(self):
-		util.json_write('state.json', {'a': 1}, persist=True)
+		state.save('state.json', {'a': 1})
 		path = Path(config.env.data_dir, 'state.json')
 		previous = os.umask(0o027)
 		self.addCleanup(os.umask, previous)
 		def disk_full(*a, **k):
 			raise OSError(28, 'No space left on device')
 		for broken in ('replace', 'fsync'):
-			with self.subTest(broken=broken), mock.patch.object(util.os, broken, disk_full):
+			with self.subTest(broken=broken), mock.patch.object(cache.os, broken, disk_full):
 				with self.assertRaises(OSError):
-					util.json_write('state.json', {'a': 2}, persist=True)
+					state.save('state.json', {'a': 2})
 			self.assertEqual(json.loads(path.read_text()), {'a': 1}) # whole or not at all
 			self.assertEqual(os.listdir(config.env.data_dir), ['state.json']) # no temp file left behind
-		with mock.patch.object(util.os, 'replace', disk_full), self.assertRaises(OSError):
-			util.write_binary_cache('img.png', io.BytesIO(b'png'))
+		with mock.patch.object(cache.os, 'replace', disk_full), self.assertRaises(OSError):
+			cache.write_bytes('img.png', io.BytesIO(b'png'))
 		self.assertEqual(os.listdir(config.env.data_dir), ['state.json'])
 		self.assertEqual(os.umask(0o027), 0o027) # the umask was not touched
-		util.json_write('state.json', {'a': 3}, persist=True)
+		state.save('state.json', {'a': 3})
 		self.assertEqual((json.loads(path.read_text()), oct(path.stat().st_mode & 0o777)), ({'a': 3}, '0o640'))
 
 	def test_read_cache_missing_or_expired_is_falsy(self):
-		self.assertFalse(util.read_cache('absent.json', 60))
-		util.json_write('old.json', {'a': 1})
-		self.assertFalse(util.read_cache('old.json', -1)) # already expired
+		self.assertFalse(cache.read('absent.json', 60))
+		cache.write('old.json', {'a': 1})
+		self.assertFalse(cache.read('old.json', -1)) # already expired
 
 	def test_a_cache_file_that_goes_while_it_is_read_is_a_miss(self):
-		util.json_write('gone.json', {'a': 1})
+		cache.write('gone.json', {'a': 1})
 		real = Path.read_text
 		def vanish(path, *a, **k): # cleanup or a flush deleted it between the age check and the read
 			if path.name == 'gone.json':
@@ -128,19 +128,19 @@ class StateFiles(FinbotCase):
 				raise FileNotFoundError(path)
 			return real(path, *a, **k)
 		with mock.patch.object(Path, 'read_text', vanish):
-			self.assertIsNone(util.read_cache('gone.json', 60))
+			self.assertIsNone(cache.read('gone.json', 60))
 
 	def test_binary_cache_roundtrip(self):
-		self.assertFalse(util.read_binary_cache('absent.png'))
-		util.write_binary_cache('img.png', io.BytesIO(b'png-bytes'))
-		self.assertEqual(util.read_binary_cache('img.png').read(), b'png-bytes')
+		self.assertFalse(cache.read_bytes('absent.png'))
+		cache.write_bytes('img.png', io.BytesIO(b'png-bytes'))
+		self.assertEqual(cache.read_bytes('img.png').read(), b'png-bytes')
 
 	def test_holdings_and_watchlist_without_a_watchlist_file(self):
 		# first run: no watchlist exists yet
 		self.patch(util.sharesight, 'get_holdings_wrapper', lambda: ['AAPL', 'GOOG', 'GOOGL'])
 		self.patch(util, 'get_holdings_and_watchlist', REAL_GET_HOLDINGS)
 		self.assertEqual(util.get_holdings_and_watchlist(), ['AAPL', 'GOOG']) # GOOGL dropped when GOOG is present
-		util.json_write('finbot_watchlist.json', ['MSFT'], persist=True)
+		state.save('finbot_watchlist.json', ['MSFT'])
 		self.assertEqual(util.get_holdings_and_watchlist(), ['AAPL', 'GOOG', 'MSFT'])
 
 

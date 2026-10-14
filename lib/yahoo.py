@@ -7,6 +7,7 @@ import threading
 import zoneinfo
 import sys
 from lib import config
+from lib import cache
 from lib import net
 from lib import util
 from http.cookies import SimpleCookie
@@ -19,9 +20,9 @@ def getCookie(maxAge=1209600): # 14 days
 	# we must always cache this, as crumb must match cookie
 	with _auth:
 		cacheFile = "finbot_yahoo_cookie.json"
-		cache = util.read_cache(cacheFile, maxAge - 30) # renewed 30 seconds before it expires
-		if cache:
-			return cache[0][0] + '=' + cache[0][1]
+		cached = cache.read(cacheFile, maxAge - 30) # renewed 30 seconds before it expires
+		if cached:
+			return cached[0][0] + '=' + cached[0][1]
 		url = 'https://fc.yahoo.com/' # 404, but that is ok because cookie is in response header
 		try:
 			r = net.get(url, headers=HEADERS, timeout=config.prefs.http_timeout)
@@ -36,7 +37,7 @@ def getCookie(maxAge=1209600): # 14 days
 		cookie = SimpleCookie()
 		cookie.load(r.headers['Set-Cookie'])
 		cookielist = [[name, morsel.value, int(morsel.get('max-age') or 0)] for name, morsel in cookie.items()]
-		util.json_write(cacheFile, cookielist)
+		cache.write(cacheFile, cookielist)
 		print("Got a new Yahoo cookie", file=sys.stderr)
 		rmCrumb() # we must invalidate the non-matching crumb
 		return cookielist[0][0] + '=' + cookielist[0][1]
@@ -45,14 +46,14 @@ def getCrumb(seconds=1209600): # 14 days
 	with _auth:
 		cookie = getCookie()
 		cacheFile = "finbot_yahoo_crumb.json"
-		if config.prefs.cache and (cache := util.read_cache(cacheFile, seconds)):
-			return cache
+		if config.prefs.cache and (cached := cache.read(cacheFile, seconds)):
+			return cached
 		r = _get_first(_hosts('/v1/test/getcrumb'), {**HEADERS, 'Cookie': cookie})
 		if r is None:
 			print("Exhausted Yahoo API attempts. Returning fallback crumb", file=sys.stderr)
 			return 'jkQEU8yLqxs'
 		if config.prefs.cache:
-			util.json_write(cacheFile, r.text)
+			cache.write(cacheFile, r.text)
 		print("Got a new Yahoo crumb", file=sys.stderr)
 		return r.text
 
@@ -65,7 +66,7 @@ def credentials():
 
 def rmCrumb():
 	"""Set the cached crumb aside (as .old): it belongs to the cookie being replaced."""
-	crumb = Path(util.cache_path("finbot_yahoo_crumb.json"))
+	crumb = Path(cache.path("finbot_yahoo_crumb.json"))
 	if crumb.is_file():
 		crumb.replace(crumb.with_name(crumb.name + '.old'))
 
@@ -146,8 +147,8 @@ def fetch(tickers):
 		return {}
 	tickers = sorted(set(tickers)) # de-dupe
 	cacheFile = "finbot_yahoo_" + hashlib.sha256("_".join(tickers).encode()).hexdigest() + '.json'
-	if config.prefs.cache and (cache := util.read_cache(cacheFile, 300)):
-		return cache
+	if config.prefs.cache and (cached := cache.read(cacheFile, 300)):
+		return cached
 	cookie, crumb = credentials()
 	r = _get_first(_hosts('/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)), {**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie})
 	if r is None:
@@ -173,7 +174,7 @@ def fetch(tickers):
 			quote['earnings_date'] = next((stamp for stamp in stamps if stamp > now), stamps[0])
 		yahoo_output[item['symbol']] = quote
 	if config.prefs.cache:
-		util.json_write(cacheFile, yahoo_output)
+		cache.write(cacheFile, yahoo_output)
 	return yahoo_output
 
 DETAIL_FIELDS = ( # (key, path in the quoteSummary result[, conversion]); a field Yahoo leaves out, sends as null or garbles is left out
@@ -233,7 +234,7 @@ def fetch_detail(ticker, seconds=None):
 		seconds = config.prefs.cache_seconds
 	now = datetime.datetime.now()
 	cacheFile = "finbot_yahoo_detail_" + ticker + '.json'
-	data = util.read_cache(cacheFile, seconds) if config.prefs.cache else None
+	data = cache.read(cacheFile, seconds) if config.prefs.cache else None
 	if data:
 		print('.', sep=' ', end='', flush=True)
 	else:
@@ -246,7 +247,7 @@ def fetch_detail(ticker, seconds=None):
 			return {} # catches some delisted stocks like "DRNA"
 		data = r.json()
 		if config.prefs.cache:
-			util.json_write(cacheFile, data)
+			cache.write(cacheFile, data)
 	result = dig(data, 'quoteSummary', 'result', 0)
 	if result is None: # Yahoo answers result=null for unknown symbols
 		print(ticker + 'x', sep=' ', end='', flush=True, file=sys.stderr)
@@ -364,11 +365,11 @@ def price_history(ticker, days=None, seconds=None, graph=None, graphCache=True):
 		label = "Max" if "Max" in percent_dict else "10Y"
 		title = f"{company_name} ({ticker}) {label} {util.signed_percent(percent_dict[label])} Last: {price}"
 	image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
-	if config.prefs.cache and graphCache and (image := util.read_binary_cache(image_cache_file, seconds)):
+	if config.prefs.cache and graphCache and (image := cache.read_bytes(image_cache_file, seconds)):
 		return percent_dict, image
 	image = util.graph(df, title, stock.get('currency'))
 	if config.prefs.cache:
-		util.write_binary_cache(image_cache_file, image)
+		cache.write_bytes(image_cache_file, image)
 	return percent_dict, image
 
 def price_series(ticker):
@@ -443,8 +444,8 @@ def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
 		seconds = config.prefs.cache_seconds
 	now = datetime.datetime.now()
 	cacheFile = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
-	if config.prefs.cache and (cache := util.read_cache(cacheFile, seconds)):
-		return cache
+	if config.prefs.cache and (cached := cache.read(cacheFile, seconds)):
+		return cached
 	cookie, crumb = credentials()
 	start = '0' if full else str(int((now - datetime.timedelta(days=days)).timestamp()))
 	url = f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?period1={start}&period2={int(now.timestamp())}&interval=1d&crumb={crumb}'
@@ -458,7 +459,7 @@ def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
 	print('↓', sep=' ', end='', flush=True)
 	data = r.json()
 	if config.prefs.cache:
-		util.json_write(cacheFile, data)
+		cache.write(cacheFile, data)
 	return data
 
 def chart_json_to_df(chart_json):

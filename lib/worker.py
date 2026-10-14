@@ -7,6 +7,7 @@ import re
 import sys
 import threading
 from lib import config
+from lib import state
 from lib import words
 from lib import util
 from lib import webhook
@@ -347,10 +348,10 @@ def on_history(request, m):
 	request.send(caption.split('\n'), image, charts.keyboard('h', [ticker], 'x') if image and request.service == 'telegram' else None)
 
 def on_plan(request, m):
-	plan = util.json_load('finbot_plan.json', persist=True) or {}
+	plan = state.load('finbot_plan.json') or {}
 	if m.group(1) and not m.group(1).startswith('@'):
 		plan[request.user] = m.group(1)
-		util.json_write('finbot_plan.json', plan, persist=True)
+		state.save('finbot_plan.json', plan)
 	def who(user): # a Slack user is a mention (<@U123>), which is markup to keep; elsewhere a handle is text
 		user = user.removeprefix('@')
 		return user if request.service == 'slack' else webhook.escape(user, request.service)

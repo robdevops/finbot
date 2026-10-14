@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
 from lib import net
+from lib import state
 from lib import webhook
 from lib import util
 
@@ -87,7 +88,7 @@ def fetch_new_episodes(feed_url, seen):
 def lambda_handler(feed_url):
 	"""Post the feed's newest episodes not posted before, then record every new one as seen."""
 	seen_file = get_seen_filename(feed_url)
-	seen = set(util.json_load(seen_file, persist=True) or [])
+	seen = set(state.load(seen_file) or [])
 	try:
 		episodes, guids = fetch_new_episodes(feed_url, seen)
 	except Exception as e:
@@ -103,7 +104,7 @@ def lambda_handler(feed_url):
 			duration = f" {episode['duration']}" if episode['duration'] else ""
 			payload.append(f"📣 {podcast_name}: {util.link(episode['url'], title, service)}{duration} ({episode['ago']})")
 		webhook.send(service, url, chat, payload)
-	util.json_write(seen_file, sorted(seen | guids), persist=True) # last, so that a failure above leaves these episodes for next run
+	state.save(seen_file, sorted(seen | guids)) # last, so that a failure above leaves these episodes for next run
 
 def job(argv):
 	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""

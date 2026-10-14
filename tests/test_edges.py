@@ -71,12 +71,12 @@ class WatchlistActions(FinbotCase):
 	def test_add_duplicate_delete_and_unknown_action(self):
 		add = self.command('.watchlist add MSFT')
 		self.assertTrue(add)
-		self.assertEqual(util.json_load('finbot_watchlist.json', persist=True), ['MSFT'])
+		self.assertEqual(state.load('finbot_watchlist.json'), ['MSFT'])
 		again = self.command('.watchlist add MSFT')
 		self.assertNotEqual(add, again) # a duplicate is reported differently from a first add
-		self.assertEqual(util.json_load('finbot_watchlist.json', persist=True), ['MSFT'])
+		self.assertEqual(state.load('finbot_watchlist.json'), ['MSFT'])
 		self.command('.watchlist rm MSFT')
-		self.assertEqual(util.json_load('finbot_watchlist.json', persist=True), [])
+		self.assertEqual(state.load('finbot_watchlist.json'), [])
 		self.assertIn('not a valid watchlist action', str(self.command('.watchlist frobnicate MSFT')))
 
 

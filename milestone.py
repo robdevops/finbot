@@ -3,6 +3,7 @@
 import sys
 from itertools import groupby
 from lib import config
+from lib import state
 from lib import webhook
 from lib import util
 from lib import yahoo
@@ -16,7 +17,7 @@ def lambda_handler():
 		payload = []
 		payloadhigh = []
 		payloadlow = []
-		records = util.json_load('finbot_milestone.json', persist=True) or {}
+		records = state.load('finbot_milestone.json') or {}
 		for ticker in tickers:
 			try:
 				oldhigh, oldlow = records[ticker]['record_high'], records[ticker]['record_low']
@@ -65,7 +66,7 @@ def lambda_handler():
 		webhook.send(service, url, chat, payload)
 
 	if records:
-		util.json_write('finbot_milestone.json', records, persist=True)
+		state.save('finbot_milestone.json', records)
 
 def job(argv):
 	return 'milestone.py', {}

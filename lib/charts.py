@@ -5,6 +5,7 @@ import sys
 import threading
 
 from lib import util
+from lib import state
 from lib import webhook
 from lib import yahoo
 from lib import reports
@@ -28,15 +29,15 @@ def _ref(tickers):
 	if len(('c|h|w|' + inline).encode()) <= MAX_CALLBACK_BYTES:
 		return inline
 	key = hashlib.sha1(inline.encode()).hexdigest()[:10]
-	refs = util.json_load(REF_FILE, persist=True) or {}
+	refs = state.load(REF_FILE) or {}
 	if refs.get(key) != tickers:
 		refs[key] = tickers
-		util.json_write(REF_FILE, refs, persist=True)
+		state.save(REF_FILE, refs)
 	return '#' + key
 
 def resolve(ref):
 	if ref.startswith('#'):
-		tickers = (util.json_load(REF_FILE, persist=True) or {}).get(ref[1:])
+		tickers = (state.load(REF_FILE) or {}).get(ref[1:])
 		if not tickers:
 			raise KeyError("these buttons have expired, please re-run the command")
 		return tickers
@@ -59,9 +60,9 @@ def keyboard_version():
 def mark_keyboard(chat_id):
 	"""Record that this chat now has the current command keyboard."""
 	with _keyboard_lock:
-		state = util.json_load(KEYBOARD_FILE, persist=True) or {}
-		state[str(chat_id)] = keyboard_version()
-		util.json_write(KEYBOARD_FILE, state, persist=True)
+		versions = state.load(KEYBOARD_FILE) or {}
+		versions[str(chat_id)] = keyboard_version()
+		state.save(KEYBOARD_FILE, versions)
 
 def push_keyboard(chat_id):
 	"""Telegram can only change a reply keyboard by sending a message, so send a short one carrying it."""
@@ -75,15 +76,15 @@ def ensure_keyboard(chat_id):
 	if int(chat_id) <= 0:
 		return
 	with _keyboard_lock:
-		current = (util.json_load(KEYBOARD_FILE, persist=True) or {}).get(str(chat_id)) == keyboard_version()
+		current = (state.load(KEYBOARD_FILE) or {}).get(str(chat_id)) == keyboard_version()
 	if not current:
 		push_keyboard(chat_id)
 
 def refresh_keyboards():
 	"""At startup: update every chat we know of whose keyboard is out of date."""
 	with _keyboard_lock:
-		state = util.json_load(KEYBOARD_FILE, persist=True) or {}
-	for chat_id, version in state.items():
+		versions = state.load(KEYBOARD_FILE) or {}
+	for chat_id, version in versions.items():
 		if version != keyboard_version():
 			try:
 				push_keyboard(chat_id)

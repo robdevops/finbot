@@ -5,7 +5,7 @@ from unittest import mock
 from lib import config
 from util import check_config, split_env
 import bot, cal
-from lib import reports, sharesight, util, worker, yahoo
+from lib import cache, reports, sharesight, util, worker, yahoo
 import performance, price, shorts, trades
 
 REPO = Path(config.__file__).resolve().parent.parent
@@ -192,11 +192,11 @@ class Reload(unittest.TestCase):
 		os.utime(cache_file, (past, past)) # 100 seconds old
 		self.write('cache_seconds=50\n')
 		config.reload()
-		self.assertIsNone(util.read_cache('finbot_test_reload.json')) # too old for 50 s
+		self.assertIsNone(cache.read('finbot_test_reload.json')) # too old for 50 s
 		self.write('cache_seconds=200\n')
 		config.reload()
-		self.assertEqual(util.read_cache('finbot_test_reload.json'), {'a': 1})
-		self.assertIsNone(util.read_cache('finbot_test_reload.json', 50)) # an explicit value always wins
+		self.assertEqual(cache.read('finbot_test_reload.json'), {'a': 1})
+		self.assertIsNone(cache.read('finbot_test_reload.json', 50)) # an explicit value always wins
 
 	def test_an_error_applies_nothing(self):
 		self.write('future_days=45\n')

@@ -1,15 +1,10 @@
 import functools
-import os
 import io
 import datetime
-import json
-from pathlib import Path
 import re
-import sys
-import tempfile
-import time
 from lib import config # first: sets MPLCONFIGDIR before matplotlib is imported (lazily, by the chart functions)
 from lib import sharesight
+from lib import state
 
 
 TITLE_TRIMS = [ # transform_title: (text, replacement), in order, as each sees what the ones before it made
@@ -143,85 +138,6 @@ def flag_from_ticker(ticker):
 
 def currency_from_market(market):
 	return MARKETS.get(market, (None, None))[1]
-
-def cache_path(name, persist=False):
-	"""Where a cache file lives, or with persist=True a state file (in the data directory)."""
-	return (config.env.data_dir if persist else config.env.cache_dir) + "/" + name
-
-def _fresh_cache(cacheFile, maxSeconds):
-	"""The cache file's path if it was written less than maxSeconds ago (the cache_seconds preference when None), else None."""
-	if maxSeconds is None:
-		maxSeconds = config.prefs.cache_seconds
-	path, age = cache_path(cacheFile), cache_age(cacheFile)
-	if age is None:
-		print("cache miss:", path, file=sys.stderr) if config.prefs.debug else None
-		return None
-	if age >= maxSeconds:
-		print("cache expired:", path, file=sys.stderr) if config.prefs.debug else None
-		return None
-	print("cache hit:", path, "TTL:", td_to_human(datetime.timedelta(seconds=maxSeconds - age)), file=sys.stderr) if config.prefs.debug else None
-	return path
-
-def _read_fresh(cacheFile, maxSeconds, read):
-	"""read(path) of the cache file if it is fresh, else None; also None if the file goes (cleanup, a flush) after the check."""
-	path = _fresh_cache(cacheFile, maxSeconds)
-	if not path:
-		return None
-	try:
-		return read(Path(path))
-	except FileNotFoundError:
-		return None
-
-def read_cache(cacheFile, maxSeconds=None):
-	"""A cache file's JSON, or None when it is missing or older than maxSeconds."""
-	return _read_fresh(cacheFile, maxSeconds, lambda path: json.loads(path.read_text(encoding="utf-8")))
-
-def cache_age(cacheFile):
-	"""Seconds since the cache file was written, or None when it does not exist."""
-	try:
-		return time.time() - os.path.getmtime(cache_path(cacheFile))
-	except OSError:
-		return None
-
-def write_file(path, data, sync=False):
-	"""Write `data` (bytes) to `path` whole or not at all, mode 0640: it goes to a temp file beside it, which then replaces the file,
-	so a failure part way (a full disk, a kill) leaves the old file as it was. sync=True also flushes it to disk, for state that
-	must survive a power cut. The process umask is left alone."""
-	path = os.path.realpath(path) # through a symlink, as an in-place write would
-	fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=os.path.basename(path) + '.', suffix='.tmp')
-	try:
-		with os.fdopen(fd, 'wb') as f:
-			f.write(data)
-			if sync:
-				f.flush()
-				os.fsync(f.fileno())
-		os.chmod(tmp, 0o640)
-		os.replace(tmp, path)
-	except BaseException:
-		try:
-			os.unlink(tmp)
-		except OSError:
-			pass
-		raise
-
-def json_write(filename, data, persist=False):
-	"""A cache file, or with persist=True a state file in the data directory (also flushed to disk). See write_file."""
-	path = cache_path(filename, persist)
-	if config.prefs.debug:
-		print("cache write:", path, file=sys.stderr)
-	write_file(path, json.dumps(data, indent=4).encode('utf-8'), sync=persist)
-
-def json_load(filename, persist=False):
-	path = Path(cache_path(filename, persist))
-	return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
-
-def read_binary_cache(cacheFile, maxSeconds=None):
-	"""A cache file's bytes (as a file object), or None when it is missing or older than maxSeconds."""
-	return _read_fresh(cacheFile, maxSeconds, lambda path: io.BytesIO(path.read_bytes()))
-
-def write_binary_cache(cacheFile, data):
-	data.seek(0)
-	write_file(cache_path(cacheFile), data.getvalue())
 
 def humanUnits(value, decimal_places=2):
 	"""1234567 -> '1.23 M'."""
@@ -852,7 +768,7 @@ def days_from_human_days(arg):
 
 def get_holdings_and_watchlist():
 	tickers = set(sharesight.get_holdings_wrapper())
-	tickers.update(json_load('finbot_watchlist.json', persist=True) or []) # absent until the first add
+	tickers.update(state.load('finbot_watchlist.json', [])) # absent until the first add
 	if 'GOOG' in tickers and 'GOOGL' in tickers:
 		tickers.remove("GOOGL")
 	return sorted(tickers)

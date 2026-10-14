@@ -31,9 +31,11 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `price.py performance.py trades.py shorts.py cal.py rating.py milestone.py reminder.py podcasts.py cleanup.py`: reports that also
   run on a schedule; each has `lambda_handler()` and `job(argv)` (its schedule-line argument parser).
 - `lib/webhook.py`: sending (chunking, photos, Slack upload), markup, escaping, error reporting. `lib/telegram.py`: Bot API calls.
-- `lib/charts.py`: Telegram period buttons and the rebuild behind them. `lib/util.py`: formatting, links, market tables, cache and
-  state files, all matplotlib rendering.
+- `lib/charts.py`: Telegram period buttons and the rebuild behind them. `lib/util.py`: formatting, links, market tables, all
+  matplotlib rendering.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, cached in `DATA_DIR/cache`.
+- `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
+  change one with `with state.edit(name, default) as data:`, never load-then-save.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on each reload).
   `lib/jobs.py` + `lib/jobrun.py`: the scheduler; each run is a child process.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent: `('text', lines)` or

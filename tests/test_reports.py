@@ -247,12 +247,12 @@ class ScheduledReports(FinbotCase):
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0)) # beyond the 52-week range (120/80): nothing new
 		self.patch(yahoo, 'fetch', lambda ts: {t: {k: v for k, v in market_entry(t).items() if not k.startswith('fiftyTwoWeek')} for t in ts})
 		milestone.lambda_handler()
-		self.assertFalse(util.json_load('finbot_milestone.json', persist=True))
+		self.assertFalse(state.load('finbot_milestone.json'))
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.sent.clear()
 		milestone.lambda_handler()
 		self.assertNotIn('Record high', str(self.sent))
-		self.assertEqual(util.json_load('finbot_milestone.json', persist=True)['T1'], {'record_high': 150.0, 'record_low': 50.0}) # all-time
+		self.assertEqual(state.load('finbot_milestone.json')['T1'], {'record_high': 150.0, 'record_low': 50.0}) # all-time
 
 	def test_milestone_records_are_all_time(self):
 		"""A new 52-week high below the all-time high is no record. The record used to become the 52-week high after the first
@@ -267,7 +267,7 @@ class ScheduledReports(FinbotCase):
 				self.assertEqual('Record high' in str(self.sent), expected)
 
 	def test_a_52_week_record_kept_before_is_replaced_by_the_history(self):
-		util.json_write('finbot_milestone.json', {f'T{i}': {'high': 110.0, 'low': 90.0} for i in range(25)}, persist=True)
+		state.save('finbot_milestone.json', {f'T{i}': {'high': 110.0, 'low': 90.0} for i in range(25)})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
 		milestone.lambda_handler() # 120 beats the old 52-week record of 110, but not the history's 150
 		self.assertNotIn('Record high', str(self.sent))
@@ -287,7 +287,7 @@ class ScheduledReports(FinbotCase):
 
 	def test_an_interactive_rating_records_nothing(self):
 		rating.lambda_handler(interactive=True, service='telegram', chat_id='5')
-		self.assertIsNone(util.json_load('finbot_rating.json', persist=True))
+		self.assertIsNone(state.load('finbot_rating.json'))
 
 	def test_slack_webhook_without_a_bot_token_gets_scheduled_reports(self):
 		"""Scheduled reports reach Slack through its incoming webhook, which takes no channel and no token. They used to send

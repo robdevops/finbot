@@ -21,8 +21,8 @@ from gevent import subprocess
 from croniter import croniter, CroniterBadDateError
 
 from lib import config
+from lib import state
 from lib import jobrun
-from lib import util
 from lib import webhook
 import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, shorts, trades
 
@@ -270,7 +270,7 @@ class Scheduler:
 			print('schedule: no usable line in', path, '- keeping the current schedule', file=sys.stderr)
 			return False
 		try:
-			last = util.json_load(STATE_FILE, persist=True)
+			last = state.load(STATE_FILE)
 		except (OSError, ValueError) as e: # unreadable or not JSON: carry on as if there were no record, the next run rewrites it
 			webhook.report_error(ScheduleError(f'cannot read {STATE_FILE}, starting without a record of past runs: {e}'), context='schedule')
 			last = None
@@ -324,7 +324,7 @@ class Scheduler:
 				fired.append((job, latest))
 		if fired:
 			try:
-				util.json_write(STATE_FILE, self.last, persist=True)
+				state.save(STATE_FILE, self.last)
 			except OSError as e:
 				print('schedule: cannot save', STATE_FILE, e, file=sys.stderr)
 		return fired

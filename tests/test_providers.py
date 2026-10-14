@@ -410,8 +410,8 @@ class SharesightKeepWarm(ProviderCase):
 		self.serve_sharesight()
 		sharesight.warm()[0] # fill the caches
 		reads = []
-		real = util.read_cache
-		self.patch(util, 'read_cache', lambda name, *a, **k: (reads.append(name), real(name, *a, **k))[1])
+		real = cache.read
+		self.patch(cache, 'read', lambda name, *a, **k: (reads.append(name), real(name, *a, **k))[1])
 		fetched, portfolios = sharesight.warm() # what one pass of keep_warm does
 		due = sharesight.next_due(portfolios=portfolios)
 		self.assertEqual((fetched, reads), (0, [sharesight.PORTFOLIOS_CACHE]))

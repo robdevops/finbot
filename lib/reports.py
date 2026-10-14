@@ -3,6 +3,8 @@ import hashlib, re
 import datetime
 import sys
 from lib import config
+from lib import cache
+from lib import state
 from lib import sharesight
 from lib import util
 from lib import webhook
@@ -60,7 +62,7 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 		ticker_link = util.finance_link(ticker, ticker, service)
 	duplicate = False
 	transformed = False
-	watchlist = util.json_load('finbot_watchlist.json', persist=True) or [] # absent until the first add
+	watchlist = state.load('finbot_watchlist.json') or [] # absent until the first add
 	if action == 'add':
 		if ticker in watchlist:
 			duplicate = True
@@ -136,7 +138,7 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 		payload.insert(0, f"Hi {user}, I'm currently tracking:")
 	else:
 		payload.append('Watchlist is empty. Try ".watchlist add SYMBOL" to create it')
-	util.json_write('finbot_watchlist.json', watchlist, persist=True)
+	state.save('finbot_watchlist.json', watchlist)
 	if action in ('add', 'delete'):
 		payload = payload[:1] # confirmation only; don't list the whole watchlist
 	return payload
@@ -166,8 +168,8 @@ def prepare_compare(service, args):
 	cache_key = hashlib.sha1(f"{service}|{','.join(tickers)}|{spec}".encode()).hexdigest()[:16]
 	image_cache_file, caption_cache_file = f"finbot_compare_{cache_key}.png", f"finbot_compare_{cache_key}.json"
 	if config.prefs.cache:
-		cached_image = util.read_binary_cache(image_cache_file)
-		cached_caption = util.read_cache(caption_cache_file)
+		cached_image = cache.read_bytes(image_cache_file)
+		cached_caption = cache.read(caption_cache_file)
 		if cached_image and cached_caption:
 			return cached_caption, cached_image, tickers, period_days
 	names, exchanges, closes = {}, {}, {}
@@ -210,8 +212,8 @@ def prepare_compare(service, args):
 		link = util.finance_link(t, exchanges[t], service, days=span_days, brief=False)
 		caption.append(f"{util.get_emoji(pct)} {names[t]} ({link}): {pct:+,.1f}%")
 	if config.prefs.cache:
-		util.write_binary_cache(image_cache_file, image)
-		util.json_write(caption_cache_file, caption)
+		cache.write_bytes(image_cache_file, image)
+		cache.write(caption_cache_file, caption)
 		image.seek(0)
 	return caption, image, tickers, period_days
 
