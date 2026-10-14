@@ -100,12 +100,36 @@ class ScheduledReports(FinbotCase):
         self.assertEqual(fetched, [])
 
     def test_milestone(self):
-        milestone.lambda_handler(interactive=True, service='telegram', chat_id='5')
+        milestone.lambda_handler()
         self.assertTrue(self.sent)
 
     def test_rating(self):
         rating.lambda_handler(interactive=True, service='telegram', chat_id='5')
         self.assertTrue(self.sent)
+
+    def test_slack_webhook_without_a_bot_token_gets_scheduled_reports(self):
+        """Scheduled reports reach Slack through its incoming webhook, which takes no channel and no token. They used to send
+        Telegram's chat id along, which made write() need slackBotToken and crash without one, before Telegram got its copy."""
+        self.patch(webhook, 'config_slackBotToken', False)
+        webhook.webhooks['slack'] = 'https://hooks.slack.com/services/T/B/x'
+        self.patch(webhook, 'payload_wrapper', REAL_PAYLOAD_WRAPPER)
+        self.patch(webhook, 'sendPhoto', REAL_SEND_PHOTO)
+        posts = []
+        def post(url, **kwargs):
+            posts.append((url.split('/')[2], 'Authorization' in kwargs.get('headers', {}), (kwargs.get('json') or {}).get('channel')))
+            return mock.Mock(status_code=200, json=lambda: {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 1}}})
+        self.patch(webhook.net, 'post', post)
+        for report in (price.lambda_handler, shorts.lambda_handler, milestone.lambda_handler):
+            with self.subTest(report=report):
+                posts.clear()
+                report()
+                self.assertIn(('hooks.slack.com', False, None), posts)
+                self.assertTrue(any(host == 'api.telegram.org' for host, _, _ in posts))
+
+    def test_nowhere_to_post_is_an_error(self):
+        self.patch(webhook, 'webhooks', {})
+        with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
+            price.lambda_handler()
 
 
 class PeriodButtons(FinbotCase):

@@ -8,14 +8,14 @@ def fetch(market_data):
     url = 'https://www.shortman.com.au/downloadeddata/latest.csv'
     try:
         r = net.get(url, timeout=config_http_timeout)
-    except:
-        print("Failure fetching", url, file=sys.stderr)
-        return {}
+    except Exception as e:
+        print("Failure fetching", url, net.redact(e), file=sys.stderr)
+        return market_data # the ASX short interest is missing, the rest of the report is not
     if r.status_code == 200:
         print(r.status_code, "success shortman")
     else:
         print(r.status_code, "error communicating with", url, file=sys.stderr)
-        return {}
+        return market_data
     csv = r.content.decode('utf-8')
     csv = csv.split('\r\n')
     csv.pop(0) # remove header

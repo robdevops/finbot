@@ -17,6 +17,9 @@ def write(service, url, payload_string, chat_id=None, message_id=None, reply_mar
 		headers['unfurl_links'] = 'false'
 		headers['unfurl_media'] = 'false'
 		if chat_id:
+			if not config_slackBotToken:
+				print("Slack: replying in a channel needs slackBotToken in finbot.env", file=sys.stderr)
+				return None
 			headers['Authorization'] = 'Bearer ' + config_slackBotToken
 			payload['channel'] = chat_id
 			if message_id:
@@ -53,6 +56,26 @@ def chat_url(service, chat_id):
 		return webhooks['telegram'] + 'sendMessage?chat_id=' + str(chat_id)
 	return webhooks.get(service)
 
+def default_chats():
+	"""Where a scheduled report goes: [(service, url, chat id)]. Telegram posts into telegramChatID (left out without one); Slack and
+	Discord post through their incoming webhooks, which take no chat id. Raises RuntimeError when there is nowhere to post."""
+	chats = [(service, chat_url(service, config_telegramChatID), config_telegramChatID) if service == 'telegram' else (service, url, None)
+		for service, url in webhooks.items() if service != 'telegram' or config_telegramChatID]
+	if not chats:
+		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slack_webhook or discord_webhook')
+	return chats
+
+def destinations(interactive, service, chat_id):
+	"""Where a report goes: back to the chat that asked for it (interactive), else to the default chats."""
+	return [(service, chat_url(service, chat_id), chat_id)] if interactive else default_chats()
+
+def send(service, url, chat_id, payload, image=None, reply_markup=None, message_id=None):
+	"""A report: its chart with the text as caption when there is one (sendPhoto falls back to the text where a chart cannot go),
+	else the text. reply_markup is the chart's buttons. Returns what payload_wrapper or sendPhoto did."""
+	if image:
+		return sendPhoto(chat_id, image, '\n'.join(payload), service, message_id=message_id, reply_markup=reply_markup)
+	return payload_wrapper(service, url, payload, chat_id, message_id)
+
 def error_line(e, context=None, limit=200):
 	"""One-line, secret-free summary of an exception (or string)."""
 	if isinstance(e, BaseException):
@@ -73,19 +96,7 @@ def report_error(e, service=None, chat_id=None, context=None):
 		print(line, file=sys.stderr)
 		if isinstance(e, BaseException):
 			print(net.redact(''.join(traceback.format_exception(e))), end='', file=sys.stderr) # request errors carry their URL
-		if service and chat_id:
-			targets = [(service, chat_url(service, chat_id))]
-			chat = chat_id
-		else:
-			targets = []
-			for svc, url in webhooks.items():
-				if svc == 'telegram':
-					if not config_telegramChatID:
-						continue
-					url = chat_url(svc, config_telegramChatID)
-				targets.append((svc, url))
-			chat = None
-		for svc, url in targets:
+		for svc, url, chat in [(service, chat_url(service, chat_id), chat_id)] if service and chat_id else default_chats():
 			if url:
 				try:
 					write(svc, url, line if svc == 'discord' else html.escape(line, quote=False), chat)

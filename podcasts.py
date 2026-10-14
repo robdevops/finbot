@@ -158,12 +158,8 @@ def lambda_handler(feed_url):
 
 		seen = sorted(set(seen))
 		if seen != seen_earlier:
-				if not webhooks:
-						raise KeyError("no services enabled in finbot.env")
-				for service, url in webhooks.items():
+				for service, url, chat in webhook.default_chats():
 						payload = []
-						if service == "telegram":
-								url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
 						for ep in new_episodes:
 								podcast_name = ep['podcast']
 								title = ep['title'].removeprefix(podcast_name).lstrip(string.punctuation + " ")
@@ -171,8 +167,7 @@ def lambda_handler(feed_url):
 								emoji = "📣"
 								duration_str = f"{ep['duration']}" if ep['duration'] else ""
 								payload.append(f"{emoji} {podcast_name}: {link} {duration_str} ({ep['ago']})")
-						webhook.payload_wrapper(service, url, payload)
-						#print(service, json.dumps(payload, indent=4))
+						webhook.send(service, url, chat, payload)
 				save_seen(seen, seen_file) # do this last so we pick up these episodes next run if we error
 		else:
 				print("no new episodes found")

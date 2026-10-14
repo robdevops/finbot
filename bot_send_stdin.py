@@ -11,11 +11,6 @@ if os.isatty(sys.stdin.fileno()):
 
 payload = [line.strip() for line in sys.stdin if line.strip()]
 
-if not webhooks:
-	print("Error: no services enabled in finbot.env", file=sys.stderr)
-	sys.exit(1)
-for service, url in webhooks.items():
-	if service == "telegram":
-		url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
-	webhook.payload_wrapper(service, url, payload)
+for service, url, chat in webhook.default_chats():
+	webhook.send(service, url, chat, payload)
 

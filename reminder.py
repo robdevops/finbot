@@ -75,15 +75,8 @@ def lambda_handler():
 
 	# MAIN #
 
-	# Prep and send payloads
-	if not webhooks:
-		print("Error: no services enabled in finbot.env", file=sys.stderr)
-		sys.exit(1)
-	for service, url in webhooks.items():
-		payload = prepare_finance_calendar_payload(service)
-		if service == "telegram":
-			url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
-		webhook.payload_wrapper(service, url, payload)
+	for service, url, chat in webhook.default_chats():
+		webhook.send(service, url, chat, prepare_finance_calendar_payload(service))
 
 	# make google cloud happy
 	return True

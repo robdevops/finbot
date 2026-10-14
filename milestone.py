@@ -12,7 +12,7 @@ from lib import yahoo
 # - need to handle stock splits: flush cache if we see a split in the data
 # https://finance.yahoo.com/quote/TSLA/history?period1=0&period2=1707609600&filter=split
 
-def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=None, interactive=False):
+def lambda_handler():
 	def prepare_milestone_payload(service, market_data):
 		emoji = '⭐'
 		payload = []
@@ -131,24 +131,11 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 
 	# MAIN #
 
-	market_data = {}
-	if specific_stock:
-		ticker = util.transform_to_yahoo(specific_stock)
-		tickers = [ticker]
-	else:
-		tickers = util.get_holdings_and_watchlist()
-		market_data = yahoo.fetch(tickers)
-
-	# Prep and send payloads
-	if not webhooks:
-		print("Error: no services enabled in finbot.env", file=sys.stderr)
-		sys.exit(1)
-	else:
-		for service, url in webhooks.items():
-			payload, records = prepare_milestone_payload(service, market_data)
-			if service == "telegram":
-				url = url + "sendMessage?chat_id=" + str(chat_id)
-			webhook.payload_wrapper(service, url, payload, chat_id)
+	tickers = util.get_holdings_and_watchlist()
+	market_data = yahoo.fetch(tickers)
+	for service, url, chat in webhook.default_chats():
+		payload, records = prepare_milestone_payload(service, market_data)
+		webhook.send(service, url, chat, payload)
 
 	if records:
 		util.json_write('finbot_milestone.json', records, persist=True)

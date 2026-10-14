@@ -113,34 +113,17 @@ def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, spec
 
 	if earnings:
 		market_data = yahoo.fetch(tickers)
-	elif dividend:
+	else: # ex-dividend dates are in Yahoo's details: fetched together
 		market_data = {}
-		for ticker in tickers:
-			try:
-				market_data = market_data | yahoo.fetch_detail(ticker)
-			except TypeError:
-				pass
+		for ticker, detail in zip(tickers, yahoo.fetch_each(yahoo.fetch_detail, tickers)):
+			if isinstance(detail, Exception):
+				print(ticker, detail, file=sys.stderr)
+			else:
+				market_data |= detail
 		print("")
 
-	# Prep and send payloads
-	if not webhooks:
-		print("Error: no services enabled in finbot.env", file=sys.stderr)
-		sys.exit(1)
-	if interactive:
-		payload = prepare_payload(service, market_data, days)
-		if service == "slack":
-			url = 'https://slack.com/api/chat.postMessage'
-		elif service == "telegram":
-			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-		results = webhook.payload_wrapper(service, url, payload, chat_id, message_id)
-		pin_if_earnings(service, results)
-	else:
-		for service, url in webhooks.items():
-			payload = prepare_payload(service, market_data, config_future_days)
-			if service == "telegram":
-				url = url + "sendMessage?chat_id=" + config_telegramChatID
-			results = webhook.payload_wrapper(service, url, payload)
-			pin_if_earnings(service, results)
+	for service, url, chat in webhook.destinations(interactive, service, chat_id):
+		pin_if_earnings(service, webhook.send(service, url, chat, prepare_payload(service, market_data, days), message_id=message_id))
 
 	# make google cloud happy
 	return True

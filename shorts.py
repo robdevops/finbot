@@ -64,39 +64,18 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, specific_stoc
 		tickers = util.get_holdings_and_watchlist()
 
 	market_data = yahoo.fetch(tickers)
-	for ticker in tickers:
-		if '.' not in ticker:
-			try:
-				market_data = market_data | yahoo.fetch_detail(ticker)
-			except TypeError:
-				pass
+	us = [ticker for ticker in tickers if '.' not in ticker] # Yahoo's details have US short interest; Short Man has the ASX's
+	for ticker, detail in zip(us, yahoo.fetch_each(yahoo.fetch_detail, us)):
+		if isinstance(detail, Exception):
+			print(ticker, detail, file=sys.stderr)
+		else:
+			market_data |= detail
 	print("")
 	market_data = shortman.fetch(market_data)
 
-	# Prep and send payloads
-	if not webhooks:
-		print("Error: no services enabled in finbot.env", file=sys.stderr)
-		sys.exit(1)
-	if interactive:
+	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		payload, graph = prepare_shorts_payload(service, market_data)
-		url = webhooks[service]
-		if service == "slack":
-			url = 'https://slack.com/api/chat.postMessage'
-		elif service == "telegram":
-			url = url + "sendMessage?chat_id=" + str(chat_id)
-		if graph:
-			webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service)
-		else:
-			webhook.payload_wrapper(service, url, payload, chat_id)
-	else:
-		for service, url in webhooks.items():
-			payload, graph = prepare_shorts_payload(service, market_data)
-			if service == "telegram":
-				url = url + "sendMessage?chat_id=" + str(chat_id)
-			if graph:
-				webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service)
-				continue
-			webhook.payload_wrapper(service, url, payload, chat_id)
+		webhook.send(service, url, chat, payload, graph)
 
 	# make google cloud happy
 	return True

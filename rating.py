@@ -56,34 +56,17 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 
 	# MAIN #
 
+	tickers = [util.transform_to_yahoo(specific_stock)] if specific_stock else util.get_holdings_and_watchlist()
 	market_data = {}
-	if specific_stock:
-		ticker = util.transform_to_yahoo(specific_stock)
-		tickers = [ticker]
-	else:
-		tickers = util.get_holdings_and_watchlist()
+	for ticker, detail in zip(tickers, yahoo.fetch_each(yahoo.fetch_detail, tickers)): # fetched together
+		if isinstance(detail, Exception):
+			print(ticker, detail, file=sys.stderr)
+		else:
+			market_data |= detail
 
-	for ticker in tickers:
-		market_data = market_data | yahoo.fetch_detail(ticker)
-
-	# Prep and send payloads
-	if not webhooks:
-		print("Error: no services enabled in finbot.env", file=sys.stderr)
-		sys.exit(1)
-	if interactive:
+	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		payload, new = prepare_rating_payload(service, market_data)
-		url = webhooks[service]
-		if service == "slack":
-			url = 'https://slack.com/api/chat.postMessage'
-		elif service == "telegram":
-			url = url + "sendMessage?chat_id=" + str(chat_id)
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	else:
-		for service, url in webhooks.items():
-			payload, new = prepare_rating_payload(service, market_data)
-			if service == "telegram":
-				url = url + "sendMessage?chat_id=" + str(chat_id)
-			webhook.payload_wrapper(service, url, payload, chat_id)
+		webhook.send(service, url, chat, payload)
 
 	if new:
 		util.json_write('finbot_rating.json', new, persist=True)

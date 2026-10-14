@@ -103,50 +103,23 @@ def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, user
 
 	# MAIN #
 	newtrades = set()
-	trades = []
 	portfolios = sharesight.get_portfolios()
-
-	# Get trades from Sharesight
 	known_trades = set(util.json_load(state_file, persist=True) or ())
-
 	if portfolio_select:
-		portfoliosLower = {k.lower():v for k,v in portfolios.items()}
-		portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
-		if portfolio_select.lower() in portfoliosLower:
-			portfolio_id = portfoliosLower[portfolio_select.lower()] # any-case input
-			portfolio_select = portfoliosReverseLookup[portfolio_id] # correct-case output
-		else:
+		found = sharesight.find_portfolio(portfolios, portfolio_select)
+		if not found:
 			print("Portfolio not found:", portfolio_select, file=sys.stderr)
 			raise ValueError(f"portfolio not found: {portfolio_select}")
-		trades = trades + sharesight.get_trades(portfolio_select, portfolio_id, days)
-	else:
-		for portfolio in portfolios:
-			portfolio_id = portfolios[portfolio]
-			trades = trades + sharesight.get_trades(portfolio, portfolio_id, days)
+		portfolio_select = found[0] # as Sharesight spells it
+		portfolios = dict([found])
+	trades = [trade for name, portfolio_id in portfolios.items() for trade in sharesight.get_trades(name, portfolio_id, days)]
 
-	# Prep and send payloads
-	if not webhooks:
-		print("Error: no services enabled in finbot.env", file=sys.stderr)
-		sys.exit(1)
-	if interactive:
-		if len(trades):
-			payload = prepare_trade_payload(service, trades)
-		else:
+	for service, url, chat in webhook.destinations(interactive, service, chat_id):
+		if interactive and not trades:
 			payload = [f"{user} No trades {util.days_english(days, 'in the past ')}. {random.choice(noTradesVerb)}"]
-		if service == "slack":
-			url = 'https://slack.com/api/chat.postMessage'
-		elif service == "telegram":
-			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-		webhook.payload_wrapper(service, url, payload, chat_id, message_id)
-	else:
-		for service, url in webhooks.items():
+		else:
 			payload = prepare_trade_payload(service, trades)
-			if service == "telegram":
-				chat_id=config_telegramChatID
-				url = url + "sendMessage?chat_id=" + str(chat_id)
-			else:
-				chat_id = None
-			webhook.payload_wrapper(service, url, payload, chat_id)
+		webhook.send(service, url, chat, payload, message_id=message_id)
 
 	# write state file
 	if newtrades and not interactive:

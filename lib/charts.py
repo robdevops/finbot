@@ -146,15 +146,14 @@ def build(kind, tickers, period, service='telegram'):
 		return '\n'.join(caption), image
 	if kind == 'f': # performance: tickers = [portfolio name or '']
 		import performance
-		payload, image = performance.lambda_handler(past_days=days or MAX_DAYS, service=service, portfolio_select=tickers[0] or None, interactive=True, return_result=True)
+		payload, image = performance.report(service, days or MAX_DAYS, tickers[0] or None, interactive=True)
 		if not image:
 			raise RuntimeError(payload[0] if payload else 'no performance data')
 		return '\n'.join(payload), image
 	if kind == 'l': # price list: tickers = [threshold, top]
 		import price
-		threshold, top = float(tickers[0]), int(tickers[1])
 		span = {'interday': True} if period == 'd' else {'days': days or MAX_DAYS} # 'd' is today's moves: the command's default view, not a 1-day lookback
-		payload, image = price.lambda_handler(threshold=threshold, service=service, interactive=True, top=top or None, return_result=True, **span)
+		payload, image = price.report(service, threshold=float(tickers[0]), interactive=True, top=int(tickers[1]) or None, **span)
 		if not image:
 			raise RuntimeError(payload[0] if payload else 'no price data')
 		return '\n'.join(payload), image
