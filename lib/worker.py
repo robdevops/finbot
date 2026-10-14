@@ -12,6 +12,7 @@ from lib import webhook
 from lib import reports
 from lib import charts
 from lib import telegram
+from lib import sharesight
 from lib import jobs
 import cal
 import performance
@@ -137,6 +138,8 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			if m := match(pattern, message, botName):
 				handler(request, m)
 				break
+	except sharesight.PortfolioNotFound as e: # a name the user got wrong: an answer, not an error
+		request.say(e.lines)
 	except Exception as e:
 		webhook.report_error(e, service, chat_id, context=message.split()[0][:30] if message.split() else None)
 	if service == 'telegram':
@@ -231,9 +234,9 @@ def on_thanks(request, m):
 def on_calendar(request, m):
 	"""Upcoming earnings or ex-dividend dates."""
 	days, ticker = period_or_ticker(m.group('arg'), config_future_days)
-	dividend = m.group('kind').lower().startswith('div')
+	event = 'ex-dividend' if m.group('kind').lower().startswith('div') else 'earnings'
 	with request.typing():
-		cal.lambda_handler(request.chat_id, days, request.service, ticker, interactive=True, earnings=not dividend, dividend=dividend)
+		cal.lambda_handler(request.chat_id, days, request.service, ticker, interactive=True, event=event)
 
 def on_performance(request, m):
 	days, portfolio = period_and_portfolio(m.group('args'), charts.PERIODS['m'][1]) # default view is the 1M button
@@ -283,7 +286,7 @@ def on_trades(request, m):
 
 def on_holdings(request, m):
 	with request.typing():
-		payload = reports.prepare_holdings_payload((m.group(1) or '').strip() or None, request.service, request.user)
+		payload = reports.prepare_holdings_payload((m.group(1) or '').strip() or None, request.service)
 	request.say(payload)
 
 def on_marketcap(request, m):

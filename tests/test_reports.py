@@ -39,7 +39,7 @@ class ReportFunctions(FinbotCase):
         self.assertTrue(reports.prepare_help('telegram', BOT))
 
     def test_prepare_holdings(self):
-        self.assertTrue(reports.prepare_holdings_payload(None, 'telegram', '@u'))
+        self.assertTrue(reports.prepare_holdings_payload(None, 'telegram'))
 
     def test_prepare_marketcap(self):
         self.assertTrue(reports.prepare_marketcap_payload('telegram', 'top', length=5))
@@ -107,11 +107,20 @@ class ScheduledReports(FinbotCase):
         self.assertTrue(self.sent)
 
     def test_earnings_and_dividends(self):
-        for kwargs in ({'earnings': True}, {'dividend': True}):
+        for kwargs in ({'event': 'earnings'}, {'event': 'ex-dividend'}):
             with self.subTest(kwargs=kwargs):
                 self.sent.clear()
                 cal.lambda_handler(**kwargs)
                 self.assertTrue(self.sent)
+
+    def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
+        """T1 has no earnings date, so its primary listing is looked up; Yahoo knowing nothing of it used to crash the report."""
+        self.patch(cal, 'primary_listing', {'T1': 'T1.XX'})
+        self.patch(yahoo, 'fetch', lambda ts: {t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')} for t in ts})
+        self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1.XX' else {t: market_entry(t)})
+        cal.lambda_handler(event='earnings')
+        self.assertIn('Co T2 ', str(self.sent))
+        self.assertNotIn('Co T1 ', str(self.sent))
 
     def test_trades(self):
         trades.lambda_handler(interactive=True, service='telegram', chat_id='5')

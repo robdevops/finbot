@@ -298,15 +298,13 @@ def prepare_help(service, botName):
 	payload.append(f"Full help on {util.link('https://github.com/robdevops/finbot', 'GitHub', service)}")
 	return payload
 
-def prepare_holdings_payload(portfolioName, service, user):
+def prepare_holdings_payload(portfolio_name, service):
+	"""The holdings of the portfolio called `portfolio_name`. Raises sharesight.PortfolioNotFound."""
 	portfolios = sharesight.get_portfolios()
-	if not portfolioName:
-		return [".holdings: Please try again specifying a portfolio:"] + list(portfolios)
-	found = sharesight.find_portfolio(portfolios, portfolioName)
-	if not found:
-		return [f"{user} {portfolioName} portfolio not found. I only know about:"] + list(portfolios)
-	name, portfolio_id = found
-	holdings = sharesight.get_holdings_new(portfolioName, portfolio_id)
+	if not portfolio_name:
+		return [".holdings: please try again specifying a portfolio:"] + list(portfolios)
+	(name, portfolio_id), = sharesight.pick_portfolios(portfolio_name, portfolios).items()
+	holdings = sharesight.get_holdings_new(name, portfolio_id)
 	payload = sorted(holding_line(holding, service) for holding in holdings.values())
 	if payload:
 		payload.insert(0, webhook.bold(f"Holdings for {name} ({len(holdings)})", service))
@@ -323,13 +321,12 @@ def prepare_who(service, code):
 	return payload or [f'{code} not found in any portfolio']
 
 def prepare_pie(portfolio_name, by, service, max_slices=8):
-	"""Portfolio value by industry (or by='sector'). Returns (payload, chart); chart is None unless there is something to draw."""
+	"""Portfolio value by industry (or by='sector'). Returns (payload, chart); chart is None unless there is something to draw.
+	Raises sharesight.PortfolioNotFound."""
 	portfolios = sharesight.get_portfolios()
-	found = sharesight.find_portfolio(portfolios, portfolio_name) if portfolio_name else None
-	if not found:
-		payload = [".pie: please try again specifying a portfolio:" if not portfolio_name else f"{portfolio_name} portfolio not found. I only know about:"]
-		return payload + list(portfolios), None
-	name, portfolio_id = found
+	if not portfolio_name:
+		return [".pie: please try again specifying a portfolio:"] + list(portfolios), None
+	(name, portfolio_id), = sharesight.pick_portfolios(portfolio_name, portfolios).items()
 	key = 'sector_classification_name' if by == 'sector' else 'industry_classification_name'
 	totals = {}
 	for holding in sharesight.get_holdings_new(name, portfolio_id).values():

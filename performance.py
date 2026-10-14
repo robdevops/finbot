@@ -13,11 +13,8 @@ BENCHMARKS = (('SPY', 'NYSEARCA', 'S&P 500'), ('QQQ', 'NasdaqGM', 'NASDAQ 100'))
 
 def gather(past_days, portfolio_select=None):
 	"""{portfolio id: Sharesight's performance report over past_days} of every portfolio, or of the one named (in any case). Raises
-	RuntimeError when there is none."""
-	portfolios = sharesight.get_portfolios()
-	if portfolio_select:
-		found = sharesight.find_portfolio(portfolios, portfolio_select)
-		portfolios = dict([found]) if found else {}
+	sharesight.PortfolioNotFound for a name that is none of them, and RuntimeError when there is no report."""
+	portfolios = sharesight.pick_portfolios(portfolio_select)
 	performance = {portfolio_id: sharesight.get_performance(portfolio_id, past_days) for portfolio_id in portfolios.values()}
 	if not performance:
 		print("Error: no Sharesight data found", file=sys.stderr)

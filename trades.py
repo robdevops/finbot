@@ -10,23 +10,18 @@ from lib import util
 from lib import yahoo
 
 def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, user='', portfolio_select=None, message_id=None, interactive=False):
+	"""The buys and sells of the past `days`, in every portfolio or the one named: on a scheduled run only those not reported
+	before. Raises sharesight.PortfolioNotFound for a name that is none of them."""
 	if days is UNSET:
 		days = config_past_days
-	start_date = datetime.datetime.now() - datetime.timedelta(days=days)
-	start_date = start_date.strftime('%Y-%m-%d') # 2022-08-20
 	state_file = "finbot_sharesight_trades.json"
 
 	def prepare_trade_payload(service, trades):
-		if not len(trades):
-			print("No trades provided to prepare_trade_payload()", file=sys.stderr)
-			return None
 		payload_staging = []
 		dates = set()
-		wanted = [] # the trades to report: buys and sells in the chosen portfolio that are new (or all of them, when interactive)
+		wanted = [] # the trades to report: buys and sells that are new (or all of them, when interactive)
 		for trade in trades:
 			if trade['transaction_type'] not in {'BUY', 'SELL'}:
-				continue
-			if portfolio_select and trade['portfolio'].lower() != portfolio_select.lower():
 				continue
 			if not interactive and int(trade['id']) in known_trades:
 				print("Skipping known trade_id:", trade['id'], trade['transaction_date'], trade['portfolio'], trade['transaction_type'], trade['symbol'])
@@ -47,17 +42,9 @@ def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, user
 			portfolio_name = trade['portfolio'] # custom field
 			trade_id = int(trade['id'])
 			date = trade['transaction_date'] # 2023-12-30
-			transactionType = trade['transaction_type']
 			symbol = trade['symbol']
-			action=''
-			emoji=''
 			market = trade['market']
-			if transactionType == 'BUY':
-				action = 'bought'
-				emoji = '💸'
-			else: # SELL
-				action = 'sold'
-				emoji = '🤑'
+			action, emoji = ('bought', '💸') if trade['transaction_type'] == 'BUY' else ('sold', '🤑')
 			units = float(trade['quantity'])
 			price = float(trade['price'])
 			currency = trade['brokerage_currency_code']
@@ -69,10 +56,9 @@ def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, user
 					print("Warning: could not get market for", ticker, "from Yahoo:", e, file=sys.stderr)
 			value = round(price * units) # not Sharesight's trade value, which it converts to the portfolio's currency
 			holding_id = str(trade['holding_id'])
-			ticker = util.transform_to_yahoo(symbol, market)
 			dt_date = datetime.datetime.strptime(date, '%Y-%m-%d').date() # (2023, 12, 30)
 
-			newtrades.add(trade_id) # sneaky update global set
+			newtrades.add(trade_id) # recorded by the main body once the report is out
 			dates.add(dt_date)
 
 			flag = util.flag_from_market(market)
@@ -101,22 +87,14 @@ def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, user
 
 	# MAIN #
 	newtrades = set()
-	portfolios = sharesight.get_portfolios()
+	portfolios = sharesight.pick_portfolios(portfolio_select)
 	known_trades = set(util.json_load(state_file, persist=True) or ())
-	if portfolio_select:
-		found = sharesight.find_portfolio(portfolios, portfolio_select)
-		if not found:
-			print("Portfolio not found:", portfolio_select, file=sys.stderr)
-			raise ValueError(f"portfolio not found: {portfolio_select}")
-		portfolio_select = found[0] # as Sharesight spells it
-		portfolios = dict([found])
 	trades = [trade for name, portfolio_id in portfolios.items() for trade in sharesight.get_trades(name, portfolio_id, days)]
 
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
-		if interactive and not trades:
+		payload = prepare_trade_payload(service, trades)
+		if interactive and not payload: # no trades, or none of them a buy or a sell
 			payload = [f"{user} No trades {util.days_english(days, 'in the past ')}. {random.choice(noTradesVerb)}"]
-		else:
-			payload = prepare_trade_payload(service, trades)
 		webhook.send(service, url, chat, payload, message_id=message_id)
 
 	# write state file

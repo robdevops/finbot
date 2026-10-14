@@ -99,6 +99,21 @@ class BadArguments(FinbotCase):
         self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history SYMBOL'])])
 
 
+class PortfolioNames(FinbotCase):
+    def test_an_unknown_portfolio_gets_the_same_answer_everywhere(self):
+        for cmd in ('.trades 7d Nope', '.performance Nope', '.holdings Nope', '.pie Nope'):
+            with self.subTest(cmd=cmd): # it used to be a ValueError, "no Sharesight data found", or two wordings of this
+                self.assertEqual(self.command(cmd), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
+
+    def test_a_portfolio_name_in_any_case(self):
+        self.patch(sharesight, 'get_holdings_new', lambda name, pid: {'T1:NASDAQ': {'code': 'T1', 'market_code': 'NASDAQ', 'name': 'Co T1', 'holding_id': 1}})
+        self.assertIn('Holdings for Rob (1)', str(self.command('.holdings rob')))
+
+    def test_trades_with_no_buy_or_sell_still_get_an_answer(self):
+        self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{'id': 2, 'transaction_type': 'DIVIDEND', 'portfolio': name}])
+        self.assertIn('No trades', str(self.command('.trades 7d'))) # it used to say nothing at all
+
+
 class CommandArguments(FinbotCase):
     def test_period_and_portfolio_in_either_order(self):
         for text, expected in (('', (30, None)), ('7d', (7, None)), ('Rob', (30, 'Rob')), ('7d Rob', (7, 'Rob')), ('Rob 7d', (7, 'Rob')),

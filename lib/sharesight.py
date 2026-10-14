@@ -92,9 +92,22 @@ def get_portfolios(refresh=False):
 	print(portfolio_dict)
 	return portfolio_dict
 
-def find_portfolio(portfolios, name):
-	"""(name as Sharesight spells it, id) of the portfolio called `name`, in any case, or None."""
-	return {k.lower(): (k, v) for k, v in portfolios.items()}.get(name.lower())
+class PortfolioNotFound(LookupError):
+	"""No portfolio is called what was asked for. `lines` is the answer to give: the name, and the portfolios there are."""
+	def __init__(self, name, portfolios):
+		self.lines = [f"{name} portfolio not found. I only know about:"] + list(portfolios)
+		super().__init__(' '.join(self.lines))
+
+def pick_portfolios(name=None, portfolios=None):
+	"""{name as Sharesight spells it: id} of the portfolio called `name` (in any case), or of every portfolio when no name is given.
+	`portfolios` is get_portfolios() when not given. Raises PortfolioNotFound."""
+	portfolios = get_portfolios() if portfolios is None else portfolios
+	if not name:
+		return portfolios
+	found = {k.lower(): (k, v) for k, v in portfolios.items()}.get(name.lower())
+	if not found:
+		raise PortfolioNotFound(name, portfolios)
+	return dict([found])
 
 def get_trades(portfolio_name, portfolio_id, days=UNSET):
 	if days is UNSET:
