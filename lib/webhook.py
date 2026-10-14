@@ -166,8 +166,6 @@ def bold(message, service):
 def italic(message, service):
 	return _styled('italic', message, service)
 
-italics = italic
-
 def strike(message, service):
 	return _styled('strike', message, service)
 

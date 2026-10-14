@@ -50,10 +50,10 @@ def lambda_handler():
 				abr_link = util.link('https://abr.business.gov.au/Tools/DgrListing', 'DGR-registered', service)
 				stake_note = util.link('https://hellostake.com/au/support/stake-super/employer-and-personal-contributions/33442327233305#h_01JQAPN9A6ZM41NZKP6XZWN1KP', 'note about XX PCC in transaction description', service)
 				work_link = util.link('https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim', 'eligible work expenses', service)
-				payload.append(webhook.italics("* Organisation must be " + abr_link, service))
-				payload.append(webhook.italics("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. Stake users: see " + stake_note, service))
-				payload.append(webhook.italics("‡ See " + work_link, service))
-				payload.append(webhook.italics("§ Must relate directly to specific trades and gains/income (e.g. not general finance news)", service))
+				payload.append(webhook.italic("* Organisation must be " + abr_link, service))
+				payload.append(webhook.italic("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. Stake users: see " + stake_note, service))
+				payload.append(webhook.italic("‡ See " + work_link, service))
+				payload.append(webhook.italic("§ Must relate directly to specific trades and gains/income (e.g. not general finance news)", service))
 
 		if month_and_day == '08-18':
 			myBirthday = datetime.datetime(2022,8,18,0,0,0,0, tzinfo=tz)

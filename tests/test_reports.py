@@ -1,5 +1,6 @@
 """Every chat command and scheduled report produces output on mocked data."""
 import unittest
+import datetime
 from tests.common import *
 
 
@@ -155,6 +156,19 @@ class ScheduledReports(FinbotCase):
         rating.lambda_handler(interactive=True, service='telegram', chat_id='5')
         self.assertTrue(self.sent)
 
+    def test_rating_keeps_the_last_rating_of_a_ticker_missing_from_a_run(self):
+        rating.lambda_handler() # records every ticker's rating
+        self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1' else {t: market_entry(t)})
+        rating.lambda_handler() # no T1 this time: its rating used to be dropped from the record
+        self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | ({'recommend': 'sell', 'recommend_index': 4.5} if t == 'T1' else {})})
+        self.sent.clear()
+        rating.lambda_handler()
+        self.assertIn('Co T1 ', str(self.sent)) # so its change from buy to sell went unreported
+
+    def test_an_interactive_rating_records_nothing(self):
+        rating.lambda_handler(interactive=True, service='telegram', chat_id='5')
+        self.assertIsNone(util.json_load('finbot_rating.json', persist=True))
+
     def test_slack_webhook_without_a_bot_token_gets_scheduled_reports(self):
         """Scheduled reports reach Slack through its incoming webhook, which takes no channel and no token. They used to send
         Telegram's chat id along, which made write() need slackBotToken and crash without one, before Telegram got its copy."""
@@ -227,13 +241,32 @@ class PeriodButtons(FinbotCase):
         self.assertEqual((edits, toasts), ([], [None]))
 
 
-class Podcasts(unittest.TestCase):
+class Podcasts(FinbotCase):
     def test_format_helpers(self):
         import podcasts
         self.assertEqual(podcasts.format_duration('3725'), '01:02')
         self.assertEqual(podcasts.format_duration('1:02:03'), '01:02')
+        self.assertEqual(podcasts.format_duration('62:05'), '01:02')
         self.assertEqual(podcasts.format_duration('nonsense'), '')
-        self.assertTrue(podcasts.how_long_ago('Mon, 01 Jan 2024 00:00:00 +0000').endswith('d ago'))
+        self.assertTrue(podcasts.how_long_ago(podcasts.published('Mon, 01 Jan 2024 00:00:00 +0000')).endswith('d ago'))
+        self.assertEqual(podcasts.published('Mon, 01 Jan 2024 00:00:00 -0000').tzinfo, datetime.timezone.utc) # no zone given: UTC
+        self.assertIsNone(podcasts.published('yesterday'))
+
+    def test_new_episodes_are_posted_once_newest_first(self):
+        """A feed whose items mix dated and undated ones used to crash the sort (aware and naive times)."""
+        import podcasts
+        def item(n, date):
+            return f'<item><guid>g{n}</guid><title>Show: ep {n}</title><enclosure url="https://x/{n}.mp3"/>{date}<itunes:duration>600</itunes:duration></item>'
+        feed = ('<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel><title>Show</title>'
+                + item(1, '<pubDate>Mon, 01 Jan 2024 00:00:00 +0000</pubDate>') + item(2, '') + item(3, '<pubDate>Tue, 02 Jan 2024 00:00:00 GMT</pubDate>')
+                + '</channel></rss>').encode()
+        self.patch(podcasts.net, 'get', lambda url, **k: mock.Mock(content=feed, raise_for_status=lambda: None))
+        podcasts.lambda_handler('https://example.com/feed')
+        self.assertEqual([line.split(' (')[0] for line in self.sent[0][1]], ['📣 Show: <a href="https://x/3.mp3">ep 3</a> 00:10',
+                         '📣 Show: <a href="https://x/1.mp3">ep 1</a> 00:10', '📣 Show: <a href="https://x/2.mp3">ep 2</a> 00:10'])
+        self.sent.clear()
+        podcasts.lambda_handler('https://example.com/feed')
+        self.assertEqual(self.sent, []) # all seen now
 
 
 if __name__ == '__main__':
