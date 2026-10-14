@@ -62,14 +62,13 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None,
 						continue
 					# wishlist items will come here
 					# not a holding (e.g. watchlist): use Yahoo history instead, summarised once in the main section below
-					if specific_stock:
+					if specific_stock: # the one ticker asked for: no history is reported in one line
 						percent, graph = yahoo.price_history(ticker, days, graph=config_graph and webhook.takes_charts(service, interactive), graphCache=False)
-						if isinstance(percent, str):
-							raise RuntimeError(percent) # the one ticker asked for has no history: reported in one line
 					else:
-						percent, graph = yahoo.price_history(ticker, days, graph=False)
-						if isinstance(percent, str): # no history for this ticker: leave it out of the list
-							print(ticker, percent, file=sys.stderr)
+						try:
+							percent, _ = yahoo.price_history(ticker, days, graph=False)
+						except RuntimeError as e: # no history for this ticker: leave it out of the list
+							print(ticker, e, file=sys.stderr)
 							continue
 					try:
 						percent = percent[days]

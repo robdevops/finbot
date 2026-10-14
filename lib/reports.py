@@ -748,8 +748,10 @@ def prepare_profile_payload(service, user, ticker):
 	if payload:
 		payload.append("")
 
-	price_history, _ = yahoo.price_history(ticker, graph=False) # the percentages only: the profile has no chart
-	if isinstance(price_history, str): # no chart data: the profile goes out without these lines
+	try:
+		price_history, _ = yahoo.price_history(ticker, graph=False) # the percentages only: the profile has no chart
+	except RuntimeError as e: # no chart data: the profile goes out without these lines
+		print(ticker, e, file=sys.stderr)
 		price_history = {}
 	for interval in ('5Y', '1Y', '1M', '1D'):
 		if interval in price_history:

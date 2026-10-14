@@ -169,23 +169,24 @@ def cache_path(name, persist=False):
 	"""Where a cache file lives, or with persist=True a state file (in the data directory)."""
 	return (config_var_dir if persist else config_cache_dir) + "/" + name
 
-def read_cache(cacheFile, maxSeconds=UNSET):
+def _fresh_cache(cacheFile, maxSeconds):
+	"""The cache file's path if it was written less than maxSeconds ago (config_cache_seconds when UNSET), else None."""
 	if maxSeconds is UNSET:
 		maxSeconds = config_cache_seconds
-	cacheFile = cache_path(cacheFile)
-	if os.path.isfile(cacheFile):
-		maxSeconds = datetime.timedelta(seconds=maxSeconds)
-		cacheFileMtime = datetime.datetime.fromtimestamp(os.path.getmtime(cacheFile))
-		cacheFileAge = datetime.datetime.now() - cacheFileMtime
-		if cacheFileAge < maxSeconds:
-			if debug:
-				ttl = maxSeconds - cacheFileAge
-				print("cache hit:", cacheFile, "TTL:", td_to_human(ttl), file=sys.stderr)
-			return json.loads(Path(cacheFile).read_text(encoding="utf-8"))
-		print("cache expired:", cacheFile, file=sys.stderr) if debug else None
+	path, age = cache_path(cacheFile), cache_age(cacheFile)
+	if age is None:
+		print("cache miss:", path, file=sys.stderr) if debug else None
 		return None
-	print("cache miss:", cacheFile, file=sys.stderr) if debug else None
-	return None
+	if age >= maxSeconds:
+		print("cache expired:", path, file=sys.stderr) if debug else None
+		return None
+	print("cache hit:", path, "TTL:", td_to_human(datetime.timedelta(seconds=maxSeconds - age)), file=sys.stderr) if debug else None
+	return path
+
+def read_cache(cacheFile, maxSeconds=UNSET):
+	"""A cache file's JSON, or None when it is missing or older than maxSeconds."""
+	path = _fresh_cache(cacheFile, maxSeconds)
+	return json.loads(Path(path).read_text(encoding="utf-8")) if path else None
 
 def cache_age(cacheFile):
 	"""Seconds since the cache file was written, or None when it does not exist."""
@@ -227,22 +228,9 @@ def json_load(filename, persist=False):
 	return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 def read_binary_cache(cacheFile, maxSeconds=UNSET):
-	if maxSeconds is UNSET:
-		maxSeconds = config_cache_seconds
-	cacheFile = cache_path(cacheFile)
-	if os.path.isfile(cacheFile):
-		maxSeconds = datetime.timedelta(seconds=maxSeconds)
-		cacheFileMtime = datetime.datetime.fromtimestamp(os.path.getmtime(cacheFile))
-		cacheFileAge = datetime.datetime.now() - cacheFileMtime
-		if cacheFileAge < maxSeconds:
-			if debug:
-				ttl = maxSeconds - cacheFileAge
-				print("cache hit", cacheFile, "TTL:", td_to_human(ttl), file=sys.stderr)
-			return io.BytesIO(Path(cacheFile).read_bytes())
-		print("cache expired:", cacheFile, file=sys.stderr) if debug else None
-		return None
-	print("cache miss:", cacheFile, file=sys.stderr)
-	return None
+	"""A cache file's bytes (as a file object), or None when it is missing or older than maxSeconds."""
+	path = _fresh_cache(cacheFile, maxSeconds)
+	return io.BytesIO(Path(path).read_bytes()) if path else None
 
 def write_binary_cache(cacheFile, data):
 	data.seek(0)

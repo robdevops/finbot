@@ -23,17 +23,12 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=UNSET, service=None,
 		return emoji
 	def stock_performance(ticker, market, text):
 		try:
-			percent, graph = yahoo.price_history(ticker, days=past_days, graph=False)
-		except Exception as e:
-			percent = f"error: {e}"
-		if isinstance(percent, str): # no history for this benchmark: say so in its line, the rest of the report goes out
-			print(ticker, percent, file=sys.stderr)
+			percent = yahoo.price_history(ticker, days=past_days, graph=False)[0][past_days]
+		except Exception as e: # no history for this benchmark: say so in its line, the rest of the report goes out
+			print(ticker, e, file=sys.stderr)
 			return f"⚠️ {text}: no price history", None
-		else:
-			percent = percent[past_days]
-			emoji = get_emoji(percent)
-			link = util.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
-			return f"{emoji} {link} {util.signed_percent(percent, 2)}", percent
+		link = util.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
+		return f"{util.get_emoji(percent)} {link} {util.signed_percent(percent, 2)}", percent
 	def prepare_performance_payload(service, performance, portfolios):
 		payload = []
 		lines = [] # (percent, text), sorted into payload below

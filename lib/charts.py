@@ -108,8 +108,6 @@ def history_payload(ticker, service, highlight=None, graph=False):
 	if ticker not in market_data or 'percent_change' not in market_data[ticker]:
 		return [f".history: no data found for ticker {ticker}"], None, None
 	table, image = yahoo.price_history(ticker) if graph else yahoo.price_history(ticker, graph=False)
-	if isinstance(table, str):
-		raise RuntimeError(table)
 	lines = [webhook.bold(f"{title} ({ticker_link}) performance history", service)]
 	for interval in ('Max', '10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
 		if interval in table:
@@ -129,9 +127,7 @@ def build(kind, tickers, period, service='telegram'):
 		if table is None:
 			raise RuntimeError(lines[0])
 		if days:
-			percent, image = yahoo.price_history(ticker, days)
-			if isinstance(percent, str):
-				raise RuntimeError(percent)
+			_, image = yahoo.price_history(ticker, days)
 		return '\n'.join(lines), image
 	if kind == 'p':
 		ticker = tickers[0]
@@ -139,8 +135,6 @@ def build(kind, tickers, period, service='telegram'):
 		if ticker not in market_data:
 			raise RuntimeError(f"no data found for {ticker}")
 		percent, image = yahoo.price_history(ticker, days, graphCache=False)
-		if isinstance(percent, str):
-			raise RuntimeError(percent)
 		percent = float(percent.get(days, percent.get('Max', next(iter(percent.values()), 0))))
 		link = util.quote_link(ticker, market_data[ticker]['profile_exchange'], service, days=days)
 		return f"{util.get_emoji(percent)} {market_data[ticker]['profile_title']} ({link}) {util.signed_percent(round(percent))}", image

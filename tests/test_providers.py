@@ -140,13 +140,12 @@ class YahooChart(ProviderCase):
         basics = yahoo.chart_json_to_stock_basics(chart)
         self.assertEqual((basics['symbol'], basics['currency']), ('CRWD', 'USD'))
 
-    def test_fetch_chart_json_failures_return_error_strings(self):
+    def test_fetch_chart_json_failures_raise(self):
         for failure in (Resp(status=404), ConnectionError('down')):
             with self.subTest(failure=failure):
                 self.http(yahoo, failure)
-                result = yahoo.fetch_chart_json('AAPL', full=True)
-                self.assertIsInstance(result, tuple)
-                self.assertIsNone(result[1])
+                with self.assertRaises(RuntimeError):
+                    yahoo.fetch_chart_json('AAPL', full=True)
 
     @staticmethod
     def chart(closes, failing=()):
@@ -165,14 +164,13 @@ class YahooChart(ProviderCase):
         self.assertEqual(table['1D'], -3)
         self.assertGreater(table['5D'], 10) # the week, not the day
 
-    def test_a_failed_chart_fetch_is_handed_back_not_raised(self):
+    def test_a_failed_chart_fetch_raises(self):
         self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
         for failure in (Resp(status=429), ConnectionError('down')):
             with self.subTest(failure=failure):
                 self.http(yahoo, failure)
-                percent, image = yahoo.price_history('AAPL', 7, graph=False)
-                self.assertIsInstance(percent, str)
-                self.assertIsNone(image)
+                with self.assertRaises(RuntimeError):
+                    yahoo.price_history('AAPL', 7, graph=False)
 
     def test_one_failed_ticker_does_not_take_the_report_down(self):
         self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])

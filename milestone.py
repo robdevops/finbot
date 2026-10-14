@@ -37,7 +37,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 				records[ticker]['low'] = float()
 				try:
 					oldhigh, oldlow = yahoo.historic_high(ticker) # first run to prime cache file
-				except (KeyError, TypeError, ValueError):
+				except (RuntimeError, KeyError, IndexError, ValueError):
 					del records[ticker] # no usable history: don't record zeros, which would fake a new high next run
 					continue
 			try:
