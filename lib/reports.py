@@ -12,6 +12,18 @@ from lib import yahoo
 from lib import simplywallst
 from itertools import groupby
 
+def last_col(line):
+	"""Sort key: the number a report line ends with; a line without one sorts first."""
+	try:
+		return float(line.split()[-1])
+	except ValueError:
+		return float('-inf')
+
+def holding_line(holding, service, text=None):
+	"""'🇦🇺 Title (CODE)' for a Sharesight holding, CODE (or `text`) linking to the holding on Sharesight."""
+	link = util.link(f"https://portfolio.sharesight.com/holdings/{holding['holding_id']}/dashboard", holding['code'] if text is None else text, service)
+	return f"{util.flag_from_market(holding['market_code'])} {util.transform_title(holding['name'])} ({link})"
+
 def doDelta(inputList):
 	deltaString = ''
 	inputListFixed = inputList.copy()
@@ -149,9 +161,9 @@ def prepare_compare(service, args, with_inputs=False):
 			except ValueError:
 				pass
 	tickers = list(dict.fromkeys(util.transform_to_yahoo(a.upper()) for a in args)) # de-duplicated, order kept
-	if not 2 <= len(tickers) <= 6:
-		return (usage, None, tickers, period_days) if with_inputs else (usage, None)
 	result = lambda caption, image: (caption, image, tickers, period_days) if with_inputs else (caption, image)
+	if not 2 <= len(tickers) <= 6:
+		return result(usage, None)
 	spec = period_days or ('max' if full_history else 'default')
 	cache_key = hashlib.sha1(f"{service}|{','.join(tickers)}|{spec}".encode()).hexdigest()[:16]
 	image_cache_file, caption_cache_file = f"finbot_compare_{cache_key}.png", f"finbot_compare_{cache_key}.json"
@@ -161,11 +173,10 @@ def prepare_compare(service, args, with_inputs=False):
 		if cached_image and cached_caption:
 			return result(cached_caption, cached_image)
 	names, exchanges, closes = {}, {}, {}
-	for ticker in tickers:
-		name, exchange, series = yahoo.price_series(ticker)
-		names[ticker] = name
-		exchanges[ticker] = exchange
-		closes[ticker] = series
+	for ticker, history in zip(tickers, yahoo.fetch_each(yahoo.price_series, tickers)): # downloaded at the same time
+		if isinstance(history, Exception):
+			raise history
+		names[ticker], exchanges[ticker], closes[ticker] = history
 	limiting = max(closes, key=lambda t: closes[t].index[0]) # ticker with the shortest history
 	common_start = closes[limiting].index[0]
 	start = common_start
@@ -289,47 +300,27 @@ def prepare_help(service, botName):
 	return payload
 
 def prepare_holdings_payload(portfolioName, service, user):
-	payload = []
 	portfolios = sharesight.get_portfolios()
-	portfoliosLower = {k.lower():v for k,v in portfolios.items()}
-	if portfolioName:
-		if portfolioName.lower() in portfoliosLower:
-			portfolioId = portfoliosLower[portfolioName.lower()]
-			holdings = sharesight.get_holdings_new(portfolioName, portfolioId)
-			for k,v in holdings.items():
-				ticker = v['code']
-				title = util.transform_title(v['name'])
-				exchange = v['market_code']
-				#ticker_link = util.finance_link(ticker, exchange, service)
-				holding_id = v['holding_id']
-				url = f"https://portfolio.sharesight.com/holdings/{holding_id}/dashboard"
-				ticker_link = util.link(url, ticker, service)
-				flag = util.flag_from_market(exchange)
-				payload.append(f"{flag} {title} ({ticker_link})")
-			portfoliosReverseLookup = {v:k for k,v in portfolios.items()}
-			payload.sort()
-			if payload:
-				count = len(holdings)
-				portfolio_name = portfoliosReverseLookup[portfolioId]
-				payload.insert(0, webhook.bold(f"Holdings for {portfolio_name} ({count})", service))
-		else:
-			payload = [ f"{user} {portfolioName} portfolio not found. I only know about:" ]
-			for item in portfolios:
-				payload.append( item )
-	else:
-		payload = [ f".holdings: Please try again specifying a portfolio:" ]
-		for item in portfolios:
-			payload.append( item )
+	if not portfolioName:
+		return [".holdings: Please try again specifying a portfolio:"] + list(portfolios)
+	found = sharesight.find_portfolio(portfolios, portfolioName)
+	if not found:
+		return [f"{user} {portfolioName} portfolio not found. I only know about:"] + list(portfolios)
+	name, portfolio_id = found
+	holdings = sharesight.get_holdings_new(portfolioName, portfolio_id)
+	payload = sorted(holding_line(holding, service) for holding in holdings.values())
+	if payload:
+		payload.insert(0, webhook.bold(f"Holdings for {name} ({len(holdings)})", service))
 	return payload
 
 def prepare_pie(portfolio_name, by, service, max_slices=8):
 	"""Portfolio value by industry (or by='sector'). Returns (payload, chart); chart is None unless there is something to draw."""
 	portfolios = sharesight.get_portfolios()
-	lookup = {k.lower(): (k, v) for k, v in portfolios.items()}
-	if not portfolio_name or portfolio_name.lower() not in lookup:
+	found = sharesight.find_portfolio(portfolios, portfolio_name) if portfolio_name else None
+	if not found:
 		payload = [".pie: please try again specifying a portfolio:" if not portfolio_name else f"{portfolio_name} portfolio not found. I only know about:"]
 		return payload + list(portfolios), None
-	name, portfolio_id = lookup[portfolio_name.lower()]
+	name, portfolio_id = found
 	key = 'sector_classification_name' if by == 'sector' else 'industry_classification_name'
 	totals = {}
 	for holding in sharesight.get_holdings_new(name, portfolio_id).values():
@@ -356,11 +347,6 @@ def prepare_pie(portfolio_name, by, service, max_slices=8):
 	return payload, {'pie': True, 'rows': rows, 'title': title, 'subtitle': subtitle}
 
 def prepare_marketcap_payload(service, action='top', length=15):
-	def last_col(e):
-		try:
-			return float(e.split()[-1])
-		except ValueError:
-			return float('-inf')	# or float('inf'), depending on where you want missing values to sort
 	payload_staging = []
 	tickers = util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
@@ -389,58 +375,55 @@ def prepare_marketcap_payload(service, action='top', length=15):
 	return payload
 
 def prepare_rating_payload(service, action, length=15, with_chart=False):
-		def score_col(e):
-			return (float(e.split()[-3]), int(e.split()[-2].removeprefix('(')))
-		payload = []
-		chart_rows = [] # (ticker, rating, analysts), kept in step with payload
-		tickers = util.get_holdings_and_watchlist()
-		market_data = {}
-		for ticker in tickers:
-			try:
-				market_data = market_data | yahoo.fetch_detail(ticker)
-			except TypeError:
-				pass
-		for ticker in market_data:
-			if 'recommend' in market_data[ticker]:
-				recommend = market_data[ticker]['recommend'].replace('_', ' ')
-				recommend_index = round(market_data[ticker]['recommend_index'], 2)
-				recommend_analysts = market_data[ticker]['recommend_analysts']
-				if recommend_analysts > 1:
-					profile_title = market_data[ticker]['profile_title']
-					ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-					flag = util.flag_from_ticker(ticker)
-					if action == 'buy' and 'buy' in recommend:
-							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
-							chart_rows.append((ticker.split('.')[0], recommend_index, recommend_analysts))
-					elif action == 'sell' and (recommend == 'sell' or recommend == 'underperform'):
-							payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
-							chart_rows.append((ticker.split('.')[0], recommend_index, recommend_analysts))
-		payload.sort(key=score_col)
-		chart_rows.sort(key=lambda row: (row[1], row[2])) # same order as score_col
-		payload = payload[:length]
-		chart = None
-		if payload:
-			message = f"Top {length} analyst {action} ratings for tracked stocks"
-			payload.insert(0, f"{webhook.bold(message, service)}")
-			shown = [(t, r) for t, r, _ in chart_rows[:length]]
-			low, high = min(r for _, r in shown), max(r for _, r in shown)
-			spread = (high - low) or 0.2
-			# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
-			chart = {'rows': shown, 'title': message, 'subtitle': 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
-				'value_fmt': lambda v: f"{v:g}", 'xlim': (max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25))}
-		return (payload, chart) if with_chart else payload
+	def score_col(e):
+		return (float(e.split()[-3]), int(e.split()[-2].removeprefix('(')))
+	payload = []
+	chart_rows = [] # (ticker, rating, analysts), kept in step with payload
+	tickers = util.get_holdings_and_watchlist()
+	market_data = {}
+	for detail in yahoo.fetch_each(yahoo.fetch_detail, tickers): # fetched at the same time
+		if isinstance(detail, TypeError):
+			continue
+		if isinstance(detail, Exception):
+			raise detail
+		market_data |= detail
+	for ticker in market_data:
+		if 'recommend' in market_data[ticker]:
+			recommend = market_data[ticker]['recommend'].replace('_', ' ')
+			recommend_index = round(market_data[ticker]['recommend_index'], 2)
+			recommend_analysts = market_data[ticker]['recommend_analysts']
+			if recommend_analysts > 1:
+				profile_title = market_data[ticker]['profile_title']
+				ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
+				flag = util.flag_from_ticker(ticker)
+				if (action == 'buy' and 'buy' in recommend) or (action == 'sell' and recommend in ('sell', 'underperform')):
+					payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
+					chart_rows.append((ticker.split('.')[0], recommend_index, recommend_analysts))
+	payload.sort(key=score_col)
+	chart_rows.sort(key=lambda row: (row[1], row[2])) # same order as score_col
+	payload = payload[:length]
+	chart = None
+	if payload:
+		message = f"Top {length} analyst {action} ratings for tracked stocks"
+		payload.insert(0, f"{webhook.bold(message, service)}")
+		shown = [(t, r) for t, r, _ in chart_rows[:length]]
+		low, high = min(r for _, r in shown), max(r for _, r in shown)
+		spread = (high - low) or 0.2
+		# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
+		chart = {'rows': shown, 'title': message, 'subtitle': 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
+			'value_fmt': lambda v: f"{v:g}", 'xlim': (max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25))}
+	return (payload, chart) if with_chart else payload
 
 def prepare_value_payload(service, action='pe', ticker_select=None, length=15, with_chart=False):
-	def last_col(e):
-		try:
-			return float(e.split()[-1])
-		except ValueError:
-			return float('-inf')
-
 	payload = []
 	chart_rows = [] # (ticker, ratio)
 	tickers = [ticker_select] if ticker_select else util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
+	details = dict(zip(market_data, yahoo.fetch_each(yahoo.fetch_detail, market_data))) if action in ('peg', 'bottom peg', 'negative peg') else {}
+	def detail(ticker): # fetched above, all at once; a failure is raised here, where the one-at-a-time fetch raised it
+		if isinstance(details[ticker], Exception):
+			raise details[ticker]
+		return details[ticker]
 	for ticker in market_data:
 		trailing_ratio = None
 		forward_ratio = None
@@ -464,13 +447,13 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15, w
 					continue
 				ratio = forward_ratio
 			elif action in ('peg', 'bottom peg'):
-				market_data = market_data | yahoo.fetch_detail(ticker)
+				market_data = market_data | detail(ticker)
 				peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
 				if not ticker_select and peg_ratio is not None and peg_ratio < 0:
 					continue
 				ratio = peg_ratio
 			elif action == 'negative peg':
-				market_data = market_data | yahoo.fetch_detail(ticker)
+				market_data = market_data | detail(ticker)
 				peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
 				if not ticker_select and (peg_ratio is None or peg_ratio >= 0):
 					continue
@@ -544,8 +527,6 @@ def prepare_profile_payload(service, user, ticker):
 		swsURL = simplywallst.get_url(ticker, profile_title, exchange)
 		swsLink = util.link(swsURL, 'simplywall.st', service)
 		ticker_link = util.finance_link(ticker, exchange, service, brief=False)
-		swsURL = simplywallst.get_url(ticker, profile_title, exchange)
-		swsLink = util.link(swsURL, 'simplywall.st', service)
 	macrotrendsURL = 'https://www.google.com/search?q=site:macrotrends.net+' + profile_title + '+PE Ratio+' + ticker.split('.')[0] + '&btnI'
 	macrotrendsLink = util.link(macrotrendsURL, 'macrotrends', service)
 	gfinanceLink = util.gfinance_link(ticker, exchange, service, brief=True, text='google')
@@ -579,9 +560,8 @@ def prepare_profile_payload(service, user, ticker):
 		profile_country = market_data[ticker]['profile_country']
 		location.append(profile_country)
 	if 'profile_website' in market_data[ticker]:
-		website = website_text = market_data[ticker]['profile_website']
-		website_text = util.strip_url(website)
-		website = util.link(website, website_text, service)
+		website = market_data[ticker]['profile_website']
+		website = util.link(website, util.strip_url(website), service)
 	if payload:
 		payload.append("")
 
@@ -666,18 +646,9 @@ def prepare_profile_payload(service, user, ticker):
 		payload.append("")
 
 	if 'earningsQ' in market_data[ticker]:
-		revenueQs = doDelta(market_data[ticker]['revenueQ'])
-		earningsQs = doDelta(market_data[ticker]['earningsQ'])
-		revenueYs = doDelta(market_data[ticker]['revenueY'])
-		earningsYs = doDelta(market_data[ticker]['earningsY'])
-		if revenueQs:
-			payload.append(f"{revenueQs}	quarterly revenue delta")
-		if earningsQs:
-			payload.append(f"{earningsQs}	quarterly earnings delta")
-		if revenueYs:
-			payload.append(f"{revenueYs}	annual revenue delta")
-		if earningsYs:
-			payload.append(f"{earningsYs}	annual earnings delta")
+		deltas = [(doDelta(market_data[ticker][key]), label) for key, label in (('revenueQ', 'quarterly revenue'), ('earningsQ', 'quarterly earnings'),
+			('revenueY', 'annual revenue'), ('earningsY', 'annual earnings'))]
+		payload += [f"{delta}\t{label} delta" for delta, label in deltas] # doDelta always gives at least three symbols
 
 	if payload:
 		payload.append("")
@@ -777,7 +748,7 @@ def prepare_profile_payload(service, user, ticker):
 	if payload:
 		payload.append("")
 
-	price_history, graph = yahoo.price_history(ticker)
+	price_history, _ = yahoo.price_history(ticker, graph=False) # the percentages only: the profile has no chart
 	if isinstance(price_history, str): # no chart data: the profile goes out without these lines
 		price_history = {}
 	for interval in ('5Y', '1Y', '1M', '1D'):
