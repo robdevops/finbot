@@ -143,9 +143,9 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 		payload = payload[:1] # confirmation only; don't list the whole watchlist
 	return payload
 
-def prepare_compare(service, args, with_inputs=False):
+def prepare_compare(service, args):
 	"""Compare 2-6 tickers as rebased % change. A trailing time period (3m/1y/90d/ytd) is optional;
-	without one, the span is the earliest date covered by every ticker. Returns (caption_lines, image)."""
+	without one, the span is the earliest date covered by every ticker. Returns (caption lines, image, tickers, period days)."""
 	usage = ['Usage: .compare SYMBOL SYMBOL [SYMBOL...up to 6] [period|max]  (default: 10 years)']
 	period_days = None
 	full_history = False
@@ -161,9 +161,8 @@ def prepare_compare(service, args, with_inputs=False):
 			except ValueError:
 				pass
 	tickers = list(dict.fromkeys(util.transform_to_yahoo(a.upper()) for a in args)) # de-duplicated, order kept
-	result = lambda caption, image: (caption, image, tickers, period_days) if with_inputs else (caption, image)
 	if not 2 <= len(tickers) <= 6:
-		return result(usage, None)
+		return usage, None, tickers, period_days
 	spec = period_days or ('max' if full_history else 'default')
 	cache_key = hashlib.sha1(f"{service}|{','.join(tickers)}|{spec}".encode()).hexdigest()[:16]
 	image_cache_file, caption_cache_file = f"finbot_compare_{cache_key}.png", f"finbot_compare_{cache_key}.json"
@@ -171,7 +170,7 @@ def prepare_compare(service, args, with_inputs=False):
 		cached_image = util.read_binary_cache(image_cache_file)
 		cached_caption = util.read_cache(caption_cache_file)
 		if cached_image and cached_caption:
-			return result(cached_caption, cached_image)
+			return cached_caption, cached_image, tickers, period_days
 	names, exchanges, closes = {}, {}, {}
 	for ticker, history in zip(tickers, yahoo.fetch_each(yahoo.price_series, tickers)): # downloaded at the same time
 		if isinstance(history, Exception):
@@ -215,7 +214,7 @@ def prepare_compare(service, args, with_inputs=False):
 		util.write_binary_cache(image_cache_file, image)
 		util.json_write(caption_cache_file, caption)
 		image.seek(0)
-	return result(caption, image)
+	return caption, image, tickers, period_days
 
 def prepare_jobs_payload(service, args):
 	"""`.jobs` lists the scheduled commands, each once; `.jobs run <number|command>` runs one now, as cron would.
@@ -313,6 +312,16 @@ def prepare_holdings_payload(portfolioName, service, user):
 		payload.insert(0, webhook.bold(f"Holdings for {name} ({len(holdings)})", service))
 	return payload
 
+def prepare_who(service, code):
+	"""Which portfolios hold `code` (a ticker without its exchange), each holding linked to Sharesight."""
+	payload = []
+	for portfolio_name, portfolio_id in sharesight.get_portfolios().items():
+		holdings = sharesight.get_holdings_new(portfolio_name, portfolio_id)
+		found = [holding_line(holding, service, code) for holding in holdings.values() if holding['code'].upper() == code]
+		if found:
+			payload += [webhook.bold(f"{portfolio_name}:", service), "\n".join(found), ""]
+	return payload or [f'{code} not found in any portfolio']
+
 def prepare_pie(portfolio_name, by, service, max_slices=8):
 	"""Portfolio value by industry (or by='sector'). Returns (payload, chart); chart is None unless there is something to draw."""
 	portfolios = sharesight.get_portfolios()
@@ -347,34 +356,27 @@ def prepare_pie(portfolio_name, by, service, max_slices=8):
 	return payload, {'pie': True, 'rows': rows, 'title': title, 'subtitle': subtitle}
 
 def prepare_marketcap_payload(service, action='top', length=15):
-	payload_staging = []
-	tickers = util.get_holdings_and_watchlist()
-	market_data = yahoo.fetch(tickers)
-	for ticker in market_data:
-		try:
-			market_cap = market_data[ticker]['market_cap']
-		except:
+	"""The `length` tracked stocks of largest (action 'top') or smallest ('bottom') market cap; any other action is one ticker's."""
+	if action not in ('top', 'bottom'):
+		ticker = util.transform_to_yahoo(action.upper())
+		data = yahoo.fetch_detail(ticker, 600).get(ticker, {})
+		if 'market_cap' not in data:
+			return [f"Mkt cap not found for {ticker}"]
+		link = util.finance_link(ticker, data.get('profile_exchange', ''), service)
+		return [util.security_line(util.flag_from_ticker(ticker), data.get('profile_title', ticker), link) + f" mkt cap: {util.humanUnits(data['market_cap'])}"]
+	caps = [] # (market cap, line)
+	for ticker, data in yahoo.fetch(util.get_holdings_and_watchlist()).items():
+		if 'market_cap' not in data:
 			print(ticker, "no market cap", file=sys.stderr)
 			continue
-		market_cap_readable = util.humanUnits(market_cap)
-		title = market_data[ticker]['profile_title']
-		link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-		flag = util.flag_from_ticker(ticker)
-		payload_staging.append(f"{flag} {title} ({link}) mkt cap: {market_cap_readable} {market_cap}")
-	payload = ['No market cap data found']
-	if payload_staging:
-		payload_staging.sort(key=last_col)
-		if action == 'top':
-			payload_staging.reverse()
-		payload_staging = payload_staging[:length]
-		payload = []
-		for line in payload_staging: # drop no longer needed sort key
-			words = line.split()
-			payload.append(' '.join(words[:-1]))
-		payload.insert(0, f"{webhook.bold(f'{action.title()} {length} tracked stocks by market cap', service)}")
-	return payload
+		link = util.finance_link(ticker, data['profile_exchange'], service)
+		caps.append((data['market_cap'], util.security_line(util.flag_from_ticker(ticker), data['profile_title'], link) + f" mkt cap: {util.humanUnits(data['market_cap'])}"))
+	if not caps:
+		return ['No market cap data found']
+	caps.sort(key=lambda cap: cap[0], reverse=action == 'top')
+	return [webhook.bold(f'{action.title()} {length} tracked stocks by market cap', service)] + [line for _, line in caps[:length]]
 
-def prepare_rating_payload(service, action, length=15, with_chart=False):
+def prepare_rating_payload(service, action, length=15):
 	def score_col(e):
 		return (float(e.split()[-3]), int(e.split()[-2].removeprefix('(')))
 	payload = []
@@ -412,9 +414,9 @@ def prepare_rating_payload(service, action, length=15, with_chart=False):
 		# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
 		chart = {'rows': shown, 'title': message, 'subtitle': 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
 			'value_fmt': lambda v: f"{v:g}", 'xlim': (max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25))}
-	return (payload, chart) if with_chart else payload
+	return payload, chart
 
-def prepare_value_payload(service, action='pe', ticker_select=None, length=15, with_chart=False):
+def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 	payload = []
 	chart_rows = [] # (ticker, ratio)
 	tickers = [ticker_select] if ticker_select else util.get_holdings_and_watchlist()
@@ -492,7 +494,31 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15, w
 			heading = f'{heading_type} {length} tracked stocks by {heading_trail} ratio'
 			payload.insert(0, f"{webhook.bold(heading, service)}")
 			chart = {'rows': chart_rows[:length], 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
-	return (payload, chart) if with_chart else payload
+	return payload, chart
+
+def prepare_beta_payload(service):
+	"""(payload, chart) of the tracked stocks with a beta over 1.5 and a market cap under 2B, the highest beta first."""
+	market_data = {}
+	tickers = util.get_holdings_and_watchlist()
+	for ticker, detail in zip(tickers, yahoo.fetch_each(yahoo.fetch_detail, tickers)): # fetched at the same time
+		if isinstance(detail, Exception):
+			print(ticker, detail, file=sys.stderr) # skip this ticker; keep the rest
+		else:
+			market_data |= detail
+	found = [] # (beta, line, chart row)
+	for ticker, data in market_data.items():
+		if 'beta' not in data:
+			continue
+		beta = round(data['beta'], 1)
+		if beta > 1.5 and data.get('market_cap', float('inf')) < 2000000000:
+			link = util.finance_link(ticker, data['profile_exchange'], service)
+			found.append((beta, util.security_line(util.flag_from_ticker(ticker), data['profile_title'], link) + f" {beta} β", (ticker.split('.')[0], float(beta))))
+	if not found:
+		return ['No tracked stocks have a beta over 1.5 and mkt cap under 2B'], None
+	found.sort(key=lambda row: row[0], reverse=True)
+	heading = 'Beta over 1.5 and mkt cap under 2B'
+	chart = {'rows': [row for _, _, row in found], 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
+	return [webhook.bold(heading, service)] + [line for _, line, _ in found], chart
 
 def prepare_profile_payload(service, user, ticker):
 	cashflow = None

@@ -46,12 +46,21 @@ class ReportFunctions(FinbotCase):
 
     def test_prepare_rating(self):
         for action in ('buy', 'sell'):
-            self.assertTrue(reports.prepare_rating_payload('telegram', action, length=5))
+            self.assertTrue(reports.prepare_rating_payload('telegram', action, length=5)[0])
 
     def test_prepare_value(self):
-        for action in ('pe', 'fpe', 'peg', 'beta'):
+        for action, heading in (('pe', 'Top 5 tracked stocks by pe ratio'), ('bottom forward pe', 'Bottom 5 tracked stocks by forward pe ratio'),
+                                ('peg', 'Top 5 tracked stocks by peg ratio'), ('negative peg', 'negative peg: no data found')):
             with self.subTest(action=action):
-                self.assertTrue(reports.prepare_value_payload('telegram', action, length=5))
+                payload, chart = reports.prepare_value_payload('telegram', action, length=5)
+                self.assertIn(heading, payload[0])
+
+    def test_prepare_beta(self):
+        payload, chart = reports.prepare_beta_payload('telegram')
+        self.assertIn('Beta over 1.5', payload[0])
+        self.assertEqual(len(chart['rows']), len(payload) - 1) # a bar per stock listed
+        self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'beta': 1.0}})
+        self.assertEqual(reports.prepare_beta_payload('telegram'), (['No tracked stocks have a beta over 1.5 and mkt cap under 2B'], None))
 
     def test_prepare_profile(self):
         self.assertTrue(reports.prepare_profile_payload('telegram', '@u', 'T1'))
@@ -227,5 +236,5 @@ class PieCommand(FinbotCase):
             self.assertIn('Rob', sent[0][1])
 
     def test_text_only_service(self):
-        worker.deliver('discord', 'u', '1', ['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
+        worker.Request('discord', '1', '@u', 'U', BOT).deliver(['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
         self.assertEqual(self.sent[-1][0], 'text')

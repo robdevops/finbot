@@ -82,7 +82,7 @@ class WatchlistActions(FinbotCase):
 
 class BadArguments(FinbotCase):
     def test_compare_argument_errors_give_usage(self):
-        for cmd in ('.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7', '.compare T1 T1'):
+        for cmd in ('.compare', '.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7', '.compare T1 T1'):
             with self.subTest(cmd=cmd):
                 self.assertIn('Usage', str(self.command(cmd)))
 
@@ -94,9 +94,36 @@ class BadArguments(FinbotCase):
         worker.process_request('telegram', '55', '@u', '.compare T1 T2', BOT, 'U', '1')
         self.assertEqual(len(self.errors), 1)
 
-    def test_history_with_extra_argument_is_rejected_cleanly(self):
-        self.assertTrue(self.command('.history'))
-        self.assertTrue(self.command('.history T1 1y'))
+    def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
+        self.assertEqual(self.command('.history'), [('text', ['Usage: .history SYMBOL'])]) # not the profile of a ticker called HISTORY
+        self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history SYMBOL'])])
+
+
+class CommandArguments(FinbotCase):
+    def test_period_and_portfolio_in_either_order(self):
+        for text, expected in (('', (30, None)), ('7d', (7, None)), ('Rob', (30, 'Rob')), ('7d Rob', (7, 'Rob')), ('Rob 7d', (7, 'Rob')),
+                               ('My Portfolio', (30, 'My Portfolio')), ('My Portfolio 3m', (90, 'My Portfolio')), ('Rob ', (30, 'Rob'))):
+            with self.subTest(text=text):
+                self.assertEqual(worker.period_and_portfolio(text, 30), expected)
+
+    def test_a_percentage_is_a_number_and_nan_a_ticker(self):
+        for arg, expected in (('', (5, None)), ('2.5', (2.5, None)), ('3%', (3.0, None)), ('T1', (5, 'T1')), ('nan', (5, 'NAN')), ('inf', (5, 'INF'))):
+            with self.subTest(arg=arg):
+                self.assertEqual(worker.percent_or_ticker(arg, 5), expected)
+        self.assertIn('2.5%', str(self.command('.session 2.5'))) # a threshold, not a ticker called 2.5
+
+    def test_a_ratio_command_reads_its_ticker_as_the_other_commands_do(self):
+        self.assertIn('Co T1 ', str(self.command('.pe t1')))
+        self.assertIn('Top 15 tracked stocks by pe ratio', str(self.command('.pe top '))) # trailing space and all
+
+    def test_hello_leaves_the_word_list_as_it_was(self):
+        before = list(worker.verb)
+        for _ in range(30):
+            line = self.command('.hello')[0][1][0]
+            self.assertNotIn("('", line) # a verb, not a tuple of them
+            self.assertTrue(line.endswith(' you, U! 😇'), line)
+        self.assertEqual(worker.verb, before)
+        self.assertEqual(self.command('hi there'), []) # hello by name only: "hi @bot"
 
 
 class WsgiRejections(FinbotCase):

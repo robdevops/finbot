@@ -140,7 +140,7 @@ def build(kind, tickers, period, service='telegram'):
 		return f"{util.get_emoji(percent)} {market_data[ticker]['profile_title']} ({link}) {util.signed_percent(round(percent))}", image
 	if kind == 'c':
 		args = list(tickers) + ([f'{days}d'] if days else ['max'])
-		caption, image = reports.prepare_compare(service, args)
+		caption, image, *_ = reports.prepare_compare(service, args)
 		if not image:
 			raise RuntimeError(caption[0])
 		return '\n'.join(caption), image

@@ -100,7 +100,7 @@ def handle(environ, start_response):
 		chat_id = str(msg["chat"]["id"])
 		if "username" in sender:
 			user = '@' + sender["username"]
-			userRealName = sender["first_name"]
+			userRealName = sender["first_name"] or user # what to call them: the handle when the first name is blank
 		else:
 			user = userRealName = '@' + sender["first_name"]
 		if "text" in msg:
@@ -151,7 +151,7 @@ def handle(environ, start_response):
 			user = userRealName = '<@' + event['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
 			bot_name = '@' + bot_user # QWERTY becomes @QWERTY
 			chat_id = event['channel']
-			print(f"[{service}]:", user, message, sys.stderr) if debug else None
+			print(f"[{service}]:", user, message, file=sys.stderr) if debug else None
 			# this condition spawns a worker before returning
 		else:
 			print(f"[{service}]: unhandled 'type'", file=sys.stderr)

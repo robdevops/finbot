@@ -110,17 +110,17 @@ def report(service, threshold=UNSET, user='', specific_stock=None, interactive=F
 		on = util.date_short(as_of, True)
 		where = ", ".join(exchanges)
 		if midsession:
-			heading = f'≥ {threshold}% mid-session, {on} ({where})'
+			heading = f'≥ {threshold:g}% mid-session, {on} ({where})'
 		elif premarket:
-			heading = f'≥ {threshold}% pre-market, {on} ({where})'
+			heading = f'≥ {threshold:g}% pre-market, {on} ({where})'
 		elif close:
-			heading = f'≥ {threshold}% at close, {on} ({where})'
+			heading = f'≥ {threshold:g}% at close, {on} ({where})'
 		elif top:
 			heading = f'Top {top} performers {util.date_range_english(days, as_of) if days else on}'
 		elif days:
-			heading = f'Price movement {threshold}%, {util.date_range_english(days, as_of)}'
+			heading = f'Price movement {threshold:g}%, {util.date_range_english(days, as_of)}'
 		else:
-			heading = f'{threshold}% at close, {on}'
+			heading = f'{threshold:g}% at close, {on}'
 		chartable = webhook.takes_charts(service, interactive)
 		if top:
 			bottom = [webhook.bold(f'Bottom {top}', service)] + list(reversed(payload[-top:]))
@@ -142,14 +142,14 @@ def report(service, threshold=UNSET, user='', specific_stock=None, interactive=F
 			else:
 				payload = [f"No interday price found for {tickers[0]}"]
 		elif premarket:
-			payload = [f"No pre-market price movements meet threshold {threshold}%"]
+			payload = [f"No pre-market price movements meet threshold {threshold:g}%"]
 		elif midsession:
 			if 'REGULAR' not in states:
 				payload = [f"{user}, no tracked stocks are currently in session."]
 			else:
-				payload = [f"{user}, no in-session securities meet threshold {threshold}%"]
+				payload = [f"{user}, no in-session securities meet threshold {threshold:g}%"]
 		else:
-			payload = [f"{user}, no price movements meet threshold {threshold}%"]
+			payload = [f"{user}, no price movements meet threshold {threshold:g}%"]
 	return payload, graph
 
 def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None, user='', specific_stock=None, interactive=False, midsession=False,

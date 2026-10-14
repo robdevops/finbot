@@ -486,7 +486,7 @@ class ChartDelivery(FinbotCase):
 
     def test_slack_replies_upload_their_charts(self):
         self.patch(webhook, 'config_slackBotToken', 'xoxb-test')
-        for cmd, heading in (('.beta', '*Beta over 1.5'), ('.price', '*5.0% at close'), ('.compare T1 T2', '*')):
+        for cmd, heading in (('.beta', '*Beta over 1.5'), ('.price', '*5% at close'), ('.compare T1 T2', '*')):
             with self.subTest(cmd=cmd):
                 calls = self.slack_answers(*self.upload_steps())
                 self.sent.clear(); self.errors.clear()

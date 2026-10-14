@@ -41,7 +41,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, specific_stoc
 
 		if payload:
 			if not specific_stock:
-				message = f'Tracked stocks shorted over {threshold}%'
+				message = f'Tracked stocks shorted over {threshold:g}%'
 				message = webhook.bold(message, service)
 				payload.insert(0, message)
 				if chart_rows and webhook.takes_charts(service, interactive):
@@ -52,7 +52,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, specific_stoc
 				if specific_stock:
 					payload = [f"{emoji}No short interest found for {tickers[0]}"]
 				else:
-					payload = [f"{emoji}No stocks shorted over {threshold}%. Try specifying a number."]
+					payload = [f"{emoji}No stocks shorted over {threshold:g}%. Try specifying a number."]
 		return payload, graph
 
 	# MAIN #

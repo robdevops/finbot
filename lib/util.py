@@ -237,16 +237,21 @@ def write_binary_cache(cacheFile, data):
 	write_file(cache_path(cacheFile), data.getvalue())
 
 def humanUnits(value, decimal_places=2):
+	"""1234567 -> '1.23 M'."""
 	for unit in ['', 'K', 'M', 'B', 'T', 'Q']:
 		if value < 1000.0 or unit == 'Q':
 			break
 		value /= 1000.0
-	return f"{value:.{decimal_places}f} {unit}"
+	return f"{value:.{decimal_places}f} {unit}".rstrip()
 
 def yahoo_link(ticker, service='telegram', brief=True, text=None):
 	if not text:
 		text = ticker.split('.')[0] if brief else ticker
 	return link("https://au.finance.yahoo.com/quote/" + ticker, text, service)
+
+def security_line(flag, title, link):
+	"""'🇦🇺 Title (link)': how a report line names a security (without a leading space where its market has no flag)."""
+	return f"{flag} {title} ({link})" if flag else f"{title} ({link})"
 
 def link(url, text, service='telegram'):
 	if service == 'telegram' and config_hyperlink:
@@ -750,7 +755,7 @@ def shorts_chart(rows, threshold, step=5):
 	ax.text(W / 2, 784, 'past fashion not indicative of future fashion', color='white', fontsize=8, fontstyle='italic', ha='center', va='center')
 	line_x = x0 + threshold / step * icon_w
 	ax.plot([line_x, line_x], [top - 12, bottom], color=ink, linewidth=1.8, linestyle=(0, (5, 4)), zorder=0)
-	ax.text(line_x, top - 18, f"{threshold}% outrageous line", color=ink, fontsize=7.5, fontweight='bold', ha='center', va='bottom')
+	ax.text(line_x, top - 18, f"{threshold:g}% outrageous line", color=ink, fontsize=7.5, fontweight='bold', ha='center', va='bottom')
 
 	return _png(fig, sky)
 

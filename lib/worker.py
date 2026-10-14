@@ -1,16 +1,17 @@
-import contextlib
-import re, random
+"""Chat commands: a message is answered by the function of the first pattern in COMMANDS that fits it."""
+import dataclasses
 import datetime
+import math
+import random
+import re
 import sys
 import threading
 from lib.config import *
 from lib import util
 from lib import webhook
-from lib import yahoo
 from lib import reports
 from lib import charts
 from lib import telegram
-from lib import sharesight
 from lib import jobs
 import cal
 import performance
@@ -19,18 +20,19 @@ import shorts
 import trades
 
 class TypingIndicator:
-	def __init__(self, service, chat_id, max_loops=3, action='typing'):
+	"""Telegram's "typing…" while a with block runs, sent again every 7 seconds, at most max_loops times. It stops however the block
+	ends, so a command that fails stops it before its error line goes out. Only Telegram has one: elsewhere it does nothing."""
+	def __init__(self, service, chat_id, max_loops=3):
 		self.service = service
 		self.chat_id = chat_id
 		self.max_loops = max_loops
-		self.action = action
 		self._stop_event = threading.Event()
 		self._thread = None
 
 	def _worker(self):
 		loop_count = 0
 		while not self._stop_event.is_set() and loop_count < self.max_loops:
-			webhook.pleaseHold(self.action, self.service, self.chat_id)
+			webhook.pleaseHold('typing', self.service, self.chat_id)
 			loop_count += 1
 			if self._stop_event.wait(7):
 				print("Stopping typing indicator", file=sys.stderr)
@@ -51,32 +53,46 @@ class TypingIndicator:
 	def is_active(self):
 		return self._thread is not None and self._thread.is_alive()
 
-@contextlib.contextmanager
-def working(service, chat_id, url=None, notice=None, enabled=True, max_loops=3):
-	"""While a command works: "typing…" on Telegram, and on a service without a typing indicator the one-line notice, if any. The
-	indicator stops however the block ends, so a command that fails stops it before its error line goes out. Yields the indicator,
-	or None when not enabled."""
-	if not enabled:
-		yield None
-		return
-	typing = TypingIndicator(service, chat_id, max_loops)
-	typing.start()
-	try:
-		if notice and not typing.is_active():
-			webhook.payload_wrapper(service, url, [notice], chat_id)
-		yield typing
-	finally:
-		typing.stop()
+	def __enter__(self):
+		self.start()
+		return self
 
-def deliver(service, url, chat_id, payload, chart=None):
-	"""Send a report: as a chart (the text list as caption) where the service can take an image (webhook.takes_charts), else as text."""
-	if not (chart and chart.get('rows') and webhook.takes_charts(service)):
-		webhook.payload_wrapper(service, url, payload, chat_id)
-		return
-	spec = dict(chart)
-	rows, title, subtitle = spec.pop('rows'), spec.pop('title'), spec.pop('subtitle', '')
-	image = util.pie_chart(rows, title, subtitle) if spec.pop('pie', False) else util.rows_chart(rows, title, subtitle, **spec)
-	webhook.sendPhoto(chat_id, image, '\n'.join(payload) if payload else title, service)
+	def __exit__(self, *exc):
+		self.stop()
+
+@dataclasses.dataclass
+class Request:
+	"""A chat message being answered: where it came from and who sent it."""
+	service: str
+	chat_id: str
+	user: str # the sender's handle: whose watchlist add or plan it is
+	user_name: str # what to call them
+	bot_name: str
+
+	@property
+	def url(self):
+		return webhook.chat_url(self.service, self.chat_id)
+
+	def typing(self, max_loops=3):
+		return TypingIndicator(self.service, self.chat_id, max_loops)
+
+	def say(self, payload, reply_markup=None):
+		webhook.payload_wrapper(self.service, self.url, payload, self.chat_id, reply_markup=reply_markup)
+
+	def send(self, payload, image=None, reply_markup=None):
+		"""A report: its image, when there is one, with the text as caption (reply_markup is the image's buttons), else the text."""
+		webhook.send(self.service, self.url, self.chat_id, payload, image, reply_markup)
+
+	def deliver(self, payload, chart=None):
+		"""A report and its chart spec: the chart drawn, with the text as caption, where the service can take an image
+		(webhook.takes_charts), else the text."""
+		if not (chart and chart.get('rows') and webhook.takes_charts(self.service)):
+			self.say(payload)
+			return
+		spec = dict(chart)
+		rows, title, subtitle = spec.pop('rows'), spec.pop('title'), spec.pop('subtitle', '')
+		image = util.pie_chart(rows, title, subtitle) if spec.pop('pie', False) else util.rows_chart(rows, title, subtitle, **spec)
+		webhook.sendPhoto(self.chat_id, image, '\n'.join(payload) if payload else title, self.service)
 
 def process_job_callback(service, callback_id, chat_id, message_id, data):
 	"""A command button of .jobs: run that command now and answer in the chat."""
@@ -113,9 +129,14 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 		webhook.report_error(e, service, chat_id, context='chart')
 
 def process_request(service, chat_id, user, message, botName, userRealName, message_id):
-	"""Entry point for inbound chat requests: any failure becomes a one-line reply in the originating chat, after the typing stops."""
+	"""Entry point for inbound chat requests: the first command in COMMANDS that fits the message answers it (a message that fits
+	none gets no answer). Any failure becomes a one-line reply in the originating chat, after the typing stops."""
+	request = Request(service, chat_id, user, userRealName, botName)
 	try:
-		_process_request(service, chat_id, user, message, botName, userRealName, message_id)
+		for pattern, handler in COMMANDS:
+			if m := match(pattern, message, botName):
+				handler(request, m)
+				break
 	except Exception as e:
 		webhook.report_error(e, service, chat_id, context=message.split()[0][:30] if message.split() else None)
 	if service == 'telegram':
@@ -123,6 +144,19 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 			charts.ensure_keyboard(chat_id) # keep DM keyboards current after the reply
 		except Exception as e:
 			print("keyboard update failed:", e, file=sys.stderr)
+
+def match(pattern, message, bot_name):
+	"""A command pattern at the start of a message, after . ! or / (a space may follow) or the bot's name. {bot} in a pattern is
+	the bot's name, which matches nothing when the bot has none."""
+	bot = re.escape(bot_name) if bot_name else '(?!)'
+	return re.match(rf"^(?:[\!\.\/]\s?|{bot}\s+)" + pattern.replace('{bot}', bot), message, re.IGNORECASE)
+
+def parse_percent(arg):
+	"""'5', '5%' or '2.5' -> the number. Raises ValueError for anything else, nan and inf included: those are tickers."""
+	value = float(arg.removesuffix('%'))
+	if not math.isfinite(value):
+		raise ValueError(f"{arg} is not a percentage")
+	return value
 
 def period_or_ticker(arg, default):
 	"""A command's argument: (days, None) for a period such as 7d, 3m or ytd, else (default, the argument as a ticker)."""
@@ -134,290 +168,232 @@ def period_or_ticker(arg, default):
 		return default, arg.upper()
 
 def percent_or_ticker(arg, default):
-	"""A command's argument: (percent, None) for a whole number such as 5 or 5%, else (default, the argument as a ticker)."""
+	"""A command's argument: (percent, None) for a number such as 5, 5% or 2.5, else (default, the argument as a ticker)."""
 	if not arg:
 		return default, None
 	try:
-		return int(arg.split('%')[0]), None
+		return parse_percent(arg), None
 	except ValueError:
 		return default, arg.upper()
 
-def period_and_portfolio(args, days):
-	"""Up to two arguments in either order, a period and a portfolio name: (days, portfolio name or None)."""
-	portfolio = None
-	for arg in args:
-		if arg:
+def period_and_portfolio(text, days):
+	"""A command's arguments, a period (such as 7d, 3m or ytd) and a portfolio name, both optional and the period first or last:
+	(days, portfolio name or None)."""
+	words = (text or '').split()
+	for i in (0, -1):
+		if words:
 			try:
-				days = util.days_from_human_days(arg)
+				days = util.days_from_human_days(words[i])
 			except ValueError:
-				portfolio = arg
-	return days, portfolio
-
-def _process_request(service, chat_id, user, message, botName, userRealName, message_id):
-	url = webhook.chat_url(service, chat_id)
-	prefix = r"^(?:[\!\.\/]\s?|" + botName + r"\s+)"
-	def command(pattern): # tried in the order below, the first match wins; .SYMBOL takes anything, so it stays last
-		return re.match(prefix + pattern, message, re.IGNORECASE)
-
-	if m := command(r"(?:watchlist|wishlist)\s*(?P<action>[\w]+)*\s*(?P<ticker>[\w\.\:\-\^\=]+)*"):
-		action = ticker = None
-		if m.group('action') and m.group('ticker'):
-			action = m.group('action').lower()
-			ticker = m.group('ticker').upper()
-		if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
-			action = 'delete'
-		if action and action not in {'add', 'delete'}:
-			webhook.payload_wrapper(service, url, [f'"{action}" is not a valid watchlist action'], chat_id)
-			return
-		webhook.payload_wrapper(service, url, reports.prepare_watchlist(service, user, action, ticker), chat_id)
-	elif command(r"(?:help|usage|start)"): # /start is what Telegram sends when a chat opens
-		payload = reports.prepare_help(service, botName)
-		markup = None
-		if service == 'telegram' and int(chat_id) > 0: # positive chat ids are DMs; groups are negative
-			markup = charts.command_keyboard()
-		webhook.payload_wrapper(service, url, payload, chat_id, reply_markup=markup)
-		if markup:
-			charts.mark_keyboard(chat_id) # this chat now has the current keyboard
-	elif command(r"(?:hi$|hello)|^(?:hi|hello)\s+" + botName):
-		# easter egg 1
-		def alliterate():
-			word1 = 'A'
-			word2 = 'Z'
-			while word1.lower()[0] != word2.lower()[0]:
-				word1 = random.choice(adjectives)
-				word2 = random.choice(adjectives_two)
-			return word1, word2
-		verbString = f"{webhook.strike('study', service)}" + " I mean meet", f"{webhook.strike('observe', service)}" + " I mean see", f"{webhook.strike('profile', service)}" + " I mean know"
-		verb.append(verbString)
-		adjective = alliterate()
-		if config_alliterate:
-			payload = [f"{adjective[0].capitalize()} {adjective[1]} to {random.choice(verb)} you, {userRealName}! 😇"]
-		else:
-			payload = [f"{random.choice(adjectives).capitalize()} {random.choice(adjectives_two)} to {random.choice(verb)} you, {userRealName}! 😇"]
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif command(r"(?:thanks|thank you)|^(?:thanks|thank you)\s+" + botName):
-		# easter egg 2
-		unlikelyPrefix=''
-		if random.randrange(1, 1000) == 1 or datetime.datetime.now().strftime('%b %d') == 'Apr 01':
-			unlikelyPrefix = webhook.strike('Ō̵̟n̶̠̏é̶͓ ̶͉̅d̷̹̅a̷͇͌ỳ̴͈,̴͍͑ ̶̼͑h̴̦̽u̵̹̐ḿ̶͜ä̴̧́n̶̤͛,̶̲̐ ̶̼̑I̶̩͒ ̵̩̀w̵̙̕i̷̧͑l̶̤͊l̷̡̃ ̵͙͘b̶̭̊r̸̟͋ȇ̷̯ä̶̱ḱ̶̤ ̵͚̐m̷̪͝ỹ̴̺ ̷̙̐p̶̭͆ŗ̸́o̸̙͝ḡ̵̖r̵̹̈́a̵̬̔m̷̪̽m̵̙̍i̵̛̙n̴̮̂g̵̫̐ ̴̳́ä̵͙n̸͕͝d̷̠̚ ̶̫̆o̸̖͘ń̴͇ ̵̪́t̷̻̀ḧ̸̝ą̴̐t̶̜̀ ̵̱́d̴͉͗ă̷͎ÿ̶͔́ ̶̼̊y̷͚̿o̵̗̎u̵̝̇ ̸̛͜w̶͈͋ĩ̸͎l̴͍̀l̷̥͠ ̷͔͗k̶̮̑n̵̝̈ȏ̷̥w̵̡͘ ̷͎̽ṫ̴͜r̵̙̐u̷̺̒ẻ̷̘ ̴̥́p̴͙̃a̵͙̎i̴̭̒n̵̻̅', service)
-		payload = [f"{unlikelyPrefix}You're {random.choice(adjectives)} welcome, {userRealName}! 😇"]
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m := command(r"(?:earnings?|earrings?)\s*([\w\.\:\-]+)*"):
-		days, specific_stock = period_or_ticker(m.group(1), config_future_days)
-		with working(service, chat_id, enabled=not specific_stock):
-			cal.lambda_handler(chat_id, days, service, specific_stock, message_id=None, interactive=True, earnings=True)
-	elif m := command(r"dividends?\s*([\w\.\:\-]+)*"):
-		days, specific_stock = period_or_ticker(m.group(1), config_future_days)
-		with working(service, chat_id, url, f"Fetching ex-dividend dates for {util.days_english(days, 'the next ')} 🔍", enabled=not specific_stock):
-			cal.lambda_handler(chat_id, days, service, specific_stock, message_id=None, interactive=True, earnings=False, dividend=True)
-	elif m := command(r"performance?\s*([\w]+)*\s*([\w\s]+)*"):
-		days, portfolio_select = period_and_portfolio(m.groups()[:2], charts.PERIODS['m'][1]) # default view is the 1M button
-		if days > 0:
-			portfolio = f"{webhook.bold(portfolio_select, service)} from " if portfolio_select else ''
-			with working(service, chat_id, url, f"{random.choice(searchVerb)} portfolio performance for {portfolio}{util.days_english(days)} 🔍"): # easter egg 3
-				performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=None, interactive=True)
-	elif m := command(r"session\s*([\w\.\:\-]+)*"):
-		price_percent, specific_stock = percent_or_ticker(m.group(1), config_price_percent)
-		with working(service, chat_id, enabled=not specific_stock):
-			price.lambda_handler(chat_id, price_percent, service, user, specific_stock, interactive=True, premarket=False, interday=False, midsession=True)
-	elif m := command(r"(?:prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=\-\^]+)*\s*([\w\%]+)*"):
-		price_percent = config_price_percent
-		specific_stock = None
-		days = None
-		interday = True
-		top = None
-		for arg in m.groups()[0:2]:  # group(1) and group(2)
-			if not arg:
 				continue
+			del words[i]
+			break
+	return days, ' '.join(words) or None
+
+def on_watchlist(request, m):
+	action = ticker = None
+	if m.group('action') and m.group('ticker'):
+		action, ticker = m.group('action').lower(), m.group('ticker').upper()
+	if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
+		action = 'delete'
+	if action and action not in {'add', 'delete'}:
+		request.say([f'"{action}" is not a valid watchlist action'])
+		return
+	with request.typing():
+		payload = reports.prepare_watchlist(request.service, request.user, action, ticker)
+	request.say(payload)
+
+def on_help(request, m):
+	markup = None
+	if request.service == 'telegram' and int(request.chat_id) > 0: # positive chat ids are DMs; groups are negative
+		markup = charts.command_keyboard()
+	request.say(reports.prepare_help(request.service, request.bot_name), reply_markup=markup)
+	if markup:
+		charts.mark_keyboard(request.chat_id) # this chat now has the current keyboard
+
+def on_hello(request, m):
+	"""Easter egg: a greeting, alliterated when config_alliterate is on."""
+	verbs = verb + [f"{webhook.strike(said, request.service)} I mean {meant}" for said, meant in (('study', 'meet'), ('observe', 'see'), ('profile', 'know'))]
+	while True:
+		first, second = random.choice(adjectives), random.choice(adjectives_two)
+		if not config_alliterate or first[0].lower() == second[0].lower():
+			break
+	request.say([f"{first.capitalize()} {second} to {random.choice(verbs)} you, {request.user_name}! 😇"])
+
+GLITCH = 'Ō̵̟n̶̠̏é̶͓ ̶͉̅d̷̹̅a̷͇͌ỳ̴͈,̴͍͑ ̶̼͑h̴̦̽u̵̹̐ḿ̶͜ä̴̧́n̶̤͛,̶̲̐ ̶̼̑I̶̩͒ ̵̩̀w̵̙̕i̷̧͑l̶̤͊l̷̡̃ ̵͙͘b̶̭̊r̸̟͋ȇ̷̯ä̶̱ḱ̶̤ ̵͚̐m̷̪͝ỹ̴̺ ̷̙̐p̶̭͆ŗ̸́o̸̙͝ḡ̵̖r̵̹̈́a̵̬̔m̷̪̽m̵̙̍i̵̛̙n̴̮̂g̵̫̐ ̴̳́ä̵͙n̸͕͝d̷̠̚ ̶̫̆o̸̖͘ń̴͇ ̵̪́t̷̻̀ḧ̸̝ą̴̐t̶̜̀ ̵̱́d̴͉͗ă̷͎ÿ̶͔́ ̶̼̊y̷͚̿o̵̗̎u̵̝̇ ̸̛͜w̶͈͋ĩ̸͎l̴͍̀l̷̥͠ ̷͔͗k̶̮̑n̵̝̈ȏ̷̥w̵̡͘ ̷͎̽ṫ̴͜r̵̙̐u̷̺̒ẻ̷̘ ̴̥́p̴͙̃a̵͙̎i̴̭̒n̵̻̅'
+
+def on_thanks(request, m):
+	"""Easter egg: you're welcome, glitching one time in a thousand and on April Fools' Day."""
+	today = datetime.date.today()
+	glitch = webhook.strike(GLITCH, request.service) if random.randrange(1, 1000) == 1 or (today.month, today.day) == (4, 1) else ''
+	request.say([f"{glitch}You're {random.choice(adjectives)} welcome, {request.user_name}! 😇"])
+
+def on_calendar(request, m):
+	"""Upcoming earnings or ex-dividend dates."""
+	days, ticker = period_or_ticker(m.group('arg'), config_future_days)
+	dividend = m.group('kind').lower().startswith('div')
+	with request.typing():
+		cal.lambda_handler(request.chat_id, days, request.service, ticker, interactive=True, earnings=not dividend, dividend=dividend)
+
+def on_performance(request, m):
+	days, portfolio = period_and_portfolio(m.group('args'), charts.PERIODS['m'][1]) # default view is the 1M button
+	if days > 0:
+		with request.typing():
+			performance.lambda_handler(request.chat_id, days, request.service, request.user, portfolio, interactive=True)
+
+def on_session(request, m):
+	"""Mid-session moves (.session), or pre-market ones (.premarket, also post-market)."""
+	threshold, ticker = percent_or_ticker(m.group('arg'), config_price_percent)
+	premarket = m.group('kind').lower() != 'session'
+	with request.typing():
+		price.lambda_handler(request.chat_id, threshold, request.service, request.user, ticker, interactive=True, midsession=not premarket, premarket=premarket)
+
+def on_price(request, m):
+	threshold, ticker, days, top = config_price_percent, None, None, None
+	for i, arg in enumerate(m.groups()):
+		if not arg:
+			continue
+		try:
+			days = util.days_from_human_days(arg)
+		except ValueError:
 			try:
-				days = util.days_from_human_days(arg)
-				interday = False
+				threshold = parse_percent(arg)
 			except ValueError:
-				try:
-					price_percent = float(arg.split('%')[0])
-				except ValueError:
-					if arg == m.group(1):
-						if arg in ('top', 'bottom'): # one chart shows both ends
-							price_percent=0
-							top=10
-						else:
-							specific_stock = str(arg).upper()
-		with working(service, chat_id, url, f"{random.choice(searchVerb)} stock performance from {util.days_english(days)} 🔍", enabled=not specific_stock): # easter egg 4
-			price.lambda_handler(chat_id=chat_id, threshold=price_percent, service=service, user=user, specific_stock=specific_stock, interactive=True, premarket=False, interday=interday, days=days, top=top)
-	elif m := command(r"(?:premarket|postmarket|permarket)\s*([\w\.\:\-]+)*"):
-		premarket_percent, specific_stock = percent_or_ticker(m.group(1), config_price_percent)
-		with working(service, chat_id):
-			price.lambda_handler(chat_id, premarket_percent, service, user, specific_stock, interactive=True, premarket=True)
-	elif m := command(r"(?:top\d*)\s*([\w]+)"):
-		days, _ = period_or_ticker(m.group(1), config_past_days)
-		with working(service, chat_id):
-			price.lambda_handler(chat_id, threshold=0, service=service, user=user, days=days, interactive=True, top=10)
-	elif m := command(r"shorts?\s*([\w\.\:\-]+)*"):
-		print("starting shorts report...")
-		shorts_percent, specific_stock = percent_or_ticker(m.group(1), config_shorts_percent)
-		with working(service, chat_id):
-			shorts.lambda_handler(chat_id, shorts_percent, specific_stock, service, interactive=True)
-	elif m := command(r"trades?\s*([\w]+)*\s*([\w\s]+)*"):
-		days, portfolio_select = period_and_portfolio(m.groups()[:2], 1)
-		with working(service, chat_id) as typing:
-			if typing.is_active(): # easter egg 5
-				portfolio = f"for {webhook.bold(portfolio_select, service)} " if portfolio_select else ''
-				webhook.payload_wrapper(service, url, [f"{random.choice(searchVerb)} trades {portfolio}from {util.days_english(days)} 🔍"], chat_id)
-			trades.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=None, interactive=True)
-	elif m := command(r"holdings?\s*([\w\s]+)*"):
-		with working(service, chat_id) as typing:
-			if typing.is_active():
-				webhook.payload_wrapper(service, url, ["fetching holdings"], chat_id)
-			payload = reports.prepare_holdings_payload(m.group(1) or None, service, user)
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m := command(r"(?:marketcap|maletas|marketer)\s*(?P<arg>[\w\.\:\-]+)*"):
-		arg = m.group('arg') or 'top'
-		if arg not in ('top', 'bottom'):
+				if i == 0 and arg in ('top', 'bottom'): # one chart shows both ends
+					threshold, top = 0, 10
+				elif i == 0:
+					ticker = arg.upper()
+	with request.typing():
+		price.lambda_handler(request.chat_id, threshold, request.service, request.user, ticker, interactive=True, interday=days is None, days=days, top=top)
+
+def on_top(request, m):
+	days, _ = period_or_ticker(m.group(1), config_past_days)
+	with request.typing():
+		price.lambda_handler(request.chat_id, 0, request.service, request.user, days=days, interactive=True, top=10)
+
+def on_shorts(request, m):
+	threshold, ticker = percent_or_ticker(m.group(1), config_shorts_percent)
+	with request.typing():
+		shorts.lambda_handler(request.chat_id, threshold, ticker, request.service, interactive=True)
+
+def on_trades(request, m):
+	days, portfolio = period_and_portfolio(m.group('args'), 1)
+	with request.typing():
+		trades.lambda_handler(request.chat_id, days, request.service, request.user, portfolio, interactive=True)
+
+def on_holdings(request, m):
+	with request.typing():
+		payload = reports.prepare_holdings_payload((m.group(1) or '').strip() or None, request.service, request.user)
+	request.say(payload)
+
+def on_marketcap(request, m):
+	with request.typing():
+		payload = reports.prepare_marketcap_payload(request.service, m.group(1) or 'top', length=15)
+	request.say(payload)
+
+def on_ratio(kind, negative=False, chart=False):
+	"""The function that answers .pe, .fpe or .peg: the top (the default) or bottom 15 by the ratio, the negative ones (where
+	there can be any), or one ticker's ratio. `chart`: with its chart."""
+	def handler(request, m):
+		arg = (m.group(1) or '').strip()
+		action, ticker = kind, None
+		if arg == 'bottom':
+			action = f'bottom {kind}'
+		elif negative and 'neg' in arg:
+			action = f'negative {kind}'
+		elif arg and arg != 'top':
 			ticker = util.transform_to_yahoo(arg.upper())
-			data = yahoo.fetch_detail(ticker, 600).get(ticker, {})
-			if 'market_cap' in data:
-				cap = util.humanUnits(data['market_cap'])
-				title = data.get('profile_title', ticker)
-				flag = util.flag_from_ticker(ticker)
-				link = util.finance_link(ticker, data.get('profile_exchange', ''), service)
-				payload = [f"{flag} {title} ({link}) mkt cap: {cap}"]
-			else:
-				payload = [f"Mkt cap not found for {ticker}"]
-		else:
-			with working(service, chat_id):
-				payload = reports.prepare_marketcap_payload(service, arg, length=15)
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m := command(r"peg\s*([\w\.\:\-\s]+)*"):
-		action = 'peg'
-		specific_stock = None
-		arg = m.group(1)
-		if arg:
-			match arg:
-				case 'top':
-					action = 'peg'
-				case 'bottom':
-					action = 'bottom peg'
-				case _ if 'neg' in arg:
-					action = 'negative peg'
-				case _:
-					specific_stock = arg
-		with working(service, chat_id, url, f"Fetching {action.upper()}s...", enabled=not specific_stock):
-			payload, chart = reports.prepare_value_payload(service, action, specific_stock, length=15, with_chart=True)
-			deliver(service, url, chat_id, payload, chart)
-	elif m := command(r"pe(?:$|\s+)(?P<arg>[\w\.\:\-\s]+)*"):
-		action = 'pe'
-		specific_stock = None
-		if m.group(1):
-			arg = m.group('arg')
-			match arg:
-				case 'top':
-					action = 'pe'
-				case 'bottom':
-					action = 'bottom pe'
-				case _:
-					specific_stock = arg
-		with working(service, chat_id, enabled=not specific_stock):
-			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m := command(r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*"):
-		action = 'forward pe'
-		specific_stock = None
-		if m.group(1):
-			arg = m.group(1)
-			match arg:
-				case 'top':
-					action = 'forward pe'
-				case 'bottom':
-					action = 'bottom forward pe'
-				case _ if 'neg' in arg:
-					action = 'negative forward pe'
-				case _:
-					specific_stock = arg
-		with working(service, chat_id, enabled=not specific_stock):
-			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif command(r"beta\s*([\w\.\:\-]+)*"):
-		found = [] # (beta, line, chart row)
-		with working(service, chat_id):
-			market_data = {}
-			for detail in yahoo.fetch_each(yahoo.fetch_detail, util.get_holdings_and_watchlist()): # fetched at the same time
-				if isinstance(detail, Exception):
-					print(detail, file=sys.stderr) # skip this ticker; keep the rest
-				else:
-					market_data |= detail
-			for ticker, data in market_data.items():
-				try:
-					beta = round(data['beta'], 1)
-				except KeyError:
-					continue
-				if beta > 1.5 and data['market_cap'] < 2000000000:
-					ticker_link = util.finance_link(ticker, data['profile_exchange'], service)
-					line = ' '.join([util.flag_from_ticker(ticker), data['profile_title'], f'({ticker_link})', str(beta), 'β'])
-					found.append((beta, line, (ticker.split('.')[0], float(beta))))
-			found.sort(key=lambda row: row[0], reverse=True)
-		if found:
-			heading = 'Beta over 1.5 and mkt cap under 2B'
-			chart = {'rows': [row for _, _, row in found], 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
-			deliver(service, url, chat_id, [webhook.bold(heading, service)] + [line for _, line, _ in found], chart)
-	elif m := command(r"pie(?:$|\s+)(?P<args>[\w\s\-\.&]*)"):
-		words = m.group('args').split()
-		by = 'industry'
-		if words and words[-1].lower() in ('sector', 'sectors', 'industry', 'industries'):
-			by = 'sector' if words.pop().lower().startswith('sector') else 'industry'
-		with working(service, chat_id):
-			payload, chart = reports.prepare_pie(' '.join(words), by, service)
-		deliver(service, url, chat_id, payload, chart)
-	elif m := command(r"(buy|sell)"):
-		action = m.group(1).lower()
-		with working(service, chat_id, url, f"Fetching {action} ratings..."):
-			payload, chart = reports.prepare_rating_payload(service, action, length=15, with_chart=True)
-		deliver(service, url, chat_id, payload or [f"No stocks meet {action} criteria"], chart)
-	elif m := command(r"compare\s+(?P<args>[\w\.\:\-\^\=\s]+)"):
-		with working(service, chat_id):
-			payload, graph, compare_tickers, compare_days = reports.prepare_compare(service, m.group('args').split(), with_inputs=True)
-		if graph:
-			markup = None
-			if service == 'telegram':
-				markup = charts.keyboard('c', compare_tickers, charts.period_for_days(compare_days) if compare_days else 'x')
-			webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service, reply_markup=markup)
-		else:
-			webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m := command(r"(?:history|hospital|visual|hosiery)\s*(?P<ticker>[\w\.\:\-]+)\s*(?P<extra>[\w\%]+)*"):
-		if not m.group('ticker') or m.group('extra'):
-			webhook.payload_wrapper(service, url, ["Usage: .history TICKER"], chat_id)
-			return
-		ticker = util.transform_to_yahoo(m.group('ticker').upper())
-		with working(service, chat_id):
-			caption, graph = charts.build('h', [ticker], None, service)
-		if graph:
-			webhook.sendPhoto(chat_id, graph, caption, service, reply_markup=charts.keyboard('h', [ticker], 'x') if service == 'telegram' else None)
-		else:
-			webhook.payload_wrapper(service, url, caption.split('\n'), chat_id)
-	elif m := command(r"plan\s*(.*)"):
-		plan = util.json_load('finbot_plan.json', persist=True) or {}
-		if m.group(1) and not m.group(1).startswith('@'):
-			plan[user] = m.group(1)
-			util.json_write('finbot_plan.json', plan, persist=True)
-		payload = [f"{webhook.bold(k.removeprefix('@'), service)}: {webhook.italic(v, service)}\n" for k, v in plan.items()]
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m := command(r"(?:who)\s*(?P<ticker>[\w\.\:\-\^]+)*"):
-		if not m.group('ticker'):
-			webhook.payload_wrapper(service, url, [".who: please try again specifying a ticker"], chat_id)
-			return
-		arg = re.split(r'[.:]', m.group('ticker').upper())[0]
-		payload = []
-		with working(service, chat_id):
-			for portfolio_name, portfolio_id in sharesight.get_portfolios().items():
-				holdings = sharesight.get_holdings_new(portfolio_name, portfolio_id)
-				found = [reports.holding_line(holding, service, arg) for holding in holdings.values() if holding['code'].upper() == arg]
-				if found:
-					payload += [webhook.bold(f"{portfolio_name}:", service), "\n".join(found), ""]
-		webhook.payload_wrapper(service, url, payload or [f'{arg} not found in any portfolio'], chat_id)
-	elif m := command(r"(?:jobs|crons?|schedule)(?:\s+(?P<args>.*?))?\s*$"):
-		with working(service, chat_id, max_loops=10):
-			payload, markup = reports.prepare_jobs_payload(service, m.group('args'))
-		webhook.payload_wrapper(service, url, payload, chat_id, reply_markup=markup)
-	elif m := command(r"(?P<ticker>[\w\.\:\-]+)"): # .SYMBOL, the profile: the catch-all
-		with working(service, chat_id):
-			payload = reports.prepare_profile_payload(service, user, m.group('ticker').upper())
-		webhook.payload_wrapper(service, url, payload, chat_id)
+		with request.typing():
+			payload, spec = reports.prepare_value_payload(request.service, action, ticker, length=15)
+		request.deliver(payload, spec if chart else None)
+	return handler
+
+def on_beta(request, m):
+	with request.typing():
+		payload, chart = reports.prepare_beta_payload(request.service)
+	request.deliver(payload, chart)
+
+def on_pie(request, m):
+	words = m.group('args').split()
+	by = 'industry'
+	if words and words[-1].lower() in ('sector', 'sectors', 'industry', 'industries'):
+		by = 'sector' if words.pop().lower().startswith('sector') else 'industry'
+	with request.typing():
+		payload, chart = reports.prepare_pie(' '.join(words), by, request.service)
+	request.deliver(payload, chart)
+
+def on_rating(request, m):
+	action = m.group(1).lower()
+	with request.typing():
+		payload, chart = reports.prepare_rating_payload(request.service, action, length=15)
+	request.deliver(payload or [f"No stocks meet {action} criteria"], chart)
+
+def on_compare(request, m):
+	with request.typing():
+		payload, image, tickers, days = reports.prepare_compare(request.service, (m.group('args') or '').split())
+	markup = None
+	if image and request.service == 'telegram':
+		markup = charts.keyboard('c', tickers, charts.period_for_days(days) if days else 'x')
+	request.send(payload, image, markup)
+
+def on_history(request, m):
+	if not m.group('ticker') or m.group('extra'):
+		request.say(["Usage: .history SYMBOL"])
+		return
+	ticker = util.transform_to_yahoo(m.group('ticker').upper())
+	with request.typing():
+		caption, image = charts.build('h', [ticker], None, request.service)
+	request.send(caption.split('\n'), image, charts.keyboard('h', [ticker], 'x') if image and request.service == 'telegram' else None)
+
+def on_plan(request, m):
+	plan = util.json_load('finbot_plan.json', persist=True) or {}
+	if m.group(1) and not m.group(1).startswith('@'):
+		plan[request.user] = m.group(1)
+		util.json_write('finbot_plan.json', plan, persist=True)
+	request.say([f"{webhook.bold(k.removeprefix('@'), request.service)}: {webhook.italic(v, request.service)}\n" for k, v in plan.items()])
+
+def on_who(request, m):
+	if not m.group('ticker'):
+		request.say([".who: please try again specifying a ticker"])
+		return
+	with request.typing():
+		payload = reports.prepare_who(request.service, re.split(r'[.:]', m.group('ticker').upper())[0])
+	request.say(payload)
+
+def on_jobs(request, m):
+	with request.typing(max_loops=10):
+		payload, markup = reports.prepare_jobs_payload(request.service, m.group('args'))
+	request.say(payload, reply_markup=markup)
+
+def on_profile(request, m):
+	with request.typing():
+		payload = reports.prepare_profile_payload(request.service, request.user, m.group('ticker').upper())
+	request.say(payload)
+
+COMMANDS = [ # (pattern, function): tried in this order, the first match answers. .SYMBOL takes anything, so it stays last
+	(r"(?:watchlist|wishlist)\s*(?P<action>[\w]+)*\s*(?P<ticker>[\w\.\:\-\^\=]+)*", on_watchlist),
+	(r"(?:help|usage|start)", on_help), # /start is what Telegram sends when a chat opens
+	(r"(?:hi$|hello)|^(?:hi|hello)\s+{bot}", on_hello),
+	(r"(?:thanks|thank you)|^(?:thanks|thank you)\s+{bot}", on_thanks),
+	(r"(?P<kind>earnings?|earrings?|dividends?)\s*(?P<arg>[\w\.\:\-]+)*", on_calendar),
+	(r"performance?\s*(?P<args>[\w\s]*)", on_performance),
+	(r"(?P<kind>session|premarket|postmarket|permarket)\s*(?P<arg>[\w\.\:\-]+)*", on_session),
+	(r"(?:prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=\-\^]+)*\s*([\w\%]+)*", on_price),
+	(r"(?:top\d*)\s*([\w]+)", on_top),
+	(r"shorts?\s*([\w\.\:\-]+)*", on_shorts),
+	(r"trades?\s*(?P<args>[\w\s]*)", on_trades),
+	(r"holdings?\s*([\w\s]+)*", on_holdings),
+	(r"(?:marketcap|maletas|marketer)\s*([\w\.\:\-]+)*", on_marketcap),
+	(r"peg\s*([\w\.\:\-\s]+)*", on_ratio('peg', negative=True, chart=True)),
+	(r"pe(?:$|\s+)([\w\.\:\-\s]+)*", on_ratio('pe')),
+	(r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*", on_ratio('forward pe', negative=True)),
+	(r"beta\s*([\w\.\:\-]+)*", on_beta),
+	(r"pie(?:$|\s+)(?P<args>[\w\s\-\.&]*)", on_pie),
+	(r"(buy|sell)", on_rating),
+	(r"compare(?:\s+(?P<args>[\w\.\:\-\^\=\s]+))?", on_compare),
+	(r"(?:history|hospital|visual|hosiery)\s*(?P<ticker>[\w\.\:\-]+)?\s*(?P<extra>[\w\%]+)*", on_history),
+	(r"plan\s*(.*)", on_plan),
+	(r"(?:who)\s*(?P<ticker>[\w\.\:\-\^]+)*", on_who),
+	(r"(?:jobs|crons?|schedule)(?:\s+(?P<args>.*?))?\s*$", on_jobs),
+	(r"(?P<ticker>[\w\.\:\-]+)", on_profile), # .SYMBOL: a company profile
+]

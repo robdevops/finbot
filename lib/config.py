@@ -440,42 +440,6 @@ verb = [
 	'act like I comprehend'
 ]
 
-searchVerb = [
-	'Asking ChatGPT for',
-	'Avoiding eye contact with',
-	'Carrying the 1 on',
-	'Conducting seance to make contact with',
-	'Conjuring up',
-	'Dispatching fluffy dogs to track',
-	'Entering metaverse to inefficiently get',
-	'Excavating',
-	'Foraging for',
-	'Hiring developers to troubleshoot',
-	'Loading backup tapes for',
-	'Manifesting',
-	'Massaging data for',
-	'Mining dogecoin to purchase report on',
-	'Panning for',
-	'Performing expert calculus on',
-	'Plucking',
-	'Poking a stick at',
-	'Praying for',
-	'Reciting incantations on',
-	'Repairing file-system to restore',
-	'Resetting Sharesight password to fetch',
-	'Rummaging for',
-	'SELECT * FROM topsecret WHERE',
-	'Sacrificing wildebeest to recover',
-	'Shooing rodents to access',
-	'Summoning',
-	'Training pigeons to fetch',
-	'Transcribing Hebrew for',
-	'Traversing the void for',
-	'Unshredding documents for',
-	'Unspilling coffee to read',
-	'ls -l /var/lib/topsecret/ | grep'
-]
-
 noTradesVerb = [
 	"The money is probably resting in another account",
 	"Oh well. The market would have just gone down anyway",
