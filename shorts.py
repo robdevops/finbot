@@ -44,7 +44,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, specific_stoc
 				message = f'Tracked stocks shorted over {threshold}%'
 				message = webhook.bold(message, service)
 				payload.insert(0, message)
-				if chart_rows and webhook.takes_charts(service):
+				if chart_rows and webhook.takes_charts(service, interactive):
 					chart_rows.sort(key=lambda row: row[1], reverse=True)
 					graph = util.shorts_chart(chart_rows, threshold)
 		else:
