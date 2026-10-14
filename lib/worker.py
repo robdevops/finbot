@@ -17,6 +17,8 @@ import price
 import shorts
 import trades
 
+_request = threading.local() # for the thread handling a chat request: the typing indicators it started (see process_request)
+
 class TypingIndicator:
 	def __init__(self, service, chat_id, max_loops=3, action='typing'):
 		self.service = service
@@ -40,6 +42,7 @@ class TypingIndicator:
 			return
 		self._thread = threading.Thread(target=self._worker, daemon=True)
 		self._thread.start()
+		getattr(_request, 'typing', []).append(self)
 
 	def stop(self):
 		if self.service != 'telegram' or not self._thread:
@@ -99,12 +102,23 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 	except Exception as e:
 		webhook.report_error(e, service, chat_id, context='chart')
 
+def stop_typing():
+	"""Stop the typing indicators the current request started. A command stops its own when it ends normally; one that fails part way
+	would leave "typing…" showing for up to 20 seconds, or bring it back after its error line."""
+	for indicator in getattr(_request, 'typing', ()):
+		indicator.stop()
+	_request.typing = []
+
 def process_request(service, chat_id, user, message, botName, userRealName, message_id):
-	"""Entry point for inbound chat requests: any failure becomes a one-line reply in the originating chat."""
+	"""Entry point for inbound chat requests: any failure becomes a one-line reply in the originating chat, after the typing stops."""
+	_request.typing = []
 	try:
 		_process_request(service, chat_id, user, message, botName, userRealName, message_id)
 	except Exception as e:
+		stop_typing()
 		webhook.report_error(e, service, chat_id, context=message.split()[0][:30] if message.split() else None)
+	finally:
+		stop_typing()
 	if service == 'telegram':
 		try:
 			charts.ensure_keyboard(chat_id) # keep DM keyboards current after the reply
