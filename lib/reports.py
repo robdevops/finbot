@@ -1,5 +1,5 @@
 from itertools import pairwise
-import hashlib, json, re
+import hashlib, re
 import datetime
 import sys
 import pandas as pd

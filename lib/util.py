@@ -128,19 +128,6 @@ def transform_title(title):
 	title = title.replace('Ishares', 'iShares')
 	return title
 
-def categorise_tickers(tickers):
-	tickers_us = [] # used by fetch_finviz()
-	tickers_au = [] # used by fetch_shortman()
-	tickers_world = [] # used by fetch_yahoo()
-	for ticker in tickers:
-		if '.AX' in ticker:
-			tickers_au.append(ticker)
-		if '.' in ticker:
-			tickers_world.append(ticker)
-		else:
-			tickers_us.append(ticker)
-	return tickers_au, tickers_world, tickers_us
-
 def flag_from_market(market):
 	flag=''
 	if market == 'ASX':
@@ -270,24 +257,6 @@ def currency_from_market(market):
 		# note: LSE and HKE allow non-home currencies
 		return None
 	return currency
-
-def get_currency_symbol(currency):
-	currency_symbol=''
-	if currency in {'AUD', 'CAD', 'HKD', 'NZD', 'SGD', 'TWD', 'USD'}:
-		currency_symbol = '$'
-	elif currency_symbol in {'CNY', 'JPY'}:
-		currency_symbol = '¥'
-	elif currency == 'EUR':
-		currency_symbol = '€'
-	elif currency == 'GBP':
-		currency_symbol = '£'
-	elif currency_symbol == 'KRW':
-		currency_symbol = '₩'
-	elif currency == 'RUB':
-		currency_symbol = '₽'
-	elif currency == 'THB':
-		currency_symbol = '฿'
-	return currency_symbol
 
 def read_cache(cacheFile, maxSeconds=UNSET):
 	if maxSeconds is UNSET:
@@ -949,8 +918,6 @@ def rows_chart(rows, title, subtitle='', **kw):
 	"""Horizontal bars for a list of (label, value). Over 40 rows keeps the first and last 20."""
 	if len(rows) > 40:
 		rows = rows[:20] + rows[-20:]
-	if 'ylim' in kw: # older name for the zoomed value axis
-		kw['xlim'] = kw.pop('ylim')
 	return hbar_chart(rows, title, subtitle, **kw)
 
 def pie_chart(rows, title, subtitle=''):

@@ -8,7 +8,6 @@ import sys
 import traceback
 
 from lib.config import *
-from lib import util
 
 def write(service, url, payload_string, chat_id=None, message_id=None, reply_markup=None):
 	headers = {'Content-type': 'application/json'}
@@ -172,7 +171,6 @@ def strike(message, service):
 		message = '~~' + message + '~~'
 	return message
 
-strikethrough = strike
 
 def fit_caption(caption, limit=1024):
 	"""Telegram rejects photo captions over 1024 visible characters. Keep whole lines that fit and say how many were left out."""
