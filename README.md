@@ -437,24 +437,20 @@ uv venv && uv pip install -r requirements.txt
 ```
 
 ## Setup
-Configuration is split into two files by **when a change can take effect**. Start by creating both from the shipped templates:
+Configuration is split into two files -- finbot.env for startup environment variables, and preferences.conf for values that can be changed at runtime.
+
+Copy the shipped template:
 ```
-sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo vi /opt/finbot.env
-util/sync_defaults.py --apply     # copies preferences.conf into the data directory (never overwrites)
-vi <data directory>/preferences.conf
+sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env
 ```
 
-Both files are plain `KEY=value`: no spaces around `=`, no quotes, no trailing comments (comments go on their own line). The two files never overlap, and **finbot refuses to start if a key is in the wrong one** or is not a known key at all (a typo such as `futur_days`). The error names the file, the line and where the key belongs. A preference key (such as `future_days`) arriving through the environment is refused the same way.
-
+### `finbot.env`
 **Load `finbot.env` with your launcher:**
-* **systemd:** `EnvironmentFile=/opt/finbot.env` in `finbot.service`, plus `ExecStartPre=+.../util/check_config.py /opt/finbot.env` so a typo stops the start (the shipped unit has both).
-* **Docker:** `--env-file /opt/finbot.env`. Docker keeps quotes literally, so use none. Run `util/check_config.py /opt/finbot.env` first if you want the same check.
+* **systemd:** `EnvironmentFile=/opt/finbot.env` in `finbot.service`, plus `ExecStartPre=+.../util/check_config.py /opt/finbot.env` for pre-flight lint.
+* **Docker:** `--env-file /opt/finbot.env`. Docker keeps quotes literally, so use none. Run `util/check_config.py /opt/finbot.env` first if you want the lint check.
 * **init.d / shell:** `util/check_config.py /opt/finbot.env && set -a && . /opt/finbot.env && set +a && ./bot.py` (`set -a` is what exports the values to the bot).
 * **Scheduled jobs:** they are started by `bot.py` (see [Scheduling](#scheduling)), so they run on the same settings. For a one-off run, see [Running a report by hand](#scheduling).
 
-**Changing settings:** edit `preferences.conf`, then reload. The log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
-
-### `finbot.env` items
 All 17 keys, read by your launcher. A change needs a restart. Blank means unset.
 
 | Key | Default | Description |
@@ -478,6 +474,12 @@ All 17 keys, read by your launcher. A change needs a restart. Blank means unset.
 | `slackOutgoingToken` | | Token Slack must present (interactive mode) |
 
 ### `preferences.conf` items
+
+Copies preferences.conf and metadata files into the data directory (never overwrites)
+```
+util/sync_defaults.py [-d DEST] --apply
+```
+
 All 25 keys, read by the bot itself. A change takes effect on a reload.
 
 | Key | Default | Description |
@@ -509,6 +511,8 @@ All 25 keys, read by the bot itself. A change takes effect on a reload.
 | `print_headers` | `False` | Log inbound request headers |
 
 A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied.
+
+edit `preferences.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
 
 **Upgrading from one `.env`?** finbot no longer reads it, and refuses to start while a `.env` is in the checkout, so its settings cannot be silently ignored. Run `util/split_env.py` (or `util/split_env.py /path/to/old.env` for one elsewhere). It reads either format, the old dotenv one (`key = 'value' # comment`) or plain `KEY=value`, writes `finbot.env.new` and `preferences.conf.new` next to the old file, never overwriting, and lists any key it dropped or did not recognise. Put `finbot.env` where your launcher loads it and `preferences.conf` in the data directory, then delete the old file.
 
