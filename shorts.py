@@ -63,12 +63,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, specific_stoc
 		tickers = util.get_holdings_and_watchlist()
 
 	market_data = yahoo.fetch(tickers)
-	us = [ticker for ticker in tickers if '.' not in ticker] # Yahoo's details have US short interest; Short Man has the ASX's
-	for ticker, detail in zip(us, yahoo.fetch_each(yahoo.fetch_detail, us)):
-		if isinstance(detail, Exception):
-			print(ticker, detail, file=sys.stderr)
-		else:
-			market_data |= detail
+	market_data |= yahoo.fetch_details((ticker for ticker in tickers if '.' not in ticker), strict=bool(specific_stock)) # US short interest; Short Man has the ASX's
 	print("")
 	market_data = shortman.fetch(market_data)
 

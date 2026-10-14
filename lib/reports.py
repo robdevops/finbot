@@ -374,38 +374,23 @@ def prepare_marketcap_payload(service, action='top', length=15):
 	return [webhook.bold(f'{action.title()} {length} tracked stocks by market cap', service)] + [line for _, line in caps[:length]]
 
 def prepare_rating_payload(service, action, length=15):
-	def score_col(e):
-		return (float(e.split()[-3]), int(e.split()[-2].removeprefix('(')))
-	payload = []
-	chart_rows = [] # (ticker, rating, analysts), kept in step with payload
-	tickers = util.get_holdings_and_watchlist()
-	market_data = {}
-	for detail in yahoo.fetch_each(yahoo.fetch_detail, tickers): # fetched at the same time
-		if isinstance(detail, TypeError):
+	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by more than one analyst, by mean rating."""
+	found = [] # (rating, analysts, line, ticker)
+	for ticker, data in yahoo.fetch_details(util.get_holdings_and_watchlist()).items():
+		if 'recommend' not in data or data['recommend_analysts'] <= 1:
 			continue
-		if isinstance(detail, Exception):
-			raise detail
-		market_data |= detail
-	for ticker in market_data:
-		if 'recommend' in market_data[ticker]:
-			recommend = market_data[ticker]['recommend'].replace('_', ' ')
-			recommend_index = round(market_data[ticker]['recommend_index'], 2)
-			recommend_analysts = market_data[ticker]['recommend_analysts']
-			if recommend_analysts > 1:
-				profile_title = market_data[ticker]['profile_title']
-				ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-				flag = util.flag_from_ticker(ticker)
-				if (action == 'buy' and 'buy' in recommend) or (action == 'sell' and recommend in ('sell', 'underperform')):
-					payload.append(f"{flag} {profile_title} ({ticker_link}) {recommend_index} ({recommend_analysts} analysts)")
-					chart_rows.append((ticker.split('.')[0], recommend_index, recommend_analysts))
-	payload.sort(key=score_col)
-	chart_rows.sort(key=lambda row: (row[1], row[2])) # same order as score_col
-	payload = payload[:length]
+		recommend = data['recommend'].replace('_', ' ')
+		if (action == 'buy' and 'buy' in recommend) or (action == 'sell' and recommend in ('sell', 'underperform')):
+			rating, analysts = round(data['recommend_index'], 2), data['recommend_analysts']
+			link = util.finance_link(ticker, data['profile_exchange'], service)
+			found.append((rating, analysts, f"{util.flag_from_ticker(ticker)} {data['profile_title']} ({link}) {rating} ({analysts} analysts)", ticker))
+	found = sorted(found, key=lambda row: row[:2])[:length]
+	payload = [line for _, _, line, _ in found]
 	chart = None
 	if payload:
 		message = f"Top {length} analyst {action} ratings for tracked stocks"
 		payload.insert(0, f"{webhook.bold(message, service)}")
-		shown = [(t, r) for t, r, _ in chart_rows[:length]]
+		shown = [(ticker.split('.')[0], rating) for rating, _, _, ticker in found]
 		low, high = min(r for _, r in shown), max(r for _, r in shown)
 		spread = (high - low) or 0.2
 		# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
@@ -418,11 +403,8 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 	chart_rows = [] # (ticker, ratio)
 	tickers = [ticker_select] if ticker_select else util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
-	details = dict(zip(market_data, yahoo.fetch_each(yahoo.fetch_detail, market_data))) if action in ('peg', 'bottom peg', 'negative peg') else {}
-	def detail(ticker): # fetched above, all at once; a failure is raised here, where the one-at-a-time fetch raised it
-		if isinstance(details[ticker], Exception):
-			raise details[ticker]
-		return details[ticker]
+	if action in ('peg', 'bottom peg', 'negative peg'): # the PEG is in Yahoo's details
+		market_data |= yahoo.fetch_details(market_data, strict=bool(ticker_select))
 	for ticker in market_data:
 		trailing_ratio = None
 		forward_ratio = None
@@ -446,13 +428,11 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 					continue
 				ratio = forward_ratio
 			elif action in ('peg', 'bottom peg'):
-				market_data = market_data | detail(ticker)
 				peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
 				if not ticker_select and peg_ratio is not None and peg_ratio < 0:
 					continue
 				ratio = peg_ratio
 			elif action == 'negative peg':
-				market_data = market_data | detail(ticker)
 				peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
 				if not ticker_select and (peg_ratio is None or peg_ratio >= 0):
 					continue
@@ -495,15 +475,8 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 
 def prepare_beta_payload(service):
 	"""(payload, chart) of the tracked stocks with a beta over 1.5 and a market cap under 2B, the highest beta first."""
-	market_data = {}
-	tickers = util.get_holdings_and_watchlist()
-	for ticker, detail in zip(tickers, yahoo.fetch_each(yahoo.fetch_detail, tickers)): # fetched at the same time
-		if isinstance(detail, Exception):
-			print(ticker, detail, file=sys.stderr) # skip this ticker; keep the rest
-		else:
-			market_data |= detail
 	found = [] # (beta, line, chart row)
-	for ticker, data in market_data.items():
+	for ticker, data in yahoo.fetch_details(util.get_holdings_and_watchlist()).items():
 		if 'beta' not in data:
 			continue
 		beta = round(data['beta'], 1)

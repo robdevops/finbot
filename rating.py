@@ -57,12 +57,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 	tickers = [util.transform_to_yahoo(specific_stock)] if specific_stock else util.get_holdings_and_watchlist()
 	old = util.json_load('finbot_rating.json', persist=True)
 	old = old if isinstance(old, dict) else {} # absent until the first run
-	market_data = {}
-	for ticker, detail in zip(tickers, yahoo.fetch_each(yahoo.fetch_detail, tickers)): # fetched together
-		if isinstance(detail, Exception):
-			print(ticker, detail, file=sys.stderr)
-		else:
-			market_data |= detail
+	market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
 
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		payload, new = prepare_rating_payload(service, market_data)

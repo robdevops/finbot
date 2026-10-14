@@ -73,13 +73,8 @@ def lambda_handler(chat_id=config_telegramChatID, days=UNSET, service=None, spec
 	tickers = [util.transform_to_yahoo(specific_stock)] if specific_stock else util.get_holdings_and_watchlist()
 	if event == 'earnings':
 		market_data = yahoo.fetch(tickers)
-	else: # ex-dividend dates are in Yahoo's details: fetched together
-		market_data = {}
-		for ticker, detail in zip(tickers, yahoo.fetch_each(yahoo.fetch_detail, tickers)):
-			if isinstance(detail, Exception):
-				print(ticker, detail, file=sys.stderr)
-			else:
-				market_data |= detail
+	else: # ex-dividend dates are in Yahoo's details
+		market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
 		print("")
 
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):

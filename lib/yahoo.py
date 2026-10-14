@@ -389,6 +389,20 @@ def fetch_each(get, tickers, workers=8):
 	with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
 		return list(executor.map(one, tickers))
 
+def fetch_details(tickers, strict=False):
+	"""fetch_detail of every ticker, fetched at the same time, in one {ticker: detail}. A ticker whose fetch failed is left out
+	(and logged), so that a list goes out without it; strict=True raises its error instead, for a report on the ticker asked for."""
+	tickers = list(tickers)
+	details = {}
+	for ticker, detail in zip(tickers, fetch_each(fetch_detail, tickers)):
+		if isinstance(detail, Exception):
+			if strict:
+				raise detail
+			print(ticker, detail, file=sys.stderr)
+		else:
+			details |= detail
+	return details
+
 def prefetch_history(tickers, workers=8):
 	"""Warm the price-history cache for many tickers at once, so the per-ticker lookups that follow are cache hits."""
 	tickers = list(tickers)
