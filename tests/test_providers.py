@@ -353,6 +353,22 @@ class TelegramSending(FinbotCase):
         self.assertTrue(line.startswith('⚠️ ctx: '))
         self.assertLessEqual(len(webhook.error_line('x' * 1000)), 205)
 
+    def test_error_reports_are_escaped_for_telegram_and_slack(self):
+        sent = []
+        self.patch(webhook, 'write', lambda service, url, text, *a, **k: sent.append((service, text)))
+        self.patch(webhook, 'webhooks', {'telegram': 'https://api.telegram.org/botX/', 'slack': 'https://hooks.slack.com/x', 'discord': 'https://discord.com/x/slack'})
+        self.patch(webhook, 'config_telegramChatID', '5')
+        error = RuntimeError("404 for ZZ at https://x/?a=1&crumb=abc; '<' not supported between <urllib3.connection>")
+        with contextlib.redirect_stderr(io.StringIO()):
+            REAL_REPORT_ERROR(error, context='.compare <b>')
+            REAL_REPORT_ERROR(error, service='telegram', chat_id='55', context='.compare')
+        texts = dict(sent[:3])
+        self.assertIn('crumb=&lt;redacted&gt;', texts['telegram']) # Telegram's HTML parser rejects a bare <redacted>
+        self.assertNotIn('<', texts['telegram'] + sent[3][1])
+        self.assertIn('.compare &lt;b&gt;: RuntimeError', texts['telegram'])
+        self.assertEqual(texts['slack'], texts['telegram'])
+        self.assertIn('crumb=<redacted>', texts['discord'])
+
     def test_report_error_never_raises(self):
         self.patch(webhook, 'write', mock.Mock(side_effect=RuntimeError('send failed')))
         webhook.report_error(ValueError('boom'), service='telegram', chat_id='5')

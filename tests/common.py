@@ -17,6 +17,7 @@ REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'f
     (sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'), (sharesight, 'get_performance_wrapper'))}
 REAL_GET_HOLDINGS = util.get_holdings_and_watchlist
 REAL_PAYLOAD_WRAPPER = webhook.payload_wrapper # FinbotCase replaces it; tests of the real thing use this
+REAL_REPORT_ERROR = webhook.report_error # likewise
 TICKERS = [f'T{i}' for i in range(25)]
 BOT = '@bot'
 
