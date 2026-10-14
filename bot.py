@@ -192,8 +192,7 @@ def reload_all(*args):
 			print('config:', change, file=sys.stderr)
 		print(f"config: reloaded {config.preferences_path}, {len(changes)} change{'' if len(changes) == 1 else 's'}", file=sys.stderr)
 	except config.ConfigError as e:
-		for line in e.errors:
-			print('ERROR config:', line, file=sys.stderr)
+		config.print_errors(e)
 	if scheduler:
 		scheduler.reload()
 
@@ -202,8 +201,7 @@ if __name__ == '__main__':
 	try:
 		config.check_startup_environment()
 	except config.ConfigError as e:
-		for line in e.errors:
-			print('ERROR config:', line, file=sys.stderr)
+		config.print_errors(e)
 		sys.exit(1)
 	for line in config.startup_report():
 		print('config:', line, file=sys.stderr)

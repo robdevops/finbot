@@ -33,6 +33,11 @@ class Parsing(unittest.TestCase):
                 if ticker:
                     self.assertEqual(util.flag_from_ticker(ticker), flag)
 
+    def test_make_paragraphs_keeps_every_word(self):
+        self.assertEqual(util.make_paragraphs('Acme makes widgets. It sells them.'), 'Acme makes widgets. It sells them.')
+        long = ' '.join(['word'] * 22) + ' end. Tail sentence here.'
+        self.assertEqual(util.make_paragraphs(long), ' '.join(['word'] * 22) + ' end.\n\nTail sentence here.')
+
     def test_transform_title(self):
         self.assertEqual(util.transform_title('APPLE INC'), 'Apple')
         self.assertEqual(util.transform_title('Acme FPO'), 'Acme')

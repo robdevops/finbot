@@ -224,9 +224,13 @@ def _getenv_for(preferences):
 	return getenv
 
 
-def _fail(e):
+def print_errors(e):
+	"""Log a ConfigError's problems, a line each."""
 	for line in e.errors:
 		print('ERROR config:', line, file=sys.stderr)
+
+def _fail(e):
+	print_errors(e)
 	sys.exit(1)
 
 
@@ -509,6 +513,6 @@ yahoo_country = {
 
 # `from lib.config import *` is how the other modules get their config_* names; keep the loader machinery out of their namespaces
 _INTERNAL = {'difflib', 're', 'sys', 'ConfigError', 'key_problem', 'parse_assignments', 'read_text', 'read_preferences', 'read_startup_file',
-	'startup_values', 'preference_values', 'reload', 'child_environment', 'check_startup_environment', 'startup_report', 'preferences_path',
+	'startup_values', 'preference_values', 'reload', 'child_environment', 'print_errors', 'check_startup_environment', 'startup_report', 'preferences_path',
 	'STARTUP_KEYS', 'PREFERENCE_KEYS', 'SECRET_KEYS', 'PREFERENCES_FILE', 'PASSED', 'PREFERENCE_NAMES', 'OLD_ENV'}
 __all__ = [name for name in dir() if not name.startswith('_') and name not in _INTERNAL]

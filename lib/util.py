@@ -298,15 +298,16 @@ def strip_url(url):
 	return url
 
 def make_paragraphs(walloftext):
-	buffer = []
-	output = []
+	"""The text in paragraphs, each ending with the first sentence that takes it past 22 words."""
+	paragraphs, buffer = [], []
 	for word in walloftext.split():
 		buffer.append(word)
 		if word.endswith(('!', '.')) and len(buffer) > 22:
-			output.append(' '.join(buffer))
+			paragraphs.append(' '.join(buffer))
 			buffer = []
-	output = '\n\n'.join(output)
-	return output
+	if buffer: # the rest: it used to be dropped, and a short text with it
+		paragraphs.append(' '.join(buffer))
+	return '\n\n'.join(paragraphs)
 
 def date_short(d, year=False):
 	"""5 Oct (or 5 Oct 2026)."""
@@ -367,6 +368,24 @@ def _figure(facecolor):
 	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=facecolor)
 	return fig, FigureCanvasAgg(fig)
 
+def _style_time_axes(fig, ax, start, end):
+	"""What the line charts share: a horizontal grid, no frame, muted ticks, and the date axis from start to end."""
+	_, ink, ink2, grid = PALETTE
+	ax.grid(axis='y', color=grid, linewidth=0.6)
+	ax.set_axisbelow(True)
+	for side in ax.spines.values():
+		side.set_visible(False)
+	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
+	style_date_axis(ax, start, end, ink)
+	fit_left_margin(fig, ax)
+
+def _heading(fig, title, subtitle='', subtitle_color=None):
+	"""A chart's title at the top left, and its subtitle (if any) beneath."""
+	_, ink, ink2, _ = PALETTE
+	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
+	if subtitle:
+		fig.text(0.03, 0.910, subtitle, color=subtitle_color or ink2, fontsize=8.5, ha='left', va='center')
+
 def _png(fig, facecolor):
 	"""The figure as PNG bytes, rewound, or an upload sends an empty file. No bbox_inches='tight': it would change the 1280x800 size."""
 	buf = io.BytesIO()
@@ -402,13 +421,7 @@ def graph(df, title, ylabel):
 	ax.margins(x=0.02)
 	ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
 	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.2f}".rstrip('0').rstrip('.'))) # 66,000 / 1.5
-	ax.grid(axis='y', color=grid, linewidth=0.6)
-	ax.set_axisbelow(True)
-	for side in ax.spines.values():
-		side.set_visible(False)
-	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
-	style_date_axis(ax, x.iloc[0], x.iloc[-1], ink)
-	fit_left_margin(fig, ax)
+	_style_time_axes(fig, ax, x.iloc[0], x.iloc[-1])
 
 	def annotate(i, name, above):
 		xd, yv = x.iloc[i], y.iloc[i]
@@ -426,8 +439,7 @@ def graph(df, title, ylabel):
 	if imin != len(y) - 1 and imin != imax:
 		annotate(imin, 'Low', False)
 
-	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
-	fig.text(0.03, 0.910, f"{last:,.2f} {ylabel or ''}   {arrow} {abs(pct):.2f}%  over period", color=color, fontsize=8.5, ha='left', va='center')
+	_heading(fig, title, f"{last:,.2f} {ylabel or ''}   {arrow} {abs(pct):.2f}%  over period", color)
 
 	return _png(fig, bg)
 
@@ -453,14 +465,7 @@ def compare_graph(series, title, subtitle=''):
 	ax.margins(x=0.01)
 	ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
 	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+,.0f}%" if v else "0%"))
-	ax.grid(axis='y', color=grid, linewidth=0.6)
-	ax.set_axisbelow(True)
-	for side in ax.spines.values():
-		side.set_visible(False)
-	ax.tick_params(colors=ink2, labelsize=8, length=0, pad=4)
-	style_date_axis(ax, min(y.index[0] for _, y in rebased), max(y.index[-1] for _, y in rebased), ink)
-
-	fit_left_margin(fig, ax)
+	_style_time_axes(fig, ax, min(y.index[0] for _, y in rebased), max(y.index[-1] for _, y in rebased))
 
 	# direct end-labels in the right margin, spread so they never overlap
 	ymin, ymax = ax.get_ylim()
@@ -481,9 +486,7 @@ def compare_graph(series, title, subtitle=''):
 		ax.annotate(f"{label}  {value:+,.1f}%", xy=(y.index[-1], value), xycoords='data', xytext=(1.03, p), textcoords='axes fraction',
 			ha='left', va='center', fontsize=7.5, color=ink, annotation_clip=False,
 			arrowprops=dict(arrowstyle='-', color=color, linewidth=0.7, alpha=0.7, shrinkA=0, shrinkB=2, relpos=(0, 0.5)))
-	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
-	if subtitle:
-		fig.text(0.03, 0.910, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+	_heading(fig, title, subtitle)
 	return _png(fig, bg)
 
 SESSION_TINTS = {'midsession': '#34d399', 'premarket': '#facc15'} # subtle green / yellow wash; at close stays plain
@@ -731,9 +734,7 @@ def pie_chart(rows, title, subtitle=''):
 		fig.text(0.60, y, label if len(label) <= 28 else label[:27] + '…', color=ink, fontsize=8.5, ha='left', va='center')
 		fig.text(0.97, y, f"{value / total * 100:.1f}%", color=ink2, fontsize=8.5, ha='right', va='center')
 		y -= step
-	fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
-	if subtitle:
-		fig.text(0.03, 0.910, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+	_heading(fig, title, subtitle)
 	return _png(fig, bg)
 
 def bar_graph(top_rows, bottom_rows, title, subtitle=''):
