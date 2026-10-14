@@ -9,6 +9,7 @@ import traceback
 
 from lib.config import *
 from lib import net
+from lib import telegram
 
 def write(service, url, payload_string, chat_id=None, message_id=None, reply_markup=None):
 	headers = {'Content-type': 'application/json'}
@@ -284,60 +285,31 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_mark
 	return payload_wrapper(service, chat_url(service, chat_id) if chat_id else webhooks.get(service), caption.split('\n'), chat_id, message_id)
 
 def editMessageText(chat_id, message_id, text, reply_markup=None):
-	"""Telegram: replace a text message's text and buttons in place. Returns None if it could not be edited."""
+	"""Telegram: replace a text message's text and buttons in place. A failure is only logged."""
 	payload = {'chat_id': chat_id, 'message_id': message_id, 'text': text, 'parse_mode': 'HTML', 'disable_web_page_preview': True}
 	if reply_markup is not None:
 		payload['reply_markup'] = reply_markup
-	try:
-		output = net.post(webhooks['telegram'] + 'editMessageText', json=payload, timeout=config_http_timeout).json()
-	except Exception as e:
-		print("Failure executing editMessageText:", net.redact(e), file=sys.stderr)
-		return None
-	if not output.get('ok'):
-		print(output.get('error_code'), output.get('description'), file=sys.stderr)
-		return None
-	return output
+	telegram.try_call('editMessageText', json=payload)
 
 def editMessageMedia(chat_id, message_id, image_data, caption, reply_markup=None):
-	"""Telegram: replace a photo message's image and caption in place."""
-	url = webhooks['telegram'] + 'editMessageMedia'
-	caption = fit_caption(caption)
-	media = {'type': 'photo', 'media': 'attach://photo', 'caption': caption, 'parse_mode': 'HTML'}
+	"""Telegram: replace a photo message's image and caption in place. Raises RuntimeError when Telegram refuses, unless the message
+	is already so (pressing the active period again is harmless); a request that fails on the way is only logged."""
+	media = {'type': 'photo', 'media': 'attach://photo', 'caption': fit_caption(caption), 'parse_mode': 'HTML'}
 	data = {'chat_id': chat_id, 'message_id': message_id, 'media': json.dumps(media)}
 	if reply_markup:
 		data['reply_markup'] = json.dumps(reply_markup)
 	if hasattr(image_data, 'seek'):
 		image_data.seek(0)
 	try:
-		r = net.post(url, data=data, files={'photo': ('image.png', image_data)}, timeout=config_http_timeout)
-		output = r.json()
-	except Exception as e:
-		print("Failure executing editMessageMedia:", net.redact(e), file=sys.stderr)
-		return None
-	if not output.get('ok'):
-		description = output.get('description', r.reason)
-		if 'not modified' not in description: # pressing the active period again is harmless
-			print(output.get('error_code'), description, file=sys.stderr)
-			raise RuntimeError(f"Telegram: {description}")
-	return output
+		telegram.call('editMessageMedia', data=data, files={'photo': ('image.png', image_data)})
+	except RuntimeError as e:
+		if 'not modified' not in str(e):
+			raise
+	except Exception as e: # it may have arrived even so: no error line for something the chat may already show
+		print("Telegram editMessageMedia failed:", net.redact(e), file=sys.stderr)
 
 def pleaseHold(action, service, chat_id):
 	"""Telegram's typing notice ("typing…" for a few seconds). worker.TypingIndicator repeats it every 7 seconds while a command
 	works, on Telegram only: the other services have no such notice."""
-	if service != 'telegram':
-		return None
-	url = webhooks['telegram'] + "sendChatAction?chat_id=" + str(chat_id)
-	data = {
-		'chat_id': chat_id,
-		'action': action
-	}
-	try:
-		r = net.post(url, data=data, timeout=config_http_timeout)
-	except Exception as e:
-		print("Typing indicator failed:", net.redact(e), file=sys.stderr)
-		return None
-	if r.status_code == 200:
-		print(r.status_code, "OK typing indicator to", service, file=sys.stderr)
-	else:
-		print(r.status_code, "error typing indicator to", service, file=sys.stderr)
-	return None
+	if service == 'telegram':
+		telegram.try_call('sendChatAction', data={'chat_id': chat_id, 'action': action})

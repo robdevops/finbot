@@ -11,120 +11,53 @@ from lib.config import * # first: sets MPLCONFIGDIR before matplotlib is importe
 from lib import sharesight
 
 
+TITLE_TRIMS = [ # transform_title: (text, replacement), in order, as each sees what the ones before it made
+	(' - ', ' '), ('Roundhill ETF Trust ', ''), ('Class A Common Stock', ''),
+	('BlackRock Institutional Trust Company N.A.', ''), ('Listed Funds Trust', ''), ('GraniteShares ETF Trust', ''),
+	('ProShares Trust', ''), ('VanEck ETF Trust', ''), ('Direxion Shares ETF Trust', ''), (' of California', ''),
+	('Magnificent', 'Mag'), ('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'First Trust Clean Energy'),
+	('First Trust Exchange-Traded Fund III First Trust Nasdaq Clean Edge Clean Energy Index Fund', 'First Trust Green Energy'),
+	('Mirae Asset Global Investments (Hong Kong) Limited', ''), ('Space Exploration Technologies', 'SpaceX'),
+	('Exchange Traded Funds Series OFC', ''), ('Global X Global X', 'Global X'), ('Tema ETF Trust', ''), (' AUD', ' '),
+	(' USD', ' '), ('New York Shares', ''), ('China Electric Vehicle and Battery ETF', 'China EV ETF'),
+	('China Electric Vehicle ETF', 'China EV ETF'), ('Atlantica Sustainable Infrastructure', 'Atlantica Sustainable'),
+	('Advanced Micro Devices', 'AMD'), ('Taiwan Semiconductor Manufacturing', 'TSM'),
+	('Flight Centre Travel', 'Flight Centre'), ('Global X Funds ', ''), (' of Australia', ''),
+	('National Australia Bank', 'NAB'), (' PLC', ''), (' p.l.c.', ''), (' P.l.c.', ''), (' P.L.C.', ''), (' Units', '')
+]
+
+TITLE_SHORTENINGS = [ # and these after the suffixes come off
+	('Microbalifesciences', 'Microba Life Sciences'), ('Walt Disney Co (The)', 'Disney'), ('Lisenergylimited', 'LI-S Energy'),
+	('Invesco Capital Management LLC ', ''), ('QUALCOMM', 'Qualcomm'), ('Ordinary Shares Class A', ''),
+	('Ordinary Shares Class C', ''), ('Lbt Innovations', 'LBT Innovations'),
+	('Vanguard Information Technology', 'Vanguard Infotech'), ('The ', ''), (' Shares', ''), ('Rea ', 'REA '),
+	('Csl ', 'CSL '), ('Battery ', 'Batt '), ('.com', ''), ('Etf', 'ETF'), ('N.V.', ''), (' NV ', ' '), ('New York Re', ''),
+	(' Australian', ' Aus'), (' Australia', ' Aus'), (' Infrastructure', ' Infra'), (' Manufacturing Company', ' '),
+	(' Limited', ' '), (' Ltd', ' '), (' Holdings', ' '), (' Holding', ' '), (' (Holdings)', ''), (' Corporation', ' '),
+	(' Incorporated', ' '), (' incorporated', ' '), (' Technologies', ' '), (' Technology', ' '), (' Enterprises', ' '),
+	(' Enterprise', ' '), (' Enterpr', ' '), (' Ventures', ' '), (' Resources', ' '), (' (Intrada', ''), (' Structured', ''),
+	(' Co.', ' '), (' Corp.', ' '), (' Corp', ' '), (' Tech ', ' '), (' Company', ' '), (' Group', ' '), (', Inc', ' '),
+	(' Inc', ' '), (' Plc', ' '), (' plc', ' '), (' Index', ' '), (' ADR', ' '), (' Daily', ' '), (' Long', ' '),
+	(' Bull', ' '), (' .', ' '), (' ,', ' ')
+]
+
 def transform_title(title):
+	"""A company or fund name as the reports show it: shorter, without fund-trust boilerplate and legal suffixes."""
 	title = title.replace(' FPO', '')
 	if title.isupper() or title.islower():
 		title = title.title()
-	title = title.replace(' - ', ' ')
-	title = title.replace('Roundhill ETF Trust ', '')
-	title = title.replace('Class A Common Stock', '')
-	title = title.replace('BlackRock Institutional Trust Company N.A.', '')
-	title = title.replace('Listed Funds Trust', '')
-	title = title.replace('GraniteShares ETF Trust', '')
-	title = title.replace('ProShares Trust', '')
-	title = title.replace('VanEck ETF Trust', '')
-	title = title.replace('Direxion Shares ETF Trust', '')
-	title = title.replace(' of California', '')
-	title = title.replace('Magnificent', 'Mag')
-	title = title.replace('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'First Trust Clean Energy')
-	title = title.replace('First Trust Exchange-Traded Fund III First Trust Nasdaq Clean Edge Clean Energy Index Fund', 'First Trust Green Energy')
-	title = title.replace('Mirae Asset Global Investments (Hong Kong) Limited', '')
-	title = title.replace('Space Exploration Technologies', 'SpaceX')
-	title = title.replace('Exchange Traded Funds Series OFC', '')
-	title = title.replace('Global X Global X', 'Global X')
-	title = title.replace('Tema ETF Trust', '')
-	title = title.replace(' AUD', ' ')
-	title = title.replace(' USD', ' ')
-	title = title.replace('New York Shares', '')
-	title = title.replace('China Electric Vehicle and Battery ETF', 'China EV ETF')
-	title = title.replace('China Electric Vehicle ETF', 'China EV ETF')
-	title = title.replace('Atlantica Sustainable Infrastructure', 'Atlantica Sustainable')
-	title = title.replace('Advanced Micro Devices', 'AMD')
-	title = title.replace('Taiwan Semiconductor Manufacturing', 'TSM')
-	title = title.replace('Flight Centre Travel', 'Flight Centre')
-	title = title.replace('Global X Funds ', '')
-	title = title.replace(' of Australia', '')
-	title = title.replace('National Australia Bank', 'NAB')
-	title = title.replace(' PLC', '')
-	title = title.replace(' p.l.c.', '')
-	title = title.replace(' P.l.c.', '')
-	title = title.replace(' P.L.C.', '')
-	title = title.replace(' Units', '')
-	if title.endswith(' AG'):
-		title = title.replace(' AG', '')
-	if title.endswith(' SE'):
-		title = title.replace(' SE', '')
-	if title.endswith(' Se'):
-		title = title.replace(' SE', '')
+	for text, replacement in TITLE_TRIMS:
+		title = title.replace(text, replacement)
+	for suffix in (' AG', ' SE', ' Se'):
+		title = title.removesuffix(suffix)
 	title = re.sub(r'\[\w+\]$', '', title)
-	title = title.replace('Microbalifesciences', 'Microba Life Sciences')
-	title = title.replace('Walt Disney Co (The)', 'Disney')
-	title = title.replace('Lisenergylimited', 'LI-S Energy')
-	title = title.replace('Invesco Capital Management LLC ', '')
-	title = title.replace('QUALCOMM', 'Qualcomm')
-	title = title.replace('Ordinary Shares Class A', '')
-	title = title.replace('Ordinary Shares Class C', '')
-	title = title.replace('Lbt Innovations', 'LBT Innovations')
-	title = title.replace('Vanguard Information Technology', 'Vanguard Infotech')
-	title = title.replace('The ', '')
-	title = title.replace(' Shares', '')
-	title = title.replace('Rea ', 'REA ')
-	title = title.replace('Csl ', 'CSL ')
-	title = title.replace('Battery ', 'Batt ')
-	title = title.replace('.com', '')
-	title = title.replace('Etf', 'ETF')
-	title = title.replace('N.V.', '')
-	title = title.replace(' NV ', ' ')
-	title = title.replace('New York Re', '')
-	title = title.replace(' Australian', ' Aus')
-	title = title.replace(' Australia', ' Aus')
-	title = title.replace(' Infrastructure', ' Infra')
-	title = title.replace(' Manufacturing Company', ' ')
-	title = title.replace(' Limited', ' ')
-	title = title.replace(' Ltd', ' ')
-	title = title.replace(' Holdings', ' ')
-	title = title.replace(' Holding', ' ')
-	title = title.replace(' (Holdings)', '')
-	title = title.replace(' Corporation', ' ')
-	title = title.replace(' Incorporated', ' ')
-	title = title.replace(' incorporated', ' ')
-	title = title.replace(' Technologies', ' ')
-	title = title.replace(' Technology', ' ')
-	title = title.replace(' Enterprises', ' ')
-	title = title.replace(' Enterprise', ' ')
-	title = title.replace(' Enterpr', ' ')
-	title = title.replace(' Ventures', ' ')
-	title = title.replace(' Resources', ' ')
-	title = title.replace(' (Intrada', '')
-	title = title.replace(' Structured', '')
-	title = title.replace(' Co.', ' ')
-	title = title.replace(' Corp.', ' ')
-	title = title.replace(' Corp', ' ')
-	title = title.replace(' Tech ', ' ')
-	title = title.replace(' Company', ' ')
-	title = title.replace(' Group', ' ')
-	title = title.replace(', Inc', ' ')
-	title = title.replace(' Inc', ' ')
-	title = title.replace(' Plc', ' ')
-	title = title.replace(' plc', ' ')
-	title = title.replace(' Index', ' ')
-	title = title.replace(' ADR', ' ')
-	title = title.replace(' Daily', ' ')
-	title = title.replace(' Long', ' ')
-	title = title.replace(' Bull', ' ')
-	title = title.replace(' .', ' ')
-	title = title.replace(' ,', ' ')
+	for text, replacement in TITLE_SHORTENINGS:
+		title = title.replace(text, replacement)
 	if title.islower():
 		title = title.title()
-	title = title.strip()
-	if title.endswith(' &'):
-		title = title.replace(' &', '')
-	if title.endswith(' and'):
-		title = title.replace(' and', '')
-	title = title.replace(' Usd', ' USD')
-	title = title.replace('  ', ' ')
-	title = title.replace('Ishares', 'iShares')
-	return title
+	for suffix in (' &', ' and'):
+		title = title.strip().removesuffix(suffix)
+	return ' '.join(title.replace(' Usd', ' USD').replace('Ishares', 'iShares').split())
 
 MARKETS = { # Sharesight market code -> (flag, currency); no currency where a market quotes in several (LSE and HKEX allow non-home currencies)
 	'ASX': ('🇦🇺', 'AUD'),

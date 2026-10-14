@@ -37,6 +37,10 @@ class Parsing(unittest.TestCase):
         self.assertEqual(util.transform_title('APPLE INC'), 'Apple')
         self.assertEqual(util.transform_title('Acme FPO'), 'Acme')
         self.assertEqual(util.transform_title('Mixed Case Name'), 'Mixed Case Name')
+        for title, expected in (('Allianz Se', 'Allianz'), ('Foo SE AG', 'Foo'), ('Johnson & Johnson &', 'Johnson & Johnson'),
+                                ('Black and White and', 'Black and White'), ('Big Holdings Things Ltd', 'Big Things')):
+            with self.subTest(title=title): # a suffix comes off the end only; no run of spaces is left behind
+                self.assertEqual(util.transform_title(title), expected)
 
 
 class Formatting(unittest.TestCase):

@@ -589,6 +589,29 @@ class TelegramWebhook(FinbotCase):
             telegram.register()
         self.assertIn('HTTPS url must be provided', str(caught.exception))
 
+    def test_edits_toasts_and_typing_go_through_call(self):
+        """A chart edit that Telegram refuses is an error (unless nothing changed); a toast, a text edit or a typing notice that
+        fails, or an edit lost on the way, is only logged."""
+        def answer(outcome):
+            def post(url, **kwargs):
+                if isinstance(outcome, Exception):
+                    raise outcome
+                return outcome
+            return post
+        refused = Resp({'ok': False, 'description': 'Bad Request: message to edit not found'})
+        unchanged = Resp({'ok': False, 'description': 'Bad Request: message is not modified: specified new message content is the same'})
+        for outcome, raises in ((refused, True), (unchanged, False), (ConnectionError('down'), False), (Resp({'ok': True, 'result': True}), False)):
+            with self.subTest(outcome=outcome):
+                self.patch(telegram.net, 'post', answer(outcome))
+                with contextlib.redirect_stderr(io.StringIO()):
+                    if raises:
+                        self.assertRaisesRegex(RuntimeError, 'not found', webhook.editMessageMedia, '5', '9', io.BytesIO(b'png'), 'caption')
+                    else:
+                        webhook.editMessageMedia('5', '9', io.BytesIO(b'png'), 'caption')
+                    telegram.answerCallbackQuery('1', 'Loading…')
+                    webhook.editMessageText('5', '9', 'text')
+                    webhook.pleaseHold('typing', 'telegram', '5')
+
     def test_importing_never_calls_telegram(self):
         code = ('import requests\n'
                 'def refuse(*a, **k): raise SystemExit("network call on import")\n'

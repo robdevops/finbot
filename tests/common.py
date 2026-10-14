@@ -61,7 +61,7 @@ class FinbotCase(unittest.TestCase):
         self.patch(util, 'config_cache_dir', tmp.name)
         self.patch(config, 'config_var_dir', tmp.name)
         self.patch(webhook, 'webhooks', {'telegram': 'https://api.telegram.org/botX/'})
-        for m in (performance, shorts, price, cal, trades, milestone, rating, worker, reminder):
+        for m in (performance, shorts, price, cal, trades, milestone, rating, worker, reminder, telegram):
             self.patch(m, 'webhooks', webhook.webhooks)
         self.sent = []
         self.markups = [] # reply_markup of each photo sent
