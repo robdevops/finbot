@@ -293,7 +293,14 @@ class Scheduler:
 			return now
 
 	def next_fire(self, job, after):
-		return croniter(job.expr, after.astimezone(job.zone)).get_next(datetime.datetime)
+		"""The first fire time after `after`, in the job's zone. croniter is given the naive local time and the zone is put back after:
+		croniter up to 6.0 (the distro packages) mishandles zoneinfo across DST changes, firing daily jobs twice or an hour late. A
+		time the clocks repeat fires once, the first time; one they skip (02:30 as they go forward) fires an hour later by the clock."""
+		times = croniter(job.expr, after.astimezone(job.zone).replace(tzinfo=None))
+		while True:
+			t = times.get_next(datetime.datetime).replace(tzinfo=job.zone).timestamp() # fold 0: the first of a repeated time
+			if t > after.timestamp(): # by the instant: comparing two times of one zone ignores which of a repeated hour they are in
+				return datetime.datetime.fromtimestamp(t, job.zone)
 
 	def due(self, now):
 		"""The jobs to run now, as (job, fire time). Several missed fire times of one job run it once."""

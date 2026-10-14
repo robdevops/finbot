@@ -342,6 +342,52 @@ class SchedulerTests(SchedulerBase):
         self.assertTrue(any('tick failed' in e for e in self.errors))
 
 
+class DaylightSaving(unittest.TestCase):
+    """Melbourne's clocks go back an hour at 03:00 on 5 April 2026 and forward at 02:00 on 4 October 2026. The fire times must be
+    right on any croniter: the distro packages (up to 6.0) got zoneinfo's changes wrong."""
+    MEL = zoneinfo.ZoneInfo('Australia/Melbourne')
+
+    def fires(self, expr, start, end):
+        job = jobs.parse_schedule(f'{expr} trades.py\n', self.MEL)[0][0]
+        s = jobs.Scheduler(lambda: None, zone=self.MEL)
+        times, t = [], start
+        while (t := s.next_fire(job, t)) <= end:
+            times.append(t.astimezone(UTC).astimezone(self.MEL).strftime('%d %H:%M %Z')) # by way of UTC: the real local time
+        return times
+
+    def mel(self, *args, **kw):
+        return datetime.datetime(*args, tzinfo=self.MEL, **kw)
+
+    def test_a_daily_job_fires_once_at_its_time(self):
+        self.assertEqual(self.fires('0 9 * * *', self.mel(2026, 10, 2), self.mel(2026, 10, 6)), ['02 09:00 AEST', '03 09:00 AEST', '04 09:00 AEDT', '05 09:00 AEDT'])
+        self.assertEqual(self.fires('0 9 * * *', self.mel(2026, 4, 3), self.mel(2026, 4, 7)), ['03 09:00 AEDT', '04 09:00 AEDT', '05 09:00 AEST', '06 09:00 AEST'])
+
+    def test_a_skipped_or_repeated_time_fires_once(self):
+        self.assertEqual(self.fires('30 2 * * *', self.mel(2026, 10, 3), self.mel(2026, 10, 6)), ['03 02:30 AEST', '04 03:30 AEDT', '05 02:30 AEDT'])
+        self.assertEqual(self.fires('30 2 * * *', self.mel(2026, 4, 4), self.mel(2026, 4, 7)), ['04 02:30 AEDT', '05 02:30 AEDT', '06 02:30 AEST'])
+        self.assertEqual(self.fires('*/20 * * * *', self.mel(2026, 10, 4, 1, 30), self.mel(2026, 10, 4, 3, 50)), ['04 01:40 AEST', '04 03:00 AEDT', '04 03:20 AEDT', '04 03:40 AEDT'])
+        self.assertEqual(self.fires('*/20 * * * *', self.mel(2026, 4, 5, 1, 30), self.mel(2026, 4, 5, 3, 30)),
+                         ['05 01:40 AEDT', '05 02:00 AEDT', '05 02:20 AEDT', '05 02:40 AEDT', '05 03:00 AEST', '05 03:20 AEST'])
+
+    def test_starting_in_the_repeated_hour_runs_nothing_twice(self):
+        second_time_round = self.mel(2026, 4, 5, 2, 10, fold=1).astimezone(UTC)
+        self.assertEqual(self.fires('*/20 * * * *', second_time_round, self.mel(2026, 4, 5, 3, 0, 30)), ['05 03:00 AEST'])
+        self.assertEqual(self.fires('30 2 * * *', second_time_round, self.mel(2026, 4, 6, 12)), ['06 02:30 AEST'])
+
+    def test_the_scheduler_runs_a_daily_job_once_across_the_change(self):
+        file = Path(tempfile.mkdtemp(), 'schedule.cron')
+        file.write_text('CRON_TZ=Australia/Melbourne\n0 9 * * * trades.py\n')
+        clock = Clock(self.mel(2026, 10, 3, 12).astimezone(UTC))
+        s = jobs.Scheduler(lambda: file, clock=clock, zone=UTC, runner=lambda *a: 0)
+        with mock.patch.object(util, 'config_var_dir', tempfile.mkdtemp()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertTrue(s.load())
+            fired = []
+            while clock.now < self.mel(2026, 10, 5, 12):
+                fired += [t.astimezone(UTC).astimezone(self.MEL).strftime('%d %H:%M') for _, t in s.due(clock.now)]
+                clock.now += datetime.timedelta(minutes=10)
+        self.assertEqual(fired, ['04 09:00', '05 09:00'])
+
+
 class StartupRefusal(unittest.TestCase):
     def test_the_bot_will_not_start_with_an_impossible_time(self):
         with tempfile.TemporaryDirectory() as data:
