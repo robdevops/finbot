@@ -316,7 +316,7 @@ Interactive trigger:
 ### pe / forward pe / peg
 ![Forward PE report in Slack](img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
-List securities by P/E ratio, forward P/E ratio, or PEG ratio
+List securities by P/E ratio, forward P/E ratio, or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `preferences.conf`).
 
 Interactive trigger:
 ```
@@ -347,7 +347,7 @@ Interactive trigger:
 ### Buy
 ![Buy ratings in Slack](img/finbot_buy.png?raw=true "Buy ratings in Slack")
 
-Show top recommended buys by Yahoo Finance analysts rating, among stocks rated by 7 or more analysts (with fewer, the consensus says little: thinly covered small caps are nearly all a perfect buy)
+Show top recommended buys by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `preferences.conf`)
 
 Interactive trigger:
 ```
@@ -360,7 +360,7 @@ Interactive trigger:
 ### Sell
 ![Rating report in Slack](img/finbot_sell.png?raw=true "Rating report in Slack")
 
-Show top recommended sells by Yahoo Finance analysts rating, among stocks rated by 7 or more analysts
+Show top recommended sells by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts
 
 Interactive trigger:
 ```
@@ -480,7 +480,7 @@ Copies preferences.conf and metadata files into the data directory (never overwr
 util/sync_defaults.py [-d DEST] --apply
 ```
 
-All 25 keys, read by the bot itself. A change takes effect on a reload.
+All 26 keys, read by the bot itself. A change takes effect on a reload.
 
 | Key | Default | Description |
 |---|---|---|
@@ -488,6 +488,7 @@ All 25 keys, read by the bot itself. A change takes effect on a reload.
 | `future_days` | `30` | How many days ahead the events calendar looks |
 | `price_percent` | `5` | Price alert threshold, percent |
 | `shorts_percent` | `15` | Short interest alert threshold, percent |
+| `min_analysts` | `7` | `.buy`, `.sell` and `.forward pe` list only stocks covered by at least this many analysts; with fewer, a consensus says little (thinly covered small caps are nearly all a perfect buy) |
 | `demote_volatile` | `True` | Volatile (small cap, high beta) stocks need a bigger move to alert |
 | `demote_leveraged` | `True` | Leveraged (2x, 3x) funds need a bigger move to alert |
 | `volatility_multiplier` | `2` | How much bigger a move volatile stocks need |

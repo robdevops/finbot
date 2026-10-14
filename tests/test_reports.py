@@ -94,6 +94,24 @@ class ReportFunctions(FinbotCase):
         self.assertAlmostEqual(quote['market_cap_usd'], 1e11 / 1380.0) # US$72M
         self.assertEqual(price.trigger_bar('T1', quote, 5), 5 * price.config_volatility_multiplier)
 
+    def test_forward_pe_lists_need_as_many_analysts_as_buy(self):
+        """A forward P/E is analysts' estimate: with few of them it says little, as a perfect 1.0 buy from two brokers does."""
+        analysts = {'T1': 7, 'T2': 6, 'T3': 12, 'T4': 2}
+        self.patch(util, 'get_holdings_and_watchlist', lambda: list(analysts))
+        self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': -5 if t == 'T3' else 20} for t in ts})
+        self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
+        def listed(action):
+            payload, chart = reports.prepare_value_payload('telegram', action)
+            return payload[0], [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], chart
+        heading, names, chart = listed('forward pe')
+        self.assertEqual((names, [label for label, _ in chart['rows']]), (['T1'], ['T1'])) # T2 and T4: too few; T3: negative
+        self.assertIn('forward pe ratio (7+ analysts)', heading)
+        self.assertEqual(listed('negative forward pe')[1], ['T3'])
+        self.assertIn('Co T2', str(reports.prepare_value_payload('telegram', 'forward pe', 'T2'))) # one ticker asked for: shown
+        self.patch(reports, 'config_min_analysts', 13) # the one setting moves .buy and .forward pe together
+        self.assertEqual(reports.prepare_value_payload('telegram', 'forward pe')[0], ['No tracked stocks with 13+ analysts have a forward pe ratio'])
+        self.assertEqual(reports.prepare_rating_payload('telegram', 'buy')[0], ['No tracked stocks rated buy by 13+ analysts'])
+
     def test_market_caps_compare_in_us_dollars(self):
         """Yahoo gives a market cap in the stock's own currency: unconverted, a won market cap topped every list."""
         stocks = {'K1.KS': ('KRW', 1.01e15), 'K2.KS': ('KRW', 5e11), 'U1': ('USD', 5.39e12), 'L1.L': ('GBp', 6.25e10), 'Z1': ('XYZ', 1e12)}

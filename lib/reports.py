@@ -378,14 +378,13 @@ def prepare_marketcap_payload(service, action='top', length=15):
 	caps.sort(key=lambda cap: cap[0], reverse=action == 'top')
 	return [webhook.bold(f'{action.title()} {length} tracked stocks by market cap (USD)', service)] + [line for _, line in caps[:length]]
 
-MIN_ANALYSTS = 7 # fewer, and a consensus says little: ASX small caps covered by two to six brokers are nearly all a perfect 1.0 buy
-
 def prepare_rating_payload(service, action, length=15):
-	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by MIN_ANALYSTS or more analysts, the
-	strongest rating first (1 is a strong buy, 5 a strong sell); on equal ratings, the one more analysts give first."""
+	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by min_analysts or more analysts (fewer,
+	and the consensus says little: ASX small caps covered by two to six brokers are nearly all a perfect 1.0 buy), the strongest
+	rating first (1 is a strong buy, 5 a strong sell); on equal ratings, the one more analysts give first."""
 	found = [] # (rating, analysts, line, ticker)
 	for ticker, data in yahoo.fetch_details(util.get_holdings_and_watchlist()).items():
-		if 'recommend' not in data or data['recommend_analysts'] < MIN_ANALYSTS:
+		if 'recommend' not in data or data['recommend_analysts'] < config_min_analysts:
 			continue
 		recommend = data['recommend'].replace('_', ' ')
 		if (action == 'buy' and 'buy' in recommend) or (action == 'sell' and recommend in ('sell', 'underperform')):
@@ -395,8 +394,8 @@ def prepare_rating_payload(service, action, length=15):
 	found = sorted(found, key=lambda row: (row[0] if action == 'buy' else -row[0], -row[1]))[:length]
 	payload = [line for _, _, line, _ in found]
 	if not payload:
-		return [f"No tracked stocks rated {action} by {MIN_ANALYSTS}+ analysts"], None
-	message = f"Top {length} analyst {action} ratings for tracked stocks ({MIN_ANALYSTS}+ analysts)"
+		return [f"No tracked stocks rated {action} by {config_min_analysts}+ analysts"], None
+	message = f"Top {length} analyst {action} ratings for tracked stocks ({config_min_analysts}+ analysts)"
 	shown = [(ticker.split('.')[0], rating) for rating, _, _, ticker in found]
 	low, high = min(r for _, r in shown), max(r for _, r in shown)
 	spread = (high - low) or 0.2
@@ -406,13 +405,20 @@ def prepare_rating_payload(service, action, length=15):
 	return [webhook.bold(message, service)] + payload, chart
 
 def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
+	"""(payload, chart): the tracked stocks by a ratio (`action`), or one ticker's. A forward P/E is analysts' estimate, so its lists
+	take only stocks that min_analysts or more analysts cover, as .buy does."""
 	payload = []
 	chart_rows = [] # (ticker, ratio)
 	tickers = [ticker_select] if ticker_select else util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
 	if action in ('peg', 'bottom peg', 'negative peg'): # the PEG is in Yahoo's details
 		market_data |= yahoo.fetch_details(market_data, strict=bool(ticker_select))
+	covered = None # for a forward P/E list: the tickers enough analysts cover
+	if 'forward' in action and not ticker_select:
+		covered = {ticker for ticker, detail in yahoo.fetch_details(market_data).items() if detail.get('recommend_analysts', 0) >= config_min_analysts}
 	for ticker in market_data:
+		if covered is not None and ticker not in covered:
+			continue
 		trailing_ratio = None
 		forward_ratio = None
 		peg_ratio = None
@@ -472,10 +478,11 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			payload.reverse()
 			chart_rows.reverse()
 		payload = payload[:length]
+		coverage = f" ({config_min_analysts}+ analysts)" if covered is not None else ''
 		if not payload:
-			payload = [f"{action}: no data found"]
+			payload = [f"No tracked stocks with {config_min_analysts}+ analysts have a {heading_trail} ratio" if covered is not None else f"{action}: no data found"]
 		else:
-			heading = f'{heading_type} {length} tracked stocks by {heading_trail} ratio'
+			heading = f'{heading_type} {length} tracked stocks by {heading_trail} ratio{coverage}'
 			payload.insert(0, f"{webhook.bold(heading, service)}")
 			chart = {'rows': chart_rows[:length], 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
 	return payload, chart

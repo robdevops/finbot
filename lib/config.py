@@ -20,7 +20,7 @@ STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'telegramChatID', 'scheduler', 'schedu
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook')
 PREFERENCE_KEYS = ('alliterate', 'cache', 'cache_seconds', 'chunk_maxlines', 'country_code', 'debug', 'demote_leveraged', 'demote_volatile',
 	'exclude_portfolios', 'future_days', 'graph', 'http_timeout', 'hyperlink', 'hyperlinkFooter', 'hyperlinkProvider', 'include_portfolios',
-	'past_days', 'performance_cache_seconds', 'performance_use_sharesight', 'price_percent', 'print_headers', 'shorts_percent', 'timezone',
+	'min_analysts', 'past_days', 'performance_cache_seconds', 'performance_use_sharesight', 'price_percent', 'print_headers', 'shorts_percent', 'timezone',
 	'trades_use_yahoo', 'volatility_multiplier')
 SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook') # never printed
@@ -198,6 +198,7 @@ def preference_values(getenv):
 		'config_hyperlinkFooter': r.bool('hyperlinkFooter', True),
 		'config_hyperlinkProvider': r.str('hyperlinkProvider', 'google').lower(),
 		'config_include_portfolios': r.str('include_portfolios', '').split(),
+		'config_min_analysts': r.int('min_analysts', 7), # .buy, .sell and .forward pe list only stocks this many analysts cover
 		'config_past_days': r.int('past_days', 28),
 		'config_performance_cache_seconds': r.int('performance_cache_seconds', 1800), # Sharesight performance reports (30 minutes)
 		'config_performance_use_sharesight': r.bool('performance_use_sharesight', False),
