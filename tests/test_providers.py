@@ -352,6 +352,22 @@ class SharesightKeepWarm(ProviderCase):
         sharesight.keep_warm(retry=300, stop=stop)
         self.assertEqual(stop.waits, [300, 3000]) # slow retry after the failure, then sleep until the next cache is due
 
+    def test_with_cache_off_nothing_is_fetched_until_a_reload_turns_it_on(self):
+        class Stop:
+            def __init__(self): self.waits = []
+            def is_set(self): return len(self.waits) >= 4
+            def wait(self, seconds):
+                self.waits.append(seconds)
+                if len(self.waits) == 2:
+                    sharesight.config_cache = True # what a reload that switches it on does
+        passes = []
+        self.patch(sharesight, 'warm', lambda: (passes.append(1), (0, {}))[1])
+        self.patch(sharesight, 'next_due', lambda portfolios=None: 3000)
+        self.patch(sharesight, 'config_cache', False)
+        stop = Stop()
+        sharesight.keep_warm(idle=60, stop=stop)
+        self.assertEqual((stop.waits, len(passes)), ([60, 60, 3000, 3000], 2)) # idle while off: no Sharesight request every 5 seconds
+
     def test_a_warming_pass_reads_the_cached_portfolio_list_once(self):
         self.serve_sharesight()
         sharesight.warm_once() # fill the caches

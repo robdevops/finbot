@@ -246,8 +246,8 @@ if __name__ == '__main__':
 			sys.exit(1)
 	if config_telegramBotToken:
 		threading.Thread(target=charts.refresh_keyboards, daemon=True).start() # update stale DM keyboards in the background
-	if config_cache and config_sharesight_auth.get('client_id'):
-		threading.Thread(target=sharesight.keep_warm, daemon=True).start() # keep the portfolio list and holdings report cached
+	if config_sharesight_auth.get('client_id'):
+		threading.Thread(target=sharesight.keep_warm, daemon=True).start() # keep the portfolio list and holdings report cached, while cache is on
 	if scheduler:
 		jobs.current = scheduler # for the .jobs chat command
 		threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs

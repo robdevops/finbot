@@ -245,16 +245,20 @@ def next_due(margin=0.9, portfolios=None):
 		waits.append(0 if age is None else margin * config_performance_cache_seconds - age)
 	return max(0, min(waits))
 
-def keep_warm(min_wait=5, retry=300, stop=None):
+def keep_warm(min_wait=5, retry=300, idle=60, stop=None):
 	"""Background loop: keep the portfolio list and holdings report cached, sleeping until the next one is due (90% of its TTL).
-	Never raises; after a failure it waits `retry` seconds."""
+	While the cache preference is off (a reload can switch it either way) it fetches nothing, since nothing would be written and
+	everything would always be due, and looks again every `idle` seconds. Never raises; after a failure it waits `retry` seconds."""
 	while not (stop and stop.is_set()):
-		try:
-			fetched, portfolios = warm()
-			wait = max(min_wait, next_due(portfolios=portfolios))
-		except Exception as e:
-			print("Sharesight cache refresh failed:", e, file=sys.stderr)
-			wait = retry
+		if not config_cache:
+			wait = idle
+		else:
+			try:
+				fetched, portfolios = warm()
+				wait = max(min_wait, next_due(portfolios=portfolios))
+			except Exception as e:
+				print("Sharesight cache refresh failed:", e, file=sys.stderr)
+				wait = retry
 		if stop:
 			stop.wait(wait)
 		else:
