@@ -88,7 +88,7 @@ def get_portfolios(refresh=False):
 			portfolio_dict[portfolio['name']] = portfolio['id']
 	if not len(portfolio_dict):
 		print("No portfolios found. Exiting.", file=sys.stderr)
-		raise RuntimeError(f"No Sharesight portfolios found")
+		raise RuntimeError("No Sharesight portfolios found")
 	print(portfolio_dict)
 	return portfolio_dict
 

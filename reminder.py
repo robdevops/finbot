@@ -1,19 +1,12 @@
 #!/usr/bin/env python3
 
 import sys
-import json
 import datetime
 import zoneinfo
-from pathlib import Path
 from dateutil.relativedelta import relativedelta
 from lib.config import *
 from lib import util
 from lib import webhook
-
-
-def load_reminders():
-	with open(data_file("reminder.json"), "r", encoding="utf-8") as f:
-		return json.load(f)
 
 
 def lambda_handler():
@@ -26,7 +19,7 @@ def lambda_handler():
 		year = str(localtime.strftime('%Y')) # 2023
 
 		# --- Simple, static one-line reminders loaded from reminders.json ---
-		for reminder in load_reminders():
+		for reminder in data_json("reminder.json", []):
 			if reminder.get("month_day") != month_and_day:
 				continue
 			if reminder.get("year") and reminder["year"] != year:

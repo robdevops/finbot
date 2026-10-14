@@ -2,8 +2,6 @@
 
 import sys
 import os
-from lib.config import *
-from lib import util
 from lib import webhook
 
 if os.isatty(sys.stdin.fileno()):

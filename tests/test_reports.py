@@ -65,6 +65,24 @@ class ReportFunctions(FinbotCase):
     def test_prepare_profile(self):
         self.assertTrue(reports.prepare_profile_payload('telegram', '@u', 'T1'))
 
+    def test_a_profile_leaves_out_what_yahoo_did_not_send(self):
+        """Each of these fields missing (or a zero equity) used to crash the whole profile."""
+        full = market_entry('T1') | {'insiderBuy': 1, 'insiderSell': 0, 'insiderBuyValue': 5e6, 'insiderSellValue': 0, 'netIncomeToCommon': 1e6,
+                                     'sharesOutstanding': 1e6, 'shareholder_equity': 1e9, 'total_debt': 9e8, 'total_cash': 1e8, 'profile_industry': 'Tools'}
+        for missing in ('marketState', 'profile_exchange', 'market_cap', 'currency', 'regularMarketPrice', 'sharesOutstanding', 'percent_change'):
+            with self.subTest(missing=missing):
+                self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: {k: v for k, v in full.items() if k != missing}})
+                self.assertIn('Co T1', reports.prepare_profile_payload('telegram', '@u', 'T1')[0])
+        self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: full | {'shareholder_equity': 0}})
+        self.assertNotIn('Net debt/equity', str(reports.prepare_profile_payload('telegram', '@u', 'T1')))
+
+    def test_a_profile_warns_of_a_ps_ratio_only_above_15(self):
+        for ps, warned in ((12.3, False), (15.1, True)): # forward P/E 99 warns (above 30): its warning used to show on the PS line too
+            with self.subTest(ps=ps):
+                self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'price_to_sales': ps, 'price_to_earnings_forward': 99, 'profile_industry': 'Tools'}})
+                line = next(line for line in reports.prepare_profile_payload('telegram', '@u', 'T1') if 'PS ratio' in line)
+                self.assertEqual('⚠️' in line, warned, line)
+
     def test_prepare_watchlist(self):
         self.assertTrue(reports.prepare_watchlist('telegram', '@u'))
 

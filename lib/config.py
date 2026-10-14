@@ -256,6 +256,14 @@ def data_file(name):
 	user = config_var_dir + '/' + name
 	return user if os.path.isfile(user) else str(REPO_DIR / 'defaults' / name)
 
+def data_json(name, default=None):
+	"""A data file's JSON (the user's copy or the shipped default, as data_file has it), or `default` when there is neither."""
+	path = data_file(name)
+	if not os.path.isfile(path):
+		return default
+	with open(path, encoding="utf-8") as f:
+		return json.load(f)
+
 
 def reload():
 	"""Re-read preferences.conf and apply it everywhere: this module and every module that copied a name with `from lib.config import *`.
@@ -455,10 +463,7 @@ noTradesVerb = [
 	"With your stock picking skills, this is probably for the best"
 ]
 
-filename = data_file('finbot_adr.json')
-if os.path.isfile(filename):
-	with open(filename, "r", encoding="utf-8") as f:
-		primary_listing = json.load(f)
+primary_listing = data_json('finbot_adr.json', {}) # ADR -> its primary listing
 
 yahoo_country = {
 	'Argentina': 'BA',

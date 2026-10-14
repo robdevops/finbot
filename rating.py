@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-import json, re, sys
+import sys
 from lib.config import *
-from lib import sharesight
 from lib import webhook
 from lib import util
 from lib import yahoo
@@ -43,7 +42,7 @@ def lambda_handler(chat_id=config_telegramChatID, specific_stock=None, service=N
 		payload.sort()
 		if payload:
 			if not specific_stock:
-				message = f'Consensus rating changes:'
+				message = 'Consensus rating changes:'
 				message = webhook.bold(message, service)
 				payload.insert(0, message)
 		else:

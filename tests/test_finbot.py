@@ -30,7 +30,7 @@ class Plumbing(FinbotCase):
         self.assertEqual(datetime.datetime(2022, 8, 18, tzinfo=tz).utcoffset(), datetime.timedelta(hours=10))
 
     def test_reminder_runs(self):
-        with mock.patch.object(reminder, 'load_reminders', lambda: []):
+        with mock.patch.object(reminder, 'data_json', lambda name, default=None: []):
             reminder.lambda_handler()
 
     def test_bot_handler(self):

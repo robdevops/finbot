@@ -4,7 +4,6 @@ import json
 import sys
 import threading
 
-from lib.config import *
 from lib import util
 from lib import webhook
 from lib import yahoo

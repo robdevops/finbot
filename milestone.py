@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 
-import json, re, sys
+import sys
 from itertools import groupby
 from lib.config import *
-from lib import sharesight
 from lib import webhook
 from lib import util
 from lib import yahoo

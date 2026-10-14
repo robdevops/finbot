@@ -520,8 +520,10 @@ def prepare_beta_payload(service):
 	chart = {'rows': [row for _, _, row in found], 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
 	return [webhook.bold(heading, service)] + [line for _, line, _ in found], chart
 
+MARKET_STATE_EMOJI = {'REGULAR': '🟢', 'PRE': '🟠', 'POST': '🟠'} # any other state is closed: 🔴
+
 def prepare_profile_payload(service, user, ticker):
-	cashflow = None
+	"""The .SYMBOL report: what Yahoo knows about one company. A field Yahoo did not send leaves its line out."""
 	ticker = ticker_orig = util.transform_to_yahoo(ticker)
 	now = datetime.datetime.now()
 	payload = []
@@ -532,241 +534,139 @@ def prepare_profile_payload(service, user, ticker):
 		print("trying again with", ticker)
 		market_data = yahoo.fetch_detail(ticker, 600)
 		print("")
-	if not market_data:
-		payload = [ f"{user} 🛑 Beep Boop. I could not find {ticker_orig}" ]
-		return payload
-	profile_title = market_data.get(ticker, {}).get('profile_title', '')
-	if 'marketState' in market_data[ticker]:
-		marketState = market_data[ticker]['marketState'].rstrip()
-		if marketState == 'REGULAR':
-			marketStateEmoji = '🟢'
-		elif marketState in {'PRE', 'POST'}:
-			marketStateEmoji = '🟠'
-		else:
-			marketStateEmoji = '🔴'
-	if 'profile_bio' in market_data[ticker]:
-		payload.append(util.make_paragraphs(market_data[ticker]['profile_bio']))
-
-	if 'profile_exchange' in market_data.get(ticker, {}):
-		exchange = market_data.get(ticker).get('profile_exchange')
-		exchange = exchange.replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq').replace('NYSEArca', 'NYSE')
-		swsURL = simplywallst.get_url(ticker, profile_title, exchange)
-		swsLink = util.link(swsURL, 'simplywall.st', service)
-		ticker_link = util.finance_link(ticker, exchange, service, brief=False)
-	macrotrendsURL = 'https://www.google.com/search?q=site:macrotrends.net+' + profile_title + '+PE Ratio+' + ticker.split('.')[0] + '&btnI'
-	macrotrendsLink = util.link(macrotrendsURL, 'macrotrends', service)
-	gfinanceLink = util.gfinance_link(ticker, exchange, service, brief=True, text='google')
-	yahooLink = util.yahoo_link(ticker, service, brief=True, text='yahoo')
+	if ticker not in market_data:
+		return [f"{user} 🛑 Beep Boop. I could not find {ticker_orig}"]
+	data = market_data[ticker]
+	code = ticker.split('.')[0]
+	title = data.get('profile_title', '')
+	state = data.get('marketState', '').rstrip()
+	currency = data.get('currency', '')
+	exchange = data.get('profile_exchange', '').replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq').replace('NYSEArca', 'NYSE')
+	ticker_link = util.finance_link(ticker, exchange, service, brief=False)
+	gfinance_link = util.gfinance_link(ticker, exchange, service, brief=True, text='google') # all three before exchange is renamed below
+	sws_link = util.link(simplywallst.get_url(ticker, title, exchange), 'simplywall.st', service)
+	macrotrends_link = util.link('https://www.google.com/search?q=site:macrotrends.net+' + title + '+PE Ratio+' + code + '&btnI', 'macrotrends', service)
+	if 'profile_bio' in data:
+		payload.append(util.make_paragraphs(data['profile_bio']))
 
 	if exchange == 'ASX':
-		exchangeUrl = 'https://www2.asx.com.au/markets/company/' + ticker.split('.')[0]
-		shortmanUrl = 'https://www.shortman.com.au/stock?q=' + ticker.split('.')[0].lower()
-		shortmanLink = util.link(shortmanUrl, 'shortman', service)
+		exchange_url = 'https://www2.asx.com.au/markets/company/' + code
 	elif exchange == 'HKSE':
-		exchangeUrl = 'https://www.hkex.com.hk/Market-Data/Securities-Prices/Equities/Equities-Quote?sym=' + ticker.split('.')[0] + '&sc_lang=en'
+		exchange_url = 'https://www.hkex.com.hk/Market-Data/Securities-Prices/Equities/Equities-Quote?sym=' + code + '&sc_lang=en'
 	elif 'Nasdaq' in exchange:
-		exchangeUrl = 'https://www.nasdaq.com/market-activity/stocks/' + ticker.lower()
+		exchange_url = 'https://www.nasdaq.com/market-activity/stocks/' + ticker.lower()
 	elif exchange == 'NYSE':
-		exchangeUrl = 'https://www.nyse.com/quote/XNYS:' + ticker
+		exchange_url = 'https://www.nyse.com/quote/XNYS:' + ticker
 	elif exchange == 'Taiwan':
 		exchange = 'TWSE'
-		exchangeUrl = 'https://mis.twse.com.tw/stock/fibest.jsp?stock=' + ticker.split('.')[0] + '&lang=en_us'
+		exchange_url = 'https://mis.twse.com.tw/stock/fibest.jsp?stock=' + code + '&lang=en_us'
 	elif exchange == 'Tokyo':
 		exchange = 'JPX'
-		exchangeUrl = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + ticker.split('.')[0]
+		exchange_url = 'https://quote.jpx.co.jp/jpx/template/quote.cgi?F=tmp/e_stock_detail&MKTN=T&QCODE=' + code
 	else:
-		exchangeUrl = 'https://www.google.com/search?q=stock+exchange+' + exchange + '+' + ticker.split('.')[0] + '&btnI'
-	exchangeLink = util.link(exchangeUrl, exchange, service)
-	location = []
-	if 'profile_city' in market_data[ticker]:
-		location.append(market_data[ticker]['profile_city'])
-	if 'profile_state' in market_data[ticker]:
-		location.append(market_data[ticker]['profile_state'])
-	if 'profile_country' in market_data[ticker]:
-		profile_country = market_data[ticker]['profile_country']
-		location.append(profile_country)
-	if 'profile_website' in market_data[ticker]:
-		website = market_data[ticker]['profile_website']
-		website = util.link(website, util.strip_url(website), service)
+		exchange_url = 'https://www.google.com/search?q=stock+exchange+' + exchange + '+' + code + '&btnI'
+	exchange_link = util.link(exchange_url, exchange, service)
+	location = [data[key] for key in ('profile_city', 'profile_state', 'profile_country') if key in data]
 	if payload:
 		payload.append("")
 
 	if location:
 		payload.append(webhook.bold("Location:", service) + " " + ', '.join(location))
-	if 'profile_industry' in market_data[ticker] and 'profile_sector' in market_data[ticker]:
-		payload.append(webhook.bold("Classification: ", service) + f"{market_data[ticker]['profile_industry']}, {market_data[ticker]['profile_sector']}")
-	if 'profile_employees' in market_data[ticker]:
-		payload.append(webhook.bold("Employees: ", service) + f"{market_data[ticker]['profile_employees']:,}")
-	if 'profile_website' in market_data[ticker]:
+	if 'profile_industry' in data and 'profile_sector' in data:
+		payload.append(webhook.bold("Classification: ", service) + f"{data['profile_industry']}, {data['profile_sector']}")
+	if 'profile_employees' in data:
+		payload.append(webhook.bold("Employees: ", service) + f"{data['profile_employees']:,}")
+	if 'profile_website' in data:
+		links = [util.link(data['profile_website'], util.strip_url(data['profile_website']), service), exchange_link]
 		if 'NYSE' in exchange or 'Nasdaq' in exchange:
-			finvizURL='https://finviz.com/quote.ashx?t=' + ticker
-			seekingalphaURL='https://seekingalpha.com/symbol/' + ticker
-			finvizLink = util.link(finvizURL, 'finviz', service)
-			seekingalphaLink = util.link(seekingalphaURL, 'seekingalpha', service)
-			payload.append(webhook.bold("Links: ", service) + f"{website} | {exchangeLink} | {finvizLink} | {macrotrendsLink} | {seekingalphaLink}")
+			links += [util.link('https://finviz.com/quote.ashx?t=' + ticker, 'finviz', service), macrotrends_link,
+				util.link('https://seekingalpha.com/symbol/' + ticker, 'seekingalpha', service)]
 		elif exchange == 'ASX':
-			payload.append(webhook.bold("Links: ", service) + f"{website} | {exchangeLink} | {shortmanLink}")
-		else:
-			payload.append(webhook.bold("Links: ", service) + f"{website} | {exchangeLink}")
+			links.append(util.link('https://www.shortman.com.au/stock?q=' + code.lower(), 'shortman', service))
+		payload.append(webhook.bold("Links: ", service) + ' | '.join(links))
 
 	if payload:
 		payload.append("")
 
-	if 'currency' in market_data[ticker] and 'market_cap' in market_data[ticker]:
-		currency = market_data[ticker]['currency']
-		market_cap = market_data[ticker]['market_cap']
-		market_cap = util.humanUnits(market_cap)
-		payload.append(webhook.bold("Mkt cap:", service) + f" {currency} {market_cap}")
-	if 'free_cashflow' in market_data[ticker]:
-		cashflow = market_data[ticker]['free_cashflow']
-	elif 'operating_cashflow' in market_data[ticker]:
-		cashflow = market_data[ticker]['operating_cashflow']
-	if 'shareholder_equity' in market_data[ticker] and 'total_debt' in market_data[ticker]:
-		total_debt = market_data[ticker]['total_debt']
-		shareholder_equity = market_data[ticker]['shareholder_equity']
-		if 'profile_industry' in market_data[ticker] and 'total_cash' in market_data[ticker]:
-			if 'Bank' not in market_data[ticker]['profile_industry']:
-				emoji = ''
-				profile_industry = market_data[ticker]['profile_industry']
-				total_cash = market_data[ticker]['total_cash']
-				net_debt_equity_ratio = round(((total_debt - total_cash) / shareholder_equity * 100))
-				if net_debt_equity_ratio > 40:
-					emoji = '⚠️ '
-				if net_debt_equity_ratio > 0:
-					payload.append(webhook.bold("Net debt/equity ratio:", service) + f" {net_debt_equity_ratio}%{emoji}")
-	if 'earnings_date' in market_data[ticker]:
-		earnings_date = datetime.datetime.fromtimestamp(market_data[ticker]['earnings_date'])
-		human_earnings_date = earnings_date.strftime('%b %d')
-
+	if 'currency' in data and 'market_cap' in data:
+		payload.append(webhook.bold("Mkt cap:", service) + f" {currency} {util.humanUnits(data['market_cap'])}")
+	if all(key in data for key in ('shareholder_equity', 'total_debt', 'total_cash', 'profile_industry')) and data['shareholder_equity'] and 'Bank' not in data['profile_industry']:
+		net_debt_equity_ratio = round((data['total_debt'] - data['total_cash']) / data['shareholder_equity'] * 100)
+		if net_debt_equity_ratio > 0:
+			payload.append(webhook.bold("Net debt/equity ratio:", service) + f" {net_debt_equity_ratio}%" + ('⚠️ ' if net_debt_equity_ratio > 40 else ''))
+	if 'earnings_date' in data:
+		earnings_date = datetime.datetime.fromtimestamp(data['earnings_date'])
 		if earnings_date > now:
-			payload.append(webhook.bold("Earnings date:", service) + f" {human_earnings_date}")
+			payload.append(webhook.bold("Earnings date:", service) + f" {earnings_date:%b %d}")
 		else:
-			print("Skipping past earnings:", ticker, human_earnings_date)
-	if 'dividend' in market_data[ticker]:
-		dividend = market_data[ticker]['dividend']
-		if market_data[ticker]['dividend'] > 0:
-			dividend = str(market_data[ticker]['dividend']) + '%'
-			payload.append(webhook.bold("Dividend:", service) + f" {dividend}")
-			if 'ex_dividend_date' in market_data[ticker]:
-				ex_dividend_date = datetime.datetime.fromtimestamp(market_data[ticker]['ex_dividend_date'])
-				human_exdate = ex_dividend_date.strftime('%b %d')
-				if ex_dividend_date > now:
-					payload.append(webhook.bold("Ex-dividend date:", service) + f" {human_exdate}")
-				else:
-					print("Skipping past ex-dividend:", ticker, human_exdate)
+			print("Skipping past earnings:", ticker, f"{earnings_date:%b %d}")
+	if data.get('dividend', 0) > 0:
+		payload.append(webhook.bold("Dividend:", service) + f" {data['dividend']}%")
+		if 'ex_dividend_date' in data:
+			ex_dividend_date = datetime.datetime.fromtimestamp(data['ex_dividend_date'])
+			if ex_dividend_date > now:
+				payload.append(webhook.bold("Ex-dividend date:", service) + f" {ex_dividend_date:%b %d}")
+			else:
+				print("Skipping past ex-dividend:", ticker, f"{ex_dividend_date:%b %d}")
+	cashflow = data.get('free_cashflow', data.get('operating_cashflow'))
 	if cashflow:
-		if cashflow < 0:
-			payload.append(webhook.bold("Cashflow positive:", service) + " no ⚠️ ")
-		else:
-			payload.append(webhook.bold("Cashflow positive:", service) + " yes")
-	if 'net_income' in market_data[ticker]:
-		if market_data[ticker]['net_income'] <= 0:
-			payload.append(webhook.bold("Profitable:", service) + " no ⚠️ ")
-		else:
-			payload.append(webhook.bold("Profitable:", service) + " yes")
+		payload.append(webhook.bold("Cashflow positive:", service) + (" no ⚠️ " if cashflow < 0 else " yes"))
+	if 'net_income' in data:
+		payload.append(webhook.bold("Profitable:", service) + (" no ⚠️ " if data['net_income'] <= 0 else " yes"))
 	else:
 		payload.append(webhook.bold("Profitable:", service) + " unknown ⚠️")
 
 	if payload:
 		payload.append("")
 
-	if 'earningsQ' in market_data[ticker]:
-		deltas = [(doDelta(market_data[ticker][key]), label) for key, label in (('revenueQ', 'quarterly revenue'), ('earningsQ', 'quarterly earnings'),
+	if 'earningsQ' in data:
+		deltas = [(doDelta(data[key]), label) for key, label in (('revenueQ', 'quarterly revenue'), ('earningsQ', 'quarterly earnings'),
 			('revenueY', 'annual revenue'), ('earningsY', 'annual earnings'))]
 		payload += [f"{delta}\t{label} delta" for delta, label in deltas] # doDelta always gives at least three symbols
 
 	if payload:
 		payload.append("")
 
-	if 'revenueEstimateY' in market_data[ticker]:
-		emoji = ''
-		revenueEstimateY = int(round(market_data[ticker]['revenueEstimateY']))
-		if revenueEstimateY <= 0:
-			emoji = '⚠️ '
-			prefix = ''
-		else:
-			prefix='+'
-		payload.append(webhook.bold("Revenue forecast (1Y):", service) + f" {prefix}{revenueEstimateY}% {emoji}")
-	if 'earningsEstimateY' in market_data[ticker]:
-		emoji = ''
-		prefix = ''
-		earningsEstimateY = int(round(market_data[ticker]['earningsEstimateY']))
-		if earningsEstimateY <= 0:
-			emoji = '⚠️ '
-		else:
-			prefix='+'
-		payload.append(webhook.bold("Earnings forecast (1Y):", service) + f" {prefix}{earningsEstimateY}% {emoji}")
-	if 'insiderBuy' in market_data[ticker]:
-		emoji=''
-		insiderBuy = market_data[ticker]['insiderBuy']
-		insiderSell = market_data[ticker]['insiderSell']
-		insiderBuyValue = market_data[ticker]['insiderBuyValue']
-		insiderSellValue = market_data[ticker]['insiderSellValue']
-		if insiderBuy > insiderSell:
-			action = 'Buy'
-			humanValue = util.humanUnits(insiderBuyValue)
-			payload.append(webhook.bold("Net insider action (3M):", service) + f" {action} {currency} {humanValue} {emoji}")
-		elif insiderBuy < insiderSell:
-			emoji = '⚠️ '
-			action = 'Sell'
-			humanValue = util.humanUnits(insiderSellValue)
-			payload.append(webhook.bold("Net insider action (3M):", service) + f" {action} {currency} {humanValue}{emoji}")
-	if 'short_percent' in market_data[ticker]:
-		emoji=''
-		short_percent = market_data[ticker]['short_percent']
-		if short_percent > 10:
-			emoji = '⚠️ '
-		payload.append(webhook.bold("Shorted stock:", service) + f" {short_percent}%{emoji}")
-	if 'recommend' in market_data[ticker]:
-		recommend = market_data[ticker]['recommend'].replace('_', ' ')
-		recommend_index = market_data[ticker]['recommend_index']
-		recommend_analysts = market_data[ticker]['recommend_analysts']
-		payload.append(webhook.bold("Score:", service) + f" {recommend_index} {recommend} ({recommend_analysts} analysts)")
+	for key, label in (('revenueEstimateY', 'Revenue forecast (1Y):'), ('earningsEstimateY', 'Earnings forecast (1Y):')):
+		if key in data:
+			growth = int(round(data[key]))
+			payload.append(webhook.bold(label, service) + (f" +{growth}% " if growth > 0 else f" {growth}% ⚠️ "))
+	if 'insiderBuy' in data:
+		if data['insiderBuy'] > data['insiderSell']:
+			payload.append(webhook.bold("Net insider action (3M):", service) + f" Buy {currency} {util.humanUnits(data['insiderBuyValue'])} ")
+		elif data['insiderBuy'] < data['insiderSell']:
+			payload.append(webhook.bold("Net insider action (3M):", service) + f" Sell {currency} {util.humanUnits(data['insiderSellValue'])}⚠️ ")
+	if 'short_percent' in data:
+		payload.append(webhook.bold("Shorted stock:", service) + f" {data['short_percent']}%" + ('⚠️ ' if data['short_percent'] > 10 else ''))
+	if 'recommend' in data:
+		payload.append(webhook.bold("Score:", service) + f" {data['recommend_index']} {data['recommend'].replace('_', ' ')} ({data['recommend_analysts']} analysts)")
 
 	if payload:
 		payload.append("")
 
-	if 'regularMarketPrice' in market_data[ticker]:
-		regularMarketPrice = market_data[ticker]['regularMarketPrice']
-		currency = market_data.get(ticker, {}).get('currency')
-		prePostMarketPrice = None
-		marketState = market_data[ticker]['marketState']
-		if marketState != 'REGULAR' and 'prePostMarketPrice' in market_data[ticker]:
-			prePostMarketPrice = market_data.get(ticker, {}).get('prePostMarketPrice')
-			payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice:,.2f} ({prePostMarketPrice:,.2f} after hrs)")
-		else:
-			payload.append(webhook.bold("Price:", service) + f" {currency} {regularMarketPrice:,.2f}" )
-	if 'price_to_earnings_trailing' in market_data[ticker]:
-		trailingPe = str(int(round(market_data[ticker]['price_to_earnings_trailing'])))
-	else:
-		trailingPe = 'N/A ⚠️ '
-	if 'net_income' in market_data[ticker] and market_data[ticker]['net_income'] > 0:
-		payload.append(webhook.bold("Trailing P/E:", service) + f" {trailingPe}")
-	if 'netIncomeToCommon' in market_data[ticker] and market_data[ticker]['netIncomeToCommon'] > 0:
-		currentPe = round(market_data[ticker]['regularMarketPrice'] / (market_data[ticker]['netIncomeToCommon'] / market_data[ticker]['sharesOutstanding']))
-		payload.append(webhook.bold("Current P/E:", service) + f" {currentPe}")
-	if 'price_to_earnings_forward' in market_data[ticker]:
-		forwardPe = int(round(market_data[ticker]['price_to_earnings_forward']))
-		emoji=''
-		if 'profile_industry' in market_data[ticker]:
-			profile_industry = market_data[ticker]['profile_industry']
-			if 'Software' in profile_industry and forwardPe > 100:
-				emoji = '⚠️ '
-			elif 'Software' not in profile_industry and forwardPe > 30:
-				emoji = '⚠️ '
-			if 'price_to_earnings_trailing' in market_data[ticker] and forwardPe > int(trailingPe):
-				emoji = '⚠️ '
-		if forwardPe < 0:
-				emoji = '⚠️ '
-		payload.append(webhook.bold("Forward P/E:", service) + f" {str(forwardPe)} {emoji}")
-	if 'price_to_earnings_peg' in market_data[ticker]:
-		peg = round(market_data[ticker]['price_to_earnings_peg'], 1)
-		payload.append(webhook.bold("PEG ratio:", service) + f" {str(peg)}")
-	if 'price_to_sales' in market_data[ticker]:
-		price_to_sales = round(market_data[ticker]['price_to_sales'], 1)
-		if price_to_sales > 15:
-				emoji = '⚠️ '
-		payload.append(webhook.bold("PS ratio:", service) + f" {str(price_to_sales)} {emoji}")
+	if 'regularMarketPrice' in data:
+		price_line = webhook.bold("Price:", service) + f" {currency} {data['regularMarketPrice']:,.2f}"
+		if state != 'REGULAR' and 'prePostMarketPrice' in data:
+			price_line += f" ({data['prePostMarketPrice']:,.2f} after hrs)"
+		payload.append(price_line)
+	trailing_pe = str(int(round(data['price_to_earnings_trailing']))) if 'price_to_earnings_trailing' in data else 'N/A ⚠️ '
+	if data.get('net_income', 0) > 0:
+		payload.append(webhook.bold("Trailing P/E:", service) + f" {trailing_pe}")
+	if data.get('netIncomeToCommon', 0) > 0 and data.get('sharesOutstanding') and 'regularMarketPrice' in data:
+		current_pe = round(data['regularMarketPrice'] / (data['netIncomeToCommon'] / data['sharesOutstanding']))
+		payload.append(webhook.bold("Current P/E:", service) + f" {current_pe}")
+	if 'price_to_earnings_forward' in data:
+		forward_pe = int(round(data['price_to_earnings_forward']))
+		warn = forward_pe < 0
+		if 'profile_industry' in data: # software is dear: it warns above 100, the rest above 30 or above their trailing P/E
+			warn = warn or forward_pe > (100 if 'Software' in data['profile_industry'] else 30)
+			warn = warn or ('price_to_earnings_trailing' in data and forward_pe > int(trailing_pe))
+		payload.append(webhook.bold("Forward P/E:", service) + f" {forward_pe} " + ('⚠️ ' if warn else ''))
+	if 'price_to_earnings_peg' in data:
+		payload.append(webhook.bold("PEG ratio:", service) + f" {round(data['price_to_earnings_peg'], 1)}")
+	if 'price_to_sales' in data:
+		price_to_sales = round(data['price_to_sales'], 1)
+		payload.append(webhook.bold("PS ratio:", service) + f" {price_to_sales} " + ('⚠️ ' if price_to_sales > 15 else ''))
 
 	if payload:
 		payload.append("")
@@ -779,30 +679,22 @@ def prepare_profile_payload(service, user, ticker):
 	for interval in ('5Y', '1Y', '1M', '1D'):
 		if interval in price_history:
 			percent = price_history[interval]
-			emoji = util.get_emoji(percent)
-			payload.append(f"{emoji} {webhook.bold(interval + ':', service)} {percent}%")
-	percent_change = market_data[ticker]['percent_change']
-	marketState = market_data[ticker]['marketState']
-	if marketState != 'REGULAR' and 'percent_change_premarket' in market_data[ticker]:
-		percent_change_premarket = market_data[ticker]['percent_change_premarket']
-		emoji = util.get_emoji(percent_change_premarket)
-		payload.append(f"{emoji} {webhook.bold('Pre-market:', service)} {percent_change_premarket:,}%")
-	elif marketState != 'REGULAR' and 'percent_change_postmarket' in market_data[ticker]:
-		percent_change_postmarket = market_data[ticker]['percent_change_postmarket']
-		emoji = util.get_emoji(percent_change_postmarket)
-		payload.append(f"{emoji} {webhook.bold('Post-market:', service)} {percent_change_postmarket:,}%")
+			payload.append(f"{util.get_emoji(percent)} {webhook.bold(interval + ':', service)} {percent}%")
+	if state != 'REGULAR':
+		for key, label in (('percent_change_premarket', 'Pre-market:'), ('percent_change_postmarket', 'Post-market:')):
+			if key in data:
+				payload.append(f"{util.get_emoji(data[key])} {webhook.bold(label, service)} {data[key]:,}%")
+				break
 
-	if 'profile_website' in market_data[ticker] and config_hyperlinkFooter and config_hyperlink:
-		footer = f"{gfinanceLink} | {yahooLink} | {swsLink}"
-		if payload and footer:
+	if 'profile_website' in data and config_hyperlinkFooter and config_hyperlink:
+		if payload:
 			payload.append("")
-		payload.append(footer)
+		payload.append(f"{gfinance_link} | {util.yahoo_link(ticker, service, brief=True, text='yahoo')} | {sws_link}")
+	heading = f"{webhook.bold(title, service)} ({ticker_link}) {MARKET_STATE_EMOJI.get(state, '🔴') if state else ''}"
 	if ticker_orig == ticker:
-		payload.insert(0, f"{webhook.bold(profile_title, service)} ({ticker_link}) {marketStateEmoji}")
+		payload.insert(0, heading)
 	else:
-		payload.insert(0, f"I could not find {ticker_orig} but I found {ticker_link}:")
-		payload.insert(1, "")
-		payload.insert(2, f"{webhook.bold(profile_title, service)} ({ticker_link}) {marketStateEmoji}")
+		payload[:0] = [f"I could not find {ticker_orig} but I found {ticker_link}:", "", heading]
 	payload = [i[0] for i in groupby(payload)] # de-dupe white space
 	if len(payload) < 2:
 		payload.append("no data found")
