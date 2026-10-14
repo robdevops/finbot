@@ -223,6 +223,18 @@ if __name__ == '__main__':
 		print('config:', line, file=sys.stderr)
 	if os.getuid() == 0:
 		print("Running as superuser. This is not recommended.", file=sys.stderr)
+	if config_scheduler: # read before anything else happens: an impossible time in it stops the start
+		scheduler = jobs.Scheduler(lambda: data_file('schedule.cron'))
+		try:
+			if not scheduler.load():
+				scheduler = None
+		except jobs.ImpossibleTime as e:
+			for line in e.lines:
+				print('ERROR schedule:', line, file=sys.stderr)
+			print('ERROR schedule: finbot will not start until every time in the schedule can come', file=sys.stderr)
+			sys.exit(1)
+	else:
+		print('Scheduled reports are off (scheduler=False)', file=sys.stderr)
 	httpd = pywsgi.WSGIServer((config_ip, config_port), main)
 	httpd.secure_repr = False if debug else None
 	print(f'Opening socket on http://{config_ip}:{config_port}', file=sys.stderr)
@@ -236,15 +248,9 @@ if __name__ == '__main__':
 		threading.Thread(target=charts.refresh_keyboards, daemon=True).start() # update stale DM keyboards in the background
 	if config_cache and config_sharesight_auth.get('client_id'):
 		threading.Thread(target=sharesight.keep_warm, daemon=True).start() # keep the portfolio list and holdings report cached
-	if config_scheduler:
-		scheduler = jobs.Scheduler(lambda: data_file('schedule.cron'))
-		if scheduler.load():
-			jobs.current = scheduler # for the .jobs chat command
-			threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
-		else:
-			scheduler = None
-	else:
-		print('Scheduled reports are off (scheduler=False)', file=sys.stderr)
+	if scheduler:
+		jobs.current = scheduler # for the .jobs chat command
+		threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	gevent.signal_handler(signal.SIGHUP, reload_all) # startup is done. systemctl reload finbot: pick up edited preferences.conf and schedule.cron
 	try:
 		httpd.serve_forever()

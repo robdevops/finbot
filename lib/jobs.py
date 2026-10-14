@@ -18,7 +18,7 @@ from pathlib import Path
 
 import gevent
 from gevent import subprocess
-from croniter import croniter
+from croniter import croniter, CroniterBadDateError
 
 from lib.config import *
 from lib import config
@@ -73,6 +73,14 @@ def display(label):
 
 class ScheduleError(ValueError):
 	pass
+
+
+class ImpossibleTime(ScheduleError):
+	"""A time that cannot be (minute 61) or never comes (30 February). Other bad lines are reported and skipped, but this refuses the
+	whole file: finbot does not start with it, and a reload keeps the schedule that is running. `lines` says where, one per line."""
+	def __init__(self, lines):
+		self.lines = [lines] if isinstance(lines, str) else list(lines)
+		super().__init__('; '.join(self.lines))
 
 
 @dataclass
@@ -177,7 +185,7 @@ def parse_command(text):
 
 
 def parse_schedule(text, default_zone=None):
-	"""(jobs, errors): errors are (line number, line, message) for the lines that were skipped."""
+	"""(jobs, errors): errors are (line number, line, ScheduleError) for the lines that were skipped."""
 	zone = default_zone or local_zone()
 	jobs, errors = [], []
 	for number, raw in enumerate(text.splitlines(), 1):
@@ -202,13 +210,19 @@ def parse_schedule(text, default_zone=None):
 				if len(fields) < 6:
 					raise ScheduleError('expected five time fields and a command')
 				expr, rest = ' '.join(fields[:5]), fields[5]
+			if expr == '@reboot':
+				raise ScheduleError('@reboot is not supported: the schedule starts with the bot')
 			if not croniter.is_valid(expr):
-				raise ScheduleError(f"bad time '{expr}'")
+				raise ImpossibleTime(f"bad time '{expr}'")
+			try:
+				croniter(expr, datetime.datetime(2000, 1, 1)).get_next(datetime.datetime)
+			except CroniterBadDateError:
+				raise ImpossibleTime(f"'{expr}' never comes: no date matches it")
 			commands = parse_command(rest)
 			key = f"{expr}|{zone.key}|{';'.join(label for label, _, _ in commands)}"
 			jobs.append(Job(expr, commands, zone, line, key))
 		except ScheduleError as e:
-			errors.append((number, line, str(e)))
+			errors.append((number, line, e))
 	return jobs, errors
 
 
@@ -230,15 +244,19 @@ class Scheduler:
 		self.busy = set() # labels of the commands running now, scheduled or manual
 
 	def load(self):
-		"""Read the schedule file. A file with no usable line keeps the schedule that is running."""
+		"""Read the schedule file. A line with an impossible time refuses the whole file: ImpossibleTime is raised, naming every such
+		line, and nothing changes. Other bad lines are reported and skipped; a file with no usable line keeps the schedule that is
+		running."""
 		path = self.path()
 		try:
 			jobs, errors = parse_schedule(Path(path).read_text(encoding='utf-8'), self.zone)
 		except OSError as e:
 			webhook.report_error(e, context='schedule')
 			return False
-		for number, line, message in errors:
-			webhook.report_error(ScheduleError(f'{path} line {number}: {message}: {line}'), context='schedule')
+		if impossible := [f'{path} line {number}: {error}: {line}' for number, line, error in errors if isinstance(error, ImpossibleTime)]:
+			raise ImpossibleTime(impossible)
+		for number, line, error in errors:
+			webhook.report_error(ScheduleError(f'{path} line {number}: {error}: {line}'), context='schedule')
 		if not jobs and self.jobs:
 			print('schedule: no usable line in', path, '- keeping the current schedule', file=sys.stderr)
 			return False
@@ -258,7 +276,11 @@ class Scheduler:
 		return True
 
 	def reload(self, *args):
-		self.load()
+		"""SIGHUP: read the edited file. One with an impossible time is refused and reported; the running schedule carries on."""
+		try:
+			self.load()
+		except ImpossibleTime as e:
+			webhook.report_error(ScheduleError(f'not reloaded, the running schedule is unchanged: {e}'), context='schedule')
 
 	def start_base(self, job, now):
 		"""Where to count from at start: a run missed within the catch-up window fires once; with no record, nothing is missed."""

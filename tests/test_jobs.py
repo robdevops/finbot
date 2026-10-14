@@ -1,5 +1,5 @@
 """The in-process scheduler (lib/jobs.py): schedule file parsing, each script's job(argv), and firing with a fake clock."""
-import datetime, hashlib, json, os, subprocess, sys, tempfile, time, unittest, zoneinfo
+import contextlib, datetime, hashlib, io, json, os, subprocess, sys, tempfile, time, unittest, zoneinfo
 from pathlib import Path
 from unittest import mock
 import gevent
@@ -73,6 +73,15 @@ class ParseTests(unittest.TestCase):
         parsed, errors = jobs.parse_schedule(text, UTC)
         self.assertEqual([j.expr for j in parsed], ['5 4 * * *'])
         self.assertEqual([number for number, _, _ in errors], [1, 2, 3, 4, 5, 6])
+
+    def test_impossible_times_are_marked_and_reboot_is_just_unsupported(self):
+        for line in ('0 0 30 2 * trades.py', '0 9 31 4,6,9,11 * trades.py', '61 1 * * * trades.py', '0 0 * 13 * trades.py', '@bogus trades.py'):
+            parsed, errors = jobs.parse_schedule(line + '\n', UTC)
+            self.assertEqual(parsed, [], line)
+            self.assertIsInstance(errors[0][2], jobs.ImpossibleTime, line)
+        parsed, errors = jobs.parse_schedule('@reboot trades.py\n0 0 29 2 * trades.py\n', UTC)
+        self.assertEqual([j.expr for j in parsed], ['0 0 29 2 *']) # a leap day does come
+        self.assertNotIsInstance(errors[0][2], jobs.ImpossibleTime)
 
     def test_cron_tz_applies_to_the_lines_below(self):
         parsed, _ = jobs.parse_schedule('1 1 * * * trades.py\nCRON_TZ=Australia/Melbourne\n2 2 * * * trades.py\nCRON_TZ=Nowhere/Land\n', UTC)
@@ -297,6 +306,21 @@ class SchedulerTests(SchedulerBase):
         self.assertFalse(s.load())
         self.assertEqual(len(s.jobs), 2)
 
+    def test_an_impossible_time_refuses_the_whole_file(self):
+        s = self.scheduler()
+        self.file.write_text('*/20 * * * Mon-Fri trades.py\n0 9 30 2 * shorts.py\n5 4 * * * nothere.py\n')
+        with self.assertRaises(jobs.ImpossibleTime) as caught:
+            s.load()
+        self.assertEqual(len(caught.exception.lines), 1)
+        self.assertIn("line 2: '0 9 30 2 *' never comes", caught.exception.lines[0])
+        self.assertEqual(self.errors, []) # load reports nothing for a refused file...
+        s.reload() # ...a reload says why it was refused, and the running schedule carries on
+        self.assertEqual(len(self.errors), 1)
+        self.assertIn('not reloaded, the running schedule is unchanged', self.errors[0])
+        self.assertEqual([j.text for j in s.jobs], ['*/20 * * * Mon-Fri trades.py'])
+        self.clock.now = at(13, 21, 20)
+        self.assertEqual(len(s.due(self.clock.now)), 1)
+
     def test_load_reports_bad_lines_once_and_runs_the_rest(self):
         self.file.write_text('0 1 * * * nothere.py\n*/20 * * * * trades.py\n')
         s = self.scheduler()
@@ -316,6 +340,17 @@ class SchedulerTests(SchedulerBase):
                 s.run_forever()
         self.assertEqual(calls, [30, 30, 30])
         self.assertTrue(any('tick failed' in e for e in self.errors))
+
+
+class StartupRefusal(unittest.TestCase):
+    def test_the_bot_will_not_start_with_an_impossible_time(self):
+        with tempfile.TemporaryDirectory() as data:
+            Path(data, 'schedule.cron').write_text('*/20 * * * Mon-Fri trades.py\n0 9 31 6 * price.py close\n')
+            env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS}
+            env.update(DATA_DIR=data, port='0')
+            out = subprocess.run([sys.executable, 'bot.py'], cwd=ROOT, env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn(f"ERROR schedule: {data}/schedule.cron line 2: '0 9 31 6 *' never comes", out.stderr)
 
 
 class ManualRuns(SchedulerBase):
