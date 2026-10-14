@@ -178,7 +178,7 @@ You can also specify a portfolio name to get trades for just that portfolio:
 
 `prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 5% but you can change it by setting `price_percent` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
-If `demote_volatile` is `true`, stocks with a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) under 150M, or a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a market cap of under 1B will have their alert threshold (`price_percent`) doubled.
+If `demote_volatile` is `true`, stocks with a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) under US$150M, or a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a market cap of under US$1B will have their alert threshold (`price_percent`) doubled. A market cap in another currency is converted at Yahoo's exchange rate.
 
 Config example:
 ```
@@ -347,7 +347,7 @@ Interactive trigger:
 ### Buy
 ![Buy ratings in Slack](img/finbot_buy.png?raw=true "Buy ratings in Slack")
 
-Show top recommended buys by Yahoo Finance analysts rating
+Show top recommended buys by Yahoo Finance analysts rating, among stocks rated by 7 or more analysts (with fewer, the consensus says little: thinly covered small caps are nearly all a perfect buy)
 
 Interactive trigger:
 ```
@@ -360,7 +360,7 @@ Interactive trigger:
 ### Sell
 ![Rating report in Slack](img/finbot_sell.png?raw=true "Rating report in Slack")
 
-Show top recommended sells by Yahoo Finance analysts rating
+Show top recommended sells by Yahoo Finance analysts rating, among stocks rated by 7 or more analysts
 
 Interactive trigger:
 ```
@@ -373,14 +373,14 @@ Interactive trigger:
 ### Marketcap
 ![Marketcap report in Slack](img/finbot_marketcap.png?raw=true "Marketcap report in Slack")
 
-List the top (or bottom) stocks by market cap
+List the top (or bottom) stocks by market cap, in US dollars: market caps in other currencies are converted at Yahoo's exchange rates. With a symbol, its market cap in its own currency and in US dollars.
 
 Interactive trigger:
 ```
-.marketcap [top|bottom]
+.marketcap [top|bottom|SYMBOL]
 ```
 ```
-@botname marketcap [top|bottom]
+@botname marketcap [top|bottom|SYMBOL]
 ```
 
 ### Consensus rating changes

@@ -50,9 +50,10 @@ class ReportFunctions(FinbotCase):
             self.assertTrue(reports.prepare_rating_payload('telegram', action, length=5)[0])
 
     def test_ratings_list_the_strongest_first(self):
-        """1 is a strong buy and 5 a strong sell: .sell used to list the mildest sells first. On equal ratings, more analysts first."""
-        ratings = {'T1': ('buy', 1.5, 3), 'T2': ('strong_buy', 1.2, 2), 'T3': ('buy', 1.5, 9),
-                   'T4': ('sell', 4.2, 3), 'T5': ('underperform', 4.6, 2), 'T6': ('sell', 4.2, 8)}
+        """1 is a strong buy and 5 a strong sell: .sell used to list the mildest sells first. On equal ratings, more analysts first;
+        fewer than 7 analysts and the stock is left out (T7, T8: the ASX small caps that are always a perfect 1.0)."""
+        ratings = {'T1': ('buy', 1.5, 7), 'T2': ('strong_buy', 1.2, 12), 'T3': ('buy', 1.5, 9), 'T7': ('strong_buy', 1.0, 6),
+                   'T4': ('sell', 4.2, 7), 'T5': ('underperform', 4.6, 10), 'T6': ('sell', 4.2, 8), 'T8': ('strong_buy', 1.0, 2)}
         self.patch(util, 'get_holdings_and_watchlist', lambda: list(ratings))
         self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | dict(zip(('recommend', 'recommend_index', 'recommend_analysts'), ratings[t]))})
         def order(action):
@@ -60,6 +61,37 @@ class ReportFunctions(FinbotCase):
             return [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], [label for label, _ in chart['rows']]
         self.assertEqual(order('buy'), (['T2', 'T3', 'T1'], ['T2', 'T3', 'T1']))
         self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
+        self.assertIn('(7+ analysts)', reports.prepare_rating_payload('telegram', 'buy')[0][0])
+        self.patch(util, 'get_holdings_and_watchlist', lambda: ['T7', 'T8'])
+        self.assertEqual(reports.prepare_rating_payload('telegram', 'buy'), (['No tracked stocks rated buy by 7+ analysts'], None))
+
+    def test_a_small_cap_quoted_in_won_needs_the_bigger_move_too(self):
+        """demote_volatile compares market caps in US dollars: unconverted, a small cap quoted in won was never small."""
+        self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | ({'regularMarketPrice': 1380.0} if t == 'KRW=X' else {'currency': 'KRW', 'market_cap': 1e11}) for t in ts})
+        self.patch(price, 'config_demote_volatile', True)
+        quote = price.gather()[1]['T1']
+        self.assertAlmostEqual(quote['market_cap_usd'], 1e11 / 1380.0) # US$72M
+        self.assertEqual(price.trigger_bar('T1', quote, 5), 5 * price.config_volatility_multiplier)
+
+    def test_market_caps_compare_in_us_dollars(self):
+        """Yahoo gives a market cap in the stock's own currency: unconverted, a won market cap topped every list."""
+        stocks = {'K1.KS': ('KRW', 1.01e15), 'K2.KS': ('KRW', 5e11), 'U1': ('USD', 5.39e12), 'L1.L': ('GBp', 6.25e10), 'Z1': ('XYZ', 1e12)}
+        fx = {'KRW=X': 1380.0, 'GBP=X': 0.79} # units per US dollar; nothing for XYZ
+        def fetch(tickers):
+            return {t: market_entry(t) | {'regularMarketPrice': fx[t]} if t in fx else market_entry(t) | {'currency': stocks[t][0], 'market_cap': stocks[t][1], 'beta': 2.0}
+                    for t in tickers if t in fx or t in stocks}
+        self.patch(yahoo, 'fetch', fetch)
+        self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: fetch([t]))
+        self.patch(util, 'get_holdings_and_watchlist', lambda: list(stocks))
+        payload = reports.prepare_marketcap_payload('telegram')
+        self.assertIn('by market cap (USD)', payload[0])
+        self.assertEqual([line.split('Co ')[1].split(' ')[0] for line in payload[1:]], ['U1', 'K1.KS', 'L1.L', 'K2.KS']) # Z1: no rate, left out
+        self.assertIn('mkt cap: 731.88 B', payload[2]) # 1.01 Q won
+        self.assertIn('mkt cap: KRW 1.01 Q (USD 731.88 B)', reports.prepare_marketcap_payload('telegram', 'K1.KS')[0])
+        self.assertIn('mkt cap: GBP 62.50 B (USD 79.11 B)', reports.prepare_marketcap_payload('telegram', 'L1.L')[0]) # pence quote, pound cap
+        beta = reports.prepare_beta_payload('telegram')[0]
+        self.assertIn('Co K2.KS', str(beta)) # 500 billion won is US$362M: a small cap, which it never was unconverted
+        self.assertNotIn('Co K1.KS', str(beta))
 
     def test_prepare_value(self):
         for action, heading in (('pe', 'Top 5 tracked stocks by pe ratio'), ('bottom forward pe', 'Bottom 5 tracked stocks by forward pe ratio'),
@@ -73,7 +105,7 @@ class ReportFunctions(FinbotCase):
         self.assertIn('Beta over 1.5', payload[0])
         self.assertEqual(len(chart['rows']), len(payload) - 1) # a bar per stock listed
         self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'beta': 1.0}})
-        self.assertEqual(reports.prepare_beta_payload('telegram'), (['No tracked stocks have a beta over 1.5 and mkt cap under 2B'], None))
+        self.assertEqual(reports.prepare_beta_payload('telegram'), (['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None))
 
     def test_prepare_profile(self):
         self.assertTrue(reports.prepare_profile_payload('telegram', '@u', 'T1'))

@@ -15,6 +15,8 @@ def gather(specific_stock=None, days=None):
 	Sharesight has none for (the watchlist) their Yahoo history, fetched together up front."""
 	tickers = [util.transform_to_yahoo(specific_stock)] if specific_stock else util.get_holdings_and_watchlist()
 	market_data = yahoo.fetch(tickers)
+	if config_demote_volatile: # trigger_bar compares market caps, in US dollars
+		yahoo.add_usd_market_caps(market_data)
 	# Sharesight reports a holding's performance only for the time it was held: held for 1Y and asked for 5Y, it gives 1Y
 	if days and (not specific_stock or config_performance_use_sharesight):
 		for data in sharesight.get_performance_wrapper(days).values():
@@ -30,11 +32,11 @@ def gather(specific_stock=None, days=None):
 
 def trigger_bar(ticker, quote, threshold):
 	"""The move this ticker needs before it alone sends a scheduled report: more for leveraged ETFs (demote_leveraged) and volatile
-	small caps (demote_volatile), else the threshold itself."""
+	small caps (demote_volatile; their market caps in US dollars), else the threshold itself."""
 	title = quote['profile_title'].lower()
 	if config_demote_leveraged and ('2x' in title or '3x' in title):
 		return threshold * 1.3
-	cap = quote.get('market_cap')
+	cap = quote.get('market_cap_usd')
 	if config_demote_volatile and cap is not None and cap < 1e9:
 		if cap < 1e7:
 			return threshold * config_volatility_multiplier * 1.3

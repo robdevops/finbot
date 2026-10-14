@@ -325,7 +325,7 @@ def on_rating(request, m):
 	action = m.group(1).lower()
 	with request.typing():
 		payload, chart = reports.prepare_rating_payload(request.service, action, length=15)
-	request.deliver(payload or [f"No stocks meet {action} criteria"], chart)
+	request.deliver(payload, chart)
 
 def on_compare(request, m):
 	with request.typing():

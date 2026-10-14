@@ -353,32 +353,39 @@ def prepare_pie(portfolio_name, by, service, max_slices=8):
 	return payload, {'pie': True, 'rows': rows, 'title': title, 'subtitle': subtitle}
 
 def prepare_marketcap_payload(service, action='top', length=15):
-	"""The `length` tracked stocks of largest (action 'top') or smallest ('bottom') market cap; any other action is one ticker's."""
+	"""The `length` tracked stocks of largest (action 'top') or smallest ('bottom') market cap, compared in US dollars at Yahoo's
+	exchange rates: a market cap in won or yen is a far bigger number. Any other action is one ticker's, in its own currency too."""
 	if action not in ('top', 'bottom'):
 		ticker = util.transform_to_yahoo(action.upper())
-		data = yahoo.fetch_detail(ticker, 600).get(ticker, {})
+		data = yahoo.add_usd_market_caps(yahoo.fetch_detail(ticker, 600)).get(ticker, {})
 		if 'market_cap' not in data:
 			return [f"Mkt cap not found for {ticker}"]
+		currency = yahoo.market_cap_currency(data) or ''
+		cap = f"{currency} {util.humanUnits(data['market_cap'])}".strip()
+		if currency != 'USD' and 'market_cap_usd' in data:
+			cap += f" (USD {util.humanUnits(data['market_cap_usd'])})"
 		link = util.finance_link(ticker, data.get('profile_exchange', ''), service)
-		return [util.security_line(util.flag_from_ticker(ticker), data.get('profile_title', ticker), link) + f" mkt cap: {util.humanUnits(data['market_cap'])}"]
-	caps = [] # (market cap, line)
-	for ticker, data in yahoo.fetch(util.get_holdings_and_watchlist()).items():
-		if 'market_cap' not in data:
-			print(ticker, "no market cap", file=sys.stderr)
+		return [util.security_line(util.flag_from_ticker(ticker), data.get('profile_title', ticker), link) + f" mkt cap: {cap}"]
+	caps = [] # (market cap in US dollars, line)
+	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch(util.get_holdings_and_watchlist())).items():
+		if 'market_cap_usd' not in data:
+			print(ticker, "no market cap" if 'market_cap' not in data else f"no exchange rate for {data.get('currency')}", file=sys.stderr)
 			continue
 		link = util.finance_link(ticker, data['profile_exchange'], service)
-		caps.append((data['market_cap'], util.security_line(util.flag_from_ticker(ticker), data['profile_title'], link) + f" mkt cap: {util.humanUnits(data['market_cap'])}"))
+		caps.append((data['market_cap_usd'], util.security_line(util.flag_from_ticker(ticker), data['profile_title'], link) + f" mkt cap: {util.humanUnits(data['market_cap_usd'])}"))
 	if not caps:
 		return ['No market cap data found']
 	caps.sort(key=lambda cap: cap[0], reverse=action == 'top')
-	return [webhook.bold(f'{action.title()} {length} tracked stocks by market cap', service)] + [line for _, line in caps[:length]]
+	return [webhook.bold(f'{action.title()} {length} tracked stocks by market cap (USD)', service)] + [line for _, line in caps[:length]]
+
+MIN_ANALYSTS = 7 # fewer, and a consensus says little: ASX small caps covered by two to six brokers are nearly all a perfect 1.0 buy
 
 def prepare_rating_payload(service, action, length=15):
-	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by more than one analyst, the strongest
-	rating first (1 is a strong buy, 5 a strong sell); on equal ratings, the one more analysts give first."""
+	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by MIN_ANALYSTS or more analysts, the
+	strongest rating first (1 is a strong buy, 5 a strong sell); on equal ratings, the one more analysts give first."""
 	found = [] # (rating, analysts, line, ticker)
 	for ticker, data in yahoo.fetch_details(util.get_holdings_and_watchlist()).items():
-		if 'recommend' not in data or data['recommend_analysts'] <= 1:
+		if 'recommend' not in data or data['recommend_analysts'] < MIN_ANALYSTS:
 			continue
 		recommend = data['recommend'].replace('_', ' ')
 		if (action == 'buy' and 'buy' in recommend) or (action == 'sell' and recommend in ('sell', 'underperform')):
@@ -387,17 +394,16 @@ def prepare_rating_payload(service, action, length=15):
 			found.append((rating, analysts, f"{util.flag_from_ticker(ticker)} {data['profile_title']} ({link}) {rating} ({analysts} analysts)", ticker))
 	found = sorted(found, key=lambda row: (row[0] if action == 'buy' else -row[0], -row[1]))[:length]
 	payload = [line for _, _, line, _ in found]
-	chart = None
-	if payload:
-		message = f"Top {length} analyst {action} ratings for tracked stocks"
-		payload.insert(0, f"{webhook.bold(message, service)}")
-		shown = [(ticker.split('.')[0], rating) for rating, _, _, ticker in found]
-		low, high = min(r for _, r in shown), max(r for _, r in shown)
-		spread = (high - low) or 0.2
-		# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
-		chart = {'rows': shown, 'title': message, 'subtitle': 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
-			'value_fmt': lambda v: f"{v:g}", 'xlim': (max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25))}
-	return payload, chart
+	if not payload:
+		return [f"No tracked stocks rated {action} by {MIN_ANALYSTS}+ analysts"], None
+	message = f"Top {length} analyst {action} ratings for tracked stocks ({MIN_ANALYSTS}+ analysts)"
+	shown = [(ticker.split('.')[0], rating) for rating, _, _, ticker in found]
+	low, high = min(r for _, r in shown), max(r for _, r in shown)
+	spread = (high - low) or 0.2
+	# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
+	chart = {'rows': shown, 'title': message, 'subtitle': 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
+		'value_fmt': lambda v: f"{v:g}", 'xlim': (max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25))}
+	return [webhook.bold(message, service)] + payload, chart
 
 def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 	payload = []
@@ -475,19 +481,19 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 	return payload, chart
 
 def prepare_beta_payload(service):
-	"""(payload, chart) of the tracked stocks with a beta over 1.5 and a market cap under 2B, the highest beta first."""
+	"""(payload, chart) of the tracked stocks with a beta over 1.5 and a market cap under US$2B, the highest beta first."""
 	found = [] # (beta, line, chart row)
-	for ticker, data in yahoo.fetch_details(util.get_holdings_and_watchlist()).items():
+	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch_details(util.get_holdings_and_watchlist())).items():
 		if 'beta' not in data:
 			continue
 		beta = round(data['beta'], 1)
-		if beta > 1.5 and data.get('market_cap', float('inf')) < 2000000000:
+		if beta > 1.5 and data.get('market_cap_usd', float('inf')) < 2e9:
 			link = util.finance_link(ticker, data['profile_exchange'], service)
 			found.append((beta, util.security_line(util.flag_from_ticker(ticker), data['profile_title'], link) + f" {beta} β", (ticker.split('.')[0], float(beta))))
 	if not found:
-		return ['No tracked stocks have a beta over 1.5 and mkt cap under 2B'], None
+		return ['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None
 	found.sort(key=lambda row: row[0], reverse=True)
-	heading = 'Beta over 1.5 and mkt cap under 2B'
+	heading = 'Beta over 1.5 and mkt cap under US$2B'
 	chart = {'rows': [row for _, _, row in found], 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
 	return [webhook.bold(heading, service)] + [line for _, line, _ in found], chart
 
@@ -560,7 +566,7 @@ def prepare_profile_payload(service, user, ticker):
 		payload.append("")
 
 	if 'currency' in data and 'market_cap' in data:
-		payload.append(webhook.bold("Mkt cap:", service) + f" {currency} {util.humanUnits(data['market_cap'])}")
+		payload.append(webhook.bold("Mkt cap:", service) + f" {yahoo.market_cap_currency(data)} {util.humanUnits(data['market_cap'])}") # GBP, not pence
 	if all(key in data for key in ('shareholder_equity', 'total_debt', 'total_cash', 'profile_industry')) and data['shareholder_equity'] and 'Bank' not in data['profile_industry']:
 		net_debt_equity_ratio = round((data['total_debt'] - data['total_cash']) / data['shareholder_equity'] * 100)
 		if net_debt_equity_ratio > 0:

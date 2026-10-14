@@ -389,6 +389,26 @@ def fetch_each(get, tickers, workers=8):
 	with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
 		return list(executor.map(one, tickers))
 
+SUBUNITS = {'GBp': 'GBP', 'GBX': 'GBP', 'ILA': 'ILS', 'ZAc': 'ZAR'} # Yahoo prices these markets in a subunit but gives market caps in the unit
+
+def market_cap_currency(data):
+	"""The currency of a ticker's market cap: its quote currency, but the unit where Yahoo quotes in pence or the like."""
+	return SUBUNITS.get(data.get('currency'), data.get('currency'))
+
+def add_usd_market_caps(market_data):
+	"""Put 'market_cap_usd' beside each 'market_cap', which Yahoo gives in the ticker's own currency, converted at Yahoo's
+	exchange rates, so that market caps in won, yen and dollars compare. A ticker whose currency Yahoo has no rate for gets
+	none. Returns market_data."""
+	wanted = {market_cap_currency(data) for data in market_data.values() if 'market_cap' in data and market_cap_currency(data)} - {'USD'}
+	rates = {'USD': 1.0}
+	for symbol, quote in (fetch([f'{currency}=X' for currency in wanted]) if wanted else {}).items(): # KRW=X: won per US dollar
+		if quote.get('regularMarketPrice'):
+			rates[symbol.removesuffix('=X')] = 1 / quote['regularMarketPrice']
+	for data in market_data.values():
+		if 'market_cap' in data and market_cap_currency(data) in rates:
+			data['market_cap_usd'] = data['market_cap'] * rates[market_cap_currency(data)]
+	return market_data
+
 def fetch_details(tickers, strict=False):
 	"""fetch_detail of every ticker, fetched at the same time, in one {ticker: detail}. A ticker whose fetch failed is left out
 	(and logged), so that a list goes out without it; strict=True raises its error instead, for a report on the ticker asked for."""
