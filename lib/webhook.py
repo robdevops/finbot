@@ -119,57 +119,46 @@ def payload_wrapper(service, url, payload, chat_id=None, message_id=None, reply_
 	"""Returns a list with the response of each message sent (several if the payload was chunked)."""
 	if not payload:
 		print(service + ": Nothing to send") # informational
-	else:
-		payload = [str(line) for line in payload]
-		payload_string = '\n'.join(payload)
-		print("Preparing outbound to", service, str(len(payload_string)), "bytes")
-		print("Payload: " + payload_string) if debug else None
-		def chunkLooper():
-			chunks = list(batched(payload, config_chunk_maxlines))
-			results = []
-			for idx, chunk in enumerate(chunks):
-				idx > 0 and time.sleep(0.5)
-				payload_chunk = '\n'.join(chunk)
-				last = idx == len(chunks) - 1
-				results.append(write(service, url, payload_chunk, chat_id, reply_markup=reply_markup if last else None))
-			return results
-		if service == 'discord' and len(payload_string) > 2000:
-			print(service, "payload is over 2,000 bytes. Splitting.")
-			return chunkLooper()
-		elif service != 'discord' and len(payload_string) > 4096:
-			print(service, "payload is over 4,096 bytes. Splitting.")
-			return chunkLooper()
-		else:
-			return [write(service, url, payload_string, chat_id, message_id, reply_markup)]
+		return None
+	payload = [str(line) for line in payload]
+	payload_string = '\n'.join(payload)
+	print("Preparing outbound to", service, str(len(payload_string)), "bytes")
+	print("Payload: " + payload_string) if debug else None
+	limit = 2000 if service == 'discord' else 4096
+	if len(payload_string) <= limit:
+		return [write(service, url, payload_string, chat_id, message_id, reply_markup)]
+	print(service, f"payload is over {limit:,} bytes. Splitting.")
+	chunks = list(batched(payload, config_chunk_maxlines))
+	results = []
+	for idx, chunk in enumerate(chunks):
+		if idx:
+			time.sleep(0.5)
+		last = idx == len(chunks) - 1
+		results.append(write(service, url, '\n'.join(chunk), chat_id, reply_markup=reply_markup if last else None))
+	return results
+
+MARKUP = { # how each service marks text up: style -> service -> (before, after)
+	'bold': {'telegram': ('<b>', '</b>'), 'slack': ('*', '*'), 'discord': ('**', '**')},
+	'italic': {'telegram': ('<i>', '</i>'), 'slack': ('_', '_'), 'discord': ('_', '_')},
+	'strike': {'telegram': ('<s>', '</s>'), 'slack': ('~', '~'), 'discord': ('~~', '~~')},
+}
+
+def _styled(style, message, service):
+	if service not in MARKUP[style]:
+		return message
+	before, after = MARKUP[style][service]
+	return before + message + after
 
 def bold(message, service):
-	if service == 'telegram':
-		message = '<b>' + message + '</b>'
-	elif service == 'slack':
-		message = '*' + message + '*'
-	elif service == 'discord':
-		message = '**' + message + '**'
-	return message
+	return _styled('bold', message, service)
 
 def italic(message, service):
-	if service == 'telegram':
-		message = '<i>' + message + '</i>'
-	elif service == 'slack':
-		message = '_' + message + '_'
-	elif service == 'discord':
-		message = '_' + message + '_'
-	return message
+	return _styled('italic', message, service)
 
 italics = italic
 
 def strike(message, service):
-	if service == 'telegram':
-		message = '<s>' + message + '</s>'
-	elif service == 'slack':
-		message = '~' + message + '~'
-	elif service == 'discord':
-		message = '~~' + message + '~~'
-	return message
+	return _styled('strike', message, service)
 
 
 def fit_caption(caption, limit=1024):
@@ -271,15 +260,16 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_mark
 	(takes_charts), or the service refuses it, the report is sent as text instead, without the chart's buttons, so it does not vanish
 	with its chart; but not after a read timeout on the request that posts it, when the chart may have arrived after all."""
 	output = None
+	chartable = takes_charts(service, reply=bool(chat_id))
 	if service == 'telegram':
 		output = telegram_photo(chat_id, image_data, caption, message_id, reply_markup)
-	elif takes_charts(service, reply=bool(chat_id)):
+	elif chartable:
 		output = slack_photo(chat_id, image_data, caption, message_id)
 	if output is MAYBE_SENT:
 		return None
 	if output:
 		return output
-	if takes_charts(service, reply=bool(chat_id)):
+	if chartable:
 		print("chart not sent, sending the report as text", file=sys.stderr)
 	return payload_wrapper(service, chat_url(service, chat_id) if chat_id else webhooks.get(service), caption.split('\n'), chat_id, message_id)
 
@@ -322,28 +312,22 @@ def editMessageMedia(chat_id, message_id, image_data, caption, reply_markup=None
 	return output
 
 def pleaseHold(action, service, chat_id):
-	"""typing notify. I am run in a thread and repeated every 5 seconds"""
-	if service == 'telegram':
-		url = webhooks['telegram'] + "sendChatAction?chat_id=" + str(chat_id)
-		headers = {}
-		data = {
-			'chat_id': chat_id,
-			'action': action
-		}
-		try:
-			r = requests.post(url, data=data, headers=headers, timeout=config_http_timeout)
-		except Exception as e:
-		  print("Failure executing request:", url, data, str(e))
-		  return None
-		if r.status_code == 200:
-			print(r.status_code, "OK typing indicator to", service, file=sys.stderr)
-		else:
-			print(r.status_code, "error typing indicator to", service, file=sys.stderr)
+	"""Telegram's typing notice ("typing…" for a few seconds). worker.TypingIndicator repeats it every 7 seconds while a command
+	works, on Telegram only: the other services have no such notice."""
+	if service != 'telegram':
 		return None
+	url = webhooks['telegram'] + "sendChatAction?chat_id=" + str(chat_id)
+	data = {
+		'chat_id': chat_id,
+		'action': action
+	}
+	try:
+		r = requests.post(url, data=data, timeout=config_http_timeout)
+	except Exception as e:
+		print("Failure executing request:", url, data, str(e))
+		return None
+	if r.status_code == 200:
+		print(r.status_code, "OK typing indicator to", service, file=sys.stderr)
 	else:
-		payload_string = "this might take a moment"
-		if service == "slack":
-			url = 'https://slack.com/api/chat.postMessage'
-		elif service == "telegram":
-			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-		write(service, url, payload_string, chat_id, message_id=None)
+		print(r.status_code, "error typing indicator to", service, file=sys.stderr)
+	return None

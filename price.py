@@ -79,20 +79,10 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None,
 				percent = market_data[ticker]['percent_change']
 			title = market_data[ticker]['profile_title']
 			percent = float(percent)
-			if percent < 0:
-				emoji = "🔻"
-			elif percent > 0:
-				emoji = '🔼'
-			else:
-				emoji = "▪️"
-			exchange = exchange_human = market_data[ticker]['profile_exchange']
+			emoji = util.get_emoji(percent)
+			exchange = market_data[ticker]['profile_exchange']
 			exchange_human = util.exchange_human(exchange)
-			if exchange in ('Taipei Exchange', 'CCC') or ticker.startswith('^'):
-				ticker_link = util.yahoo_link(ticker, service)
-			elif config_hyperlinkProvider == 'google':
-				ticker_link = util.gfinance_link(ticker, exchange, service, days=days)
-			else:
-				ticker_link = util.yahoo_link(ticker, service)
+			ticker_link = util.quote_link(ticker, exchange, service, days=days)
 			if not interactive and not payload and config_demote_leveraged and '2x' in title.lower():
 				if abs(percent) >= threshold * 1.3:
 					payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
