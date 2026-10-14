@@ -10,6 +10,7 @@ import math
 import os
 import re
 import shlex
+import signal
 import sys
 import zlib
 import zoneinfo
@@ -22,6 +23,7 @@ from croniter import croniter, CroniterBadDateError
 
 from lib.config import *
 from lib import config
+from lib import jobrun
 from lib import util
 from lib import webhook
 import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, shorts, trades
@@ -58,6 +60,16 @@ def run_child(label, module, kwargs):
 			proc.kill()
 			proc.wait()
 		raise
+
+
+def exit_reason(status):
+	"""Why a job process ended, when it did not report it itself: killed by a signal, or failed before it could say."""
+	if status < 0:
+		try:
+			return f'killed by {signal.Signals(-status).name}'
+		except ValueError:
+			return f'killed by signal {-status}'
+	return f'exited with status {status} without saying why'
 
 
 def run_in_process(label, module, kwargs):
@@ -344,8 +356,11 @@ class Scheduler:
 				self.busy.add(label)
 				print(f'schedule: running {label}', file=sys.stderr)
 				try:
-					if self.runner(label, module, kwargs):
-						outcome = 'failed' # the child has already reported why
+					status = self.runner(label, module, kwargs)
+					if status:
+						outcome = 'failed'
+						if status != jobrun.REPORTED: # it ended without saying why
+							webhook.report_error(RuntimeError(exit_reason(status)), context=label)
 				except gevent.Timeout:
 					raise
 				except (Exception, SystemExit) as e:

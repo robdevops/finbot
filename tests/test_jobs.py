@@ -1,5 +1,5 @@
 """The in-process scheduler (lib/jobs.py): schedule file parsing, each script's job(argv), and firing with a fake clock."""
-import contextlib, datetime, hashlib, io, json, os, subprocess, sys, tempfile, time, unittest, zoneinfo
+import contextlib, datetime, hashlib, io, json, os, signal, subprocess, sys, tempfile, time, unittest, zoneinfo
 from pathlib import Path
 from unittest import mock
 import gevent
@@ -583,15 +583,39 @@ class ChildProcess(FinbotCase):
             env = {'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
             with mock.patch.dict(os.environ, env):
                 self.assertEqual(jobs.run_child('cleanup.py', cleanup, {}), 0)
-                self.assertNotEqual(jobs.run_child('cleanup.py 0', cleanup, {'days': 'not a number'}), 0)
+                self.assertEqual(jobs.run_child('cleanup.py 0', cleanup, {'days': 'not a number'}), jobs.jobrun.REPORTED)
 
-    def test_scheduler_reports_a_failed_child(self):
+    def test_a_job_process_survives_a_reload_signal(self):
+        with tempfile.TemporaryDirectory() as scripts, tempfile.TemporaryDirectory() as data:
+            Path(scripts, 'sleeper.py').write_text('import time\ndef lambda_handler():\n    print("started", flush=True)\n    time.sleep(1)\n')
+            env = {**os.environ, 'PYTHONPATH': scripts, 'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
+            proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', 'sleeper', '{}'], cwd=ROOT, env=env, stdout=subprocess.PIPE, text=True)
+            self.addCleanup(proc.kill)
+            for line in proc.stdout:
+                if line.strip() == 'started':
+                    break
+            proc.send_signal(signal.SIGHUP) # what `systemctl kill -s HUP finbot` does to every process of the unit
+            self.assertEqual(proc.wait(timeout=30), 0)
+
+    def test_a_script_that_cannot_be_imported_is_reported(self):
+        with tempfile.TemporaryDirectory() as data:
+            env = {**os.environ, 'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
+            out = subprocess.run([sys.executable, '-m', 'lib.jobrun', 'nosuchscript', '{}'], cwd=ROOT, env=env, capture_output=True, text=True)
+        self.assertEqual(out.returncode, jobs.jobrun.REPORTED, out.stderr)
+        self.assertIn('⚠️ nosuchscript.py: ModuleNotFoundError', out.stderr)
+
+    def test_scheduler_reports_a_child_that_ended_without_saying_why(self):
         file = Path(tempfile.mkdtemp(), 'schedule.cron')
         file.write_text('* * * * * trades.py\n')
-        s = jobs.Scheduler(lambda: file, zone=UTC, runner=lambda label, module, kwargs: 1)
-        self.assertTrue(s.load())
-        self.assertEqual(s.run_now('1'), ('trades.py', 'failed'))
-        self.assertEqual(s.busy, set())
+        for status, reason in ((-signal.SIGHUP, 'killed by SIGHUP'), (-signal.SIGKILL, 'killed by SIGKILL'), (1, 'exited with status 1 without saying why'),
+                               (jobs.jobrun.REPORTED, None)): # the child reported this one itself
+            with self.subTest(status=status):
+                self.errors.clear()
+                s = jobs.Scheduler(lambda: file, zone=UTC, runner=lambda label, module, kwargs: status)
+                self.assertTrue(s.load())
+                self.assertEqual(s.run_now('1'), ('trades.py', 'failed'))
+                self.assertEqual(self.errors, [f'⚠️ trades.py: RuntimeError: {reason}'] if reason else [])
+                self.assertEqual(s.busy, set())
 
     def test_the_event_loop_keeps_running_while_a_child_works(self):
         self.sleeper(1)
