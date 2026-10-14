@@ -5,8 +5,10 @@ from lib.config import *
 from lib import webhook
 
 def lambda_handler(days=30):
-	"""Delete the cache files (finbot_*) that were last written more than `days` days ago."""
-	cutoff = time.time() - days * 86400
+	"""Delete the cache files (finbot_*) that were last written more than `days` days ago (days=0: all of them, a flush), but not
+	a temp file written in the last minute: that is an atomic write in flight (util.write_file)."""
+	now = time.time()
+	cutoff = now - days * 86400
 	removed = 0
 	try:
 		entries = list(os.scandir(config_cache_dir))
@@ -14,6 +16,8 @@ def lambda_handler(days=30):
 		return 0
 	for entry in entries:
 		if entry.is_file(follow_symlinks=False) and entry.name.startswith('finbot_') and entry.stat().st_mtime < cutoff:
+			if entry.name.endswith('.tmp') and entry.stat().st_mtime > now - 60:
+				continue
 			try:
 				os.unlink(entry.path)
 				removed += 1

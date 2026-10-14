@@ -1,6 +1,7 @@
 """Yahoo, Sharesight and Telegram parsing and failure handling, driven by the real API responses saved under doc/.
 HTTP is mocked at lib.net, so the production parsing code runs unchanged."""
 import contextlib, copy, datetime, io, json, os, subprocess, unittest
+import gevent
 from unittest import mock
 from tests.common import *
 
@@ -379,6 +380,18 @@ class SharesightKeepWarm(ProviderCase):
         stop = Stop()
         sharesight.keep_warm(idle=60, stop=stop)
         self.assertEqual((stop.waits, len(passes)), ([60, 60, 3000, 3000], 2)) # idle while off: no Sharesight request every 5 seconds
+
+    def test_a_flush_wakes_the_loop_to_refill_at_once(self):
+        passes = []
+        self.patch(sharesight, 'warm', lambda: (passes.append(1), (0, {}))[1])
+        self.patch(sharesight, 'next_due', lambda portfolios=None: 3000)
+        loop = gevent.spawn(sharesight.keep_warm)
+        self.addCleanup(loop.kill)
+        gevent.sleep(0.05)
+        self.assertEqual(len(passes), 1) # then it sleeps until the next cache is due, 50 minutes away
+        sharesight.wake()
+        gevent.sleep(0.05)
+        self.assertEqual(len(passes), 2)
 
     def test_a_warming_pass_reads_the_cached_portfolio_list_once(self):
         self.serve_sharesight()

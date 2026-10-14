@@ -161,6 +161,16 @@ class CleanupJob(FinbotCase):
         self.assertEqual(cleanup.lambda_handler(30), 2)
         self.assertEqual(sorted(os.listdir(folder)), ['finbot_dir', 'finbot_new.json', 'other_old.json'])
 
+    def test_a_temp_file_being_written_is_left_alone(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__('shutil').rmtree(folder, ignore_errors=True))
+        self.patch(cleanup, 'config_cache_dir', folder)
+        for name, stamp in (('finbot_a.json.x1.tmp', time.time() - 5), ('finbot_b.json.x2.tmp', time.time() - 40 * 86400)):
+            Path(folder, name).write_text('x')
+            os.utime(Path(folder, name), (stamp, stamp))
+        self.assertEqual(cleanup.lambda_handler(0), 1) # a flush: the stale one goes, the write in flight stays
+        self.assertEqual(os.listdir(folder), ['finbot_a.json.x1.tmp'])
+
     def test_missing_cache_dir_is_fine(self):
         self.patch(cleanup, 'config_cache_dir', '/nonexistent/finbot-cache')
         self.assertEqual(cleanup.lambda_handler(30), 0)

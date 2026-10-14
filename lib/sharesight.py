@@ -231,6 +231,12 @@ def next_due(margin=0.9, portfolios=None):
 		waits.append(0 if age is None else margin * config_performance_cache_seconds - age)
 	return max(0, min(waits))
 
+_wake = threading.Event() # set by wake(): the caches were flushed, refill them now
+
+def wake():
+	"""Have keep_warm refill the caches now instead of when they would next be due."""
+	_wake.set()
+
 def keep_warm(min_wait=5, retry=300, idle=60, stop=None):
 	"""Background loop: keep the portfolio list and holdings report cached, sleeping until the next one is due (90% of its TTL).
 	While the cache preference is off (a reload can switch it either way) it fetches nothing, since nothing would be written and
@@ -248,4 +254,5 @@ def keep_warm(min_wait=5, retry=300, idle=60, stop=None):
 		if stop:
 			stop.wait(wait)
 		else:
-			time.sleep(wait)
+			_wake.wait(wait)
+			_wake.clear()

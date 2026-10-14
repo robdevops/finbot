@@ -591,6 +591,18 @@ performance_cache_seconds=1800
 
 `performance_cache_seconds` (default 30 minutes) is the cache lifetime of Sharesight performance reports.
 
+To flush the cache, so that everything is fetched afresh, signal the running bot: it deletes its cache files (Yahoo and Sharesight
+answers, charts, the Yahoo cookie) and keeps its state (watchlist, seen trades, ratings, schedule), then refills the Sharesight caches
+at once. There is no `systemctl flush`, since systemctl takes no custom verbs; any of these does it:
+```
+sudo systemctl kill -s USR1 finbot          # systemd
+sudo systemctl start finbot-flush           # the same, once finbot-flush.service is installed (see below)
+docker kill -s USR1 <container>             # Docker
+kill -USR1 <pid of bot.py>                  # anything else
+```
+The log says `cache: flushed N files`. To install the `finbot-flush` shortcut: `sudo cp -v finbot-flush.service /etc/systemd/system/ &&
+sudo systemctl daemon-reload`. `finbot.service` itself needs no change. With the bot stopped, `cleanup.py 0` deletes the same files.
+
 While `bot.py` is running with Sharesight configured and `cache=True` (a reload that switches `cache` pauses or resumes it), a background job keeps the Sharesight portfolio list (`cache_seconds`) and each portfolio's holdings report (1 day, `performance_cache_seconds` cache) refreshed at 90% of their cache lifetime, so chat requests do not wait on Sharesight. If a refresh fails, the previous cache keeps being served and the job retries after 5 minutes.
 
 ### Hyperlinks

@@ -24,7 +24,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - If Yahoo and Sharesight are unreachable (the cloud environment's network policy can block them), check behaviour against the offline fixtures in `tests/common.py`. For a refactor, compare old and new output: load `git show HEAD:<file>` as a module beside the new one and diff what both produce for the same inputs.
 
 ## Code map (open the one file you need)
-- `bot.py`: WSGI entry; routes /telegram and /slack, authenticates, hands each message to `lib/worker.py` in a thread; SIGHUP reload.
+- `bot.py`: WSGI entry; routes /telegram and /slack, authenticates, hands each message to `lib/worker.py` in a thread; SIGHUP reload, SIGUSR1
+  cache flush.
 - `lib/worker.py`: `COMMANDS` (regex → `on_*` handler, first match wins, `.SYMBOL` last); `Request`; the typing indicator.
 - `lib/reports.py`: `prepare_*` builders for the chat-only reports (lines, plus a chart spec).
 - `price.py performance.py trades.py shorts.py cal.py rating.py milestone.py reminder.py podcasts.py cleanup.py`: reports that also

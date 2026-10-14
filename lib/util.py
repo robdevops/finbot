@@ -119,10 +119,19 @@ def _fresh_cache(cacheFile, maxSeconds):
 	print("cache hit:", path, "TTL:", td_to_human(datetime.timedelta(seconds=maxSeconds - age)), file=sys.stderr) if debug else None
 	return path
 
+def _read_fresh(cacheFile, maxSeconds, read):
+	"""read(path) of the cache file if it is fresh, else None; also None if the file goes (cleanup, a flush) after the check."""
+	path = _fresh_cache(cacheFile, maxSeconds)
+	if not path:
+		return None
+	try:
+		return read(Path(path))
+	except FileNotFoundError:
+		return None
+
 def read_cache(cacheFile, maxSeconds=UNSET):
 	"""A cache file's JSON, or None when it is missing or older than maxSeconds."""
-	path = _fresh_cache(cacheFile, maxSeconds)
-	return json.loads(Path(path).read_text(encoding="utf-8")) if path else None
+	return _read_fresh(cacheFile, maxSeconds, lambda path: json.loads(path.read_text(encoding="utf-8")))
 
 def cache_age(cacheFile):
 	"""Seconds since the cache file was written, or None when it does not exist."""
@@ -165,8 +174,7 @@ def json_load(filename, persist=False):
 
 def read_binary_cache(cacheFile, maxSeconds=UNSET):
 	"""A cache file's bytes (as a file object), or None when it is missing or older than maxSeconds."""
-	path = _fresh_cache(cacheFile, maxSeconds)
-	return io.BytesIO(Path(path).read_bytes()) if path else None
+	return _read_fresh(cacheFile, maxSeconds, lambda path: io.BytesIO(path.read_bytes()))
 
 def write_binary_cache(cacheFile, data):
 	data.seek(0)

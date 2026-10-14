@@ -366,6 +366,41 @@ class StartupSignals(unittest.TestCase):
             self.assertIsNone(proc.poll(), ''.join(lines))
             self.assertIn('reload requested but', ''.join(lines))
 
+    def test_usr1_flushes_the_cache_and_keeps_the_state(self):
+        skip_if_old_env(self)
+        with tempfile.TemporaryDirectory() as data:
+            cache = Path(data, 'cache')
+            (cache / 'matplotlib').mkdir(parents=True)
+            for name in ('finbot_yahoo_cookie.json', 'finbot_graph_T1_None.png', 'finbot_x.json.abc.tmp'): # the last: a write in flight
+                (cache / name).write_text('{}')
+            Path(data, 'finbot_watchlist.json').write_text('["T1"]') # state, not cache
+            env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS}
+            env.update(DATA_DIR=data, port='0', scheduler='False')
+            proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
+            self.addCleanup(proc.wait)
+            self.addCleanup(proc.kill)
+            deadline = time.monotonic() + 30
+            while not int(Path(f'/proc/{proc.pid}/status').read_text().split('SigIgn:')[1].split()[0], 16) & (1 << (signal.SIGUSR1 - 1)):
+                self.assertLess(time.monotonic(), deadline)
+                time.sleep(0.001)
+            proc.send_signal(signal.SIGUSR1) # still starting: ignored, where its default action would kill the bot
+            lines = []
+            for line in proc.stderr:
+                lines.append(line)
+                if line.startswith('Opening socket'):
+                    break
+            self.assertIsNone(proc.poll(), ''.join(lines))
+            self.assertEqual(len(os.listdir(cache)), 4) # nothing flushed yet
+            time.sleep(1) # the handler goes in just before serving
+            proc.send_signal(signal.SIGUSR1)
+            for line in proc.stderr:
+                lines.append(line)
+                if 'cache: flushed' in line:
+                    break
+            self.assertIn('cache: flushed 2 files', ''.join(lines))
+            self.assertEqual(sorted(os.listdir(cache)), ['finbot_x.json.abc.tmp', 'matplotlib'])
+            self.assertTrue(Path(data, 'finbot_watchlist.json').exists())
+
 
 if __name__ == '__main__':
     unittest.main()

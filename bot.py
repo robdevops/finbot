@@ -3,6 +3,7 @@
 import signal
 if __name__ == '__main__':
 	signal.signal(signal.SIGHUP, signal.SIG_IGN) # ignored until startup is done (the reload handler is installed last): its default action kills the bot
+	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise the cache flush
 import gevent.monkey
 gevent.monkey.patch_all()
 import html, json, os, re, sys, traceback
@@ -20,6 +21,8 @@ from lib import sharesight
 from lib import net
 from lib import telegram
 from lib import webhook
+from lib import yahoo
+import cleanup
 
 botName = None # the Telegram bot's @username, from telegram.register() at start
 AUTHENTICATED = 'finbot.authenticated' # set in a request's WSGI environ once it has passed its service's check
@@ -195,6 +198,17 @@ def reload_all(*args):
 	if scheduler:
 		scheduler.reload()
 
+def flush_cache(*args):
+	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings, schedule).
+	Yahoo's cookie and crumb belong together, so they go while nothing is renewing them; the Sharesight caches refill at once."""
+	try:
+		with yahoo._auth:
+			removed = cleanup.lambda_handler(days=0)
+		sharesight.wake()
+		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config_cache_dir}", file=sys.stderr)
+	except Exception as e:
+		print('ERROR', webhook.error_line(e, 'cache flush'), file=sys.stderr)
+
 if __name__ == '__main__':
 	print(f'Starting finbot {git_version()}', file=sys.stderr)
 	try:
@@ -237,6 +251,7 @@ if __name__ == '__main__':
 		jobs.current = scheduler # for the .jobs chat command
 		threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	gevent.signal_handler(signal.SIGHUP, reload_all) # startup is done. systemctl reload finbot: pick up edited preferences.conf and schedule.cron
+	gevent.signal_handler(signal.SIGUSR1, flush_cache) # systemctl kill -s USR1 finbot: delete the cache
 	try:
 		httpd.serve_forever()
 	except OSError as e:

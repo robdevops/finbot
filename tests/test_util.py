@@ -119,6 +119,17 @@ class StateFiles(FinbotCase):
         util.json_write('old.json', {'a': 1})
         self.assertFalse(util.read_cache('old.json', -1)) # already expired
 
+    def test_a_cache_file_that_goes_while_it_is_read_is_a_miss(self):
+        util.json_write('gone.json', {'a': 1})
+        real = Path.read_text
+        def vanish(path, *a, **k): # cleanup or a flush deleted it between the age check and the read
+            if path.name == 'gone.json':
+                path.unlink()
+                raise FileNotFoundError(path)
+            return real(path, *a, **k)
+        with mock.patch.object(Path, 'read_text', vanish):
+            self.assertIsNone(util.read_cache('gone.json', 60))
+
     def test_binary_cache_roundtrip(self):
         self.assertFalse(util.read_binary_cache('absent.png'))
         util.write_binary_cache('img.png', io.BytesIO(b'png-bytes'))

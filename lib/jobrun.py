@@ -5,6 +5,7 @@ loop and cannot hold up incoming webhooks. Failures are reported to the channel 
 import signal
 if __name__ == '__main__':
 	signal.signal(signal.SIGHUP, signal.SIG_IGN) # a reload is for the bot, but `systemctl kill -s HUP` signals every process of the unit
+	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise a flush (systemctl kill -s USR1); its default action would kill the job
 import importlib, json, re, sys
 
 from lib import webhook
