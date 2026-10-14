@@ -1,3 +1,4 @@
+import contextlib
 import re, random
 import datetime
 import sys
@@ -16,8 +17,6 @@ import performance
 import price
 import shorts
 import trades
-
-_request = threading.local() # for the thread handling a chat request: the typing indicators it started (see process_request)
 
 class TypingIndicator:
 	def __init__(self, service, chat_id, max_loops=3, action='typing'):
@@ -42,31 +41,42 @@ class TypingIndicator:
 			return
 		self._thread = threading.Thread(target=self._worker, daemon=True)
 		self._thread.start()
-		getattr(_request, 'typing', []).append(self)
 
 	def stop(self):
-		if self.service != 'telegram' or not self._thread:
+		if not self._thread: # never started: only Telegram has a typing indicator
 			return
 		self._stop_event.set()
 		self._thread.join()
 
 	def is_active(self):
-		return self.service == 'telegram' and self._thread is not None and self._thread.is_alive()
+		return self._thread is not None and self._thread.is_alive()
 
+@contextlib.contextmanager
+def working(service, chat_id, url=None, notice=None, enabled=True, max_loops=3):
+	"""While a command works: "typing…" on Telegram, and on a service without a typing indicator the one-line notice, if any. The
+	indicator stops however the block ends, so a command that fails stops it before its error line goes out. Yields the indicator,
+	or None when not enabled."""
+	if not enabled:
+		yield None
+		return
+	typing = TypingIndicator(service, chat_id, max_loops)
+	typing.start()
+	try:
+		if notice and not typing.is_active():
+			webhook.payload_wrapper(service, url, [notice], chat_id)
+		yield typing
+	finally:
+		typing.stop()
 
 def deliver(service, url, chat_id, payload, chart=None):
 	"""Send a report: as a chart (the text list as caption) where the service can take an image (webhook.takes_charts), else as text."""
-	if chart and chart.get('pie') and chart.get('rows') and webhook.takes_charts(service):
-		image = util.pie_chart(chart['rows'], chart['title'], chart.get('subtitle', ''))
-		webhook.sendPhoto(chat_id, image, '\n'.join(payload) if payload else chart['title'], service)
-	elif chart and chart.get('rows') and webhook.takes_charts(service):
-		spec = dict(chart)
-		rows, title = spec.pop('rows'), spec.pop('title')
-		subtitle = spec.pop('subtitle', '')
-		image = util.rows_chart(rows, title, subtitle, **spec)
-		webhook.sendPhoto(chat_id, image, '\n'.join(payload) if payload else title, service)
-	else:
+	if not (chart and chart.get('rows') and webhook.takes_charts(service)):
 		webhook.payload_wrapper(service, url, payload, chat_id)
+		return
+	spec = dict(chart)
+	rows, title, subtitle = spec.pop('rows'), spec.pop('title'), spec.pop('subtitle', '')
+	image = util.pie_chart(rows, title, subtitle) if spec.pop('pie', False) else util.rows_chart(rows, title, subtitle, **spec)
+	webhook.sendPhoto(chat_id, image, '\n'.join(payload) if payload else title, service)
 
 def process_job_callback(service, callback_id, chat_id, message_id, data):
 	"""A command button of .jobs: run that command now and answer in the chat."""
@@ -102,141 +112,65 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 	except Exception as e:
 		webhook.report_error(e, service, chat_id, context='chart')
 
-def stop_typing():
-	"""Stop the typing indicators the current request started. A command stops its own when it ends normally; one that fails part way
-	would leave "typing…" showing for up to 20 seconds, or bring it back after its error line."""
-	for indicator in getattr(_request, 'typing', ()):
-		indicator.stop()
-	_request.typing = []
-
 def process_request(service, chat_id, user, message, botName, userRealName, message_id):
 	"""Entry point for inbound chat requests: any failure becomes a one-line reply in the originating chat, after the typing stops."""
-	_request.typing = []
 	try:
 		_process_request(service, chat_id, user, message, botName, userRealName, message_id)
 	except Exception as e:
-		stop_typing()
 		webhook.report_error(e, service, chat_id, context=message.split()[0][:30] if message.split() else None)
-	finally:
-		stop_typing()
 	if service == 'telegram':
 		try:
 			charts.ensure_keyboard(chat_id) # keep DM keyboards current after the reply
 		except Exception as e:
 			print("keyboard update failed:", e, file=sys.stderr)
 
+def period_or_ticker(arg, default):
+	"""A command's argument: (days, None) for a period such as 7d, 3m or ytd, else (default, the argument as a ticker)."""
+	if not arg:
+		return default, None
+	try:
+		return util.days_from_human_days(arg), None
+	except ValueError:
+		return default, arg.upper()
+
+def percent_or_ticker(arg, default):
+	"""A command's argument: (percent, None) for a whole number such as 5 or 5%, else (default, the argument as a ticker)."""
+	if not arg:
+		return default, None
+	try:
+		return int(arg.split('%')[0]), None
+	except ValueError:
+		return default, arg.upper()
+
+def period_and_portfolio(args, days):
+	"""Up to two arguments in either order, a period and a portfolio name: (days, portfolio name or None)."""
+	portfolio = None
+	for arg in args:
+		if arg:
+			try:
+				days = util.days_from_human_days(arg)
+			except ValueError:
+				portfolio = arg
+	return days, portfolio
+
 def _process_request(service, chat_id, user, message, botName, userRealName, message_id):
-	if service == 'slack':
-		url = 'https://slack.com/api/chat.postMessage'
-	elif service == 'telegram':
-		url = webhooks["telegram"] + 'sendMessage?chat_id=' + str(chat_id)
-
+	url = webhook.chat_url(service, chat_id)
 	prefix = r"^(?:[\!\.\/]\s?|" + botName + r"\s+)"
+	def command(pattern): # tried in the order below, the first match wins; .SYMBOL takes anything, so it stays last
+		return re.match(prefix + pattern, message, re.IGNORECASE)
 
-	dividend_command = prefix + r"dividends?\s*([\w\.\:\-]+)*"
-	m_dividend = re.match(dividend_command, message, re.IGNORECASE)
-
-	earnings_command = prefix + r"(?:earnings?|earrings?)\s*([\w\.\:\-]+)*"
-	m_earnings = re.match(earnings_command, message, re.IGNORECASE)
-
-	hello_command = prefix + r"(?:hi$|hello)|^(?:hi|hello)\s+" + botName
-	m_hello = re.match(hello_command, message, re.IGNORECASE)
-
-	help_command = prefix + r"(?:help|usage|start)" # /start is what Telegram sends when a chat opens
-	m_help = re.match(help_command, message, re.IGNORECASE)
-
-	session_command = prefix + r"session\s*([\w\.\:\-]+)*"
-	m_session = re.match(session_command, message, re.IGNORECASE)
-
-	holdings_command = prefix + r"holdings?\s*([\w\s]+)*"
-	m_holdings = re.match(holdings_command, message, re.IGNORECASE)
-
-	marketcap_command = prefix + r"(?:marketcap|maletas|marketer)\s*(?P<arg>[\w\.\:\-]+)*"
-	m_marketcap = re.match(marketcap_command, message, re.IGNORECASE)
-
-	plan_command = prefix + r"plan\s*(.*)"
-	m_plan = re.match(plan_command, message, re.IGNORECASE)
-
-	pe_command = prefix + r"pe(?:$|\s+)(?P<arg>[\w\.\:\-\s]+)*"
-	m_pe = re.match(pe_command, message, re.IGNORECASE)
-
-	forwardpe_command = prefix + r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*"
-	m_forwardpe = re.match(forwardpe_command, message, re.IGNORECASE)
-
-	peg_command = prefix + r"peg\s*([\w\.\:\-\s]+)*"
-	m_peg = re.match(peg_command, message, re.IGNORECASE)
-
-	pie_command = prefix + r"pie(?:$|\s+)(?P<args>[\w\s\-\.&]*)"
-	m_pie = re.match(pie_command, message, re.IGNORECASE)
-
-	beta_command = prefix + r"beta\s*([\w\.\:\-]+)*"
-	m_beta = re.match(beta_command, message, re.IGNORECASE)
-
-	buy_command = prefix + r"buy"
-	m_buy = re.match(buy_command, message, re.IGNORECASE)
-
-	sell_command = prefix + r"sell"
-	m_sell = re.match(sell_command, message, re.IGNORECASE)
-
-	compare_command = prefix + r"compare\s+(?P<args>[\w\.\:\-\^\=\s]+)"
-	m_compare = re.match(compare_command, message, re.IGNORECASE)
-
-	history_command = prefix + r"(?:history|hospital|visual|hosiery)\s*(?P<ticker>[\w\.\:\-]+)\s*(?P<extra>[\w\%]+)*"
-	m_history = re.match(history_command, message, re.IGNORECASE)
-
-	performance_command = prefix + r"performance?\s*([\w]+)*\s*([\w\s]+)*"
-	m_performance = re.match(performance_command, message, re.IGNORECASE)
-
-	premarket_command = prefix + r"(?:premarket|postmarket|permarket)\s*([\w\.\:\-]+)*"
-	m_premarket = re.match(premarket_command, message, re.IGNORECASE)
-
-	price_command = prefix + r"(?:prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=\-\^]+)*\s*([\w\%]+)*"
-	m_price = re.match(price_command, message, re.IGNORECASE)
-
-	top10_command = prefix + r"(?:top\d*)\s*([\w]+)"
-	m_top10 = re.match(top10_command, message, re.IGNORECASE)
-
-	shorts_command = prefix + r"shorts?\s*([\w\.\:\-]+)*"
-	m_shorts = re.match(shorts_command, message, re.IGNORECASE)
-
-	jobs_command = prefix + r"(?:jobs|crons?|schedule)(?:\s+(?P<args>.*?))?\s*$"
-	m_jobs = re.match(jobs_command, message, re.IGNORECASE)
-
-	profile_command = prefix + r"(?P<ticker>[\w\.\:\-]+)"
-	m_profile = re.match(profile_command, message, re.IGNORECASE)
-
-	thanks_command = prefix + r"(?:thanks|thank you)|^(?:thanks|thank you)\s+" + botName
-	m_thanks = re.match(thanks_command, message, re.IGNORECASE)
-
-	trades_command = prefix + r"trades?\s*([\w]+)*\s*([\w\s]+)*"
-	m_trades = re.match(trades_command, message, re.IGNORECASE)
-
-	watchlist_command = prefix + r"(?:watchlist|wishlist)\s*(?P<action>[\w]+)*\s*(?P<ticker>[\w\.\:\-\^\=]+)*"
-	m_watchlist = re.match(watchlist_command, message, re.IGNORECASE)
-
-	who_command = prefix + r"(?:who)\s*(?P<ticker>[\w\.\:\-\^]+)*"
-	m_who = re.match(who_command, message, re.IGNORECASE)
-
-	if m_watchlist:
-		action = None
-		ticker = None
-		if m_watchlist.group('action') and m_watchlist.group('ticker'):
-			action = m_watchlist.group('action').lower()
-			ticker = m_watchlist.group('ticker').upper()
-		if action:
-			if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
-				action = 'delete'
-			if action not in {'add', 'delete'}:
-				payload = [f'\"{action}\" is not a valid watchlist action']
-				webhook.payload_wrapper(service, url, payload, chat_id)
-				return
-		try:
-			payload = reports.prepare_watchlist(service, user, action, ticker)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_help:
+	if m := command(r"(?:watchlist|wishlist)\s*(?P<action>[\w]+)*\s*(?P<ticker>[\w\.\:\-\^\=]+)*"):
+		action = ticker = None
+		if m.group('action') and m.group('ticker'):
+			action = m.group('action').lower()
+			ticker = m.group('ticker').upper()
+		if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
+			action = 'delete'
+		if action and action not in {'add', 'delete'}:
+			webhook.payload_wrapper(service, url, [f'"{action}" is not a valid watchlist action'], chat_id)
+			return
+		webhook.payload_wrapper(service, url, reports.prepare_watchlist(service, user, action, ticker), chat_id)
+	elif command(r"(?:help|usage|start)"): # /start is what Telegram sends when a chat opens
 		payload = reports.prepare_help(service, botName)
 		markup = None
 		if service == 'telegram' and int(chat_id) > 0: # positive chat ids are DMs; groups are negative
@@ -244,7 +178,7 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		webhook.payload_wrapper(service, url, payload, chat_id, reply_markup=markup)
 		if markup:
 			charts.mark_keyboard(chat_id) # this chat now has the current keyboard
-	elif m_hello:
+	elif command(r"(?:hi$|hello)|^(?:hi|hello)\s+" + botName):
 		# easter egg 1
 		def alliterate():
 			word1 = 'A'
@@ -261,107 +195,38 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 		else:
 			payload = [f"{random.choice(adjectives).capitalize()} {random.choice(adjectives_two)} to {random.choice(verb)} you, {userRealName}! 😇"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_thanks:
+	elif command(r"(?:thanks|thank you)|^(?:thanks|thank you)\s+" + botName):
 		# easter egg 2
 		unlikelyPrefix=''
 		if random.randrange(1, 1000) == 1 or datetime.datetime.now().strftime('%b %d') == 'Apr 01':
 			unlikelyPrefix = webhook.strike('Ō̵̟n̶̠̏é̶͓ ̶͉̅d̷̹̅a̷͇͌ỳ̴͈,̴͍͑ ̶̼͑h̴̦̽u̵̹̐ḿ̶͜ä̴̧́n̶̤͛,̶̲̐ ̶̼̑I̶̩͒ ̵̩̀w̵̙̕i̷̧͑l̶̤͊l̷̡̃ ̵͙͘b̶̭̊r̸̟͋ȇ̷̯ä̶̱ḱ̶̤ ̵͚̐m̷̪͝ỹ̴̺ ̷̙̐p̶̭͆ŗ̸́o̸̙͝ḡ̵̖r̵̹̈́a̵̬̔m̷̪̽m̵̙̍i̵̛̙n̴̮̂g̵̫̐ ̴̳́ä̵͙n̸͕͝d̷̠̚ ̶̫̆o̸̖͘ń̴͇ ̵̪́t̷̻̀ḧ̸̝ą̴̐t̶̜̀ ̵̱́d̴͉͗ă̷͎ÿ̶͔́ ̶̼̊y̷͚̿o̵̗̎u̵̝̇ ̸̛͜w̶͈͋ĩ̸͎l̴͍̀l̷̥͠ ̷͔͗k̶̮̑n̵̝̈ȏ̷̥w̵̡͘ ̷͎̽ṫ̴͜r̵̙̐u̷̺̒ẻ̷̘ ̴̥́p̴͙̃a̵͙̎i̴̭̒n̵̻̅', service)
 		payload = [f"{unlikelyPrefix}You're {random.choice(adjectives)} welcome, {userRealName}! 😇"]
 		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_earnings:
-		days = config_future_days
-		specific_stock = None
-		if m_earnings.group(1):
-			arg = m_earnings.group(1)
-			try:
-				days = util.days_from_human_days(arg)
-			except ValueError:
-				specific_stock = str(arg).upper()
-				days = config_future_days
-		if not specific_stock:
-			typing = TypingIndicator(service, chat_id)
-			typing.start()
-		try:
+	elif m := command(r"(?:earnings?|earrings?)\s*([\w\.\:\-]+)*"):
+		days, specific_stock = period_or_ticker(m.group(1), config_future_days)
+		with working(service, chat_id, enabled=not specific_stock):
 			cal.lambda_handler(chat_id, days, service, specific_stock, message_id=None, interactive=True, earnings=True)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		if not specific_stock:
-			typing.stop()
-	elif m_dividend:
-		days = config_future_days
-		specific_stock = None
-		if m_dividend.group(1):
-			arg = m_dividend.group(1)
-			try:
-				days = util.days_from_human_days(arg)
-			except ValueError:
-				specific_stock = str(arg).upper()
-		if not specific_stock:
-			typing = TypingIndicator(service, chat_id)
-			typing.start()
-			if not typing.is_active():
-				payload = [ f"Fetching ex-dividend dates for {util.days_english(days, 'the next ')} 🔍" ]
-				webhook.payload_wrapper(service, url, payload, chat_id)
-		try:
+	elif m := command(r"dividends?\s*([\w\.\:\-]+)*"):
+		days, specific_stock = period_or_ticker(m.group(1), config_future_days)
+		with working(service, chat_id, url, f"Fetching ex-dividend dates for {util.days_english(days, 'the next ')} 🔍", enabled=not specific_stock):
 			cal.lambda_handler(chat_id, days, service, specific_stock, message_id=None, interactive=True, earnings=False, dividend=True)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		if not specific_stock:
-			typing.stop()
-	elif m_performance:
-		portfolio_select = None
-		days = charts.PERIODS['m'][1] # default view is the 1M button
-		for arg in m_performance.groups()[:2]:  # groups 2 and 3, allow arbitrary order
-			if arg:
-				try:
-					days = util.days_from_human_days(arg)
-				except ValueError:
-					portfolio_select = arg
+	elif m := command(r"performance?\s*([\w]+)*\s*([\w\s]+)*"):
+		days, portfolio_select = period_and_portfolio(m.groups()[:2], charts.PERIODS['m'][1]) # default view is the 1M button
 		if days > 0:
-			typing = TypingIndicator(service, chat_id)
-			typing.start()
-			if not typing.is_active():
-				# easter egg 3
-				if portfolio_select:
-					payload = [ f"{random.choice(searchVerb)} portfolio performance for {webhook.bold(portfolio_select, service)} from {util.days_english(days)} 🔍" ]
-				else:
-					payload = [ f"{random.choice(searchVerb)} portfolio performance for {util.days_english(days)} 🔍" ]
-				webhook.payload_wrapper(service, url, payload, chat_id)
-			try:
+			portfolio = f"{webhook.bold(portfolio_select, service)} from " if portfolio_select else ''
+			with working(service, chat_id, url, f"{random.choice(searchVerb)} portfolio performance for {portfolio}{util.days_english(days)} 🔍"): # easter egg 3
 				performance.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=None, interactive=True)
-			except Exception as e:
-				print(e, file=sys.stderr)
-				raise
-			typing.stop()
-	elif m_session:
-		price_percent = config_price_percent
-		specific_stock = None
-		if m_session.group(1):
-			arg = m_session.group(1)
-			try:
-				price_percent = int(arg.split('%')[0])
-			except ValueError:
-				specific_stock = str(arg).upper()
-		if not specific_stock:
-			typing = TypingIndicator(service, chat_id)
-			typing.start()
-		try:
+	elif m := command(r"session\s*([\w\.\:\-]+)*"):
+		price_percent, specific_stock = percent_or_ticker(m.group(1), config_price_percent)
+		with working(service, chat_id, enabled=not specific_stock):
 			price.lambda_handler(chat_id, price_percent, service, user, specific_stock, interactive=True, premarket=False, interday=False, midsession=True)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		if not specific_stock:
-			typing.stop()
-	elif m_price:
+	elif m := command(r"(?:prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=\-\^]+)*\s*([\w\%]+)*"):
 		price_percent = config_price_percent
 		specific_stock = None
 		days = None
 		interday = True
 		top = None
-		threshold = threshold=config_price_percent
-		for arg in m_price.groups()[0:2]:  # group(1) and group(2)
+		for arg in m.groups()[0:2]:  # group(1) and group(2)
 			if not arg:
 				continue
 			try:
@@ -371,123 +236,45 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 				try:
 					price_percent = float(arg.split('%')[0])
 				except ValueError:
-					if arg == m_price.group(1):
+					if arg == m.group(1):
 						if arg in ('top', 'bottom'): # one chart shows both ends
 							price_percent=0
 							top=10
 						else:
 							specific_stock = str(arg).upper()
-		if not specific_stock:
-			typing = TypingIndicator(service, chat_id)
-			typing.start()
-			if not typing.is_active():
-				# easter egg 4
-				payload = [ f"{random.choice(searchVerb)} stock performance from {util.days_english(days)} 🔍" ]
-				webhook.payload_wrapper(service, url, payload, chat_id)
-		try:
+		with working(service, chat_id, url, f"{random.choice(searchVerb)} stock performance from {util.days_english(days)} 🔍", enabled=not specific_stock): # easter egg 4
 			price.lambda_handler(chat_id=chat_id, threshold=price_percent, service=service, user=user, specific_stock=specific_stock, interactive=True, premarket=False, interday=interday, days=days, top=top)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		if not specific_stock:
-			typing.stop()
-	elif m_premarket:
-		premarket_percent = config_price_percent
-		specific_stock = None
-		if m_premarket.group(1):
-			arg = m_premarket.group(1)
-			try:
-				premarket_percent = int(arg.split('%')[0])
-			except ValueError:
-				specific_stock = str(arg).upper()
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		try:
+	elif m := command(r"(?:premarket|postmarket|permarket)\s*([\w\.\:\-]+)*"):
+		premarket_percent, specific_stock = percent_or_ticker(m.group(1), config_price_percent)
+		with working(service, chat_id):
 			price.lambda_handler(chat_id, premarket_percent, service, user, specific_stock, interactive=True, premarket=True)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		typing.stop()
-	elif m_top10:
-		specific_stock = None
-		if m_top10.group(1):
-			arg = m_top10.group(1)
-			try:
-				days = int(util.days_from_human_days(arg))
-			except ValueError:
-				print("DEBUG", arg, file=sys.stderr)
-				days = int(config_past_days)
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		try:
+	elif m := command(r"(?:top\d*)\s*([\w]+)"):
+		days, _ = period_or_ticker(m.group(1), config_past_days)
+		with working(service, chat_id):
 			price.lambda_handler(chat_id, threshold=0, service=service, user=user, days=days, interactive=True, top=10)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		typing.stop()
-	elif m_shorts:
+	elif m := command(r"shorts?\s*([\w\.\:\-]+)*"):
 		print("starting shorts report...")
-		shorts_percent = config_shorts_percent
-		specific_stock = None
-		if m_shorts.group(1):
-			arg = m_shorts.group(1)
-			try:
-				shorts_percent = int(arg.split('%')[0])
-			except ValueError:
-				specific_stock = str(arg).upper()
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		try:
+		shorts_percent, specific_stock = percent_or_ticker(m.group(1), config_shorts_percent)
+		with working(service, chat_id):
 			shorts.lambda_handler(chat_id, shorts_percent, specific_stock, service, interactive=True)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		typing.stop()
-	elif m_trades:
-		days = 1
-		portfolio_select = None
-		for arg in m_trades.groups()[0:2]:	# groups 1 and 2
-			if arg:
-				try:
-					days = util.days_from_human_days(arg)
-				except ValueError:
-					portfolio_select = arg
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		if typing.is_active():
-			# easter egg 5
-			if portfolio_select:
-				payload = [ f"{random.choice(searchVerb)} trades for {webhook.bold(portfolio_select, service)} from {util.days_english(days)} 🔍" ]
-			else:
-				payload = [ f"{random.choice(searchVerb)} trades from {util.days_english(days)} 🔍" ]
-			webhook.payload_wrapper(service, url, payload, chat_id)
-		try:
+	elif m := command(r"trades?\s*([\w]+)*\s*([\w\s]+)*"):
+		days, portfolio_select = period_and_portfolio(m.groups()[:2], 1)
+		with working(service, chat_id) as typing:
+			if typing.is_active(): # easter egg 5
+				portfolio = f"for {webhook.bold(portfolio_select, service)} " if portfolio_select else ''
+				webhook.payload_wrapper(service, url, [f"{random.choice(searchVerb)} trades {portfolio}from {util.days_english(days)} 🔍"], chat_id)
 			trades.lambda_handler(chat_id, days, service, user, portfolio_select, message_id=None, interactive=True)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		typing.stop()
-	elif m_holdings:
-		portfolioName = None
-		if m_holdings.group(1):
-			portfolioName = m_holdings.group(1)
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		if typing.is_active():
-			webhook.payload_wrapper(service, url, ["fetching holdings"], chat_id)
-		try:
-			payload = reports.prepare_holdings_payload(portfolioName, service, user)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		typing.stop()
+	elif m := command(r"holdings?\s*([\w\s]+)*"):
+		with working(service, chat_id) as typing:
+			if typing.is_active():
+				webhook.payload_wrapper(service, url, ["fetching holdings"], chat_id)
+			payload = reports.prepare_holdings_payload(m.group(1) or None, service, user)
 		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_marketcap:
-		arg = m_marketcap.group('arg') or 'top'
+	elif m := command(r"(?:marketcap|maletas|marketer)\s*(?P<arg>[\w\.\:\-]+)*"):
+		arg = m.group('arg') or 'top'
 		if arg not in ('top', 'bottom'):
 			ticker = util.transform_to_yahoo(arg.upper())
-			data = yahoo.fetch_detail(ticker, 600)
-			data = data.get(ticker, {})
+			data = yahoo.fetch_detail(ticker, 600).get(ticker, {})
 			if 'market_cap' in data:
 				cap = util.humanUnits(data['market_cap'])
 				title = data.get('profile_title', ticker)
@@ -497,19 +284,13 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			else:
 				payload = [f"Mkt cap not found for {ticker}"]
 		else:
-			typing = TypingIndicator(service, chat_id)
-			typing.start()
-			try:
+			with working(service, chat_id):
 				payload = reports.prepare_marketcap_payload(service, arg, length=15)
-			except Exception as e:
-				print(e, file=sys.stderr)
-				raise
-			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_peg:
+	elif m := command(r"peg\s*([\w\.\:\-\s]+)*"):
 		action = 'peg'
 		specific_stock = None
-		arg = m_peg.group(1)
+		arg = m.group(1)
 		if arg:
 			match arg:
 				case 'top':
@@ -520,25 +301,14 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 					action = 'negative peg'
 				case _:
 					specific_stock = arg
-		if not specific_stock:
-			typing = TypingIndicator(service, chat_id)
-			typing.start()
-			if not typing.is_active():
-				message = [f"Fetching {action.upper()}s..."]
-				webhook.payload_wrapper(service, url, message, chat_id)
-		try:
+		with working(service, chat_id, url, f"Fetching {action.upper()}s...", enabled=not specific_stock):
 			payload, chart = reports.prepare_value_payload(service, action, specific_stock, length=15, with_chart=True)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		deliver(service, url, chat_id, payload, chart)
-		if not specific_stock:
-			typing.stop()
-	elif m_pe:
+			deliver(service, url, chat_id, payload, chart)
+	elif m := command(r"pe(?:$|\s+)(?P<arg>[\w\.\:\-\s]+)*"):
 		action = 'pe'
 		specific_stock = None
-		if m_pe.group(1):
-			arg = m_pe.group('arg')
+		if m.group(1):
+			arg = m.group('arg')
 			match arg:
 				case 'top':
 					action = 'pe'
@@ -546,22 +316,14 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 					action = 'bottom pe'
 				case _:
 					specific_stock = arg
-		if not specific_stock:
-			typing = TypingIndicator(service, chat_id)
-			typing.start()
-		try:
+		with working(service, chat_id, enabled=not specific_stock):
 			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		if not specific_stock:
-			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_forwardpe:
+	elif m := command(r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*"):
 		action = 'forward pe'
 		specific_stock = None
-		if m_forwardpe.group(1):
-			arg = m_forwardpe.group(1)
+		if m.group(1):
+			arg = m.group(1)
 			match arg:
 				case 'top':
 					action = 'forward pe'
@@ -571,109 +333,48 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 					action = 'negative forward pe'
 				case _:
 					specific_stock = arg
-		if not specific_stock:
-			typing = TypingIndicator(service, chat_id)
-			typing.start()
-		try:
+		with working(service, chat_id, enabled=not specific_stock):
 			payload = reports.prepare_value_payload(service, action, specific_stock, length=15)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		if not specific_stock:
-			typing.stop()
 		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_beta:
-		payload = []
-		chart = None
-		market_data = {}
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		try:
-			tickers = util.get_holdings_and_watchlist()
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		for ticker in tickers:
-			try:
-				market_data = market_data | yahoo.fetch_detail(ticker)
-			except Exception as e:
-				print(e, file=sys.stderr) # skip this ticker; keep the rest
-				continue
-		chart_rows = []
-		for ticker in market_data:
-			try:
-				beta = round(market_data[ticker]['beta'], 1)
-			except KeyError:
-				continue
-			if beta > 1.5 and market_data[ticker]['market_cap'] < 2000000000:
-				profile_title = market_data[ticker]['profile_title']
-				ticker_link = util.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-				flag = util.flag_from_ticker(ticker)
-				payload.append([flag, profile_title, f'({ticker_link})', beta, 'β'])
-				chart_rows.append((ticker.split('.')[0], float(beta)))
-		payload.sort(key=lambda e: e[-2], reverse=True)
-		for e in payload:
-			e[-2] = str(e[-2])
-		payload = [' '.join(e) for e in payload]
-		typing.stop()
-		if payload:
+	elif command(r"beta\s*([\w\.\:\-]+)*"):
+		found = [] # (beta, line, chart row)
+		with working(service, chat_id):
+			market_data = {}
+			for detail in yahoo.fetch_each(yahoo.fetch_detail, util.get_holdings_and_watchlist()): # fetched at the same time
+				if isinstance(detail, Exception):
+					print(detail, file=sys.stderr) # skip this ticker; keep the rest
+				else:
+					market_data |= detail
+			for ticker, data in market_data.items():
+				try:
+					beta = round(data['beta'], 1)
+				except KeyError:
+					continue
+				if beta > 1.5 and data['market_cap'] < 2000000000:
+					ticker_link = util.finance_link(ticker, data['profile_exchange'], service)
+					line = ' '.join([util.flag_from_ticker(ticker), data['profile_title'], f'({ticker_link})', str(beta), 'β'])
+					found.append((beta, line, (ticker.split('.')[0], float(beta))))
+			found.sort(key=lambda row: row[0], reverse=True)
+		if found:
 			heading = 'Beta over 1.5 and mkt cap under 2B'
-			payload.insert(0, f"{webhook.bold(heading, service)}")
-			chart_rows.sort(key=lambda row: row[1], reverse=True)
-			chart = {'rows': chart_rows, 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
-			deliver(service, url, chat_id, payload, chart)
-	elif m_pie:
-		words = m_pie.group('args').split()
+			chart = {'rows': [row for _, _, row in found], 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
+			deliver(service, url, chat_id, [webhook.bold(heading, service)] + [line for _, line, _ in found], chart)
+	elif m := command(r"pie(?:$|\s+)(?P<args>[\w\s\-\.&]*)"):
+		words = m.group('args').split()
 		by = 'industry'
 		if words and words[-1].lower() in ('sector', 'sectors', 'industry', 'industries'):
 			by = 'sector' if words.pop().lower().startswith('sector') else 'industry'
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		try:
+		with working(service, chat_id):
 			payload, chart = reports.prepare_pie(' '.join(words), by, service)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		finally:
-			typing.stop()
 		deliver(service, url, chat_id, payload, chart)
-	elif m_buy:
-		action='buy'
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		if not typing.is_active():
-			message = [f"Fetching {action} ratings..."]
-			webhook.payload_wrapper(service, url, message, chat_id)
-		try:
+	elif m := command(r"(buy|sell)"):
+		action = m.group(1).lower()
+		with working(service, chat_id, url, f"Fetching {action} ratings..."):
 			payload, chart = reports.prepare_rating_payload(service, action, length=15, with_chart=True)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		typing.stop()
-		payload = payload or [f"No stocks meet {action} criteria"]
-		deliver(service, url, chat_id, payload, chart)
-	elif m_sell:
-		action='sell'
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		if not typing.is_active():
-			message = [f"Fetching {action} ratings..."]
-			webhook.payload_wrapper(service, url, message, chat_id)
-		try:
-			payload, chart = reports.prepare_rating_payload(service, action, length=15, with_chart=True)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		typing.stop()
-		payload = payload or [f"No stocks meet {action} criteria"]
-		deliver(service, url, chat_id, payload, chart)
-	elif m_compare:
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		try:
-			payload, graph, compare_tickers, compare_days = reports.prepare_compare(service, m_compare.group('args').split(), with_inputs=True)
-		finally:
-			typing.stop()
+		deliver(service, url, chat_id, payload or [f"No stocks meet {action} criteria"], chart)
+	elif m := command(r"compare\s+(?P<args>[\w\.\:\-\^\=\s]+)"):
+		with working(service, chat_id):
+			payload, graph, compare_tickers, compare_days = reports.prepare_compare(service, m.group('args').split(), with_inputs=True)
 		if graph:
 			markup = None
 			if service == 'telegram':
@@ -681,93 +382,42 @@ def _process_request(service, chat_id, user, message, botName, userRealName, mes
 			webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service, reply_markup=markup)
 		else:
 			webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_history:
-		if not m_history.group('ticker') or m_history.group('extra'):
+	elif m := command(r"(?:history|hospital|visual|hosiery)\s*(?P<ticker>[\w\.\:\-]+)\s*(?P<extra>[\w\%]+)*"):
+		if not m.group('ticker') or m.group('extra'):
 			webhook.payload_wrapper(service, url, ["Usage: .history TICKER"], chat_id)
 			return
-		ticker = util.transform_to_yahoo(m_history.group('ticker').upper())
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		try:
+		ticker = util.transform_to_yahoo(m.group('ticker').upper())
+		with working(service, chat_id):
 			caption, graph = charts.build('h', [ticker], None, service)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		finally:
-			typing.stop()
 		if graph:
 			webhook.sendPhoto(chat_id, graph, caption, service, reply_markup=charts.keyboard('h', [ticker], 'x') if service == 'telegram' else None)
 		else:
 			webhook.payload_wrapper(service, url, caption.split('\n'), chat_id)
-	elif m_plan:
-		filename = 'finbot_plan.json'
-		plan = util.json_load(filename, persist=True)
-		if not plan:
-			plan = dict()
-		payload = []
-		if m_plan.group(1) and not m_plan.group(1).startswith('@'):
-			plan[user] = m_plan.group(1)
-			util.json_write(filename, plan, persist=True)
-		for k,v in plan.items():
-			payload.append(f"{webhook.bold(k.removeprefix('@'), service)}: {webhook.italic(v, service)}\n")
+	elif m := command(r"plan\s*(.*)"):
+		plan = util.json_load('finbot_plan.json', persist=True) or {}
+		if m.group(1) and not m.group(1).startswith('@'):
+			plan[user] = m.group(1)
+			util.json_write('finbot_plan.json', plan, persist=True)
+		payload = [f"{webhook.bold(k.removeprefix('@'), service)}: {webhook.italic(v, service)}\n" for k, v in plan.items()]
 		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_who:
-		if m_who.group('ticker'):
-			arg = m_who.group('ticker').upper()
-		else:
-			payload = [".who: please try again specifying a ticker"]
-			webhook.payload_wrapper(service, url, payload, chat_id)
+	elif m := command(r"(?:who)\s*(?P<ticker>[\w\.\:\-\^]+)*"):
+		if not m.group('ticker'):
+			webhook.payload_wrapper(service, url, [".who: please try again specifying a ticker"], chat_id)
 			return
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		arg = re.split(r'[.:]', arg)[0]
-		who = {}
+		arg = re.split(r'[.:]', m.group('ticker').upper())[0]
 		payload = []
-		try:
-			portfolios = sharesight.get_portfolios()
-			for portfolio_name, portfolio_id in portfolios.items():
-				who[portfolio_name] = []
+		with working(service, chat_id):
+			for portfolio_name, portfolio_id in sharesight.get_portfolios().items():
 				holdings = sharesight.get_holdings_new(portfolio_name, portfolio_id)
-				for k,v in holdings.items():
-					if v['code'].upper() == arg:
-						market_code = v["market_code"]
-						name = v["name"]
-						name = util.transform_title(name)
-						holding_id = v['holding_id']
-						link = util.link(f"https://portfolio.sharesight.com/holdings/{holding_id}/dashboard", arg, service)
-						flag = util.flag_from_market(market_code)
-						who[portfolio_name].append(f"{flag} {name} ({link})")
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		for k,v in who.items():
-			if v:
-				payload.append(webhook.bold(f"{k}:", service))
-				payload.append("\n".join(v))
-				payload.append("")
-		typing.stop()
-		if not payload:
-			payload.append(f'{arg} not found in any portfolio')
-		webhook.payload_wrapper(service, url, payload, chat_id)
-	elif m_jobs:
-		typing = TypingIndicator(service, chat_id, max_loops=10)
-		typing.start()
-		try:
-			payload, markup = reports.prepare_jobs_payload(service, m_jobs.group('args'))
-		finally:
-			typing.stop()
+				found = [reports.holding_line(holding, service, arg) for holding in holdings.values() if holding['code'].upper() == arg]
+				if found:
+					payload += [webhook.bold(f"{portfolio_name}:", service), "\n".join(found), ""]
+		webhook.payload_wrapper(service, url, payload or [f'{arg} not found in any portfolio'], chat_id)
+	elif m := command(r"(?:jobs|crons?|schedule)(?:\s+(?P<args>.*?))?\s*$"):
+		with working(service, chat_id, max_loops=10):
+			payload, markup = reports.prepare_jobs_payload(service, m.group('args'))
 		webhook.payload_wrapper(service, url, payload, chat_id, reply_markup=markup)
-	# m_profile is a catch-all, so other matches must be above it
-	elif m_profile:
-		typing = TypingIndicator(service, chat_id)
-		typing.start()
-		if m_profile.group('ticker'):
-			ticker = m_profile.group('ticker').upper()
-		try:
-			payload = reports.prepare_profile_payload(service, user, ticker)
-		except Exception as e:
-			print(e, file=sys.stderr)
-			raise
-		typing.stop()
+	elif m := command(r"(?P<ticker>[\w\.\:\-]+)"): # .SYMBOL, the profile: the catch-all
+		with working(service, chat_id):
+			payload = reports.prepare_profile_payload(service, user, m.group('ticker').upper())
 		webhook.payload_wrapper(service, url, payload, chat_id)
-
