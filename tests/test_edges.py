@@ -82,7 +82,7 @@ class WatchlistActions(FinbotCase):
 
 class BadArguments(FinbotCase):
     def test_compare_argument_errors_give_usage(self):
-        for cmd in ('.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7', '.compare T1 T1'):
+        for cmd in ('.compare', '.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7', '.compare T1 T1'):
             with self.subTest(cmd=cmd):
                 self.assertIn('Usage', str(self.command(cmd)))
 
@@ -94,9 +94,60 @@ class BadArguments(FinbotCase):
         worker.process_request('telegram', '55', '@u', '.compare T1 T2', BOT, 'U', '1')
         self.assertEqual(len(self.errors), 1)
 
-    def test_history_with_extra_argument_is_rejected_cleanly(self):
-        self.assertTrue(self.command('.history'))
-        self.assertTrue(self.command('.history T1 1y'))
+    def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
+        self.assertEqual(self.command('.history'), [('text', ['Usage: .history SYMBOL'])]) # not the profile of a ticker called HISTORY
+        self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history SYMBOL'])])
+
+
+class PortfolioNames(FinbotCase):
+    def test_an_unknown_portfolio_gets_the_same_answer_everywhere(self):
+        for cmd in ('.trades 7d Nope', '.performance Nope', '.holdings Nope', '.pie Nope'):
+            with self.subTest(cmd=cmd): # it used to be a ValueError, "no Sharesight data found", or two wordings of this
+                self.assertEqual(self.command(cmd), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
+
+    def test_a_portfolio_name_in_any_case(self):
+        self.patch(sharesight, 'get_holdings_new', lambda name, pid: {'T1:NASDAQ': {'code': 'T1', 'market_code': 'NASDAQ', 'name': 'Co T1', 'holding_id': 1}})
+        self.assertIn('Holdings for Rob (1)', str(self.command('.holdings rob')))
+
+    def test_trades_with_no_buy_or_sell_still_get_an_answer(self):
+        self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{'id': 2, 'transaction_type': 'DIVIDEND', 'portfolio': name}])
+        self.assertIn('No trades', str(self.command('.trades 7d'))) # it used to say nothing at all
+
+
+class CommandArguments(FinbotCase):
+    def test_period_and_portfolio_in_either_order(self):
+        for text, expected in (('', (30, None)), ('7d', (7, None)), ('Rob', (30, 'Rob')), ('7d Rob', (7, 'Rob')), ('Rob 7d', (7, 'Rob')),
+                               ('My Portfolio', (30, 'My Portfolio')), ('My Portfolio 3m', (90, 'My Portfolio')), ('Rob ', (30, 'Rob'))):
+            with self.subTest(text=text):
+                self.assertEqual(worker.period_and_portfolio(text, 30), expected)
+
+    def test_a_percentage_is_a_number_and_nan_a_ticker(self):
+        for arg, expected in (('', (5, None)), ('2.5', (2.5, None)), ('3%', (3.0, None)), ('T1', (5, 'T1')), ('nan', (5, 'NAN')), ('inf', (5, 'INF'))):
+            with self.subTest(arg=arg):
+                self.assertEqual(worker.percent_or_ticker(arg, 5), expected)
+        self.assertIn('2.5%', str(self.command('.session 2.5'))) # a threshold, not a ticker called 2.5
+
+    def test_a_bare_number_on_price_is_a_percent(self):
+        """As on .session, .premarket and .shorts, and as the README has it; a period carries its unit."""
+        self.assertIn('3% at close', str(self.command('.price 3'))) # it used to be a 3-day report
+        self.assertIn('Price movement 3%', str(self.command('.price 3 7d'))) # the 3 used to be dropped
+        self.assertIn('Price movement 5%', str(self.command('.price 7d')))
+
+    def test_top_is_gone(self):
+        self.assertIn('Co TOP', str(self.command('.top 7d'))) # .price top 7d is the command; .top is a ticker now, like any word
+
+    def test_a_ratio_command_reads_its_ticker_as_the_other_commands_do(self):
+        self.assertIn('Co T1 ', str(self.command('.pe t1')))
+        self.assertIn('Top 15 tracked stocks by pe ratio', str(self.command('.pe top '))) # trailing space and all
+
+    def test_hello_leaves_the_word_list_as_it_was(self):
+        before = list(worker.verb)
+        for _ in range(30):
+            line = self.command('.hello')[0][1][0]
+            self.assertNotIn("('", line) # a verb, not a tuple of them
+            self.assertTrue(line.endswith(' you, U! 😇'), line)
+        self.assertEqual(worker.verb, before)
+        self.assertEqual(self.command('hi there'), []) # hello by name only: "hi @bot"
 
 
 class WsgiRejections(FinbotCase):
@@ -211,6 +262,51 @@ class SlackEvents(FinbotCase):
         self.patch(bot, 'botName', '@finbot_tg')
         self.event(user='U1', text='.price')
         self.assertEqual(bot.botName, '@finbot_tg')
+
+
+class SecretsStayOutOfLogs(FinbotCase):
+    """A failed request's error message carries its URL: the Telegram token, a Slack or Discord webhook path, a Yahoo crumb."""
+    SECRET_URL = 'https://api.telegram.org/bot123456:SECRET-tok_en/sendMessage?chat_id=1'
+
+    def stderr_of(self, call):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            call()
+        return err.getvalue()
+
+    def test_a_failed_send_logs_no_token(self):
+        def refuse(url, **kwargs):
+            raise ConnectionError(f"Max retries exceeded with url: {url} (headers {kwargs.get('headers')})")
+        self.patch(webhook.net, 'post', refuse)
+        self.patch(webhook, 'config_slackBotToken', 'xoxb-SECRET')
+        log = self.stderr_of(lambda: webhook.write('telegram', self.SECRET_URL, 'hi', '1'))
+        log += self.stderr_of(lambda: webhook.write('slack', 'https://hooks.slack.com/services/T0/B0/SECRETpath', 'hi', 'C1'))
+        self.assertIn('Failure sending', log)
+        for secret in ('SECRET-tok_en', 'SECRETpath', 'xoxb-SECRET'):
+            self.assertNotIn(secret, log)
+
+    def test_the_traceback_of_a_reported_error_is_redacted(self):
+        self.patch(webhook, 'report_error', REAL_REPORT_ERROR)
+        self.patch(webhook, 'write', lambda *a, **k: None)
+        try:
+            raise ConnectionError('failed: ' + self.SECRET_URL)
+        except ConnectionError as e:
+            log = self.stderr_of(lambda: webhook.report_error(e, 'telegram', '55', context='x'))
+        self.assertIn('Traceback', log)
+        self.assertIn('bot<redacted>', log)
+        self.assertNotIn('SECRET-tok_en', log)
+
+
+class SharedSession(unittest.TestCase):
+    def test_the_session_keeps_no_cookies(self):
+        """Yahoo's cookie goes in an explicit header: a stored one would be sent to fc.yahoo.com, which then sets no new one."""
+        import email.message, urllib.request
+        from lib import net
+        headers = email.message.Message()
+        headers['Set-Cookie'] = 'A3=d=AQAB; Max-Age=31557600; Domain=.yahoo.com; Path=/; Secure'
+        response = type('Response', (), {'info': lambda self: headers})()
+        net.session.cookies.extract_cookies(response, urllib.request.Request('https://fc.yahoo.com/'))
+        self.assertEqual(len(net.session.cookies), 0)
 
 
 class StartupSignals(unittest.TestCase):

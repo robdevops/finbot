@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import json, re, sys, os
+import sys
 import datetime
 
 from lib.config import *
@@ -8,271 +8,168 @@ from lib import sharesight
 from lib import webhook
 from lib import util
 from lib import yahoo
-from lib import telegram
 from lib import charts
 
-class Row(list):
-	"""A report line that remembers its ticker, so the numbers can be charted."""
-	def __init__(self, ticker, parts):
-		super().__init__(parts)
-		self.ticker = ticker
+def gather(specific_stock=None, days=None):
+	"""(tickers, market data) for a price report: Yahoo's quotes; over `days` each holding's Sharesight figure, and for the tickers
+	Sharesight has none for (the watchlist) their Yahoo history, fetched together up front."""
+	tickers = [util.transform_to_yahoo(specific_stock)] if specific_stock else util.get_holdings_and_watchlist()
+	market_data = yahoo.fetch(tickers)
+	if config_demote_volatile: # trigger_bar compares market caps, in US dollars
+		yahoo.add_usd_market_caps(market_data)
+	# Sharesight reports a holding's performance only for the time it was held: held for 1Y and asked for 5Y, it gives 1Y
+	if days and (not specific_stock or config_performance_use_sharesight):
+		for data in sharesight.get_performance_wrapper(days).values():
+			for holding in data['report']['holdings']:
+				ticker = util.transform_to_yahoo(holding['instrument']['code'], holding['instrument']['market_code'])
+				if ticker in market_data:
+					market_data[ticker]['percent_change_period'] = float(holding['capital_gain_percent'])
+				elif ticker in tickers:
+					print("Notice: price.py:", ticker, "has no data", file=sys.stderr)
+		if not specific_stock and not config_performance_use_sharesight:
+			yahoo.prefetch_history([t for t in market_data if 'percent_change_period' not in market_data[t]])
+	return tickers, market_data
 
-def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False, days=None, close=False, top=None, return_result=False):
+def trigger_bar(ticker, quote, threshold):
+	"""The move this ticker needs before it alone sends a scheduled report: more for leveraged ETFs (demote_leveraged) and volatile
+	small caps (demote_volatile; their market caps in US dollars), else the threshold itself."""
+	title = quote['profile_title'].lower()
+	if config_demote_leveraged and ('2x' in title or '3x' in title):
+		return threshold * 1.3
+	cap = quote.get('market_cap_usd')
+	if config_demote_volatile and cap is not None and cap < 1e9:
+		if cap < 1e7:
+			return threshold * config_volatility_multiplier * 1.3
+		if cap < 1.5e8:
+			return threshold * config_volatility_multiplier
+		beta = yahoo.fetch_detail(ticker).get(ticker, {}).get('beta')
+		if beta is None or beta > 1.5:
+			return threshold * config_volatility_multiplier
+	return threshold
+
+def report(service, threshold=UNSET, user='', specific_stock=None, interactive=False, midsession=False, premarket=False, interday=False,
+		days=None, close=False, top=None, market=None):
+	"""(payload, chart) of the price report for one service: the moves of `threshold` percent or more (or the top and bottom `top`),
+	today's, over `days`, at the close, mid-session or pre-market. A scheduled report goes out only when one ticker passes its
+	trigger_bar; it then lists every ticker past the threshold. market: gather()'s (tickers, market data), fetched when not given."""
 	if threshold is UNSET:
 		threshold = config_price_percent
-	def prepare_price_payload(service, market_data, threshold, _rows_out=None):
-		payload = []
-		graph = False
-		marketStates = []
-		skipped_volatile = []
-		exchange_set = set()
-		latest = None # date of the freshest price, for the heading
-		multiplier = config_volatility_multiplier
-		for ticker in market_data:
-			marketState = market_data[ticker]['marketState']
-			marketStates.append(marketState)
-			regularMarketTime = datetime.datetime.fromtimestamp(market_data[ticker]['regularMarketTime'])
-			if latest is None or regularMarketTime.date() > latest:
-				latest = regularMarketTime.date()
-			now = datetime.datetime.now()
-			if midsession and marketState != "REGULAR":
-				# skip stocks not in session
-				# Possible market states: PREPRE PRE REGULAR POST POSTPOST CLOSED
+	tickers, market_data = market or gather(specific_stock, days)
+	now = datetime.datetime.now()
+	rows = [] # (ticker, percent, report line without its percent)
+	exchanges = set()
+	states = []
+	latest = None # date of the freshest price, for the heading
+	graph = None
+	triggered = interactive
+	for ticker, quote in market_data.items():
+		state = quote['marketState']
+		states.append(state)
+		quoted = datetime.datetime.fromtimestamp(quote['regularMarketTime'])
+		latest = max(latest or quoted.date(), quoted.date())
+		if midsession and state != 'REGULAR':
+			continue # not in session (states: PREPRE PRE REGULAR POST POSTPOST CLOSED)
+		if interday and not interactive and now - quoted > datetime.timedelta(days=1):
+			print(ticker + '⏭', sep='', end=' ', flush=True) # a market holiday: no repeat of the last session's moves
+			continue
+		if close and not interactive and (now - quoted > datetime.timedelta(hours=1.5) or state in ('PREPRE', 'PRE', 'REGULAR')):
+			print(ticker + '⏭', sep='', end=' ', flush=True) # its market did not just close
+			continue
+		if premarket:
+			percent = quote.get('percent_change_premarket', quote.get('percent_change_postmarket'))
+			if percent is None:
 				continue
-			if interday and not interactive and now - regularMarketTime > datetime.timedelta(days=1):
-				# avoid repeating on market holidays
-				print(ticker + '⏭', sep='', end=' ', flush=True)
-				continue
-			if close and not interactive and (now - regularMarketTime > datetime.timedelta(hours=1.5) or marketState in ('PREPRE', 'PRE', 'REGULAR')):
-				# avoid markets that didn't recently close
-				print(ticker + '⏭', sep='', end=' ', flush=True)
-				continue
-			if premarket:
-				if 'percent_change_premarket' in market_data[ticker]:
-					percent = market_data[ticker]['percent_change_premarket']
-				elif 'percent_change_postmarket' in market_data[ticker]:
-					percent = market_data[ticker]['percent_change_postmarket']
-				else:
+		elif days:
+			percent = quote.get('percent_change_period') # Sharesight's figure, for a holding
+			if percent is None:
+				if config_performance_use_sharesight:
 					continue
-			elif days:
-				try:
-					percent = market_data[ticker]['percent_change_period'] # sharesight value
-				except KeyError:
-					if config_performance_use_sharesight:
-						continue
-					# wishlist items will come here
-					# not a holding (e.g. watchlist): use Yahoo history instead, summarised once in the main section below
-					if specific_stock:
-						percent, graph = yahoo.price_history(ticker, days, graph=config_graph and webhook.takes_charts(service, interactive), graphCache=False)
-						if isinstance(percent, str):
-							raise RuntimeError(percent) # the one ticker asked for has no history: reported in one line
-					else:
-						percent, graph = yahoo.price_history(ticker, days, graph=False)
-						if isinstance(percent, str): # no history for this ticker: leave it out of the list
-							print(ticker, percent, file=sys.stderr)
-							continue
+				if specific_stock: # the one ticker asked for: no history is reported in one line
+					history, graph = yahoo.price_history(ticker, days, graph=config_graph and webhook.takes_charts(service, interactive), graphCache=False)
+				else:
 					try:
-						percent = percent[days]
-					except KeyError:
-						percent = percent['Max']
-			else:
-				percent = market_data[ticker]['percent_change']
-			title = market_data[ticker]['profile_title']
-			percent = float(percent)
-			if percent < 0:
-				emoji = "🔻"
-			elif percent > 0:
-				emoji = '🔼'
-			else:
-				emoji = "▪️"
-			exchange = exchange_human = market_data[ticker]['profile_exchange']
-			exchange_human = util.exchange_human(exchange)
-			if exchange in ('Taipei Exchange', 'CCC') or ticker.startswith('^'):
-				ticker_link = util.yahoo_link(ticker, service)
-			elif config_hyperlinkProvider == 'google':
-				ticker_link = util.gfinance_link(ticker, exchange, service, days=days)
-			else:
-				ticker_link = util.yahoo_link(ticker, service)
-			if not interactive and not payload and config_demote_leveraged and '2x' in title.lower():
-				if abs(percent) >= threshold * 1.3:
-					payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
-					exchange_set.add(exchange_human)
-				elif abs(percent) >= threshold:
-					skipped_volatile.append(ticker)
-			elif not interactive and not payload and config_demote_leveraged and '3x' in title.lower():
-				if abs(percent) >= threshold * 1.3:
-					payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
-					exchange_set.add(exchange_human)
-				elif abs(percent) >= threshold:
-					skipped_volatile.append(ticker)
-			#if not interactive and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000:
-			elif not interactive and not payload and config_demote_volatile and 'market_cap' in market_data[ticker] and market_data[ticker]['market_cap'] < 1000000000: # 1B
-				if market_data[ticker]['market_cap'] < 150000000: # 150M
-					if market_data[ticker]['market_cap'] < 10000000: # 10M
-						if abs(percent) >= threshold * (multiplier * 1.3):
-							payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
-							exchange_set.add(exchange_human)
-					elif abs(percent) >= threshold * multiplier:
-						payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
-						exchange_set.add(exchange_human)
-					elif abs(percent) >= threshold:
-						skipped_volatile.append(ticker)
-				else: # < 1B
-					market_data = market_data | yahoo.fetch_detail(ticker)
-					if not 'beta' in market_data[ticker] or market_data[ticker]['beta'] > 1.5:
-						if abs(percent) >= threshold * multiplier:
-							payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
-							exchange_set.add(exchange_human)
-						elif abs(percent) >= threshold:
-							skipped_volatile.append(ticker)
-					elif abs(percent) >= threshold:
-						payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
-						exchange_set.add(exchange_human)
-			elif abs(percent) >= threshold: # abs catches negative percentages
-				payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
-				exchange_set.add(exchange_human)
-			elif specific_stock and interactive:
-				payload.append(Row(ticker, [emoji, title, f'({ticker_link})', percent]))
-				exchange_set.add(exchange_human)
-		payload.sort(key=lambda e: e[-1], reverse=True)
-		chart_rows = [(e.ticker, e[-1]) for e in payload if isinstance(e, Row)]
-		if _rows_out is not None: # called from the volatile-stocks pass: hand the rows back instead of charting
-			_rows_out.extend(chart_rows)
-		for i, e in enumerate(payload):
-			e[-1] = util.signed_percent(round(e[-1]))
-			payload[i] = ' '.join(e)
-		if payload:
-			if not specific_stock:
-				if skipped_volatile:
-					# run through again, since we already have a payload. only triggers if the first ticker met volatilty threshold
-					market_data = yahoo.fetch(skipped_volatile)
-					payload, graph = payload + prepare_price_payload(service, market_data, threshold, _rows_out=chart_rows)[0], graph
-					chart_rows.sort(key=lambda row: row[1], reverse=True)
-				as_of = latest or datetime.date.today()
-				on = util.date_short(as_of, True)
-				if midsession:
-					heading = f'≥ {threshold}% mid-session, {on} ({", ".join(exchange_set)})'
-				elif premarket:
-					heading = f'≥ {threshold}% pre-market, {on} ({", ".join(exchange_set)})'
-				elif close:
-					heading = f'≥ {threshold}% at close, {on} ({", ".join(exchange_set)})'
-				elif top:
-					payload_bottom = list(reversed(payload[-top:]))
-					payload_bottom.insert(0, webhook.bold(f'Bottom {top}', service))
-					chart_top = chart_rows[:top]
-					chart_bottom = [row for row in chart_rows[-top:] if row not in chart_top]
-					payload = payload[:top]
-					heading = f'Top {top} performers {util.date_range_english(days, as_of) if days else on}'
-				elif days:
-					heading = f'Price movement {threshold}%, {util.date_range_english(days, as_of)}'
-				else:
-					heading = f'{threshold}% at close, {on}'
-				heading_plain = heading.rstrip(':') # chart title
-				heading = webhook.bold(heading, service)
-				payload.insert(0, heading)
-				if top:
-					payload.extend([''] + payload_bottom)
-				can_chart = _rows_out is None and webhook.takes_charts(service, interactive)
-				if top and chart_top and can_chart:
-					def short(ticker):
-						return ticker.split('.')[0].removesuffix('-USD')
-					top_rows = [(short(t), p) for t, p in chart_top]
-					bottom_rows = [(short(t), p) for t, p in reversed(chart_bottom)] # worst first
-					subtitle = f"% change {util.days_english(days, 'in ', 'the past ')}"
-					graph = util.bar_graph(top_rows, bottom_rows, f"Top & bottom {top}", subtitle)
-				elif not top and chart_rows and can_chart:
-					rows = [(t.split('.')[0].removesuffix('-USD'), p) for t, p in chart_rows]
-					session = 'midsession' if midsession else 'premarket' if premarket else 'close' if close else None
-					graph = util.rows_chart(rows, heading_plain, session=session)
+						history, _ = yahoo.price_history(ticker, days, graph=False)
+					except RuntimeError as e: # no history for this ticker: leave it out of the list
+						print(ticker, e, file=sys.stderr)
+						continue
+				percent = history[days]
 		else:
-			if interactive:
-				if specific_stock:
-					if midsession:
-						payload = [f"{tickers[0]} not found or not in session"]
-					elif premarket:
-						payload = [f"No premarket price found for {tickers[0]}"]
-					else:
-						payload = [f"No interday price found for {tickers[0]}"]
-				elif premarket:
-					payload = [f"No pre-market price movements meet threshold {threshold}%"]
-				elif midsession:
-					if 'REGULAR' not in marketStates:
-						payload = [f"{user}, no tracked stocks are currently in session."]
-					else:
-						payload = [f"{user}, no in-session securities meet threshold {threshold}%"]
-				else:
-					payload = [f"{user}, no price movements meet threshold {threshold}%"]
-		return payload, graph
-
-
-	# MAIN #
-	if specific_stock:
-		specific_stock = util.transform_to_yahoo(specific_stock)
-		tickers = [specific_stock]
-	else:
-		tickers = util.get_holdings_and_watchlist()
-	market_data = yahoo.fetch(tickers)
-
-	# Yahoo market_data (specific_stock) or yahoo.price_history (days) is faster
-	# Note: Sharesight only works if specific_stock is a holding.
-	# Note2: Sharesight can only report performance for the time you held it
-	#	so if you held NVDA for 1Y and request 5Y, you will only get 1Y performance
-	if (not specific_stock and days) or (config_performance_use_sharesight and days):
-		performance = sharesight.get_performance_wrapper(days)
-		for portfolio_id, data in performance.items():
-			for holding in data['report']['holdings']:
-				symbol = holding['instrument']['code']
-				market = holding['instrument']['market_code']
-				percent = float(holding['capital_gain_percent'])
-				ticker = util.transform_to_yahoo(symbol, market)
-				if ticker not in tickers:
-					continue # when using specific_stock
-				try:
-					#print("DEBUG injecting sharesight price into market_data:", ticker, file=sys.stderr)
-					market_data[ticker]['percent_change_period'] = percent # inject sharesight value
-				except KeyError:
-					print("Notice:", os.path.basename(__file__), ticker, "has no data", file=sys.stderr)
-					continue
-
-	if days and not specific_stock and not config_performance_use_sharesight:
-		# tickers Sharesight has no performance for (watchlist items) fall back to Yahoo history; fetch those together up front
-		not_in_sharesight = [t for t in market_data if 'percent_change_period' not in market_data[t]]
-		print(f"{len(not_in_sharesight)} of {len(market_data)} tickers are not holdings; using Yahoo price history for them (cache hits are normal)", file=sys.stderr) if debug else None
-		yahoo.prefetch_history(not_in_sharesight)
-
-	list_buttons = not specific_stock and not (midsession or premarket or close) # period buttons suit the daily and N-day lists, not intraday ones
-	# Prep and send payloads
-	if not webhooks:
-		print("Error: no services enabled in finbot.env", file=sys.stderr)
-		sys.exit(1)
-	if interactive:
-		payload, graph = prepare_price_payload(service, market_data, threshold)
-		if return_result: # period buttons rebuild the report without sending it
-			return payload, graph
-		if service == "slack":
-			url = 'https://slack.com/api/chat.postMessage'
-		elif service == "telegram":
-			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-		if graph:
-			caption = '\n'.join(payload)
-			markup = None
-			if service == 'telegram' and specific_stock:
-				markup = charts.keyboard('p', [specific_stock], charts.period_for_days(days))
-			elif service == 'telegram' and list_buttons:
-				markup = charts.keyboard('l', [f"{threshold:g}", str(top or 0)], charts.period_for_days(days, 'd' if not days else None))
-			webhook.sendPhoto(chat_id, graph, caption, service, reply_markup=markup)
+			percent = quote['percent_change']
+		percent = float(percent)
+		if abs(percent) >= threshold or (specific_stock and interactive):
+			exchange = quote['profile_exchange']
+			exchanges.add(util.exchange_human(exchange))
+			rows.append((ticker, percent, f"{util.get_emoji(percent)} {quote['profile_title']} ({util.quote_link(ticker, exchange, service, days=days)})"))
+			triggered = triggered or abs(percent) >= trigger_bar(ticker, quote, threshold)
+	if not triggered:
+		rows = []
+	rows.sort(key=lambda row: row[1], reverse=True)
+	payload = [f"{line} {util.signed_percent(round(percent))}" for _, percent, line in rows]
+	chart_rows = [(ticker, percent) for ticker, percent, _ in rows]
+	label = lambda chart_rows: [(ticker.split('.')[0].removesuffix('-USD'), percent) for ticker, percent in chart_rows]
+	if payload and not specific_stock:
+		as_of = latest or datetime.date.today()
+		on = util.date_short(as_of, True)
+		where = ", ".join(exchanges)
+		if midsession:
+			heading = f'≥ {threshold:g}% mid-session, {on} ({where})'
+		elif premarket:
+			heading = f'≥ {threshold:g}% pre-market, {on} ({where})'
+		elif close:
+			heading = f'≥ {threshold:g}% at close, {on} ({where})'
+		elif top:
+			heading = f'Top {top} performers {util.date_range_english(days, as_of) if days else on}'
+		elif days:
+			heading = f'Price movement {threshold:g}%, {util.date_range_english(days, as_of)}'
 		else:
-			webhook.payload_wrapper(service, url, payload, chat_id)
-	else:
-		for service, url in webhooks.items():
-			payload, graph = prepare_price_payload(service, market_data, threshold)
-			if service == "telegram":
-				url = url + "sendMessage?chat_id=" + str(chat_id)
-			if graph and service == 'telegram':
-				markup = charts.keyboard('l', [f"{threshold:g}", str(top or 0)], charts.period_for_days(days, 'd' if not days else None)) if list_buttons else None
-				webhook.sendPhoto(chat_id, graph, '\n'.join(payload), service, reply_markup=markup)
-				continue
-			webhook.payload_wrapper(service, url, payload, chat_id)
+			heading = f'{threshold:g}% at close, {on}'
+		chartable = webhook.takes_charts(service, interactive)
+		if top:
+			bottom = [webhook.bold(f'Bottom {top}', service)] + list(reversed(payload[-top:]))
+			payload = [webhook.bold(heading, service)] + payload[:top] + [''] + bottom
+			chart_top = chart_rows[:top]
+			chart_bottom = [row for row in reversed(chart_rows[-top:]) if row not in chart_top] # worst first
+			if chartable and chart_top:
+				graph = util.bar_graph(label(chart_top), label(chart_bottom), f"Top & bottom {top}", f"% change {util.days_english(days, 'in ', 'the past ')}")
+		else:
+			payload.insert(0, webhook.bold(heading, service))
+			if chartable:
+				graph = util.rows_chart(label(chart_rows), heading, session='midsession' if midsession else 'premarket' if premarket else None)
+	elif not payload and interactive:
+		if specific_stock:
+			if midsession:
+				payload = [f"{tickers[0]} not found or not in session"]
+			elif premarket:
+				payload = [f"No premarket price found for {tickers[0]}"]
+			else:
+				payload = [f"No interday price found for {tickers[0]}"]
+		elif premarket:
+			payload = [f"No pre-market price movements meet threshold {threshold:g}%"]
+		elif midsession:
+			if 'REGULAR' not in states:
+				payload = [f"{user}, no tracked stocks are currently in session."]
+			else:
+				payload = [f"{user}, no in-session securities meet threshold {threshold:g}%"]
+		else:
+			payload = [f"{user}, no price movements meet threshold {threshold:g}%"]
+	return payload, graph
+
+def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None, user='', specific_stock=None, interactive=False, midsession=False,
+		premarket=False, interday=False, days=None, close=False, top=None):
+	if threshold is UNSET:
+		threshold = config_price_percent
+	market = gather(specific_stock, days)
+	def buttons(service): # a chart's period buttons: one ticker's chart, and the daily and N-day lists (not the intraday ones)
+		if service != 'telegram':
+			return None
+		if specific_stock:
+			return charts.keyboard('p', market[0], charts.period_for_days(days))
+		if not (midsession or premarket or close):
+			return charts.keyboard('l', [f"{threshold:g}", str(top or 0)], charts.period_for_days(days, 'd' if not days else None))
+		return None
+	for service, url, chat in webhook.destinations(interactive, service, chat_id):
+		payload, graph = report(service, threshold, user, specific_stock, interactive, midsession, premarket, interday, days, close, top, market)
+		webhook.send(service, url, chat, payload, graph, reply_markup=buttons(service) if graph else None)
 
 def job(argv):
 	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""

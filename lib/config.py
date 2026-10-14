@@ -20,7 +20,7 @@ STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'telegramChatID', 'scheduler', 'schedu
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook')
 PREFERENCE_KEYS = ('alliterate', 'cache', 'cache_seconds', 'chunk_maxlines', 'country_code', 'debug', 'demote_leveraged', 'demote_volatile',
 	'exclude_portfolios', 'future_days', 'graph', 'http_timeout', 'hyperlink', 'hyperlinkFooter', 'hyperlinkProvider', 'include_portfolios',
-	'past_days', 'performance_cache_seconds', 'performance_use_sharesight', 'price_percent', 'print_headers', 'shorts_percent', 'timezone',
+	'min_analysts', 'past_days', 'performance_cache_seconds', 'performance_use_sharesight', 'price_percent', 'print_headers', 'shorts_percent', 'timezone',
 	'trades_use_yahoo', 'volatility_multiplier')
 SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook') # never printed
@@ -198,6 +198,7 @@ def preference_values(getenv):
 		'config_hyperlinkFooter': r.bool('hyperlinkFooter', True),
 		'config_hyperlinkProvider': r.str('hyperlinkProvider', 'google').lower(),
 		'config_include_portfolios': r.str('include_portfolios', '').split(),
+		'config_min_analysts': r.int('min_analysts', 7), # .buy, .sell and .forward pe list only stocks this many analysts cover
 		'config_past_days': r.int('past_days', 28),
 		'config_performance_cache_seconds': r.int('performance_cache_seconds', 1800), # Sharesight performance reports (30 minutes)
 		'config_performance_use_sharesight': r.bool('performance_use_sharesight', False),
@@ -224,9 +225,13 @@ def _getenv_for(preferences):
 	return getenv
 
 
-def _fail(e):
+def print_errors(e):
+	"""Log a ConfigError's problems, a line each."""
 	for line in e.errors:
 		print('ERROR config:', line, file=sys.stderr)
+
+def _fail(e):
+	print_errors(e)
 	sys.exit(1)
 
 
@@ -255,6 +260,14 @@ def data_file(name):
 	# user copy in the data dir wins over the shipped default in defaults/
 	user = config_var_dir + '/' + name
 	return user if os.path.isfile(user) else str(REPO_DIR / 'defaults' / name)
+
+def data_json(name, default=None):
+	"""A data file's JSON (the user's copy or the shipped default, as data_file has it), or `default` when there is neither."""
+	path = data_file(name)
+	if not os.path.isfile(path):
+		return default
+	with open(path, encoding="utf-8") as f:
+		return json.load(f)
 
 
 def reload():
@@ -440,42 +453,6 @@ verb = [
 	'act like I comprehend'
 ]
 
-searchVerb = [
-	'Asking ChatGPT for',
-	'Avoiding eye contact with',
-	'Carrying the 1 on',
-	'Conducting seance to make contact with',
-	'Conjuring up',
-	'Dispatching fluffy dogs to track',
-	'Entering metaverse to inefficiently get',
-	'Excavating',
-	'Foraging for',
-	'Hiring developers to troubleshoot',
-	'Loading backup tapes for',
-	'Manifesting',
-	'Massaging data for',
-	'Mining dogecoin to purchase report on',
-	'Panning for',
-	'Performing expert calculus on',
-	'Plucking',
-	'Poking a stick at',
-	'Praying for',
-	'Reciting incantations on',
-	'Repairing file-system to restore',
-	'Resetting Sharesight password to fetch',
-	'Rummaging for',
-	'SELECT * FROM topsecret WHERE',
-	'Sacrificing wildebeest to recover',
-	'Shooing rodents to access',
-	'Summoning',
-	'Training pigeons to fetch',
-	'Transcribing Hebrew for',
-	'Traversing the void for',
-	'Unshredding documents for',
-	'Unspilling coffee to read',
-	'ls -l /var/lib/topsecret/ | grep'
-]
-
 noTradesVerb = [
 	"The money is probably resting in another account",
 	"Oh well. The market would have just gone down anyway",
@@ -491,16 +468,13 @@ noTradesVerb = [
 	"With your stock picking skills, this is probably for the best"
 ]
 
-filename = data_file('finbot_adr.json')
-if os.path.isfile(filename):
-	with open(filename, "r", encoding="utf-8") as f:
-		primary_listing = json.load(f)
+primary_listing = data_json('finbot_adr.json', {}) # ADR -> its primary listing
 
 yahoo_country = {
 	'Argentina': 'BA',
 	'Austria': 'VI',
 	'Australia': 'AX',
-	'Belgium': 'AS',
+	'Belgium': 'BR',
 	'Brazil': 'SA',
 	'Canada': 'TO',
 	'Chile': 'SN',
@@ -515,7 +489,7 @@ yahoo_country = {
 	'Iceland': 'IC',
 	'India': 'NS',
 	'Indonesia': 'JK',
-	'Ireland': '.IR',
+	'Ireland': 'IR',
 	'Israel': 'TA',
 	'Italy': 'MI',
 	'Latvia': 'RG',
@@ -526,7 +500,7 @@ yahoo_country = {
 	'Norway': 'OL',
 	'Portugal': 'LS',
 	'Qatar': 'QA',
-	'Saudi Arabia': 'SAU',
+	'Saudi Arabia': 'SR',
 	'South Africa': 'JO',
 	'Spain': 'MC',
 	'Sweden': 'ST',
@@ -540,6 +514,6 @@ yahoo_country = {
 
 # `from lib.config import *` is how the other modules get their config_* names; keep the loader machinery out of their namespaces
 _INTERNAL = {'difflib', 're', 'sys', 'ConfigError', 'key_problem', 'parse_assignments', 'read_text', 'read_preferences', 'read_startup_file',
-	'startup_values', 'preference_values', 'reload', 'child_environment', 'check_startup_environment', 'startup_report', 'preferences_path',
+	'startup_values', 'preference_values', 'reload', 'child_environment', 'print_errors', 'check_startup_environment', 'startup_report', 'preferences_path',
 	'STARTUP_KEYS', 'PREFERENCE_KEYS', 'SECRET_KEYS', 'PREFERENCES_FILE', 'PASSED', 'PREFERENCE_NAMES', 'OLD_ENV'}
 __all__ = [name for name in dir() if not name.startswith('_') and name not in _INTERNAL]

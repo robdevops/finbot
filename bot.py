@@ -17,6 +17,7 @@ from lib import worker
 from lib import jobs
 from lib import charts
 from lib import sharesight
+from lib import net
 from lib import telegram
 from lib import webhook
 
@@ -36,7 +37,7 @@ def main(environ, start_response):
 			status = '200 OK'
 		else:
 			print(f"request to {environ.get('PATH_INFO')!r} failed:", webhook.error_line(e), file=sys.stderr)
-			traceback.print_exc()
+			print(net.redact(traceback.format_exc()), end='', file=sys.stderr)
 			status = '500 Internal Server Error'
 		try:
 			start_response(status, [('Content-type', 'text/plain')], sys.exc_info())
@@ -46,18 +47,14 @@ def main(environ, start_response):
 
 def handle(environ, start_response):
 	def print_body():
-		try:
-			print(f"inbound {uri} ", json.dumps(inbound, indent=4), file=sys.stderr)
-		except Exception as e:
-			print(e, "raw body: ", inbound, file=sys.stderr)
+		shown = {k: '<redacted>' if k == 'token' else v for k, v in inbound.items()} # Slack's verification token
+		print(f"inbound {uri} ", json.dumps(shown, indent=4, default=str), file=sys.stderr)
 	def print_headers():
-		for item in sorted(environ.items()):
-			print(item, file=sys.stderr)
+		for name, value in sorted(environ.items()):
+			print((name, '<redacted>' if name == 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' else value), file=sys.stderr)
 	def reply(status, body=b''):
 		start_response(status, [('Content-type', 'application/json')])
 		return [body]
-	user=''
-	userRealName=''
 	print_headers() if config_print_headers else None
 	# route on the path first, and turn strangers away before reading the body
 	uri = environ.get('PATH_INFO', '')
@@ -83,7 +80,6 @@ def handle(environ, start_response):
 	if not isinstance(inbound, dict):
 		print(f"[{service}]: request body is not a JSON object", file=sys.stderr)
 		return reply('400 Bad Request', b'<h1>Bad Request</h1>')
-	#print_body() if debug else None
 	if service == 'telegram':
 		bot_name = botName
 		if "callback_query" in inbound: # chart period buttons
@@ -97,29 +93,23 @@ def handle(environ, start_response):
 			return reply('200 OK')
 		if "message" not in inbound:
 			return reply('200 OK', b'Unsupported')
-		message_id = str(inbound["message"]["message_id"])
-		chat_id = str(inbound["message"]["chat"]["id"])
-		if "username" in inbound["message"]["from"]:
-			user = userRealname = '@' + inbound["message"]["from"]["username"]
-			if len(inbound["message"]["from"]["first_name"]):
-				userRealName = inbound["message"]["from"]["first_name"]
+		msg = inbound["message"]
+		sender = msg["from"]
+		message_id = str(msg["message_id"])
+		chat_id = str(msg["chat"]["id"])
+		if "username" in sender:
+			user = '@' + sender["username"]
+			userRealName = sender["first_name"] or user # what to call them: the handle when the first name is blank
 		else:
-			user = userRealName = '@' + inbound["message"]["from"]["first_name"]
-		file_id = None
-		if "text" in inbound["message"]:
-			message = inbound["message"]["text"]
+			user = userRealName = '@' + sender["first_name"]
+		if "text" in msg:
+			message = msg["text"]
 			print("[Telegram]:", user, message, file=sys.stderr) if debug else None
-			#if message.startswith("Upcoming earnings for the next month") and user == telegram.getMe().get('username'):
-			#	telegram.pinChatMessage(message_id, chat_id)
-			# todo need to return sendMessage to get message_id and chat_id
-		elif "photo" in inbound["message"]:
-			message = ''
-			if "caption" in inbound["message"]:
-				message = inbound["message"]["caption"]
-			photo = inbound["message"]["photo"][-1]
-			file_id = photo["file_id"]
+		elif "photo" in msg:
+			message = msg.get("caption", '')
+			file_id = msg["photo"][-1]["file_id"]
 			print("[Telegram photo]:", user, file_id, message)
-		elif IGNORED_TELEGRAM_CONTENT & inbound["message"].keys():
+		elif IGNORED_TELEGRAM_CONTENT & msg.keys():
 			return reply('200 OK') # stickers, GIFs, voice notes and the like: nothing to answer, nothing worth logging
 		else:
 			print(f"[{service}]: unhandled: 'message' without 'text/photo'", file=sys.stderr)
@@ -157,18 +147,14 @@ def handle(environ, start_response):
 			user = userRealName = '<@' + event['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
 			bot_name = '@' + bot_user # QWERTY becomes @QWERTY
 			chat_id = event['channel']
-			print(f"[{service}]:", user, message, sys.stderr) if debug else None
+			print(f"[{service}]:", user, message, file=sys.stderr) if debug else None
 			# this condition spawns a worker before returning
 		else:
 			print(f"[{service}]: unhandled 'type'", file=sys.stderr)
 			return reply('200 OK', b'<h1>Unhandled</h1>')
 
-	def runWorker():
-		worker.process_request(service, chat_id, user, message, bot_name, userRealName, message_id)
-
 	# process in a background thread so we don't keep the requesting client waiting
-	t = threading.Thread(target=runWorker)
-	t.start()
+	threading.Thread(target=worker.process_request, args=(service, chat_id, user, message, bot_name, userRealName, message_id)).start()
 
 	# Return an empty response to the client
 	return reply('200 OK')
@@ -179,7 +165,7 @@ def git_version(checkout=None):
 	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no "dubious
 	ownership" refusal when the service user does not own the checkout. 'unknown' when it cannot be read."""
 	try:
-		git = Path(checkout or os.path.dirname(os.path.abspath(__file__))) / '.git'
+		git = Path(checkout or REPO_DIR) / '.git'
 		if git.is_file(): # a linked worktree or submodule: .git is a file saying "gitdir: <path>"
 			git = (git.parent / git.read_text().split(':', 1)[1].strip()).resolve()
 		common = (git / (git / 'commondir').read_text().strip()).resolve() if (git / 'commondir').is_file() else git # refs of a worktree
@@ -206,8 +192,7 @@ def reload_all(*args):
 			print('config:', change, file=sys.stderr)
 		print(f"config: reloaded {config.preferences_path}, {len(changes)} change{'' if len(changes) == 1 else 's'}", file=sys.stderr)
 	except config.ConfigError as e:
-		for line in e.errors:
-			print('ERROR config:', line, file=sys.stderr)
+		config.print_errors(e)
 	if scheduler:
 		scheduler.reload()
 
@@ -216,8 +201,7 @@ if __name__ == '__main__':
 	try:
 		config.check_startup_environment()
 	except config.ConfigError as e:
-		for line in e.errors:
-			print('ERROR config:', line, file=sys.stderr)
+		config.print_errors(e)
 		sys.exit(1)
 	for line in config.startup_report():
 		print('config:', line, file=sys.stderr)

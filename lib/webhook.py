@@ -8,7 +8,8 @@ import sys
 import traceback
 
 from lib.config import *
-from lib import util
+from lib import net
+from lib import telegram
 
 def write(service, url, payload_string, chat_id=None, message_id=None, reply_markup=None):
 	headers = {'Content-type': 'application/json'}
@@ -17,6 +18,9 @@ def write(service, url, payload_string, chat_id=None, message_id=None, reply_mar
 		headers['unfurl_links'] = 'false'
 		headers['unfurl_media'] = 'false'
 		if chat_id:
+			if not config_slackBotToken:
+				print("Slack: replying in a channel needs slackBotToken in finbot.env", file=sys.stderr)
+				return None
 			headers['Authorization'] = 'Bearer ' + config_slackBotToken
 			payload['channel'] = chat_id
 			if message_id:
@@ -31,9 +35,9 @@ def write(service, url, payload_string, chat_id=None, message_id=None, reply_mar
 		if reply_markup:
 			payload['reply_markup'] = reply_markup # keyboard (Telegram only)
 	try:
-		r = requests.post(url, headers=headers, json=payload, timeout=config_http_timeout)
-	except:
-		print("Failure executing request:", url, headers, payload, file=sys.stderr)
+		r = net.post(url, headers=headers, json=payload, timeout=config_http_timeout)
+	except Exception as e:
+		print("Failure sending to", service + ":", net.redact(e), file=sys.stderr)
 		return None
 	if r.status_code == 200:
 		print(r.status_code, "OK outbound to", service, file=sys.stderr)
@@ -53,15 +57,33 @@ def chat_url(service, chat_id):
 		return webhooks['telegram'] + 'sendMessage?chat_id=' + str(chat_id)
 	return webhooks.get(service)
 
+def default_chats():
+	"""Where a scheduled report goes: [(service, url, chat id)]. Telegram posts into telegramChatID (left out without one); Slack and
+	Discord post through their incoming webhooks, which take no chat id. Raises RuntimeError when there is nowhere to post."""
+	chats = [(service, chat_url(service, config_telegramChatID), config_telegramChatID) if service == 'telegram' else (service, url, None)
+		for service, url in webhooks.items() if service != 'telegram' or config_telegramChatID]
+	if not chats:
+		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slack_webhook or discord_webhook')
+	return chats
+
+def destinations(interactive, service, chat_id):
+	"""Where a report goes: back to the chat that asked for it (interactive), else to the default chats."""
+	return [(service, chat_url(service, chat_id), chat_id)] if interactive else default_chats()
+
+def send(service, url, chat_id, payload, image=None, reply_markup=None, message_id=None):
+	"""A report: its chart with the text as caption when there is one (sendPhoto falls back to the text where a chart cannot go),
+	else the text. reply_markup is the chart's buttons. Returns what payload_wrapper or sendPhoto did."""
+	if image:
+		return sendPhoto(chat_id, image, '\n'.join(payload), service, message_id=message_id, reply_markup=reply_markup)
+	return payload_wrapper(service, url, payload, chat_id, message_id)
+
 def error_line(e, context=None, limit=200):
 	"""One-line, secret-free summary of an exception (or string)."""
 	if isinstance(e, BaseException):
 		text = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
 	else:
 		text = str(e)
-	text = re.sub(r'bot\d+:[\w-]+', 'bot<redacted>', text) # Telegram tokens appear in request URLs
-	text = re.sub(r'(?i)(token|crumb|auth\w*|key)=[^&\s]+', r'\1=<redacted>', text)
-	text = ' '.join(text.split())
+	text = ' '.join(net.redact(text).split())
 	if len(text) > limit:
 		text = text[:limit - 1] + '…'
 	return f"⚠️ {context}: {text}" if context else f"⚠️ {text}"
@@ -74,20 +96,8 @@ def report_error(e, service=None, chat_id=None, context=None):
 		line = error_line(e, context)
 		print(line, file=sys.stderr)
 		if isinstance(e, BaseException):
-			traceback.print_exception(e, file=sys.stderr)
-		if service and chat_id:
-			targets = [(service, chat_url(service, chat_id))]
-			chat = chat_id
-		else:
-			targets = []
-			for svc, url in webhooks.items():
-				if svc == 'telegram':
-					if not config_telegramChatID:
-						continue
-					url = chat_url(svc, config_telegramChatID)
-				targets.append((svc, url))
-			chat = None
-		for svc, url in targets:
+			print(net.redact(''.join(traceback.format_exception(e))), end='', file=sys.stderr) # request errors carry their URL
+		for svc, url, chat in [(service, chat_url(service, chat_id), chat_id)] if service and chat_id else default_chats():
 			if url:
 				try:
 					write(svc, url, line if svc == 'discord' else html.escape(line, quote=False), chat)
@@ -120,59 +130,45 @@ def payload_wrapper(service, url, payload, chat_id=None, message_id=None, reply_
 	"""Returns a list with the response of each message sent (several if the payload was chunked)."""
 	if not payload:
 		print(service + ": Nothing to send") # informational
-	else:
-		payload = [str(line) for line in payload]
-		payload_string = '\n'.join(payload)
-		print("Preparing outbound to", service, str(len(payload_string)), "bytes")
-		print("Payload: " + payload_string) if debug else None
-		def chunkLooper():
-			chunks = list(batched(payload, config_chunk_maxlines))
-			results = []
-			for idx, chunk in enumerate(chunks):
-				idx > 0 and time.sleep(0.5)
-				payload_chunk = '\n'.join(chunk)
-				last = idx == len(chunks) - 1
-				results.append(write(service, url, payload_chunk, chat_id, reply_markup=reply_markup if last else None))
-			return results
-		if service == 'discord' and len(payload_string) > 2000:
-			print(service, "payload is over 2,000 bytes. Splitting.")
-			return chunkLooper()
-		elif service != 'discord' and len(payload_string) > 4096:
-			print(service, "payload is over 4,096 bytes. Splitting.")
-			return chunkLooper()
-		else:
-			return [write(service, url, payload_string, chat_id, message_id, reply_markup)]
+		return None
+	payload = [str(line) for line in payload]
+	payload_string = '\n'.join(payload)
+	print("Preparing outbound to", service, str(len(payload_string)), "bytes")
+	print("Payload: " + payload_string) if debug else None
+	limit = 2000 if service == 'discord' else 4096
+	if len(payload_string) <= limit:
+		return [write(service, url, payload_string, chat_id, message_id, reply_markup)]
+	print(service, f"payload is over {limit:,} bytes. Splitting.")
+	chunks = list(batched(payload, config_chunk_maxlines))
+	results = []
+	for idx, chunk in enumerate(chunks):
+		if idx:
+			time.sleep(0.5)
+		last = idx == len(chunks) - 1
+		results.append(write(service, url, '\n'.join(chunk), chat_id, reply_markup=reply_markup if last else None))
+	return results
+
+MARKUP = { # how each service marks text up: style -> service -> (before, after)
+	'bold': {'telegram': ('<b>', '</b>'), 'slack': ('*', '*'), 'discord': ('**', '**')},
+	'italic': {'telegram': ('<i>', '</i>'), 'slack': ('_', '_'), 'discord': ('_', '_')},
+	'strike': {'telegram': ('<s>', '</s>'), 'slack': ('~', '~'), 'discord': ('~~', '~~')},
+}
+
+def _styled(style, message, service):
+	if service not in MARKUP[style]:
+		return message
+	before, after = MARKUP[style][service]
+	return before + message + after
 
 def bold(message, service):
-	if service == 'telegram':
-		message = '<b>' + message + '</b>'
-	elif service == 'slack':
-		message = '*' + message + '*'
-	elif service == 'discord':
-		message = '**' + message + '**'
-	return message
+	return _styled('bold', message, service)
 
 def italic(message, service):
-	if service == 'telegram':
-		message = '<i>' + message + '</i>'
-	elif service == 'slack':
-		message = '_' + message + '_'
-	elif service == 'discord':
-		message = '_' + message + '_'
-	return message
-
-italics = italic
+	return _styled('italic', message, service)
 
 def strike(message, service):
-	if service == 'telegram':
-		message = '<s>' + message + '</s>'
-	elif service == 'slack':
-		message = '~' + message + '~'
-	elif service == 'discord':
-		message = '~~' + message + '~~'
-	return message
+	return _styled('strike', message, service)
 
-strikethrough = strike
 
 def fit_caption(caption, limit=1024):
 	"""Telegram rejects photo captions over 1024 visible characters. Keep whole lines that fit and say how many were left out."""
@@ -214,12 +210,12 @@ def telegram_photo(chat_id, image_data, caption, message_id=None, reply_markup=N
 	if hasattr(image_data, 'seek'):
 		image_data.seek(0)
 	try:
-		r = requests.post(url, data=data, files={"photo": ('image.png', image_data)}, timeout=config_http_timeout)
+		r = net.post(url, data=data, files={"photo": ('image.png', image_data)}, timeout=config_http_timeout)
 	except requests.exceptions.ReadTimeout as e:
-		print("Telegram sendPhoto timed out, the chart may still arrive:", e, file=sys.stderr)
+		print("Telegram sendPhoto timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
 		return MAYBE_SENT
 	except Exception as e:
-		print("Failure executing request:", url, data, str(e))
+		print("Telegram sendPhoto failed:", net.redact(e), file=sys.stderr)
 		return None
 	try:
 		output = r.json()
@@ -233,7 +229,7 @@ def telegram_photo(chat_id, image_data, caption, message_id=None, reply_markup=N
 
 def slack_api(method, **data):
 	"""POST a Slack Web API method as the bot, form-encoded, and return its answer. Raises RuntimeError with Slack's error if not ok."""
-	r = requests.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + config_slackBotToken}, data=data, timeout=config_http_timeout)
+	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + config_slackBotToken}, data=data, timeout=config_http_timeout)
 	try:
 		output = r.json()
 	except ValueError:
@@ -251,7 +247,7 @@ def slack_photo(chat_id, image_data, caption, message_id=None):
 	data = image_data.read() if hasattr(image_data, 'read') else bytes(image_data)
 	try:
 		ticket = slack_api('files.getUploadURLExternal', filename='chart.png', length=len(data))
-		r = requests.post(ticket['upload_url'], data=data, timeout=config_http_timeout)
+		r = net.post(ticket['upload_url'], data=data, timeout=config_http_timeout)
 		if r.status_code != 200:
 			raise RuntimeError(f"Slack upload: {r.status_code} {r.text[:200]}")
 		share = {'files': json.dumps([{'id': ticket['file_id']}]), 'channel_id': chat_id, 'initial_comment': caption}
@@ -260,10 +256,10 @@ def slack_photo(chat_id, image_data, caption, message_id=None):
 		try:
 			output = slack_api('files.completeUploadExternal', **share)
 		except requests.exceptions.ReadTimeout as e:
-			print("Slack files.completeUploadExternal timed out, the chart may still arrive:", e, file=sys.stderr)
+			print("Slack files.completeUploadExternal timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
 			return MAYBE_SENT
 	except Exception as e:
-		print("Slack chart upload failed:", e, file=sys.stderr)
+		print("Slack chart upload failed:", net.redact(e), file=sys.stderr)
 		return None
 	print("OK slack chart upload to", chat_id, file=sys.stderr)
 	return output
@@ -273,79 +269,45 @@ def sendPhoto(chat_id, image_data, caption, service, message_id=None, reply_mark
 	(takes_charts), or the service refuses it, the report is sent as text instead, without the chart's buttons, so it does not vanish
 	with its chart; but not after a read timeout on the request that posts it, when the chart may have arrived after all."""
 	output = None
+	chartable = takes_charts(service, reply=bool(chat_id))
 	if service == 'telegram':
 		output = telegram_photo(chat_id, image_data, caption, message_id, reply_markup)
-	elif takes_charts(service, reply=bool(chat_id)):
+	elif chartable:
 		output = slack_photo(chat_id, image_data, caption, message_id)
 	if output is MAYBE_SENT:
 		return None
 	if output:
 		return output
-	if takes_charts(service, reply=bool(chat_id)):
+	if chartable:
 		print("chart not sent, sending the report as text", file=sys.stderr)
 	return payload_wrapper(service, chat_url(service, chat_id) if chat_id else webhooks.get(service), caption.split('\n'), chat_id, message_id)
 
 def editMessageText(chat_id, message_id, text, reply_markup=None):
-	"""Telegram: replace a text message's text and buttons in place. Returns None if it could not be edited."""
+	"""Telegram: replace a text message's text and buttons in place. A failure is only logged."""
 	payload = {'chat_id': chat_id, 'message_id': message_id, 'text': text, 'parse_mode': 'HTML', 'disable_web_page_preview': True}
 	if reply_markup is not None:
 		payload['reply_markup'] = reply_markup
-	try:
-		output = requests.post(webhooks['telegram'] + 'editMessageText', json=payload, timeout=config_http_timeout).json()
-	except Exception as e:
-		print("Failure executing editMessageText:", str(e), file=sys.stderr)
-		return None
-	if not output.get('ok'):
-		print(output.get('error_code'), output.get('description'), file=sys.stderr)
-		return None
-	return output
+	telegram.try_call('editMessageText', json=payload)
 
 def editMessageMedia(chat_id, message_id, image_data, caption, reply_markup=None):
-	"""Telegram: replace a photo message's image and caption in place."""
-	url = webhooks['telegram'] + 'editMessageMedia'
-	caption = fit_caption(caption)
-	media = {'type': 'photo', 'media': 'attach://photo', 'caption': caption, 'parse_mode': 'HTML'}
+	"""Telegram: replace a photo message's image and caption in place. Raises RuntimeError when Telegram refuses, unless the message
+	is already so (pressing the active period again is harmless); a request that fails on the way is only logged."""
+	media = {'type': 'photo', 'media': 'attach://photo', 'caption': fit_caption(caption), 'parse_mode': 'HTML'}
 	data = {'chat_id': chat_id, 'message_id': message_id, 'media': json.dumps(media)}
 	if reply_markup:
 		data['reply_markup'] = json.dumps(reply_markup)
 	if hasattr(image_data, 'seek'):
 		image_data.seek(0)
 	try:
-		r = requests.post(url, data=data, files={'photo': ('image.png', image_data)}, timeout=config_http_timeout)
-		output = r.json()
-	except Exception as e:
-		print("Failure executing editMessageMedia:", str(e), file=sys.stderr)
-		return None
-	if not output.get('ok'):
-		description = output.get('description', r.reason)
-		if 'not modified' not in description: # pressing the active period again is harmless
-			print(output.get('error_code'), description, file=sys.stderr)
-			raise RuntimeError(f"Telegram: {description}")
-	return output
+		telegram.call('editMessageMedia', data=data, files={'photo': ('image.png', image_data)})
+	except RuntimeError as e:
+		if 'not modified' not in str(e):
+			raise
+	except Exception as e: # it may have arrived even so: no error line for something the chat may already show
+		print("Telegram editMessageMedia failed:", net.redact(e), file=sys.stderr)
 
 def pleaseHold(action, service, chat_id):
-	"""typing notify. I am run in a thread and repeated every 5 seconds"""
+	"""Telegram's typing notice ("typing…" for a few seconds). worker.TypingIndicator repeats it every 7 seconds while a command
+	works, on Telegram only: the other services have no such notice."""
 	if service == 'telegram':
-		url = webhooks['telegram'] + "sendChatAction?chat_id=" + str(chat_id)
-		headers = {}
-		data = {
-			'chat_id': chat_id,
-			'action': action
-		}
-		try:
-			r = requests.post(url, data=data, headers=headers, timeout=config_http_timeout)
-		except Exception as e:
-		  print("Failure executing request:", url, data, str(e))
-		  return None
-		if r.status_code == 200:
-			print(r.status_code, "OK typing indicator to", service, file=sys.stderr)
-		else:
-			print(r.status_code, "error typing indicator to", service, file=sys.stderr)
-		return None
-	else:
-		payload_string = "this might take a moment"
-		if service == "slack":
-			url = 'https://slack.com/api/chat.postMessage'
-		elif service == "telegram":
-			url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-		write(service, url, payload_string, chat_id, message_id=None)
+		telegram.try_call('sendChatAction', data={'chat_id': chat_id, 'action': action})

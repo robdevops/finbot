@@ -178,7 +178,7 @@ You can also specify a portfolio name to get trades for just that portfolio:
 
 `prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 5% but you can change it by setting `price_percent` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
-If `demote_volatile` is `true`, stocks with a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) under 150M, or a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a market cap of under 1B will have their alert threshold (`price_percent`) doubled.
+If `demote_volatile` is `true`, stocks with a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) under US$150M, or a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a market cap of under US$1B will have their alert threshold (`price_percent`) doubled. A market cap in another currency is converted at Yahoo's exchange rate.
 
 Config example:
 ```
@@ -207,10 +207,10 @@ Interactive trigger (pre-market):
 
 Interactive trigger (mid-session):
 ```
-.midsession [percent]
+.session [percent]
 ```
 ```
-@botname midsession [percent]
+@botname session [percent]
 ```
 
 Interactive trigger (interday).
@@ -218,10 +218,10 @@ Interactive trigger (interday).
 .price [percent]
 ```
 ```
-@botname [percent]
+@botname price [percent]
 ```
 
-For interday, can also specify the time period.
+For interday, can also specify the time period. A bare number is the percent; a period carries its unit: `7d`, `2w`, `3m`, `1y` or `ytd`. For example, `.price 3 7d` lists the moves of 3% or more over the past week.
 ```
 .price [percent] [period]
 ```
@@ -316,7 +316,7 @@ Interactive trigger:
 ### pe / forward pe / peg
 ![Forward PE report in Slack](img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
-List securities by P/E ratio, forward P/E ratio, or PEG ratio
+List securities by P/E ratio, forward P/E ratio, or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `preferences.conf`).
 
 Interactive trigger:
 ```
@@ -347,7 +347,7 @@ Interactive trigger:
 ### Buy
 ![Buy ratings in Slack](img/finbot_buy.png?raw=true "Buy ratings in Slack")
 
-Show top recommended buys by Yahoo Finance analysts rating
+Show top recommended buys by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `preferences.conf`)
 
 Interactive trigger:
 ```
@@ -360,7 +360,7 @@ Interactive trigger:
 ### Sell
 ![Rating report in Slack](img/finbot_sell.png?raw=true "Rating report in Slack")
 
-Show top recommended sells by Yahoo Finance analysts rating
+Show top recommended sells by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts
 
 Interactive trigger:
 ```
@@ -373,14 +373,14 @@ Interactive trigger:
 ### Marketcap
 ![Marketcap report in Slack](img/finbot_marketcap.png?raw=true "Marketcap report in Slack")
 
-List the top (or bottom) stocks by market cap
+List the top (or bottom) stocks by market cap, in US dollars: market caps in other currencies are converted at Yahoo's exchange rates. With a symbol, its market cap in its own currency and in US dollars.
 
 Interactive trigger:
 ```
-.marketcap [top|bottom]
+.marketcap [top|bottom|SYMBOL]
 ```
 ```
-@botname marketcap [top|bottom]
+@botname marketcap [top|bottom|SYMBOL]
 ```
 
 ### Consensus rating changes
@@ -480,7 +480,7 @@ Copies preferences.conf and metadata files into the data directory (never overwr
 util/sync_defaults.py [-d DEST] --apply
 ```
 
-All 25 keys, read by the bot itself. A change takes effect on a reload.
+All 26 keys, read by the bot itself. A change takes effect on a reload.
 
 | Key | Default | Description |
 |---|---|---|
@@ -488,6 +488,7 @@ All 25 keys, read by the bot itself. A change takes effect on a reload.
 | `future_days` | `30` | How many days ahead the events calendar looks |
 | `price_percent` | `5` | Price alert threshold, percent |
 | `shorts_percent` | `15` | Short interest alert threshold, percent |
+| `min_analysts` | `7` | `.buy`, `.sell` and `.forward pe` list only stocks covered by at least this many analysts; with fewer, a consensus says little (thinly covered small caps are nearly all a perfect buy) |
 | `demote_volatile` | `True` | Volatile (small cap, high beta) stocks need a bigger move to alert |
 | `demote_leveraged` | `True` | Leveraged (2x, 3x) funds need a bigger move to alert |
 | `volatility_multiplier` | `2` | How much bigger a move volatile stocks need |

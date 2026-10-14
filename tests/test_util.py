@@ -20,14 +20,32 @@ class Parsing(unittest.TestCase):
     def test_transform_to_yahoo(self):
         for args, expected in ((('AAPL',), 'AAPL'), (('FANG', 'ASX'), 'FANG.AX'), (('ARM', 'NASDAQ'), 'ARM'),
                                (('ARM:NASDAQ',), 'ARM'), (('BHP.AX',), 'BHP.AX'), (('0700', 'HKG'), '0700.HK'),
-                               (('BRK', 'B'), 'BRK-B'), (('2330', 'TAI'), '2330.TW'), (('VOD', 'LSE'), 'VOD.L')):
+                               (('BRK', 'B'), 'BRK-B'), (('2330', 'TAI'), '2330.TW'), (('VOD', 'LSE'), 'VOD.L'),
+                               (('7203', 'TSE'), '7203.T'), (('SHOP', 'TSX'), 'SHOP.TO'), (('AIR', 'NZX'), 'AIR.NZ'), (('D05', 'SGX'), 'D05.SI')):
             with self.subTest(args=args):
                 self.assertEqual(util.transform_to_yahoo(*args), expected)
+
+    def test_each_market_has_its_own_flag_and_currency(self): # Sharesight's market codes: TSE is Tokyo, TSX Toronto, SGX Singapore
+        for market, ticker, flag, currency in (('TSE', '7203.T', '🇯🇵', 'JPY'), ('TSX', 'SHOP.TO', '🇨🇦', 'CAD'), ('NZX', 'AIR.NZ', '🇳🇿', 'NZD'),
+                                               ('SGX', 'D05.SI', '🇸🇬', 'SGD'), ('CPSE', None, '🇩🇰', 'DKK')):
+            with self.subTest(market=market):
+                self.assertEqual((util.flag_from_market(market), util.currency_from_market(market)), (flag, currency))
+                if ticker:
+                    self.assertEqual(util.flag_from_ticker(ticker), flag)
+
+    def test_make_paragraphs_keeps_every_word(self):
+        self.assertEqual(util.make_paragraphs('Acme makes widgets. It sells them.'), 'Acme makes widgets. It sells them.')
+        long = ' '.join(['word'] * 22) + ' end. Tail sentence here.'
+        self.assertEqual(util.make_paragraphs(long), ' '.join(['word'] * 22) + ' end.\n\nTail sentence here.')
 
     def test_transform_title(self):
         self.assertEqual(util.transform_title('APPLE INC'), 'Apple')
         self.assertEqual(util.transform_title('Acme FPO'), 'Acme')
         self.assertEqual(util.transform_title('Mixed Case Name'), 'Mixed Case Name')
+        for title, expected in (('Allianz Se', 'Allianz'), ('Foo SE AG', 'Foo'), ('Johnson & Johnson &', 'Johnson & Johnson'),
+                                ('Black and White and', 'Black and White'), ('Big Holdings Things Ltd', 'Big Things')):
+            with self.subTest(title=title): # a suffix comes off the end only; no run of spaces is left behind
+                self.assertEqual(util.transform_title(title), expected)
 
 
 class Formatting(unittest.TestCase):

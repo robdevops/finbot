@@ -1,11 +1,11 @@
 import json
-import requests
 import sys
 from lib.config import *
+from lib import net
 
 def call(method, **kwargs):
 	"""POST a Bot API method and return its result. Raises RuntimeError with Telegram's description when it answers not ok."""
-	response = requests.post(webhooks['telegram'] + method, timeout=config_http_timeout, **kwargs)
+	response = net.post(webhooks['telegram'] + method, timeout=config_http_timeout, **kwargs)
 	try:
 		output = response.json()
 	except ValueError:
@@ -13,6 +13,13 @@ def call(method, **kwargs):
 	if not output.get('ok'):
 		raise RuntimeError(f"Telegram {method}: {output.get('description') or response.status_code}")
 	return output['result']
+
+def try_call(method, **kwargs):
+	"""call(), for a call whose failure must not stop what the bot is doing: a failure is only logged (and None returned)."""
+	try:
+		return call(method, **kwargs)
+	except Exception as e:
+		print(f"Telegram {method} failed:", net.redact(e), file=sys.stderr)
 
 def setWebhook():
 	print("registering", config_telegramOutgoingWebhook, file=sys.stderr)
@@ -35,28 +42,10 @@ def register():
 	return '@' + getMe()['username']
 
 def pinChatMessage(chat_id, message_id):
-	telegram_url = webhooks['telegram'] + 'pinChatMessage'
-	payload = {
-		'chat_id': chat_id,
-		'message_id': message_id,
-		'disable_notification': True # no "pinned a message" notification
-	}
-	response = requests.post(telegram_url, json=payload, timeout=config_http_timeout)
-	output = response.json()
-	if not output.get('ok'):
-		print("pinChatMessage failed:", output.get('description'), file=sys.stderr)
-	return output.get('result')
+	"""Pin a message, without the "pinned a message" notification. A failure is only logged: the message is there either way."""
+	try_call('pinChatMessage', json={'chat_id': chat_id, 'message_id': message_id, 'disable_notification': True})
 
 def answerCallbackQuery(callback_query_id, text=None):
-	"""Acknowledge a button press (stops the client's loading spinner)."""
-	payload = {'callback_query_id': callback_query_id}
-	if text:
-		payload['text'] = text
-	try:
-		requests.post(webhooks['telegram'] + 'answerCallbackQuery', json=payload, timeout=config_http_timeout)
-	except Exception as e:
-		print("answerCallbackQuery failed:", e, file=sys.stderr)
-
-#def unpinChatMessage():
-#	telegram_url = webhooks['telegram'] + 'unpinChatMessage'
+	"""Acknowledge a button press (stops the client's loading spinner), with `text` as a toast. A failure is only logged."""
+	try_call('answerCallbackQuery', json={'callback_query_id': callback_query_id} | ({'text': text} if text else {}))
 

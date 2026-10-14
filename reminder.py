@@ -1,19 +1,12 @@
 #!/usr/bin/env python3
 
 import sys
-import json
 import datetime
 import zoneinfo
-from pathlib import Path
 from dateutil.relativedelta import relativedelta
 from lib.config import *
 from lib import util
 from lib import webhook
-
-
-def load_reminders():
-	with open(data_file("reminder.json"), "r", encoding="utf-8") as f:
-		return json.load(f)
 
 
 def lambda_handler():
@@ -26,7 +19,7 @@ def lambda_handler():
 		year = str(localtime.strftime('%Y')) # 2023
 
 		# --- Simple, static one-line reminders loaded from reminders.json ---
-		for reminder in load_reminders():
+		for reminder in data_json("reminder.json", []):
 			if reminder.get("month_day") != month_and_day:
 				continue
 			if reminder.get("year") and reminder["year"] != year:
@@ -57,10 +50,10 @@ def lambda_handler():
 				abr_link = util.link('https://abr.business.gov.au/Tools/DgrListing', 'DGR-registered', service)
 				stake_note = util.link('https://hellostake.com/au/support/stake-super/employer-and-personal-contributions/33442327233305#h_01JQAPN9A6ZM41NZKP6XZWN1KP', 'note about XX PCC in transaction description', service)
 				work_link = util.link('https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim', 'eligible work expenses', service)
-				payload.append(webhook.italics("* Organisation must be " + abr_link, service))
-				payload.append(webhook.italics("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. Stake users: see " + stake_note, service))
-				payload.append(webhook.italics("‡ See " + work_link, service))
-				payload.append(webhook.italics("§ Must relate directly to specific trades and gains/income (e.g. not general finance news)", service))
+				payload.append(webhook.italic("* Organisation must be " + abr_link, service))
+				payload.append(webhook.italic("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. Stake users: see " + stake_note, service))
+				payload.append(webhook.italic("‡ See " + work_link, service))
+				payload.append(webhook.italic("§ Must relate directly to specific trades and gains/income (e.g. not general finance news)", service))
 
 		if month_and_day == '08-18':
 			myBirthday = datetime.datetime(2022,8,18,0,0,0,0, tzinfo=tz)
@@ -75,15 +68,8 @@ def lambda_handler():
 
 	# MAIN #
 
-	# Prep and send payloads
-	if not webhooks:
-		print("Error: no services enabled in finbot.env", file=sys.stderr)
-		sys.exit(1)
-	for service, url in webhooks.items():
-		payload = prepare_finance_calendar_payload(service)
-		if service == "telegram":
-			url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
-		webhook.payload_wrapper(service, url, payload)
+	for service, url, chat in webhook.default_chats():
+		webhook.send(service, url, chat, prepare_finance_calendar_payload(service))
 
 	# make google cloud happy
 	return True

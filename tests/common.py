@@ -40,7 +40,7 @@ def market_entry(ticker):
             'beta': 2.0, 'short_percent': 20, 'fiftyTwoWeekHigh': 120.0, 'fiftyTwoWeekLow': 80.0,
             'regularMarketPrice': 100.0, 'earnings_date': time.time() + 86400 * 3,
             'ex_dividend_date': time.time() + 86400 * 3, 'recommend': 'buy' if i % 2 else 'sell', 'recommend_index': 1.2 if i % 2 else 4.2,
-            'recommend_analysts': 4, 'price_to_earnings_peg': 1.2, 'currency': 'USD'}
+            'recommend_analysts': 8, 'price_to_earnings_peg': 1.2, 'currency': 'USD'}
 
 
 class FinbotCase(unittest.TestCase):
@@ -61,7 +61,7 @@ class FinbotCase(unittest.TestCase):
         self.patch(util, 'config_cache_dir', tmp.name)
         self.patch(config, 'config_var_dir', tmp.name)
         self.patch(webhook, 'webhooks', {'telegram': 'https://api.telegram.org/botX/'})
-        for m in (performance, shorts, price, cal, trades, milestone, rating, worker, reminder):
+        for m in (performance, shorts, price, cal, trades, milestone, rating, worker, reminder, telegram):
             self.patch(m, 'webhooks', webhook.webhooks)
         self.sent = []
         self.markups = [] # reply_markup of each photo sent

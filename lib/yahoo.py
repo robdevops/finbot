@@ -2,823 +2,376 @@ import concurrent.futures
 import datetime
 from dateutil.relativedelta import relativedelta
 import hashlib
-import io
-import json
 import requests
-import pandas as pd
+import threading
 import zoneinfo
-from pandas.tseries.offsets import BDay as businessday
 import sys
-import shutil
-import lib.telegram as telegram
 from lib.config import *
+from lib import net
 from lib import util
 from http.cookies import SimpleCookie
 from pathlib import Path
 
+_auth = threading.RLock() # Yahoo's cookie and crumb are renewed by one thread at a time: two at once could cache a crumb for the cookie the other replaced
+HEADERS = {'User-Agent': 'Mozilla/5.0'}
+
 def getCookie(maxAge=1209600): # 14 days
 	# we must always cache this, as crumb must match cookie
-	cacheFile = "finbot_yahoo_cookie.json"
-	cache = util.json_load(cacheFile)
-	if cache:
-		cacheFileAge = datetime.datetime.now() - datetime.datetime.fromtimestamp(os.path.getmtime(config_cache_dir + '/' + cacheFile))
-		#ttl = datetime.timedelta(seconds=cache[0][2]) - cacheFileAge
-		ttl = datetime.timedelta(seconds=maxAge) - cacheFileAge
-		if ttl > datetime.timedelta(seconds=30):
-			cookie = cache[0][0] + '=' + cache[0][1]
-			print("cache hit:", cacheFile, "TTL:", util.td_to_human(ttl), file=sys.stderr) if debug else None
-			return cookie
-		else:
-			print("cache miss:", cacheFile, file=sys.stderr) if debug else None
-
-	# request
-	cookie = None
-	headers = {'User-Agent': 'Mozilla/5.0'}
-	url = 'https://fc.yahoo.com/' # 404, but that is ok because cookie is in response header
-	try:
-		r = requests.get(url, headers=headers)
-	except Exception as e:
-		print(e, file=sys.stderr)
-		r = requests.Response() # empty: falls through to the fallback cookie below
-	if r.status_code not in {200, 404}:
-		print(r.status_code, r.text.rstrip(), "returned by", url, file=sys.stderr)
-
-	# parse
-	if not 'set-cookie' in r.headers:
-		print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
-		fallback='A3=d=AQABBBtR5mYCENFZu2wCWkA5iGGkSRGvRgkFEgEBAQGi52bwZtxM0iMA_eMAAA&S=AQAAAtG8VhxZN7aXopfvLNObtpE;'
-		return fallback
-	else:
+	with _auth:
+		cacheFile = "finbot_yahoo_cookie.json"
+		cache = util.read_cache(cacheFile, maxAge - 30) # renewed 30 seconds before it expires
+		if cache:
+			return cache[0][0] + '=' + cache[0][1]
+		url = 'https://fc.yahoo.com/' # 404, but that is ok because cookie is in response header
+		try:
+			r = net.get(url, headers=HEADERS, timeout=config_http_timeout)
+		except Exception as e:
+			print(net.redact(e), file=sys.stderr)
+			r = requests.Response() # empty: falls through to the fallback cookie below
+		if r.status_code not in {200, 404}:
+			print(r.status_code, "returned by", url, file=sys.stderr)
+		if 'set-cookie' not in r.headers:
+			print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
+			return 'A3=d=AQABBBtR5mYCENFZu2wCWkA5iGGkSRGvRgkFEgEBAQGi52bwZtxM0iMA_eMAAA&S=AQAAAtG8VhxZN7aXopfvLNObtpE;'
 		cookie = SimpleCookie()
 		cookie.load(r.headers['Set-Cookie'])
-		cookielist = []
-		for name, morsel in cookie.items():
-			value = morsel.value
-			max_age = int(morsel.get('max-age'))
-			cookielist.append([name, value, max_age])
-		cookie = cookielist[0][0] + '=' + str(cookielist[0][1])
-		#if config_cache:
+		cookielist = [[name, morsel.value, int(morsel.get('max-age') or 0)] for name, morsel in cookie.items()]
 		util.json_write(cacheFile, cookielist)
-		print("Got new cookie:", cookie, file=sys.stderr)
+		print("Got a new Yahoo cookie", file=sys.stderr)
 		rmCrumb() # we must invalidate the non-matching crumb
-		return cookie
+		return cookielist[0][0] + '=' + cookielist[0][1]
 
 def getCrumb(seconds=1209600): # 14 days
-	cookie = getCookie()
-	if config_cache:
+	with _auth:
+		cookie = getCookie()
 		cacheFile = "finbot_yahoo_crumb.json"
-		cache = util.read_cache(cacheFile, seconds)
-		if cache:
+		if config_cache and (cache := util.read_cache(cacheFile, seconds)):
 			return cache
-	headers = {'User-Agent': 'Mozilla/5.0', 'Cookie': cookie}
-	yahoo_urls = ['https://query2.finance.yahoo.com/v1/test/getcrumb']
-	yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
-	for url in yahoo_urls:
-		try:
-			r = requests.get(url, headers=headers, timeout=config_http_timeout)
-		except Exception as e:
-			print(e, file=sys.stderr)
-		else:
-			if r.status_code != 200:
-				print(r.status_code, r.text.rstrip(), "returned by", url, file=sys.stderr)
-				continue
-			break
-	else:
-		print("Exhausted Yahoo API attempts. Returning fallback crumb", file=sys.stderr)
-		return 'jkQEU8yLqxs'
-	if config_cache:
-		util.json_write(cacheFile, r.text)
-	print("Got new crumb:", r.text.rstrip(), file=sys.stderr)
-	return r.text
+		r = _get_first(_hosts('/v1/test/getcrumb'), {**HEADERS, 'Cookie': cookie})
+		if r is None:
+			print("Exhausted Yahoo API attempts. Returning fallback crumb", file=sys.stderr)
+			return 'jkQEU8yLqxs'
+		if config_cache:
+			util.json_write(cacheFile, r.text)
+		print("Got a new Yahoo crumb", file=sys.stderr)
+		return r.text
 
 def rmCrumb():
-	cacheFile = "finbot_yahoo_crumb.json"
-	cacheFile = config_cache_dir + "/" + cacheFile
-	dst = Path(cacheFile + '.old')
-	src = Path(cacheFile)
-	if src.is_file():
-		dst.unlink(missing_ok=True)
-		shutil.move(src, dst)
+	"""Set the cached crumb aside (as .old): it belongs to the cookie being replaced."""
+	crumb = Path(util.cache_path("finbot_yahoo_crumb.json"))
+	if crumb.is_file():
+		crumb.replace(crumb.with_name(crumb.name + '.old'))
+
+def _hosts(path):
+	"""One Yahoo API path on its two hosts: query2, then query1 to fall back on."""
+	return ['https://query2.finance.yahoo.com' + path, 'https://query1.finance.yahoo.com' + path]
+
+def _get_first(urls, headers):
+	"""The answer of the first URL that answers 200, or None when none does. Each failure is logged."""
+	for url in urls:
+		try:
+			r = net.get(url, headers=headers, timeout=config_http_timeout)
+		except Exception as e:
+			print(net.redact(e), file=sys.stderr)
+			continue
+		if r.status_code == 200:
+			return r
+		print(r.status_code, r.text.strip()[:200], "returned by", net.redact(url), file=sys.stderr)
+	return None
+
+def dig(node, *path):
+	"""node[path[0]][path[1]]..., or None where Yahoo left a part out or sent null."""
+	for step in path:
+		try:
+			node = node[step]
+		except (KeyError, IndexError, TypeError):
+			return None
+	return node
+
+def _list(value):
+	"""value if Yahoo sent a list there, else an empty one."""
+	return value if isinstance(value, list) else []
+
+def _percent(fraction):
+	"""Yahoo's fraction as a percentage, to one decimal: 0.01234 -> 1.2."""
+	return round(float(fraction) * 100, 1)
+
+def _round2(value):
+	return round(float(value), 2)
+
+def _positive(value):
+	"""A price that must be above zero: Yahoo sends 0 for a 52-week low it does not have."""
+	if value <= 0:
+		raise ValueError(f'{value} is not a price')
+	return value
+
+def _convert(convert, value):
+	"""convert(value), or None for garbage where a number belongs (left out, like a missing field)."""
+	try:
+		return convert(value) if convert else value
+	except (TypeError, ValueError, OverflowError):
+		return None
+
+QUOTE_FIELDS = ( # (key, Yahoo's name, conversion) for the fields of a v7 quote; one Yahoo leaves out, sends as null or garbles is left out
+	('percent_change', 'regularMarketChangePercent', _round2),
+	('dividend', 'trailingAnnualDividendRate', lambda v: round(float(v), 1)),
+	('percent_change_premarket', 'preMarketChangePercent', _round2),
+	('percent_change_postmarket', 'postMarketChangePercent', _round2),
+	('market_cap', 'marketCap', lambda v: round(float(v))),
+	('price_to_earnings_forward', 'forwardPE', round),
+	('price_to_earnings_trailing', 'trailingPE', round),
+	('quoteType', 'quoteType', None),
+	('marketState', 'marketState', None),
+	('profile_exchange', 'fullExchangeName', None),
+	('exchangeTimezoneName', 'exchangeTimezoneName', None),
+	('regularMarketTime', 'regularMarketTime', None),
+	('financialCurrency', 'financialCurrency', None),
+	('regularMarketPreviousClose', 'regularMarketPreviousClose', None),
+	('fiftyTwoWeekHigh', 'fiftyTwoWeekHigh', None),
+	('fiftyTwoWeekLow', 'fiftyTwoWeekLow', _positive),
+)
 
 def fetch(tickers):
-	# DO NOT CACHE MORE THAN 5 mins
-	if not len(tickers):
+	"""v7 quotes for many tickers in one request: {ticker: {...}}. Cached for 5 minutes (DO NOT CACHE LONGER). A ticker Yahoo gives
+	no name or price for is left out. Raises RuntimeError when Yahoo cannot be reached."""
+	if not tickers:
 		print("no tickers provided to yahoo.fetch()", file=sys.stderr)
 		return {}
 	tickers = sorted(set(tickers)) # de-dupe
-	tickers_sha256 = hashlib.sha256(str.encode("_".join(tickers))).hexdigest()
-	if config_cache:
-		cacheFile = "finbot_yahoo_" + tickers_sha256 + '.json'
-		cache = util.read_cache(cacheFile, 300)
-		if cache:
-			return cache
-	now = datetime.datetime.now().timestamp()
-	yahoo_output = {}
+	cacheFile = "finbot_yahoo_" + hashlib.sha256("_".join(tickers).encode()).hexdigest() + '.json'
+	if config_cache and (cache := util.read_cache(cacheFile, 300)):
+		return cache
 	cookie = getCookie()
 	crumb = getCrumb()
-	yahoo_urls = ['https://query2.finance.yahoo.com/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)]
-	yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
-	headers = {'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Cookie': cookie}
-	for url in yahoo_urls:
-		try:
-			r = requests.get(url, headers=headers, timeout=config_http_timeout)
-		except Exception as e:
-			print(e, "at", url, file=sys.stderr)
-		else:
-			if r.status_code != 200:
-				print(r.status_code, "at", url, file=sys.stderr)
-				continue
-			break
-	else:
+	r = _get_first(_hosts('/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)), {**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie})
+	if r is None:
 		print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
 		raise RuntimeError("Yahoo API unavailable")
-	data = r.json()
-	data = data['quoteResponse']
+	data = r.json()['quoteResponse']
 	if data['result'] is None or data['error'] is not None:
 		print(f"{tickers}†", sep=' ', end='', flush=True, file=sys.stderr)
 		return {} # callers iterate the result
+	now = datetime.datetime.now().timestamp()
+	yahoo_output = {}
 	for item in data['result']:
-		ticker = item['symbol']
-		try:
-			profile_title = item['longName']
-		except (KeyError, IndexError):
-			try:
-				profile_title = item['shortName']
-			except (KeyError, IndexError):
-				continue
-		try:
-			percent_change = 0
-			percent_change = round(float(item['regularMarketChangePercent']), 2)
-		except (KeyError, IndexError):
-			pass
-		try:
-			currency = item['currency']
-		except (KeyError, IndexError):
-			pass
-		try:
-			regularMarketPrice = item['regularMarketPrice']
-		except (KeyError, IndexError):
+		title = next((name for name in (item.get('longName'), item.get('shortName')) if isinstance(name, str) and name), None)
+		if not title or item.get('regularMarketPrice') is None:
 			continue
-		try:
-			dividend = round(float(item['trailingAnnualDividendRate']), 1)
-		except (KeyError, IndexError):
-			dividend = float(0)
-		profile_title = util.transform_title(profile_title)
-		yahoo_output[ticker] = { 'profile_title': profile_title, 'ticker': ticker, 'percent_change': percent_change, 'dividend': dividend, 'currency': currency, 'regularMarketPrice': regularMarketPrice }
-		# optional fields
-		try:
-			percent_change_premarket = item['preMarketChangePercent']
-		except (KeyError, IndexError):
-			pass
-		else:
-			yahoo_output[ticker]["percent_change_premarket"] = round(percent_change_premarket, 2)
-		try:
-			quoteType = item['quoteType']
-		except (KeyError, IndexError):
-			pass
-		else:
-			yahoo_output[ticker]["quoteType"] = quoteType
-		try:
-			percent_change_postmarket = item['postMarketChangePercent']
-		except (KeyError, IndexError):
-			pass
-		else:
-			yahoo_output[ticker]["percent_change_postmarket"] = round(percent_change_postmarket, 2)
-		try:
-			yahoo_output[ticker]["market_cap"] = round(float(item['marketCap']))
-		except (KeyError, IndexError):
-			pass
-		try:
-			yahoo_output[ticker]["price_to_earnings_forward"] = round(item['forwardPE'])
-		except:
-			pass
-		try:
-			yahoo_output[ticker]["price_to_earnings_trailing"] = round(item['trailingPE'])
-		except:
-			pass
-		try:
-			yahoo_output[ticker]["marketState"] = item['marketState']
-		except:
-			pass
-		try:
-			yahoo_output[ticker]["profile_exchange"] = item['fullExchangeName']
-		except:
-			pass
-		try:
-			yahoo_output[ticker]["exchangeTimezoneName"] = item['exchangeTimezoneName']
-		except:
-			pass
-		try:
-			yahoo_output[ticker]["regularMarketTime"] = item['regularMarketTime']
-		except:
-			pass
-		try:
-			yahoo_output[ticker]["financialCurrency"] = item['financialCurrency']
-		except:
-			pass
-		try:
-			earningsTimestamp = item['earningsTimestamp']
-			earningsTimestampStart = item['earningsTimestampStart']
-			earningsTimestampEnd = item['earningsTimestampEnd']
-			if earningsTimestamp > now:
-				yahoo_output[ticker]["earnings_date"] = earningsTimestamp
-			elif earningsTimestampStart > now:
-				yahoo_output[ticker]["earnings_date"] = earningsTimestampStart
-			elif earningsTimestampEnd > now:
-				yahoo_output[ticker]["earnings_date"] = earningsTimestampEnd
-			else:
-				yahoo_output[ticker]["earnings_date"] = earningsTimestamp
-		except (KeyError, IndexError):
-			pass
-		try:
-			yahoo_output[ticker]["regularMarketPreviousClose"] = item['regularMarketPreviousClose']
-		except (KeyError, IndexError):
-			pass
-		try:
-			yahoo_output[ticker]["fiftyTwoWeekHigh"] = item['fiftyTwoWeekHigh']
-		except (KeyError, IndexError):
-			pass
-		try:
-			fiftyTwoWeekLowTemp = item['fiftyTwoWeekLow']
-			if not fiftyTwoWeekLowTemp <= 0:
-				yahoo_output[ticker]["fiftyTwoWeekLow"] = fiftyTwoWeekLowTemp
-		except (KeyError, IndexError):
-			pass
+		quote = {'profile_title': util.transform_title(title), 'ticker': item['symbol'], 'regularMarketPrice': item['regularMarketPrice'],
+			'currency': item.get('currency'), 'percent_change': 0.0, 'dividend': 0.0}
+		for key, field, convert in QUOTE_FIELDS:
+			if (value := _convert(convert, item.get(field))) is not None:
+				quote[key] = value
+		stamps = [item[name] for name in ('earningsTimestamp', 'earningsTimestampStart', 'earningsTimestampEnd') if isinstance(item.get(name), (int, float))]
+		if stamps: # the first still to come, else the announced date
+			quote['earnings_date'] = next((stamp for stamp in stamps if stamp > now), stamps[0])
+		yahoo_output[item['symbol']] = quote
 	if config_cache:
 		util.json_write(cacheFile, yahoo_output)
 	return yahoo_output
 
+DETAIL_FIELDS = ( # (key, path in the quoteSummary result[, conversion]); a field Yahoo leaves out, sends as null or garbles is left out
+	('profile_bio', ('summaryProfile', 'longBusinessSummary')),
+	('profile_city', ('summaryProfile', 'city')),
+	('profile_country', ('summaryProfile', 'country')),
+	('profile_state', ('summaryProfile', 'state')),
+	('profile_industry', ('summaryProfile', 'industry')),
+	('profile_sector', ('summaryProfile', 'sector')),
+	('profile_employees', ('summaryProfile', 'fullTimeEmployees')),
+	('profile_website', ('summaryProfile', 'website')),
+	('beta', ('summaryDetail', 'beta', 'raw')),
+	('currency', ('summaryDetail', 'currency')),
+	('market_cap', ('summaryDetail', 'marketCap', 'raw'), int),
+	('dividend', ('summaryDetail', 'dividendYield', 'raw'), _percent),
+	('price_to_earnings_trailing', ('summaryDetail', 'trailingPE', 'raw'), round),
+	('price_to_earnings_forward', ('summaryDetail', 'forwardPE', 'raw')),
+	('percent_change_year', ('summaryDetail', '52WeekChange', 'raw'), _percent),
+	('price_to_sales', ('summaryDetail', 'priceToSalesTrailing12Months', 'raw')),
+	('ex_dividend_date', ('calendarEvents', 'exDividendDate', 'raw')),
+	('dividend_date', ('calendarEvents', 'DividendDate', 'raw')),
+	('earnings_date', ('calendarEvents', 'earnings', 'earningsDate', 0, 'raw')),
+	('percent_change', ('price', 'regularMarketChangePercent', 'raw'), _percent),
+	('percent_change_premarket', ('price', 'preMarketChangePercent', 'raw'), _percent),
+	('percent_change_postmarket', ('price', 'postMarketChangePercent', 'raw'), _percent),
+	('profile_exchange', ('price', 'exchangeName')),
+	('marketState', ('price', 'marketState')),
+	('quoteType', ('price', 'quoteType')),
+	('regularMarketPrice', ('price', 'regularMarketPrice', 'raw')),
+	('regularMarketPreviousClose', ('price', 'regularMarketPreviousClose', 'raw')),
+	('fiftyTwoWeekHigh', ('price', 'fiftyTwoWeekHigh', 'raw')),
+	('fiftyTwoWeekLow', ('price', 'fiftyTwoWeekLow', 'raw'), _positive),
+	('prePostMarketPrice', ('price', 'preMarketPrice', 'raw'), float),
+	('prePostMarketPrice', ('price', 'postMarketPrice', 'raw'), float), # the after-hours price, when there is one, wins
+	('netIncomeToCommon', ('defaultKeyStatistics', 'netIncomeToCommon', 'raw')),
+	('sharesOutstanding', ('defaultKeyStatistics', 'sharesOutstanding', 'raw'), float),
+	('short_percent', ('defaultKeyStatistics', 'shortPercentOfFloat', 'raw'), _percent),
+	('price_to_book', ('defaultKeyStatistics', 'priceToBook', 'raw')),
+	('earnings_growth_q', ('defaultKeyStatistics', 'earningsQuarterlyGrowth', 'raw')),
+	('price_to_earnings_peg', ('defaultKeyStatistics', 'pegRatio', 'raw')),
+	('profit_margin', ('defaultKeyStatistics', 'profitMargins', 'raw')),
+	('shareholder_equity', ('balanceSheetHistoryQuarterly', 'balanceSheetStatements', 0, 'totalStockholderEquity', 'raw')),
+	('total_debt', ('financialData', 'totalDebt', 'raw')),
+	('total_cash', ('financialData', 'totalCash', 'raw')),
+	('free_cashflow', ('financialData', 'freeCashflow', 'raw')),
+	('operating_cashflow', ('financialData', 'operatingCashflow', 'raw')),
+	('financialCurrency', ('financialData', 'financialCurrency')),
+	('recommend', ('financialData', 'recommendationKey')),
+	('recommend_index', ('financialData', 'recommendationMean', 'raw')),
+	('recommend_analysts', ('financialData', 'numberOfAnalystOpinions', 'raw')),
+)
+RECOMMENDATION = ('recommend', 'recommend_index', 'recommend_analysts') # all three, or none
+
 def fetch_detail(ticker, seconds=UNSET):
+	"""quoteSummary for one ticker: {ticker: {...}}, or {} when Yahoo has nothing usable (no name or no price)."""
 	if seconds is UNSET:
 		seconds = config_cache_seconds
 	now = datetime.datetime.now()
-	local_market_data = {}
 	cookie = getCookie()
 	crumb = getCrumb()
-	base_url = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/'
-	#headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-	headers={'User-Agent': 'Mozilla/5.0', 'Cookie': cookie}
-	local_market_data[ticker] = dict()
-	cache = None
-	if config_cache:
-		cacheFile = "finbot_yahoo_detail_" + ticker + '.json'
-		cache = util.read_cache(cacheFile, seconds)
-	if cache:
+	cacheFile = "finbot_yahoo_detail_" + ticker + '.json'
+	data = util.read_cache(cacheFile, seconds) if config_cache else None
+	if data:
 		print('.', sep=' ', end='', flush=True)
-		data = cache
-	if not config_cache or not cache:
+	else:
 		print('↓', sep=' ', end='', flush=True)
-		yahoo_urls = [base_url + ticker + '?modules=calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions' + '&crumb=' + crumb]
-		yahoo_urls.append(yahoo_urls[0].replace('query2', 'query1'))
-		for url in yahoo_urls:
-			print(url, file=sys.stderr) if debug else None
-			try:
-				r = requests.get(url, headers=headers, timeout=config_http_timeout)
-			except Exception as e:
-				print(e, file=sys.stderr)
-			else:
-				if r.status_code != 200:
-					print('x', sep=' ', end='', flush=True, file=sys.stderr)
-					print(r.text.rstrip(), file=sys.stderr) if debug else None
-					continue
-				break
-		else:
+		modules = 'calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions'
+		r = _get_first(_hosts('/v10/finance/quoteSummary/' + ticker + '?modules=' + modules + '&crumb=' + crumb), {**HEADERS, 'Cookie': cookie})
+		if r is None:
 			print(ticker + '†', sep=' ', end='', flush=True)
 			return {} # catches some delisted stocks like "DRNA"
 		data = r.json()
 		if config_cache:
 			util.json_write(cacheFile, data)
-		# might be interesting:
-			# majorHoldersBreakdown
-			# netSharePurchaseActivity
-			# upgradeDowngradeHistory
-	try:
-		profile_title = data['quoteSummary']['result'][0]['price']['longName']
-	except (KeyError, IndexError, ValueError, TypeError): # TypeError: Yahoo answers result=null for unknown symbols
+	result = dig(data, 'quoteSummary', 'result', 0)
+	if result is None: # Yahoo answers result=null for unknown symbols
 		print(ticker + 'x', sep=' ', end='', flush=True, file=sys.stderr)
 		return {}
-	if profile_title is None:
-		try:
-			profile_title = data['quoteSummary']['result'][0]['price']['shortName']
-		except (KeyError, IndexError, ValueError):
-			print(ticker + '†', sep=' ', end='', flush=True, file=sys.stderr)
-			return {}
-	if profile_title is None: # catches some delisted stocks like "DUB"
+	title = next((name for name in (dig(result, 'price', 'longName'), dig(result, 'price', 'shortName')) if isinstance(name, str) and name), None)
+	if not title: # catches some delisted stocks like "DUB"
 		print(f"{ticker}†", sep=' ', end='', flush=True, file=sys.stderr)
 		return {}
-	profile_title = util.transform_title(profile_title)
-	local_market_data[ticker]['profile_title'] = profile_title
-	try:
-		profile_bio = data['quoteSummary']['result'][0]['summaryProfile']['longBusinessSummary']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['profile_bio'] = profile_bio
-	try:
-		profile_city = data['quoteSummary']['result'][0]['summaryProfile']['city']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['profile_city'] = profile_city
-	try:
-		profile_country = data['quoteSummary']['result'][0]['summaryProfile']['country']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['profile_country'] = profile_country
-	try:
-		profile_state = data['quoteSummary']['result'][0]['summaryProfile']['state']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['profile_state'] = profile_state
-	try:
-		profile_industry = data['quoteSummary']['result'][0]['summaryProfile']['industry']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['profile_industry'] = profile_industry
-	try:
-		profile_sector = data['quoteSummary']['result'][0]['summaryProfile']['sector']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['profile_sector'] = profile_sector
-	try:
-		profile_employees = data['quoteSummary']['result'][0]['summaryProfile']['fullTimeEmployees']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['profile_employees'] = profile_employees
-	try:
-		profile_website = data['quoteSummary']['result'][0]['summaryProfile']['website']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['profile_website'] = profile_website
-	try:
-		beta = data['quoteSummary']['result'][0]['summaryDetail']['beta']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['beta'] = beta
-	try:
-		currency = data['quoteSummary']['result'][0]['summaryDetail']['currency']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['currency'] = currency
-	try:
-		market_cap = int(data['quoteSummary']['result'][0]['summaryDetail']['marketCap']['raw'])
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['market_cap'] = market_cap
-	try:
-		dividend = data['quoteSummary']['result'][0]['summaryDetail']['dividendYield']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		dividend = dividend * 100
-		local_market_data[ticker]['dividend'] = round(dividend, 1)
-	try:
-		price_to_earnings_trailing = int(data['quoteSummary']['result'][0]['summaryDetail']['trailingPE']['raw'])
-	except (KeyError, IndexError, ValueError):
-		pass
-	else:
-		local_market_data[ticker]['price_to_earnings_trailing'] = price_to_earnings_trailing
-	try:
-		price_to_earnings_forward = data['quoteSummary']['result'][0]['summaryDetail']['forwardPE']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['price_to_earnings_forward'] = price_to_earnings_forward
-	try:
-		ex_dividend_date = data['quoteSummary']['result'][0]['calendarEvents']['exDividendDate']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['ex_dividend_date'] = ex_dividend_date
-	try:
-		dividend_date = data['quoteSummary']['result'][0]['calendarEvents']['DividendDate']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['dividend_date'] = dividend_date
-	try:
-		earnings_date = data['quoteSummary']['result'][0]['calendarEvents']['earnings']['earningsDate'][0]['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['earnings_date'] = earnings_date
-	try:
-		percent_change = data['quoteSummary']['result'][0]['price']['regularMarketChangePercent']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		percent_change = percent_change * 100
-		local_market_data[ticker]['percent_change'] = round(percent_change, 1)
-	try:
-		percent_change_year = float(data['quoteSummary']['result'][0]['summaryDetail']['52WeekChange']['raw'])
-	except (KeyError, IndexError):
-		pass
-	else:
-		percent_change_year = percent_change_year * 100
-		local_market_data[ticker]['percent_change_year'] = round(percent_change_year, 1)
-	try:
-		percent_change_premarket = float(data['quoteSummary']['result'][0]['price']['preMarketChangePercent']['raw'])
-	except (KeyError, IndexError):
-		pass
-	else:
-		percent_change_premarket = percent_change_premarket * 100
-		local_market_data[ticker]['percent_change_premarket'] = round(percent_change_premarket, 1)
-	try:
-		percent_change_postmarket = float(data['quoteSummary']['result'][0]['price']['postMarketChangePercent']['raw'])
-	except (KeyError, IndexError):
-		pass
-	else:
-		percent_change_postmarket = percent_change_postmarket * 100
-		local_market_data[ticker]['percent_change_postmarket'] = round(percent_change_postmarket, 1)
-	try:
-		profile_exchange = data['quoteSummary']['result'][0]['price']['exchangeName']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['profile_exchange'] = profile_exchange
-	try:
-		marketState = data['quoteSummary']['result'][0]['price']['marketState']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['marketState'] = marketState
-	try:
-		quoteType = data['quoteSummary']['result'][0]['price']['quoteType']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['quoteType'] = quoteType
-	try:
-		regularMarketPrice = data['quoteSummary']['result'][0]['price']['regularMarketPrice']['raw']
-	except (KeyError, IndexError):
+	detail = {'profile_title': util.transform_title(title)}
+	for key, path, *convert in DETAIL_FIELDS:
+		if (value := _convert(convert[0] if convert else None, dig(result, *path))) is not None:
+			detail[key] = value
+	if 'regularMarketPrice' not in detail:
 		return {} # catches junk
-	else:
-		local_market_data[ticker]['regularMarketPrice'] = regularMarketPrice
-	try:
-		regularMarketPreviousClose = data['quoteSummary']['result'][0]['price']['regularMarketPreviousClose']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['regularMarketPreviousClose'] = regularMarketPreviousClose
-	try:
-		fiftyTwoWeekHigh = data['quoteSummary']['result'][0]['price']['fiftyTwoWeekHigh']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['fiftyTwoWeekHigh'] = fiftyTwoWeekHigh
-	try:
-		fiftyTwoWeekLowTemp = data['quoteSummary']['result'][0]['price']['fiftyTwoWeekLow']['raw']
-		if not fiftyTwoWeekLowTemp <= 0:
-			fiftyTwoWeekLow = fiftyTwoWeekLowTemp
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['fiftyTwoWeekLow'] = fiftyTwoWeekLow
-	try:
-		preMarketPrice = float(data['quoteSummary']['result'][0]['price']['preMarketPrice']['raw'])
-	except (KeyError, IndexError, ValueError):
-		pass
-	else:
-		local_market_data[ticker]['prePostMarketPrice'] = preMarketPrice
-	try:
-		postMarketPrice = float(data['quoteSummary']['result'][0]['price']['postMarketPrice']['raw'])
-	except (KeyError, IndexError, ValueError):
-		pass
-	else:
-		local_market_data[ticker]['prePostMarketPrice'] = postMarketPrice
-	try:
-		netIncomeToCommon = data['quoteSummary']['result'][0]['defaultKeyStatistics']['netIncomeToCommon']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['netIncomeToCommon'] = netIncomeToCommon
-	try:
-		sharesOutstanding = float(data['quoteSummary']['result'][0]['defaultKeyStatistics']['sharesOutstanding']['raw'])
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['sharesOutstanding'] = sharesOutstanding
-	try:
-		short_percent = float(data['quoteSummary']['result'][0]['defaultKeyStatistics']['shortPercentOfFloat']['raw'])
-	except (KeyError, IndexError):
-		pass
-	else:
-		short_percent = short_percent * 100
-		local_market_data[ticker]['short_percent'] = round(short_percent, 1)
-	try:
-		price_to_book = data['quoteSummary']['result'][0]['defaultKeyStatistics']['priceToBook']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['price_to_book'] = price_to_book
-	try:
-		earnings_growth_q = data['quoteSummary']['result'][0]['defaultKeyStatistics']['earningsQuarterlyGrowth']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['earnings_growth_q'] = earnings_growth_q
-	try:
-		price_to_earnings_peg = data['quoteSummary']['result'][0]['defaultKeyStatistics']['pegRatio']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['price_to_earnings_peg'] = price_to_earnings_peg
-	try:
-		profit_margin = data['quoteSummary']['result'][0]['defaultKeyStatistics']['profitMargins']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['profit_margin'] = profit_margin
-	try:
-		if data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-1]['earnings']['fmt'] is not None:
-			net_income = data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-1]['earnings']['raw']
-		elif data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-2]['earnings']['fmt'] is not None:
-			net_income = data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][-2]['earnings']['raw']
-		else:
-			raise TypeError('quarterly earnings is null')
-	except (KeyError, IndexError, TypeError):
-		pass
-	else:
-		local_market_data[ticker]['net_income'] = net_income
-	try:
-		shareholder_equity = data['quoteSummary']['result'][0]['balanceSheetHistoryQuarterly']['balanceSheetStatements'][0]['totalStockholderEquity']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['shareholder_equity'] = shareholder_equity
-	try:
-		total_debt = data['quoteSummary']['result'][0]['financialData']['totalDebt']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['total_debt'] = total_debt
-	try:
-		total_cash = data['quoteSummary']['result'][0]['financialData']['totalCash']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['total_cash'] = total_cash
-	try:
-		free_cashflow = data['quoteSummary']['result'][0]['financialData']['freeCashflow']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['free_cashflow'] = free_cashflow
-	try:
-		operating_cashflow = data['quoteSummary']['result'][0]['financialData']['operatingCashflow']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['operating_cashflow'] = operating_cashflow
-	try:
-		financialCurrency = data['quoteSummary']['result'][0]['financialData']['financialCurrency']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['financialCurrency'] = financialCurrency
-	try:
-		recommend = data['quoteSummary']['result'][0]['financialData']['recommendationKey']
-		recommend_index = data['quoteSummary']['result'][0]['financialData']['recommendationMean']['raw']
-		recommend_analysts = data['quoteSummary']['result'][0]['financialData']['numberOfAnalystOpinions']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['recommend'] = recommend
-		local_market_data[ticker]['recommend_index'] = recommend_index
-		local_market_data[ticker]['recommend_analysts'] = recommend_analysts
-	try:
-		price_to_sales = data['quoteSummary']['result'][0]['summaryDetail']['priceToSalesTrailing12Months']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['price_to_sales'] = price_to_sales
-	try:
-		currency = data['quoteSummary']['result'][0]['summaryDetail']['currency']
-	except (KeyError, IndexError):
-		pass
-	else:
-		local_market_data[ticker]['currency'] = currency
-	try:
-		data['quoteSummary']['result'][0]['earningsTrend']['trend'][0]['growth']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		for item in data['quoteSummary']['result'][0]['earningsTrend']['trend']:
-			if item['period'] == '+1y':
-				try:
-					revenueEstimateY = item['revenueEstimate']['growth']['raw']
-					earningsEstimateY = item['earningsEstimate']['growth']['raw']
-					revenueAnalysts = item['revenueEstimate']['numberOfAnalysts']['raw']
-					earningsAnalysts = item['earningsEstimate']['numberOfAnalysts']['raw']
-				except KeyError:
-					break
-		try:
-			earningsEstimateY = earningsEstimateY * 100
-			revenueEstimateY = revenueEstimateY * 100
-			local_market_data[ticker]['revenueEstimateY'] = round(revenueEstimateY, 2)
-			local_market_data[ticker]['earningsEstimateY'] = round(earningsEstimateY, 2)
-			local_market_data[ticker]['revenueAnalysts'] = revenueAnalysts
-			local_market_data[ticker]['earningsAnalysts'] = earningsAnalysts
-		except UnboundLocalError:
+	if not all(key in detail for key in RECOMMENDATION):
+		for key in RECOMMENDATION:
+			detail.pop(key, None)
+	quarterly = _list(dig(result, 'earnings', 'financialsChart', 'quarterly'))
+	for item in quarterly[-1:-3:-1]: # net income: the latest quarter of the last two with an earnings figure
+		if dig(item, 'earnings', 'fmt') is not None and dig(item, 'earnings', 'raw') is not None:
+			detail['net_income'] = dig(item, 'earnings', 'raw')
+			break
+	trend = _list(dig(result, 'earningsTrend', 'trend'))
+	if trend:
+		year = next((item for item in trend if dig(item, 'period') == '+1y'), None)
+		estimates = [dig(year, kind, field, 'raw') for kind, field in (('revenueEstimate', 'growth'), ('earningsEstimate', 'growth'),
+			('revenueEstimate', 'numberOfAnalysts'), ('earningsEstimate', 'numberOfAnalysts'))]
+		if None in estimates:
 			print(f'{ticker}†', sep=' ', end='', flush=True, file=sys.stderr)
-	try:
-		data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly'][0]['revenue']['raw']
-	except (KeyError, IndexError):
+		else:
+			detail['revenueEstimateY'], detail['earningsEstimateY'] = _percent(estimates[0]), _percent(estimates[1])
+			detail['revenueAnalysts'], detail['earningsAnalysts'] = estimates[2], estimates[3]
+	if dig(quarterly, 0, 'revenue', 'raw') is None:
 		print(f'{ticker}†', sep=' ', end='', flush=True, file=sys.stderr)
-	else:
-		earningsQ = []
-		revenueQ = []
-		earningsY = []
-		revenueY = []
-		for item in data['quoteSummary']['result'][0]['earnings']['financialsChart']['quarterly']:
-			if item['earnings']['fmt'] is None: # bad data
-				#if len(earningsQ): # may fix weirdness in dodelta()
-				earningsQ.append(None)
-				#if len(revenueQ):
-				revenueQ.append(None)
-			else:
-				earningsQ.append(item['earnings']['raw'])
-				revenueQ.append(item['revenue']['raw'])
-		for item in data['quoteSummary']['result'][0]['earnings']['financialsChart']['yearly']:
-			earningsY.append(item['earnings']['raw'])
-			revenueY.append(item['revenue']['raw'])
-		local_market_data[ticker]['earningsQ'] = earningsQ
-		local_market_data[ticker]['revenueQ'] = revenueQ
-		local_market_data[ticker]['earningsY'] = earningsY
-		local_market_data[ticker]['revenueY'] = revenueY
-	try:
-		data['quoteSummary']['result'][0]['insiderTransactions']['transactions'][0]['startDate']['raw']
-	except (KeyError, IndexError):
-		pass
-	else:
-		buyTotal = 0
-		buyValue = 0
-		sellTotal = 0
-		sellValue = 0
-		for item in data['quoteSummary']['result'][0]['insiderTransactions']['transactions']:
-			dt_startDate = datetime.datetime.fromtimestamp(item['startDate']['raw'])
-			if dt_startDate > now - datetime.timedelta(days=90):
-				if 'Buy' in item['transactionText']:
-					buyTotal = buyTotal + item['shares']['raw']
-					buyValue = buyValue + item['value']['raw']
-				if 'Sale' in item['transactionText']:
-					sellTotal = sellTotal + item['shares']['raw']
-					sellValue = sellValue + item['value']['raw']
-		local_market_data[ticker]['insiderBuy'] = buyTotal
-		local_market_data[ticker]['insiderSell'] = sellTotal
-		local_market_data[ticker]['insiderBuyValue'] = buyValue
-		local_market_data[ticker]['insiderSellValue'] = sellValue
-
-	local_market_data[ticker] = dict(sorted(local_market_data[ticker].items()))
-	return local_market_data
+	else: # a quarter without an earnings figure is bad data: None for both, which doDelta marks
+		detail['earningsQ'] = [None if dig(item, 'earnings', 'fmt') is None else dig(item, 'earnings', 'raw') for item in quarterly]
+		detail['revenueQ'] = [None if dig(item, 'earnings', 'fmt') is None else dig(item, 'revenue', 'raw') for item in quarterly]
+		yearly = _list(dig(result, 'earnings', 'financialsChart', 'yearly'))
+		detail['earningsY'] = [dig(item, 'earnings', 'raw') for item in yearly]
+		detail['revenueY'] = [dig(item, 'revenue', 'raw') for item in yearly]
+	transactions = _list(dig(result, 'insiderTransactions', 'transactions'))
+	if transactions: # insider buying and selling over the last 3 months: shares and value
+		since = now - datetime.timedelta(days=90)
+		totals = {'Buy': [0, 0], 'Sale': [0, 0]}
+		for item in transactions:
+			start = dig(item, 'startDate', 'raw')
+			if not isinstance(start, (int, float)) or datetime.datetime.fromtimestamp(start) <= since:
+				continue
+			for kind, total in totals.items():
+				if kind in (dig(item, 'transactionText') or ''):
+					total[0] += dig(item, 'shares', 'raw') or 0
+					total[1] += dig(item, 'value', 'raw') or 0
+		detail['insiderBuy'], detail['insiderBuyValue'] = totals['Buy']
+		detail['insiderSell'], detail['insiderSellValue'] = totals['Sale']
+	return {ticker: dict(sorted(detail.items()))}
 
 def price_history(ticker, days=None, seconds=UNSET, graph=UNSET, graphCache=True):
-	"""({period: percent change}, chart image or None). If the chart cannot be fetched: (error string, None), which the callers
-	check for so that one failed ticker does not take a whole report down."""
+	"""({period: percent change}, chart image or None): the change over `days`, else over each standard period. Raises
+	RuntimeError when the history cannot be fetched or has no prices."""
 	if graph is UNSET:
 		graph = config_graph
 	if seconds is UNSET:
 		seconds = config_cache_seconds
+	import pandas as pd
+	from pandas.tseries.offsets import BDay as businessday
 	percent_dict = {}
-	price = []
-	image_data = None
 	max_days = 3655 # 10 years + buffer
 	now = datetime.datetime.now()
 	interval = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
-
 	data = fetch_chart_json(ticker)
-	if isinstance(data, tuple): # (error string, None)
-		return data
 	df = chart_json_to_df(data)
 	stock = chart_json_to_stock_basics(data)
-	tz = zoneinfo.ZoneInfo(stock.get('exchangeTimezoneName'))
-	regularMarketTime = datetime.datetime.fromtimestamp(stock.get('regularMarketTime')).astimezone(tz).date()
-
-	# temporarily disabled while testing new method
-	# inject latest
-	#if df['Date'].iloc[-1] == regularMarketTime:
-	#	if df['Close'].iloc[-1] != regularMarketPrice:
-	#		print("Updating", df['Close'].iloc[-1], "to", regularMarketPrice)
-	#		df['Close'].loc[-1] = regularMarketPrice
-	#else:
-	#	print (ticker, "inserting", regularMarketTime, "after", df['Date'].iloc[-1], file=sys.stderr)
-	#	previous_close = df['Close'].iloc[-1]
-	#	df.loc[len(df)] = {'Timestamp' now, 'Close': regularMarketPrice, 'Open': previous_close, 'High': None, 'Low': None, 'Volume': None, 'Time': None, 'Date': regularMarketTime}
-	#df = df[df.Close.notnull()]
-	##df.sort_values(by='Date', inplace = True)
-	#df.reset_index(drop=True, inplace=True)
-
+	closes = df['Close'].dropna()
+	if closes.empty:
+		raise RuntimeError(f"no price history for {ticker}")
+	price = stock.get('regularMarketPrice') or closes.iloc[-1] # the chart's last close when Yahoo gives no current price
+	tz = zoneinfo.ZoneInfo(stock.get('exchangeTimezoneName') or 'UTC')
 	if days:
-		seek_date = now - datetime.timedelta(days = days)
-		seek_dt = seek_date.date()
-		mask = df['Date'] >= seek_dt
-		df = df.loc[mask]
-		past_price = df[df.loc[mask]['Date'] >= seek_dt]['Close'].iloc[0]
-		df.reset_index(drop=True, inplace=True)
-		percent = (stock.get('regularMarketPrice') - past_price) / past_price * 100
-		percent_dict[days] = round(percent, 2)
+		df = df[df['Date'] >= (now - datetime.timedelta(days=days)).date()].reset_index(drop=True)
+		if df.empty:
+			raise RuntimeError(f"no price history for {ticker} in the past {days} days")
+		past_price = df['Close'].iloc[0]
+		percent_dict[days] = round((price - past_price) / past_price * 100, 2)
 	else:
 		default_price = df['Close'].iloc[0]
-		default_percent = round((stock.get('regularMarketPrice') - default_price) / default_price * 100)
+		default_percent = round((price - default_price) / default_price * 100)
 		for period in interval:
-			# try to align with google finance
-			if period == 'YTD':
-				seek_dt = now.replace(day=1, month=1).date()
-				try:
-					past_price = df[df['Date'] >= seek_dt]['Close'].iloc[0]
-				except IndexError:
-					percent_dict['Max'] = default_percent
-					continue
-			elif period == '1D':
+			if period == '1D':
 				# against the previous session's close: the last close dated before the latest bar, in the exchange's time zone
 				sessions = pd.to_datetime(df['Timestamp'], unit='s', utc=True).dt.tz_convert(tz).dt.date
 				earlier = df[(sessions < sessions.iloc[-1]) & df['Close'].notnull()]
 				if earlier.empty:
 					continue
 				past_price = earlier['Close'].iloc[-1]
-			elif period == '5D':
-				#seek_date = now - datetime.timedelta(days = 5)
-				seek_date = now - businessday(5)
-				seek_dt = seek_date.date()
+			else: # try to align with google finance
 				try:
-					past_price = df[df['Date'] <= seek_dt]['Open'].iloc[-1]
-				except IndexError:
+					if period == 'YTD':
+						past_price = df[df['Date'] >= now.replace(day=1, month=1).date()]['Close'].iloc[0]
+					elif period == '5D':
+						past_price = df[df['Date'] <= (now - businessday(5)).date()]['Open'].iloc[-1]
+					else: # 10Y to 1M, 7D: the last close on or before the day that long ago
+						n, unit = int(period[:-1]), period[-1]
+						ago = relativedelta(years=n) if unit == 'Y' else relativedelta(months=n) if unit == 'M' else datetime.timedelta(days=n)
+						past_price = df[df['Date'] <= (now - ago).date()]['Close'].iloc[-1]
+				except IndexError: # the history does not go back that far
 					percent_dict['Max'] = default_percent
 					continue
-			elif period.endswith('M'):
-				months = int(period.removesuffix('M'))
-				seek_date = now - relativedelta(months=months)
-				seek_dt = seek_date.date()
-				try:
-					past_price = df[df['Date'] <= seek_dt]['Close'].iloc[-1]
-				except IndexError:
-					percent_dict['Max'] = default_percent
-					continue
-			elif period.endswith('Y'):
-				years = int(period.removesuffix('Y'))
-				seek_date = now - relativedelta(years=years)
-				seek_dt = seek_date.date()
-				try:
-					past_price = df[df['Date'] <= seek_dt]['Close'].iloc[-1]
-				except IndexError:
-					percent_dict['Max'] = default_percent
-					continue
-			else:
-				seek_date = now - datetime.timedelta(days = int(period.removesuffix('D')))
-				seek_dt = seek_date.date()
-				#print(df[df['Date'] <= seek_dt].tail(1))
-				try:
-					past_price = df[df['Date'] <= seek_dt]['Close'].iloc[-1]
-				except IndexError:
-					percent_dict['Max'] = default_percent
-					continue
-			percent = (stock.get('regularMarketPrice') - past_price) / past_price * 100
-			percent_dict[period] = round(percent)
+			percent_dict[period] = round((price - past_price) / past_price * 100)
 	if not graph or (days and days < 2):
 		return percent_dict, None
 	company_name = util.transform_title(stock.get('longName', ''))
-	price = stock.get('regularMarketPrice', '')
-	caption = []
 	if days:
-		title_days = min(days, max_days)
-		percent = percent_dict.get(days, '')
-		title = f"{company_name} ({ticker}) {title_days} days {util.signed_percent(percent)} Last: {price}"
-		caption.append(title)
+		title = f"{company_name} ({ticker}) {min(days, max_days)} days {util.signed_percent(percent_dict[days])} Last: {price}"
 	else:
-		caption.extend(f"{k}: {util.signed_percent(v)}" for k, v in percent_dict.items())
 		label = "Max" if "Max" in percent_dict else "10Y"
-		percent = percent_dict.get(label, '')
-		title = f"{company_name} ({ticker}) {label} {util.signed_percent(percent)} Last: {price}"
-	caption = '\n'.join(caption)
+		title = f"{company_name} ({ticker}) {label} {util.signed_percent(percent_dict[label])} Last: {price}"
 	image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
-	image_cache = util.read_binary_cache(image_cache_file, seconds)
-	if config_cache and image_cache and graphCache:
-		image_data = image_cache
-	else:
-		buf = util.graph(df, title, stock.get('currency'))
-		#bytesio_to_file(buf, 'temp.png')
-		buf.seek(0)
-		image_data = buf
-		util.write_binary_cache(image_cache_file, image_data)
-		buf.seek(0)
-	return percent_dict, image_data
+	if config_cache and graphCache and (image := util.read_binary_cache(image_cache_file, seconds)):
+		return percent_dict, image
+	image = util.graph(df, title, stock.get('currency'))
+	util.write_binary_cache(image_cache_file, image)
+	return percent_dict, image
 
 def price_series(ticker):
-	"""Daily closes for a ticker via the same fetch/parse path as price_history(): (name, exchange, pandas Series indexed by datetime)."""
+	"""Daily closes for a ticker via the same fetch/parse path as price_history(): (name, exchange, pandas Series indexed by datetime).
+	Raises RuntimeError when there is no history."""
+	import pandas as pd
 	data = fetch_chart_json(ticker, full=True)
-	if isinstance(data, tuple): # fetch_chart_json returns (errorstring, None) on failure
-		raise RuntimeError(data[0])
 	df = chart_json_to_df(data)
-	stock = chart_json_to_stock_basics(data) or {}
+	stock = chart_json_to_stock_basics(data)
 	df = df[df['Close'].notnull()]
 	if df.empty:
 		raise RuntimeError(f"no price history for {ticker}")
@@ -826,119 +379,106 @@ def price_series(ticker):
 	name = util.transform_title(stock.get('longName') or stock.get('shortName') or ticker)
 	return name, stock.get('fullExchangeName') or stock.get('exchangeName') or '', series
 
+def fetch_each(get, tickers, workers=8):
+	"""get(ticker) for every ticker, `workers` at a time so their waits overlap: [its result, or the exception it raised], in order."""
+	def one(ticker):
+		try:
+			return get(ticker)
+		except Exception as e:
+			return e
+	with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+		return list(executor.map(one, tickers))
+
+SUBUNITS = {'GBp': 'GBP', 'GBX': 'GBP', 'ILA': 'ILS', 'ZAc': 'ZAR'} # Yahoo prices these markets in a subunit but gives market caps in the unit
+
+def market_cap_currency(data):
+	"""The currency of a ticker's market cap: its quote currency, but the unit where Yahoo quotes in pence or the like."""
+	return SUBUNITS.get(data.get('currency'), data.get('currency'))
+
+def add_usd_market_caps(market_data):
+	"""Put 'market_cap_usd' beside each 'market_cap', which Yahoo gives in the ticker's own currency, converted at Yahoo's
+	exchange rates, so that market caps in won, yen and dollars compare. A ticker whose currency Yahoo has no rate for gets
+	none. Returns market_data."""
+	wanted = {market_cap_currency(data) for data in market_data.values() if 'market_cap' in data and market_cap_currency(data)} - {'USD'}
+	rates = {'USD': 1.0}
+	for symbol, quote in (fetch([f'{currency}=X' for currency in wanted]) if wanted else {}).items(): # KRW=X: won per US dollar
+		if quote.get('regularMarketPrice'):
+			rates[symbol.removesuffix('=X')] = 1 / quote['regularMarketPrice']
+	for data in market_data.values():
+		if 'market_cap' in data and market_cap_currency(data) in rates:
+			data['market_cap_usd'] = data['market_cap'] * rates[market_cap_currency(data)]
+	return market_data
+
+def fetch_details(tickers, strict=False):
+	"""fetch_detail of every ticker, fetched at the same time, in one {ticker: detail}. A ticker whose fetch failed is left out
+	(and logged), so that a list goes out without it; strict=True raises its error instead, for a report on the ticker asked for."""
+	tickers = list(tickers)
+	details = {}
+	for ticker, detail in zip(tickers, fetch_each(fetch_detail, tickers)):
+		if isinstance(detail, Exception):
+			if strict:
+				raise detail
+			print(ticker, detail, file=sys.stderr)
+		else:
+			details |= detail
+	return details
+
 def prefetch_history(tickers, workers=8):
 	"""Warm the price-history cache for many tickers at once, so the per-ticker lookups that follow are cache hits."""
-	def warm(ticker):
-		try:
-			fetch_chart_json(ticker)
-		except Exception as e:
-			print("prefetch failed for", ticker, e, file=sys.stderr)
-	with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-		list(executor.map(warm, tickers))
+	tickers = list(tickers)
+	for ticker, result in zip(tickers, fetch_each(fetch_chart_json, tickers, workers)):
+		if isinstance(result, Exception):
+			print("prefetch failed for", ticker, result, file=sys.stderr)
 
 def fetch_chart_json(ticker, days=3665, seconds=UNSET, full=False):
-	"""full=True requests Yahoo's entire history (cached separately) instead of the last `days`."""
+	"""Yahoo's daily chart for the last `days`, or with full=True its entire history (cached separately). Raises RuntimeError when
+	Yahoo cannot be reached or refuses."""
 	if seconds is UNSET:
 		seconds = config_cache_seconds
 	now = datetime.datetime.now()
-	if config_cache:
-		cacheFile = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
-		cache = util.read_cache(cacheFile, seconds)
-		if cache:
-			return cache
-	cookie = getCookie()
-	crumb = getCrumb()
+	cacheFile = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
+	if config_cache and (cache := util.read_cache(cacheFile, seconds)):
+		return cache
+	crumb = getCrumb() # renews the cookie too, when due
 	start = '0' if full else str(int((now - datetime.timedelta(days=days)).timestamp()))
-	end = str(int(now.timestamp()))
-	interval = '1d'
-	url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
-	url = url + ticker + '?period1=' + start + '&period2=' + end + '&interval=' + interval
-	url = url + '&crumb=' + crumb
-	headers={'Content-type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-	print("Fetching", url, file=sys.stderr) if debug else None
+	url = f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?period1={start}&period2={int(now.timestamp())}&interval=1d&crumb={crumb}'
+	print("Fetching", net.redact(url), file=sys.stderr) if debug else None
 	try:
-		r = requests.get(url, headers=headers, timeout=config_http_timeout)
+		r = net.get(url, headers={**HEADERS, 'Content-type': 'application/json'}, timeout=config_http_timeout)
 	except Exception as e:
-		errorstring = f"General failure for {ticker} at {url}: {e}"
-		print(errorstring, file=sys.stderr)
-		return errorstring, None
-	if r.status_code == 200:
-		print('↓', sep=' ', end='', flush=True)
-	else:
-		errorstring=f"{r.status_code} error for {ticker} at {url}"
-		print(errorstring, file=sys.stderr)
-		return errorstring, None
+		raise RuntimeError(f"Yahoo unreachable for {ticker}: {net.redact(e)}") from e
+	if r.status_code != 200:
+		raise RuntimeError(f"{r.status_code} error for {ticker} from Yahoo's chart API")
+	print('↓', sep=' ', end='', flush=True)
+	data = r.json()
 	if config_cache:
-		util.json_write(cacheFile, r.json())
-	return r.json()
+		util.json_write(cacheFile, data)
+	return data
 
 def chart_json_to_df(chart_json):
+	"""The chart's daily bars as a DataFrame: Timestamp, Open, High, Low, Close, Volume and the Date."""
+	import pandas as pd
 	result = chart_json['chart']['result'][0]
-	timestamp = result['timestamp']
-	quote_data = result['indicators']['quote'][0]
-
-	# Create a dictionary with 'Timestamp' and all available quote data
-	data = {'Timestamp': timestamp}
-	data.update(quote_data)
-
-	# Create DataFrame
-	df = pd.DataFrame(data)
-
-	#timestamp = [datetime.datetime.fromtimestamp(ts) for ts in timestamp]
+	df = pd.DataFrame({'Timestamp': result['timestamp'], **result['indicators']['quote'][0]})
 	df['Date'] = pd.to_datetime(df['Timestamp'], unit='s').dt.date
-
-
-	# Rename columns to capitalize first letter
 	df.columns = [col.capitalize() for col in df.columns]
-
 	return df
 
 def chart_json_to_stock_basics(chart_json):
-	"""
-	extracts stock basics from chart json to save calling fetch()
-	{
-		"currency": "USD",
-		"symbol": "AAPL",
-		"exchangeName": "NMS",
-		"fullExchangeName": "NasdaqGS",
-		"instrumentType": "EQUITY",
-		"firstTradeDate": 345479400,
-		"regularMarketTime": 1726862403,
-		"hasPrePostMarketData": true,
-		"gmtoffset": -14400,
-		"timezone": "EDT",
-		"exchangeTimezoneName": "America/New_York",
-		"regularMarketPrice": 228.2,
-		"fiftyTwoWeekHigh": 233.09,
-		"fiftyTwoWeekLow": 227.62,
-		"regularMarketDayHigh": 233.09,
-		"regularMarketDayLow": 227.62,
-		"regularMarketVolume": 287134033,
-		"longName": "Apple Inc.",
-		"shortName": "Apple Inc.",
-		"chartPreviousClose": 224.53,
-		"priceHint": 2,
-	}
-	"""
-	for a in chart_json.values():
-		for b in a.values():
-			if isinstance(b, list):
-				for c in b:
-					if 'currency' in c['meta']:
-						return c['meta']
+	"""The chart's meta, which saves a call to fetch(): currency, symbol, exchangeName and fullExchangeName, exchangeTimezoneName,
+	regularMarketPrice and regularMarketTime, longName and shortName, fiftyTwoWeekHigh and Low, and more. {} when there is none."""
+	return dig(chart_json, 'chart', 'result', 0, 'meta') or {}
 
 def historic_high(ticker):
-	data = fetch_chart_json(ticker)
-	df = chart_json_to_df(data)
-	df = df[df.High.notnull()]
-	df.drop(df.index[:1], inplace=True)
-	df.reset_index(drop=True, inplace=True)
-	if df.empty: # e.g. total-return indices such as ^SPTTGD carry no High/Low data
-		return None
+	"""(highest high, lowest low) of the ticker's history. Raises RuntimeError when it has none (e.g. total-return indices such
+	as ^SPTTGD carry no High/Low data)."""
+	df = chart_json_to_df(fetch_chart_json(ticker))
+	df = df[df.High.notnull()].iloc[1:].reset_index(drop=True)
+	if df.empty:
+		raise RuntimeError(f"no high/low history for {ticker}")
 	highrow = df.iloc[df['High'].argmax()]
 	lowrow = df.iloc[df['Low'].argmin()]
 	if debug:
 		print(ticker, "High", highrow['Date'], round(highrow['High'], 2), file=sys.stderr)
 		print(ticker, "Low", lowrow['Date'], round(lowrow['Low'], 2), file=sys.stderr)
 	return round(highrow['High'], 2), round(lowrow['Low'], 2)
-

@@ -1,10 +1,10 @@
-import json
 import sys
 import time
 import datetime
 import threading
 import requests
 from lib.config import *
+from lib import net
 import lib.util as util
 
 MAX_CONCURRENT = 1 # Sharesight rejects parallel requests beyond a few per account: allow one at a time across all chats and threads
@@ -12,11 +12,28 @@ _request_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
 
 def _get(url, **kwargs):
 	with _request_slots:
-		return requests.get(url, **kwargs)
+		return net.get(url, **kwargs)
 
 def _post(url, **kwargs):
 	with _request_slots:
-		return requests.post(url, **kwargs)
+		return net.post(url, **kwargs)
+
+def _request(send, url, what, **kwargs):
+	"""Send a request to Sharesight and return the JSON answer. A request that fails raises RuntimeError naming `what`."""
+	try:
+		r = send(url, timeout=config_http_timeout, **kwargs)
+	except Exception as e:
+		print("Error", net.redact(e), url, file=sys.stderr)
+		raise RuntimeError(f"Sharesight {what} request failed: {e}")
+	if r.status_code != 200:
+		print(r.status_code, "error", url, file=sys.stderr)
+	return r.json()
+
+def _check(data, what):
+	"""Raise RuntimeError with Sharesight's error, when it answered with one."""
+	if 'error' in data:
+		print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
+		raise RuntimeError(f"Sharesight {what} error: {data['error']}")
 
 class BearerAuth(requests.auth.AuthBase):
 	def __init__(self, token):
@@ -39,21 +56,11 @@ def get_token():
 				print("cache miss:", cacheFile, file=sys.stderr) if debug else None
 
 	print("Fetching Sharesight auth token")
-	url = "https://api.sharesight.com/oauth2/token"
-	try:
-		r = _post(url, data=config_sharesight_auth, timeout=config_http_timeout)
-	except Exception as e:
-		print("Error", str(e), url, file=sys.stderr)
-		raise RuntimeError(f"Sharesight auth request failed: {e}")
-	if r.status_code != 200:
-		print(r.status_code, "error", url, file=sys.stderr)
-	data = r.json()
-	if 'error' in data:
-		print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
-		raise RuntimeError(f"Sharesight auth error: {data['error']}")
+	data = _request(_post, "https://api.sharesight.com/oauth2/token", 'auth', data=config_sharesight_auth)
+	_check(data, 'auth')
 	if config_cache and 'access_token' in data:
 		util.json_write(cacheFile, data)
-	print("Got Sharesight token:", data['access_token'], file=sys.stderr) if debug else None
+	print("Got a Sharesight token", file=sys.stderr) if debug else None
 	return data['access_token']
 
 PORTFOLIOS_CACHE = "finbot_sharesight_portfolios.json" # ttl: config_cache_seconds
@@ -64,29 +71,14 @@ def performance_cache_file(portfolio_id, days):
 def get_portfolios(refresh=False):
 	"""refresh=True skips the cache read and fetches again (the cache is rewritten)."""
 	portfolio_dict = {}
-	cache = None
-	cache_file = PORTFOLIOS_CACHE
-	if config_cache and not refresh:
-		cache = util.read_cache(cache_file, config_cache_seconds)
-		if cache:
-			data = cache
-	if not cache or not config_cache:
+	data = util.read_cache(PORTFOLIOS_CACHE, config_cache_seconds) if config_cache and not refresh else None
+	if not data:
 		token = get_token()
 		print("Fetching Sharesight portfolios")
-		url = "https://api.sharesight.com/api/v3/portfolios"
-		try:
-			r = _get(url, headers={'Content-type': 'application/json'}, auth=BearerAuth(token), timeout=config_http_timeout)
-		except Exception as e:
-			print("Error", str(e), url, file=sys.stderr)
-			raise RuntimeError(f"Sharesight portfolios request failed: {e}")
-		if r.status_code != 200:
-			print(r.status_code, "error", url, file=sys.stderr)
-		data = r.json()
-		if 'error' in data:
-			print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
-			raise RuntimeError(f"Sharesight portfolios error: {data['error']}")
+		data = _request(_get, "https://api.sharesight.com/api/v3/portfolios", 'portfolios', headers={'Content-type': 'application/json'}, auth=BearerAuth(token))
+		_check(data, 'portfolios')
 		if config_cache and 'portfolios' in data:
-			util.json_write(cache_file, data)
+			util.json_write(PORTFOLIOS_CACHE, data)
 	for portfolio in data['portfolios']:
 		if str(portfolio['id']) in config_exclude_portfolios:
 			print(portfolio['id'], "(" + portfolio['name'] + ") in exclusion list. Skipping.")
@@ -96,9 +88,26 @@ def get_portfolios(refresh=False):
 			portfolio_dict[portfolio['name']] = portfolio['id']
 	if not len(portfolio_dict):
 		print("No portfolios found. Exiting.", file=sys.stderr)
-		raise RuntimeError(f"No Sharesight portfolios found")
+		raise RuntimeError("No Sharesight portfolios found")
 	print(portfolio_dict)
 	return portfolio_dict
+
+class PortfolioNotFound(LookupError):
+	"""No portfolio is called what was asked for. `lines` is the answer to give: the name, and the portfolios there are."""
+	def __init__(self, name, portfolios):
+		self.lines = [f"{name} portfolio not found. I only know about:"] + list(portfolios)
+		super().__init__(' '.join(self.lines))
+
+def pick_portfolios(name=None, portfolios=None):
+	"""{name as Sharesight spells it: id} of the portfolio called `name` (in any case), or of every portfolio when no name is given.
+	`portfolios` is get_portfolios() when not given. Raises PortfolioNotFound."""
+	portfolios = get_portfolios() if portfolios is None else portfolios
+	if not name:
+		return portfolios
+	found = {k.lower(): (k, v) for k, v in portfolios.items()}.get(name.lower())
+	if not found:
+		raise PortfolioNotFound(name, portfolios)
+	return dict([found])
 
 def get_trades(portfolio_name, portfolio_id, days=UNSET):
 	if days is UNSET:
@@ -114,18 +123,9 @@ def get_trades(portfolio_name, portfolio_id, days=UNSET):
 	print("Fetching Sharesight trades for", portfolio_name, end=": ")
 	url = 'https://api.sharesight.com/api/v2/portfolios/'
 	url = url + str(portfolio_id) + '/trades.json' + '?start_date=' + start_date
-	try:
-		r = _get(url, auth=BearerAuth(token), timeout=config_http_timeout)
-	except Exception as e:
-		print("Error", str(e), url, file=sys.stderr)
-		raise RuntimeError(f"Sharesight trades request failed: {e}")
-	if r.status_code != 200:
-		print(r.status_code, "error", url, file=sys.stderr)
-	data = r.json()
+	data = _request(_get, url, 'trades', auth=BearerAuth(token))
 	print(len(data['trades']))
-	if 'error' in data:
-		print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
-		raise RuntimeError(f"Sharesight trades error: {data['error']}")
+	_check(data, 'trades')
 	for trade in data['trades']:
 		trade['portfolio'] = portfolio_name # inject custom field
 	if config_cache and 'trades' in data:
@@ -163,8 +163,7 @@ def get_holdings_wrapper():
 		return None
 	for portfolio_name, portfolio_id in portfolios.items():
 		tickers.update(get_holdings(portfolio_name, portfolio_id))
-	tickers = sorted(set(tickers))
-	return tickers
+	return sorted(tickers)
 
 def get_performance(portfolio_id, days, config_cache_seconds=UNSET, refresh=False):
 	if config_cache_seconds is UNSET:
@@ -180,22 +179,13 @@ def get_performance(portfolio_id, days, config_cache_seconds=UNSET, refresh=Fals
 	endpoint = 'https://api.sharesight.com/api/v3/portfolios/'
 	url = endpoint + str(portfolio_id) + '/performance?grouping=ungrouped&start_date=' + start_date
 	for attempt in range(5): # Sharesight allows only a few requests in flight at once; back off and retry when it says so
-		try:
-			r = _get(url, auth=BearerAuth(token), timeout=config_http_timeout)
-		except Exception as e:
-			print("Error", str(e), url, file=sys.stderr)
-			raise RuntimeError(f"Sharesight performance request failed: {e}")
-		if r.status_code != 200:
-			print(r.status_code, "error", url, file=sys.stderr)
-		data = r.json()
+		data = _request(_get, url, 'performance', auth=BearerAuth(token))
 		if 'error' in data and 'parallel' in str(data['error']).lower() and attempt < 4:
 			print("Sharesight busy:", data['error'], "- retrying", file=sys.stderr)
 			time.sleep(1 + attempt)
 			continue
 		break
-	if 'error' in data:
-		print("Sharesight error:", data['error_code'], data['error'], file=sys.stderr)
-		raise RuntimeError(f"Sharesight performance error: {data['error']}")
+	_check(data, 'performance')
 	if config_cache and 'report' in data:
 		util.json_write(cache_file, data)
 	return data
@@ -254,7 +244,7 @@ def keep_warm(min_wait=5, retry=300, idle=60, stop=None):
 			wait = idle
 		else:
 			try:
-				fetched, portfolios = warm()
+				_, portfolios = warm()
 				wait = max(min_wait, next_due(portfolios=portfolios))
 			except Exception as e:
 				print("Sharesight cache refresh failed:", e, file=sys.stderr)

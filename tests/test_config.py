@@ -5,7 +5,7 @@ from unittest import mock
 from lib import config
 from util import check_config, split_env
 import bot, cal
-from lib import sharesight, util, worker, yahoo
+from lib import reports, sharesight, util, worker, yahoo
 import performance, price, shorts, trades
 
 REPO = Path(config.__file__).resolve().parent.parent
@@ -15,7 +15,7 @@ DEFAULTS = {'config_past_days': 28, 'config_future_days': 30, 'config_price_perc
 	'config_alliterate': False, 'config_hyperlink': True, 'config_hyperlinkFooter': True, 'config_hyperlinkProvider': 'google',
 	'config_demote_volatile': True, 'config_demote_leveraged': True, 'config_volatility_multiplier': 2.0, 'config_exclude_portfolios': [],
 	'config_include_portfolios': [], 'config_trades_use_yahoo': True, 'config_performance_use_sharesight': False,
-	'config_print_headers': False, 'debug': False}
+	'config_print_headers': False, 'config_min_analysts': 7, 'debug': False}
 
 
 def keys_in(path):
@@ -26,7 +26,7 @@ def keys_in(path):
 class Tables(unittest.TestCase):
 	def test_the_two_key_sets_are_disjoint_and_cover_everything_config_reads(self):
 		self.assertEqual(set(config.STARTUP_KEYS) & set(config.PREFERENCE_KEYS), set())
-		self.assertEqual((len(config.STARTUP_KEYS), len(config.PREFERENCE_KEYS)), (17, 25))
+		self.assertEqual((len(config.STARTUP_KEYS), len(config.PREFERENCE_KEYS)), (17, 26))
 		source = (REPO / 'lib' / 'config.py').read_text()
 		read = set(re.findall(r"""(?:\br\.\w+|getenv)\(\s*['"]([A-Za-z_]+)['"]""", source))
 		read -= {'STATE_DIRECTORY'} # systemd's own variable, a source for DATA_DIR
@@ -149,9 +149,10 @@ class Reload(unittest.TestCase):
 
 	def test_a_change_reaches_config_and_every_module_that_copied_it(self):
 		self.write('future_days=45\nprice_percent=7\nshorts_percent=12\nexclude_portfolios=1156263\nalliterate=1\nhyperlinkProvider=yahoo\n'
-			'hyperlinkFooter=false\ndebug=1\ngraph=0\ndemote_volatile=0\nvolatility_multiplier=3\npast_days=14\n')
+			'hyperlinkFooter=false\ndebug=1\ngraph=0\ndemote_volatile=0\nvolatility_multiplier=3\npast_days=14\nmin_analysts=3\n')
 		changes = config.reload()
-		self.assertEqual(len(changes), 12)
+		self.assertEqual(len(changes), 13)
+		self.assertEqual(reports.config_min_analysts, 3) # .buy, .sell and .forward pe read it
 		self.assertIn('future_days 30 -> 45', changes)
 		want = {'config_future_days': 45, 'config_past_days': 14, 'config_price_percent': 7.0}
 		for module in (config, cal, worker, price, trades, performance, shorts, sharesight, yahoo, util):

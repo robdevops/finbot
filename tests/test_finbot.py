@@ -17,7 +17,7 @@ class Plumbing(FinbotCase):
             posted.append(kwargs['json'])
             return Response()
 
-        with mock.patch.object(webhook.requests, 'post', post), mock.patch.object(webhook.time, 'sleep', lambda s: None):
+        with mock.patch.object(webhook.net, 'post', post), mock.patch.object(webhook.time, 'sleep', lambda s: None):
             results = REAL_PAYLOAD_WRAPPER('telegram', 'https://api.telegram.org/botX/sendMessage?chat_id=5',
                 ['x' * 60] * 300, '5', reply_markup={'keyboard': []})
         self.assertGreater(len(results), 1)
@@ -30,7 +30,7 @@ class Plumbing(FinbotCase):
         self.assertEqual(datetime.datetime(2022, 8, 18, tzinfo=tz).utcoffset(), datetime.timedelta(hours=10))
 
     def test_reminder_runs(self):
-        with mock.patch.object(reminder, 'load_reminders', lambda: []):
+        with mock.patch.object(reminder, 'data_json', lambda name, default=None: []):
             reminder.lambda_handler()
 
     def test_bot_handler(self):

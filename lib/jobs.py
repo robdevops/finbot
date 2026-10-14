@@ -9,7 +9,6 @@ import json
 import math
 import os
 import re
-import shlex
 import signal
 import sys
 import zlib
@@ -32,7 +31,6 @@ SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance'
 	'rating': rating, 'reminder': reminder, 'shorts': shorts, 'trades': trades}
 current = None # the running Scheduler, set by bot.py; the chat commands use it
 HIDDEN = ('cleanup', 'podcasts') # scheduled, but not offered in the chat list
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_FILE = 'finbot_jobs.json' # last fire time of every job, so a restart neither repeats a run nor loses one
 JOB_TIMEOUT = 5 * 60 # seconds a job may run before it is abandoned and reported
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')
@@ -49,7 +47,7 @@ def run_child(label, module, kwargs):
 	"""Run a command in its own process (python -m lib.jobrun) and return its exit status. The child inherits the environment,
 	user and output of the bot, so it behaves like the old cron job. A timeout or any other interruption stops the child."""
 	env = dict(os.environ, **config.child_environment()) # the preferences this process runs on, not whatever the file says now
-	proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', module.__name__, json.dumps(kwargs)], cwd=ROOT, env=env)
+	proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', module.__name__, json.dumps(kwargs)], cwd=REPO_DIR, env=env)
 	try:
 		return proc.wait()
 	except BaseException:
@@ -383,9 +381,10 @@ class Scheduler:
 		"""Every offered scheduled command once, sorted by name with numbers in numeric order: [(label, module, kwargs)]. The time,
 		comments, redirects and the other commands of a line are not part of it; HIDDEN scripts are left out."""
 		unique = {}
+		hidden = {SCRIPTS[name] for name in HIDDEN}
 		for job in self.jobs:
 			for command in job.commands:
-				if command[1] not in [SCRIPTS[name] for name in HIDDEN]:
+				if command[1] not in hidden:
 					unique.setdefault(command[0], command)
 		natural = lambda label: [int(part) if part.isdigit() else part for part in re.split(r'(\d+)', label.lower())]
 		return [unique[label] for label in sorted(unique, key=natural)]

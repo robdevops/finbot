@@ -104,8 +104,8 @@ class JobArguments(unittest.TestCase):
                 price.job(bad)
 
     def test_cal_and_performance(self):
-        self.assertEqual(cal.job(['earnings']), ('cal.py earnings', {'earnings': True}))
-        self.assertEqual(cal.job(['ex-dividend']), ('cal.py ex-dividend', {'dividend': True}))
+        self.assertEqual(cal.job(['earnings']), ('cal.py earnings', {'event': 'earnings'}))
+        self.assertEqual(cal.job(['ex-dividend']), ('cal.py ex-dividend', {'event': 'ex-dividend'}))
         self.assertEqual(performance.job([]), ('performance.py', {}))
         self.assertEqual(performance.job(['7']), ('performance.py 7', {'past_days': 7}))
         for bad, module in ((['x'], cal), ([], cal), (['x'], performance)):

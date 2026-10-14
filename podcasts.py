@@ -1,181 +1,109 @@
 #!/usr/bin/env python3
 
 import sys
-import os
 import hashlib
 import string
-import requests
 import xml.etree.ElementTree as ET
-from lib.config import *
-from lib import webhook
-from lib import util
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
+from lib import net
+from lib import webhook
+from lib import util
 
 NAMESPACES = {
-		"media": "http://search.yahoo.com/mrss/",
-		"itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd"
+	"media": "http://search.yahoo.com/mrss/",
+	"itunes": "http://www.itunes.com/dtds/podcast-1.0.dtd"
 }
+NEWEST = 5 # episodes posted per run at most: the other new ones (on a first run, say) are only recorded as seen
 
 def get_seen_filename(url):
-		hashed = hashlib.md5(url.encode()).hexdigest()
-		return config_var_dir + "/" + f"finbot_podcast_seen_{hashed}.json"
-
-def load_seen(filename):
-		if os.path.exists(filename):
-				with open(filename, "r") as f:
-						return json.load(f)
-		return []
-
-def save_seen(seen, filename):
-		with open(filename, "w") as f:
-				json.dump(list(seen), f, indent=4)
+	"""The state file, in the data directory, of the episodes of this feed already seen."""
+	return f"finbot_podcast_seen_{hashlib.md5(url.encode()).hexdigest()}.json"
 
 def fetch_and_parse_feed(url):
-		resp = requests.get(url, timeout=30)
-		resp.raise_for_status()
-		return ET.fromstring(resp.content)
+	resp = net.get(url, timeout=30)
+	resp.raise_for_status()
+	return ET.fromstring(resp.content)
 
 def format_duration(duration_str):
-		"""Convert duration string to human-readable format"""
-		if not duration_str:
-				return ""
+	"""'3725' (seconds), '1:02:05' or '62:05' -> '01:02' (hours and minutes); '' for anything else."""
+	try:
+		parts = [int(part) for part in (duration_str or '').split(':')]
+	except ValueError:
+		return ""
+	if len(parts) > 3:
+		return ""
+	total_seconds = sum(part * 60 ** i for i, part in enumerate(reversed(parts)))
+	return f"{total_seconds // 3600:02d}:{total_seconds % 3600 // 60:02d}"
 
-		try:
-				# Try parsing as seconds (integer)
-				total_seconds = int(duration_str)
-		except ValueError:
-				# Try parsing as HH:MM:SS or MM:SS format
-				try:
-						parts = duration_str.split(':')
-						if len(parts) == 3:  # HH:MM:SS
-								total_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-						elif len(parts) == 2:  # MM:SS
-								total_seconds = int(parts[0]) * 60 + int(parts[1])
-						else:
-								return ""
-				except:
-						return ""
+def published(pub_raw):
+	"""An episode's publication time (in UTC where the feed gives no zone), or None where it gives none or garbles it."""
+	try:
+		when = parsedate_to_datetime(pub_raw)
+	except (TypeError, ValueError):
+		return None
+	return when if when.tzinfo else when.replace(tzinfo=timezone.utc)
 
-		hours = total_seconds // 3600
-		minutes = (total_seconds % 3600) // 60
+def how_long_ago(when):
+	"""'3d ago', '5h ago', '12m ago' or '40s ago'; '' without a time."""
+	if when is None:
+		return ""
+	delta = datetime.now(timezone.utc) - when
+	if delta.days > 0:
+		return f"{delta.days}d ago"
+	if delta.seconds > 3600:
+		return f"{delta.seconds // 3600}h ago"
+	if delta.seconds > 60:
+		return f"{delta.seconds // 60}m ago"
+	return f"{delta.seconds}s ago"
 
-		#if hours > 0:
-		#		return f"{hours}h {minutes}m"
-		#else:
-		#		return f"{minutes}m"
-		return f"{hours:02d}:{minutes:02d}"
-
-
-def how_long_ago(pub_raw):
-		try:
-				pub_date = parsedate_to_datetime(pub_raw)
-				if pub_date.tzinfo is None:
-						pub_date = pub_date.replace(tzinfo=timezone.utc)
-				now = datetime.now(timezone.utc)
-				delta = now - pub_date
-
-				days = delta.days
-				seconds = delta.seconds
-				if days > 0:
-						return f"{days}d ago"
-				elif seconds > 3600:
-						hours = seconds // 3600
-						return f"{hours}h ago"
-				elif seconds > 60:
-						minutes = seconds // 60
-						return f"{minutes}m ago"
-				else:
-						return f"{seconds}s ago"
-		except Exception as e:
-				print(f"Error in how_long_ago: {e}")
-				return ""
+def media_link(item):
+	"""An episode's media: <media:content><media:player url>, else <media:content url>, else <enclosure url>; None without any."""
+	for element in (item.find(".//media:content/media:player", NAMESPACES), item.find("media:content", NAMESPACES), item.find("enclosure")):
+		if element is not None and element.attrib.get("url"):
+			return element.attrib["url"]
+	return None
 
 def fetch_new_episodes(feed_url, seen):
-		root = fetch_and_parse_feed(feed_url)
-		channel = root.find("channel")
-		if channel is None:
-				raise RuntimeError("No <channel> element found")
-
-		podcast_name = (channel.findtext("title") or "Podcast").strip()
-		new_episodes = []
-
-		for item in channel.findall("item"):
-				guid = item.findtext("guid") or item.findtext("link")
-				if not guid or guid in seen:
-						continue
-
-				# Try <media:content><media:player>
-				player_el = item.find(".//media:content/media:player", NAMESPACES)
-				if player_el is not None and "url" in player_el.attrib:
-						media_url = player_el.attrib["url"]
-				else:
-						# Fallback: <media:content url=...>
-						content_el = item.find("media:content", NAMESPACES)
-						media_url = content_el.attrib["url"] if content_el is not None and "url" in content_el.attrib else None
-
-				if not media_url:
-						# Final fallback: <enclosure>
-						enclosure = item.find("enclosure")
-						media_url = enclosure.attrib["url"] if enclosure is not None and "url" in enclosure.attrib else None
-
-				if not media_url:
-						continue
-
-				# Get duration from itunes:duration tag
-				duration_raw = item.findtext("itunes:duration", namespaces=NAMESPACES)
-				duration = format_duration(duration_raw) if duration_raw else ""
-
-				pub_raw = item.findtext("pubDate")
-				published_dt = parsedate_to_datetime(pub_raw) if pub_raw else datetime.min
-				ago = how_long_ago(pub_raw) if pub_raw else ""
-
-				episode_title = (item.findtext("title") or "Untitled").strip()
-				new_episodes.append({
-						"podcast": podcast_name,
-						"title": episode_title,
-						"url": media_url,
-						"ago": ago,
-						"duration": duration,
-						"published_dt": published_dt
-				})
-				new_episodes.sort(key=lambda ep: ep["published_dt"], reverse=True)
-				new_episodes = new_episodes[:5]
-
-				seen.append(guid)
-
-		return new_episodes
+	"""(the NEWEST newest episodes whose guid is not in `seen`, newest first; the guids of all the new ones)."""
+	channel = fetch_and_parse_feed(feed_url).find("channel")
+	if channel is None:
+		raise RuntimeError("No <channel> element found")
+	podcast_name = (channel.findtext("title") or "Podcast").strip()
+	episodes, guids = [], set()
+	for item in channel.findall("item"):
+		guid = item.findtext("guid") or item.findtext("link")
+		media_url = media_link(item)
+		if not guid or guid in seen or not media_url:
+			continue
+		when = published(item.findtext("pubDate"))
+		episodes.append({"podcast": podcast_name, "title": (item.findtext("title") or "Untitled").strip(), "url": media_url,
+			"ago": how_long_ago(when), "duration": format_duration(item.findtext("itunes:duration", namespaces=NAMESPACES)),
+			"published": when or datetime.min.replace(tzinfo=timezone.utc)})
+		guids.add(guid)
+	episodes.sort(key=lambda episode: episode["published"], reverse=True)
+	return episodes[:NEWEST], guids
 
 def lambda_handler(feed_url):
-		seen_file = get_seen_filename(feed_url)
-		seen = load_seen(seen_file)
-		seen_earlier = seen.copy()
-
-		try:
-				new_episodes = fetch_new_episodes(feed_url, seen)
-		except Exception as e:
-				raise RuntimeError(f"fetching feed {feed_url}: {e}")
-
-		seen = sorted(set(seen))
-		if seen != seen_earlier:
-				if not webhooks:
-						raise KeyError("no services enabled in finbot.env")
-				for service, url in webhooks.items():
-						payload = []
-						if service == "telegram":
-								url = webhooks['telegram'] + "sendMessage?chat_id=" + config_telegramChatID
-						for ep in new_episodes:
-								podcast_name = ep['podcast']
-								title = ep['title'].removeprefix(podcast_name).lstrip(string.punctuation + " ")
-								link = util.link(ep['url'], title, service)
-								emoji = "📣"
-								duration_str = f"{ep['duration']}" if ep['duration'] else ""
-								payload.append(f"{emoji} {podcast_name}: {link} {duration_str} ({ep['ago']})")
-						webhook.payload_wrapper(service, url, payload)
-						#print(service, json.dumps(payload, indent=4))
-				save_seen(seen, seen_file) # do this last so we pick up these episodes next run if we error
-		else:
-				print("no new episodes found")
+	"""Post the feed's newest episodes not posted before, then record every new one as seen."""
+	seen_file = get_seen_filename(feed_url)
+	seen = set(util.json_load(seen_file, persist=True) or [])
+	try:
+		episodes, guids = fetch_new_episodes(feed_url, seen)
+	except Exception as e:
+		raise RuntimeError(f"fetching feed {feed_url}: {e}")
+	if not guids:
+		print("no new episodes found")
+		return
+	for service, url, chat in webhook.default_chats():
+		payload = []
+		for episode in episodes:
+			podcast_name = episode['podcast']
+			title = episode['title'].removeprefix(podcast_name).lstrip(string.punctuation + " ")
+			duration = f" {episode['duration']}" if episode['duration'] else ""
+			payload.append(f"📣 {podcast_name}: {util.link(episode['url'], title, service)}{duration} ({episode['ago']})")
+		webhook.send(service, url, chat, payload)
+	util.json_write(seen_file, sorted(seen | guids), persist=True) # last, so that a failure above leaves these episodes for next run
 
 def job(argv):
 	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
