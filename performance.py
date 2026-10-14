@@ -25,12 +25,10 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=UNSET, service=None,
 		try:
 			percent, graph = yahoo.price_history(ticker, days=past_days, graph=False)
 		except Exception as e:
-			errorstring=f"error: {e}"
-			print(errorstring, file=sys.stderr)
-		if isinstance(percent, str):
-			errorstring=percent
-			print(errorstring, file=sys.stderr)
-			return errorstring, None
+			percent = f"error: {e}"
+		if isinstance(percent, str): # no history for this benchmark: say so in its line, the rest of the report goes out
+			print(ticker, percent, file=sys.stderr)
+			return f"⚠️ {text}: no price history", None
 		else:
 			percent = percent[past_days]
 			emoji = get_emoji(percent)
@@ -64,7 +62,7 @@ def lambda_handler(chat_id=config_telegramChatID, past_days=UNSET, service=None,
 			period = util.days_english(past_days)
 			message = webhook.bold(f"Performance over {period}", service)
 			payload.insert(0, message)
-			if chart_rows and (interactive or service == 'telegram'): # Slack/Discord cron posts have no way to upload an image
+			if chart_rows and webhook.takes_charts(service):
 				subtitle = f"% change {'' if period == 'today' else 'over '}{period}"
 				chart_rows.sort(key=lambda row: row[1], reverse=True) # best first
 				graph = util.rows_chart(chart_rows, "Performance", subtitle, value_fmt=lambda v: util.signed_percent(v, 2))

@@ -1,5 +1,5 @@
 """The in-process scheduler (lib/jobs.py): schedule file parsing, each script's job(argv), and firing with a fake clock."""
-import datetime, hashlib, json, os, subprocess, sys, tempfile, time, unittest, zoneinfo
+import contextlib, datetime, hashlib, io, json, os, signal, subprocess, sys, tempfile, time, unittest, zoneinfo
 from pathlib import Path
 from unittest import mock
 import gevent
@@ -73,6 +73,15 @@ class ParseTests(unittest.TestCase):
         parsed, errors = jobs.parse_schedule(text, UTC)
         self.assertEqual([j.expr for j in parsed], ['5 4 * * *'])
         self.assertEqual([number for number, _, _ in errors], [1, 2, 3, 4, 5, 6])
+
+    def test_impossible_times_are_marked_and_reboot_is_just_unsupported(self):
+        for line in ('0 0 30 2 * trades.py', '0 9 31 4,6,9,11 * trades.py', '61 1 * * * trades.py', '0 0 * 13 * trades.py', '@bogus trades.py'):
+            parsed, errors = jobs.parse_schedule(line + '\n', UTC)
+            self.assertEqual(parsed, [], line)
+            self.assertIsInstance(errors[0][2], jobs.ImpossibleTime, line)
+        parsed, errors = jobs.parse_schedule('@reboot trades.py\n0 0 29 2 * trades.py\n', UTC)
+        self.assertEqual([j.expr for j in parsed], ['0 0 29 2 *']) # a leap day does come
+        self.assertNotIsInstance(errors[0][2], jobs.ImpossibleTime)
 
     def test_cron_tz_applies_to_the_lines_below(self):
         parsed, _ = jobs.parse_schedule('1 1 * * * trades.py\nCRON_TZ=Australia/Melbourne\n2 2 * * * trades.py\nCRON_TZ=Nowhere/Land\n', UTC)
@@ -224,6 +233,17 @@ class SchedulerTests(SchedulerBase):
         s = self.scheduler()
         self.assertEqual([t for _, t in s.due(self.clock.now)], [at(13, 21, 40)]) # 21:20 is older than 5 minutes: skipped
 
+    def test_a_corrupt_state_file_is_reported_and_the_schedule_starts_afresh(self):
+        Path(util.config_var_dir, jobs.STATE_FILE).write_text('{"*/20 * * * Mon-Fri|UTC|trades.py": "2026-10-13T21:') # cut off mid-write
+        s = self.scheduler()
+        self.assertEqual((s.last, len(self.errors)), ({}, 1))
+        self.assertIn('cannot read finbot_jobs.json', self.errors[0])
+        self.clock.now = at(13, 21, 20)
+        self.assertEqual(len(s.due(self.clock.now)), 1) # runs as usual, and the record is written afresh
+        self.assertEqual(util.json_load(jobs.STATE_FILE, persist=True), {s.jobs[0].key: at(13, 21, 20).isoformat()})
+        s.reload() # and a reload is no trouble either
+        self.assertEqual(len(self.errors), 1)
+
     def test_no_record_means_nothing_is_missed(self):
         self.clock.now = at(13, 21, 43)
         s = self.scheduler()
@@ -286,6 +306,21 @@ class SchedulerTests(SchedulerBase):
         self.assertFalse(s.load())
         self.assertEqual(len(s.jobs), 2)
 
+    def test_an_impossible_time_refuses_the_whole_file(self):
+        s = self.scheduler()
+        self.file.write_text('*/20 * * * Mon-Fri trades.py\n0 9 30 2 * shorts.py\n5 4 * * * nothere.py\n')
+        with self.assertRaises(jobs.ImpossibleTime) as caught:
+            s.load()
+        self.assertEqual(len(caught.exception.lines), 1)
+        self.assertIn("line 2: '0 9 30 2 *' never comes", caught.exception.lines[0])
+        self.assertEqual(self.errors, []) # load reports nothing for a refused file...
+        s.reload() # ...a reload says why it was refused, and the running schedule carries on
+        self.assertEqual(len(self.errors), 1)
+        self.assertIn('not reloaded, the running schedule is unchanged', self.errors[0])
+        self.assertEqual([j.text for j in s.jobs], ['*/20 * * * Mon-Fri trades.py'])
+        self.clock.now = at(13, 21, 20)
+        self.assertEqual(len(s.due(self.clock.now)), 1)
+
     def test_load_reports_bad_lines_once_and_runs_the_rest(self):
         self.file.write_text('0 1 * * * nothere.py\n*/20 * * * * trades.py\n')
         s = self.scheduler()
@@ -305,6 +340,64 @@ class SchedulerTests(SchedulerBase):
                 s.run_forever()
         self.assertEqual(calls, [30, 30, 30])
         self.assertTrue(any('tick failed' in e for e in self.errors))
+
+
+class DaylightSaving(unittest.TestCase):
+    """Melbourne's clocks go back an hour at 03:00 on 5 April 2026 and forward at 02:00 on 4 October 2026. The fire times must be
+    right on any croniter: the distro packages (up to 6.0) got zoneinfo's changes wrong."""
+    MEL = zoneinfo.ZoneInfo('Australia/Melbourne')
+
+    def fires(self, expr, start, end):
+        job = jobs.parse_schedule(f'{expr} trades.py\n', self.MEL)[0][0]
+        s = jobs.Scheduler(lambda: None, zone=self.MEL)
+        times, t = [], start
+        while (t := s.next_fire(job, t)) <= end:
+            times.append(t.astimezone(UTC).astimezone(self.MEL).strftime('%d %H:%M %Z')) # by way of UTC: the real local time
+        return times
+
+    def mel(self, *args, **kw):
+        return datetime.datetime(*args, tzinfo=self.MEL, **kw)
+
+    def test_a_daily_job_fires_once_at_its_time(self):
+        self.assertEqual(self.fires('0 9 * * *', self.mel(2026, 10, 2), self.mel(2026, 10, 6)), ['02 09:00 AEST', '03 09:00 AEST', '04 09:00 AEDT', '05 09:00 AEDT'])
+        self.assertEqual(self.fires('0 9 * * *', self.mel(2026, 4, 3), self.mel(2026, 4, 7)), ['03 09:00 AEDT', '04 09:00 AEDT', '05 09:00 AEST', '06 09:00 AEST'])
+
+    def test_a_skipped_or_repeated_time_fires_once(self):
+        self.assertEqual(self.fires('30 2 * * *', self.mel(2026, 10, 3), self.mel(2026, 10, 6)), ['03 02:30 AEST', '04 03:30 AEDT', '05 02:30 AEDT'])
+        self.assertEqual(self.fires('30 2 * * *', self.mel(2026, 4, 4), self.mel(2026, 4, 7)), ['04 02:30 AEDT', '05 02:30 AEDT', '06 02:30 AEST'])
+        self.assertEqual(self.fires('*/20 * * * *', self.mel(2026, 10, 4, 1, 30), self.mel(2026, 10, 4, 3, 50)), ['04 01:40 AEST', '04 03:00 AEDT', '04 03:20 AEDT', '04 03:40 AEDT'])
+        self.assertEqual(self.fires('*/20 * * * *', self.mel(2026, 4, 5, 1, 30), self.mel(2026, 4, 5, 3, 30)),
+                         ['05 01:40 AEDT', '05 02:00 AEDT', '05 02:20 AEDT', '05 02:40 AEDT', '05 03:00 AEST', '05 03:20 AEST'])
+
+    def test_starting_in_the_repeated_hour_runs_nothing_twice(self):
+        second_time_round = self.mel(2026, 4, 5, 2, 10, fold=1).astimezone(UTC)
+        self.assertEqual(self.fires('*/20 * * * *', second_time_round, self.mel(2026, 4, 5, 3, 0, 30)), ['05 03:00 AEST'])
+        self.assertEqual(self.fires('30 2 * * *', second_time_round, self.mel(2026, 4, 6, 12)), ['06 02:30 AEST'])
+
+    def test_the_scheduler_runs_a_daily_job_once_across_the_change(self):
+        file = Path(tempfile.mkdtemp(), 'schedule.cron')
+        file.write_text('CRON_TZ=Australia/Melbourne\n0 9 * * * trades.py\n')
+        clock = Clock(self.mel(2026, 10, 3, 12).astimezone(UTC))
+        s = jobs.Scheduler(lambda: file, clock=clock, zone=UTC, runner=lambda *a: 0)
+        with mock.patch.object(util, 'config_var_dir', tempfile.mkdtemp()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertTrue(s.load())
+            fired = []
+            while clock.now < self.mel(2026, 10, 5, 12):
+                fired += [t.astimezone(UTC).astimezone(self.MEL).strftime('%d %H:%M') for _, t in s.due(clock.now)]
+                clock.now += datetime.timedelta(minutes=10)
+        self.assertEqual(fired, ['04 09:00', '05 09:00'])
+
+
+class StartupRefusal(unittest.TestCase):
+    def test_the_bot_will_not_start_with_an_impossible_time(self):
+        skip_if_old_env(self)
+        with tempfile.TemporaryDirectory() as data:
+            Path(data, 'schedule.cron').write_text('*/20 * * * Mon-Fri trades.py\n0 9 31 6 * price.py close\n')
+            env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS}
+            env.update(DATA_DIR=data, port='0')
+            out = subprocess.run([sys.executable, 'bot.py'], cwd=ROOT, env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn(f"ERROR schedule: {data}/schedule.cron line 2: '0 9 31 6 *' never comes", out.stderr)
 
 
 class ManualRuns(SchedulerBase):
@@ -491,15 +584,39 @@ class ChildProcess(FinbotCase):
             env = {'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
             with mock.patch.dict(os.environ, env):
                 self.assertEqual(jobs.run_child('cleanup.py', cleanup, {}), 0)
-                self.assertNotEqual(jobs.run_child('cleanup.py 0', cleanup, {'days': 'not a number'}), 0)
+                self.assertEqual(jobs.run_child('cleanup.py 0', cleanup, {'days': 'not a number'}), jobs.jobrun.REPORTED)
 
-    def test_scheduler_reports_a_failed_child(self):
+    def test_a_job_process_survives_a_reload_signal(self):
+        with tempfile.TemporaryDirectory() as scripts, tempfile.TemporaryDirectory() as data:
+            Path(scripts, 'sleeper.py').write_text('import time\ndef lambda_handler():\n    print("started", flush=True)\n    time.sleep(1)\n')
+            env = {**os.environ, 'PYTHONPATH': scripts, 'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
+            proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', 'sleeper', '{}'], cwd=ROOT, env=env, stdout=subprocess.PIPE, text=True)
+            self.addCleanup(proc.kill)
+            for line in proc.stdout:
+                if line.strip() == 'started':
+                    break
+            proc.send_signal(signal.SIGHUP) # what `systemctl kill -s HUP finbot` does to every process of the unit
+            self.assertEqual(proc.wait(timeout=30), 0)
+
+    def test_a_script_that_cannot_be_imported_is_reported(self):
+        with tempfile.TemporaryDirectory() as data:
+            env = {**os.environ, 'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
+            out = subprocess.run([sys.executable, '-m', 'lib.jobrun', 'nosuchscript', '{}'], cwd=ROOT, env=env, capture_output=True, text=True)
+        self.assertEqual(out.returncode, jobs.jobrun.REPORTED, out.stderr)
+        self.assertIn('⚠️ nosuchscript.py: ModuleNotFoundError', out.stderr)
+
+    def test_scheduler_reports_a_child_that_ended_without_saying_why(self):
         file = Path(tempfile.mkdtemp(), 'schedule.cron')
         file.write_text('* * * * * trades.py\n')
-        s = jobs.Scheduler(lambda: file, zone=UTC, runner=lambda label, module, kwargs: 1)
-        self.assertTrue(s.load())
-        self.assertEqual(s.run_now('1'), ('trades.py', 'failed'))
-        self.assertEqual(s.busy, set())
+        for status, reason in ((-signal.SIGHUP, 'killed by SIGHUP'), (-signal.SIGKILL, 'killed by SIGKILL'), (1, 'exited with status 1 without saying why'),
+                               (jobs.jobrun.REPORTED, None)): # the child reported this one itself
+            with self.subTest(status=status):
+                self.errors.clear()
+                s = jobs.Scheduler(lambda: file, zone=UTC, runner=lambda label, module, kwargs: status)
+                self.assertTrue(s.load())
+                self.assertEqual(s.run_now('1'), ('trades.py', 'failed'))
+                self.assertEqual(self.errors, [f'⚠️ trades.py: RuntimeError: {reason}'] if reason else [])
+                self.assertEqual(s.busy, set())
 
     def test_the_event_loop_keeps_running_while_a_child_works(self):
         self.sleeper(1)

@@ -13,12 +13,20 @@ from lib import config, webhook, util, yahoo, sharesight, shortman, worker, char
 import performance, shorts, price, reminder, cal, trades, milestone, rating
 import bot # imported once up front: it monkey-patches with gevent, which must not happen mid-test
 
-REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),
+REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (yahoo, 'price_history'),
     (sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'), (sharesight, 'get_performance_wrapper'))}
 REAL_GET_HOLDINGS = util.get_holdings_and_watchlist
 REAL_PAYLOAD_WRAPPER = webhook.payload_wrapper # FinbotCase replaces it; tests of the real thing use this
+REAL_REPORT_ERROR = webhook.report_error # likewise
+REAL_SEND_PHOTO = webhook.sendPhoto # likewise
 TICKERS = [f'T{i}' for i in range(25)]
 BOT = '@bot'
+
+
+def skip_if_old_env(case):
+    """For the tests that start bot.py: it will not start while the checkout has a leftover .env (config.check_startup_environment)."""
+    if config.OLD_ENV.exists():
+        case.skipTest(f'bot.py will not start while {config.OLD_ENV} exists')
 
 
 STATES = ('REGULAR', 'PRE', 'POST', 'CLOSED')
@@ -79,6 +87,10 @@ class FinbotCase(unittest.TestCase):
         self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{
             'id': 1, 'transaction_type': 'BUY', 'symbol': 'T1', 'market': 'NASDAQ', 'portfolio': name,
             'transaction_date': time.strftime('%Y-%m-%d'), 'quantity': '10', 'price': '5.0', 'value': '50', 'brokerage_currency_code': 'USD', 'holding_id': 7}])
+        typing = []
+        real_start = worker.TypingIndicator.start
+        self.patch(worker.TypingIndicator, 'start', lambda indicator: (typing.append(indicator), real_start(indicator)))
+        self.addCleanup(lambda: [indicator.stop() for indicator in typing]) # a command that failed leaves its indicator running: stop it with the test
 
     def command(self, text, chat='55'):
         """Run a chat message through the real command parser and handlers."""

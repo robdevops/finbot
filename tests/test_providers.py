@@ -1,6 +1,6 @@
 """Yahoo, Sharesight and Telegram parsing and failure handling, driven by the real API responses saved under doc/.
 HTTP is mocked at the requests layer, so the production parsing code runs unchanged."""
-import copy, datetime, json, os, unittest
+import contextlib, copy, datetime, io, json, os, subprocess, unittest
 from unittest import mock
 from tests.common import *
 
@@ -147,6 +147,61 @@ class YahooChart(ProviderCase):
                 result = yahoo.fetch_chart_json('AAPL', full=True)
                 self.assertIsInstance(result, tuple)
                 self.assertIsNone(result[1])
+
+    @staticmethod
+    def chart(closes, failing=()):
+        """A v8 chart response with one daily bar per close, the last one today (14:30 UTC, New York's open)."""
+        today = datetime.datetime.now(datetime.timezone.utc).replace(hour=14, minute=30, second=0, microsecond=0)
+        stamps = [int((today - datetime.timedelta(days=len(closes) - 1 - i)).timestamp()) for i in range(len(closes))]
+        meta = {'currency': 'USD', 'symbol': 'T1', 'exchangeTimezoneName': 'America/New_York', 'regularMarketTime': stamps[-1],
+                'regularMarketPrice': closes[-1], 'longName': 'Co T1'}
+        quote = {'open': closes, 'high': closes, 'low': closes, 'close': closes, 'volume': [1] * len(closes)}
+        return {'chart': {'result': [{'meta': meta, 'timestamp': stamps, 'indicators': {'quote': [quote]}}], 'error': None}}
+
+    def test_1d_is_the_change_since_the_previous_close(self):
+        self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
+        self.http(yahoo, Resp(self.chart([90] * 30 + [100, 105, 110, 115, 120, 116.4]))) # up 20% in a week, down 3% today
+        table, image = yahoo.price_history('T1', graph=False)
+        self.assertEqual(table['1D'], -3)
+        self.assertGreater(table['5D'], 10) # the week, not the day
+
+    def test_a_failed_chart_fetch_is_handed_back_not_raised(self):
+        self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
+        for failure in (Resp(status=429), ConnectionError('down')):
+            with self.subTest(failure=failure):
+                self.http(yahoo, failure)
+                percent, image = yahoo.price_history('AAPL', 7, graph=False)
+                self.assertIsInstance(percent, str)
+                self.assertIsNone(image)
+
+    def test_one_failed_ticker_does_not_take_the_report_down(self):
+        self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
+        self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts}) # quotes as canned in the base fixture, charts over HTTP
+        self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
+        self.patch(sharesight, 'get_performance_wrapper', lambda d: {}) # no Sharesight figures: every ticker needs its Yahoo history
+        good = Resp(self.chart([100.0] * 20 + [110.0]))
+        def get(url, **kwargs):
+            return Resp(status=404) if '/chart/T3?' in url or '/chart/SPY?' in url else good
+        self.patch(yahoo.requests, 'get', get)
+        def slack(text): # Slack: the reports come as text
+            self.sent.clear(); self.errors.clear()
+            worker.process_request('slack', 'C1', '<@U1>', text, BOT, 'U', '1')
+            self.assertEqual(self.errors, [], text)
+            return '\n'.join(map(str, self.sent[-1][1]))
+        price_list = slack('.price 7d') # T3 is left out, the rest are listed
+        self.assertNotIn('Co T3 (', price_list)
+        self.assertIn('Co T4 (', price_list)
+        self.patch(sharesight, 'get_portfolios', lambda: {'Rob': 1})
+        self.patch(sharesight, 'get_performance', lambda pid, d, *a: {'report': {'holdings': [{'portfolio': {'name': 'Rob'}}],
+            'currency_gain_percent': '0', 'capital_gain_percent': '2.5', 'total_gain_percent': '0'}})
+        report = slack('.performance 7d') # the S&P 500 benchmark has no history
+        self.assertIn('⚠️ S&P 500: no price history', report)
+        self.assertIn('NASDAQ 100', report)
+        self.command('.T3') # the profile goes out without its history lines
+        self.sent.clear(); self.errors.clear()
+        worker.process_request('telegram', '55', '@u', '.price T3 7d', BOT, 'U', '1')
+        self.assertEqual(len(self.errors), 1) # the one ticker asked for: one line saying why
+        self.assertTrue(self.errors[0].startswith('⚠️ .price: RuntimeError: 404 error for T3'))
 
     def test_price_series_raises_on_failure_and_on_empty_history(self):
         self.http(yahoo, Resp(status=500))
@@ -297,6 +352,22 @@ class SharesightKeepWarm(ProviderCase):
         sharesight.keep_warm(retry=300, stop=stop)
         self.assertEqual(stop.waits, [300, 3000]) # slow retry after the failure, then sleep until the next cache is due
 
+    def test_with_cache_off_nothing_is_fetched_until_a_reload_turns_it_on(self):
+        class Stop:
+            def __init__(self): self.waits = []
+            def is_set(self): return len(self.waits) >= 4
+            def wait(self, seconds):
+                self.waits.append(seconds)
+                if len(self.waits) == 2:
+                    sharesight.config_cache = True # what a reload that switches it on does
+        passes = []
+        self.patch(sharesight, 'warm', lambda: (passes.append(1), (0, {}))[1])
+        self.patch(sharesight, 'next_due', lambda portfolios=None: 3000)
+        self.patch(sharesight, 'config_cache', False)
+        stop = Stop()
+        sharesight.keep_warm(idle=60, stop=stop)
+        self.assertEqual((stop.waits, len(passes)), ([60, 60, 3000, 3000], 2)) # idle while off: no Sharesight request every 5 seconds
+
     def test_a_warming_pass_reads_the_cached_portfolio_list_once(self):
         self.serve_sharesight()
         sharesight.warm_once() # fill the caches
@@ -353,6 +424,22 @@ class TelegramSending(FinbotCase):
         self.assertTrue(line.startswith('⚠️ ctx: '))
         self.assertLessEqual(len(webhook.error_line('x' * 1000)), 205)
 
+    def test_error_reports_are_escaped_for_telegram_and_slack(self):
+        sent = []
+        self.patch(webhook, 'write', lambda service, url, text, *a, **k: sent.append((service, text)))
+        self.patch(webhook, 'webhooks', {'telegram': 'https://api.telegram.org/botX/', 'slack': 'https://hooks.slack.com/x', 'discord': 'https://discord.com/x/slack'})
+        self.patch(webhook, 'config_telegramChatID', '5')
+        error = RuntimeError("404 for ZZ at https://x/?a=1&crumb=abc; '<' not supported between <urllib3.connection>")
+        with contextlib.redirect_stderr(io.StringIO()):
+            REAL_REPORT_ERROR(error, context='.compare <b>')
+            REAL_REPORT_ERROR(error, service='telegram', chat_id='55', context='.compare')
+        texts = dict(sent[:3])
+        self.assertIn('crumb=&lt;redacted&gt;', texts['telegram']) # Telegram's HTML parser rejects a bare <redacted>
+        self.assertNotIn('<', texts['telegram'] + sent[3][1])
+        self.assertIn('.compare &lt;b&gt;: RuntimeError', texts['telegram'])
+        self.assertEqual(texts['slack'], texts['telegram'])
+        self.assertIn('crumb=<redacted>', texts['discord'])
+
     def test_report_error_never_raises(self):
         self.patch(webhook, 'write', mock.Mock(side_effect=RuntimeError('send failed')))
         webhook.report_error(ValueError('boom'), service='telegram', chat_id='5')
@@ -366,6 +453,95 @@ class TelegramSending(FinbotCase):
         self.assertEqual(raised.exception.code, 1)
         self.assertEqual(len(reported), 1)
         self.assertEqual(webhook.guarded('job', lambda: 'fine'), 'fine')
+
+
+class ChartDelivery(FinbotCase):
+    """Charts go to Telegram only. A report whose chart cannot be sent goes out as text instead of vanishing."""
+
+    def setUp(self):
+        super().setUp()
+        self.patch(webhook, 'sendPhoto', REAL_SEND_PHOTO)
+
+    def test_slack_replies_are_text_and_no_chart_is_drawn_for_them(self):
+        def refuse(*a, **k):
+            raise AssertionError('a chart was drawn for Slack')
+        for name in ('rows_chart', 'pie_chart', 'bar_graph', 'shorts_chart'):
+            self.patch(util, name, refuse)
+        webhook.webhooks['slack'] = 'https://hooks.slack.com/services/x'
+        for cmd in ('.beta', '.pie Rob', '.buy', '.sell', '.peg', '.price', '.price top', '.price T1 7d', '.performance 7d', '.shorts', '.history T1', '.compare T1 T2'):
+            with self.subTest(cmd=cmd):
+                self.sent.clear(); self.errors.clear()
+                worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U', '1')
+                self.assertEqual(self.errors, [])
+                self.assertTrue(self.sent)
+                self.assertEqual({kind for kind, *_ in self.sent}, {'text'})
+
+    def test_a_chart_telegram_refuses_goes_out_as_text(self):
+        def post(outcome):
+            def fake(url, **kwargs):
+                if isinstance(outcome, Exception):
+                    raise outcome
+                return outcome
+            return fake
+        text = [('text', ['Heading', 'line 2'])]
+        for outcome, expect in ((Resp({'ok': False, 'error_code': 400, 'description': "Bad Request: can't parse entities"}, status=400), text),
+                                (Resp(None, status=502), text), (ConnectionError('down'), text),
+                                (webhook.requests.exceptions.ReadTimeout('slow'), []), # it may have arrived after all: no duplicate
+                                (Resp({'ok': True, 'result': {'message_id': 1}}), [])):
+            with self.subTest(outcome=outcome):
+                self.sent.clear()
+                self.patch(webhook.requests, 'post', post(outcome))
+                with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+                    webhook.sendPhoto('5', io.BytesIO(b'png'), 'Heading\nline 2', 'telegram', reply_markup={'inline_keyboard': []})
+                self.assertEqual(self.sent, expect)
+
+
+class TelegramWebhook(FinbotCase):
+    """bot.py registers the webhook once as it starts. Importing lib.telegram, as every job process does, touches nothing."""
+
+    def setUp(self):
+        super().setUp()
+        self.patch(telegram, 'webhooks', {'telegram': 'https://api.telegram.org/botX/'})
+        self.patch(telegram, 'config_telegramOutgoingWebhook', 'https://example.com/telegram')
+
+    def test_register_unregisters_registers_and_names_the_bot(self):
+        calls = []
+        def post(url, **kwargs):
+            calls.append((url.rsplit('/', 1)[1], kwargs.get('params', {}).get('url')))
+            return Resp({'ok': True, 'result': {'username': 'finbot'} if url.endswith('getMe') else True})
+        self.patch(telegram.requests, 'post', post)
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(telegram.register(), '@finbot')
+        self.assertEqual(calls, [('setWebhook', ''), ('setWebhook', 'https://example.com/telegram'), ('getMe', None)])
+
+    def test_a_refused_call_raises(self):
+        self.patch(telegram.requests, 'post', lambda url, **k: Resp({'ok': False, 'description': 'Bad Request: bad webhook: HTTPS url must be provided'}))
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(RuntimeError) as caught:
+            telegram.register()
+        self.assertIn('HTTPS url must be provided', str(caught.exception))
+
+    def test_importing_never_calls_telegram(self):
+        code = ('import requests\n'
+                'def refuse(*a, **k): raise SystemExit("network call on import")\n'
+                'requests.Session.request = refuse\n'
+                'from lib import telegram, yahoo, worker, jobrun\n'
+                'print("quiet")')
+        with tempfile.TemporaryDirectory() as data:
+            out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True,
+                env={**os.environ, 'DATA_DIR': data, 'telegramBotToken': '123:abc', 'telegramOutgoingWebhook': 'https://example.com/telegram'})
+        self.assertEqual(out.stdout.split()[-1:], ['quiet'], out.stderr)
+
+    def test_the_bot_will_not_start_unregistered_and_never_logs_the_token(self):
+        skip_if_old_env(self)
+        with tempfile.TemporaryDirectory() as data:
+            env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS and 'proxy' not in k.lower()}
+            env.update(DATA_DIR=data, port='0', scheduler='False', telegramBotToken='123456:SECRET-token', telegramOutgoingToken='tok',
+                       telegramOutgoingWebhook='https://example.com/telegram',
+                       HTTPS_PROXY='http://127.0.0.1:9', https_proxy='http://127.0.0.1:9') # unreachable, so the registration fails at once and offline
+            out = subprocess.run([sys.executable, 'bot.py'], cwd=ROOT, env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(out.returncode, 1, out.stderr)
+        self.assertIn('ERROR ⚠️ telegram webhook:', out.stderr)
+        self.assertNotIn('SECRET-token', out.stderr + out.stdout)
 
 
 if __name__ == '__main__':

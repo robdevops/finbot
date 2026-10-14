@@ -4,32 +4,57 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, edited] # edited: the base branch can change
   schedule:
     - cron: '23 19 * * 0' # weekly (Sunday, UTC): catches upstream package changes between commits
   workflow_dispatch: # manual run from the Actions tab
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         python-version: ['3.x', '3.13.5'] # latest release, and the production version
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+        with:
+          fetch-depth: 0 # the base branch is needed to see what a pull request changes
+      - id: changes
+        name: Classify the change
+        # A pull request that only touches docs skips the steps below. The job still runs and reports success, so the
+        # required checks pass at once. Pushes to main, the weekly run and manual runs always test everything.
+        # Only a non-empty list of allowlisted paths skips the tests; any git error fails the step. The allowlist must
+        # never include a path a test reads.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          docs_only=false
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            files=$(git -c core.quotePath=false diff --name-only --no-renames "origin/$BASE_REF...HEAD")
+            echo "$files"
+            if [ -n "$files" ] && ! grep -qvE '^(README\.md|CLAUDE\.md|img/[^/]+\.png)$' <<< "$files"; then
+              docs_only=true
+              echo "::notice::Only docs changed: install, compile and tests are skipped"
+            fi
+          fi
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+      - if: steps.changes.outputs.docs_only != 'true'
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -r requirements.txt
-      - run: python -m compileall -q bot.py *.py lib util
-      - run: python -m unittest discover -s tests -v
+      - if: steps.changes.outputs.docs_only != 'true'
+        run: |
+          pip install -r requirements.txt
+          python -m compileall -q *.py lib util
+          python -m unittest discover -s tests -v
 
   notify:
     # Telegram alert when the weekly run fails. Needs repository secrets TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
     needs: test
     if: failure() && github.event_name == 'schedule'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Send Telegram message
         env:

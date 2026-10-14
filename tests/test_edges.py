@@ -1,5 +1,7 @@
 """Failure and no-data scenarios: empty or broken upstream data, bad requests, rejected callers."""
-import contextlib, io, json, unittest
+import contextlib, io, json, os, signal, subprocess, sys, tempfile, time, unittest
+from pathlib import Path
+import gevent
 from tests.common import *
 
 COMMANDS = ('.price', '.price 7d', '.price top', '.session', '.premarket', '.performance 7d', '.shorts', '.peg', '.buy',
@@ -89,8 +91,10 @@ class BadArguments(FinbotCase):
 
 
 class WsgiRejections(FinbotCase):
+    SECRET = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
+
     def request(self, path='/telegram', body=None, headers=None):
-        body = json.dumps(body if body is not None else {}).encode()
+        body = body if isinstance(body, bytes) else json.dumps(body if body is not None else {}).encode()
         env = {'PATH_INFO': path, 'wsgi.input': io.BytesIO(body), **(headers or {})}
         status = []
         with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
@@ -106,15 +110,43 @@ class WsgiRejections(FinbotCase):
     def test_unknown_path_is_404(self):
         self.assertEqual(self.request(path='/nope')[1], '404 Not Found')
 
-    def test_malformed_body_is_a_500_not_a_crash(self):
-        env = {'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(b'not json')}
+    def test_malformed_body_is_refused_not_a_crash(self):
+        self.assertEqual(self.request(body=b'not json')[1], '403 Forbidden') # no secret: turned away before the body is read
+        for body in (b'not json', b'', b'[1, 2]', b'7'):
+            self.assertEqual(self.request(body=body, headers=self.SECRET)[1], '400 Bad Request', body)
+        self.assertEqual(self.errors, [])
+
+    def test_strangers_cannot_post_into_the_chats(self):
+        self.patch(bot, 'config_slackOutgoingWebhook', 'https://example.com/slack')
+        self.patch(bot, 'config_slackOutgoingToken', 'stok')
+        for path, body, headers, status in (('/', b'', {}, '404 Not Found'), ('/wp-login.php', b'log=x&pwd=y', {}, '404 Not Found'),
+                ('/telegram', b'log=x', {}, '403 Forbidden'), ('/telegram', {'message': {}}, {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'wrong'}, '403 Forbidden'),
+                ('/slack', b'', {}, '400 Bad Request'), ('/slack', b'token=stok', {}, '400 Bad Request'), ('/slack', {'type': 'event_callback'}, {}, '403 Forbidden'),
+                ('/slack', {'token': 'wrong', 'type': 'event_callback'}, {}, '403 Forbidden'), ('/slack', {'token': 'stok'}, {}, '200 OK')):
+            with self.subTest(path=path, body=body):
+                self.assertEqual(self.request(path, body, headers)[1], status)
+        self.assertEqual(self.errors, []) # nothing reached the chats
+        self.assertEqual(self.sent, [])
+
+    def test_a_failure_before_authentication_is_only_logged(self):
+        def broken(*a, **k):
+            raise RuntimeError('boom')
+        self.patch(bot, 'urlparse', broken) # fails while routing, before the secret is even looked at
+        env = {'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(b'{}'), **self.SECRET}
         status = []
-        with contextlib.redirect_stderr(io.StringIO()):
+        with contextlib.redirect_stderr(io.StringIO()) as err:
             bot.main(env, lambda s, *a, **k: status.append(s))
-        self.assertTrue(status[-1].startswith('500'))
+        self.assertEqual((status[-1][:3], self.errors), ('500', []))
+        self.assertIn('boom', err.getvalue())
+
+    def test_a_failure_after_authentication_is_reported_once_and_not_retried(self):
+        broken = {'message': {'message_id': 1, 'from': {'first_name': 'A'}, 'text': '.help'}} # no chat
+        self.assertEqual(self.request(body=broken, headers=self.SECRET)[1], '200 OK') # a retry would only fail and report again
+        self.assertEqual(len(self.errors), 1)
+        self.assertIn("KeyError: 'chat'", self.errors[0])
 
     def test_telegram_edge_updates(self):
-        secret = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
+        secret = self.SECRET
         self.assertEqual(self.request(body={'edited_message': {}}, headers=secret)[0], b'Unsupported')
         self.assertEqual(self.request(body={'callback_query': {'id': '1'}}, headers=secret)[0], b'Unsupported')
         odd = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'new_chat_members': []}}
@@ -130,6 +162,78 @@ class WsgiRejections(FinbotCase):
             with contextlib.redirect_stderr(err):
                 bot.main({'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(body), **secret}, lambda *a, **k: None)
             self.assertIn(f'[Telegram button]: {who} chat 55 j|7|abcd', err.getvalue())
+
+
+class SlackEvents(FinbotCase):
+    """Slack sends every message in a subscribed channel, the bot's own posts included."""
+
+    def setUp(self):
+        super().setUp()
+        self.patch(bot, 'config_slackOutgoingWebhook', 'https://example.com/slack')
+        self.patch(bot, 'config_slackOutgoingToken', 'stok')
+        self.requests = []
+        self.patch(worker, 'process_request', lambda *a: self.requests.append(a))
+
+    def event(self, **event):
+        body = json.dumps({'token': 'stok', 'type': 'event_callback', 'authorizations': [{'user_id': 'UBOT'}],
+            'event': dict({'type': 'message', 'channel': 'C1', 'ts': '1.2'}, **event)}).encode()
+        status = []
+        with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+            bot.main({'PATH_INFO': '/slack', 'wsgi.input': io.BytesIO(body)}, lambda s, *a, **k: status.append(s))
+        gevent.sleep(0.05) # the worker runs in a (gevent) thread
+        return status[-1]
+
+    def test_only_people_are_answered(self):
+        for event in ({'subtype': 'bot_message', 'bot_id': 'B1', 'text': "⚠️ /slack: KeyError: 'user'"}, # a webhook report
+                      {'user': 'UBOT', 'bot_id': 'B2', 'text': '.holdings: Please try again'}, # this bot's own reply
+                      {'user': 'UBOT', 'text': '.holdings'},
+                      {'subtype': 'channel_join', 'user': 'U1', 'text': '<@U1> has joined the channel'},
+                      {'subtype': 'message_changed', 'message': {'text': '.price'}},
+                      {'text': '.price'}): # no user at all
+            with self.subTest(event=event):
+                self.assertEqual(self.event(**event), '200 OK')
+        self.assertEqual((self.requests, self.errors), ([], []))
+        self.assertEqual(self.event(user='U1', text='.price <@UBOT>'), '200 OK')
+        self.assertEqual(self.event(user='U2', subtype='thread_broadcast', text='.trades'), '200 OK')
+        self.assertEqual([(r[0], r[1], r[2], r[3], r[4]) for r in self.requests],
+                         [('slack', 'C1', '<@U1>', '.price @UBOT', '@UBOT'), ('slack', 'C1', '<@U2>', '.trades', '@UBOT')])
+
+    def test_slack_does_not_change_the_telegram_bot_name(self):
+        self.patch(bot, 'botName', '@finbot_tg')
+        self.event(user='U1', text='.price')
+        self.assertEqual(bot.botName, '@finbot_tg')
+
+
+class StartupSignals(unittest.TestCase):
+    """A reload (SIGHUP) that arrives while the bot is still starting must not kill it."""
+
+    def test_sighup_during_startup_is_ignored_and_works_afterwards(self):
+        skip_if_old_env(self)
+        with tempfile.TemporaryDirectory() as data:
+            env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS}
+            env.update(DATA_DIR=data, port='0', scheduler='False')
+            proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
+            self.addCleanup(proc.wait)
+            self.addCleanup(proc.kill)
+            deadline = time.monotonic() + 30
+            while not int(Path(f'/proc/{proc.pid}/status').read_text().split('SigIgn:')[1].split()[0], 16) & 1: # until SIGHUP is ignored
+                self.assertLess(time.monotonic(), deadline)
+                time.sleep(0.001)
+            proc.send_signal(signal.SIGHUP) # still importing: the default action would kill it
+            lines = []
+            for line in proc.stderr:
+                lines.append(line)
+                if line.startswith('Opening socket'):
+                    break
+            self.assertIsNone(proc.poll(), ''.join(lines))
+            time.sleep(1) # the handler goes in just before serving
+            proc.send_signal(signal.SIGHUP)
+            for line in proc.stderr: # a reload now runs (there is no preferences.conf here, so it says so)
+                lines.append(line)
+                if 'reload requested' in line:
+                    break
+            self.assertIsNone(proc.poll(), ''.join(lines))
+            self.assertIn('reload requested but', ''.join(lines))
 
 
 if __name__ == '__main__':

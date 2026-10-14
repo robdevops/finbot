@@ -63,19 +63,13 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None,
 					# wishlist items will come here
 					# not a holding (e.g. watchlist): use Yahoo history instead, summarised once in the main section below
 					if specific_stock:
-						percent, graph = yahoo.price_history(ticker, days, graphCache=False)
-						if isinstance(percent, str) and interactive:
-							errormessage = percent
-							print("Error", errormessage, file=sys.stderr)
-							if service == "slack":
-								url = 'https://slack.com/api/chat.postMessage'
-							elif service == "telegram":
-								url = webhooks['telegram'] + "sendMessage?chat_id=" + str(chat_id)
-							webhook.payload_wrapper(service, url, [errormessage], chat_id)
-							sys.exit(1)
+						percent, graph = yahoo.price_history(ticker, days, graph=config_graph and webhook.takes_charts(service), graphCache=False)
+						if isinstance(percent, str):
+							raise RuntimeError(percent) # the one ticker asked for has no history: reported in one line
 					else:
 						percent, graph = yahoo.price_history(ticker, days, graph=False)
-						if isinstance(percent, str) and interactive:
+						if isinstance(percent, str): # no history for this ticker: leave it out of the list
+							print(ticker, percent, file=sys.stderr)
 							continue
 					try:
 						percent = percent[days]
@@ -178,7 +172,7 @@ def lambda_handler(chat_id=config_telegramChatID, threshold=UNSET, service=None,
 				payload.insert(0, heading)
 				if top:
 					payload.extend([''] + payload_bottom)
-				can_chart = _rows_out is None and (interactive or service == 'telegram') # Slack/Discord cron posts have no way to upload an image
+				can_chart = _rows_out is None and webhook.takes_charts(service)
 				if top and chart_top and can_chart:
 					def short(ticker):
 						return ticker.split('.')[0].removesuffix('-USD')

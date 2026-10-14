@@ -778,6 +778,8 @@ def prepare_profile_payload(service, user, ticker):
 		payload.append("")
 
 	price_history, graph = yahoo.price_history(ticker)
+	if isinstance(price_history, str): # no chart data: the profile goes out without these lines
+		price_history = {}
 	for interval in ('5Y', '1Y', '1M', '1D'):
 		if interval in price_history:
 			percent = price_history[interval]

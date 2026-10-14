@@ -467,7 +467,7 @@ All 17 keys, read by your launcher. A change needs a restart. Blank means unset.
 | `slack_webhook` | | Slack incoming webhook, for outbound reports |
 | `discord_webhook` | | Discord webhook, for outbound reports |
 | `telegramBotToken` | | Telegram bot token, for outbound reports |
-| `slackBotToken` | | Slack bot token, for outbound messages and uploads |
+| `slackBotToken` | | Slack bot token, for replies in Slack |
 | `telegramOutgoingWebhook` | | Telegram webhook path the bot accepts (interactive mode) |
 | `telegramOutgoingToken` | | Secret token Telegram must present (interactive mode) |
 | `slackOutgoingWebhook` | | Slack webhook path the bot accepts (interactive mode) |
@@ -514,7 +514,7 @@ A key in the wrong file, or one that is not listed, stops finbot starting; on a 
 
 edit `preferences.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
 
-**Upgrading from one `.env`?** Run `util/migrate_env.py --write` first if it is in the old dotenv format (`key = 'value' # comment`), then `util/split_env.py /opt/finbot.env`. It writes `finbot.env.new` and `preferences.conf.new` next to it, never overwriting, and lists any key it dropped or did not recognise. Until you split, finbot refuses to start because the one file mixes both kinds of key.
+**Upgrading from one `.env`?** finbot no longer reads it, and refuses to start while a `.env` is in the checkout, so its settings cannot be silently ignored. Run `util/split_env.py` (or `util/split_env.py /path/to/old.env` for one elsewhere). It reads either format, the old dotenv one (`key = 'value' # comment`) or plain `KEY=value`, writes `finbot.env.new` and `preferences.conf.new` next to the old file, never overwriting, and lists any key it dropped or did not recognise. Put `finbot.env` where your launcher loads it and `preferences.conf` in the data directory, then delete the old file.
 
 ### Data directory
 All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`), e.g. for a Docker bind mount that survives rebuilds:
@@ -591,7 +591,7 @@ performance_cache_seconds=1800
 
 `performance_cache_seconds` (default 30 minutes) is the cache lifetime of Sharesight performance reports.
 
-While `bot.py` is running (with `cache=True` and Sharesight configured), a background job keeps the Sharesight portfolio list (`cache_seconds`) and each portfolio's holdings report (1 day, `performance_cache_seconds` cache) refreshed at 90% of their cache lifetime, so chat requests do not wait on Sharesight. If a refresh fails, the previous cache keeps being served and the job retries after 5 minutes.
+While `bot.py` is running with Sharesight configured and `cache=True` (a reload that switches `cache` pauses or resumes it), a background job keeps the Sharesight portfolio list (`cache_seconds`) and each portfolio's holdings report (1 day, `performance_cache_seconds` cache) refreshed at 90% of their cache lifetime, so chat requests do not wait on Sharesight. If a refresh fails, the previous cache keeps being served and the job retries after 5 minutes.
 
 ### Hyperlinks
 These `preferences.conf` options relate to hyperlinks:
@@ -620,7 +620,7 @@ The scheduled reports are started by `bot.py`, each run in its own child process
 
 The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"` and `cleanup.py [days]` (deletes cache files older than `days`, default 30). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
 
-The schedule is `defaults/schedule.cron`, written in **cron-compatible syntax**: five time fields (minute, hour, day of month, month, day of week; `*/20`, `Mon-Fri`, ranges and lists work) or an `@macro` such as `@daily`, then a finbot script and its arguments. Quote an argument that has spaces or special characters (a feed URL with `&`, say). Several commands separated by `;` run one after another. `MAILTO=`, `SHELL=`, `PATH=` and `HOME=` lines are ignored. Anything else a crontab allows (a user column, pipes, other programs) is not supported: such a line is reported at startup and skipped. Existing crontab lines can be pasted as they are: `> /dev/null` redirects, `{ a; b ;}` groups and a path before the script name are understood.
+The schedule is `defaults/schedule.cron`, written in **cron-compatible syntax**: five time fields (minute, hour, day of month, month, day of week; `*/20`, `Mon-Fri`, ranges and lists work) or an `@macro` such as `@daily`, then a finbot script and its arguments. Quote an argument that has spaces or special characters (a feed URL with `&`, say). Several commands separated by `;` run one after another. `MAILTO=`, `SHELL=`, `PATH=` and `HOME=` lines are ignored. Anything else a crontab allows (a user column, pipes, other programs) is not supported: such a line is reported at startup and skipped. A time that cannot be or never comes (minute 61, 30 February) is different: finbot refuses to start with it, and a reload with it is refused, leaving the running schedule as it was. Existing crontab lines can be pasted as they are: `> /dev/null` redirects, `{ a; b ;}` groups and a path before the script name are understood.
 ```
 # Every 20 minutes on weekdays
 */20 * * * Mon-Fri trades.py
@@ -653,7 +653,7 @@ Behaviour worth knowing:
 ```
 sudo systemd-run --pty --wait --collect -p DynamicUser=yes -p StateDirectory=finbot -p EnvironmentFile=/opt/finbot.env /opt/finbot/price.py 7
 ```
-The script prints its output on your terminal and sends its report to your chat channels as usual. The transient unit gets its own dynamic user, and systemd may re-own the state directory to it for the run: check `ls -ln /var/lib/private/finbot` afterwards and `systemctl restart finbot` if the bot can no longer write there. The chat commands (`.price 7d`, `.performance 7d`, ...) run the same reports inside the bot, without any of this. Outside systemd, run a script from the checkout as your own user with the settings loaded into the shell: `set -a; . ./.env; set +a; ./price.py 7` (this works while no value in the file contains spaces).
+The script prints its output on your terminal and sends its report to your chat channels as usual. The transient unit gets its own dynamic user, and systemd may re-own the state directory to it for the run: check `ls -ln /var/lib/private/finbot` afterwards and `systemctl restart finbot` if the bot can no longer write there. The chat commands (`.price 7d`, `.performance 7d`, ...) run the same reports inside the bot, without any of this. Outside systemd, run a script from the checkout as your own user with the settings loaded into the shell: `set -a; . /opt/finbot.env; set +a; ./price.py 7` (this works while no value in the file contains spaces).
 
 ## Interactive bot setup
 The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
@@ -695,10 +695,10 @@ Note: The utils folder contains scripts to generate `/etc/nginx/aws_subnets` and
     * For security, message BotFather and disable `/setjoingroups`.
 * Set `telegramOutgoingWebhook` in `finbot.env` to your web server (e.g. https://www.example.com:8443/telegram).
 * Set `telegramOutgoingToken` to a password of your choosing. Telegram will use this to authenticate with finbot.
-With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`.
+With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`. It unregisters and registers the webhook as it starts (and only then, which also wakes up a stale connection); if Telegram refuses, finbot does not start and the log says why.
 
 #### Slack
-Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app).
+Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app). Replies in Slack are text: charts go to Telegram only, since Slack retired the file upload API finbot used.
 * From _Basic Information > Verification Token_, copy _Verification token_ into `finbot.env` as `slackOutgoingToken`. This allows Slack to authenticate with finbot.
 * In `finbot.env`, put your web server URL (e.g. https://www.example.com:8443/slack) into `slackOutgoingWebhook`
 * Save `finbot.env` and restart `bot.py`
@@ -711,7 +711,7 @@ Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you
       * Check the box _App Home > Allow users to send Slash commands and messages from the messages tab_
   * Save Changes
 * Under _OAuth & Permissions_:
-  * Scroll down to _Scopes > Bot Token Scopes_, and add: `chat:write` and `files:write`.
+  * Scroll down to _Scopes > Bot Token Scopes_, and add: `chat:write`.
   * Scroll up to _OAuth Tokens for Your Workspace_:
     * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_
     * Copy _Bot User OAuth Token_ into `finbot.env` as `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies.
