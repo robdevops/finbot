@@ -390,6 +390,7 @@ class DaylightSaving(unittest.TestCase):
 
 class StartupRefusal(unittest.TestCase):
     def test_the_bot_will_not_start_with_an_impossible_time(self):
+        skip_if_old_env(self)
         with tempfile.TemporaryDirectory() as data:
             Path(data, 'schedule.cron').write_text('*/20 * * * Mon-Fri trades.py\n0 9 31 6 * price.py close\n')
             env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS}

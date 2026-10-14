@@ -532,6 +532,7 @@ class TelegramWebhook(FinbotCase):
         self.assertEqual(out.stdout.split()[-1:], ['quiet'], out.stderr)
 
     def test_the_bot_will_not_start_unregistered_and_never_logs_the_token(self):
+        skip_if_old_env(self)
         with tempfile.TemporaryDirectory() as data:
             env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS and 'proxy' not in k.lower()}
             env.update(DATA_DIR=data, port='0', scheduler='False', telegramBotToken='123456:SECRET-token', telegramOutgoingToken='tok',

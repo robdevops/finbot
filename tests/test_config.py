@@ -311,6 +311,17 @@ class Startup(unittest.TestCase):
 		self.assertEqual(out.returncode, 1)
 		self.assertIn('future_days is a preference', out.stderr)
 
+	def test_a_leftover_env_in_the_checkout_refuses_to_start(self):
+		old = Path(tempfile.mkdtemp(), '.env')
+		with mock.patch.object(config, 'OLD_ENV', old):
+			config.check_startup_environment() # none there: fine
+			old.write_text("future_days = '30'\n")
+			with self.assertRaises(config.ConfigError) as caught:
+				config.check_startup_environment()
+		self.assertEqual(len(caught.exception.errors), 2)
+		self.assertIn(f'{old} is the old single config file, which finbot no longer reads', caught.exception.errors[0])
+		self.assertIn('/util/split_env.py, which writes finbot.env.new and preferences.conf.new', caught.exception.errors[1])
+
 	def test_startup_report_is_a_short_count_never_names_or_values(self):
 		with mock.patch.dict(os.environ, {'slack_webhook': 'https://secret.example/abc', 'port': '5000'}, clear=True):
 			lines = config.startup_report()
@@ -363,6 +374,14 @@ class Tools(unittest.TestCase):
 		self.assertEqual(len(notes), 4)
 		self.assertTrue(any('slackToken dropped' in n for n in notes) and any('unknown key bogus' in n for n in notes))
 
+	def test_split_env_reads_the_old_dotenv_format_too(self):
+		old = "# c\nfuture_days = '30' # note\nexport slack_webhook = \"https://x/#frag\"\nport = 80 # comment\nbare\ndiscord_webhook=http://y/#z\n\n"
+		startup, prefs, notes = split_env.split(old)
+		self.assertEqual(startup, ['slack_webhook=https://x/#frag', 'port=80', 'discord_webhook=http://y/#z'])
+		self.assertEqual(prefs, ['future_days=30'])
+		self.assertEqual(notes, ['.env line 5: not KEY=value, left out'])
+		self.assertFalse((REPO / 'util' / 'migrate_env.py').exists()) # split_env does its job now
+
 	def test_split_env_writes_next_to_the_file_and_never_overwrites(self):
 		d = Path(tempfile.mkdtemp())
 		(d / 'old.env').write_text('port=80\nfuture_days=3\n')
@@ -374,6 +393,8 @@ class Tools(unittest.TestCase):
 		out = run()
 		self.assertNotEqual(out.returncode, 0)
 		self.assertIn('refusing to overwrite', out.stderr)
+		out = subprocess.run([sys.executable, str(REPO / 'util' / 'split_env.py'), str(d / 'missing.env')], capture_output=True, text=True)
+		self.assertEqual((out.returncode, out.stderr.strip()), (1, f'{d}/missing.env does not exist: nothing to split'))
 
 	def test_check_config_script_exit_status_and_it_does_not_create_directories(self):
 		d = Path(tempfile.mkdtemp())

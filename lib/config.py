@@ -26,6 +26,7 @@ SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_sec
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook') # never printed
 PREFERENCES_FILE = 'preferences.conf'
 PASSED = 'FINBOT_PREFERENCES_PASSED' # set by the bot for its job processes: the preferences arrive in the environment, do not read the file
+OLD_ENV = REPO_DIR / '.env' # the single config file of old versions, which python-dotenv loaded; nothing reads it now
 
 
 class ConfigError(Exception):
@@ -287,12 +288,17 @@ def child_environment():
 
 
 def check_startup_environment():
-	"""For bot.py at start. Preferences must come from preferences.conf, not from the environment that finbot.env fills."""
+	"""For bot.py at start. Preferences must come from preferences.conf, not from the environment that finbot.env fills, and a
+	leftover .env from before the split stops the start: its settings would otherwise be silently ignored."""
 	if os.environ.get(PASSED):
 		return
 	problems = [f'{key} is a preference; move it from finbot.env to {PREFERENCES_FILE}' for key in PREFERENCE_KEYS if key in os.environ]
 	if 'volatile_multiplier' in os.environ: # the old name, from before the split: it never worked as a preference
 		problems.append(f'volatile_multiplier was renamed to volatility_multiplier, a preference; move it from finbot.env to {PREFERENCES_FILE}')
+	if OLD_ENV.exists():
+		problems.append(f'{OLD_ENV} is the old single config file, which finbot no longer reads; it will not start while the file is there')
+		problems.append(f'split it with {REPO_DIR}/util/split_env.py, which writes finbot.env.new and preferences.conf.new beside it; put finbot.env '
+			f'where your launcher loads it and {PREFERENCES_FILE} in {config_data_dir}, then delete {OLD_ENV}')
 	if problems:
 		raise ConfigError(problems)
 
@@ -535,5 +541,5 @@ yahoo_country = {
 # `from lib.config import *` is how the other modules get their config_* names; keep the loader machinery out of their namespaces
 _INTERNAL = {'difflib', 're', 'sys', 'ConfigError', 'key_problem', 'parse_assignments', 'read_text', 'read_preferences', 'read_startup_file',
 	'startup_values', 'preference_values', 'reload', 'child_environment', 'check_startup_environment', 'startup_report', 'preferences_path',
-	'STARTUP_KEYS', 'PREFERENCE_KEYS', 'SECRET_KEYS', 'PREFERENCES_FILE', 'PASSED', 'PREFERENCE_NAMES'}
+	'STARTUP_KEYS', 'PREFERENCE_KEYS', 'SECRET_KEYS', 'PREFERENCES_FILE', 'PASSED', 'PREFERENCE_NAMES', 'OLD_ENV'}
 __all__ = [name for name in dir() if not name.startswith('_') and name not in _INTERNAL]

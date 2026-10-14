@@ -208,6 +208,7 @@ class StartupSignals(unittest.TestCase):
     """A reload (SIGHUP) that arrives while the bot is still starting must not kill it."""
 
     def test_sighup_during_startup_is_ignored_and_works_afterwards(self):
+        skip_if_old_env(self)
         with tempfile.TemporaryDirectory() as data:
             env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS}
             env.update(DATA_DIR=data, port='0', scheduler='False')

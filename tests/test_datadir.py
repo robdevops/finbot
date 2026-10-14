@@ -74,10 +74,3 @@ class DataDirTests(FinbotCase):
 		sync_defaults.sync(apply=True, dest=other)
 		self.assertTrue((other / 'finbot_adr.json').exists())
 		self.assertFalse(Path(config.config_var_dir, 'finbot_adr.json').exists()) # the data dir is untouched
-
-
-class EnvFileTests(FinbotCase):
-	def test_migrate_env(self):
-		from util import migrate_env
-		old = "# c\nkey = 'val' # note\nnum = 5\nexport tok = \"a b\"\nbare\nurl=http://x/#frag\n\n"
-		self.assertEqual(migrate_env.convert(old).splitlines(), ['# c', 'key=val', 'num=5', 'tok=a b', '# bare # no value, not a setting', 'url=http://x/#frag', ''])

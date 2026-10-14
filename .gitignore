@@ -6,6 +6,7 @@
 .claude/settings.local.json
 __pycache__/
 *.bak
+*.new
 todo.txt
 script.zip
 .env

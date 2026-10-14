@@ -510,7 +510,7 @@ All 25 keys, read by the bot itself. A change takes effect on a reload.
 
 A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied.
 
-**Upgrading from one `.env`?** Run `util/migrate_env.py --write` first if it is in the old dotenv format (`key = 'value' # comment`), then `util/split_env.py /opt/finbot.env`. It writes `finbot.env.new` and `preferences.conf.new` next to it, never overwriting, and lists any key it dropped or did not recognise. Until you split, finbot refuses to start because the one file mixes both kinds of key.
+**Upgrading from one `.env`?** finbot no longer reads it, and refuses to start while a `.env` is in the checkout, so its settings cannot be silently ignored. Run `util/split_env.py` (or `util/split_env.py /path/to/old.env` for one elsewhere). It reads either format, the old dotenv one (`key = 'value' # comment`) or plain `KEY=value`, writes `finbot.env.new` and `preferences.conf.new` next to the old file, never overwriting, and lists any key it dropped or did not recognise. Put `finbot.env` where your launcher loads it and `preferences.conf` in the data directory, then delete the old file.
 
 ### Data directory
 All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`), e.g. for a Docker bind mount that survives rebuilds:
@@ -649,7 +649,7 @@ Behaviour worth knowing:
 ```
 sudo systemd-run --pty --wait --collect -p DynamicUser=yes -p StateDirectory=finbot -p EnvironmentFile=/opt/finbot.env /opt/finbot/price.py 7
 ```
-The script prints its output on your terminal and sends its report to your chat channels as usual. The transient unit gets its own dynamic user, and systemd may re-own the state directory to it for the run: check `ls -ln /var/lib/private/finbot` afterwards and `systemctl restart finbot` if the bot can no longer write there. The chat commands (`.price 7d`, `.performance 7d`, ...) run the same reports inside the bot, without any of this. Outside systemd, run a script from the checkout as your own user with the settings loaded into the shell: `set -a; . ./.env; set +a; ./price.py 7` (this works while no value in the file contains spaces).
+The script prints its output on your terminal and sends its report to your chat channels as usual. The transient unit gets its own dynamic user, and systemd may re-own the state directory to it for the run: check `ls -ln /var/lib/private/finbot` afterwards and `systemctl restart finbot` if the bot can no longer write there. The chat commands (`.price 7d`, `.performance 7d`, ...) run the same reports inside the bot, without any of this. Outside systemd, run a script from the checkout as your own user with the settings loaded into the shell: `set -a; . /opt/finbot.env; set +a; ./price.py 7` (this works while no value in the file contains spaces).
 
 ## Interactive bot setup
 The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
