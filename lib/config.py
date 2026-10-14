@@ -316,7 +316,7 @@ for _dir in (env.data_dir, env.cache_dir):
 	try:
 		os.makedirs(_dir, exist_ok=True)
 	except OSError as e: # e.g. read-only filesystem (Lambda)
-		print("can't create", _dir, e)
+		print("config: can't create", _dir, e, file=sys.stderr)
 
 # matplotlib needs a writable config/cache dir; without a home directory (systemd DynamicUser, containers) it fails
 os.environ.setdefault('MPLCONFIGDIR', os.path.abspath(env.cache_dir + '/matplotlib'))

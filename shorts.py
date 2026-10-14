@@ -41,7 +41,6 @@ def lambda_handler(chat_id=None, threshold=None, specific_stock=None, service=No
 
 	market_data = yahoo.fetch(tickers)
 	market_data |= yahoo.fetch_details((ticker for ticker in tickers if '.' not in ticker), strict=bool(specific_stock)) # US short interest; Short Man has the ASX's
-	print("")
 	market_data = shortman.fetch(market_data)
 
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):

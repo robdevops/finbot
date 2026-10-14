@@ -2,7 +2,6 @@
 
 import sys
 from itertools import groupby
-from lib import config
 from lib import state
 from lib import webhook
 from lib import util
@@ -36,10 +35,8 @@ def lambda_handler():
 			emoji = util.flag_from_ticker(ticker)
 			changed[ticker] = {'record_high': max(oldhigh, newhigh), 'record_low': min(oldlow, newlow)} # all-time: a 52-week high below it is no record
 			if newhigh > oldhigh:
-				print("DEBUG", ticker, newhigh, "is higher than", oldhigh) if config.prefs.debug else None
 				payloadhigh.append(f"{emoji} {title} ({ticker_link})")
 			if newlow < oldlow:
-				print("DEBUG", ticker, newlow, "is lower than", oldlow) if config.prefs.debug else None
 				payloadlow.append(f"{emoji} {title} ({ticker_link})")
 		payloadlow.sort()
 		payloadhigh.sort()

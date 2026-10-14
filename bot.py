@@ -127,8 +127,6 @@ def handle(environ, start_response):
 			print("[Telegram]:", user, message, file=sys.stderr) if config.prefs.debug else None
 		elif "photo" in msg:
 			message = msg.get("caption", '')
-			file_id = msg["photo"][-1]["file_id"]
-			print("[Telegram photo]:", user, file_id, message)
 		elif IGNORED_TELEGRAM_CONTENT & msg.keys():
 			return reply('200 OK') # stickers, GIFs, voice notes and the like: nothing to answer, nothing worth logging
 		else:
@@ -144,7 +142,6 @@ def handle(environ, start_response):
 			print_body()
 			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
 		environ[AUTHENTICATED] = True
-		print("Incoming Slack request authenticated")
 		if 'type' not in inbound:
 			print(f"[{service}]: unhandled: no 'type'", file=sys.stderr)
 			return reply('200 OK', b'Unhandled')

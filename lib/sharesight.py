@@ -57,7 +57,6 @@ def get_token():
 			else:
 				print("cache miss:", cacheFile, file=sys.stderr) if config.prefs.debug else None
 
-	print("Fetching Sharesight auth token")
 	data = _request(_post, "https://api.sharesight.com/oauth2/token", 'auth', data=config.env.sharesight_auth)
 	_check(data, 'auth')
 	if config.prefs.cache and 'access_token' in data:
@@ -72,26 +71,19 @@ def performance_cache_file(portfolio_id, days):
 
 def get_portfolios(refresh=False):
 	"""refresh=True skips the cache read and fetches again (the cache is rewritten)."""
-	portfolio_dict = {}
 	data = cache.read(PORTFOLIOS_CACHE, config.prefs.cache_seconds) if config.prefs.cache and not refresh else None
 	if not data:
 		token = get_token()
-		print("Fetching Sharesight portfolios")
 		data = _request(_get, "https://api.sharesight.com/api/v3/portfolios", 'portfolios', headers={'Content-type': 'application/json'}, auth=BearerAuth(token))
 		_check(data, 'portfolios')
 		if config.prefs.cache and 'portfolios' in data:
 			cache.write(PORTFOLIOS_CACHE, data)
-	for portfolio in data['portfolios']:
-		if str(portfolio['id']) in config.prefs.exclude_portfolios:
-			print(portfolio['id'], "(" + portfolio['name'] + ") in exclusion list. Skipping.")
-		elif str(portfolio['id']) not in config.prefs.include_portfolios and config.prefs.include_portfolios:
-			print("Exclusion list is defined and does not contain", portfolio['id'], "(" + portfolio['name'] + "). Skipping.")
-		else:
-			portfolio_dict[portfolio['name']] = portfolio['id']
-	if not len(portfolio_dict):
+	include, exclude = config.prefs.include_portfolios, config.prefs.exclude_portfolios
+	portfolio_dict = {portfolio['name']: portfolio['id'] for portfolio in data['portfolios']
+		if str(portfolio['id']) not in exclude and (not include or str(portfolio['id']) in include)}
+	if not portfolio_dict:
 		print("No portfolios found. Exiting.", file=sys.stderr)
 		raise RuntimeError("No Sharesight portfolios found")
-	print(portfolio_dict)
 	return portfolio_dict
 
 class PortfolioNotFound(LookupError):
@@ -153,11 +145,9 @@ def get_trades(portfolio_name, portfolio_id, days=None):
 	start_date = datetime.datetime.now() - datetime.timedelta(days=days)
 	start_date = start_date.strftime('%Y-%m-%d') # 2022-08-20
 	token = get_token()
-	print("Fetching Sharesight trades for", portfolio_name, end=": ")
 	url = 'https://api.sharesight.com/api/v2/portfolios/'
 	url = url + str(portfolio_id) + '/trades.json' + '?start_date=' + start_date
 	data = _request(_get, url, 'trades', auth=BearerAuth(token))
-	print(len(data['trades']))
 	_check(data, 'trades')
 	for trade in data['trades']:
 		trade['portfolio'] = portfolio_name # inject custom field

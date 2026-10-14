@@ -26,7 +26,6 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 			if trade['transaction_type'] not in {'BUY', 'SELL'}:
 				continue
 			if not interactive and int(trade['id']) in known_trades:
-				print("Skipping known trade_id:", trade['id'], trade['transaction_date'], trade['portfolio'], trade['transaction_type'], trade['symbol'])
 				continue
 			wanted.append(trade)
 		if not wanted: # the usual case on a scheduled run

@@ -523,16 +523,12 @@ def prepare_profile_payload(service, user, ticker):
 		earnings_date = datetime.datetime.fromtimestamp(data['earnings_date'])
 		if earnings_date > now:
 			payload.append(webhook.bold("Earnings date:", service) + f" {earnings_date:%b %d}")
-		else:
-			print("Skipping past earnings:", ticker, f"{earnings_date:%b %d}")
 	if data.get('dividend', 0) > 0:
 		payload.append(webhook.bold("Dividend:", service) + f" {data['dividend']}%")
 		if 'ex_dividend_date' in data:
 			ex_dividend_date = datetime.datetime.fromtimestamp(data['ex_dividend_date'])
 			if ex_dividend_date > now:
 				payload.append(webhook.bold("Ex-dividend date:", service) + f" {ex_dividend_date:%b %d}")
-			else:
-				print("Skipping past ex-dividend:", ticker, f"{ex_dividend_date:%b %d}")
 	cashflow = data.get('free_cashflow', data.get('operating_cashflow'))
 	if cashflow:
 		payload.append(webhook.bold("Cashflow positive:", service) + (" no ⚠️ " if cashflow < 0 else " yes"))

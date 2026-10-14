@@ -1,5 +1,5 @@
 """Plumbing: message chunking, timezones, the WSGI handler."""
-import contextlib, datetime, io, json, subprocess, tempfile, unittest, zoneinfo
+import ast, contextlib, datetime, io, json, subprocess, tempfile, unittest, zoneinfo
 from pathlib import Path
 from unittest import mock
 from tests.common import *
@@ -53,6 +53,19 @@ class Plumbing(FinbotCase):
 		self.assertGreaterEqual(len(bot.git_version()), 7)
 		head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=bot.__file__.rsplit('/', 1)[0], capture_output=True, text=True).stdout.strip()
 		self.assertEqual(bot.git_version(), head[:7]) # matches what git says
+
+
+class Logging(unittest.TestCase):
+	def test_the_bot_and_its_reports_print_only_to_stderr(self):
+		"""systemd discards finbot's stdout (StandardOutput=null), so a print there is never read. The util/ tools, run by
+		hand, may use it."""
+		offenders = []
+		for path in sorted([*Path(ROOT, 'lib').glob('*.py'), *Path(ROOT).glob('*.py')]):
+			for node in ast.walk(ast.parse(path.read_text())):
+				if isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'print' and \
+						not any(keyword.arg == 'file' for keyword in node.keywords):
+					offenders.append(f'{path.name}:{node.lineno}')
+		self.assertEqual(offenders, [])
 
 
 class GitVersion(unittest.TestCase):

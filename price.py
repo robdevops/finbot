@@ -76,11 +76,9 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 		if midsession and state != 'REGULAR':
 			continue # not in session (states: PREPRE PRE REGULAR POST POSTPOST CLOSED)
 		if interday and not interactive and now - quoted > datetime.timedelta(days=1):
-			print(ticker + '⏭', sep='', end=' ', flush=True) # a market holiday: no repeat of the last session's moves
-			continue
+			continue # a market holiday: no repeat of the last session's moves
 		if close and not interactive and (now - quoted > datetime.timedelta(hours=1.5) or state in ('PREPRE', 'PRE', 'REGULAR')):
-			print(ticker + '⏭', sep='', end=' ', flush=True) # its market did not just close
-			continue
+			continue # its market did not just close
 		if premarket:
 			percent = quote.get('percent_change_premarket', quote.get('percent_change_postmarket'))
 			if percent is None:

@@ -235,15 +235,11 @@ def fetch_detail(ticker, seconds=None):
 	now = datetime.datetime.now()
 	cacheFile = "finbot_yahoo_detail_" + ticker + '.json'
 	data = cache.read(cacheFile, seconds) if config.prefs.cache else None
-	if data:
-		print('.', sep=' ', end='', flush=True)
-	else:
-		print('↓', sep=' ', end='', flush=True)
+	if not data:
 		cookie, crumb = credentials() # only on a miss: a cached detail needs neither, nor the lock
 		modules = 'calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions'
 		r = _get_first(_hosts('/v10/finance/quoteSummary/' + ticker + '?modules=' + modules + '&crumb=' + crumb), {**HEADERS, 'Cookie': cookie})
 		if r is None:
-			print(ticker + '†', sep=' ', end='', flush=True)
 			return {} # catches some delisted stocks like "DRNA"
 		data = r.json()
 		if config.prefs.cache:
@@ -465,7 +461,6 @@ def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
 		raise RuntimeError(f"Yahoo unreachable for {ticker}: {net.redact(e)}") from e
 	if r.status_code != 200:
 		raise RuntimeError(f"{r.status_code} error for {ticker} from Yahoo's chart API")
-	print('↓', sep=' ', end='', flush=True)
 	data = r.json()
 	if config.prefs.cache:
 		cache.write(cacheFile, data)

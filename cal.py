@@ -79,7 +79,6 @@ def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, i
 		market_data = yahoo.fetch(tickers)
 	else: # ex-dividend dates are in Yahoo's details
 		market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
-		print("")
 
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		pin_if_earnings(service, webhook.send(service, url, chat, prepare_payload(service, market_data)))

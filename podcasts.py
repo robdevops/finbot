@@ -94,7 +94,6 @@ def lambda_handler(feed_url):
 	except Exception as e:
 		raise RuntimeError(f"fetching feed {feed_url}: {e}")
 	if not guids:
-		print("no new episodes found")
 		return
 	for service, url, chat in webhook.default_chats():
 		payload = []

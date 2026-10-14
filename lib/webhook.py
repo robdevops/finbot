@@ -134,16 +134,12 @@ def cli(script, job, handler, argv=None):
 def payload_wrapper(service, url, payload, chat_id=None, reply_markup=None):
 	"""Returns a list with the response of each message sent (several if the payload was chunked)."""
 	if not payload:
-		print(service + ": Nothing to send") # informational
 		return None
 	payload = [str(line) for line in payload]
 	payload_string = '\n'.join(payload)
-	print("Preparing outbound to", service, str(len(payload_string)), "bytes")
-	print("Payload: " + payload_string) if config.prefs.debug else None
 	limit = DISCORD_LIMIT if service == 'discord' else 4096
 	if len(payload_string) <= limit:
 		return [write(service, url, payload_string, chat_id, reply_markup)]
-	print(service, f"payload is over {limit:,} bytes. Splitting.")
 	chunks = chunked(payload, limit, config.prefs.chunk_maxlines)
 	results = []
 	for idx, chunk in enumerate(chunks):
@@ -250,7 +246,6 @@ def telegram_photo(chat_id, image_data, caption, reply_markup=None):
 	except ValueError:
 		output = {}
 	if r.status_code == 200 and output.get('ok'):
-		print(r.status_code, "OK telegram sendPhoto", data['caption'])
 		return output
 	print(r.status_code, "error telegram sendPhoto", output.get('error_code'), output.get('description') or r.text[:300], file=sys.stderr)
 	return None

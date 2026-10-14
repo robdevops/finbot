@@ -23,7 +23,6 @@ def lambda_handler(days=30):
 				removed += 1
 			except OSError as e:
 				print("cleanup: can't remove", entry.path, e, file=sys.stderr)
-	print(f"cleanup: removed {removed} cache files older than {days} days from {config.env.cache_dir}")
 	return removed
 
 def job(argv):
