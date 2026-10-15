@@ -414,19 +414,25 @@ class PeriodButtons(FinbotCase):
 
 	def test_performance_defaults_to_one_month(self):
 		""".performance shows a month, marked on its button, and says month, not 4 weeks."""
-		self.assertEqual(self.buttons('.performance'), ['7D', '● 1M', '3M', '1Y', 'Max'])
+		self.assertEqual(self.buttons('.performance'), ['7D', '● 1M', '1Y', 'Max'])
 		self.assertIn('month', self.sent[0][2]) # "Performance over the past month", not 4 weeks
 
 	def test_performance_period_argument_moves_the_marker(self):
 		"""A period on .performance moves the marker to its button."""
-		self.assertEqual(self.buttons('.performance 7d'), ['● 7D', '1M', '3M', '1Y', 'Max'])
-		self.assertEqual(self.buttons('.performance 1y'), ['7D', '1M', '3M', '● 1Y', 'Max'])
+		self.assertEqual(self.buttons('.performance 7d'), ['● 7D', '1M', '1Y', 'Max'])
+		self.assertEqual(self.buttons('.performance 1y'), ['7D', '1M', '● 1Y', 'Max'])
 
 	def test_price_list_has_a_1d_button_marked_by_default(self):
 		"""The price list offers 1D, marked by default, and a period moves the marker."""
-		self.assertEqual(self.buttons('.price'), ['● 1D', '7D', '1M', '3M', '1Y', 'Max'])
-		self.assertEqual(self.buttons('.price top'), ['● 1D', '7D', '1M', '3M', '1Y', 'Max'])
-		self.assertEqual(self.buttons('.price 1m'), ['1D', '7D', '● 1M', '3M', '1Y', 'Max'])
+		self.assertEqual(self.buttons('.price'), ['● 1D', '7D', '1M', '1Y', 'Max'])
+		self.assertEqual(self.buttons('.price top'), ['● 1D', '7D', '1M', '1Y', 'Max'])
+		self.assertEqual(self.buttons('.price 1m'), ['1D', '7D', '● 1M', '1Y', 'Max'])
+
+	def test_a_chart_has_five_buttons_at_most(self):
+		"""No chart offers more than five buttons, Discord's limit for a row, and a period no button has (3m) marks
+		none of them."""
+		self.assertTrue(all(len(keys) <= 5 for keys in buttons.BUTTONS.values()))
+		self.assertEqual(self.buttons('.performance 3m'), ['7D', '1M', '1Y', 'Max'])
 
 	def test_other_charts_do_not_offer_1d(self):
 		"""Only the price list offers 1D."""

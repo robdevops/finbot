@@ -70,7 +70,7 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 	parts = data.split('|', 3)
 	valid = len(parts) == 4 and parts[0] == 'c' and parts[1] in buttons.BUTTONS and parts[2] in buttons.BUTTONS[parts[1]]
 	chat = delivery.reply_to(service, chat_id)
-	# answering now shows Telegram's toast bubble ("Loading 3M…") while the new chart is built
+	# answering now shows Telegram's toast bubble ("Loading 1Y…") while the new chart is built
 	chat.acknowledge(callback_id, f"Loading {buttons.PERIODS[parts[2]][0]}…" if valid else None)
 	if not valid:
 		return

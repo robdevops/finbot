@@ -983,8 +983,8 @@ class SlackButtons(FinbotCase):
 		self.assertTrue(blocks[0]['text']['text'].startswith('*5% at close'))
 		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
 		buttons_shown = blocks[2]['elements']
-		self.assertEqual([button['text']['text'] for button in buttons_shown], ['1D', '7D', '1M', '3M', '1Y', 'Max'])
-		self.assertEqual([button.get('style') for button in buttons_shown], ['primary'] + [None] * 5)
+		self.assertEqual([button['text']['text'] for button in buttons_shown], ['1D', '7D', '1M', '1Y', 'Max'])
+		self.assertEqual([button.get('style') for button in buttons_shown], ['primary'] + [None] * 4)
 		self.assertEqual(buttons_shown[1]['value'], 'c|l|w|5,0')
 
 	def test_a_press_redraws_the_chart_in_place(self):
@@ -998,7 +998,7 @@ class SlackButtons(FinbotCase):
 		self.assertEqual((update['channel'], update['ts']), ('C1', '1.5'))
 		blocks = self.blocks('chat.update')
 		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
-		self.assertEqual([button.get('style') for button in blocks[2]['elements']], [None, 'primary'] + [None] * 4)
+		self.assertEqual([button.get('style') for button in blocks[2]['elements']], [None, 'primary'] + [None] * 3)
 
 	def test_a_chart_not_ready_to_show_is_shown_a_moment_later(self):
 		"""Slack refusing the blocks of a chart just uploaded (invalid_blocks) is asked again after a wait."""

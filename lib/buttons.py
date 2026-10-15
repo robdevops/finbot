@@ -1,5 +1,5 @@
-"""Buttons under a message: the period buttons (Week | Month | Quarter | Max) of a chart, and the callback data that
-carries what its builder needs (charts.BUILDERS). Each transport draws Button rows its own way."""
+"""Buttons under a message: the period buttons (1D | 7D | 1M | 1Y | Max) of a chart, and the callback data that carries
+what its builder needs (charts.BUILDERS). Each transport draws Button rows its own way."""
 import hashlib
 import typing
 
@@ -12,8 +12,9 @@ class Button(typing.NamedTuple):
 	active: bool = False
 
 
-PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'q': ('3M', 90), 'y': ('1Y', 365), 'x': ('Max', None)}
-BUTTONS = {'h': 'wmqyx', 'p': 'wmqyx', 'c': 'wmqyx', 'f': 'wmqyx', 'l': 'dwmqyx'} # chart kind -> buttons offered (h=history, p=price chart, c=compare, f=performance, l=price list)
+PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x': ('Max', None)}
+BUTTONS = {'h': 'wmyx', 'p': 'wmyx', 'c': 'wmyx', 'f': 'wmyx', 'l': 'dwmyx'} # chart kind -> its buttons, five at most
+# (Discord's limit for a row): h history, p a stock's price chart, c compare, f performance, l the price list
 MAX_DAYS = 3650 # what Max means for the Sharesight-based reports
 MAX_CALLBACK_BYTES = 64 # Telegram limit on callback_data
 REF_FILE = 'finbot_chart_buttons.json'
