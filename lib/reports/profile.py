@@ -5,7 +5,6 @@ import sys
 from lib import config
 from lib import formats
 from lib import links
-from lib import markets
 from lib import yahoo
 from lib import simplywallst
 
@@ -39,12 +38,11 @@ EXCHANGE_PAGES = { # Yahoo's name for an exchange: (the name shown, or None for 
 }
 
 def prepare_profile_payload(service, user, ticker):
-	"""The .SYMBOL report: what Yahoo knows about one company, in sections a blank line apart. A field Yahoo did not
-	send leaves its line out, and a section with none its blank line."""
-	ticker_orig = markets.transform_to_yahoo(ticker)
-	ticker, market_data = yahoo.resolve(ticker_orig, lambda symbol: yahoo.fetch_detail(symbol, 600))
+	"""The .SYMBOL report: what Yahoo knows about one company (ticker: Yahoo's symbol), in sections a blank line apart.
+	A field Yahoo did not send leaves its line out, and a section with none its blank line."""
+	market_data = yahoo.fetch_detail(ticker, 600)
 	if ticker not in market_data:
-		return [f"{user} 🛑 Beep Boop. I could not find {ticker_orig}"]
+		return [f"{user} 🛑 Beep Boop. I could not find {ticker}"]
 	data = market_data[ticker]
 	state = data.get('marketState', '').rstrip()
 	exchange = data.get('profile_exchange', '').replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq')
@@ -59,10 +57,7 @@ def prepare_profile_payload(service, user, ticker):
 	ticker_link = links.finance_link(ticker, exchange, service, brief=False)
 	light = MARKET_STATE_EMOJI.get(state, '🔴') if state else ''
 	heading = f"{service.bold(data.get('profile_title', ''))} ({ticker_link}) {light}"
-	if ticker_orig == ticker:
-		payload.insert(0, heading)
-	else:
-		payload[:0] = [f"I could not find {ticker_orig} but I found {ticker_link}:", "", heading]
+	payload.insert(0, heading)
 	if len(payload) < 2:
 		payload.append("no data found")
 	return payload

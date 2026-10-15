@@ -3,32 +3,13 @@ import datetime
 from lib import answer
 from lib import formats
 from lib import links
-from lib import markets
 from lib import render
 from lib import yahoo
 
-def prepare_compare(service, args):
-	"""Compare 2-6 tickers as rebased % change. A trailing time period (3m/1y/90d/ytd) is optional;
-	without one, the span is the earliest date covered by every ticker. Returns (caption lines, chart spec, tickers,
-	period days)."""
+def prepare_compare(service, tickers, period_days=None):
+	"""(caption lines, chart spec): 2-6 tickers (Yahoo's symbols) as rebased % change over the last `period_days`, else
+	10 years (as Max is on every chart), from no earlier than the first date every one of them covers."""
 	import pandas as pd
-	usage = ['Usage: .compare SYMBOL SYMBOL [SYMBOL...up to 6] [period|max]  (default: 10 years)']
-	period_days = None
-	full_history = False
-	args = list(args)
-	if args:
-		if args[-1].lower() in ('max', 'all'):
-			full_history = True
-			args.pop()
-		else:
-			try:
-				period_days = formats.days_from_human_days(args[-1])
-				args.pop()
-			except ValueError:
-				pass
-	tickers = list(dict.fromkeys(markets.transform_to_yahoo(a.upper()) for a in args)) # de-duplicated, order kept
-	if not 2 <= len(tickers) <= 6:
-		return usage, None, tickers, period_days
 	names, exchanges, closes = {}, {}, {}
 	for ticker, history in zip(tickers, yahoo.fetch_each(yahoo.price_series, tickers)): # downloaded at the same time
 		if isinstance(history, Exception):
@@ -36,17 +17,9 @@ def prepare_compare(service, args):
 		names[ticker], exchanges[ticker], closes[ticker] = history
 	limiting = max(closes, key=lambda t: closes[t].index[0]) # ticker with the shortest history
 	common_start = closes[limiting].index[0]
-	start = common_start
-	note = ''
-	if not period_days and not full_history: # default window; ask for a longer period (or max) to go further
-		default_start = pd.Timestamp(datetime.datetime.now().date() - datetime.timedelta(days=3655))
-		start = max(common_start, default_start)
-	if period_days:
-		requested = pd.Timestamp(datetime.datetime.now().date() - datetime.timedelta(days=period_days))
-		if requested >= common_start:
-			start = requested
-		else:
-			note = f" (limited by {limiting} history)"
+	requested = pd.Timestamp(datetime.datetime.now().date() - datetime.timedelta(days=period_days or 3655))
+	start = max(common_start, requested)
+	note = f" (limited by {limiting} history)" if period_days and requested < common_start else ''
 	cropped = []
 	for ticker in tickers:
 		series = closes[ticker]
@@ -69,7 +42,7 @@ def prepare_compare(service, args):
 	for pct, t in reversed(results):
 		link = links.finance_link(t, exchanges[t], service, days=span_days, brief=False)
 		caption.append(f"{formats.get_emoji(pct)} {names[t]} ({link}): {formats.signed_percent(pct, 1)}")
-	return caption, chart, tickers, period_days
+	return caption, chart
 
 def history_payload(ticker, service, highlight=None, graph=False):
 	"""(lines, percent table, chart): .history's caption, the change over every period with the `highlight` one marked,

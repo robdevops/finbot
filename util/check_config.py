@@ -19,7 +19,8 @@ from lib import config
 
 
 def check(startup_path, preferences_path):
-	"""Every problem in the two files, as a list of lines."""
+	"""Every problem in the two files, as a list of lines (a key that does nothing any more is a note, not a problem:
+	notes() has those)."""
 	problems = []
 	if startup_path:
 		try:
@@ -36,6 +37,14 @@ def check(startup_path, preferences_path):
 	return problems
 
 
+def notes(preferences_path):
+	"""The keys of a valid preferences.conf that do nothing any more, a line each."""
+	try:
+		return config.retired_notes(config.read_preferences(preferences_path) or {})
+	except config.ConfigError:
+		return []
+
+
 if __name__ == '__main__':
 	ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 	ap.add_argument('startup', help='the finbot.env to check (the startup file)')
@@ -46,4 +55,6 @@ if __name__ == '__main__':
 		print('ERROR config:', line, file=sys.stderr)
 	if not problems:
 		print('config: ok', args.startup, args.preferences if Path(args.preferences).is_file() else '(no preferences.conf, defaults)')
+		for line in notes(args.preferences):
+			print('config:', line)
 	sys.exit(1 if problems else 0)

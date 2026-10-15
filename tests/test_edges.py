@@ -93,15 +93,18 @@ class WatchlistActions(FinbotCase):
 		self.assertEqual(state.load('finbot_watchlist.json'), ['MSFT'])
 		self.command('.watchlist rm MSFT')
 		self.assertEqual(state.load('finbot_watchlist.json'), [])
-		self.assertIn('not a valid watchlist action', str(self.command('.watchlist frobnicate MSFT')))
+		self.assertEqual(self.command('.watchlist frobnicate MSFT'), [('text', ['Usage: .watchlist [add|del SYMBOL]'])])
 
 	def test_a_bare_symbol_yahoo_does_not_know_is_tried_on_the_asx(self):
-		"""A symbol Yahoo does not know is added as its ASX listing, once; a ticker with a market is not retried."""
+		"""A symbol Yahoo does not know is added as its ASX listing, once, and removed by the same name; a ticker with a
+		market is not retried."""
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if t.endswith('.AX')})
-		self.assertIn('so I added', str(self.command('.watchlist add BHP')))
+		self.assertIn('I added', str(self.command('.watchlist add BHP')))
 		self.assertIn('already tracking', str(self.command('.watchlist add BHP')))
 		self.assertIn('could not find', str(self.command('.watchlist add BHP.L'))) # a ticker with a market is not retried
 		self.assertEqual(watchlist.tickers(), ['BHP.AX'])
+		self.assertIn('I deleted', str(self.command('.watchlist del bhp')))
+		self.assertEqual(watchlist.tickers(), [])
 
 	def test_two_chats_adding_at_once_both_count(self):
 		"""Two chats adding at once both count: Yahoo is asked before the file is opened, where both adds used to read
@@ -171,7 +174,7 @@ class PortfolioNames(FinbotCase):
 	def test_commands_with_nothing_to_show_say_so(self):
 		"""A command with nothing to show says so, where it used to send nothing at all: .plan before anyone has saved
 		one, .performance over no days, a ratio of a ticker Yahoo does not know."""
-		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if t != 'XYZ'})
+		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if not t.startswith('XYZ')})
 		for text, reply in (('.plan', 'No plans yet: .plan TEXT records yours'),
 				('.performance 0d', 'The period must cover a day or more, such as 7d, 3m or ytd'),
 				('.pe XYZ', 'XYZ: no data found'), ('.peg XYZ', 'XYZ: no data found')):
@@ -185,19 +188,53 @@ class PortfolioNames(FinbotCase):
 
 
 class CommandArguments(FinbotCase):
+	def args(self, message):
+		"""The (command's first name, its Args) that a message calls."""
+		command, args = worker.read(message, BOT)
+		return command and command.names[:1], args
+
 	def test_period_and_portfolio_in_either_order(self):
 		"""A period and a portfolio name, of several words too, come in either order, and either may be left out."""
-		for text, expected in (('', (30, None)), ('7d', (7, None)), ('Rob', (30, 'Rob')), ('7d Rob', (7, 'Rob')), ('Rob 7d', (7, 'Rob')),
-							   ('My Portfolio', (30, 'My Portfolio')), ('My Portfolio 3m', (90, 'My Portfolio')), ('Rob ', (30, 'Rob'))):
+		for text, expected in (('', (None, '')), ('7d', (7, '')), ('Rob', (None, 'Rob')), ('7d Rob', (7, 'Rob')),
+				('Rob 7d', (7, 'Rob')), ('My Portfolio', (None, 'My Portfolio')),
+				('My Portfolio 3m', (90, 'My Portfolio')),
+				('Rob ', (None, 'Rob'))):
 			with self.subTest(text=text):
-				self.assertEqual(worker.period_and_portfolio(text, 30), expected)
+				_, args = self.args('.performance ' + text)
+				self.assertEqual((args.days, args.rest), expected)
 
 	def test_a_percentage_is_a_number_and_nan_a_ticker(self):
 		"""A number, with or without %, is a threshold; nan and inf are tickers."""
-		for arg, expected in (('', (5, None)), ('2.5', (2.5, None)), ('3%', (3.0, None)), ('T1', (5, 'T1')), ('nan', (5, 'NAN')), ('inf', (5, 'INF'))):
+		for arg, expected in (('', (None, [])), ('2.5', (2.5, [])), ('3%', (3.0, [])), ('T1', (None, ['T1'])),
+				('nan', (None, ['nan'])), ('inf', (None, ['inf']))):
 			with self.subTest(arg=arg):
-				self.assertEqual(worker.percent_or_ticker(arg, 5), expected)
+				_, args = self.args('.session ' + arg)
+				self.assertEqual((args.percent, args.words), expected)
 		self.assertIn('2.5%', str(self.command('.session 2.5'))) # a threshold, not a ticker called 2.5
+
+	def test_a_command_is_its_whole_name_in_any_case(self):
+		"""A command is called by its whole name, in any case and from any of its prefixes; a word that only starts with
+		one is a ticker (.planet used to save the plan "et"), and the bot's name among the arguments is left out."""
+		for message, name in (('.PRICE 7d', 'price'), ('! price', 'price'), ('/price@bot 7d', 'price'),
+				('@bot price', 'price'), ('.forward PE top', 'forward pe'), ('.buy/sell', 'buy'),
+				('.price @bot', 'price')):
+			with self.subTest(message=message):
+				self.assertEqual(self.args(message)[0], (name,))
+		for message in ('.planet', '.shortman', '.pricey'):
+			with self.subTest(message=message):
+				self.assertEqual(self.args(message)[0], (), message) # .SYMBOL
+		self.assertEqual(self.args('.price @bot')[1].words, [])
+		for message in ('price 7d', '/price@otherbot', '...', '. ?'):
+			with self.subTest(message=message):
+				self.assertEqual(worker.read(message, BOT), (None, None))
+
+	def test_keywords_in_any_case(self):
+		"""A keyword is read in any case, from either end: .price TOP is the top list, not the ticker TOP."""
+		for message, keyword in (('.price TOP', 'top'), ('.price 7d Bottom', 'bottom'), ('.pie Rob Sectors', 'sector'),
+				('.fpe NEG', 'negative'), ('.watchlist ADD x', 'add'), ('.watchlist Remove x', 'delete')):
+			with self.subTest(message=message):
+				self.assertEqual(self.args(message)[1].keyword, keyword)
+		self.assertIn('Top 10 performers', str(self.command('.price TOP 7d')))
 
 	def test_a_bare_number_on_price_is_a_percent(self):
 		"""As on .session, .premarket and .shorts, and as the README has it; a period carries its unit."""
@@ -214,15 +251,29 @@ class CommandArguments(FinbotCase):
 		self.assertIn('Co T1 ', str(self.command('.pe t1')))
 		self.assertIn('Top 15 tracked stocks by pe ratio', str(self.command('.pe top '))) # trailing space and all
 
-	def test_hello_leaves_the_word_list_as_it_was(self):
-		""".hello greets with a verb (not a tuple of them) and leaves the word list alone; 'hi' needs the bot's name."""
-		before = list(words.verb)
-		for _ in range(30):
-			line = self.command('.hello')[0][1][0]
-			self.assertNotIn("('", line) # a verb, not a tuple of them
-			self.assertTrue(line.endswith(' you, U! 😇'), line)
-		self.assertEqual(words.verb, before)
-		self.assertEqual(self.command('hi there'), []) # hello by name only: "hi @bot"
+	def test_the_greetings_are_gone(self):
+		"""hi @bot gets no answer, and .hello and .thanks are tickers like any word."""
+		self.assertEqual(self.command('hi @bot'), [])
+		self.assertIn('Co HELLO', str(self.command('.hello')))
+
+	def test_a_ticker_yahoo_does_not_know_is_tried_on_the_local_exchange(self):
+		"""A bare ticker Yahoo does not know is tried with exchange_suffix, for every command that takes one; one with a
+		market is not, nor any with exchange_suffix empty."""
+		asked = []
+		self.patch(yahoo, 'fetch', lambda ts: asked.append(sorted(ts)) or {t: market_entry(t) for t in ts if '.' in t})
+		self.assertEqual(yahoo.symbols(['BHP', 'BHP.L', 'cba', 'CBA:ASX']), ['BHP.AX', 'BHP.L', 'CBA.AX', 'CBA.AX'])
+		self.assertEqual(asked, [['BHP', 'CBA'], ['BHP.AX', 'CBA.AX']]) # two requests, however many tickers
+		self.prefs(exchange_suffix='NZ')
+		self.assertEqual(yahoo.symbol('BHP'), 'BHP.NZ')
+		self.prefs(exchange_suffix='')
+		asked.clear()
+		self.assertEqual(yahoo.symbol('BHP'), 'BHP')
+		self.assertEqual(asked, []) # nothing to try, so Yahoo is not asked
+		self.prefs(exchange_suffix='AX')
+		for message, shown in (('.price BHP', 'BHP.AX'), ('.history BHP', 'BHP.AX'), ('.earnings BHP', 'BHP.AX'),
+				('.shorts BHP', 'BHP'), ('.pe BHP', 'BHP'), ('.marketcap BHP', 'BHP.AX'), ('.BHP', 'BHP.AX')):
+			with self.subTest(message=message):
+				self.assertIn('Co BHP.AX', str(self.command(message)))
 
 
 class WsgiRejections(FinbotCase):

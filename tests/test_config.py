@@ -12,7 +12,8 @@ from lib.reports import performance, price, shorts, trades
 REPO = Path(config.__file__).resolve().parent.parent
 DEFAULTS = {'past_days': 28, 'future_days': 30, 'price_percent': 5.0, 'shorts_percent': 15, 'cache_seconds': 43200,
 	'performance_cache_seconds': 1800, 'graph': True, 'http_timeout': 18, 'chunk_maxlines': 20, 'country_code': 'AU',
-	'timezone': 'Australia/Melbourne', 'cache': True, 'alliterate': False, 'hyperlink': True, 'hyperlinkFooter': True,
+	'timezone': 'Australia/Melbourne', 'cache': True, 'exchange_suffix': 'AX', 'hyperlink': True,
+	'hyperlinkFooter': True,
 	'hyperlinkProvider': 'google', 'demote_volatile': True, 'demote_leveraged': True, 'volatility_multiplier': 2.0, 'exclude_portfolios': (),
 	'include_portfolios': (), 'trades_use_yahoo': True, 'performance_use_sharesight': False, 'print_headers': False, 'min_analysts': 7,
 	'debug': False}
@@ -125,9 +126,25 @@ class Parsing(unittest.TestCase):
 		self.assertIn("graph='Ture' is not true or false", caught.exception.errors[0])
 
 	def test_a_blank_value_means_the_default(self):
-		"""A key with a blank value takes its default."""
+		"""A key with a blank value takes its default, but for exchange_suffix, where blank means no suffix to try."""
 		values = config.preference_values(config._getenv_for({'cache': '', 'future_days': '', 'country_code': ''}))
 		self.assertEqual((values.cache, values.future_days, values.country_code), (True, 30, 'AU'))
+		for given, suffix in (('', ''), ('AX', 'AX'), ('.ax', 'AX'), (' NZ ', 'NZ')):
+			with self.subTest(given=given):
+				values = config.preference_values(config._getenv_for({'exchange_suffix': given}))
+				self.assertEqual(values.exchange_suffix, suffix)
+		self.assertEqual(config.preference_values(config._getenv_for({})).exchange_suffix, 'AX') # unset: the default
+
+	def test_a_retired_key_is_accepted_and_said_to_do_nothing(self):
+		"""A key finbot no longer reads (alliterate) does not stop a start, as an unknown key would: it is ignored, and
+		the log at start says to delete it."""
+		path = Path(tempfile.mkdtemp(), 'preferences.conf')
+		path.write_text('alliterate=True\nfuture_days=45\n')
+		values = config.read_preferences(path)
+		self.assertEqual(config.preference_values(config._getenv_for(values)).future_days, 45)
+		self.assertEqual(config.retired_notes(values),
+			['alliterate in preferences.conf does nothing any more: delete the line'])
+		self.assertEqual(check_config.notes(path), config.retired_notes(values))
 
 	def test_unreadable_file_is_an_error_naming_it(self):
 		"""A preferences file that cannot be read is an error that names it."""
@@ -187,7 +204,8 @@ class Reload(unittest.TestCase):
 
 	def test_a_change_is_seen_at_once(self):
 		"""A reload applies every change, says which, and swaps in a new object, so no request sees half a reload."""
-		self.write('future_days=45\nprice_percent=7\nshorts_percent=12\nexclude_portfolios=1156263\nalliterate=1\nhyperlinkProvider=yahoo\n'
+		self.write('future_days=45\nprice_percent=7\nshorts_percent=12\nexclude_portfolios=1156263\n'
+			'exchange_suffix=nz\nhyperlinkProvider=yahoo\n'
 			'hyperlinkFooter=false\ndebug=1\ngraph=0\ndemote_volatile=0\nvolatility_multiplier=3\npast_days=14\nmin_analysts=3\n')
 		before = config.prefs
 		changes = config.reload()
@@ -195,8 +213,9 @@ class Reload(unittest.TestCase):
 		self.assertIn('future_days 30 -> 45', changes)
 		self.assertIsNot(config.prefs, before) # one new object: no request sees half a reload
 		self.assertEqual((config.prefs.future_days, config.prefs.past_days, config.prefs.price_percent, config.prefs.min_analysts), (45, 14, 7.0, 3))
-		self.assertEqual((config.prefs.exclude_portfolios, config.prefs.alliterate, config.prefs.hyperlinkProvider, config.prefs.hyperlinkFooter),
-			(('1156263',), True, 'yahoo', False))
+		prefs = config.prefs
+		self.assertEqual((prefs.exclude_portfolios, prefs.exchange_suffix, prefs.hyperlinkProvider,
+			prefs.hyperlinkFooter), (('1156263',), 'NZ', 'yahoo', False))
 		self.assertEqual((config.prefs.debug, config.prefs.graph, config.prefs.demote_volatile, config.prefs.volatility_multiplier), (True, False, False, 3.0))
 		self.assertEqual(config.reload(), []) # nothing more to change
 

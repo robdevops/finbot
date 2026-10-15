@@ -11,7 +11,7 @@ os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegr
 
 import bot # first, and once: it monkey-patches with gevent, which must happen before requests imports ssl and never mid-test
 from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, render
-from lib import sharesight, shortman, state, telegram, transports, watchlist, words, worker, yahoo
+from lib import sharesight, shortman, state, telegram, transports, watchlist, worker, yahoo
 from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating, reminder, shorts, trades
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (yahoo, 'price_history'),

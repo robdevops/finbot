@@ -28,9 +28,7 @@ def price_chart(service, period, days, ticker):
 
 def compare_chart(service, period, days, *tickers):
 	""".compare: the stocks' changes over the period, rebased on one chart."""
-	caption, chart, *_ = history.prepare_compare(service, list(tickers) + ([f'{days}d'] if days else ['max']))
-	if not chart:
-		raise answer.Answer(*caption)
+	caption, chart = history.prepare_compare(service, list(tickers), days)
 	return '\n'.join(caption), chart
 
 def performance_chart(service, period, days, portfolio):

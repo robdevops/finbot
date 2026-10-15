@@ -68,9 +68,10 @@ def prepare_pie(portfolio_name, by, service, max_slices=8):
 	return payload, render.Chart('pie', title, subtitle, tuple(rows))
 
 def prepare_watchlist(service, user, action=None, ticker=None):
-	"""The .watchlist reply: the companies watched, or one line on adding ('add') or removing ('delete') a ticker."""
+	"""The .watchlist reply: the companies watched, or one line on adding ('add') or removing ('delete') a ticker
+	(Yahoo's symbol, as yahoo.symbol gives it)."""
 	if action:
-		return [watchlist_change(service, user, action, markets.transform_to_yahoo(ticker))]
+		return [watchlist_change(service, user, action, ticker)]
 	watched = watchlist.tickers()
 	market_data = yahoo.fetch(watched) if watched else {}
 	lines = sorted((f"{markets.flag_from_ticker(t)} {quote['profile_title']} ({links.finance_link(t, quote.get('profile_exchange'), service)})"
@@ -79,24 +80,15 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 		return ['Watchlist is empty. Try ".watchlist add SYMBOL" to create it']
 	return [f"Hi {user}, I'm currently tracking:"] + lines
 
-def watchlist_change(service, user, action, asked):
-	"""The reply to adding or removing `asked` (a Yahoo ticker)."""
-	def described(ticker, quote):
-		"""'Full Name (TICKER)' in bold, linked to the stock's page."""
-		quote = quote or {}
-		link = links.finance_link(ticker, quote.get('profile_exchange') or ticker, service)
-		return service.bold(f"{quote['profile_title']} ({link})" if quote.get('profile_title') else link)
+def watchlist_change(service, user, action, ticker):
+	"""The reply to adding or removing `ticker` (Yahoo's symbol)."""
+	quote = yahoo.fetch([ticker]).get(ticker) or {}
+	link = links.finance_link(ticker, quote.get('profile_exchange') or ticker, service)
+	described = service.bold(f"{quote['profile_title']} ({link})" if quote.get('profile_title') else link)
 	if action == 'delete':
-		if asked not in watchlist.tickers():
-			return f"Beep Boop. I could not find {service.bold(asked)} to remove it"
-		quote = yahoo.fetch([asked]).get(asked)
-		watchlist.remove(asked)
-		return f"Ok {user}, I deleted {described(asked, quote)}"
-	found, quote = watchlist.find(asked)
+		if not watchlist.remove(ticker):
+			return f"Beep Boop. I could not find {service.bold(ticker)} to remove it"
+		return f"Ok {user}, I deleted {described}"
 	if not quote:
-		return f"Beep Boop. I could not find {service.bold(asked)} to add it"
-	added = watchlist.add(found)
-	if found != asked:
-		done = "so I added" if added else "and I'm already tracking"
-		return f"Beep Boop. I could not find {service.bold(asked)} {done} {described(found, quote)}"
-	return f"Ok {user}, I added {described(found, quote)}" if added else f"{user}, I'm already tracking {described(found, quote)}"
+		return f"Beep Boop. I could not find {service.bold(ticker)} to add it"
+	return f"Ok {user}, I added {described}" if watchlist.add(ticker) else f"{user}, I'm already tracking {described}"

@@ -16,9 +16,10 @@ from lib import buttons
 from lib.reports import history
 
 def gather(specific_stock=None, days=None):
-	"""(tickers, market data) for a price report: Yahoo's quotes; over `days` each holding's Sharesight figure, and for the tickers
-	Sharesight has none for (the watchlist) their Yahoo history, fetched together up front."""
-	tickers = [markets.transform_to_yahoo(specific_stock)] if specific_stock else watchlist.with_holdings()
+	"""(tickers, market data) for a price report on the stocks followed or one (Yahoo's symbol): Yahoo's quotes; over
+	`days` each holding's Sharesight figure, and for the tickers Sharesight has none for (the watchlist) their Yahoo
+	history, fetched together up front."""
+	tickers = watchlist.covered(specific_stock)
 	market_data = yahoo.fetch(tickers)
 	if config.prefs.demote_volatile: # trigger_bar compares market caps, in US dollars
 		yahoo.add_usd_market_caps(market_data)
@@ -152,7 +153,7 @@ def report(service, mode='interday', threshold=None, days=None, top=None, user='
 			session = mode if mode in ('midsession', 'premarket') else None
 			graph = render.Chart('bars', heading, rows=tuple(label(chart_rows)), session=session)
 	elif not payload and interactive:
-		payload = [nothing(mode, threshold, user, tickers[0] if specific_stock else None, 'REGULAR' in states)]
+		payload = [nothing(mode, threshold, user, specific_stock, 'REGULAR' in states)]
 	return payload, graph
 
 def nothing(mode, threshold, user, ticker, in_session):

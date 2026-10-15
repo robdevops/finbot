@@ -1,33 +1,28 @@
 """What finbot can do: the .help text, and the .jobs listing of the schedule (with running a job from it)."""
-import re
 from lib import buttons
 from lib import jobs
 
-def prepare_jobs_payload(service, args):
-	"""`.jobs` lists the scheduled commands, each once; `.jobs run <number|command>` runs one now, as cron would.
-	Returns (payload, buttons): Telegram gets a button per command, two to a row."""
+def prepare_jobs_payload(service, run=None):
+	"""`.jobs`: the scheduled commands, each once; with `run` (a number in that list, or a command's text) that command
+	run now, as cron would. Returns (payload, buttons): Telegram gets a button per command, two to a row."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['Scheduled jobs are off (scheduler=False)'], None
-	args = (args or '').strip()
-	if not args:
-		commands = scheduler.commands()
-		if not commands:
-			return ['No scheduled jobs'], None
-		payload = [service.bold('Scheduled commands:')]
-		for number, (label, _, _) in enumerate(commands, 1):
-			payload.append(f"{number}. {jobs.display(label)}" + (' (running)' if label in scheduler.busy else ''))
-		payload.append("\nRun one with .jobs run NUMBER" + (' or tap it' if service == 'telegram' else ''))
-		markup = None
-		if service == 'telegram':
-			row = [buttons.Button(f"{number}. {jobs.display(label)}"[:30], f"j|{number}|{jobs.checksum(label)}")
-				for number, (label, _, _) in enumerate(commands, 1)]
-			markup = [row[i:i + 2] for i in range(0, len(row), 2)]
-		return payload, markup
-	m = re.fullmatch(r'run(?:\s+(.+))?', args, re.IGNORECASE)
-	if not m or not m.group(1):
-		return ['Usage: .jobs [run NUMBER|COMMAND]'], None
-	return [run_job_line(scheduler, m.group(1))], None
+	if run:
+		return [run_job_line(scheduler, run)], None
+	commands = scheduler.commands()
+	if not commands:
+		return ['No scheduled jobs'], None
+	payload = [service.bold('Scheduled commands:')]
+	for number, (label, _, _) in enumerate(commands, 1):
+		payload.append(f"{number}. {jobs.display(label)}" + (' (running)' if label in scheduler.busy else ''))
+	payload.append("\nRun one with .jobs run NUMBER" + (' or tap it' if service == 'telegram' else ''))
+	markup = None
+	if service == 'telegram':
+		row = [buttons.Button(f"{number}. {jobs.display(label)}"[:30], f"j|{number}|{jobs.checksum(label)}")
+			for number, (label, _, _) in enumerate(commands, 1)]
+		markup = [row[i:i + 2] for i in range(0, len(row), 2)]
+	return payload, markup
 
 def run_job_line(scheduler, text):
 	"""Run a scheduled command now and say how it went in one line."""

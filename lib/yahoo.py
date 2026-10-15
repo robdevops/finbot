@@ -12,6 +12,7 @@ from lib import config
 from lib import cache
 from lib import net
 from lib import formats
+from lib import markets
 from http.cookies import SimpleCookie
 from pathlib import Path
 
@@ -389,10 +390,10 @@ def price_history(ticker, days=None):
 	return percent_dict, Line(name, exchange, stock.get('currency') or '', price, closes)
 
 def price_series(ticker):
-	"""Daily closes for a ticker via the same fetch/parse path as price_history(): (name, exchange, pandas Series indexed by datetime).
-	Raises NoData when there is no history."""
+	"""A ticker's daily closes over 10 years, from the same chart as price_history(): (name, exchange, pandas Series
+	indexed by datetime). Raises NoData when there is no history."""
 	import pandas as pd
-	data = fetch_chart_json(ticker, full=True)
+	data = fetch_chart_json(ticker)
 	df = chart_json_to_df(data)
 	stock = chart_json_to_stock_basics(data)
 	df = df[df['Close'].notnull()]
@@ -447,14 +448,24 @@ def fetch_details(tickers, strict=False):
 			details |= detail
 	return details
 
-def resolve(ticker, lookup):
-	"""(ticker, lookup(ticker)) for a ticker Yahoo knows: a bare symbol it does not know is tried on the ASX (BHP: BHP.AX).
-	lookup is fetch-shaped ({ticker: data}, without the tickers Yahoo does not know); its {} means Yahoo knows neither."""
-	found = lookup(ticker)
-	if ticker not in found and '.' not in ticker:
-		ticker += '.AX'
-		found = lookup(ticker)
-	return ticker, found
+def symbols(typed):
+	"""Yahoo's symbols for tickers as written in a chat: BHP:ASX, BHP.ASX and bhp.ax give BHP.AX (see
+	markets.transform_to_yahoo). A bare symbol Yahoo does not know is tried again on the local exchange, with the
+	exchange_suffix preference (AX: BHP.AX), unless that is empty; a symbol Yahoo knows neither way stays as written.
+	Two requests at most, however many tickers. Raises RuntimeError when Yahoo cannot be reached."""
+	tickers = [markets.transform_to_yahoo(ticker.upper()) for ticker in typed]
+	suffix = config.prefs.exchange_suffix
+	bare = [ticker for ticker in tickers if '.' not in ticker]
+	if not (suffix and bare):
+		return tickers
+	known = fetch(bare)
+	local = {ticker: f'{ticker}.{suffix}' for ticker in bare if ticker not in known}
+	found = fetch(list(local.values())) if local else {}
+	return [local[ticker] if local.get(ticker) in found else ticker for ticker in tickers]
+
+def symbol(typed):
+	"""Yahoo's symbol for one ticker as written in a chat (see symbols): BHP may be BHP.AX."""
+	return symbols([typed])[0]
 
 def prefetch_history(tickers, workers=8):
 	"""Warm the price-history cache for many tickers at once, so the per-ticker lookups that follow are cache hits."""

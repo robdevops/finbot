@@ -22,6 +22,7 @@ SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_sec
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
 	'telegramOutgoingWebhook') # never printed
 PREFERENCES_FILE = 'preferences.conf'
+RETIRED = ('alliterate',) # preferences.conf keys that do nothing any more: accepted, with a note at start to delete
 PASSED = 'FINBOT_PREFERENCES_PASSED' # set by the bot for its job processes: the preferences arrive in the environment, do not read the file
 OLD_ENV = REPO_DIR / '.env' # the single config file of old versions, which python-dotenv loaded; nothing reads it now
 
@@ -91,7 +92,8 @@ def read_preferences(path):
 	text = read_text(path)
 	if text is None:
 		return None
-	values, errors = parse_assignments(text, path, lambda key: key_problem(key, PREFERENCE_KEYS, STARTUP_KEYS, 'finbot.env'))
+	values, errors = parse_assignments(text, path, lambda key: None if key in RETIRED else
+		key_problem(key, PREFERENCE_KEYS, STARTUP_KEYS, 'finbot.env'))
 	if errors:
 		raise ConfigError(errors)
 	return values
@@ -128,6 +130,11 @@ class _Reader:
 	def str(self, name, default=None):
 		"""A text setting."""
 		return self.value(name, default)
+
+	def blankable(self, name, default):
+		"""A text setting where a blank value means none (''), not the default."""
+		value = self.getenv(name, default)
+		return '' if value is None else str(value).strip()
 
 	def bool(self, name, default):
 		"""A boolean: true/false, yes/no, on/off, 1/0 or t/f in any case; anything else is an error, giving default."""
@@ -231,7 +238,6 @@ def startup_values(getenv):
 class Prefs:
 	"""The preferences: preferences.conf, which the bot reads at start and on every reload. Read them as config.prefs.<name> when
 	they are used, never into a default or a module constant, so that a reload is seen."""
-	alliterate: bool
 	cache: bool
 	cache_seconds: int
 	chunk_maxlines: int
@@ -239,6 +245,7 @@ class Prefs:
 	debug: bool
 	demote_leveraged: bool
 	demote_volatile: bool
+	exchange_suffix: str # Yahoo's suffix for the local exchange (AX): a bare ticker Yahoo does not know gets it
 	exclude_portfolios: tuple
 	future_days: int
 	graph: bool
@@ -265,7 +272,6 @@ def preference_values(getenv, source=None):
 	ConfigError listing every bad value."""
 	r = _Reader(getenv)
 	prefs = Prefs(
-		alliterate=r.bool('alliterate', False),
 		cache=r.bool('cache', True),
 		cache_seconds=r.int('cache_seconds', 43200),
 		chunk_maxlines=r.int('chunk_maxlines', 20),
@@ -273,6 +279,7 @@ def preference_values(getenv, source=None):
 		debug=r.bool('debug', False),
 		demote_leveraged=r.bool('demote_leveraged', True),
 		demote_volatile=r.bool('demote_volatile', True),
+		exchange_suffix=r.blankable('exchange_suffix', 'AX').removeprefix('.').upper(),
 		exclude_portfolios=tuple(r.str('exclude_portfolios', '').split()),
 		future_days=r.int('future_days', 30),
 		graph=r.bool('graph', True),
@@ -405,7 +412,13 @@ def startup_report():
 		lines.append(f'preferences from {preferences_path} ({len(prefs.source)} set; reload with SIGHUP)')
 	else:
 		lines.append(f'no {PREFERENCES_FILE} in {env.data_dir}, using the defaults; reload will have nothing to re-read')
-	return lines
+	return lines + retired_notes(prefs.source)
+
+
+def retired_notes(preferences):
+	"""A line for each key of a preferences.conf ({key: value}) that does nothing any more."""
+	return [f'{key} in {PREFERENCES_FILE} does nothing any more: delete the line'
+		for key in RETIRED if key in preferences]
 
 
 def startup_warnings():

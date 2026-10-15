@@ -16,16 +16,15 @@ def primary_listings():
 EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'), 'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
 
 def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
-	"""Post the earnings or ex-dividend dates ahead (`event`) for the tracked stocks or one: to the chat that asked
-	(dest), else to the default chats. The scheduled earnings report is pinned where the network can; a reply is not,
-	or the chat would collect pinned copies."""
+	"""Post the earnings or ex-dividend dates ahead (`event`) for the tracked stocks or one (Yahoo's symbol): to the
+	chat that asked (dest), else to the default chats. The scheduled earnings report is pinned where the network can; a
+	reply is not, or the chat would collect pinned copies."""
 	interactive = dest is not None
 	if days is None:
 		days = config.prefs.future_days
-	tickers = [markets.transform_to_yahoo(specific_stock)] if specific_stock else watchlist.with_holdings()
-	events = gather(tickers, days, specific_stock, event)
+	events = gather(watchlist.covered(specific_stock), days, specific_stock, event)
 	for chat in delivery.targets(dest):
-		payload = report(chat.dialect, events, tickers, days, specific_stock, interactive, event)
+		payload = report(chat.dialect, events, days, specific_stock, interactive, event)
 		answers = delivery.deliver(chat, delivery.Report(payload))
 		if event == 'earnings' and not specific_stock and not interactive and hasattr(chat, 'pin'):
 			chat.pin(answers) # the scheduled earnings report stays on top, where the network can pin
@@ -70,7 +69,7 @@ def primary_listing(ticker, data, field):
 		return None, None
 	return primary, details
 
-def report(service, events, tickers, days, specific_stock, interactive, event):
+def report(service, events, days, specific_stock, interactive, event):
 	"""The events in one network's markup, grouped by date under a heading (one stock's carry their dates instead)."""
 	heading = EVENTS[event][1]
 	payload = []
@@ -86,7 +85,7 @@ def report(service, events, tickers, days, specific_stock, interactive, event):
 		payload.insert(0, service.bold(f"{heading} {formats.days_english(days, 'for the next ')}:"))
 	elif not payload and interactive:
 		ahead = formats.days_english(days, 'for the next ')
-		payload = [f"No events found for {tickers[0]}" if specific_stock else f"No events found {ahead}"]
+		payload = [f"No events found for {specific_stock}" if specific_stock else f"No events found {ahead}"]
 	return payload
 
 def job(argv):

@@ -7,7 +7,7 @@ from tests.common import *
 class Commands(FinbotCase):
 	def test_text_commands(self):
 		"""Every text command answers."""
-		for cmd in ('.help', '/start', '.hello', '.thanks', '.who', '.plan', '.holdings', '.marketcap',
+		for cmd in ('.help', '/start', '.who', '.plan', '.holdings', '.marketcap',
 					'.pe', '.fpe', '.peg', '.beta', '.buy', '.sell', '.earnings', '.dividend',
 					'.earnings T1', '.dividend T1', '.trades', '.trades 30d', '.price T1', '.session T1',
 					'.premarket T1', '.shorts T1', '.watchlist', '.T1'):
@@ -45,8 +45,7 @@ class Commands(FinbotCase):
 		for command in worker.COMMANDS:
 			for text in command.buttons:
 				with self.subTest(text=text):
-					first = next(c for c in worker.COMMANDS if worker.match(c.pattern, text, BOT))
-					self.assertIs(first.handler, command.handler)
+					self.assertIs(worker.read(text, BOT)[0], command)
 
 	def test_history_and_compare(self):
 		""".history and .compare answer."""
@@ -82,10 +81,8 @@ class ReportFunctions(FinbotCase):
 			for line in command.usage:
 				with self.subTest(line=line):
 					self.assertIn(line, text)
-					word = line.split()[0]
-					if word != '.SYMBOL':
-						self.assertIs(next(c for c in worker.COMMANDS if worker.match(c.pattern, word, BOT)).handler,
-							command.handler)
+					called = worker.read(line.replace('SYMBOL', 'T1'), BOT)[0]
+					self.assertIs(called, command)
 
 	def test_a_portfolio_with_no_holdings_is_reported_by_name(self):
 		"""Its name used to be read from its first holding: an empty portfolio crashed .performance."""
@@ -234,10 +231,10 @@ class ReportFunctions(FinbotCase):
 		"""The watchlist is listed."""
 		self.assertTrue(holdings.prepare_watchlist(TELEGRAM, '@u'))
 
-	def test_prepare_compare_usage(self):
-		""".compare with one ticker gets its usage."""
-		caption = history.prepare_compare(TELEGRAM, ['T1'])[0]
-		self.assertIn('Usage', ' '.join(caption))
+	def test_compare_usage(self):
+		""".compare with one ticker gets its usage, from the command table."""
+		usage = 'Usage: .compare SYMBOL SYMBOL [... up to 6] [period]'
+		self.assertEqual(self.command('.compare T1'), [('text', [usage])])
 
 
 class ScheduledReports(FinbotCase):
@@ -593,10 +590,8 @@ class PieCommand(FinbotCase):
 
 	def test_unknown_or_missing_portfolio_lists_known(self):
 		""".pie with no portfolio, or an unknown one, lists the portfolios there are."""
-		for text, first in (('.pie', '.pie: please try again'), ('.pie Nope', 'Nope portfolio not found')):
-			sent = self.command(text)
-			self.assertTrue(sent[0][1][0].startswith(first), text)
-			self.assertIn('Rob', sent[0][1])
+		self.assertEqual(self.command('.pie'), [('text', ['Usage: .pie PORTFOLIO [sector]', 'Portfolios: Rob'])])
+		self.assertEqual(self.command('.pie Nope'), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
 
 	def test_a_service_that_takes_no_images_gets_text(self):
 		"""Slack without the bot token takes no images: the report goes as text."""

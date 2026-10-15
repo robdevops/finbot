@@ -13,7 +13,7 @@ def prepare_marketcap_payload(service, action='top', length=15):
 	"""The `length` tracked stocks of largest (action 'top') or smallest ('bottom') market cap, compared in US dollars at Yahoo's
 	exchange rates: a market cap in won or yen is a far bigger number. Any other action is one ticker's, in its own currency too."""
 	if action not in ('top', 'bottom'):
-		ticker = markets.transform_to_yahoo(action.upper())
+		ticker = action
 		data = yahoo.add_usd_market_caps(yahoo.fetch_detail(ticker, 600)).get(ticker, {})
 		if 'market_cap' not in data:
 			return [f"Mkt cap not found for {ticker}"]
@@ -70,8 +70,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 	P/E is analysts' estimate, so its lists take only stocks that min_analysts or more analysts cover, as .buy does."""
 	mode, kind = action.split(' ', 1) if action.split()[0] in ('bottom', 'negative') else ('top', action)
 	field = RATIOS[kind]
-	tickers = [ticker_select] if ticker_select else watchlist.with_holdings()
-	market_data = yahoo.fetch(tickers)
+	market_data = yahoo.fetch(watchlist.covered(ticker_select))
 	if kind == 'peg': # the PEG is in Yahoo's details
 		market_data |= yahoo.fetch_details(market_data, strict=bool(ticker_select))
 	covered = None # for a forward P/E list: the tickers enough analysts cover

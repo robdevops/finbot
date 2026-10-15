@@ -1,12 +1,10 @@
 """.trades: Sharesight buys and sells; a scheduled run reports only new ones (scheduled: trades.py)."""
 import dataclasses
 import datetime
-import random
 import sys
 
 from lib import config
 from lib import state
-from lib import words
 from lib import sharesight
 from lib import delivery
 from lib import formats
@@ -43,7 +41,7 @@ def run(dest=None, *, days=None, user='', portfolio_select=None):
 		payload = report(chat.dialect, trades, days, interactive)
 		if interactive and not payload: # no trades, or none of them a buy or a sell
 			when = formats.days_english(days, 'in the past ')
-			payload = [f"{user} No trades {when}. {random.choice(words.noTradesVerb)}"]
+			payload = [f"{user} No trades {when}."]
 		delivery.deliver(chat, delivery.Report(payload))
 	if trades and not interactive: # recorded once the report is out
 		with state.edit(STATE_FILE, []) as known:

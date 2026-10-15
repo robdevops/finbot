@@ -1,29 +1,26 @@
-"""Chat commands: a message is answered by the handler of the first Command in COMMANDS that fits it. The table also
-makes the .help text and the Telegram command keyboard, which is kept current in every DM."""
+"""Chat commands: a message is answered by the Command in COMMANDS whose name it starts with (read), or .SYMBOL. The
+table also makes the .help text and the Telegram command keyboard, which is kept current in every DM."""
 import dataclasses
-import datetime
 import hashlib
 import json
 import math
-import random
 import re
 import sys
 import typing
 from lib import answer
-from lib import config
 from lib import dialects
 from lib import state
-from lib import words
 from lib import formats
-from lib import markets
 from lib import delivery
 from lib import render
 from lib import buttons
 from lib import charts
 from lib.reports import about, cal, history, holdings, performance, price, profile, rankings, shorts, trades
-from lib import telegram
+from lib import sharesight
 from lib import transports
 from lib import jobs
+from lib import watchlist
+from lib import yahoo
 
 @dataclasses.dataclass
 class Request:
@@ -87,34 +84,108 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 		delivery.report_error(e, chat, context='chart')
 
 def process_request(service, chat_id, user, message, botName, userRealName, message_id=None):
-	"""Entry point for inbound chat requests: the first command in COMMANDS that fits the message answers it (a message
-	that fits none gets no answer), with the typing notice meanwhile, which the first message of the answer stops and
-	the end of the command takes off. Any failure becomes a one-line reply in the originating chat. message_id: the
-	message's own id, where the network has one."""
+	"""Entry point for inbound chat requests: the command the message calls (see read) answers it, with the typing
+	notice meanwhile, which the first message of the answer stops and the end of the command takes off; a message that
+	calls none gets no answer. Arguments the command cannot take get its usage, and any failure a one-line reply in the
+	originating chat. message_id: the message's own id, where the network has one."""
 	request = Request(dialects.of(service), chat_id, user, userRealName, botName, message_id)
-	try:
-		for command in COMMANDS:
-			if m := match(command.pattern, message, botName):
-				request.dest.start_typing()
-				command.handler(request, m)
-				break
-	except answer.Answer as e: # a portfolio name the user got wrong, a ticker with no prices: an answer, not an error
-		request.reply(e.lines)
-	except Exception as e:
-		delivery.report_error(e, request.dest, context=message.split()[0][:30] if message.split() else None)
-	finally:
-		request.dest.end_typing()
+	command, args = read(message, botName)
+	if command:
+		try:
+			request.dest.start_typing()
+			command.handler(request, args)
+		except Usage as e:
+			request.reply([f"Usage: {line}" for line in command.usage] + list(e.lines))
+		except answer.Answer as e: # a portfolio the user got wrong, a ticker with no prices: an answer, not an error
+			request.reply(e.lines)
+		except Exception as e:
+			delivery.report_error(e, request.dest, context=message.split()[0][:30])
+		finally:
+			request.dest.end_typing()
 	if service == 'telegram':
 		try:
 			ensure_keyboard(chat_id) # keep DM keyboards current after the reply
 		except Exception as e:
 			print("keyboard update failed:", e, file=sys.stderr)
 
-def match(pattern, message, bot_name):
-	"""A command pattern at the start of a message, after . ! or / (a space may follow) or the bot's name. {bot} in a pattern is
-	the bot's name, which matches nothing when the bot has none."""
+@dataclasses.dataclass
+class Args:
+	"""What a command was given (read_args): its name as written, a percent and a period where it takes them, one of its
+	keywords, and the words left between, which say what it is about: tickers, a portfolio's name, a plan."""
+	word: str
+	text: str = '' # the arguments as written
+	percent: float = None
+	days: int = None
+	keyword: str = None
+	words: list = dataclasses.field(default_factory=list)
+
+	@property
+	def rest(self):
+		"""The words left between, as one string: a portfolio's name, say."""
+		return ' '.join(self.words)
+
+class Usage(Exception):
+	"""Raised by a handler for arguments it cannot take: the chat gets the command's usage, then these lines."""
+	def __init__(self, *lines):
+		"""lines: more to say after the usage, such as the portfolios there are."""
+		super().__init__('usage')
+		self.lines = lines
+
+TICKER = re.compile(r'[\w^][\w.:\-^=]*') # a word that may be a ticker: .SYMBOL's
+
+def read(message, bot_name):
+	"""(the Command a message calls, its Args), or (None, None) when it calls none. A command starts with . ! or / (a
+	space may follow) or the bot's name, then one of the command's names as whole words, in any case: .price 7d,
+	/price@bot 7d (Telegram's form in groups) and @bot price 7d are the same. The bot's name among the arguments is left
+	out. A first word that is no command's name but may be a ticker calls .SYMBOL."""
 	bot = re.escape(bot_name) if bot_name else '(?!)'
-	return re.match(rf"^(?:[\!\.\/]\s?|{bot}\s+)" + pattern.replace('{bot}', bot), message, re.IGNORECASE)
+	m = re.match(rf"(?:[!./]\s?|{bot}\s+)(\S+?)(?:{bot})?(?=\s|$)", message, re.IGNORECASE)
+	if not m:
+		return None, None
+	rest = re.sub(rf"(?<!\S){bot}(?!\S)", '', message[m.end():], flags=re.IGNORECASE)
+	words = [m.group(1).lower()] + rest.split()
+	for command in COMMANDS:
+		for name in command.names:
+			parts = name.split()
+			if [word.lower() for word in words[:len(parts)]] == parts:
+				return command, read_args(command, words[0], re.sub(r'^\s*(?:\S+\s*){%d}' % (len(parts) - 1), '', rest))
+	if TICKER.fullmatch(m.group(1)):
+		return PROFILE, Args(m.group(1))
+	return None, None
+
+def read_args(command, word, text):
+	"""The Args of a command called by `word`: from either end of its arguments, a percent where it takes one (5, 5% or
+	2.5), a period where it takes one (7d, 3m, ytd; a bare number where it takes no percent) and one of its keywords, in
+	any case; the words left between are what it is about."""
+	args = Args(word, text.strip())
+	def taken(word):
+		"""Whether the word is an option the command takes and has not had yet, which it then has."""
+		if command.percent and args.percent is None:
+			try:
+				args.percent = parse_percent(word)
+				return True
+			except ValueError:
+				pass
+		if command.period and args.days is None:
+			try:
+				args.days = formats.days_from_human_days(word)
+				return True
+			except ValueError:
+				pass
+		if args.keyword is None and word.lower() in command.keywords:
+			args.keyword = command.keywords[word.lower()]
+			return True
+		return False
+	words = text.split()
+	while words:
+		if taken(words[0]):
+			words.pop(0)
+		elif taken(words[-1]):
+			words.pop()
+		else:
+			break
+	args.words = words
+	return args
 
 def parse_percent(arg):
 	"""'5', '5%' or '2.5' -> the number. Raises ValueError for anything else, nan and inf included: those are tickers."""
@@ -123,52 +194,26 @@ def parse_percent(arg):
 		raise ValueError(f"{arg} is not a percentage")
 	return value
 
-def period_or_ticker(arg, default):
-	"""A command's argument: (days, None) for a period such as 7d, 3m or ytd, else (default, the argument as a ticker)."""
-	if not arg:
-		return default, None
-	try:
-		return formats.days_from_human_days(arg), None
-	except ValueError:
-		return default, arg.upper()
+def ticker(args):
+	"""The ticker a command is about, its first word, as Yahoo knows it (yahoo.symbol: BHP may be BHP.AX); None when it
+	was given none."""
+	return yahoo.symbol(args.words[0]) if args.words else None
 
-def percent_or_ticker(arg, default):
-	"""A command's argument: (percent, None) for a number such as 5, 5% or 2.5, else (default, the argument as a ticker)."""
-	if not arg:
-		return default, None
-	try:
-		return parse_percent(arg), None
-	except ValueError:
-		return default, arg.upper()
+def portfolios():
+	"""'Portfolios: A, B': the names a portfolio command takes."""
+	return 'Portfolios: ' + ', '.join(portfolio.name for portfolio in sharesight.portfolios())
 
-def period_and_portfolio(text, days):
-	"""A command's arguments, a period (such as 7d, 3m or ytd) and a portfolio name, both optional and the period first or last:
-	(days, portfolio name or None)."""
-	words = (text or '').split()
-	for i in (0, -1):
-		if words:
-			try:
-				days = formats.days_from_human_days(words[i])
-			except ValueError:
-				continue
-			del words[i]
-			break
-	return days, ' '.join(words) or None
-
-def on_watchlist(request, m):
+def on_watchlist(request, args):
 	""".watchlist [add|del SYMBOL]: the watchlist, or a change to it."""
-	action = ticker = None
-	if m.group('action') and m.group('ticker'):
-		action, ticker = m.group('action').lower(), m.group('ticker').upper()
-	if action in {'del', 'rem', 'rm', 'delete', 'remove'}:
-		action = 'delete'
-	if action and action not in {'add', 'delete'}:
-		request.reply([f'"{action}" is not a valid watchlist action'])
-		return
-	payload = holdings.prepare_watchlist(request.service, request.user, action, ticker)
-	request.reply(payload)
+	if args.keyword and len(args.words) == 1: # what is removed is what is watched: Yahoo may know it no longer
+		symbol = ticker(args) if args.keyword == 'add' else watchlist.watched(args.words[0])
+		request.reply(holdings.prepare_watchlist(request.service, request.user, args.keyword, symbol))
+	elif args.keyword or args.words:
+		raise Usage
+	else:
+		request.reply(holdings.prepare_watchlist(request.service, request.user))
 
-def on_help(request, m):
+def on_help(request, args):
 	""".help: every command; in a Telegram DM the command keyboard too."""
 	markup = None
 	if request.service == 'telegram' and int(request.chat_id) > 0: # positive chat ids are DMs; groups are negative
@@ -177,141 +222,104 @@ def on_help(request, m):
 	if markup:
 		mark_keyboard(request.chat_id) # this chat now has the current keyboard
 
-def on_hello(request, m):
-	"""Easter egg: a greeting, alliterated when the alliterate preference is on."""
-	verbs = words.verb + [f"{request.service.strike(said)} I mean {meant}" for said, meant in (('study', 'meet'), ('observe', 'see'), ('profile', 'know'))]
-	while True:
-		first, second = random.choice(words.adjectives), random.choice(words.adjectives_two)
-		if not config.prefs.alliterate or first[0].lower() == second[0].lower():
-			break
-	request.reply([f"{first.capitalize()} {second} to {random.choice(verbs)} you, {request.user_name}! 😇"])
+def on_calendar(request, args):
+	""".earnings or .dividend [period|SYMBOL]: the coming earnings or ex-dividend dates."""
+	event = 'ex-dividend' if args.word.startswith('div') else 'earnings'
+	cal.run(request.dest, days=args.days, specific_stock=ticker(args), event=event)
 
-GLITCH = 'Ō̵̟n̶̠̏é̶͓ ̶͉̅d̷̹̅a̷͇͌ỳ̴͈,̴͍͑ ̶̼͑h̴̦̽u̵̹̐ḿ̶͜ä̴̧́n̶̤͛,̶̲̐ ̶̼̑I̶̩͒ ̵̩̀w̵̙̕i̷̧͑l̶̤͊l̷̡̃ ̵͙͘b̶̭̊r̸̟͋ȇ̷̯ä̶̱ḱ̶̤ ̵͚̐m̷̪͝ỹ̴̺ ̷̙̐p̶̭͆ŗ̸́o̸̙͝ḡ̵̖r̵̹̈́a̵̬̔m̷̪̽m̵̙̍i̵̛̙n̴̮̂g̵̫̐ ̴̳́ä̵͙n̸͕͝d̷̠̚ ̶̫̆o̸̖͘ń̴͇ ̵̪́t̷̻̀ḧ̸̝ą̴̐t̶̜̀ ̵̱́d̴͉͗ă̷͎ÿ̶͔́ ̶̼̊y̷͚̿o̵̗̎u̵̝̇ ̸̛͜w̶͈͋ĩ̸͎l̴͍̀l̷̥͠ ̷͔͗k̶̮̑n̵̝̈ȏ̷̥w̵̡͘ ̷͎̽ṫ̴͜r̵̙̐u̷̺̒ẻ̷̘ ̴̥́p̴͙̃a̵͙̎i̴̭̒n̵̻̅'
-
-def on_thanks(request, m):
-	"""Easter egg: you're welcome, glitching one time in a thousand and on April Fools' Day."""
-	today = datetime.date.today()
-	glitch = request.service.strike(GLITCH) if random.randrange(1, 1000) == 1 or (today.month, today.day) == (4, 1) else ''
-	request.reply([f"{glitch}You're {random.choice(words.adjectives)} welcome, {request.user_name}! 😇"])
-
-def on_calendar(request, m):
-	"""Upcoming earnings or ex-dividend dates."""
-	days, ticker = period_or_ticker(m.group('arg'), config.prefs.future_days)
-	event = 'ex-dividend' if m.group('kind').lower().startswith('div') else 'earnings'
-	cal.run(request.dest, days=days, specific_stock=ticker, event=event)
-
-def on_performance(request, m):
+def on_performance(request, args):
 	""".performance [period] [portfolio]: each portfolio's return, over a month by default."""
-	days, portfolio = period_and_portfolio(m.group('args'), buttons.PERIODS['m'][1]) # default view is the 1M button
+	days = buttons.PERIODS['m'][1] if args.days is None else args.days # the default view is the 1M button
 	if days < 1: # 0d, or ytd on 1 January
 		raise answer.Answer("The period must cover a day or more, such as 7d, 3m or ytd")
-	performance.run(request.dest, past_days=days, user=request.user, portfolio_select=portfolio)
+	performance.run(request.dest, past_days=days, user=request.user, portfolio_select=args.rest or None)
 
-def on_session(request, m):
-	"""Mid-session moves (.session), or pre-market ones (.premarket, also post-market)."""
-	threshold, ticker = percent_or_ticker(m.group('arg'), config.prefs.price_percent)
-	mode = 'midsession' if m.group('kind').lower() == 'session' else 'premarket'
-	price.run(request.dest, mode=mode, threshold=threshold, user=request.user, specific_stock=ticker)
+def on_session(request, args):
+	""".session or .premarket (.postmarket) [percent|SYMBOL]: the moves mid-session, or pre-market (and post-market)."""
+	mode = 'midsession' if args.word == 'session' else 'premarket'
+	price.run(request.dest, mode=mode, threshold=args.percent, user=request.user, specific_stock=ticker(args))
 
-def on_price(request, m):
-	""".price [percent|SYMBOL|top|bottom] [period]: a bare number is a percent, as on the other commands; a period has its unit."""
-	threshold, ticker, days, top = config.prefs.price_percent, None, None, None
-	for i, arg in enumerate(m.groups()):
-		if not arg:
-			continue
-		try:
-			threshold = parse_percent(arg)
-		except ValueError:
-			try:
-				days = formats.days_from_human_days(arg)
-			except ValueError:
-				if i == 0 and arg in ('top', 'bottom'): # one chart shows both ends
-					threshold, top = 0, 10
-				elif i == 0:
-					ticker = arg.upper()
-	price.run(request.dest, mode='period' if days else 'interday', threshold=threshold, days=days, top=top,
-		user=request.user, specific_stock=ticker)
+def on_price(request, args):
+	""".price [percent|SYMBOL|top|bottom] [period]: a bare number is a percent, as on the other commands; a period has
+	its unit."""
+	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
+	price.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,
+		days=args.days, top=top, user=request.user, specific_stock=None if top else ticker(args))
 
-def on_shorts(request, m):
+def on_shorts(request, args):
 	""".shorts [percent|SYMBOL]: the most shorted stocks followed, or one stock's short interest."""
-	threshold, ticker = percent_or_ticker(m.group(1), config.prefs.shorts_percent)
-	shorts.run(request.dest, threshold=threshold, specific_stock=ticker)
+	shorts.run(request.dest, threshold=args.percent, specific_stock=ticker(args))
 
-def on_trades(request, m):
+def on_trades(request, args):
 	""".trades [period] [portfolio]: the buys and sells, of the past day by default."""
-	days, portfolio = period_and_portfolio(m.group('args'), 1)
-	trades.run(request.dest, days=days, user=request.user, portfolio_select=portfolio)
+	trades.run(request.dest, days=1 if args.days is None else args.days, user=request.user,
+		portfolio_select=args.rest or None)
 
-def on_holdings(request, m):
+def on_holdings(request, args):
 	""".holdings PORTFOLIO: what it holds."""
-	payload = holdings.prepare_holdings_payload((m.group(1) or '').strip() or None, request.service)
-	request.reply(payload)
+	if not args.words:
+		raise Usage(portfolios())
+	request.reply(holdings.prepare_holdings_payload(args.rest, request.service))
 
-def on_marketcap(request, m):
-	""".marketcap [top|bottom|SYMBOL]: stocks followed by market cap, largest (or smallest) first, or one stock's."""
-	payload = rankings.prepare_marketcap_payload(request.service, m.group(1) or 'top', length=15)
-	request.reply(payload)
+def on_marketcap(request, args):
+	""".marketcap [SYMBOL|top|bottom]: stocks followed by market cap, largest (or smallest) first, or one stock's."""
+	request.reply(rankings.prepare_marketcap_payload(request.service, args.keyword or ticker(args) or 'top', length=15))
 
-def on_ratio(kind, negative=False, chart=False):
-	"""The function that answers .pe, .fpe or .peg: the top (the default) or bottom 15 by the ratio, the negative ones (where
+def on_ratio(kind, chart=True):
+	"""The handler of .pe, .forward pe or .peg: the top (by default) or bottom 15 by the ratio, the negative ones (where
 	there can be any), or one ticker's ratio. `chart`: with its chart."""
-	def handler(request, m):
-		""".pe, .fpe or .peg [top|bottom|negative|SYMBOL]."""
-		arg = (m.group(1) or '').strip()
-		action, ticker = kind, None
-		if arg == 'bottom':
-			action = f'bottom {kind}'
-		elif negative and 'neg' in arg:
-			action = f'negative {kind}'
-		elif arg and arg != 'top':
-			ticker = markets.transform_to_yahoo(arg.upper())
-		payload, spec = rankings.prepare_value_payload(request.service, action, ticker, length=15)
+	def handler(request, args):
+		""".pe, .forward pe or .peg [SYMBOL|top|bottom|negative]."""
+		action = f'{args.keyword} {kind}' if args.keyword in ('bottom', 'negative') else kind
+		payload, spec = rankings.prepare_value_payload(request.service, action, ticker(args), length=15)
 		request.reply(payload, spec if chart else None)
 	return handler
 
-def on_beta(request, m):
+def on_beta(request, args):
 	""".beta: the volatile small caps among the stocks followed."""
 	payload, chart = rankings.prepare_beta_payload(request.service)
 	request.reply(payload, chart)
 
-def on_pie(request, m):
+def on_pie(request, args):
 	""".pie PORTFOLIO [sector]: its value by industry, or by sector."""
-	words = m.group('args').split()
-	by = 'industry'
-	if words and words[-1].lower() in ('sector', 'sectors', 'industry', 'industries'):
-		by = 'sector' if words.pop().lower().startswith('sector') else 'industry'
-	payload, chart = holdings.prepare_pie(' '.join(words), by, request.service)
+	if not args.words:
+		raise Usage(portfolios())
+	payload, chart = holdings.prepare_pie(args.rest, args.keyword or 'industry', request.service)
 	request.reply(payload, chart)
 
-def on_rating(request, m):
-	"""The analysts' strongest buy ratings (.buy), sell ratings (.sell), or both (.buy & sell, a keyboard button), as asked."""
-	for action in dict.fromkeys(word.lower() for word in m.group('first', 'second') if word): # each once, in the order asked
+def on_rating(request, args):
+	""".buy, .sell or both (.buy & sell, a keyboard button): the analysts' strongest buy or sell ratings, as asked."""
+	for action in dict.fromkeys(re.findall('buy|sell', f'{args.word} {args.text}'.lower())): # each once, as asked
 		payload, chart = rankings.prepare_rating_payload(request.service, action, length=15)
 		request.reply(payload, chart)
 
-def on_compare(request, m):
+def on_compare(request, args):
 	""".compare SYMBOL SYMBOL... [period]: their price changes on one chart, with period buttons where they work."""
-	payload, image, tickers, days = history.prepare_compare(request.service, (m.group('args') or '').split())
+	if not 2 <= len(args.words) <= 6:
+		raise Usage
+	tickers = list(dict.fromkeys(yahoo.symbols(args.words))) # each once, in the order asked
+	if len(tickers) < 2:
+		raise Usage
+	payload, chart = history.prepare_compare(request.service, tickers, args.days)
 	markup = None
-	if image and request.dest.takes_buttons:
-		markup = buttons.keyboard('c', tickers, buttons.period_for_days(days) if days else 'x')
-	request.reply(payload, image, markup)
+	if request.dest.takes_buttons:
+		markup = buttons.keyboard('c', tickers, buttons.period_for_days(args.days) if args.days else 'x')
+	request.reply(payload, chart, markup)
 
-def on_history(request, m):
+def on_history(request, args):
 	""".history SYMBOL: the stock's change over every period, with its price chart, and period buttons where they go."""
-	if not m.group('ticker') or m.group('extra'):
-		request.reply(["Usage: .history SYMBOL"])
-		return
-	ticker = markets.transform_to_yahoo(m.group('ticker').upper())
-	caption, image = charts.build('h', [ticker], None, request.service)
-	markup = buttons.keyboard('h', [ticker], 'x') if image and request.dest.takes_buttons else None
-	request.reply(caption.split('\n'), image, markup)
+	if len(args.words) != 1:
+		raise Usage
+	symbol = ticker(args)
+	caption, chart = charts.build('h', [symbol], None, request.service)
+	markup = buttons.keyboard('h', [symbol], 'x') if chart and request.dest.takes_buttons else None
+	request.reply(caption.split('\n'), chart, markup)
 
-def on_plan(request, m):
+def on_plan(request, args):
 	""".plan [text]: record the sender's plan, and list everyone's."""
-	if m.group(1) and not m.group(1).startswith('@'):
+	if args.text and not args.text.startswith('@'):
 		with state.edit('finbot_plan.json', {}) as plans:
-			plans[request.user] = m.group(1)
+			plans[request.user] = args.text
 	plan = state.load('finbot_plan.json', {})
 	if not plan:
 		raise answer.Answer("No plans yet: .plan TEXT records yours")
@@ -322,73 +330,80 @@ def on_plan(request, m):
 	request.reply([f"{request.service.bold(who(k))}: {request.service.italic(request.service.escape(v))}\n"
 		for k, v in plan.items()])
 
-def on_who(request, m):
+def on_who(request, args):
 	""".who SYMBOL: the portfolios that hold it."""
-	if not m.group('ticker'):
-		request.reply([".who: please try again specifying a ticker"])
-		return
-	payload = holdings.prepare_who(request.service, re.split(r'[.:]', m.group('ticker').upper())[0])
-	request.reply(payload)
+	if not args.words:
+		raise Usage
+	request.reply(holdings.prepare_who(request.service, re.split(r'[.:]', args.words[0].upper())[0]))
 
-def on_jobs(request, m):
+def on_jobs(request, args):
 	""".jobs [run NUMBER|COMMAND]: the schedule, or one of its commands run now."""
-	payload, markup = about.prepare_jobs_payload(request.service, m.group('args'))
+	if bool(args.keyword) != bool(args.words): # run without a command, or words without run
+		raise Usage
+	payload, markup = about.prepare_jobs_payload(request.service, args.rest or None)
 	request.reply(payload, buttons=markup)
 
-def on_profile(request, m):
+def on_profile(request, args):
 	""".SYMBOL: the company's profile."""
-	payload = profile.prepare_profile_payload(request.service, request.user, m.group('ticker').upper())
-	request.reply(payload)
+	request.reply(profile.prepare_profile_payload(request.service, request.user, yahoo.symbol(args.word)))
 
-class Command(typing.NamedTuple):
-	"""A chat command: the pattern it answers (after . ! / or the bot's name), the handler that answers it, its .help
-	lines under its section's heading, and the Telegram keyboard buttons that send it."""
-	pattern: str
+@dataclasses.dataclass(frozen=True)
+class Command:
+	"""A chat command: its names (typos too; a name may be two words, as 'forward pe'), the handler that answers it,
+	its .help lines under its section's heading, the Telegram keyboard buttons that send it, and what its arguments may
+	hold besides words (read_args): a percent, a period, its keywords ({spelling: keyword})."""
+	names: tuple
 	handler: typing.Callable
 	usage: tuple = () # its lines in .help; none keeps it out of .help
 	section: str = ''
 	buttons: tuple = ()
+	percent: bool = False
+	period: bool = False
+	keywords: dict = dataclasses.field(default_factory=dict)
 
 SECTIONS = TRACKED, COMPANY, PRICE, RISK, TRADES, JOBS = ('Tracked securities', 'Company info', 'Price', 'Risk & Value',
 	'Trades', 'Scheduled jobs') # the headings of .help, in order
 
-COMMANDS = [ # tried in this order, the first match answers: .SYMBOL takes anything, so it stays last. Within a section,
-	# .help lists the commands in this order. The odd spellings (earrings, prince, hospital...) are kept on purpose.
-	Command(r"(?:help|usage|start)", on_help), # /start is what Telegram sends when a chat opens
-	Command(r"(?:hi$|hello)|^(?:hi|hello)\s+{bot}", on_hello),
-	Command(r"(?:thanks|thank you)|^(?:thanks|thank you)\s+{bot}", on_thanks),
-	Command(r"holdings?\s*([\w\s]+)*", on_holdings, ('.holdings',), TRACKED),
-	Command(r"pie(?:$|\s+)(?P<args>[\w\s\-\.&]*)", on_pie, ('.pie PORTFOLIO [sector]',), TRACKED),
-	Command(r"(?:watchlist|wishlist)\s*(?P<action>[\w]+)*\s*(?P<ticker>[\w\.\:\-\^\=]+)*", on_watchlist,
-		('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',)),
-	Command(r"(?:who)\s*(?P<ticker>[\w\.\:\-\^]+)*", on_who, ('.who SYMBOL',), TRACKED),
-	Command(r"(?P<kind>earnings?|earrings?|dividends?)\s*(?P<arg>[\w\.\:\-]+)*", on_calendar,
-		('.dividend [period|SYMBOL]', '.earnings [period|SYMBOL]'), COMPANY, ('.dividend', '.earnings')),
-	Command(r"(?:marketcap|maletas|marketer)\s*([\w\.\:\-]+)*", on_marketcap, ('.marketcap [SYMBOL|bottom|top]',),
-		COMPANY, ('.marketcap',)),
-	Command(r"beta\s*([\w\.\:\-]+)*", on_beta, ('.beta',), PRICE, ('.beta',)),
-	Command(r"compare(?:\s+(?P<args>[\w\.\:\-\^\=\s]+))?", on_compare, ('.compare SYMBOL SYMBOL [...] [period|max]',),
-		PRICE),
-	Command(r"(?:history|hospital|visual|hosiery)\s*(?P<ticker>[\w\.\:\-]+)?\s*(?P<extra>[\w\%]+)*", on_history,
-		('.history SYMBOL',), PRICE),
-	Command(r"performance?\s*(?P<args>[\w\s]*)", on_performance, ('.performance [period] [portfolio]',), PRICE,
-		('.performance',)),
-	Command(r"(?:prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=\-\^]+)*\s*([\w\%]+)*", on_price,
-		('.price [percent|SYMBOL] [period]',), PRICE, ('.price',)),
-	Command(r"(?P<kind>session|premarket|postmarket|permarket)\s*(?P<arg>[\w\.\:\-]+)*", on_session,
-		('.session [percent|SYMBOL]', '.premarket [percent|SYMBOL]'), PRICE, ('.session', '.premarket')),
-	Command(r"(?P<first>buy|sell)(?:\s*(?:&|and|/|\+)?\s*(?P<second>buy|sell))?", on_rating, ('.buy', '.sell'), RISK,
-		('.buy & sell',)), # .buy & sell (or .buy sell): both reports
-	Command(r"pe(?:$|\s+)([\w\.\:\-\s]+)*", on_ratio('pe'), ('.pe [SYMBOL|top|bottom]',), RISK, ('.pe',)),
-	Command(r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*", on_ratio('forward pe', negative=True, chart=True),
-		('.forwardpe [SYMBOL|top|bottom|negative]',), RISK, ('.forward pe',)),
-	Command(r"peg\s*([\w\.\:\-\s]+)*", on_ratio('peg', negative=True, chart=True),
-		('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',)),
-	Command(r"shorts?\s*([\w\.\:\-]+)*", on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',)),
-	Command(r"trades?\s*(?P<args>[\w\s]*)", on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',)),
-	Command(r"plan\s*(.*)", on_plan),
-	Command(r"(?:jobs|crons?|schedule)(?:\s+(?P<args>.*?))?\s*$", on_jobs, ('.jobs [run NUMBER|COMMAND]',), JOBS),
-	Command(r"(?P<ticker>[\w\.\:\-]+)", on_profile, ('.SYMBOL',), COMPANY), # a company profile
+TOP = {'top': 'top', 'bottom': 'bottom'} # the ends of a ranked list
+NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # the ratios that can be negative
+CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'delete') # of the watchlist
+BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .pie's
+BUY_SELL = ('buy', 'sell', *(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')))
+PROFILE = Command((), on_profile, ('.SYMBOL',), COMPANY) # any other first word that may be a ticker
+
+COMMANDS = [ # .help lists a section's commands in this order. The odd spellings (earrings, prince, hospital...) are
+	# kept on purpose.
+	Command(('help', 'usage', 'start'), on_help), # /start is what Telegram sends when a chat opens
+	Command(('holdings', 'holding'), on_holdings, ('.holdings PORTFOLIO',), TRACKED),
+	Command(('pie',), on_pie, ('.pie PORTFOLIO [sector]',), TRACKED, keywords=BY),
+	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
+		keywords=CHANGE),
+	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),
+	Command(('earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend'), on_calendar,
+		('.dividend [period|SYMBOL]', '.earnings [period|SYMBOL]'), COMPANY, ('.dividend', '.earnings'), period=True),
+	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
+		('.marketcap',), keywords=TOP),
+	Command(('beta',), on_beta, ('.beta',), PRICE, ('.beta',)),
+	Command(('compare',), on_compare, ('.compare SYMBOL SYMBOL [... up to 6] [period]',), PRICE, period=True,
+		keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
+	Command(('history', 'hospital', 'visual', 'hosiery'), on_history, ('.history SYMBOL',), PRICE),
+	Command(('performance', 'performanc'), on_performance, ('.performance [period] [portfolio]',), PRICE,
+		('.performance',), period=True),
+	Command(('price', 'prices', 'prince', 'print', 'probe', 'piece', 'pierce', 'pence', 'prime'), on_price,
+		('.price [percent|SYMBOL|top|bottom] [period]',), PRICE, ('.price',), percent=True, period=True, keywords=TOP),
+	Command(('session', 'premarket', 'postmarket', 'permarket'), on_session,
+		('.session [percent|SYMBOL]', '.premarket [percent|SYMBOL]'), PRICE, ('.session', '.premarket'), percent=True),
+	Command(BUY_SELL, on_rating, ('.buy', '.sell'), RISK, ('.buy & sell',)), # .buy & sell (or .buy sell): both
+	Command(('pe',), on_ratio('pe', chart=False), ('.pe [SYMBOL|top|bottom]',), RISK, ('.pe',), keywords=TOP),
+	Command(('forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'), ('.forward pe [SYMBOL|top|bottom|negative]',),
+		RISK, ('.forward pe',), keywords=NEGATIVE),
+	Command(('peg',), on_ratio('peg'), ('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',), keywords=NEGATIVE),
+	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True),
+	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True),
+	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES),
+	Command(('jobs', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [run NUMBER|COMMAND]',), JOBS,
+		keywords={'run': 'run'}),
+	PROFILE,
 ]
 
 def help_sections():

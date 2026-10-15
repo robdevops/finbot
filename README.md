@@ -58,13 +58,13 @@ Where:
 * _percent_ is a number, optionally followed by '%'
 * _period_ is a number followed by 'd', 'w', 'm' or 'y', or 'ytd'
 * _portfolio_ is a Sharesight portfolio name
-* _symbol_ is a Yahoo Finance symbol
+* _symbol_ is a Yahoo Finance symbol; a bare one Yahoo does not know is tried again on your exchange (`exchange_suffix`: `BHP` may be `BHP.AX`)
 ```
 .symbol
 .beta
 .buy
 .sell
-.compare symbol symbol [symbol...] [period|max]
+.compare symbol symbol [symbol...] [period]
 .dividend [period|symbol]
 .earnings [period|symbol]
 .forward pe [symbol|top|bottom|negative]
@@ -86,7 +86,7 @@ Where:
 .who symbol
 ```
 
-`!` or `/` work in place of the dot, and so does the bot's name: `@botname price 7d`, `@botname AAPL`. `.help` lists the commands in chat.
+`!` or `/` work in place of the dot, and so does the bot's name: `@botname price 7d`, `@botname AAPL`. A command is its whole name, in any case, and so are its keywords (`.price TOP`); any other first word is a symbol. `.help` lists the commands in chat.
 
 Trade notifications are peformed by polling the Sharesight trades API on a schedule (see [Scheduling](#scheduling)), and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 
@@ -502,14 +502,14 @@ The preferences, read by the bot itself. A change takes effect on a reload. A tr
 | `include_portfolios` | | Sharesight portfolio IDs to report on, space separated (empty: all that are not excluded) |
 | `trades_use_yahoo` | `True` | Use Yahoo for trades; set `False` if Yahoo breaks |
 | `performance_use_sharesight` | `False` | Use Sharesight rather than Yahoo for performance over a period |
-| `alliterate` | `False` | Greeting uses alliterating adjectives (easter egg) |
 | `graph` | `True` | Send charts with reports |
 | `hyperlink` | `True` | Hyperlink tickers in reports |
 | `hyperlinkFooter` | `True` | Add a website link footer to stock lookups |
 | `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` |
 | `chunk_maxlines` | `20` | Maximum lines per message before a report is split |
-| `country_code` | `AU` | Country, used by the reminder report |
-| `timezone` | `Australia/Melbourne` | Time zone, used by the reminder report |
+| `exchange_suffix` | `AX` | Regional: Yahoo's suffix for your exchange (`AX` for the ASX, `NZ`, `L`, `TO` and so on). A bare symbol Yahoo does not know is tried again with it, in every command that takes a symbol (`BHP` becomes `BHP.AX`); empty, a symbol is taken as written |
+| `country_code` | `AU` | Regional: your country, for the reminder report |
+| `timezone` | `Australia/Melbourne` | Regional: your time zone, for the reminder report |
 | `cache` | `True` | Cache Yahoo and Sharesight responses |
 | `cache_seconds` | `43200` | Cache lifetime in seconds (12 hours) |
 | `performance_cache_seconds` | `1800` | Cache lifetime of Sharesight performance reports in seconds |
@@ -517,7 +517,7 @@ The preferences, read by the bot itself. A change takes effect on a reload. A tr
 | `debug` | `False` | Extra diagnostics in the log |
 | `print_headers` | `False` | Log inbound request headers |
 
-A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied.
+A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied. A key finbot no longer reads (`alliterate`) is ignored, and the log at start says to delete it.
 
 edit `preferences.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
 

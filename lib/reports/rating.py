@@ -2,29 +2,27 @@
 from lib import delivery
 from lib import state
 from lib import links
-from lib import markets
 from lib import watchlist
 from lib import yahoo
 
 STATE_FILE = 'finbot_rating.json' # {ticker: [action, index]} as last seen
 
-def run(dest=None, *, specific_stock=None):
+def run(dest=None):
 	"""Post the analysts' consensus ratings that changed since the last scheduled run, which records the ratings it saw:
 	to the chat that asked (dest), else to the default chats."""
 	interactive = dest is not None
-	tickers = [markets.transform_to_yahoo(specific_stock)] if specific_stock else watchlist.with_holdings()
-	changes, seen = gather(tickers, specific_stock)
+	changes, seen = gather(watchlist.with_holdings())
 	for chat in delivery.targets(dest):
-		delivery.deliver(chat, delivery.Report(report(chat.dialect, changes, tickers, specific_stock, interactive)))
+		delivery.deliver(chat, delivery.Report(report(chat.dialect, changes, interactive)))
 	if seen and not interactive: # added to what is recorded: a ticker missing from this run keeps its last rating
 		with state.edit(STATE_FILE, {}) as ratings:
 			ratings.update(seen)
 
-def gather(tickers, specific_stock):
+def gather(tickers):
 	"""(the ratings that changed since the last scheduled run, [(ticker, its details, old [action, index], new [action,
 	index], analysts)]; {ticker: [action, index]} of every rating seen)."""
 	old = state.load(STATE_FILE, {})
-	market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
+	market_data = yahoo.fetch_details(tickers)
 	changes, seen = [], {}
 	for ticker in tickers:
 		try:
@@ -42,7 +40,7 @@ def gather(tickers, specific_stock):
 			changes.append((ticker, market_data[ticker], (old_action, old_index), (action, index), analysts))
 	return changes, seen
 
-def report(service, changes, tickers, specific_stock, interactive):
+def report(service, changes, interactive):
 	"""The rating changes in one network's markup, sorted: 📈 when the consensus improved (its index fell: 1 is a strong
 	buy), 📉 when it worsened."""
 	payload = []
@@ -54,10 +52,9 @@ def report(service, changes, tickers, specific_stock, interactive):
 		payload.append(f"{emoji} {data['profile_title']} ({ticker_link}) changed from {message}")
 	payload.sort()
 	if payload:
-		if not specific_stock:
-			payload.insert(0, service.bold('Consensus rating changes:'))
+		payload.insert(0, service.bold('Consensus rating changes:'))
 	elif interactive:
-		payload = [f"No rating changes found for {tickers[0]}" if specific_stock else "No rating changes found"]
+		payload = ["No rating changes found"]
 	return payload
 
 def job(argv):

@@ -35,9 +35,12 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   reload and SIGUSR1 cache flush, each in a thread. `lib/inbound.py`: a class per network that posts to the bot
   (`Telegram`, `Slack`): its path, how it proves itself, and its updates as `Message`, `Press` or a `Response` given
   straight back.
-- `lib/worker.py`: `COMMANDS`, a table of `Command(pattern, handler, usage, section, buttons)` (first match wins,
-  `.SYMBOL` last), which also makes `.help` and the Telegram command keyboard, kept current in DMs; `Request`
-  (`request.reply(lines, chart, buttons)`); each command gets the typing notice while it works.
+- `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
+  keywords)`, which also makes `.help` and the Telegram command keyboard, kept current in DMs. `read()` finds the
+  command by its whole name (any other first word that may be a ticker is `.SYMBOL`) and `read_args()` its `Args`: a
+  percent, a period and a keyword from either end, the words between; a handler raises `Usage` for arguments it cannot
+  take, and gets a ticker with `ticker(args)`. `Request` (`request.reply(lines, chart, buttons)`); each command gets
+  the typing notice while it works.
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
   or else the default chats, and `job(argv)`, its schedule-line parser): `price performance trades shorts cal rating
   milestone reminder podcasts cleanup`; the top-level `price.py` and the rest are shims that run them. Chat-only
@@ -55,7 +58,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `Chart` specs and `draw()`.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources. Yahoo's and Sharesight's answers
   are cached in `DATA_DIR/cache` as sent, not parsed, so a parser fix needs no flush (`yahoo._cached`).
-  `sharesight.portfolios(name=None)` gives `Portfolio` objects: `holdings()`, `tickers()`, `performance(days)`,
+  `yahoo.symbol(typed)` is Yahoo's symbol for a ticker as written, tried on the local exchange (`exchange_suffix`)
+  when Yahoo does not know it bare: every ticker a chat gives goes through it. `sharesight.portfolios(name=None)` gives `Portfolio` objects: `holdings()`, `tickers()`, `performance(days)`,
   `trades(days)`.
 - `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save. `lib/watchlist.py`: the watchlist.
@@ -86,8 +90,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's).
 - A chart renderer in `lib/render.py` gets `@_drawn` (the bot draws in one native thread); it must not call another `@_drawn`
   function, or that thread waits on itself.
-- A new command: a `Command` in `COMMANDS`, whose usage, section and buttons make its `.help` lines and keyboard
-  buttons, and the README command list.
+- A new command: a `Command` in `COMMANDS` (its names, and what its arguments may hold), whose usage, section and
+  buttons make its `.help` lines and keyboard buttons, and the README command list.
 
 ## Saving tokens
 - Run the tests quietly: `.venv/bin/python -m unittest discover -s tests -b` prints only failures (about 0.4 KB when green). One
