@@ -591,13 +591,13 @@ class ManualRuns(SchedulerBase):
 		markup = about.prepare_jobs_payload(TELEGRAM, '', tappable=True)[1]
 		data = next(b.data for row in markup for b in row if b.label.startswith('7.'))
 		self.sent.clear()
-		worker.process_callback(inbound.Press('telegram', 'cb1', '55', '9', data))
+		self.press_button(data)
 		self.assertEqual(self.ran, [('price', {'mode': 'close'})])
 		self.assertEqual(self.sent, [('text', ['7. price close: done'])])
-		self.assertEqual(sent, ['Running price close…'])
+		self.assertEqual(sent, ['Running…']) # one acknowledgement, from the data alone: the worker sends none
 
 	def stale_buttons(self):
-		"""Capture the toast and the in-place edit that a refused button press produces."""
+		"""Capture the toasts and the in-place edits that refused button presses produce."""
 		self.toasts, self.edits = [], []
 		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: self.toasts.append(text))
 		self.patch(transports.TelegramBot, 'edit_text', lambda dest, mid, text, buttons=None:
@@ -614,9 +614,9 @@ class ManualRuns(SchedulerBase):
 					 'j|8|' + good.upper() + 'x', 'j|99999999999999999999|' + good):
 			self.sent.clear()
 			self.toasts.clear(); self.edits.clear()
-			worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', data))
+			self.press_button(data)
 			self.assertEqual(self.ran, [], data)
-			self.assertEqual(self.toasts, ['Buttons updated, try again'], data)
+			self.assertEqual(self.toasts, ['Running…'], data) # from the data alone, as the press arrived
 			self.assertEqual(len(self.edits), 1, data)
 			self.assertEqual(self.sent, [], data) # no new message, the old one is edited
 		# cleanup and podcasts are scheduled but cannot be picked, by number or by their checksum
@@ -628,13 +628,14 @@ class ManualRuns(SchedulerBase):
 		self.assertEqual(self.ran, [('trades', {})])
 
 	def test_button_from_an_old_schedule_updates_the_message(self):
-		"""A stale button runs nothing; the message gets the current list and buttons (scheduler off: a notice)."""
+		"""A stale button runs nothing; the message gets the current list and buttons (scheduler off: a notice), which
+		says it all: the toast is the one any job button gets as it arrives, with no second one from the worker."""
 		self.stale_buttons()
-		worker.process_callback(inbound.Press('telegram', 'cb1', '55', '9', 'j|7|0000'))
-		worker.process_callback(inbound.Press('telegram', 'cb1', '55', '9', 'j|9|0000'))
+		self.press_button('j|7|0000')
+		self.press_button('j|9|0000')
 		self.assertEqual(self.ran, [])
 		self.assertEqual(self.sent, [])
-		self.assertEqual(self.toasts, ['Buttons updated, try again'] * 2)
+		self.assertEqual(self.toasts, ['Running…'] * 2)
 		chat, mid, text, markup = self.edits[0]
 		self.assertEqual((chat, mid), ('55', '9')) # the message with the old buttons is edited in place
 		self.assertIn('7. price close', text)

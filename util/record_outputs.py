@@ -23,7 +23,8 @@ COMMANDS = ['.help', '/start', '.hello', '.thanks', '.who T1', '.plan buy low', 
 	'.performance 7d', '.performance 1y', '.performance Nope', '.pie Rob', '.pie Rob sector', '.pie', '.compare T1 T2',
 	'.compare T1 T2 3m', '.compare T1', '.history T1', '.history', '.watchlist', '.watchlist add MSFT',
 	'.watchlist add MSFT', '.watchlist del MSFT', '.watchlist frob X', '.T1', '.jobs', 'hi @bot', 'noise']
-BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1']
+BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1',
+	'j|1|0000']
 SCHEDULED = ['trades.py', 'price.py midsession', 'price.py interday', 'price.py premarket', 'price.py close',
 	'price.py 7', 'cal.py earnings', 'cal.py ex-dividend', 'performance.py 7', 'rating.py', 'shorts.py', 'milestone.py',
 	'reminder.py']
@@ -61,6 +62,19 @@ def record(output):
 		if len(inspect.signature(func).parameters) > 1:
 			return lambda: func(*fields)
 		return lambda: func(getattr(common.inbound, kind)(*fields))
+
+	def pressing(service, *fields):
+		"""A step that presses a button: acknowledged first where the tree's bot.take does that (Network.acknowledge),
+		then handed to the worker as handing() does."""
+		run = handing(worker.process_callback, 'Press', service, *fields)
+		network = getattr(getattr(common, 'inbound', None), service.upper(), None)
+		if not hasattr(network, 'acknowledge'):
+			return run
+		def press():
+			"""Acknowledge the press, then hand it to the worker."""
+			network.acknowledge(common.inbound.Press(service, *fields))
+			run()
+		return press
 
 	class Record(common.FinbotCase):
 		"""The steps, as one test, so that FinbotCase's fixtures (and their cleanup) apply."""
@@ -107,7 +121,7 @@ def record(output):
 			for service, chat, message in (('telegram', '55', '9'), ('slack', 'C1', '1.5')):
 				for data in BUTTONS:
 					label = f'button {data}' if service == 'telegram' else f'{service} button {data}'
-					step(label, handing(worker.process_callback, 'Press', service, 'cb', chat, message, data))
+					step(label, pressing(service, 'cb', chat, message, data))
 			self.env(webhooks=WEBHOOKS, telegramChatID='1')
 			for where in ('', ' (slackChannelID)'): # Slack's incoming webhook, then the channel as the bot
 				if where:

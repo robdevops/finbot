@@ -4,7 +4,7 @@
   3. one golden image per chart type, compared with a tolerance. Refresh after an intended restyle with:
 		 UPDATE_GOLDEN=1 python -m unittest tests.test_charts
 """
-import datetime, os, threading, time, unittest
+import datetime, os, threading, unittest
 from unittest import mock
 import numpy as np
 import pandas as pd

@@ -2,7 +2,7 @@
 (Telegram, Slack), and a class per way of arriving takes them in (a webhook: the path the network posts to, how it
 proves itself, the body), so that another way (a pull mode) can hand its updates to the same reader. An update becomes
 a Message to answer, a Press of a button, or a Response the network gets straight back (a challenge, or nothing to
-do)."""
+do). The reader also acknowledges a press where the network waits for that (Telegram), however it arrived."""
 import dataclasses
 import hashlib
 import hmac
@@ -13,7 +13,9 @@ import sys
 import time
 from urllib.parse import parse_qs, urlparse
 
+from lib import buttons
 from lib import config
+from lib import telegram
 
 
 @dataclasses.dataclass
@@ -76,6 +78,10 @@ class Network:
 		"""What the update (a dict) says: a Message, a Press, or a Response to give straight back."""
 		raise NotImplementedError
 
+	def acknowledge(self, press):
+		"""Tell the network a press was taken, where it waits for a call to say so. Here nothing: taking the update is
+		the acknowledgement (Slack's is the 200, or the socket's ack)."""
+
 
 class Telegram(Network):
 	"""Telegram's updates: messages and button presses."""
@@ -121,6 +127,11 @@ class Telegram(Network):
 			print("[telegram]: unhandled: 'message' without 'text/photo'", file=sys.stderr)
 			return UNHANDLED
 		return Message(self.service, chat_id, user, text, self.bot_name, user_name, str(message.get('message_id', '')))
+
+	def acknowledge(self, press):
+		"""answerCallbackQuery: the client's spinner stops, and a toast made from the button's data says what is coming
+		(buttons.toast: 'Loading 1Y…'). A failure is only logged."""
+		telegram.answerCallbackQuery(press.press_id, buttons.toast(press.data))
 
 
 class Slack(Network):

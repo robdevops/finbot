@@ -146,7 +146,6 @@ class BadArguments(FinbotCase):
 		self.assertEqual(self.command('.compare T1 T2'), [('text', ['no price history for T1'])])
 		self.assertEqual(self.command('.history T1'), [('text', ['no price history for T1'])])
 		self.sent.clear()
-		self.patch(telegram, 'answerCallbackQuery', lambda *a, **k: None)
 		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', 'c|h|m|T1'))
 		self.assertEqual((self.sent, self.errors), ([('text', ['no price history for T1'])], []))
 

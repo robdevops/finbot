@@ -43,7 +43,7 @@ class Request:
 
 def process_job_callback(press, pressed):
 	"""A command button of .jobs (an inbound.Press; pressed, what its data says): run that command now and answer in
-	the chat."""
+	the chat. A button from an older list runs nothing: the list is redrawn in place as it is now."""
 	service = dialects.of(press.service)
 	chat = delivery.reply_to(service, press.chat_id)
 	try:
@@ -51,11 +51,9 @@ def process_job_callback(press, pressed):
 			raise jobs.ScheduleError('the scheduler is off')
 		command = jobs.current.pick(pressed.number, pressed.checksum) # only a command .jobs offers; anything else fails
 	except jobs.ScheduleError:
-		chat.acknowledge(press.press_id, 'Buttons updated, try again')
 		payload, markup = about.prepare_jobs_payload(service, '', chat.takes_buttons) # the list now, for the stale one
 		chat.edit_text(press.message_id, '\n'.join(payload), markup or [])
 		return
-	chat.acknowledge(press.press_id, f'Running {jobs.display(command[0])}…'[:100])
 	try:
 		line = about.job_line(jobs.current, *jobs.current.run_command(command))
 		delivery.deliver(chat, delivery.Report([line]))
@@ -63,17 +61,15 @@ def process_job_callback(press, pressed):
 		delivery.report_error(e, chat, context='jobs')
 
 def process_callback(press):
-	"""A button pressed (an inbound.Press): run a scheduled command from .jobs, or rebuild a chart message for the
-	chosen period and edit it in place."""
+	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): run a scheduled command from
+	.jobs, or rebuild a chart message for the chosen period and edit it in place. Data of neither is ignored."""
 	pressed = buttons.parse(press.data)
 	if isinstance(pressed, buttons.JobPress):
 		return process_job_callback(press, pressed)
-	service = dialects.of(press.service)
-	chat = delivery.reply_to(service, press.chat_id)
-	# answering now shows Telegram's toast bubble ("Loading 1Y…") while the new chart is built
-	chat.acknowledge(press.press_id, f"Loading {buttons.PERIODS[pressed.period][0]}…" if pressed else None)
 	if not pressed:
 		return
+	service = dialects.of(press.service)
+	chat = delivery.reply_to(service, press.chat_id)
 	try:
 		args = buttons.resolve(pressed.ref)
 		markup = buttons.keyboard(pressed.kind, args, pressed.period)

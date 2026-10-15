@@ -109,13 +109,16 @@ def handle(environ, start_response):
 
 def take(network, update):
 	"""An update from a network (an inbound.Network reads it), however it arrived: what it says goes to lib/worker in a
-	thread of its own (dispatch), unless it is a repeat. Returns the inbound.Response for the network."""
+	thread of its own (dispatch), unless it is a repeat; a button press is acknowledged first, the one place that does.
+	Returns the inbound.Response for the network."""
 	event = network.parse(update)
 	if isinstance(event, inbound.Response):
 		return event
 	if seen_before(network.service, network.update_id(update)):
 		print(f"[{network.service}]: update {network.update_id(update)} seen already, not run again", file=sys.stderr)
 		return inbound.OK
+	if isinstance(event, inbound.Press):
+		network.acknowledge(event) # Telegram's toast ("Loading 1Y…") shows while the worker builds the answer
 	dispatch(event)
 	return inbound.OK
 

@@ -166,6 +166,24 @@ class WsgiRejections(FinbotCase):
 				bot.main(wsgi_environ('/telegram', body, **secret), lambda *a, **k: None)
 			self.assertIn(f'[Telegram button]: {who} chat 55 j|7|abcd', err.getvalue())
 
+	def test_a_press_is_acknowledged_once_before_the_worker_gets_it(self):
+		"""bot.take acknowledges a press, the one place that does: Telegram's with the toast its data makes, before the
+		worker has it; a resent copy is neither acknowledged nor run again. Slack's needs no call: the answer to the
+		update is the acknowledgement."""
+		order = []
+		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: order.append(('acknowledged', cid, text)))
+		self.patch(worker, 'process_callback', lambda press: order.append(('worker', press.service, press.data)))
+		update = {'update_id': 71, 'callback_query': {'id': 'q1', 'from': {'username': 'u'}, 'data': 'c|h|y|T1',
+			'message': {'message_id': 9, 'chat': {'id': 55}}}}
+		with contextlib.redirect_stderr(io.StringIO()):
+			for _ in range(2):
+				self.assertEqual(bot.take(inbound.TELEGRAM, update), inbound.OK)
+				self.join_workers()
+			self.assertEqual(bot.take(inbound.SLACK, PRESS), inbound.OK)
+		self.join_workers()
+		self.assertEqual(order, [('acknowledged', 'q1', 'Loading 1Y…'), ('worker', 'telegram', 'c|h|y|T1'),
+			('worker', 'slack', 'c|h|w|T1')])
+
 
 class SlackEvents(FinbotCase):
 	"""Slack sends every message in a subscribed channel, the bot's own posts included."""

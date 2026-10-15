@@ -96,6 +96,13 @@ class FinbotCase(unittest.TestCase):
 		for thread in self.workers:
 			thread.join(10)
 
+	def press_button(self, data, chat_id=55, message_id=9):
+		"""Press a button under one of the bot's Telegram messages, as the update arrives: bot.take acknowledges it
+		(answerCallbackQuery) and hands it to the worker, whose thread this waits for."""
+		bot.take(inbound.TELEGRAM, {'callback_query': {'id': 'cb', 'from': {'username': 'u'}, 'data': data,
+			'message': {'message_id': message_id, 'chat': {'id': chat_id}}}})
+		self.join_workers()
+
 	def env(self, **changes):
 		"""Startup settings for this test: config.env with these fields changed."""
 		self.patch(config, 'env', dataclasses.replace(config.env, **changes))

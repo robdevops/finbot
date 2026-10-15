@@ -120,6 +120,17 @@ class Formatting(unittest.TestCase):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
 
+	def test_a_press_is_told_what_is_coming_from_its_data_alone(self):
+		"""The toast a press gets as it arrives: the period a period button loads, 'Running…' for any .jobs button
+		(the worker checks it later), and none for data of neither."""
+		self.assertEqual([buttons.toast(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
+			['Loading 1D…', 'Loading 7D…', 'Loading 1M…', 'Loading 1Y…', 'Loading Max…'])
+		self.assertEqual(buttons.toast(buttons.job_button(8, 'trades', 'abcd').data), 'Running…')
+		self.assertEqual(buttons.toast('j|99|0000'), 'Running…')
+		for data in ('c|f|d|', 'c|zz|m|T1', '', 'x'):
+			with self.subTest(data=data):
+				self.assertIsNone(buttons.toast(data))
+
 	def test_strip_url(self):
 		"""A link's text is its address without the scheme or www."""
 		for url, text in (('https://www.apple.com', 'apple.com'), ('http://example.org/a?b', 'example.org/a?b'),

@@ -39,9 +39,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `bot.py`: WSGI entry (route, verify, parse, then a thread of `lib/worker.py` per message or button press), served by
   waitress only when some network's webhook is set; plain threads, no gevent; SIGHUP reload and SIGUSR1 cache flush,
   each in a thread. `lib/inbound.py`: a class per network that reads its updates
-  (`Telegram`, `Slack`: a `Message`, a `Press`, or a `Response` given straight back), apart from a class per way they
-  arrive (`TelegramWebhook`, `SlackWebhook`: the path, how it proves itself); `bot.take(network, update)` takes an
-  update however it arrived.
+  (`Telegram`, `Slack`: a `Message`, a `Press`, or a `Response` given straight back) and acknowledges a press where
+  the network waits for that (`acknowledge`: Telegram's toast), apart from a class per way they arrive
+  (`TelegramWebhook`, `SlackWebhook`: the path, how it proves itself); `bot.take(network, update)` takes an update
+  however it arrived, and is the one place a press is acknowledged (the worker never does).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
   keywords)`, which also makes `.help` and the Telegram command keyboard, kept current in DMs. `read()` finds the
   command by its whole name (any other first word that may be a ticker is `.SYMBOL`) and `read_args()` its `Args`: a
@@ -58,8 +59,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `SlackBot`, `SlackWebhook`, `DiscordWebhook`): splitting, captions, charts, buttons, edits, and the typing notice
   (`start_typing`: after half a second; Slack's ⏳ on the message), which `text()` and `chart()` stop before posting.
   `lib/telegram.py`: Bot API calls (`call`, `try_call`).
-- `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), a `.jobs` command's (`job_button`), and what a
-  pressed button's data asks for (`parse`); each transport draws them. `lib/charts.py`: a chart with period buttons,
+- `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), a `.jobs` command's (`job_button`), what a
+  pressed button's data asks for (`parse`), and the toast it gets at once (`toast`); each transport draws them. `lib/charts.py`: a chart with period buttons,
   built by its kind's builder (`build`) for the command's first view (`worker.chart_reply`) and for each press.
 - `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: one table by market code (flag,
   currency, Yahoo suffix, Google code; Sharesight's codes, so TSE is Toronto), and `code(name)` for any name an exchange

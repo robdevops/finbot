@@ -1,6 +1,6 @@
-"""Buttons under a message, and what their data says when one is pressed (parse): a chart's period buttons (1D | 7D |
-1M | 1Y | Max), whose data carries what its builder needs (charts.BUILDERS), and a .jobs command's button. Each
-transport draws Button rows its own way."""
+"""Buttons under a message, what their data says when one is pressed (parse), and what a press is told at once
+(toast): a chart's period buttons (1D | 7D | 1M | 1Y | Max), whose data carries what its builder needs
+(charts.BUILDERS), and a .jobs command's button. Each transport draws Button rows its own way."""
 import hashlib
 import typing
 
@@ -87,3 +87,11 @@ def parse(data):
 	if kind == 'c' and len(parts) == 3 and parts[0] in BUTTONS and parts[1] in BUTTONS[parts[0]]:
 		return ChartPress(*parts)
 	return None
+
+def toast(data):
+	"""What a press is told at once, from the button's data alone (the network acknowledges a press before finbot
+	knows more): 'Loading 1Y…' for a period button, 'Running…' for a .jobs command's, None for data of neither."""
+	pressed = parse(data)
+	if isinstance(pressed, JobPress):
+		return 'Running…'
+	return f"Loading {PERIODS[pressed.period][0]}…" if pressed else None

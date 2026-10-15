@@ -117,9 +117,6 @@ class Transport:
 	def typing_done(self):
 		"""Take the typing notice off, where it lasts until taken off (Slack's ⏳)."""
 
-	def acknowledge(self, press, text=None):
-		"""Answer a button press, where the network waits for that (Telegram, with `text` as a toast)."""
-
 	def reshow(self, message, buttons):
 		"""Show a chart message's period (the button marked) again as it was posted lately, where the network keeps
 		that: True when it did. Here never: each period is drawn and sent anew."""
@@ -224,10 +221,6 @@ class TelegramBot(Transport):
 	def typing(self):
 		"""sendChatAction: "typing…" for a few seconds."""
 		telegram.try_call('sendChatAction', data={'chat_id': self.where, 'action': 'typing'})
-
-	def acknowledge(self, press, text=None):
-		"""answerCallbackQuery: the client's spinner stops, and `text` shows as a toast."""
-		telegram.answerCallbackQuery(press, text)
 
 	def pin(self, answers):
 		"""Pin the messages that these answers are (Telegram's), last first, so that the first ends up on top, without
