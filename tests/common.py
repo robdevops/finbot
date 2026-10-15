@@ -25,10 +25,15 @@ REAL_GET_HOLDINGS = watchlist.with_holdings
 REAL_DISPATCH = bot.dispatch # FinbotCase notes the worker thread of each update, so that a test can wait for it
 
 
+def no_jobs(data):
+	"""An empty schedule in a data dir, so that a bot started there runs no scheduled report."""
+	Path(data, 'schedule.cron').write_text('# no jobs: a test bot runs none\n')
+
+
 def bare_environment():
-	"""os.environ without finbot's settings (the startup keys, the preferences, the flag that hands a job its
-	preferences): for a process that must start from the defaults."""
-	settings = {*config.STARTUP_KEYS, *config.PREFERENCE_KEYS, config.PASSED}
+	"""os.environ without finbot's settings (the startup keys and the preferences): for a process that must start from
+	the defaults."""
+	settings = {*config.STARTUP_KEYS, *config.PREFERENCE_KEYS}
 	return {k: v for k, v in os.environ.items() if k not in settings}
 
 

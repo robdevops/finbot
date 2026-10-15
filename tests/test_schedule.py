@@ -1,5 +1,5 @@
 """The schedule file (lib/jobs.py): its lines parsed, each script's job(argv), and a schedule the bot refuses."""
-import hashlib, io, os, subprocess, sys, tempfile, unittest
+import hashlib, os, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
 from tests.common import *
@@ -146,31 +146,10 @@ class JobArguments(unittest.TestCase):
 			if name not in ('cal', 'cleanup', 'performance', 'podcasts', 'price'):
 				self.assertEqual(module.job([]), (name + '.py', {}))
 
-	def test_cli_prints_usage_and_exits(self):
-		"""A bad argument on the command line prints the usage and exits 1."""
-		with mock.patch('sys.stderr', new_callable=io.StringIO) as err, self.assertRaises(SystemExit) as exit_:
-			delivery.cli('price.py', price.job, lambda **k: None, ['bogus'])
-		self.assertEqual(exit_.exception.code, 1)
-		self.assertIn('Usage: price.py [midsession', err.getvalue())
-
-	def test_cli_runs_the_handler(self):
-		"""Good arguments run the report with what job() made of them."""
-		calls = []
-		delivery.cli('price.py', price.job, lambda **k: calls.append(k), ['midsession'])
-		self.assertEqual(calls, [{'mode': 'midsession'}])
-
-	def test_each_scheduled_report_runs_from_its_top_level_script(self):
-		"""./price.py and the rest run lib/reports/<name>.py, so cron lines and runs by hand keep working."""
-		self.assertEqual(sorted(path.stem for path in Path(ROOT).glob('*.py') if path.stem not in ('bot',
-			'bot_send_stdin')),
-						 sorted(jobs.SCRIPTS))
-		with tempfile.TemporaryDirectory() as data:
-			run = lambda *args: subprocess.run([sys.executable, *args], cwd=ROOT, capture_output=True, text=True,
-				timeout=60, env={**os.environ, 'DATA_DIR': data})
-			self.assertEqual(run('cleanup.py', '0').returncode, 0)
-			bad = run('price.py', 'bogus')
-			self.assertEqual(bad.returncode, 1)
-			self.assertIn('Usage: price.py [midsession', bad.stderr)
+	def test_the_checkout_holds_only_the_bot_at_its_top(self):
+		"""The scheduled reports run in the bot (and `.jobs run`), so the checkout's top holds bot.py alone: the scripts
+		that ran each report from cron are gone."""
+		self.assertEqual(sorted(path.name for path in Path(ROOT).glob('*.py')), ['bot.py'])
 
 
 class StartupRefusal(unittest.TestCase):

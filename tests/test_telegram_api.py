@@ -77,7 +77,7 @@ class TelegramWebhook(FinbotCase):
 		code = ('import requests\n'
 				'def refuse(*a, **k): raise SystemExit("network call on import")\n'
 				'requests.Session.request = refuse\n'
-				'from lib import telegram, yahoo, worker, jobrun\n'
+				'from lib import telegram, yahoo, worker, jobs\n'
 				'print("quiet")')
 		with tempfile.TemporaryDirectory() as data:
 			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True,
@@ -90,7 +90,8 @@ class TelegramWebhook(FinbotCase):
 		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
 			env = {k: v for k, v in bare_environment().items() if 'proxy' not in k.lower()}
-			env.update(DATA_DIR=data, port='0', scheduler='False', telegramBotToken='123456:SECRET-token',
+			no_jobs(data)
+			env.update(DATA_DIR=data, port='0', telegramBotToken='123456:SECRET-token',
 				telegramOutgoingToken='tok',
 					   telegramOutgoingWebhook='https://example.com/telegram',
 					   # unreachable, so the registration fails at once and offline

@@ -1,6 +1,6 @@
-"""The in-process scheduler (lib/jobs.py): firing on a fake clock, across the clocks' changes, runs from chat,
-and each command in a child process."""
-import contextlib, datetime, io, json, os, signal, subprocess, sys, tempfile, threading, time, unittest
+"""The scheduler (lib/jobs.py): firing on a fake clock, across the clocks' changes, runs from chat, and each command
+run in the bot's process, past its deadline too."""
+import contextlib, datetime, io, json, os, subprocess, sys, tempfile, threading, time, unittest
 import zoneinfo
 from pathlib import Path
 from unittest import mock
@@ -9,12 +9,6 @@ from lib import jobs
 from lib.reports import cleanup, podcasts, price, sharesight_warm, yahoo_warm
 
 PREFETCH_HISTORY = yahoo.prefetch_history # FinbotCase replaces it; the warm job's test puts it back
-
-
-def run_in_process(label, module, kwargs):
-	"""The scheduler's runner in these tests: the command's handler, called here (no child process, no deadline)."""
-	module.run(**kwargs)
-	return 0
 
 
 def at(day, hour, minute, second=0):
@@ -141,25 +135,6 @@ class SharesightWarmJob(FinbotCase):
 		self.assertEqual(self.errors, [])
 
 
-class SchedulerFlag(unittest.TestCase):
-	def flag(self, **env):
-		"""config.env.scheduler in a fresh interpreter, given `env`."""
-		code = 'from lib import config; print(config.env.scheduler)'
-		e = {k: v for k, v in os.environ.items() if k != 'scheduler'}
-		e.update(env)
-		repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-		return subprocess.run([sys.executable, '-c', code], cwd=repo, env=e, capture_output=True, text=True,
-			check=True).stdout.split()[-1]
-
-	def test_on_by_default_and_off_for_false(self):
-		"""The scheduler is on by default and with any true word, off with any false one."""
-		self.assertEqual(self.flag(), 'True')
-		for value in ('True', 'true', '1', 't'):
-			self.assertEqual(self.flag(scheduler=value), 'True', value)
-		for value in ('False', 'false', '0', 'no'):
-			self.assertEqual(self.flag(scheduler=value), 'False', value)
-
-
 class SchedulerBase(FinbotCase):
 	def setUp(self):
 		"""A schedule of trades.py every 20 minutes on weekdays, a fake clock; trades and shorts recorded, not run."""
@@ -176,7 +151,7 @@ class SchedulerBase(FinbotCase):
 	def scheduler(self, catchup=5):
 		"""A loaded scheduler on the fake clock that runs commands in this process, at once."""
 		s = jobs.Scheduler(lambda: self.file, catchup=catchup, clock=self.clock, sleep=lambda seconds: None,
-						   spawn=lambda f, *a: f(*a), zone=UTC, runner=run_in_process)
+						   spawn=lambda f, *a: f(*a), zone=UTC)
 		self.assertTrue(s.load())
 		return s
 
@@ -195,20 +170,19 @@ class WarmNow(SchedulerBase):
 		self.assertEqual(warmed, ['sharesight', 'yahoo', 'sharesight'])
 		self.assertIn('cache: filling it again: sharesight_warm.py, yahoo_warm.py', log.getvalue())
 
-	def test_without_a_scheduler_each_runs_in_a_child_process(self):
-		"""With the scheduler off, each warm job runs in a child process of its own, a failure reported."""
+	def test_without_a_scheduler_each_runs_here(self):
+		"""Without a scheduler (a test, a tool), each warm job runs here, one after the other, a failure reported."""
 		started = []
-		def child(label, module, kwargs):
-			"""Note the child process started; the second one runs out of time."""
+		def run(label, module, kwargs):
+			"""Note the run; the first one fails."""
 			started.append(label)
-			if label == 'yahoo_warm.py':
-				raise TimeoutError('still running after 5 minutes')
-			return 0
-		self.patch(jobs, 'run_child', child)
+			if label == 'sharesight_warm.py':
+				raise RuntimeError('Sharesight unreachable')
+		self.patch(jobs, 'run_in_process', run)
 		with contextlib.redirect_stderr(io.StringIO()):
 			jobs.warm_now()
 		self.assertEqual(started, ['sharesight_warm.py', 'yahoo_warm.py'])
-		self.assertTrue(any('still running after 5 minutes' in e for e in self.errors))
+		self.assertEqual(self.errors, ['⚠️ sharesight_warm.py: RuntimeError: Sharesight unreachable'])
 
 
 class SchedulerTests(SchedulerBase):
@@ -297,20 +271,39 @@ class SchedulerTests(SchedulerBase):
 		s.execute(s.jobs[0].commands)
 		self.assertEqual(len(self.errors), 1)
 
-	def test_a_command_stopped_at_its_deadline_is_reported_and_the_next_still_runs(self):
-		"""A command still running at its deadline (run_child stops it) is reported, and the rest of its line runs."""
+	def test_a_command_past_its_deadline_is_reported_once_and_left_to_finish(self):
+		"""A command still running at its deadline is reported as late, once, and runs on to its end (a thread cannot
+		be stopped); meanwhile it stays marked running, so a second run of it is turned away; then the rest of its line
+		runs."""
+		self.patch(jobs, 'JOB_TIMEOUT', 0.1)
 		self.file.write_text('*/20 * * * * trades.py; shorts.py\n')
-		def runner(label, module, kwargs):
-			"""trades.py hangs until run_child stops it; the rest run here."""
-			if label == 'trades.py':
-				raise TimeoutError('still running after 5 minutes')
-			return run_in_process(label, module, kwargs)
 		s = self.scheduler()
-		s.runner = runner
-		self.assertEqual(s.execute(s.jobs[0].commands), 'timed out')
-		self.assertEqual(self.errors, ['⚠️ trades.py: TimeoutError: still running after 5 minutes'])
-		self.assertEqual(self.ran, [('shorts', {})])
+		second = []
+		def slow(**k):
+			"""Take three deadlines, and try a second run of this command meanwhile."""
+			time.sleep(0.3)
+			second.append(s.execute(s.jobs[0].commands[:1]))
+			self.ran.append(('trades', k))
+		self.patch(jobs.SCRIPTS['trades'], 'run', slow)
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertEqual(s.execute(s.jobs[0].commands), 'done')
+		self.assertEqual(self.errors, ['⚠️ trades.py: TimeoutError: still running after 0.00166667 minutes, and left to'
+			' finish'])
+		self.assertEqual(second, ['already running'])
+		self.assertEqual(self.ran, [('trades', {}), ('shorts', {})])
 		self.assertEqual(s.busy, set())
+
+	def test_each_command_of_a_line_has_a_deadline_of_its_own(self):
+		"""The deadline is per command (it once covered the whole line): two that each take most of it are not late."""
+		self.patch(jobs, 'JOB_TIMEOUT', 0.4)
+		self.file.write_text('*/20 * * * * trades.py; shorts.py\n')
+		self.patch(jobs.SCRIPTS['trades'], 'run', lambda **k: time.sleep(0.25))
+		self.patch(jobs.SCRIPTS['shorts'], 'run', lambda **k: time.sleep(0.25))
+		s = self.scheduler()
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertEqual(s.execute(s.jobs[0].commands), 'done')
+		time.sleep(0.3) # past where a deadline of the whole line would have struck
+		self.assertEqual(self.errors, [])
 
 	def test_reload_applies_edits_keeps_state_and_survives_a_bad_file(self):
 		"""A reload applies edits and keeps unchanged jobs' timing; an unusable file keeps the running schedule."""
@@ -490,13 +483,13 @@ class ManualRuns(SchedulerBase):
 		self.assertEqual(self.s.execute(self.s.jobs[1].commands), 'already running')
 		self.assertEqual(self.ran, [('price', {'mode': 'close'})]) # price.py close ran, trades.py was skipped
 
-	def test_run_now_times_out(self):
-		"""A manual run stopped at its deadline says so."""
-		def hang(label, module, kwargs):
-			"""Hang until run_child stops it."""
-			raise TimeoutError('still running after 5 minutes')
-		self.s.runner = hang
-		self.assertEqual(self.s.run_now('8'), ('trades.py', 'timed out'))
+	def test_a_manual_run_past_its_deadline_finishes(self):
+		"""A manual run past its deadline is reported as late, and says how it went once it has finished."""
+		self.patch(jobs, 'JOB_TIMEOUT', 0.05)
+		self.patch(jobs.SCRIPTS['trades'], 'run', lambda **k: time.sleep(0.2))
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertEqual(self.s.run_now('8'), ('trades.py', 'done'))
+		self.assertEqual(len(self.errors), 1)
 		self.assertEqual(self.s.busy, set())
 
 	def test_two_runs_of_one_command_at_once_run_it_once(self):
@@ -642,7 +635,7 @@ class ManualRuns(SchedulerBase):
 		self.assertEqual(markup, about.prepare_jobs_payload(TELEGRAM, '', tappable=True)[1]) # the current buttons
 		self.patch(jobs, 'current', None) # scheduler off: the list is replaced by the notice and the buttons removed
 		worker.process_callback(inbound.Press('telegram', 'cb1', '55', '9', 'j|7|0000'))
-		self.assertEqual(self.edits[-1][2:], ('Scheduled jobs are off (scheduler=False)', [])) # no buttons left
+		self.assertEqual(self.edits[-1][2:], ('No schedule is running', [])) # no buttons left
 
 	def test_run_in_chat(self):
 		""".jobs run takes a number or a command's text."""
@@ -661,141 +654,28 @@ class ManualRuns(SchedulerBase):
 		self.assertIn('Usage', self.list_in_chat('.jobs bogus')[0])
 		self.assertEqual(self.ran, [])
 
-	def test_scheduler_off(self):
-		"""With the scheduler off, .jobs says so."""
+	def test_no_schedule_running(self):
+		"""Without a schedule running (none was loaded), .jobs says so."""
 		self.patch(jobs, 'current', None)
-		self.assertIn('off', self.list_in_chat('.jobs')[0])
-		self.assertIn('off', self.list_in_chat('.jobs run 8')[0])
+		self.assertEqual(self.list_in_chat('.jobs'), ['No schedule is running'])
+		self.assertEqual(self.list_in_chat('.jobs run 8'), ['No schedule is running'])
 
 	def test_job_is_still_a_ticker(self):
 		""".job is a ticker, not .jobs."""
 		self.assertNotIn('Scheduled', str(self.command('.job')))
 
 
-class ChildProcess(FinbotCase):
-	"""Jobs run in their own process, so heavy work cannot hold up the bot's web server."""
-
-	def sleeper(self, seconds):
-		"""Have run_child start a process that sleeps for `seconds`, kept in self.children."""
-		real = jobs.subprocess.Popen
-		self.children = []
-		def popen(args, **kw):
-			"""Start the sleeper instead of the job."""
-			self.children.append(real([sys.executable, '-c', f'import time; time.sleep({seconds})']))
-			return self.children[-1]
-		self.patch(jobs.subprocess, 'Popen', popen)
-
-	def test_every_command_can_be_handed_to_a_child(self):
-		"""Every shipped command's arguments survive JSON, the way they reach the child."""
-		parsed, _ = jobs.parse_schedule(DEFAULT_SCHEDULE.read_text(), UTC)
-		for job in parsed:
-			for label, module, kwargs in job.commands:
-				self.assertEqual(json.loads(json.dumps(kwargs)), kwargs, label)
-
-	def test_a_real_child_runs_the_handler_and_reports_its_exit_status(self):
-		"""A real child runs the report and exits 0, or REPORTED when it failed and said so."""
-		real = jobs.subprocess.Popen
-		self.patch(jobs.subprocess, 'Popen',
-			lambda args, **kw: real(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kw))
-		with tempfile.TemporaryDirectory() as data:
-			env = {'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
-			with mock.patch.dict(os.environ, env):
-				self.assertEqual(jobs.run_child('cleanup.py', cleanup, {}), 0)
-				self.assertEqual(jobs.run_child('cleanup.py 0', cleanup, {'days': 'not a number'}),
-					jobs.jobrun.REPORTED)
-
-	def test_a_job_process_survives_a_reload_signal(self):
-		"""A job process ignores SIGHUP, which systemctl kill -s HUP sends to every process of the unit."""
-		with tempfile.TemporaryDirectory() as scripts, tempfile.TemporaryDirectory() as data:
-			Path(scripts, 'sleeper.py').write_text(
-				'import time\ndef run():\n    print("started", flush=True)\n    time.sleep(1)\n')
-			env = {**os.environ, 'PYTHONPATH': scripts, 'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '',
-				'discord_webhook': ''}
-			proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', 'sleeper', '{}'], cwd=ROOT, env=env,
-				stdout=subprocess.PIPE, text=True)
-			self.addCleanup(proc.kill)
-			for line in proc.stdout:
-				if line.strip() == 'started':
-					break
-			proc.send_signal(signal.SIGHUP) # what `systemctl kill -s HUP finbot` does to every process of the unit
-			self.assertEqual(proc.wait(timeout=30), 0)
-
-	def test_a_script_that_cannot_be_imported_is_reported(self):
-		"""A report that cannot be imported is reported like any other failure."""
-		with tempfile.TemporaryDirectory() as data:
-			env = {**os.environ, 'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
-			out = subprocess.run([sys.executable, '-m', 'lib.jobrun', 'nosuchscript', '{}'], cwd=ROOT, env=env,
-				capture_output=True, text=True)
-		self.assertEqual(out.returncode, jobs.jobrun.REPORTED, out.stderr)
-		self.assertIn('⚠️ nosuchscript.py: ModuleNotFoundError', out.stderr)
-
-	def test_scheduler_reports_a_child_that_ended_without_saying_why(self):
-		"""A child killed by a signal or exiting non-zero without a report is reported by the scheduler; one that
-		reported itself is not reported twice."""
-		file = Path(temp_dir(self), 'schedule.cron')
-		file.write_text('* * * * * trades.py\n')
-		for status, reason in ((-signal.SIGHUP, 'killed by SIGHUP'), (-signal.SIGKILL, 'killed by SIGKILL'),
-			(1, 'exited with status 1 without saying why'),
-							   (jobs.jobrun.REPORTED, None)): # the child reported this one itself
-			with self.subTest(status=status):
-				self.errors.clear()
-				s = jobs.Scheduler(lambda: file, zone=UTC, runner=lambda label, module, kwargs: status)
-				self.assertTrue(s.load())
-				self.assertEqual(s.run_now('1'), ('trades.py', 'failed'))
-				self.assertEqual(self.errors, [f'⚠️ trades.py: RuntimeError: {reason}'] if reason else [])
-				self.assertEqual(s.busy, set())
+class ReportImports(FinbotCase):
+	"""What importing the reports brings in."""
 
 	def test_a_report_script_loads_neither_pandas_nor_the_scheduler(self):
-		"""A job imports only its script; price once pulled in pandas and every script (via charts, reports, jobs)."""
+		"""A report imports only its script: price once pulled in pandas and every script (via charts and jobs)."""
 		code = ('import sys; from lib.reports import price, performance, trades, shorts, cal; '
 			'print(sorted(m for m in ("pandas", "lib.jobs", "matplotlib") if m in sys.modules))')
 		with tempfile.TemporaryDirectory() as data:
 			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True,
 				env={**os.environ, 'DATA_DIR': data})
 		self.assertEqual(out.stdout.strip().splitlines()[-1:], ['[]'], out.stderr)
-
-	def test_a_child_still_running_at_its_deadline_is_stopped(self):
-		"""A child still running after JOB_TIMEOUT is stopped, rather than left running, and TimeoutError raised."""
-		self.patch(jobs, 'JOB_TIMEOUT', 0.3)
-		self.sleeper(30)
-		started = time.monotonic()
-		with self.assertRaises(TimeoutError):
-			jobs.run_child('cleanup.py', cleanup, {})
-		self.assertLess(time.monotonic() - started, 5)
-		self.assertIsNotNone(self.children[0].poll()) # the child was stopped, not left running
-
-	def test_another_interruption_stops_the_child_too(self):
-		"""An interruption while a child runs (a KeyboardInterrupt, say) stops the child as well."""
-		self.sleeper(30)
-		start = jobs.subprocess.Popen # the sleeper's
-		def interrupted(args, **kw):
-			"""The sleeper, whose wait for the job is interrupted."""
-			child = start(args, **kw)
-			wait = child.wait
-			def wait_once(timeout=None):
-				"""Interrupted while waiting for the job; stop()'s own waits go through."""
-				if timeout == jobs.JOB_TIMEOUT:
-					raise KeyboardInterrupt
-				return wait(timeout)
-			child.wait = wait_once
-			return child
-		self.patch(jobs.subprocess, 'Popen', interrupted)
-		with self.assertRaises(KeyboardInterrupt):
-			jobs.run_child('cleanup.py', cleanup, {})
-		self.assertIsNotNone(self.children[0].poll())
-
-	def test_each_command_of_a_line_has_a_deadline_of_its_own(self):
-		"""The deadline is per command (it once covered the whole line): two that each take most of it both finish."""
-		self.patch(jobs, 'JOB_TIMEOUT', 0.8)
-		self.sleeper(0.5)
-		file = Path(temp_dir(self), 'schedule.cron')
-		file.write_text('* * * * * trades.py; shorts.py\n')
-		s = jobs.Scheduler(lambda: file, zone=UTC)
-		with contextlib.redirect_stderr(io.StringIO()):
-			self.assertTrue(s.load())
-			self.assertEqual(s.execute(s.jobs[0].commands), 'done')
-		self.assertEqual(len(self.children), 2)
-		self.assertEqual(self.errors, [])
 
 
 if __name__ == '__main__':

@@ -2,16 +2,13 @@
 
 The schedule is a file in crontab syntax: five time fields (or an @macro) and then a finbot script with its
 arguments, e.g. `*/20 * * * Mon-Fri trades.py` or `28 21 * * Sat cal.py earnings; price.py 7`. Pasted crontab lines
-(`./price.py > /dev/null`, `{ a; b ;}`) are accepted too. Running in the bot means the jobs share its user, sandbox,
-environment and cache."""
+(`./price.py > /dev/null`, `{ a; b ;}`) are accepted too. Each command runs in the bot's process, in a thread of its
+own, sharing its user, sandbox, environment, caches and connections."""
 import datetime
 import hmac
-import json
 import math
 import os
 import re
-import signal
-import subprocess
 import sys
 import threading
 import time
@@ -24,7 +21,6 @@ from croniter import croniter, CroniterBadDateError
 
 from lib import config
 from lib import state
-from lib import jobrun
 from lib import delivery
 from lib.reports import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, shorts, trades
 from lib.reports import sharesight_warm, yahoo_warm
@@ -37,7 +33,7 @@ current = None # the running Scheduler, set by bot.py; the chat commands use it
 HIDDEN = ('cleanup', 'podcasts', 'sharesight_warm', 'yahoo_warm')
 WARM = 'sharesight_warm.py; yahoo_warm.py' # the jobs that fill the cache, run at once after a flush too
 STATE_FILE = 'finbot_jobs.json' # last fire time of every job, so a restart neither repeats a run nor loses one
-JOB_TIMEOUT = 5 * 60 # seconds each command may run before it is stopped and reported
+JOB_TIMEOUT = 5 * 60 # seconds a command may run before it is reported as late, once (it runs on, see execute)
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')
 # what a shell reads as more than a word, outside quotes
 OPERATOR = re.compile(r'\d*>>?&?\d*|&>>?|;|&&|\|\|?|&|[<`$(){}]')
@@ -49,32 +45,9 @@ def checksum(label):
 	return format(zlib.crc32(label.encode()) & 0xffff, '04x')
 
 
-def run_child(label, module, kwargs):
-	"""Run a command in its own process (python -m lib.jobrun) and return its exit status. The child inherits the
-	environment, user and output of the bot, so it behaves like the old cron job. One still running after JOB_TIMEOUT
-	is stopped and TimeoutError raised; any other interruption stops it too."""
-	# the preferences this process runs on, not whatever the file says now
-	env = dict(os.environ, **config.child_environment())
-	args = [sys.executable, '-m', 'lib.jobrun', module.__name__, json.dumps(kwargs)]
-	proc = subprocess.Popen(args, cwd=config.REPO_DIR, env=env)
-	try:
-		return proc.wait(timeout=JOB_TIMEOUT)
-	except subprocess.TimeoutExpired:
-		stop(proc)
-		raise TimeoutError(f'still running after {JOB_TIMEOUT // 60} minutes') from None
-	except BaseException:
-		stop(proc)
-		raise
-
-
-def stop(proc):
-	"""End a child process: asked to stop, then killed if it is still there 10 seconds later."""
-	proc.terminate()
-	try:
-		proc.wait(timeout=10)
-	except subprocess.TimeoutExpired:
-		proc.kill()
-		proc.wait()
+def run_in_process(label, module, kwargs):
+	"""Run a command here, in the calling thread: its report's run(**kwargs)."""
+	module.run(**kwargs)
 
 
 def start_thread(target, *args):
@@ -83,9 +56,9 @@ def start_thread(target, *args):
 
 
 def warm_now(scheduler=None):
-	"""Run the warm jobs (WARM) now, one after the other, each in its own child process: through the scheduler when it
-	runs, so that one already running on its schedule is not started twice; else directly, a failure reported in the
-	chat as the scheduler reports one."""
+	"""Run the warm jobs (WARM) now, one after the other: through the scheduler, so that one already running on its
+	schedule is not started twice; without one (a test, a tool), here, a failure reported in the chat as the scheduler
+	reports one."""
 	commands = parse_command(WARM)
 	print('cache: filling it again:', ', '.join(label for label, _, _ in commands), file=sys.stderr)
 	if scheduler:
@@ -93,20 +66,10 @@ def warm_now(scheduler=None):
 	else:
 		for label, module, kwargs in commands:
 			try:
-				run_child(label, module, kwargs)
+				run_in_process(label, module, kwargs)
 			except Exception as e:
 				delivery.report_error(e, context=label)
 	print('cache: warm jobs done', file=sys.stderr)
-
-
-def exit_reason(status):
-	"""Why a job process ended, when it did not report it itself: killed by a signal, or failed before it could say."""
-	if status < 0:
-		try:
-			return f'killed by {signal.Signals(-status).name}'
-		except ValueError:
-			return f'killed by signal {-status}'
-	return f'exited with status {status} without saying why'
 
 
 def display(label):
@@ -286,7 +249,7 @@ class Scheduler:
 		self.clock = clock or (lambda: datetime.datetime.now(datetime.timezone.utc))
 		self.sleep = sleep or time.sleep
 		self.spawn = spawn or start_thread
-		self.runner = runner or run_child # (label, module, kwargs) -> exit status
+		self.runner = runner or run_in_process # (label, module, kwargs): runs the command
 		self.zone = zone
 		self.jobs = []
 		self.base = {} # key -> the time after which the next run is due
@@ -387,9 +350,10 @@ class Scheduler:
 			return True
 
 	def execute(self, commands):
-		"""Run commands one after another (a job's), each stopped and reported if still running after JOB_TIMEOUT.
-		One already running (from the line's last run, another line or chat) is skipped. Returns 'done', 'timed out',
-		'failed' or 'already running'."""
+		"""Run commands one after another (a job's), in this thread; a failure is reported. One already running (from
+		the line's last run, another line or chat) is skipped. One still running after JOB_TIMEOUT is reported as late,
+		once, and runs on: a thread cannot be stopped, but every request it makes has a timeout, so it ends; until then
+		it stays marked running, and no second copy starts. Returns 'done', 'failed' or 'already running'."""
 		outcome = 'done'
 		for label, module, kwargs in commands:
 			if not self.claim(label):
@@ -397,19 +361,17 @@ class Scheduler:
 				outcome = 'already running'
 				continue
 			print(f'schedule: running {label}', file=sys.stderr)
+			late = threading.Timer(JOB_TIMEOUT, delivery.report_error, kwargs={'context': label,
+				'e': TimeoutError(f'still running after {JOB_TIMEOUT / 60:g} minutes, and left to finish')})
+			late.daemon = True
+			late.start()
 			try:
-				status = self.runner(label, module, kwargs)
-				if status:
-					outcome = 'failed'
-					if status != jobrun.REPORTED: # it ended without saying why
-						delivery.report_error(RuntimeError(exit_reason(status)), context=label)
-			except TimeoutError as e: # run_child stopped it: the rest of the line still runs
-				delivery.report_error(e, context=label)
-				outcome = 'timed out'
+				self.runner(label, module, kwargs)
 			except (Exception, SystemExit) as e:
 				delivery.report_error(e, context=label)
 				outcome = 'failed'
 			finally:
+				late.cancel()
 				with self.lock:
 					self.busy.discard(label)
 		return outcome

@@ -1,5 +1,5 @@
 """The two config files: finbot.env (the startup file, which the launcher loads) and preferences.conf (reloadable)."""
-import ast, contextlib, dataclasses, io, os, re, subprocess, sys, unittest
+import ast, contextlib, dataclasses, io, os, re, subprocess, sys, types, unittest
 from pathlib import Path
 from unittest import mock
 from tests import common # first: it sets the environment that lib.config reads as it loads
@@ -84,7 +84,7 @@ class Parsing(unittest.TestCase):
 
 	def test_a_startup_key_in_preferences_says_where_it_belongs(self):
 		"""A startup key in preferences.conf is sent to finbot.env, without printing its value."""
-		errors = self.errors('slackOutgoingWebhook=https://x\nip=0.0.0.0\ntelegramChatID=5\nscheduler=False\n')
+		errors = self.errors('slackOutgoingWebhook=https://x\nip=0.0.0.0\ntelegramChatID=5\nscheduler_catchup=3\n')
 		self.assertEqual(len(errors), 4)
 		for line in errors:
 			self.assertIn('belongs in finbot.env (a change needs a restart)', line)
@@ -311,38 +311,17 @@ class Reload(unittest.TestCase):
 					offenders.append(f'{path.name}:{node.lineno} module constant')
 		self.assertEqual(offenders, [])
 
-	def test_a_job_process_runs_on_the_snapshot_not_the_edited_file(self):
-		"""A job process gets the bot's preferences in its environment and does not read the file, which may have been
-		edited since; a script run by hand reads the file."""
-		self.write('future_days=45\n')
-		config.reload()
-		env = config.child_environment()
-		self.assertEqual((env['future_days'], env[config.PASSED]), ('45', '1'))
-		self.write('future_days=99\n') # edited, no reload sent
-		data = common.temp_dir(self)
-		Path(data, 'preferences.conf').write_text('future_days=99\n')
-		show = "from lib import config as c; print(c.prefs.future_days)"
-		parent = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k != config.PASSED}
-		run = lambda **extra: subprocess.run([sys.executable, '-c', show], cwd=REPO, capture_output=True, text=True,
-			check=True, env={**parent, 'DATA_DIR': data, **extra}).stdout.split()[-1]
-		self.assertEqual(run(**env), '45') # the parent's values, and the file is not read
-		self.assertEqual(run(), '99') # a script run by hand reads the file itself
-
-	def test_run_child_hands_the_snapshot_to_the_job(self):
-		"""run_child passes the preferences in force to the job process."""
+	def test_a_scheduled_job_runs_on_the_preferences_in_force_not_the_edited_file(self):
+		"""A scheduled job runs in the bot's process, on the preferences of the last reload: a file edited since, and
+		not reloaded, is not read."""
 		from lib import jobs
-		seen = {}
-		real = jobs.subprocess.Popen
-		def popen(args, **kw):
-			"""Note the environment the job is started with, and run a no-op instead."""
-			seen.update(kw.get('env', {}))
-			return real([sys.executable, '-c', 'pass'])
+		seen = []
 		self.write('future_days=45\n')
 		config.reload()
-		with mock.patch.object(jobs.subprocess, 'Popen', popen):
-			from lib.reports import cleanup
-			self.assertEqual(jobs.run_child('cleanup.py', cleanup, {}), 0)
-		self.assertEqual((seen['future_days'], seen[config.PASSED]), ('45', '1'))
+		self.write('future_days=99\n') # edited, no reload sent
+		module = types.SimpleNamespace(run=lambda: seen.append(config.prefs.future_days))
+		jobs.run_in_process('look.py', module, {})
+		self.assertEqual(seen, [45])
 
 
 class Startup(unittest.TestCase):
@@ -398,8 +377,6 @@ class Startup(unittest.TestCase):
 		self.assertEqual(len(caught.exception.errors), 2)
 		self.assertIn('future_days is a preference; move it from finbot.env to preferences.conf',
 			'\n'.join(caught.exception.errors))
-		with mock.patch.dict(os.environ, {'future_days': '30', config.PASSED: '1'}):
-			config.check_startup_environment() # a job process gets its preferences this way
 		with mock.patch.dict(os.environ, {'ip': '1.2.3.4', 'telegramChatID': '5'}):
 			config.check_startup_environment() # startup keys are what the environment is for
 

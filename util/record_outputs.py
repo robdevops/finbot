@@ -10,7 +10,7 @@ reports, run on the offline fixtures of tests/common.py, and compares two record
 
 --keep DIR keeps the two recordings; --full shows changed lines whole. The exit status is 0 when the recordings match,
 1 when they differ."""
-import argparse, difflib, hashlib, inspect, io, json, os, random, subprocess, sys, tempfile, unittest
+import argparse, contextlib, difflib, hashlib, inspect, io, json, os, random, subprocess, sys, tempfile, unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -106,6 +106,10 @@ def record(output):
 			self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack') # Slack's buttons too
 			if 'discordBotToken' in {field.name for field in common.dataclasses.fields(common.config.env)}:
 				self.env(discordBotToken='discord-test')
+			schedule = jobs.Scheduler(lambda: REPO / 'defaults' / 'schedule.cron', zone=common.UTC) # for .jobs
+			with contextlib.redirect_stderr(io.StringIO()):
+				schedule.load()
+			self.patch(jobs, 'current', schedule)
 			steps = []
 			def step(label, run):
 				"""Run one step and note what it posted, or what it raised."""

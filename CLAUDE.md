@@ -57,9 +57,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   the typing notice while it works. `process_request(message)` and `process_callback(press)` take inbound's objects.
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
   or else the default chats, and `job(argv)`, its schedule-line parser): `price performance trades shorts cal rating
-  milestone reminder podcasts cleanup sharesight_warm yahoo_warm`; the top-level `price.py` and the rest are shims that
-  run them. Chat-only (`prepare_*`): `about` (.help .jobs), `history` (.history .compare), `holdings` (.holdings .who
-  .pie .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
+  milestone reminder podcasts cleanup sharesight_warm yahoo_warm`, run in the bot by the scheduler or `.jobs run`.
+  Chat-only (`prepare_*`): `about` (.help .jobs), `history` (.history .compare), `holdings` (.holdings .who .pie
+  .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or each network's home chat
   as its bot), `deliver(dest, report)`, the one-line error report. `lib/transports.py`: a class per network's bot
   (`TelegramBot`, `SlackBot`, `DiscordBot`), each taking charts and buttons: splitting, captions, charts, buttons,
@@ -83,8 +83,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save. `lib/watchlist.py`: the watchlist.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on
-  each reload). `lib/jobs.py` + `lib/jobrun.py`: the scheduler, its shared state under one lock; each command runs in
-  a child process, stopped after `JOB_TIMEOUT`.
+  each reload). `lib/jobs.py`: the scheduler, its shared state under one lock; each command runs in the bot's process,
+  in a thread (`run_in_process`), reported once if still running after `JOB_TIMEOUT` and left to finish (every request
+  goes through `net`, with its timeouts: a test checks).
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return

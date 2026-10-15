@@ -159,7 +159,7 @@ With persistent storage, the default of `past_days=28` suits. This is useful if 
 past_days=28
 ```
 
-Cron trigger:
+Schedule line (`schedule.cron`, see [Scheduling](#scheduling)):
 ```
 trades.py
 ```
@@ -194,13 +194,13 @@ price_percent=5
 demote_volatile=True
 ```
 
-Cron trigger:
+Schedule line (`schedule.cron`, see [Scheduling](#scheduling)):
 ```
-./price.py [premarket|midsession|interday|close|days (int)]
+price.py [premarket|midsession|interday|close|days (int)]
 ```
-When scheduled (Cron), the mode must be passed as an execution argument:
+When scheduled, the mode is its argument:
 * If `premarket` is passed, it only reports on pre/post market price movements.
-* If `midsession` is passed, it only reports for markets currently in session. This is intended to run from Cron to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones.
+* If `midsession` is passed, it only reports for markets currently in session. This is intended to run on a schedule to provide mid-session alerts for big price movements of your holdings. For example, it could be run twice per day 12 hours apart, to capture markets in different timezones.
 * If `interday` is passed, it reports current price against the previous market close.
 * If `close` is passed, it reports daily change in stocks whose market closed in the past 3 hours.
 * If an integer [i] is passed, it reports current price against [i] days ago.
@@ -249,9 +249,9 @@ Config example:
 past_days=28
 ```
 
-Cron trigger:
+Schedule line (`schedule.cron`, see [Scheduling](#scheduling)):
 ```
-./performance.py 7
+performance.py 7
 ```
 
 Interactive trigger:
@@ -282,9 +282,9 @@ Interactively, you can also specify a portfolio:
 future_days=30
 ```
 
-Cron execution:
+Schedule line (`schedule.cron`, see [Scheduling](#scheduling)):
 ```
-./cal.py [earnings|ex-dividend]
+cal.py [earnings|ex-dividend]
 ```
 
 Interactive trigger (earnings):
@@ -397,7 +397,7 @@ Interactive trigger:
 Notifies when Yahoo Finance analyst rating consensus changes category (e.g. from hold to buy). Designed to run from Cron. Requires persistent storage.
 
 ```
-./rating.py
+rating.py
 ```
 
 ### Watchlist
@@ -467,7 +467,6 @@ of the chat network keys it needs.
 | `DATA_DIR` | `var/` in the checkout (`$STATE_DIRECTORY` under systemd `StateDirectory=`) | Where state and cache live |
 | `ip` | `127.0.0.1` | Address the bot listens on |
 | `port` | `5000` | Port the bot listens on |
-| `scheduler` | `True` | Run the scheduled reports (`schedule.cron`) inside the bot |
 | `scheduler_catchup` | `5` | Minutes: a run missed while the bot was down still fires if it was due this recently |
 | `telegramChatID` | | Chat group or channel id that scheduled reports go to on Telegram |
 | `sharesight_code` | | Sharesight API access |
@@ -593,7 +592,7 @@ docker kill -s USR1 <container>             # Docker
 kill -USR1 <pid of bot.py>                  # anything else
 ```
 The log says `cache: flushed N files`, then `cache: warm jobs done` once the cache is full again. To install the `finbot-flush` shortcut: `sudo cp -v finbot-flush.service /etc/systemd/system/ &&
-sudo systemctl daemon-reload`. `finbot.service` itself needs no change. With the bot stopped, `cleanup.py 0` deletes the same files.
+sudo systemctl daemon-reload`. `finbot.service` itself needs no change. With the bot stopped, deleting the files in `DATA_DIR/cache` does the same.
 
 Two scheduled jobs keep the caches full, each on a fixed interval shorter than the cache lifetime, so that chat requests do not wait on Sharesight or Yahoo (see [Scheduling](#scheduling)): `sharesight_warm.py` fetches the Sharesight portfolio list and each portfolio's holdings report afresh every 30 minutes (`performance_cache_seconds`: 40 minutes), and `yahoo_warm.py` the price history of every stock followed every 8 hours (`cache_seconds`: 12 hours). Neither fetches anything with `cache=False`, and `sharesight_warm.py` nothing without Sharesight configured. A refresh that fails is logged, the previous cache keeps being served while fresh, and the next run tries again. A flush runs both at once (see above). A data directory with its own `schedule.cron` needs their lines:
 ```
@@ -624,7 +623,7 @@ hyperlinkProvider=yahoo
 ```
 
 ## Scheduling
-The scheduled reports are started by `bot.py`, each run in its own child process (`python -m lib.jobrun`), so they use the same user, sandbox, environment and data directory as the bot, while heavy work (charts, large reports) cannot hold up incoming chat webhooks. A run that exceeds 5 minutes is stopped. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory. **This is on by default.** Remove the equivalent entries from any old crontab before the first start, otherwise every job runs twice; or set `scheduler=False` in the environment file to keep using cron.
+The scheduled reports are run by `bot.py` itself, each in a thread of its own, so they share the bot's user, sandbox, environment, data directory, caches and connections; charts are drawn one at a time, and a slow report holds up no chat command. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory. Remove the equivalent entries from any old crontab before the first start, otherwise every job runs twice.
 
 The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"`, `cleanup.py [days]` (deletes cache files older than `days`, default 30), `sharesight_warm.py` and `yahoo_warm.py` (they fill the cache: see [Caching](#caching)). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
 
@@ -653,15 +652,11 @@ The bot logs the number of jobs when it starts or reloads, and each job as it ru
 
 Behaviour worth knowing:
 * A run that was due while the bot was down (a restart, a deploy) still fires once if it was due within the last `scheduler_catchup` minutes (default 5). A restart right after a run does not repeat it.
-* A job still running when it is next due is skipped. A command still running after 5 minutes is stopped and reported, and the rest of its line still runs: each command has 5 minutes of its own.
+* A job still running when it is next due is skipped. A command still running after 5 minutes is reported once, and left to finish (a thread cannot be stopped, but every request it makes has a timeout); until it does, it is not started again. Each command of a line has 5 minutes of its own.
 * Failures are reported to your chat channels, as before.
-* With `scheduler=False` nothing is scheduled by the bot, so you can keep using cron or systemd timers and run the scripts yourself.
+* A schedule without jobs runs nothing: there is no switch to turn the scheduler off.
 
-**Running a report by hand.** Under `DynamicUser=yes` you cannot simply log in as the bot's user, so run the script as a transient unit with a dynamic user and the same state directory:
-```
-sudo systemd-run --pty --wait --collect -p DynamicUser=yes -p StateDirectory=finbot -p EnvironmentFile=/opt/finbot.env /opt/finbot/price.py 7
-```
-The script prints its output on your terminal and sends its report to your chat channels as usual. The transient unit gets its own dynamic user, and systemd may re-own the state directory to it for the run: check `ls -ln /var/lib/private/finbot` afterwards and `systemctl restart finbot` if the bot can no longer write there. The chat commands (`.price 7d`, `.performance 7d`, ...) run the same reports inside the bot, without any of this. Outside systemd, run a script from the checkout as your own user with the settings loaded into the shell: `set -a; . /opt/finbot.env; set +a; ./price.py 7` (this works while no value in the file contains spaces).
+**Running a report by hand** is `.jobs run` in a chat (above): it runs the command in the bot, as the schedule would. The chat commands (`.price 7d`, `.performance 7d`, ...) run the same reports in the bot too.
 
 ## Daemonize (systemd)
 `finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User`, `ExecStart` and the path of [`finbot.env`](#setup) (`EnvironmentFile=`, and the `ExecStartPre=` check), then enable and start it. `systemctl reload finbot` re-reads `preferences.conf` and the [schedule](#scheduling) without a restart; a change to `finbot.env` needs `systemctl restart finbot`:

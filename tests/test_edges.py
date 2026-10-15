@@ -374,7 +374,8 @@ class OptionalLibraries(unittest.TestCase):
 		for name in OPTIONAL:
 			(stubs / f'{name}.py').write_text('raise ImportError("blocked by the test")\n')
 		env = bare_environment()
-		env.update(DATA_DIR=data, port='0', scheduler='False', PYTHONPATH=str(stubs))
+		env.update(DATA_DIR=data, port='0', PYTHONPATH=str(stubs))
+		no_jobs(data)
 		return env
 
 	def test_every_module_imports_without_them(self):
@@ -414,8 +415,9 @@ class StartupSignals(unittest.TestCase):
 		"""A SIGHUP while bot.py starts is ignored, where its default action would kill it; once serving, it reloads."""
 		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
+			no_jobs(data)
 			env = bare_environment()
-			env.update(DATA_DIR=data, port='0', scheduler='False')
+			env.update(DATA_DIR=data, port='0')
 			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE,
 				stdout=subprocess.DEVNULL, text=True)
 			self.addCleanup(proc.wait)
@@ -451,8 +453,9 @@ class StartupSignals(unittest.TestCase):
 				(cache / name).write_text('{}')
 			Path(data, 'finbot_watchlist.json').write_text('["T1"]') # state, not cache
 			Path(data, 'preferences.conf').write_text('cache=False\n') # the warm jobs a flush starts fetch nothing
+			no_jobs(data)
 			env = bare_environment()
-			env.update(DATA_DIR=data, port='0', scheduler='False')
+			env.update(DATA_DIR=data, port='0')
 			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE,
 				stdout=subprocess.DEVNULL, text=True)
 			self.addCleanup(proc.wait)

@@ -84,16 +84,6 @@ class TelegramSending(FinbotCase):
 			REAL_REPORT_ERROR(ValueError('boom'), transports.TelegramBot('5'))
 			REAL_REPORT_ERROR(ValueError('boom'))
 
-	def test_guarded_reports_and_exits_nonzero(self):
-		"""guarded reports a failure and exits 1; a success returns its value."""
-		reported = []
-		self.patch(delivery, 'report_error', lambda e, **k: reported.append(e))
-		with self.assertRaises(SystemExit) as raised:
-			delivery.guarded('job', lambda: 1 / 0)
-		self.assertEqual(raised.exception.code, 1)
-		self.assertEqual(len(reported), 1)
-		self.assertEqual(delivery.guarded('job', lambda: 'fine'), 'fine')
-
 
 class ChartDelivery(FinbotCase):
 	"""Charts reach Telegram and Slack replies (uploaded); a report whose chart fails still goes, as text."""

@@ -11,7 +11,7 @@ def prepare_jobs_payload(service, run=None, tappable=False):
 	command, two to a row."""
 	scheduler = jobs.current
 	if scheduler is None:
-		return ['Scheduled jobs are off (scheduler=False)'], None
+		return ['No schedule is running'], None
 	if run:
 		return [run_job_line(scheduler, run)], None
 	commands, system = scheduler.commands(), scheduler.commands(hidden=True)

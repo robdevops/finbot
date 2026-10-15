@@ -1,5 +1,5 @@
 """Plumbing: message chunking, timezones, the WSGI handler."""
-import ast, contextlib, datetime, io, json, subprocess, tempfile, unittest, zoneinfo
+import ast, contextlib, datetime, io, json, re, subprocess, tempfile, unittest, zoneinfo
 from pathlib import Path
 from unittest import mock
 from tests.common import *
@@ -98,6 +98,22 @@ class Conventions(unittest.TestCase):
 				if isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'print' and \
 						not any(keyword.arg == 'file' for keyword in node.keywords):
 					offenders.append(f'{path.name}:{node.lineno}')
+		self.assertEqual(offenders, [])
+
+
+class Timeouts(unittest.TestCase):
+	def test_every_request_goes_through_net_with_a_timeout(self):
+		"""The scheduled reports run in the bot's threads, which cannot be stopped: every request must end. So no module
+		but lib/net.py calls requests itself (net gives each call its timeouts), and none passes timeout=None."""
+		call = re.compile(r'\brequests\.(?:get|post|put|patch|delete|head|request|Session)\(')
+		offenders = []
+		for path in sorted([*Path(ROOT, 'lib').rglob('*.py'), Path(ROOT, 'bot.py'), *Path(ROOT, 'util').glob('*.py')]):
+			for number, line in enumerate(path.read_text().splitlines(), 1):
+				where = f'{path.relative_to(ROOT)}:{number}'
+				if call.search(line) and path.name != 'net.py':
+					offenders.append(f'{where} calls requests itself')
+				if re.search(r'\btimeout\s*=\s*None\b', line):
+					offenders.append(f'{where} passes timeout=None')
 		self.assertEqual(offenders, [])
 
 
