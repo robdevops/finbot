@@ -36,12 +36,16 @@ What finbot can do on each network. Telegram takes everything; the others take w
 | Linked tickers | ✓ | ✓ | ✓ |
 | Charts updated in place by their buttons | ✓ | ✗ | ✗ |
 
+**Setting up a network:** [Telegram](doc/telegram.md) · [Slack](doc/slack.md) · [Discord](doc/discord.md). Each guide
+covers the whole setup of that network, and where there is a choice between reports only and the interactive bot, it
+compares the two before the steps.
+
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
 ### Requirements
 * Most features require a Sharesight paid plan, preferably with automatic trade imports, and an API key
-* Discord/Slack webhooks / Telegram bot user
-* Interactive commands require a public web server with domain name and matching certificate to proxy chat commands to the bot.
+* A Telegram bot, a Slack app or a Discord webhook (see the network's guide, above)
+* Interactive commands require a public web server with domain name and matching certificate to proxy chat commands to the bot (see the [Telegram](doc/telegram.md#interactive-bot) and [Slack](doc/slack.md#interactive-bot) guides).
 * Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum)
 * Python modules, pinned to versions with 3.13 support in `requirements.txt`:
 ```
@@ -450,7 +454,8 @@ sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finb
 * **init.d / shell:** `util/check_config.py /opt/finbot.env && set -a && . /opt/finbot.env && set +a && ./bot.py` (`set -a` is what exports the values to the bot).
 * **Scheduled jobs:** they are started by `bot.py` (see [Scheduling](#scheduling)), so they run on the same settings. For a one-off run, see [Running a report by hand](#scheduling).
 
-The startup keys, read by your launcher. A change needs a restart. Blank means unset.
+The startup keys, read by your launcher. A change needs a restart. Blank means unset. Each network's guide says which
+of the chat network keys it needs.
 
 | Key | Default | Description |
 |---|---|---|
@@ -541,36 +546,10 @@ sharesight_client_id=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 sharesight_client_secret=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 ```
 
-### Discord
-A Discord webhook takes the trade notifications and scheduled reports, with their charts attached and without link previews.
-Provision it in Discord under _Server Settings > Integrations > Webhooks_.
-Example:
-```
-discord_webhook=https://discord.com/api/webhooks/1009998000000000000/aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbb
-```
-A URL ending in `/slack`, from older setups, works as it is: finbot uses Discord's own endpoint either way.
-
-### Slack
-A Slack webhook can be provisioned by creating a new app from scratch at https://api.slack.com/apps/ then navigating to _Incoming Webhooks_. Once the link is generated, add it to `finbot.env`. Example:
-```
-slack_webhook=https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA
-```
-The webhook is only used for the trade notifications and scheduled reports. The interactive bot requires further configuration of this Slack app (see below).
-
-### Telegram
-* Set up the bot by messaging [BotFather](https://telegram.me/BotFather).
-* Add your bot to a group or channel.
-* For security, run `/setjoingroups` and set to `Disabled`
-* Optionally, make the bot a group admin (for interactive features).
-* In `finbot.env`, set `telegramBotToken` to the token BotFather gave you.
-* In `finbot.env`, set `telegramChatID` to the chat group or channel id.
-   * For channels and supergroups, `telegramChatID` should be negative and 13 characters. Prepend `-100` if necessary.
-   * Be aware a group id can change if you edit group settings and it becomes a "supergroup". Currently, the bot does not automatically handle this.
-* Example `finbot.env` entry:
-```
-telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
-telegramChatID=-1001000000000
-```
+### Chat networks setup
+Follow the guide for each network you use: [Telegram](doc/telegram.md), [Slack](doc/slack.md) or
+[Discord](doc/discord.md). It covers the bot or webhook, its `finbot.env` keys, and for chat commands the HTTPS server in
+front of finbot.
 
 ### Portfolios
 Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `exclude_portfolios` in the `preferences.conf`:
@@ -669,71 +648,7 @@ sudo systemd-run --pty --wait --collect -p DynamicUser=yes -p StateDirectory=fin
 ```
 The script prints its output on your terminal and sends its report to your chat channels as usual. The transient unit gets its own dynamic user, and systemd may re-own the state directory to it for the run: check `ls -ln /var/lib/private/finbot` afterwards and `systemctl restart finbot` if the bot can no longer write there. The chat commands (`.price 7d`, `.performance 7d`, ...) run the same reports inside the bot, without any of this. Outside systemd, run a script from the checkout as your own user with the settings loaded into the shell: `set -a; . /opt/finbot.env; set +a; ./price.py 7` (this works while no value in the file contains spaces).
 
-## Interactive bot setup
-The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
-It defaults to listening on http://127.0.0.1:5000/, which can be changed with `ip` and `port` in `finbot.env`.
-
-Example frontend https server config (nginx):
-```
-server {
-	listen 8443 ssl;
-	deny all;
-
-	server_name         www.example.com;
-	ssl_certificate     /etc/letsencrypt/live/www.example.com/fullchain.pem;
-	ssl_certificate_key /etc/letsencrypt/live/www.example.com/privkey.pem;
-	ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
-	ssl_ciphers         HIGH:!aNULL:!MD5;
-
-	location /slack {
-		proxy_pass http://127.0.0.1:5000/slack;
-                include /etc/nginx/aws_subnets;
-                deny all;
-	}
-	location /telegram {
-		proxy_pass http://127.0.0.1:5000/telegram;
-		include /etc/nginx/telegram_subnets;
-		deny all;
-	}
-}
-```
-Note: The utils folder contains scripts to generate `/etc/nginx/aws_subnets` and `/etc/nginx/telegram_subnets`. They can be run once, or placed in `/etc/cron.daily/`.
-
-### Integrating the interactive bot with chat networks
-
-#### Telegram
-* Message BotFather to create a bot user.
-  * Set `telegramBotToken` in `finbot.env` to the token given by BotFather.
-  * Add your Telegram bot user to a group
-    * Give the bot group admin access so it can read the group chat.
-    * For security, message BotFather and disable `/setjoingroups`.
-* Set `telegramOutgoingWebhook` in `finbot.env` to your web server (e.g. https://www.example.com:8443/telegram).
-* Set `telegramOutgoingToken` to a password of your choosing. Telegram will use this to authenticate with finbot.
-With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`. It unregisters and registers the webhook as it starts (and only then, which also wakes up a stale connection); if Telegram refuses, finbot does not start and the log says why.
-
-#### Slack
-Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app). Charts in replies are uploaded into the channel with Slack's file upload API (`files.getUploadURLExternal`, then `files.completeUploadExternal`, which replaced the retired `files.upload`). Scheduled reports reach Slack through the incoming webhook, which takes text only, so they come without charts. If an upload fails (a missing scope, say), the reply goes out as text and the log says why.
-* From _Basic Information > App Credentials_, copy _Signing Secret_ into `finbot.env` as `slackSigningSecret`. finbot checks Slack's signature on every request with it, and turns away a request signed more than five minutes earlier (a replay, or a server clock that is wrong).
-  * The older _Verification Token_, set as `slackOutgoingToken`, still works without a signing secret, but Slack has deprecated it: the token travels in every request, where the signing secret never does.
-* In `finbot.env`, put your web server URL (e.g. https://www.example.com:8443/slack) into `slackOutgoingWebhook`
-* Save `finbot.env` and restart `bot.py`
-* Under _Event Subscriptions_:
-  * Go to _Enable Events > On > Request URL_ and enter your web server URL (e.g. https://www.example.com:8443/slack). At this time, if the bot is reachable, it will auto respond to Slack's verification request.
-  * Go down to _Subscribe to bot events_ and add event `app_mention` for the bot to see _@botname_ mentions.
-    * Alternatively, you can subscribe to `message.channels` if you want your bot to see everything and respond to `.` commands. To avoid duplicate responses, don't subscribe to `app_mention` and `message.channels` at the same time.
-    * If you want to DM the bot:
-      * Subscribe to `message.im`
-      * Check the box _App Home > Allow users to send Slash commands and messages from the messages tab_
-  * Save Changes
-* Under _OAuth & Permissions_:
-  * Scroll down to _Scopes > Bot Token Scopes_, and add: `chat:write`, `files:write` and `files:read` (Slack's file upload API needs both `files` scopes).
-    * Adding scopes to an app that is already installed takes effect only after _Reinstall to Workspace_.
-  * Scroll up to _OAuth Tokens for Your Workspace_:
-    * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_
-    * Copy _Bot User OAuth Token_ into `finbot.env` as `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies. Without it Slack commands get no reply: the log says so at startup, and again for each reply.
-    * Restart `bot.py`
-
-### Daemonize (systemd)
+## Daemonize (systemd)
 `finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User`, `ExecStart` and the path of [`finbot.env`](#setup) (`EnvironmentFile=`, and the `ExecStartPre=` check), then enable and start it. `systemctl reload finbot` re-reads `preferences.conf` and the [schedule](#scheduling) without a restart; a change to `finbot.env` needs `systemctl restart finbot`:
 
 ```

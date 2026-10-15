@@ -33,7 +33,8 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
             files=$(git -c core.quotePath=false diff --name-only --no-renames "origin/$BASE_REF...HEAD")
             echo "$files"
-            if [ -n "$files" ] && ! grep -qvE '^(README\.md|CLAUDE\.md|img/[^/]+\.png)$' <<< "$files"; then
+            docs='^(README\.md|CLAUDE\.md|doc/[^/]+\.md|img/[^/]+\.png)$'
+            if [ -n "$files" ] && ! grep -qvE "$docs" <<< "$files"; then
               docs_only=true
               echo "::notice::Only docs changed: install, compile and tests are skipped"
             fi

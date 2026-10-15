@@ -18,7 +18,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - To merge: `main` takes only a branch that is up to date with it and green on both CI jobs. Merge `origin/main` into the work branch (a merge commit, never a rebase), run the tests, push, wait for CI on that head, then merge the PR with a merge commit.
 
 ## Facts
-- Python 3.13.5; tests are offline and need no network (`tests/`). CI runs them on the latest 3.x and 3.13.5, except for pull requests that change only README.md, CLAUDE.md or `img/*.png` (install, compile and tests are skipped; the allowlist in `.github/workflows/ci.yml` must never include a path a test reads).
+- Python 3.13.5; tests are offline and need no network (`tests/`). CI runs them on the latest 3.x and 3.13.5, except for
+  pull requests that change only README.md, CLAUDE.md, `doc/*.md` or `img/*.png` (install, compile and tests are
+  skipped; the allowlist in `.github/workflows/ci.yml` must never include a path a test reads).
 - Production runs the Debian system packages (including `python3-croniter`, for the scheduler in `lib/jobs.py`); `requirements.txt` is for pip/uv users and CI.
 - A new preference goes in five places: a `Prefs` field and its line in `preference_values` (`lib/config.py`), `defaults/preferences.conf`, the README's preferences table, and `DEFAULTS` plus the key count in `tests/test_config.py`. The tests catch all but the README (no test may read README.md: CI skips the tests for a README-only change).
 - If Yahoo and Sharesight are unreachable (the cloud environment's network policy can block them), check behaviour
@@ -66,8 +68,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - A report is a list of lines. `service` is a dialect (`lib/dialects.py`), which equals the network's name: markup with
   `service.bold(text)`, `.italic`, `.strike`, `.link(url, text)`, user-written text through `service.escape(text)`, stock links
   through `links.finance_link(symbol, exchange, service)`. Tests pass `TELEGRAM`, `SLACK`, `DISCORD`.
-- A command that cannot give what was asked (no such portfolio, no prices) raises `answer.Answer(*lines)`, which the chat
-  gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report.
+- A command that cannot give what was asked (no such portfolio, no prices) raises `answer.Answer(*lines)`, which the
+  chat gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report.
 - Every function and method has a docstring, tests included (a test checks): one line where it fits, reworded rather
   than spilling a few words onto a second. Tabs everywhere (`.editorconfig`). New and changed lines stay within 120
   columns, tabs counting 4 (an edit quotes whole lines).
@@ -80,5 +82,6 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 ## Saving tokens
 - Run the tests quietly: `.venv/bin/python -m unittest discover -s tests -b` prints only failures (about 0.4 KB when green). One
   module: `.venv/bin/python -m unittest tests.test_reports -b`.
-- README.md is 38 KB: grep for the section instead of reading it whole. `doc/` holds large API samples that the tests replay:
-  inspect them with python, don't read them.
+- README.md is 38 KB: grep for the section instead of reading it whole. Each network's setup is in its own guide,
+  `doc/telegram.md`, `doc/slack.md` and `doc/discord.md`: a change to a network's setup or keys goes there. `doc/yahoo/`
+  and `doc/sharesight/` hold large API samples that the tests replay: inspect them with python, don't read them.
