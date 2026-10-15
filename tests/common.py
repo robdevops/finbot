@@ -26,8 +26,8 @@ REAL_DISPATCH = bot.dispatch # FinbotCase notes the worker thread of each update
 
 
 def no_jobs(data):
-	"""An empty schedule in a data dir, so that a bot started there runs no scheduled report."""
-	Path(data, 'schedule.cron').write_text('# no jobs: a test bot runs none\n')
+	"""No chat's jobs in a data dir, so that a bot started there runs no scheduled report (and migrates none)."""
+	Path(data, 'finbot_schedule.json').write_text('{}')
 
 
 def bare_environment():

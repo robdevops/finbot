@@ -13,6 +13,7 @@ from lib import discord
 from lib import inbound
 from lib import worker
 from lib import jobs
+from lib import migrate
 from lib import net
 from lib import pull
 from lib import telegram
@@ -184,8 +185,8 @@ def in_thread(work):
 	return lambda *args: threading.Thread(target=run, daemon=True).start()
 
 def reload_all(*args):
-	"""SIGHUP: re-read preferences.conf and, if the scheduler is running, schedule.cron. Each reports its own errors; a
-	bad preferences.conf leaves the running config untouched."""
+	"""SIGHUP: re-read preferences.conf; a bad one is reported and leaves the running config untouched. (Each chat's
+	jobs need no reload: a change made with .jobs counts at once.)"""
 	try:
 		changes = config.reload()
 		for change in changes:
@@ -194,8 +195,6 @@ def reload_all(*args):
 			file=sys.stderr)
 	except config.ConfigError as e:
 		config.print_errors(e)
-	if scheduler:
-		scheduler.reload()
 
 def flush_cache(*args):
 	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings,
@@ -230,14 +229,9 @@ if __name__ == '__main__':
 		print('ERROR config:', line, file=sys.stderr)
 	if os.getuid() == 0:
 		print("Running as superuser. This is not recommended.", file=sys.stderr)
-	scheduler = jobs.Scheduler(lambda: config.data_file('schedule.cron')) # without a schedule, it runs nothing
-	try: # read before anything else happens: an impossible time in it stops the start
-		scheduler.load()
-	except jobs.ImpossibleTime as e:
-		for line in e.lines:
-			print('ERROR schedule:', line, file=sys.stderr)
-		print('ERROR schedule: finbot will not start until every time in the schedule can come', file=sys.stderr)
-		sys.exit(1)
+	migrate.run() # once: what was kept for all chats becomes the home chats', schedule.cron among it
+	scheduler = jobs.Scheduler()
+	scheduler.load()
 	render.preload()
 	try:
 		server = http_server() # bound before Telegram is given the URL
@@ -265,7 +259,7 @@ if __name__ == '__main__':
 	threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	for listener in pull.listeners(): # the networks without a webhook: finbot fetches their updates
 		threading.Thread(target=listener.run, args=(take,), daemon=True).start()
-	# Startup is done. systemctl reload finbot: pick up edited preferences.conf and schedule.cron
+	# Startup is done. systemctl reload finbot: pick up an edited preferences.conf
 	signal.signal(signal.SIGHUP, in_thread(reload_all))
 	signal.signal(signal.SIGUSR1, in_thread(flush_cache)) # systemctl kill -s USR1 finbot: delete the cache
 	print('finbot is running: SIGHUP reloads, SIGUSR1 flushes the cache', file=sys.stderr)

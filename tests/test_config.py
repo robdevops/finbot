@@ -481,36 +481,23 @@ class SigHup(unittest.TestCase):
 			file.write_text('')
 			config.reload()
 
-	def test_reload_all_reloads_preferences_and_the_schedule_independently(self):
-		"""SIGHUP reloads preferences, keeping the running ones on an error (logged), and the schedule regardless."""
+	def test_reload_all_reloads_preferences_and_keeps_them_on_an_error(self):
+		"""SIGHUP reloads preferences; on an error (logged) the running ones stay, and the bot survives it. The jobs
+		need no reload: a change made with .jobs counts at once."""
 		file = Path(common.temp_dir(self), 'preferences.conf')
 		file.write_text('future_days=45\n')
-		scheduler = mock.Mock()
 		self.addCleanup(self.restore, file)
-		with mock.patch.object(config, 'preferences_path', str(file)), mock.patch.object(bot, 'scheduler', scheduler):
+		with mock.patch.object(config, 'preferences_path', str(file)):
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
 				bot.reload_all()
 			self.assertIn('config: future_days 30 -> 45', err.getvalue())
-			scheduler.reload.assert_called_once()
-			# a preferences error does not stop the schedule reload, and the bot survives it
 			file.write_text('futur_days=1\n')
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
 				bot.reload_all()
 			self.assertIn('ERROR config:', err.getvalue())
-			self.assertEqual(scheduler.reload.call_count, 2)
 			self.assertEqual(config.prefs.future_days, 45)
-
-	def test_reload_with_the_scheduler_off_still_reloads_preferences(self):
-		"""With the scheduler off, SIGHUP still reloads preferences."""
-		file = Path(common.temp_dir(self), 'preferences.conf')
-		file.write_text('future_days=11\n')
-		self.addCleanup(self.restore, file)
-		with mock.patch.object(config, 'preferences_path', str(file)), mock.patch.object(bot, 'scheduler', None):
-			with contextlib.redirect_stderr(io.StringIO()):
-				bot.reload_all()
-			self.assertEqual(config.prefs.future_days, 11)
 
 
 class Tools(unittest.TestCase):

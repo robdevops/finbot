@@ -31,6 +31,23 @@ def reply_to(service, chat, message=None, interaction='', pressed=False):
 	return kind(chat, message, interaction, pressed) if kind else None
 
 
+def chat(key, scheduled=False):
+	"""The destination of a chat by its key ('telegram:-1001234', Transport.key), as its network's bot; scheduled: for a
+	scheduled run, whose reports keep their record of what they told it."""
+	network, _, where = key.partition(':')
+	dest = reply_to(network, where)
+	if dest is None:
+		raise ValueError(f'no chat {key!r}: no such network')
+	dest.scheduled = scheduled
+	return dest
+
+
+def interactive(dest):
+	"""Whether a report answers a command (dest, the chat that asked), not a scheduled run (dest a job's chat, or None
+	for the home chats): a scheduled run tells each chat only what it has not told it before."""
+	return dest is not None and not dest.scheduled
+
+
 def default_chats():
 	"""Where a scheduled report goes: each network's home chat (telegramChatID, slackChannelID, discordChannelID), as
 	its bot. Raises RuntimeError when there is nowhere to post."""
@@ -41,6 +58,7 @@ def default_chats():
 			(env.discordChannelID, env.discordBotToken, transports.DiscordBot)):
 		if chat and token:
 			chats.append(kind(chat))
+			chats[-1].scheduled = True
 	if not chats:
 		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slackChannelID or discordChannelID,'
 			' each with its bot token')

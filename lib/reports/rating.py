@@ -1,44 +1,52 @@
-"""Analysts' consensus rating changes since the last scheduled run (rating.py); .buy and .sell are in rankings."""
+"""Analysts' consensus rating changes since the last scheduled run (rating); .buy and .sell are in rankings."""
 from lib import delivery
 from lib import state
 from lib import links
 from lib import watchlist
 from lib import yahoo
 
-STATE_FILE = 'finbot_rating.json' # {ticker: [action, index]} as last seen
+STATE_FILE = 'finbot_rating.json' # each chat's {ticker: [action, index]} as its last scheduled run saw them
 
 def run(dest=None):
-	"""Post the analysts' consensus ratings that changed since the last scheduled run, which records the ratings it saw:
-	to the chat that asked (dest), else to the default chats."""
-	interactive = dest is not None
-	changes, seen = gather(watchlist.with_holdings())
+	"""Post the analysts' consensus ratings that changed since a chat's last scheduled run: to the chat that asked
+	(dest), against its record; or, a scheduled run, to each of its chats (dest, a chat's job; else the home chats),
+	recording for each the ratings it saw."""
+	interactive = delivery.interactive(dest)
+	market_data, seen = gather(watchlist.with_holdings())
 	for chat in delivery.targets(dest):
+		changes = changed(market_data, seen, state.load_for(chat.key, STATE_FILE, {}))
 		delivery.deliver(chat, delivery.Report(report(chat.dialect, changes, interactive)))
-	if seen and not interactive: # added to what is recorded: a ticker missing from this run keeps its last rating
-		with state.edit(STATE_FILE, {}) as ratings:
-			ratings.update(seen)
+		if seen and not interactive: # added to its record: a ticker missing from this run keeps its last rating
+			with state.edit_for(chat.key, STATE_FILE, {}) as ratings:
+				ratings.update(seen)
 
 def gather(tickers):
-	"""(the ratings that changed since the last scheduled run, [(ticker, its details, old [action, index], new [action,
-	index], analysts)]; {ticker: [action, index]} of every rating seen)."""
-	old = state.load(STATE_FILE, {})
+	"""(the stocks' details; {ticker: [action, index]} of every rating seen, which counts only with its analysts)."""
 	market_data = yahoo.fetch_details(tickers)
-	changes, seen = [], {}
+	seen = {}
 	for ticker in tickers:
+		details = market_data.get(ticker, {})
 		try:
-			action = market_data[ticker]['recommend']
-			index = round(float(market_data[ticker]['recommend_index']), 1)
-			analysts = market_data[ticker]['recommend_analysts']
+			action, index = details['recommend'], round(float(details['recommend_index']), 1)
 		except (KeyError, ValueError):
 			continue
-		seen[ticker] = [action, index]
+		if 'recommend_analysts' in details:
+			seen[ticker] = [action, index]
+	return market_data, seen
+
+def changed(market_data, seen, old):
+	"""The ratings seen that changed from a chat's record (old, {ticker: [action, index]}): [(ticker, its details, old
+	(action, index), new (action, index), analysts)]."""
+	changes = []
+	for ticker, (action, index) in seen.items():
 		try:
 			old_action, old_index = old[ticker]
 		except (KeyError, TypeError, ValueError):
 			continue
 		if old_action and action != old_action:
-			changes.append((ticker, market_data[ticker], (old_action, old_index), (action, index), analysts))
-	return changes, seen
+			changes.append((ticker, market_data[ticker], (old_action, old_index), (action, index),
+				market_data[ticker]['recommend_analysts']))
+	return changes
 
 def report(service, changes, interactive):
 	"""The rating changes in one network's markup, sorted: 📈 when the consensus improved (its index fell: 1 is a strong
@@ -57,6 +65,11 @@ def report(service, changes, interactive):
 		payload = ["No rating changes found"]
 	return payload
 
+ARGUMENTS = '' # what a scheduled run takes: none
+
 def job(argv):
-	"""Arguments of a scheduled run: rating.py takes none."""
-	return 'rating.py', {}
+	"""A scheduled run's arguments: (label, run's keyword arguments); rating takes none, and an argument raises
+	ValueError."""
+	if argv:
+		raise ValueError('no arguments')
+	return 'rating', {}

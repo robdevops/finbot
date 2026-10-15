@@ -479,7 +479,7 @@ class StartupSignals(unittest.TestCase):
 				if 'cache: warm jobs done' in line: # each in a child process, as the scheduler is off
 					break
 			self.assertIn('cache: flushed 2 files', ''.join(lines))
-			self.assertIn('cache: filling it again: sharesight_warm.py, yahoo_warm.py', ''.join(lines))
+			self.assertIn('cache: filling it again: sharesight_warm, yahoo_warm', ''.join(lines))
 			self.assertEqual(sorted(os.listdir(cache)), ['finbot_x.json.abc.tmp', 'matplotlib'])
 			self.assertTrue(Path(data, 'finbot_watchlist.json').exists())
 

@@ -22,12 +22,14 @@ COMMANDS = ['.help', '/start', '.hello', '.thanks', '.who T1', '.plan buy low', 
 	'.session T1', '.premarket', '.postmarket', '.shorts', '.shorts 30', '.shorts T1', '.performance',
 	'.performance 7d', '.performance 1y', '.performance Nope', '.pie Rob', '.pie Rob sector', '.pie', '.compare T1 T2',
 	'.compare T1 T2 3m', '.compare T1', '.history T1', '.history', '.watchlist', '.watchlist add MSFT',
-	'.watchlist add MSFT', '.watchlist del MSFT', '.watchlist frob X', '.T1', '.jobs', 'hi @bot', 'noise']
+	'.watchlist add MSFT', '.watchlist del MSFT', '.watchlist frob X', '.T1', '.jobs', '.jobs run', '.jobs toggle',
+	'.jobs add', '.jobs add 0 22 * * * shorts', '.jobs del 4', '.jobs run 1', 'hi @bot', 'noise']
 BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1',
-	'j|1|0000']
-SCHEDULED = ['trades.py', 'price.py midsession', 'price.py interday', 'price.py premarket', 'price.py close',
-	'price.py 7', 'cal.py earnings', 'cal.py ex-dividend', 'performance.py 7', 'rating.py', 'shorts.py', 'milestone.py',
-	'reminder.py']
+	'j|1|0000', 'e|1|0000']
+JOBS = ['*/20 * * * Mon-Fri trades', '29 21 * * Mon-Fri price interday', # each chat's, for .jobs
+	'28 21 * * Sat cal earnings; cal ex-dividend; price 7; performance 7; rating']
+SCHEDULED = ['trades', 'price midsession', 'price interday', 'price premarket', 'price close', 'price 7',
+	'cal earnings', 'cal ex-dividend', 'performance 7', 'rating', 'shorts', 'milestone', 'reminder']
 TELEGRAM_API = 'https://api.telegram.org/botX/'
 ANSWER = {'ok': True, 'upload_url': 'https://files.slack.com/u', 'file_id': 'F1', 'id': '1'} # good enough for every API
 
@@ -106,7 +108,14 @@ def record(output):
 			self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack') # Slack's buttons too
 			if 'discordBotToken' in {field.name for field in common.dataclasses.fields(common.config.env)}:
 				self.env(discordBotToken='discord-test')
-			schedule = jobs.Scheduler(lambda: REPO / 'defaults' / 'schedule.cron', zone=common.UTC) # for .jobs
+			if hasattr(jobs, 'SCHEDULE_FILE'): # each chat's jobs, since jobs per chat
+				entries = [{'when': job.when, 'reports': job.text, 'zone': 'UTC', 'on': True}
+					for job in map(jobs.parse_job, JOBS)]
+				chats = ('telegram:55', 'slack:C1', 'discord:77')
+				common.state.save(jobs.SCHEDULE_FILE, {key: entries for key in chats})
+				schedule = jobs.Scheduler()
+			else: # one schedule for all chats, the shipped one
+				schedule = jobs.Scheduler(lambda: REPO / 'defaults' / 'schedule.cron', zone=common.UTC)
 			with contextlib.redirect_stderr(io.StringIO()):
 				schedule.load()
 			self.patch(jobs, 'current', schedule)
@@ -137,7 +146,11 @@ def record(output):
 			discord = {'discordChannelID': '78'} if 'discordChannelID' in fields else {}
 			self.env(telegramChatID='1', slackChannelID='C9', **api, **discord)
 			for line in SCHEDULED:
-				label, module, kwargs = jobs.parse_command(line)[0]
+				if hasattr(jobs, 'parse_reports'):
+					label, module, kwargs = jobs.parse_reports(line)[0]
+				else: # a commit from before jobs per chat, whose reports were scripts
+					name, _, arguments = line.partition(' ')
+					label, module, kwargs = jobs.parse_command(f'{name}.py {arguments}'.strip())[0]
 				run = getattr(module, 'run', None) or module.lambda_handler # lambda_handler: a commit before run()
 				step(f'scheduled {line}', lambda: run(**kwargs))
 			Path(output).write_text(json.dumps(steps, indent=1, sort_keys=True, default=str))

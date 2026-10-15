@@ -1,4 +1,4 @@
-""".trades: Sharesight buys and sells; a scheduled run reports only new ones (scheduled: trades.py)."""
+""".trades: Sharesight buys and sells; a scheduled run reports only new ones (scheduled: trades)."""
 import dataclasses
 import datetime
 import sys
@@ -12,7 +12,7 @@ from lib import links
 from lib import markets
 from lib import yahoo
 
-STATE_FILE = "finbot_sharesight_trades.json" # the ids of the trades reported
+STATE_FILE = "finbot_sharesight_trades.json" # each chat's ids of the trades reported to it
 
 
 @dataclasses.dataclass(frozen=True)
@@ -30,22 +30,25 @@ class Trade:
 
 
 def run(dest=None, *, days=None, user='', portfolio_select=None):
-	"""Post the buys and sells of the past `days`, in every portfolio or the one named: to the chat that asked (dest),
-	else, only those not reported before, to the default chats. Raises sharesight.PortfolioNotFound for a name that is
-	none of them."""
-	interactive = dest is not None
+	"""Post the buys and sells of the past `days`, in every portfolio or the one named: to the chat that asked (dest);
+	or, a scheduled run, to each of its chats (dest, a chat's job; else the home chats) those it has not told that chat
+	of before. Raises sharesight.PortfolioNotFound for a name that is none of them."""
+	interactive = delivery.interactive(dest)
 	if days is None:
 		days = config.prefs.past_days
-	trades = gather(days, portfolio_select, set() if interactive else set(state.load(STATE_FILE, [])))
-	for chat in delivery.targets(dest):
-		payload = report(chat.dialect, trades, days, interactive)
+	chats = delivery.targets(dest)
+	told = {chat.key: set() if interactive else set(state.load_for(chat.key, STATE_FILE, [])) for chat in chats}
+	trades = gather(days, portfolio_select, set.intersection(*told.values())) # every chat knows those: not fetched
+	for chat in chats:
+		new = [trade for trade in trades if trade.id not in told[chat.key]]
+		payload = report(chat.dialect, new, days, interactive)
 		if interactive and not payload: # no trades, or none of them a buy or a sell
 			when = formats.days_english(days, 'in the past ')
 			payload = [f"{user} No trades {when}."]
 		delivery.deliver(chat, delivery.Report(payload))
-	if trades and not interactive: # recorded once the report is out
-		with state.edit(STATE_FILE, []) as known:
-			known.extend(sorted({trade.id for trade in trades}.difference(known)))
+		if new and not interactive: # recorded once the report is out
+			with state.edit_for(chat.key, STATE_FILE, []) as known:
+				known.extend(sorted({trade.id for trade in new}.difference(known)))
 
 
 def gather(days, portfolio_select, known):
@@ -96,6 +99,11 @@ def report(service, trades, days, interactive):
 		if trade.date == date] for date in dates))
 
 
+ARGUMENTS = '' # what a scheduled run takes: none
+
 def job(argv):
-	"""Arguments of a scheduled run: trades.py takes none."""
-	return 'trades.py', {}
+	"""A scheduled run's arguments: (label, run's keyword arguments); trades takes none, and an argument raises
+	ValueError."""
+	if argv:
+		raise ValueError('no arguments')
+	return 'trades', {}

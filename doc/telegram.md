@@ -14,8 +14,9 @@ Telegram:
 | `finbot.env` keys | `telegramBotToken`, `telegramChatID` | Those two, plus `telegramOutgoingWebhook` and `telegramOutgoingToken` |
 
 Everything else is the same in both: the scheduled reports with their charts, the chat commands (`.price`, `.history`,
-`.performance` and the rest, [the list](../README.md#supported-commands)), period buttons under charts and `.jobs`
-buttons, "typing…" while a command works, and a keyboard of the common commands in a direct chat with the bot.
+`.performance` and the rest, [the list](../README.md#supported-commands)), period buttons under charts and the
+buttons of `.jobs run` and `.jobs toggle`, "typing…" while a command works, and a keyboard of the common commands in a
+direct chat with the bot.
 
 `telegramOutgoingWebhook` chooses the mode: set, HTTP mode; empty, pull mode. A restart switches. As finbot starts in
 pull mode it deletes the webhook, and in HTTP mode it sets it; the updates sent meanwhile are kept by Telegram and
@@ -42,8 +43,9 @@ arrive after the switch.
      starts).
    * A group's id changes when Telegram turns it into a supergroup, which some changes to its settings do. Update
      `telegramChatID` then: finbot does not follow the change.
-6. Start finbot (`sudo systemctl restart finbot`). The log says `telegram: long polling for updates`, and the scheduled
-   reports now arrive in the chat.
+6. Start finbot (`sudo systemctl restart finbot`). The log says `telegram: long polling for updates`. The first start
+   gives this chat, Telegram's home chat, the default jobs ([Scheduling](../README.md#scheduling)), so the scheduled
+   reports arrive there; it gets the error reports too. Every chat manages its own jobs with `.jobs`.
 7. Send `.help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
 
 ```

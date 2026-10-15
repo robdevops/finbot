@@ -1,4 +1,4 @@
-"""Record highs and lows (all-time) among the stocks followed (scheduled: milestone.py)."""
+"""Record highs and lows (all-time) among the stocks followed (scheduled: milestone)."""
 from lib import state
 from lib import delivery
 from lib import formats
@@ -10,25 +10,26 @@ from lib import yahoo
 # - need to handle stock splits: flush cache if we see a split in the data
 # https://finance.yahoo.com/quote/TSLA/history?period1=0&period2=1707609600&filter=split
 
-STATE_FILE = 'finbot_milestone.json' # {ticker: {'all_time_high': ..., 'all_time_low': ...}}
+STATE_FILE = 'finbot_milestone.json' # each chat's {ticker: {'all_time_high': ..., 'all_time_low': ...}}
 
 def run(dest=None):
-	"""Post the stocks followed that set an all-time high or low to the default chats (or dest), and record the new
+	"""Post the stocks followed that set an all-time high or low, against each chat's record, to each of the run's chats
+	(dest, a chat's job or the chat that asked; else the home chats); a scheduled run records each chat's new
 	records."""
-	market_data, highs, lows, changed = gather()
-	for chat in delivery.targets(dest):
-		delivery.deliver(chat, delivery.Report(report(chat.dialect, market_data, highs, lows)))
-	if changed:
-		with state.edit(STATE_FILE, {}) as recorded:
-			recorded.update(changed)
-
-def gather():
-	"""(the quotes, the tickers at a record high, those at a record low, {ticker: its records after this run}) of the
-	stocks followed: each one's 52-week range against its all-time record, which a first sighting takes from its
-	history."""
+	interactive = delivery.interactive(dest)
 	tickers = watchlist.with_holdings()
 	market_data = yahoo.fetch(tickers)
-	records = state.load(STATE_FILE, {})
+	for chat in delivery.targets(dest):
+		highs, lows, changed = compare(tickers, market_data, state.load_for(chat.key, STATE_FILE, {}))
+		delivery.deliver(chat, delivery.Report(report(chat.dialect, market_data, highs, lows)))
+		if changed and not interactive:
+			with state.edit_for(chat.key, STATE_FILE, {}) as recorded:
+				recorded.update(changed)
+
+def compare(tickers, market_data, records):
+	"""(the tickers at a record high, those at a record low, {ticker: its records after this run}): each one's 52-week
+	range (market_data, the quotes) against its all-time record in a chat's records, which a first sighting takes from
+	its history."""
 	highs, lows, changed = [], [], {}
 	for ticker in tickers:
 		try:
@@ -49,7 +50,7 @@ def gather():
 			highs.append(ticker)
 		if newlow < oldlow:
 			lows.append(ticker)
-	return market_data, highs, lows, changed
+	return highs, lows, changed
 
 def report(service, market_data, highs, lows):
 	"""The records in one network's markup: the record highs, then the record lows, each list sorted."""
@@ -59,6 +60,11 @@ def report(service, market_data, highs, lows):
 	return formats.sections(highs and [service.bold('Record high:')] + sorted(line(ticker) for ticker in highs),
 		lows and [service.bold('Record low:')] + sorted(line(ticker) for ticker in lows))
 
+ARGUMENTS = '' # what a scheduled run takes: none
+
 def job(argv):
-	"""Arguments of a scheduled run: milestone.py takes none."""
-	return 'milestone.py', {}
+	"""A scheduled run's arguments: (label, run's keyword arguments); milestone takes none, and an argument raises
+	ValueError."""
+	if argv:
+		raise ValueError('no arguments')
+	return 'milestone', {}

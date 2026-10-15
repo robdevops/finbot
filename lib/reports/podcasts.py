@@ -1,4 +1,4 @@
-"""New episodes of a podcast feed (scheduled: podcasts.py "<feed url>")."""
+"""New episodes of a podcast feed (scheduled: podcasts FEED_URL)."""
 import hashlib
 import string
 import xml.etree.ElementTree as ET
@@ -14,8 +14,10 @@ NAMESPACES = {
 }
 NEWEST = 5 # episodes posted per run at most: the other new ones (on a first run, say) are only recorded as seen
 
+SEEN_FILES = 'finbot_podcast_seen_*.json' # each feed's, as get_seen_filename names them
+
 def get_seen_filename(url):
-	"""The state file, in the data directory, of the episodes of this feed already seen."""
+	"""The state file, in the data directory, of the episodes of this feed already seen (by each chat)."""
 	return f"finbot_podcast_seen_{hashlib.md5(url.encode()).hexdigest()}.json"
 
 def fetch_and_parse_feed(url):
@@ -65,42 +67,43 @@ def media_link(item):
 	return None
 
 def fetch_new_episodes(feed_url, seen):
-	"""(the NEWEST newest episodes whose guid is not in `seen`, newest first; the guids of all the new ones)."""
+	"""The feed's episodes whose guid is not in `seen`, newest first, each with its guid."""
 	channel = fetch_and_parse_feed(feed_url).find("channel")
 	if channel is None:
 		raise RuntimeError("No <channel> element found")
 	podcast_name = (channel.findtext("title") or "Podcast").strip()
-	episodes, guids = [], set()
+	episodes = []
 	for item in channel.findall("item"):
 		guid = item.findtext("guid") or item.findtext("link")
 		media_url = media_link(item)
 		if not guid or guid in seen or not media_url:
 			continue
 		when = published(item.findtext("pubDate"))
-		episodes.append({"podcast": podcast_name, "title": (item.findtext("title") or "Untitled").strip(),
+		episodes.append({"guid": guid, "podcast": podcast_name, "title": (item.findtext("title") or "Untitled").strip(),
 			"url": media_url,
 			"ago": how_long_ago(when),
 			"duration": format_duration(item.findtext("itunes:duration", namespaces=NAMESPACES)),
 			"published": when or datetime.min.replace(tzinfo=timezone.utc)})
-		guids.add(guid)
 	episodes.sort(key=lambda episode: episode["published"], reverse=True)
-	return episodes[:NEWEST], guids
+	return episodes
 
 def run(dest=None, *, feed_url):
-	"""Post the feed's newest episodes not posted before to the default chats (or dest), then record every new one as
-	seen."""
+	"""Post to each of the run's chats (dest, a chat's job; else the home chats) the feed's newest episodes not posted
+	to it before, then record every new one as seen by it."""
 	seen_file = get_seen_filename(feed_url)
-	seen = set(state.load(seen_file, []))
+	chats = delivery.targets(dest)
+	seen = {chat.key: set(state.load_for(chat.key, seen_file, [])) for chat in chats}
 	try:
-		episodes, guids = fetch_new_episodes(feed_url, seen)
+		episodes = fetch_new_episodes(feed_url, set.intersection(*seen.values())) # every chat has seen those
 	except Exception as e:
 		raise RuntimeError(f"fetching feed {feed_url}: {e}")
-	if not guids:
-		return
-	for chat in delivery.targets(dest):
-		delivery.deliver(chat, delivery.Report(report(chat.dialect, episodes)))
-	with state.edit(seen_file, []) as recorded: # last, so that a failure above leaves these episodes for next run
-		recorded[:] = sorted(guids.union(recorded))
+	for chat in chats:
+		new = [episode for episode in episodes if episode['guid'] not in seen[chat.key]]
+		if not new:
+			continue
+		delivery.deliver(chat, delivery.Report(report(chat.dialect, new[:NEWEST])))
+		with state.edit_for(chat.key, seen_file, []) as recorded: # last: a failure above leaves them for next run
+			recorded[:] = sorted({episode['guid'] for episode in new}.union(recorded))
 
 def report(service, episodes):
 	"""The episodes in one network's markup, each linked to its media, with its length and age."""
@@ -112,11 +115,13 @@ def report(service, episodes):
 		payload.append(f"📣 {podcast_name}: {service.link(episode['url'], title)}{duration} ({episode['ago']})")
 	return payload
 
+ARGUMENTS = 'FEED_URL' # what a scheduled run takes
+
 def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case [feed_url]:
 			# the label matches the seen file's name
-			return 'podcasts.py ' + hashlib.md5(feed_url.encode()).hexdigest()[:8], {'feed_url': feed_url}
+			return 'podcasts ' + hashlib.md5(feed_url.encode()).hexdigest()[:8], {'feed_url': feed_url}
 		case _:
-			raise ValueError('"<podcast_feed_url>"')
+			raise ValueError(ARGUMENTS)

@@ -188,23 +188,23 @@ class _Reader:
 @dataclasses.dataclass(frozen=True)
 class Env:
 	"""The startup settings: finbot.env, which the launcher loads into the environment; fixed for the process."""
-	data_dir: str # state: watchlist, seen trades, ratings, the schedule's record, preferences.conf
+	data_dir: str # state: each chat's jobs, the watchlist, seen trades, ratings, preferences.conf
 	cache_dir: str # data_dir/cache
 	ip: str
 	port: int
 	scheduler_catchup: int # minutes: a run missed while the bot was down still fires if it was due this recently
-	telegramChatID: str # '' when unset, like every token below
+	telegramChatID: str # Telegram's home chat (its first jobs, the error reports); '' when unset, like the rest below
 	telegramBotToken: str
 	telegramOutgoingWebhook: str
 	telegramOutgoingToken: str
 	slackBotToken: str
 	slackAppToken: str # xapp-: Socket Mode, Slack's pull mode (without slackOutgoingWebhook)
-	slackChannelID: str # with slackBotToken, scheduled reports go to this channel as the bot
+	slackChannelID: str # with slackBotToken, Slack's home chat (its first jobs, the error reports)
 	slackOutgoingWebhook: str
 	slackOutgoingToken: str
 	slackSigningSecret: str
 	discordBotToken: str
-	discordChannelID: str # with discordBotToken, scheduled reports go to this channel as the bot
+	discordChannelID: str # with discordBotToken, Discord's home chat (its first jobs, the error reports)
 	discordOutgoingWebhook: str # the interactions endpoint URL (http mode); unset, finbot keeps to the gateway
 	discordPublicKey: str # the app's key, which checks the signature of each interaction posted to the endpoint
 	sharesight_auth: dict

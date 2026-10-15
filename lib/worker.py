@@ -43,21 +43,27 @@ class Request:
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
 def process_job_callback(press, pressed):
-	"""A command button of .jobs (an inbound.Press; pressed, what its data says): run that command now and answer in
-	the chat. A button from an older list runs nothing: the list is redrawn in place as it is now."""
+	"""A job's button (an inbound.Press; pressed, what its data says): run the job now and say how it went, or switch
+	it on or off and redraw the list in place. A button from an older list does neither: the list is redrawn as it is
+	now."""
 	service = dialects.of(press.service)
 	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
-	try:
-		if jobs.current is None: # the scheduler is off now
-			raise jobs.ScheduleError('the scheduler is off')
-		command = jobs.current.pick(pressed.number, pressed.checksum) # only a command .jobs offers; anything else fails
-	except jobs.ScheduleError:
-		payload, markup = about.prepare_jobs_payload(service, '', chat.takes_buttons) # the list now, for the stale one
+	def redraw():
+		"""Put the chat's list, as it is now, in place of the pressed one, with the same kind of buttons."""
+		payload, markup = about.prepare_jobs_payload(service, chat.key, pressed.action, chat.takes_buttons)
 		chat.edit_text(press.message_id, '\n'.join(payload), markup or [])
-		return
 	try:
-		line = about.job_line(jobs.current, *jobs.current.run_command(command))
-		delivery.deliver(chat, delivery.Report([line]))
+		if jobs.current is None:
+			raise jobs.ScheduleError('no schedule is running')
+		job = jobs.current.pick(chat.key, pressed.number, pressed.checksum) # only this chat's job, as listed
+	except jobs.ScheduleError:
+		return redraw()
+	try:
+		if pressed.action == 'toggle':
+			jobs.current.toggle(job)
+			redraw()
+		else:
+			delivery.deliver(chat, delivery.Report([about.job_line(pressed.number, job, jobs.current.run(job))]))
 	except Exception as e:
 		delivery.report_error(e, chat, context='jobs')
 
@@ -355,11 +361,42 @@ def on_who(request, args):
 	request.reply(holdings.prepare_who(request.service, re.split(r'[.:]', args.words[0].upper())[0]))
 
 def on_jobs(request, args):
-	""".jobs [run NUMBER|COMMAND]: the schedule, or one of its commands run now."""
-	if bool(args.keyword) != bool(args.words): # run without a command, or words without run
-		raise Usage
-	payload, markup = about.prepare_jobs_payload(request.service, args.rest or None, request.dest.takes_buttons)
-	request.reply(payload, buttons=markup)
+	""".jobs: this chat's jobs; .jobs run or toggle [NUMBER]: one run now or switched on or off (without a number, the
+	list with a button per job that does it); .jobs add [CRON_TZ=ZONE] TIME REPORT: one more (alone, the reports it can
+	run); .jobs del NUMBER: one fewer."""
+	scheduler, chat, service = jobs.current, request.dest.key, request.service
+	if scheduler is None:
+		raise answer.Answer('No schedule is running')
+	try:
+		if args.keyword is None and not args.words:
+			request.reply(about.prepare_jobs_payload(service, chat)[0])
+		elif args.keyword == 'add':
+			first, line = (args.text.split(None, 1) + [''])[:2]
+			if first.lower() != 'add': # the job's line follows add
+				raise Usage
+			if not line:
+				return request.reply(about.prepare_reports(service))
+			number = scheduler.add(chat, line)
+			request.reply([about.job_entry(service, scheduler, number, scheduler.chat_jobs(chat)[number - 1]),
+				'Added: .jobs lists them all'])
+		elif args.keyword in ('run', 'toggle') and not args.words:
+			payload, markup = about.prepare_jobs_payload(service, chat, args.keyword, request.dest.takes_buttons)
+			request.reply(payload, buttons=markup)
+		elif args.keyword in ('run', 'toggle', 'del') and len(args.words) == 1:
+			number = args.words[0]
+			job = scheduler.job(chat, number)
+			if args.keyword == 'run':
+				request.reply([about.job_line(number, job, scheduler.run(job))])
+			elif args.keyword == 'toggle':
+				scheduler.toggle(job)
+				request.reply([about.job_entry(service, scheduler, number, scheduler.job(chat, number))])
+			else:
+				scheduler.delete(job)
+				request.reply([f"Deleted {number}. {job.line}"])
+		else:
+			raise Usage
+	except jobs.ScheduleError as e: # a job that cannot be, or a number that is none: said, as an answer
+		raise answer.Answer(str(e))
 
 def on_profile(request, args):
 	""".SYMBOL, or .stock (.profile) SYMBOL: the company's profile."""
@@ -392,6 +429,8 @@ TOP = {'top': 'top', 'bottom': 'bottom'} # the ends of a ranked list
 NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # the ratios that can be negative
 CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'delete') # of the watchlist
 BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .pie's
+JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'),
+	'del') # what .jobs does to a chat's jobs
 BUY_SELL = ('buy', 'sell', *(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')))
 PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL'), COMPANY) # any first word that is no
 # command's name but may be a ticker calls it too
@@ -426,8 +465,8 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True),
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True),
 	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES),
-	Command(('jobs', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [run NUMBER|COMMAND]',), JOBS,
-		keywords={'run': 'run'}),
+	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [run|toggle] [NUMBER]',
+		'.jobs add [CRON_TZ=ZONE] TIME REPORT', '.jobs del NUMBER'), JOBS, keywords=JOB_CHANGES),
 	PROFILE,
 ]
 

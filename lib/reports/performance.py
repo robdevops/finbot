@@ -1,4 +1,4 @@
-""".performance: each portfolio's return over a period, beside two benchmarks (scheduled: performance.py [days])."""
+""".performance: each portfolio's return over a period, beside two benchmarks (scheduled: performance [days])."""
 import sys
 
 from lib import config
@@ -61,12 +61,14 @@ def run(dest=None, *, past_days=None, user='', portfolio_select=None):
 			markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days))
 		delivery.deliver(chat, delivery.Report(payload, graph, markup))
 
+ARGUMENTS = '[DAYS]' # what a scheduled run takes
+
 def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case []:
-			return 'performance.py', {}
+			return 'performance', {}
 		case [days] if days.isdigit():
-			return f'performance.py {days}', {'past_days': int(days)}
+			return f'performance {days}', {'past_days': int(days)}
 		case _:
-			raise ValueError('[integer]')
+			raise ValueError(ARGUMENTS)

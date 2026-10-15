@@ -16,10 +16,10 @@ The bot does the same either way. What differs is how it hears from Discord:
 | Python modules | `discord.py` (Debian: `python3-discord`) | `PyNaCl` and `waitress` (Debian: `python3-nacl`, `python3-waitress`) |
 | `finbot.env` keys | `discordBotToken`, `discordChannelID` | Those two, plus `discordOutgoingWebhook` and `discordPublicKey` |
 
-In both: the scheduled reports with their charts; period buttons under charts and `.jobs` buttons, which redraw their
-message in place; linked tickers, without link previews and without pinging anyone; and direct messages with the bot.
-A command in a message shows "finbot is typing…" while it works; a slash command shows Discord's "finbot is
-thinking…" until its answer takes its place.
+In both: the scheduled reports with their charts; period buttons under charts and the buttons of `.jobs run` and
+`.jobs toggle`, which redraw their message in place; linked tickers, without link previews and without pinging anyone;
+and direct messages with the bot. A command in a message shows "finbot is typing…" while it works; a slash command
+shows Discord's "finbot is thinking…" until its answer takes its place.
 
 `discordOutgoingWebhook` chooses the mode: set, HTTP mode; empty, gateway mode. Discord sends the slash commands and
 button presses to the app's _Interactions Endpoint URL_ while it is set, and over the gateway while it is empty, so
@@ -37,8 +37,10 @@ change both, and restart finbot, to switch.
 3. Under _OAuth2 > URL Generator_, tick the scopes `bot` and `applications.commands`, then the bot permissions _View
    Channels_, _Send Messages_, _Attach Files_ and _Read Message History_. Open the URL it makes, and add the bot to your
    server.
-4. In Discord, turn on _User Settings > Advanced > Developer Mode_; then right-click the channel for the scheduled
-   reports, _Copy Channel ID_, and put it in `finbot.env` as `discordChannelID`.
+4. In Discord, turn on _User Settings > Advanced > Developer Mode_; then right-click the channel to be Discord's home
+   chat, _Copy Channel ID_, and put it in `finbot.env` as `discordChannelID`. finbot's first start gives that channel
+   the default jobs ([Scheduling](../README.md#scheduling)), and it gets the error reports. Every channel manages its
+   own jobs with `.jobs`.
 5. Install discord.py: `sudo apt install python3-discord` (or `pip install discord.py`).
 6. Restart finbot (`sudo systemctl restart finbot`). As it starts, it registers the slash commands, which can take a
    few minutes to show in Discord the first time, and the log says `discord: gateway (no discordOutgoingWebhook)`.

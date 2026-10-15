@@ -1,4 +1,4 @@
-""".earnings and .dividend: upcoming earnings and ex-dividend dates (scheduled: cal.py earnings | ex-dividend)."""
+""".earnings and .dividend: upcoming earnings and ex-dividend dates (scheduled: cal earnings | ex-dividend)."""
 import datetime
 
 from lib import config
@@ -87,10 +87,12 @@ def report(service, events, days, specific_stock, interactive, event):
 		payload = [f"No events found for {specific_stock}" if specific_stock else f"No events found {ahead}"]
 	return payload
 
+ARGUMENTS = 'earnings|ex-dividend' # what a scheduled run takes
+
 def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case ['earnings' | 'ex-dividend' as event]:
-			return f'cal.py {event}', {'event': event}
+			return f'cal {event}', {'event': event}
 		case _:
-			raise ValueError('[earnings|ex-dividend]')
+			raise ValueError(ARGUMENTS)

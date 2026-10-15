@@ -21,9 +21,9 @@ def sync(apply=False, force=False, dest=None):
 	for src in sorted((config.REPO_DIR / 'defaults').iterdir()):
 		if not src.is_file():
 			continue
-		if src.name == 'finbot.env':
+		if src.name in ('finbot.env', 'schedule.cron'):
 			# the startup file is not data: it holds credentials, lives wherever the launcher loads it from, and the bot
-			# never reads it
+			# never reads it; the old schedule is read only to give the home chats their jobs once (lib/migrate.py)
 			continue
 		name = src.name
 		target = dest_dir / name

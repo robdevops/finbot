@@ -1,5 +1,5 @@
-"""Keeps the price history of every stock followed fresh in the cache (scheduled: yahoo_warm.py), so that a period list
-or a chart never waits on Yahoo. Sharesight's caches have their own, sharesight_warm.py."""
+"""Keeps the price history of every stock followed fresh in the cache (scheduled: yahoo_warm), so that a period list
+or a chart never waits on Yahoo. Sharesight's caches have their own, sharesight_warm."""
 import sys
 from lib import config, watchlist, yahoo
 
@@ -20,6 +20,11 @@ def run():
 	print(f"yahoo_warm: {len(tickers) - len(failed)} of {len(tickers)} price histories fetched", file=sys.stderr)
 	return len(tickers) - len(failed)
 
+ARGUMENTS = '' # what a scheduled run takes: none
+
 def job(argv):
-	"""Arguments of a scheduled run: yahoo_warm.py takes none."""
-	return 'yahoo_warm.py', {}
+	"""A scheduled run's arguments: (label, run's keyword arguments); yahoo_warm takes none, and an argument raises
+	ValueError."""
+	if argv:
+		raise ValueError('no arguments')
+	return 'yahoo_warm', {}

@@ -31,6 +31,7 @@ class Transport:
 	takes_buttons = True # buttons under a message
 	shows_typing = True # a typing notice while a command works
 	TYPING = (0.5, 7, 10) # the notice: first after 0.5 s (a quick answer gets none), then every 7 s, 10 times at most
+	scheduled = False # posting a scheduled run's report (a chat's job, or the home chats), not a reply to a command
 	_notices = None # the thread sending the notices
 	_quiet = None # set to stop them
 
@@ -46,6 +47,12 @@ class Transport:
 	def __repr__(self):
 		"""<TelegramBot 55>: the kind and where, for logs and test failures."""
 		return f'<{type(self).__name__} {self.where}>'
+
+	@property
+	def key(self):
+		"""The chat's key, the same whichever way its network's updates arrive: 'telegram:-1001234'. A chat's jobs, its
+		watchlist and what its reports have told it are kept under it."""
+		return f'{self.name}:{self.where}'
 
 	def start_typing(self):
 		"""Show the typing notice while a command works, where the network has one (TYPING says when), until the first

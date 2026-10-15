@@ -1,6 +1,9 @@
 """Text for people: company names trimmed, numbers in units, dates and spans in words, signed percents, ordinals."""
 import datetime
 import re
+import zoneinfo
+
+from lib import config
 
 TITLE_TRIMS = [ # transform_title: (text, replacement), in order, as each sees what the ones before it made
 	(' - ', ' '), ('Roundhill ETF Trust ', ''), ('Class A Common Stock', ''),
@@ -152,3 +155,11 @@ def days_from_human_days(arg):
 def ordinal(num):
 	"""The ordinal suffix of a whole number: 'st' for 1, 'nd' for 22, 'th' for 11 and 13."""
 	return 'th' if num % 100 in (11, 12, 13) else {1: 'st', 2: 'nd', 3: 'rd'}.get(num % 10, 'th')
+
+
+def zone():
+	"""The timezone preference as a zone: UTC where it names none."""
+	try:
+		return zoneinfo.ZoneInfo(config.prefs.timezone)
+	except (ValueError, zoneinfo.ZoneInfoNotFoundError):
+		return zoneinfo.ZoneInfo('UTC')

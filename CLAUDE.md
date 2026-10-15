@@ -55,13 +55,15 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   percent, a period and a keyword from either end, the words between; a handler raises `Usage` for arguments it cannot
   take, and gets a ticker with `ticker(args)`. `Request` (`request.reply(lines, chart, buttons)`); each command gets
   the typing notice while it works. `process_request(message)` and `process_callback(press)` take inbound's objects.
-- `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
-  or else the default chats, and `job(argv)`, its schedule-line parser): `price performance trades shorts cal rating
-  milestone reminder podcasts cleanup sharesight_warm yahoo_warm`, run in the bot by the scheduler or `.jobs run`.
+- `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked,
+  the job's chat or else the home chats; `job(argv)`, its arguments' parser; and `ARGUMENTS`, what `.jobs add` lists):
+  `price performance trades shorts cal rating milestone reminder podcasts cleanup sharesight_warm yahoo_warm`. trades,
+  rating, milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`),
+  added to only by a scheduled run (`delivery.interactive(dest)` is false).
   Chat-only (`prepare_*`): `about` (.help .jobs), `history` (.history .compare), `holdings` (.holdings .who .pie
   .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
-- `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or each network's home chat
-  as its bot), `deliver(dest, report)`, the one-line error report. `lib/transports.py`: a class per network's bot
+- `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, a chat by its key with
+  `chat(key)`, or each network's home chat as its bot), `deliver(dest, report)`, the one-line error report. `lib/transports.py`: a class per network's bot
   (`TelegramBot`, `SlackBot`, `DiscordBot`), each taking charts and buttons: splitting, captions, charts, buttons,
   edits, and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the message), which `text()` and
   `chart()` stop before posting. `DiscordBot`: a slash command's first message replaces its "thinking…" through its
@@ -82,10 +84,13 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `trades(days)`.
 - `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save. `lib/watchlist.py`: the watchlist.
+  A chat's key is its network and id (`Transport.key`, `telegram:-1001234`), the same in both modes.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on
-  each reload). `lib/jobs.py`: the scheduler, its shared state under one lock; each command runs in the bot's process,
-  in a thread (`run_in_process`), reported once if still running after `JOB_TIMEOUT` and left to finish (every request
-  goes through `net`, with its timeouts: a test checks).
+  each reload). `lib/jobs.py`: the scheduler: each chat's jobs (`SCHEDULE_FILE`, by chat key; `add`, `delete`,
+  `toggle`, `run`, which `.jobs` calls through `jobs.current`) and the fixed `SYSTEM` jobs, its shared state under one
+  lock; each command runs in the bot's process, in a thread (`run_in_process`), reported once if still running after
+  `JOB_TIMEOUT` and left to finish (every request goes through `net`, with its timeouts: a test checks).
+  `lib/migrate.py`: once, the old schedule.cron and the reports' shared records become the home chats'.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return
@@ -94,8 +99,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - Which test file: commands and scheduled reports `test_reports`; failures, bad input, secrets in logs, signals
   `test_edges`; webhook requests, Slack events and signatures `test_inbound`; the pull modes `test_pull`; the Discord
   bot `test_discord`; Yahoo `test_yahoo`; Sharesight `test_sharesight`; posting to each network `test_sending`;
-  registering Telegram's webhook `test_telegram_api`; the schedule file and job arguments `test_schedule`; the scheduler
-  and manual runs `test_scheduler`; config `test_config`; charts `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`);
+  registering Telegram's webhook `test_telegram_api`; job lines, job arguments and the migration `test_schedule`; the
+  scheduler and `.jobs` in a chat `test_scheduler`; config `test_config`; charts `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`);
   markets, formats, links, buttons, cache and state files `test_util`; data dir `test_datadir`; chunking, git_version,
   and the docstring, stdout and line-width checks `test_finbot`.
 

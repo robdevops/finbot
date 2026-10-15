@@ -1,4 +1,4 @@
-"""Deletes old cache files (scheduled: cleanup.py [days]); with days=0 it is the cache flush."""
+"""Deletes old cache files (scheduled: cleanup [days]); with days=0 it is the cache flush."""
 import os, sys, time
 from lib import config
 
@@ -23,12 +23,14 @@ def run(*, days=30):
 				print("cleanup: can't remove", entry.path, e, file=sys.stderr)
 	return removed
 
+ARGUMENTS = '[DAYS]' # what a scheduled run takes
+
 def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case []:
-			return 'cleanup.py', {}
+			return 'cleanup', {}
 		case [days] if days.isdigit():
-			return f'cleanup.py {days}', {'days': int(days)}
+			return f'cleanup {days}', {'days': int(days)}
 		case _:
-			raise ValueError('[days]')
+			raise ValueError(ARGUMENTS)

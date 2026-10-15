@@ -1,4 +1,4 @@
-""".price, .session, .premarket, .postmarket: price moves past a threshold (scheduled: price.py midsession | interday |
+""".price, .session, .premarket, .postmarket: price moves past a threshold (scheduled: price midsession | interday |
 premarket | close | <days>)."""
 import dataclasses
 import datetime
@@ -191,12 +191,14 @@ def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user
 		payload, graph = report(chat.dialect, found, mode, threshold, days, top, user, specific_stock, interactive)
 		delivery.deliver(chat, delivery.Report(payload, graph, markup(chat) if graph else None))
 
+ARGUMENTS = 'midsession|interday|premarket|close|DAYS' # what a scheduled run takes
+
 def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case ['midsession' | 'interday' | 'premarket' | 'close' as mode]:
-			return f'price.py {mode}', {'mode': mode}
+			return f'price {mode}', {'mode': mode}
 		case [days] if days.isdigit():
-			return f'price.py {days}', {'mode': 'period', 'threshold': 0, 'days': int(days), 'top': 10}
+			return f'price {days}', {'mode': 'period', 'threshold': 0, 'days': int(days), 'top': 10}
 		case _:
-			raise ValueError('[midsession|interday|premarket|close|days (int)]')
+			raise ValueError(ARGUMENTS)

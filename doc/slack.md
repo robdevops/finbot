@@ -110,9 +110,10 @@ slackChannelID=C0123456789
 5. Restart finbot, and invite the bot to the channel: `/invite @finbot`. In Socket Mode the log says
    `slack: Socket Mode (no slackOutgoingWebhook)`.
 6. Send `@finbot help` in the channel (or `.help`, with `message.channels`).
-7. For the scheduled reports, set `slackChannelID` to the channel's id (in Slack, click the channel's name: the
-   _Channel ID_, which starts with C, is at the bottom of _About_), and restart finbot. The bot posts the scheduled
-   reports there, as it posts its replies.
+7. Set `slackChannelID` to the channel's id (in Slack, click the channel's name: the _Channel ID_, which starts with
+   C, is at the bottom of _About_), and restart finbot. It is Slack's home chat: finbot's first start gives it the
+   default jobs ([Scheduling](../README.md#scheduling)), and it gets the error reports. Every channel manages its own
+   jobs with `.jobs`.
 
 A chart is uploaded with Slack's file upload API (`files.getUploadURLExternal`, then `files.completeUploadExternal`).
 With its period buttons, it goes in a message of blocks: the report, the chart (uploaded into no channel, and shown by
@@ -122,5 +123,5 @@ drawn and uploaded anew (Slack cannot replace a file). An upload that no message
 are past, so the bot's files do not pile up. If Slack will not show a chart with its buttons, the chart is uploaded into
 the channel without them; if an upload fails (a missing scope, say), the report goes out as text. The log says why.
 
-`.jobs` lists the scheduled commands with a button for each, as on Telegram; a button from a list that has since
-changed puts the current list in its place.
+`.jobs run` and `.jobs toggle` list the channel's jobs with a button for each, as on Telegram; a button from a list
+that has since changed puts the current list in its place.

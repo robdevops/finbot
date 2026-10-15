@@ -1,4 +1,4 @@
-"""Reminders for the day: the entries of reminder.json for today, and finbot's birthday (scheduled: reminder.py)."""
+"""Reminders for the day: the entries of reminder.json for today, and finbot's birthday (scheduled: reminder)."""
 import datetime
 import re
 import zoneinfo
@@ -55,6 +55,11 @@ def markup(line, service):
 	return service.italic(text) if italic else text
 
 
+ARGUMENTS = '' # what a scheduled run takes: none
+
 def job(argv):
-	"""Arguments of a scheduled run: reminder.py takes none."""
-	return 'reminder.py', {}
+	"""A scheduled run's arguments: (label, run's keyword arguments); reminder takes none, and an argument raises
+	ValueError."""
+	if argv:
+		raise ValueError('no arguments')
+	return 'reminder', {}

@@ -381,12 +381,32 @@ class ScheduledReports(FinbotCase):
 
 	def test_a_scheduled_run_keeps_the_trades_another_run_recorded_meanwhile(self):
 		"""The seen trades are read again as the run ends, so a trade another run recorded meanwhile is kept."""
-		meanwhile = lambda tickers: state.save('finbot_sharesight_trades.json',
-			[999]) or {t: market_entry(t) for t in tickers}
+		meanwhile = lambda tickers: state.save(trades.STATE_FILE,
+			{'chats': {'telegram:1': [999]}}) or {t: market_entry(t) for t in tickers}
 		self.patch(yahoo, 'fetch', meanwhile) # called after the seen trades were read, before the new ones are recorded
 		trades.run()
-		known = state.load('finbot_sharesight_trades.json')
+		known = state.load_for('telegram:1', trades.STATE_FILE, [])
 		self.assertEqual((known[0], len(known)), (999, 2))
+
+	def test_a_trade_or_a_rating_change_reaches_each_chat_that_schedules_the_report(self):
+		"""Each chat keeps its own record of what a report told it, so a trade or a rating change reaches every chat
+		whose job runs the report, each once: the first chat's run used to mark it told for all."""
+		told = []
+		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None:
+			told.append((dest.key, ' '.join(lines))) or [])
+		chats = [delivery.chat(key, scheduled=True) for key in ('telegram:5', 'slack:C9')]
+		self.env(slackBotToken='xoxb-test')
+		for chat in chats * 2:
+			trades.run(chat)
+		self.assertEqual([key for key, text in told if 'T1' in text], ['telegram:5', 'slack:C9'])
+		for chat in chats:
+			rating.run(chat) # the first sighting, recorded
+		told.clear()
+		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | ({'recommend': 'sell',
+			'recommend_index': 4.5} if t == 'T1' else {})})
+		for chat in chats * 2:
+			rating.run(chat)
+		self.assertEqual([key for key, text in told if 'Co T1' in text], ['telegram:5', 'slack:C9'])
 
 	def test_milestone(self):
 		"""The milestone report posts."""
@@ -399,21 +419,23 @@ class ScheduledReports(FinbotCase):
 		self.patch(yahoo, 'fetch',
 			lambda ts: {t: {k: v for k, v in market_entry(t).items() if not k.startswith('fiftyTwoWeek')} for t in ts})
 		milestone.run()
-		self.assertFalse(state.load('finbot_milestone.json'))
+		self.assertFalse(state.load_for('telegram:1', milestone.STATE_FILE, {}))
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.sent.clear()
 		milestone.run()
 		self.assertNotIn('Record high', str(self.sent))
-		self.assertEqual(state.load('finbot_milestone.json')['T1'], {'all_time_high': 150.0, 'all_time_low': 50.0})
+		self.assertEqual(state.load_for('telegram:1', milestone.STATE_FILE, {})['T1'],
+			{'all_time_high': 150.0, 'all_time_low': 50.0})
 
 	def test_a_record_kept_from_ten_years_is_seeded_again_from_the_whole_history(self):
 		"""Records kept before they came from the whole history (record_high, from 10 years) are seeded again: a stock
 		above its 10-year high but below its all-time one posted a false record."""
-		state.save('finbot_milestone.json', {'T1': {'record_high': 110.0, 'record_low': 90.0}})
+		state.save(milestone.STATE_FILE, {'chats': {'telegram:1': {'T1': {'record_high': 110.0, 'record_low': 90.0}}}})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
 		milestone.run() # the 52-week range (120/80) was past the old record, but not the whole history's
 		self.assertNotIn('Co T1 ', str(self.sent))
-		self.assertEqual(state.load('finbot_milestone.json')['T1'], {'all_time_high': 150.0, 'all_time_low': 50.0})
+		self.assertEqual(state.load_for('telegram:1', milestone.STATE_FILE, {})['T1'],
+			{'all_time_high': 150.0, 'all_time_low': 50.0})
 
 	def test_milestone_records_are_all_time(self):
 		"""A new 52-week high below the all-time high is no record. The record used to become the 52-week high after the
@@ -429,7 +451,8 @@ class ScheduledReports(FinbotCase):
 
 	def test_a_52_week_record_kept_before_is_replaced_by_the_history(self):
 		"""A record kept in the old 52-week format is replaced by the history: no false record high."""
-		state.save('finbot_milestone.json', {f'T{i}': {'high': 110.0, 'low': 90.0} for i in range(25)})
+		state.save(milestone.STATE_FILE, {'chats': {'telegram:1': {f'T{i}': {'high': 110.0, 'low': 90.0}
+			for i in range(25)}}})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
 		milestone.run() # 120 beats the old 52-week record of 110, but not the history's 150
 		self.assertNotIn('Record high', str(self.sent))
@@ -454,7 +477,7 @@ class ScheduledReports(FinbotCase):
 	def test_an_interactive_rating_records_nothing(self):
 		"""A rating report asked for in a chat leaves the record for the scheduled runs alone."""
 		rating.run(transports.TelegramBot('5'))
-		self.assertIsNone(state.load('finbot_rating.json'))
+		self.assertIsNone(state.load(rating.STATE_FILE))
 
 	def test_scheduled_reports_reach_each_home_chat_with_its_own_token(self):
 		"""Scheduled reports reach Telegram's and Slack's home chats, each with its own bot's credentials: Slack's

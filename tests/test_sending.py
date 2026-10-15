@@ -535,8 +535,8 @@ class SlackButtons(FinbotCase):
 
 class EveryNetworkAndMode(FinbotCase):
 	"""One rule for the six networks and modes, in a channel and in a DM: a chart has its period buttons and a .jobs
-	list its buttons, a command shows the network's notice that finbot is at work, and the reply goes to the chat that
-	asked."""
+	run list its buttons, a command shows the network's notice that finbot is at work, and the reply goes to the chat
+	that asked."""
 	MODES = {
 		('telegram', 'http'): {'telegramOutgoingWebhook': 'https://example.com/telegram'},
 		('telegram', 'pull'): {'telegramOutgoingWebhook': ''},
@@ -549,13 +549,15 @@ class EveryNetworkAndMode(FinbotCase):
 	CHATS = {'telegram': ('-1001', '55'), 'slack': ('C1', 'D1'), 'discord': ('77', '88')} # a channel, then a DM
 
 	def setUp(self):
-		"""A schedule for .jobs to list, and what each command posts noted with its destination."""
+		"""A job in each chat for .jobs run to list, and what each command posts noted with its destination."""
 		super().setUp()
 		self.patch(inbound.DISCORD, 'bot_id', '99')
-		schedule = Path(temp_dir(self), 'schedule.cron')
-		schedule.write_text('*/20 * * * Mon-Fri trades.py\n')
-		scheduler = jobs.Scheduler(lambda: schedule)
-		scheduler.load()
+		every = [{'when': '*/20 * * * Mon-Fri', 'reports': 'trades', 'zone': 'UTC', 'on': True}]
+		state.save(jobs.SCHEDULE_FILE, {f'{network}:{chat}': every for network, chats in self.CHATS.items()
+			for chat in chats})
+		scheduler = jobs.Scheduler()
+		with contextlib.redirect_stderr(io.StringIO()):
+			scheduler.load()
 		self.patch(jobs, 'current', scheduler)
 		self.posted = []
 		self.patch(transports.Transport, 'chart', lambda dest, image, caption, buttons=None:
@@ -583,8 +585,8 @@ class EveryNetworkAndMode(FinbotCase):
 			'data': {'name': name, 'options': options}}
 
 	def test_every_network_in_both_modes_in_a_channel_and_a_dm(self):
-		"""A chart and a .jobs list each come with their buttons, in the chat that asked; the command showed the notice
-		that finbot is at work: "typing…" (Telegram, a Discord message), ⏳ on the message (Slack), or Discord's
+		"""A chart and a .jobs run list each come with their buttons, in the chat that asked; the command showed the
+		notice that finbot is at work: "typing…" (Telegram, a Discord message), ⏳ on the message (Slack), or Discord's
 		"thinking…" for a slash command, which its answer replaces."""
 		for (network, mode), keys in self.MODES.items():
 			for chat in self.CHATS[network]:
@@ -593,7 +595,7 @@ class EveryNetworkAndMode(FinbotCase):
 					self.posted.clear(); self.typing.clear()
 					answers = []
 					with contextlib.redirect_stderr(io.StringIO()):
-						for text in ('.price', '.jobs'):
+						for text in ('.price', '.jobs run'):
 							answer = bot.take(getattr(inbound, network.upper()), self.update(network, mode, chat, text))
 							answers.append(answer)
 							if answer.then:

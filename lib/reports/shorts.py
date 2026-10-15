@@ -1,4 +1,4 @@
-""".shorts: the most shorted stocks followed, from Short Man (ASX) and Yahoo (scheduled: shorts.py)."""
+""".shorts: the most shorted stocks followed, from Short Man (ASX) and Yahoo (scheduled: shorts)."""
 from lib import config
 from lib import delivery
 from lib import render
@@ -53,6 +53,11 @@ def report(service, tickers, market_data, threshold, specific_stock, interactive
 			payload = [f"🩳 No stocks shorted over {threshold:g}%. Try specifying a number."]
 	return payload, graph
 
+ARGUMENTS = '' # what a scheduled run takes: none
+
 def job(argv):
-	"""Arguments of a scheduled run: shorts.py takes none."""
-	return 'shorts.py', {}
+	"""A scheduled run's arguments: (label, run's keyword arguments); shorts takes none, and an argument raises
+	ValueError."""
+	if argv:
+		raise ValueError('no arguments')
+	return 'shorts', {}
