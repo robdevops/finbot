@@ -45,11 +45,11 @@ def prepare_help(service, botName, sections):
 	"""The .help text: each section's command lines under its heading (worker.help_sections() has them), then the bot's
 	@name as another way to start a command. botName is the bot's @name."""
 	payload = []
-	for i, (heading, lines) in enumerate(sections):
-		payload.append(service.bold(("\n" if i else "") + heading + ":"))
-		payload += lines
-
-	payload.append(service.bold("\nAlternative syntax:"))
+	for heading, lines in sections:
+		if payload: # a blank line between sections, outside the bold: Slack does not bold *\nPrice:*
+			payload.append('')
+		payload += [service.bold(heading + ":")] + lines
+	payload += ['', service.bold("Alternative syntax:")]
 	if service == 'slack':
 		payload.append('<' + botName + '> trades')
 	else:

@@ -863,11 +863,20 @@ class SlackSending(FinbotCase):
 
 		transports.SlackBot('C1').post_text('hi')
 		transports.SlackWebhook('https://hooks.slack.com/services/T/B/x').post_text('hi')
-		self.assertEqual(len(self.posts), 2)
-		for url, kwargs in self.posts:
-			with self.subTest(url=url): # they used to go in the headers, where Slack does not look
-				self.assertEqual((kwargs['json']['unfurl_links'], kwargs['json']['unfurl_media']), (False, False))
-				self.assertNotIn('unfurl_links', kwargs['headers'])
+		(_, reply), (_, hook) = self.posts
+		self.assertEqual((reply['data']['unfurl_links'], reply['data']['unfurl_media']), ('false', 'false'))
+		self.assertEqual((hook['json']['unfurl_links'], hook['json']['unfurl_media']), (False, False))
+		for kwargs in (reply, hook): # they used to go in the headers, where Slack does not look
+			self.assertNotIn('unfurl_links', kwargs['headers'])
+
+	def test_a_reply_slack_refuses_is_logged_as_failed(self):
+		"""Slack refuses with HTTP 200 and ok false (the bot is not in the channel, say): a failure, logged as one."""
+		self.env(slackBotToken='xoxb-test')
+		self.patch(transports.net, 'post', lambda url, **kwargs: Resp({'ok': False, 'error': 'not_in_channel'}))
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertIsNone(transports.SlackBot('C1').post_text('hi'))
+		self.assertIn('Slack chat.postMessage to C1 failed: Slack chat.postMessage: not_in_channel', err.getvalue())
+		self.assertNotIn('OK', err.getvalue())
 
 	def test_a_reply_without_a_bot_token_is_logged_not_sent(self):
 		"""A Slack reply without the bot token is logged, once each, and not sent."""
@@ -1011,7 +1020,23 @@ class SlackButtons(FinbotCase):
 		blocks = transports.chart_blocks(caption, [], 'F1')
 		self.assertEqual([block['type'] for block in blocks], ['section'] * 3 + ['image'])
 		self.assertTrue(all(len(block['text']['text']) <= 3000 for block in blocks[:3]))
-		self.assertEqual(transports.chart_blocks('', [], None), [])
+		self.assertEqual([block['type'] for block in transports.chart_blocks('', [], 'F1')], ['image'])
+
+	def test_a_chart_message_that_times_out_is_not_posted_again(self):
+		"""A chart with its buttons whose chat.postMessage times out may have arrived: no plain copy follows."""
+		record = transports.net.post
+		def post(url, **kwargs):
+			"""Time out on chat.postMessage, as a slow Slack does."""
+			if url.endswith('/chat.postMessage'):
+				self.posts.append((url, kwargs))
+				raise transports.requests.exceptions.ReadTimeout('slow')
+			return record(url, **kwargs)
+		self.patch(transports.net, 'post', post)
+		with contextlib.redirect_stderr(io.StringIO()):
+			worker.process_request('slack', 'C1', '<@U1>', '.price', BOT, 'U')
+		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
+			'chat.postMessage'])
+		self.assertEqual(self.errors, [])
 
 
 class TelegramWebhook(FinbotCase):

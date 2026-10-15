@@ -198,7 +198,8 @@ class Slack(Webhook):
 
 	def parse(self, update):
 		"""A message a person wrote, a button pressed, or the challenge that checks the URL. Links and mentions lose
-		their markup: <http://dub.ax|dub.ax> becomes dub.ax and <@QWERTY> @QWERTY."""
+		their markup (<http://dub.ax|dub.ax> becomes dub.ax, <@QWERTY> @QWERTY), and Slack's escapes their meaning
+		(&amp; becomes &)."""
 		kind = update.get('type')
 		if kind == 'url_verification':
 			response = json.dumps({'challenge': update['challenge']})
@@ -217,8 +218,8 @@ class Slack(Webhook):
 		if event['type'] not in ('message', 'app_mention') or 'text' not in event:
 			print("[slack]: unhandled event callback type", event['type'], file=sys.stderr)
 			return UNHANDLED
-		text = re.sub(r'<http://.*\|([\w\.]+)>', r'\g<1>', event['text'])
-		text = re.sub(r'<(@[\w\.]+)>', r'\g<1>', text)
+		text = re.sub(r'<((?:https?|mailto):[^|>]*)(?:\|([^>]*))?>', lambda m: m.group(2) or m.group(1), event['text'])
+		text = html.unescape(re.sub(r'<(@[\w\.]+)>', r'\g<1>', text)) # Slack sends & < > as &amp; &lt; &gt;
 		user = '<@' + event['user'] + '>' # a mention: Slack shows the name
 		return Message(self.service, event['channel'], user, text, '@' + bot_user, user, event.get('ts', ''))
 

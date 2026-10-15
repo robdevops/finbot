@@ -66,8 +66,11 @@ def gather(days, portfolio_select, known):
 	trades = []
 	for trade in raw:
 		market = trade['market']
+		ticker = markets.transform_to_yahoo(trade['symbol'], market)
+		# the currency by Sharesight's market code, which the table knows, not Yahoo's name for the exchange (NasdaqGS)
+		currency = markets.currency_from_market(market) or quotes.get(ticker, {}).get('currency') or \
+			trade['brokerage_currency_code']
 		if config.prefs.trades_use_yahoo:
-			ticker = markets.transform_to_yahoo(trade['symbol'], market)
 			try:
 				market = quotes[ticker]['profile_exchange']
 			except Exception as e:
@@ -75,7 +78,7 @@ def gather(days, portfolio_select, known):
 		trades.append(Trade(date=datetime.datetime.strptime(trade['transaction_date'], '%Y-%m-%d').date(),
 			id=int(trade['id']), portfolio=trade['portfolio'], bought=trade['transaction_type'] == 'BUY',
 			value=round(float(trade['price']) * float(trade['quantity'])),
-			currency=markets.currency_from_market(market) or trade['brokerage_currency_code'], symbol=trade['symbol'],
+			currency=currency, symbol=trade['symbol'],
 			market=market, holding_id=str(trade['holding_id'])))
 	return sorted(trades, key=lambda trade: (trade.date, trade.id))
 

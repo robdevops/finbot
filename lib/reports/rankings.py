@@ -1,5 +1,6 @@
 """Ranked lists of the stocks followed: .marketcap, .pe, .fpe and .peg (top, bottom, negative), .beta, .buy and .sell."""
 import sys
+from lib import answer
 from lib import config
 from lib import watchlist
 from lib import formats
@@ -96,6 +97,9 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 	if mode == 'bottom':
 		rows.reverse()
 	if ticker_select:
+		if not rows: # Yahoo does not know it, or sends no such ratio for it (a loss-maker has no trailing P/E)
+			raise answer.Answer(f"{ticker_select}: no {kind.upper()} found" if ticker_select in market_data
+				else f"{ticker_select}: no data found")
 		return [line for _, _, line in rows], None
 	rows = rows[:length]
 	trail = kind if mode != 'negative' else action # what the heading calls the ratio

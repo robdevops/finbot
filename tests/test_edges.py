@@ -160,6 +160,16 @@ class PortfolioNames(FinbotCase):
 		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: {'T1:NASDAQ': holding})
 		self.assertIn('Holdings for Rob (1)', str(self.command('.holdings rob')))
 
+	def test_commands_with_nothing_to_show_say_so(self):
+		"""A command with nothing to show says so, where it used to send nothing at all: .plan before anyone has saved
+		one, .performance over no days, a ratio of a ticker Yahoo does not know."""
+		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if t != 'XYZ'})
+		for text, reply in (('.plan', 'No plans yet: .plan TEXT records yours'),
+				('.performance 0d', 'The period must cover a day or more, such as 7d, 3m or ytd'),
+				('.pe XYZ', 'XYZ: no data found'), ('.peg XYZ', 'XYZ: no data found')):
+			with self.subTest(text=text):
+				self.assertEqual(self.command(text), [('text', [reply])])
+
 	def test_trades_with_no_buy_or_sell_still_get_an_answer(self):
 		""".trades with only dividends says there were no trades (it used to say nothing)."""
 		self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{'id': 2, 'transaction_type': 'DIVIDEND', 'portfolio': name}])
@@ -293,6 +303,13 @@ class WsgiRejections(FinbotCase):
 		self.assertEqual((status[-1][:3], self.errors), ('500', []))
 		self.assertIn('boom', err.getvalue())
 
+	def test_a_reported_failure_names_the_network_not_its_secret_path(self):
+		"""The error line of a failed update names the network, not the webhook's path, which is a secret."""
+		self.env(telegramOutgoingWebhook='https://example.com/hook-s3cret')
+		broken = {'message': {'message_id': 1, 'from': {'first_name': 'A'}, 'text': '.help'}} # no chat
+		self.assertEqual(self.request('/hook-s3cret', broken, self.SECRET)[1], '200 OK')
+		self.assertEqual(self.errors, ["⚠️ telegram: KeyError: 'chat'"])
+
 	def test_a_failure_after_authentication_is_reported_once_and_not_retried(self):
 		"""A failure on an authenticated update is reported once and answered 200, so Telegram doesn't send it again."""
 		broken = {'message': {'message_id': 1, 'from': {'first_name': 'A'}, 'text': '.help'}} # no chat
@@ -397,6 +414,16 @@ class SlackEvents(FinbotCase):
 		self.assertEqual([(r[0], r[1], r[2], r[3], r[4]) for r in self.requests],
 						 [('slack', 'C1', '<@U1>', '.price @UBOT', '@UBOT'), ('slack', 'C1', '<@U2>', '.trades', '@UBOT')])
 
+	def test_links_and_escapes_lose_their_markup(self):
+		"""Each link loses Slack's markup, however many there are (Slack links .AX tickers as domains), and Slack's
+		escapes become characters again: .buy &amp; sell runs both reports."""
+		for text, expected in (('.compare <http://BHP.AX|BHP.AX> <http://CBA.AX|CBA.AX>', '.compare BHP.AX CBA.AX'),
+				('.price <https://example.com>', '.price https://example.com'), ('.buy &amp; sell', '.buy & sell'),
+				('.plan buy &lt;BHP&gt;', '.plan buy <BHP>')):
+			with self.subTest(text=text):
+				self.assertEqual(self.event(user='U1', text=text), '200 OK')
+				self.assertEqual(self.requests[-1][3], expected)
+
 	def test_a_retried_event_runs_once(self):
 		"""An event Slack sends again (same event_id) runs once."""
 		for _ in range(2): # Slack resends an event it got no answer to within 3 seconds, with the same event_id
@@ -479,7 +506,7 @@ class UserTextIsEscaped(FinbotCase):
 		self.assertIn('<i>buy &lt;cheap&gt; &amp; hold</i>', reply[0])
 		self.assertEqual(self.command('.plan')[0][1], reply) # and the same way again
 		self.sent.clear()
-		worker.process_request('slack', 'C1', '<@U1>', '.plan sell &lt;dear&gt;', BOT, 'U') # Slack escapes what it sends
+		worker.process_request('slack', 'C1', '<@U1>', '.plan sell <dear>', BOT, 'U') # inbound unescapes Slack's text
 		text = '\n'.join(self.sent[0][1])
 		self.assertIn('*<@U1>*', text) # a Slack mention stays markup
 		self.assertIn('_sell &lt;dear&gt;_', text) # escaped once, not twice

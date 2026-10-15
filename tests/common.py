@@ -89,8 +89,7 @@ class FinbotCase(unittest.TestCase):
 			lambda e, *a, **k: self.errors.append(delivery.error_line(e, k.get('context'))))
 		self.patch(transports.Transport, 'chart', lambda dest, image, caption, markup=None:
 			self.record_chart(image, caption, markup))
-		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None:
-			self.sent.append(('text', list(lines))) or [])
+		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None: self.record_text(lines))
 		self.patch(watchlist, 'with_holdings', lambda: TICKERS)
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
@@ -113,6 +112,13 @@ class FinbotCase(unittest.TestCase):
 		real_start = worker.TypingIndicator.start
 		self.patch(worker.TypingIndicator, 'start', lambda indicator: (self.typing.append(indicator), real_start(indicator)))
 		self.addCleanup(self.no_typing_left)
+
+	def record_text(self, lines):
+		"""Transport.text in tests: note ('text', lines), unless there are none: the real one posts nothing then."""
+		lines = list(lines)
+		if lines:
+			self.sent.append(('text', lines))
+		return []
 
 	def record_chart(self, image, caption, markup=None):
 		"""Transport.chart in tests: note ('photo', size, first caption line) and its buttons as Telegram gets them."""

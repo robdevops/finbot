@@ -483,7 +483,7 @@ of the chat network keys it needs.
 
 Copies preferences.conf and metadata files into the data directory (never overwrites)
 ```
-util/sync_defaults.py [-d DEST] --apply
+util/sync_defaults.py [--dest DIR] --apply
 ```
 
 The preferences, read by the bot itself. A change takes effect on a reload. A true/false preference takes `true`/`false`, `yes`/`no`, `on`/`off` or `1`/`0`; anything else is a mistake, reported like any other. A blank value means the default.

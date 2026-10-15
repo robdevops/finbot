@@ -65,13 +65,19 @@ class Commands(FinbotCase):
 
 
 class ReportFunctions(FinbotCase):
+	def test_help_headings_are_bold_on_slack(self):
+		"""On Slack each heading is bold, with the blank line before it outside the markers: *\nPrice:* is not bold."""
+		text = about.prepare_help(SLACK, BOT, worker.help_sections())
+		self.assertIn('*Price:*', text)
+		self.assertEqual([line for line in text if line.startswith('*\n')], [])
+
 	def test_help_comes_from_the_command_table(self):
 		""".help lists every command's lines from the table, under its section's heading, the sections in order; and
 		each line names a command that runs it."""
 		text = about.prepare_help(TELEGRAM, BOT, worker.help_sections())
 		headings = [line for line in text if line.startswith('<b>')]
-		self.assertEqual(headings[:len(worker.SECTIONS)], [f"<b>{'' if i == 0 else chr(10)}{s}:</b>"
-			for i, s in enumerate(worker.SECTIONS)])
+		self.assertEqual(headings[:len(worker.SECTIONS)], [f"<b>{s}:</b>" for s in worker.SECTIONS])
+		self.assertTrue(all(text[text.index(heading) - 1] == '' for heading in headings[1:])) # a blank line before
 		for command in worker.COMMANDS:
 			for line in command.usage:
 				with self.subTest(line=line):
@@ -286,6 +292,14 @@ class ScheduledReports(FinbotCase):
 		trades.run(transports.TelegramBot('5'))
 		self.assertTrue(self.sent)
 
+	def test_a_trade_is_in_its_market_currency_not_the_brokerage_one(self):
+		"""A NASDAQ trade is in US dollars, though Yahoo names the exchange NasdaqGS and the broker charges in
+		Australian dollars (it used to say AUD)."""
+		self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{'id': 1, 'transaction_type': 'BUY',
+			'symbol': 'T1', 'market': 'NASDAQ', 'portfolio': name, 'transaction_date': time.strftime('%Y-%m-%d'),
+			'quantity': '10', 'price': '5.0', 'value': '50', 'brokerage_currency_code': 'AUD', 'holding_id': 7}])
+		self.assertIn(' USD 50 ', self.command('.trades')[0][1][-1])
+
 	def test_trades_asks_yahoo_only_for_new_trades(self):
 		"""A scheduled trades run asks Yahoo only about trades it has not reported, and nothing once all are known."""
 		fetched = []
@@ -459,6 +473,13 @@ class PeriodButtons(FinbotCase):
 		self.assertEqual(self.errors, [])
 		self.assertEqual(len(edits), 1)
 		self.assertEqual([b['text'] for b in edits[0][1]['inline_keyboard'][0]][0], '● 1D')
+
+	def test_a_period_with_too_few_prices_is_said_in_the_chat(self):
+		"""A period button whose span has too few prices for a line says so in the chat and leaves the chart as it is
+		(Telegram was sent an edit without its photo)."""
+		edits, toasts = self.press('c|h|w|T1') # the fixture's histories have no closes to draw
+		self.assertEqual((edits, toasts, self.errors), ([], ['Loading 7D…'], []))
+		self.assertEqual(self.sent, [('text', ['Too few prices to draw 7D'])])
 
 	def test_a_button_a_chart_does_not_offer_is_ignored(self):
 		"""A button a chart does not offer, or an unknown period, changes nothing."""

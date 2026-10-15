@@ -23,7 +23,8 @@ from lib import yahoo
 from lib import render
 from lib.reports import cleanup
 
-AUTHENTICATED = 'finbot.authenticated' # set in a request's WSGI environ once it has passed its network's check
+ROUTED = 'finbot.routed' # a request's WSGI environ: the network whose webhook path it came to (the path is a secret)
+AUTHENTICATED = 'finbot.authenticated' # set once it has passed that network's check
 MAX_BODY = 1 << 20 # bytes in a request body, at most: an update from Telegram or Slack takes a few thousand
 _updates_seen = collections.OrderedDict() # (service, update id) of the last updates taken, oldest first
 
@@ -43,15 +44,17 @@ def seen_before(service, update_id, keep=1000):
 def main(environ, start_response):
 	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is reported as one line to the
 	default channel and answered 200, so the service does not retry it into the chat again. Before authentication a failure is only
-	logged: a stranger must not be able to post into the chats."""
+	logged: a stranger must not be able to post into the chats. Either names the network, not the path: a webhook's
+	path is a secret (telegramOutgoingWebhook, slackOutgoingWebhook)."""
 	try:
 		return handle(environ, start_response)
 	except Exception as e:
 		if environ.get(AUTHENTICATED):
-			delivery.report_error(e, context=environ.get('PATH_INFO', 'bot'))
+			delivery.report_error(e, context=environ[ROUTED])
 			status = '200 OK'
 		else:
-			print(f"request to {environ.get('PATH_INFO')!r} failed:", delivery.error_line(e), file=sys.stderr)
+			where = environ.get(ROUTED) or repr(environ.get('PATH_INFO'))
+			print(f"request to {where} failed:", delivery.error_line(e), file=sys.stderr)
 			print(net.redact(traceback.format_exc()), end='', file=sys.stderr)
 			status = '500 Internal Server Error'
 		try:
@@ -80,6 +83,7 @@ def handle(environ, start_response):
 	if source is None:
 		print("Unknown URI", repr(path), file=sys.stderr)
 		return respond(inbound.NOT_FOUND)
+	environ[ROUTED] = source.service
 	if why := source.refuse_unread(environ): # strangers are turned away before their body is read
 		print_headers()
 		print("Fatal:", why, file=sys.stderr)
@@ -97,7 +101,7 @@ def handle(environ, start_response):
 	if why := source.refuse(environ, body, update):
 		shown = {k: '<redacted>' if k == 'token' else v for k, v in update.items()} # Slack's verification token
 		print("warning:", why, file=sys.stderr)
-		print(f"inbound {path} ", json.dumps(shown, indent=4, default=str), file=sys.stderr)
+		print(f"[{source.service}]: refused update", json.dumps(shown, indent=4, default=str), file=sys.stderr)
 		return respond(inbound.FORBIDDEN)
 	environ[AUTHENTICATED] = True
 	event = source.parse(update)

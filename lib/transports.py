@@ -239,14 +239,20 @@ class SlackBot(Transport):
 			print("Slack reactions.remove failed:", net.redact(e), file=sys.stderr)
 
 	def post_text(self, text, buttons=None):
-		"""chat.postMessage, without link previews (Slack reads those flags from the body)."""
+		"""chat.postMessage, without link previews. Slack's answer, or None when it failed or refused (logged): Slack
+		refuses with HTTP 200 and ok false (not_in_channel, say), so a refusal is read from the answer."""
 		if not config.env.slackBotToken:
 			print(f"ERROR slack: a reply to channel {self.where} needs slackBotToken in finbot.env; not sent",
 				file=sys.stderr)
 			return None
-		payload = {'text': text, 'unfurl_links': False, 'unfurl_media': False, 'channel': self.where}
-		return self._post_json('https://slack.com/api/chat.postMessage', payload,
-			{'Authorization': 'Bearer ' + config.env.slackBotToken})
+		try:
+			answer = slack_api('chat.postMessage', channel=self.where, text=text, unfurl_links='false',
+				unfurl_media='false')
+		except Exception as e:
+			print("Slack chat.postMessage to", self.where, "failed:", net.redact(e), file=sys.stderr)
+			return None
+		print("OK slack message to", self.where, file=sys.stderr)
+		return answer
 
 	def post_chart(self, image, caption, buttons=None):
 		"""Upload the chart into the channel with the report as its message, the way Slack takes files since it retired
@@ -290,20 +296,22 @@ class SlackBot(Transport):
 		return file_id
 
 	def post_blocks(self, data, caption, buttons):
-		"""The chart in a Block Kit message, the report above it and the period buttons under it. Slack's answer;
-		raises RuntimeError when Slack refuses."""
+		"""The chart in a Block Kit message, the report above it and the period buttons under it. Slack's answer, or
+		MAYBE_SENT when posting the message timed out (it may have arrived); raises RuntimeError when Slack refuses."""
 		blocks = chart_blocks(caption, buttons, self.unshared(data))
-		return until_shown(lambda: slack_api('chat.postMessage', channel=self.where, text=caption[:SECTION_LIMIT],
-			blocks=json.dumps(blocks), unfurl_links='false', unfurl_media='false'))
+		try:
+			return until_shown(lambda: slack_api('chat.postMessage', channel=self.where, text=caption[:SECTION_LIMIT],
+				blocks=json.dumps(blocks), unfurl_links='false', unfurl_media='false'))
+		except requests.exceptions.ReadTimeout as e:
+			print("Slack chat.postMessage timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
+			return MAYBE_SENT
 
 	def edit_chart(self, message, image, caption, buttons=None):
 		"""Show another period in a chart message: the new chart uploaded (a file cannot be replaced) and shown in its
 		image block, with its caption and buttons. Raises RuntimeError when Slack refuses."""
-		file_id = None
-		if image is not None:
-			if hasattr(image, 'seek'):
-				image.seek(0)
-			file_id = self.unshared(image.read() if hasattr(image, 'read') else bytes(image))
+		if hasattr(image, 'seek'):
+			image.seek(0)
+		file_id = self.unshared(image.read() if hasattr(image, 'read') else bytes(image))
 		blocks = chart_blocks(caption, buttons or [], file_id)
 		until_shown(lambda: slack_api('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
 			blocks=json.dumps(blocks)))
@@ -374,13 +382,12 @@ def slack_api(method, **data):
 SECTION_LIMIT = 3000 # characters of text in a Block Kit section
 
 
-def chart_blocks(caption, buttons, file_id=None):
+def chart_blocks(caption, buttons, file_id):
 	"""Block Kit for a chart message: the report (in as many sections as its length needs), the chart (an uploaded file,
 	by its id) and the buttons, the one shown now marked."""
 	blocks = [{'type': 'section', 'text': {'type': 'mrkdwn', 'text': '\n'.join(part)}}
 		for part in chunked(caption.split('\n'), SECTION_LIMIT, 1000) if '\n'.join(part).strip()]
-	if file_id:
-		blocks.append({'type': 'image', 'slack_file': {'id': file_id}, 'alt_text': 'chart'})
+	blocks.append({'type': 'image', 'slack_file': {'id': file_id}, 'alt_text': 'chart'})
 	elements = [{'type': 'button', 'text': {'type': 'plain_text', 'text': button.label}, 'value': button.data,
 		'action_id': button.data, **({'style': 'primary'} if button.active else {})}
 		for row in buttons for button in row]

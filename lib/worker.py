@@ -120,8 +120,9 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 		_, kind, period, ref = parts
 		args = buttons.resolve(ref)
 		caption, chart = charts.build(kind, args, period, service)
-		image = render.draw(chart) if chart else None
-		chat.edit_chart(message_id, image, caption, buttons.keyboard(kind, args, period))
+		if chart is None: # too few prices in that period to draw a line
+			raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[period][0]}")
+		chat.edit_chart(message_id, render.draw(chart), caption, buttons.keyboard(kind, args, period))
 	except answer.Answer as e: # nothing to draw for that period: said in the chat, as a command would
 		delivery.deliver(chat, delivery.Report(e.lines))
 	except Exception as e:
@@ -244,8 +245,9 @@ def on_calendar(request, m):
 def on_performance(request, m):
 	""".performance [period] [portfolio]: each portfolio's return, over a month by default."""
 	days, portfolio = period_and_portfolio(m.group('args'), buttons.PERIODS['m'][1]) # default view is the 1M button
-	if days > 0:
-		performance.run(request.dest, past_days=days, user=request.user, portfolio_select=portfolio)
+	if days < 1: # 0d, or ytd on 1 January
+		raise answer.Answer("The period must cover a day or more, such as 7d, 3m or ytd")
+	performance.run(request.dest, past_days=days, user=request.user, portfolio_select=portfolio)
 
 def on_session(request, m):
 	"""Mid-session moves (.session), or pre-market ones (.premarket, also post-market)."""
@@ -353,6 +355,8 @@ def on_plan(request, m):
 		with state.edit('finbot_plan.json', {}) as plans:
 			plans[request.user] = m.group(1)
 	plan = state.load('finbot_plan.json', {})
+	if not plan:
+		raise answer.Answer("No plans yet: .plan TEXT records yours")
 	def who(user):
 		"""A sender as shown: on Slack a mention (<@U123>), which is markup to keep; elsewhere the handle as text."""
 		user = user.removeprefix('@')
