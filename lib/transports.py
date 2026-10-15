@@ -90,7 +90,12 @@ class TelegramBot(Transport):
 	"""A Telegram chat via the Bot API: HTML, silent, no link previews; charts, buttons, edits, the typing notice."""
 	name = 'telegram'
 	dialect = dialects.TELEGRAM
-	takes_charts = takes_buttons = shows_typing = True
+	takes_charts = shows_typing = True
+
+	@property
+	def takes_buttons(self):
+		"""Buttons only where their presses reach finbot: with telegramOutgoingWebhook, Telegram posts them to it."""
+		return bool(config.env.telegramOutgoingWebhook)
 
 	@staticmethod
 	def markup(buttons):

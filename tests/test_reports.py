@@ -387,6 +387,18 @@ class PeriodButtons(FinbotCase):
 			with self.subTest(command=command):
 				self.assertNotIn('1D', [b.lstrip('● ') for b in self.buttons(command)])
 
+	def test_no_buttons_where_their_presses_would_go_nowhere(self):
+		"""Without telegramOutgoingWebhook (reports only), Telegram hears nothing from finbot's buttons, so a chart, a
+		scheduled one included, comes without them."""
+		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/'}, telegramChatID='1')
+		label, kwargs = price.job(['7']) # as scheduled: price.py 7
+		for hook, buttons in (('https://example.com/telegram', True), ('', False)):
+			with self.subTest(telegramOutgoingWebhook=hook):
+				self.env(telegramOutgoingWebhook=hook)
+				self.markups.clear()
+				price.lambda_handler(**kwargs)
+				self.assertEqual(bool(self.markups and self.markups[0]), buttons)
+
 	def press(self, data):
 		"""Press a period button: (the edits made, the toasts shown)."""
 		edits, toasts = [], []
