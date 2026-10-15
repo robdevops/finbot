@@ -478,9 +478,8 @@ class SlackButtons(FinbotCase):
 		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
 		self.assertEqual([button.get('style') for button in blocks[2]['elements']], [None, 'primary'] + [None] * 3)
 
-	def test_a_press_deletes_the_chart_it_replaced(self):
-		"""Each press uploads its period's chart and, once the message shows it, deletes the file shown before: no
-		chart is reused, so the bot's files do not pile up. The file a press shows is never deleted."""
+	def uploading(self):
+		"""Answer each upload with a new file id, F1 first, as Slack does."""
 		uploads = iter(f'F{n}' for n in range(1, 10))
 		record = transports.net.post
 		def post(url, **kwargs):
@@ -490,12 +489,49 @@ class SlackButtons(FinbotCase):
 				return Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': next(uploads)})
 			return answer
 		self.patch(transports.net, 'post', post)
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U')) # F1, in message 1.5
-		for _ in range(2):
-			worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|w|5,0')) # F2, then F3
-		deleted = [kwargs['data']['file'] for url, kwargs in self.posts if url.endswith('/files.delete')]
-		self.assertEqual((deleted, self.errors), (['F1', 'F2'], []))
+
+	def test_a_period_shown_again_within_15_minutes_shows_its_upload_again(self):
+		"""A press for a period whose chart was uploaded in the last 15 minutes, for this message or another, shows
+		that upload again with the report it came with: nothing is built or uploaded. Past that, the period is built and
+		uploaded anew, and the uploads no message shows are deleted, never one a message shows."""
+		self.uploading()
+		built = []
+		build = charts.build
+		self.patch(charts, 'build', lambda *args, **kwargs: built.append(args) or build(*args, **kwargs))
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U')) # 1D: F1, in message 1.5
+		worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|w|5,0')) # 7D: F2
+		del self.posts[:], built[:]
+		worker.process_callback(inbound.Press('slack', 't2', 'C1', '2.5', 'c|l|d|5,0')) # 1D in another message: F1
+		self.assertEqual((self.calls(), built, self.errors), (['chat.update'], [], []))
+		blocks = self.blocks('chat.update')
+		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
+		self.assertTrue(blocks[0]['text']['text'].startswith('*≥ 5% at close'))
+		with state.edit(transports.SLACK_CHARTS, {}) as noted: # 16 minutes on
+			for upload in noted['uploads'].values():
+				upload[0] -= 16 * 60 + 1
+		worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|d|5,0')) # 1D again: F3
 		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F3'})
+		deleted = [kwargs['data']['file'] for url, kwargs in self.posts if url.endswith('/files.delete')]
+		self.assertEqual((deleted, len(built), self.errors), (['F2'], 1, [])) # message 2.5 shows F1
+
+	def test_an_upload_slack_will_not_show_again_is_uploaded_anew(self):
+		"""When Slack refuses to show an earlier upload again (a file deleted outside finbot, say), the period is
+		built and uploaded anew."""
+		self.uploading()
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U')) # 1D: F1
+		self.refusals['chat.update'] = ['invalid_blocks']
+		with contextlib.redirect_stderr(io.StringIO()):
+			worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|d|5,0'))
+		self.assertEqual(self.calls()[-5:], ['chat.update', 'files.getUploadURLExternal', 'upload',
+			'files.completeUploadExternal', 'chat.update'])
+		self.assertEqual((self.blocks('chat.update')[1]['slack_file'], self.errors), ({'id': 'F2'}, []))
+
+	def test_the_charts_noted_before_uploads_were_reused_are_left_alone(self):
+		"""The chart messages noted as before ({'channel ts': file}) are forgotten, their files never deleted."""
+		state.save(transports.SLACK_CHARTS, {'C1 1.5': 'F0'})
+		worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|w|5,0'))
+		self.assertNotIn('files.delete', self.calls())
+		self.assertEqual(state.load(transports.SLACK_CHARTS)['shown'], {'C1 1.5': 'F1'})
 
 	def test_a_chart_not_ready_to_show_is_shown_a_moment_later(self):
 		"""Slack refusing the blocks of a chart just uploaded (invalid_blocks) is asked again after a wait."""

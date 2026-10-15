@@ -17,8 +17,9 @@ from lib import telegram
 
 MAYBE_SENT = object() # a read timeout on the request that posts a chart: it may have arrived, so no text copy follows
 SUPPRESS_EMBEDS = 4 # Discord message flag: no link previews
-SLACK_CHARTS = 'finbot_slack_charts.json' # 'channel ts' of a chart message -> the file it shows (deleted once replaced)
-SLACK_CHARTS_KEPT = 500 # chart messages noted, newest last: an older one's file stays when a press replaces it
+SLACK_CHARTS = 'finbot_slack_charts.json' # Slack's chart messages: the file each shows, and the charts uploaded
+SLACK_CHARTS_KEPT = 500 # chart messages noted, newest last: an older one shows its file for good
+SLACK_REUSE_SECONDS = 15 * 60 # a period pressed within this long of its chart's upload shows that upload again
 NO_MENTIONS = {'parse': []} # Discord: text that looks like @everyone or a mention pings nobody
 
 
@@ -118,6 +119,11 @@ class Transport:
 
 	def acknowledge(self, press, text=None):
 		"""Answer a button press, where the network waits for that (Telegram, with `text` as a toast)."""
+
+	def reshow(self, message, buttons):
+		"""Show a chart message's period (the button marked) again as it was posted lately, where the network keeps
+		that: True when it did. Here never: each period is drawn and sent anew."""
+		return False
 
 	def _post_json(self, url, payload, headers=None):
 		"""POST a JSON message: the answer ({} when it is not JSON), or None when the network refused it or failed."""
@@ -354,35 +360,76 @@ class SlackBot(Transport):
 			print("Slack chat.postMessage timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
 			return MAYBE_SENT
 		if answer.get('ts'):
-			self.shows(answer['ts'], file_id)
+			self.delete(self.shows(answer['ts'], file_id, caption, buttons))
 		return answer
+
+	def reshow(self, message, buttons):
+		"""Show a chart message's period again from its upload of under SLACK_REUSE_SECONDS ago (for this message or
+		another), with the report it came with: nothing is drawn or uploaded. True when it did; False when there is no
+		such upload, or Slack refuses it (a file deleted outside finbot, say)."""
+		view, now = marked(buttons), time.time()
+		uploads = state.load(SLACK_CHARTS, {}).get('uploads', {})
+		recent = [(at, file_id, caption) for file_id, (at, shows, caption) in uploads.items()
+			if view and shows == view and now - at < SLACK_REUSE_SECONDS]
+		if not recent:
+			return False
+		_, file_id, caption = max(recent)
+		try:
+			slack_api('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
+				blocks=json.dumps(chart_blocks(caption, buttons, file_id)))
+		except Exception as e:
+			print("Slack chat.update with an earlier upload failed, uploading anew:", net.redact(e), file=sys.stderr)
+			return False
+		self.delete(self.shows(message, file_id))
+		return True
 
 	def edit_chart(self, message, image, caption, buttons=None):
 		"""Show another period in a chart message: the new chart uploaded (a file cannot be replaced) and shown in its
-		image block, with its caption and buttons, then the file it showed before deleted (nothing reuses an uploaded
-		chart: a period shown again is uploaded again). Raises RuntimeError when Slack refuses the update."""
+		image block, with its caption and buttons. A press for that period within SLACK_REUSE_SECONDS shows this upload
+		again (reshow). Raises RuntimeError when Slack refuses the update."""
 		if hasattr(image, 'seek'):
 			image.seek(0)
 		file_id = self.unshared(image.read() if hasattr(image, 'read') else bytes(image))
 		blocks = chart_blocks(caption, buttons or [], file_id)
 		until_shown(lambda: slack_api('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
 			blocks=json.dumps(blocks)))
-		replaced = self.shows(message, file_id)
-		if replaced and replaced != file_id:
-			try:
-				slack_api('files.delete', file=replaced)
-			except Exception as e: # it stays among the bot's files, in no channel
-				print("Slack files.delete failed:", net.redact(e), file=sys.stderr)
+		self.delete(self.shows(message, file_id, caption, buttons))
 
-	def shows(self, message, file_id):
-		"""Note that a chart message shows this file now (SLACK_CHARTS): the file it showed before, if noted."""
-		key = f'{self.where} {message}'
-		with state.edit(SLACK_CHARTS, {}) as shown:
-			replaced = shown.pop(key, None)
+	def shows(self, message, file_id, caption=None, buttons=None):
+		"""Note that a chart message shows this file now; given its report, that the file was uploaded now for the
+		period its buttons mark (see reshow). The uploads to delete: those no message shows, a minute past their reuse
+		(a press reusing one has that minute to show it)."""
+		now = time.time()
+		with state.edit(SLACK_CHARTS, {}) as noted:
+			if set(noted) != {'shown', 'uploads'}: # new, or the {'channel ts': file} of before, whose files stay
+				noted.clear()
+				noted.update(shown={}, uploads={})
+			shown, uploads = noted['shown'], noted['uploads'] # 'channel ts': file; file: [time, period, report]
+			if caption is not None:
+				uploads[file_id] = [now, marked(buttons), caption]
+			key = f'{self.where} {message}'
+			shown.pop(key, None)
 			shown[key] = file_id
-			for old in list(shown)[:-SLACK_CHARTS_KEPT]:
-				del shown[old]
-		return replaced
+			for old in list(shown)[:-SLACK_CHARTS_KEPT]: # its message may show the file for good
+				uploads.pop(shown.pop(old), None)
+			showing = set(shown.values())
+			gone = [old for old, (at, _, _) in uploads.items()
+				if old not in showing and now - at > SLACK_REUSE_SECONDS + 60]
+			for old in gone:
+				del uploads[old]
+			for upload in uploads.values(): # past reuse, a file shown is kept only to be deleted later
+				if now - upload[0] >= SLACK_REUSE_SECONDS:
+					upload[1:] = [None, None]
+		return gone
+
+	def delete(self, files):
+		"""Delete uploaded charts that no message shows any more; a failure is only logged (the file stays among the
+		bot's files, in no channel)."""
+		for file_id in files:
+			try:
+				slack_api('files.delete', file=file_id)
+			except Exception as e:
+				print("Slack files.delete failed:", net.redact(e), file=sys.stderr)
 
 	def edit_text(self, message, text, buttons=None):
 		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
@@ -479,6 +526,11 @@ def chart_blocks(caption, buttons, file_id):
 	row = [button for line in buttons for button in line]
 	return section_blocks(caption) + [{'type': 'image', 'slack_file': {'id': file_id}, 'alt_text': 'chart'}] + \
 		([actions_block(row)] if row else [])
+
+
+def marked(buttons):
+	"""The data of the button marked as shown now, which names a chart message's period (None when none is)."""
+	return next((button.data for row in buttons or [] for button in row if button.active), None)
 
 
 def text_blocks(text, buttons):

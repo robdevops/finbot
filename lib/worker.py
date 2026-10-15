@@ -77,10 +77,12 @@ def process_callback(press):
 		return
 	try:
 		args = buttons.resolve(pressed.ref)
+		markup = buttons.keyboard(pressed.kind, args, pressed.period)
+		if chat.reshow(press.message_id, markup): # that period as posted lately, where the network keeps it (Slack)
+			return
 		caption, chart = charts.build(pressed.kind, args, service, period=pressed.period)
 		if chart is None: # too few prices in that period to draw a line
 			raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[pressed.period][0]}")
-		markup = buttons.keyboard(pressed.kind, args, pressed.period)
 		chat.edit_chart(press.message_id, render.draw(chart), caption, markup)
 	except answer.Answer as e: # nothing to draw for that period: said in the chat, as a command would
 		delivery.deliver(chat, delivery.Report(e.lines))

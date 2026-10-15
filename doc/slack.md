@@ -105,10 +105,11 @@ slackChannelID=C0123456789
 
 A chart is uploaded with Slack's file upload API (`files.getUploadURLExternal`, then `files.completeUploadExternal`).
 With its period buttons, it goes in a message of blocks: the report, the chart (uploaded into no channel, and shown by
-its id) and the buttons. A press uploads the chart for that period, shows it in the message in place of the last one
-(Slack cannot replace a file) and deletes the file it replaced, so the bot's files do not pile up. If Slack will not
-show a chart with its buttons, the chart is uploaded into the channel without them; if an upload fails (a missing scope,
-say), the report goes out as text. The log says why.
+its id) and the buttons. A press shows the chart for that period in the message in place of the last one: the upload of
+that period from the last 15 minutes, for this message or another, with the report that came with it, or else the chart
+drawn and uploaded anew (Slack cannot replace a file). An upload that no message shows is deleted once those 15 minutes
+are past, so the bot's files do not pile up. If Slack will not show a chart with its buttons, the chart is uploaded into
+the channel without them; if an upload fails (a missing scope, say), the report goes out as text. The log says why.
 
 `.jobs` lists the scheduled commands with a button for each, as on Telegram; a button from a list that has since
 changed puts the current list in its place.
