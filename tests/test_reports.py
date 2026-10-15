@@ -110,7 +110,7 @@ class ReportFunctions(FinbotCase):
 		def order(action):
 			"""(the tickers listed, the tickers charted) of a ratings report, in order."""
 			payload, chart = rankings.prepare_rating_payload(TELEGRAM, action)
-			return [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], [label for label, _ in chart['rows']]
+			return [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], [label for label, _ in chart.rows]
 		self.assertEqual(order('buy'), (['T2', 'T3', 'T1'], ['T2', 'T3', 'T1']))
 		self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
 		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'buy')[0][0])
@@ -149,7 +149,8 @@ class ReportFunctions(FinbotCase):
 			payload, chart = rankings.prepare_value_payload(TELEGRAM, action)
 			return payload[0], [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], chart
 		heading, names, chart = listed('forward pe')
-		self.assertEqual((names, [label for label, _ in chart['rows']]), (['T1'], ['T1'])) # T2 and T4: too few; T3: negative
+		# T2 and T4: too few analysts; T3: negative
+		self.assertEqual((names, [label for label, _ in chart.rows]), (['T1'], ['T1']))
 		self.assertIn('forward pe ratio (7+ analysts)', heading)
 		self.assertEqual(listed('negative forward pe')[1], ['T3'])
 		self.assertIn('Co T2', str(rankings.prepare_value_payload(TELEGRAM, 'forward pe', 'T2'))) # one ticker asked for: shown
@@ -190,7 +191,7 @@ class ReportFunctions(FinbotCase):
 		"""The beta report charts a bar per stock listed, and says so when none qualify."""
 		payload, chart = rankings.prepare_beta_payload(TELEGRAM)
 		self.assertIn('Beta over 1.5', payload[0])
-		self.assertEqual(len(chart['rows']), len(payload) - 1) # a bar per stock listed
+		self.assertEqual(len(chart.rows), len(payload) - 1) # a bar per stock listed
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'beta': 1.0}})
 		self.assertEqual(rankings.prepare_beta_payload(TELEGRAM), (['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None))
 
@@ -527,7 +528,7 @@ class PieCommand(FinbotCase):
 	def test_by_sector_and_payload(self):
 		""".pie by sector: the slices in order, the unclassified ones together, worthless holdings left out."""
 		payload, chart = holdings.prepare_pie('rob', 'sector', TELEGRAM)
-		self.assertEqual([r[0] for r in chart['rows']], ['Electronic Technology', 'Health Technology', 'Unclassified'])
+		self.assertEqual([r[0] for r in chart.rows], ['Electronic Technology', 'Health Technology', 'Unclassified'])
 		self.assertIn('Electronic Technology: 72.7%', payload) # 800 of 1100; zero-value Gold is left out
 		self.assertEqual(self.command('.pie Rob sector')[0][0], 'photo')
 
@@ -536,9 +537,9 @@ class PieCommand(FinbotCase):
 		held = {f'T{i}:X': {'code': f'T{i}', 'industry_classification_name': f'Ind {i}', 'value': 100 - i} for i in range(12)}
 		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: held)
 		payload, chart = holdings.prepare_pie('Rob', 'industry', TELEGRAM)
-		self.assertEqual(len(chart['rows']), 8)
-		self.assertEqual(chart['rows'][-1][0], 'Other')
-		self.assertTrue(render.pie_chart(chart['rows'], chart['title'], chart['subtitle']).read().startswith(b'\x89PNG'))
+		self.assertEqual(len(chart.rows), 8)
+		self.assertEqual(chart.rows[-1][0], 'Other')
+		self.assertTrue(render.pie_chart(chart.rows, chart.title, chart.subtitle).read().startswith(b'\x89PNG'))
 
 	def test_unknown_or_missing_portfolio_lists_known(self):
 		""".pie with no portfolio, or an unknown one, lists the portfolios there are."""
@@ -550,7 +551,7 @@ class PieCommand(FinbotCase):
 	def test_a_service_that_takes_no_images_gets_text(self):
 		"""Slack without the bot token takes no images: the report goes as text."""
 		self.env(slackBotToken=False)
-		worker.Request(SLACK, 'C1', '@u', 'U', BOT).reply(['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
+		worker.Request(SLACK, 'C1', '@u', 'U', BOT).reply(['x'], render.Chart('pie', 't', rows=(('a', 1.0),)))
 		self.assertEqual(self.sent[-1][0], 'text')
 
 

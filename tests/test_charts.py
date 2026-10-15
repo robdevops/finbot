@@ -23,6 +23,12 @@ SHORTS_BG = (SKY, RAY)
 MIXED = [('AAA', 42), ('BBB', 17), ('CCC', 3), ('', None), ('DDD', -5), ('EEE', -30)]
 
 
+def uncached(chart):
+	"""render.draw(chart) without the cache, for the tests that have no fixture's temporary cache dir."""
+	with mock.patch.object(config, 'prefs', dataclasses.replace(config.prefs, cache=False)):
+		return render.draw(chart)
+
+
 def decode(buf):
 	"""A PNG buffer as an RGB image."""
 	buf.seek(0)
@@ -93,7 +99,7 @@ class ImageSanity(unittest.TestCase):
 		for name, rows in EDGE_ROWS.items():
 			with self.subTest(rows=name):
 				self.check_image(render.hbar_chart(rows, 'Title', 'sub'), name)
-				self.check_image(render.rows_chart(rows, 'Title'), name + '/rows_chart')
+				self.check_image(uncached(render.Chart('bars', 'Title', rows=tuple(rows))), name + '/drawn')
 
 	def test_zoomed_axis(self):
 		"""A bar chart with a narrow x range (ratings, 1 to 5) draws sane images, wide labels and many rows included."""
@@ -114,7 +120,8 @@ class ImageSanity(unittest.TestCase):
 
 	def test_bar_graph_has_top_and_bottom(self):
 		"""The top-and-bottom bar chart draws a sane image."""
-		self.check_image(render.bar_graph([('AAA', 9)], [('ZZZ', -9)], 'Top and bottom'), 'bar_graph')
+		self.check_image(uncached(render.Chart('bars', 'Top and bottom', rows=(('AAA', 9), ('', None), ('ZZZ', -9)))),
+			'top and bottom')
 
 	def test_flat_and_tiny_price_series(self):
 		"""A flat price line and one of two points draw sane images."""
@@ -135,7 +142,8 @@ class RenderPool(unittest.TestCase):
 	def test_charts_asked_for_at_once_all_finish(self):
 		"""Six charts asked for at once all finish: one render thread, as several deadlock matplotlib under gevent."""
 		jobs = [gevent.spawn(render.pie_chart, [('a', 1.0), ('b', 2.0)], f't{i}') for i in range(4)]
-		jobs += [gevent.spawn(render.hbar_chart, MIXED, 'T'), gevent.spawn(render.rows_chart, MIXED, 'T')]
+		jobs += [gevent.spawn(render.hbar_chart, MIXED, 'T')]
+		jobs += [gevent.spawn(uncached, render.Chart('bars', 'T', rows=tuple(MIXED)))]
 		gevent.joinall(jobs, timeout=120)
 		self.assertTrue(all(job.successful() for job in jobs), 'a chart did not finish (several native threads deadlock matplotlib)')
 		self.assertTrue(all(decode(job.value).size == (1280, 800) for job in jobs))
@@ -268,6 +276,23 @@ class ReportChartInputs(FinbotCase):
 		call()
 		self.assertTrue(captured, 'no chart was drawn')
 		return captured[0]
+
+	def test_over_forty_bars_keep_both_ends_with_a_gap(self):
+		"""A bar chart of over 40 rows keeps the first 20 and the last 20, a gap between them."""
+		captured = []
+		self.patch(render, 'hbar_chart', lambda rows, *a, **k: captured.append(rows) or io.BytesIO(b'png'))
+		render.draw(render.Chart('bars', 'T', rows=tuple((f'T{i}', i) for i in range(50))))
+		rows = captured[0]
+		self.assertEqual((len(rows), rows[20], rows[0][0], rows[-1][0]), (41, ('', None), 'T0', 'T49'))
+
+	def test_a_chart_is_drawn_once(self):
+		"""The same spec, for another chat or a later run, is read back from the cache, not drawn again."""
+		calls, real = [], render.pie_chart
+		self.patch(render, 'pie_chart', lambda *a: calls.append(a) or real(*a))
+		chart = render.Chart('pie', 'T', rows=(('a', 1.0), ('b', 2.0)))
+		first, second = render.draw(chart).read(), render.draw(chart).read()
+		self.assertEqual((len(calls), first[:4]), (1, b'\x89PNG'))
+		self.assertEqual(first, second)
 
 	def test_price_top_lists_best_first_then_worst(self):
 		""".price top: the ten best, best first, a spacer, then the ten worst, worst first, as in the caption."""

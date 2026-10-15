@@ -1,8 +1,33 @@
-"""Charts drawn as PNGs with matplotlib: the bot draws them in one native thread, off the gevent hub (render_off_hub)."""
+"""Charts drawn as PNGs with matplotlib: the bot draws them in one native thread, off the gevent hub (render_off_hub). A
+report describes its chart as a Chart, which draw() draws only for a chat that takes charts, and once: the image is
+cached by the spec's hash."""
+import dataclasses
 import functools
+import hashlib
+import importlib.metadata
 import io
+import json
+from pathlib import Path
 from lib import config # first: sets MPLCONFIGDIR before matplotlib is imported (lazily, by the chart functions)
+from lib import cache
 from lib import formats
+
+
+@dataclasses.dataclass(frozen=True)
+class Chart:
+	"""A chart not yet drawn, for draw(). kind 'bars': rows of (label, value), first on top, a (label, None) row a gap;
+	'pie': rows of (label, value); 'shorts': rows of (label, percent), and the threshold."""
+	kind: str
+	title: str = ''
+	subtitle: str = ''
+	rows: tuple = ()
+	value_format: str = 'percent' # bars: how a value prints, a key of VALUE_FORMATS
+	xlim: tuple = None # bars: the value axis, zoomed
+	session: str = None # bars: 'midsession' or 'premarket' tints the background
+	threshold: float = None # shorts: the outrageous line
+
+VALUE_FORMATS = {'percent': lambda v: formats.signed_percent(round(v)),
+	'percent2': lambda v: formats.signed_percent(v, 2), 'number': lambda v: f"{v:g}"}
 
 def fit_left_margin(fig, ax, pad_px=18):
 	"""Widen the left margin so the longest Y tick label is never clipped; the right edge stays put."""
@@ -395,12 +420,6 @@ def shorts_chart(rows, threshold, step=5):
 
 	return _png(fig, sky)
 
-def rows_chart(rows, title, subtitle='', **kw):
-	"""Horizontal bars for a list of (label, value). Over 40 rows keeps the first and last 20."""
-	if len(rows) > 40:
-		rows = rows[:20] + rows[-20:]
-	return hbar_chart(rows, title, subtitle, **kw)
-
 @_drawn
 def pie_chart(rows, title, subtitle=''):
 	"""Pie of (label, value) rows, largest first, with a legend of name and share. At most 8 named slices
@@ -434,12 +453,35 @@ def pie_chart(rows, title, subtitle=''):
 	_heading(fig, title, subtitle)
 	return _png(fig, bg)
 
-def from_spec(spec):
-	"""Draw a chart spec: a dict of rows, title and subtitle, and pie=True for a pie, else rows_chart's options."""
-	spec = dict(spec)
-	rows, title, subtitle = spec.pop('rows'), spec.pop('title'), spec.pop('subtitle', '')
-	return pie_chart(rows, title, subtitle) if spec.pop('pie', False) else rows_chart(rows, title, subtitle, **spec)
+def _code_version():
+	"""What else decides how a spec looks: this file and the matplotlib release."""
+	try:
+		matplotlib = importlib.metadata.version('matplotlib')
+	except importlib.metadata.PackageNotFoundError:
+		matplotlib = ''
+	return hashlib.sha1(Path(__file__).read_bytes() + matplotlib.encode()).hexdigest()[:8]
 
-def bar_graph(top_rows, bottom_rows, title, subtitle=''):
-	"""Top performers then, after a gap, the worst performers: the same order as the caption's two lists."""
-	return hbar_chart(list(top_rows) + [('', None)] + list(bottom_rows), title, subtitle)
+CODE_VERSION = _code_version()
+
+def draw(chart):
+	"""The chart's PNG, drawn once. The image is cached by a hash of its spec (and of the drawing code), so a second
+	chat, a scheduled run or a period button that shows the same thing reads it back; the same spec always draws the
+	same image, so it is never stale. Over 40 bars keeps the first 20 and the last 20, a gap between them."""
+	key = json.dumps([CODE_VERSION, dataclasses.asdict(chart)], sort_keys=True, default=str)
+	name = f"finbot_chart_{hashlib.sha1(key.encode()).hexdigest()[:20]}.png"
+	if config.prefs.cache and (image := cache.read_bytes(name)):
+		return image
+	if chart.kind == 'bars':
+		rows = chart.rows if len(chart.rows) <= 40 else (*chart.rows[:20], ('', None), *chart.rows[-20:])
+		image = hbar_chart(rows, chart.title, chart.subtitle, value_fmt=VALUE_FORMATS[chart.value_format],
+			xlim=chart.xlim, session=chart.session)
+	elif chart.kind == 'pie':
+		image = pie_chart(chart.rows, chart.title, chart.subtitle)
+	elif chart.kind == 'shorts':
+		image = shorts_chart(chart.rows, chart.threshold)
+	else:
+		raise ValueError(f"unknown chart kind {chart.kind!r}")
+	if config.prefs.cache:
+		cache.write_bytes(name, image)
+		image.seek(0)
+	return image

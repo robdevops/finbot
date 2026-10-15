@@ -133,18 +133,19 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 			heading = f'Price movement {threshold:g}%, {formats.date_range_english(days, as_of)}'
 		else:
 			heading = f'{threshold:g}% at close, {on}'
-		chartable = delivery.takes_charts(service, interactive)
 		if top:
 			bottom = [service.bold(f'Bottom {top}')] + list(reversed(payload[-top:]))
 			payload = [service.bold(heading)] + payload[:top] + [''] + bottom
 			chart_top = chart_rows[:top]
 			chart_bottom = [row for row in reversed(chart_rows[-top:]) if row not in chart_top] # worst first
-			if chartable and chart_top:
-				graph = render.bar_graph(label(chart_top), label(chart_bottom), f"Top & bottom {top}", f"% change {formats.days_english(days, 'in ', 'the past ')}")
+			if chart_top: # the best, then after a gap the worst, as the caption's two lists
+				span = formats.days_english(days, 'in ', 'the past ')
+				graph = render.Chart('bars', f"Top & bottom {top}", f"% change {span}",
+					(*label(chart_top), ('', None), *label(chart_bottom)))
 		else:
 			payload.insert(0, service.bold(heading))
-			if chartable:
-				graph = render.rows_chart(label(chart_rows), heading, session='midsession' if midsession else 'premarket' if premarket else None)
+			session = 'midsession' if midsession else 'premarket' if premarket else None
+			graph = render.Chart('bars', heading, rows=tuple(label(chart_rows)), session=session)
 	elif not payload and interactive:
 		if specific_stock:
 			if midsession:

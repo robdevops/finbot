@@ -13,9 +13,9 @@ from lib import transports
 
 @dataclasses.dataclass
 class Report:
-	"""What a report says: its lines; perhaps a chart, drawn (a PNG file object) or a spec (a dict of rows, title,
-	subtitle and render.rows_chart's options, or pie=True) that deliver() draws only for a destination that takes
-	charts; and buttons, rows of buttons.Button (or, on Telegram, a keyboard markup of its own)."""
+	"""What a report says: its lines; perhaps a chart, a render.Chart that deliver() draws only for a destination that
+	takes charts (or one drawn already, a PNG file object); and buttons, rows of buttons.Button (or, on Telegram, a
+	keyboard markup of its own)."""
 	lines: list
 	chart: object = None
 	buttons: list = None
@@ -62,10 +62,10 @@ def deliver(dest, report):
 		return dest.text(report.lines, report.buttons)
 	chart, caption = report.chart, '\n'.join(map(str, report.lines))
 	chartable = dest.takes_charts and config.prefs.graph
-	if isinstance(chart, dict): # a spec: drawn only where it can go
-		if not (chartable and chart.get('rows')):
+	if isinstance(chart, render.Chart): # a spec: drawn only where it can go
+		if not (chartable and chart.rows):
 			return dest.text(report.lines)
-		chart, caption = render.from_spec(chart), caption if report.lines else chart['title']
+		chart, caption = render.draw(chart), caption if report.lines else chart.title
 	elif not chartable:
 		return dest.text(caption.split('\n'))
 	answer = dest.chart(chart, caption, report.buttons)

@@ -49,7 +49,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `lib/buttons.py`: `Button` and a chart's period buttons (each transport draws them). `lib/charts.py`: a period
   button press rebuilds its chart.
 - `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: market tables, flags, ticker translation.
-  `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`: every chart.
+  `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`: every chart,
+  `Chart` specs and `draw()`.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, cached in `DATA_DIR/cache`.
   `sharesight.portfolios(name=None)` gives `Portfolio` objects: `holdings()`, `tickers()`, `performance(days)`,
   `trades(days)`.
@@ -77,6 +78,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   columns, tabs counting 4 (an edit quotes whole lines).
 - Log with `print(..., file=sys.stderr)`. systemd discards stdout (`StandardOutput=null`), so the bot and its reports never
   print there (a test checks); only the util/ tools, run by hand, do.
+- A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
+  charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's).
 - A chart renderer in `lib/render.py` gets `@_drawn` (the bot draws in one native thread); it must not call another `@_drawn`
   function, or that thread waits on itself.
 - A new command: a `Command` in `COMMANDS`, whose usage, section and buttons make its `.help` lines and keyboard

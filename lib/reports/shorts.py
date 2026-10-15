@@ -46,8 +46,7 @@ def report(service, tickers, market_data, threshold, specific_stock, interactive
 	payload, graph = [line for _, line, _ in found], None
 	if payload and not specific_stock:
 		payload.insert(0, service.bold(f'Tracked stocks shorted over {threshold:g}%'))
-		if delivery.takes_charts(service, interactive):
-			graph = render.shorts_chart([(code, percent) for percent, _, code in found], threshold)
+		graph = render.Chart('shorts', rows=tuple((code, percent) for percent, _, code in found), threshold=threshold)
 	elif not payload and interactive:
 		if specific_stock:
 			payload = [f"🩳 No short interest found for {tickers[0]}"]

@@ -32,7 +32,7 @@ def benchmark(ticker, market, text, past_days, service):
 	link = links.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
 	return f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}", percent
 
-def report(service, past_days=None, portfolio_select=None, interactive=False, performance=None):
+def report(service, past_days=None, portfolio_select=None, performance=None):
 	"""(payload, chart) of the performance report for one service: each portfolio and the benchmarks, best first. performance:
 	gather()'s, fetched when not given."""
 	if past_days is None:
@@ -56,22 +56,19 @@ def report(service, past_days=None, portfolio_select=None, interactive=False, pe
 	lines.sort(key=lambda item: item[0], reverse=True)
 	period = formats.days_english(past_days)
 	payload = [service.bold(f"Performance over {period}")] + [line for _, line in lines]
-	graph = None
-	if delivery.takes_charts(service, interactive):
-		chart_rows.sort(key=lambda row: row[1], reverse=True) # best first
-		graph = render.rows_chart(chart_rows, "Performance", f"% change {'' if period == 'today' else 'over '}{period}", value_fmt=lambda v: formats.signed_percent(v, 2))
-	return payload, graph
+	chart_rows.sort(key=lambda row: row[1], reverse=True) # best first
+	span = f"% change {'' if period == 'today' else 'over '}{period}"
+	return payload, render.Chart('bars', "Performance", span, tuple(chart_rows), value_format='percent2')
 
 def run(dest=None, *, past_days=None, user='', portfolio_select=None):
 	"""Post each portfolio's performance over past_days (the past_days preference when None), or the one named, beside
 	the benchmarks: to the chat that asked (dest), else to the default chats, with its chart and period buttons where
 	they can go."""
-	interactive = dest is not None
 	if past_days is None:
 		past_days = config.prefs.past_days
 	performance = gather(past_days, portfolio_select)
 	for chat in delivery.targets(dest):
-		payload, graph = report(chat.dialect, past_days, portfolio_select, interactive, performance)
+		payload, graph = report(chat.dialect, past_days, portfolio_select, performance)
 		markup = None
 		if graph and chat.takes_buttons:
 			markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days))

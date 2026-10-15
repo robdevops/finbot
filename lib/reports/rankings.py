@@ -5,6 +5,7 @@ from lib import watchlist
 from lib import formats
 from lib import links
 from lib import markets
+from lib import render
 from lib import yahoo
 
 def last_col(line):
@@ -62,8 +63,8 @@ def prepare_rating_payload(service, action, length=15):
 	low, high = min(r for _, r in shown), max(r for _, r in shown)
 	spread = (high - low) or 0.2
 	# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
-	chart = {'rows': shown, 'title': message, 'subtitle': 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
-		'value_fmt': lambda v: f"{v:g}", 'xlim': (max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25))}
+	chart = render.Chart('bars', message, 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
+		tuple(shown), value_format='number', xlim=(max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25)))
 	return [service.bold(message)] + payload, chart
 
 def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
@@ -142,7 +143,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 		else:
 			heading = f'{heading_type} {length} tracked stocks by {heading_trail} ratio{coverage}'
 			payload.insert(0, f"{service.bold(heading)}")
-			chart = {'rows': chart_rows[:length], 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
+			chart = render.Chart('bars', heading, rows=tuple(chart_rows[:length]), value_format='number')
 	return payload, chart
 
 def prepare_beta_payload(service):
@@ -159,5 +160,5 @@ def prepare_beta_payload(service):
 		return ['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None
 	found.sort(key=lambda row: row[0], reverse=True)
 	heading = 'Beta over 1.5 and mkt cap under US$2B'
-	chart = {'rows': [row for _, _, row in found], 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
+	chart = render.Chart('bars', heading, rows=tuple(row for _, _, row in found), value_format='number')
 	return [service.bold(heading)] + [line for _, line, _ in found], chart

@@ -3,6 +3,7 @@ from lib import answer
 from lib import buttons
 from lib import formats
 from lib import links
+from lib import render
 from lib import yahoo
 from lib.reports import history, performance, price
 
@@ -33,14 +34,15 @@ def build(kind, tickers, period, service):
 			raise answer.Answer(*caption)
 		return '\n'.join(caption), image
 	if kind == 'f': # performance: tickers = [portfolio name or '']
-		payload, image = performance.report(service, days or buttons.MAX_DAYS, tickers[0] or None, interactive=True)
-		if not image:
+		payload, chart = performance.report(service, days or buttons.MAX_DAYS, tickers[0] or None)
+		if not chart:
 			raise answer.Answer(*(payload or ['no performance data']))
-		return '\n'.join(payload), image
+		return '\n'.join(payload), render.draw(chart)
 	if kind == 'l': # price list: tickers = [threshold, top]
 		span = {'interday': True} if period == 'd' else {'days': days or buttons.MAX_DAYS} # 'd' is today's moves: the command's default view, not a 1-day lookback
-		payload, image = price.report(service, threshold=float(tickers[0]), interactive=True, top=int(tickers[1]) or None, **span)
-		if not image:
+		threshold, top = float(tickers[0]), int(tickers[1]) or None
+		payload, chart = price.report(service, threshold=threshold, interactive=True, top=top, **span)
+		if not chart:
 			raise answer.Answer(*(payload or ['no price data']))
-		return '\n'.join(payload), image
+		return '\n'.join(payload), render.draw(chart) if isinstance(chart, render.Chart) else chart
 	raise ValueError(f"unknown chart kind {kind}")

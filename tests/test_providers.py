@@ -689,7 +689,7 @@ class ChartDelivery(FinbotCase):
 		def refuse(*a, **k):
 			"""Fail: no chart should be drawn."""
 			raise AssertionError('a chart was drawn for Slack')
-		for name in ('rows_chart', 'pie_chart', 'bar_graph', 'shorts_chart'):
+		for name in ('draw', 'hbar_chart', 'pie_chart', 'shorts_chart'):
 			self.patch(render, name, refuse)
 		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/x'})
 		for cmd in ('.beta', '.pie Rob', '.buy', '.sell', '.peg', '.price', '.price top', '.price T1 7d', '.performance 7d', '.shorts', '.history T1', '.compare T1 T2'):

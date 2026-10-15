@@ -5,6 +5,7 @@ from lib import sharesight
 from lib import formats
 from lib import links
 from lib import markets
+from lib import render
 from lib import yahoo
 
 def holding_line(holding, service, text=None):
@@ -64,7 +65,7 @@ def prepare_pie(portfolio_name, by, service, max_slices=8):
 	payload += [f"{label}: {value / total * 100:.1f}%" for label, value in rows]
 	noun = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries')}[by]
 	subtitle = f"{len(totals)} {noun[0] if len(totals) == 1 else noun[1]}"
-	return payload, {'pie': True, 'rows': rows, 'title': title, 'subtitle': subtitle}
+	return payload, render.Chart('pie', title, subtitle, tuple(rows))
 
 def prepare_watchlist(service, user, action=None, ticker=None):
 	"""The .watchlist reply: the companies watched, or one line on adding ('add') or removing ('delete') a ticker."""
