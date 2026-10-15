@@ -129,6 +129,8 @@ def take(network, update):
 	event = network.parse(update)
 	if isinstance(event, inbound.Response):
 		return event
+	if isinstance(event, inbound.Suggest): # answered here and at once, while the command is typed
+		return network.suggestions(worker.suggest(f'{event.service}:{event.chat_id}', event.text))
 	if seen_before(network.service, network.update_id(update)):
 		print(f"[{network.service}]: update {network.update_id(update)} seen already, not run again", file=sys.stderr)
 		return inbound.OK

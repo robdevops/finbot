@@ -58,10 +58,11 @@ def reason(response):
 		return response.text[:200]
 
 
-def command(name, description, arguments):
+def command(name, description, arguments, completes=False):
 	"""A slash command as Discord takes it: a chat command usable in servers and in a DM with the bot, and the arguments
-	it takes, if any, as one optional text option that they describe."""
-	option = {'type': 3, 'name': OPTION, 'description': arguments[:100], 'required': False}
+	it takes, if any, as one optional text option that they describe; with completes, Discord asks finbot what to
+	suggest as they are typed (an autocomplete interaction)."""
+	option = {'type': 3, 'name': OPTION, 'description': arguments[:100], 'required': False, 'autocomplete': completes}
 	return {'name': name, 'type': 1, 'description': description[:100], 'contexts': [GUILD, BOT_DM],
 		'integration_types': [0], 'options': [option] if arguments else []}
 

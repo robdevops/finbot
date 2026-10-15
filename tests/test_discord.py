@@ -3,7 +3,7 @@ signatures, REST calls and their rate limits, messages with charts and buttons, 
 and the gateway."""
 import contextlib, io, json, sys, types, unittest
 from tests.common import *
-from lib import discord, pull
+from lib import discord, jobs, net, pull
 
 try:
 	from nacl.signing import SigningKey
@@ -18,6 +18,8 @@ def interaction(kind, **fields):
 
 
 COMMAND = interaction(2, data={'name': 'price', 'options': [{'name': 'arguments', 'type': 3, 'value': '5 7d'}]})
+TYPING = interaction(4, id='902', data={'name': 'price', 'options': [{'name': 'arguments', 'type': 3, 'value': '5 7',
+	'focused': True}]}) # /price, its arguments being typed
 PRESS = interaction(3, id='901', data={'custom_id': 'c|h|y|T1', 'component_type': 2}, message={'id': '333'})
 MESSAGE = {'id': '700', 'channel_id': '77', 'author': {'id': '5', 'username': 'rob'}, 'content': '<@99> price 7d'}
 
@@ -125,6 +127,15 @@ class Endpoint(FinbotCase):
 		self.assertEqual(self.post(COMMAND, signature=other)[0], '401 Unauthorized')
 		self.assertEqual(self.post(COMMAND, signature='')[0], '401 Unauthorized')
 		self.join_workers()
+		self.assertEqual(self.taken, [])
+
+	def test_arguments_being_typed_get_their_suggestions_at_once(self):
+		"""While a slash command's arguments are typed, Discord asks what to suggest: the answer is the suggestions
+		(type 8), at once, and no work starts."""
+		status, answer, _ = self.post(TYPING)
+		self.join_workers()
+		self.assertEqual((status, json.loads(answer)), ('200 OK', {'type': 8, 'data': {'choices': [
+			{'name': '5 7d', 'value': '5 7d'}]}}))
 		self.assertEqual(self.taken, [])
 
 	def test_the_work_starts_once_discord_has_its_answer(self):
@@ -261,26 +272,36 @@ class Commands(FinbotCase):
 		"""Each .help line has a slash command, named as a slash command may be (.forward pe is /forwardpe), and
 		/help, /stock and /profile besides; each reads as its command, its arguments where it takes any."""
 		commands = worker.slash_commands()
-		names = [name for name, _, _ in commands]
+		names = [name for name, _, _, _ in commands]
 		self.assertEqual(len(names), len(set(names)))
 		for expected in ('help', 'dividend', 'earnings', 'buy', 'sell', 'session', 'premarket', 'forwardpe', 'stock',
 				'profile', 'jobs'):
 			self.assertIn(expected, names)
-		for name, description, arguments in commands:
+		for name, description, arguments, _ in commands:
 			with self.subTest(name=name):
 				self.assertRegex(name, r'^[a-z0-9_-]{1,32}$')
 				self.assertTrue(0 < len(description) <= 100)
 				command, args = worker.read(f'/{name} {arguments}'.strip(), BOT)
 				self.assertIsNotNone(command)
 				self.assertEqual(command.handler, (worker.COMMANDS[0] if name == 'help' else command).handler)
-		self.assertEqual(dict((n, a) for n, _, a in commands)['price'], '[percent|SYMBOL|top|bottom] [period]')
-		self.assertEqual(dict((n, a) for n, _, a in commands)['beta'], '')
+		self.assertEqual(dict((n, a) for n, _, a, _ in commands)['price'], '[percent|SYMBOL|top|bottom] [period]')
+		self.assertEqual(dict((n, a) for n, _, a, _ in commands)['beta'], '')
 
 	def test_stock_and_profile_are_the_profile_command(self):
 		""".stock SYMBOL and /profile SYMBOL are .SYMBOL; without a symbol, the usage."""
 		self.assertEqual(self.command('.stock T1'), self.command('.T1'))
 		self.assertEqual(self.command('/profile T1'), self.command('.T1'))
 		self.assertEqual(self.command('.stock'), [('text', ['Usage: .SYMBOL', 'Usage: .stock SYMBOL'])])
+
+	def test_a_command_with_words_to_suggest_asks_for_suggestions(self):
+		"""The arguments of a command with words to suggest ask Discord for suggestions as they are typed; /plan's,
+		free text, do not, and a command without arguments has none."""
+		registered = {entry['name']: entry for entry in (discord.command(*each) for each in worker.slash_commands())}
+		for name, completes in (('price', True), ('stock', True), ('jobs', True), ('performance', True),
+				('pie', True), ('plan', False)):
+			with self.subTest(name=name):
+				self.assertEqual(registered[name]['options'][0]['autocomplete'], completes)
+		self.assertEqual(registered['beta']['options'], [])
 
 	def test_registering_replaces_the_commands_only_when_they_differ(self):
 		"""Registering puts the commands only when Discord's differ from them, and gives the bot's user id."""
@@ -313,6 +334,88 @@ class Commands(FinbotCase):
 		self.env(discordOutgoingWebhook='https://example.com/discord')
 		worker.process_request(message)
 		self.assertNotIn('.price, or <@99> price', sent[1])
+
+
+class Suggestions(FinbotCase):
+	"""What a slash command suggests while its arguments are typed (Discord's autocomplete): the command table's words,
+	the chat's watchlist and the cached holdings, this chat's jobs and the reports; never a request."""
+
+	def setUp(self):
+		"""Two portfolios cached, BHP and NVDA held; MSFT watched in channel 77, TSLA in 88; any request fails."""
+		super().setUp()
+		cache.write(sharesight.PORTFOLIOS_CACHE, {'portfolios': [{'name': 'Rob', 'id': 1},
+			{'name': 'Jo Smith', 'id': 2}]})
+		held = [{'instrument': {'code': code, 'market_code': market}} for code, market in (('BHP', 'ASX'),
+			('NVDA', 'NASDAQ'))]
+		cache.write(sharesight.performance_cache_file(1, 0), {'report': {'holdings': held}})
+		watchlist.add('discord:77', 'MSFT')
+		watchlist.add('discord:88', 'TSLA')
+		def no_request(*args, **kwargs):
+			"""A request, which suggestions must never make."""
+			raise AssertionError('a suggestion made a request')
+		for module, name in ((sharesight, '_api'), (yahoo, 'fetch'), (yahoo, 'fetch_detail'), (net, 'post')):
+			self.patch(module, name, no_request)
+
+	def values(self, text, chat='discord:77'):
+		"""The values suggested for the text typed so far, in a chat."""
+		return [value for _, value in worker.suggest(chat, text)]
+
+	def test_keywords_periods_portfolios_and_tickers(self):
+		"""A command suggests its keywords and periods until it has one, its portfolios, and tickers: the chat's
+		watchlist (not another chat's) and the holdings; the word being typed matches in any case."""
+		periods = ['1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y']
+		self.assertEqual(self.values('/price '), ['top', 'bottom', *periods, 'BHP.AX', 'MSFT', 'NVDA'])
+		self.assertEqual(self.values('/price 5 7'), ['5 7d'])
+		self.assertEqual(self.values('/price B'), ['bottom', 'BHP.AX'])
+		self.assertEqual(self.values('/price 7d t'), ['7d top'])
+		self.assertEqual(self.values('/price 7d 1'), []) # a period given: none again
+		self.assertEqual(self.values('/forwardpe n'), ['negative', 'NVDA'])
+		self.assertEqual(self.values('/compare MSFT n'), ['MSFT NVDA'])
+		self.assertEqual(self.values('/stock '), ['BHP.AX', 'MSFT', 'NVDA'])
+		self.assertEqual(self.values('/stock ', chat='discord:88'), ['BHP.AX', 'NVDA', 'TSLA'])
+		self.assertEqual(self.values('/performance 7d '), ['7d Rob', '7d Jo Smith'])
+		self.assertEqual(self.values('/pie '), ['sector', 'Rob', 'Jo Smith'])
+		self.assertEqual(self.values('/plan buy '), [])
+
+	def test_the_jobs_subcommands_numbers_and_reports(self):
+		"""/jobs suggests its subcommands; after run, toggle or del this chat's job numbers, each shown with its line;
+		after add and a time (five fields, an @macro, a zone first), the reports a chat can schedule, each shown with
+		what it takes, and then what the report takes."""
+		self.patch(jobs, 'SYSTEM', ())
+		state.save(jobs.SCHEDULE_FILE, {'discord:77': [
+			{'when': '*/20 * * * Mon-Fri', 'reports': 'trades', 'zone': 'UTC', 'on': True},
+			{'when': '0 22 * * *', 'reports': 'shorts', 'zone': 'UTC', 'on': False}]})
+		scheduler = jobs.Scheduler()
+		with contextlib.redirect_stderr(io.StringIO()):
+			scheduler.load()
+		self.patch(jobs, 'current', scheduler)
+		self.assertEqual(self.values('/jobs '), ['run', 'toggle', 'add', 'del'])
+		self.assertEqual(self.values('/job T'), ['toggle'])
+		self.assertEqual(worker.suggest('discord:77', '/jobs run '), [('run 1: */20 * * * Mon-Fri trades', 'run 1'),
+			('run 2: 0 22 * * * shorts', 'run 2')])
+		self.assertEqual(self.values('/jobs del 2'), ['del 2'])
+		self.assertEqual(self.values('/jobs run ', chat='discord:88'), [])
+		self.assertEqual(self.values('/jobs add 0 22 * * '), [])
+		reports = worker.suggest('discord:77', '/jobs add 0 22 * * * ')
+		self.assertIn(('add 0 22 * * * price midsession|interday|premarket|close|DAYS', 'add 0 22 * * * price'),
+			reports)
+		self.assertFalse(any(name in value for _, value in reports for name in jobs.SYSTEM_SCRIPTS))
+		self.assertEqual(self.values('/jobs add CRON_TZ=America/New_York 15 13 * * Mon-Fri price m'),
+			['add CRON_TZ=America/New_York 15 13 * * Mon-Fri price midsession'])
+		self.assertEqual(self.values('/jobs add @daily cal earnings; s'), ['add @daily cal earnings; shorts'])
+		self.assertEqual(self.values('/jobs add 0 22 * * * trades '), [])
+
+	def test_at_most_25_each_of_100_characters_and_a_failure_suggests_nothing(self):
+		"""Discord takes 25 suggestions at most, each up to 100 characters; a failure suggests nothing, and is
+		logged."""
+		for ticker in TICKERS:
+			watchlist.add('discord:77', ticker)
+		self.assertEqual(len(self.values('/price ')), 25)
+		self.assertEqual(self.values('/compare ' + 'LONGTICKER ' * 9), [])
+		self.patch(worker, 'argument_words', mock.Mock(side_effect=RuntimeError('broken')))
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			self.assertEqual(self.values('/price '), [])
+		self.assertIn('suggest: /price ', log.getvalue())
 
 
 class FakeClient:
@@ -387,6 +490,14 @@ class Gateway(FinbotCase):
 		self.assertEqual(self.calls, [('POST', '/interactions/900/tok/callback', {'json': {'type': 5}})])
 		self.assertEqual(order, [('work', 1)])
 		self.assertIn('discord: the gateway failed, trying again in 5 s: Improper token', err.getvalue())
+
+	def test_arguments_being_typed_over_the_gateway_get_their_suggestions_through_the_callback(self):
+		"""Over the gateway, the suggestions for what is being typed go to the interaction's callback."""
+		FakeClient.raw = [{'op': 0, 't': 'INTERACTION_CREATE', 'd': TYPING}]
+		with contextlib.redirect_stderr(io.StringIO()):
+			pull.DiscordGateway().poll(bot.take)
+		self.assertEqual(self.calls, [('POST', '/interactions/902/tok/callback', {'json': {'type': 8, 'data': {
+			'choices': [{'name': '5 7d', 'value': '5 7d'}]}}})])
 
 	@unittest.skipUnless(SigningKey, 'PyNaCl is not installed')
 	def test_a_press_over_the_gateway_is_the_press_the_endpoint_gets(self):

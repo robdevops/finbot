@@ -139,13 +139,18 @@ class Portfolio:
 		return [trade | {'portfolio': self.name} for trade in _trades(self.id, days)]
 
 
+def _chosen(listed):
+	"""The portfolios of Sharesight's list to report on, after include_portfolios and exclude_portfolios."""
+	include, exclude = config.prefs.include_portfolios, config.prefs.exclude_portfolios
+	return [Portfolio(each['name'], each['id']) for each in listed
+		if str(each['id']) not in exclude and (not include or str(each['id']) in include)]
+
+
 def portfolios(select=None, seconds=None):
 	"""The portfolios to report on (after include_portfolios and exclude_portfolios), or the one called `select`, in any
 	case; the list is cached for `seconds` (cache_seconds when None). Raises RuntimeError when there are none, and
 	PortfolioNotFound for a name that is none of them."""
-	include, exclude = config.prefs.include_portfolios, config.prefs.exclude_portfolios
-	found = [Portfolio(each['name'], each['id']) for each in _portfolios(seconds)
-		if str(each['id']) not in exclude and (not include or str(each['id']) in include)]
+	found = _chosen(_portfolios(seconds))
 	if not found:
 		raise RuntimeError("No Sharesight portfolios found")
 	if not select:
@@ -159,6 +164,19 @@ def portfolios(select=None, seconds=None):
 def tickers():
 	"""Every portfolio's holdings as Yahoo tickers, sorted."""
 	return sorted({ticker for portfolio in portfolios() for ticker in portfolio.tickers()})
+
+
+def cached():
+	"""(the portfolios' names, the Yahoo tickers they hold, sorted) from what the cache holds, whatever its age, and
+	never a request: for suggestions while a command is typed, which must come at once. Empty where nothing is
+	cached."""
+	found = _chosen((cache.load(PORTFOLIOS_CACHE) or {}).get('portfolios') or [])
+	held = set()
+	for portfolio in found:
+		report = (cache.load(performance_cache_file(portfolio.id, 0)) or {}).get('report') or {}
+		held |= {markets.transform_to_yahoo(each['instrument']['code'], each['instrument']['market_code'])
+			for each in report.get('holdings') or []}
+	return [portfolio.name for portfolio in found], sorted(held)
 
 
 def warm():

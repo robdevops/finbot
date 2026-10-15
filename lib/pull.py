@@ -53,20 +53,21 @@ class Listener:
 		return wait
 
 	def hand_on(self, take, update):
-		"""take(network, update), and the answer delivered where the network must have it before any reply. A failure
-		is reported as bot.main reports one of an authenticated request: the update came from the network, so the
-		default chats are told."""
+		"""take(network, update), and its answer delivered where the network must have it: an interaction's, and one
+		that work waits on. A failure is reported as bot.main reports one of an authenticated request: the update came
+		from the network, so the default chats are told."""
 		try:
 			answer = take(self.network, update)
-			if getattr(answer, 'then', None):
+			if getattr(answer, 'interaction', False) or getattr(answer, 'then', None):
 				self.answer(update, answer)
 		except Exception as e:
 			delivery.report_error(e, context=self.network.service)
 
 	def answer(self, update, answer):
-		"""Deliver an answer that the network must have before any reply, then start the work waiting on it. Only
-		Discord's interactions have one (DiscordGateway)."""
-		answer.then()
+		"""Deliver an answer that the network must have (only Discord's interactions have one: DiscordGateway), then
+		start the work waiting on it, if any."""
+		if answer.then:
+			answer.then()
 
 
 class TelegramPoll(Listener):
@@ -263,9 +264,10 @@ class DiscordGateway(Listener):
 			threading.Thread(target=self.hand_on, args=(take, message['d']), daemon=True).start()
 
 	def answer(self, update, answer):
-		"""Post an interaction's answer to its callback, then start the work waiting on it."""
+		"""Post an interaction's answer to its callback, then start the work waiting on it, if any."""
 		discord.call('POST', f"/interactions/{update['id']}/{update['token']}/callback", json=json.loads(answer.body))
-		answer.then()
+		if answer.then:
+			answer.then()
 
 
 def listeners():

@@ -95,8 +95,17 @@ discordPublicKey=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde
 
 finbot registers a slash command for each line of `.help`, as it starts, and again only when the list has changed:
 `/price`, `/dividend` and `/earnings`, `/buy` and `/sell`, `/forwardpe` for `.forward pe`, `/stock` (or `/profile`) for
-`.SYMBOL`, `/jobs` (or `/job`), and the rest. Each takes its arguments, if any, as one text option, as the message would: `/price` with
-`5 7d` is `.price 5 7d`. They work in the server's channels and in a direct message with the bot.
+`.SYMBOL`, `/jobs` (or `/job`), and the rest. Each takes its arguments, if any, as one text option, as the message
+would: `/price` with `5 7d` is `.price 5 7d`. They work in the server's channels and in a direct message with the bot.
+
+While the arguments are typed, Discord shows finbot's suggestions, in both modes, for the word being typed:
+* the command's keywords (`top`, `bottom`, `negative`, `sector`, `add`, `del`) and periods (`7d`, `3m`, `ytd`), until
+  it has one;
+* the portfolios, for the commands that take one;
+* tickers, for the commands that take one: the channel's watchlist and the holdings. They come from the cache, never
+  from Sharesight or Yahoo, so the suggestions come at once; the holdings are there once `sharesight_warm` has run;
+* for `/jobs`: `run`, `toggle`, `add` and `del`; after `run`, `toggle` or `del` the channel's job numbers, each with
+  its line; after `add` and a time, the reports, each with what it takes, and then what the report takes.
 
 A message holds up to 2,000 characters, so a long report arrives as several messages. A chart goes as an attachment of
 the message that carries its report, with its period buttons under it.

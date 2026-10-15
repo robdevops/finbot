@@ -34,9 +34,9 @@ def manifest(name='finbot', url='', every_message=False):
 	events = ['message.channels', 'message.groups'] if every_message else ['app_mention']
 	events.append('message.im')
 	posted = {'url': url} if url else {}
-	commands = [{'command': '/' + command, 'description': description, 'should_escape': False,
-		**({'usage_hint': arguments} if arguments else {}), **posted}
-		for command, description, arguments in worker.slash_commands()]
+	commands = [{'command': '/' + command.name, 'description': command.description, 'should_escape': False,
+		**({'usage_hint': command.arguments} if command.arguments else {}), **posted}
+		for command in worker.slash_commands()]
 	return {
 		'display_information': {'name': name, 'description': 'Stock prices, charts and Sharesight reports',
 			'background_color': '#14181f'},

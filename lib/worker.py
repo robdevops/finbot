@@ -502,20 +502,108 @@ def slash_form(command, line):
 		return valid[0], ' '.join(words)
 	return (named if named in valid else valid[0]), ' '.join(words[len(named.split()):])
 
+class Slash(typing.NamedTuple):
+	"""A slash command to register: its name, its description, the arguments it shows, and whether Discord asks for
+	suggestions while they are typed (suggest)."""
+	name: str
+	description: str
+	arguments: str
+	completes: bool = False
+
 def slash_commands(aliases=True):
-	"""The slash commands to register, from the .help lines (slash_form), and /help: [(name, description, the
-	arguments it shows)], the arguments of a command's several lines joined by " | ". With aliases, the second names of
-	SLASH_ALIASES too, each after its first."""
-	found = {'help': []} # name -> the arguments of its lines
+	"""The slash commands to register (Slash), from the .help lines (slash_form), and /help; the arguments of a
+	command's several lines joined by " | ". With aliases, the second names of SLASH_ALIASES too, each after its
+	first."""
+	found = {'help': (None, [])} # name -> (its command, the arguments of its lines)
 	for command in COMMANDS:
 		for line in command.usage:
 			if form := slash_form(command, line):
 				name, arguments = form
 				for each in (name, SLASH_ALIASES.get(name) if aliases else None):
-					if each and arguments not in found.setdefault(each, []):
-						found[each].append(arguments)
-	return [('help', 'every command, and what it takes', '') if name == 'help' else
-		(name, f"{name} {' | '.join(lines)}".strip(), ' | '.join(lines)) for name, lines in found.items()]
+					if each and arguments not in found.setdefault(each, (command, []))[1]:
+						found[each][1].append(arguments)
+	return [Slash('help', 'every command, and what it takes', '') if name == 'help' else
+		Slash(name, f"{name} {' | '.join(lines)}".strip(), ' | '.join(lines), completes(command))
+		for name, (command, lines) in found.items()]
+
+PERIOD_WORDS = ('1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y') # suggested where a command takes a period
+JOB_WORDS = ('run', 'toggle', 'add', 'del') # what /jobs suggests first
+
+def completes(command):
+	"""Whether suggest has words to offer for a command's arguments: its keywords, periods, tickers, portfolios, or
+	those of /jobs."""
+	usage = ' '.join(command.usage)
+	return bool(command.handler is on_jobs or command.keywords or command.period or 'SYMBOL' in usage or
+		'portfolio' in usage.lower())
+
+def suggest(chat, text):
+	"""What to suggest while a slash command's arguments are typed (Discord's autocomplete), from the message they make
+	so far (text: /price 5 7) in a chat (its key): up to 25 (name shown, value) pairs, each value the arguments with the
+	word being typed completed. The words come from the command's entry in the table: its keywords, periods, portfolios
+	and tickers (the chat's watchlist and the holdings, as cached, never a request: suggestions must come at once); for
+	/jobs, its subcommands, this chat's job numbers and the reports. Never raises: the failure is logged instead, and
+	nothing suggested."""
+	try:
+		command, _ = read(text, '')
+		if command is None:
+			return []
+		given = (text.split(None, 1) + [''])[1]
+		words = given.split()
+		typing = words.pop() if words and not given[-1].isspace() else ''
+		done = ' '.join(words)
+		if command.handler is on_jobs:
+			offered = job_words(chat, words)
+		else:
+			offered = argument_words(command, chat, read_args(command, '', done))
+		found = [(f'{done} {shown}'.strip()[:100], f'{done} {word}'.strip()) for word, shown in offered
+			if word.lower().startswith(typing.lower())]
+		return [(shown, value) for shown, value in found if len(value) <= 100][:25]
+	except Exception as e:
+		print('suggest:', text, delivery.error_line(e), file=sys.stderr)
+		return []
+
+def argument_words(command, chat, given):
+	"""(word, shown) pairs that a command's arguments may hold next, for suggest, after those given (Args): the
+	keywords its usage shows and periods, unless it has one already; portfolios; tickers (the chat's watchlist and the
+	holdings, as cached)."""
+	usage = ' '.join(command.usage)
+	words = [word for word in re.findall(r'[\w-]+', usage)
+		if word in command.keywords and word not in command.names and given.keyword is None]
+	if command.period and given.days is None:
+		words += PERIOD_WORDS
+	if 'SYMBOL' in usage or 'portfolio' in usage.lower():
+		names, held = sharesight.cached()
+		if 'portfolio' in usage.lower():
+			words += names
+		if 'SYMBOL' in usage:
+			words += sorted(set(watchlist.tickers(chat)) | set(held))
+	return [(word, word) for word in dict.fromkeys(words)]
+
+def job_words(chat, words):
+	"""(word, shown) pairs for /jobs, for suggest, after the words given: first its subcommands; after run, toggle or
+	del, this chat's job numbers, each shown with its line; after add and a time, the reports, each shown with what it
+	takes; after a report's name, the words it takes."""
+	if not words:
+		return [(word, word) for word in JOB_WORDS]
+	action = JOB_CHANGES.get(words[0].lower())
+	if action in ('run', 'toggle', 'del') and len(words) == 1:
+		own = jobs.current.chat_jobs(chat) if jobs.current else []
+		return [(str(number), f'{number}: {job.line}') for number, job in enumerate(own, 1)]
+	if action != 'add':
+		return []
+	line = words[1:][1:] if words[1:2] and words[1].startswith('CRON_TZ=') else words[1:]
+	time = 1 if line and line[0].startswith('@') else 5
+	if len(line) < time:
+		return []
+	after = line[time:]
+	if not after or after[-1].endswith(';'): # a report's name is next
+		return [(name, f'{name} {module.ARGUMENTS}'.strip()) for name, module in sorted(jobs.SCRIPTS.items())
+			if name not in jobs.SYSTEM_SCRIPTS]
+	start = max(i for i in range(len(after)) if i == 0 or after[i - 1].endswith(';')) # the report being given
+	module = jobs.SCRIPTS.get(after[start].rstrip(';'))
+	if module is None or len(after) - start > 1 or after[start].endswith(';'):
+		return []
+	return [(word, word) for word in re.findall(r'[a-z][a-z-]*', module.ARGUMENTS)]
 
 def command_keyboard(per_row=3):
 	"""Persistent reply keyboard of the commands that have buttons (Telegram DMs), alphabetical, row by row; a press

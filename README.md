@@ -31,6 +31,7 @@ What finbot can do on each network. Telegram takes everything; the others take w
 | "typing…" while a command works | ✓ | ⏳ on the command's message (Slack has no typing notice for bots); none for a slash command, which has no message | ✓ for a message; "thinking…" for a slash command |
 | Charts in replies | ✓ | ✓ | ✓ |
 | Charts in scheduled reports | ✓ | ✓ | ✓ |
+| Slash commands completed as they are typed | names, from the command menu | names, with their usage | names, and the arguments: keywords, periods, portfolios, tickers, jobs |
 | Period and job buttons | ✓ | ✓ | ✓ |
 | No link previews | ✓ | ✓ | ✓ |
 | Linked tickers | ✓ | ✓ | ✓ |

@@ -45,12 +45,25 @@ class Press:
 
 
 @dataclasses.dataclass
+class Suggest:
+	"""A slash command's arguments as they are typed (Discord's autocomplete), to answer at once with what to suggest:
+	the message they make so far (/price 5 7), which the suggestions complete."""
+	service: str
+	chat_id: str
+	text: str
+	interaction: str = '' # Discord's interaction: its application id and token
+
+
+@dataclasses.dataclass
 class Response:
 	"""What the network gets back at once: a status and a body; and the work to start once it has them (`then`), when
-	the network must have this answer before any reply (Discord's deferred answer to an interaction)."""
+	the network must have this answer before any reply (Discord's deferred answer to an interaction). An interaction's
+	answer (`interaction`) is the HTTP response on Discord's interactions endpoint, and goes to the interaction's
+	callback when it came over the gateway."""
 	status: str = '200 OK'
 	body: bytes = b''
 	then: object = dataclasses.field(default=None, compare=False)
+	interaction: bool = False
 
 
 OK = Response()
@@ -212,8 +225,9 @@ class Discord(Network):
 	interactions endpoint and the gateway, and the gateway's messages."""
 	service = 'discord'
 	bot_id = None # the bot's user id, from discord.register() as bot.py starts: a message mentioning it is for the bot
-	PING, COMMAND, COMPONENT = 1, 2, 3 # interaction types
-	PONG, THINKING, LATER = 1, 5, 6 # answers: to the check, "thinking…" until the reply, nothing to see (a press)
+	PING, COMMAND, COMPONENT, AUTOCOMPLETE = 1, 2, 3, 4 # interaction types
+	PONG, THINKING, LATER, CHOICES = 1, 5, 6, 8 # answers: to the check, "thinking…" until the reply, nothing to see (a
+	# press), the suggestions for what is being typed
 
 	def update_id(self, update):
 		"""The interaction's id, or the message's."""
@@ -230,10 +244,11 @@ class Discord(Network):
 
 	def interaction(self, update):
 		"""The endpoint's check (a PING, answered at once), a slash command as the message it stands for (/price 7d),
-		or a button pressed under one of the bot's messages; anything else, UNSUPPORTED."""
+		its arguments as they are typed (a Suggest), or a button pressed under one of the bot's messages; anything else,
+		UNSUPPORTED."""
 		kind = update.get('type')
 		if kind == self.PING:
-			return Response(body=json.dumps({'type': self.PONG}).encode())
+			return Response(body=json.dumps({'type': self.PONG}).encode(), interaction=True)
 		person = (update.get('member') or {}).get('user') or update.get('user') or {}
 		channel = str(update.get('channel_id') or (update.get('channel') or {}).get('id') or '')
 		through = f"{update.get('application_id')}/{update['token']}"
@@ -243,6 +258,10 @@ class Discord(Network):
 			text = f"/{data['name']} {given}".strip()
 			return Message(self.service, channel, f"<@{person.get('id')}>", text, self.bot_name, self.name(person),
 				interaction=through)
+		if kind == self.AUTOCOMPLETE and data.get('name'):
+			options = data.get('options') or []
+			typed = next((str(option.get('value', '')) for option in options if option.get('focused')), '')
+			return Suggest(self.service, channel, f"/{data['name']} {typed}", through)
 		message = update.get('message') or {}
 		if kind == self.COMPONENT and data.get('custom_id') and message.get('id'):
 			return Press(self.service, str(update.get('id')), channel, str(message['id']), data['custom_id'],
@@ -271,7 +290,13 @@ class Discord(Network):
 		if not event.interaction:
 			return None
 		answer = self.THINKING if isinstance(event, Message) else self.LATER
-		return Response(body=json.dumps({'type': answer}).encode())
+		return Response(body=json.dumps({'type': answer}).encode(), interaction=True)
+
+	def suggestions(self, choices):
+		"""The answer to an autocomplete interaction: the choices, (name shown, value) pairs, 25 at most."""
+		choices = [{'name': name, 'value': value} for name, value in choices[:25]]
+		return Response(body=json.dumps({'type': self.CHOICES, 'data': {'choices': choices}}).encode(),
+			interaction=True)
 
 
 class Webhook:

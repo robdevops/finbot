@@ -51,7 +51,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   out) and the slash commands registered at start (`register`, from `worker.slash_commands()`).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
   keywords)`, which also makes `.help`, the Telegram command keyboard, kept current in DMs, and `slash_commands()`, which
-  every network gets (Telegram's menu, Slack's manifest from `util/slack_manifest.py`, Discord's registered commands). `read()` finds the
+  every network gets (Telegram's menu, Slack's manifest from `util/slack_manifest.py`, Discord's registered commands);
+  `suggest(chat, text)` completes a slash command's arguments as they are typed (Discord's autocomplete), from the
+  cache alone. `read()` finds the
   command by its whole name (any other first word that may be a ticker is `.SYMBOL`) and `read_args()` its `Args`: a
   percent, a period and a keyword from either end, the words between; a handler raises `Usage` for arguments it cannot
   take, and gets a ticker with `ticker(args)`. `Request` (`request.reply(lines, chart, buttons)`); each command gets
