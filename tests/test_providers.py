@@ -40,6 +40,9 @@ def serve(*responses):
 	return get
 
 
+REAL_CREDENTIALS = yahoo.credentials
+
+
 class ProviderCase(FinbotCase):
 	def setUp(self):
 		"""Real parsers instead of the fixture's canned data, with a fixed cookie, crumb and token, and no waiting."""
@@ -48,8 +51,7 @@ class ProviderCase(FinbotCase):
 		for module, name in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (sharesight, 'get_portfolios'),
 							 (sharesight, 'get_trades'), (sharesight, 'get_performance')):
 			self.patch(module, name, REAL[(module.__name__, name)])
-		self.patch(yahoo, 'get_cookie', lambda *a, **k: 'A=B')
-		self.patch(yahoo, 'get_crumb', lambda *a, **k: 'crumb')
+		self.patch(yahoo, 'credentials', lambda renew=False: ('A=B', 'crumb'))
 		self.patch(sharesight, 'get_token', lambda: 'token')
 		self.patch(sharesight.time, 'sleep', lambda s: None)
 
@@ -71,7 +73,6 @@ class YahooQuotes(ProviderCase):
 		self.assertEqual(data['quoteType'], 'EQUITY')
 		self.assertEqual(data['marketState'], 'CLOSED')
 		self.assertEqual(data['profile_exchange'], 'NasdaqGS')
-		self.assertEqual(data['exchangeTimezoneName'], 'America/New_York')
 		self.assertGreater(data['market_cap'], 1e12)
 
 	def test_second_call_is_served_from_cache(self):
@@ -174,12 +175,17 @@ class YahooDetail(ProviderCase):
 		self.patch(yahoo, 'DETAIL_FIELDS', yahoo.DETAIL_FIELDS + (('short_name', ('price', 'shortName')),))
 		self.assertEqual(yahoo.fetch_detail('NVDA')['NVDA']['short_name'], 'NVIDIA Corporation')
 
-	def test_http_failure_gives_empty(self):
-		"""A detail Yahoo will not give (404, unreachable) is empty, not an error."""
-		for failure in (Resp(status=404), ConnectionError('down')):
+	def test_a_symbol_yahoo_does_not_know_is_empty_and_an_outage_an_error(self):
+		"""A detail of a symbol Yahoo does not know (404 Not Found) is empty, an answer; Yahoo unreachable or refusing
+		is an error, where it used to read as an unknown symbol ("I could not find TSLA")."""
+		unknown = {'quoteSummary': {'result': None, 'error': {'code': 'Not Found', 'description': 'Quote not found'}}}
+		self.http(yahoo, Resp(unknown, status=404))
+		self.assertEqual(yahoo.fetch_detail('DRNA'), {})
+		for failure in (Resp(status=404), Resp(status=500), ConnectionError('down')):
 			with self.subTest(failure=failure):
 				self.http(yahoo, failure)
-				self.assertEqual(yahoo.fetch_detail('DRNA'), {})
+				with self.assertRaises(RuntimeError):
+					yahoo.fetch_detail('TSLA')
 
 	def test_missing_names_give_empty(self):
 		"""A detail without a name, or without a result, is empty."""
@@ -192,14 +198,48 @@ class YahooDetail(ProviderCase):
 
 
 class YahooChart(ProviderCase):
-	def test_real_chart_to_dataframe_and_basics(self):
-		"""A real v8 chart becomes a frame of dates and closes, and its basics are read."""
-		chart = sample('yahoo', 'sample_yahoo_v8_chart.json')
-		df = yahoo.chart_json_to_df(chart)
-		self.assertEqual(len(df), 2)
-		self.assertTrue({'Date', 'Close'} <= set(df.columns))
-		basics = yahoo.chart_json_to_stock_basics(chart)
-		self.assertEqual((basics['symbol'], basics['currency']), ('CRWD', 'USD'))
+	def test_real_chart_to_bars(self):
+		"""A real v8 chart becomes its daily bars: the day, the open and the close."""
+		rows = yahoo.bars(sample('yahoo', 'sample_yahoo_v8_chart.json'))
+		self.assertEqual(len(rows), 2)
+		self.assertTrue(all(isinstance(day, datetime.date) and close for day, _, close in rows))
+
+	def test_a_bar_is_dated_in_its_exchanges_time_zone(self):
+		"""An ASX bar, stamped at Sydney's open (23:00 UTC the day before), is dated the day it traded: it used to be
+		dated the day before, so N-day changes and chart dates slipped a session."""
+		open_sydney = datetime.datetime(2026, 1, 5, 23, 0, tzinfo=datetime.timezone.utc) # 10:00 on 6 Jan in Sydney
+		chart = {'chart': {'result': [{'meta': {'exchangeTimezoneName': 'Australia/Sydney'},
+			'timestamp': [int(open_sydney.timestamp())], 'indicators': {'quote': [{'open': [1.0], 'close': [2.0]}]}}]}}
+		self.assertEqual(yahoo.bars(chart), [(datetime.date(2026, 1, 6), 1.0, 2.0)])
+
+	def test_a_refused_crumb_is_renewed_once(self):
+		"""Yahoo refusing the crumb (401) gets a new cookie and crumb, and the request is asked again, once."""
+		renewed = []
+		fresh = lambda renew=False: renewed.append(renew) or ('A=B', 'new' if renew else 'old')
+		self.patch(yahoo, 'credentials', fresh)
+		getter = self.http(yahoo, Resp(status=401), Resp(status=401), Resp(sample('yahoo', 'sample_yahoo_v7.json')))
+		self.assertIn('AAPL', yahoo.fetch(['AAPL']))
+		crumbs = [url.rsplit('crumb=', 1)[1] for url in getter.calls]
+		self.assertEqual((renewed, crumbs), ([False, True], ['old', 'old', 'new']))
+		self.http(yahoo, Resp(status=401))
+		with self.assertRaises(RuntimeError): # a new crumb refused too: an error, not a loop
+			yahoo.fetch(['MSFT'])
+
+	def test_the_credentials_are_one_file_renewed_together(self):
+		"""The cookie and the crumb Yahoo issued for it are cached together and renewed together; no cookie, or no
+		crumb, is an error, where a stale fallback pair turned it into a refusal later."""
+		self.patch(yahoo, 'credentials', REAL_CREDENTIALS)
+		cookie = Resp(None, status=404)
+		cookie.headers = {'Set-Cookie': 'A3=d=AQAB; Max-Age=31557600; Domain=.yahoo.com; Path=/; Secure'}
+		getter = self.http(yahoo, cookie, Resp(None, text='crumb1'))
+		self.assertEqual(yahoo.credentials(), ('A3=d=AQAB', 'crumb1'))
+		self.assertEqual(yahoo.credentials(), ('A3=d=AQAB', 'crumb1')) # from the cache now
+		self.assertEqual(len(getter.calls), 2)
+		nothing = Resp(None, status=404)
+		nothing.headers = {}
+		self.http(yahoo, nothing)
+		with self.assertRaisesRegex(RuntimeError, 'no cookie'):
+			yahoo.credentials(renew=True)
 
 	def test_fetch_chart_json_failures_raise(self):
 		"""A chart Yahoo will not give is a RuntimeError."""
@@ -220,12 +260,25 @@ class YahooChart(ProviderCase):
 		return {'chart': {'result': [{'meta': meta, 'timestamp': stamps, 'indicators': {'quote': [quote]}}], 'error': None}}
 
 	def test_1d_is_the_change_since_the_previous_close(self):
-		"""1D is the change since the previous close, and 5D the week's."""
+		"""1D is the change since the previous close, and 5D the week's; with a quote, its price and today's change
+		count, the chart's being up to cache_seconds old."""
 		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
 		self.http(yahoo, Resp(self.chart([90] * 30 + [100, 105, 110, 115, 120, 116.4]))) # up 20% in a week, down 3% today
-		table, image = yahoo.price_history('T1')
+		table, line = yahoo.price_history('T1')
 		self.assertEqual(table['1D'], -3)
 		self.assertGreater(table['5D'], 10) # the week, not the day
+		table, line = yahoo.price_history('T1', quote={'regularMarketPrice': 125.0, 'percent_change': 7.4})
+		self.assertEqual((table['1D'], line.price), (7, 125.0))
+
+	def test_a_record_is_from_the_whole_history(self):
+		"""historic_high reads the whole history (the chart from period1=0), its first day aside: records seeded
+		from 10 years were no all-time records."""
+		urls = []
+		chart = self.chart([5.0, 50.0, 10.0, 20.0])
+		self.patch(yahoo, 'historic_high', REAL[('lib.yahoo', 'historic_high')])
+		self.patch(yahoo.net, 'get', lambda url, **kwargs: urls.append(url) or Resp(chart))
+		self.assertEqual(yahoo.historic_high('T1'), (50.0, 10.0)) # 5.0, the first day, aside
+		self.assertIn('period1=0&', urls[0])
 
 	def test_a_symbol_yahoo_does_not_know_is_no_data(self):
 		"""Yahoo's 404 for a symbol it does not know is NoData, an answer; any other 404 is an error, not an answer."""
@@ -253,7 +306,8 @@ class YahooChart(ProviderCase):
 		"""One ticker without a chart is left out of a price list, a benchmark without one is said to have none, and
 		only a report on that one ticker fails, in one line."""
 		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
-		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts}) # quotes as canned in the base fixture, charts over HTTP
+		quotes = lambda ts: {t: market_entry(t) | {'regularMarketPrice': 110.0} for t in ts} # charts over HTTP
+		self.patch(yahoo, 'fetch', quotes)
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
 		self.patch(sharesight, 'get_portfolios', lambda: {}) # no Sharesight figures: every ticker needs its history
 		good = Resp(self.chart([100.0] * 20 + [110.0]))

@@ -14,7 +14,8 @@ from lib import answer, buttons, cache, charts, config, delivery, dialects, form
 from lib import sharesight, shortman, state, telegram, transports, watchlist, worker, yahoo
 from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating, reminder, shorts, trades
 
-REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (yahoo, 'price_history'),
+REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),
+	(yahoo, 'price_history'), (yahoo, 'historic_high'),
 	(sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'))}
 REAL_GET_HOLDINGS = watchlist.with_holdings
 REAL_TEXT = transports.Transport.text # FinbotCase replaces it with a recorder; tests of the real thing put it back
@@ -94,7 +95,7 @@ class FinbotCase(unittest.TestCase):
 		self.patch(watchlist, 'with_holdings', lambda: TICKERS)
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
-		self.patch(yahoo, 'price_history', lambda t, days=None, **k: # a history with no line to draw
+		self.patch(yahoo, 'price_history', lambda t, days=None, quote=None: # a history with no line to draw
 			({days: 1.5} if days else {'Max': 5, '1Y': 3}, yahoo.Line('Co ' + t, 'NasdaqGS', 'USD', 100.0, ())))
 		self.patch(yahoo, 'prefetch_history', lambda ts: None)
 		self.patch(yahoo, 'historic_high', lambda t: (100.0, 50.0))

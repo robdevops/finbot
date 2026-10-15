@@ -50,7 +50,8 @@ def history_payload(ticker, service, days=None):
 	chart of those days, else of the whole history (None when it has too few prices). The name and exchange come from
 	the chart."""
 	highlight = buttons.PERIODS[buttons.period_for_days(days, 'x')][0]
-	table, line = yahoo.price_history(ticker)
+	quote = yahoo.fetch([ticker]).get(ticker) # today's price and change
+	table, line = yahoo.price_history(ticker, quote=quote)
 	chart = line_chart(ticker, table, line)
 	ticker_link = links.finance_link(ticker, line.exchange, service, days=1825, brief=False)
 	lines = [service.bold(f"{line.name} ({ticker_link}) performance history")]
@@ -62,7 +63,7 @@ def history_payload(ticker, service, days=None):
 				label = '● ' + label
 			lines.append(f"{formats.get_emoji(percent)} {label} {formats.signed_percent(percent)}")
 	if days:
-		_, chart = price_line(ticker, days)
+		_, chart = price_line(ticker, days, quote)
 	return lines, chart
 
 def line_chart(ticker, changes, line, days=None):
@@ -81,8 +82,8 @@ def line_chart(ticker, changes, line, days=None):
 	subtitle = f"{price}   {arrow} {abs(change):,g}%"
 	return render.Chart('line', f"{line.name} ({ticker}) {span}", subtitle, line.closes, change=float(change))
 
-def price_line(ticker, days=None):
-	"""(its changes, its line chart or None) of a ticker over `days`, else over its whole history: price_history and
-	line_chart."""
-	changes, line = yahoo.price_history(ticker, days)
+def price_line(ticker, days=None, quote=None):
+	"""(its changes, its line chart or None) of a ticker over `days`, else over its whole history, to the price of its
+	quote (else the chart's): price_history and line_chart."""
+	changes, line = yahoo.price_history(ticker, days, quote=quote)
 	return changes, line_chart(ticker, changes, line, days)

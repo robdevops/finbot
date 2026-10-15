@@ -10,7 +10,7 @@ from lib import yahoo
 # - need to handle stock splits: flush cache if we see a split in the data
 # https://finance.yahoo.com/quote/TSLA/history?period1=0&period2=1707609600&filter=split
 
-STATE_FILE = 'finbot_milestone.json' # {ticker: {'record_high': ..., 'record_low': ...}}
+STATE_FILE = 'finbot_milestone.json' # {ticker: {'all_time_high': ..., 'all_time_low': ...}}
 
 def run(dest=None):
 	"""Post the stocks followed that set an all-time high or low to the default chats (or dest), and record the new
@@ -32,8 +32,8 @@ def gather():
 	highs, lows, changed = [], [], {}
 	for ticker in tickers:
 		try:
-			oldhigh, oldlow = records[ticker]['record_high'], records[ticker]['record_low']
-		except (KeyError, TypeError): # first sighting, or a 52-week record of old, under 'high' and 'low'
+			oldhigh, oldlow = records[ticker]['all_time_high'], records[ticker]['all_time_low']
+		except (KeyError, TypeError): # first sighting, or a record of old: 52 weeks (high, low), 10 years (record_high)
 			try:
 				oldhigh, oldlow = yahoo.historic_high(ticker) # its history so far
 			except (RuntimeError, KeyError, IndexError, ValueError):
@@ -44,7 +44,7 @@ def gather():
 		except (KeyError, ValueError):
 			continue # likewise: a ticker is recorded only with both of its new values
 		# all-time: a 52-week high below the record is no record
-		changed[ticker] = {'record_high': max(oldhigh, newhigh), 'record_low': min(oldlow, newlow)}
+		changed[ticker] = {'all_time_high': max(oldhigh, newhigh), 'all_time_low': min(oldlow, newlow)}
 		if newhigh > oldhigh:
 			highs.append(ticker)
 		if newlow < oldlow:

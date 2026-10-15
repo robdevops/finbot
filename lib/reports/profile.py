@@ -98,17 +98,12 @@ def company(service, data, ticker, exchange):
 	return lines
 
 def figures(service, data):
-	"""Its size, debt, dates, dividend, cashflow and whether it makes a profit (always said, if only as unknown)."""
+	"""Its size, dates, dividend, cashflow and whether it makes a profit (always said, if only as unknown)."""
 	now = datetime.datetime.now()
 	lines = []
 	if 'currency' in data and 'market_cap' in data:
 		cap = f"{yahoo.market_cap_currency(data)} {formats.human_units(data['market_cap'])}" # GBP, not pence
 		lines.append(service.bold("Mkt cap:") + f" {cap}")
-	if all(key in data for key in ('shareholder_equity', 'total_debt', 'total_cash', 'profile_industry')) and \
-			data['shareholder_equity'] and 'Bank' not in data['profile_industry']:
-		ratio = round((data['total_debt'] - data['total_cash']) / data['shareholder_equity'] * 100)
-		if ratio > 0:
-			lines.append(service.bold("Net debt/equity ratio:") + f" {ratio}%" + ('⚠️ ' if ratio > 40 else ''))
 	if 'earnings_date' in data:
 		earnings_date = datetime.datetime.fromtimestamp(data['earnings_date'])
 		if earnings_date > now:
@@ -193,7 +188,7 @@ def changes(service, data, ticker, state):
 	"""The price's change over 5 years, a year, a month and a day, and out of session the pre- or post-market move."""
 	lines = []
 	try:
-		history, _ = yahoo.price_history(ticker) # the percentages only: the profile has no chart
+		history, _ = yahoo.price_history(ticker, quote=data) # the percentages only: the profile has no chart
 	except RuntimeError as e: # no chart data: the profile goes out without these lines
 		print(ticker, e, file=sys.stderr)
 		history = {}

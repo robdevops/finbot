@@ -16,7 +16,7 @@ def price_chart(service, period, days, ticker):
 	market_data = yahoo.fetch([ticker])
 	if ticker not in market_data:
 		raise answer.Answer(f"no data found for {ticker}")
-	changes, chart = history.price_line(ticker, days)
+	changes, chart = history.price_line(ticker, days, market_data[ticker])
 	percent = float(changes.get(days, changes.get('Max', next(iter(changes.values()), 0))))
 	link = links.finance_link(ticker, market_data[ticker]['profile_exchange'], service, days=days)
 	title = market_data[ticker]['profile_title']

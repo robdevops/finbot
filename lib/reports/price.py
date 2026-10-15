@@ -44,7 +44,7 @@ def gather(specific_stock=None, days=None):
 		yahoo.prefetch_history(missing)
 	for ticker in missing:
 		try:
-			changes, chart = history.price_line(ticker, days)
+			changes, chart = history.price_line(ticker, days, market_data[ticker])
 		except RuntimeError as e: # no history: the one stock asked about says so, a list leaves it out
 			if specific_stock:
 				raise

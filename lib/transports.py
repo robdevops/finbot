@@ -120,8 +120,7 @@ class Transport:
 	def _post_json(self, url, payload, headers=None):
 		"""POST a JSON message: the answer ({} when it is not JSON), or None when the network refused it or failed."""
 		try:
-			r = net.post(url, headers={'Content-type': 'application/json', **(headers or {})}, json=payload,
-				timeout=config.prefs.http_timeout)
+			r = net.post(url, headers={'Content-type': 'application/json', **(headers or {})}, json=payload)
 		except Exception as e:
 			print("Failure sending to", self.name + ":", net.redact(e), file=sys.stderr)
 			return None
@@ -171,7 +170,7 @@ class TelegramBot(Transport):
 			data['reply_markup'] = json.dumps(self.markup(buttons))
 		try:
 			r = net.post(config.env.webhooks['telegram'] + 'sendPhoto?chat_id=' + str(self.where), data=data,
-				files={'photo': ('image.png', image)}, timeout=config.prefs.http_timeout)
+				files={'photo': ('image.png', image)})
 		except requests.exceptions.ReadTimeout as e:
 			print("Telegram sendPhoto timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
 			return MAYBE_SENT
@@ -326,7 +325,7 @@ class SlackBot(Transport):
 	def upload(self, data):
 		"""Send a chart's bytes to Slack: the id of the file, not completed yet. Raises RuntimeError on a refusal."""
 		ticket = slack_api('files.getUploadURLExternal', filename='chart.png', length=len(data))
-		r = net.post(ticket['upload_url'], data=data, timeout=config.prefs.http_timeout)
+		r = net.post(ticket['upload_url'], data=data)
 		if r.status_code != 200:
 			raise RuntimeError(f"Slack upload: {r.status_code} {r.text[:200]}")
 		return ticket['file_id']
@@ -389,7 +388,7 @@ class DiscordWebhook(Transport):
 			'attachments': [{'id': 0, 'filename': 'chart.png'}]}
 		try:
 			r = net.post(self.url(), data={'payload_json': json.dumps(payload)},
-				files={'files[0]': ('chart.png', image, 'image/png')}, timeout=config.prefs.http_timeout)
+				files={'files[0]': ('chart.png', image, 'image/png')})
 		except requests.exceptions.ReadTimeout as e:
 			print("Discord chart timed out, it may still arrive:", net.redact(e), file=sys.stderr)
 			return MAYBE_SENT
@@ -411,7 +410,7 @@ def slack_api(method, **data):
 	if not config.env.slackBotToken:
 		raise RuntimeError(f"Slack {method}: needs slackBotToken in finbot.env")
 	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + config.env.slackBotToken},
-		data=data, timeout=config.prefs.http_timeout)
+		data=data)
 	try:
 		output = r.json()
 	except ValueError:

@@ -2,7 +2,6 @@ import concurrent.futures
 import datetime
 from dateutil.relativedelta import relativedelta
 import hashlib
-import requests
 import threading
 import typing
 import zoneinfo
@@ -14,85 +13,75 @@ from lib import net
 from lib import formats
 from lib import markets
 from http.cookies import SimpleCookie
-from pathlib import Path
 
-_auth = threading.RLock() # Yahoo's cookie and crumb are renewed by one thread at a time: two at once could cache a crumb for the cookie the other replaced
+_auth = threading.Lock() # Yahoo's cookie and crumb are renewed by one thread at a time, or two could pair up wrongly
 HEADERS = {'User-Agent': 'Mozilla/5.0'}
+CREDENTIALS = 'finbot_yahoo_credentials.json' # [cookie, crumb]: Yahoo issues the crumb for the cookie: they go together
 
-def get_cookie(max_age=1209600):
-	"""Yahoo's session cookie as 'name=value', cached for max_age seconds (14 days, renewed 30 seconds early) whatever
-	the cache preference, since the crumb must match it: a new cookie drops the crumb. A fallback cookie when Yahoo
-	sends none."""
+def credentials(renew=False):
+	"""(cookie, crumb) for Yahoo's API, from one cache file kept 14 days whatever the cache preference, and renewed
+	together (renew=True: now, for a pair Yahoo refused). Raises RuntimeError when Yahoo gives no cookie or no crumb."""
 	with _auth:
-		cacheFile = "finbot_yahoo_cookie.json"
-		cached = cache.read(cacheFile, max_age - 30) # renewed 30 seconds before it expires
-		if cached:
-			return cached[0][0] + '=' + cached[0][1]
-		url = 'https://fc.yahoo.com/' # 404, but that is ok because cookie is in response header
+		if not renew and (cached := cache.read(CREDENTIALS, 14 * 86400)):
+			return tuple(cached)
 		try:
-			r = net.get(url, headers=HEADERS, timeout=config.prefs.http_timeout)
+			r = net.get('https://fc.yahoo.com/', headers=HEADERS) # a 404, with the cookie in its headers
 		except Exception as e:
-			print(net.redact(e), file=sys.stderr)
-			r = requests.Response() # empty: falls through to the fallback cookie below
-		if r.status_code not in {200, 404}:
-			print(r.status_code, "returned by", url, file=sys.stderr)
-		if 'set-cookie' not in r.headers:
-			print("Failed to obtain Yahoo auth cookie. Returning fallback cookie", file=sys.stderr)
-			return 'A3=d=AQABBBtR5mYCENFZu2wCWkA5iGGkSRGvRgkFEgEBAQGi52bwZtxM0iMA_eMAAA&S=AQAAAtG8VhxZN7aXopfvLNObtpE;'
-		cookie = SimpleCookie()
-		cookie.load(r.headers['Set-Cookie'])
-		cookielist = [[name, morsel.value, int(morsel.get('max-age') or 0)] for name, morsel in cookie.items()]
-		cache.write(cacheFile, cookielist)
-		print("Got a new Yahoo cookie", file=sys.stderr)
-		drop_crumb() # we must invalidate the non-matching crumb
-		return cookielist[0][0] + '=' + cookielist[0][1]
-
-def get_crumb(seconds=1209600):
-	"""Yahoo's crumb, which goes with the cookie, cached for `seconds` (14 days) while the cache preference is on; a
-	fallback crumb when Yahoo gives none."""
-	with _auth:
-		cookie = get_cookie()
-		cacheFile = "finbot_yahoo_crumb.json"
-		if config.prefs.cache and (cached := cache.read(cacheFile, seconds)):
-			return cached
-		r = _get_first(_hosts('/v1/test/getcrumb'), {**HEADERS, 'Cookie': cookie})
-		if r is None:
-			print("Exhausted Yahoo API attempts. Returning fallback crumb", file=sys.stderr)
-			return 'jkQEU8yLqxs'
-		if config.prefs.cache:
-			cache.write(cacheFile, r.text)
-		print("Got a new Yahoo crumb", file=sys.stderr)
-		return r.text
-
-def credentials():
-	"""(cookie, crumb), taken together under the lock: a crumb is only good with the cookie it was issued for, and a renewal
-	between two separate calls could pair a new cookie with an old crumb."""
-	with _auth:
-		crumb = get_crumb() # renews the cookie too, when due
-		return get_cookie(), crumb
-
-def drop_crumb():
-	"""Set the cached crumb aside (as .old): it belongs to the cookie being replaced."""
-	crumb = Path(cache.path("finbot_yahoo_crumb.json"))
-	if crumb.is_file():
-		crumb.replace(crumb.with_name(crumb.name + '.old'))
+			raise RuntimeError(f"Yahoo unreachable for a cookie: {net.redact(e)}") from e
+		jar = SimpleCookie()
+		jar.load(r.headers.get('Set-Cookie', ''))
+		if not jar:
+			raise RuntimeError(f"Yahoo gave no cookie ({r.status_code})")
+		cookie = '{}={}'.format(*next((name, morsel.value) for name, morsel in jar.items()))
+		for url in _hosts('/v1/test/getcrumb'):
+			try:
+				r = net.get(url, headers={**HEADERS, 'Cookie': cookie})
+			except Exception as e:
+				print("Yahoo crumb:", net.redact(e), file=sys.stderr)
+				continue
+			if r.status_code == 200 and r.text.strip():
+				cache.write(CREDENTIALS, [cookie, r.text.strip()])
+				print("Got a new Yahoo cookie and crumb", file=sys.stderr)
+				return cookie, r.text.strip()
+			print(r.status_code, "from Yahoo for a crumb", file=sys.stderr)
+		raise RuntimeError("Yahoo gave no crumb")
 
 def _hosts(path):
 	"""One Yahoo API path on its two hosts: query2, then query1 to fall back on."""
 	return ['https://query2.finance.yahoo.com' + path, 'https://query1.finance.yahoo.com' + path]
 
-def _get_first(urls, headers):
-	"""The answer of the first URL that answers 200, or None when none does. Each failure is logged."""
-	for url in urls:
-		try:
-			r = net.get(url, headers=headers, timeout=config.prefs.http_timeout)
-		except Exception as e:
-			print(net.redact(e), file=sys.stderr)
-			continue
-		if r.status_code == 200:
-			return r
-		print(r.status_code, r.text.strip()[:200], "returned by", net.redact(url), file=sys.stderr)
-	return None
+def _answer(query, what):
+	"""Yahoo's JSON answer to an API query, from query2 or else query1, with the cookie and its crumb (renewed once when
+	Yahoo refuses them): None when Yahoo says it has no such symbol (404 Not Found). Raises RuntimeError when no host
+	answers, or one refuses otherwise; `what` names the request in the error."""
+	refusal = ''
+	for renew in (False, True):
+		cookie, crumb = credentials(renew)
+		for url in _hosts(query + ('&' if '?' in query else '?') + 'crumb=' + crumb):
+			try:
+				r = net.get(url, headers={**HEADERS, 'Cookie': cookie})
+			except Exception as e:
+				refusal = f"Yahoo unreachable for {what}: {net.redact(e)}"
+				print(refusal, file=sys.stderr)
+				continue
+			if r.status_code == 200:
+				return r.json()
+			if r.status_code == 404 and not_found(r):
+				return None
+			refusal = f"{r.status_code} error for {what} from Yahoo"
+			print(refusal + ':', r.text.strip()[:200], file=sys.stderr)
+		if not refusal.startswith('401 '): # only a refused crumb is worth a new one
+			break
+	raise RuntimeError(refusal)
+
+def not_found(response):
+	"""Whether an answer is Yahoo saying it has no such symbol (the chart's or the quoteSummary's error code Not Found),
+	rather than some other failure."""
+	try:
+		body = response.json()
+	except ValueError:
+		return False
+	return isinstance(body, dict) and any(dig(part, 'error', 'code') == 'Not Found' for part in body.values())
 
 def dig(node, *path):
 	"""node[path[0]][path[1]]..., or None where Yahoo left a part out or sent null."""
@@ -150,10 +139,8 @@ QUOTE_FIELDS = ( # (key, Yahoo's name, conversion) for the fields of a v7 quote;
 	('quoteType', 'quoteType', None),
 	('marketState', 'marketState', None),
 	('profile_exchange', 'fullExchangeName', None),
-	('exchangeTimezoneName', 'exchangeTimezoneName', None),
 	('regularMarketTime', 'regularMarketTime', None),
 	('financialCurrency', 'financialCurrency', None),
-	('regularMarketPreviousClose', 'regularMarketPreviousClose', None),
 	('fiftyTwoWeekHigh', 'fiftyTwoWeekHigh', None),
 	('fiftyTwoWeekLow', 'fiftyTwoWeekLow', _positive),
 )
@@ -168,7 +155,7 @@ def fetch(tickers):
 	name = "finbot_yahoo_quote_" + hashlib.sha256("_".join(tickers).encode()).hexdigest() + '.json'
 	data = _cached(name, 300, _quote_answer, tickers)
 	if data is None:
-		print(f"{tickers}†", sep=' ', end='', flush=True, file=sys.stderr)
+		print("Yahoo has no quotes for", ', '.join(tickers), file=sys.stderr)
 		return {} # callers iterate the result
 	now = datetime.datetime.now().timestamp()
 	yahoo_output = {}
@@ -188,16 +175,11 @@ def fetch(tickers):
 	return yahoo_output
 
 def _quote_answer(tickers):
-	"""The v7 answer for the tickers, None for an error (not cached); raises RuntimeError when Yahoo is unreachable."""
-	cookie, crumb = credentials()
-	query = '/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)
-	r = _get_first(_hosts(query), {**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie})
-	if r is None:
-		print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
-		raise RuntimeError("Yahoo API unavailable")
-	data = r.json()
-	quotes = data['quoteResponse']
-	return data if quotes['result'] is not None and quotes['error'] is None else None
+	"""The v7 answer for the tickers, None for an error answer (not cached). Raises RuntimeError when Yahoo cannot be
+	reached or refuses."""
+	data = _answer('/v7/finance/quote?symbols=' + ','.join(tickers), 'quotes')
+	quotes = dig(data, 'quoteResponse') or {}
+	return data if quotes.get('result') is not None and quotes.get('error') is None else None
 
 DETAIL_FIELDS = ( # (key, path in the quoteSummary result[, conversion]); a field Yahoo leaves out, sends as null or garbles is left out
 	('profile_bio', ('summaryProfile', 'longBusinessSummary')),
@@ -214,10 +196,8 @@ DETAIL_FIELDS = ( # (key, path in the quoteSummary result[, conversion]); a fiel
 	('dividend', ('summaryDetail', 'dividendYield', 'raw'), _percent),
 	('price_to_earnings_trailing', ('summaryDetail', 'trailingPE', 'raw'), round),
 	('price_to_earnings_forward', ('summaryDetail', 'forwardPE', 'raw')),
-	('percent_change_year', ('summaryDetail', '52WeekChange', 'raw'), _percent),
 	('price_to_sales', ('summaryDetail', 'priceToSalesTrailing12Months', 'raw')),
 	('ex_dividend_date', ('calendarEvents', 'exDividendDate', 'raw')),
-	('dividend_date', ('calendarEvents', 'DividendDate', 'raw')),
 	('earnings_date', ('calendarEvents', 'earnings', 'earningsDate', 0, 'raw')),
 	('percent_change', ('price', 'regularMarketChangePercent', 'raw'), _percent),
 	('percent_change_premarket', ('price', 'preMarketChangePercent', 'raw'), _percent),
@@ -226,21 +206,12 @@ DETAIL_FIELDS = ( # (key, path in the quoteSummary result[, conversion]); a fiel
 	('marketState', ('price', 'marketState')),
 	('quoteType', ('price', 'quoteType')),
 	('regularMarketPrice', ('price', 'regularMarketPrice', 'raw')),
-	('regularMarketPreviousClose', ('price', 'regularMarketPreviousClose', 'raw')),
-	('fiftyTwoWeekHigh', ('price', 'fiftyTwoWeekHigh', 'raw')),
-	('fiftyTwoWeekLow', ('price', 'fiftyTwoWeekLow', 'raw'), _positive),
 	('prePostMarketPrice', ('price', 'preMarketPrice', 'raw'), float),
 	('prePostMarketPrice', ('price', 'postMarketPrice', 'raw'), float), # the after-hours price, when there is one, wins
 	('netIncomeToCommon', ('defaultKeyStatistics', 'netIncomeToCommon', 'raw')),
 	('sharesOutstanding', ('defaultKeyStatistics', 'sharesOutstanding', 'raw'), float),
 	('short_percent', ('defaultKeyStatistics', 'shortPercentOfFloat', 'raw'), _percent),
-	('price_to_book', ('defaultKeyStatistics', 'priceToBook', 'raw')),
-	('earnings_growth_q', ('defaultKeyStatistics', 'earningsQuarterlyGrowth', 'raw')),
 	('price_to_earnings_peg', ('defaultKeyStatistics', 'pegRatio', 'raw')),
-	('profit_margin', ('defaultKeyStatistics', 'profitMargins', 'raw')),
-	('shareholder_equity', ('balanceSheetHistoryQuarterly', 'balanceSheetStatements', 0, 'totalStockholderEquity', 'raw')),
-	('total_debt', ('financialData', 'totalDebt', 'raw')),
-	('total_cash', ('financialData', 'totalCash', 'raw')),
 	('free_cashflow', ('financialData', 'freeCashflow', 'raw')),
 	('operating_cashflow', ('financialData', 'operatingCashflow', 'raw')),
 	('financialCurrency', ('financialData', 'financialCurrency')),
@@ -251,18 +222,17 @@ DETAIL_FIELDS = ( # (key, path in the quoteSummary result[, conversion]); a fiel
 RECOMMENDATION = ('recommend', 'recommend_index', 'recommend_analysts') # all three, or none
 
 def fetch_detail(ticker, seconds=None):
-	"""One ticker's quoteSummary: {ticker: {...}}, cached `seconds` (or cache_seconds); {} without a name or price."""
+	"""One ticker's quoteSummary: {ticker: {...}}, cached `seconds` (or cache_seconds); {} for a symbol Yahoo does not
+	know, or without a name or price. Raises RuntimeError when Yahoo cannot be reached or refuses."""
 	now = datetime.datetime.now()
 	data = _cached("finbot_yahoo_detail_" + ticker + '.json', seconds, _detail_answer, ticker)
-	if data is None:
-		return {} # catches some delisted stocks like "DRNA"
 	result = dig(data, 'quoteSummary', 'result', 0)
-	if result is None: # Yahoo answers result=null for unknown symbols
-		print(ticker + 'x', sep=' ', end='', flush=True, file=sys.stderr)
+	if result is None: # Yahoo answers 404 Not Found, or result=null, for a symbol it does not know
+		print(ticker, "is unknown to Yahoo", file=sys.stderr)
 		return {}
 	title = next((name for name in (dig(result, 'price', 'longName'), dig(result, 'price', 'shortName')) if isinstance(name, str) and name), None)
 	if not title: # catches some delisted stocks like "DUB"
-		print(f"{ticker}†", sep=' ', end='', flush=True, file=sys.stderr)
+		print(ticker, "has no name at Yahoo", file=sys.stderr)
 		return {}
 	detail = {'profile_title': formats.transform_title(title)}
 	for key, path, *convert in DETAIL_FIELDS:
@@ -281,16 +251,11 @@ def fetch_detail(ticker, seconds=None):
 	trend = _list(dig(result, 'earningsTrend', 'trend'))
 	if trend:
 		year = next((item for item in trend if dig(item, 'period') == '+1y'), None)
-		estimates = [dig(year, kind, field, 'raw') for kind, field in (('revenueEstimate', 'growth'), ('earningsEstimate', 'growth'),
-			('revenueEstimate', 'numberOfAnalysts'), ('earningsEstimate', 'numberOfAnalysts'))]
-		if None in estimates:
-			print(f'{ticker}†', sep=' ', end='', flush=True, file=sys.stderr)
-		else:
+		estimates = [dig(year, kind, 'growth', 'raw') for kind in ('revenueEstimate', 'earningsEstimate')]
+		if None not in estimates:
 			detail['revenueEstimateY'], detail['earningsEstimateY'] = _percent(estimates[0]), _percent(estimates[1])
-			detail['revenueAnalysts'], detail['earningsAnalysts'] = estimates[2], estimates[3]
-	if dig(quarterly, 0, 'revenue', 'raw') is None:
-		print(f'{ticker}†', sep=' ', end='', flush=True, file=sys.stderr)
-	else: # a quarter without an earnings figure is bad data: None for both, which trend_marks marks
+	# a quarter without an earnings figure is bad data: None for both, which trend_marks marks
+	if dig(quarterly, 0, 'revenue', 'raw') is not None:
 		detail['earningsQ'] = [None if dig(item, 'earnings', 'fmt') is None else dig(item, 'earnings', 'raw') for item in quarterly]
 		detail['revenueQ'] = [None if dig(item, 'earnings', 'fmt') is None else dig(item, 'revenue', 'raw') for item in quarterly]
 		yearly = _list(dig(result, 'earnings', 'financialsChart', 'yearly'))
@@ -312,15 +277,13 @@ def fetch_detail(ticker, seconds=None):
 		detail['insiderSell'], detail['insiderSellValue'] = totals['Sale']
 	return {ticker: dict(sorted(detail.items()))}
 
-DETAIL_MODULES = ('calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,'
-	'summaryDetail,price,earnings,earningsTrend,insiderTransactions') # the quoteSummary modules fetch_detail reads
+DETAIL_MODULES = ('calendarEvents,defaultKeyStatistics,financialData,summaryProfile,summaryDetail,price,earnings,'
+	'earningsTrend,insiderTransactions') # the quoteSummary modules fetch_detail reads
 
 def _detail_answer(ticker):
-	"""Yahoo's quoteSummary answer for one ticker, with every module finbot reads, or None when no host gives one."""
-	cookie, crumb = credentials() # only on a miss: a cached detail needs neither, nor the lock
-	query = '/v10/finance/quoteSummary/' + ticker + '?modules=' + DETAIL_MODULES + '&crumb=' + crumb
-	r = _get_first(_hosts(query), {**HEADERS, 'Cookie': cookie})
-	return None if r is None else r.json()
+	"""Yahoo's quoteSummary answer for one ticker, with every module finbot reads; None for a symbol Yahoo does not
+	know. Raises RuntimeError when Yahoo cannot be reached or refuses."""
+	return _answer(f'/v10/finance/quoteSummary/{ticker}?modules={DETAIL_MODULES}', ticker)
 
 class Line(typing.NamedTuple):
 	"""The prices behind a price_history, for its chart: the company's name, Yahoo's full name for its exchange (as
@@ -337,71 +300,84 @@ class NoData(answer.Answer, RuntimeError):
 	"""Yahoo has nothing for it (no such symbol, no prices): a reply in a chat, a RuntimeError where a list skips it."""
 
 
-def price_history(ticker, days=None):
-	"""({period: percent change}, its Line): the change over `days`, else over each standard period, and the closes
-	behind it, for a chart. Raises NoData when there are no prices, RuntimeError when the history cannot be fetched."""
-	import pandas as pd
-	from pandas.tseries.offsets import BDay as businessday
-	percent_dict = {}
-	now = datetime.datetime.now()
-	interval = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
+def bars(chart_json):
+	"""A chart answer's daily bars, oldest first: [(the day, in the exchange's time zone; open; close)], a price Yahoo
+	left out None. Yahoo stamps a bar with the time its market opened, which in UTC is the day before for Sydney or
+	Auckland."""
+	result = dig(chart_json, 'chart', 'result', 0) or {}
+	zone = zoneinfo.ZoneInfo(dig(result, 'meta', 'exchangeTimezoneName') or 'UTC')
+	stamps = _list(result.get('timestamp'))
+	quote = dig(result, 'indicators', 'quote', 0) or {}
+	opens, closes = _list(quote.get('open')) or [None] * len(stamps), _list(quote.get('close')) or [None] * len(stamps)
+	return [(datetime.datetime.fromtimestamp(stamp, zone).date(), first, last)
+		for stamp, first, last in zip(stamps, opens, closes)]
+
+INTERVALS = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D') # price_history's standard periods
+
+def price_history(ticker, days=None, quote=None):
+	"""({period: percent change}, its Line): the change over `days`, else over each standard period (and 'Max', from the
+	first close, when one goes back further than the history), and the closes behind it, for a chart. The change is to
+	the price now: the quote's (the ticker's quote or detail, which carries today's change too), else the chart's.
+	Days are counted in the exchange's time zone. Raises NoData when there are no prices, RuntimeError when the history
+	cannot be fetched."""
 	data = fetch_chart_json(ticker)
-	df = chart_json_to_df(data)
-	stock = chart_json_to_stock_basics(data)
-	closes = df['Close'].dropna()
-	if closes.empty:
+	meta = dig(data, 'chart', 'result', 0, 'meta') or {}
+	daily = bars(data)
+	closes = [(day, last) for day, _, last in daily if last is not None]
+	if not closes:
 		raise NoData(f"no price history for {ticker}")
-	price = stock.get('regularMarketPrice') or closes.iloc[-1] # the chart's last close when Yahoo gives no current price
-	tz = zoneinfo.ZoneInfo(stock.get('exchangeTimezoneName') or 'UTC')
+	quote = quote or {}
+	price = quote.get('regularMarketPrice') or meta.get('regularMarketPrice') or closes[-1][1]
+	today = datetime.datetime.now(zoneinfo.ZoneInfo(meta.get('exchangeTimezoneName') or 'UTC')).date()
+	change = lambda past: (price - past) / past * 100
+	changes = {}
 	if days:
-		df = df[df['Date'] >= (now - datetime.timedelta(days=days)).date()].reset_index(drop=True)
-		if df['Close'].dropna().empty:
+		closes = [(day, last) for day, last in closes if day >= today - datetime.timedelta(days=days)]
+		if not closes:
 			raise NoData(f"no price history for {ticker} in the past {days} days")
-		past_price = df['Close'].dropna().iloc[0]
-		percent_dict[days] = round((price - past_price) / past_price * 100, 2)
+		changes[days] = round(change(closes[0][1]), 2)
 	else:
-		default_price = df['Close'].iloc[0]
-		default_percent = round((price - default_price) / default_price * 100)
-		for period in interval:
-			if period == '1D':
-				# against the previous session's close: the last close dated before the latest bar, in the exchange's time zone
-				sessions = pd.to_datetime(df['Timestamp'], unit='s', utc=True).dt.tz_convert(tz).dt.date
-				earlier = df[(sessions < sessions.iloc[-1]) & df['Close'].notnull()]
-				if earlier.empty:
-					continue
-				past_price = earlier['Close'].iloc[-1]
-			else: # try to align with google finance
-				try:
-					if period == 'YTD':
-						past_price = df[df['Date'] >= now.replace(day=1, month=1).date()]['Close'].iloc[0]
-					elif period == '5D':
-						past_price = df[df['Date'] <= (now - businessday(5)).date()]['Open'].iloc[-1]
-					else: # 10Y to 1M, 7D: the last close on or before the day that long ago
-						n, unit = int(period[:-1]), period[-1]
-						ago = relativedelta(years=n) if unit == 'Y' else relativedelta(months=n) if unit == 'M' else datetime.timedelta(days=n)
-						past_price = df[df['Date'] <= (now - ago).date()]['Close'].iloc[-1]
-				except IndexError: # the history does not go back that far
-					percent_dict['Max'] = default_percent
-					continue
-			percent_dict[period] = round((price - past_price) / past_price * 100)
-	closes = tuple((str(day), float(close)) for day, close in zip(df['Date'], df['Close']) if pd.notnull(close))
-	exchange = stock.get('fullExchangeName') or stock.get('exchangeName') or ''
-	name = formats.transform_title(stock.get('longName', ''))
-	return percent_dict, Line(name, exchange, stock.get('currency') or '', price, closes)
+		week_ago = today # five trading days back, as Google Finance counts its 5D
+		for _ in range(5):
+			week_ago -= datetime.timedelta(days=3 if week_ago.weekday() == 0 else 2 if week_ago.weekday() == 6 else 1)
+		for period in INTERVALS:
+			if period == '1D': # since the previous session's close: the quote's, or the last close before the last bar
+				before = [last for day, last in closes if day < daily[-1][0]]
+				if quote.get('percent_change') is not None:
+					changes['1D'] = round(quote['percent_change'])
+				elif before:
+					changes['1D'] = round(change(before[-1]))
+				continue
+			if period == 'YTD':
+				past = next((last for day, last in closes if day >= today.replace(month=1, day=1)), None)
+			elif period == '5D': # the open of that day, to align with Google Finance
+				past = next((first for day, first, _ in reversed(daily) if day <= week_ago and first is not None), None)
+			else: # 10Y to 1M, 7D: the last close on or before the day that long ago
+				unit = {'Y': 'years', 'M': 'months', 'D': 'days'}[period[-1]]
+				cutoff = today - relativedelta(**{unit: int(period[:-1])}) # once: relativedelta is slow
+				past = next((last for day, last in reversed(closes) if day <= cutoff), None)
+			if past is None: # the history does not go back that far
+				changes['Max'] = round(change(closes[0][1]))
+			else:
+				changes[period] = round(change(past))
+	name = formats.transform_title(meta.get('longName', ''))
+	exchange = meta.get('fullExchangeName') or meta.get('exchangeName') or ''
+	return changes, Line(name, exchange, meta.get('currency') or '', price,
+		tuple((str(day), float(last)) for day, last in closes))
 
 def price_series(ticker):
 	"""A ticker's daily closes over 10 years, from the same chart as price_history(): (name, exchange, pandas Series
-	indexed by datetime). Raises NoData when there is no history."""
+	indexed by date). Raises NoData when there is no history."""
 	import pandas as pd
 	data = fetch_chart_json(ticker)
-	df = chart_json_to_df(data)
-	stock = chart_json_to_stock_basics(data)
-	df = df[df['Close'].notnull()]
-	if df.empty:
+	meta = dig(data, 'chart', 'result', 0, 'meta') or {}
+	closes = [(day, last) for day, _, last in bars(data) if last is not None]
+	if not closes:
 		raise NoData(f"no price history for {ticker}")
-	series = pd.Series(df['Close'].astype(float).values, index=pd.to_datetime(df['Date'].astype(str)), name=ticker)
-	name = formats.transform_title(stock.get('longName') or stock.get('shortName') or ticker)
-	return name, stock.get('fullExchangeName') or stock.get('exchangeName') or '', series
+	series = pd.Series([float(last) for _, last in closes], index=pd.to_datetime([str(day) for day, _ in closes]),
+		name=ticker)
+	name = formats.transform_title(meta.get('longName') or meta.get('shortName') or ticker)
+	return name, meta.get('fullExchangeName') or meta.get('exchangeName') or '', series
 
 def fetch_each(get, tickers, workers=8):
 	"""get(ticker) for every ticker, `workers` at a time so their waits overlap: [its result, or the exception it raised], in order."""
@@ -483,52 +459,18 @@ def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
 def _chart_answer(ticker, days, full):
 	"""The v8 chart answer: daily bars of the last `days`, or all with full=True. Raises as fetch_chart_json does."""
 	now = datetime.datetime.now()
-	cookie, crumb = credentials()
-	start = '0' if full else str(int((now - datetime.timedelta(days=days)).timestamp()))
-	url = (f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?period1={start}&period2={int(now.timestamp())}'
-		f'&interval=1d&crumb={crumb}')
-	print("Fetching", net.redact(url), file=sys.stderr) if config.prefs.debug else None
-	try:
-		r = net.get(url, headers={**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie}, timeout=config.prefs.http_timeout)
-	except Exception as e:
-		raise RuntimeError(f"Yahoo unreachable for {ticker}: {net.redact(e)}") from e
-	if r.status_code == 404 and not_found(r):
+	start = 0 if full else int((now - datetime.timedelta(days=days)).timestamp())
+	data = _answer(f'/v8/finance/chart/{ticker}?period1={start}&period2={int(now.timestamp())}&interval=1d', ticker)
+	if data is None:
 		raise NoData(f"no price history for {ticker}")
-	if r.status_code != 200:
-		raise RuntimeError(f"{r.status_code} error for {ticker} from Yahoo's chart API")
-	return r.json()
-
-def not_found(response):
-	"""Whether a chart API answer is Yahoo saying it has no such symbol, rather than some other 404."""
-	try:
-		return dig(response.json(), 'chart', 'error', 'code') == 'Not Found'
-	except ValueError:
-		return False
-
-def chart_json_to_df(chart_json):
-	"""The chart's daily bars as a DataFrame: Timestamp, Open, High, Low, Close, Volume and the Date."""
-	import pandas as pd
-	result = chart_json['chart']['result'][0]
-	df = pd.DataFrame({'Timestamp': result['timestamp'], **result['indicators']['quote'][0]})
-	df['Date'] = pd.to_datetime(df['Timestamp'], unit='s').dt.date
-	df.columns = [col.capitalize() for col in df.columns]
-	return df
-
-def chart_json_to_stock_basics(chart_json):
-	"""The chart's meta, which saves a call to fetch(): currency, symbol, exchangeName and fullExchangeName, exchangeTimezoneName,
-	regularMarketPrice and regularMarketTime, longName and shortName, fiftyTwoWeekHigh and Low, and more. {} when there is none."""
-	return dig(chart_json, 'chart', 'result', 0, 'meta') or {}
+	return data
 
 def historic_high(ticker):
-	"""(highest high, lowest low) of the ticker's history. Raises NoData when it has none (e.g. total-return indices
-	such as ^SPTTGD carry no High/Low data)."""
-	df = chart_json_to_df(fetch_chart_json(ticker))
-	df = df[df.High.notnull()].iloc[1:].reset_index(drop=True)
-	if df.empty:
+	"""(highest high, lowest low) of the ticker's whole history, its first day aside (Yahoo's first bar can be partial).
+	Raises NoData when it has none (total-return indices such as ^SPTTGD carry no highs and lows)."""
+	quote = dig(fetch_chart_json(ticker, full=True), 'chart', 'result', 0, 'indicators', 'quote', 0) or {}
+	ranges = [(high, low) for high, low in zip(_list(quote.get('high')), _list(quote.get('low')))
+		if high is not None and low is not None][1:]
+	if not ranges:
 		raise NoData(f"no high/low history for {ticker}")
-	highrow = df.iloc[df['High'].argmax()]
-	lowrow = df.iloc[df['Low'].argmin()]
-	if config.prefs.debug:
-		print(ticker, "High", highrow['Date'], round(highrow['High'], 2), file=sys.stderr)
-		print(ticker, "Low", lowrow['Date'], round(lowrow['Low'], 2), file=sys.stderr)
-	return round(highrow['High'], 2), round(lowrow['Low'], 2)
+	return round(max(high for high, _ in ranges), 2), round(min(low for _, low in ranges), 2)

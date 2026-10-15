@@ -7,16 +7,24 @@ import http.cookiejar
 import re
 import requests
 
+from lib import config
+
 session = requests.Session()
 session.cookies.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[])) # no domain may set or receive a cookie
+CONNECT_TIMEOUT = 5 # seconds to wait for a host to answer the connection: one that is down costs this, not http_timeout
 
 def get(url, **kwargs):
-	"""requests.get through the shared session, which reuses connections."""
-	return session.get(url, **kwargs)
+	"""requests.get through the shared session, which reuses connections; timed out as timeouts() says."""
+	return session.get(url, **timeouts(kwargs))
 
 def post(url, **kwargs):
-	"""requests.post through the shared session, which reuses connections."""
-	return session.post(url, **kwargs)
+	"""requests.post through the shared session, which reuses connections; timed out as timeouts() says."""
+	return session.post(url, **timeouts(kwargs))
+
+def timeouts(kwargs):
+	"""The request's arguments with a timeout, unless it has its own: CONNECT_TIMEOUT to connect, then http_timeout for
+	the answer."""
+	return {'timeout': (CONNECT_TIMEOUT, config.prefs.http_timeout), **kwargs}
 
 def redact(text):
 	"""text (or an exception) without the secrets that request URLs, headers and error messages carry: Telegram bot tokens,

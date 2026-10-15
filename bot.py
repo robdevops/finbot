@@ -19,7 +19,6 @@ from lib import sharesight
 from lib import net
 from lib import telegram
 from lib import delivery
-from lib import yahoo
 from lib import render
 from lib.reports import cleanup
 
@@ -173,10 +172,9 @@ def reload_all(*args):
 
 def flush_cache(*args):
 	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings, schedule).
-	Yahoo's cookie and crumb belong together, so they go while nothing is renewing them; the Sharesight caches refill at once."""
+	The Sharesight caches refill at once."""
 	try:
-		with yahoo._auth:
-			removed = cleanup.run(days=0)
+		removed = cleanup.run(days=0)
 		sharesight.wake()
 		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}", file=sys.stderr)
 	except Exception as e:

@@ -360,7 +360,16 @@ class ScheduledReports(FinbotCase):
 		self.sent.clear()
 		milestone.run()
 		self.assertNotIn('Record high', str(self.sent))
-		self.assertEqual(state.load('finbot_milestone.json')['T1'], {'record_high': 150.0, 'record_low': 50.0}) # all-time
+		self.assertEqual(state.load('finbot_milestone.json')['T1'], {'all_time_high': 150.0, 'all_time_low': 50.0})
+
+	def test_a_record_kept_from_ten_years_is_seeded_again_from_the_whole_history(self):
+		"""Records kept before they came from the whole history (record_high, from 10 years) are seeded again: a stock
+		above its 10-year high but below its all-time one posted a false record."""
+		state.save('finbot_milestone.json', {'T1': {'record_high': 110.0, 'record_low': 90.0}})
+		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
+		milestone.run() # the 52-week range (120/80) was past the old record, but not the whole history's
+		self.assertNotIn('Co T1 ', str(self.sent))
+		self.assertEqual(state.load('finbot_milestone.json')['T1'], {'all_time_high': 150.0, 'all_time_low': 50.0})
 
 	def test_milestone_records_are_all_time(self):
 		"""A new 52-week high below the all-time high is no record. The record used to become the 52-week high after the first

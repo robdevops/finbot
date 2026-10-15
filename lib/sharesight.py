@@ -27,7 +27,7 @@ def _post(url, **kwargs):
 def _request(send, url, what, **kwargs):
 	"""Send a request to Sharesight and return the JSON answer. A request that fails raises RuntimeError naming `what`."""
 	try:
-		r = send(url, timeout=config.prefs.http_timeout, **kwargs)
+		r = send(url, **kwargs)
 	except Exception as e:
 		print("Error", net.redact(e), url, file=sys.stderr)
 		raise RuntimeError(f"Sharesight {what} request failed: {e}")
