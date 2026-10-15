@@ -145,7 +145,7 @@ class Telegram(Network):
 
 
 class Slack(Network):
-	"""Slack's Events API (messages) and its interactivity (a button pressed)."""
+	"""Slack's Events API (messages), its interactivity (a button pressed) and its slash commands."""
 	service = 'slack'
 	BY_PEOPLE = (None, 'thread_broadcast') # message subtypes a person writes; the rest are bot posts, edits, joins...
 
@@ -154,10 +154,10 @@ class Slack(Network):
 		return update.get('event_id')
 
 	def parse(self, update):
-		"""A message a person wrote, a button pressed, or the challenge that checks the URL. Links and mentions lose
-		their markup (<http://dub.ax|dub.ax> becomes dub.ax, <@QWERTY> @QWERTY), and Slack's escapes their meaning
-		(&amp; becomes &)."""
+		"""A message a person wrote, a slash command, a button pressed, or the challenge that checks the URL."""
 		kind = update.get('type')
+		if 'command' in update and kind is None:
+			return self.slash(update)
 		if kind == 'url_verification':
 			response = json.dumps({'challenge': update['challenge']})
 			print("replying with", response, file=sys.stderr)
@@ -175,10 +175,23 @@ class Slack(Network):
 		if event['type'] not in ('message', 'app_mention') or 'text' not in event:
 			print("[slack]: unhandled event callback type", event['type'], file=sys.stderr)
 			return UNHANDLED
-		text = re.sub(r'<((?:https?|mailto):[^|>]*)(?:\|([^>]*))?>', lambda m: m.group(2) or m.group(1), event['text'])
-		text = html.unescape(re.sub(r'<(@[\w\.]+)>', r'\g<1>', text)) # Slack sends & < > as &amp; &lt; &gt;
 		user = '<@' + event['user'] + '>' # a mention: Slack shows the name
-		return Message(self.service, event['channel'], user, text, '@' + bot_user, user, event.get('ts', ''))
+		return Message(self.service, event['channel'], user, self.plain(event['text']), '@' + bot_user, user,
+			event.get('ts', ''))
+
+	def slash(self, update):
+		"""A slash command (/price with 5 7d), as the message that says the same (/price 5 7d), in the channel or DM it
+		was sent in. There is no message of it, for ⏳ to show on."""
+		user = '<@' + str(update.get('user_id') or 'unknown') + '>'
+		text = self.plain(f"{update['command']} {update.get('text') or ''}".strip())
+		return Message(self.service, str(update.get('channel_id') or ''), user, text, '', user)
+
+	@staticmethod
+	def plain(text):
+		"""Text as written: links and mentions lose their markup (<http://dub.ax|dub.ax> becomes dub.ax, <@QWERTY>
+		@QWERTY), and Slack's escapes their meaning (&amp; becomes &)."""
+		text = re.sub(r'<((?:https?|mailto):[^|>]*)(?:\|([^>]*))?>', lambda m: m.group(2) or m.group(1), text)
+		return html.unescape(re.sub(r'<(@[\w\.]+)>', r'\g<1>', text)) # Slack sends & < > as &amp; &lt; &gt;
 
 	def press(self, update):
 		"""A button pressed under one of the bot's messages (a chart's period buttons), or UNSUPPORTED for one that is
@@ -306,8 +319,8 @@ class TelegramWebhook(Webhook):
 
 
 class SlackWebhook(Webhook):
-	"""Slack posting events and button presses to slackOutgoingWebhook (the app's Events and Interactivity URL), each
-	request signed with the app's signing secret, and carrying its verification token."""
+	"""Slack posting events, button presses and slash commands to slackOutgoingWebhook (the app's Request URL for each),
+	each request signed with the app's signing secret, and carrying its verification token."""
 
 	def path(self):
 		"""The path of slackOutgoingWebhook."""
@@ -339,9 +352,13 @@ class SlackWebhook(Webhook):
 		return None if same_secret(signature, expected) else "Slack signature incorrect"
 
 	def decode(self, body):
-		"""The update: an event comes as JSON, a button press as a form whose `payload` field holds the JSON."""
-		if body.startswith(b'payload='):
-			body = parse_qs(body.decode('utf-8', 'replace')).get('payload', [''])[0].encode()
+		"""The update: an event comes as JSON, a button press as a form whose `payload` field holds the JSON, and a
+		slash command as a form of its fields (command, text, channel_id, user_id and the rest)."""
+		if not body.lstrip().startswith(b'{'):
+			fields = parse_qs(body.decode('utf-8', 'replace'), keep_blank_values=True)
+			if 'command' in fields and 'payload' not in fields:
+				return {name: values[0] for name, values in fields.items()}
+			body = fields.get('payload', [''])[0].encode()
 		return super().decode(body)
 
 

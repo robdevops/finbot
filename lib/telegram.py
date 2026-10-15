@@ -48,6 +48,14 @@ def register():
 		setWebhook()
 	return '@' + getMe()['username']
 
+def set_commands(commands):
+	"""Make the bot's command menu, in every chat, these slash commands ([(name, description, arguments)], from
+	worker.slash_commands), each with its usage, where Telegram's differs. A failure is only logged: typed, a command
+	works without the menu."""
+	wanted = [{'command': name, 'description': description[:256]} for name, description, _ in commands]
+	if try_call('getMyCommands') != wanted and try_call('setMyCommands', json={'commands': wanted}) is not None:
+		print(f"telegram: {len(wanted)} commands in the menu", file=sys.stderr)
+
 def pinChatMessage(chat_id, message_id):
 	"""Pin a message, without the "pinned a message" notice. A failure is only logged: the message is there anyway."""
 	try_call('pinChatMessage', json={'chat_id': chat_id, 'message_id': message_id, 'disable_notification': True})

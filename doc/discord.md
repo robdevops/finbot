@@ -95,7 +95,7 @@ discordPublicKey=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde
 
 finbot registers a slash command for each line of `.help`, as it starts, and again only when the list has changed:
 `/price`, `/dividend` and `/earnings`, `/buy` and `/sell`, `/forwardpe` for `.forward pe`, `/stock` (or `/profile`) for
-`.SYMBOL`, and the rest. Each takes its arguments, if any, as one text option, as the message would: `/price` with
+`.SYMBOL`, `/jobs` (or `/job`), and the rest. Each takes its arguments, if any, as one text option, as the message would: `/price` with
 `5 7d` is `.price 5 7d`. They work in the server's channels and in a direct message with the bot.
 
 A message holds up to 2,000 characters, so a long report arrives as several messages. A chart goes as an attachment of

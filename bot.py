@@ -248,6 +248,7 @@ if __name__ == '__main__':
 		except Exception as e:
 			print('ERROR', delivery.error_line(e, 'telegram'), file=sys.stderr)
 			sys.exit(1)
+		telegram.set_commands(worker.slash_commands(aliases=False)) # the menu; /profile and /job work typed
 		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
 	if config.env.discordBotToken:
 		try:

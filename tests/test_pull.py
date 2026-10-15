@@ -238,6 +238,23 @@ class SlackSocketMode(FinbotCase):
 		self.assertEqual(presses[0], presses[1])
 		self.assertEqual([m.text for m in messages], ['.price'])
 
+	def test_a_slash_command_over_the_socket_is_the_message_the_webhook_gets(self):
+		"""The same slash command, posted to slackOutgoingWebhook as a form (http mode) or sent over the socket (its
+		envelope acked first), reaches the worker as the same Message."""
+		messages = []
+		self.patch(worker, 'process_request', messages.append)
+		slash = {'token': 'stok', 'channel_id': 'C1', 'user_id': 'U1', 'user_name': 'rob', 'command': '/forwardpe',
+			'text': 'top', 'trigger_id': 't9'}
+		self.env(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok')
+		with contextlib.redirect_stderr(io.StringIO()):
+			bot.main(wsgi_environ('/slack', urlencode(slash).encode()), lambda *a: None)
+			self.env(slackOutgoingWebhook='')
+			self.socket({'type': 'hello'}, {'envelope_id': 'e1', 'type': 'slash_commands', 'payload': slash},
+				{'type': 'disconnect', 'reason': 'warning'}).poll(bot.take)
+		self.join_workers()
+		self.assertEqual(messages, [inbound.Message('slack', 'C1', '<@U1>', '/forwardpe top', '', '<@U1>')] * 2)
+		self.assertIn(('ack', 'e1'), self.log)
+
 	def test_the_websocket_is_imported_only_to_connect_and_read_as_slack_needs(self):
 		"""websocket-client is imported when a socket is opened, not before; its frames read as text, '' for a pong,
 		None for a timeout, and a close raises ConnectionError."""

@@ -13,10 +13,15 @@ Telegram:
 | Public HTTPS server | Not needed | Needed: a domain name with a valid certificate, on port 443, 80, 88 or 8443 |
 | `finbot.env` keys | `telegramBotToken`, `telegramChatID` | Those two, plus `telegramOutgoingWebhook` and `telegramOutgoingToken` |
 
-Everything else is the same in both: the scheduled reports with their charts, the chat commands (`.price`, `.history`,
-`.performance` and the rest, [the list](../README.md#supported-commands)), period buttons under charts and the
-buttons of `.jobs run` and `.jobs toggle`, "typing…" while a command works, and a keyboard of the common commands in a
-direct chat with the bot.
+Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price` or `.price`,
+`.history`, `.performance` and the rest, [the list](../README.md#supported-commands)), period buttons under charts and
+the buttons of `.jobs run` and `.jobs toggle`, "typing…" while a command works, and a keyboard of the common commands in
+a direct chat with the bot.
+
+As finbot starts, it sets the bot's command menu, which Telegram shows when `/` is typed: each command with its usage
+(`/forwardpe` for `.forward pe`, `/stock` for `.SYMBOL`). `/profile` and `/job`, the second names of `/stock` and
+`/jobs`, are left out of the menu, and work when typed, as every name of a command does. In a group, `/price@finbot_bot`
+is the same as `/price`.
 
 `telegramOutgoingWebhook` chooses the mode: set, HTTP mode; empty, pull mode. A restart switches. As finbot starts in
 pull mode it deletes the webhook, and in HTTP mode it sets it; the updates sent meanwhile are kept by Telegram and

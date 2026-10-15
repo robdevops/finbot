@@ -1,8 +1,9 @@
-"""What reaches the bot: webhook requests turned away or taken, Slack's events, presses and signatures,
-and user text escaped where it arrives."""
-import contextlib, hashlib, hmac, io, json, time, unittest
+"""What reaches the bot: webhook requests turned away or taken, Slack's events, presses, slash commands and signatures,
+the Slack app's manifest, and user text escaped where it arrives."""
+import contextlib, hashlib, hmac, io, json, re, time, unittest
 from urllib.parse import urlencode
 from tests.common import *
+from util import slack_manifest
 
 
 PRESS = {'type': 'block_actions', 'token': 'stok', 'trigger_id': 't1', 'user': {'id': 'U1', 'username': 'rob'},
@@ -333,6 +334,102 @@ class SlackSigning(FinbotCase):
 			with self.subTest(**case):
 				self.assertEqual(self.post(**case), '403 Forbidden')
 		self.assertEqual((self.requests, self.errors), ([], []))
+
+
+SLASH = {'token': 'stok', 'team_id': 'T1', 'channel_id': 'C1', 'channel_name': 'stocks', 'user_id': 'U1',
+	'user_name': 'rob', 'command': '/price', 'text': '5 &amp; 7d', 'response_url': 'https://hooks.slack.com/r/1',
+	'trigger_id': 't9', 'api_app_id': 'A1'} # a Slack slash command, as its form's fields or a socket's payload
+
+
+class SlackSlashCommands(FinbotCase):
+	"""A Slack slash command posted to slackOutgoingWebhook as a form, signed as an event is."""
+
+	def setUp(self):
+		"""Slack in HTTP mode with a signing secret, and the worker replaced by a list of what it would have run."""
+		super().setUp()
+		self.env(slackOutgoingWebhook='https://example.com/slack', slackSigningSecret='sss')
+		self.requests = []
+		self.patch(worker, 'process_request', self.requests.append)
+
+	def post(self, fields, secret='sss'):
+		"""Post the form of a slash command, signed with secret: (the status, the body)."""
+		body = urlencode(fields).encode()
+		timestamp = str(int(time.time()))
+		mac = hmac.new(secret.encode(), b'v0:' + timestamp.encode() + b':' + body, hashlib.sha256).hexdigest()
+		env = wsgi_environ('/slack', body, HTTP_X_SLACK_REQUEST_TIMESTAMP=timestamp, HTTP_X_SLACK_SIGNATURE='v0=' + mac)
+		status = []
+		with contextlib.redirect_stderr(io.StringIO()):
+			answer = b''.join(bot.main(env, lambda s, *a, **k: status.append(s)))
+		self.join_workers()
+		return status[-1], answer
+
+	def test_a_slash_command_is_the_message_that_says_the_same(self):
+		"""/price with 5 &amp; 7d is the message /price 5 & 7d, from <@U1>, in the channel or DM it was sent in, which
+		the reply goes to; Slack gets an empty 200 at once. There is no message of it, so no ⏳."""
+		self.assertEqual(self.post(SLASH), ('200 OK', b''))
+		self.assertEqual(self.post({**SLASH, 'channel_id': 'D1', 'command': '/job', 'text': ''}), ('200 OK', b''))
+		self.assertEqual(self.requests, [inbound.Message('slack', 'C1', '<@U1>', '/price 5 & 7d', '', '<@U1>'),
+			inbound.Message('slack', 'D1', '<@U1>', '/job', '', '<@U1>')])
+		self.assertEqual([worker.read(r.text, r.bot_name)[0].names[0] for r in self.requests], ['price', 'jobs'])
+		self.assertFalse(delivery.reply_to('slack', 'C1', self.requests[0].message_id).shows_typing)
+
+	def test_a_slash_command_unsigned_or_altered_is_refused(self):
+		"""A slash command signed with another secret is refused, and none reaches the worker."""
+		self.assertEqual(self.post(SLASH, secret='wrong')[0], '403 Forbidden')
+		self.assertEqual(self.requests, [])
+
+
+class SlackManifest(unittest.TestCase):
+	"""util/slack_manifest.py: the Slack app's manifest, with the slash commands of the command table."""
+
+	def test_socket_mode_or_http_mode(self):
+		"""Without a URL, Socket Mode and no Request URL anywhere; with one, HTTP mode and that URL for the events, the
+		buttons and every slash command. Either way: the messages tab for DMs, interactivity, and the scopes that the
+		replies, the slash commands, the charts, ⏳ and each event need."""
+		socket = slack_manifest.manifest()
+		self.assertTrue(socket['settings']['socket_mode_enabled'])
+		self.assertNotIn('request_url', json.dumps(socket))
+		self.assertNotIn('"url"', json.dumps(socket))
+		url = 'https://www.example.com:8443/slack'
+		http = slack_manifest.manifest(url=url)
+		self.assertFalse(http['settings']['socket_mode_enabled'])
+		self.assertEqual((http['settings']['event_subscriptions']['request_url'],
+			http['settings']['interactivity']['request_url']), (url, url))
+		self.assertTrue(all(command['url'] == url for command in http['features']['slash_commands']))
+		for manifest in (socket, http):
+			self.assertTrue(manifest['features']['app_home']['messages_tab_enabled'])
+			self.assertTrue(manifest['settings']['interactivity']['is_enabled'])
+			self.assertEqual(manifest['settings']['event_subscriptions']['bot_events'], ['app_mention', 'message.im'])
+			self.assertEqual(manifest['oauth_config']['scopes']['bot'], ['app_mentions:read', 'chat:write', 'commands',
+				'files:read', 'files:write', 'im:history', 'reactions:write'])
+
+	def test_every_message_and_the_slash_commands(self):
+		"""With every_message the bot hears every message in its channels (not only mentions, which it would then
+		answer twice). The slash commands are the command table's, second names included, each named and described
+		as Slack allows, and each reads as its command."""
+		manifest = slack_manifest.manifest(every_message=True)
+		self.assertEqual(manifest['settings']['event_subscriptions']['bot_events'],
+			['message.channels', 'message.groups', 'message.im'])
+		self.assertIn('channels:history', manifest['oauth_config']['scopes']['bot'])
+		self.assertNotIn('app_mentions:read', manifest['oauth_config']['scopes']['bot'])
+		commands = manifest['features']['slash_commands']
+		self.assertEqual([c['command'] for c in commands], ['/' + name for name, _, _ in worker.slash_commands()])
+		self.assertTrue({'/profile', '/job', '/forwardpe'} <= {c['command'] for c in commands})
+		for command in commands:
+			with self.subTest(command=command['command']):
+				self.assertRegex(command['command'], r'^/[a-z0-9_]{1,31}$')
+				self.assertTrue(0 < len(command['description']) <= 2000)
+				self.assertLessEqual(len(command.get('usage_hint', '')), 1000)
+				self.assertIsNotNone(worker.read(f"{command['command']} {command.get('usage_hint', '')}", '')[0])
+
+	def test_the_tool_prints_json_and_refuses_a_plain_http_url(self):
+		"""The tool prints the manifest as JSON, to paste; a URL that is not HTTPS is refused, as Slack would."""
+		with contextlib.redirect_stdout(io.StringIO()) as out:
+			self.assertEqual(slack_manifest.main(['--name', 'stockbot']), 0)
+		self.assertEqual(json.loads(out.getvalue())['features']['bot_user']['display_name'], 'stockbot')
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual(slack_manifest.main(['--url', 'http://www.example.com/slack']), 2)
+		self.assertIn('--url must be https://', err.getvalue())
 
 
 class UserTextIsEscaped(FinbotCase):

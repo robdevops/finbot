@@ -478,35 +478,44 @@ def help_sections(slash=False):
 	"""The sections of .help: (heading, the .help lines of its commands, in table order), in SECTIONS order; with slash,
 	each line as its slash command (/forwardpe for .forward pe, /stock SYMBOL for .SYMBOL)."""
 	def shown(command, line):
-		"""The line, or its first slash command."""
-		forms = slash_forms(command, line) if slash else []
-		return f'/{forms[0][0]} {forms[0][1]}'.strip() if forms else line
+		"""The line, or its slash command."""
+		form = slash_form(command, line) if slash else None
+		return f'/{form[0]} {form[1]}'.strip() if form else line
 	return [(section, list(dict.fromkeys(shown(command, line) for command in COMMANDS if command.section == section
 		for line in command.usage))) for section in SECTIONS]
 
-SLASH_NAME = re.compile(r'[a-z0-9_-]{1,32}') # what a slash command may be named, on every network
+SLASH_NAME = re.compile(r'[a-z0-9_]{1,32}') # what a slash command may be named, on every network
+SLASH_ALIASES = {'stock': 'profile', 'jobs': 'job'} # slash commands with a second name, which the networks that list
+# every slash command list too (Discord, Slack); typed, the second name works on Telegram too, as every name does
 
-def slash_forms(command, line):
-	"""The slash commands of one of a command's .help lines: [(name, the arguments it shows)]. One, named by the
-	command's name the line starts with where a slash command may be so named, else by the command's first name that it
-	may (.forward pe is /forwardpe); a line that starts with no name (.SYMBOL) has one under each of them."""
+def slash_form(command, line):
+	"""The slash command of one of a command's .help lines, (name, the arguments it shows): named by the command's name
+	the line starts with where a slash command may be so named, else by the command's first name that may (.forward pe
+	is /forwardpe, .SYMBOL /stock SYMBOL); None when none may."""
 	valid = [name for name in command.names if SLASH_NAME.fullmatch(name)]
+	if not valid:
+		return None
 	words = line.removeprefix('.').split()
 	named = next((name for name in command.names if [w.lower() for w in words[:len(name.split())]] == name.split()),
 		None)
 	if named is None:
-		return [(name, ' '.join(words)) for name in valid]
-	return [(named if named in valid else valid[0], ' '.join(words[len(named.split()):]))] if valid else []
+		return valid[0], ' '.join(words)
+	return (named if named in valid else valid[0]), ' '.join(words[len(named.split()):])
 
-def slash_commands():
-	"""The slash commands to register, each with its description and the arguments it shows: [(name, description,
-	arguments)], from the .help lines (slash_forms), and /help."""
-	found = {'help': ('help', 'every command, and what it takes', '')}
+def slash_commands(aliases=True):
+	"""The slash commands to register, from the .help lines (slash_form), and /help: [(name, description, the
+	arguments it shows)], the arguments of a command's several lines joined by " | ". With aliases, the second names of
+	SLASH_ALIASES too, each after its first."""
+	found = {'help': []} # name -> the arguments of its lines
 	for command in COMMANDS:
 		for line in command.usage:
-			for name, arguments in slash_forms(command, line):
-				found.setdefault(name, (name, f'{name} {arguments}'.strip(), arguments))
-	return list(found.values())
+			if form := slash_form(command, line):
+				name, arguments = form
+				for each in (name, SLASH_ALIASES.get(name) if aliases else None):
+					if each and arguments not in found.setdefault(each, []):
+						found[each].append(arguments)
+	return [('help', 'every command, and what it takes', '') if name == 'help' else
+		(name, f"{name} {' | '.join(lines)}".strip(), ' | '.join(lines)) for name, lines in found.items()]
 
 def command_keyboard(per_row=3):
 	"""Persistent reply keyboard of the commands that have buttons (Telegram DMs), alphabetical, row by row; a press

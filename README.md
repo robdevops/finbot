@@ -27,8 +27,8 @@ What finbot can do on each network. Telegram takes everything; the others take w
 
 | Feature | Telegram | Slack | Discord |
 |---|---|---|---|
-| Chat commands | ✓ | ✓ | ✓: slash commands (`/price`), and messages (`.price`) over the gateway |
-| "typing…" while a command works | ✓ | ⏳ on the command's message (Slack has no typing notice for bots) | ✓ for a message; "thinking…" for a slash command |
+| Chat commands | ✓: messages (`.price`), and slash commands (`/price`) from the command menu | ✓: messages, and slash commands (`/price`) from the app's manifest | ✓: slash commands (`/price`), and messages over the gateway |
+| "typing…" while a command works | ✓ | ⏳ on the command's message (Slack has no typing notice for bots); none for a slash command, which has no message | ✓ for a message; "thinking…" for a slash command |
 | Charts in replies | ✓ | ✓ | ✓ |
 | Charts in scheduled reports | ✓ | ✓ | ✓ |
 | Period and job buttons | ✓ | ✓ | ✓ |
@@ -93,7 +93,7 @@ Where:
 .who symbol
 ```
 
-`!` or `/` work in place of the dot, and so does the bot's name: `@botname price 7d`, `@botname AAPL`. Each command is also a slash command, as Discord registers them: `/stock symbol` (or `/profile symbol`) for `.symbol`, `/forwardpe` for `.forward pe`. A command is its whole name, in any case, and so are its keywords (`.price TOP`); any other first word is a symbol. `.help` lists the commands in chat.
+`!` or `/` work in place of the dot, and so does the bot's name: `@botname price 7d`, `@botname AAPL`. Each command is also a slash command on every network, which completes its name as it is typed: Telegram's command menu, set as finbot starts; Slack's, from the app's manifest (`util/slack_manifest.py`, see the [Slack guide](doc/slack.md#slash-commands)); Discord's, registered as finbot starts. `/stock symbol` (or `/profile symbol`) is `.symbol`, `/forwardpe` is `.forward pe`, and `/job` is `/jobs`. A command is its whole name, in any case, and so are its keywords (`.price TOP`); any other first word is a symbol. `.help` lists the commands in chat.
 
 Trade notifications are peformed by polling the Sharesight trades API on a schedule (see [Scheduling](#scheduling)), and notifying each chat that schedules them of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 

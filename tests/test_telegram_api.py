@@ -1,5 +1,6 @@
-"""Telegram's Bot API: the webhook set or deleted once, as bot.py starts."""
-import contextlib, io, os, subprocess, unittest
+"""Telegram's Bot API: the webhook set or deleted once, as bot.py starts, and the command menu."""
+import contextlib, io, os, re, subprocess, unittest
+from unittest import mock
 from tests.common import *
 
 
@@ -84,6 +85,32 @@ class TelegramWebhook(FinbotCase):
 				env={**os.environ, 'DATA_DIR': data, 'telegramBotToken': '123:abc',
 					'telegramOutgoingWebhook': 'https://example.com/telegram'})
 		self.assertEqual(out.stdout.split()[-1:], ['quiet'], out.stderr)
+
+	def test_the_command_menu_is_set_only_when_it_differs(self):
+		"""The menu is the slash commands, each with its usage, without their second names (/profile, /job: typed, they
+		work as any name does), set only when Telegram's menu differs; a failure is only logged."""
+		calls, menu = [], []
+		def call(method, **kwargs):
+			"""Telegram's menu, as getMyCommands and setMyCommands see it."""
+			calls.append(method)
+			if method == 'setMyCommands':
+				menu[:] = kwargs['json']['commands']
+				return True
+			return list(menu)
+		self.patch(telegram, 'call', call)
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			telegram.set_commands(worker.slash_commands(aliases=False))
+			telegram.set_commands(worker.slash_commands(aliases=False))
+		self.assertEqual(calls, ['getMyCommands', 'setMyCommands', 'getMyCommands'])
+		self.assertIn(f'telegram: {len(menu)} commands in the menu', log.getvalue())
+		names = [entry['command'] for entry in menu]
+		self.assertIn({'command': 'forwardpe', 'description': 'forwardpe [SYMBOL|top|bottom|negative]'}, menu)
+		self.assertEqual([name in names for name in ('stock', 'jobs', 'profile', 'job')], [True, True, False, False])
+		self.assertTrue(all(re.fullmatch(r'[a-z0-9_]{1,32}', name) for name in names))
+		self.patch(telegram, 'call', mock.Mock(side_effect=RuntimeError('Telegram getMyCommands: Unauthorized')))
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			telegram.set_commands(worker.slash_commands(aliases=False))
+		self.assertIn('Telegram setMyCommands failed: Telegram getMyCommands: Unauthorized', log.getvalue())
 
 	def test_the_bot_will_not_start_unregistered_and_never_logs_the_token(self):
 		"""bot.py exits when the webhook cannot be registered, and never logs the token."""

@@ -50,7 +50,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   or, over the gateway, posted to its callback. `lib/discord.py`: Discord's REST calls (`call`, rate limits waited
   out) and the slash commands registered at start (`register`, from `worker.slash_commands()`).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
-  keywords)`, which also makes `.help` and the Telegram command keyboard, kept current in DMs. `read()` finds the
+  keywords)`, which also makes `.help`, the Telegram command keyboard, kept current in DMs, and `slash_commands()`, which
+  every network gets (Telegram's menu, Slack's manifest from `util/slack_manifest.py`, Discord's registered commands). `read()` finds the
   command by its whole name (any other first word that may be a ticker is `.SYMBOL`) and `read_args()` its `Args`: a
   percent, a period and a keyword from either end, the words between; a handler raises `Usage` for arguments it cannot
   take, and gets a ticker with `ticker(args)`. `Request` (`request.reply(lines, chart, buttons)`); each command gets
@@ -100,12 +101,13 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   them; `temp_dir(self)` is a directory removed after the test, `bare_environment()` the environment without finbot's
   settings.
 - Which test file: commands and scheduled reports `test_reports`; failures, bad input, secrets in logs, signals
-  `test_edges`; webhook requests, Slack events and signatures `test_inbound`; the pull modes `test_pull`; the Discord
-  bot `test_discord`; Yahoo `test_yahoo`; Sharesight `test_sharesight`; posting to each network `test_sending`;
-  registering Telegram's webhook `test_telegram_api`; job lines, job arguments and the migration `test_schedule`; the
-  scheduler and `.jobs` in a chat `test_scheduler`; config `test_config`; charts `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`);
-  markets, formats, links, buttons, cache and state files `test_util`; data dir `test_datadir`; chunking, git_version,
-  and the docstring, stdout and line-width checks `test_finbot`.
+  `test_edges`; webhook requests, Slack events, slash commands and signatures, and the Slack manifest `test_inbound`;
+  the pull modes `test_pull`; the Discord bot `test_discord`; Yahoo `test_yahoo`; Sharesight `test_sharesight`; posting
+  to each network `test_sending`; Telegram's webhook and command menu `test_telegram_api`; job lines, job arguments and
+  the migration `test_schedule`; the scheduler and `.jobs` in a chat `test_scheduler`; config `test_config`; charts
+  `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets, formats, links, buttons, cache and state files
+  `test_util`; data dir `test_datadir`; chunking, git_version, and the docstring, stdout, line-width and no-pandas
+  checks `test_finbot`.
 
 ## Conventions
 - Read settings as `config.env.<name>` / `config.prefs.<name>` where they are used, never into a default or module

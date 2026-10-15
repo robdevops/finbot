@@ -142,12 +142,13 @@ class WebSocket:
 
 class SlackSocket(Listener):
 	"""Slack's Socket Mode: a WebSocket to the URL that apps.connections.open gives for the app-level token
-	(slackAppToken). Each event or button press comes in an envelope, acked at once, before anything else (Slack sends
-	again what is not acked within 3 seconds); inside it is what Slack would post to slackOutgoingWebhook. Slack closes
-	a socket now and then, saying so first (disconnect), and another is opened at once."""
+	(slackAppToken). Each event, button press or slash command comes in an envelope, acked at once, before anything
+	else (Slack sends again what is not acked within 3 seconds); inside it is what Slack would post to
+	slackOutgoingWebhook. Slack closes a socket now and then, saying so first (disconnect), and another is opened at
+	once."""
 	network = inbound.SLACK
 	PING_SECONDS = 30 # silence this long sends a ping; as long again after it, and the socket is taken for dead
-	TAKEN = ('events_api', 'interactive') # the envelopes whose payload goes to the reader
+	TAKEN = ('events_api', 'interactive', 'slash_commands') # the envelopes whose payload goes to the reader
 
 	def describe(self):
 		"""The mode, for the log."""
