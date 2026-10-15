@@ -1,5 +1,6 @@
-"""Buttons under a message: the period buttons (1D | 7D | 1M | 1Y | Max) of a chart, and the callback data that carries
-what its builder needs (charts.BUILDERS). Each transport draws Button rows its own way."""
+"""Buttons under a message, and what their data says when one is pressed (parse): a chart's period buttons (1D | 7D |
+1M | 1Y | Max), whose data carries what its builder needs (charts.BUILDERS), and a .jobs command's button. Each
+transport draws Button rows its own way."""
 import hashlib
 import typing
 
@@ -10,6 +11,20 @@ class Button(typing.NamedTuple):
 	label: str
 	data: str
 	active: bool = False
+
+
+class ChartPress(typing.NamedTuple):
+	"""A chart's period button pressed: the chart's kind, the period, and its builder's arguments (resolve them)."""
+	kind: str
+	period: str
+	ref: str
+
+
+class JobPress(typing.NamedTuple):
+	"""A .jobs command's button pressed: the command's number in the list and its checksum, both for
+	jobs.Scheduler.pick to check."""
+	number: str
+	checksum: str
 
 
 PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x': ('Max', None)}
@@ -55,3 +70,20 @@ def keyboard(kind, args, active=None):
 	(charts.BUILDERS): a ticker, tickers, a portfolio, or a price list's threshold and top, as strings."""
 	ref = _ref(args)
 	return [[Button(PERIODS[key][0], f"c|{kind}|{key}|{ref}", key == active) for key in BUTTONS[kind]]]
+
+def job_button(number, label, checksum):
+	"""A .jobs command's button: 'N. label', cut to 30 characters, its data the number and the command's checksum."""
+	return Button(f"{number}. {label}"[:30], f"j|{number}|{checksum}")
+
+def parse(data):
+	"""What a pressed button's data asks for: a JobPress for a .jobs button (whatever follows 'j|', which pick refuses
+	unless it is a command's number and checksum), a ChartPress for a period button of a known kind and period, or None
+	for data of neither (from an older finbot, or forged)."""
+	kind, _, rest = data.partition('|')
+	if kind == 'j':
+		number, _, checksum = rest.partition('|')
+		return JobPress(number, checksum)
+	parts = rest.split('|', 2)
+	if kind == 'c' and len(parts) == 3 and parts[0] in BUTTONS and parts[1] in BUTTONS[parts[0]]:
+		return ChartPress(*parts)
+	return None

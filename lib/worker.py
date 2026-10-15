@@ -41,16 +41,16 @@ class Request:
 		can go) and buttons."""
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
-def process_job_callback(press):
-	"""A command button of .jobs (an inbound.Press): run that command now and answer in the chat."""
+def process_job_callback(press, pressed):
+	"""A command button of .jobs (an inbound.Press; pressed, what its data says): run that command now and answer in
+	the chat."""
 	service = dialects.of(press.service)
 	chat = delivery.reply_to(service, press.chat_id)
 	try:
 		if jobs.current is None: # the scheduler is off now
 			raise jobs.ScheduleError('the scheduler is off')
-		_, number, crc = press.data.split('|') # only a command offered by .jobs can be picked; anything else is refused
-		command = jobs.current.pick(number, crc)
-	except (ValueError, jobs.ScheduleError):
+		command = jobs.current.pick(pressed.number, pressed.checksum) # only a command .jobs offers; anything else fails
+	except jobs.ScheduleError:
 		chat.acknowledge(press.press_id, 'Buttons updated, try again')
 		payload, markup = about.prepare_jobs_payload(service, '') # the list as it is now, in place of the stale one
 		chat.edit_text(press.message_id, '\n'.join(payload), markup or [])
@@ -65,23 +65,22 @@ def process_job_callback(press):
 def process_callback(press):
 	"""A button pressed (an inbound.Press): run a scheduled command from .jobs, or rebuild a chart message for the
 	chosen period and edit it in place."""
-	if press.data.startswith('j|'):
-		return process_job_callback(press)
+	pressed = buttons.parse(press.data)
+	if isinstance(pressed, buttons.JobPress):
+		return process_job_callback(press, pressed)
 	service = dialects.of(press.service)
-	parts = press.data.split('|', 3)
-	valid = len(parts) == 4 and parts[0] == 'c' and parts[1] in buttons.BUTTONS and parts[2] in buttons.BUTTONS[parts[1]]
 	chat = delivery.reply_to(service, press.chat_id)
 	# answering now shows Telegram's toast bubble ("Loading 1Y…") while the new chart is built
-	chat.acknowledge(press.press_id, f"Loading {buttons.PERIODS[parts[2]][0]}…" if valid else None)
-	if not valid:
+	chat.acknowledge(press.press_id, f"Loading {buttons.PERIODS[pressed.period][0]}…" if pressed else None)
+	if not pressed:
 		return
 	try:
-		_, kind, period, ref = parts
-		args = buttons.resolve(ref)
-		caption, chart = charts.build(kind, args, period, service)
+		args = buttons.resolve(pressed.ref)
+		caption, chart = charts.build(pressed.kind, args, pressed.period, service)
 		if chart is None: # too few prices in that period to draw a line
-			raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[period][0]}")
-		chat.edit_chart(press.message_id, render.draw(chart), caption, buttons.keyboard(kind, args, period))
+			raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[pressed.period][0]}")
+		markup = buttons.keyboard(pressed.kind, args, pressed.period)
+		chat.edit_chart(press.message_id, render.draw(chart), caption, markup)
 	except answer.Answer as e: # nothing to draw for that period: said in the chat, as a command would
 		delivery.deliver(chat, delivery.Report(e.lines))
 	except Exception as e:

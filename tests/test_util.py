@@ -104,6 +104,17 @@ class Formatting(unittest.TestCase):
 		with self.assertRaises(TypeError):
 			formats.date_range_english(None, end) # callers must pass a period
 
+	def test_button_data_reads_back(self):
+		"""A button's data says what was pressed: a period button of a known kind and period (as keyboard() makes
+		them), any .jobs button (pick checks it), and nothing for anything else."""
+		self.assertEqual([buttons.parse(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
+			[buttons.ChartPress('l', key, '5,0') for key in 'dwmyx'])
+		self.assertEqual(buttons.parse(buttons.job_button(8, 'trades', 'abcd').data), buttons.JobPress('8', 'abcd'))
+		self.assertEqual(buttons.parse('j|8'), buttons.JobPress('8', ''))
+		for data in ('c|h|d|T1', 'c|z|w|T1', 'c|h|w', 'x|h|w|T1', '', 'c'):
+			with self.subTest(data=data):
+				self.assertIsNone(buttons.parse(data))
+
 	def test_strip_url(self):
 		"""A link's text is its address without the scheme or www."""
 		for url, text in (('https://www.apple.com', 'apple.com'), ('http://example.org/a?b', 'example.org/a?b'),

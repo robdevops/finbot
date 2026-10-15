@@ -20,7 +20,7 @@ def prepare_jobs_payload(service, run=None):
 	payload.append("\nRun one with .jobs run NUMBER" + (' or tap it' if service == 'telegram' else ''))
 	markup = None
 	if service == 'telegram':
-		row = [buttons.Button(f"{number}. {jobs.display(label)}"[:30], f"j|{number}|{jobs.checksum(label)}")
+		row = [buttons.job_button(number, jobs.display(label), jobs.checksum(label))
 			for number, (label, _, _) in enumerate(commands, 1)]
 		markup = [row[i:i + 2] for i in range(0, len(row), 2)]
 	return payload, markup
