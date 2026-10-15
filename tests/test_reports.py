@@ -260,6 +260,18 @@ class ScheduledReports(FinbotCase):
 				cal.run(**kwargs)
 				self.assertTrue(self.sent)
 
+	def test_only_the_scheduled_earnings_report_is_pinned(self):
+		"""The scheduled earnings report is pinned on Telegram; a reply to .earnings is not, or the chat would collect
+		pinned copies, and neither is the ex-dividend report."""
+		pins = []
+		self.patch(transports.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
+		self.command('.earnings')
+		self.assertEqual(pins, [])
+		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/'}, telegramChatID='1')
+		cal.run(event='ex-dividend')
+		cal.run(event='earnings')
+		self.assertEqual(pins, ['1'])
+
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
 		"""T1 has no earnings date, so its primary listing is looked up; Yahoo knowing nothing of it used to crash the report."""
 		self.patch(cal, 'primary_listings', lambda: {'T1': 'T1.XX'})

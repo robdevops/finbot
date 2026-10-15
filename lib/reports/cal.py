@@ -17,7 +17,8 @@ EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'), 'ex-dividend': ('e
 
 def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
 	"""Post the earnings or ex-dividend dates ahead (`event`) for the tracked stocks or one: to the chat that asked
-	(dest), else to the default chats. An earnings report on all the tracked stocks is pinned where the network can."""
+	(dest), else to the default chats. The scheduled earnings report is pinned where the network can; a reply is not,
+	or the chat would collect pinned copies."""
 	interactive = dest is not None
 	if days is None:
 		days = config.prefs.future_days
@@ -26,8 +27,8 @@ def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
 	for chat in delivery.targets(dest):
 		payload = report(chat.dialect, events, tickers, days, specific_stock, interactive, event)
 		answers = delivery.deliver(chat, delivery.Report(payload))
-		if event == 'earnings' and not specific_stock and hasattr(chat, 'pin'):
-			chat.pin(answers) # the earnings report stays on top, where the network can pin
+		if event == 'earnings' and not specific_stock and not interactive and hasattr(chat, 'pin'):
+			chat.pin(answers) # the scheduled earnings report stays on top, where the network can pin
 
 def gather(tickers, days, specific_stock, event):
 	"""The dates of `event` within `days` (any date for one stock), soonest first: [(when, flag, title, ticker)]. ETFs
