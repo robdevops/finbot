@@ -145,6 +145,18 @@ class JobArguments(unittest.TestCase):
 		webhook.cli('price.py', price.job, lambda **k: calls.append(k), ['midsession'])
 		self.assertEqual(calls, [{'midsession': True}])
 
+	def test_each_scheduled_report_runs_from_its_top_level_script(self):
+		"""./price.py and the rest run lib/reports/<name>.py, so cron lines and runs by hand keep working."""
+		self.assertEqual(sorted(path.stem for path in Path(ROOT).glob('*.py') if path.stem not in ('bot', 'bot_send_stdin')),
+						 sorted(jobs.SCRIPTS))
+		with tempfile.TemporaryDirectory() as data:
+			run = lambda *args: subprocess.run([sys.executable, *args], cwd=ROOT, capture_output=True, text=True, timeout=60,
+				env={**os.environ, 'DATA_DIR': data})
+			self.assertEqual(run('cleanup.py', '0').returncode, 0)
+			bad = run('price.py', 'bogus')
+			self.assertEqual(bad.returncode, 1)
+			self.assertIn('Usage: price.py [midsession', bad.stderr)
+
 
 class CleanupJob(FinbotCase):
 	def test_removes_only_old_finbot_cache_files(self):
