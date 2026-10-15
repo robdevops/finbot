@@ -32,11 +32,13 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 
 ## Code map (open the one file you need)
 - `bot.py`: WSGI entry (route, verify, parse, then a thread of `lib/worker.py` per message or button press); SIGHUP
-  reload, SIGUSR1 cache flush. `lib/inbound.py`: a class per network that posts to the bot (`Telegram`, `Slack`): its
-  path, how it proves itself, and its updates as `Message`, `Press` or a `Response` given straight back.
+  reload and SIGUSR1 cache flush, each in a thread. `lib/inbound.py`: a class per network that posts to the bot
+  (`Telegram`, `Slack`): its path, how it proves itself, and its updates as `Message`, `Press` or a `Response` given
+  straight back.
 - `lib/worker.py`: `COMMANDS`, a table of `Command(pattern, handler, usage, section, buttons)` (first match wins,
   `.SYMBOL` last), which also makes `.help` and the Telegram command keyboard, kept current in DMs; `Request`
-  (`request.reply(lines, chart, buttons)`); the typing notice, which every command gets after half a second.
+  (`request.reply(lines, chart, buttons)`); the typing notice (Slack: ⏳ on the message), which every command gets after
+  half a second.
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
   or else the default chats, and `job(argv)`, its schedule-line parser): `price performance trades shorts cal rating
   milestone reminder podcasts cleanup`; the top-level `price.py` and the rest are shims that run them. Chat-only
@@ -58,9 +60,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save. `lib/watchlist.py`: the watchlist.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on each reload).
-  `lib/jobs.py` + `lib/jobrun.py`: the scheduler; each run is a child process.
+  `lib/jobs.py` + `lib/jobrun.py`: the scheduler, its shared state under one lock; each command runs in a child
+  process, stopped after `JOB_TIMEOUT`.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent: `('text', lines)` or
-  `('photo', size, caption)`.
+  `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
 - Which test file: commands and scheduled reports `test_reports`; failures, bad input, WSGI and Slack events `test_edges`;
   Yahoo/Sharesight parsing, sending, Telegram API `test_providers`; scheduler `test_jobs`; config `test_config`; charts
   `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets, formats, links, cache and state files `test_util`; data dir
