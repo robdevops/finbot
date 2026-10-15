@@ -34,6 +34,8 @@ STATES = ('REGULAR', 'PRE', 'POST', 'CLOSED')
 
 
 def market_entry(ticker):
+	"""A Yahoo quote for a fixture ticker; T0 to T24 vary in market state, move, rating and so on, so that every
+	threshold, sort and branch has rows."""
 	i = int(ticker[1:]) if ticker[1:].isdigit() else 0 # varied data so threshold/sort/sell branches all have rows
 	return {'marketState': STATES[i % 4], 'regularMarketTime': time.time(), 'quoteType': 'EQUITY',
 			'profile_title': 'Co ' + ticker, 'profile_exchange': 'NasdaqGS', 'percent_change': (i - 12) * 1.5, 'percent_change_premarket': (i - 12) * 1.5, 'percent_change_postmarket': (i - 12) * 1.5,
@@ -48,6 +50,7 @@ class FinbotCase(unittest.TestCase):
 	"""Base class: self.sent collects ('photo'|'text', ...) tuples for everything the bot tried to send."""
 
 	def patch(self, target, attr, value):
+		"""Replace target.attr with value for the rest of the test."""
 		p = mock.patch.object(target, attr, value)
 		p.start()
 		self.addCleanup(p.stop)
@@ -61,6 +64,8 @@ class FinbotCase(unittest.TestCase):
 		self.patch(config, 'prefs', dataclasses.replace(config.prefs, **changes))
 
 	def setUp(self):
+		"""A fresh data dir and the offline fixtures: no request leaves the machine, and whatever the bot sends is
+		collected in self.sent (and buttons in self.markups, error lines in self.errors)."""
 		fake = mock.Mock(status_code=200, text='{}')
 		fake.json.return_value = {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 5}}}
 		self.patch(__import__('requests').Session, 'request', mock.Mock(return_value=fake)) # no real network traffic
@@ -97,6 +102,7 @@ class FinbotCase(unittest.TestCase):
 		self.addCleanup(self.no_typing_left)
 
 	def no_typing_left(self):
+		"""Fail the test if a typing indicator it started is still running, after stopping it."""
 		left = [indicator for indicator in self.typing if indicator.is_active()]
 		for indicator in left:
 			indicator.stop()

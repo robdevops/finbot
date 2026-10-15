@@ -7,13 +7,17 @@ from tests.common import *
 
 class Plumbing(FinbotCase):
 	def test_chunked_send_keeps_keyboard_on_last_chunk(self):
+		"""A long report goes out in several messages, and only the last carries the keyboard."""
 		posted = []
 
 		class Response:
 			status_code = 200
-			def json(self): return {'ok': True, 'result': {'message_id': len(posted), 'chat': {'id': 5}}}
+			def json(self):
+				"""Telegram's answer to a message posted."""
+				return {'ok': True, 'result': {'message_id': len(posted), 'chat': {'id': 5}}}
 
 		def post(url, **kwargs):
+			"""Record what was posted and answer like Telegram."""
 			posted.append(kwargs['json'])
 			return Response()
 
@@ -26,6 +30,8 @@ class Plumbing(FinbotCase):
 		self.assertTrue(all('reply_markup' not in p for p in posted[:-1]))
 
 	def test_chunks_respect_both_the_line_count_and_the_size(self):
+		"""A message ends at chunk_maxlines lines or the size limit, whichever comes first; a line too long on its own
+		is cut short."""
 		chunks = webhook.chunked(['a' * 30] * 10 + ['b' * 500], limit=100, max_lines=4)
 		self.assertEqual([len(chunk) for chunk in chunks], [3, 3, 3, 1, 1]) # 3 x 30 plus newlines is 92; a fourth would pass 100
 		self.assertTrue(all(len('\n'.join(chunk)) <= 100 for chunk in chunks))
@@ -33,15 +39,19 @@ class Plumbing(FinbotCase):
 		self.assertEqual(webhook.chunked(['x'] * 9, limit=4096, max_lines=4), [['x'] * 4, ['x'] * 4, ['x']])
 
 	def test_zoneinfo_offset_is_not_lmt(self):
+		"""zoneinfo gives Melbourne its real offset, not the local mean time pytz once gave for old dates."""
 		tz = zoneinfo.ZoneInfo('Australia/Melbourne')
 		self.assertEqual(datetime.datetime(2022, 8, 18, tzinfo=tz).utcoffset(), datetime.timedelta(hours=10))
 
 	def test_reminder_runs(self):
+		"""The reminder report runs with no reminders on file."""
 		with mock.patch.object(config, 'data_json', lambda name, default=None: []):
 			reminder.lambda_handler()
 
 	def test_bot_handler(self):
+		"""A sticker is answered 200 and not logged; git_version matches what git says."""
 		def post(message):
+			"""Post a Telegram message update to the WSGI handler: (its answer, what it logged)."""
 			body = json.dumps({'update_id': 1, 'message': dict({'message_id': 5, 'chat': {'id': 55, 'type': 'private'},
 				'from': {'id': 9, 'first_name': 'Rob'}, 'date': 1}, **message)}).encode()
 			env = {'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(body), 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
@@ -57,9 +67,10 @@ class Plumbing(FinbotCase):
 
 class Conventions(unittest.TestCase):
 	def test_every_function_has_a_docstring(self):
-		"""Every function and method in the bot, lib/ and util/, nested ones included, says what it does."""
+		"""Every function and method, in the tests too and nested ones included, says what it does."""
 		missing = []
-		code = [*Path(ROOT, 'lib').rglob('*.py'), *Path(ROOT).glob('*.py'), *Path(ROOT, 'util').glob('*.py')]
+		code = [*Path(ROOT, 'lib').rglob('*.py'), *Path(ROOT).glob('*.py'), *Path(ROOT, 'util').glob('*.py'),
+			*Path(ROOT, 'tests').glob('*.py')]
 		for path in sorted(code):
 			for node in ast.walk(ast.parse(path.read_text())):
 				if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and ast.get_docstring(node) is None:
@@ -82,6 +93,7 @@ class GitVersion(unittest.TestCase):
 	SHA = '0123456789abcdef0123456789abcdef01234567'
 
 	def repo(self, tmp, head, refs=None, packed=None):
+		"""A fake .git in tmp: HEAD, loose refs and packed-refs as given."""
 		git = Path(tmp, '.git')
 		git.mkdir(parents=True)
 		(git / 'HEAD').write_text(head + '\n')
@@ -93,6 +105,7 @@ class GitVersion(unittest.TestCase):
 		return git
 
 	def test_loose_ref_detached_and_packed(self):
+		"""The commit is found from a loose ref, a detached HEAD, and a ref only in packed-refs."""
 		with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as c:
 			self.repo(a, 'ref: refs/heads/work', {'refs/heads/work': self.SHA})
 			self.repo(b, self.SHA)
@@ -100,6 +113,7 @@ class GitVersion(unittest.TestCase):
 			self.assertEqual([bot.git_version(d) for d in (a, b, c)], ['0123456'] * 3)
 
 	def test_linked_worktree(self):
+		"""A linked worktree, whose .git is a file naming its gitdir, finds its refs in the main repository."""
 		with tempfile.TemporaryDirectory() as main, tempfile.TemporaryDirectory() as tree:
 			git = self.repo(main, 'ref: refs/heads/main', {'refs/heads/main': self.SHA})
 			linked = git / 'worktrees' / 'w'
@@ -110,6 +124,7 @@ class GitVersion(unittest.TestCase):
 			self.assertEqual(bot.git_version(tree), '0123456')
 
 	def test_unreadable_is_unknown(self):
+		"""No .git, a dangling ref, or a garbled HEAD all give 'unknown'."""
 		with tempfile.TemporaryDirectory() as empty, tempfile.TemporaryDirectory() as odd:
 			self.repo(odd, 'ref: refs/heads/gone')
 			self.assertEqual([bot.git_version(empty), bot.git_version(odd), bot.git_version('/nonexistent')], ['unknown'] * 3)
@@ -117,6 +132,7 @@ class GitVersion(unittest.TestCase):
 			self.assertEqual(bot.git_version(empty), 'unknown')
 
 	def test_does_not_run_git(self):
+		"""git_version reads .git itself: no git binary is run."""
 		with mock.patch('subprocess.run', side_effect=AssertionError('git was run')):
 			self.assertGreaterEqual(len(bot.git_version()), 7)
 

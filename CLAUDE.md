@@ -56,8 +56,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - A report is a list of lines. `service` is a dialect (`lib/dialects.py`), which equals the network's name: markup with
   `service.bold(text)`, `.italic`, `.strike`, `.link(url, text)`, user-written text through `service.escape(text)`, stock links
   through `links.finance_link(symbol, exchange, service)`. Tests pass `TELEGRAM`, `SLACK`, `DISCORD`.
-- Every function and method has a docstring (a test checks the bot, lib/ and util/). Tabs everywhere, tests included
-  (`.editorconfig`). New and changed lines stay under 120 characters (an edit quotes whole lines).
+- Every function and method has a docstring, tests included (a test checks). Tabs everywhere (`.editorconfig`). New and
+  changed lines stay under 120 characters (an edit quotes whole lines).
 - Log with `print(..., file=sys.stderr)`. systemd discards stdout (`StandardOutput=null`), so the bot and its reports never
   print there (a test checks); only the util/ tools, run by hand, do.
 - A chart renderer in `lib/render.py` gets `@_drawn` (the bot draws in one native thread); it must not call another `@_drawn`

@@ -6,6 +6,7 @@ from tests.common import *
 
 class Commands(FinbotCase):
 	def test_text_commands(self):
+		"""Every text command answers."""
 		for cmd in ('.help', '/start', '.hello', '.thanks', '.who', '.plan', '.holdings', '.marketcap',
 					'.pe', '.fpe', '.peg', '.beta', '.buy', '.sell', '.earnings', '.dividend',
 					'.earnings T1', '.dividend T1', '.trades', '.trades 30d', '.price T1', '.session T1',
@@ -14,6 +15,7 @@ class Commands(FinbotCase):
 				self.assertTrue(self.command(cmd), f'{cmd} sent nothing')
 
 	def test_chart_commands(self):
+		"""Every chart command answers with a chart."""
 		for cmd in ('.price', '.price 7d', '.price top', '.price bottom', '.session', '.premarket', '.postmarket',
 					'.performance', '.performance 7d', '.performance 1y', '.shorts', '.peg', '.buy', '.sell', '.beta', '.price top 7d',
 					'.forward pe', '.fpe bottom'):
@@ -23,6 +25,7 @@ class Commands(FinbotCase):
 				self.assertTrue(any(kind == 'photo' for kind, *_ in out), f'{cmd} sent no chart: {out}')
 
 	def test_one_button_asks_for_both_ratings_reports(self):
+		""".buy & sell (and its spellings) sends both ratings reports, in the order asked, each once."""
 		for text in ('.buy & sell', '.buy sell', '.buy/sell', '.buy and sell'):
 			with self.subTest(text=text):
 				captions = [caption for kind, _, caption in self.command(text) if kind == 'photo']
@@ -33,6 +36,7 @@ class Commands(FinbotCase):
 		self.assertEqual(len(self.command('.buy & buy')), 1) # each report once
 
 	def test_the_keyboard_is_alphabetical_and_every_button_is_a_command(self):
+		"""The command keyboard is alphabetical, and each button is a command, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in charts.command_keyboard()['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
 		self.assertEqual(len(buttons), 15)
@@ -43,21 +47,24 @@ class Commands(FinbotCase):
 				self.assertIsNot(next(handler for pattern, handler in worker.COMMANDS if worker.match(pattern, text, BOT)), worker.on_profile)
 
 	def test_history_and_compare(self):
+		""".history and .compare answer."""
 		for cmd in ('.history T1', '.compare T1 T2', '.compare T1 T2 3m'):
 			with self.subTest(cmd=cmd):
 				self.assertTrue(self.command(cmd), f'{cmd} sent nothing')
 
 	def test_trades_and_watchlist_report_when_nothing_is_stored(self):
-		# first run: no state files exist yet, which used to crash these
+		"""On the first run no state files exist yet, which used to crash .trades and .watchlist."""
 		for cmd in ('.trades', '.watchlist'):
 			self.assertTrue(self.command(cmd), cmd)
 
 	def test_unknown_stickers_and_noise_are_ignored(self):
+		"""A message that is no command gets no answer."""
 		self.assertEqual(self.command('lorem ipsum dolor sit amet'), [])
 
 
 class ReportFunctions(FinbotCase):
 	def test_prepare_help(self):
+		"""The help text is built."""
 		self.assertTrue(about.prepare_help(TELEGRAM, BOT))
 
 	def test_a_portfolio_with_no_holdings_is_reported_by_name(self):
@@ -67,12 +74,15 @@ class ReportFunctions(FinbotCase):
 		self.assertTrue(any('>Rob</a>' in line for line in payload), payload)
 
 	def test_prepare_holdings(self):
+		""".holdings without a portfolio lists the portfolios."""
 		self.assertTrue(holdings.prepare_holdings_payload(None, TELEGRAM))
 
 	def test_prepare_marketcap(self):
+		"""The market cap list is built."""
 		self.assertTrue(rankings.prepare_marketcap_payload(TELEGRAM, 'top', length=5))
 
 	def test_prepare_rating(self):
+		"""The buy and sell lists are built."""
 		for action in ('buy', 'sell'):
 			self.assertTrue(rankings.prepare_rating_payload(TELEGRAM, action, length=5)[0])
 
@@ -84,6 +94,7 @@ class ReportFunctions(FinbotCase):
 		self.patch(watchlist, 'with_holdings', lambda: list(ratings))
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | dict(zip(('recommend', 'recommend_index', 'recommend_analysts'), ratings[t]))})
 		def order(action):
+			"""(the tickers listed, the tickers charted) of a ratings report, in order."""
 			payload, chart = rankings.prepare_rating_payload(TELEGRAM, action)
 			return [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], [label for label, _ in chart['rows']]
 		self.assertEqual(order('buy'), (['T2', 'T3', 'T1'], ['T2', 'T3', 'T1']))
@@ -120,6 +131,7 @@ class ReportFunctions(FinbotCase):
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': -5 if t == 'T3' else 20} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
 		def listed(action):
+			"""(heading, the tickers listed, the chart) of a ratio report."""
 			payload, chart = rankings.prepare_value_payload(TELEGRAM, action)
 			return payload[0], [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], chart
 		heading, names, chart = listed('forward pe')
@@ -136,6 +148,7 @@ class ReportFunctions(FinbotCase):
 		stocks = {'K1.KS': ('KRW', 1.01e15), 'K2.KS': ('KRW', 5e11), 'U1': ('USD', 5.39e12), 'L1.L': ('GBp', 6.25e10), 'Z1': ('XYZ', 1e12)}
 		fx = {'KRW=X': 1380.0, 'GBP=X': 0.79} # units per US dollar; nothing for XYZ
 		def fetch(tickers):
+			"""Quotes in each stock's own currency, and the exchange rates."""
 			return {t: market_entry(t) | {'regularMarketPrice': fx[t]} if t in fx else market_entry(t) | {'currency': stocks[t][0], 'market_cap': stocks[t][1], 'beta': 2.0}
 					for t in tickers if t in fx or t in stocks}
 		self.patch(yahoo, 'fetch', fetch)
@@ -152,6 +165,7 @@ class ReportFunctions(FinbotCase):
 		self.assertNotIn('Co K1.KS', str(beta))
 
 	def test_prepare_value(self):
+		"""Each ratio report has its heading: top, bottom, and negative (with none found)."""
 		for action, heading in (('pe', 'Top 5 tracked stocks by pe ratio'), ('bottom forward pe', 'Bottom 5 tracked stocks by forward pe ratio'),
 								('peg', 'Top 5 tracked stocks by peg ratio'), ('negative peg', 'negative peg: no data found')):
 			with self.subTest(action=action):
@@ -159,6 +173,7 @@ class ReportFunctions(FinbotCase):
 				self.assertIn(heading, payload[0])
 
 	def test_prepare_beta(self):
+		"""The beta report charts a bar per stock listed, and says so when none qualify."""
 		payload, chart = rankings.prepare_beta_payload(TELEGRAM)
 		self.assertIn('Beta over 1.5', payload[0])
 		self.assertEqual(len(chart['rows']), len(payload) - 1) # a bar per stock listed
@@ -166,6 +181,7 @@ class ReportFunctions(FinbotCase):
 		self.assertEqual(rankings.prepare_beta_payload(TELEGRAM), (['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None))
 
 	def test_prepare_profile(self):
+		"""A company profile is built."""
 		self.assertTrue(profile.prepare_profile_payload(TELEGRAM, '@u', 'T1'))
 
 	def test_a_profile_leaves_out_what_yahoo_did_not_send(self):
@@ -180,6 +196,7 @@ class ReportFunctions(FinbotCase):
 		self.assertNotIn('Net debt/equity', str(profile.prepare_profile_payload(TELEGRAM, '@u', 'T1')))
 
 	def test_a_profile_warns_of_a_ps_ratio_only_above_15(self):
+		"""The PS ratio line warns only above 15; the forward P/E's warning used to show on it too."""
 		for ps, warned in ((12.3, False), (15.1, True)): # forward P/E 99 warns (above 30): its warning used to show on the PS line too
 			with self.subTest(ps=ps):
 				self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'price_to_sales': ps, 'price_to_earnings_forward': 99, 'profile_industry': 'Tools'}})
@@ -187,9 +204,11 @@ class ReportFunctions(FinbotCase):
 				self.assertEqual('⚠️' in line, warned, line)
 
 	def test_prepare_watchlist(self):
+		"""The watchlist is listed."""
 		self.assertTrue(holdings.prepare_watchlist(TELEGRAM, '@u'))
 
 	def test_prepare_compare_usage(self):
+		""".compare with one ticker gets its usage."""
 		caption = history.prepare_compare(TELEGRAM, ['T1'])[0]
 		self.assertIn('Usage', ' '.join(caption))
 
@@ -198,18 +217,22 @@ class ScheduledReports(FinbotCase):
 	"""The cron entry points (non-interactive: they post to the default channel)."""
 
 	def test_price(self):
+		"""The scheduled price report posts."""
 		price.lambda_handler()
 		self.assertTrue(self.sent)
 
 	def test_performance(self):
+		"""The scheduled performance report posts."""
 		performance.lambda_handler(past_days=7)
 		self.assertTrue(self.sent)
 
 	def test_shorts(self):
+		"""The scheduled shorts report posts."""
 		shorts.lambda_handler()
 		self.assertTrue(self.sent)
 
 	def test_earnings_and_dividends(self):
+		"""The scheduled earnings and ex-dividend reports post."""
 		for kwargs in ({'event': 'earnings'}, {'event': 'ex-dividend'}):
 			with self.subTest(kwargs=kwargs):
 				self.sent.clear()
@@ -226,10 +249,12 @@ class ScheduledReports(FinbotCase):
 		self.assertNotIn('Co T1 ', str(self.sent))
 
 	def test_trades(self):
+		""".trades run from a chat posts."""
 		trades.lambda_handler(interactive=True, service='telegram', chat_id='5')
 		self.assertTrue(self.sent)
 
 	def test_trades_asks_yahoo_only_for_new_trades(self):
+		"""A scheduled trades run asks Yahoo only about trades it has not reported, and nothing once all are known."""
 		fetched = []
 		self.patch(yahoo, 'fetch', lambda tickers: fetched.append(set(tickers)) or {t: market_entry(t) for t in tickers})
 		trades.lambda_handler()
@@ -239,6 +264,7 @@ class ScheduledReports(FinbotCase):
 		self.assertEqual(fetched, [])
 
 	def test_a_scheduled_run_keeps_the_trades_another_run_recorded_meanwhile(self):
+		"""The seen trades are read again as the run ends, so a trade another run recorded meanwhile is kept."""
 		meanwhile = lambda tickers: state.save('finbot_sharesight_trades.json', [999]) or {t: market_entry(t) for t in tickers}
 		self.patch(yahoo, 'fetch', meanwhile) # called after the seen trades were read, before the new ones are recorded
 		trades.lambda_handler()
@@ -246,6 +272,7 @@ class ScheduledReports(FinbotCase):
 		self.assertEqual((known[0], len(known)), (999, 2))
 
 	def test_milestone(self):
+		"""The milestone report posts."""
 		milestone.lambda_handler()
 		self.assertTrue(self.sent)
 
@@ -274,16 +301,20 @@ class ScheduledReports(FinbotCase):
 				self.assertEqual('Record high' in str(self.sent), expected)
 
 	def test_a_52_week_record_kept_before_is_replaced_by_the_history(self):
+		"""A record kept in the old 52-week format is replaced by the history: no false record high."""
 		state.save('finbot_milestone.json', {f'T{i}': {'high': 110.0, 'low': 90.0} for i in range(25)})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
 		milestone.lambda_handler() # 120 beats the old 52-week record of 110, but not the history's 150
 		self.assertNotIn('Record high', str(self.sent))
 
 	def test_rating(self):
+		""".rating run from a chat posts."""
 		rating.lambda_handler(interactive=True, service='telegram', chat_id='5')
 		self.assertTrue(self.sent)
 
 	def test_rating_keeps_the_last_rating_of_a_ticker_missing_from_a_run(self):
+		"""A ticker missing from one run keeps its last rating, so its change is reported when it comes back; it used to
+		be dropped from the record."""
 		rating.lambda_handler() # records every ticker's rating
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1' else {t: market_entry(t)})
 		rating.lambda_handler() # no T1 this time: its rating used to be dropped from the record
@@ -293,6 +324,7 @@ class ScheduledReports(FinbotCase):
 		self.assertIn('Co T1 ', str(self.sent)) # so its change from buy to sell went unreported
 
 	def test_an_interactive_rating_records_nothing(self):
+		"""A rating report asked for in a chat leaves the record for the scheduled runs alone."""
 		rating.lambda_handler(interactive=True, service='telegram', chat_id='5')
 		self.assertIsNone(state.load('finbot_rating.json'))
 
@@ -306,6 +338,7 @@ class ScheduledReports(FinbotCase):
 		self.patch(webhook, 'sendPhoto', REAL_SEND_PHOTO)
 		posts = []
 		def post(url, **kwargs):
+			"""Record (host, whether a bot token was sent, the channel) and answer ok."""
 			posts.append((url.split('/')[2], 'Authorization' in kwargs.get('headers', {}), (kwargs.get('json') or {}).get('channel')))
 			return mock.Mock(status_code=200, json=lambda: {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 1}}})
 		self.patch(webhook.net, 'post', post)
@@ -317,6 +350,7 @@ class ScheduledReports(FinbotCase):
 				self.assertTrue(any(host == 'api.telegram.org' for host, _, _ in posts))
 
 	def test_nowhere_to_post_is_an_error(self):
+		"""A scheduled report with nowhere to post is an error that says so."""
 		self.env(webhooks={})
 		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
 			price.lambda_handler()
@@ -326,29 +360,35 @@ class PeriodButtons(FinbotCase):
 	"""Default views line up with the buttons: the highlighted button is the period actually shown."""
 
 	def buttons(self, command):
+		"""The labels of the period buttons a command's chart came with."""
 		self.command(command)
 		self.assertTrue(self.markups and self.markups[0], f'{command} sent no buttons')
 		return [b['text'] for b in self.markups[0]['inline_keyboard'][0]]
 
 	def test_performance_defaults_to_one_month(self):
+		""".performance shows a month, marked on its button, and says month, not 4 weeks."""
 		self.assertEqual(self.buttons('.performance'), ['7D', '● 1M', '3M', '1Y', 'Max'])
 		self.assertIn('month', self.sent[0][2]) # "Performance over the past month", not 4 weeks
 
 	def test_performance_period_argument_moves_the_marker(self):
+		"""A period on .performance moves the marker to its button."""
 		self.assertEqual(self.buttons('.performance 7d'), ['● 7D', '1M', '3M', '1Y', 'Max'])
 		self.assertEqual(self.buttons('.performance 1y'), ['7D', '1M', '3M', '● 1Y', 'Max'])
 
 	def test_price_list_has_a_1d_button_marked_by_default(self):
+		"""The price list offers 1D, marked by default, and a period moves the marker."""
 		self.assertEqual(self.buttons('.price'), ['● 1D', '7D', '1M', '3M', '1Y', 'Max'])
 		self.assertEqual(self.buttons('.price top'), ['● 1D', '7D', '1M', '3M', '1Y', 'Max'])
 		self.assertEqual(self.buttons('.price 1m'), ['1D', '7D', '● 1M', '3M', '1Y', 'Max'])
 
 	def test_other_charts_do_not_offer_1d(self):
+		"""Only the price list offers 1D."""
 		for command in ('.performance', '.compare T1 T2'):
 			with self.subTest(command=command):
 				self.assertNotIn('1D', [b.lstrip('● ') for b in self.buttons(command)])
 
 	def press(self, data):
+		"""Press a period button: (the edits made, the toasts shown)."""
 		edits, toasts = [], []
 		self.patch(webhook, 'editMessageMedia', lambda chat, msg, img, caption, markup=None: edits.append((caption.split('\n')[0], markup)))
 		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
@@ -356,6 +396,7 @@ class PeriodButtons(FinbotCase):
 		return edits, toasts
 
 	def test_pressing_1d_rebuilds_todays_list_and_moves_the_marker(self):
+		"""Pressing 1D shows a toast, rebuilds today's list in place and marks 1D."""
 		edits, toasts = self.press('c|l|d|3,0')
 		self.assertEqual(toasts, ['Loading 1D…'])
 		self.assertEqual(self.errors, [])
@@ -363,6 +404,7 @@ class PeriodButtons(FinbotCase):
 		self.assertEqual([b['text'] for b in edits[0][1]['inline_keyboard'][0]][0], '● 1D')
 
 	def test_a_button_a_chart_does_not_offer_is_ignored(self):
+		"""A button a chart does not offer, or an unknown period, changes nothing."""
 		edits, toasts = self.press('c|f|d|') # performance has no 1D
 		self.assertEqual((edits, toasts), ([], [None]))
 		edits, toasts = self.press('c|l|zz|3,0')
@@ -371,6 +413,8 @@ class PeriodButtons(FinbotCase):
 
 class Podcasts(FinbotCase):
 	def test_format_helpers(self):
+		"""Durations in any of the feed formats, how long ago, and dates without a zone taken as UTC; nonsense gives
+		nothing."""
 		from lib.reports import podcasts
 		self.assertEqual(podcasts.format_duration('3725'), '01:02')
 		self.assertEqual(podcasts.format_duration('1:02:03'), '01:02')
@@ -384,6 +428,7 @@ class Podcasts(FinbotCase):
 		"""A feed whose items mix dated and undated ones used to crash the sort (aware and naive times)."""
 		from lib.reports import podcasts
 		def item(n, date):
+			"""A feed item, its date optional."""
 			return f'<item><guid>g{n}</guid><title>Show: ep {n}</title><enclosure url="https://x/{n}.mp3"/>{date}<itunes:duration>600</itunes:duration></item>'
 		feed = ('<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel><title>Show</title>'
 				+ item(1, '<pubDate>Mon, 01 Jan 2024 00:00:00 +0000</pubDate>') + item(2, '') + item(3, '<pubDate>Tue, 02 Jan 2024 00:00:00 GMT</pubDate>')
@@ -399,8 +444,10 @@ class Podcasts(FinbotCase):
 
 class PieCommand(FinbotCase):
 	def setUp(self):
+		"""A portfolio of five holdings across three industries, one unclassified and one worth nothing."""
 		super().setUp()
 		def holdings(portfolio):
+			"""The five holdings, whatever the portfolio."""
 			data = [('A', 'Semiconductors', 'Electronic Technology', 500), ('B', 'Semiconductors', 'Electronic Technology', 300),
 					('C', 'Biotechnology', 'Health Technology', 200), ('D', None, None, 100), ('E', 'Gold', 'Minerals', 0)]
 			return {c + ':NASDAQ': {'code': c, 'market_code': 'NASDAQ', 'industry_classification_name': i,
@@ -408,17 +455,20 @@ class PieCommand(FinbotCase):
 		self.patch(sharesight.Portfolio, 'holdings', holdings)
 
 	def test_by_industry_default(self):
+		""".pie PORTFOLIO charts by industry."""
 		sent = self.command('.pie Rob')
 		self.assertEqual(sent[0][0], 'photo')
 		self.assertIn('Rob by industry', sent[0][2])
 
 	def test_by_sector_and_payload(self):
+		""".pie by sector: the slices in order, the unclassified ones together, worthless holdings left out."""
 		payload, chart = holdings.prepare_pie('rob', 'sector', TELEGRAM)
 		self.assertEqual([r[0] for r in chart['rows']], ['Electronic Technology', 'Health Technology', 'Unclassified'])
 		self.assertIn('Electronic Technology: 72.7%', payload) # 800 of 1100; zero-value Gold is left out
 		self.assertEqual(self.command('.pie Rob sector')[0][0], 'photo')
 
 	def test_folds_into_other_and_renders(self):
+		"""Over eight slices, the smallest fold into Other, and the chart draws."""
 		held = {f'T{i}:X': {'code': f'T{i}', 'industry_classification_name': f'Ind {i}', 'value': 100 - i} for i in range(12)}
 		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: held)
 		payload, chart = holdings.prepare_pie('Rob', 'industry', TELEGRAM)
@@ -427,13 +477,15 @@ class PieCommand(FinbotCase):
 		self.assertTrue(render.pie_chart(chart['rows'], chart['title'], chart['subtitle']).read().startswith(b'\x89PNG'))
 
 	def test_unknown_or_missing_portfolio_lists_known(self):
+		""".pie with no portfolio, or an unknown one, lists the portfolios there are."""
 		for text, first in (('.pie', '.pie: please try again'), ('.pie Nope', 'Nope portfolio not found')):
 			sent = self.command(text)
 			self.assertTrue(sent[0][1][0].startswith(first), text)
 			self.assertIn('Rob', sent[0][1])
 
 	def test_a_service_that_takes_no_images_gets_text(self):
-		self.env(slackBotToken=False) # Slack replies carry charts only with the bot token
+		"""Slack without the bot token takes no images: the report goes as text."""
+		self.env(slackBotToken=False)
 		worker.Request(SLACK, 'C1', '@u', 'U', BOT).deliver(['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
 		self.assertEqual(self.sent[-1][0], 'text')
 

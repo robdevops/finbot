@@ -24,17 +24,20 @@ MIXED = [('AAA', 42), ('BBB', 17), ('CCC', 3), ('', None), ('DDD', -5), ('EEE', 
 
 
 def decode(buf):
+	"""A PNG buffer as an RGB image."""
 	buf.seek(0)
 	return Image.open(buf).convert('RGB')
 
 
 def price_frame(days=120):
+	"""A made-up price history of `days` days, wavy and rising."""
 	dates = [datetime.date(2026, 1, 1) + datetime.timedelta(days=i) for i in range(days)]
 	closes = [100 + 12 * np.sin(i / 9) + i * 0.15 for i in range(days)]
 	return pd.DataFrame({'Date': dates, 'Close': closes})
 
 
 def compare_series():
+	"""Three made-up price series over the same 120 days, for the compare chart."""
 	index = pd.date_range('2026-01-01', periods=120)
 	return [(name, pd.Series(100 + np.cumsum(np.sin(np.arange(120) / k) + drift), index=index))
 			for name, k, drift in (('AAA', 7, 0.2), ('BBB', 11, -0.1), ('CCC', 5, 0.05))]
@@ -62,6 +65,8 @@ EDGE_ROWS = {
 
 class ImageSanity(unittest.TestCase):
 	def check_image(self, buf, name, bg=BG, edge_clean=True):
+		"""Fail unless buf is a 1280x800 PNG that is not blank, starts with the background, and (edge_clean) draws
+		nothing on its edges, where clipped text or bars would show."""
 		image = decode(buf)
 		self.assertEqual(image.size, (1280, 800), name)
 		pixels = np.asarray(image)
@@ -75,6 +80,7 @@ class ImageSanity(unittest.TestCase):
 		self.assertTrue((edge == bg).all(), f'{name}: something is drawn on the image edge (clipped text or bars?)')
 
 	def test_each_chart_type(self):
+		"""Every chart type draws a sane image."""
 		for name, make in CHARTS.items():
 			with self.subTest(chart=name):
 				if name == 'shorts':
@@ -83,17 +89,23 @@ class ImageSanity(unittest.TestCase):
 					self.check_image(make(), name)
 
 	def test_edge_case_rows(self):
+		"""Rows that have broken charts before (one row, all zero, forty rows, long labels, huge or tiny values) draw
+		sane images."""
 		for name, rows in EDGE_ROWS.items():
 			with self.subTest(rows=name):
 				self.check_image(render.hbar_chart(rows, 'Title', 'sub'), name)
 				self.check_image(render.rows_chart(rows, 'Title'), name + '/rows_chart')
 
 	def test_zoomed_axis(self):
+		"""A bar chart with a narrow x range (ratings from 1 to 5) draws sane images, wide labels and many rows
+		included."""
 		self.check_image(render.hbar_chart([('AAA', 1.2), ('BBB', 3.4)], 'Ratings', xlim=(0.9, 4.0)), 'zoomed')
 		self.check_image(render.hbar_chart([('WWWWWWWW', 1.2), ('MMM', 3.4)], 'Ratings', xlim=(0.9, 4.0)), 'zoomed wide labels')
 		self.check_image(render.hbar_chart([(f'T{i}', 1 + i / 10) for i in range(15)], 'Ratings', xlim=(0.9, 3.0)), 'zoomed 15 rows')
 
 	def test_shorts_chart_sizes_and_verdicts(self):
+		"""The shorts pictogram draws for 1 to 45 rows and a long label, and each tier of short interest gets its
+		verdict."""
 		for n in (1, 5, 45):
 			rows = [(f'T{i}', 60.0 - i) for i in range(n)]
 			self.check_image(render.shorts_chart(rows, 15), f'shorts {n} rows', bg=SHORTS_BG, edge_clean=False)
@@ -104,9 +116,11 @@ class ImageSanity(unittest.TestCase):
 		self.assertEqual([render.shorts_verdict(p) for p, _ in tiers], [name for _, name in tiers])
 
 	def test_bar_graph_has_top_and_bottom(self):
+		"""The top-and-bottom bar chart draws a sane image."""
 		self.check_image(render.bar_graph([('AAA', 9)], [('ZZZ', -9)], 'Top and bottom'), 'bar_graph')
 
 	def test_flat_and_tiny_price_series(self):
+		"""A flat price line and one of two points draw sane images."""
 		flat = pd.DataFrame({'Date': [datetime.date(2026, 1, 1) + datetime.timedelta(days=i) for i in range(10)], 'Close': [5.0] * 10})
 		self.check_image(render.graph(flat, 'Flat', 'USD'), 'flat price')
 		two = price_frame(2)
@@ -117,10 +131,13 @@ class RenderPool(unittest.TestCase):
 	"""The bot draws charts in one native thread (render.render_off_hub), so the gevent hub keeps serving while a chart is drawn."""
 
 	def setUp(self):
+		"""Draw in the render thread, as the bot does, for this test only."""
 		render.render_off_hub()
 		self.addCleanup(setattr, render, '_render_pool', None)
 
 	def test_charts_asked_for_at_once_all_finish(self):
+		"""Six charts asked for at once all finish: one render thread, since several deadlock matplotlib under
+		gevent."""
 		jobs = [gevent.spawn(render.pie_chart, [('a', 1.0), ('b', 2.0)], f't{i}') for i in range(4)]
 		jobs += [gevent.spawn(render.hbar_chart, MIXED, 'T'), gevent.spawn(render.rows_chart, MIXED, 'T')]
 		gevent.joinall(jobs, timeout=120)
@@ -128,8 +145,11 @@ class RenderPool(unittest.TestCase):
 		self.assertTrue(all(decode(job.value).size == (1280, 800) for job in jobs))
 
 	def test_the_hub_keeps_serving_while_a_chart_is_drawn(self):
+		"""While the shorts pictogram is drawn (about a second), other greenlets keep running: no gap over half a
+		second."""
 		gaps, done = [], []
 		def ticker():
+			"""Note the time between wake-ups until the chart is done."""
 			last = time.monotonic()
 			while not done:
 				gevent.sleep(0.01)
@@ -145,9 +165,11 @@ class RenderPool(unittest.TestCase):
 
 class Contracts(unittest.TestCase):
 	def capture_bars(self, rows, **kwargs):
+		"""The y positions, widths and colours hbar_chart hands to matplotlib for these rows."""
 		calls = []
 		real = Axes.barh
 		def spy(ax, y, width, *a, **k):
+			"""Record a barh call, then draw it."""
 			calls.append({'y': list(y), 'width': list(width), 'color': list(k.get('color', []))})
 			return real(ax, y, width, *a, **k)
 		with mock.patch.object(Axes, 'barh', spy):
@@ -155,9 +177,11 @@ class Contracts(unittest.TestCase):
 		return calls[0]
 
 	def capture_text(self, make):
+		"""Every text make() puts on the figure."""
 		texts = []
 		real = Figure.text
 		def spy(fig, x, y, s, *a, **k):
+			"""Record a text call, then draw it."""
 			texts.append(s)
 			return real(fig, x, y, s, *a, **k)
 		with mock.patch.object(Figure, 'text', spy):
@@ -165,10 +189,12 @@ class Contracts(unittest.TestCase):
 		return texts
 
 	def test_bars_are_blue_when_positive_and_red_when_negative(self):
+		"""Gains (and zero) are blue, losses red."""
 		bars = self.capture_bars([('A', 3), ('B', 0), ('C', -2)])
 		self.assertEqual(bars['color'], ['#3987e5', '#3987e5', '#fb7185'])
 
 	def test_first_row_is_on_top_and_spacers_are_skipped(self):
+		"""The first row is drawn at the top (the y axis is inverted), and a blank spacer row gets no bar."""
 		bars = self.capture_bars(MIXED)
 		self.assertEqual(bars['width'], [42, 17, 3, -5, -30])
 		self.assertEqual(bars['y'], [0, 1, 2, 4, 5]) # row 3 is the blank spacer
@@ -179,7 +205,9 @@ class Contracts(unittest.TestCase):
 		self.assertTrue(any(len(a) == 2 and a[0] > a[1] for a in calls), 'y axis must be inverted so row 0 is drawn first (top)')
 
 	def test_pixels_follow_the_sign_of_the_data(self):
+		"""The drawn image is blue for gains and red for losses, in proportion to the rows."""
 		def count(rows):
+			"""(blue pixels, red pixels) in the bar chart of rows."""
 			pixels = np.asarray(decode(render.hbar_chart(rows, 'T'))).reshape(-1, 3)
 			return (pixels == BLUE).all(axis=1).sum(), (pixels == RED).all(axis=1).sum()
 		blue, red = count([('A', 5), ('B', 3)])
@@ -190,6 +218,8 @@ class Contracts(unittest.TestCase):
 		self.assertGreater(blue, 1000); self.assertGreater(red, 1000)
 
 	def test_session_tints_the_background(self):
+		"""Mid-session tints the background a subtle green and pre-market a subtle yellow; at close and by default it
+		stays plain."""
 		corner = lambda session: tuple(np.asarray(decode(render.hbar_chart(MIXED, 'T', session=session)))[2, 2][:3])
 		plain, close, mid, pre = corner(None), corner('close'), corner('midsession'), corner('premarket')
 		self.assertEqual(plain, (0x14, 0x18, 0x1f))
@@ -199,12 +229,14 @@ class Contracts(unittest.TestCase):
 		self.assertLess(max(abs(int(a) - int(b)) for a, b in zip(pre, plain)), 20) # subtle
 
 	def test_longer_bar_is_drawn_longer(self):
+		"""A bar four times as long is drawn over twice as long."""
 		pixels = np.asarray(decode(render.hbar_chart([('A', 40), ('B', 10)], 'T')))
 		blue_rows = np.where((pixels == BLUE).all(axis=2).any(axis=1))[0]
 		top_band, bottom_band = pixels[blue_rows[0]], pixels[blue_rows[-1]]
 		self.assertGreater((top_band == BLUE).all(axis=1).sum(), 2 * (bottom_band == BLUE).all(axis=1).sum())
 
 	def test_titles_are_drawn(self):
+		"""The title and subtitle appear on the bar chart, and the title and period change on the price line."""
 		texts = self.capture_text(lambda: render.hbar_chart(MIXED, 'My Title', 'My subtitle'))
 		self.assertIn('My Title', texts)
 		self.assertIn('My subtitle', texts)
@@ -213,7 +245,9 @@ class Contracts(unittest.TestCase):
 		self.assertTrue(any('over period' in t for t in texts))
 
 	def test_price_line_colour_follows_direction(self):
+		"""The price line's change is green up, red down, grey flat."""
 		def line_colour(closes):
+			"""The colour of the 'over period' text for a price line of these closes."""
 			frame = pd.DataFrame({'Date': [datetime.date(2026, 1, 1) + datetime.timedelta(days=i) for i in range(len(closes))], 'Close': closes})
 			texts = []
 			real = Figure.text
@@ -229,9 +263,11 @@ class ReportChartInputs(FinbotCase):
 	"""What the reports hand to the chart: sort order, titles and dates, taken from the real report code."""
 
 	def run_report(self, call):
+		"""Run call() and return what it handed hbar_chart: rows, title and subtitle."""
 		captured = []
 		real = render.hbar_chart
 		def spy(rows, title, subtitle='', **kw):
+			"""Record a chart's inputs, then draw it."""
 			captured.append({'rows': list(rows), 'title': title, 'subtitle': subtitle})
 			return real(rows, title, subtitle, **kw)
 		self.patch(render, 'hbar_chart', spy)
@@ -240,6 +276,8 @@ class ReportChartInputs(FinbotCase):
 		return captured[0]
 
 	def test_price_top_lists_best_first_then_worst(self):
+		""".price top: the ten best, best first, a spacer, then the ten worst, worst first, as the caption lists
+		them."""
 		chart = self.run_report(lambda: self.command('.price top 7d'))
 		values = [v for _, v in chart['rows'] if v is not None]
 		top, bottom = values[:10], values[10:]
@@ -249,24 +287,29 @@ class ReportChartInputs(FinbotCase):
 		self.assertIn(None, [v for _, v in chart['rows']]) # spacer between the two lists
 
 	def test_price_threshold_chart_is_sorted_and_titled_with_the_threshold(self):
+		""".price 5%: the chart is sorted best first and its title names the threshold."""
 		chart = self.run_report(lambda: self.command('.price 5%'))
 		values = [v for _, v in chart['rows'] if v is not None]
 		self.assertEqual(values, sorted(values, reverse=True))
 		self.assertIn('5', chart['title'])
 
 	def test_price_over_a_period_has_a_dated_title(self):
+		""".price 7d: the chart's title gives the dates covered."""
 		chart = self.run_report(lambda: self.command('.price 7d'))
 		self.assertRegex(chart['title'], r'\d{1,2} \w{3} - \d{1,2} \w{3} \d{4}') # 28 Sep - 5 Oct 2026
 
 	def test_performance_is_sorted_by_percent(self):
+		""".performance 7d: the chart is sorted best first."""
 		chart = self.run_report(lambda: self.command('.performance 7d'))
 		values = [v for _, v in chart['rows'] if v is not None]
 		self.assertEqual(values, sorted(values, reverse=True))
 
 	def test_shorts_is_sorted_and_carries_the_threshold(self):
+		""".shorts: the pictogram gets the stocks over the threshold, most shorted first, and the threshold."""
 		captured = []
 		real = render.shorts_chart
 		def spy(rows, threshold, *a, **k):
+			"""Record the pictogram's inputs, then draw it."""
 			captured.append((list(rows), threshold))
 			return real(rows, threshold, *a, **k)
 		self.patch(render, 'shorts_chart', spy)
@@ -285,9 +328,12 @@ class GoldenImages(unittest.TestCase):
 
 	@staticmethod
 	def thumb(image):
+		"""The 160x100 thumbnail that is compared, and stored as the golden image."""
 		return image.resize((160, 100), Image.LANCZOS) # goldens are stored at this size too: a few KB each, not 100 KB
 
 	def check(self, name):
+		"""Compare a chart type's thumbnail with its golden image (or write the golden with UPDATE_GOLDEN=1, or when
+		there is none)."""
 		thumb = self.thumb(decode(CHARTS[name]()))
 		path = os.path.join(GOLDEN, name + '.png')
 		if os.environ.get('UPDATE_GOLDEN') or not os.path.exists(path):
@@ -300,10 +346,21 @@ class GoldenImages(unittest.TestCase):
 		self.assertLess(diff, self.TOLERANCE, f'{name} no longer matches tests/golden/{name}.png (diff {diff:.2f}). '
 						f'If the change is intended, run: UPDATE_GOLDEN=1 python -m unittest tests.test_charts')
 
-	def test_hbar_mixed(self): self.check('hbar_mixed')
-	def test_price_line(self): self.check('price_line')
-	def test_shorts(self): self.check('shorts')
-	def test_compare_lines(self): self.check('compare_lines')
+	def test_hbar_mixed(self):
+		"""The bar chart, gains and losses with a spacer, matches its golden image."""
+		self.check('hbar_mixed')
+
+	def test_price_line(self):
+		"""The price line matches its golden image."""
+		self.check('price_line')
+
+	def test_shorts(self):
+		"""The shorts pictogram matches its golden image."""
+		self.check('shorts')
+
+	def test_compare_lines(self):
+		"""The compare chart matches its golden image."""
+		self.check('compare_lines')
 
 
 if __name__ == '__main__':

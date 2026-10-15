@@ -15,6 +15,7 @@ class UpstreamEmpty(FinbotCase):
 	ONE_LINE_ERROR = ('.history T1', '.compare T1 T2') # these say so with a single error line when the ticker has no data
 
 	def run_all(self):
+		"""Run every command in COMMANDS: none may crash, and .history and .compare may say so in one error line."""
 		for cmd in COMMANDS:
 			with self.subTest(cmd=cmd):
 				if cmd in self.ONE_LINE_ERROR:
@@ -25,12 +26,15 @@ class UpstreamEmpty(FinbotCase):
 					self.command(cmd)
 
 	def test_yahoo_returns_empty_dict(self):
+		"""Yahoo answers with no data at all: every command still replies sanely."""
 		self.patch(yahoo, 'fetch', lambda ts: {})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {})
 		self.run_all()
 
 	def test_yahoo_raises(self):
+		"""Yahoo is down: each command reports one error line, not a traceback."""
 		def down(*a, **k):
+			"""Fail like Yahoo when it is unreachable."""
 			raise RuntimeError('Yahoo API unavailable')
 		for name in ('fetch', 'fetch_detail', 'price_series'):
 			self.patch(yahoo, name, down)
@@ -42,7 +46,9 @@ class UpstreamEmpty(FinbotCase):
 				self.assertTrue(self.errors[0].startswith('⚠️'))
 
 	def test_sharesight_down_is_reported_once(self):
+		"""Sharesight is down: .performance reports one error line."""
 		def down(*a, **k):
+			"""Fail like Sharesight when it errors."""
 			raise RuntimeError('Sharesight performance error: boom')
 		self.patch(sharesight, 'get_performance', down)
 		self.patch(sharesight, 'get_portfolios', down)
@@ -51,7 +57,9 @@ class UpstreamEmpty(FinbotCase):
 		self.assertEqual(len(self.errors), 1)
 
 	def test_a_failed_command_stops_typing_before_saying_why(self):
+		"""A command that fails stops its typing indicator before the error line goes out."""
 		def down(*a, **k):
+			"""Fail like Sharesight when it errors."""
 			raise RuntimeError('Sharesight performance error: boom')
 		self.patch(sharesight, 'get_portfolios', down)
 		typing_when_reported = []
@@ -60,6 +68,7 @@ class UpstreamEmpty(FinbotCase):
 		self.assertEqual(typing_when_reported, [[False]]) # its one indicator had stopped when the error line went out
 
 	def test_no_holdings_and_empty_watchlist(self):
+		"""With nothing held and nothing watched, the watchlist, price and earnings commands still answer."""
 		self.patch(watchlist, 'with_holdings', lambda: [])
 		for cmd in ('.watchlist', '.price', '.earnings'):
 			with self.subTest(cmd=cmd):
@@ -68,6 +77,7 @@ class UpstreamEmpty(FinbotCase):
 
 class WatchlistActions(FinbotCase):
 	def test_add_duplicate_delete_and_unknown_action(self):
+		"""Add, add again (said differently), remove, and an unknown action is refused by name."""
 		add = self.command('.watchlist add MSFT')
 		self.assertTrue(add)
 		self.assertEqual(state.load('finbot_watchlist.json'), ['MSFT'])
@@ -79,6 +89,7 @@ class WatchlistActions(FinbotCase):
 		self.assertIn('not a valid watchlist action', str(self.command('.watchlist frobnicate MSFT')))
 
 	def test_a_bare_symbol_yahoo_does_not_know_is_tried_on_the_asx(self):
+		"""A symbol Yahoo does not know is added as its ASX listing, once; a ticker with a market is not retried."""
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if t.endswith('.AX')})
 		self.assertIn('so I added', str(self.command('.watchlist add BHP')))
 		self.assertIn('already tracking', str(self.command('.watchlist add BHP')))
@@ -86,8 +97,10 @@ class WatchlistActions(FinbotCase):
 		self.assertEqual(watchlist.tickers(), ['BHP.AX'])
 
 	def test_two_chats_adding_at_once_both_count(self):
-		# Yahoo is asked before the file is opened: both adds used to read the list, wait on Yahoo, and the later write won
+		"""Two chats adding at once both count: Yahoo is asked before the file is opened, where both adds used to read
+		the list, wait on Yahoo, and the later write won."""
 		def slow_fetch(tickers):
+			"""A Yahoo that takes its time, so the two adds overlap."""
 			time.sleep(0.01)
 			return {t: market_entry(t) for t in tickers}
 		self.patch(yahoo, 'fetch', slow_fetch)
@@ -99,6 +112,8 @@ class WatchlistActions(FinbotCase):
 		self.assertEqual(sorted(watchlist.tickers()), ['T1', 'T2'])
 
 	def test_removing_a_ticker_yahoo_no_longer_knows(self):
+		"""A ticker Yahoo no longer knows can still be removed, and is said to be; removing it again says it is not
+		there."""
 		state.save('finbot_watchlist.json', ['GONE', 'T1'])
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if t != 'GONE'})
 		self.assertIn('I deleted', str(self.command('.watchlist rm GONE')))
@@ -108,12 +123,15 @@ class WatchlistActions(FinbotCase):
 
 class BadArguments(FinbotCase):
 	def test_compare_argument_errors_give_usage(self):
+		""".compare with too few or too many tickers, or one twice, gets its usage."""
 		for cmd in ('.compare', '.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7', '.compare T1 T1'):
 			with self.subTest(cmd=cmd):
 				self.assertIn('Usage', str(self.command(cmd)))
 
 	def test_compare_with_a_ticker_that_has_no_history(self):
+		""".compare with a ticker that has no history reports one error line."""
 		def no_history(t):
+			"""Fail like Yahoo for a ticker with no price history."""
 			raise RuntimeError(f'no price history for {t}')
 		self.patch(yahoo, 'price_series', no_history)
 		self.sent.clear(); self.errors.clear()
@@ -121,34 +139,42 @@ class BadArguments(FinbotCase):
 		self.assertEqual(len(self.errors), 1)
 
 	def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
+		""".history with no ticker, or with an extra argument, gets its usage, not the profile of a ticker called
+		HISTORY."""
 		self.assertEqual(self.command('.history'), [('text', ['Usage: .history SYMBOL'])]) # not the profile of a ticker called HISTORY
 		self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history SYMBOL'])])
 
 
 class PortfolioNames(FinbotCase):
 	def test_an_unknown_portfolio_gets_the_same_answer_everywhere(self):
+		"""An unknown portfolio name gets the same answer from .trades, .performance, .holdings and .pie: the portfolios
+		there are."""
 		for cmd in ('.trades 7d Nope', '.performance Nope', '.holdings Nope', '.pie Nope'):
 			with self.subTest(cmd=cmd): # it used to be a ValueError, "no Sharesight data found", or two wordings of this
 				self.assertEqual(self.command(cmd), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
 
 	def test_a_portfolio_name_in_any_case(self):
+		"""A portfolio's name is matched in any case."""
 		holding = {'code': 'T1', 'market_code': 'NASDAQ', 'name': 'Co T1', 'holding_id': 1}
 		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: {'T1:NASDAQ': holding})
 		self.assertIn('Holdings for Rob (1)', str(self.command('.holdings rob')))
 
 	def test_trades_with_no_buy_or_sell_still_get_an_answer(self):
+		""".trades with only dividends says there were no trades (it used to say nothing)."""
 		self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{'id': 2, 'transaction_type': 'DIVIDEND', 'portfolio': name}])
 		self.assertIn('No trades', str(self.command('.trades 7d'))) # it used to say nothing at all
 
 
 class CommandArguments(FinbotCase):
 	def test_period_and_portfolio_in_either_order(self):
+		"""A period and a portfolio name, of several words too, come in either order, and either may be left out."""
 		for text, expected in (('', (30, None)), ('7d', (7, None)), ('Rob', (30, 'Rob')), ('7d Rob', (7, 'Rob')), ('Rob 7d', (7, 'Rob')),
 							   ('My Portfolio', (30, 'My Portfolio')), ('My Portfolio 3m', (90, 'My Portfolio')), ('Rob ', (30, 'Rob'))):
 			with self.subTest(text=text):
 				self.assertEqual(worker.period_and_portfolio(text, 30), expected)
 
 	def test_a_percentage_is_a_number_and_nan_a_ticker(self):
+		"""A number, with or without %, is a threshold; nan and inf are tickers."""
 		for arg, expected in (('', (5, None)), ('2.5', (2.5, None)), ('3%', (3.0, None)), ('T1', (5, 'T1')), ('nan', (5, 'NAN')), ('inf', (5, 'INF'))):
 			with self.subTest(arg=arg):
 				self.assertEqual(worker.percent_or_ticker(arg, 5), expected)
@@ -161,13 +187,16 @@ class CommandArguments(FinbotCase):
 		self.assertIn('Price movement 5%', str(self.command('.price 7d')))
 
 	def test_top_is_gone(self):
+		""".top is a ticker now, like any word: the command is .price top."""
 		self.assertIn('Co TOP', str(self.command('.top 7d'))) # .price top 7d is the command; .top is a ticker now, like any word
 
 	def test_a_ratio_command_reads_its_ticker_as_the_other_commands_do(self):
+		""".pe t1 reads its ticker in any case, and a trailing space after top is fine."""
 		self.assertIn('Co T1 ', str(self.command('.pe t1')))
 		self.assertIn('Top 15 tracked stocks by pe ratio', str(self.command('.pe top '))) # trailing space and all
 
 	def test_hello_leaves_the_word_list_as_it_was(self):
+		""".hello greets with a verb (not a tuple of them) and leaves the word list alone; 'hi' needs the bot's name."""
 		before = list(words.verb)
 		for _ in range(30):
 			line = self.command('.hello')[0][1][0]
@@ -181,6 +210,7 @@ class WsgiRejections(FinbotCase):
 	SECRET = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
 
 	def request(self, path='/telegram', body=None, headers=None):
+		"""(the body, the status) the WSGI handler answers a request with."""
 		body = body if isinstance(body, bytes) else json.dumps(body if body is not None else {}).encode()
 		env = {'PATH_INFO': path, 'wsgi.input': io.BytesIO(body), **(headers or {})}
 		status = []
@@ -189,21 +219,26 @@ class WsgiRejections(FinbotCase):
 		return b''.join(out), status[-1]
 
 	def test_telegram_requires_the_secret_header(self):
+		"""A Telegram update without the secret header, or with a wrong one, is refused and not processed."""
 		message = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'text': '.help'}}
 		self.assertIn(b'Unauthorized', self.request(body=message)[0])
 		self.assertIn(b'Unauthorized', self.request(body=message, headers={'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'wrong'})[0])
 		self.assertEqual(self.sent, []) # nothing was processed
 
 	def test_unknown_path_is_404(self):
+		"""An unknown path is 404."""
 		self.assertEqual(self.request(path='/nope')[1], '404 Not Found')
 
 	def test_malformed_body_is_refused_not_a_crash(self):
+		"""A body that is not a JSON object is 400 once authenticated, and turned away unread before that."""
 		self.assertEqual(self.request(body=b'not json')[1], '403 Forbidden') # no secret: turned away before the body is read
 		for body in (b'not json', b'', b'[1, 2]', b'7'):
 			self.assertEqual(self.request(body=body, headers=self.SECRET)[1], '400 Bad Request', body)
 		self.assertEqual(self.errors, [])
 
 	def test_strangers_cannot_post_into_the_chats(self):
+		"""Requests from strangers (wrong paths, no or wrong secrets, malformed bodies) are refused, and nothing reaches
+		the chats."""
 		self.env(slackOutgoingWebhook='https://example.com/slack')
 
 		self.env(slackOutgoingToken='stok')
@@ -218,7 +253,9 @@ class WsgiRejections(FinbotCase):
 		self.assertEqual(self.sent, [])
 
 	def test_a_failure_before_authentication_is_only_logged(self):
+		"""A failure while routing, before authentication, is logged and answered 500, never posted to the chats."""
 		def broken(*a, **k):
+			"""Fail while routing."""
 			raise RuntimeError('boom')
 		self.patch(bot, 'urlparse', broken) # fails while routing, before the secret is even looked at
 		env = {'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(b'{}'), **self.SECRET}
@@ -229,12 +266,15 @@ class WsgiRejections(FinbotCase):
 		self.assertIn('boom', err.getvalue())
 
 	def test_a_failure_after_authentication_is_reported_once_and_not_retried(self):
+		"""A failure on an authenticated update is reported once and answered 200, so Telegram does not send it
+		again."""
 		broken = {'message': {'message_id': 1, 'from': {'first_name': 'A'}, 'text': '.help'}} # no chat
 		self.assertEqual(self.request(body=broken, headers=self.SECRET)[1], '200 OK') # a retry would only fail and report again
 		self.assertEqual(len(self.errors), 1)
 		self.assertIn("KeyError: 'chat'", self.errors[0])
 
 	def test_telegram_edge_updates(self):
+		"""Edits, button presses without a message, and messages without text are answered and left alone."""
 		secret = self.SECRET
 		self.assertEqual(self.request(body={'edited_message': {}}, headers=secret)[0], b'Unsupported')
 		self.assertEqual(self.request(body={'callback_query': {'id': '1'}}, headers=secret)[0], b'Unsupported')
@@ -242,6 +282,7 @@ class WsgiRejections(FinbotCase):
 		self.assertIn(b'Unhandled', self.request(body=odd, headers=secret)[0])
 
 	def test_a_telegram_update_sent_again_runs_once(self):
+		"""An update Telegram sends again runs once."""
 		calls = []
 		self.patch(worker, 'process_request', lambda *a: calls.append(a))
 		body = {'update_id': 7, 'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'text': '.price'}}
@@ -251,6 +292,7 @@ class WsgiRejections(FinbotCase):
 		self.assertEqual(len(calls), 1)
 
 	def test_button_presses_are_logged(self):
+		"""A button press is logged with who pressed it (handle, first name or unknown), the chat and the button."""
 		calls = []
 		self.patch(worker, 'process_callback', lambda *a: calls.append(a))
 		secret = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
@@ -266,6 +308,7 @@ class SlackEvents(FinbotCase):
 	"""Slack sends every message in a subscribed channel, the bot's own posts included."""
 
 	def setUp(self):
+		"""Slack commands configured, and the worker replaced by a list of what it would have run."""
 		super().setUp()
 		self.env(slackOutgoingWebhook='https://example.com/slack')
 
@@ -275,6 +318,7 @@ class SlackEvents(FinbotCase):
 		self.patch(worker, 'process_request', lambda *a: self.requests.append(a))
 
 	def event(self, event_id=None, **event):
+		"""Post a Slack message event to the WSGI handler and return the status."""
 		body = json.dumps({'token': 'stok', 'type': 'event_callback', 'authorizations': [{'user_id': 'UBOT'}], 'event_id': event_id,
 			'event': dict({'type': 'message', 'channel': 'C1', 'ts': '1.2'}, **event)}).encode()
 		status = []
@@ -284,6 +328,8 @@ class SlackEvents(FinbotCase):
 		return status[-1]
 
 	def test_only_people_are_answered(self):
+		"""Messages from bots, this bot included, joins, edits and events without a user are not answered; people's
+		messages are, with mentions turned into @names."""
 		for event in ({'subtype': 'bot_message', 'bot_id': 'B1', 'text': "⚠️ /slack: KeyError: 'user'"}, # a webhook report
 					  {'user': 'UBOT', 'bot_id': 'B2', 'text': '.holdings: Please try again'}, # this bot's own reply
 					  {'user': 'UBOT', 'text': '.holdings'},
@@ -299,12 +345,14 @@ class SlackEvents(FinbotCase):
 						 [('slack', 'C1', '<@U1>', '.price @UBOT', '@UBOT'), ('slack', 'C1', '<@U2>', '.trades', '@UBOT')])
 
 	def test_a_retried_event_runs_once(self):
+		"""An event Slack sends again (same event_id) runs once."""
 		for _ in range(2): # Slack resends an event it got no answer to within 3 seconds, with the same event_id
 			self.assertEqual(self.event('Ev1', user='U1', text='.price'), '200 OK')
 		self.assertEqual(self.event('Ev2', user='U1', text='.price'), '200 OK')
 		self.assertEqual(len(self.requests), 2)
 
 	def test_slack_does_not_change_the_telegram_bot_name(self):
+		"""A Slack event leaves the Telegram bot's name alone."""
 		self.patch(bot, 'botName', '@finbot_tg')
 		self.event(user='U1', text='.price')
 		self.assertEqual(bot.botName, '@finbot_tg')
@@ -315,6 +363,7 @@ class UserTextIsEscaped(FinbotCase):
 	refuse that reply and every .plan reply after it."""
 
 	def test_a_plan_is_shown_as_text(self):
+		"""A .plan entry is shown as text on Telegram and on Slack, escaped once, and a Slack mention stays markup."""
 		reply = self.command('.plan buy <cheap> & hold')[0][1]
 		self.assertIn('<i>buy &lt;cheap&gt; &amp; hold</i>', reply[0])
 		self.assertEqual(self.command('.plan')[0][1], reply) # and the same way again
@@ -326,6 +375,7 @@ class UserTextIsEscaped(FinbotCase):
 		self.assertIn('_buy &lt;cheap&gt; &amp; hold_', text)
 
 	def test_a_telegram_name_is_escaped_where_it_arrives(self):
+		"""A Telegram first name is escaped as the update arrives, in the handle and the name."""
 		requests = []
 		self.patch(worker, 'process_request', lambda *a: requests.append(a))
 		body = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A<b>&'}, 'text': '.hello'}}
@@ -341,13 +391,16 @@ class SecretsStayOutOfLogs(FinbotCase):
 	SECRET_URL = 'https://api.telegram.org/bot123456:SECRET-tok_en/sendMessage?chat_id=1'
 
 	def stderr_of(self, call):
+		"""What call() writes to stderr."""
 		err = io.StringIO()
 		with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
 			call()
 		return err.getvalue()
 
 	def test_a_failed_send_logs_no_token(self):
+		"""A failed send logs no Telegram token, Slack webhook path or bot token."""
 		def refuse(url, **kwargs):
+			"""Fail like requests does, the URL and headers in the message."""
 			raise ConnectionError(f"Max retries exceeded with url: {url} (headers {kwargs.get('headers')})")
 		self.patch(webhook.net, 'post', refuse)
 		self.env(slackBotToken='xoxb-SECRET')
@@ -359,6 +412,7 @@ class SecretsStayOutOfLogs(FinbotCase):
 			self.assertNotIn(secret, log)
 
 	def test_the_traceback_of_a_reported_error_is_redacted(self):
+		"""The traceback logged with a reported error is redacted."""
 		self.patch(webhook, 'report_error', REAL_REPORT_ERROR)
 		self.patch(webhook, 'write', lambda *a, **k: None)
 		try:
@@ -386,6 +440,7 @@ class StartupSignals(unittest.TestCase):
 	"""A reload (SIGHUP) that arrives while the bot is still starting must not kill it."""
 
 	def test_sighup_during_startup_is_ignored_and_works_afterwards(self):
+		"""A SIGHUP while bot.py starts is ignored, where its default action would kill it; once serving, it reloads."""
 		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
 			env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS}
@@ -414,6 +469,8 @@ class StartupSignals(unittest.TestCase):
 			self.assertIn('reload requested but', ''.join(lines))
 
 	def test_usr1_flushes_the_cache_and_keeps_the_state(self):
+		"""SIGUSR1 is ignored during startup; once serving, it deletes the cache files but not a write in flight,
+		matplotlib's cache or the state."""
 		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
 			cache = Path(data, 'cache')
