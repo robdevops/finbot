@@ -86,7 +86,8 @@ class ReportFunctions(FinbotCase):
 
 	def test_a_portfolio_with_no_holdings_is_reported_by_name(self):
 		"""Its name used to be read from its first holding: an empty portfolio crashed .performance."""
-		self.patch(sharesight, 'get_performance', lambda pid, d, *a: {'report': {'holdings': [], 'capital_gain_percent': '0.0'}})
+		self.patch(sharesight, '_performance', lambda pid, days=None, seconds=None:
+			{'holdings': [], 'capital_gain_percent': '0.0'})
 		payload, _ = performance.report(TELEGRAM, 7)
 		self.assertTrue(any('>Rob</a>' in line for line in payload), payload)
 
@@ -322,8 +323,8 @@ class ScheduledReports(FinbotCase):
 	def test_a_trade_is_in_its_market_currency_not_the_brokerage_one(self):
 		"""A NASDAQ trade is in US dollars, though Yahoo names the exchange NasdaqGS and the broker charges in
 		Australian dollars (it used to say AUD)."""
-		self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{'id': 1, 'transaction_type': 'BUY',
-			'symbol': 'T1', 'market': 'NASDAQ', 'portfolio': name, 'transaction_date': time.strftime('%Y-%m-%d'),
+		self.patch(sharesight, '_trades', lambda pid, days=None: [{'id': 1, 'transaction_type': 'BUY',
+			'symbol': 'T1', 'market': 'NASDAQ', 'transaction_date': time.strftime('%Y-%m-%d'),
 			'quantity': '10', 'price': '5.0', 'value': '50', 'brokerage_currency_code': 'AUD', 'holding_id': 7}])
 		self.assertIn(' USD 50 ', self.command('.trades')[0][1][-1])
 

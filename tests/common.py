@@ -16,7 +16,7 @@ from lib.reports import about, cal, history, holdings, milestone, performance, p
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),
 	(yahoo, 'price_history'), (yahoo, 'historic_high'),
-	(sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'))}
+	(sharesight, '_portfolios'), (sharesight, '_trades'), (sharesight, '_performance'))}
 REAL_GET_HOLDINGS = watchlist.with_holdings
 REAL_TEXT = transports.Transport.text # FinbotCase replaces it with a recorder; tests of the real thing put it back
 REAL_CHART = transports.Transport.chart # likewise
@@ -104,11 +104,11 @@ class FinbotCase(unittest.TestCase):
 		self.patch(shortman, 'fetch', lambda md: md)
 		held = [{'id': i, 'instrument': {'code': t, 'market_code': 'NASDAQ'}, 'portfolio': {'name': 'Rob'},
 					 'capital_gain_percent': str(i * 4 - 40), 'value': '1000'} for i, t in enumerate(TICKERS)]
-		self.patch(sharesight, 'get_portfolios', lambda: {'Rob': 1})
-		self.patch(sharesight, 'get_performance', lambda pid, d, *a: {'report': {
-			'holdings': held, 'currency_gain_percent': '0', 'capital_gain_percent': '2.5', 'total_gain_percent': '0'}})
-		self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{
-			'id': 1, 'transaction_type': 'BUY', 'symbol': 'T1', 'market': 'NASDAQ', 'portfolio': name,
+		self.patch(sharesight, '_portfolios', lambda seconds=None: [{'name': 'Rob', 'id': 1}])
+		self.patch(sharesight, '_performance', lambda pid, days=None, seconds=None: {
+			'holdings': held, 'currency_gain_percent': '0', 'capital_gain_percent': '2.5', 'total_gain_percent': '0'})
+		self.patch(sharesight, '_trades', lambda pid, days=None: [{
+			'id': 1, 'transaction_type': 'BUY', 'symbol': 'T1', 'market': 'NASDAQ',
 			'transaction_date': time.strftime('%Y-%m-%d'), 'quantity': '10', 'price': '5.0', 'value': '50', 'brokerage_currency_code': 'USD', 'holding_id': 7}])
 		self.typing = [] # every chat a test starts a typing notice in; none may still be sending it when the test ends
 		noted = lambda chat: self.typing.append(chat) or REAL_START_TYPING(chat)

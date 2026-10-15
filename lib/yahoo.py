@@ -117,17 +117,6 @@ def _convert(convert, value):
 	except (TypeError, ValueError, OverflowError):
 		return None
 
-def _cached(name, seconds, get, *args):
-	"""get(*args), Yahoo's answer as sent: from the cache file `name` while it is under `seconds` old (cache_seconds
-	when None) and the cache preference is on, else fetched and written there unless empty. Cached raw, not parsed, so
-	that a parser fix needs no flush."""
-	if config.prefs.cache and (cached := cache.read(name, seconds)):
-		return cached
-	data = get(*args)
-	if data and config.prefs.cache:
-		cache.write(name, data)
-	return data
-
 QUOTE_FIELDS = ( # (key, Yahoo's name, conversion) for the fields of a v7 quote; one Yahoo leaves out, sends as null or garbles is left out
 	('percent_change', 'regularMarketChangePercent', _round2),
 	('dividend', 'trailingAnnualDividendRate', lambda v: round(float(v), 1)),
@@ -153,7 +142,7 @@ def fetch(tickers):
 		return {}
 	tickers = sorted(set(tickers)) # de-dupe
 	name = "finbot_yahoo_quote_" + hashlib.sha256("_".join(tickers).encode()).hexdigest() + '.json'
-	data = _cached(name, 300, _quote_answer, tickers)
+	data = cache.cached(name, 300, lambda: _quote_answer(tickers))
 	if data is None:
 		print("Yahoo has no quotes for", ', '.join(tickers), file=sys.stderr)
 		return {} # callers iterate the result
@@ -225,7 +214,7 @@ def fetch_detail(ticker, seconds=None):
 	"""One ticker's quoteSummary: {ticker: {...}}, cached `seconds` (or cache_seconds); {} for a symbol Yahoo does not
 	know, or without a name or price. Raises RuntimeError when Yahoo cannot be reached or refuses."""
 	now = datetime.datetime.now()
-	data = _cached("finbot_yahoo_detail_" + ticker + '.json', seconds, _detail_answer, ticker)
+	data = cache.cached("finbot_yahoo_detail_" + ticker + '.json', seconds, lambda: _detail_answer(ticker))
 	result = dig(data, 'quoteSummary', 'result', 0)
 	if result is None: # Yahoo answers 404 Not Found, or result=null, for a symbol it does not know
 		print(ticker, "is unknown to Yahoo", file=sys.stderr)
@@ -454,7 +443,7 @@ def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
 	"""Yahoo's daily chart for the last `days`, or with full=True its entire history (cached separately). Raises NoData
 	for a symbol Yahoo does not know, RuntimeError when Yahoo cannot be reached or refuses."""
 	name = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
-	return _cached(name, seconds, _chart_answer, ticker, days, full)
+	return cache.cached(name, seconds, lambda: _chart_answer(ticker, days, full))
 
 def _chart_answer(ticker, days, full):
 	"""The v8 chart answer: daily bars of the last `days`, or all with full=True. Raises as fetch_chart_json does."""

@@ -31,10 +31,9 @@ def gather(specific_stock=None, days=None):
 	# Sharesight reports a holding's performance only for the time it was held: held for 1Y and asked for 5Y, it gives 1Y
 	if not specific_stock or config.prefs.performance_use_sharesight:
 		for portfolio in sharesight.portfolios():
-			for holding in portfolio.performance(days)['report']['holdings']:
-				ticker = markets.transform_to_yahoo(holding['instrument']['code'], holding['instrument']['market_code'])
+			for ticker, gain in portfolio.gains(days).items():
 				if ticker in market_data:
-					market_data[ticker]['percent_change_period'] = float(holding['capital_gain_percent'])
+					market_data[ticker]['percent_change_period'] = gain
 				elif ticker in tickers:
 					print("Notice: price.py:", ticker, "has no data", file=sys.stderr)
 	if config.prefs.performance_use_sharesight:

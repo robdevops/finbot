@@ -48,8 +48,8 @@ class UpstreamEmpty(FinbotCase):
 		def down(*a, **k):
 			"""Fail like Sharesight when it errors."""
 			raise RuntimeError('Sharesight performance error: boom')
-		self.patch(sharesight, 'get_performance', down)
-		self.patch(sharesight, 'get_portfolios', down)
+		self.patch(sharesight, '_performance', down)
+		self.patch(sharesight, '_portfolios', down)
 		self.sent.clear(); self.errors.clear()
 		worker.process_request('telegram', '55', '@u', '.performance 7d', BOT, 'U')
 		self.assertEqual(len(self.errors), 1)
@@ -60,7 +60,7 @@ class UpstreamEmpty(FinbotCase):
 		def down(*a, **k):
 			"""Fail like Sharesight when it errors."""
 			raise RuntimeError('Sharesight performance error: boom')
-		self.patch(sharesight, 'get_performance', down)
+		self.patch(sharesight, '_performance', down)
 		self.patch(delivery, 'report_error', REAL_REPORT_ERROR)
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
@@ -183,7 +183,7 @@ class PortfolioNames(FinbotCase):
 
 	def test_trades_with_no_buy_or_sell_still_get_an_answer(self):
 		""".trades with only dividends says there were no trades (it used to say nothing)."""
-		self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{'id': 2, 'transaction_type': 'DIVIDEND', 'portfolio': name}])
+		self.patch(sharesight, '_trades', lambda pid, days=None: [{'id': 2, 'transaction_type': 'DIVIDEND'}])
 		self.assertIn('No trades', str(self.command('.trades 7d'))) # it used to say nothing at all
 
 

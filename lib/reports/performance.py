@@ -13,14 +13,9 @@ from lib import buttons
 BENCHMARKS = (('SPY', 'NYSEARCA', 'S&P 500'), ('QQQ', 'NasdaqGM', 'NASDAQ 100'))
 
 def gather(past_days, portfolio_select=None):
-	"""{portfolio id: (its name, Sharesight's performance report over past_days)} of every portfolio, or of the one named (in any
-	case). Raises sharesight.PortfolioNotFound for a name that is none of them, and RuntimeError when there is no report."""
-	performance = {portfolio.id: (portfolio.name, portfolio.performance(past_days))
-		for portfolio in sharesight.portfolios(portfolio_select)}
-	if not performance:
-		print("Error: no Sharesight data found", file=sys.stderr)
-		raise RuntimeError("no Sharesight data found")
-	return performance
+	"""[(portfolio, its capital gain over past_days in percent)] of every portfolio, or of the one named (in any case).
+	Raises sharesight.PortfolioNotFound for a name that is none of them."""
+	return [(portfolio, portfolio.gain(past_days)) for portfolio in sharesight.portfolios(portfolio_select)]
 
 def benchmark(ticker, market, text, past_days, service):
 	"""(report line, percent) of a benchmark over past_days; percent is None, and the line says so, when it has no history."""
@@ -38,10 +33,10 @@ def report(service, past_days, portfolio_select=None, performance=None):
 	if performance is None:
 		performance = gather(past_days, portfolio_select)
 	rows = [] # (percent or None, line, chart label), one list for the caption and the chart, best first
-	for portfolio_id, (name, data) in performance.items(): # the name from the portfolio list: one with no holdings names none
-		link = service.link("https://portfolio.sharesight.com/portfolios/" + str(portfolio_id), name)
-		percent = float(data['report']['capital_gain_percent'])
-		rows.append((percent, f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}", name))
+	for portfolio, percent in performance:
+		link = service.link(f"https://portfolio.sharesight.com/portfolios/{portfolio.id}", portfolio.name)
+		line = f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}"
+		rows.append((percent, line, portfolio.name))
 	for ticker, market, text in BENCHMARKS:
 		line, percent = benchmark(ticker, market, text, past_days, service)
 		rows.append((None if percent is None else float(percent), line, text))

@@ -69,6 +69,18 @@ def load(name):
 		return None
 
 
+def cached(name, seconds, fetch):
+	"""fetch()'s answer (JSON), as sent: from the cache file `name` while it is under `seconds` old (cache_seconds when
+	None) and the cache preference is on, else fetched and written there unless empty. Answers are cached as sent, not
+	parsed, so that a parser fix needs no flush."""
+	if config.prefs.cache and (data := read(name, seconds)):
+		return data
+	data = fetch()
+	if data and config.prefs.cache:
+		write(name, data)
+	return data
+
+
 def write(name, data):
 	"""Write a cache file's JSON. See write_file."""
 	where = path(name)

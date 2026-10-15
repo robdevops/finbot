@@ -41,6 +41,7 @@ def serve(*responses):
 
 
 REAL_CREDENTIALS = yahoo.credentials
+REAL_TOKEN = sharesight._token
 
 
 class ProviderCase(FinbotCase):
@@ -48,11 +49,11 @@ class ProviderCase(FinbotCase):
 		"""Real parsers instead of the fixture's canned data, with a fixed cookie, crumb and token, and no waiting."""
 		super().setUp()
 		# these tests exercise the real parsers, so undo the canned data from the base fixture
-		for module, name in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (sharesight, 'get_portfolios'),
-							 (sharesight, 'get_trades'), (sharesight, 'get_performance')):
+		for module, name in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),
+				(sharesight, '_portfolios'), (sharesight, '_trades'), (sharesight, '_performance')):
 			self.patch(module, name, REAL[(module.__name__, name)])
 		self.patch(yahoo, 'credentials', lambda renew=False: ('A=B', 'crumb'))
-		self.patch(sharesight, 'get_token', lambda: 'token')
+		self.patch(sharesight, '_token', lambda: 'token')
 		self.patch(sharesight.time, 'sleep', lambda s: None)
 
 	def http(self, module, *responses):
@@ -309,7 +310,9 @@ class YahooChart(ProviderCase):
 		quotes = lambda ts: {t: market_entry(t) | {'regularMarketPrice': 110.0} for t in ts} # charts over HTTP
 		self.patch(yahoo, 'fetch', quotes)
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
-		self.patch(sharesight, 'get_portfolios', lambda: {}) # no Sharesight figures: every ticker needs its history
+		self.patch(sharesight, '_portfolios', lambda seconds=None: [{'name': 'Rob', 'id': 1}])
+		self.patch(sharesight, '_performance', lambda pid, days=None, seconds=None: # every ticker needs its history
+			{'holdings': [], 'capital_gain_percent': '2.5'})
 		good = Resp(self.chart([100.0] * 20 + [110.0]))
 		def get(url, **kwargs):
 			"""A chart for every ticker but T3 and SPY, which get 404."""
@@ -324,9 +327,6 @@ class YahooChart(ProviderCase):
 		price_list = slack('.price 7d') # T3 is left out, the rest are listed
 		self.assertNotIn('Co T3 (', price_list)
 		self.assertIn('Co T4 (', price_list)
-		self.patch(sharesight, 'get_portfolios', lambda: {'Rob': 1})
-		self.patch(sharesight, 'get_performance', lambda pid, d, *a: {'report': {'holdings': [{'portfolio': {'name': 'Rob'}}],
-			'currency_gain_percent': '0', 'capital_gain_percent': '2.5', 'total_gain_percent': '0'}})
 		report = slack('.performance 7d') # the S&P 500 benchmark has no history
 		self.assertIn('⚠️ S&P 500: no price history', report)
 		self.assertIn('NASDAQ 100', report)
@@ -364,23 +364,25 @@ class YahooChart(ProviderCase):
 			yahoo.price_series('EMPTY')
 
 
+def portfolios():
+	"""{name: id} of the portfolios to report on."""
+	return {portfolio.name: portfolio.id for portfolio in sharesight.portfolios()}
+
+
 class SharesightApi(ProviderCase):
 	def test_portfolios_from_real_response(self):
 		"""The portfolio list parses from a real answer."""
 		self.http(sharesight, Resp(sample('sharesight', 'finbot_sharesight_portfolios.json')))
-		self.assertEqual(sharesight.get_portfolios(), {'Rob': 445825, 'RobSMSF': 684141})
+		self.assertEqual(portfolios(), {'Rob': 445825, 'RobSMSF': 684141})
 
 	def test_portfolio_exclusion_and_inclusion(self):
 		"""exclude_portfolios and include_portfolios pick the portfolios reported on."""
 		self.http(sharesight, Resp(sample('sharesight', 'finbot_sharesight_portfolios.json')))
 		self.prefs(exclude_portfolios=['445825'])
 
-		self.assertEqual(sharesight.get_portfolios(), {'RobSMSF': 684141})
-		self.prefs(exclude_portfolios=[])
-
-		self.prefs(include_portfolios=['445825'])
-
-		self.assertEqual(sharesight.get_portfolios(), {'Rob': 445825})
+		self.assertEqual(portfolios(), {'RobSMSF': 684141})
+		self.prefs(exclude_portfolios=[], include_portfolios=['445825'])
+		self.assertEqual(portfolios(), {'Rob': 445825})
 
 	def test_portfolio_failures_raise(self):
 		"""An error answer, Sharesight unreachable or no portfolios is a RuntimeError."""
@@ -388,45 +390,73 @@ class SharesightApi(ProviderCase):
 			with self.subTest(failure=failure):
 				self.http(sharesight, failure)
 				with self.assertRaises(RuntimeError):
-					sharesight.get_portfolios()
+					sharesight.portfolios()
 
 	def test_an_answer_that_is_not_json_says_so(self):
 		"""An HTML error page from Sharesight is a RuntimeError naming the request and the status, not a JSON parse
 		error."""
 		self.http(sharesight, Resp(None, 502, '<html>Bad gateway</html>'))
 		with self.assertRaisesRegex(RuntimeError, 'Sharesight trades: a 502 answer that is not JSON'):
-			sharesight.get_trades('RobSMSF', 684141, 1)
+			sharesight.Portfolio('RobSMSF', 684141).trades(1)
 
 	def test_trades_from_real_response(self):
-		"""Trades parse from a real answer, tagged with their portfolio."""
+		"""Trades parse from a real answer, tagged with their portfolio, which the cache leaves out: it holds the answer
+		as sent."""
 		self.http(sharesight, Resp(sample('sharesight', 'finbot_sharesight_trades_684141_1.json')))
-		trades = sharesight.get_trades('RobSMSF', 684141, 1)
+		trades = sharesight.Portfolio('RobSMSF', 684141).trades(1)
 		self.assertEqual(len(trades), 2)
 		self.assertEqual(trades[0]['portfolio'], 'RobSMSF')
 		self.assertEqual(trades[0]['symbol'], 'FANG')
+		self.assertEqual(cache.read('finbot_sharesight_trades_684141_1.json'), sample('sharesight',
+			'finbot_sharesight_trades_684141_1.json'))
 
 	def test_trade_failures_raise(self):
 		"""Sharesight unreachable, or an error answer, is a RuntimeError."""
 		self.http(sharesight, ConnectionError('down'))
 		with self.assertRaises(RuntimeError):
-			sharesight.get_trades('RobSMSF', 684141, 1)
+			sharesight.Portfolio('RobSMSF', 684141).trades(1)
 		self.http(sharesight, Resp({'trades': [], 'error': 'bad', 'error_code': 'x'}, 400))
-		with self.assertRaises(RuntimeError):
-			sharesight.get_trades('RobSMSF', 684141, 2)
+		with self.assertRaisesRegex(RuntimeError, 'Sharesight trades: bad'):
+			sharesight.Portfolio('RobSMSF', 684141).trades(2)
+
+	def test_an_oauth_error_is_reported_with_its_description(self):
+		"""Sharesight's refusal of the credentials says why, in OAuth's words (it used to be a KeyError on its missing
+		error_code)."""
+		self.patch(sharesight, '_token', REAL_TOKEN)
+		refusal = {'error': 'invalid_client', 'error_description': 'Client authentication failed'}
+		self.patch(sharesight.net, 'post', lambda url, **kwargs: Resp(refusal, 401))
+		with self.assertRaisesRegex(RuntimeError, 'Sharesight auth: invalid_client: Client authentication failed'):
+			sharesight.portfolios()
+
+	def test_an_answer_without_what_was_asked_for_is_an_error(self):
+		"""A refusal without an error, or a 200 without the list asked for, is an error saying so, not a KeyError
+		later."""
+		for answer in (Resp({'message': 'nope'}, 403), Resp({'links': {}})):
+			with self.subTest(status=answer.status_code):
+				self.http(sharesight, answer)
+				why = f'Sharesight portfolios: a {answer.status_code} answer without portfolios'
+				with self.assertRaisesRegex(RuntimeError, why):
+					sharesight.portfolios()
 
 	def test_performance_and_holdings_from_real_response(self):
-		"""A real holdings report parses, and its tickers come out sorted, US ones without a suffix."""
-		self.http(sharesight, Resp(sample('sharesight', 'finbot_sharesight_performance_684141_0.json')))
-		self.assertEqual(len(sharesight.get_performance(684141, 0)['report']['holdings']), 18)
-		tickers = sharesight.Portfolio('RobSMSF', 684141).tickers()
+		"""A real holdings report parses: its tickers come out sorted, US ones without a suffix, and the gains are the
+		portfolio's and each holding's."""
+		sent = sample('sharesight', 'finbot_sharesight_performance_684141_0.json')
+		self.http(sharesight, Resp(sent))
+		self.assertEqual(len(sharesight._performance(684141, 0)['holdings']), 18)
+		portfolio = sharesight.Portfolio('RobSMSF', 684141)
+		tickers = portfolio.tickers()
 		self.assertIn('ARM', tickers) # US venues carry no Yahoo suffix
 		self.assertEqual(tickers, sorted(tickers))
+		self.assertEqual(portfolio.gain(0), float(sent['report']['capital_gain_percent']))
+		self.assertEqual(sorted(portfolio.gains(0)), tickers)
+		self.assertTrue(all(isinstance(gain, float) for gain in portfolio.gains(0).values()))
 
 	def test_performance_retries_when_sharesight_is_busy(self):
 		"""While Sharesight says too many requests are in flight, the request is tried again."""
 		busy = Resp({'error': 'Too many parallel requests', 'error_code': 'x'}, 429)
 		getter = self.http(sharesight, busy, busy, Resp(sample('sharesight', 'finbot_sharesight_performance_684141_0.json')))
-		self.assertIn('report', sharesight.get_performance(684141, 0))
+		self.assertIn('holdings', sharesight._performance(684141, 0))
 		self.assertEqual(len(getter.calls), 3)
 
 	def test_performance_gives_up_after_repeated_busy_or_hard_errors(self):
@@ -436,13 +466,13 @@ class SharesightApi(ProviderCase):
 			with self.subTest(failure=failure):
 				self.http(sharesight, failure)
 				with self.assertRaises(RuntimeError):
-					sharesight.get_performance(684141, 7)
+					sharesight._performance(684141, 7)
 
 	def test_an_answer_without_a_report_says_so(self):
 		"""A performance answer without a report is an error naming the portfolio, and is not cached."""
 		self.http(sharesight, Resp({}))
-		with self.assertRaisesRegex(RuntimeError, 'no performance report for portfolio 684141'):
-			sharesight.get_performance(684141, 7)
+		with self.assertRaisesRegex(RuntimeError, 'performance of portfolio 684141: a 200 answer without report'):
+			sharesight._performance(684141, 7)
 		self.assertIsNone(cache.read(sharesight.performance_cache_file(684141, 7))) # and is not cached
 
 
@@ -470,39 +500,41 @@ class SharesightKeepWarm(ProviderCase):
 	def test_cold_cache_is_filled_then_left_alone(self):
 		"""A cold cache is filled (the list and each portfolio's holdings, as of today), then left alone while fresh."""
 		calls = self.serve_sharesight()
-		self.assertEqual(sharesight.warm()[0], 3) # portfolio list + one holdings report per portfolio (2)
+		sharesight.warm()
+		self.assertEqual(len(calls), 3) # portfolio list + one holdings report per portfolio (2)
 		self.assertEqual(sum('/performance' in c for c in calls), 2)
 		self.assertTrue(all('start_date=' + datetime.date.today().isoformat() in c for c in calls if '/performance' in c)) # days=0
-		self.assertEqual(sharesight.warm()[0], 0)
+		sharesight.warm()
 		self.assertEqual(len(calls), 3) # nothing refetched while fresh
 
 	def test_refreshes_before_the_ttl_runs_out(self):
 		"""A cache file at 95% of its lifetime is fetched again, and only that one."""
 		calls = self.serve_sharesight()
-		sharesight.warm()[0]
+		sharesight.warm()
 		calls.clear()
 		self.age(sharesight.performance_cache_file(684141, 0), 0.95 * config.prefs.performance_cache_seconds) # 95% of its lifetime
-		self.assertEqual(sharesight.warm()[0], 1)
+		sharesight.warm()
 		self.assertEqual(len(calls), 1)
 		self.assertIn('684141/performance', calls[0])
 		calls.clear()
 		self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * config.prefs.cache_seconds)
-		self.assertEqual(sharesight.warm()[0], 1)
+		sharesight.warm()
+		self.assertEqual(len(calls), 1)
 		self.assertTrue(calls[0].endswith('/portfolios'))
 
 	def test_a_request_never_waits_on_a_cache_the_job_has_warmed(self):
 		"""Once warmed, the list and the holdings report need no request."""
 		calls = self.serve_sharesight()
-		sharesight.warm()[0]
+		sharesight.warm()
 		calls.clear()
-		self.assertEqual(sharesight.get_portfolios(), {'Rob': 445825, 'RobSMSF': 684141})
-		self.assertEqual(len(sharesight.get_performance(684141, 0)['report']['holdings']), 18)
+		self.assertEqual(portfolios(), {'Rob': 445825, 'RobSMSF': 684141})
+		self.assertEqual(len(sharesight._performance(684141, 0)['holdings']), 18)
 		self.assertEqual(calls, [])
 
 	def test_every_holding_is_served_from_the_warmed_cache(self):
 		"""Every portfolio's tickers come from the warmed cache, with no request."""
 		calls = self.serve_sharesight()
-		sharesight.warm()[0]
+		sharesight.warm()
 		calls.clear()
 		tickers = sharesight.tickers() # the portfolio list and each portfolio's holdings report, no cache of its own
 		self.assertIn('ARM', tickers)
@@ -511,68 +543,79 @@ class SharesightKeepWarm(ProviderCase):
 	def test_failed_refresh_keeps_the_old_cache(self):
 		"""A refresh that fails keeps the cache it would have replaced."""
 		self.serve_sharesight()
-		sharesight.warm()[0]
+		sharesight.warm()
 		self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * config.prefs.cache_seconds)
 		self.http(sharesight, ConnectionError('down'))
 		with self.assertRaises(RuntimeError):
-			sharesight.warm()[0]
-		self.assertEqual(sharesight.get_portfolios(), {'Rob': 445825, 'RobSMSF': 684141}) # still served from the cache
+			sharesight.warm()
+		self.assertEqual(portfolios(), {'Rob': 445825, 'RobSMSF': 684141}) # still served from the cache
+
+	def test_a_pass_says_when_the_next_is_due(self):
+		"""A pass reads each cache file once and gives the seconds until the next refresh: 90% of the shortest cache
+		lifetime once everything is fresh."""
+		self.serve_sharesight()
+		due = sharesight.warm() # a cold cache, filled
+		shortest = min(config.prefs.cache_seconds, config.prefs.performance_cache_seconds)
+		self.assertAlmostEqual(due, 0.9 * shortest, delta=5)
+		reads = []
+		real = cache.read
+		self.patch(cache, 'read', lambda name, *a, **k: (reads.append(name), real(name, *a, **k))[1])
+		self.age(sharesight.performance_cache_file(684141, 0), 600)
+		due = sharesight.warm()
+		self.assertAlmostEqual(due, 0.9 * config.prefs.performance_cache_seconds - 600, delta=5)
+		files = [sharesight.PORTFOLIOS_CACHE] + [sharesight.performance_cache_file(id, 0) for id in (445825, 684141)]
+		self.assertEqual(sorted(reads), sorted(files))
+
+	class Stopped(Exception):
+		"""Raised by the stand-in for keep_warm's wake event, to end the loop."""
+
+	def waits(self, count, on_wait=lambda n: None, **kwargs):
+		"""Run keep_warm until it has waited `count` times, noting each wait instead of sleeping (on_wait(n) at the
+		nth); returns the waits."""
+		waits, stopped = [], self.Stopped
+		class Wake:
+			"""keep_warm's wake event, which nobody sets."""
+			def wait(self, seconds):
+				"""Note the wait instead of sleeping, and end the loop after the last."""
+				waits.append(seconds)
+				on_wait(len(waits))
+				if len(waits) == count:
+					raise stopped
+			def clear(self):
+				"""Nothing to clear."""
+		self.patch(sharesight, '_wake', Wake())
+		with self.assertRaises(self.Stopped):
+			sharesight.keep_warm(**kwargs)
+		return waits
 
 	def test_loop_survives_failures_and_backs_off(self):
 		"""keep_warm survives a failure, retries slowly, then sleeps until the next cache is due."""
-		class Stop:
-			"""keep_warm's stop event: notes each wait, and is set after two."""
-			def __init__(self):
-				"""No waits yet."""
-				self.waits = []
-			def is_set(self):
-				"""Set after two waits."""
-				return len(self.waits) >= 2
-			def wait(self, seconds):
-				"""Note the wait instead of sleeping."""
-				self.waits.append(seconds)
-		outcomes = [RuntimeError('boom'), 0]
+		outcomes = [RuntimeError('boom'), 3000]
 		def warm():
 			"""Fail once, then succeed."""
 			outcome = outcomes.pop(0)
 			if isinstance(outcome, Exception):
 				raise outcome
-			return outcome, {}
+			return outcome
 		self.patch(sharesight, 'warm', warm)
-		self.patch(sharesight, 'next_due', lambda portfolios=None: 3000)
-		stop = Stop()
-		sharesight.keep_warm(retry=300, stop=stop)
-		self.assertEqual(stop.waits, [300, 3000]) # slow retry after the failure, then sleep until the next cache is due
+		self.assertEqual(self.waits(2, retry=300), [300, 3000]) # a slow retry after the failure, then until one is due
 
 	def test_with_cache_off_nothing_is_fetched_until_a_reload_turns_it_on(self):
 		"""With cache off, keep_warm idles without asking Sharesight, and starts when a reload turns it on."""
-		class Stop:
-			"""keep_warm's stop event: notes each wait, switches the cache on at the second, and is set after four."""
-			def __init__(self):
-				"""No waits yet."""
-				self.waits = []
-			def is_set(self):
-				"""Set after four waits."""
-				return len(self.waits) >= 4
-			def wait(self, seconds):
-				"""Note the wait; at the second, switch the cache on as a reload would."""
-				self.waits.append(seconds)
-				if len(self.waits) == 2:
-					config.prefs = dataclasses.replace(config.prefs, cache=True) # what a reload that switches it on does
 		passes = []
-		self.patch(sharesight, 'warm', lambda: (passes.append(1), (0, {}))[1])
-		self.patch(sharesight, 'next_due', lambda portfolios=None: 3000)
+		self.patch(sharesight, 'warm', lambda: passes.append(1) or 3000)
 		self.prefs(cache=False)
-
-		stop = Stop()
-		sharesight.keep_warm(idle=60, stop=stop)
-		self.assertEqual((stop.waits, len(passes)), ([60, 60, 3000, 3000], 2)) # idle while off: no Sharesight request every 5 seconds
+		def reload(n):
+			"""At the second wait, switch the cache on, as a reload would."""
+			if n == 2:
+				config.prefs = dataclasses.replace(config.prefs, cache=True)
+		self.assertEqual(self.waits(4, reload, idle=60), [60, 60, 3000, 3000]) # no request every 5 seconds while off
+		self.assertEqual(len(passes), 2)
 
 	def test_a_flush_wakes_the_loop_to_refill_at_once(self):
 		"""A flush wakes keep_warm, which refills the caches at once instead of when they are next due."""
 		passes = []
-		self.patch(sharesight, 'warm', lambda: (passes.append(1), (0, {}))[1])
-		self.patch(sharesight, 'next_due', lambda portfolios=None: 3000)
+		self.patch(sharesight, 'warm', lambda: passes.append(1) or 3000)
 		loop = gevent.spawn(sharesight.keep_warm)
 		self.addCleanup(loop.kill)
 		gevent.sleep(0.05)
@@ -580,36 +623,6 @@ class SharesightKeepWarm(ProviderCase):
 		sharesight.wake()
 		gevent.sleep(0.05)
 		self.assertEqual(len(passes), 2)
-
-	def test_a_warming_pass_reads_the_cached_portfolio_list_once(self):
-		"""One pass of keep_warm reads the cached portfolio list once, and hands it on."""
-		self.serve_sharesight()
-		sharesight.warm()[0] # fill the caches
-		reads = []
-		real = cache.read
-		self.patch(cache, 'read', lambda name, *a, **k: (reads.append(name), real(name, *a, **k))[1])
-		fetched, portfolios = sharesight.warm() # what one pass of keep_warm does
-		due = sharesight.next_due(portfolios=portfolios)
-		self.assertEqual((fetched, reads), (0, [sharesight.PORTFOLIOS_CACHE]))
-		self.assertAlmostEqual(due, sharesight.next_due(), delta=1) # the same answer as reading the list again
-		self.assertEqual(portfolios, {'Rob': 445825, 'RobSMSF': 684141})
-
-	def test_next_due_is_90_percent_of_the_ttl(self):
-		"""The next refresh is due at 90% of the shortest cache lifetime; at once for a cold cache."""
-		self.serve_sharesight()
-		self.assertEqual(sharesight.next_due(), 0) # cold cache
-		sharesight.warm()[0]
-		due = sharesight.next_due()
-		self.assertAlmostEqual(due, 0.9 * min(config.prefs.cache_seconds, config.prefs.performance_cache_seconds), delta=5)
-
-	def test_refresh_flag_bypasses_a_fresh_cache(self):
-		"""refresh=True asks Sharesight even while the cache is fresh."""
-		calls = self.serve_sharesight()
-		sharesight.get_portfolios()
-		sharesight.get_portfolios()
-		self.assertEqual(len(calls), 1)
-		sharesight.get_portfolios(refresh=True)
-		self.assertEqual(len(calls), 2)
 
 
 class TelegramSending(FinbotCase):
