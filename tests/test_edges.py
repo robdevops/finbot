@@ -360,6 +360,52 @@ class CacheFlush(FinbotCase):
 		self.assertEqual(started, [(bot.jobs.warm_now, ('the scheduler',))])
 
 
+OPTIONAL = ('waitress', 'websocket', 'discord', 'nacl') # each imported only by the mode that needs it
+
+
+class OptionalLibraries(unittest.TestCase):
+	"""An install without the optional libraries (requirements-optional.txt) runs every mode that does not need them."""
+
+	def blocked(self, data):
+		"""The environment of a process for which no optional library can be imported, and that has no webhook set."""
+		stubs = Path(data, 'stubs')
+		stubs.mkdir()
+		for name in OPTIONAL:
+			(stubs / f'{name}.py').write_text('raise ImportError("blocked by the test")\n')
+		env = bare_environment()
+		env.update(DATA_DIR=data, port='0', scheduler='False', PYTHONPATH=str(stubs))
+		return env
+
+	def test_every_module_imports_without_them(self):
+		"""bot and every module of lib and lib.reports import with the optional libraries blocked, and none of them is
+		imported."""
+		code = ('import importlib, pkgutil, sys, bot, lib, lib.reports\n'
+			'for package in (lib, lib.reports):\n'
+			'    for module in pkgutil.iter_modules(package.__path__, package.__name__ + "."):\n'
+			'        importlib.import_module(module.name)\n'
+			f'print(sorted(name for name in {OPTIONAL!r} if sys.modules.get(name)))')
+		with tempfile.TemporaryDirectory() as data:
+			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, env=self.blocked(data), capture_output=True,
+				text=True, timeout=60)
+		self.assertEqual(out.stdout.strip().splitlines()[-1:], ['[]'], out.stderr)
+
+	def test_finbot_starts_without_them(self):
+		"""With no webhook set, bot.py starts with the optional libraries blocked: no HTTP server, so no waitress."""
+		skip_if_old_env(self)
+		with tempfile.TemporaryDirectory() as data:
+			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=self.blocked(data),
+				stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
+			self.addCleanup(proc.wait)
+			self.addCleanup(proc.kill)
+			lines = []
+			for line in proc.stderr:
+				lines.append(line)
+				if line.startswith('finbot is running'):
+					break
+			self.assertIsNone(proc.poll(), ''.join(lines))
+			self.assertIn('No webhook is set: finbot takes no HTTP requests', ''.join(lines))
+
+
 class StartupSignals(unittest.TestCase):
 	"""A reload (SIGHUP) that arrives while the bot is still starting must not kill it."""
 
@@ -382,10 +428,9 @@ class StartupSignals(unittest.TestCase):
 			lines = []
 			for line in proc.stderr:
 				lines.append(line)
-				if line.startswith('Opening socket'):
+				if line.startswith('finbot is running'): # the handlers are in
 					break
 			self.assertIsNone(proc.poll(), ''.join(lines))
-			time.sleep(1) # the handler goes in just before serving
 			proc.send_signal(signal.SIGHUP)
 			for line in proc.stderr: # a reload now runs (there is no preferences.conf here, so it says so)
 				lines.append(line)
@@ -420,11 +465,10 @@ class StartupSignals(unittest.TestCase):
 			lines = []
 			for line in proc.stderr:
 				lines.append(line)
-				if line.startswith('Opening socket'):
+				if line.startswith('finbot is running'): # the handlers are in
 					break
 			self.assertIsNone(proc.poll(), ''.join(lines))
 			self.assertEqual(len(os.listdir(cache)), 4) # nothing flushed yet
-			time.sleep(1) # the handler goes in just before serving
 			proc.send_signal(signal.SIGUSR1)
 			for line in proc.stderr:
 				lines.append(line)

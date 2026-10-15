@@ -4,7 +4,6 @@ import contextlib, datetime, io, json, os, signal, subprocess, sys, tempfile, th
 import zoneinfo
 from pathlib import Path
 from unittest import mock
-import gevent
 from tests.common import *
 from lib import jobs
 from lib.reports import cleanup, podcasts, price, sharesight_warm, yahoo_warm
@@ -754,23 +753,6 @@ class ChildProcess(FinbotCase):
 				env={**os.environ, 'DATA_DIR': data})
 		self.assertEqual(out.stdout.strip().splitlines()[-1:], ['[]'], out.stderr)
 
-	def test_the_event_loop_keeps_running_while_a_child_works(self):
-		"""Waiting for a child does not stop the event loop."""
-		self.sleeper(1)
-		ticks = []
-		def ticker():
-			"""Tick five times, 0.1 seconds apart."""
-			for _ in range(5):
-				gevent.sleep(0.1)
-				ticks.append(time.monotonic())
-		greenlet = gevent.spawn(ticker)
-		started = time.monotonic()
-		self.assertEqual(jobs.run_child('cleanup.py', cleanup, {}), 0)
-		greenlet.join()
-		self.assertGreater(time.monotonic() - started, 0.9)
-		self.assertEqual(len(ticks), 5) # the loop was not blocked by the child
-		self.assertLess(ticks[-1] - started, 0.8)
-
 	def test_a_child_still_running_at_its_deadline_is_stopped(self):
 		"""A child still running after JOB_TIMEOUT is stopped, rather than left running, and TimeoutError raised."""
 		self.patch(jobs, 'JOB_TIMEOUT', 0.3)
@@ -782,11 +764,23 @@ class ChildProcess(FinbotCase):
 		self.assertIsNotNone(self.children[0].poll()) # the child was stopped, not left running
 
 	def test_another_interruption_stops_the_child_too(self):
-		"""An interruption while a child runs (a greenlet killed, say) stops the child as well."""
+		"""An interruption while a child runs (a KeyboardInterrupt, say) stops the child as well."""
 		self.sleeper(30)
-		with self.assertRaises(gevent.Timeout):
-			with gevent.Timeout(0.3):
-				jobs.run_child('cleanup.py', cleanup, {})
+		start = jobs.subprocess.Popen # the sleeper's
+		def interrupted(args, **kw):
+			"""The sleeper, whose wait for the job is interrupted."""
+			child = start(args, **kw)
+			wait = child.wait
+			def wait_once(timeout=None):
+				"""Interrupted while waiting for the job; stop()'s own waits go through."""
+				if timeout == jobs.JOB_TIMEOUT:
+					raise KeyboardInterrupt
+				return wait(timeout)
+			child.wait = wait_once
+			return child
+		self.patch(jobs.subprocess, 'Popen', interrupted)
+		with self.assertRaises(KeyboardInterrupt):
+			jobs.run_child('cleanup.py', cleanup, {})
 		self.assertIsNotNone(self.children[0].poll())
 
 	def test_each_command_of_a_line_has_a_deadline_of_its_own(self):

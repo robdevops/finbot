@@ -1,8 +1,7 @@
 """Runs one scheduled command in its own process: `python -m lib.jobrun lib.reports.<name> '<json kwargs>'`.
 
-The bot starts this for every scheduled or manual run, so a job's CPU-heavy work (charts, pandas) happens off the
-bot's event loop and cannot hold up incoming webhooks. Failures are reported to the channel and give the exit status
-REPORTED."""
+The bot starts this for every scheduled or manual run, so a job's work happens in a process of its own. Failures are
+reported to the channel and give the exit status REPORTED."""
 import signal
 if __name__ == '__main__':
 	# a reload is for the bot, but `systemctl kill -s HUP` signals every process of the unit

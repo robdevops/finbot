@@ -1,12 +1,12 @@
-"""Charts drawn as PNGs with matplotlib: the bot draws them in one native thread, off the gevent hub (render_off_hub). A
-report describes its chart as a Chart, which draw() draws only for a chat that takes charts, and once: the image is
-cached by the spec's hash."""
+"""Charts drawn as PNGs with matplotlib, one at a time (_drawn). A report describes its chart as a Chart, which draw()
+draws only for a chat that takes charts, and once: the image is cached by the spec's hash."""
 import dataclasses
 import functools
 import hashlib
 import importlib.metadata
 import io
 import json
+import threading
 from pathlib import Path
 from lib import config # first: sets MPLCONFIGDIR before matplotlib is imported (lazily, by the chart functions)
 from lib import cache
@@ -57,31 +57,23 @@ NEITHER_UP_NOR_DOWN = tuple(color for color in CATEGORIES if color not in ('#008
 UP, DOWN, FLAT = '#34d399', '#fb7185', PALETTE[2] # a rise, a fall, neither: a price line's colour by its change
 BAR_UP = CATEGORIES[0] # bars rise in blue; they fall in DOWN
 
-_render_pool = None # set by render_off_hub(): the bot draws its charts in one native thread
+_drawing = threading.RLock() # one chart at a time: matplotlib's caches are shared by every thread
 
-def render_off_hub():
-	"""For the bot: draw charts in one native thread from now on, so that the gevent hub keeps serving every other chat
-	while one is drawn (the shorts pictogram takes over a second; in the hub that froze everything). One thread, because
-	several at once deadlock matplotlib under gevent's patched locks. matplotlib is imported here, at start, instead of
-	by the first chart. Job processes and the tests draw in place."""
-	global _render_pool
+def preload():
+	"""For the bot, at start: import matplotlib now, instead of when the first chart is asked for."""
 	import importlib
-	from gevent.threadpool import ThreadPool
 	for module in ('matplotlib.backends.backend_agg', 'matplotlib.dates', 'matplotlib.figure', 'matplotlib.patches',
 			'matplotlib.path', 'matplotlib.ticker'):
 		importlib.import_module(module)
-	_render_pool = ThreadPool(1)
 
 def _drawn(draw):
-	"""A chart function that draws in the render pool when there is one. Only for a function that calls none of the
-	others: the pool's one thread waiting on itself would never finish."""
+	"""A chart function that draws while no other thread does (it may call another such function)."""
 	@functools.wraps(draw)
-	def in_pool(*args, **kwargs):
-		"""Draw in the render thread when the bot has one (render_off_hub), else here."""
-		if _render_pool is None:
+	def alone(*args, **kwargs):
+		"""Draw, holding the drawing lock."""
+		with _drawing:
 			return draw(*args, **kwargs)
-		return _render_pool.apply(draw, args, kwargs)
-	return in_pool
+	return alone
 
 def _figure(facecolor):
 	"""A 1280x800 figure (Telegram's photo size, so it is never resampled) and its Agg canvas."""

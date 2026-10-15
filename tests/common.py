@@ -12,7 +12,6 @@ os.chdir(ROOT)
 os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok',
 	telegramChatID='1')
 
-# first, and once: it monkey-patches with gevent, which must happen before requests imports ssl and never mid-test
 import bot
 from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, render
 from lib import sharesight, shortman, state, telegram, transports, watchlist, worker, yahoo
@@ -23,6 +22,7 @@ REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'f
 	(yahoo, 'price_history'), (yahoo, 'historic_high'),
 	(sharesight, '_portfolios'), (sharesight, '_trades'), (sharesight, '_performance'))}
 REAL_GET_HOLDINGS = watchlist.with_holdings
+REAL_DISPATCH = bot.dispatch # FinbotCase notes the worker thread of each update, so that a test can wait for it
 
 
 def bare_environment():
@@ -64,17 +64,20 @@ def skip_if_old_env(case):
 STATES = ('REGULAR', 'PRE', 'POST', 'CLOSED')
 
 
+NOW = time.time() # one moment for every fixture quote: fetched together in threads, they still tie on their dates
+
+
 def market_entry(ticker):
 	"""A Yahoo quote for a fixture ticker; T0 to T24 vary in market state, move, rating and so on, so that every
 	threshold, sort and branch has rows."""
 	i = int(ticker[1:]) if ticker[1:].isdigit() else 0 # varied data so threshold/sort/sell branches all have rows
-	return {'marketState': STATES[i % 4], 'regularMarketTime': time.time(), 'quoteType': 'EQUITY',
+	return {'marketState': STATES[i % 4], 'regularMarketTime': NOW, 'quoteType': 'EQUITY',
 			'profile_title': 'Co ' + ticker, 'profile_exchange': 'NasdaqGS', 'percent_change': (i - 12) * 1.5,
 			'percent_change_premarket': (i - 12) * 1.5, 'percent_change_postmarket': (i - 12) * 1.5,
 			'market_cap': 1e9, 'price_to_earnings_trailing': 9, 'price_to_earnings_forward': 9,
 			'beta': 2.0, 'short_percent': 20, 'fiftyTwoWeekHigh': 120.0, 'fiftyTwoWeekLow': 80.0,
-			'regularMarketPrice': 100.0, 'earnings_date': time.time() + 86400 * 3,
-			'ex_dividend_date': time.time() + 86400 * 3, 'recommend': 'buy' if i % 2 else 'sell',
+			'regularMarketPrice': 100.0, 'earnings_date': NOW + 86400 * 3,
+			'ex_dividend_date': NOW + 86400 * 3, 'recommend': 'buy' if i % 2 else 'sell',
 			'recommend_index': 1.2 if i % 2 else 4.2, 'recommend_analysts': 8, 'price_to_earnings_peg': 1.2,
 			'currency': 'USD'}
 
@@ -87,6 +90,11 @@ class FinbotCase(unittest.TestCase):
 		p = mock.patch.object(target, attr, value)
 		p.start()
 		self.addCleanup(p.stop)
+
+	def join_workers(self):
+		"""Wait for the worker thread of every update taken so far (bot.dispatch starts one each)."""
+		for thread in self.workers:
+			thread.join(10)
 
 	def env(self, **changes):
 		"""Startup settings for this test: config.env with these fields changed."""
@@ -106,6 +114,8 @@ class FinbotCase(unittest.TestCase):
 		self.addCleanup(tmp.cleanup)
 		self.env(data_dir=tmp.name, cache_dir=tmp.name, webhooks={'telegram': 'https://api.telegram.org/botX/'})
 		self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
+		self.workers = []
+		self.patch(bot, 'dispatch', lambda event: self.workers.append(REAL_DISPATCH(event)))
 		self.sent = []
 		self.markups = [] # reply_markup of each photo sent
 		self.errors = []

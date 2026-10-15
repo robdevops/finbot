@@ -47,7 +47,7 @@ jobs:
           cache: pip
       - if: steps.changes.outputs.docs_only != 'true'
         run: |
-          pip install -r requirements.txt
+          pip install -r requirements.txt -r requirements-optional.txt
           python -m compileall -q *.py lib util
           python -m unittest discover -s tests -v -b
 

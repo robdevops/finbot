@@ -2,7 +2,6 @@
 and user text escaped where it arrives."""
 import contextlib, hashlib, hmac, io, json, time, unittest
 from urllib.parse import urlencode
-import gevent
 from tests.common import *
 
 
@@ -134,7 +133,7 @@ class WsgiRejections(FinbotCase):
 			'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'text': '.price'}}
 		for _ in range(2): # Telegram sends an update again when it got no answer
 			self.assertEqual(self.request(body=body, headers=self.SECRET)[1], '200 OK')
-		gevent.sleep(0.05)
+		self.join_workers()
 		self.assertEqual(len(calls), 1)
 
 	def test_an_update_is_taken_however_it_arrived(self):
@@ -149,7 +148,7 @@ class WsgiRejections(FinbotCase):
 			for _ in range(2):
 				self.assertEqual(bot.take(inbound.TELEGRAM, {'update_id': 70, 'message': message}), inbound.OK)
 				self.assertEqual(bot.take(inbound.SLACK, event), inbound.OK)
-		gevent.sleep(0.05) # the worker runs in a (gevent) thread
+		self.join_workers()
 		self.assertEqual([(m.service, m.chat_id, m.text) for m in got], [('telegram', '5', '.price'),
 			('slack', 'C1', '.trades')])
 
@@ -188,7 +187,7 @@ class SlackEvents(FinbotCase):
 		status = []
 		with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
 			bot.main(wsgi_environ('/slack', body), lambda s, *a, **k: status.append(s))
-		gevent.sleep(0.05) # the worker runs in a (gevent) thread
+		self.join_workers()
 		return status[-1]
 
 	def press(self, payload):
@@ -197,7 +196,7 @@ class SlackEvents(FinbotCase):
 		with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
 			body = urlencode({'payload': json.dumps(payload)}).encode()
 			bot.main(wsgi_environ('/slack', body), lambda s, *a, **k: status.append(s))
-		gevent.sleep(0.05) # the worker runs in a (gevent) thread
+		self.join_workers()
 		return status[-1]
 
 	def test_a_button_press_reaches_the_worker(self):
@@ -284,7 +283,7 @@ class SlackSigning(FinbotCase):
 		status = []
 		with contextlib.redirect_stderr(io.StringIO()):
 			bot.main(env, lambda s, *a, **k: status.append(s))
-		gevent.sleep(0.05) # the worker runs in a (gevent) thread
+		self.join_workers()
 		return status[-1]
 
 	def test_a_button_press_is_signed_over_its_form(self):
@@ -299,7 +298,7 @@ class SlackSigning(FinbotCase):
 			answers = []
 			with contextlib.redirect_stderr(io.StringIO()):
 				bot.main(wsgi_environ('/slack', sent, **headers), lambda s, *a, **k: answers.append(s))
-			gevent.sleep(0.05)
+			self.join_workers()
 			self.assertEqual(answers, [status])
 		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|h|w|T1', '@rob')])
 
@@ -343,7 +342,7 @@ class UserTextIsEscaped(FinbotCase):
 		env = wsgi_environ('/telegram', json.dumps(body).encode(), HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok')
 		with contextlib.redirect_stderr(io.StringIO()):
 			bot.main(env, lambda *a, **k: None)
-		gevent.sleep(0.05) # the worker runs in a (gevent) thread
+		self.join_workers()
 		self.assertEqual((requests[0].user, requests[0].user_name), ('@A&lt;b&gt;&amp;',) * 2) # the handle and the name
 
 

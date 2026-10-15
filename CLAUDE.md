@@ -22,7 +22,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   pull requests that change only README.md, CLAUDE.md, `doc/*.md` or `img/*.png` (install, compile and tests are
   skipped; the allowlist in `.github/workflows/ci.yml` must never include a path a test reads).
 - Production runs the Debian system packages (including `python3-croniter`, for the scheduler in `lib/jobs.py`);
-  `requirements.txt` is for pip/uv users and CI.
+  `requirements.txt` is for pip/uv users and CI. The libraries in `requirements-optional.txt` are each imported only
+  inside the code of the mode that needs it, never at module load (a test starts finbot with them all blocked).
 - A new preference goes in three places: a `Prefs` field with its default (`lib/config.py`; its type says how it is
   read), `defaults/preferences.conf`, and the README's preferences table. The tests catch a key missing from the
   template or a default that differs, but not the README (no test may read README.md: CI skips the tests for a
@@ -35,8 +36,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   record real requests.
 
 ## Code map (open the one file you need)
-- `bot.py`: WSGI entry (route, verify, parse, then a thread of `lib/worker.py` per message or button press); SIGHUP
-  reload and SIGUSR1 cache flush, each in a thread. `lib/inbound.py`: a class per network that reads its updates
+- `bot.py`: WSGI entry (route, verify, parse, then a thread of `lib/worker.py` per message or button press), served by
+  waitress only when some network's webhook is set; plain threads, no gevent; SIGHUP reload and SIGUSR1 cache flush,
+  each in a thread. `lib/inbound.py`: a class per network that reads its updates
   (`Telegram`, `Slack`: a `Message`, a `Press`, or a `Response` given straight back), apart from a class per way they
   arrive (`TelegramWebhook`, `SlackWebhook`: the path, how it proves itself); `bot.take(network, update)` takes an
   update however it arrived.
@@ -102,8 +104,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   never print there (a test checks); only the util/ tools, run by hand, do.
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
   charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's).
-- A chart renderer in `lib/render.py` takes its `Chart` and is listed in `RENDERERS` by kind; it gets `@_drawn` (the
-  bot draws in one native thread) and must not call another `@_drawn` function, or that thread waits on itself.
+- A chart renderer in `lib/render.py` takes its `Chart` and is listed in `RENDERERS` by kind; it gets `@_drawn`, which
+  draws one chart at a time (matplotlib's caches are shared by every thread).
 - A new command: a `Command` in `COMMANDS` (its names, and what its arguments may hold), whose usage, section and
   buttons make its `.help` lines and keyboard buttons, and the README command list.
 

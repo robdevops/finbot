@@ -78,7 +78,7 @@ def stop(proc):
 
 
 def start_thread(target, *args):
-	"""Run target(*args) in a daemon thread of its own (a greenlet, under gevent's monkey patching)."""
+	"""Run target(*args) in a daemon thread of its own."""
 	threading.Thread(target=target, args=args, daemon=True).start()
 
 

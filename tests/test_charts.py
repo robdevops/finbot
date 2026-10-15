@@ -4,8 +4,7 @@
   3. one golden image per chart type, compared with a tolerance. Refresh after an intended restyle with:
 		 UPDATE_GOLDEN=1 python -m unittest tests.test_charts
 """
-import datetime, os, time, unittest
-import gevent
+import datetime, os, threading, time, unittest
 from unittest import mock
 import numpy as np
 import pandas as pd
@@ -158,41 +157,28 @@ class ImageSanity(unittest.TestCase):
 		self.check_image(render.draw_line(line(price_rows(), title)), 'long line title')
 
 
-class RenderPool(unittest.TestCase):
-	"""The bot draws charts in one native thread (render.render_off_hub): the hub keeps serving while one is drawn."""
-
-	def setUp(self):
-		"""Draw in the render thread, as the bot does, for this test only."""
-		render.render_off_hub()
-		self.addCleanup(setattr, render, '_render_pool', None)
+class DrawingLock(unittest.TestCase):
+	"""Charts asked for from several threads at once are drawn one at a time (render._drawn)."""
 
 	def test_charts_asked_for_at_once_all_finish(self):
-		"""Six charts asked for at once all finish: one render thread, as several deadlock matplotlib under gevent."""
+		"""Six charts asked for from six threads at once all finish, whole."""
 		pie = lambda title: render.Chart('pie', title, rows=(('a', 1.0), ('b', 2.0)))
-		jobs = [gevent.spawn(render.draw_pie, pie(f't{i}')) for i in range(4)]
-		jobs += [gevent.spawn(bars, MIXED)]
-		jobs += [gevent.spawn(uncached, render.Chart('bars', 'T', rows=tuple(MIXED)))]
-		gevent.joinall(jobs, timeout=120)
-		self.assertTrue(all(job.successful() for job in jobs),
-			'a chart did not finish (several native threads deadlock matplotlib)')
-		self.assertTrue(all(decode(job.value).size == (1280, 800) for job in jobs))
+		draws = [lambda i=i: render.draw_pie(pie(f't{i}')) for i in range(4)]
+		draws += [lambda: bars(MIXED), lambda: uncached(render.Chart('bars', 'T', rows=tuple(MIXED)))]
+		images = {}
+		threads = [threading.Thread(target=lambda n=n, draw=draw: images.__setitem__(n, draw()))
+			for n, draw in enumerate(draws)]
+		for thread in threads:
+			thread.start()
+		for thread in threads:
+			thread.join(120)
+		self.assertEqual(sorted(images), list(range(6)), 'a chart did not finish')
+		self.assertTrue(all(decode(image).size == (1280, 800) for image in images.values()))
 
-	def test_the_hub_keeps_serving_while_a_chart_is_drawn(self):
-		"""While the shorts pictogram draws (about a second), other greenlets run on: no gap over half a second."""
-		gaps, done = [], []
-		def ticker():
-			"""Note the time between wake-ups until the chart is done."""
-			last = time.monotonic()
-			while not done:
-				gevent.sleep(0.01)
-				now = time.monotonic()
-				gaps.append(now - last)
-				last = now
-		tick = gevent.spawn(ticker)
-		shorts([(f'T{i}', 60.0 - 2 * i) for i in range(24)]) # about a second of drawing
-		done.append(True)
-		tick.join()
-		self.assertLess(max(gaps), 0.5) # drawn in the hub, the ticker stopped for the whole chart
+	def test_one_chart_function_may_call_another(self):
+		"""The lock is re-entrant: a drawn function that calls another drawn one finishes."""
+		inner = render._drawn(lambda: 'drawn')
+		self.assertEqual(render._drawn(inner)(), 'drawn')
 
 
 class Contracts(unittest.TestCase):

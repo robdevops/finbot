@@ -5,12 +5,8 @@ if __name__ == '__main__':
 	# ignored until startup is done (the reload handler is installed last): its default action kills the bot
 	signal.signal(signal.SIGHUP, signal.SIG_IGN)
 	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise the cache flush
-import gevent.monkey
-gevent.monkey.patch_all()
-import collections, json, os, re, sys, traceback
+import collections, json, os, re, sys, threading, traceback
 from pathlib import Path
-from gevent import pywsgi
-import threading
 
 from lib import config
 from lib import inbound
@@ -26,6 +22,7 @@ ROUTED = 'finbot.routed' # a request's WSGI environ: the network whose webhook p
 AUTHENTICATED = 'finbot.authenticated' # set once it has passed that network's check
 MAX_BODY = 1 << 20 # bytes in a request body, at most: an update from Telegram or Slack takes a few thousand
 _updates_seen = collections.OrderedDict() # (service, update id) of the last updates taken, oldest first
+_updates_lock = threading.Lock() # updates arrive on several threads: a resent one may race its first copy
 
 def seen_before(service, update_id, keep=1000):
 	"""Whether this update was taken already: Telegram's update_id, Slack's event_id. Slack resends an event it got no
@@ -34,11 +31,12 @@ def seen_before(service, update_id, keep=1000):
 	if update_id is None:
 		return False
 	key = (service, update_id)
-	if key in _updates_seen:
-		return True
-	_updates_seen[key] = None
-	if len(_updates_seen) > keep:
-		_updates_seen.popitem(last=False)
+	with _updates_lock:
+		if key in _updates_seen:
+			return True
+		_updates_seen[key] = None
+		if len(_updates_seen) > keep:
+			_updates_seen.popitem(last=False)
 	return False
 
 def main(environ, start_response):
@@ -68,7 +66,11 @@ def handle(environ, start_response):
 	comes from that network (before its body is read, when the proof is a header), read the update (CONTENT_LENGTH
 	bytes, up to MAX_BODY) and take it (take): the network gets its answer at once."""
 	def respond(response):
-		"""Answer the request: a status line and a body."""
+		"""Answer the request: a status line and a body (logged with the debug preference, naming the network, not the
+		path)."""
+		if config.prefs.debug:
+			print(f"[http] request for {environ.get(ROUTED) or 'no network'} answered {response.status}",
+				file=sys.stderr)
 		start_response(response.status, [('Content-type', 'application/json')])
 		return [response.body]
 	def print_headers():
@@ -118,7 +120,7 @@ def take(network, update):
 	return inbound.OK
 
 def dispatch(event):
-	"""Hand a message or a button press to lib/worker, in a thread of its own."""
+	"""Hand a message or a button press to lib/worker, in a thread of its own, which it returns."""
 	if isinstance(event, inbound.Press):
 		print(f"[{event.service.capitalize()} button]:", event.user, "chat", event.chat_id, event.data, file=sys.stderr)
 		target = worker.process_callback
@@ -126,7 +128,9 @@ def dispatch(event):
 		if config.prefs.debug:
 			print(f"[{event.service.capitalize()}]:", event.user, event.text, file=sys.stderr)
 		target = worker.process_request
-	threading.Thread(target=target, args=(event,)).start()
+	thread = threading.Thread(target=target, args=(event,))
+	thread.start()
+	return thread
 
 def git_version(checkout=None):
 	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no
@@ -187,6 +191,14 @@ def flush_cache(*args):
 		print('ERROR', delivery.error_line(e, 'cache flush'), file=sys.stderr)
 	jobs.start_thread(jobs.warm_now, scheduler)
 
+def http_server():
+	"""The HTTP server for the networks that post to finbot (those whose webhook is set), bound to ip and port, or None
+	when none does. waitress is imported only then. Raises OSError when the port cannot be had."""
+	if not any(hook.path() for hook in inbound.WEBHOOKS):
+		return None
+	import waitress
+	return waitress.create_server(main, host=config.env.ip, port=config.env.port)
+
 if __name__ == '__main__':
 	print(f'Starting finbot {git_version()}', file=sys.stderr)
 	try:
@@ -212,10 +224,16 @@ if __name__ == '__main__':
 			sys.exit(1)
 	else:
 		print('Scheduled reports are off (scheduler=False)', file=sys.stderr)
-	render.render_off_hub() # charts drawn in a thread of their own: no chat waits while another's chart is drawn
-	httpd = pywsgi.WSGIServer((config.env.ip, config.env.port), main)
-	httpd.secure_repr = False if config.prefs.debug else None
-	print(f'Opening socket on http://{config.env.ip}:{config.env.port}', file=sys.stderr)
+	render.preload()
+	try:
+		server = http_server() # bound before Telegram is given the URL
+	except OSError as e:
+		print(e, file=sys.stderr)
+		sys.exit(1)
+	if server:
+		print(f'Opening socket on http://{config.env.ip}:{server.effective_port}', file=sys.stderr)
+	else:
+		print('No webhook is set: finbot takes no HTTP requests', file=sys.stderr)
 	if config.env.telegramBotToken and config.env.telegramOutgoingWebhook:
 		try:
 			inbound.TELEGRAM.bot_name = telegram.register() # here only: the job processes import lib.telegram too
@@ -228,10 +246,10 @@ if __name__ == '__main__':
 		jobs.current = scheduler # for the .jobs chat command
 		threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	# Startup is done. systemctl reload finbot: pick up edited preferences.conf and schedule.cron
-	gevent.signal_handler(signal.SIGHUP, in_thread(reload_all))
-	gevent.signal_handler(signal.SIGUSR1, in_thread(flush_cache)) # systemctl kill -s USR1 finbot: delete the cache
-	try:
-		httpd.serve_forever()
-	except OSError as e:
-		print(e, file=sys.stderr)
-		sys.exit(1)
+	signal.signal(signal.SIGHUP, in_thread(reload_all))
+	signal.signal(signal.SIGUSR1, in_thread(flush_cache)) # systemctl kill -s USR1 finbot: delete the cache
+	print('finbot is running: SIGHUP reloads, SIGUSR1 flushes the cache', file=sys.stderr)
+	if server:
+		server.run()
+	while True: # the threads do the work; this one waits for signals
+		signal.pause()
