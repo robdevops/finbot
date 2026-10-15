@@ -1,8 +1,6 @@
 """What finbot can do: the .help text, and the .jobs listing of the schedule (with running a job from it)."""
 import re
 from lib import jobs
-from lib import links
-from lib import webhook
 
 def prepare_jobs_payload(service, args):
 	"""`.jobs` lists the scheduled commands, each once; `.jobs run <number|command>` runs one now, as cron would.
@@ -15,7 +13,7 @@ def prepare_jobs_payload(service, args):
 		commands = scheduler.commands()
 		if not commands:
 			return ['No scheduled jobs'], None
-		payload = [webhook.bold('Scheduled commands:', service)]
+		payload = [service.bold('Scheduled commands:')]
 		for number, (label, _, _) in enumerate(commands, 1):
 			payload.append(f"{number}. {jobs.display(label)}" + (' (running)' if label in scheduler.busy else ''))
 		payload.append("\nRun one with .jobs run NUMBER" + (' or tap it' if service == 'telegram' else ''))
@@ -42,19 +40,19 @@ def job_line(scheduler, label, outcome):
 
 def prepare_help(service, botName):
 	payload = []
-	payload.append(webhook.bold("Tracked securities:", service))
+	payload.append(service.bold("Tracked securities:"))
 	payload.append(".holdings")
 	payload.append(".pie PORTFOLIO [sector]")
 	payload.append(".watchlist [add|del SYMBOL]")
 	payload.append(".who SYMBOL")
 
-	payload.append(webhook.bold("\nCompany info:", service))
+	payload.append(service.bold("\nCompany info:"))
 	payload.append('.SYMBOL')
 	payload.append(".dividend [period|SYMBOL]")
 	payload.append(".earnings [period|SYMBOL]")
 	payload.append(".marketcap [SYMBOL|bottom|top]")
 
-	payload.append(webhook.bold("\nPrice:", service))
+	payload.append(service.bold("\nPrice:"))
 	payload.append(".beta")
 	payload.append(".compare SYMBOL SYMBOL [...] [period|max]")
 	payload.append(".history SYMBOL")
@@ -63,7 +61,7 @@ def prepare_help(service, botName):
 	payload.append(".session [percent|SYMBOL]")
 	payload.append(".premarket [percent|SYMBOL]")
 
-	payload.append(webhook.bold("\nRisk & Value:", service))
+	payload.append(service.bold("\nRisk & Value:"))
 	payload.append(".buy")
 	payload.append(".sell")
 	payload.append(".pe [SYMBOL|top|bottom]")
@@ -71,17 +69,17 @@ def prepare_help(service, botName):
 	payload.append(".peg [SYMBOL|top|bottom|negative]")
 	payload.append(".shorts [percent|SYMBOL]")
 
-	payload.append(webhook.bold("\nTrades:", service))
+	payload.append(service.bold("\nTrades:"))
 	payload.append(".trades [period] [portfolio]")
 
-	payload.append(webhook.bold("\nScheduled jobs:", service))
+	payload.append(service.bold("\nScheduled jobs:"))
 	payload.append(".jobs [run NUMBER|COMMAND]")
 
-	payload.append(webhook.bold("\nAlternative syntax:", service))
+	payload.append(service.bold("\nAlternative syntax:"))
 	if service == 'slack':
 		payload.append('<' + botName + '> trades')
 	else:
 		payload.append(botName + ' price')
 	payload.append("")
-	payload.append(f"Full help on {links.link('https://github.com/robdevops/finbot', 'GitHub', service)}")
+	payload.append(f"Full help on {service.link('https://github.com/robdevops/finbot', 'GitHub')}")
 	return payload

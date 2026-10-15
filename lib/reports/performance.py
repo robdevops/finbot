@@ -42,7 +42,7 @@ def report(service, past_days=None, portfolio_select=None, interactive=False, pe
 	lines = [] # (percent, text), sorted into the payload below
 	chart_rows = []
 	for portfolio_id, (name, data) in performance.items(): # the name from the portfolio list: one with no holdings names none
-		link = links.link("https://portfolio.sharesight.com/portfolios/" + str(portfolio_id), name, service)
+		link = service.link("https://portfolio.sharesight.com/portfolios/" + str(portfolio_id), name)
 		percent = float(data['report']['capital_gain_percent'])
 		lines.append((percent, f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}"))
 		chart_rows.append((name, percent))
@@ -55,7 +55,7 @@ def report(service, past_days=None, portfolio_select=None, interactive=False, pe
 			chart_rows.append((text, float(percent)))
 	lines.sort(key=lambda item: item[0], reverse=True)
 	period = formats.days_english(past_days)
-	payload = [webhook.bold(f"Performance over {period}", service)] + [line for _, line in lines]
+	payload = [service.bold(f"Performance over {period}")] + [line for _, line in lines]
 	graph = None
 	if webhook.takes_charts(service, interactive):
 		chart_rows.sort(key=lambda row: row[1], reverse=True) # best first

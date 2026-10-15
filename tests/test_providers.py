@@ -673,7 +673,7 @@ class DiscordWebhook(FinbotCase):
 		self.assertTrue(all(size <= 2000 for size in sizes), sizes) # 20 lines a chunk used to make 3,019 characters
 
 	def test_links_are_masked_links(self):
-		self.assertEqual(links.link('https://x.example/a(b)', 'T[1]', 'discord'), '[T\\[1\\]](<https://x.example/a%28b%29>)')
+		self.assertEqual(DISCORD.link('https://x.example/a(b)', 'T[1]'), '[T\\[1\\]](<https://x.example/a%28b%29>)')
 
 
 class SlackSending(FinbotCase):

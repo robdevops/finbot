@@ -134,14 +134,14 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 			heading = f'{threshold:g}% at close, {on}'
 		chartable = webhook.takes_charts(service, interactive)
 		if top:
-			bottom = [webhook.bold(f'Bottom {top}', service)] + list(reversed(payload[-top:]))
-			payload = [webhook.bold(heading, service)] + payload[:top] + [''] + bottom
+			bottom = [service.bold(f'Bottom {top}')] + list(reversed(payload[-top:]))
+			payload = [service.bold(heading)] + payload[:top] + [''] + bottom
 			chart_top = chart_rows[:top]
 			chart_bottom = [row for row in reversed(chart_rows[-top:]) if row not in chart_top] # worst first
 			if chartable and chart_top:
 				graph = render.bar_graph(label(chart_top), label(chart_bottom), f"Top & bottom {top}", f"% change {formats.days_english(days, 'in ', 'the past ')}")
 		else:
-			payload.insert(0, webhook.bold(heading, service))
+			payload.insert(0, service.bold(heading))
 			if chartable:
 				graph = render.rows_chart(label(chart_rows), heading, session='midsession' if midsession else 'premarket' if premarket else None)
 	elif not payload and interactive:

@@ -42,13 +42,13 @@ def lambda_handler():
 		payloadhigh.sort()
 		if payloadhigh:
 			message = 'Record high:'
-			message = webhook.bold(message, service)
+			message = service.bold(message)
 			payload.append(message)
 			payload = payload + payloadhigh
 		if payloadlow:
 			payload.append("")
 			message = 'Record low:'
-			message = webhook.bold(message, service)
+			message = service.bold(message)
 			payload.append(message)
 			payload = payload + payloadlow
 		payload = [i[0] for i in groupby(payload)] # de-dupe white space

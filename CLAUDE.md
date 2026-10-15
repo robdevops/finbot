@@ -34,8 +34,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `lib/webhook.py`: sending (chunking, photos, Slack upload), markup, escaping, error reporting. `lib/telegram.py`: Bot API calls.
 - `lib/buttons.py`: period buttons under a chart. `lib/charts.py`: a button press rebuilds its chart; the Telegram command
   keyboard.
-- `lib/markets.py`: market tables, flags, ticker translation. `lib/formats.py`: names, units, dates, percents in words.
-  `lib/links.py`: links. `lib/render.py`: every chart (matplotlib).
+- `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: market tables, flags, ticker translation.
+  `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`: every chart.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, cached in `DATA_DIR/cache`.
   `sharesight.portfolios(name=None)` gives `Portfolio` objects: `holdings()`, `tickers()`, `performance(days)`,
   `trades(days)`.
@@ -53,8 +53,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 ## Conventions
 - Read settings as `config.env.<name>` / `config.prefs.<name>` where they are used, never into a default or module constant (a
   reload must be seen); in tests, `self.env(...)` / `self.prefs(...)` change them.
-- A report is a list of lines. Markup through `webhook.bold/italic(text, service)`, user-written text through
-  `webhook.escape(text, service)`, links through `links.link`/`links.finance_link`.
+- A report is a list of lines. `service` is a dialect (`lib/dialects.py`), which equals the network's name: markup with
+  `service.bold(text)`, `.italic`, `.strike`, `.link(url, text)`, user-written text through `service.escape(text)`, stock links
+  through `links.finance_link(symbol, exchange, service)`. Tests pass `TELEGRAM`, `SLACK`, `DISCORD`.
 - Tabs everywhere, tests included (`.editorconfig`). New and changed lines stay under 120 characters (an edit quotes whole lines).
 - Log with `print(..., file=sys.stderr)`. systemd discards stdout (`StandardOutput=null`), so the bot and its reports never
   print there (a test checks); only the util/ tools, run by hand, do.

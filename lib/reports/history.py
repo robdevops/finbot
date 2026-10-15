@@ -7,7 +7,6 @@ from lib import formats
 from lib import links
 from lib import markets
 from lib import render
-from lib import webhook
 from lib import yahoo
 
 def prepare_compare(service, args):
@@ -73,7 +72,7 @@ def prepare_compare(service, args):
 	subtitle = f"% change over {period_label}, since {start:%d %b %Y}" + note
 	image = render.compare_graph([(t.split('.')[0], series) for t, series in cropped], title, subtitle)
 	image.seek(0)
-	caption = [webhook.bold(f"{period_label}, since {start:%d %b %Y}", service) + note]
+	caption = [service.bold(f"{period_label}, since {start:%d %b %Y}") + note]
 	results = sorted(((series.iloc[-1] / series.iloc[0] - 1) * 100, t) for t, series in cropped)
 	for pct, t in reversed(results):
 		link = links.finance_link(t, exchanges[t], service, days=span_days, brief=False)
@@ -93,11 +92,11 @@ def history_payload(ticker, service, highlight=None, graph=False):
 	if ticker not in market_data or 'percent_change' not in market_data[ticker]:
 		return [f".history: no data found for ticker {ticker}"], None, None
 	table, image = yahoo.price_history(ticker) if graph else yahoo.price_history(ticker, graph=False)
-	lines = [webhook.bold(f"{title} ({ticker_link}) performance history", service)]
+	lines = [service.bold(f"{title} ({ticker_link}) performance history")]
 	for interval in ('Max', '10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
 		if interval in table:
 			percent = table[interval]
-			label = webhook.bold(interval + ':', service)
+			label = service.bold(interval + ':')
 			if interval == highlight:
 				label = '● ' + label
 			lines.append(f"{formats.get_emoji(percent)} {label} {formats.signed_percent(percent)}")

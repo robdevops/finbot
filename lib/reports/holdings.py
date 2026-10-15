@@ -5,12 +5,11 @@ from lib import sharesight
 from lib import formats
 from lib import links
 from lib import markets
-from lib import webhook
 from lib import yahoo
 
 def holding_line(holding, service, text=None):
 	"""'🇦🇺 Title (CODE)' for a Sharesight holding, CODE (or `text`) linking to the holding on Sharesight."""
-	link = links.link(f"https://portfolio.sharesight.com/holdings/{holding['holding_id']}/dashboard", holding['code'] if text is None else text, service)
+	link = service.link(f"https://portfolio.sharesight.com/holdings/{holding['holding_id']}/dashboard", holding['code'] if text is None else text)
 	return f"{markets.flag_from_market(holding['market_code'])} {formats.transform_title(holding['name'])} ({link})"
 
 def prepare_holdings_payload(portfolio_name, service):
@@ -22,7 +21,7 @@ def prepare_holdings_payload(portfolio_name, service):
 	holdings = portfolio.holdings()
 	payload = sorted(holding_line(holding, service) for holding in holdings.values())
 	if payload:
-		payload.insert(0, webhook.bold(f"Holdings for {portfolio.name} ({len(holdings)})", service))
+		payload.insert(0, service.bold(f"Holdings for {portfolio.name} ({len(holdings)})"))
 	return payload
 
 def prepare_who(service, code):
@@ -32,7 +31,7 @@ def prepare_who(service, code):
 		found = [holding_line(holding, service, code)
 			for holding in portfolio.holdings().values() if holding['code'].upper() == code]
 		if found:
-			payload += [webhook.bold(f"{portfolio.name}:", service), "\n".join(found), ""]
+			payload += [service.bold(f"{portfolio.name}:"), "\n".join(found), ""]
 	return payload or [f'{code} not found in any portfolio']
 
 def prepare_pie(portfolio_name, by, service, max_slices=8):
@@ -62,7 +61,7 @@ def prepare_pie(portfolio_name, by, service, max_slices=8):
 		rows.append(('Other', rest))
 	total = sum(v for _, v in rows)
 	title = f"{name} by {by}"
-	payload = [webhook.bold(title, service)]
+	payload = [service.bold(title)]
 	payload += [f"{label}: {value / total * 100:.1f}%" for label, value in rows]
 	noun = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries')}[by]
 	subtitle = f"{len(totals)} {noun[0] if len(totals) == 1 else noun[1]}"
@@ -85,18 +84,18 @@ def watchlist_change(service, user, action, asked):
 	def described(ticker, quote): # "Full Name (TICKER)", bold
 		quote = quote or {}
 		link = links.finance_link(ticker, quote.get('profile_exchange') or ticker, service)
-		return webhook.bold(f"{quote['profile_title']} ({link})" if quote.get('profile_title') else link, service)
+		return service.bold(f"{quote['profile_title']} ({link})" if quote.get('profile_title') else link)
 	if action == 'delete':
 		if asked not in watchlist.tickers():
-			return f"Beep Boop. I could not find {webhook.bold(asked, service)} to remove it"
+			return f"Beep Boop. I could not find {service.bold(asked)} to remove it"
 		quote = yahoo.fetch([asked]).get(asked)
 		watchlist.remove(asked)
 		return f"Ok {user}, I deleted {described(asked, quote)}"
 	found, quote = watchlist.find(asked)
 	if not quote:
-		return f"Beep Boop. I could not find {webhook.bold(asked, service)} to add it"
+		return f"Beep Boop. I could not find {service.bold(asked)} to add it"
 	added = watchlist.add(found)
 	if found != asked:
 		done = "so I added" if added else "and I'm already tracking"
-		return f"Beep Boop. I could not find {webhook.bold(asked, service)} {done} {described(found, quote)}"
+		return f"Beep Boop. I could not find {service.bold(asked)} {done} {described(found, quote)}"
 	return f"Ok {user}, I added {described(found, quote)}" if added else f"{user}, I'm already tracking {described(found, quote)}"

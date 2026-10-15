@@ -52,12 +52,12 @@ def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, i
 		payload = []
 		for date in sorted({when.date() for when, *_ in found}):
 			if not specific_stock:
-				payload += ["", webhook.bold(f"{date:%b %d}", service)]
+				payload += ["", service.bold(f"{date:%b %d}")]
 			for when, flag, title, link in found:
 				if when.date() == date:
 					payload.append(f"{flag} {date:%b %d} {title} ({link})" if specific_stock else f"{flag} {title} ({link})")
 		if payload and not specific_stock:
-			payload.insert(0, webhook.bold(f"{heading} {formats.days_english(days, 'for the next ')}:", service))
+			payload.insert(0, service.bold(f"{heading} {formats.days_english(days, 'for the next ')}:"))
 		elif not payload and interactive:
 			payload = [f"No events found for {tickers[0]}" if specific_stock else f"No events found {formats.days_english(days, 'for the next ')}"]
 		return payload

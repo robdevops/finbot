@@ -52,7 +52,7 @@ def refresh_keyboards():
 			except Exception as e:
 				print("keyboard refresh failed for", chat_id, e, file=sys.stderr)
 
-def build(kind, tickers, period, service='telegram'):
+def build(kind, tickers, period, service):
 	"""(caption, image) for a chart kind at a button period; period None = the command's default view."""
 	days = buttons.PERIODS[period][1] if period else None
 	if kind == 'h':

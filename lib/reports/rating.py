@@ -36,13 +36,13 @@ def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=
 				pass
 			if old_action and action != old_action:
 				emoji = get_emoji(old_index, index)
-				message = f"{webhook.bold(f'{old_index} {old_action}', service)} to {webhook.bold(f'{index} {action}', service)} ({analysts} analysts)"
+				message = f"{service.bold(f'{old_index} {old_action}')} to {service.bold(f'{index} {action}')} ({analysts} analysts)"
 				payload.append(f"{emoji} {title} ({ticker_link}) changed from {message}")
 		payload.sort()
 		if payload:
 			if not specific_stock:
 				message = 'Consensus rating changes:'
-				message = webhook.bold(message, service)
+				message = service.bold(message)
 				payload.insert(0, message)
 		else:
 			if interactive:

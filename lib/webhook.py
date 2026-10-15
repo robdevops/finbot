@@ -7,6 +7,7 @@ import sys
 import traceback
 
 from lib import config
+from lib import dialects
 from lib import net
 from lib import telegram
 
@@ -65,7 +66,7 @@ def chat_url(service, chat_id):
 def default_chats():
 	"""Where a scheduled report goes: [(service, url, chat id)]. Telegram posts into telegramChatID (left out without one); Slack and
 	Discord post through their incoming webhooks, which take no chat id. Raises RuntimeError when there is nowhere to post."""
-	chats = [(service, chat_url(service, config.env.telegramChatID), config.env.telegramChatID) if service == 'telegram' else (service, url, None)
+	chats = [(dialects.TELEGRAM, chat_url(service, config.env.telegramChatID), config.env.telegramChatID) if service == 'telegram' else (dialects.of(service), url, None)
 		for service, url in config.env.webhooks.items() if service != 'telegram' or config.env.telegramChatID]
 	if not chats:
 		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slack_webhook or discord_webhook')
@@ -73,7 +74,7 @@ def default_chats():
 
 def destinations(interactive, service, chat_id):
 	"""Where a report goes: back to the chat that asked for it (interactive), else to the default chats."""
-	return [(service, chat_url(service, chat_id), chat_id)] if interactive else default_chats()
+	return [(dialects.of(service), chat_url(service, chat_id), chat_id)] if interactive else default_chats()
 
 def send(service, url, chat_id, payload, image=None, reply_markup=None):
 	"""A report: its chart with the text as caption when there is one (sendPhoto falls back to the text where a chart cannot go),
@@ -164,35 +165,6 @@ def chunked(lines, limit, max_lines):
 	if current:
 		chunks.append(current)
 	return chunks
-
-MARKUP = { # how each service marks text up: style -> service -> (before, after)
-	'bold': {'telegram': ('<b>', '</b>'), 'slack': ('*', '*'), 'discord': ('**', '**')},
-	'italic': {'telegram': ('<i>', '</i>'), 'slack': ('_', '_'), 'discord': ('_', '_')},
-	'strike': {'telegram': ('<s>', '</s>'), 'slack': ('~', '~'), 'discord': ('~~', '~~')},
-}
-
-def escape(text, service):
-	"""Text a user wrote (a .plan entry, a name) made safe to show: Telegram's HTML and Slack's markup both take &amp; &lt; &gt;.
-	It is unescaped first because it may arrive escaped already (Slack escapes what it sends; bot.py escapes Telegram names):
-	escaping twice would show &amp;amp;. Discord's markdown shows entities as they are, so it gets the plain text."""
-	text = html.unescape(str(text))
-	return text if service == 'discord' else html.escape(text, quote=False)
-
-def _styled(style, message, service):
-	if service not in MARKUP[style]:
-		return message
-	before, after = MARKUP[style][service]
-	return before + message + after
-
-def bold(message, service):
-	return _styled('bold', message, service)
-
-def italic(message, service):
-	return _styled('italic', message, service)
-
-def strike(message, service):
-	return _styled('strike', message, service)
-
 
 def fit_caption(caption, limit=1024, visible=None):
 	"""Telegram rejects photo captions over 1024 visible characters; Discord takes 2,000 characters, markup included

@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from lib import net
 from lib import state
 from lib import webhook
-from lib import links
 
 NAMESPACES = {
 	"media": "http://search.yahoo.com/mrss/",
@@ -99,7 +98,7 @@ def lambda_handler(feed_url):
 			podcast_name = episode['podcast']
 			title = episode['title'].removeprefix(podcast_name).lstrip(string.punctuation + " ")
 			duration = f" {episode['duration']}" if episode['duration'] else ""
-			payload.append(f"📣 {podcast_name}: {links.link(episode['url'], title, service)}{duration} ({episode['ago']})")
+			payload.append(f"📣 {podcast_name}: {service.link(episode['url'], title)}{duration} ({episode['ago']})")
 		webhook.send(service, url, chat, payload)
 	with state.edit(seen_file, []) as recorded: # last, so that a failure above leaves these episodes for next run
 		recorded[:] = sorted(guids.union(recorded))

@@ -70,7 +70,7 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 				currency = currency_temp
 			sharesight_url = "https://portfolio.sharesight.com/holdings/"
 			trade_url = sharesight_url + holding_id + '/dashboard/transactions'
-			trade_link = links.link(trade_url, action, service)
+			trade_link = service.link(trade_url, action)
 			holding_link = links.finance_link(symbol, market, service)
 			payload_staging.append([dt_date, trade_id, emoji, portfolio_name, trade_link, currency, f'{value}', holding_link, flag])
 
@@ -80,7 +80,7 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 			if len(dates) > 1 or (interactive and days > 1):
 				human_date = date.strftime('%b %d') # Dec 30
 				payload.append("")
-				payload.append(webhook.bold(human_date, service))
+				payload.append(service.bold(human_date))
 			for trade in payload_staging:
 				if date == trade[0]:
 					payload.append(' '.join(trade[2:]))

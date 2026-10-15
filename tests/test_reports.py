@@ -58,23 +58,23 @@ class Commands(FinbotCase):
 
 class ReportFunctions(FinbotCase):
 	def test_prepare_help(self):
-		self.assertTrue(about.prepare_help('telegram', BOT))
+		self.assertTrue(about.prepare_help(TELEGRAM, BOT))
 
 	def test_a_portfolio_with_no_holdings_is_reported_by_name(self):
 		"""Its name used to be read from its first holding: an empty portfolio crashed .performance."""
 		self.patch(sharesight, 'get_performance', lambda pid, d, *a: {'report': {'holdings': [], 'capital_gain_percent': '0.0'}})
-		payload, _ = performance.report('telegram', 7)
+		payload, _ = performance.report(TELEGRAM, 7)
 		self.assertTrue(any('>Rob</a>' in line for line in payload), payload)
 
 	def test_prepare_holdings(self):
-		self.assertTrue(holdings.prepare_holdings_payload(None, 'telegram'))
+		self.assertTrue(holdings.prepare_holdings_payload(None, TELEGRAM))
 
 	def test_prepare_marketcap(self):
-		self.assertTrue(rankings.prepare_marketcap_payload('telegram', 'top', length=5))
+		self.assertTrue(rankings.prepare_marketcap_payload(TELEGRAM, 'top', length=5))
 
 	def test_prepare_rating(self):
 		for action in ('buy', 'sell'):
-			self.assertTrue(rankings.prepare_rating_payload('telegram', action, length=5)[0])
+			self.assertTrue(rankings.prepare_rating_payload(TELEGRAM, action, length=5)[0])
 
 	def test_ratings_list_the_strongest_first(self):
 		"""1 is a strong buy and 5 a strong sell: .sell used to list the mildest sells first. On equal ratings, more analysts first;
@@ -84,13 +84,13 @@ class ReportFunctions(FinbotCase):
 		self.patch(watchlist, 'with_holdings', lambda: list(ratings))
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | dict(zip(('recommend', 'recommend_index', 'recommend_analysts'), ratings[t]))})
 		def order(action):
-			payload, chart = rankings.prepare_rating_payload('telegram', action)
+			payload, chart = rankings.prepare_rating_payload(TELEGRAM, action)
 			return [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], [label for label, _ in chart['rows']]
 		self.assertEqual(order('buy'), (['T2', 'T3', 'T1'], ['T2', 'T3', 'T1']))
 		self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
-		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload('telegram', 'buy')[0][0])
+		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'buy')[0][0])
 		self.patch(watchlist, 'with_holdings', lambda: ['T7', 'T8'])
-		self.assertEqual(rankings.prepare_rating_payload('telegram', 'buy'), (['No tracked stocks rated buy by 7+ analysts'], None))
+		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'buy'), (['No tracked stocks rated buy by 7+ analysts'], None))
 
 	def test_a_small_cap_quoted_in_won_needs_the_bigger_move_too(self):
 		"""demote_volatile compares market caps in US dollars: unconverted, a small cap quoted in won was never small."""
@@ -120,16 +120,16 @@ class ReportFunctions(FinbotCase):
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': -5 if t == 'T3' else 20} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
 		def listed(action):
-			payload, chart = rankings.prepare_value_payload('telegram', action)
+			payload, chart = rankings.prepare_value_payload(TELEGRAM, action)
 			return payload[0], [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], chart
 		heading, names, chart = listed('forward pe')
 		self.assertEqual((names, [label for label, _ in chart['rows']]), (['T1'], ['T1'])) # T2 and T4: too few; T3: negative
 		self.assertIn('forward pe ratio (7+ analysts)', heading)
 		self.assertEqual(listed('negative forward pe')[1], ['T3'])
-		self.assertIn('Co T2', str(rankings.prepare_value_payload('telegram', 'forward pe', 'T2'))) # one ticker asked for: shown
+		self.assertIn('Co T2', str(rankings.prepare_value_payload(TELEGRAM, 'forward pe', 'T2'))) # one ticker asked for: shown
 		self.prefs(min_analysts=13) # the one setting moves .buy and .forward pe together
-		self.assertEqual(rankings.prepare_value_payload('telegram', 'forward pe')[0], ['No tracked stocks with 13+ analysts have a forward pe ratio'])
-		self.assertEqual(rankings.prepare_rating_payload('telegram', 'buy')[0], ['No tracked stocks rated buy by 13+ analysts'])
+		self.assertEqual(rankings.prepare_value_payload(TELEGRAM, 'forward pe')[0], ['No tracked stocks with 13+ analysts have a forward pe ratio'])
+		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'buy')[0], ['No tracked stocks rated buy by 13+ analysts'])
 
 	def test_market_caps_compare_in_us_dollars(self):
 		"""Yahoo gives a market cap in the stock's own currency: unconverted, a won market cap topped every list."""
@@ -141,13 +141,13 @@ class ReportFunctions(FinbotCase):
 		self.patch(yahoo, 'fetch', fetch)
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: fetch([t]))
 		self.patch(watchlist, 'with_holdings', lambda: list(stocks))
-		payload = rankings.prepare_marketcap_payload('telegram')
+		payload = rankings.prepare_marketcap_payload(TELEGRAM)
 		self.assertIn('by market cap (USD)', payload[0])
 		self.assertEqual([line.split('Co ')[1].split(' ')[0] for line in payload[1:]], ['U1', 'K1.KS', 'L1.L', 'K2.KS']) # Z1: no rate, left out
 		self.assertIn('mkt cap: 731.88 B', payload[2]) # 1.01 Q won
-		self.assertIn('mkt cap: KRW 1.01 Q (USD 731.88 B)', rankings.prepare_marketcap_payload('telegram', 'K1.KS')[0])
-		self.assertIn('mkt cap: GBP 62.50 B (USD 79.11 B)', rankings.prepare_marketcap_payload('telegram', 'L1.L')[0]) # pence quote, pound cap
-		beta = rankings.prepare_beta_payload('telegram')[0]
+		self.assertIn('mkt cap: KRW 1.01 Q (USD 731.88 B)', rankings.prepare_marketcap_payload(TELEGRAM, 'K1.KS')[0])
+		self.assertIn('mkt cap: GBP 62.50 B (USD 79.11 B)', rankings.prepare_marketcap_payload(TELEGRAM, 'L1.L')[0]) # pence quote, pound cap
+		beta = rankings.prepare_beta_payload(TELEGRAM)[0]
 		self.assertIn('Co K2.KS', str(beta)) # 500 billion won is US$362M: a small cap, which it never was unconverted
 		self.assertNotIn('Co K1.KS', str(beta))
 
@@ -155,18 +155,18 @@ class ReportFunctions(FinbotCase):
 		for action, heading in (('pe', 'Top 5 tracked stocks by pe ratio'), ('bottom forward pe', 'Bottom 5 tracked stocks by forward pe ratio'),
 								('peg', 'Top 5 tracked stocks by peg ratio'), ('negative peg', 'negative peg: no data found')):
 			with self.subTest(action=action):
-				payload, chart = rankings.prepare_value_payload('telegram', action, length=5)
+				payload, chart = rankings.prepare_value_payload(TELEGRAM, action, length=5)
 				self.assertIn(heading, payload[0])
 
 	def test_prepare_beta(self):
-		payload, chart = rankings.prepare_beta_payload('telegram')
+		payload, chart = rankings.prepare_beta_payload(TELEGRAM)
 		self.assertIn('Beta over 1.5', payload[0])
 		self.assertEqual(len(chart['rows']), len(payload) - 1) # a bar per stock listed
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'beta': 1.0}})
-		self.assertEqual(rankings.prepare_beta_payload('telegram'), (['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None))
+		self.assertEqual(rankings.prepare_beta_payload(TELEGRAM), (['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None))
 
 	def test_prepare_profile(self):
-		self.assertTrue(profile.prepare_profile_payload('telegram', '@u', 'T1'))
+		self.assertTrue(profile.prepare_profile_payload(TELEGRAM, '@u', 'T1'))
 
 	def test_a_profile_leaves_out_what_yahoo_did_not_send(self):
 		"""Each of these fields missing (or a zero equity) used to crash the whole profile."""
@@ -175,22 +175,22 @@ class ReportFunctions(FinbotCase):
 		for missing in ('marketState', 'profile_exchange', 'market_cap', 'currency', 'regularMarketPrice', 'sharesOutstanding', 'percent_change'):
 			with self.subTest(missing=missing):
 				self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: {k: v for k, v in full.items() if k != missing}})
-				self.assertIn('Co T1', profile.prepare_profile_payload('telegram', '@u', 'T1')[0])
+				self.assertIn('Co T1', profile.prepare_profile_payload(TELEGRAM, '@u', 'T1')[0])
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: full | {'shareholder_equity': 0}})
-		self.assertNotIn('Net debt/equity', str(profile.prepare_profile_payload('telegram', '@u', 'T1')))
+		self.assertNotIn('Net debt/equity', str(profile.prepare_profile_payload(TELEGRAM, '@u', 'T1')))
 
 	def test_a_profile_warns_of_a_ps_ratio_only_above_15(self):
 		for ps, warned in ((12.3, False), (15.1, True)): # forward P/E 99 warns (above 30): its warning used to show on the PS line too
 			with self.subTest(ps=ps):
 				self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'price_to_sales': ps, 'price_to_earnings_forward': 99, 'profile_industry': 'Tools'}})
-				line = next(line for line in profile.prepare_profile_payload('telegram', '@u', 'T1') if 'PS ratio' in line)
+				line = next(line for line in profile.prepare_profile_payload(TELEGRAM, '@u', 'T1') if 'PS ratio' in line)
 				self.assertEqual('⚠️' in line, warned, line)
 
 	def test_prepare_watchlist(self):
-		self.assertTrue(holdings.prepare_watchlist('telegram', '@u'))
+		self.assertTrue(holdings.prepare_watchlist(TELEGRAM, '@u'))
 
 	def test_prepare_compare_usage(self):
-		caption = history.prepare_compare('telegram', ['T1'])[0]
+		caption = history.prepare_compare(TELEGRAM, ['T1'])[0]
 		self.assertIn('Usage', ' '.join(caption))
 
 
@@ -413,7 +413,7 @@ class PieCommand(FinbotCase):
 		self.assertIn('Rob by industry', sent[0][2])
 
 	def test_by_sector_and_payload(self):
-		payload, chart = holdings.prepare_pie('rob', 'sector', 'telegram')
+		payload, chart = holdings.prepare_pie('rob', 'sector', TELEGRAM)
 		self.assertEqual([r[0] for r in chart['rows']], ['Electronic Technology', 'Health Technology', 'Unclassified'])
 		self.assertIn('Electronic Technology: 72.7%', payload) # 800 of 1100; zero-value Gold is left out
 		self.assertEqual(self.command('.pie Rob sector')[0][0], 'photo')
@@ -421,7 +421,7 @@ class PieCommand(FinbotCase):
 	def test_folds_into_other_and_renders(self):
 		held = {f'T{i}:X': {'code': f'T{i}', 'industry_classification_name': f'Ind {i}', 'value': 100 - i} for i in range(12)}
 		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: held)
-		payload, chart = holdings.prepare_pie('Rob', 'industry', 'telegram')
+		payload, chart = holdings.prepare_pie('Rob', 'industry', TELEGRAM)
 		self.assertEqual(len(chart['rows']), 8)
 		self.assertEqual(chart['rows'][-1][0], 'Other')
 		self.assertTrue(render.pie_chart(chart['rows'], chart['title'], chart['subtitle']).read().startswith(b'\x89PNG'))
@@ -434,7 +434,7 @@ class PieCommand(FinbotCase):
 
 	def test_a_service_that_takes_no_images_gets_text(self):
 		self.env(slackBotToken=False) # Slack replies carry charts only with the bot token
-		worker.Request('slack', 'C1', '@u', 'U', BOT).deliver(['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
+		worker.Request(SLACK, 'C1', '@u', 'U', BOT).deliver(['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
 		self.assertEqual(self.sent[-1][0], 'text')
 
 

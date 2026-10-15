@@ -5,7 +5,6 @@ from lib import watchlist
 from lib import formats
 from lib import links
 from lib import markets
-from lib import webhook
 from lib import yahoo
 
 def last_col(line):
@@ -39,7 +38,7 @@ def prepare_marketcap_payload(service, action='top', length=15):
 	if not caps:
 		return ['No market cap data found']
 	caps.sort(key=lambda cap: cap[0], reverse=action == 'top')
-	return [webhook.bold(f'{action.title()} {length} tracked stocks by market cap (USD)', service)] + [line for _, line in caps[:length]]
+	return [service.bold(f'{action.title()} {length} tracked stocks by market cap (USD)')] + [line for _, line in caps[:length]]
 
 def prepare_rating_payload(service, action, length=15):
 	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by min_analysts or more analysts (fewer,
@@ -65,7 +64,7 @@ def prepare_rating_payload(service, action, length=15):
 	# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
 	chart = {'rows': shown, 'title': message, 'subtitle': 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
 		'value_fmt': lambda v: f"{v:g}", 'xlim': (max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25))}
-	return [webhook.bold(message, service)] + payload, chart
+	return [service.bold(message)] + payload, chart
 
 def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 	"""(payload, chart): the tracked stocks by a ratio (`action`), or one ticker's. A forward P/E is analysts' estimate, so its lists
@@ -142,7 +141,7 @@ def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
 			payload = [f"No tracked stocks with {config.prefs.min_analysts}+ analysts have a {heading_trail} ratio" if covered is not None else f"{action}: no data found"]
 		else:
 			heading = f'{heading_type} {length} tracked stocks by {heading_trail} ratio{coverage}'
-			payload.insert(0, f"{webhook.bold(heading, service)}")
+			payload.insert(0, f"{service.bold(heading)}")
 			chart = {'rows': chart_rows[:length], 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
 	return payload, chart
 
@@ -161,4 +160,4 @@ def prepare_beta_payload(service):
 	found.sort(key=lambda row: row[0], reverse=True)
 	heading = 'Beta over 1.5 and mkt cap under US$2B'
 	chart = {'rows': [row for _, _, row in found], 'title': heading, 'value_fmt': lambda v: f"{v:g}"}
-	return [webhook.bold(heading, service)] + [line for _, line, _ in found], chart
+	return [service.bold(heading)] + [line for _, line, _ in found], chart

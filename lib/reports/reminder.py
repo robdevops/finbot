@@ -4,7 +4,6 @@ import zoneinfo
 from dateutil.relativedelta import relativedelta
 from lib import config
 from lib import formats
-from lib import links
 from lib import webhook
 
 
@@ -46,13 +45,13 @@ def lambda_handler():
 				payload.append("• work expenses‡")
 				payload.append("• investment subscriptions§")
 				payload.append ("")
-				abr_link = links.link('https://abr.business.gov.au/Tools/DgrListing', 'DGR-registered', service)
-				stake_note = links.link('https://hellostake.com/au/support/stake-super/employer-and-personal-contributions/33442327233305#h_01JQAPN9A6ZM41NZKP6XZWN1KP', 'note about XX PCC in transaction description', service)
-				work_link = links.link('https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim', 'eligible work expenses', service)
-				payload.append(webhook.italic("* Organisation must be " + abr_link, service))
-				payload.append(webhook.italic("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. Stake users: see " + stake_note, service))
-				payload.append(webhook.italic("‡ See " + work_link, service))
-				payload.append(webhook.italic("§ Must relate directly to specific trades and gains/income (e.g. not general finance news)", service))
+				abr_link = service.link('https://abr.business.gov.au/Tools/DgrListing', 'DGR-registered')
+				stake_note = service.link('https://hellostake.com/au/support/stake-super/employer-and-personal-contributions/33442327233305#h_01JQAPN9A6ZM41NZKP6XZWN1KP', 'note about XX PCC in transaction description')
+				work_link = service.link('https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim', 'eligible work expenses')
+				payload.append(service.italic("* Organisation must be " + abr_link))
+				payload.append(service.italic("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. Stake users: see " + stake_note))
+				payload.append(service.italic("‡ See " + work_link))
+				payload.append(service.italic("§ Must relate directly to specific trades and gains/income (e.g. not general finance news)"))
 
 		if month_and_day == '08-18':
 			myBirthday = datetime.datetime(2022,8,18,0,0,0,0, tzinfo=tz)
@@ -60,7 +59,7 @@ def lambda_handler():
 			payload.append("It's my " + str(difference.years) + formats.ordinal(difference.years) + " birthday! 🥳")
 
 		if payload:
-			heading = webhook.bold("Finance event reminders:", service)
+			heading = service.bold("Finance event reminders:")
 			payload.insert(0, heading)
 		return payload
 

@@ -77,8 +77,8 @@ class Formatting(unittest.TestCase):
 		self.assertEqual([formats.get_emoji(n) for n in (1, -1, 0)], ['🔼', '🔻', '▪️'])
 
 	def test_links_per_service(self):
-		telegram_link = links.link('https://example.com/x', 'text', 'telegram')
-		slack_link = links.link('https://example.com/x', 'text', 'slack')
+		telegram_link = TELEGRAM.link('https://example.com/x', 'text')
+		slack_link = SLACK.link('https://example.com/x', 'text')
 		self.assertIn('<a href=', telegram_link)
 		self.assertIn('|text', slack_link)
 

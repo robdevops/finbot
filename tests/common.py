@@ -10,7 +10,7 @@ os.chdir(ROOT)
 os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok', telegramChatID='1')
 
 import bot # first, and once: it monkey-patches with gevent, which must happen before requests imports ssl and never mid-test
-from lib import buttons, cache, config, state, webhook, formats, links, markets, render, yahoo, sharesight, shortman, worker, charts, telegram, watchlist, words
+from lib import buttons, cache, config, dialects, state, webhook, formats, links, markets, render, yahoo, sharesight, shortman, worker, charts, telegram, watchlist, words
 from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating, reminder, shorts, trades
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (yahoo, 'price_history'),
@@ -20,6 +20,7 @@ REAL_PAYLOAD_WRAPPER = webhook.payload_wrapper # FinbotCase replaces it; tests o
 REAL_REPORT_ERROR = webhook.report_error # likewise
 REAL_SEND_PHOTO = webhook.sendPhoto # likewise
 TICKERS = [f'T{i}' for i in range(25)]
+TELEGRAM, SLACK, DISCORD = dialects.TELEGRAM, dialects.SLACK, dialects.DISCORD
 BOT = '@bot'
 
 

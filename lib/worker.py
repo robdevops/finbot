@@ -7,6 +7,7 @@ import re
 import sys
 import threading
 from lib import config
+from lib import dialects
 from lib import state
 from lib import words
 from lib import formats
@@ -113,6 +114,7 @@ def process_job_callback(service, callback_id, chat_id, message_id, data):
 
 def process_callback(service, callback_id, chat_id, message_id, data):
 	"""Button press: run a scheduled command from .jobs, or rebuild a chart message for the chosen period and edit it in place."""
+	service = dialects.of(service)
 	if data.startswith('j|'):
 		return process_job_callback(service, callback_id, chat_id, message_id, data)
 	parts = data.split('|', 3)
@@ -132,7 +134,7 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 def process_request(service, chat_id, user, message, botName, userRealName):
 	"""Entry point for inbound chat requests: the first command in COMMANDS that fits the message answers it (a message that fits
 	none gets no answer). Any failure becomes a one-line reply in the originating chat, after the typing stops."""
-	request = Request(service, chat_id, user, userRealName, botName)
+	request = Request(dialects.of(service), chat_id, user, userRealName, botName)
 	try:
 		for pattern, handler in COMMANDS:
 			if m := match(pattern, message, botName):
@@ -216,7 +218,7 @@ def on_help(request, m):
 
 def on_hello(request, m):
 	"""Easter egg: a greeting, alliterated when the alliterate preference is on."""
-	verbs = words.verb + [f"{webhook.strike(said, request.service)} I mean {meant}" for said, meant in (('study', 'meet'), ('observe', 'see'), ('profile', 'know'))]
+	verbs = words.verb + [f"{request.service.strike(said)} I mean {meant}" for said, meant in (('study', 'meet'), ('observe', 'see'), ('profile', 'know'))]
 	while True:
 		first, second = random.choice(words.adjectives), random.choice(words.adjectives_two)
 		if not config.prefs.alliterate or first[0].lower() == second[0].lower():
@@ -228,7 +230,7 @@ GLITCH = 'Ō̵̟n̶̠̏é̶͓ ̶͉̅d̷̹̅a̷͇͌ỳ̴͈,̴͍͑ ̶̼͑h̴̦̽
 def on_thanks(request, m):
 	"""Easter egg: you're welcome, glitching one time in a thousand and on April Fools' Day."""
 	today = datetime.date.today()
-	glitch = webhook.strike(GLITCH, request.service) if random.randrange(1, 1000) == 1 or (today.month, today.day) == (4, 1) else ''
+	glitch = request.service.strike(GLITCH) if random.randrange(1, 1000) == 1 or (today.month, today.day) == (4, 1) else ''
 	request.say([f"{glitch}You're {random.choice(words.adjectives)} welcome, {request.user_name}! 😇"])
 
 def on_calendar(request, m):
@@ -352,8 +354,8 @@ def on_plan(request, m):
 	plan = state.load('finbot_plan.json', {})
 	def who(user): # a Slack user is a mention (<@U123>), which is markup to keep; elsewhere a handle is text
 		user = user.removeprefix('@')
-		return user if request.service == 'slack' else webhook.escape(user, request.service)
-	request.say([f"{webhook.bold(who(k), request.service)}: {webhook.italic(webhook.escape(v, request.service), request.service)}\n"
+		return user if request.service == 'slack' else request.service.escape(user)
+	request.say([f"{request.service.bold(who(k))}: {request.service.italic(request.service.escape(v))}\n"
 		for k, v in plan.items()])
 
 def on_who(request, m):

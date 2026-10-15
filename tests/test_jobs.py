@@ -496,13 +496,13 @@ class ManualRuns(SchedulerBase):
 		self.assertIn('6. price 7 (running)', '\n'.join(map(str, self.list_in_chat())))
 
 	def test_telegram_gets_a_button_per_command_and_slack_does_not(self):
-		payload, markup = about.prepare_jobs_payload('telegram', '')
+		payload, markup = about.prepare_jobs_payload(TELEGRAM, '')
 		buttons = [b for row in markup['inline_keyboard'] for b in row]
 		self.assertEqual([b['text'] for b in buttons], ['1. performance 7', '2. performance 30', '3. performance 90', '4. performance 180',
 													  '5. performance 365', '6. price 7', '7. price close', '8. trades'])
 		for b in buttons:
 			self.assertLessEqual(len(b['callback_data'].encode()), 64)
-		payload, markup = about.prepare_jobs_payload('slack', '')
+		payload, markup = about.prepare_jobs_payload(SLACK, '')
 		self.assertIsNone(markup)
 
 	def test_the_chat_command_passes_the_keyboard_on(self):
@@ -514,7 +514,7 @@ class ManualRuns(SchedulerBase):
 	def test_button_press_runs_that_command(self):
 		sent = []
 		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: sent.append(text))
-		markup = about.prepare_jobs_payload('telegram', '')[1]
+		markup = about.prepare_jobs_payload(TELEGRAM, '')[1]
 		data = next(b['callback_data'] for row in markup['inline_keyboard'] for b in row if b['text'].startswith('7.'))
 		self.sent.clear()
 		worker.process_callback('telegram', 'cb1', '55', '9', data)
@@ -559,7 +559,7 @@ class ManualRuns(SchedulerBase):
 		chat, mid, text, markup = self.edits[0]
 		self.assertEqual((chat, mid), ('55', '9')) # the message with the old buttons is edited in place
 		self.assertIn('7. price close', text)
-		self.assertEqual(markup, about.prepare_jobs_payload('telegram', '')[1]) # with the current buttons
+		self.assertEqual(markup, about.prepare_jobs_payload(TELEGRAM, '')[1]) # with the current buttons
 		self.patch(jobs, 'current', None) # scheduler off: the list is replaced by the notice and the buttons removed
 		worker.process_callback('telegram', 'cb1', '55', '9', 'j|7|0000')
 		self.assertEqual(self.edits[-1][2:], ('Scheduled jobs are off (scheduler=False)', {'inline_keyboard': []}))
