@@ -88,18 +88,19 @@ class Request:
 
 def process_job_callback(service, callback_id, chat_id, message_id, data):
 	"""A command button of .jobs: run that command now and answer in the chat."""
+	chat = delivery.reply_to(service, chat_id)
 	try:
 		_, number, crc = data.split('|') # only a command offered by .jobs can be picked; anything else is refused
 		command = jobs.current.pick(number, crc)
 	except (ValueError, jobs.ScheduleError, AttributeError):
-		telegram.answerCallbackQuery(callback_id, 'Buttons updated, try again')
+		chat.acknowledge(callback_id, 'Buttons updated, try again')
 		payload, markup = about.prepare_jobs_payload(service, '') # the list as it is now, in place of the stale one
-		delivery.reply_to(service, chat_id).edit_text(message_id, '\n'.join(payload), markup or [])
+		chat.edit_text(message_id, '\n'.join(payload), markup or [])
 		return
-	telegram.answerCallbackQuery(callback_id, f'Running {jobs.display(command[0])}…'[:100])
+	chat.acknowledge(callback_id, f'Running {jobs.display(command[0])}…'[:100])
 	try:
 		line = about.job_line(jobs.current, *jobs.current.run_command(command))
-		delivery.deliver(delivery.reply_to(service, chat_id), delivery.Report([line]))
+		delivery.deliver(chat, delivery.Report([line]))
 	except Exception as e:
 		delivery.report_error(e, service, chat_id, context='jobs')
 
@@ -110,19 +111,19 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 		return process_job_callback(service, callback_id, chat_id, message_id, data)
 	parts = data.split('|', 3)
 	valid = len(parts) == 4 and parts[0] == 'c' and parts[1] in buttons.BUTTONS and parts[2] in buttons.BUTTONS[parts[1]]
+	chat = delivery.reply_to(service, chat_id)
 	# answering now shows Telegram's toast bubble ("Loading 3M…") while the new chart is built
-	telegram.answerCallbackQuery(callback_id, f"Loading {buttons.PERIODS[parts[2]][0]}…" if valid else None)
+	chat.acknowledge(callback_id, f"Loading {buttons.PERIODS[parts[2]][0]}…" if valid else None)
 	if not valid:
 		return
 	try:
 		_, kind, period, ref = parts
 		args = buttons.resolve(ref)
 		caption, chart = charts.build(kind, args, period, service)
-		chat = delivery.reply_to(service, chat_id)
 		image = render.draw(chart) if chart else None
 		chat.edit_chart(message_id, image, caption, buttons.keyboard(kind, args, period))
 	except answer.Answer as e: # nothing to draw for that period: said in the chat, as a command would
-		delivery.deliver(delivery.reply_to(service, chat_id), delivery.Report(e.lines))
+		delivery.deliver(chat, delivery.Report(e.lines))
 	except Exception as e:
 		delivery.report_error(e, service, chat_id, context='chart')
 

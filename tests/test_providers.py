@@ -919,6 +919,101 @@ class SlackSending(FinbotCase):
 		self.assertEqual(self.posts, [])
 
 
+class SlackButtons(FinbotCase):
+	"""A chart's period buttons on Slack: a Block Kit message (the report, the chart uploaded into no channel, the
+	buttons) that a press redraws in place, where the presses reach finbot (the bot token and slackOutgoingWebhook)."""
+	UPLOAD_URL = 'https://files.slack.com/upload/v1/abc'
+
+	def setUp(self):
+		"""The real send path, its posts recorded and answered as Slack would; no waiting."""
+		super().setUp()
+		self.patch(transports.Transport, 'text', REAL_TEXT)
+		self.patch(transports.Transport, 'chart', REAL_CHART)
+		self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack')
+		self.posts, self.refusals, self.waits = [], {}, []
+		self.patch(transports.time, 'sleep', self.waits.append)
+		def post(url, **kwargs):
+			"""Record the post and answer it: a refusal set for the method, while there is one left, else success."""
+			self.posts.append((url, kwargs))
+			method = url.rsplit('/', 1)[-1]
+			if self.refusals.get(method):
+				return Resp({'ok': False, 'error': self.refusals[method].pop(0)})
+			if url == self.UPLOAD_URL:
+				return Resp(None, text='OK - 3')
+			return Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': 'F1', 'files': [{'id': 'F1'}],
+				'ts': '1.5'})
+		self.patch(transports.net, 'post', post)
+
+	def calls(self):
+		"""The methods posted, in order (the upload as 'upload')."""
+		return ['upload' if url == self.UPLOAD_URL else url.rsplit('/', 1)[-1] for url, _ in self.posts]
+
+	def blocks(self, method):
+		"""The blocks of the last call of this method."""
+		return json.loads([kwargs for url, kwargs in self.posts if url.endswith('/' + method)][-1]['data']['blocks'])
+
+	def test_a_chart_reply_carries_its_period_buttons(self):
+		"""A chart reply is a Block Kit message: the report, the chart (uploaded into no channel, shown by its id) and
+		the period buttons, the one shown marked; nothing goes as text."""
+		worker.process_request('slack', 'C1', '<@U1>', '.price', BOT, 'U')
+		self.assertEqual(self.errors, [])
+		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
+			'chat.postMessage'])
+		self.assertNotIn('channel_id', self.posts[2][1]['data']) # in no channel: the message shows it
+		blocks = self.blocks('chat.postMessage')
+		self.assertEqual([block['type'] for block in blocks], ['section', 'image', 'actions'])
+		self.assertTrue(blocks[0]['text']['text'].startswith('*5% at close'))
+		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
+		buttons_shown = blocks[2]['elements']
+		self.assertEqual([button['text']['text'] for button in buttons_shown], ['1D', '7D', '1M', '3M', '1Y', 'Max'])
+		self.assertEqual([button.get('style') for button in buttons_shown], ['primary'] + [None] * 5)
+		self.assertEqual(buttons_shown[1]['value'], 'c|l|w|5,0')
+
+	def test_a_press_redraws_the_chart_in_place(self):
+		"""A press uploads the chart for that period (a file cannot be replaced) and puts it in the message with
+		chat.update, the period pressed now marked; Telegram is not asked to answer the press."""
+		worker.process_callback('slack', 't1', 'C1', '1.5', 'c|l|w|5,0')
+		self.assertEqual(self.errors, [])
+		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
+			'chat.update'])
+		update = self.posts[-1][1]['data']
+		self.assertEqual((update['channel'], update['ts']), ('C1', '1.5'))
+		blocks = self.blocks('chat.update')
+		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
+		self.assertEqual([button.get('style') for button in blocks[2]['elements']], [None, 'primary'] + [None] * 4)
+
+	def test_a_chart_not_ready_to_show_is_shown_a_moment_later(self):
+		"""Slack refusing the blocks of a chart just uploaded (invalid_blocks) is asked again after a wait."""
+		self.refusals['chat.postMessage'] = ['invalid_blocks']
+		worker.process_request('slack', 'C1', '<@U1>', '.price', BOT, 'U')
+		self.assertEqual((self.calls()[-2:], self.waits), (['chat.postMessage', 'chat.postMessage'], [1]))
+		self.assertEqual((self.sent, self.errors), ([], []))
+
+	def test_buttons_slack_will_not_show_leave_a_plain_chart(self):
+		"""When Slack will not show the chart with its buttons, the chart is uploaded into the channel without them."""
+		self.refusals['chat.postMessage'] = ['invalid_blocks'] * 4
+		with contextlib.redirect_stderr(io.StringIO()):
+			worker.process_request('slack', 'C1', '<@U1>', '.price', BOT, 'U')
+		self.assertEqual(self.calls()[-3:], ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal'])
+		self.assertEqual(self.posts[-1][1]['data']['channel_id'], 'C1')
+		self.assertEqual((self.waits, self.sent, self.errors), ([1, 2, 4], [], []))
+
+	def test_without_slackOutgoingWebhook_a_chart_has_no_buttons(self):
+		"""Without slackOutgoingWebhook, no press could reach finbot, so a chart goes without buttons."""
+		self.env(slackOutgoingWebhook='')
+		worker.process_request('slack', 'C1', '<@U1>', '.price', BOT, 'U')
+		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal'])
+		self.assertEqual(self.posts[-1][1]['data']['channel_id'], 'C1')
+
+	def test_a_long_report_takes_several_sections(self):
+		"""A report longer than a section takes holds is split into sections, and an empty one takes none."""
+		caption = '\n'.join('x' * 99 for _ in range(70)) # 6,999 characters
+		blocks = transports.chart_blocks(caption, [], 'F1')
+		self.assertEqual([block['type'] for block in blocks], ['section'] * 3 + ['image'])
+		self.assertTrue(all(len(block['text']['text']) <= 3000 for block in blocks[:3]))
+		self.assertEqual(transports.chart_blocks('', [], None), [])
+
+
 class TelegramWebhook(FinbotCase):
 	"""bot.py registers the webhook once as it starts. Importing lib.telegram, as every job process does, touches nothing."""
 

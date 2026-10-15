@@ -12,7 +12,7 @@ the bot posts them itself, charts and all (`slackChannelID`).
 | Chat commands: `.price`, `@finbot price` and the rest ([the list](../README.md#supported-commands)) | ✗ | ✓ |
 | Charts in the replies to commands | n/a | ✓, uploaded into the channel |
 | A sign that finbot is working on a command | ✗ | ✓: ⏳ on the command's message, Slack having no typing notice for bots |
-| Period buttons | ✗ | ✗: finbot has no Slack buttons yet |
+| Period buttons under a chart, which redraw it for that period in place | ✗ | ✓ |
 | Public HTTPS server | Not needed | Needed: a domain name with a valid certificate |
 | `finbot.env` keys | `slack_webhook` | That one, plus `slackOutgoingWebhook`, `slackSigningSecret` and `slackBotToken` (and `slackChannelID`, for charts in the scheduled reports) |
 
@@ -80,15 +80,18 @@ on a domain name with a valid certificate.
      * For direct messages to the bot, add `message.im`, and tick _App Home > Allow users to send Slash commands and
        messages from the messages tab_.
    * _Save Changes_.
-6. Under _OAuth & Permissions > Scopes > Bot Token Scopes_, add `chat:write`, `files:write`, `files:read` and
+6. Under _Interactivity & Shortcuts_, turn _Interactivity_ on, enter the same URL as the _Request URL_, and _Save
+   Changes_. Slack posts there the presses of the period buttons under a chart; without it, Slack answers a press with
+   an error.
+7. Under _OAuth & Permissions > Scopes > Bot Token Scopes_, add `chat:write`, `files:write`, `files:read` and
    `reactions:write`. The upload of a chart needs both `files` scopes, and the ⏳ on a command that takes a while
    `reactions:write`.
-7. At the top of _OAuth & Permissions_, _Install to Workspace_ (or _Reinstall to Workspace_ when you changed scopes of
+8. At the top of _OAuth & Permissions_, _Install to Workspace_ (or _Reinstall to Workspace_ when you changed scopes of
    an installed app), and copy the _Bot User OAuth Token_ into `finbot.env` as `slackBotToken`. finbot replies with it;
    without it, commands get no reply, and the log says so at startup and for each reply.
-8. Restart finbot, and invite the bot to the channel: `/invite @finbot`.
-9. Send `@finbot help` in the channel (or `.help`, with `message.channels`).
-10. For charts in the scheduled reports, set `slackChannelID` to the channel's id (in Slack, click the channel's name:
+9. Restart finbot, and invite the bot to the channel: `/invite @finbot`.
+10. Send `@finbot help` in the channel (or `.help`, with `message.channels`).
+11. For charts in the scheduled reports, set `slackChannelID` to the channel's id (in Slack, click the channel's name:
     the _Channel ID_, which starts with C, is at the bottom of _About_), and restart finbot. The bot then posts the
     scheduled reports there, as it posts its replies, and `slack_webhook` is no longer used.
 
@@ -100,6 +103,9 @@ slackBotToken=xoxb-your-bot-token
 slackChannelID=C0123456789
 ```
 
-A chart in a reply is uploaded into the channel with Slack's file upload API (`files.getUploadURLExternal`, then
-`files.completeUploadExternal`). If an upload fails (a missing scope, say), the reply goes out as text, and the log says
-why.
+A chart is uploaded with Slack's file upload API (`files.getUploadURLExternal`, then `files.completeUploadExternal`).
+With its period buttons, it goes in a message of blocks: the report, the chart (uploaded into no channel, and shown by
+its id) and the buttons. A press uploads the chart for that period and shows it in the message in place of the last
+one (Slack cannot replace a file; the earlier one stays among the bot's files, but in no channel). If Slack will not
+show a chart with its buttons, the chart is uploaded into the channel without them; if an upload fails (a missing scope,
+say), the report goes out as text. The log says why.

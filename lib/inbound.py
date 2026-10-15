@@ -9,7 +9,7 @@ import json
 import re
 import sys
 import time
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from lib import config
 
@@ -152,7 +152,8 @@ class Telegram(Webhook):
 
 
 class Slack(Webhook):
-	"""Slack's Events API: each request signed with the app's signing secret, and carrying its verification token."""
+	"""Slack's Events API, and its interactivity (a button pressed), at the same URL: each request signed with the app's
+	signing secret, and carrying its verification token."""
 	service = 'slack'
 	BY_PEOPLE = (None, 'thread_broadcast') # message subtypes a person writes; the rest are bot posts, edits, joins...
 
@@ -185,18 +186,26 @@ class Slack(Webhook):
 		expected = 'v0=' + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
 		return None if same_secret(signature, expected) else "Slack signature incorrect"
 
+	def decode(self, body):
+		"""The update: an event comes as JSON, a button press as a form whose `payload` field holds the JSON."""
+		if body.startswith(b'payload='):
+			body = parse_qs(body.decode('utf-8', 'replace')).get('payload', [''])[0].encode()
+		return super().decode(body)
+
 	def update_id(self, update):
-		"""Slack's event_id."""
+		"""Slack's event_id (a button press has none)."""
 		return update.get('event_id')
 
 	def parse(self, update):
-		"""A message a person wrote, or the challenge that checks the URL. Links and mentions lose their markup:
-		<http://dub.ax|dub.ax> becomes dub.ax and <@QWERTY> @QWERTY."""
+		"""A message a person wrote, a button pressed, or the challenge that checks the URL. Links and mentions lose
+		their markup: <http://dub.ax|dub.ax> becomes dub.ax and <@QWERTY> @QWERTY."""
 		kind = update.get('type')
 		if kind == 'url_verification':
 			response = json.dumps({'challenge': update['challenge']})
 			print("replying with", response, file=sys.stderr)
 			return Response(body=response.encode())
+		if kind == 'block_actions':
+			return self.press(update)
 		if kind != 'event_callback':
 			print(f"[slack]: unhandled 'type' {kind!r}", file=sys.stderr)
 			return UNHANDLED
@@ -212,6 +221,19 @@ class Slack(Webhook):
 		text = re.sub(r'<(@[\w\.]+)>', r'\g<1>', text)
 		user = '<@' + event['user'] + '>' # a mention: Slack shows the name
 		return Message(self.service, event['channel'], user, text, '@' + bot_user, user, event.get('ts', ''))
+
+	def press(self, update):
+		"""A button pressed under one of the bot's messages (a chart's period buttons), or UNSUPPORTED for one that is
+		not under a message or carries no value."""
+		container = update.get('container') or {}
+		actions = update.get('actions') or [{}]
+		value = actions[0].get('value') if isinstance(actions[0], dict) else None
+		if container.get('type') != 'message' or not container.get('message_ts') or not value:
+			return UNSUPPORTED
+		user = update.get('user') or {}
+		who = '@' + str(user.get('username') or user.get('id') or 'unknown')
+		return Press(self.service, update.get('trigger_id', ''), container.get('channel_id', ''),
+			container['message_ts'], value, who)
 
 
 TELEGRAM, SLACK = Telegram(), Slack()

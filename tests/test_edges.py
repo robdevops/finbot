@@ -1,8 +1,13 @@
 """Failure and no-data scenarios: empty or broken upstream data, bad requests, rejected callers."""
 import contextlib, hashlib, hmac, io, json, os, signal, subprocess, sys, tempfile, threading, time, unittest
 from pathlib import Path
+from urllib.parse import urlencode
 import gevent
 from tests.common import *
+
+PRESS = {'type': 'block_actions', 'token': 'stok', 'trigger_id': 't1', 'user': {'id': 'U1', 'username': 'rob'},
+	'container': {'type': 'message', 'message_ts': '1.5', 'channel_id': 'C1'},
+	'actions': [{'action_id': 'c|h|w|T1', 'value': 'c|h|w|T1', 'type': 'button'}]} # a Slack period button pressed
 
 COMMANDS = ('.price', '.price 7d', '.price top', '.session', '.premarket', '.performance 7d', '.shorts', '.peg', '.buy',
 			'.sell', '.beta', '.pe', '.marketcap', '.earnings', '.dividend', '.trades', '.holdings', '.watchlist',
@@ -349,6 +354,27 @@ class SlackEvents(FinbotCase):
 		gevent.sleep(0.05) # the worker runs in a (gevent) thread
 		return status[-1]
 
+	def press(self, payload):
+		"""Post a button press as Slack's interactivity does (a form, the JSON in its payload field): the status."""
+		status = []
+		with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+			body = urlencode({'payload': json.dumps(payload)}).encode()
+			bot.main(wsgi_environ('/slack', body), lambda s, *a, **k: status.append(s))
+		gevent.sleep(0.05) # the worker runs in a (gevent) thread
+		return status[-1]
+
+	def test_a_button_press_reaches_the_worker(self):
+		"""A period button pressed under a chart reaches the worker, posted to the events URL: the channel, the message
+		and the button's value. A press with a wrong token is refused, and one not under a message goes nowhere."""
+		presses = []
+		self.patch(worker, 'process_callback', lambda *a: presses.append(a))
+		self.assertEqual(self.press(PRESS), '200 OK')
+		self.assertEqual(presses, [('slack', 't1', 'C1', '1.5', 'c|h|w|T1')])
+		self.assertEqual(self.press({**PRESS, 'token': 'wrong'}), '403 Forbidden')
+		self.assertEqual(self.press({**PRESS, 'container': {'type': 'view', 'view_id': 'V1'}}), '200 OK')
+		self.assertEqual(self.press({**PRESS, 'actions': []}), '200 OK')
+		self.assertEqual(len(presses), 1)
+
 	def test_the_message_goes_to_the_worker_with_its_ts(self):
 		"""A message reaches the worker with its ts, the message's id: finbot puts ⏳ on it while it works."""
 		self.assertEqual(self.event(user='U1', text='.price'), '200 OK')
@@ -411,6 +437,22 @@ class SlackSigning(FinbotCase):
 			bot.main(env, lambda s, *a, **k: status.append(s))
 		gevent.sleep(0.05) # the worker runs in a (gevent) thread
 		return status[-1]
+
+	def test_a_button_press_is_signed_over_its_form(self):
+		"""A button press is signed like an event, over the form it comes as; altered, it is refused."""
+		presses = []
+		self.patch(worker, 'process_callback', lambda *a: presses.append(a))
+		body = urlencode({'payload': json.dumps({**PRESS, 'token': 'not needed'})}).encode()
+		timestamp = str(int(time.time()))
+		mac = hmac.new(b'sss', b'v0:' + timestamp.encode() + b':' + body, hashlib.sha256).hexdigest()
+		headers = {'HTTP_X_SLACK_REQUEST_TIMESTAMP': timestamp, 'HTTP_X_SLACK_SIGNATURE': 'v0=' + mac}
+		for sent, status in ((body, '200 OK'), (body.replace(b'T1', b'T2'), '403 Forbidden')):
+			answers = []
+			with contextlib.redirect_stderr(io.StringIO()):
+				bot.main(wsgi_environ('/slack', sent, **headers), lambda s, *a, **k: answers.append(s))
+			gevent.sleep(0.05)
+			self.assertEqual(answers, [status])
+		self.assertEqual(presses, [('slack', 't1', 'C1', '1.5', 'c|h|w|T1')])
 
 	def test_a_signed_request_is_answered_and_the_token_is_not_needed(self):
 		"""A request signed with the secret is answered, whatever token it carries."""

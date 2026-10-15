@@ -31,10 +31,10 @@ What finbot can do on each network. Telegram takes everything; the others take w
 | "typing…" while a command works | ✓ | ⏳ on the command's message (Slack has no typing notice for bots) | ✗ |
 | Charts in replies | ✓ | ✓ with `slackBotToken` | n/a |
 | Charts in scheduled reports | ✓ | ✓ with `slackChannelID` and `slackBotToken` (the incoming webhook takes text only) | ✓ |
-| Period and job buttons | ✓ | ✗ | ✗ |
+| Period and job buttons | ✓ | Period buttons, with the interactive bot | ✗ |
 | No link previews | ✓ | ✓ | ✓ |
 | Linked tickers | ✓ | ✓ | ✓ |
-| Charts updated in place by their buttons | ✓ | ✗ | ✗ |
+| Charts updated in place by their buttons | ✓ | ✓ | ✗ |
 
 **Setting up a network:** [Telegram](doc/telegram.md) · [Slack](doc/slack.md) · [Discord](doc/discord.md). Each guide
 covers the whole setup of that network, and where there is a choice between reports only and the interactive bot, it

@@ -72,6 +72,9 @@ class Transport:
 	def typing_done(self):
 		"""End the typing notice, where it lasts until ended (Slack's ⏳)."""
 
+	def acknowledge(self, press, text=None):
+		"""Answer a button press, where the network waits for that (Telegram, with `text` as a toast)."""
+
 	def _post_json(self, url, payload, headers=None):
 		"""POST a JSON message: the answer ({} when it is not JSON), or None when the network refused it or failed."""
 		try:
@@ -174,6 +177,10 @@ class TelegramBot(Transport):
 		"""sendChatAction: "typing…" for a few seconds."""
 		telegram.try_call('sendChatAction', data={'chat_id': self.where, 'action': 'typing'})
 
+	def acknowledge(self, press, text=None):
+		"""answerCallbackQuery: the client's spinner stops, and `text` shows as a toast."""
+		telegram.answerCallbackQuery(press, text)
+
 	def pin(self, answers):
 		"""Pin the messages these answers are for, last first, so the first ends up on top, without the notification."""
 		sent = []
@@ -202,6 +209,12 @@ class SlackBot(Transport):
 	def shows_typing(self):
 		"""⏳ on the message being answered, with the bot token."""
 		return bool(self.message and config.env.slackBotToken)
+
+	@property
+	def takes_buttons(self):
+		"""Buttons only where their presses reach finbot: with the bot token and slackOutgoingWebhook, the URL that the
+		app's interactivity posts to as its events do."""
+		return bool(config.env.slackBotToken and config.env.slackOutgoingWebhook)
 
 	def typing(self):
 		"""Put ⏳ on the message being answered, once (the bot needs the reactions:write scope); a failure is only
@@ -238,14 +251,17 @@ class SlackBot(Transport):
 	def post_chart(self, image, caption, buttons=None):
 		"""Upload the chart into the channel with the report as its message, the way Slack takes files since it retired
 		files.upload: ask for an upload URL, send the bytes there, then complete the upload into the channel (the bot
-		needs the files:write and files:read scopes). Slack's answer, MAYBE_SENT, or None if a step failed."""
+		needs the files:write and files:read scopes). With period buttons, where they work, it goes in a Block Kit
+		message instead (post_blocks), or without them if that fails. Slack's answer, MAYBE_SENT, or None if a step
+		failed."""
 		data = image.read() if hasattr(image, 'read') else bytes(image)
+		if buttons and not isinstance(buttons, dict) and self.takes_buttons:
+			try:
+				return self.post_blocks(data, caption, buttons)
+			except Exception as e:
+				print("Slack chart with buttons failed, uploading it without them:", net.redact(e), file=sys.stderr)
 		try:
-			ticket = slack_api('files.getUploadURLExternal', filename='chart.png', length=len(data))
-			r = net.post(ticket['upload_url'], data=data, timeout=config.prefs.http_timeout)
-			if r.status_code != 200:
-				raise RuntimeError(f"Slack upload: {r.status_code} {r.text[:200]}")
-			share = {'files': json.dumps([{'id': ticket['file_id']}]), 'channel_id': self.where,
+			share = {'files': json.dumps([{'id': self.upload(data)}]), 'channel_id': self.where,
 				'initial_comment': caption}
 			try:
 				output = slack_api('files.completeUploadExternal', **share)
@@ -258,6 +274,39 @@ class SlackBot(Transport):
 			return None
 		print("OK slack chart upload to", self.where, file=sys.stderr)
 		return output
+
+	def upload(self, data):
+		"""Send a chart's bytes to Slack: the id of the file, not completed yet. Raises RuntimeError on a refusal."""
+		ticket = slack_api('files.getUploadURLExternal', filename='chart.png', length=len(data))
+		r = net.post(ticket['upload_url'], data=data, timeout=config.prefs.http_timeout)
+		if r.status_code != 200:
+			raise RuntimeError(f"Slack upload: {r.status_code} {r.text[:200]}")
+		return ticket['file_id']
+
+	def unshared(self, data):
+		"""Upload a chart as a file that is in no channel, for an image block to show: its id."""
+		file_id = self.upload(data)
+		slack_api('files.completeUploadExternal', files=json.dumps([{'id': file_id, 'title': 'chart'}]))
+		return file_id
+
+	def post_blocks(self, data, caption, buttons):
+		"""The chart in a Block Kit message, the report above it and the period buttons under it. Slack's answer;
+		raises RuntimeError when Slack refuses."""
+		blocks = chart_blocks(caption, buttons, self.unshared(data))
+		return until_shown(lambda: slack_api('chat.postMessage', channel=self.where, text=caption[:SECTION_LIMIT],
+			blocks=json.dumps(blocks), unfurl_links='false', unfurl_media='false'))
+
+	def edit_chart(self, message, image, caption, buttons=None):
+		"""Show another period in a chart message: the new chart uploaded (a file cannot be replaced) and shown in its
+		image block, with its caption and buttons. Raises RuntimeError when Slack refuses."""
+		file_id = None
+		if image is not None:
+			if hasattr(image, 'seek'):
+				image.seek(0)
+			file_id = self.unshared(image.read() if hasattr(image, 'read') else bytes(image))
+		blocks = chart_blocks(caption, buttons or [], file_id)
+		until_shown(lambda: slack_api('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
+			blocks=json.dumps(blocks)))
 
 
 class SlackWebhook(Transport):
@@ -320,6 +369,38 @@ def slack_api(method, **data):
 	if not output.get('ok'):
 		raise RuntimeError(f"Slack {method}: {output.get('error') or r.status_code}")
 	return output
+
+
+SECTION_LIMIT = 3000 # characters of text in a Block Kit section
+
+
+def chart_blocks(caption, buttons, file_id=None):
+	"""Block Kit for a chart message: the report (in as many sections as its length needs), the chart (an uploaded file,
+	by its id) and the buttons, the one shown now marked."""
+	blocks = [{'type': 'section', 'text': {'type': 'mrkdwn', 'text': '\n'.join(part)}}
+		for part in chunked(caption.split('\n'), SECTION_LIMIT, 1000) if '\n'.join(part).strip()]
+	if file_id:
+		blocks.append({'type': 'image', 'slack_file': {'id': file_id}, 'alt_text': 'chart'})
+	elements = [{'type': 'button', 'text': {'type': 'plain_text', 'text': button.label}, 'value': button.data,
+		'action_id': button.data, **({'style': 'primary'} if button.active else {})}
+		for row in buttons for button in row]
+	if elements:
+		blocks.append({'type': 'actions', 'elements': elements})
+	return blocks
+
+
+def until_shown(post, waits=(1, 2, 4)):
+	"""post() of a message that shows a file just uploaded, tried again after each wait (in seconds) while Slack says
+	invalid_blocks: a file can take a moment before it can be shown."""
+	for wait in waits:
+		try:
+			return post()
+		except RuntimeError as e:
+			if 'invalid_blocks' not in str(e):
+				raise
+			print(f"Slack cannot show the chart yet ({e}), trying again in {wait} s", file=sys.stderr)
+			time.sleep(wait)
+	return post()
 
 
 def chunked(lines, limit, max_lines):
