@@ -8,7 +8,7 @@ if __name__ == '__main__':
 	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise a flush (systemctl kill -s USR1); its default action would kill the job
 import importlib, json, re, sys
 
-from lib import webhook
+from lib import delivery
 
 REPORTED = 3 # exit status of a run that failed and said so in the chat; the bot reports any other non-zero status itself
 
@@ -24,7 +24,7 @@ def main(argv):
 		"""Import the report and run it: an import that fails is reported like any other failure."""
 		importlib.import_module(module).lambda_handler(**json.loads(argv[1]))
 		return True
-	return 0 if webhook.guarded(module.rsplit('.', 1)[-1] + '.py', run, exit=False) else REPORTED
+	return 0 if delivery.guarded(module.rsplit('.', 1)[-1] + '.py', run, exit=False) else REPORTED
 
 
 if __name__ == '__main__':

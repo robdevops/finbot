@@ -1,7 +1,16 @@
-"""Period buttons (Week | Month | Quarter | Max) under a chart: their markup, and the callback data that names the tickers."""
+"""Buttons under a message: the period buttons (Week | Month | Quarter | Max) of a chart, and the callback data that
+names its tickers. Each transport draws Button rows its own way."""
 import hashlib
+import typing
 
 from lib import state
+
+class Button(typing.NamedTuple):
+	"""One button: its label, the data a press sends back, and whether it is the one shown now (marked)."""
+	label: str
+	data: str
+	active: bool = False
+
 
 PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'q': ('3M', 90), 'y': ('1Y', 365), 'x': ('Max', None)}
 BUTTONS = {'h': 'wmqyx', 'p': 'wmqyx', 'c': 'wmqyx', 'f': 'wmqyx', 'l': 'dwmqyx'} # chart kind -> buttons offered (h=history, p=price chart, c=compare, f=performance, l=price list)
@@ -37,10 +46,6 @@ def resolve(ref):
 	return ref.split(',')
 
 def keyboard(kind, tickers, active=None):
-	"""Telegram inline keyboard; the active period is marked."""
+	"""A chart's period buttons, one row, the active period marked."""
 	ref = _ref(tickers)
-	row = []
-	for key in BUTTONS[kind]:
-		label = PERIODS[key][0]
-		row.append({'text': ('● ' + label) if key == active else label, 'callback_data': f"c|{kind}|{key}|{ref}"})
-	return {'inline_keyboard': [row]}
+	return [[Button(PERIODS[key][0], f"c|{kind}|{key}|{ref}", key == active) for key in BUTTONS[kind]]]

@@ -4,7 +4,7 @@ import zoneinfo
 from dateutil.relativedelta import relativedelta
 from lib import config
 from lib import formats
-from lib import webhook
+from lib import delivery
 
 
 def lambda_handler():
@@ -69,8 +69,9 @@ def lambda_handler():
 
 	# MAIN #
 
-	for service, url, chat in webhook.default_chats():
-		webhook.send(service, url, chat, prepare_finance_calendar_payload(service))
+	for dest in delivery.default_chats():
+		service = dest.dialect
+		delivery.deliver(dest, delivery.Report(prepare_finance_calendar_payload(service)))
 
 def job(argv):
 	"""Arguments of a scheduled run: reminder.py takes none."""

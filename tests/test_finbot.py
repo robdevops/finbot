@@ -21,9 +21,8 @@ class Plumbing(FinbotCase):
 			posted.append(kwargs['json'])
 			return Response()
 
-		with mock.patch.object(webhook.net, 'post', post), mock.patch.object(webhook.time, 'sleep', lambda s: None):
-			results = REAL_PAYLOAD_WRAPPER('telegram', 'https://api.telegram.org/botX/sendMessage?chat_id=5',
-				['x' * 60] * 300, '5', reply_markup={'keyboard': []})
+		with mock.patch.object(transports.net, 'post', post), mock.patch.object(transports.time, 'sleep', lambda s: 0):
+			results = REAL_TEXT(transports.TelegramBot('5'), ['x' * 60] * 300, {'keyboard': []})
 		self.assertGreater(len(results), 1)
 		self.assertEqual(len(posted), len(results))
 		self.assertIn('reply_markup', posted[-1])
@@ -32,11 +31,11 @@ class Plumbing(FinbotCase):
 	def test_chunks_respect_both_the_line_count_and_the_size(self):
 		"""A message ends at chunk_maxlines lines or the size limit, whichever comes first; a line too long on its own
 		is cut short."""
-		chunks = webhook.chunked(['a' * 30] * 10 + ['b' * 500], limit=100, max_lines=4)
+		chunks = transports.chunked(['a' * 30] * 10 + ['b' * 500], limit=100, max_lines=4)
 		self.assertEqual([len(chunk) for chunk in chunks], [3, 3, 3, 1, 1]) # 3 x 30 plus newlines is 92; a fourth would pass 100
 		self.assertTrue(all(len('\n'.join(chunk)) <= 100 for chunk in chunks))
 		self.assertEqual(chunks[-1], ['b' * 99 + '…']) # a line over the limit on its own is cut short
-		self.assertEqual(webhook.chunked(['x'] * 9, limit=4096, max_lines=4), [['x'] * 4, ['x'] * 4, ['x']])
+		self.assertEqual(transports.chunked(['x'] * 9, limit=4096, max_lines=4), [['x'] * 4, ['x'] * 4, ['x']])
 
 	def test_zoneinfo_offset_is_not_lmt(self):
 		"""zoneinfo gives Melbourne its real offset, not the local mean time pytz once gave for old dates."""

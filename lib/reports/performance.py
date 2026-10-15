@@ -3,7 +3,7 @@ import sys
 
 from lib import config
 from lib import sharesight
-from lib import webhook
+from lib import delivery
 from lib import formats
 from lib import links
 from lib import render
@@ -57,7 +57,7 @@ def report(service, past_days=None, portfolio_select=None, interactive=False, pe
 	period = formats.days_english(past_days)
 	payload = [service.bold(f"Performance over {period}")] + [line for _, line in lines]
 	graph = None
-	if webhook.takes_charts(service, interactive):
+	if delivery.takes_charts(service, interactive):
 		chart_rows.sort(key=lambda row: row[1], reverse=True) # best first
 		graph = render.rows_chart(chart_rows, "Performance", f"% change {'' if period == 'today' else 'over '}{period}", value_fmt=lambda v: formats.signed_percent(v, 2))
 	return payload, graph
@@ -69,10 +69,13 @@ def lambda_handler(chat_id=None, past_days=None, service=None, user='', portfoli
 	if past_days is None:
 		past_days = config.prefs.past_days
 	performance = gather(past_days, portfolio_select)
-	for service, url, chat in webhook.destinations(interactive, service, chat_id):
+	for dest in delivery.destinations(interactive, service, chat_id):
+		service = dest.dialect
 		payload, graph = report(service, past_days, portfolio_select, interactive, performance)
-		markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days)) if graph and service == 'telegram' else None
-		webhook.send(service, url, chat, payload, graph, reply_markup=markup)
+		markup = None
+		if graph and dest.takes_buttons:
+			markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days))
+		delivery.deliver(dest, delivery.Report(payload, graph, markup))
 
 def job(argv):
 	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""

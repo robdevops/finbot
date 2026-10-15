@@ -434,6 +434,12 @@ def pie_chart(rows, title, subtitle=''):
 	_heading(fig, title, subtitle)
 	return _png(fig, bg)
 
+def from_spec(spec):
+	"""Draw a chart spec: a dict of rows, title and subtitle, and pie=True for a pie, else rows_chart's options."""
+	spec = dict(spec)
+	rows, title, subtitle = spec.pop('rows'), spec.pop('title'), spec.pop('subtitle', '')
+	return pie_chart(rows, title, subtitle) if spec.pop('pie', False) else rows_chart(rows, title, subtitle, **spec)
+
 def bar_graph(top_rows, bottom_rows, title, subtitle=''):
 	"""Top performers then, after a gap, the worst performers: the same order as the caption's two lists."""
 	return hbar_chart(list(top_rows) + [('', None)] + list(bottom_rows), title, subtitle)

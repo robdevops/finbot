@@ -1,14 +1,12 @@
 """.earnings and .dividend: upcoming earnings and ex-dividend dates (scheduled: cal.py earnings | ex-dividend)."""
 import datetime
-import sys
 
 from lib import config
-from lib import telegram
 from lib import formats
 from lib import links
 from lib import markets
 from lib import watchlist
-from lib import webhook
+from lib import delivery
 from lib import yahoo
 
 def primary_listings():
@@ -64,19 +62,6 @@ def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, i
 			payload = [f"No events found for {tickers[0]}" if specific_stock else f"No events found {formats.days_english(days, 'for the next ')}"]
 		return payload
 
-	def pin_if_earnings(service, results):
-		"""Pin every message of the Telegram earnings report (several if it was chunked)."""
-		if not (event == 'earnings' and not specific_stock and service == 'telegram' and results):
-			return
-		sent = []
-		for result in results:
-			try:
-				sent.append((result['result']['chat']['id'], result['result']['message_id']))
-			except (KeyError, TypeError):
-				print("Unable to pin: unexpected response", file=sys.stderr)
-		for chat, message_id in reversed(sent): # pin last-to-first so the report's first message ends up on top
-			telegram.pinChatMessage(chat, message_id)
-
 	# MAIN #
 	tickers = [markets.transform_to_yahoo(specific_stock)] if specific_stock else watchlist.with_holdings()
 	if event == 'earnings':
@@ -84,8 +69,11 @@ def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, i
 	else: # ex-dividend dates are in Yahoo's details
 		market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
 
-	for service, url, chat in webhook.destinations(interactive, service, chat_id):
-		pin_if_earnings(service, webhook.send(service, url, chat, prepare_payload(service, market_data)))
+	for dest in delivery.destinations(interactive, service, chat_id):
+		service = dest.dialect
+		answers = delivery.deliver(dest, delivery.Report(prepare_payload(service, market_data)))
+		if event == 'earnings' and not specific_stock and hasattr(dest, 'pin'):
+			dest.pin(answers) # the earnings report stays on top, where the network can pin
 
 def job(argv):
 	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""

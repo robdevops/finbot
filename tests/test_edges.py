@@ -63,7 +63,8 @@ class UpstreamEmpty(FinbotCase):
 			raise RuntimeError('Sharesight performance error: boom')
 		self.patch(sharesight, 'get_portfolios', down)
 		typing_when_reported = []
-		self.patch(webhook, 'report_error', lambda e, *a, **k: typing_when_reported.append([t.is_active() for t in self.typing]))
+		self.patch(delivery, 'report_error', lambda e, *a, **k:
+			typing_when_reported.append([t.is_active() for t in self.typing]))
 		worker.process_request('telegram', '55', '@u', '.performance 7d', BOT, 'U')
 		self.assertEqual(typing_when_reported, [[False]]) # its one indicator had stopped when the error line went out
 
@@ -402,23 +403,24 @@ class SecretsStayOutOfLogs(FinbotCase):
 		def refuse(url, **kwargs):
 			"""Fail like requests does, the URL and headers in the message."""
 			raise ConnectionError(f"Max retries exceeded with url: {url} (headers {kwargs.get('headers')})")
-		self.patch(webhook.net, 'post', refuse)
-		self.env(slackBotToken='xoxb-SECRET')
-
-		log = self.stderr_of(lambda: webhook.write('telegram', self.SECRET_URL, 'hi', '1'))
-		log += self.stderr_of(lambda: webhook.write('slack', 'https://hooks.slack.com/services/T0/B0/SECRETpath', 'hi', 'C1'))
+		self.patch(transports.net, 'post', refuse)
+		self.env(slackBotToken='xoxb-SECRET', webhooks={'telegram': self.SECRET_URL.split('sendMessage')[0]})
+		log = self.stderr_of(lambda: transports.TelegramBot('1').post_text('hi'))
+		log += self.stderr_of(lambda: transports.SlackBot('C1').post_text('hi'))
+		hook = transports.SlackWebhook('https://hooks.slack.com/services/T0/B0/SECRETpath')
+		log += self.stderr_of(lambda: hook.post_text('hi'))
 		self.assertIn('Failure sending', log)
 		for secret in ('SECRET-tok_en', 'SECRETpath', 'xoxb-SECRET'):
 			self.assertNotIn(secret, log)
 
 	def test_the_traceback_of_a_reported_error_is_redacted(self):
 		"""The traceback logged with a reported error is redacted."""
-		self.patch(webhook, 'report_error', REAL_REPORT_ERROR)
-		self.patch(webhook, 'write', lambda *a, **k: None)
+		self.patch(delivery, 'report_error', REAL_REPORT_ERROR)
+		self.patch(transports.TelegramBot, 'post_text', lambda *a, **k: None)
 		try:
 			raise ConnectionError('failed: ' + self.SECRET_URL)
 		except ConnectionError as e:
-			log = self.stderr_of(lambda: webhook.report_error(e, 'telegram', '55', context='x'))
+			log = self.stderr_of(lambda: delivery.report_error(e, 'telegram', '55', context='x'))
 		self.assertIn('Traceback', log)
 		self.assertIn('bot<redacted>', log)
 		self.assertNotIn('SECRET-tok_en', log)

@@ -19,7 +19,7 @@ from lib import charts
 from lib import sharesight
 from lib import net
 from lib import telegram
-from lib import webhook
+from lib import delivery
 from lib import yahoo
 from lib import render
 from lib.reports import cleanup
@@ -50,10 +50,10 @@ def main(environ, start_response):
 		return handle(environ, start_response)
 	except Exception as e:
 		if environ.get(AUTHENTICATED):
-			webhook.report_error(e, context=environ.get('PATH_INFO', 'bot'))
+			delivery.report_error(e, context=environ.get('PATH_INFO', 'bot'))
 			status = '200 OK'
 		else:
-			print(f"request to {environ.get('PATH_INFO')!r} failed:", webhook.error_line(e), file=sys.stderr)
+			print(f"request to {environ.get('PATH_INFO')!r} failed:", delivery.error_line(e), file=sys.stderr)
 			print(net.redact(traceback.format_exc()), end='', file=sys.stderr)
 			status = '500 Internal Server Error'
 		try:
@@ -230,7 +230,7 @@ def flush_cache(*args):
 		sharesight.wake()
 		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}", file=sys.stderr)
 	except Exception as e:
-		print('ERROR', webhook.error_line(e, 'cache flush'), file=sys.stderr)
+		print('ERROR', delivery.error_line(e, 'cache flush'), file=sys.stderr)
 
 if __name__ == '__main__':
 	print(f'Starting finbot {git_version()}', file=sys.stderr)
@@ -265,7 +265,7 @@ if __name__ == '__main__':
 		try:
 			botName = telegram.register() # here and only here: the job processes import lib.telegram too
 		except Exception as e:
-			print('ERROR', webhook.error_line(e, 'telegram webhook'), file=sys.stderr)
+			print('ERROR', delivery.error_line(e, 'telegram webhook'), file=sys.stderr)
 			sys.exit(1)
 	if config.env.telegramBotToken:
 		threading.Thread(target=charts.refresh_keyboards, daemon=True).start() # update stale DM keyboards in the background

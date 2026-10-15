@@ -23,7 +23,7 @@ from croniter import croniter, CroniterBadDateError
 from lib import config
 from lib import state
 from lib import jobrun
-from lib import webhook
+from lib import delivery
 from lib.reports import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, shorts, trades
 
 SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance': performance, 'podcasts': podcasts, 'price': price,
@@ -265,19 +265,20 @@ class Scheduler:
 		try:
 			jobs, errors = parse_schedule(Path(path).read_text(encoding='utf-8'), self.zone)
 		except OSError as e:
-			webhook.report_error(e, context='schedule')
+			delivery.report_error(e, context='schedule')
 			return False
 		if impossible := [f'{path} line {number}: {error}: {line}' for number, line, error in errors if isinstance(error, ImpossibleTime)]:
 			raise ImpossibleTime(impossible)
 		for number, line, error in errors:
-			webhook.report_error(ScheduleError(f'{path} line {number}: {error}: {line}'), context='schedule')
+			delivery.report_error(ScheduleError(f'{path} line {number}: {error}: {line}'), context='schedule')
 		if not jobs and self.jobs:
 			print('schedule: no usable line in', path, '- keeping the current schedule', file=sys.stderr)
 			return False
 		try:
 			last = state.load(STATE_FILE)
 		except (OSError, ValueError) as e: # unreadable or not JSON: carry on as if there were no record, the next run rewrites it
-			webhook.report_error(ScheduleError(f'cannot read {STATE_FILE}, starting without a record of past runs: {e}'), context='schedule')
+			problem = f'cannot read {STATE_FILE}, starting without a record of past runs: {e}'
+			delivery.report_error(ScheduleError(problem), context='schedule')
 			last = None
 		self.last = last if isinstance(last, dict) else {}
 		now = self.clock()
@@ -294,7 +295,8 @@ class Scheduler:
 		try:
 			self.load()
 		except ImpossibleTime as e:
-			webhook.report_error(ScheduleError(f'not reloaded, the running schedule is unchanged: {e}'), context='schedule')
+			problem = f'not reloaded, the running schedule is unchanged: {e}'
+			delivery.report_error(ScheduleError(problem), context='schedule')
 
 	def start_base(self, job, now):
 		"""Where to count from at start: a run missed within the catch-up window fires once; with no record, nothing is missed."""
@@ -362,18 +364,18 @@ class Scheduler:
 					if status:
 						outcome = 'failed'
 						if status != jobrun.REPORTED: # it ended without saying why
-							webhook.report_error(RuntimeError(exit_reason(status)), context=label)
+							delivery.report_error(RuntimeError(exit_reason(status)), context=label)
 				except gevent.Timeout:
 					raise
 				except (Exception, SystemExit) as e:
-					webhook.report_error(e, context=label)
+					delivery.report_error(e, context=label)
 					outcome = 'failed'
 				finally:
 					self.busy.discard(label)
 		except gevent.Timeout as t:
 			if t is not timeout:
 				raise
-			webhook.report_error(TimeoutError(f'still running after {JOB_TIMEOUT // 60} minutes'), context=label)
+			delivery.report_error(TimeoutError(f'still running after {JOB_TIMEOUT // 60} minutes'), context=label)
 			outcome = 'timed out'
 		finally:
 			timeout.close()
@@ -445,5 +447,5 @@ class Scheduler:
 			try:
 				self.sleep(self.tick())
 			except Exception as e:
-				webhook.report_error(e, context='schedule')
+				delivery.report_error(e, context='schedule')
 				self.sleep(30)

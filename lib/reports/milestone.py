@@ -1,7 +1,7 @@
 """Record highs and lows (all-time) among the stocks followed (scheduled: milestone.py)."""
 from itertools import groupby
 from lib import state
-from lib import webhook
+from lib import delivery
 from lib import links
 from lib import markets
 from lib import watchlist
@@ -62,9 +62,10 @@ def lambda_handler():
 	tickers = watchlist.with_holdings()
 	market_data = yahoo.fetch(tickers)
 	records, changed = state.load('finbot_milestone.json', {}), {}
-	for service, url, chat in webhook.default_chats():
+	for dest in delivery.default_chats():
+		service = dest.dialect
 		payload, changed = prepare_milestone_payload(service, market_data)
-		webhook.send(service, url, chat, payload)
+		delivery.deliver(dest, delivery.Report(payload))
 
 	if changed:
 		with state.edit('finbot_milestone.json', {}) as recorded:

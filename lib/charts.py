@@ -7,7 +7,7 @@ from lib import buttons
 from lib import formats
 from lib import links
 from lib import state
-from lib import webhook
+from lib import transports
 from lib import yahoo
 from lib.reports import history, performance, price
 
@@ -32,7 +32,7 @@ def mark_keyboard(chat_id):
 
 def push_keyboard(chat_id):
 	"""Telegram can only change a reply keyboard by sending a message, so send a short one carrying it."""
-	result = webhook.write('telegram', webhook.chat_url('telegram', chat_id), '⌨️ Keyboard updated', chat_id, reply_markup=command_keyboard())
+	result = transports.TelegramBot(chat_id).post_text('⌨️ Keyboard updated', command_keyboard())
 	if result is not None:
 		mark_keyboard(chat_id)
 	return result

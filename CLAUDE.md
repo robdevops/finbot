@@ -31,14 +31,18 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 ## Code map (open the one file you need)
 - `bot.py`: WSGI entry; routes /telegram and /slack, authenticates, hands each message to `lib/worker.py` in a thread; SIGHUP reload, SIGUSR1
   cache flush.
-- `lib/worker.py`: `COMMANDS` (regex → `on_*` handler, first match wins, `.SYMBOL` last); `Request`; the typing indicator.
+- `lib/worker.py`: `COMMANDS` (regex → `on_*` handler, first match wins, `.SYMBOL` last); `Request`
+  (`request.reply(lines, chart, buttons)`); the typing notice, which every command gets after half a second.
 - `lib/reports/`: what finbot says. Scheduled (each has `lambda_handler()` and `job(argv)`, its schedule-line parser): `price
   performance trades shorts cal rating milestone reminder podcasts cleanup`; the top-level `price.py` and the rest are shims
   that run them. Chat-only (`prepare_*`): `about` (.help .jobs), `history` (.history .compare), `holdings` (.holdings .who .pie
   .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
-- `lib/webhook.py`: sending (chunking, photos, Slack upload), markup, escaping, error reporting. `lib/telegram.py`: Bot API calls.
-- `lib/buttons.py`: period buttons under a chart. `lib/charts.py`: a button press rebuilds its chart; the Telegram command
-  keyboard.
+- `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or the default chats),
+  `deliver(dest, report)`, the one-line error report. `lib/transports.py`: a class per way of posting (`TelegramBot`,
+  `SlackBot`, `SlackWebhook`, `DiscordWebhook`): splitting, captions, charts, buttons, edits, typing. `lib/telegram.py`:
+  Bot API calls.
+- `lib/buttons.py`: `Button` and a chart's period buttons (each transport draws them). `lib/charts.py`: a button press
+  rebuilds its chart; the Telegram command keyboard.
 - `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: market tables, flags, ticker translation.
   `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`: every chart.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, cached in `DATA_DIR/cache`.

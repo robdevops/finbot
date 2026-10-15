@@ -1,6 +1,6 @@
 """.shorts: the most shorted stocks followed, from Short Man (ASX) and Yahoo (scheduled: shorts.py)."""
 from lib import config
-from lib import webhook
+from lib import delivery
 from lib import markets
 from lib import render
 from lib import watchlist
@@ -29,7 +29,7 @@ def lambda_handler(chat_id=None, threshold=None, specific_stock=None, service=No
 		payload, graph = [line for _, line, _ in found], None
 		if payload and not specific_stock:
 			payload.insert(0, service.bold(f'Tracked stocks shorted over {threshold:g}%'))
-			if webhook.takes_charts(service, interactive):
+			if delivery.takes_charts(service, interactive):
 				graph = render.shorts_chart([(code, percent) for percent, _, code in found], threshold)
 		elif not payload and interactive:
 			payload = [f"🩳 No short interest found for {tickers[0]}" if specific_stock else f"🩳 No stocks shorted over {threshold:g}%. Try specifying a number."]
@@ -47,9 +47,10 @@ def lambda_handler(chat_id=None, threshold=None, specific_stock=None, service=No
 	market_data |= yahoo.fetch_details((ticker for ticker in tickers if '.' not in ticker), strict=bool(specific_stock)) # US short interest; Short Man has the ASX's
 	market_data = shortman.fetch(market_data)
 
-	for service, url, chat in webhook.destinations(interactive, service, chat_id):
+	for dest in delivery.destinations(interactive, service, chat_id):
+		service = dest.dialect
 		payload, graph = prepare_shorts_payload(service, market_data)
-		webhook.send(service, url, chat, payload, graph)
+		delivery.deliver(dest, delivery.Report(payload, graph))
 
 def job(argv):
 	"""Arguments of a scheduled run: shorts.py takes none."""

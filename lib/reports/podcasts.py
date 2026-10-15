@@ -6,7 +6,7 @@ from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
 from lib import net
 from lib import state
-from lib import webhook
+from lib import delivery
 
 NAMESPACES = {
 	"media": "http://search.yahoo.com/mrss/",
@@ -93,14 +93,15 @@ def lambda_handler(feed_url):
 		raise RuntimeError(f"fetching feed {feed_url}: {e}")
 	if not guids:
 		return
-	for service, url, chat in webhook.default_chats():
+	for dest in delivery.default_chats():
+		service = dest.dialect
 		payload = []
 		for episode in episodes:
 			podcast_name = episode['podcast']
 			title = episode['title'].removeprefix(podcast_name).lstrip(string.punctuation + " ")
 			duration = f" {episode['duration']}" if episode['duration'] else ""
 			payload.append(f"📣 {podcast_name}: {service.link(episode['url'], title)}{duration} ({episode['ago']})")
-		webhook.send(service, url, chat, payload)
+		delivery.deliver(dest, delivery.Report(payload))
 	with state.edit(seen_file, []) as recorded: # last, so that a failure above leaves these episodes for next run
 		recorded[:] = sorted(guids.union(recorded))
 

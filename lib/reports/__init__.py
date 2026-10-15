@@ -9,6 +9,6 @@ import sys
 def cli(path):
 	"""Run the report a top-level script is named for (price.py: lib/reports/price.py) with the script's arguments."""
 	import importlib
-	from lib import webhook
+	from lib import delivery
 	report = importlib.import_module('lib.reports.' + os.path.basename(path).removesuffix('.py'))
-	webhook.cli(sys.argv[0], report.job, report.lambda_handler)
+	delivery.cli(sys.argv[0], report.job, report.lambda_handler)

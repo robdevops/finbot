@@ -48,10 +48,12 @@ def record(output):
 	here = Path(__file__).resolve().parent
 	sys.path[:] = [os.getcwd()] + [path for path in sys.path if Path(path or '.').resolve() != here] # the tree's code
 	from tests import common
-	from lib import jobs, net, webhook, worker
-	real_sending = getattr(common, 'REAL_SENDING', None) or ( # a commit from before REAL_SENDING
-		(webhook, 'payload_wrapper', common.REAL_PAYLOAD_WRAPPER), (webhook, 'sendPhoto', common.REAL_SEND_PHOTO),
-		(webhook, 'report_error', common.REAL_REPORT_ERROR))
+	from lib import jobs, net, worker
+	real_sending = getattr(common, 'REAL_SENDING', None)
+	if real_sending is None: # a commit from before REAL_SENDING, when lib/webhook.py did the sending
+		from lib import webhook
+		real_sending = ((webhook, 'payload_wrapper', common.REAL_PAYLOAD_WRAPPER),
+			(webhook, 'sendPhoto', common.REAL_SEND_PHOTO), (webhook, 'report_error', common.REAL_REPORT_ERROR))
 
 	class Record(common.FinbotCase):
 		"""The steps, as one test, so that FinbotCase's fixtures (and their cleanup) apply."""

@@ -157,14 +157,14 @@ class JobArguments(unittest.TestCase):
 	def test_cli_prints_usage_and_exits(self):
 		"""A bad argument on the command line prints the usage and exits 1."""
 		with mock.patch('sys.stderr', new_callable=io.StringIO) as err, self.assertRaises(SystemExit) as exit_:
-			webhook.cli('price.py', price.job, lambda **k: None, ['bogus'])
+			delivery.cli('price.py', price.job, lambda **k: None, ['bogus'])
 		self.assertEqual(exit_.exception.code, 1)
 		self.assertIn('Usage: price.py [midsession', err.getvalue())
 
 	def test_cli_runs_the_handler(self):
 		"""Good arguments run the report with what job() made of them."""
 		calls = []
-		webhook.cli('price.py', price.job, lambda **k: calls.append(k), ['midsession'])
+		delivery.cli('price.py', price.job, lambda **k: calls.append(k), ['midsession'])
 		self.assertEqual(calls, [{'midsession': True}])
 
 	def test_each_scheduled_report_runs_from_its_top_level_script(self):
@@ -568,27 +568,27 @@ class ManualRuns(SchedulerBase):
 	def test_telegram_gets_a_button_per_command_and_slack_does_not(self):
 		"""On Telegram each command gets a button whose data fits in 64 bytes; Slack gets none."""
 		payload, markup = about.prepare_jobs_payload(TELEGRAM, '')
-		buttons = [b for row in markup['inline_keyboard'] for b in row]
-		self.assertEqual([b['text'] for b in buttons], ['1. performance 7', '2. performance 30', '3. performance 90', '4. performance 180',
-													  '5. performance 365', '6. price 7', '7. price close', '8. trades'])
-		for b in buttons:
-			self.assertLessEqual(len(b['callback_data'].encode()), 64)
+		pressable = [b for row in markup for b in row]
+		self.assertEqual([b.label for b in pressable], ['1. performance 7', '2. performance 30', '3. performance 90',
+			'4. performance 180', '5. performance 365', '6. price 7', '7. price close', '8. trades'])
+		for b in pressable:
+			self.assertLessEqual(len(b.data.encode()), 64)
 		payload, markup = about.prepare_jobs_payload(SLACK, '')
 		self.assertIsNone(markup)
 
 	def test_the_chat_command_passes_the_keyboard_on(self):
 		""".jobs sends its buttons with the list."""
 		seen = []
-		self.patch(webhook, 'payload_wrapper', lambda svc, url, payload, *a, **k: seen.append(k.get('reply_markup')) or [])
+		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None: seen.append(buttons) or [])
 		worker.process_request('telegram', '55', '@u', '.jobs', BOT, 'U')
-		self.assertEqual(len(seen[0]['inline_keyboard'][0]), 2)
+		self.assertEqual(len(seen[0][0]), 2) # two to a row
 
 	def test_button_press_runs_that_command(self):
 		"""Pressing a command's button runs it, says so in a toast, and reports how it went."""
 		sent = []
 		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: sent.append(text))
 		markup = about.prepare_jobs_payload(TELEGRAM, '')[1]
-		data = next(b['callback_data'] for row in markup['inline_keyboard'] for b in row if b['text'].startswith('7.'))
+		data = next(b.data for row in markup for b in row if b.label.startswith('7.'))
 		self.sent.clear()
 		worker.process_callback('telegram', 'cb1', '55', '9', data)
 		self.assertEqual(self.ran, [('price', {'close': True})])
@@ -599,7 +599,8 @@ class ManualRuns(SchedulerBase):
 		"""Capture the toast and the in-place edit that a refused button press produces."""
 		self.toasts, self.edits = [], []
 		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: self.toasts.append(text))
-		self.patch(webhook, 'editMessageText', lambda chat, mid, text, markup=None: self.edits.append((chat, mid, text, markup)))
+		self.patch(transports.TelegramBot, 'edit_text', lambda dest, mid, text, buttons=None:
+			self.edits.append((dest.where, mid, text, buttons)))
 
 	def test_forged_button_data_never_runs_anything_else(self):
 		"""Forged or malformed button data runs nothing and refreshes the buttons in place; cleanup and podcasts cannot
@@ -639,7 +640,7 @@ class ManualRuns(SchedulerBase):
 		self.assertEqual(markup, about.prepare_jobs_payload(TELEGRAM, '')[1]) # with the current buttons
 		self.patch(jobs, 'current', None) # scheduler off: the list is replaced by the notice and the buttons removed
 		worker.process_callback('telegram', 'cb1', '55', '9', 'j|7|0000')
-		self.assertEqual(self.edits[-1][2:], ('Scheduled jobs are off (scheduler=False)', {'inline_keyboard': []}))
+		self.assertEqual(self.edits[-1][2:], ('Scheduled jobs are off (scheduler=False)', [])) # no buttons left
 
 	def test_run_in_chat(self):
 		""".jobs run takes a number or a command's text."""

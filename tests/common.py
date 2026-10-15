@@ -10,25 +10,27 @@ os.chdir(ROOT)
 os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok', telegramChatID='1')
 
 import bot # first, and once: it monkey-patches with gevent, which must happen before requests imports ssl and never mid-test
-from lib import buttons, cache, config, dialects, state, webhook, formats, links, markets, render, yahoo, sharesight, shortman, worker, charts, telegram, watchlist, words
+from lib import buttons, cache, charts, config, delivery, dialects, formats, links, markets, render, sharesight
+from lib import shortman, state, telegram, transports, watchlist, words, worker, yahoo
 from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating, reminder, shorts, trades
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (yahoo, 'price_history'),
 	(sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'))}
 REAL_GET_HOLDINGS = watchlist.with_holdings
-REAL_PAYLOAD_WRAPPER = webhook.payload_wrapper # FinbotCase replaces it; tests of the real thing use this
-REAL_REPORT_ERROR = webhook.report_error # likewise
-REAL_SEND_PHOTO = webhook.sendPhoto # likewise
+REAL_TEXT = transports.Transport.text # FinbotCase replaces it with a recorder; tests of the real thing put it back
+REAL_CHART = transports.Transport.chart # likewise
+REAL_REPORT_ERROR = delivery.report_error # likewise
 # what FinbotCase replaces with recorders; util/record_outputs.py puts them back to record the real requests
-REAL_SENDING = ((webhook, 'payload_wrapper', REAL_PAYLOAD_WRAPPER), (webhook, 'sendPhoto', REAL_SEND_PHOTO),
-	(webhook, 'report_error', REAL_REPORT_ERROR))
+REAL_SENDING = ((transports.Transport, 'text', REAL_TEXT), (transports.Transport, 'chart', REAL_CHART),
+	(delivery, 'report_error', REAL_REPORT_ERROR))
 TICKERS = [f'T{i}' for i in range(25)]
 TELEGRAM, SLACK, DISCORD = dialects.TELEGRAM, dialects.SLACK, dialects.DISCORD
 BOT = '@bot'
 
 
 def skip_if_old_env(case):
-	"""For the tests that start bot.py: it will not start while the checkout has a leftover .env (config.check_startup_environment)."""
+	"""For the tests that start bot.py: it will not start while the checkout has a leftover .env
+	(config.check_startup_environment)."""
 	if config.OLD_ENV.exists():
 		case.skipTest(f'bot.py will not start while {config.OLD_ENV} exists')
 
@@ -68,7 +70,7 @@ class FinbotCase(unittest.TestCase):
 
 	def setUp(self):
 		"""A fresh data dir and the offline fixtures: no request leaves the machine, and whatever the bot sends is
-		collected in self.sent (and buttons in self.markups, error lines in self.errors)."""
+		collected in self.sent (and the buttons of each chart in self.markups, error lines in self.errors)."""
 		fake = mock.Mock(status_code=200, text='{}')
 		fake.json.return_value = {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 5}}}
 		self.patch(__import__('requests').Session, 'request', mock.Mock(return_value=fake)) # no real network traffic
@@ -79,9 +81,12 @@ class FinbotCase(unittest.TestCase):
 		self.sent = []
 		self.markups = [] # reply_markup of each photo sent
 		self.errors = []
-		self.patch(webhook, 'report_error', lambda e, *a, **k: self.errors.append(webhook.error_line(e, k.get('context'))))
-		self.patch(webhook, 'sendPhoto', lambda chat, img, cap, svc, **k: (self.sent.append(('photo', len(img.read()), cap.split('\n')[0])), self.markups.append(k.get('reply_markup'))))
-		self.patch(webhook, 'payload_wrapper', lambda svc, url, payload, *a, **k: self.sent.append(('text', payload)) or [])
+		self.patch(delivery, 'report_error',
+			lambda e, *a, **k: self.errors.append(delivery.error_line(e, k.get('context'))))
+		self.patch(transports.Transport, 'chart', lambda dest, image, caption, markup=None:
+			self.record_chart(image, caption, markup))
+		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None:
+			self.sent.append(('text', list(lines))) or [])
 		self.patch(watchlist, 'with_holdings', lambda: TICKERS)
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
@@ -103,6 +108,14 @@ class FinbotCase(unittest.TestCase):
 		real_start = worker.TypingIndicator.start
 		self.patch(worker.TypingIndicator, 'start', lambda indicator: (self.typing.append(indicator), real_start(indicator)))
 		self.addCleanup(self.no_typing_left)
+
+	def record_chart(self, image, caption, markup=None):
+		"""Transport.chart for the tests: note ('photo', its size, the caption's first line), and its buttons as
+		Telegram would get them."""
+		image.seek(0)
+		self.sent.append(('photo', len(image.read()), caption.split('\n')[0]))
+		self.markups.append(transports.TelegramBot.markup(markup) if markup else None)
+		return {'ok': True}
 
 	def no_typing_left(self):
 		"""Fail the test if a typing indicator it started is still running, after stopping it."""

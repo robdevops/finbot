@@ -1,10 +1,11 @@
 """What finbot can do: the .help text, and the .jobs listing of the schedule (with running a job from it)."""
 import re
+from lib import buttons
 from lib import jobs
 
 def prepare_jobs_payload(service, args):
 	"""`.jobs` lists the scheduled commands, each once; `.jobs run <number|command>` runs one now, as cron would.
-	Returns (payload, reply_markup): Telegram gets a button per command."""
+	Returns (payload, buttons): Telegram gets a button per command, two to a row."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['Scheduled jobs are off (scheduler=False)'], None
@@ -19,8 +20,9 @@ def prepare_jobs_payload(service, args):
 		payload.append("\nRun one with .jobs run NUMBER" + (' or tap it' if service == 'telegram' else ''))
 		markup = None
 		if service == 'telegram':
-			buttons = [{'text': f"{number}. {jobs.display(label)}"[:30], 'callback_data': f"j|{number}|{jobs.checksum(label)}"} for number, (label, _, _) in enumerate(commands, 1)]
-			markup = {'inline_keyboard': [buttons[i:i + 2] for i in range(0, len(buttons), 2)]}
+			row = [buttons.Button(f"{number}. {jobs.display(label)}"[:30], f"j|{number}|{jobs.checksum(label)}")
+				for number, (label, _, _) in enumerate(commands, 1)]
+			markup = [row[i:i + 2] for i in range(0, len(row), 2)]
 		return payload, markup
 	m = re.fullmatch(r'run(?:\s+(.+))?', args, re.IGNORECASE)
 	if not m or not m.group(1):

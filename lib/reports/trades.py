@@ -6,7 +6,7 @@ from lib import config
 from lib import state
 from lib import words
 from lib import sharesight
-from lib import webhook
+from lib import delivery
 from lib import formats
 from lib import links
 from lib import markets
@@ -94,11 +94,12 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 	known_trades = set(state.load(state_file, []))
 	trades = [trade for portfolio in sharesight.portfolios(portfolio_select) for trade in portfolio.trades(days)]
 
-	for service, url, chat in webhook.destinations(interactive, service, chat_id):
+	for dest in delivery.destinations(interactive, service, chat_id):
+		service = dest.dialect
 		payload = prepare_trade_payload(service, trades)
 		if interactive and not payload: # no trades, or none of them a buy or a sell
 			payload = [f"{user} No trades {formats.days_english(days, 'in the past ')}. {random.choice(words.noTradesVerb)}"]
-		webhook.send(service, url, chat, payload)
+		delivery.deliver(dest, delivery.Report(payload))
 
 	if newtrades and not interactive:
 		with state.edit(state_file, []) as known:

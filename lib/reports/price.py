@@ -5,7 +5,7 @@ import datetime
 
 from lib import config
 from lib import sharesight
-from lib import webhook
+from lib import delivery
 from lib import formats
 from lib import links
 from lib import markets
@@ -93,7 +93,8 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 				if config.prefs.performance_use_sharesight:
 					continue
 				if specific_stock: # the one ticker asked for: no history is reported in one line
-					history, graph = yahoo.price_history(ticker, days, graph=config.prefs.graph and webhook.takes_charts(service, interactive), graphCache=False)
+					drawn = config.prefs.graph and delivery.takes_charts(service, interactive)
+					history, graph = yahoo.price_history(ticker, days, graph=drawn, graphCache=False)
 				else:
 					try:
 						history, _ = yahoo.price_history(ticker, days, graph=False)
@@ -132,7 +133,7 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 			heading = f'Price movement {threshold:g}%, {formats.date_range_english(days, as_of)}'
 		else:
 			heading = f'{threshold:g}% at close, {on}'
-		chartable = webhook.takes_charts(service, interactive)
+		chartable = delivery.takes_charts(service, interactive)
 		if top:
 			bottom = [service.bold(f'Bottom {top}')] + list(reversed(payload[-top:]))
 			payload = [service.bold(heading)] + payload[:top] + [''] + bottom
@@ -170,19 +171,20 @@ def lambda_handler(chat_id=None, threshold=None, service=None, user='', specific
 	if threshold is None:
 		threshold = config.prefs.price_percent
 	market = gather(specific_stock, days)
-	def markup(service):
-		"""A chart's period buttons on Telegram: one ticker's chart, and the daily and N-day lists, but not the intraday
-		ones."""
-		if service != 'telegram':
+	def markup(dest):
+		"""A chart's period buttons, where the destination takes buttons: one ticker's chart, and the daily and N-day
+		lists, but not the intraday ones."""
+		if not dest.takes_buttons:
 			return None
 		if specific_stock:
 			return buttons.keyboard('p', market[0], buttons.period_for_days(days))
 		if not (midsession or premarket or close):
 			return buttons.keyboard('l', [f"{threshold:g}", str(top or 0)], buttons.period_for_days(days, 'd' if not days else None))
 		return None
-	for service, url, chat in webhook.destinations(interactive, service, chat_id):
+	for dest in delivery.destinations(interactive, service, chat_id):
+		service = dest.dialect
 		payload, graph = report(service, threshold, user, specific_stock, interactive, midsession, premarket, interday, days, close, top, market)
-		webhook.send(service, url, chat, payload, graph, reply_markup=markup(service) if graph else None)
+		delivery.deliver(dest, delivery.Report(payload, graph, markup(dest) if graph else None))
 
 def job(argv):
 	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""

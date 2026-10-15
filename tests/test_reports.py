@@ -334,14 +334,14 @@ class ScheduledReports(FinbotCase):
 		self.env(slackBotToken=False)
 
 		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/T/B/x'})
-		self.patch(webhook, 'payload_wrapper', REAL_PAYLOAD_WRAPPER)
-		self.patch(webhook, 'sendPhoto', REAL_SEND_PHOTO)
+		self.patch(transports.Transport, 'text', REAL_TEXT)
+		self.patch(transports.Transport, 'chart', REAL_CHART)
 		posts = []
 		def post(url, **kwargs):
 			"""Record (host, whether a bot token was sent, the channel) and answer ok."""
 			posts.append((url.split('/')[2], 'Authorization' in kwargs.get('headers', {}), (kwargs.get('json') or {}).get('channel')))
 			return mock.Mock(status_code=200, json=lambda: {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 1}}})
-		self.patch(webhook.net, 'post', post)
+		self.patch(transports.net, 'post', post)
 		for report in (price.lambda_handler, shorts.lambda_handler, milestone.lambda_handler):
 			with self.subTest(report=report):
 				posts.clear()
@@ -390,7 +390,8 @@ class PeriodButtons(FinbotCase):
 	def press(self, data):
 		"""Press a period button: (the edits made, the toasts shown)."""
 		edits, toasts = [], []
-		self.patch(webhook, 'editMessageMedia', lambda chat, msg, img, caption, markup=None: edits.append((caption.split('\n')[0], markup)))
+		self.patch(transports.TelegramBot, 'edit_chart', lambda dest, msg, img, caption, buttons=None:
+			edits.append((caption.split('\n')[0], transports.TelegramBot.markup(buttons))))
 		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
 		worker.process_callback('telegram', 'cb', '55', '9', data)
 		return edits, toasts
@@ -486,7 +487,7 @@ class PieCommand(FinbotCase):
 	def test_a_service_that_takes_no_images_gets_text(self):
 		"""Slack without the bot token takes no images: the report goes as text."""
 		self.env(slackBotToken=False)
-		worker.Request(SLACK, 'C1', '@u', 'U', BOT).deliver(['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
+		worker.Request(SLACK, 'C1', '@u', 'U', BOT).reply(['x'], {'pie': True, 'rows': [('a', 1.0)], 'title': 't'})
 		self.assertEqual(self.sent[-1][0], 'text')
 
 

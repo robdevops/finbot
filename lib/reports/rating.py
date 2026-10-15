@@ -1,5 +1,5 @@
 """Analysts' consensus rating changes since the last scheduled run (scheduled: rating.py). .buy and .sell are in rankings."""
-from lib import webhook
+from lib import delivery
 from lib import state
 from lib import links
 from lib import markets
@@ -60,9 +60,10 @@ def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=
 	old = state.load('finbot_rating.json', {})
 	market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
 
-	for service, url, chat in webhook.destinations(interactive, service, chat_id):
+	for dest in delivery.destinations(interactive, service, chat_id):
+		service = dest.dialect
 		payload, new = prepare_rating_payload(service, market_data)
-		webhook.send(service, url, chat, payload)
+		delivery.deliver(dest, delivery.Report(payload))
 
 	if new and not interactive: # added to what is recorded: a ticker missing from this run keeps its last rating
 		with state.edit('finbot_rating.json', {}) as ratings:
