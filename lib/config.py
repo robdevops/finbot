@@ -16,9 +16,11 @@ os.chdir(REPO_DIR)
 
 STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'telegramChatID', 'scheduler', 'scheduler_catchup',
 	'sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
-	'slackOutgoingToken', 'slackOutgoingWebhook', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook')
+	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
+	'telegramOutgoingWebhook')
 SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
-	'slackOutgoingToken', 'slackOutgoingWebhook', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook') # never printed
+	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
+	'telegramOutgoingWebhook') # never printed
 PREFERENCES_FILE = 'preferences.conf'
 PASSED = 'FINBOT_PREFERENCES_PASSED' # set by the bot for its job processes: the preferences arrive in the environment, do not read the file
 OLD_ENV = REPO_DIR / '.env' # the single config file of old versions, which python-dotenv loaded; nothing reads it now
@@ -176,6 +178,7 @@ class Env:
 	slackBotToken: str
 	slackOutgoingWebhook: str
 	slackOutgoingToken: str
+	slackSigningSecret: str
 	sharesight_auth: dict
 	webhooks: dict # service -> outbound URL: Telegram's Bot API base, the Slack and Discord incoming webhooks
 
@@ -210,6 +213,7 @@ def startup_values(getenv):
 		slackBotToken=r.str('slackBotToken', ''),
 		slackOutgoingWebhook=r.str('slackOutgoingWebhook', ''),
 		slackOutgoingToken=r.str('slackOutgoingToken', ''),
+		slackSigningSecret=r.str('slackSigningSecret', ''),
 		sharesight_auth={
 			"grant_type": 'client_credentials',
 			"code": getenv('sharesight_code'),
@@ -409,4 +413,10 @@ def startup_warnings():
 	warnings = []
 	if env.slackOutgoingWebhook and not env.slackBotToken:
 		warnings.append('slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply')
+	if env.slackOutgoingWebhook and not (env.slackSigningSecret or env.slackOutgoingToken):
+		warnings.append('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
+			' every Slack request will be refused')
+	if env.telegramOutgoingWebhook and not env.telegramOutgoingToken:
+		warnings.append('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update will be'
+			' refused')
 	return warnings

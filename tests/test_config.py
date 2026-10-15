@@ -2,6 +2,7 @@
 import ast, contextlib, dataclasses, io, os, re, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
+from tests import common # first: it sets the environment that lib.config reads as it loads
 from lib import config
 from util import check_config, split_env
 import bot
@@ -31,7 +32,7 @@ class Tables(unittest.TestCase):
 	def test_the_two_key_sets_are_disjoint_and_cover_everything_config_reads(self):
 		"""Startup and preference keys do not overlap, and between them name every setting config.py reads."""
 		self.assertEqual(set(config.STARTUP_KEYS) & set(config.PREFERENCE_KEYS), set())
-		self.assertEqual((len(config.STARTUP_KEYS), len(config.PREFERENCE_KEYS)), (17, 26))
+		self.assertEqual((len(config.STARTUP_KEYS), len(config.PREFERENCE_KEYS)), (18, 26))
 		source = (REPO / 'lib' / 'config.py').read_text()
 		read = set(re.findall(r"""(?:\br\.\w+|getenv)\(\s*['"]([A-Za-z_]+)['"]""", source))
 		read -= {'STATE_DIRECTORY'} # systemd's own variable, a source for DATA_DIR
@@ -40,7 +41,7 @@ class Tables(unittest.TestCase):
 	def test_secrets_are_startup_keys(self):
 		"""Every secret is a startup key: preferences.conf holds none."""
 		self.assertTrue(set(config.SECRET_KEYS) <= set(config.STARTUP_KEYS))
-		self.assertEqual(len(config.SECRET_KEYS), 11)
+		self.assertEqual(len(config.SECRET_KEYS), 12)
 
 	def test_the_preference_defaults_are_the_old_defaults(self):
 		"""Unset preferences take the defaults finbot always had."""
@@ -382,17 +383,28 @@ class Startup(unittest.TestCase):
 			values = config.startup_values(lambda name, default=None: url if name == 'discord_webhook' else default)
 			self.assertEqual(values.webhooks['discord'], 'https://discord.com/api/webhooks/1/abc')
 
-	def test_slack_commands_without_a_bot_token_are_warned_about(self):
-		"""Slack commands without slackBotToken get a startup warning, since they would get no reply."""
-		for token, warnings in (('', ['slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply']), ('xoxb-1', [])):
-			with mock.patch.object(config, 'env', dataclasses.replace(config.env, slackOutgoingWebhook='https://example.com/slack', slackBotToken=token)):
+	def test_settings_that_leave_part_of_the_bot_unable_to_work_are_warned_about(self):
+		"""A startup warning for Slack commands without slackBotToken (they would get no reply), and for an inbound
+		webhook without its secret (every request would be refused)."""
+		hooks = dict(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok', slackBotToken='xoxb-1',
+			telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
+		no_reply = 'slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply'
+		slack_refused = ('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
+			' every Slack request will be refused')
+		telegram_refused = ('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update'
+			' will be refused')
+		for changes, warnings in (({}, []), ({'slackBotToken': ''}, [no_reply]),
+				({'slackOutgoingToken': ''}, [slack_refused]), ({'slackOutgoingToken': '', 'slackSigningSecret': 's'}, []),
+				({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, [])):
+			with self.subTest(changes=changes), \
+					mock.patch.object(config, 'env', dataclasses.replace(config.env, **{**hooks, **changes})):
 				self.assertEqual(config.startup_warnings(), warnings)
 
 	def test_startup_report_is_a_short_count_never_names_or_values(self):
 		"""The startup report counts the startup keys set, and never names them or shows their values."""
 		with mock.patch.dict(os.environ, {'slack_webhook': 'https://secret.example/abc', 'port': '5000'}, clear=True):
 			lines = config.startup_report()
-		self.assertEqual(lines[0], 'startup environment provides 2 of 17 startup keys (values hidden)')
+		self.assertEqual(lines[0], 'startup environment provides 2 of 18 startup keys (values hidden)')
 		self.assertLessEqual(len('config: ' + lines[0]), 90) # the path in the second line depends on where DATA_DIR is
 		self.assertNotIn('secret.example', ''.join(lines))
 		self.assertNotIn('slack_webhook', ''.join(lines))

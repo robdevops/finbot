@@ -470,7 +470,8 @@ The startup keys, read by your launcher. A change needs a restart. Blank means u
 | `telegramOutgoingWebhook` | | Telegram webhook path the bot accepts (interactive mode) |
 | `telegramOutgoingToken` | | Secret token Telegram must present (interactive mode) |
 | `slackOutgoingWebhook` | | Slack webhook path the bot accepts (interactive mode) |
-| `slackOutgoingToken` | | Token Slack must present (interactive mode) |
+| `slackOutgoingToken` | | Token Slack must present (interactive mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
+| `slackSigningSecret` | | Secret Slack signs each request with (interactive mode) |
 
 ### `preferences.conf` items
 
@@ -712,7 +713,8 @@ With these options set, your bot will auto-subscribe your URL to events the bot 
 
 #### Slack
 Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app). Charts in replies are uploaded into the channel with Slack's file upload API (`files.getUploadURLExternal`, then `files.completeUploadExternal`, which replaced the retired `files.upload`). Scheduled reports reach Slack through the incoming webhook, which takes text only, so they come without charts. If an upload fails (a missing scope, say), the reply goes out as text and the log says why.
-* From _Basic Information > Verification Token_, copy _Verification token_ into `finbot.env` as `slackOutgoingToken`. This allows Slack to authenticate with finbot.
+* From _Basic Information > App Credentials_, copy _Signing Secret_ into `finbot.env` as `slackSigningSecret`. finbot checks Slack's signature on every request with it, and turns away a request signed more than five minutes earlier (a replay, or a server clock that is wrong).
+  * The older _Verification Token_, set as `slackOutgoingToken`, still works without a signing secret, but Slack has deprecated it: the token travels in every request, where the signing secret never does.
 * In `finbot.env`, put your web server URL (e.g. https://www.example.com:8443/slack) into `slackOutgoingWebhook`
 * Save `finbot.env` and restart `bot.py`
 * Under _Event Subscriptions_:

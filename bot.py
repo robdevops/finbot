@@ -83,12 +83,13 @@ def handle(environ, start_response):
 		print_headers()
 		print("Fatal:", why, file=sys.stderr)
 		return respond(inbound.FORBIDDEN)
+	body = environ['wsgi.input'].read()
 	try:
-		update = source.decode(environ['wsgi.input'].read())
+		update = source.decode(body)
 	except ValueError:
 		print(f"[{source.service}]: request body is not a JSON object", file=sys.stderr)
 		return respond(inbound.BAD_REQUEST)
-	if why := source.refuse(update):
+	if why := source.refuse(environ, body, update):
 		shown = {k: '<redacted>' if k == 'token' else v for k, v in update.items()} # Slack's verification token
 		print("warning:", why, file=sys.stderr)
 		print(f"inbound {path} ", json.dumps(shown, indent=4, default=str), file=sys.stderr)

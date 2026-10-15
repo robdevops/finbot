@@ -2,11 +2,13 @@
 it proves itself and how to read an update. An update becomes a Message to answer, a Press of a button, or a Response
 the network gets straight back (a challenge, or nothing to do)."""
 import dataclasses
+import hashlib
 import hmac
 import html
 import json
 import re
 import sys
+import time
 from urllib.parse import urlparse
 
 from lib import config
@@ -49,6 +51,9 @@ FORBIDDEN = Response('403 Forbidden', b'<h1>Unauthorized</h1>')
 NOT_FOUND = Response('404 Not Found', b'<h1>404</h1>')
 
 
+SIGNATURE_AGE = 300 # seconds: Slack's limit; an older signed request may be a replay
+
+
 def same_secret(given, expected):
 	"""Whether a secret sent with a request is the one configured, compared in constant time. An empty configured secret
 	proves nothing, so it matches nothing."""
@@ -75,8 +80,9 @@ class Webhook:
 			raise ValueError('not a JSON object')
 		return update
 
-	def refuse(self, update):
-		"""Why to turn the request away once read (a secret in the body missing or wrong), else None."""
+	def refuse(self, environ, body, update):
+		"""Why to turn the request away once read (a signature of the body, or a secret in it, missing or wrong), else
+		None."""
 		return None
 
 	def update_id(self, update):
@@ -147,7 +153,8 @@ class Telegram(Webhook):
 
 
 class Slack(Webhook):
-	"""Slack's Events API, each event carrying the app's verification token."""
+	"""Slack's Events API: each request signed with the app's signing secret, and carrying its verification
+	token."""
 	service = 'slack'
 	BY_PEOPLE = (None, 'thread_broadcast') # message subtypes a person writes; the rest are bot posts, edits, joins...
 
@@ -155,13 +162,30 @@ class Slack(Webhook):
 		"""The path of slackOutgoingWebhook."""
 		return urlparse(config.env.slackOutgoingWebhook).path if config.env.slackOutgoingWebhook else ''
 
-	def refuse(self, update):
-		"""The body must carry slackOutgoingToken."""
+	def refuse(self, environ, body, update):
+		"""With slackSigningSecret, the request must carry Slack's signature of its body, made in the last five minutes;
+		without it, the body must carry slackOutgoingToken (the older way, which Slack has deprecated)."""
+		if config.env.slackSigningSecret:
+			return self.signature_problem(environ, body, config.env.slackSigningSecret)
 		if 'token' not in update:
 			return "Slack authorisation field not present"
 		if not same_secret(str(update['token']), config.env.slackOutgoingToken):
 			return "Slack auth incorrect"
 		return None
+
+	@staticmethod
+	def signature_problem(environ, body, secret):
+		"""Why the request's signature fails, or None: X-Slack-Signature must be v0= and the HMAC-SHA256, under the
+		signing secret, of v0:<X-Slack-Request-Timestamp>:<the body>, and the timestamp within five minutes of now."""
+		timestamp = environ.get('HTTP_X_SLACK_REQUEST_TIMESTAMP', '')
+		signature = environ.get('HTTP_X_SLACK_SIGNATURE')
+		if signature is None or not (timestamp.isascii() and timestamp.isdigit()):
+			return "Slack signature not present"
+		if abs(time.time() - int(timestamp)) > SIGNATURE_AGE:
+			return "Slack signature too old (a replay, or a clock is wrong)"
+		signed = b'v0:' + timestamp.encode() + b':' + body
+		expected = 'v0=' + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
+		return None if same_secret(signature, expected) else "Slack signature incorrect"
 
 	def update_id(self, update):
 		"""Slack's event_id."""

@@ -1,5 +1,5 @@
 """Failure and no-data scenarios: empty or broken upstream data, bad requests, rejected callers."""
-import contextlib, io, json, os, signal, subprocess, sys, tempfile, threading, time, unittest
+import contextlib, hashlib, hmac, io, json, os, signal, subprocess, sys, tempfile, threading, time, unittest
 from pathlib import Path
 import gevent
 from tests.common import *
@@ -367,6 +367,49 @@ class SlackEvents(FinbotCase):
 		self.patch(inbound.TELEGRAM, 'bot_name', '@finbot_tg')
 		self.event(user='U1', text='.price')
 		self.assertEqual(inbound.TELEGRAM.bot_name, '@finbot_tg')
+
+
+class SlackSigning(FinbotCase):
+	"""With slackSigningSecret, a Slack request must carry Slack's signature of its body, made in the last five
+	minutes; the verification token is then neither needed nor enough."""
+
+	def setUp(self):
+		"""Slack commands with a signing secret, and the worker replaced by a list of what it would have run."""
+		super().setUp()
+		self.env(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok', slackSigningSecret='sss')
+		self.requests = []
+		self.patch(worker, 'process_request', lambda *a: self.requests.append(a))
+
+	def post(self, secret='sss', age=0, token='stok', headers=None, tamper=False):
+		"""Post a Slack message event signed with `secret` `age` seconds ago (or with these headers instead) and
+		return the status; tamper changes the body after signing."""
+		body = json.dumps({'token': token, 'type': 'event_callback', 'authorizations': [{'user_id': 'UBOT'}],
+			'event': {'type': 'message', 'channel': 'C1', 'user': 'U1', 'text': '.price'}}).encode()
+		timestamp = str(int(time.time()) - age)
+		mac = hmac.new(secret.encode(), b'v0:' + timestamp.encode() + b':' + body, hashlib.sha256).hexdigest()
+		if headers is None:
+			headers = {'HTTP_X_SLACK_REQUEST_TIMESTAMP': timestamp, 'HTTP_X_SLACK_SIGNATURE': 'v0=' + mac}
+		env = {'PATH_INFO': '/slack', 'wsgi.input': io.BytesIO(body.replace(b'.price', b'.trades') if tamper else body),
+			**headers}
+		status = []
+		with contextlib.redirect_stderr(io.StringIO()):
+			bot.main(env, lambda s, *a, **k: status.append(s))
+		gevent.sleep(0.05) # the worker runs in a (gevent) thread
+		return status[-1]
+
+	def test_a_signed_request_is_answered_and_the_token_is_not_needed(self):
+		"""A request signed with the secret is answered, whatever token it carries."""
+		self.assertEqual([self.post(), self.post(token='wrong')], ['200 OK'] * 2)
+		self.assertEqual(len(self.requests), 2)
+
+	def test_unsigned_wrongly_signed_old_or_altered_requests_are_refused(self):
+		"""No signature (the right token is not enough), a wrong secret, a timestamp more than five minutes away or
+		not a number, and a body changed after signing are all refused."""
+		for case in (dict(headers={}), dict(secret='wrong'), dict(age=400), dict(age=-400), dict(tamper=True),
+				dict(headers={'HTTP_X_SLACK_REQUEST_TIMESTAMP': 'soon', 'HTTP_X_SLACK_SIGNATURE': 'v0=00'})):
+			with self.subTest(**case):
+				self.assertEqual(self.post(**case), '403 Forbidden')
+		self.assertEqual((self.requests, self.errors), ([], []))
 
 
 class UserTextIsEscaped(FinbotCase):
