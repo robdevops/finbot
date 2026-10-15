@@ -444,12 +444,17 @@ def symbol(typed):
 	"""Yahoo's symbol for one ticker as written in a chat (see symbols): BHP may be BHP.AX."""
 	return symbols([typed])[0]
 
-def prefetch_history(tickers, workers=8):
-	"""Warm the price-history cache for many tickers at once, so the per-ticker lookups that follow are cache hits."""
+def prefetch_history(tickers, workers=8, seconds=None):
+	"""Warm the price-history cache for many tickers at once, so the per-ticker lookups that follow are cache hits: a
+	history is fetched unless its cache file is under `seconds` old (cache_seconds when None; 0 fetches each afresh).
+	Returns the tickers whose history could not be fetched, each logged."""
 	tickers = list(tickers)
-	for ticker, result in zip(tickers, fetch_each(fetch_chart_json, tickers, workers)):
+	failed = []
+	for ticker, result in zip(tickers, fetch_each(lambda t: fetch_chart_json(t, seconds=seconds), tickers, workers)):
 		if isinstance(result, Exception):
 			print("prefetch failed for", ticker, result, file=sys.stderr)
+			failed.append(ticker)
+	return failed
 
 def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
 	"""Yahoo's daily chart for the last `days`, or with full=True its entire history (cached separately). Raises NoData

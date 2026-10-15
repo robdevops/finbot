@@ -9,10 +9,12 @@ from lib.reports import cal, cleanup, performance, podcasts, price
 
 class ParseTests(unittest.TestCase):
 	def test_shipped_schedule_has_no_errors(self):
-		"""defaults/schedule.cron parses without errors, its Saturday line into its five commands."""
+		"""defaults/schedule.cron parses without errors, its Saturday line into its five commands; the price histories
+		are fetched afresh every 8 hours, within the 12 hours they are cached."""
 		parsed, errors = jobs.parse_schedule(DEFAULT_SCHEDULE.read_text(), UTC)
 		self.assertEqual(errors, [])
-		self.assertEqual(len(parsed), 9)
+		self.assertEqual(len(parsed), 10)
+		self.assertIn(('07 */8 * * *', ['yahoo_warm.py']), [(j.expr, [c[0] for c in j.commands]) for j in parsed])
 		weekly = next(j for j in parsed if j.expr == '28 21 * * Sat')
 		self.assertEqual([label for label, _, _ in weekly.commands],
 						 ['cal.py earnings', 'cal.py ex-dividend', 'price.py 7', 'performance.py 7', 'rating.py'])

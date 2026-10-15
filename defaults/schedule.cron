@@ -22,7 +22,9 @@
 # Weekly
 28  21 * * Sat cal.py earnings; cal.py ex-dividend; price.py 7; performance.py 7; rating.py
 
-# Housekeeping: delete cache files older than 30 days
+# Housekeeping: fetch the price histories of the stocks followed afresh every 8 hours (they are cached 12 hours, so
+# period lists and charts never wait on Yahoo); delete cache files older than 30 days
+07 */8 * * * yahoo_warm.py
 51  18 * * Sat cleanup.py 30
 
 # Monthly

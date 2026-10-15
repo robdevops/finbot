@@ -20,7 +20,7 @@ REPORTED = 3
 def main(argv):
 	"""Run one scheduled command: argv is the report's module and its JSON keyword arguments. Returns the exit status: 0
 	when it ran, REPORTED when it failed and said so in the chat, 2 for bad arguments."""
-	if len(argv) != 2 or not re.fullmatch(r'[a-z]+(\.[a-z]+)*', argv[0]):
+	if len(argv) != 2 or not re.fullmatch(r'[a-z][a-z_]*(\.[a-z][a-z_]*)*', argv[0]):
 		print('usage: python -m lib.jobrun <module> <json kwargs>', file=sys.stderr)
 		return 2
 	module = argv[0]

@@ -7,7 +7,9 @@ from unittest import mock
 import gevent
 from tests.common import *
 from lib import jobs
-from lib.reports import cleanup, podcasts, price
+from lib.reports import cleanup, podcasts, price, yahoo_warm
+
+PREFETCH_HISTORY = yahoo.prefetch_history # FinbotCase replaces it; the warm job's test puts it back
 
 
 def run_in_process(label, module, kwargs):
@@ -65,6 +67,46 @@ class CleanupJob(FinbotCase):
 		self.env(cache_dir='/nonexistent/finbot-cache')
 
 		self.assertEqual(cleanup.run(days=30), 0)
+
+
+class YahooWarmJob(FinbotCase):
+	def setUp(self):
+		"""The real prefetch, Yahoo answering each history with the ticker's name, except T2's, which fails."""
+		super().setUp()
+		self.patch(yahoo, 'prefetch_history', PREFETCH_HISTORY)
+		def answer(ticker, days, full):
+			"""A history that names its ticker; none for T2."""
+			if ticker == 'T2':
+				raise RuntimeError('Yahoo unreachable')
+			return {'history of': ticker}
+		self.patch(yahoo, '_chart_answer', answer)
+
+	def test_every_followed_stocks_history_is_fetched_afresh(self):
+		"""yahoo_warm fetches the price history of every stock followed even while its cache is fresh, so that none
+		runs out between runs: it counts the ones fetched, and a failure is only logged."""
+		cache.write('finbot_yahoo_history_T1.json', {'history of': 'an hour ago'})
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			self.assertEqual(yahoo_warm.run(), len(TICKERS) - 1)
+		self.assertEqual(cache.read('finbot_yahoo_history_T1.json'), {'history of': 'T1'})
+		self.assertIn(f'yahoo_warm: {len(TICKERS) - 1} of {len(TICKERS)} price histories fetched', log.getvalue())
+
+	def test_without_sharesight_the_watchlist_is_fetched(self):
+		"""While Sharesight cannot be asked for the holdings, the watchlist's histories are fetched."""
+		def unreachable():
+			"""Sharesight failing, as watchlist.with_holdings meets it."""
+			raise RuntimeError('Sharesight auth: down')
+		self.patch(watchlist, 'with_holdings', unreachable)
+		self.patch(watchlist, 'tickers', lambda: ['W1'])
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			self.assertEqual(yahoo_warm.run(), 1)
+		self.assertEqual(cache.read('finbot_yahoo_history_W1.json'), {'history of': 'W1'})
+		self.assertIn('no holdings from Sharesight', log.getvalue())
+
+	def test_with_the_cache_off_nothing_is_fetched(self):
+		"""With the cache preference off nothing would be kept, so nothing is fetched."""
+		self.prefs(cache=False)
+		self.patch(yahoo, '_chart_answer', None)
+		self.assertEqual(yahoo_warm.run(), 0)
 
 
 class SchedulerFlag(unittest.TestCase):

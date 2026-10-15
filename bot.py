@@ -226,7 +226,7 @@ if __name__ == '__main__':
 		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
 	if config.env.sharesight_auth.get('client_id'):
 		# keep the portfolio list and holdings report cached, while cache is on
-		threading.Thread(target=sharesight.keep_warm, daemon=True).start()
+		threading.Thread(target=sharesight.keep_warm, daemon=True, name='sharesight_warm').start()
 	if scheduler:
 		jobs.current = scheduler # for the .jobs chat command
 		threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
