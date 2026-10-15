@@ -17,17 +17,16 @@ from lib import buttons
 from lib.reports import history
 
 def gather(specific_stock=None, days=None):
-	"""(tickers, market data, the line chart or None) for a price report on the stocks followed or one (Yahoo's
-	symbol): Yahoo's quotes, and over `days` each one's change as percent_change_period: a holding's from Sharesight,
-	the others' from Yahoo's history, fetched together up front, with the line chart of the one stock asked about
-	(performance_use_sharesight: Sharesight's figures only, and the one stock's even when the others take Yahoo's)."""
+	"""(tickers, market data) for a price report on the stocks followed or one (Yahoo's symbol): Yahoo's quotes, and
+	over `days` each one's change as percent_change_period: a holding's from Sharesight, the others' from Yahoo's
+	history, fetched together up front (performance_use_sharesight: Sharesight's figures only, and the one stock's
+	even when the others take Yahoo's)."""
 	tickers = watchlist.covered(specific_stock)
 	market_data = yahoo.fetch(tickers)
 	if config.prefs.demote_volatile: # trigger_bar compares market caps, in US dollars
 		yahoo.add_usd_market_caps(market_data)
-	chart = None
 	if not days:
-		return tickers, market_data, chart
+		return tickers, market_data
 	# Sharesight reports a holding's performance only for the time it was held: held for 1Y and asked for 5Y, it gives 1Y
 	if not specific_stock or config.prefs.performance_use_sharesight:
 		for portfolio in sharesight.portfolios():
@@ -37,22 +36,20 @@ def gather(specific_stock=None, days=None):
 				elif ticker in tickers:
 					print("Notice: price.py:", ticker, "has no data", file=sys.stderr)
 	if config.prefs.performance_use_sharesight:
-		return tickers, market_data, chart
+		return tickers, market_data
 	missing = [ticker for ticker in market_data if 'percent_change_period' not in market_data[ticker]]
 	if not specific_stock:
 		yahoo.prefetch_history(missing)
 	for ticker in missing:
 		try:
-			changes, chart = history.price_line(ticker, days, market_data[ticker])
+			changes, _ = history.price_line(ticker, days, market_data[ticker])
 		except RuntimeError as e: # no history: the one stock asked about says so, a list leaves it out
 			if specific_stock:
 				raise
 			print(ticker, e, file=sys.stderr)
 			continue
 		market_data[ticker]['percent_change_period'] = changes[days]
-	if not specific_stock:
-		chart = None # the line of one stock only
-	return tickers, market_data, chart
+	return tickers, market_data
 
 def needs_beta(quote):
 	"""Whether trigger_bar must know this ticker's beta: a small cap between US$150M and US$1B, which counts as volatile when its
@@ -91,12 +88,11 @@ HEADINGS = { # the report's heading, by mode
 class Moves:
 	"""What a price report shows, the same for every chat (moves() works it out once): the moves that pass, (ticker,
 	percent, quote) best first, the countries of their exchanges, whether a market of the stocks is in session, the date
-	of the freshest price, and the one stock's line chart, if any."""
+	of the freshest price."""
 	rows: list
 	exchanges: set
 	in_session: bool
 	as_of: datetime.date
-	chart: object = None
 
 def change(mode, quote, now, interactive):
 	"""A stock's move in a mode of MODES, or None when it has none to report: not in session (midsession), quoted more
@@ -121,7 +117,7 @@ def moves(mode='interday', threshold=None, days=None, specific_stock=None, inter
 	when one passes its trigger_bar."""
 	if threshold is None:
 		threshold = config.prefs.price_percent
-	_, market_data, chart = gather(specific_stock, days)
+	_, market_data = gather(specific_stock, days)
 	now = datetime.datetime.now()
 	rows, exchanges = [], set()
 	for ticker, quote in market_data.items():
@@ -137,7 +133,7 @@ def moves(mode='interday', threshold=None, days=None, specific_stock=None, inter
 	stamps = [quote['regularMarketTime'] for quote in market_data.values()]
 	as_of = datetime.datetime.fromtimestamp(max(stamps)).date() if stamps else datetime.date.today()
 	in_session = any(quote['marketState'] == 'REGULAR' for quote in market_data.values())
-	return Moves(rows, exchanges, in_session, as_of, chart)
+	return Moves(rows, exchanges, in_session, as_of)
 
 def report(service, found, mode='interday', threshold=None, days=None, top=None, user='', specific_stock=None,
 		interactive=False):
@@ -151,7 +147,7 @@ def report(service, found, mode='interday', threshold=None, days=None, top=None,
 	if not lines:
 		return [nothing(mode, threshold, user, specific_stock, found.in_session, days)] if interactive else [], None
 	if specific_stock:
-		return lines, found.chart
+		return lines, None
 	label = lambda rows: [(formats.short_ticker(ticker), percent) for ticker, percent, _ in rows]
 	on = formats.date_short(found.as_of, True)
 	span = formats.date_range_english(days, found.as_of) if days else on
@@ -196,12 +192,10 @@ def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user
 		threshold = config.prefs.price_percent
 	found = moves(mode, threshold, days, specific_stock, interactive)
 	def markup(chat):
-		"""A chart's period buttons, where the chat takes buttons: one ticker's chart, and the daily and N-day lists,
-		but not the intraday ones."""
+		"""A chart's period buttons, where the chat takes buttons: the daily and N-day lists, but not the intraday
+		ones."""
 		if not chat.takes_buttons:
 			return None
-		if specific_stock:
-			return buttons.keyboard('p', [specific_stock], buttons.period_for_days(days))
 		if mode in ('interday', 'period'):
 			return buttons.keyboard('l', [f"{threshold:g}", str(top or 0)], buttons.period_for_days(days, 'd' if not days else None))
 		return None

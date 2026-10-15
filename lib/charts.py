@@ -1,4 +1,5 @@
-"""A period button pressed: the chart rebuilt for that period, by the builder of the chart's kind."""
+"""A chart with period buttons, built by its kind's builder: the command's first view, and again for the period of a
+button pressed, so that both look alike."""
 from lib import answer
 from lib import buttons
 from lib import formats
@@ -12,7 +13,8 @@ def history_chart(service, period, days, ticker):
 	return '\n'.join(lines), chart
 
 def price_chart(service, period, days, ticker):
-	""".price SYMBOL: one stock's change over the period, and its line."""
+	""".price SYMBOL [period]: one stock's change over the period (all its history for Max), from Yahoo, and its
+	line."""
 	market_data = yahoo.fetch([ticker])
 	if ticker not in market_data:
 		raise answer.Answer(f"no data found for {ticker}")
@@ -46,9 +48,9 @@ def price_list_chart(service, period, days, threshold, top):
 
 BUILDERS = {'h': history_chart, 'p': price_chart, 'c': compare_chart, 'f': performance_chart, 'l': price_list_chart}
 
-def build(kind, args, period, service):
-	"""(caption, chart spec or None) of a chart kind at a button period (None: the command's default view), from the
-	arguments its buttons carry (buttons.keyboard)."""
+def build(kind, args, service, period=None, days=None):
+	"""(caption, chart spec or None) of a chart kind from the arguments its buttons carry (buttons.keyboard): over a
+	button period, or over `days` (a command's own span: .compare 3m), or the command's default view."""
 	if kind not in BUILDERS:
 		raise ValueError(f"unknown chart kind {kind}")
-	return BUILDERS[kind](service, period, buttons.PERIODS[period][1] if period else None, *args)
+	return BUILDERS[kind](service, period, buttons.PERIODS[period][1] if period else days, *args)

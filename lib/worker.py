@@ -15,7 +15,7 @@ from lib import delivery
 from lib import render
 from lib import buttons
 from lib import charts
-from lib.reports import about, cal, history, holdings, performance, price, profile, rankings, shorts, trades
+from lib.reports import about, cal, holdings, performance, price, profile, rankings, shorts, trades
 from lib import sharesight
 from lib import transports
 from lib import jobs
@@ -76,7 +76,7 @@ def process_callback(press):
 		return
 	try:
 		args = buttons.resolve(pressed.ref)
-		caption, chart = charts.build(pressed.kind, args, pressed.period, service)
+		caption, chart = charts.build(pressed.kind, args, service, period=pressed.period)
 		if chart is None: # too few prices in that period to draw a line
 			raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[pressed.period][0]}")
 		markup = buttons.keyboard(pressed.kind, args, pressed.period)
@@ -245,10 +245,13 @@ def on_session(request, args):
 
 def on_price(request, args):
 	""".price [percent|SYMBOL|top|bottom] [period]: a bare number is a percent, as on the other commands; a period has
-	its unit."""
+	its unit. One stock over a period is its chart, as its period buttons draw it."""
+	symbol = None if args.keyword else ticker(args)
+	if symbol and args.days:
+		return chart_reply(request, 'p', [symbol], args.days)
 	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
 	price.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,
-		days=args.days, top=top, user=request.user, specific_stock=None if top else ticker(args))
+		days=args.days, top=top, user=request.user, specific_stock=symbol)
 
 def on_shorts(request, args):
 	""".shorts [percent|SYMBOL]: the most shorted stocks followed, or one stock's short interest."""
@@ -308,19 +311,21 @@ def on_compare(request, args):
 	tickers = list(dict.fromkeys(yahoo.symbols(args.words))) # each once, in the order asked
 	if len(tickers) < 2:
 		raise Usage
-	payload, chart = history.prepare_compare(request.service, tickers, args.days)
-	markup = None
-	if request.dest.takes_buttons:
-		markup = buttons.keyboard('c', tickers, buttons.period_for_days(args.days) if args.days else 'x')
-	request.reply(payload, chart, markup)
+	chart_reply(request, 'c', tickers, args.days)
 
 def on_history(request, args):
 	""".history SYMBOL: the stock's change over every period, with its price chart, and period buttons where they go."""
 	if len(args.words) != 1:
 		raise Usage
-	symbol = ticker(args)
-	caption, chart = charts.build('h', [symbol], None, request.service)
-	markup = buttons.keyboard('h', [symbol], 'x') if chart and request.dest.takes_buttons else None
+	chart_reply(request, 'h', [ticker(args)])
+
+def chart_reply(request, kind, args, days=None):
+	"""The first view of a chart with period buttons, built as a button press builds it (charts.build): its caption,
+	chart and buttons where they go, the period shown marked (Max when days is None)."""
+	caption, chart = charts.build(kind, args, request.service, days=days)
+	markup = None
+	if chart and request.dest.takes_buttons:
+		markup = buttons.keyboard(kind, args, buttons.period_for_days(days) if days else 'x')
 	request.reply(caption.split('\n'), chart, markup)
 
 def on_plan(request, args):
