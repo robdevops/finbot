@@ -321,7 +321,7 @@ class YahooChart(ProviderCase):
 		def slack(text):
 			"""Run a command on Slack, where reports come as text, and return the text."""
 			self.sent.clear(); self.errors.clear()
-			worker.process_request('slack', 'C1', '<@U1>', text, BOT, 'U')
+			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', text, BOT, 'U'))
 			self.assertEqual(self.errors, [], text)
 			return '\n'.join(map(str, self.sent[-1][1]))
 		price_list = slack('.price 7d') # T3 is left out, the rest are listed
@@ -332,7 +332,7 @@ class YahooChart(ProviderCase):
 		self.assertIn('NASDAQ 100', report)
 		self.command('.T3') # the profile goes out without its history lines
 		self.sent.clear(); self.errors.clear()
-		worker.process_request('telegram', '55', '@u', '.price T3 7d', BOT, 'U')
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.price T3 7d', BOT, 'U'))
 		self.assertEqual(len(self.errors), 1) # the one ticker asked for: one line saying why
 		self.assertTrue(self.errors[0].startswith('⚠️ .price: RuntimeError: 404 error for T3'))
 
@@ -773,7 +773,7 @@ class ChartDelivery(FinbotCase):
 			with self.subTest(cmd=cmd):
 				calls = self.slack_answers(*self.upload_steps())
 				self.sent.clear(); self.errors.clear()
-				worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U')
+				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT, 'U'))
 				self.assertEqual(self.errors, [])
 				self.assertEqual([url for url, _ in calls], ['https://slack.com/api/files.getUploadURLExternal', self.UPLOAD_URL,
 															 'https://slack.com/api/files.completeUploadExternal'])
@@ -839,7 +839,7 @@ class ChartDelivery(FinbotCase):
 		for cmd in ('.beta', '.pie Rob', '.buy', '.sell', '.peg', '.price', '.price top', '.price T1 7d', '.performance 7d', '.shorts', '.history T1', '.compare T1 T2'):
 			with self.subTest(cmd=cmd):
 				self.sent.clear(); self.errors.clear()
-				worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U')
+				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT, 'U'))
 				self.assertEqual(self.errors, [])
 				self.assertTrue(self.sent)
 				self.assertEqual({kind for kind, *_ in self.sent}, {'text'})
@@ -856,7 +856,7 @@ class ChartDelivery(FinbotCase):
 			for cmd in ('.price', '.price top', '.performance 7d', '.shorts', '.buy', '.peg', '.beta', '.compare T1 T2', '.pie Rob'):
 				with self.subTest(service=service, cmd=cmd):
 					self.sent.clear(); self.errors.clear()
-					worker.process_request(service, chat, '@u', cmd, BOT, 'U')
+					worker.process_request(inbound.Message(service, chat, '@u', cmd, BOT, 'U'))
 					self.assertEqual(self.errors, [])
 					self.assertEqual({kind for kind, *_ in self.sent}, {'text'})
 		self.assertEqual([url for url in posts if 'sendPhoto' in url or 'files.' in url], [])
@@ -970,7 +970,7 @@ class SlackSending(FinbotCase):
 		err = io.StringIO()
 		with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
 			for cmd in ('.help', '.price', '.compare T1 T2'):
-				worker.process_request('slack', 'C1', '<@U1>', cmd, BOT, 'U')
+				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT, 'U'))
 		self.assertEqual((self.posts, self.errors), ([], []))
 		self.assertEqual(err.getvalue().count('ERROR slack: a reply to channel C1 needs slackBotToken in finbot.env; not sent'), 3)
 
@@ -989,7 +989,7 @@ class SlackSending(FinbotCase):
 		self.patch(transports.net, 'post', post)
 		help_text = about.prepare_help
 		self.patch(about, 'prepare_help', lambda *a: (added.wait(5), help_text(*a))[1]) # a command slow enough for ⏳
-		worker.process_request('slack', 'C1', '<@U1>', '.help', BOT, 'U', '1.2')
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.help', BOT, 'U', '1.2'))
 		self.assertEqual([url.rsplit('/', 1)[-1] for url, _ in self.posts],
 			['reactions.add', 'chat.postMessage', 'reactions.remove'])
 		reaction = {'channel': 'C1', 'timestamp': '1.2', 'name': 'hourglass_flowing_sand'}
@@ -1056,7 +1056,7 @@ class SlackButtons(FinbotCase):
 	def test_a_chart_reply_carries_its_period_buttons(self):
 		"""A chart reply is a Block Kit message: the report, the chart (uploaded into no channel, shown by its id) and
 		the period buttons, the one shown marked; nothing goes as text."""
-		worker.process_request('slack', 'C1', '<@U1>', '.price', BOT, 'U')
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
 		self.assertEqual(self.errors, [])
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.postMessage'])
@@ -1073,7 +1073,7 @@ class SlackButtons(FinbotCase):
 	def test_a_press_redraws_the_chart_in_place(self):
 		"""A press uploads the chart for that period (a file cannot be replaced) and puts it in the message with
 		chat.update, the period pressed now marked; Telegram is not asked to answer the press."""
-		worker.process_callback('slack', 't1', 'C1', '1.5', 'c|l|w|5,0')
+		worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|w|5,0'))
 		self.assertEqual(self.errors, [])
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.update'])
@@ -1086,7 +1086,7 @@ class SlackButtons(FinbotCase):
 	def test_a_chart_not_ready_to_show_is_shown_a_moment_later(self):
 		"""Slack refusing the blocks of a chart just uploaded (invalid_blocks) is asked again after a wait."""
 		self.refusals['chat.postMessage'] = ['invalid_blocks']
-		worker.process_request('slack', 'C1', '<@U1>', '.price', BOT, 'U')
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
 		self.assertEqual((self.calls()[-2:], self.waits), (['chat.postMessage', 'chat.postMessage'], [1]))
 		self.assertEqual((self.sent, self.errors), ([], []))
 
@@ -1094,7 +1094,7 @@ class SlackButtons(FinbotCase):
 		"""When Slack will not show the chart with its buttons, the chart is uploaded into the channel without them."""
 		self.refusals['chat.postMessage'] = ['invalid_blocks'] * 4
 		with contextlib.redirect_stderr(io.StringIO()):
-			worker.process_request('slack', 'C1', '<@U1>', '.price', BOT, 'U')
+			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
 		self.assertEqual(self.calls()[-3:], ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal'])
 		self.assertEqual(self.posts[-1][1]['data']['channel_id'], 'C1')
 		self.assertEqual((self.waits, self.sent, self.errors), ([1, 2, 4], [], []))
@@ -1102,7 +1102,7 @@ class SlackButtons(FinbotCase):
 	def test_without_slackOutgoingWebhook_a_chart_has_no_buttons(self):
 		"""Without slackOutgoingWebhook, no press could reach finbot, so a chart goes without buttons."""
 		self.env(slackOutgoingWebhook='')
-		worker.process_request('slack', 'C1', '<@U1>', '.price', BOT, 'U')
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal'])
 		self.assertEqual(self.posts[-1][1]['data']['channel_id'], 'C1')
 
@@ -1125,7 +1125,7 @@ class SlackButtons(FinbotCase):
 			return record(url, **kwargs)
 		self.patch(transports.net, 'post', post)
 		with contextlib.redirect_stderr(io.StringIO()):
-			worker.process_request('slack', 'C1', '<@U1>', '.price', BOT, 'U')
+			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.postMessage'])
 		self.assertEqual(self.errors, [])

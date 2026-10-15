@@ -592,7 +592,7 @@ class ManualRuns(SchedulerBase):
 		""".jobs sends its buttons with the list."""
 		seen = []
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None: seen.append(buttons) or [])
-		worker.process_request('telegram', '55', '@u', '.jobs', BOT, 'U')
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.jobs', BOT, 'U'))
 		self.assertEqual(len(seen[0][0]), 2) # two to a row
 
 	def test_button_press_runs_that_command(self):
@@ -602,7 +602,7 @@ class ManualRuns(SchedulerBase):
 		markup = about.prepare_jobs_payload(TELEGRAM, '')[1]
 		data = next(b.data for row in markup for b in row if b.label.startswith('7.'))
 		self.sent.clear()
-		worker.process_callback('telegram', 'cb1', '55', '9', data)
+		worker.process_callback(inbound.Press('telegram', 'cb1', '55', '9', data))
 		self.assertEqual(self.ran, [('price', {'mode': 'close'})])
 		self.assertEqual(self.sent, [('text', ['7. price close: done'])])
 		self.assertEqual(sent, ['Running price close…'])
@@ -623,7 +623,7 @@ class ManualRuns(SchedulerBase):
 					 'j|8|' + good.upper() + 'x', 'j|99999999999999999999|' + good):
 			self.sent.clear()
 			self.toasts.clear(); self.edits.clear()
-			worker.process_callback('telegram', 'cb', '55', '9', data)
+			worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', data))
 			self.assertEqual(self.ran, [], data)
 			self.assertEqual(self.toasts, ['Buttons updated, try again'], data)
 			self.assertEqual(len(self.edits), 1, data)
@@ -633,14 +633,14 @@ class ManualRuns(SchedulerBase):
 			for n in range(1, 12):
 				with self.assertRaises(jobs.ScheduleError):
 					self.s.pick(str(n), jobs.checksum(label))
-		worker.process_callback('telegram', 'cb', '55', '9', 'j|8|' + good) # the genuine button still works
+		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', 'j|8|' + good)) # the genuine one still works
 		self.assertEqual(self.ran, [('trades', {})])
 
 	def test_button_from_an_old_schedule_updates_the_message(self):
 		"""A stale button runs nothing; the message gets the current list and buttons (scheduler off: a notice)."""
 		self.stale_buttons()
-		worker.process_callback('telegram', 'cb1', '55', '9', 'j|7|0000')
-		worker.process_callback('telegram', 'cb1', '55', '9', 'j|9|0000')
+		worker.process_callback(inbound.Press('telegram', 'cb1', '55', '9', 'j|7|0000'))
+		worker.process_callback(inbound.Press('telegram', 'cb1', '55', '9', 'j|9|0000'))
 		self.assertEqual(self.ran, [])
 		self.assertEqual(self.sent, [])
 		self.assertEqual(self.toasts, ['Buttons updated, try again'] * 2)
@@ -649,7 +649,7 @@ class ManualRuns(SchedulerBase):
 		self.assertIn('7. price close', text)
 		self.assertEqual(markup, about.prepare_jobs_payload(TELEGRAM, '')[1]) # with the current buttons
 		self.patch(jobs, 'current', None) # scheduler off: the list is replaced by the notice and the buttons removed
-		worker.process_callback('telegram', 'cb1', '55', '9', 'j|7|0000')
+		worker.process_callback(inbound.Press('telegram', 'cb1', '55', '9', 'j|7|0000'))
 		self.assertEqual(self.edits[-1][2:], ('Scheduled jobs are off (scheduler=False)', [])) # no buttons left
 
 	def test_run_in_chat(self):

@@ -41,36 +41,38 @@ class Request:
 		can go) and buttons."""
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
-def process_job_callback(service, callback_id, chat_id, message_id, data):
-	"""A command button of .jobs: run that command now and answer in the chat."""
-	chat = delivery.reply_to(service, chat_id)
+def process_job_callback(press):
+	"""A command button of .jobs (an inbound.Press): run that command now and answer in the chat."""
+	service = dialects.of(press.service)
+	chat = delivery.reply_to(service, press.chat_id)
 	try:
 		if jobs.current is None: # the scheduler is off now
 			raise jobs.ScheduleError('the scheduler is off')
-		_, number, crc = data.split('|') # only a command offered by .jobs can be picked; anything else is refused
+		_, number, crc = press.data.split('|') # only a command offered by .jobs can be picked; anything else is refused
 		command = jobs.current.pick(number, crc)
 	except (ValueError, jobs.ScheduleError):
-		chat.acknowledge(callback_id, 'Buttons updated, try again')
+		chat.acknowledge(press.press_id, 'Buttons updated, try again')
 		payload, markup = about.prepare_jobs_payload(service, '') # the list as it is now, in place of the stale one
-		chat.edit_text(message_id, '\n'.join(payload), markup or [])
+		chat.edit_text(press.message_id, '\n'.join(payload), markup or [])
 		return
-	chat.acknowledge(callback_id, f'Running {jobs.display(command[0])}…'[:100])
+	chat.acknowledge(press.press_id, f'Running {jobs.display(command[0])}…'[:100])
 	try:
 		line = about.job_line(jobs.current, *jobs.current.run_command(command))
 		delivery.deliver(chat, delivery.Report([line]))
 	except Exception as e:
 		delivery.report_error(e, chat, context='jobs')
 
-def process_callback(service, callback_id, chat_id, message_id, data):
-	"""Button press: run a scheduled command from .jobs, or rebuild a chart message for the chosen period and edit it in place."""
-	service = dialects.of(service)
-	if data.startswith('j|'):
-		return process_job_callback(service, callback_id, chat_id, message_id, data)
-	parts = data.split('|', 3)
+def process_callback(press):
+	"""A button pressed (an inbound.Press): run a scheduled command from .jobs, or rebuild a chart message for the
+	chosen period and edit it in place."""
+	if press.data.startswith('j|'):
+		return process_job_callback(press)
+	service = dialects.of(press.service)
+	parts = press.data.split('|', 3)
 	valid = len(parts) == 4 and parts[0] == 'c' and parts[1] in buttons.BUTTONS and parts[2] in buttons.BUTTONS[parts[1]]
-	chat = delivery.reply_to(service, chat_id)
+	chat = delivery.reply_to(service, press.chat_id)
 	# answering now shows Telegram's toast bubble ("Loading 1Y…") while the new chart is built
-	chat.acknowledge(callback_id, f"Loading {buttons.PERIODS[parts[2]][0]}…" if valid else None)
+	chat.acknowledge(press.press_id, f"Loading {buttons.PERIODS[parts[2]][0]}…" if valid else None)
 	if not valid:
 		return
 	try:
@@ -79,19 +81,20 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 		caption, chart = charts.build(kind, args, period, service)
 		if chart is None: # too few prices in that period to draw a line
 			raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[period][0]}")
-		chat.edit_chart(message_id, render.draw(chart), caption, buttons.keyboard(kind, args, period))
+		chat.edit_chart(press.message_id, render.draw(chart), caption, buttons.keyboard(kind, args, period))
 	except answer.Answer as e: # nothing to draw for that period: said in the chat, as a command would
 		delivery.deliver(chat, delivery.Report(e.lines))
 	except Exception as e:
 		delivery.report_error(e, chat, context='chart')
 
-def process_request(service, chat_id, user, message, botName, userRealName, message_id=None):
-	"""Entry point for inbound chat requests: the command the message calls (see read) answers it, with the typing
-	notice meanwhile, which the first message of the answer stops and the end of the command takes off; a message that
-	calls none gets no answer. Arguments the command cannot take get its usage, and any failure a one-line reply in the
-	originating chat. message_id: the message's own id, where the network has one."""
-	request = Request(dialects.of(service), chat_id, user, userRealName, botName, message_id)
-	command, args = read(message, botName)
+def process_request(message):
+	"""A chat message (an inbound.Message): the command it calls (see read) answers it, with the typing notice
+	meanwhile, which the first message of the answer stops and the end of the command takes off; a message that calls
+	none gets no answer. Arguments the command cannot take get its usage, and any failure a one-line reply in the
+	chat."""
+	request = Request(dialects.of(message.service), message.chat_id, message.user, message.user_name, message.bot_name,
+		message.message_id)
+	command, args = read(message.text, message.bot_name)
 	if command:
 		try:
 			request.dest.start_typing()
@@ -101,12 +104,12 @@ def process_request(service, chat_id, user, message, botName, userRealName, mess
 		except answer.Answer as e: # a portfolio the user got wrong, a ticker with no prices: an answer, not an error
 			request.reply(e.lines)
 		except Exception as e:
-			delivery.report_error(e, request.dest, context=message.split()[0][:30])
+			delivery.report_error(e, request.dest, context=message.text.split()[0][:30])
 		finally:
 			request.dest.end_typing()
-	if service == 'telegram':
+	if message.service == 'telegram':
 		try:
-			ensure_keyboard(chat_id) # keep DM keyboards current after the reply
+			ensure_keyboard(message.chat_id) # keep DM keyboards current after the reply
 		except Exception as e:
 			print("keyboard update failed:", e, file=sys.stderr)
 

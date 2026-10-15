@@ -10,7 +10,7 @@ reports, run on the offline fixtures of tests/common.py, and compares two record
 
 --keep DIR keeps the two recordings; --full shows changed lines whole. The exit status is 0 when the recordings match,
 1 when they differ."""
-import argparse, difflib, hashlib, io, json, os, random, subprocess, sys, tempfile, unittest
+import argparse, difflib, hashlib, inspect, io, json, os, random, subprocess, sys, tempfile, unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -55,6 +55,13 @@ def record(output):
 		real_sending = ((webhook, 'payload_wrapper', common.REAL_PAYLOAD_WRAPPER),
 			(webhook, 'sendPhoto', common.REAL_SEND_PHOTO), (webhook, 'report_error', common.REAL_REPORT_ERROR))
 
+	def handing(func, kind, *fields):
+		"""A step that hands func the Message or Press (kind, its name in lib.inbound) of these fields, or the fields
+		one by one to a commit from before it took the object."""
+		if len(inspect.signature(func).parameters) > 1:
+			return lambda: func(*fields)
+		return lambda: func(getattr(common.inbound, kind)(*fields))
+
 	class Record(common.FinbotCase):
 		"""The steps, as one test, so that FinbotCase's fixtures (and their cleanup) apply."""
 		def runTest(self):
@@ -95,12 +102,12 @@ def record(output):
 				steps.append({'step': label, 'posts': list(posts), 'raised': raised})
 			for service, chat, user in (('telegram', '55', '@u'), ('slack', 'C1', '<@U1>')):
 				for text in COMMANDS:
-					run = lambda: worker.process_request(service, chat, user, text, common.BOT, 'U')
-					step(f'{service} {text}', run)
+					step(f'{service} {text}', handing(worker.process_request, 'Message', service, chat, user, text,
+						common.BOT, 'U'))
 			for service, chat, message in (('telegram', '55', '9'), ('slack', 'C1', '1.5')):
 				for data in BUTTONS:
 					label = f'button {data}' if service == 'telegram' else f'{service} button {data}'
-					step(label, lambda: worker.process_callback(service, 'cb', chat, message, data))
+					step(label, handing(worker.process_callback, 'Press', service, 'cb', chat, message, data))
 			self.env(webhooks=WEBHOOKS, telegramChatID='1')
 			for where in ('', ' (slackChannelID)'): # Slack's incoming webhook, then the channel as the bot
 				if where:

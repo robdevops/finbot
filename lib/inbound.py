@@ -34,7 +34,7 @@ class Press:
 	chat_id: str
 	message_id: str
 	data: str
-	user: str # who pressed it, for the log
+	user: str = '' # who pressed it, for the log
 
 
 @dataclasses.dataclass

@@ -117,13 +117,11 @@ def dispatch(event):
 	if isinstance(event, inbound.Press):
 		print(f"[{event.service.capitalize()} button]:", event.user, "chat", event.chat_id, event.data, file=sys.stderr)
 		target = worker.process_callback
-		args = (event.service, event.press_id, event.chat_id, event.message_id, event.data)
 	else:
 		if config.prefs.debug:
 			print(f"[{event.service.capitalize()}]:", event.user, event.text, file=sys.stderr)
 		target = worker.process_request
-		args = (event.service, event.chat_id, event.user, event.text, event.bot_name, event.user_name, event.message_id)
-	threading.Thread(target=target, args=args).start()
+	threading.Thread(target=target, args=(event,)).start()
 
 def git_version(checkout=None):
 	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no "dubious

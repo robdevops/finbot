@@ -39,7 +39,7 @@ class UpstreamEmpty(FinbotCase):
 		for cmd in ('.price', '.peg', '.T1', '.compare T1 T2'):
 			with self.subTest(cmd=cmd):
 				self.sent.clear(); self.errors.clear()
-				worker.process_request('telegram', '55', '@u', cmd, BOT, 'U')
+				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT, 'U'))
 				self.assertEqual(len(self.errors), 1, cmd) # exactly one one-line report, not a traceback to the user
 				self.assertTrue(self.errors[0].startswith('⚠️'))
 
@@ -51,7 +51,7 @@ class UpstreamEmpty(FinbotCase):
 		self.patch(sharesight, '_performance', down)
 		self.patch(sharesight, '_portfolios', down)
 		self.sent.clear(); self.errors.clear()
-		worker.process_request('telegram', '55', '@u', '.performance 7d', BOT, 'U')
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.performance 7d', BOT, 'U'))
 		self.assertEqual(len(self.errors), 1)
 
 	def test_the_typing_notice_stops_before_any_message_goes_out(self):
@@ -71,7 +71,7 @@ class UpstreamEmpty(FinbotCase):
 		for cmd in ('.help', '.price', '.trades 7d', '.performance 7d'):
 			with self.subTest(cmd=cmd), contextlib.redirect_stderr(io.StringIO()):
 				typing.clear()
-				worker.process_request('telegram', '55', '@u', cmd, BOT, 'U')
+				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT, 'U'))
 				self.assertEqual(typing, [False])
 
 	def test_no_holdings_and_empty_watchlist(self):
@@ -149,7 +149,7 @@ class BadArguments(FinbotCase):
 		self.assertEqual(self.command('.history T1'), [('text', ['no price history for T1'])])
 		self.sent.clear()
 		self.patch(telegram, 'answerCallbackQuery', lambda *a, **k: None)
-		worker.process_callback('telegram', 'cb', '55', '9', 'c|h|m|T1')
+		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', 'c|h|m|T1'))
 		self.assertEqual((self.sent, self.errors), ([('text', ['no price history for T1'])], []))
 
 	def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
@@ -418,7 +418,7 @@ class SlackEvents(FinbotCase):
 		self.env(slackOutgoingToken='stok')
 
 		self.requests = []
-		self.patch(worker, 'process_request', lambda *a: self.requests.append(a))
+		self.patch(worker, 'process_request', self.requests.append)
 
 	def event(self, event_id=None, **event):
 		"""Post a Slack message event to the WSGI handler and return the status."""
@@ -443,9 +443,9 @@ class SlackEvents(FinbotCase):
 		"""A period button pressed under a chart reaches the worker, posted to the events URL: the channel, the message
 		and the button's value. A press with a wrong token is refused, and one not under a message goes nowhere."""
 		presses = []
-		self.patch(worker, 'process_callback', lambda *a: presses.append(a))
+		self.patch(worker, 'process_callback', presses.append)
 		self.assertEqual(self.press(PRESS), '200 OK')
-		self.assertEqual(presses, [('slack', 't1', 'C1', '1.5', 'c|h|w|T1')])
+		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|h|w|T1', '@rob')])
 		self.assertEqual(self.press({**PRESS, 'token': 'wrong'}), '403 Forbidden')
 		self.assertEqual(self.press({**PRESS, 'container': {'type': 'view', 'view_id': 'V1'}}), '200 OK')
 		self.assertEqual(self.press({**PRESS, 'actions': []}), '200 OK')
@@ -454,7 +454,7 @@ class SlackEvents(FinbotCase):
 	def test_the_message_goes_to_the_worker_with_its_ts(self):
 		"""A message reaches the worker with its ts, the message's id: finbot puts ⏳ on it while it works."""
 		self.assertEqual(self.event(user='U1', text='.price'), '200 OK')
-		self.assertEqual(self.requests[0][6], '1.2')
+		self.assertEqual(self.requests[0].message_id, '1.2')
 
 	def test_only_people_are_answered(self):
 		"""Messages from bots, this bot included, joins, edits and events without a user are not answered; people's
@@ -470,7 +470,7 @@ class SlackEvents(FinbotCase):
 		self.assertEqual((self.requests, self.errors), ([], []))
 		self.assertEqual(self.event(user='U1', text='.price <@UBOT>'), '200 OK')
 		self.assertEqual(self.event(user='U2', subtype='thread_broadcast', text='.trades'), '200 OK')
-		self.assertEqual([(r[0], r[1], r[2], r[3], r[4]) for r in self.requests],
+		self.assertEqual([(r.service, r.chat_id, r.user, r.text, r.bot_name) for r in self.requests],
 						 [('slack', 'C1', '<@U1>', '.price @UBOT', '@UBOT'), ('slack', 'C1', '<@U2>', '.trades', '@UBOT')])
 
 	def test_links_and_escapes_lose_their_markup(self):
@@ -481,7 +481,7 @@ class SlackEvents(FinbotCase):
 				('.plan buy &lt;BHP&gt;', '.plan buy <BHP>')):
 			with self.subTest(text=text):
 				self.assertEqual(self.event(user='U1', text=text), '200 OK')
-				self.assertEqual(self.requests[-1][3], expected)
+				self.assertEqual(self.requests[-1].text, expected)
 
 	def test_a_retried_event_runs_once(self):
 		"""An event Slack sends again (same event_id) runs once."""
@@ -506,7 +506,7 @@ class SlackSigning(FinbotCase):
 		super().setUp()
 		self.env(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok', slackSigningSecret='sss')
 		self.requests = []
-		self.patch(worker, 'process_request', lambda *a: self.requests.append(a))
+		self.patch(worker, 'process_request', self.requests.append)
 
 	def post(self, secret='sss', age=0, token='stok', headers=None, tamper=False):
 		"""Post a Slack message event signed with `secret` `age` seconds ago (or with these headers instead) and
@@ -527,7 +527,7 @@ class SlackSigning(FinbotCase):
 	def test_a_button_press_is_signed_over_its_form(self):
 		"""A button press is signed like an event, over the form it comes as; altered, it is refused."""
 		presses = []
-		self.patch(worker, 'process_callback', lambda *a: presses.append(a))
+		self.patch(worker, 'process_callback', presses.append)
 		body = urlencode({'payload': json.dumps({**PRESS, 'token': 'not needed'})}).encode()
 		timestamp = str(int(time.time()))
 		mac = hmac.new(b'sss', b'v0:' + timestamp.encode() + b':' + body, hashlib.sha256).hexdigest()
@@ -538,7 +538,7 @@ class SlackSigning(FinbotCase):
 				bot.main(wsgi_environ('/slack', sent, **headers), lambda s, *a, **k: answers.append(s))
 			gevent.sleep(0.05)
 			self.assertEqual(answers, [status])
-		self.assertEqual(presses, [('slack', 't1', 'C1', '1.5', 'c|h|w|T1')])
+		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|h|w|T1', '@rob')])
 
 	def test_a_signed_request_is_answered_and_the_token_is_not_needed(self):
 		"""A request signed with the secret is answered, whatever token it carries."""
@@ -565,7 +565,8 @@ class UserTextIsEscaped(FinbotCase):
 		self.assertIn('<i>buy &lt;cheap&gt; &amp; hold</i>', reply[0])
 		self.assertEqual(self.command('.plan')[0][1], reply) # and the same way again
 		self.sent.clear()
-		worker.process_request('slack', 'C1', '<@U1>', '.plan sell <dear>', BOT, 'U') # inbound unescapes Slack's text
+		# inbound has unescaped Slack's text
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.plan sell <dear>', BOT, 'U'))
 		text = '\n'.join(self.sent[0][1])
 		self.assertIn('*<@U1>*', text) # a Slack mention stays markup
 		self.assertIn('_sell &lt;dear&gt;_', text) # escaped once, not twice
@@ -574,13 +575,13 @@ class UserTextIsEscaped(FinbotCase):
 	def test_a_telegram_name_is_escaped_where_it_arrives(self):
 		"""A Telegram first name is escaped as the update arrives, in the handle and the name."""
 		requests = []
-		self.patch(worker, 'process_request', lambda *a: requests.append(a))
+		self.patch(worker, 'process_request', requests.append)
 		body = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A<b>&'}, 'text': '.hello'}}
 		env = wsgi_environ('/telegram', json.dumps(body).encode(), HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok')
 		with contextlib.redirect_stderr(io.StringIO()):
 			bot.main(env, lambda *a, **k: None)
 		gevent.sleep(0.05) # the worker runs in a (gevent) thread
-		self.assertEqual((requests[0][2], requests[0][5]), ('@A&lt;b&gt;&amp;', '@A&lt;b&gt;&amp;')) # the handle and the name
+		self.assertEqual((requests[0].user, requests[0].user_name), ('@A&lt;b&gt;&amp;',) * 2) # the handle and the name
 
 
 class SecretsStayOutOfLogs(FinbotCase):

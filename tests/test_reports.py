@@ -508,7 +508,7 @@ class PeriodButtons(FinbotCase):
 		self.patch(transports.TelegramBot, 'edit_chart', lambda dest, msg, img, caption, buttons=None:
 			edits.append((caption.split('\n')[0], transports.TelegramBot.markup(buttons))))
 		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
-		worker.process_callback('telegram', 'cb', '55', '9', data)
+		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', data))
 		return edits, toasts
 
 	def test_pressing_1d_rebuilds_todays_list_and_moves_the_marker(self):

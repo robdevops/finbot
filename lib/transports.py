@@ -222,8 +222,8 @@ class TelegramBot(Transport):
 		telegram.answerCallbackQuery(press, text)
 
 	def pin(self, answers):
-		"""Pin the messages these answers are (Telegram's messages), last first, so the first ends up on top, without the
-		notification."""
+		"""Pin the messages that these answers are (Telegram's), last first, so that the first ends up on top, without
+		the notification."""
 		sent = []
 		for answer in answers:
 			try:
