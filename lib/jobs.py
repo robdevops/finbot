@@ -16,7 +16,7 @@ import threading
 import time
 import zlib
 import zoneinfo
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from croniter import croniter, CroniterBadDateError
@@ -85,12 +85,6 @@ def exit_reason(status):
 	return f'exited with status {status} without saying why'
 
 
-def run_in_process(label, module, kwargs):
-	"""The runner for tests: call the handler here instead of in a child process (so without a deadline)."""
-	module.run(**kwargs)
-	return 0
-
-
 def display(label):
 	"""A command as shown in chat: 'price.py close' -> 'price close'."""
 	return re.sub(r'^(\w+)\.py', r'\1', label)
@@ -116,7 +110,6 @@ class Job:
 	zone: zoneinfo.ZoneInfo
 	text: str
 	key: str
-	running: bool = field(default=False, compare=False)
 
 
 def local_zone():
@@ -354,18 +347,6 @@ class Scheduler:
 					print('schedule: cannot save', STATE_FILE, e, file=sys.stderr)
 		return fired
 
-	def run_job(self, job, fire_time):
-		"""One job: its commands in order (execute). Skipped if the previous run is still going."""
-		with self.lock:
-			if job.running:
-				print(f'schedule: {job.text} is still running, skipping {fire_time:%H:%M}', file=sys.stderr)
-				return 'already running'
-			job.running = True
-		try:
-			return self.execute(job.commands)
-		finally:
-			job.running = False
-
 	def claim(self, label):
 		"""Mark a command running, unless it already is (scheduled or manual): whether it was claimed."""
 		with self.lock:
@@ -375,8 +356,9 @@ class Scheduler:
 			return True
 
 	def execute(self, commands):
-		"""Run commands one after another, each stopped and reported if still running after JOB_TIMEOUT. One already
-		running, scheduled or manual, is skipped. Returns 'done', 'timed out', 'failed' or 'already running'."""
+		"""Run commands one after another (a job's), each stopped and reported if still running after JOB_TIMEOUT.
+		One already running (from the line's last run, another line or chat) is skipped. Returns 'done', 'timed out',
+		'failed' or 'already running'."""
 		outcome = 'done'
 		for label, module, kwargs in commands:
 			if not self.claim(label):
@@ -455,7 +437,7 @@ class Scheduler:
 		"""Start what is due; returns the seconds until the next fire time."""
 		now = self.clock()
 		for job, fire_time in self.due(now):
-			self.spawn(self.run_job, job, fire_time)
+			self.spawn(self.execute, job.commands)
 		with self.lock:
 			waits = [(self.next_fire(job, self.base[job.key]) - now).total_seconds() for job in self.jobs]
 		return min(30, max(1, math.ceil(min(waits)))) if waits else 30

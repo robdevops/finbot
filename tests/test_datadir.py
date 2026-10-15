@@ -1,4 +1,4 @@
-import os, shutil, subprocess, sys, tempfile, time, unittest
+import os, subprocess, sys, tempfile, time
 from unittest import mock
 from pathlib import Path
 from lib import config
@@ -17,9 +17,16 @@ def run_config(code, **env):
 
 class DataDirTests(FinbotCase):
 	def test_default_unchanged(self):
-		"""Without DATA_DIR, state lives in var/ in the checkout and the cache in var/cache."""
-		out = run_config("from lib import config as c; print(c.env.data_dir, c.env.cache_dir)")
-		self.assertEqual(out.split()[-2:], ['var', 'var/cache'])
+		"""Without DATA_DIR, state lives in var/ in the checkout and the cache in var/cache, from whichever directory
+		finbot starts; so does a relative DATA_DIR."""
+		show = "from lib import config as c; print(c.env.data_dir, c.env.cache_dir)"
+		var = str(REPO / 'var')
+		self.assertEqual(run_config(show).split()[-2:], [var, var + '/cache'])
+		env = {k: v for k, v in os.environ.items() if k != 'DATA_DIR'}
+		env.update(PYTHONPATH=str(REPO), DATA_DIR='state', FINBOT_CHECK_ONLY='1') # check only: no directory is created
+		elsewhere = subprocess.run([sys.executable, '-c', show], cwd='/', env=env, capture_output=True, text=True,
+			check=True)
+		self.assertEqual(elsewhere.stdout.split()[-2:], [str(REPO / 'state'), str(REPO / 'state/cache')])
 
 	def test_data_dir_moves_var_and_cache(self):
 		"""DATA_DIR moves both, and the cache directory is created."""

@@ -1,6 +1,6 @@
 """Shared fixture: points finbot at a temp cache dir and replaces every external service
 (Telegram, Yahoo, Sharesight, Short Man) with canned data. Nothing here touches the network."""
-import collections, dataclasses, io, os, sys, tempfile, time, unittest
+import collections, dataclasses, io, os, shutil, sys, tempfile, time, unittest
 import pandas as pd
 from unittest import mock
 
@@ -18,6 +18,14 @@ REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'f
 	(yahoo, 'price_history'), (yahoo, 'historic_high'),
 	(sharesight, '_portfolios'), (sharesight, '_trades'), (sharesight, '_performance'))}
 REAL_GET_HOLDINGS = watchlist.with_holdings
+
+
+def temp_dir(case):
+	"""A new temporary directory, removed when the test `case` ends."""
+	path = tempfile.mkdtemp()
+	case.addCleanup(shutil.rmtree, path, True)
+	return path
+
 REAL_TEXT = transports.Transport.text # FinbotCase replaces it with a recorder; tests of the real thing put it back
 REAL_CHART = transports.Transport.chart # likewise
 REAL_REPORT_ERROR = delivery.report_error # likewise

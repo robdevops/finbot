@@ -73,11 +73,7 @@ def security_line(flag, title, link):
 
 def strip_url(url):
 	"""url without its scheme and www., to show as a link's text."""
-	url = url.removeprefix('https://www.')
-	url = url.removeprefix('http://www.')
-	url = url.removeprefix('https://')
-	url = url.removeprefix('http://')
-	return url
+	return url.split('://', 1)[-1].removeprefix('www.')
 
 def make_paragraphs(walloftext):
 	"""The text in paragraphs, each ending with the first sentence that takes it past 22 words."""
@@ -150,36 +146,5 @@ def days_from_human_days(arg):
 	return int(arg.removesuffix('Y')) * 365
 
 def ordinal(num):
-	"""The ordinal suffix of a number: 'st' for 1, 'nd' for 22, 'th' for 11 and 13."""
-	value = str(num)
-	if len(value) > 1:
-		secondToLastDigit = value[-2]
-		if secondToLastDigit == '1':
-			return 'th'
-	lastDigit = value[-1]
-	if (lastDigit == '1'):
-		return 'st'
-	elif (lastDigit == '2'):
-		return 'nd'
-	elif (lastDigit == '3'):
-		return 'rd'
-	else:
-		return 'th'
-
-def td_to_human(timedelta):
-	"""A duration in words: '1 day, 2 hours, 5 seconds', zero parts left out ('0 seconds' for none)."""
-	days, remainder = divmod(timedelta.total_seconds(), 86400)
-	hours, remainder = divmod(remainder, 3600)
-	minutes, seconds = divmod(remainder, 60)
-	parts = []
-	if days:
-		parts.append(f"{int(days)} day{'s' if days != 1 else ''}")
-	if hours:
-		parts.append(f"{int(hours)} hour{'s' if hours != 1 else ''}")
-	if minutes:
-		parts.append(f"{int(minutes)} minute{'s' if minutes != 1 else ''}")
-	if seconds:
-		parts.append(f"{int(seconds)} second{'s' if seconds != 1 else ''}")
-	if not parts:
-		return "0 seconds"
-	return ", ".join(parts)
+	"""The ordinal suffix of a whole number: 'st' for 1, 'nd' for 22, 'th' for 11 and 13."""
+	return 'th' if num % 100 in (11, 12, 13) else {1: 'st', 2: 'nd', 3: 'rd'}.get(num % 10, 'th')

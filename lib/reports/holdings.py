@@ -14,9 +14,6 @@ def holding_line(holding, service, text=None):
 
 def prepare_holdings_payload(portfolio_name, service):
 	"""The holdings of the portfolio called `portfolio_name`. Raises sharesight.PortfolioNotFound."""
-	if not portfolio_name:
-		names = [portfolio.name for portfolio in sharesight.portfolios()]
-		return [".holdings: please try again specifying a portfolio:"] + names
 	portfolio, = sharesight.portfolios(portfolio_name)
 	holdings = portfolio.holdings()
 	payload = sorted(holding_line(holding, service) for holding in holdings.values())
@@ -35,9 +32,6 @@ def prepare_who(service, code):
 
 def prepare_pie(portfolio_name, by, service, max_slices=8):
 	"""Portfolio value by industry (or by='sector'): (payload, chart or None). Raises sharesight.PortfolioNotFound."""
-	if not portfolio_name:
-		names = [portfolio.name for portfolio in sharesight.portfolios()]
-		return [".pie: please try again specifying a portfolio:"] + names, None
 	portfolio, = sharesight.portfolios(portfolio_name)
 	name = portfolio.name
 	key = 'sector_classification_name' if by == 'sector' else 'industry_classification_name'

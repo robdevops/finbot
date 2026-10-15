@@ -91,9 +91,11 @@ class ReportFunctions(FinbotCase):
 		payload, _ = performance.report(TELEGRAM, 7)
 		self.assertTrue(any('>Rob</a>' in line for line in payload), payload)
 
-	def test_prepare_holdings(self):
-		""".holdings without a portfolio lists the portfolios."""
-		self.assertTrue(holdings.prepare_holdings_payload(None, TELEGRAM))
+	def test_a_portfolio_command_without_a_portfolio_lists_them(self):
+		""".holdings and .pie without a portfolio say how to ask, with the portfolios there are."""
+		for text in ('.holdings', '.pie'):
+			with self.subTest(text=text):
+				self.assertIn('Portfolios: Rob', str(self.command(text)))
 
 	def test_prepare_marketcap(self):
 		"""The market cap list is built."""

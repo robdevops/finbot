@@ -82,10 +82,11 @@ def cached(name, seconds, fetch):
 
 
 def write(name, data):
-	"""Write a cache file's JSON. See write_file."""
+	"""Write a cache file's JSON, compact: nobody reads it but finbot (a 10-year chart takes a third of the space, and
+	parses faster). See write_file."""
 	where = path(name)
 	print("cache write:", where, file=sys.stderr) if config.prefs.debug else None
-	write_file(where, json.dumps(data, indent=4).encode('utf-8'))
+	write_file(where, json.dumps(data, separators=(',', ':')).encode('utf-8'))
 
 
 def write_bytes(name, data):

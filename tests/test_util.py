@@ -104,6 +104,13 @@ class Formatting(unittest.TestCase):
 		with self.assertRaises(TypeError):
 			formats.date_range_english(None, end) # callers must pass a period
 
+	def test_strip_url(self):
+		"""A link's text is its address without the scheme or www."""
+		for url, text in (('https://www.apple.com', 'apple.com'), ('http://example.org/a?b', 'example.org/a?b'),
+				('https://www3.example.com', 'www3.example.com'), ('apple.com', 'apple.com')):
+			with self.subTest(url=url):
+				self.assertEqual(formats.strip_url(url), text)
+
 	def test_ordinal(self):
 		"""Ordinal suffixes, the teens included."""
 		for number, suffix in ((1, 'st'), (2, 'nd'), (3, 'rd'), (4, 'th'), (11, 'th'), (12, 'th'), (13, 'th'), (21, 'st'), (112, 'th')):

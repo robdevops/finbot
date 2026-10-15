@@ -1,13 +1,12 @@
 """The two config files: finbot.env (the startup file, loaded by the launcher) and preferences.conf (read by the bot, reloadable)."""
-import ast, contextlib, dataclasses, io, os, re, subprocess, sys, tempfile, unittest
+import ast, contextlib, dataclasses, io, os, re, subprocess, sys, unittest
 from pathlib import Path
 from unittest import mock
 from tests import common # first: it sets the environment that lib.config reads as it loads
 from lib import config
 from util import check_config, split_env
 import bot
-from lib import cache, sharesight, worker, yahoo
-from lib.reports import performance, price, shorts, trades
+from lib import cache, yahoo
 
 REPO = Path(config.__file__).resolve().parent.parent
 
@@ -56,7 +55,7 @@ class Tables(unittest.TestCase):
 class Parsing(unittest.TestCase):
 	def parse(self, text):
 		"""(what read_preferences makes of text, the file it was written to)."""
-		path = Path(tempfile.mkdtemp(), 'preferences.conf')
+		path = Path(common.temp_dir(self), 'preferences.conf')
 		path.write_text(text)
 		return config.read_preferences(path), path
 
@@ -73,7 +72,7 @@ class Parsing(unittest.TestCase):
 
 	def test_missing_file_is_none(self):
 		"""No preferences.conf is not an error: None."""
-		self.assertIsNone(config.read_preferences(Path(tempfile.mkdtemp(), 'nope')))
+		self.assertIsNone(config.read_preferences(Path(common.temp_dir(self), 'nope')))
 
 	def test_unknown_key_gets_a_hint_and_a_line_number(self):
 		"""An unknown key is reported with its line number and the key it was probably meant to be."""
@@ -132,7 +131,7 @@ class Parsing(unittest.TestCase):
 	def test_a_retired_key_is_accepted_and_said_to_do_nothing(self):
 		"""A key finbot no longer reads (alliterate) does not stop a start, as an unknown key would: it is ignored, and
 		the log at start says to delete it."""
-		path = Path(tempfile.mkdtemp(), 'preferences.conf')
+		path = Path(common.temp_dir(self), 'preferences.conf')
 		path.write_text('alliterate=True\nfuture_days=45\n')
 		values = config.read_preferences(path)
 		self.assertEqual(config.preference_values(config._getenv_for(values)).future_days, 45)
@@ -142,7 +141,7 @@ class Parsing(unittest.TestCase):
 
 	def test_unreadable_file_is_an_error_naming_it(self):
 		"""A preferences file that cannot be read is an error that names it."""
-		path = Path(tempfile.mkdtemp(), 'preferences.conf')
+		path = Path(common.temp_dir(self), 'preferences.conf')
 		path.mkdir() # reading a directory fails like a permission error would
 		with self.assertRaises(config.ConfigError) as caught:
 			config.read_preferences(path)
@@ -165,22 +164,23 @@ class Parsing(unittest.TestCase):
 
 	def test_startup_file_linting(self):
 		"""util/check_config.py reports bad lines in finbot.env first, then bad values, and nothing for a good file."""
-		path = Path(tempfile.mkdtemp(), 'finbot.env')
+		path = Path(common.temp_dir(self), 'finbot.env')
 		path.write_text('ip=1.2.3.4\nfuture_days=3\nslak_webhook=x\nport=http\n')
-		problems = check_config.check(path, Path(tempfile.mkdtemp(), 'none'))
+		problems = check_config.check(path, Path(common.temp_dir(self), 'none'))
 		self.assertEqual(len(problems), 2) # the two bad lines; the bad value is only found once the lines are valid
 		self.assertIn('future_days belongs in preferences.conf (it is reloadable)', problems[0])
 		self.assertIn('unknown key slak_webhook (did you mean slack_webhook?)', problems[1])
 		path.write_text('port=http\n')
-		self.assertIn("port='http' is not a whole number", check_config.check(path, Path(tempfile.mkdtemp(), 'none'))[0])
+		nowhere = Path(common.temp_dir(self), 'none')
+		self.assertIn("port='http' is not a whole number", check_config.check(path, nowhere)[0])
 		path.write_text('port=80\n')
-		self.assertEqual(check_config.check(path, Path(tempfile.mkdtemp(), 'none')), [])
+		self.assertEqual(check_config.check(path, Path(common.temp_dir(self), 'none')), [])
 
 
 class Reload(unittest.TestCase):
 	def setUp(self):
 		"""An empty preferences.conf of this test's own, put back to the defaults afterwards."""
-		self.file = Path(tempfile.mkdtemp(), 'preferences.conf')
+		self.file = Path(common.temp_dir(self), 'preferences.conf')
 		self.file.write_text('')
 		patch = mock.patch.object(config, 'preferences_path', str(self.file))
 		patch.start()
@@ -286,7 +286,7 @@ class Reload(unittest.TestCase):
 		env = config.child_environment()
 		self.assertEqual((env['future_days'], env[config.PASSED]), ('45', '1'))
 		self.write('future_days=99\n') # edited, no reload sent
-		data = tempfile.mkdtemp()
+		data = common.temp_dir(self)
 		Path(data, 'preferences.conf').write_text('future_days=99\n')
 		show = "from lib import config as c; print(c.prefs.future_days)"
 		run = lambda **extra: subprocess.run([sys.executable, '-c', show], cwd=REPO, capture_output=True, text=True, check=True,
@@ -314,7 +314,7 @@ class Reload(unittest.TestCase):
 class Startup(unittest.TestCase):
 	def run_config(self, code='from lib import config as c; print(c.prefs.future_days)', prefs=None, **env):
 		"""Run code in a new interpreter: own data dir, prefs as preferences.conf, no settings in the environment."""
-		data = tempfile.mkdtemp()
+		data = common.temp_dir(self)
 		if prefs is not None:
 			Path(data, 'preferences.conf').write_text(prefs)
 		e = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS and k != config.PASSED}
@@ -340,7 +340,7 @@ class Startup(unittest.TestCase):
 
 	def test_an_unreadable_preferences_file_refuses_to_start(self):
 		"""A preferences.conf that cannot be read stops the start."""
-		data = tempfile.mkdtemp()
+		data = common.temp_dir(self)
 		Path(data, 'preferences.conf').mkdir()
 		out = subprocess.run([sys.executable, '-c', 'from lib import config'], cwd=REPO, env={**os.environ, 'DATA_DIR': data}, capture_output=True, text=True)
 		self.assertEqual(out.returncode, 1)
@@ -368,13 +368,13 @@ class Startup(unittest.TestCase):
 	def test_the_bot_refuses_to_start_with_a_preference_in_its_environment(self):
 		"""bot.py exits 1 when finbot.env holds a preference."""
 		out = subprocess.run([sys.executable, 'bot.py'], cwd=REPO, capture_output=True, text=True, timeout=60,
-			env={**os.environ, 'DATA_DIR': tempfile.mkdtemp(), 'future_days': '30'})
+			env={**os.environ, 'DATA_DIR': common.temp_dir(self), 'future_days': '30'})
 		self.assertEqual(out.returncode, 1)
 		self.assertIn('future_days is a preference', out.stderr)
 
 	def test_a_leftover_env_in_the_checkout_refuses_to_start(self):
 		"""An old .env in the checkout stops the start, pointing to util/split_env.py."""
-		old = Path(tempfile.mkdtemp(), '.env')
+		old = Path(common.temp_dir(self), '.env')
 		with mock.patch.object(config, 'OLD_ENV', old):
 			config.check_startup_environment() # none there: fine
 			old.write_text("future_days = '30'\n")
@@ -430,7 +430,7 @@ class SigHup(unittest.TestCase):
 
 	def test_reload_all_reloads_preferences_and_the_schedule_independently(self):
 		"""SIGHUP reloads preferences, keeping the running ones on an error (logged), and the schedule regardless."""
-		file = Path(tempfile.mkdtemp(), 'preferences.conf')
+		file = Path(common.temp_dir(self), 'preferences.conf')
 		file.write_text('future_days=45\n')
 		scheduler = mock.Mock()
 		self.addCleanup(self.restore, file)
@@ -450,7 +450,7 @@ class SigHup(unittest.TestCase):
 
 	def test_reload_with_the_scheduler_off_still_reloads_preferences(self):
 		"""With the scheduler off, SIGHUP still reloads preferences."""
-		file = Path(tempfile.mkdtemp(), 'preferences.conf')
+		file = Path(common.temp_dir(self), 'preferences.conf')
 		file.write_text('future_days=11\n')
 		self.addCleanup(self.restore, file)
 		with mock.patch.object(config, 'preferences_path', str(file)), mock.patch.object(bot, 'scheduler', None):
@@ -479,7 +479,7 @@ class Tools(unittest.TestCase):
 	def test_split_env_writes_next_to_the_file_and_never_overwrites(self):
 		"""split_env writes finbot.env.new (mode 0600) and preferences.conf.new beside the file, refuses to overwrite
 		them, and says so for a missing file."""
-		d = Path(tempfile.mkdtemp())
+		d = Path(common.temp_dir(self))
 		(d / 'old.env').write_text('port=80\nfuture_days=3\n')
 		run = lambda: subprocess.run([sys.executable, str(REPO / 'util' / 'split_env.py'), str(d / 'old.env')], capture_output=True, text=True)
 		self.assertEqual(run().returncode, 0)
@@ -494,7 +494,7 @@ class Tools(unittest.TestCase):
 
 	def test_check_config_script_exit_status_and_it_does_not_create_directories(self):
 		"""check_config exits 0 for a good file, 1 for a bad one, and makes no data dir (systemd may run it as root)."""
-		d = Path(tempfile.mkdtemp())
+		d = Path(common.temp_dir(self))
 		(d / 'finbot.env').write_text('port=80\n')
 		data = d / 'data'
 		run = lambda: subprocess.run([sys.executable, str(REPO / 'util' / 'check_config.py'), str(d / 'finbot.env')], capture_output=True, text=True,

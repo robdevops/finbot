@@ -12,7 +12,6 @@ from pathlib import Path
 #   preferences.conf how the bot behaves: <DATA_DIR>/preferences.conf, read by the bot itself at start and on every reload (SIGHUP).
 
 REPO_DIR = Path(__file__).resolve().parent.parent
-os.chdir(REPO_DIR)
 
 STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'telegramChatID', 'scheduler', 'scheduler_catchup',
 	'sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
@@ -203,7 +202,8 @@ class Env:
 def startup_values(getenv):
 	"""The settings fixed when the bot starts (finbot.env), computed from getenv(name, default). Raises ConfigError."""
 	r = _Reader(getenv)
-	data_dir = (getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or 'var').rstrip('/') or '/'
+	data_dir = getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or 'var'
+	data_dir = str(REPO_DIR / data_dir) # a relative one is in the checkout, wherever finbot starts
 	hooks = {}
 	if getenv('slack_webhook'):
 		hooks['slack'] = getenv('slack_webhook').rstrip('/')

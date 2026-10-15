@@ -1,6 +1,6 @@
 """Yahoo, Sharesight and Telegram parsing and failure handling, driven by the real API responses saved under doc/.
 HTTP is mocked at lib.net, so the production parsing code runs unchanged."""
-import contextlib, copy, datetime, io, json, os, subprocess, threading, unittest
+import contextlib, datetime, io, json, os, subprocess, threading, unittest
 import gevent
 from unittest import mock
 from tests.common import *

@@ -12,6 +12,12 @@ UTC = zoneinfo.ZoneInfo('UTC')
 DEFAULT_SCHEDULE = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / 'defaults' / 'schedule.cron'
 
 
+def run_in_process(label, module, kwargs):
+	"""The scheduler's runner in these tests: the command's handler, called here (no child process, no deadline)."""
+	module.run(**kwargs)
+	return 0
+
+
 def at(day, hour, minute, second=0):
 	"""A UTC time in October 2026 (the 13th is a Tuesday)."""
 	return datetime.datetime(2026, 10, day, hour, minute, second, tzinfo=UTC)
@@ -183,8 +189,7 @@ class JobArguments(unittest.TestCase):
 class CleanupJob(FinbotCase):
 	def test_removes_only_old_finbot_cache_files(self):
 		"""cleanup deletes finbot's cache files older than the days given, not newer ones, other files or dirs."""
-		folder = tempfile.mkdtemp()
-		self.addCleanup(lambda: __import__('shutil').rmtree(folder, ignore_errors=True))
+		folder = temp_dir(self)
 		self.env(cache_dir=folder)
 
 		old, new = time.time() - 40 * 86400, time.time() - 5 * 86400
@@ -199,8 +204,7 @@ class CleanupJob(FinbotCase):
 
 	def test_a_temp_file_being_written_is_left_alone(self):
 		"""A flush (0 days) spares a temp file from the last minute (a write in flight) and deletes a stale one."""
-		folder = tempfile.mkdtemp()
-		self.addCleanup(lambda: __import__('shutil').rmtree(folder, ignore_errors=True))
+		folder = temp_dir(self)
 		self.env(cache_dir=folder)
 
 		for name, stamp in (('finbot_a.json.x1.tmp', time.time() - 5), ('finbot_b.json.x2.tmp', time.time() - 40 * 86400)):
@@ -250,7 +254,7 @@ class SchedulerBase(FinbotCase):
 	def scheduler(self, catchup=5):
 		"""A loaded scheduler on the fake clock that runs commands in this process, at once."""
 		s = jobs.Scheduler(lambda: self.file, catchup=catchup, clock=self.clock, sleep=lambda seconds: None,
-						   spawn=lambda f, *a: f(*a), zone=UTC, runner=jobs.run_in_process)
+						   spawn=lambda f, *a: f(*a), zone=UTC, runner=run_in_process)
 		self.assertTrue(s.load())
 		return s
 
@@ -317,17 +321,6 @@ class SchedulerTests(SchedulerBase):
 		again = self.scheduler()
 		self.assertEqual(again.due(self.clock.now), [])
 
-	def test_an_overlapping_run_is_skipped(self):
-		"""A run due while the last is still going is skipped."""
-		s = self.scheduler()
-		s.jobs[0].running = True
-		s.run_job(s.jobs[0], at(13, 21, 20))
-		self.assertEqual(self.ran, [])
-		s.jobs[0].running = False
-		s.run_job(s.jobs[0], at(13, 21, 20))
-		self.assertEqual(self.ran, [('trades', {})])
-		self.assertFalse(s.jobs[0].running)
-
 	def test_a_failing_job_is_reported_and_the_next_command_still_runs(self):
 		"""A command that fails is reported, and the next command on its line still runs."""
 		self.file.write_text('*/20 * * * * trades.py; shorts.py\n')
@@ -336,7 +329,7 @@ class SchedulerTests(SchedulerBase):
 			raise RuntimeError('boom')
 		self.patch(jobs.SCRIPTS['trades'], 'run', boom)
 		s = self.scheduler()
-		s.run_job(s.jobs[0], at(13, 21, 20))
+		s.execute(s.jobs[0].commands)
 		self.assertEqual(self.ran, [('shorts', {})])
 		self.assertTrue(any('boom' in e for e in self.errors))
 
@@ -347,9 +340,8 @@ class SchedulerTests(SchedulerBase):
 			raise SystemExit(3)
 		self.patch(jobs.SCRIPTS['trades'], 'run', quit_)
 		s = self.scheduler()
-		s.run_job(s.jobs[0], at(13, 21, 20))
+		s.execute(s.jobs[0].commands)
 		self.assertEqual(len(self.errors), 1)
-		self.assertFalse(s.jobs[0].running)
 
 	def test_a_command_stopped_at_its_deadline_is_reported_and_the_next_still_runs(self):
 		"""A command still running at its deadline (run_child stops it) is reported, and the rest of its line runs."""
@@ -358,13 +350,12 @@ class SchedulerTests(SchedulerBase):
 			"""trades.py hangs until run_child stops it; the rest run here."""
 			if label == 'trades.py':
 				raise TimeoutError('still running after 5 minutes')
-			return jobs.run_in_process(label, module, kwargs)
+			return run_in_process(label, module, kwargs)
 		s = self.scheduler()
 		s.runner = runner
-		self.assertEqual(s.run_job(s.jobs[0], at(13, 21, 20)), 'timed out')
+		self.assertEqual(s.execute(s.jobs[0].commands), 'timed out')
 		self.assertEqual(self.errors, ['⚠️ trades.py: TimeoutError: still running after 5 minutes'])
 		self.assertEqual(self.ran, [('shorts', {})])
-		self.assertFalse(s.jobs[0].running)
 		self.assertEqual(s.busy, set())
 
 	def test_reload_applies_edits_keeps_state_and_survives_a_bad_file(self):
@@ -459,11 +450,12 @@ class DaylightSaving(unittest.TestCase):
 
 	def test_the_scheduler_runs_a_daily_job_once_across_the_change(self):
 		"""The scheduler runs a daily Melbourne job once a day across the change to daylight time."""
-		file = Path(tempfile.mkdtemp(), 'schedule.cron')
+		file = Path(temp_dir(self), 'schedule.cron')
 		file.write_text('CRON_TZ=Australia/Melbourne\n0 9 * * * trades.py\n')
 		clock = Clock(self.mel(2026, 10, 3, 12).astimezone(UTC))
 		s = jobs.Scheduler(lambda: file, clock=clock, zone=UTC, runner=lambda *a: 0)
-		with mock.patch.object(config, 'env', dataclasses.replace(config.env, data_dir=tempfile.mkdtemp())), contextlib.redirect_stderr(io.StringIO()):
+		elsewhere = dataclasses.replace(config.env, data_dir=temp_dir(self))
+		with mock.patch.object(config, 'env', elsewhere), contextlib.redirect_stderr(io.StringIO()):
 			self.assertTrue(s.load())
 			fired = []
 			while clock.now < self.mel(2026, 10, 5, 12):
@@ -521,7 +513,6 @@ class ManualRuns(SchedulerBase):
 		self.assertEqual(self.s.run_now('7'), ('price.py close', 'done'))
 		self.assertEqual(self.ran, [('price', {'mode': 'close'})])
 		self.assertEqual((self.s.base, self.s.last), (base, last))
-		self.assertTrue(all(not job.running for job in self.s.jobs))
 		self.assertEqual(self.s.busy, set())
 
 	def test_run_now_refuses_while_the_command_is_running_and_reports_failures(self):
@@ -539,9 +530,10 @@ class ManualRuns(SchedulerBase):
 		self.assertEqual(self.s.busy, set())
 
 	def test_a_scheduled_run_skips_a_command_that_a_manual_run_is_in_the_middle_of(self):
-		"""A scheduled run skips a command a manual run is in the middle of, and runs the rest of its line."""
+		"""A scheduled run skips a command still running (from chat, or the line's last run), and runs the rest of its
+		line."""
 		self.s.busy.add('trades.py')
-		self.assertEqual(self.s.run_job(self.s.jobs[1], at(13, 21, 28)), 'already running')
+		self.assertEqual(self.s.execute(self.s.jobs[1].commands), 'already running')
 		self.assertEqual(self.ran, [('price', {'mode': 'close'})]) # price.py close ran, trades.py was skipped
 
 	def test_run_now_times_out(self):
@@ -742,7 +734,7 @@ class ChildProcess(FinbotCase):
 	def test_scheduler_reports_a_child_that_ended_without_saying_why(self):
 		"""A child killed by a signal or exiting non-zero without a report is reported by the scheduler; one that
 		reported itself is not reported twice."""
-		file = Path(tempfile.mkdtemp(), 'schedule.cron')
+		file = Path(temp_dir(self), 'schedule.cron')
 		file.write_text('* * * * * trades.py\n')
 		for status, reason in ((-signal.SIGHUP, 'killed by SIGHUP'), (-signal.SIGKILL, 'killed by SIGKILL'), (1, 'exited with status 1 without saying why'),
 							   (jobs.jobrun.REPORTED, None)): # the child reported this one itself
@@ -800,12 +792,12 @@ class ChildProcess(FinbotCase):
 		"""The deadline is per command (it once covered the whole line): two that each take most of it both finish."""
 		self.patch(jobs, 'JOB_TIMEOUT', 0.8)
 		self.sleeper(0.5)
-		file = Path(tempfile.mkdtemp(), 'schedule.cron')
+		file = Path(temp_dir(self), 'schedule.cron')
 		file.write_text('* * * * * trades.py; shorts.py\n')
 		s = jobs.Scheduler(lambda: file, zone=UTC)
 		with contextlib.redirect_stderr(io.StringIO()):
 			self.assertTrue(s.load())
-			self.assertEqual(s.run_job(s.jobs[0], at(13, 21, 20)), 'done')
+			self.assertEqual(s.execute(s.jobs[0].commands), 'done')
 		self.assertEqual(len(self.children), 2)
 		self.assertEqual(self.errors, [])
 

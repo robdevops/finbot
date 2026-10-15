@@ -49,20 +49,26 @@ def do_sws_bulk(file):
 
 def write_cache(mydict, cache_file):
 	"""Write the dict as JSON to cache_file, mode 0640."""
-	os.umask(0)
 	def opener(path, flags):
 		"""open() that creates the file with mode 0640."""
 		return os.open(path, flags, 0o640)
-	with open(cache_file, "w", opener=opener, encoding="utf-8") as f:
-		f.write(json.dumps(mydict))
-	os.umask(0o022)
+	old = os.umask(0)
+	try:
+		with open(cache_file, "w", opener=opener, encoding="utf-8") as f:
+			f.write(json.dumps(mydict))
+	finally:
+		os.umask(old)
 
-files = ['nasdaq100', 'sp500', 'asx200'] 
-for idx, file in enumerate(files):
-	print("Starting", file)
-	mydict = do_sws_bulk(file)
-	print("Completed", file, "as finbot_sws_" + file.split('.')[0] + ".json")
-	if idx + 1 < len(files):
-		print("Sleeping for 15 minutes")
-		time.sleep(15 * 60)
+def main(files=('nasdaq100', 'sp500', 'asx200')):
+	"""Look up the symbols listed in each file, 15 minutes apart."""
+	for idx, file in enumerate(files):
+		print("Starting", file)
+		do_sws_bulk(file)
+		print("Completed", file, "as finbot_sws_" + file.split('.')[0] + ".json")
+		if idx + 1 < len(files):
+			print("Sleeping for 15 minutes")
+			time.sleep(15 * 60)
+
+if __name__ == '__main__':
+	main()
 
