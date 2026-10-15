@@ -8,10 +8,7 @@ from lib.reports import history, performance, price
 
 def history_chart(service, period, days, ticker):
 	""".history: the change over every period, the chosen one marked, and the line of that period (or of it all)."""
-	lines, _, chart = history.history_payload(ticker, service, buttons.PERIODS[period or 'x'][0], graph=not days)
-	if days:
-		changes, line = yahoo.price_history(ticker, days)
-		chart = history.line_chart(ticker, changes, line, days)
+	lines, chart = history.history_payload(ticker, service, days)
 	return '\n'.join(lines), chart
 
 def price_chart(service, period, days, ticker):
@@ -34,8 +31,6 @@ def compare_chart(service, period, days, *tickers):
 def performance_chart(service, period, days, portfolio):
 	""".performance: each portfolio over the period, or the one named ('' for all)."""
 	payload, chart = performance.report(service, days or buttons.MAX_DAYS, portfolio or None)
-	if not chart:
-		raise answer.Answer(*(payload or ['no performance data']))
 	return '\n'.join(payload), chart
 
 def price_list_chart(service, period, days, threshold, top):

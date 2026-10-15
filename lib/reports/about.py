@@ -1,5 +1,6 @@
 """What finbot can do: the .help text, and the .jobs listing of the schedule (with running a job from it)."""
 from lib import buttons
+from lib import formats
 from lib import jobs
 
 def prepare_jobs_payload(service, run=None):
@@ -39,16 +40,7 @@ def job_line(scheduler, label, outcome):
 def prepare_help(service, botName, sections):
 	"""The .help text: each section's command lines under its heading (worker.help_sections() has them), then the bot's
 	@name as another way to start a command. botName is the bot's @name."""
-	payload = []
-	for heading, lines in sections:
-		if payload: # a blank line between sections, outside the bold: Slack does not bold *\nPrice:*
-			payload.append('')
-		payload += [service.bold(heading + ":")] + lines
-	payload += ['', service.bold("Alternative syntax:")]
-	if service == 'slack':
-		payload.append('<' + botName + '> trades')
-	else:
-		payload.append(botName + ' price')
-	payload.append("")
-	payload.append(f"Full help on {service.link('https://github.com/robdevops/finbot', 'GitHub')}")
-	return payload
+	example = '<' + botName + '> trades' if service == 'slack' else botName + ' price'
+	return formats.sections(*([service.bold(heading + ":")] + lines for heading, lines in sections),
+		[service.bold("Alternative syntax:"), example],
+		[f"Full help on {service.link('https://github.com/robdevops/finbot', 'GitHub')}"])

@@ -1,6 +1,7 @@
 """Price history: .history (one stock over every period) and .compare (two to six stocks, rebased)."""
 import datetime
 from lib import answer
+from lib import buttons
 from lib import formats
 from lib import links
 from lib import render
@@ -44,9 +45,11 @@ def prepare_compare(service, tickers, period_days=None):
 		caption.append(f"{formats.get_emoji(pct)} {names[t]} ({link}): {formats.signed_percent(pct, 1)}")
 	return caption, chart
 
-def history_payload(ticker, service, highlight=None, graph=False):
-	"""(lines, percent table, chart): .history's caption, the change over every period with the `highlight` one marked,
-	and with graph=True the line chart of the whole history (else None). The name and exchange come from the chart."""
+def history_payload(ticker, service, days=None):
+	"""(lines, chart): .history's caption, the change over every period with the one of `days` marked, and the line
+	chart of those days, else of the whole history (None when it has too few prices). The name and exchange come from
+	the chart."""
+	highlight = buttons.PERIODS[buttons.period_for_days(days, 'x')][0]
 	table, line = yahoo.price_history(ticker)
 	ticker_link = links.finance_link(ticker, line.exchange, service, days=1825, brief=False)
 	lines = [service.bold(f"{line.name} ({ticker_link}) performance history")]
@@ -57,7 +60,9 @@ def history_payload(ticker, service, highlight=None, graph=False):
 			if interval == highlight:
 				label = '● ' + label
 			lines.append(f"{formats.get_emoji(percent)} {label} {formats.signed_percent(percent)}")
-	return lines, table, line_chart(ticker, table, line) if graph else None
+	if days:
+		table, line = yahoo.price_history(ticker, days)
+	return lines, line_chart(ticker, table, line, days)
 
 def line_chart(ticker, changes, line, days=None):
 	"""The line chart of a price_history (its changes and Line), titled with the company, the change over the span and

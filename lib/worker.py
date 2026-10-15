@@ -45,9 +45,11 @@ def process_job_callback(service, callback_id, chat_id, message_id, data):
 	"""A command button of .jobs: run that command now and answer in the chat."""
 	chat = delivery.reply_to(service, chat_id)
 	try:
+		if jobs.current is None: # the scheduler is off now
+			raise jobs.ScheduleError('the scheduler is off')
 		_, number, crc = data.split('|') # only a command offered by .jobs can be picked; anything else is refused
 		command = jobs.current.pick(number, crc)
-	except (ValueError, jobs.ScheduleError, AttributeError):
+	except (ValueError, jobs.ScheduleError):
 		chat.acknowledge(callback_id, 'Buttons updated, try again')
 		payload, markup = about.prepare_jobs_payload(service, '') # the list as it is now, in place of the stale one
 		chat.edit_text(message_id, '\n'.join(payload), markup or [])
@@ -331,8 +333,9 @@ def on_plan(request, args):
 		"""A sender as shown: on Slack a mention (<@U123>), which is markup to keep; elsewhere the handle as text."""
 		user = user.removeprefix('@')
 		return user if request.service == 'slack' else request.service.escape(user)
-	request.reply([f"{request.service.bold(who(k))}: {request.service.italic(request.service.escape(v))}\n"
-		for k, v in plan.items()])
+	service = request.service
+	request.reply(formats.sections(*([f"{service.bold(who(k))}: {service.italic(service.escape(v))}"]
+		for k, v in plan.items())))
 
 def on_who(request, args):
 	""".who SYMBOL: the portfolios that hold it."""

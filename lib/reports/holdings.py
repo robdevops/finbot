@@ -26,13 +26,12 @@ def prepare_holdings_payload(portfolio_name, service):
 
 def prepare_who(service, code):
 	"""Which portfolios hold `code` (a ticker without its exchange), each holding linked to Sharesight."""
-	payload = []
+	blocks = []
 	for portfolio in sharesight.portfolios():
 		found = [holding_line(holding, service, code)
 			for holding in portfolio.holdings().values() if holding['code'].upper() == code]
-		if found:
-			payload += [service.bold(f"{portfolio.name}:"), "\n".join(found), ""]
-	return payload or [f'{code} not found in any portfolio']
+		blocks.append(found and [service.bold(f"{portfolio.name}:")] + found)
+	return formats.sections(*blocks) or [f'{code} not found in any portfolio']
 
 def prepare_pie(portfolio_name, by, service, max_slices=8):
 	"""Portfolio value by industry (or by='sector'): (payload, chart or None). Raises sharesight.PortfolioNotFound."""

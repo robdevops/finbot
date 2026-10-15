@@ -84,19 +84,16 @@ def gather(days, portfolio_select, known):
 def report(service, trades, days, interactive):
 	"""The trades in one network's markup, each linked to Sharesight and to the stock's page: under a heading per date
 	when there are several dates, or when a chat asked for more than a day."""
+	def line(trade):
+		"""One trade: who, bought or sold (linked to Sharesight), how much, and the stock."""
+		action, emoji = ('bought', '💸') if trade.bought else ('sold', '🤑')
+		url = f"https://portfolio.sharesight.com/holdings/{trade.holding_id}/dashboard/transactions"
+		return ' '.join([emoji, trade.portfolio, service.link(url, action), trade.currency, f'{trade.value}',
+			links.finance_link(trade.symbol, trade.market, service), markets.flag_from_market(trade.market)])
 	dates = sorted({trade.date for trade in trades})
-	payload = []
-	for date in dates:
-		if len(dates) > 1 or (interactive and days > 1):
-			payload += ["", service.bold(f"{date:%b %d}")]
-		for trade in trades:
-			if trade.date == date:
-				action, emoji = ('bought', '💸') if trade.bought else ('sold', '🤑')
-				url = f"https://portfolio.sharesight.com/holdings/{trade.holding_id}/dashboard/transactions"
-				payload.append(' '.join([emoji, trade.portfolio, service.link(url, action), trade.currency,
-					f'{trade.value}', links.finance_link(trade.symbol, trade.market, service),
-					markets.flag_from_market(trade.market)]))
-	return payload
+	headed = len(dates) > 1 or (interactive and days > 1)
+	return formats.sections(*([service.bold(f"{date:%b %d}")] * headed + [line(trade) for trade in trades
+		if trade.date == date] for date in dates))
 
 
 def job(argv):

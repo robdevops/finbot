@@ -1,7 +1,7 @@
 """Record highs and lows (all-time) among the stocks followed (scheduled: milestone.py)."""
-from itertools import groupby
 from lib import state
 from lib import delivery
+from lib import formats
 from lib import links
 from lib import watchlist
 from lib import yahoo
@@ -56,12 +56,8 @@ def report(service, market_data, highs, lows):
 	def line(ticker):
 		"""A stock's flag, name and link."""
 		return links.stock_line(ticker, market_data[ticker], service)
-	payload = []
-	if highs:
-		payload += [service.bold('Record high:')] + sorted(line(ticker) for ticker in highs)
-	if lows:
-		payload += ["", service.bold('Record low:')] + sorted(line(ticker) for ticker in lows)
-	return [i[0] for i in groupby(payload)] # de-dupe white space
+	return formats.sections(highs and [service.bold('Record high:')] + sorted(line(ticker) for ticker in highs),
+		lows and [service.bold('Record low:')] + sorted(line(ticker) for ticker in lows))
 
 def job(argv):
 	"""Arguments of a scheduled run: milestone.py takes none."""

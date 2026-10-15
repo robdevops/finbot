@@ -32,11 +32,9 @@ def benchmark(ticker, market, text, past_days, service):
 	link = links.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
 	return f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}", percent
 
-def report(service, past_days=None, portfolio_select=None, performance=None):
+def report(service, past_days, portfolio_select=None, performance=None):
 	"""(payload, chart) of the performance report for one service: each portfolio and the benchmarks, best first. performance:
 	gather()'s, fetched when not given."""
-	if past_days is None:
-		past_days = config.prefs.past_days
 	if performance is None:
 		performance = gather(past_days, portfolio_select)
 	lines = [] # (percent, text), sorted into the payload below
@@ -46,8 +44,6 @@ def report(service, past_days=None, portfolio_select=None, performance=None):
 		percent = float(data['report']['capital_gain_percent'])
 		lines.append((percent, f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}"))
 		chart_rows.append((name, percent))
-	if not lines:
-		return [], None
 	for ticker, market, text in BENCHMARKS:
 		line, percent = benchmark(ticker, market, text, past_days, service)
 		lines.append((float('-inf') if percent is None else float(percent), line)) # an error line sorts last

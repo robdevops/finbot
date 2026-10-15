@@ -72,17 +72,15 @@ def primary_listing(ticker, data, field):
 def report(service, events, days, specific_stock, interactive, event):
 	"""The events in one network's markup, grouped by date under a heading (one stock's carry their dates instead)."""
 	heading = EVENTS[event][1]
-	payload = []
+	blocks = []
 	for date in sorted({when.date() for when, *_ in events}):
-		if not specific_stock:
-			payload += ["", service.bold(f"{date:%b %d}")]
-		for when, flag, title, ticker in events:
-			if when.date() == date:
-				link = links.yahoo_link(ticker, service)
-				day = f"{date:%b %d} " if specific_stock else '' # one stock's events carry their date
-				payload.append(f"{flag} {day}{title} ({link})")
+		day = f"{date:%b %d} " if specific_stock else '' # one stock's events carry their date
+		lines = [f"{flag} {day}{title} ({links.yahoo_link(ticker, service)})"
+			for when, flag, title, ticker in events if when.date() == date]
+		blocks.append(lines if specific_stock else [service.bold(f"{date:%b %d}")] + lines)
+	payload = sum(blocks, []) if specific_stock else formats.sections(*blocks)
 	if payload and not specific_stock:
-		payload.insert(0, service.bold(f"{heading} {formats.days_english(days, 'for the next ')}:"))
+		payload = formats.sections([service.bold(f"{heading} {formats.days_english(days, 'for the next ')}:")], payload)
 	elif not payload and interactive:
 		ahead = formats.days_english(days, 'for the next ')
 		payload = [f"No events found for {specific_stock}" if specific_stock else f"No events found {ahead}"]

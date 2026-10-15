@@ -58,6 +58,15 @@ def human_units(value, decimal_places=2):
 		value /= 1000.0
 	return f"{value:.{decimal_places}f} {unit}".rstrip()
 
+def sections(*blocks):
+	"""Blocks of lines one after another, a blank line between each two; an empty block is left out."""
+	lines = []
+	for block in blocks:
+		if block and lines:
+			lines.append('')
+		lines += block or []
+	return lines
+
 def security_line(flag, title, link):
 	"""'🇦🇺 Title (link)': how a report line names a security (without a leading space where its market has no flag)."""
 	return f"{flag} {title} ({link})" if flag else f"{title} ({link})"

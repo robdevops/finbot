@@ -47,13 +47,9 @@ def prepare_profile_payload(service, user, ticker):
 	state = data.get('marketState', '').rstrip()
 	exchange = data.get('profile_exchange', '').replace('NasdaqCM', 'Nasdaq').replace('NasdaqGS', 'Nasdaq')
 	exchange = exchange.replace('NYSEArca', 'NYSE')
-	sections = (about(data), company(service, data, ticker, exchange), figures(service, data), trends(data),
-		outlook(service, data), valuation(service, data, state), changes(service, data, ticker, state),
+	payload = formats.sections(about(data), company(service, data, ticker, exchange), figures(service, data),
+		trends(data), outlook(service, data), valuation(service, data, state), changes(service, data, ticker, state),
 		footer(service, data, ticker, exchange))
-	payload = []
-	for section in sections:
-		if section:
-			payload += ([""] if payload else []) + section
 	ticker_link = links.finance_link(ticker, exchange, service, brief=False)
 	light = MARKET_STATE_EMOJI.get(state, '🔴') if state else ''
 	heading = f"{service.bold(data.get('profile_title', ''))} ({ticker_link}) {light}"
