@@ -247,9 +247,8 @@ def on_performance(request, m):
 def on_session(request, m):
 	"""Mid-session moves (.session), or pre-market ones (.premarket, also post-market)."""
 	threshold, ticker = percent_or_ticker(m.group('arg'), config.prefs.price_percent)
-	premarket = m.group('kind').lower() != 'session'
-	price.run(request.dest, threshold=threshold, user=request.user, specific_stock=ticker, midsession=not premarket,
-		premarket=premarket)
+	mode = 'midsession' if m.group('kind').lower() == 'session' else 'premarket'
+	price.run(request.dest, mode=mode, threshold=threshold, user=request.user, specific_stock=ticker)
 
 def on_price(request, m):
 	""".price [percent|SYMBOL|top|bottom] [period]: a bare number is a percent, as on the other commands; a period has its unit."""
@@ -267,8 +266,8 @@ def on_price(request, m):
 					threshold, top = 0, 10
 				elif i == 0:
 					ticker = arg.upper()
-	price.run(request.dest, threshold=threshold, user=request.user, specific_stock=ticker, interday=days is None,
-		days=days, top=top)
+	price.run(request.dest, mode='period' if days else 'interday', threshold=threshold, days=days, top=top,
+		user=request.user, specific_stock=ticker)
 
 def on_shorts(request, m):
 	""".shorts [percent|SYMBOL]: the most shorted stocks followed, or one stock's short interest."""

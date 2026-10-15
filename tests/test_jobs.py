@@ -109,11 +109,11 @@ class ParseTests(unittest.TestCase):
 class JobArguments(unittest.TestCase):
 	def test_price(self):
 		"""price.py takes one mode or a number of days (the top and bottom ten over it); anything else is its usage."""
-		self.assertEqual(price.job(['midsession']), ('price.py midsession', {'midsession': True}))
-		self.assertEqual(price.job(['premarket'])[1], {'premarket': True})
-		self.assertEqual(price.job(['interday'])[1], {'interday': True})
-		self.assertEqual(price.job(['close'])[1], {'close': True})
-		self.assertEqual(price.job(['28']), ('price.py 28', {'threshold': 0, 'days': 28, 'top': 10}))
+		self.assertEqual(price.job(['midsession']), ('price.py midsession', {'mode': 'midsession'}))
+		self.assertEqual(price.job(['premarket'])[1], {'mode': 'premarket'})
+		self.assertEqual(price.job(['interday'])[1], {'mode': 'interday'})
+		self.assertEqual(price.job(['close'])[1], {'mode': 'close'})
+		self.assertEqual(price.job(['28']), ('price.py 28', {'mode': 'period', 'threshold': 0, 'days': 28, 'top': 10}))
 		for bad in ([], ['soon'], ['7', '8']):
 			with self.assertRaises(ValueError):
 				price.job(bad)
@@ -164,7 +164,7 @@ class JobArguments(unittest.TestCase):
 		"""Good arguments run the report with what job() made of them."""
 		calls = []
 		delivery.cli('price.py', price.job, lambda **k: calls.append(k), ['midsession'])
-		self.assertEqual(calls, [{'midsession': True}])
+		self.assertEqual(calls, [{'mode': 'midsession'}])
 
 	def test_each_scheduled_report_runs_from_its_top_level_script(self):
 		"""./price.py and the rest run lib/reports/<name>.py, so cron lines and runs by hand keep working."""
@@ -511,7 +511,7 @@ class ManualRuns(SchedulerBase):
 		"""run_now runs one command and leaves the schedule's timing alone."""
 		base, last = dict(self.s.base), dict(self.s.last)
 		self.assertEqual(self.s.run_now('7'), ('price.py close', 'done'))
-		self.assertEqual(self.ran, [('price', {'close': True})])
+		self.assertEqual(self.ran, [('price', {'mode': 'close'})])
 		self.assertEqual((self.s.base, self.s.last), (base, last))
 		self.assertTrue(all(not job.running for job in self.s.jobs))
 		self.assertEqual(self.s.busy, set())
@@ -534,7 +534,7 @@ class ManualRuns(SchedulerBase):
 		"""A scheduled run skips a command a manual run is in the middle of, and runs the rest of its line."""
 		self.s.busy.add('trades.py')
 		self.assertEqual(self.s.run_job(self.s.jobs[1], at(13, 21, 28)), 'already running')
-		self.assertEqual(self.ran, [('price', {'close': True})]) # price.py close ran, trades.py was skipped
+		self.assertEqual(self.ran, [('price', {'mode': 'close'})]) # price.py close ran, trades.py was skipped
 
 	def test_run_now_times_out(self):
 		"""A manual run past the timeout says so."""
@@ -584,7 +584,7 @@ class ManualRuns(SchedulerBase):
 		data = next(b.data for row in markup for b in row if b.label.startswith('7.'))
 		self.sent.clear()
 		worker.process_callback('telegram', 'cb1', '55', '9', data)
-		self.assertEqual(self.ran, [('price', {'close': True})])
+		self.assertEqual(self.ran, [('price', {'mode': 'close'})])
 		self.assertEqual(self.sent, [('text', ['7. price close: done'])])
 		self.assertEqual(sent, ['Running price close…'])
 
@@ -639,7 +639,7 @@ class ManualRuns(SchedulerBase):
 		self.assertEqual(self.ran, [('trades', {})])
 		self.ran.clear()
 		self.assertEqual(self.command('.cron run price close')[0][1], ['7. price close: done'])
-		self.assertEqual(self.ran, [('price', {'close': True})])
+		self.assertEqual(self.ran, [('price', {'mode': 'close'})])
 
 	def test_run_in_chat_refusals(self):
 		""".jobs run refuses an unscheduled command, an unknown number and two commands, else gives its usage."""

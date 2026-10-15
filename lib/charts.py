@@ -43,7 +43,7 @@ def performance_chart(service, period, days, portfolio):
 def price_list_chart(service, period, days, threshold, top):
 	""".price: the moves past `threshold`, or the top and bottom `top` ('0': not a top list), over the period; period
 	'd' is today's moves, the command's default view, not a lookback of one day."""
-	span = {'interday': True} if period == 'd' else {'days': days or buttons.MAX_DAYS}
+	span = {'mode': 'interday'} if period == 'd' else {'mode': 'period', 'days': days or buttons.MAX_DAYS}
 	payload, chart = price.report(service, threshold=float(threshold), interactive=True, top=int(top) or None, **span)
 	if not chart:
 		raise answer.Answer(*(payload or ['no price data']))
