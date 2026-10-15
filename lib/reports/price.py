@@ -164,30 +164,31 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 			payload = [f"{user}, no price movements meet threshold {threshold:g}%"]
 	return payload, graph
 
-def lambda_handler(chat_id=None, threshold=None, service=None, user='', specific_stock=None, interactive=False, midsession=False,
-		premarket=False, interday=False, days=None, close=False, top=None):
-	"""Post the price report (report() has the modes): to the chat that asked (interactive), else to the default chats,
-	with its chart and on Telegram period buttons."""
+def run(dest=None, *, threshold=None, user='', specific_stock=None, midsession=False, premarket=False, interday=False,
+		days=None, close=False, top=None):
+	"""Post the price report (report() has the modes): to the chat that asked (dest), else to the default chats, with
+	its chart and period buttons where they can go."""
+	interactive = dest is not None
 	if threshold is None:
 		threshold = config.prefs.price_percent
 	market = gather(specific_stock, days)
-	def markup(dest):
-		"""A chart's period buttons, where the destination takes buttons: one ticker's chart, and the daily and N-day
-		lists, but not the intraday ones."""
-		if not dest.takes_buttons:
+	def markup(chat):
+		"""A chart's period buttons, where the chat takes buttons: one ticker's chart, and the daily and N-day lists,
+		but not the intraday ones."""
+		if not chat.takes_buttons:
 			return None
 		if specific_stock:
 			return buttons.keyboard('p', market[0], buttons.period_for_days(days))
 		if not (midsession or premarket or close):
 			return buttons.keyboard('l', [f"{threshold:g}", str(top or 0)], buttons.period_for_days(days, 'd' if not days else None))
 		return None
-	for dest in delivery.destinations(interactive, service, chat_id):
-		service = dest.dialect
-		payload, graph = report(service, threshold, user, specific_stock, interactive, midsession, premarket, interday, days, close, top, market)
-		delivery.deliver(dest, delivery.Report(payload, graph, markup(dest) if graph else None))
+	for chat in delivery.targets(dest):
+		payload, graph = report(chat.dialect, threshold, user, specific_stock, interactive, midsession, premarket,
+			interday, days, close, top, market)
+		delivery.deliver(chat, delivery.Report(payload, graph, markup(chat) if graph else None))
 
 def job(argv):
-	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
+	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case ['midsession' | 'interday' | 'premarket' | 'close' as arg]:
 			return f'price.py {arg}', {arg: True}

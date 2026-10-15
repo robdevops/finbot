@@ -134,7 +134,7 @@ class ReportFunctions(FinbotCase):
 		self.prefs(demote_volatile=True)
 
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'market_cap': 5e8} for t in ts})
-		price.lambda_handler()
+		price.run()
 		self.assertEqual(len(calls), 1)
 		self.assertTrue(calls[0])
 
@@ -238,17 +238,17 @@ class ScheduledReports(FinbotCase):
 
 	def test_price(self):
 		"""The scheduled price report posts."""
-		price.lambda_handler()
+		price.run()
 		self.assertTrue(self.sent)
 
 	def test_performance(self):
 		"""The scheduled performance report posts."""
-		performance.lambda_handler(past_days=7)
+		performance.run(past_days=7)
 		self.assertTrue(self.sent)
 
 	def test_shorts(self):
 		"""The scheduled shorts report posts."""
-		shorts.lambda_handler()
+		shorts.run()
 		self.assertTrue(self.sent)
 
 	def test_earnings_and_dividends(self):
@@ -256,7 +256,7 @@ class ScheduledReports(FinbotCase):
 		for kwargs in ({'event': 'earnings'}, {'event': 'ex-dividend'}):
 			with self.subTest(kwargs=kwargs):
 				self.sent.clear()
-				cal.lambda_handler(**kwargs)
+				cal.run(**kwargs)
 				self.assertTrue(self.sent)
 
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
@@ -264,47 +264,47 @@ class ScheduledReports(FinbotCase):
 		self.patch(cal, 'primary_listings', lambda: {'T1': 'T1.XX'})
 		self.patch(yahoo, 'fetch', lambda ts: {t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1.XX' else {t: market_entry(t)})
-		cal.lambda_handler(event='earnings')
+		cal.run(event='earnings')
 		self.assertIn('Co T2 ', str(self.sent))
 		self.assertNotIn('Co T1 ', str(self.sent))
 
 	def test_trades(self):
 		""".trades run from a chat posts."""
-		trades.lambda_handler(interactive=True, service='telegram', chat_id='5')
+		trades.run(transports.TelegramBot('5'))
 		self.assertTrue(self.sent)
 
 	def test_trades_asks_yahoo_only_for_new_trades(self):
 		"""A scheduled trades run asks Yahoo only about trades it has not reported, and nothing once all are known."""
 		fetched = []
 		self.patch(yahoo, 'fetch', lambda tickers: fetched.append(set(tickers)) or {t: market_entry(t) for t in tickers})
-		trades.lambda_handler()
+		trades.run()
 		self.assertEqual(fetched, [{'T1'}])
 		fetched.clear()
-		trades.lambda_handler() # the trade is known now: nothing to report and nothing to fetch
+		trades.run() # the trade is known now: nothing to report and nothing to fetch
 		self.assertEqual(fetched, [])
 
 	def test_a_scheduled_run_keeps_the_trades_another_run_recorded_meanwhile(self):
 		"""The seen trades are read again as the run ends, so a trade another run recorded meanwhile is kept."""
 		meanwhile = lambda tickers: state.save('finbot_sharesight_trades.json', [999]) or {t: market_entry(t) for t in tickers}
 		self.patch(yahoo, 'fetch', meanwhile) # called after the seen trades were read, before the new ones are recorded
-		trades.lambda_handler()
+		trades.run()
 		known = state.load('finbot_sharesight_trades.json')
 		self.assertEqual((known[0], len(known)), (999, 2))
 
 	def test_milestone(self):
 		"""The milestone report posts."""
-		milestone.lambda_handler()
+		milestone.run()
 		self.assertTrue(self.sent)
 
 	def test_milestone_records_a_ticker_only_with_its_new_values(self):
 		"""A first sighting without 52-week values used to be recorded as 0/0, so the next run reported a record high for it."""
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0)) # beyond the 52-week range (120/80): nothing new
 		self.patch(yahoo, 'fetch', lambda ts: {t: {k: v for k, v in market_entry(t).items() if not k.startswith('fiftyTwoWeek')} for t in ts})
-		milestone.lambda_handler()
+		milestone.run()
 		self.assertFalse(state.load('finbot_milestone.json'))
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.sent.clear()
-		milestone.lambda_handler()
+		milestone.run()
 		self.assertNotIn('Record high', str(self.sent))
 		self.assertEqual(state.load('finbot_milestone.json')['T1'], {'record_high': 150.0, 'record_low': 50.0}) # all-time
 
@@ -312,40 +312,40 @@ class ScheduledReports(FinbotCase):
 		"""A new 52-week high below the all-time high is no record. The record used to become the 52-week high after the first
 		run, so a stock far below its peak posted a record high each time it set a new 52-week one."""
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
-		milestone.lambda_handler() # first sighting: the 52-week range (120/80) is inside the history (150/50)
+		milestone.run() # first sighting: the 52-week range (120/80) is inside the history (150/50)
 		for high, expected in ((130.0, False), (160.0, True), (155.0, False)):
 			with self.subTest(high=high):
 				self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'fiftyTwoWeekHigh': high} for t in ts})
 				self.sent.clear()
-				milestone.lambda_handler()
+				milestone.run()
 				self.assertEqual('Record high' in str(self.sent), expected)
 
 	def test_a_52_week_record_kept_before_is_replaced_by_the_history(self):
 		"""A record kept in the old 52-week format is replaced by the history: no false record high."""
 		state.save('finbot_milestone.json', {f'T{i}': {'high': 110.0, 'low': 90.0} for i in range(25)})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
-		milestone.lambda_handler() # 120 beats the old 52-week record of 110, but not the history's 150
+		milestone.run() # 120 beats the old 52-week record of 110, but not the history's 150
 		self.assertNotIn('Record high', str(self.sent))
 
 	def test_rating(self):
 		""".rating run from a chat posts."""
-		rating.lambda_handler(interactive=True, service='telegram', chat_id='5')
+		rating.run(transports.TelegramBot('5'))
 		self.assertTrue(self.sent)
 
 	def test_rating_keeps_the_last_rating_of_a_ticker_missing_from_a_run(self):
 		"""A ticker missing from one run keeps its last rating, so its change is reported when it comes back; it used to
 		be dropped from the record."""
-		rating.lambda_handler() # records every ticker's rating
+		rating.run() # records every ticker's rating
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1' else {t: market_entry(t)})
-		rating.lambda_handler() # no T1 this time: its rating used to be dropped from the record
+		rating.run() # no T1 this time: its rating used to be dropped from the record
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | ({'recommend': 'sell', 'recommend_index': 4.5} if t == 'T1' else {})})
 		self.sent.clear()
-		rating.lambda_handler()
+		rating.run()
 		self.assertIn('Co T1 ', str(self.sent)) # so its change from buy to sell went unreported
 
 	def test_an_interactive_rating_records_nothing(self):
 		"""A rating report asked for in a chat leaves the record for the scheduled runs alone."""
-		rating.lambda_handler(interactive=True, service='telegram', chat_id='5')
+		rating.run(transports.TelegramBot('5'))
 		self.assertIsNone(state.load('finbot_rating.json'))
 
 	def test_slack_webhook_without_a_bot_token_gets_scheduled_reports(self):
@@ -362,7 +362,7 @@ class ScheduledReports(FinbotCase):
 			posts.append((url.split('/')[2], 'Authorization' in kwargs.get('headers', {}), (kwargs.get('json') or {}).get('channel')))
 			return mock.Mock(status_code=200, json=lambda: {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 1}}})
 		self.patch(transports.net, 'post', post)
-		for report in (price.lambda_handler, shorts.lambda_handler, milestone.lambda_handler):
+		for report in (price.run, shorts.run, milestone.run):
 			with self.subTest(report=report):
 				posts.clear()
 				report()
@@ -373,7 +373,7 @@ class ScheduledReports(FinbotCase):
 		"""A scheduled report with nowhere to post is an error that says so."""
 		self.env(webhooks={})
 		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
-			price.lambda_handler()
+			price.run()
 
 
 class PeriodButtons(FinbotCase):
@@ -416,7 +416,7 @@ class PeriodButtons(FinbotCase):
 			with self.subTest(telegramOutgoingWebhook=hook):
 				self.env(telegramOutgoingWebhook=hook)
 				self.markups.clear()
-				price.lambda_handler(**kwargs)
+				price.run(**kwargs)
 				self.assertEqual(bool(self.markups and self.markups[0]), buttons)
 
 	def press(self, data):
@@ -498,11 +498,11 @@ class Podcasts(FinbotCase):
 				+ item(1, '<pubDate>Mon, 01 Jan 2024 00:00:00 +0000</pubDate>') + item(2, '') + item(3, '<pubDate>Tue, 02 Jan 2024 00:00:00 GMT</pubDate>')
 				+ '</channel></rss>').encode()
 		self.patch(podcasts.net, 'get', lambda url, **k: mock.Mock(content=feed, raise_for_status=lambda: None))
-		podcasts.lambda_handler('https://example.com/feed')
+		podcasts.run(feed_url='https://example.com/feed')
 		self.assertEqual([line.split(' (')[0] for line in self.sent[0][1]], ['📣 Show: <a href="https://x/3.mp3">ep 3</a> 00:10',
 						 '📣 Show: <a href="https://x/1.mp3">ep 1</a> 00:10', '📣 Show: <a href="https://x/2.mp3">ep 2</a> 00:10'])
 		self.sent.clear()
-		podcasts.lambda_handler('https://example.com/feed')
+		podcasts.run(feed_url='https://example.com/feed')
 		self.assertEqual(self.sent, []) # all seen now
 
 

@@ -11,9 +11,9 @@ from lib import yahoo
 # - need to handle stock splits: flush cache if we see a split in the data
 # https://finance.yahoo.com/quote/TSLA/history?period1=0&period2=1707609600&filter=split
 
-def lambda_handler():
+def run(dest=None):
 	"""Post the stocks followed that set an all-time high or low (their 52-week range against the record, which a first
-	sighting takes from the stock's history), and record the new records."""
+	sighting takes from the stock's history) to the default chats (or dest), and record the new records."""
 	def prepare_milestone_payload(service, market_data):
 		"""(the report in one network's markup, the records it changes)."""
 		payload = []
@@ -62,10 +62,9 @@ def lambda_handler():
 	tickers = watchlist.with_holdings()
 	market_data = yahoo.fetch(tickers)
 	records, changed = state.load('finbot_milestone.json', {}), {}
-	for dest in delivery.default_chats():
-		service = dest.dialect
-		payload, changed = prepare_milestone_payload(service, market_data)
-		delivery.deliver(dest, delivery.Report(payload))
+	for chat in delivery.targets(dest):
+		payload, changed = prepare_milestone_payload(chat.dialect, market_data)
+		delivery.deliver(chat, delivery.Report(payload))
 
 	if changed:
 		with state.edit('finbot_milestone.json', {}) as recorded:

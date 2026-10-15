@@ -7,10 +7,11 @@ from lib import watchlist
 from lib import yahoo
 from lib import shortman
 
-def lambda_handler(chat_id=None, threshold=None, specific_stock=None, service=None, interactive=False):
+def run(dest=None, *, threshold=None, specific_stock=None):
 	"""Post the stocks followed whose short interest is over `threshold` percent (the shorts_percent preference when
-	None), or one stock's: to the chat that asked (interactive), else to the default chats. Short Man has the ASX's
-	figures, Yahoo the US's."""
+	None), or one stock's: to the chat that asked (dest), else to the default chats. Short Man has the ASX's figures,
+	Yahoo the US's."""
+	interactive = dest is not None
 	if threshold is None:
 		threshold = config.prefs.shorts_percent
 	def prepare_shorts_payload(service, market_data):
@@ -47,10 +48,9 @@ def lambda_handler(chat_id=None, threshold=None, specific_stock=None, service=No
 	market_data |= yahoo.fetch_details((ticker for ticker in tickers if '.' not in ticker), strict=bool(specific_stock)) # US short interest; Short Man has the ASX's
 	market_data = shortman.fetch(market_data)
 
-	for dest in delivery.destinations(interactive, service, chat_id):
-		service = dest.dialect
-		payload, graph = prepare_shorts_payload(service, market_data)
-		delivery.deliver(dest, delivery.Report(payload, graph))
+	for chat in delivery.targets(dest):
+		payload, graph = prepare_shorts_payload(chat.dialect, market_data)
+		delivery.deliver(chat, delivery.Report(payload, graph))
 
 def job(argv):
 	"""Arguments of a scheduled run: shorts.py takes none."""

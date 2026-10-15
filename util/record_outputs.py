@@ -101,7 +101,8 @@ def record(output):
 			self.env(webhooks=WEBHOOKS, telegramChatID='1')
 			for line in SCHEDULED:
 				label, module, kwargs = jobs.parse_command(line)[0]
-				step(f'scheduled {line}', lambda: module.lambda_handler(**kwargs))
+				run = getattr(module, 'run', None) or module.lambda_handler # lambda_handler: a commit before run()
+				step(f'scheduled {line}', lambda: run(**kwargs))
 			Path(output).write_text(json.dumps(steps, indent=1, sort_keys=True, default=str))
 
 	result = unittest.TextTestRunner(verbosity=0, stream=io.StringIO()).run(Record())

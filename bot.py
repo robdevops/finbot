@@ -156,7 +156,7 @@ def flush_cache(*args):
 	Yahoo's cookie and crumb belong together, so they go while nothing is renewing them; the Sharesight caches refill at once."""
 	try:
 		with yahoo._auth:
-			removed = cleanup.lambda_handler(days=0)
+			removed = cleanup.run(days=0)
 		sharesight.wake()
 		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}", file=sys.stderr)
 	except Exception as e:

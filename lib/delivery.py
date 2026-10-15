@@ -41,9 +41,9 @@ def default_chats():
 	return chats
 
 
-def destinations(interactive, service, chat_id):
-	"""Where a report goes: back to the chat that asked for it (interactive), else to the default chats."""
-	return [reply_to(service, chat_id)] if interactive else default_chats()
+def targets(dest):
+	"""Where a report goes: the chat that asked for it (dest), else the default chats."""
+	return [dest] if dest else default_chats()
 
 
 def takes_charts(service, reply=True):

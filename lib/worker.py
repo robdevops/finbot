@@ -234,20 +234,20 @@ def on_calendar(request, m):
 	"""Upcoming earnings or ex-dividend dates."""
 	days, ticker = period_or_ticker(m.group('arg'), config.prefs.future_days)
 	event = 'ex-dividend' if m.group('kind').lower().startswith('div') else 'earnings'
-	cal.lambda_handler(request.chat_id, days, request.service, ticker, interactive=True, event=event)
+	cal.run(request.dest, days=days, specific_stock=ticker, event=event)
 
 def on_performance(request, m):
 	""".performance [period] [portfolio]: each portfolio's return, over a month by default."""
 	days, portfolio = period_and_portfolio(m.group('args'), buttons.PERIODS['m'][1]) # default view is the 1M button
 	if days > 0:
-		performance.lambda_handler(request.chat_id, days, request.service, request.user, portfolio, interactive=True)
+		performance.run(request.dest, past_days=days, user=request.user, portfolio_select=portfolio)
 
 def on_session(request, m):
 	"""Mid-session moves (.session), or pre-market ones (.premarket, also post-market)."""
 	threshold, ticker = percent_or_ticker(m.group('arg'), config.prefs.price_percent)
 	premarket = m.group('kind').lower() != 'session'
-	price.lambda_handler(request.chat_id, threshold, request.service, request.user, ticker, interactive=True,
-		midsession=not premarket, premarket=premarket)
+	price.run(request.dest, threshold=threshold, user=request.user, specific_stock=ticker, midsession=not premarket,
+		premarket=premarket)
 
 def on_price(request, m):
 	""".price [percent|SYMBOL|top|bottom] [period]: a bare number is a percent, as on the other commands; a period has its unit."""
@@ -265,18 +265,18 @@ def on_price(request, m):
 					threshold, top = 0, 10
 				elif i == 0:
 					ticker = arg.upper()
-	price.lambda_handler(request.chat_id, threshold, request.service, request.user, ticker, interactive=True,
-		interday=days is None, days=days, top=top)
+	price.run(request.dest, threshold=threshold, user=request.user, specific_stock=ticker, interday=days is None,
+		days=days, top=top)
 
 def on_shorts(request, m):
 	""".shorts [percent|SYMBOL]: the most shorted stocks followed, or one stock's short interest."""
 	threshold, ticker = percent_or_ticker(m.group(1), config.prefs.shorts_percent)
-	shorts.lambda_handler(request.chat_id, threshold, ticker, request.service, interactive=True)
+	shorts.run(request.dest, threshold=threshold, specific_stock=ticker)
 
 def on_trades(request, m):
 	""".trades [period] [portfolio]: the buys and sells, of the past day by default."""
 	days, portfolio = period_and_portfolio(m.group('args'), 1)
-	trades.lambda_handler(request.chat_id, days, request.service, request.user, portfolio, interactive=True)
+	trades.run(request.dest, days=days, user=request.user, portfolio_select=portfolio)
 
 def on_holdings(request, m):
 	""".holdings PORTFOLIO: what it holds."""

@@ -62,23 +62,23 @@ def report(service, past_days=None, portfolio_select=None, interactive=False, pe
 		graph = render.rows_chart(chart_rows, "Performance", f"% change {'' if period == 'today' else 'over '}{period}", value_fmt=lambda v: formats.signed_percent(v, 2))
 	return payload, graph
 
-def lambda_handler(chat_id=None, past_days=None, service=None, user='', portfolio_select=None, interactive=False):
+def run(dest=None, *, past_days=None, user='', portfolio_select=None):
 	"""Post each portfolio's performance over past_days (the past_days preference when None), or the one named, beside
-	the benchmarks: to the chat that asked (interactive), else to the default chats, with its chart and on Telegram
-	period buttons."""
+	the benchmarks: to the chat that asked (dest), else to the default chats, with its chart and period buttons where
+	they can go."""
+	interactive = dest is not None
 	if past_days is None:
 		past_days = config.prefs.past_days
 	performance = gather(past_days, portfolio_select)
-	for dest in delivery.destinations(interactive, service, chat_id):
-		service = dest.dialect
-		payload, graph = report(service, past_days, portfolio_select, interactive, performance)
+	for chat in delivery.targets(dest):
+		payload, graph = report(chat.dialect, past_days, portfolio_select, interactive, performance)
 		markup = None
-		if graph and dest.takes_buttons:
+		if graph and chat.takes_buttons:
 			markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days))
-		delivery.deliver(dest, delivery.Report(payload, graph, markup))
+		delivery.deliver(chat, delivery.Report(payload, graph, markup))
 
 def job(argv):
-	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
+	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case []:
 			return 'performance.py', {}

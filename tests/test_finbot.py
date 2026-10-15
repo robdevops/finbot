@@ -44,7 +44,7 @@ class Plumbing(FinbotCase):
 	def test_reminder_runs(self):
 		"""The reminder report runs with no reminders on file."""
 		with mock.patch.object(config, 'data_json', lambda name, default=None: []):
-			reminder.lambda_handler()
+			reminder.run()
 
 	def test_bot_handler(self):
 		"""A sticker is answered 200 and not logged; git_version matches what git says."""

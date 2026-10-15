@@ -22,7 +22,7 @@ def main(argv):
 	module = argv[0]
 	def run():
 		"""Import the report and run it: an import that fails is reported like any other failure."""
-		importlib.import_module(module).lambda_handler(**json.loads(argv[1]))
+		importlib.import_module(module).run(**json.loads(argv[1]))
 		return True
 	return 0 if delivery.guarded(module.rsplit('.', 1)[-1] + '.py', run, exit=False) else REPORTED
 

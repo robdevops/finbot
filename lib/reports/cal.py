@@ -15,8 +15,10 @@ def primary_listings():
 
 EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'), 'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
 
-def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, interactive=False, event='earnings'):
-	"""Earnings or ex-dividend dates ahead (`event`) for tracked stocks or one; Telegram pins scheduled earnings."""
+def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
+	"""Post the earnings or ex-dividend dates ahead (`event`) for the tracked stocks or one: to the chat that asked
+	(dest), else to the default chats. An earnings report on all the tracked stocks is pinned where the network can."""
+	interactive = dest is not None
 	if days is None:
 		days = config.prefs.future_days
 	field, heading = EVENTS[event]
@@ -68,14 +70,13 @@ def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, i
 	else: # ex-dividend dates are in Yahoo's details
 		market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
 
-	for dest in delivery.destinations(interactive, service, chat_id):
-		service = dest.dialect
-		answers = delivery.deliver(dest, delivery.Report(prepare_payload(service, market_data)))
-		if event == 'earnings' and not specific_stock and hasattr(dest, 'pin'):
-			dest.pin(answers) # the earnings report stays on top, where the network can pin
+	for chat in delivery.targets(dest):
+		answers = delivery.deliver(chat, delivery.Report(prepare_payload(chat.dialect, market_data)))
+		if event == 'earnings' and not specific_stock and hasattr(chat, 'pin'):
+			chat.pin(answers) # the earnings report stays on top, where the network can pin
 
 def job(argv):
-	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
+	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case ['earnings' | 'ex-dividend' as event]:
 			return f'cal.py {event}', {'event': event}

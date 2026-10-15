@@ -193,7 +193,7 @@ class CleanupJob(FinbotCase):
 			os.utime(path, (stamp, stamp))
 		os.mkdir(os.path.join(folder, 'finbot_dir'))
 		os.utime(os.path.join(folder, 'finbot_dir'), (old, old))
-		self.assertEqual(cleanup.lambda_handler(30), 2)
+		self.assertEqual(cleanup.run(days=30), 2)
 		self.assertEqual(sorted(os.listdir(folder)), ['finbot_dir', 'finbot_new.json', 'other_old.json'])
 
 	def test_a_temp_file_being_written_is_left_alone(self):
@@ -205,14 +205,14 @@ class CleanupJob(FinbotCase):
 		for name, stamp in (('finbot_a.json.x1.tmp', time.time() - 5), ('finbot_b.json.x2.tmp', time.time() - 40 * 86400)):
 			Path(folder, name).write_text('x')
 			os.utime(Path(folder, name), (stamp, stamp))
-		self.assertEqual(cleanup.lambda_handler(0), 1) # a flush: the stale one goes, the write in flight stays
+		self.assertEqual(cleanup.run(days=0), 1) # a flush: the stale one goes, the write in flight stays
 		self.assertEqual(os.listdir(folder), ['finbot_a.json.x1.tmp'])
 
 	def test_missing_cache_dir_is_fine(self):
 		"""No cache dir: nothing to delete, no error."""
 		self.env(cache_dir='/nonexistent/finbot-cache')
 
-		self.assertEqual(cleanup.lambda_handler(30), 0)
+		self.assertEqual(cleanup.run(days=30), 0)
 
 
 class SchedulerFlag(unittest.TestCase):
@@ -243,8 +243,8 @@ class SchedulerBase(FinbotCase):
 		self.file.write_text('*/20 * * * Mon-Fri trades.py\n')
 		self.clock = Clock(at(13, 21, 3))
 		self.ran = []
-		self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', lambda **k: self.ran.append(('trades', k)))
-		self.patch(jobs.SCRIPTS['shorts'], 'lambda_handler', lambda **k: self.ran.append(('shorts', k)))
+		self.patch(jobs.SCRIPTS['trades'], 'run', lambda **k: self.ran.append(('trades', k)))
+		self.patch(jobs.SCRIPTS['shorts'], 'run', lambda **k: self.ran.append(('shorts', k)))
 
 	def scheduler(self, catchup=5):
 		"""A loaded scheduler on the fake clock that runs commands in this process, at once."""
@@ -333,7 +333,7 @@ class SchedulerTests(SchedulerBase):
 		def boom(**k):
 			"""Fail."""
 			raise RuntimeError('boom')
-		self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', boom)
+		self.patch(jobs.SCRIPTS['trades'], 'run', boom)
 		s = self.scheduler()
 		s.run_job(s.jobs[0], at(13, 21, 20))
 		self.assertEqual(self.ran, [('shorts', {})])
@@ -344,7 +344,7 @@ class SchedulerTests(SchedulerBase):
 		def quit_(**k):
 			"""Exit, as a script calling sys.exit would."""
 			raise SystemExit(3)
-		self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', quit_)
+		self.patch(jobs.SCRIPTS['trades'], 'run', quit_)
 		s = self.scheduler()
 		s.run_job(s.jobs[0], at(13, 21, 20))
 		self.assertEqual(len(self.errors), 1)
@@ -353,7 +353,7 @@ class SchedulerTests(SchedulerBase):
 	def test_a_job_that_hangs_is_abandoned_and_reported(self):
 		"""A job that runs past the timeout is abandoned and reported."""
 		self.patch(jobs, 'JOB_TIMEOUT', 0.05)
-		self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', lambda **k: gevent.sleep(5))
+		self.patch(jobs.SCRIPTS['trades'], 'run', lambda **k: gevent.sleep(5))
 		s = self.scheduler()
 		s.run_job(s.jobs[0], at(13, 21, 20))
 		self.assertTrue(any('still running' in e for e in self.errors))
@@ -487,7 +487,7 @@ class ManualRuns(SchedulerBase):
 							 '0 2 * * * cleanup.py\n1 * * * * podcasts.py "https://example.com/feed"\n')
 		self.s = self.scheduler()
 		self.patch(jobs, 'current', self.s)
-		self.patch(jobs.SCRIPTS['price'], 'lambda_handler', lambda **k: self.ran.append(('price', k)))
+		self.patch(jobs.SCRIPTS['price'], 'run', lambda **k: self.ran.append(('price', k)))
 
 	def test_commands_are_unique_clean_and_in_order(self):
 		"""The commands offered are each once, without redirects, sorted by name with numbers in numeric order."""
@@ -525,7 +525,7 @@ class ManualRuns(SchedulerBase):
 		def boom(**k):
 			"""Fail."""
 			raise RuntimeError('boom')
-		self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', boom)
+		self.patch(jobs.SCRIPTS['trades'], 'run', boom)
 		self.assertEqual(self.s.run_now('8'), ('trades.py', 'failed'))
 		self.assertTrue(any('boom' in e for e in self.errors))
 		self.assertEqual(self.s.busy, set())
@@ -539,7 +539,7 @@ class ManualRuns(SchedulerBase):
 	def test_run_now_times_out(self):
 		"""A manual run past the timeout says so."""
 		self.patch(jobs, 'JOB_TIMEOUT', 0.05)
-		self.patch(jobs.SCRIPTS['trades'], 'lambda_handler', lambda **k: gevent.sleep(5))
+		self.patch(jobs.SCRIPTS['trades'], 'run', lambda **k: gevent.sleep(5))
 		self.assertEqual(self.s.run_now('8'), ('trades.py', 'timed out'))
 		self.assertEqual(self.s.busy, set())
 
@@ -693,7 +693,8 @@ class ChildProcess(FinbotCase):
 	def test_a_job_process_survives_a_reload_signal(self):
 		"""A job process ignores SIGHUP, which systemctl kill -s HUP sends to every process of the unit."""
 		with tempfile.TemporaryDirectory() as scripts, tempfile.TemporaryDirectory() as data:
-			Path(scripts, 'sleeper.py').write_text('import time\ndef lambda_handler():\n    print("started", flush=True)\n    time.sleep(1)\n')
+			Path(scripts, 'sleeper.py').write_text(
+				'import time\ndef run():\n    print("started", flush=True)\n    time.sleep(1)\n')
 			env = {**os.environ, 'PYTHONPATH': scripts, 'DATA_DIR': data, 'telegramBotToken': '', 'slack_webhook': '', 'discord_webhook': ''}
 			proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', 'sleeper', '{}'], cwd=ROOT, env=env, stdout=subprocess.PIPE, text=True)
 			self.addCleanup(proc.kill)

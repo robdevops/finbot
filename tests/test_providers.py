@@ -676,7 +676,7 @@ class ChartDelivery(FinbotCase):
 			sent.append((dest.name, 'chart')) or {'ok': True})
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None:
 			sent.append((dest.name, 'text')) or [])
-		for report in (price.lambda_handler, lambda: performance.lambda_handler(past_days=7), shorts.lambda_handler):
+		for report in (price.run, lambda: performance.run(past_days=7), shorts.run):
 			with self.subTest(report=report):
 				sent.clear()
 				report()
@@ -763,7 +763,7 @@ class DiscordWebhook(FinbotCase):
 
 	def test_a_scheduled_report_carries_its_chart(self):
 		"""A scheduled Discord report has its chart attached and the report as its message, within 2,000 characters."""
-		price.lambda_handler()
+		price.run()
 		(url, kwargs), = self.posts
 		self.assertEqual(url, self.URL + '?wait=true')
 		payload = json.loads(kwargs['data']['payload_json'])

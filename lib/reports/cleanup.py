@@ -2,7 +2,7 @@
 import os, sys, time
 from lib import config
 
-def lambda_handler(days=30):
+def run(*, days=30):
 	"""Delete the cache files (finbot_*) that were last written more than `days` days ago (days=0: all of them, a flush), but not
 	a temp file written in the last minute: that is an atomic write in flight (cache.write_file)."""
 	now = time.time()
@@ -24,7 +24,7 @@ def lambda_handler(days=30):
 	return removed
 
 def job(argv):
-	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
+	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case []:
 			return 'cleanup.py', {}

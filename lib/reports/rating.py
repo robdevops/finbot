@@ -6,8 +6,10 @@ from lib import markets
 from lib import watchlist
 from lib import yahoo
 
-def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=False):
-	"""Analysts' consensus ratings that changed since the last scheduled run, which records the ratings it saw."""
+def run(dest=None, *, specific_stock=None):
+	"""Post the analysts' consensus ratings that changed since the last scheduled run, which records the ratings it saw:
+	to the chat that asked (dest), else to the default chats."""
+	interactive = dest is not None
 	def prepare_rating_payload(service, market_data):
 		"""(the report in one network's markup, the ratings seen this run)."""
 		def get_emoji(old, new):
@@ -60,10 +62,9 @@ def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=
 	old = state.load('finbot_rating.json', {})
 	market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
 
-	for dest in delivery.destinations(interactive, service, chat_id):
-		service = dest.dialect
-		payload, new = prepare_rating_payload(service, market_data)
-		delivery.deliver(dest, delivery.Report(payload))
+	for chat in delivery.targets(dest):
+		payload, new = prepare_rating_payload(chat.dialect, market_data)
+		delivery.deliver(chat, delivery.Report(payload))
 
 	if new and not interactive: # added to what is recorded: a ticker missing from this run keeps its last rating
 		with state.edit('finbot_rating.json', {}) as ratings:

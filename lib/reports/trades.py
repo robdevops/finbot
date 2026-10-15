@@ -12,9 +12,11 @@ from lib import links
 from lib import markets
 from lib import yahoo
 
-def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_select=None, interactive=False):
-	"""The buys and sells of the past `days`, in every portfolio or the one named: on a scheduled run only those not reported
-	before. Raises sharesight.PortfolioNotFound for a name that is none of them."""
+def run(dest=None, *, days=None, user='', portfolio_select=None):
+	"""Post the buys and sells of the past `days`, in every portfolio or the one named: to the chat that asked (dest),
+	else, only those not reported before, to the default chats. Raises sharesight.PortfolioNotFound for a name that is
+	none of them."""
+	interactive = dest is not None
 	if days is None:
 		days = config.prefs.past_days
 	state_file = "finbot_sharesight_trades.json"
@@ -94,12 +96,11 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 	known_trades = set(state.load(state_file, []))
 	trades = [trade for portfolio in sharesight.portfolios(portfolio_select) for trade in portfolio.trades(days)]
 
-	for dest in delivery.destinations(interactive, service, chat_id):
-		service = dest.dialect
-		payload = prepare_trade_payload(service, trades)
+	for chat in delivery.targets(dest):
+		payload = prepare_trade_payload(chat.dialect, trades)
 		if interactive and not payload: # no trades, or none of them a buy or a sell
 			payload = [f"{user} No trades {formats.days_english(days, 'in the past ')}. {random.choice(words.noTradesVerb)}"]
-		delivery.deliver(dest, delivery.Report(payload))
+		delivery.deliver(chat, delivery.Report(payload))
 
 	if newtrades and not interactive:
 		with state.edit(state_file, []) as known:

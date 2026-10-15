@@ -12,12 +12,12 @@ FLAGS = {'AU': '🇦🇺'} # what {flag} becomes in an entry gated to a country
 LINK = re.compile(r'\[([^\]]+)\]\(([^)\s]+)\)') # [text](url)
 
 
-def lambda_handler():
-	"""Post today's reminders to the default chats, if there are any."""
+def run(dest=None):
+	"""Post today's reminders to the default chats (or dest), if there are any."""
 	today = datetime.datetime.now(zoneinfo.ZoneInfo(config.prefs.timezone)).date()
 	entries = config.data_json("reminder.json", [])
-	for dest in delivery.default_chats():
-		delivery.deliver(dest, delivery.Report(report(dest.dialect, today, entries)))
+	for chat in delivery.targets(dest):
+		delivery.deliver(chat, delivery.Report(report(chat.dialect, today, entries)))
 
 
 def report(service, today, entries):

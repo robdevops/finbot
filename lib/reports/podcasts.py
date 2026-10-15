@@ -83,8 +83,9 @@ def fetch_new_episodes(feed_url, seen):
 	episodes.sort(key=lambda episode: episode["published"], reverse=True)
 	return episodes[:NEWEST], guids
 
-def lambda_handler(feed_url):
-	"""Post the feed's newest episodes not posted before, then record every new one as seen."""
+def run(dest=None, *, feed_url):
+	"""Post the feed's newest episodes not posted before to the default chats (or dest), then record every new one as
+	seen."""
 	seen_file = get_seen_filename(feed_url)
 	seen = set(state.load(seen_file, []))
 	try:
@@ -93,20 +94,20 @@ def lambda_handler(feed_url):
 		raise RuntimeError(f"fetching feed {feed_url}: {e}")
 	if not guids:
 		return
-	for dest in delivery.default_chats():
-		service = dest.dialect
+	for chat in delivery.targets(dest):
+		service = chat.dialect
 		payload = []
 		for episode in episodes:
 			podcast_name = episode['podcast']
 			title = episode['title'].removeprefix(podcast_name).lstrip(string.punctuation + " ")
 			duration = f" {episode['duration']}" if episode['duration'] else ""
 			payload.append(f"📣 {podcast_name}: {service.link(episode['url'], title)}{duration} ({episode['ago']})")
-		delivery.deliver(dest, delivery.Report(payload))
+		delivery.deliver(chat, delivery.Report(payload))
 	with state.edit(seen_file, []) as recorded: # last, so that a failure above leaves these episodes for next run
 		recorded[:] = sorted(guids.union(recorded))
 
 def job(argv):
-	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
+	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case [feed_url]:
 			return 'podcasts.py ' + hashlib.md5(feed_url.encode()).hexdigest()[:8], {'feed_url': feed_url} # the label matches the seen file's name

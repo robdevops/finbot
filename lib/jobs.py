@@ -71,7 +71,7 @@ def exit_reason(status):
 
 def run_in_process(label, module, kwargs):
 	"""The runner for tests: call the handler here instead of in a child process."""
-	module.lambda_handler(**kwargs)
+	module.run(**kwargs)
 	return 0
 
 
