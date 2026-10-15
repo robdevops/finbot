@@ -4,6 +4,7 @@ import sys
 import threading
 import time
 import requests
+from lib import answer
 from lib import config
 from lib import cache
 from lib import net
@@ -94,12 +95,11 @@ def get_portfolios(refresh=False):
 		raise RuntimeError("No Sharesight portfolios found")
 	return portfolio_dict
 
-class PortfolioNotFound(LookupError):
-	"""No portfolio is called what was asked for. `lines` is the answer to give: the name, and the portfolios there are."""
+class PortfolioNotFound(answer.Answer, LookupError):
+	"""No portfolio is called what was asked for: the answer names it, and the portfolios there are."""
 	def __init__(self, name, names):
 		"""name: what was asked for; names: the portfolios there are."""
-		self.lines = [f"{name} portfolio not found. I only know about:"] + list(names)
-		super().__init__(' '.join(self.lines))
+		super().__init__(f"{name} portfolio not found. I only know about:", *names)
 
 @dataclasses.dataclass(frozen=True)
 class Portfolio:

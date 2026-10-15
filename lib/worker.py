@@ -6,6 +6,7 @@ import random
 import re
 import sys
 import threading
+from lib import answer
 from lib import config
 from lib import dialects
 from lib import state
@@ -17,7 +18,6 @@ from lib import buttons
 from lib import charts
 from lib.reports import about, cal, history, holdings, performance, price, profile, rankings, shorts, trades
 from lib import telegram
-from lib import sharesight
 from lib import jobs
 
 class TypingIndicator:
@@ -112,6 +112,8 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 		caption, image = charts.build(kind, tickers, period, service)
 		chat = delivery.reply_to(service, chat_id)
 		chat.edit_chart(message_id, image, caption, buttons.keyboard(kind, tickers, period))
+	except answer.Answer as e: # nothing to draw for that period: said in the chat, as a command would
+		delivery.deliver(delivery.reply_to(service, chat_id), delivery.Report(e.lines))
 	except Exception as e:
 		delivery.report_error(e, service, chat_id, context='chart')
 
@@ -126,7 +128,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
 				request.typing.start()
 				handler(request, m)
 				break
-	except sharesight.PortfolioNotFound as e: # a name the user got wrong: an answer, not an error
+	except answer.Answer as e: # a portfolio name the user got wrong, a ticker with no prices: an answer, not an error
 		request.reply(e.lines)
 	except Exception as e:
 		request.typing.stop() # before the error line

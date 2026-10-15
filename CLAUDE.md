@@ -66,6 +66,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - A report is a list of lines. `service` is a dialect (`lib/dialects.py`), which equals the network's name: markup with
   `service.bold(text)`, `.italic`, `.strike`, `.link(url, text)`, user-written text through `service.escape(text)`, stock links
   through `links.finance_link(symbol, exchange, service)`. Tests pass `TELEGRAM`, `SLACK`, `DISCORD`.
+- A command that cannot give what was asked (no such portfolio, no prices) raises `answer.Answer(*lines)`, which the chat
+  gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report.
 - Every function and method has a docstring, tests included (a test checks): one line where it fits, reworded rather
   than spilling a few words onto a second. Tabs everywhere (`.editorconfig`). New and changed lines stay within 120
   columns, tabs counting 4 (an edit quotes whole lines).

@@ -12,18 +12,11 @@ COMMANDS = ('.price', '.price 7d', '.price top', '.session', '.premarket', '.per
 class UpstreamEmpty(FinbotCase):
 	"""Yahoo answers, but with nothing usable. Every command must reply sanely and never crash."""
 
-	ONE_LINE_ERROR = ('.history T1', '.compare T1 T2') # these say so with a single error line when the ticker has no data
-
 	def run_all(self):
-		"""Run every command in COMMANDS: none may crash, and .history and .compare may say so in one error line."""
+		"""Run every command in COMMANDS: each answers (one without data says so, as a reply), and none crashes."""
 		for cmd in COMMANDS:
 			with self.subTest(cmd=cmd):
-				if cmd in self.ONE_LINE_ERROR:
-					self.sent.clear(); self.errors.clear()
-					worker.process_request('telegram', '55', '@u', cmd, BOT, 'U')
-					self.assertLessEqual(len(self.errors), 1, cmd)
-				else:
-					self.command(cmd)
+				self.assertTrue(self.command(cmd), cmd)
 
 	def test_yahoo_returns_empty_dict(self):
 		"""Yahoo answers with no data at all: every command still replies sanely."""
@@ -128,15 +121,20 @@ class BadArguments(FinbotCase):
 			with self.subTest(cmd=cmd):
 				self.assertIn('Usage', str(self.command(cmd)))
 
-	def test_compare_with_a_ticker_that_has_no_history(self):
-		""".compare with a ticker that has no history reports one error line."""
-		def no_history(t):
+	def test_no_data_is_an_answer_not_an_error(self):
+		""".compare or .history of a ticker without prices, and a period button with nothing to draw, say so in a plain
+		reply: no error line."""
+		def no_history(t, *a, **k):
 			"""Fail like Yahoo for a ticker with no price history."""
-			raise RuntimeError(f'no price history for {t}')
+			raise yahoo.NoData(f'no price history for {t}')
 		self.patch(yahoo, 'price_series', no_history)
-		self.sent.clear(); self.errors.clear()
-		worker.process_request('telegram', '55', '@u', '.compare T1 T2', BOT, 'U')
-		self.assertEqual(len(self.errors), 1)
+		self.patch(yahoo, 'price_history', no_history)
+		self.assertEqual(self.command('.compare T1 T2'), [('text', ['no price history for T1'])])
+		self.assertEqual(self.command('.history T1'), [('text', ['no price history for T1'])])
+		self.sent.clear()
+		self.patch(telegram, 'answerCallbackQuery', lambda *a, **k: None)
+		worker.process_callback('telegram', 'cb', '55', '9', 'c|h|m|T1')
+		self.assertEqual((self.sent, self.errors), ([('text', ['no price history for T1'])], []))
 
 	def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
 		""".history with no ticker or an extra argument gets its usage, not the profile of a ticker called HISTORY."""

@@ -6,6 +6,7 @@ import requests
 import threading
 import zoneinfo
 import sys
+from lib import answer
 from lib import config
 from lib import cache
 from lib import net
@@ -306,9 +307,13 @@ def fetch_detail(ticker, seconds=None):
 		detail['insiderSell'], detail['insiderSellValue'] = totals['Sale']
 	return {ticker: dict(sorted(detail.items()))}
 
+class NoData(answer.Answer, RuntimeError):
+	"""Yahoo has nothing for it (no such symbol, no prices): a reply in a chat, a RuntimeError where a list skips it."""
+
+
 def price_history(ticker, days=None, seconds=None, graph=None, graphCache=True):
 	"""({period: percent change}, chart image or None): the change over `days`, else over each standard period. Raises
-	RuntimeError when the history cannot be fetched or has no prices."""
+	NoData when there are no prices, RuntimeError when the history cannot be fetched."""
 	if graph is None:
 		graph = config.prefs.graph
 	if seconds is None:
@@ -324,13 +329,13 @@ def price_history(ticker, days=None, seconds=None, graph=None, graphCache=True):
 	stock = chart_json_to_stock_basics(data)
 	closes = df['Close'].dropna()
 	if closes.empty:
-		raise RuntimeError(f"no price history for {ticker}")
+		raise NoData(f"no price history for {ticker}")
 	price = stock.get('regularMarketPrice') or closes.iloc[-1] # the chart's last close when Yahoo gives no current price
 	tz = zoneinfo.ZoneInfo(stock.get('exchangeTimezoneName') or 'UTC')
 	if days:
 		df = df[df['Date'] >= (now - datetime.timedelta(days=days)).date()].reset_index(drop=True)
 		if df.empty:
-			raise RuntimeError(f"no price history for {ticker} in the past {days} days")
+			raise NoData(f"no price history for {ticker} in the past {days} days")
 		past_price = df['Close'].iloc[0]
 		percent_dict[days] = round((price - past_price) / past_price * 100, 2)
 	else:
@@ -376,14 +381,14 @@ def price_history(ticker, days=None, seconds=None, graph=None, graphCache=True):
 
 def price_series(ticker):
 	"""Daily closes for a ticker via the same fetch/parse path as price_history(): (name, exchange, pandas Series indexed by datetime).
-	Raises RuntimeError when there is no history."""
+	Raises NoData when there is no history."""
 	import pandas as pd
 	data = fetch_chart_json(ticker, full=True)
 	df = chart_json_to_df(data)
 	stock = chart_json_to_stock_basics(data)
 	df = df[df['Close'].notnull()]
 	if df.empty:
-		raise RuntimeError(f"no price history for {ticker}")
+		raise NoData(f"no price history for {ticker}")
 	series = pd.Series(df['Close'].astype(float).values, index=pd.to_datetime(df['Date'].astype(str)), name=ticker)
 	name = formats.transform_title(stock.get('longName') or stock.get('shortName') or ticker)
 	return name, stock.get('fullExchangeName') or stock.get('exchangeName') or '', series
@@ -450,8 +455,8 @@ def prefetch_history(tickers, workers=8):
 			print("prefetch failed for", ticker, result, file=sys.stderr)
 
 def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
-	"""Yahoo's daily chart for the last `days`, or with full=True its entire history (cached separately). Raises RuntimeError when
-	Yahoo cannot be reached or refuses."""
+	"""Yahoo's daily chart for the last `days`, or with full=True its entire history (cached separately). Raises NoData
+	for a symbol Yahoo does not know, RuntimeError when Yahoo cannot be reached or refuses."""
 	if seconds is None:
 		seconds = config.prefs.cache_seconds
 	now = datetime.datetime.now()
@@ -466,12 +471,21 @@ def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
 		r = net.get(url, headers={**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie}, timeout=config.prefs.http_timeout)
 	except Exception as e:
 		raise RuntimeError(f"Yahoo unreachable for {ticker}: {net.redact(e)}") from e
+	if r.status_code == 404 and not_found(r):
+		raise NoData(f"no price history for {ticker}")
 	if r.status_code != 200:
 		raise RuntimeError(f"{r.status_code} error for {ticker} from Yahoo's chart API")
 	data = r.json()
 	if config.prefs.cache:
 		cache.write(cacheFile, data)
 	return data
+
+def not_found(response):
+	"""Whether a chart API answer is Yahoo saying it has no such symbol, rather than some other 404."""
+	try:
+		return dig(response.json(), 'chart', 'error', 'code') == 'Not Found'
+	except ValueError:
+		return False
 
 def chart_json_to_df(chart_json):
 	"""The chart's daily bars as a DataFrame: Timestamp, Open, High, Low, Close, Volume and the Date."""
@@ -488,12 +502,12 @@ def chart_json_to_stock_basics(chart_json):
 	return dig(chart_json, 'chart', 'result', 0, 'meta') or {}
 
 def historic_high(ticker):
-	"""(highest high, lowest low) of the ticker's history. Raises RuntimeError when it has none (e.g. total-return indices such
-	as ^SPTTGD carry no High/Low data)."""
+	"""(highest high, lowest low) of the ticker's history. Raises NoData when it has none (e.g. total-return indices
+	such as ^SPTTGD carry no High/Low data)."""
 	df = chart_json_to_df(fetch_chart_json(ticker))
 	df = df[df.High.notnull()].iloc[1:].reset_index(drop=True)
 	if df.empty:
-		raise RuntimeError(f"no high/low history for {ticker}")
+		raise NoData(f"no high/low history for {ticker}")
 	highrow = df.iloc[df['High'].argmax()]
 	lowrow = df.iloc[df['Low'].argmin()]
 	if config.prefs.debug:

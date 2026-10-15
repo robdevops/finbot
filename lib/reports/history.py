@@ -1,6 +1,7 @@
 """Price history: .history (one stock over every period) and .compare (two to six stocks, rebased)."""
 import hashlib
 import datetime
+from lib import answer
 from lib import config
 from lib import cache
 from lib import formats
@@ -64,7 +65,7 @@ def prepare_compare(service, args):
 		series = pd.concat([pd.Series([base_value], index=[start]), series[series.index > start]])
 		cropped.append((ticker, series))
 	if any(len(series) < 2 for _, series in cropped):
-		raise RuntimeError("not enough price history in that period to compare")
+		raise answer.Answer("not enough price history in that period to compare")
 	span_days = (datetime.datetime.now().date() - start.date()).days
 	period_label = formats.days_english(period_days) if period_days and not note else f"{span_days} days"
 	by_performance = sorted(cropped, key=lambda item: item[1].iloc[-1] / item[1].iloc[0], reverse=True)

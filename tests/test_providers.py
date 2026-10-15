@@ -194,6 +194,19 @@ class YahooChart(ProviderCase):
 		self.assertEqual(table['1D'], -3)
 		self.assertGreater(table['5D'], 10) # the week, not the day
 
+	def test_a_symbol_yahoo_does_not_know_is_no_data(self):
+		"""Yahoo's 404 for a symbol it does not know is NoData, an answer; any other 404 is an error, not an answer."""
+		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
+		unknown = {'chart': {'result': None, 'error': {'code': 'Not Found', 'description': 'No data found'}}}
+		self.http(yahoo, Resp(unknown, status=404))
+		with self.assertRaises(yahoo.NoData) as caught:
+			yahoo.price_history('XYZ', 7, graph=False)
+		self.assertEqual(caught.exception.lines, ['no price history for XYZ'])
+		self.http(yahoo, Resp(status=404)) # an endpoint that moved, say
+		with self.assertRaises(RuntimeError) as caught:
+			yahoo.price_history('XYZ', 7, graph=False)
+		self.assertNotIsInstance(caught.exception, answer.Answer)
+
 	def test_a_failed_chart_fetch_raises(self):
 		"""A chart refused (429) or unreachable is a RuntimeError, which callers turn into leaving the ticker out."""
 		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
