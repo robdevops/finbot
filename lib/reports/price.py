@@ -172,9 +172,9 @@ def nothing(mode, threshold, user, ticker, in_session, days=None):
 	return f"{user}, no price movements meet threshold {threshold:g}%"
 
 def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user='', specific_stock=None):
-	"""Post the price report (report() has the modes): to the chat that asked (dest), else to the default chats, with
-	its chart and period buttons where they can go."""
-	interactive = dest is not None
+	"""Post the price report (report() has the modes): to the chat that asked or whose job it is (dest), else to the
+	home chats, with its chart and period buttons where they can go."""
+	interactive = delivery.interactive(dest)
 	if threshold is None:
 		threshold = config.prefs.price_percent
 	found = moves(mode, threshold, days, specific_stock, interactive)

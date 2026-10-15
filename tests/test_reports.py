@@ -345,6 +345,23 @@ class ScheduledReports(FinbotCase):
 		cal.run(event='earnings')
 		self.assertEqual(pins, ['1'])
 
+	def test_a_chats_job_runs_its_report_as_scheduled_not_as_a_command(self):
+		"""A report a chat's job runs is a scheduled run, as the home chats' is: it says nothing when nothing passes,
+		where a command's reply says so, and the earnings report is pinned. price, shorts and cal took any chat they
+		were given for a command."""
+		pins = []
+		self.patch(transports.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
+		job_chat = delivery.chat('telegram:5', scheduled=True)
+		for module, kwargs in ((price, {'mode': 'premarket', 'threshold': 1000}), (shorts, {'threshold': 1000})):
+			with self.subTest(report=module.__name__):
+				self.sent.clear()
+				module.run(job_chat, **kwargs)
+				self.assertEqual(self.sent, [])
+				module.run(transports.TelegramBot('5'), **kwargs) # a command's reply says that nothing passed
+				self.assertTrue(self.sent)
+		cal.run(job_chat, event='earnings')
+		self.assertEqual(pins, ['5'])
+
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
 		"""T1 has no earnings date, so its primary listing is looked up: Yahoo not knowing it crashed the report."""
 		self.patch(cal, 'primary_listings', lambda: {'T1': 'T1.XX'})

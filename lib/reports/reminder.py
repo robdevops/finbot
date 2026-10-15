@@ -13,7 +13,7 @@ LINK = re.compile(r'\[([^\]]+)\]\(([^)\s]+)\)') # [text](url)
 
 
 def run(dest=None):
-	"""Post today's reminders to the default chats (or dest), if there are any."""
+	"""Post today's reminders, if there are any, to the chat whose job it is (dest), else to the home chats."""
 	today = datetime.datetime.now(zoneinfo.ZoneInfo(config.prefs.timezone)).date()
 	entries = config.data_json("reminder.json", [])
 	for chat in delivery.targets(dest):

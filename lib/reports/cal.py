@@ -18,9 +18,9 @@ EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'),
 
 def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
 	"""Post the earnings or ex-dividend dates ahead (`event`) for the tracked stocks or one (Yahoo's symbol): to the
-	chat that asked (dest), else to the default chats. The scheduled earnings report is pinned where the network can; a
-	reply is not, or the chat would collect pinned copies."""
-	interactive = dest is not None
+	chat that asked or whose job it is (dest), else to the home chats. The scheduled earnings report is pinned where the
+	network can; a reply is not, or the chat would collect pinned copies."""
+	interactive = delivery.interactive(dest)
 	if days is None:
 		days = config.prefs.future_days
 	events = gather(watchlist.covered(specific_stock), days, specific_stock, event)
