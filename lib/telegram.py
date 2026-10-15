@@ -5,7 +5,7 @@ from lib import net
 
 def call(method, **kwargs):
 	"""POST a Bot API method and return its result. Raises RuntimeError with Telegram's reason when it is not ok."""
-	response = net.post(config.env.webhooks['telegram'] + method, **kwargs)
+	response = net.post(config.env.telegram_api + method, **kwargs)
 	try:
 		output = response.json()
 	except ValueError:

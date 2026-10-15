@@ -243,14 +243,15 @@ class Sending(FinbotCase):
 		self.assertNotIn('s3cret-token', err.getvalue())
 
 	def test_scheduled_reports_go_to_the_channel_with_their_buttons(self):
-		"""With discordChannelID and the bot token, scheduled reports go to that channel as the bot, buttons and all,
-		in place of discord_webhook."""
-		self.env(webhooks={'discord': 'https://discord.com/api/webhooks/1/abc'})
+		"""With discordChannelID and the bot token, scheduled reports go to that channel as the bot, buttons and all;
+		without the token, nowhere on Discord."""
+		self.env(telegramChatID='')
 		chats = delivery.default_chats()
 		self.assertEqual([(type(chat).__name__, chat.where) for chat in chats], [('DiscordBot', '77')])
 		self.assertTrue(chats[0].takes_buttons and chats[0].takes_charts)
 		self.env(discordBotToken='')
-		self.assertEqual([type(chat).__name__ for chat in delivery.default_chats()], ['DiscordWebhook'])
+		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
+			delivery.default_chats()
 
 
 class Commands(FinbotCase):

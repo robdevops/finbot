@@ -275,17 +275,6 @@ class SlackSocketMode(FinbotCase):
 				self.assertEqual(pull.listeners(), [])
 				self.env(slackBotToken='xoxb-1', slackAppToken='xapp-1', slackOutgoingWebhook='')
 
-	def test_slack_buttons_in_both_modes_only(self):
-		"""A Slack chat takes buttons with the bot token and either mode (the webhook or the app-level token), and not
-		with the bot token alone: their presses would reach nobody."""
-		http = {'slackAppToken': '', 'slackOutgoingWebhook': 'https://example.com/slack'}
-		bot_only = {'slackAppToken': ''}
-		for changes, takes in (({}, True), (http, True), (bot_only, False), ({'slackBotToken': ''}, False)):
-			with self.subTest(changes=changes):
-				self.env(**changes)
-				self.assertEqual(transports.SlackBot('C1').takes_buttons, takes)
-				self.env(slackBotToken='xoxb-1', slackAppToken='xapp-1', slackOutgoingWebhook='')
-
 
 class Backoff(unittest.TestCase):
 	"""The wait after failures in a row."""

@@ -60,13 +60,13 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   milestone reminder podcasts cleanup sharesight_warm yahoo_warm`; the top-level `price.py` and the rest are shims that
   run them. Chat-only (`prepare_*`): `about` (.help .jobs), `history` (.history .compare), `holdings` (.holdings .who
   .pie .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
-- `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or the default chats),
-  `deliver(dest, report)`, the one-line error report. `lib/transports.py`: a class per way of posting (`TelegramBot`,
-  `SlackBot`, `DiscordBot`, `SlackWebhook`, `DiscordWebhook`): splitting, captions, charts, buttons, edits, and the
-  typing notice (`start_typing`: after half a second; Slack's ⏳ on the message), which `text()` and `chart()` stop
-  before posting. `DiscordBot`: a slash command's first message replaces its "thinking…" through its `interaction`
-  (application id/token), and a pressed message is edited through the press's. `lib/telegram.py`: Bot API calls
-  (`call`, `try_call`).
+- `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or each network's home chat
+  as its bot), `deliver(dest, report)`, the one-line error report. `lib/transports.py`: a class per network's bot
+  (`TelegramBot`, `SlackBot`, `DiscordBot`), each taking charts and buttons: splitting, captions, charts, buttons,
+  edits, and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the message), which `text()` and
+  `chart()` stop before posting. `DiscordBot`: a slash command's first message replaces its "thinking…" through its
+  `interaction` (application id/token), and a pressed message is edited through the press's. `lib/telegram.py`: Bot API
+  calls (`call`, `try_call`).
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), a `.jobs` command's (`job_button`), what a
   pressed button's data asks for (`parse`), and the toast it gets at once (`toast`); each transport draws them.
   `lib/charts.py`: a chart with period buttons, built by its kind's builder (`build`) for the command's first view

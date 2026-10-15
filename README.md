@@ -27,18 +27,18 @@ What finbot can do on each network. Telegram takes everything; the others take w
 
 | Feature | Telegram | Slack | Discord |
 |---|---|---|---|
-| Chat commands | ✓ | ✓ | ✓ with the bot: slash commands (`/price`), and messages (`.price`) over the gateway |
+| Chat commands | ✓ | ✓ | ✓: slash commands (`/price`), and messages (`.price`) over the gateway |
 | "typing…" while a command works | ✓ | ⏳ on the command's message (Slack has no typing notice for bots) | ✓ for a message; "thinking…" for a slash command |
-| Charts in replies | ✓ | ✓ with `slackBotToken` | ✓ |
-| Charts in scheduled reports | ✓ | ✓ with `slackChannelID` and `slackBotToken` (the incoming webhook takes text only) | ✓ |
-| Period and job buttons | ✓ | Period buttons, with the interactive bot | ✓ with the bot |
+| Charts in replies | ✓ | ✓ | ✓ |
+| Charts in scheduled reports | ✓ | ✓ | ✓ |
+| Period and job buttons | ✓ | ✓ | ✓ |
 | No link previews | ✓ | ✓ | ✓ |
 | Linked tickers | ✓ | ✓ | ✓ |
 | Charts updated in place by their buttons | ✓ | ✓ | ✓ |
 
 **Setting up a network:** [Telegram](doc/telegram.md) · [Slack](doc/slack.md) · [Discord](doc/discord.md). Each guide
-covers the whole setup of that network, and where there is a choice between reports only and the interactive bot, it
-compares the two before the steps.
+covers the whole setup of that network's bot, and compares its two modes (finbot fetching its updates, or the network
+posting them to your HTTPS server) before the steps.
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
@@ -473,19 +473,17 @@ of the chat network keys it needs.
 | `sharesight_code` | | Sharesight API access |
 | `sharesight_client_id` | | Sharesight API access |
 | `sharesight_client_secret` | | Sharesight API access |
-| `slack_webhook` | | Slack incoming webhook, for outbound reports |
-| `discord_webhook` | | Discord webhook, for outbound reports (not used with `discordBotToken` and `discordChannelID`) |
 | `telegramBotToken` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `telegramOutgoingWebhook` is set) |
 | `slackBotToken` | | Slack bot token, for replies and chart uploads in Slack |
 | `slackAppToken` | | Slack app-level token (`xapp-`): commands over a socket finbot opens to Slack (Socket Mode), when `slackOutgoingWebhook` is empty |
-| `slackChannelID` | | Channel id that scheduled reports go to on Slack as the bot, charts and all (with `slackBotToken`); `slack_webhook` is then not used |
+| `slackChannelID` | | Channel id that scheduled reports go to on Slack as the bot, charts and all (with `slackBotToken`) |
 | `telegramOutgoingWebhook` | | The URL Telegram posts its updates to (HTTP mode); empty, finbot fetches them (pull mode) |
 | `telegramOutgoingToken` | | Secret token Telegram must present (HTTP mode) |
 | `slackOutgoingWebhook` | | The URL Slack posts its events and button presses to (HTTP mode); empty, Socket Mode with `slackAppToken` |
 | `slackOutgoingToken` | | Token Slack must present (HTTP mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
 | `slackSigningSecret` | | Secret Slack signs each request with (HTTP mode) |
 | `discordBotToken` | | Discord bot token: replies, and commands over the gateway unless `discordOutgoingWebhook` is set |
-| `discordChannelID` | | Channel id that scheduled reports go to on Discord as the bot, charts and buttons and all (with `discordBotToken`); `discord_webhook` is then not used |
+| `discordChannelID` | | Channel id that scheduled reports go to on Discord as the bot, charts and buttons and all (with `discordBotToken`) |
 | `discordOutgoingWebhook` | | The Interactions Endpoint URL Discord posts slash commands and button presses to (HTTP mode); empty, the gateway (pull mode) |
 | `discordPublicKey` | | The app's public key, which checks the signature of each interaction (HTTP mode) |
 
@@ -559,8 +557,8 @@ sharesight_client_secret=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e9981
 
 ### Chat networks setup
 Follow the guide for each network you use: [Telegram](doc/telegram.md), [Slack](doc/slack.md) or
-[Discord](doc/discord.md). It covers the bot or webhook, its `finbot.env` keys, and for chat commands the HTTPS server in
-front of finbot.
+[Discord](doc/discord.md). It covers the bot, its `finbot.env` keys, and for HTTP mode the HTTPS server in front of
+finbot.
 
 ### Portfolios
 Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `exclude_portfolios` in the `preferences.conf`:

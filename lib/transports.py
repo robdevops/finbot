@@ -1,7 +1,7 @@
-"""How a message gets to each network: a class per way of posting, made for one destination (a chat, or an incoming
-webhook). A transport knows its dialect, what it can carry (charts, buttons, a typing notice) and the network's size
-limits; text() and chart() are the same everywhere, and each network posts one message its own way (post_text,
-post_chart)."""
+"""How a message gets to each network: a class per network's bot, made for one destination (a chat). A transport knows
+its dialect, what it can carry (charts, buttons, a typing notice) and the network's size limits; text() and chart() are
+the same everywhere, and each network posts one message its own way (post_text, post_chart). Every bot takes buttons:
+whichever way its network's updates arrive, their presses reach finbot."""
 import json
 import sys
 import threading
@@ -17,11 +17,9 @@ from lib import state
 from lib import telegram
 
 MAYBE_SENT = object() # a read timeout on the request that posts a chart: it may have arrived, so no text copy follows
-SUPPRESS_EMBEDS = 4 # Discord message flag: no link previews
 SLACK_CHARTS = 'finbot_slack_charts.json' # Slack's chart messages: the file each shows, and the charts uploaded
 SLACK_CHARTS_KEPT = 500 # chart messages noted, newest last: an older one shows its file for good
 SLACK_REUSE_SECONDS = 15 * 60 # a period pressed within this long of its chart's upload shows that upload again
-NO_MENTIONS = {'parse': []} # Discord: text that looks like @everyone or a mention pings nobody
 
 
 class Transport:
@@ -29,15 +27,15 @@ class Transport:
 	typing notice going while a command works."""
 	name = '' # the network, in logs
 	dialect = None
-	takes_charts = False # a chart, with the report as its caption
-	takes_buttons = False # buttons under a message
-	shows_typing = False # a typing notice while a command works
+	takes_charts = True # a chart, with the report as its caption
+	takes_buttons = True # buttons under a message
+	shows_typing = True # a typing notice while a command works
 	TYPING = (0.5, 7, 10) # the notice: first after 0.5 s (a quick answer gets none), then every 7 s, 10 times at most
 	_notices = None # the thread sending the notices
 	_quiet = None # set to stop them
 
 	def __init__(self, where, message=None, interaction='', pressed=False):
-		"""where: the chat id, or the incoming webhook's URL; message: the id of the message being answered, if any;
+		"""where: the chat id; message: the id of the message being answered, if any;
 		interaction: what the network answers through, where it has one (Discord's application id and token), for a
 		slash command, or for a button press (pressed)."""
 		self.where = where
@@ -127,29 +125,11 @@ class Transport:
 		that: True when it did. Here never: each period is drawn and sent anew."""
 		return False
 
-	def _post_json(self, url, payload, headers=None):
-		"""POST a JSON message: the answer ({} when it is not JSON), or None when the network refused it or failed."""
-		try:
-			r = net.post(url, headers={'Content-type': 'application/json', **(headers or {})}, json=payload)
-		except Exception as e:
-			print("Failure sending to", self.name + ":", net.redact(e), file=sys.stderr)
-			return None
-		if r.status_code != 200:
-			print(r.status_code, "error outbound to", self.name, file=sys.stderr)
-			return None
-		print(r.status_code, "OK outbound to", self.name, file=sys.stderr)
-		try:
-			return r.json()
-		except ValueError:
-			return {}
-
 
 class TelegramBot(Transport):
 	"""A Telegram chat via the Bot API: HTML, silent, no link previews; charts, buttons, edits, the typing notice."""
 	name = 'telegram'
 	dialect = dialects.TELEGRAM
-	takes_charts = shows_typing = True
-	takes_buttons = True # their presses reach finbot either way: posted to telegramOutgoingWebhook, or polled for
 
 	@staticmethod
 	def markup(buttons):
@@ -244,20 +224,9 @@ class SlackBot(Transport):
 	working = None # True while ⏳ is on the message, False when putting it there failed
 
 	@property
-	def takes_charts(self):
-		"""Charts are uploaded with the bot token, so only with one."""
-		return bool(config.env.slackBotToken)
-
-	@property
 	def shows_typing(self):
-		"""⏳ on the message being answered, with the bot token."""
-		return bool(self.message and config.env.slackBotToken)
-
-	@property
-	def takes_buttons(self):
-		"""Buttons only where their presses reach finbot: with the bot token, and the app's interactivity posting to
-		slackOutgoingWebhook (http mode) or sending over the socket (Socket Mode, with slackAppToken)."""
-		return bool(config.env.slackBotToken and (config.env.slackOutgoingWebhook or config.env.slackAppToken))
+		"""⏳ on the message being answered: a scheduled report answers none."""
+		return bool(self.message)
 
 	def typing(self):
 		"""Put ⏳ on the message being answered, once (the bot needs the reactions:write scope); a failure is only
@@ -436,60 +405,12 @@ class SlackBot(Transport):
 			print("Slack chat.update failed:", net.redact(e), file=sys.stderr)
 
 
-class SlackWebhook(Transport):
-	"""A Slack incoming webhook: text only, into the channel it was made for."""
-	name = 'slack'
-	dialect = dialects.SLACK
-
-	def post_text(self, text, buttons=None):
-		"""Post to the webhook, without link previews."""
-		return self._post_json(self.where, {'text': text, 'unfurl_links': False, 'unfurl_media': False})
-
-
-class DiscordWebhook(Transport):
-	"""A Discord webhook's native endpoint (the Slack one takes no flags): no previews, no pings, charts attached."""
-	name = 'discord'
-	dialect = dialects.DISCORD
-	takes_charts = True
-
-	def url(self):
-		"""The webhook URL that answers with the message posted (200) instead of an empty 204."""
-		return self.where + ('&' if '?' in self.where else '?') + 'wait=true'
-
-	def post_text(self, text, buttons=None):
-		"""Post the message."""
-		return self._post_json(self.url(), {'content': text, 'flags': SUPPRESS_EMBEDS, 'allowed_mentions': NO_MENTIONS})
-
-	def post_chart(self, image, caption, buttons=None):
-		"""The chart as an attachment, the report as its message: Discord's answer, MAYBE_SENT, or None if refused."""
-		payload = {'content': caption, 'flags': SUPPRESS_EMBEDS, 'allowed_mentions': NO_MENTIONS,
-			'attachments': [{'id': 0, 'filename': 'chart.png'}]}
-		try:
-			r = net.post(self.url(), data={'payload_json': json.dumps(payload)},
-				files={'files[0]': ('chart.png', image, 'image/png')})
-		except requests.exceptions.ReadTimeout as e:
-			print("Discord chart timed out, it may still arrive:", net.redact(e), file=sys.stderr)
-			return MAYBE_SENT
-		except Exception as e:
-			print("Discord chart failed:", net.redact(e), file=sys.stderr)
-			return None
-		if r.status_code == 200:
-			print(r.status_code, "OK discord chart", file=sys.stderr)
-			try:
-				return r.json() or {}
-			except ValueError:
-				return {}
-		print(r.status_code, "error discord chart", net.redact(r.text[:300]), file=sys.stderr)
-		return None
-
-
 class DiscordBot(Transport):
 	"""A Discord channel or DM, as the bot (discordBotToken): no link previews, no pings, charts attached, buttons as
 	components, edits in place, the typing notice. A slash command's first message replaces Discord's "thinking…" and
 	the rest follow it up, through its interaction; a pressed message is edited through the press's."""
 	name = 'discord'
 	dialect = dialects.DISCORD
-	takes_charts = takes_buttons = True
 
 	def __init__(self, where, message=None, interaction='', pressed=False):
 		"""As Transport; a press has no "thinking…" to replace, so its new messages go into the channel."""

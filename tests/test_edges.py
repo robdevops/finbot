@@ -288,18 +288,20 @@ class SecretsStayOutOfLogs(FinbotCase):
 		return err.getvalue()
 
 	def test_a_failed_send_logs_no_token(self):
-		"""A failed send logs no Telegram token, Slack webhook path or bot token."""
+		"""A failed send logs no Telegram, Slack or Discord token, nor the token of a Discord interaction."""
 		def refuse(url, **kwargs):
 			"""Fail like requests does, the URL and headers in the message."""
 			raise ConnectionError(f"Max retries exceeded with url: {url} (headers {kwargs.get('headers')})")
 		self.patch(transports.net, 'post', refuse)
-		self.env(slackBotToken='xoxb-SECRET', webhooks={'telegram': self.SECRET_URL.split('sendMessage')[0]})
+		self.patch(transports.net, 'request', lambda method, url, **kwargs: refuse(url, **kwargs))
+		token = 'MTAwMDAwMDAwMDAwMDAwMDAwMDA.SECRET.' + 'a' * 38 # a Discord bot token's shape
+		self.env(slackBotToken='xoxb-SECRET', telegram_api=self.SECRET_URL.split('sendMessage')[0],
+			discordBotToken=token)
 		log = self.stderr_of(lambda: transports.TelegramBot('1').post_text('hi'))
 		log += self.stderr_of(lambda: transports.SlackBot('C1').post_text('hi'))
-		hook = transports.SlackWebhook('https://hooks.slack.com/services/T0/B0/SECRETpath')
-		log += self.stderr_of(lambda: hook.post_text('hi'))
-		self.assertIn('Failure sending', log)
-		for secret in ('SECRET-tok_en', 'SECRETpath', 'xoxb-SECRET'):
+		log += self.stderr_of(lambda: transports.DiscordBot('77', interaction='42/SECRET-interaction').post_text('hi'))
+		self.assertIn('failed', log)
+		for secret in ('SECRET-tok_en', 'xoxb-SECRET', 'SECRET-interaction', token):
 			self.assertNotIn(secret, log)
 
 	def test_the_traceback_of_a_reported_error_is_redacted(self):

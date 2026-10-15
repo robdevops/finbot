@@ -119,7 +119,8 @@ class FinbotCase(unittest.TestCase):
 		self.patch(__import__('requests').Session, 'request', mock.Mock(return_value=fake)) # no real network traffic
 		tmp = tempfile.TemporaryDirectory()
 		self.addCleanup(tmp.cleanup)
-		self.env(data_dir=tmp.name, cache_dir=tmp.name, webhooks={'telegram': 'https://api.telegram.org/botX/'})
+		self.env(data_dir=tmp.name, cache_dir=tmp.name, telegramBotToken='X',
+			telegram_api='https://api.telegram.org/botX/')
 		self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
 		self.workers = []
 		self.patch(bot, 'dispatch', lambda event: self.workers.append(REAL_DISPATCH(event)))

@@ -9,7 +9,7 @@ class TelegramWebhook(FinbotCase):
 	def setUp(self):
 		"""A Telegram bot with an outgoing webhook configured."""
 		super().setUp()
-		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/'})
+		self.env(telegram_api='https://api.telegram.org/botX/')
 		self.env(telegramOutgoingWebhook='https://example.com/telegram')
 
 

@@ -16,17 +16,23 @@ from pathlib import Path
 REPO_DIR = Path(__file__).resolve().parent.parent
 
 STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'telegramChatID', 'scheduler', 'scheduler_catchup', 'sharesight_code',
-	'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
-	'slackAppToken', 'slackChannelID', 'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret',
-	'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook', 'discordBotToken', 'discordChannelID',
-	'discordOutgoingWebhook', 'discordPublicKey')
-SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook',
-	'discord_webhook', 'slackBotToken', 'slackAppToken', 'slackOutgoingToken', 'slackOutgoingWebhook',
-	'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook', 'discordBotToken',
-	'discordOutgoingWebhook') # never printed
+	'sharesight_client_id', 'sharesight_client_secret', 'slackBotToken', 'slackAppToken', 'slackChannelID',
+	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
+	'telegramOutgoingWebhook', 'discordBotToken', 'discordChannelID', 'discordOutgoingWebhook', 'discordPublicKey')
+SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slackBotToken', 'slackAppToken',
+	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
+	'telegramOutgoingWebhook', 'discordBotToken', 'discordOutgoingWebhook') # never printed
 PREFERENCES_FILE = 'preferences.conf'
-RETIRED = ('alliterate', 'chunk_maxlines', 'performance_use_sharesight') # preferences.conf keys that do nothing any
-# more: accepted, with a note at start to delete them
+RETIRED = { # keys of either file that do nothing any more: accepted, so that they never stop a start, with a note at
+	# start saying what to do instead
+	'alliterate': 'delete the line',
+	'chunk_maxlines': 'delete the line',
+	'performance_use_sharesight': 'delete the line (price performance comes from Yahoo)',
+	'slack_webhook': 'the scheduled reports go to slackChannelID as the bot (slackBotToken); set those, and delete the'
+		' line',
+	'discord_webhook': 'the scheduled reports go to discordChannelID as the bot (discordBotToken); set those, and'
+		' delete the line',
+}
 # set by the bot for its job processes: the preferences arrive in the environment, do not read the file
 PASSED = 'FINBOT_PREFERENCES_PASSED'
 OLD_ENV = REPO_DIR / '.env' # the single config file of old versions, which python-dotenv loaded; nothing reads it now
@@ -110,8 +116,8 @@ def read_startup_file(path):
 	text = read_text(path)
 	if text is None:
 		raise ConfigError(f'{path} does not exist')
-	values, errors = parse_assignments(text, path,
-		lambda key: key_problem(key, STARTUP_KEYS, PREFERENCE_KEYS, PREFERENCES_FILE))
+	values, errors = parse_assignments(text, path, lambda key: None if key in RETIRED else
+		key_problem(key, STARTUP_KEYS, PREFERENCE_KEYS, PREFERENCES_FILE))
 	if errors:
 		raise ConfigError(errors)
 	return values
@@ -195,7 +201,7 @@ class Env:
 	telegramOutgoingToken: str
 	slackBotToken: str
 	slackAppToken: str # xapp-: Socket Mode, Slack's pull mode (without slackOutgoingWebhook)
-	slackChannelID: str # with slackBotToken, scheduled reports go to this channel as the bot, in place of slack_webhook
+	slackChannelID: str # with slackBotToken, scheduled reports go to this channel as the bot
 	slackOutgoingWebhook: str
 	slackOutgoingToken: str
 	slackSigningSecret: str
@@ -204,7 +210,7 @@ class Env:
 	discordOutgoingWebhook: str # the interactions endpoint URL (http mode); unset, finbot keeps to the gateway
 	discordPublicKey: str # the app's key, which checks the signature of each interaction posted to the endpoint
 	sharesight_auth: dict
-	webhooks: dict # service -> outbound URL: Telegram's Bot API base, the Slack and Discord incoming webhooks
+	telegram_api: str # the Bot API's base URL for telegramBotToken ('' without one): a method's name follows it
 
 	@property
 	def preferences_path(self):
@@ -217,14 +223,7 @@ def startup_values(getenv):
 	r = _Reader(getenv)
 	data_dir = getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or 'var'
 	data_dir = str(REPO_DIR / data_dir) # a relative one is in the checkout, wherever finbot starts
-	hooks = {}
-	if getenv('slack_webhook'):
-		hooks['slack'] = getenv('slack_webhook').rstrip('/')
-	if getenv('discord_webhook'):
-		# the native endpoint, not the Slack-compatible one
-		hooks['discord'] = getenv('discord_webhook').rstrip('/').removesuffix('/slack')
-	if getenv('telegramBotToken'):
-		hooks['telegram'] = 'https://api.telegram.org/bot' + getenv('telegramBotToken').rstrip('/') + '/'
+	token = (getenv('telegramBotToken') or '').rstrip('/')
 	env = Env(
 		data_dir=data_dir,
 		cache_dir=data_dir + '/cache',
@@ -253,7 +252,7 @@ def startup_values(getenv):
 			"client_secret": getenv('sharesight_client_secret'),
 			"redirect_uri": 'urn:ietf:wg:oauth:2.0:oob'
 		},
-		webhooks=hooks)
+		telegram_api=f'https://api.telegram.org/bot{token}/' if token else '')
 	r.check()
 	return env
 
@@ -422,13 +421,12 @@ def startup_report():
 	else:
 		lines.append(f'no {PREFERENCES_FILE} in {env.data_dir}, using the defaults; reload will have nothing to'
 			' re-read')
-	return lines + retired_notes(prefs.source)
+	return lines + retired_notes(os.environ, 'finbot.env') + retired_notes(prefs.source)
 
 
-def retired_notes(preferences):
-	"""A line for each key of a preferences.conf ({key: value}) that does nothing any more."""
-	return [f'{key} in {PREFERENCES_FILE} does nothing any more: delete the line'
-		for key in RETIRED if key in preferences]
+def retired_notes(values, file=PREFERENCES_FILE):
+	"""A line for each key of a file's {key: value} that does nothing any more, saying what to do instead."""
+	return [f'{key} in {file} does nothing any more: {instead}' for key, instead in RETIRED.items() if key in values]
 
 
 def startup_warnings(settings=None):
@@ -436,6 +434,9 @@ def startup_warnings(settings=None):
 	from working, or do nothing, a line each."""
 	s = settings or env
 	warnings = []
+	if s.slackBotToken and not (s.slackAppToken or s.slackOutgoingWebhook):
+		warnings.append('slackBotToken is set but neither slackAppToken nor slackOutgoingWebhook is: finbot hears'
+			' nothing from Slack, so its commands and buttons get no answer')
 	for key in ('slackOutgoingWebhook', 'slackAppToken'):
 		if getattr(s, key) and not s.slackBotToken:
 			warnings.append(f'{key} is set but slackBotToken is not: Slack commands will get no reply')

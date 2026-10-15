@@ -28,8 +28,7 @@ BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3
 SCHEDULED = ['trades.py', 'price.py midsession', 'price.py interday', 'price.py premarket', 'price.py close',
 	'price.py 7', 'cal.py earnings', 'cal.py ex-dividend', 'performance.py 7', 'rating.py', 'shorts.py', 'milestone.py',
 	'reminder.py']
-WEBHOOKS = {'telegram': 'https://api.telegram.org/botX/', 'slack': 'https://hooks.slack.com/services/T/B/x',
-	'discord': 'https://discord.com/api/webhooks/1/abc'}
+TELEGRAM_API = 'https://api.telegram.org/botX/'
 ANSWER = {'ok': True, 'upload_url': 'https://files.slack.com/u', 'file_id': 'F1', 'id': '1'} # good enough for every API
 
 
@@ -126,14 +125,17 @@ def record(output):
 				for data in BUTTONS:
 					label = f'button {data}' if service == 'telegram' else f'{service} button {data}'
 					step(label, pressing(service, 'cb', chat, message, data))
-			self.env(webhooks=WEBHOOKS, telegramChatID='1')
-			for where in ('', ' (slackChannelID)'): # Slack's incoming webhook, then the channel as the bot
-				if where:
-					self.env(slackChannelID='C9')
-				for line in SCHEDULED:
-					label, module, kwargs = jobs.parse_command(line)[0]
-					run = getattr(module, 'run', None) or module.lambda_handler # lambda_handler: a commit before run()
-					step(f'scheduled {line}{where}', lambda: run(**kwargs))
+			# the scheduled reports go to each network's home chat as its bot (a commit from before telegram_api had
+			# webhooks, the incoming ones among them, and one from before the Discord bot no discordChannelID)
+			fields = {field.name for field in common.dataclasses.fields(common.config.env)}
+			api = {'telegram_api': TELEGRAM_API} if 'telegram_api' in fields else {
+				'webhooks': {'telegram': TELEGRAM_API}}
+			discord = {'discordChannelID': '78'} if 'discordChannelID' in fields else {}
+			self.env(telegramChatID='1', slackChannelID='C9', **api, **discord)
+			for line in SCHEDULED:
+				label, module, kwargs = jobs.parse_command(line)[0]
+				run = getattr(module, 'run', None) or module.lambda_handler # lambda_handler: a commit before run()
+				step(f'scheduled {line}', lambda: run(**kwargs))
 			Path(output).write_text(json.dumps(steps, indent=1, sort_keys=True, default=str))
 
 	result = unittest.TextTestRunner(verbosity=0, stream=io.StringIO()).run(Record())

@@ -2,8 +2,7 @@
 
 finbot talks to Discord as the bot user of a Discord application that you create in the Developer Portal. The bot
 posts the scheduled reports into a channel and answers commands: slash commands (`/price`) in both modes, and messages
-(`.price`, `@finbot price`) over the gateway. A Discord webhook, which only posts, can still carry the scheduled
-reports on its own (see [Webhook](#webhook-reports-only)).
+(`.price`, `@finbot price`) over the gateway.
 
 ## Gateway mode or HTTP mode?
 
@@ -99,20 +98,3 @@ finbot registers a slash command for each line of `.help`, as it starts, and aga
 
 A message holds up to 2,000 characters, so a long report arrives as several messages. A chart goes as an attachment of
 the message that carries its report, with its period buttons under it.
-
-## Webhook (reports only)
-
-Without the bot, a webhook can post the scheduled reports into a channel, with their charts. It takes no commands and
-no buttons. With `discordBotToken` and `discordChannelID`, the bot posts the scheduled reports itself, and the webhook
-is not used.
-
-1. In Discord, open _Server Settings > Integrations > Webhooks_ and choose _New Webhook_.
-2. Name it (finbot, say), pick the channel for the reports, and _Copy Webhook URL_.
-3. Put the URL in `finbot.env` as `discord_webhook`.
-4. Restart finbot (`sudo systemctl restart finbot`). The scheduled reports now arrive in the channel.
-
-```
-discord_webhook=https://discord.com/api/webhooks/1009998000000000000/aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbb
-```
-
-A URL ending in `/slack`, from older setups, works as it is: finbot uses Discord's own endpoint either way.

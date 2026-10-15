@@ -1,45 +1,15 @@
 # Slack
 
-finbot reaches Slack through a Slack app of your own. The app's incoming webhook posts the scheduled reports into a
-channel; the app's bot also answers commands. The bot builds on the webhook, which carries the scheduled reports unless
-the bot posts them itself, charts and all (`slackChannelID`).
+finbot reaches Slack through a Slack app of your own, whose bot posts the scheduled reports into a channel, charts and
+all, and answers commands: `.price`, `@finbot price` and the rest ([the list](../README.md#supported-commands)), with
+charts in its replies, ⏳ on a command's message while it works (Slack has no typing notice for bots), and period
+buttons under a chart that redraw it in place.
 
-## Incoming webhook, or the interactive bot?
-
-| | Incoming webhook | Interactive bot (with the webhook) |
-|---|---|---|
-| Scheduled reports: trades, price alerts, earnings and dividend dates, performance and the rest | ✓, as text | ✓, as text through the webhook, or with their charts as the bot (`slackChannelID`) |
-| Chat commands: `.price`, `@finbot price` and the rest ([the list](../README.md#supported-commands)) | ✗ | ✓ |
-| Charts in the replies to commands | n/a | ✓, uploaded into the channel |
-| A sign that finbot is working on a command | ✗ | ✓: ⏳ on the command's message, Slack having no typing notice for bots |
-| Period buttons under a chart, which redraw it for that period in place | ✗ | ✓ |
-| Public HTTPS server | Not needed | Not needed in Socket Mode (the default); needed in HTTP mode |
-| `finbot.env` keys | `slack_webhook` | That one, plus `slackBotToken` and `slackAppToken` (Socket Mode) or `slackOutgoingWebhook` and `slackSigningSecret` (HTTP mode); and `slackChannelID`, for charts in the scheduled reports |
-
-Start with [Incoming webhook](#incoming-webhook). For commands, go on to [Interactive bot](#interactive-bot)
-afterwards, in the same app.
-
-## Incoming webhook
-
-1. Create the app: at https://api.slack.com/apps choose _Create New App > From scratch_, name it (finbot, say) and pick
-   your workspace.
-2. Under _Features > Incoming Webhooks_, turn _Activate Incoming Webhooks_ on, then _Add New Webhook to Workspace_ and
-   pick the channel for the reports.
-3. Copy the webhook URL into `finbot.env` as `slack_webhook`.
-4. Restart finbot (`sudo systemctl restart finbot`). The scheduled reports now arrive in the channel.
-
-```
-slack_webhook=https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA
-```
-
-An incoming webhook takes text only, so the scheduled reports come without charts. The [interactive bot](#interactive-bot)
-can post them with their charts.
-
-## Interactive bot
+## The bot
 
 ### Socket Mode or HTTP mode?
 
-The bot answers commands either way. What differs is how it hears from Slack:
+The bot does the same either way. What differs is how it hears from Slack:
 
 | | Socket Mode (the default) | HTTP mode |
 |---|---|---|
@@ -54,7 +24,8 @@ switch, change both and restart finbot.
 
 ### Socket Mode
 
-1. Set up the [incoming webhook](#incoming-webhook), above.
+1. Create the app: at https://api.slack.com/apps choose _Create New App > From scratch_, name it (finbot, say) and pick
+   your workspace.
 2. Under _Settings > Socket Mode_, turn _Enable Socket Mode_ on. Slack asks for an app-level token: name it (finbot,
    say) and _Generate_; it has the `connections:write` scope it needs. Copy the token, which starts with `xapp-`, into
    `finbot.env` as `slackAppToken`. It is also under _Basic Information > App-Level Tokens_.
@@ -63,7 +34,6 @@ switch, change both and restart finbot.
    Mode there is no Request URL to enter.
 
 ```
-slack_webhook=https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA
 slackAppToken=xapp-your-app-level-token
 slackBotToken=xoxb-your-bot-token
 slackChannelID=C0123456789
@@ -75,7 +45,8 @@ Slack delivers the messages that mention the bot (or every message in a channel,
 finbot listens on `http://127.0.0.1:5000` (`ip` and `port` in `finbot.env`), so it needs a web server in front of it,
 on a domain name with a valid certificate.
 
-1. Set up the [incoming webhook](#incoming-webhook), above, and leave _Settings > Socket Mode_ off.
+1. Create the app: at https://api.slack.com/apps choose _Create New App > From scratch_, name it (finbot, say) and pick
+   your workspace. Leave _Settings > Socket Mode_ off.
 2. Put finbot behind an HTTPS server. An nginx example, which lets in only Amazon's addresses, where Slack's requests
    come from:
    ```
@@ -109,7 +80,6 @@ on a domain name with a valid certificate.
    this URL as the _Request URL_ where it asks for one.
 
 ```
-slack_webhook=https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA
 slackOutgoingWebhook=https://www.example.com:8443/slack
 slackSigningSecret=0123456789abcdef0123456789abcdef
 slackBotToken=xoxb-your-bot-token
@@ -140,9 +110,9 @@ slackChannelID=C0123456789
 5. Restart finbot, and invite the bot to the channel: `/invite @finbot`. In Socket Mode the log says
    `slack: Socket Mode (no slackOutgoingWebhook)`.
 6. Send `@finbot help` in the channel (or `.help`, with `message.channels`).
-7. For charts in the scheduled reports, set `slackChannelID` to the channel's id (in Slack, click the channel's name:
-   the _Channel ID_, which starts with C, is at the bottom of _About_), and restart finbot. The bot then posts the
-   scheduled reports there, as it posts its replies, and `slack_webhook` is no longer used.
+7. For the scheduled reports, set `slackChannelID` to the channel's id (in Slack, click the channel's name: the
+   _Channel ID_, which starts with C, is at the bottom of _About_), and restart finbot. The bot posts the scheduled
+   reports there, as it posts its replies.
 
 A chart is uploaded with Slack's file upload API (`files.getUploadURLExternal`, then `files.completeUploadExternal`).
 With its period buttons, it goes in a message of blocks: the report, the chart (uploaded into no channel, and shown by

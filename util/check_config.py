@@ -49,12 +49,18 @@ def warnings(startup_path):
 		return []
 
 
-def notes(preferences_path):
-	"""The keys of a valid preferences.conf that do nothing any more, a line each."""
+def notes(preferences_path, startup_path=None):
+	"""The keys of the two files, where valid, that do nothing any more, a line each with what to do instead."""
+	lines = []
+	if startup_path:
+		try:
+			lines += config.retired_notes(config.read_startup_file(startup_path), 'finbot.env')
+		except config.ConfigError:
+			pass
 	try:
-		return config.retired_notes(config.read_preferences(preferences_path) or {})
+		return lines + config.retired_notes(config.read_preferences(preferences_path) or {})
 	except config.ConfigError:
-		return []
+		return lines
 
 
 if __name__ == '__main__':
@@ -71,6 +77,6 @@ if __name__ == '__main__':
 			args.preferences if Path(args.preferences).is_file() else '(no preferences.conf, defaults)')
 		for line in warnings(args.startup):
 			print('config: warning:', line)
-		for line in notes(args.preferences):
+		for line in notes(args.preferences, args.startup):
 			print('config:', line)
 	sys.exit(1 if problems else 0)

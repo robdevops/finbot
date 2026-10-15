@@ -1,4 +1,5 @@
 """Every chat command and scheduled report produces output on mocked data."""
+import contextlib
 import unittest
 import datetime
 import re
@@ -339,7 +340,7 @@ class ScheduledReports(FinbotCase):
 		self.patch(transports.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
 		self.command('.earnings')
 		self.assertEqual(pins, [])
-		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/'}, telegramChatID='1')
+		self.env(telegramChatID='1')
 		cal.run(event='ex-dividend')
 		cal.run(event='earnings')
 		self.assertEqual(pins, ['1'])
@@ -455,32 +456,34 @@ class ScheduledReports(FinbotCase):
 		rating.run(transports.TelegramBot('5'))
 		self.assertIsNone(state.load('finbot_rating.json'))
 
-	def test_slack_webhook_without_a_bot_token_gets_scheduled_reports(self):
-		"""Scheduled reports reach Slack through its incoming webhook, which takes no channel and no token. They used to
-		send Telegram's chat id along, which made write() need slackBotToken and crash without one, before Telegram got
-		its copy."""
-		self.env(slackBotToken=False)
-
-		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/T/B/x'})
+	def test_scheduled_reports_reach_each_home_chat_with_its_own_token(self):
+		"""Scheduled reports reach Telegram's and Slack's home chats, each with its own bot's credentials: Slack's
+		request carries the Slack token and channel, and Telegram's chat id goes only to Telegram."""
+		self.env(slackBotToken='xoxb-test', slackChannelID='C9')
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
+		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
 		posts = []
 		def post(url, **kwargs):
-			"""Record (host, whether a bot token was sent, the channel) and answer ok."""
-			posts.append((url.split('/')[2], 'Authorization' in kwargs.get('headers', {}),
-				(kwargs.get('json') or {}).get('channel')))
-			return mock.Mock(status_code=200, json=lambda: {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 1}}})
+			"""Record (host, the Slack token sent, the channel or chat) and answer ok."""
+			data = kwargs.get('data') or kwargs.get('json') or {}
+			posts.append((url.split('/')[2], kwargs.get('headers', {}).get('Authorization'),
+				data.get('channel') or data.get('channel_id') or data.get('chat_id')))
+			return mock.Mock(status_code=200, text='OK', json=lambda: {'ok': True, 'upload_url': 'https://files.x/u',
+				'file_id': 'F1', 'ts': '1.5', 'result': {'message_id': 1, 'chat': {'id': 1}}})
 		self.patch(transports.net, 'post', post)
 		for report in (price.run, shorts.run, milestone.run):
 			with self.subTest(report=report):
 				posts.clear()
-				report()
-				self.assertIn(('hooks.slack.com', False, None), posts)
-				self.assertTrue(any(host == 'api.telegram.org' for host, _, _ in posts))
+				with contextlib.redirect_stderr(io.StringIO()):
+					report()
+				self.assertIn(('slack.com', 'Bearer xoxb-test', 'C9'), posts)
+				self.assertTrue(any(host == 'api.telegram.org' and chat == '1' for host, _, chat in posts))
+				self.assertFalse(any(host == 'slack.com' and chat == '1' for host, _, chat in posts))
 
 	def test_nowhere_to_post_is_an_error(self):
 		"""A scheduled report with nowhere to post is an error that says so."""
-		self.env(webhooks={})
+		self.env(telegramChatID='')
 		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
 			price.run()
 
@@ -536,7 +539,7 @@ class PeriodButtons(FinbotCase):
 	def test_telegram_charts_have_buttons_in_both_modes(self):
 		"""A Telegram chart, a scheduled one included, has its period buttons whether Telegram posts their presses to
 		telegramOutgoingWebhook (http mode) or finbot fetches them (pull mode)."""
-		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/'}, telegramChatID='1')
+		self.env(telegramChatID='1')
 		label, kwargs = price.job(['7']) # as scheduled: price.py 7
 		for hook in ('https://example.com/telegram', ''):
 			with self.subTest(telegramOutgoingWebhook=hook):
@@ -686,11 +689,12 @@ class PieCommand(FinbotCase):
 		self.assertEqual(self.command('.pie'), [('text', ['Usage: .pie PORTFOLIO [sector]', 'Portfolios: Rob'])])
 		self.assertEqual(self.command('.pie Nope'), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
 
-	def test_a_service_that_takes_no_images_gets_text(self):
-		"""Slack without the bot token takes no images: the report goes as text."""
-		self.env(slackBotToken=False)
-		worker.Request(SLACK, 'C1', '@u', 'U', BOT).reply(['x'], render.Chart('pie', 't', rows=(('a', 1.0),)))
-		self.assertEqual(self.sent[-1][0], 'text')
+	def test_with_the_graph_preference_off_a_chart_goes_as_text(self):
+		"""With graph off, a report's chart is left out and its lines go as text, on every network."""
+		self.prefs(graph=False)
+		for service in (TELEGRAM, SLACK, DISCORD):
+			worker.Request(service, 'C1', '@u', 'U', BOT).reply(['x'], render.Chart('pie', 't', rows=(('a', 1.0),)))
+			self.assertEqual(self.sent[-1], ('text', ['x']))
 
 
 if __name__ == '__main__':

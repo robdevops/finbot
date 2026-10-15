@@ -264,7 +264,8 @@ class YahooChart(ProviderCase):
 			return Resp(status=404) if '/chart/T3?' in url or '/chart/SPY?' in url else good
 		self.patch(yahoo.net, 'get', get)
 		def slack(text):
-			"""Run a command on Slack, where reports come as text, and return the text."""
+			"""Run a command on Slack, its report as text (no charts), and return the text."""
+			self.prefs(graph=False)
 			self.sent.clear(); self.errors.clear()
 			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', text, BOT, 'U'))
 			self.assertEqual(self.errors, [], text)

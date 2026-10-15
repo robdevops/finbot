@@ -32,24 +32,18 @@ def reply_to(service, chat, message=None, interaction='', pressed=False):
 
 
 def default_chats():
-	"""Where a scheduled report goes, in this order: Telegram's telegramChatID; Slack's slackChannelID as the bot, with
-	slackBotToken (so that charts go too), else its incoming webhook; Discord's discordChannelID as the bot, with
-	discordBotToken (buttons too), else its webhook. Raises RuntimeError when there is nowhere to post."""
+	"""Where a scheduled report goes: each network's home chat (telegramChatID, slackChannelID, discordChannelID), as
+	its bot. Raises RuntimeError when there is nowhere to post."""
 	env = config.env
 	chats = []
-	if env.telegramChatID and 'telegram' in env.webhooks:
-		chats.append(transports.TelegramBot(env.telegramChatID))
-	if env.slackChannelID and env.slackBotToken:
-		chats.append(transports.SlackBot(env.slackChannelID))
-	elif 'slack' in env.webhooks:
-		chats.append(transports.SlackWebhook(env.webhooks['slack']))
-	if env.discordChannelID and env.discordBotToken:
-		chats.append(transports.DiscordBot(env.discordChannelID))
-	elif 'discord' in env.webhooks:
-		chats.append(transports.DiscordWebhook(env.webhooks['discord']))
+	for chat, token, kind in ((env.telegramChatID, env.telegramBotToken, transports.TelegramBot),
+			(env.slackChannelID, env.slackBotToken, transports.SlackBot),
+			(env.discordChannelID, env.discordBotToken, transports.DiscordBot)):
+		if chat and token:
+			chats.append(kind(chat))
 	if not chats:
-		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slackChannelID, discordChannelID,'
-			' slack_webhook or discord_webhook')
+		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slackChannelID or discordChannelID,'
+			' each with its bot token')
 	return chats
 
 
