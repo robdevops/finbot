@@ -132,11 +132,11 @@ class Parsing(unittest.TestCase):
 		"""A key finbot no longer reads (alliterate) does not stop a start, as an unknown key would: it is ignored, and
 		the log at start says to delete it."""
 		path = Path(common.temp_dir(self), 'preferences.conf')
-		path.write_text('alliterate=True\nfuture_days=45\n')
+		path.write_text('alliterate=True\nchunk_maxlines=20\nfuture_days=45\n')
 		values = config.read_preferences(path)
 		self.assertEqual(config.preference_values(config._getenv_for(values)).future_days, 45)
-		self.assertEqual(config.retired_notes(values),
-			['alliterate in preferences.conf does nothing any more: delete the line'])
+		notes = [f'{key} in preferences.conf does nothing any more: delete the line' for key in config.RETIRED]
+		self.assertEqual(config.retired_notes(values), notes)
 		self.assertEqual(check_config.notes(path), config.retired_notes(values))
 
 	def test_unreadable_file_is_an_error_naming_it(self):

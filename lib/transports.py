@@ -77,9 +77,8 @@ class Transport:
 		return bool(self._notices and self._notices.is_alive())
 
 	def text(self, lines, buttons=None):
-		"""Post lines of text: one message, or several when they are too long for one (then at most chunk_maxlines lines
-		each), buttons under the last; the typing notice stops first. Returns the network's answer for each message
-		(None for one that failed)."""
+		"""Post lines of text: one message, or several when they are too long for one, buttons under the last; the
+		typing notice stops first. Returns the network's answer for each message (None for one that failed)."""
 		self.stop_typing()
 		lines = [str(line) for line in lines]
 		if not lines:
@@ -87,7 +86,7 @@ class Transport:
 		limit = self.dialect.text_limit
 		if len('\n'.join(lines)) <= limit:
 			return [self.post_text('\n'.join(lines), buttons)]
-		chunks = chunked(lines, limit, config.prefs.chunk_maxlines)
+		chunks = chunked(lines, limit)
 		answers = []
 		for i, chunk in enumerate(chunks):
 			if i:
@@ -464,7 +463,7 @@ SECTION_LIMIT = 3000 # characters of text in a Block Kit section
 def section_blocks(text):
 	"""Block Kit sections of a message's text, as many as its length needs (none for no text)."""
 	return [{'type': 'section', 'text': {'type': 'mrkdwn', 'text': '\n'.join(part)}}
-		for part in chunked(text.split('\n'), SECTION_LIMIT, 1000) if '\n'.join(part).strip()]
+		for part in chunked(text.split('\n'), SECTION_LIMIT) if '\n'.join(part).strip()]
 
 
 def actions_block(row):
@@ -501,14 +500,14 @@ def until_shown(post, waits=(1, 2, 4)):
 	return post()
 
 
-def chunked(lines, limit, max_lines):
-	"""The lines in messages of at most max_lines lines and limit characters each, whichever comes first; a line longer
-	than limit on its own is cut short."""
+def chunked(lines, limit):
+	"""The lines in messages of at most limit characters each, whole lines to a message; a line longer than limit on
+	its own is cut short."""
 	chunks, current, size = [], [], 0
 	for line in lines:
 		if len(line) > limit:
 			line = line[:limit - 1] + '…'
-		if current and (len(current) >= max_lines or size + 1 + len(line) > limit):
+		if current and size + 1 + len(line) > limit:
 			chunks.append(current)
 			current, size = [], 0
 		size += len(line) + (1 if current else 0)

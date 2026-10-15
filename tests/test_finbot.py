@@ -28,13 +28,13 @@ class Plumbing(FinbotCase):
 		self.assertIn('reply_markup', posted[-1])
 		self.assertTrue(all('reply_markup' not in p for p in posted[:-1]))
 
-	def test_chunks_respect_both_the_line_count_and_the_size(self):
-		"""A message ends at chunk_maxlines lines or the size limit, whichever first; an overlong line is cut short."""
-		chunks = transports.chunked(['a' * 30] * 10 + ['b' * 500], limit=100, max_lines=4)
-		self.assertEqual([len(chunk) for chunk in chunks], [3, 3, 3, 1, 1]) # 3 x 30 plus newlines is 92; a fourth would pass 100
+	def test_chunks_respect_the_size(self):
+		"""A message ends before the line that would take it past the size limit; an overlong line is cut short."""
+		chunks = transports.chunked(['a' * 30] * 10 + ['b' * 500], limit=100)
+		self.assertEqual([len(chunk) for chunk in chunks], [3, 3, 3, 1, 1]) # 3 x 30 and 2 newlines: 92; 4 pass 100
 		self.assertTrue(all(len('\n'.join(chunk)) <= 100 for chunk in chunks))
 		self.assertEqual(chunks[-1], ['b' * 99 + '…']) # a line over the limit on its own is cut short
-		self.assertEqual(transports.chunked(['x'] * 9, limit=4096, max_lines=4), [['x'] * 4, ['x'] * 4, ['x']])
+		self.assertEqual(transports.chunked(['x'] * 9, limit=4096), [['x'] * 9]) # however many lines fit
 
 	def test_zoneinfo_offset_is_not_lmt(self):
 		"""zoneinfo gives Melbourne its real offset, not the local mean time pytz once gave for old dates."""

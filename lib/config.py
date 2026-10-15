@@ -21,7 +21,8 @@ SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_sec
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
 	'telegramOutgoingWebhook') # never printed
 PREFERENCES_FILE = 'preferences.conf'
-RETIRED = ('alliterate',) # preferences.conf keys that do nothing any more: accepted, with a note at start to delete
+RETIRED = ('alliterate', 'chunk_maxlines') # preferences.conf keys that do nothing any more: accepted, with a note at
+# start to delete them
 PASSED = 'FINBOT_PREFERENCES_PASSED' # set by the bot for its job processes: the preferences arrive in the environment, do not read the file
 OLD_ENV = REPO_DIR / '.env' # the single config file of old versions, which python-dotenv loaded; nothing reads it now
 
@@ -246,7 +247,6 @@ class Prefs:
 	default or a module constant, so that a reload is seen."""
 	cache: bool = True
 	cache_seconds: int = 43200
-	chunk_maxlines: int = 20
 	country_code: str = 'AU'
 	debug: bool = False
 	demote_leveraged: bool = True
