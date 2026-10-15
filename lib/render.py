@@ -52,6 +52,9 @@ def style_date_axis(ax, start, end, ink):
 	ax.tick_params(axis='x', colors=ink, labelsize=10, length=3, width=0.8, pad=6)
 
 PALETTE = ('#14181f', '#eef1f5', '#9aa4b2', '#2a313c') # charts: dark surface, ink, muted ink, grid lines
+CATEGORIES = ('#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767') # the dark
+# categorical slots, in fixed order; the green and red ones mean up and down, so lines that are neither leave them out
+NEITHER_UP_NOR_DOWN = tuple(color for color in CATEGORIES if color not in ('#008300', '#e66767'))
 
 _render_pool = None # set by render_off_hub(): the bot draws its charts in one native thread
 
@@ -168,8 +171,7 @@ def compare_graph(series, title, subtitle=''):
 	Returns PNG bytes (1280x800, Telegram's photo size)."""
 	from matplotlib.ticker import MaxNLocator, FuncFormatter
 	bg, ink, ink2, grid = PALETTE
-	# categorical slots 1-5 and 7 of the validated dark palette; red/green are skipped because they mean down/up
-	colors = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9']
+	colors = NEITHER_UP_NOR_DOWN
 	fig, _ = _figure(bg)
 	ax = fig.add_axes([0.075, 0.105, 0.72, 0.755], facecolor=bg)
 	rebased = []
@@ -298,9 +300,7 @@ def hbar_chart(rows, title, subtitle='', value_fmt=None, xlim=None, session=None
 	for t, (_, _, v) in zip(base_labels, real):
 		t.xyann = (-4 if v >= 0 else 4, drop)
 		t.set_ha('right' if v >= 0 else 'left')
-	fig.text(0.03, 0.945 if not subtitle else 0.935, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')
-	if subtitle:
-		fig.text(0.03, 0.885, subtitle, color=ink2, fontsize=8.5, ha='left', va='center')
+	_heading(fig, title, subtitle)
 	return _png(fig, bg)
 
 SHORTS_VERDICTS = ((5, 'board shorts'), (10, 'cargo shorts'), (15, 'boxers'), (20, 'gym shorts'), # five points each at the bottom
@@ -429,7 +429,7 @@ def pie_chart(rows, title, subtitle=''):
 	(the dark categorical slots, in fixed order); a slice labelled 'Other' is gray. Returns PNG bytes (1280x800)."""
 	from matplotlib.patches import Rectangle
 	bg, ink, ink2, _ = PALETTE
-	slots = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767']
+	slots = CATEGORIES
 	other = '#6b7280'
 	total = sum(v for _, v in rows) or 1.0
 	colors, n = [], 0
