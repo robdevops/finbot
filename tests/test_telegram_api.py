@@ -1,4 +1,4 @@
-"""Telegram's Bot API: the webhook registered once, as bot.py starts."""
+"""Telegram's Bot API: the webhook set or deleted once, as bot.py starts."""
 import contextlib, io, os, subprocess, unittest
 from tests.common import *
 
@@ -13,17 +13,27 @@ class TelegramWebhook(FinbotCase):
 		self.env(telegramOutgoingWebhook='https://example.com/telegram')
 
 
-	def test_register_unregisters_registers_and_names_the_bot(self):
-		"""register() removes the webhook, sets it again and returns the bot's @name."""
+	def test_register_sets_the_webhook_again_or_deletes_it_and_names_the_bot(self):
+		"""register() deletes the webhook, keeping the updates not delivered yet; sets it again with
+		telegramOutgoingWebhook (http mode), or leaves it unset for getUpdates (pull mode); and returns the bot's @name.
+		The log never shows the URL: its path is a secret."""
 		calls = []
 		def post(url, **kwargs):
-			"""Record the method and URL, and answer like Telegram."""
-			calls.append((url.rsplit('/', 1)[1], kwargs.get('params', {}).get('url')))
+			"""Record the method and what it was given, and answer like Telegram."""
+			calls.append((url.rsplit('/', 1)[1], kwargs.get('params', {}).get('url') or kwargs.get('json')))
 			return Resp({'ok': True, 'result': {'username': 'finbot'} if url.endswith('getMe') else True})
 		self.patch(telegram.net, 'post', post)
-		with contextlib.redirect_stderr(io.StringIO()):
-			self.assertEqual(telegram.register(), '@finbot')
-		self.assertEqual(calls, [('setWebhook', ''), ('setWebhook', 'https://example.com/telegram'), ('getMe', None)])
+		kept = ('deleteWebhook', {'drop_pending_updates': False})
+		for hook, expected in (('https://example.com/telegram', [kept, ('setWebhook', 'https://example.com/telegram'),
+				('getMe', None)]), ('', [kept, ('getMe', None)])):
+			with self.subTest(telegramOutgoingWebhook=hook):
+				self.env(telegramOutgoingWebhook=hook)
+				calls.clear()
+				err = io.StringIO()
+				with contextlib.redirect_stderr(err):
+					self.assertEqual(telegram.register(), '@finbot')
+				self.assertEqual(calls, expected)
+				self.assertNotIn('example.com', err.getvalue())
 
 	def test_a_refused_call_raises(self):
 		"""A call Telegram refuses raises with its description."""
@@ -88,7 +98,7 @@ class TelegramWebhook(FinbotCase):
 			out = subprocess.run([sys.executable, 'bot.py'], cwd=ROOT, env=env, capture_output=True, text=True,
 				timeout=120)
 		self.assertEqual(out.returncode, 1, out.stderr)
-		self.assertIn('ERROR ⚠️ telegram webhook:', out.stderr)
+		self.assertIn('ERROR ⚠️ telegram:', out.stderr)
 		self.assertNotIn('SECRET-token', out.stderr + out.stdout)
 
 

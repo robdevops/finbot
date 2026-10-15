@@ -42,7 +42,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   (`Telegram`, `Slack`: a `Message`, a `Press`, or a `Response` given straight back) and acknowledges a press where
   the network waits for that (`acknowledge`: Telegram's toast), apart from a class per way they arrive
   (`TelegramWebhook`, `SlackWebhook`: the path, how it proves itself); `bot.take(network, update)` takes an update
-  however it arrived, and is the one place a press is acknowledged (the worker never does).
+  however it arrived, and is the one place a press is acknowledged (the worker never does). `lib/pull.py`: the pull
+  modes, a listener per network whose webhook URL is not set (`TelegramPoll`: getUpdates), each in a thread of its own
+  handing its updates to `bot.take`, waiting longer after each failure in a row (`backoff`).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
   keywords)`, which also makes `.help` and the Telegram command keyboard, kept current in DMs. `read()` finds the
   command by its whole name (any other first word that may be a ticker is `.SYMBOL`) and `read_args()` its `Args`: a
@@ -60,8 +62,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   (`start_typing`: after half a second; Slack's ⏳ on the message), which `text()` and `chart()` stop before posting.
   `lib/telegram.py`: Bot API calls (`call`, `try_call`).
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), a `.jobs` command's (`job_button`), what a
-  pressed button's data asks for (`parse`), and the toast it gets at once (`toast`); each transport draws them. `lib/charts.py`: a chart with period buttons,
-  built by its kind's builder (`build`) for the command's first view (`worker.chart_reply`) and for each press.
+  pressed button's data asks for (`parse`), and the toast it gets at once (`toast`); each transport draws them.
+  `lib/charts.py`: a chart with period buttons, built by its kind's builder (`build`) for the command's first view
+  (`worker.chart_reply`) and for each press.
 - `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: one table by market code (flag,
   currency, Yahoo suffix, Google code; Sharesight's codes, so TSE is Toronto), and `code(name)` for any name an exchange
   goes by. `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`:
@@ -82,12 +85,12 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   them; `temp_dir(self)` is a directory removed after the test, `bare_environment()` the environment without finbot's
   settings.
 - Which test file: commands and scheduled reports `test_reports`; failures, bad input, secrets in logs, signals
-  `test_edges`; webhook requests, Slack events and signatures `test_inbound`; Yahoo `test_yahoo`; Sharesight
-  `test_sharesight`; posting to each network `test_sending`; registering Telegram's webhook `test_telegram_api`; the
-  schedule file and job arguments `test_schedule`; the scheduler and manual runs `test_scheduler`; config
-  `test_config`; charts `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets, formats, links, buttons,
-  cache and state files `test_util`; data dir `test_datadir`; chunking, git_version, and the docstring, stdout and
-  line-width checks `test_finbot`.
+  `test_edges`; webhook requests, Slack events and signatures `test_inbound`; the pull modes `test_pull`; Yahoo
+  `test_yahoo`; Sharesight `test_sharesight`; posting to each network `test_sending`; registering Telegram's webhook
+  `test_telegram_api`; the schedule file and job arguments `test_schedule`; the scheduler and manual runs
+  `test_scheduler`; config `test_config`; charts `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets,
+  formats, links, buttons, cache and state files `test_util`; data dir `test_datadir`; chunking, git_version, and the
+  docstring, stdout and line-width checks `test_finbot`.
 
 ## Conventions
 - Read settings as `config.env.<name>` / `config.prefs.<name>` where they are used, never into a default or module

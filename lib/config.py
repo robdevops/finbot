@@ -419,17 +419,22 @@ def retired_notes(preferences):
 		for key in RETIRED if key in preferences]
 
 
-def startup_warnings():
-	"""Settings in finbot.env that do not stop the start but keep part of the bot from working, a line each."""
+def startup_warnings(settings=None):
+	"""Settings in finbot.env (an Env; the running one by default) that do not stop the start but keep part of the bot
+	from working, or do nothing, a line each."""
+	s = settings or env
 	warnings = []
-	if env.slackOutgoingWebhook and not env.slackBotToken:
+	if s.slackOutgoingWebhook and not s.slackBotToken:
 		warnings.append('slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply')
-	if env.slackChannelID and not env.slackBotToken:
+	if s.slackChannelID and not s.slackBotToken:
 		warnings.append('slackChannelID is set but slackBotToken is not: scheduled reports cannot go there as the bot')
-	if env.slackOutgoingWebhook and not (env.slackSigningSecret or env.slackOutgoingToken):
+	if s.slackOutgoingWebhook and not (s.slackSigningSecret or s.slackOutgoingToken):
 		warnings.append('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
 			' every Slack request will be refused')
-	if env.telegramOutgoingWebhook and not env.telegramOutgoingToken:
+	if s.telegramOutgoingWebhook and not s.telegramOutgoingToken:
 		warnings.append('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update will be'
 			' refused')
+	if s.telegramOutgoingToken and not s.telegramOutgoingWebhook:
+		warnings.append('telegramOutgoingToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram'
+			' updates (pull mode), and the token is not used')
 	return warnings

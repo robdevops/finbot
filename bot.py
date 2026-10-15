@@ -13,6 +13,7 @@ from lib import inbound
 from lib import worker
 from lib import jobs
 from lib import net
+from lib import pull
 from lib import telegram
 from lib import delivery
 from lib import render
@@ -237,17 +238,18 @@ if __name__ == '__main__':
 		print(f'Opening socket on http://{config.env.ip}:{server.effective_port}', file=sys.stderr)
 	else:
 		print('No webhook is set: finbot takes no HTTP requests', file=sys.stderr)
-	if config.env.telegramBotToken and config.env.telegramOutgoingWebhook:
+	if config.env.telegramBotToken:
 		try:
 			inbound.TELEGRAM.bot_name = telegram.register() # here only: the job processes import lib.telegram too
 		except Exception as e:
-			print('ERROR', delivery.error_line(e, 'telegram webhook'), file=sys.stderr)
+			print('ERROR', delivery.error_line(e, 'telegram'), file=sys.stderr)
 			sys.exit(1)
-	if config.env.telegramBotToken:
 		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
 	if scheduler:
 		jobs.current = scheduler # for the .jobs chat command
 		threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
+	for listener in pull.listeners(): # the networks without a webhook: finbot fetches their updates
+		threading.Thread(target=listener.run, args=(take,), daemon=True).start()
 	# Startup is done. systemctl reload finbot: pick up edited preferences.conf and schedule.cron
 	signal.signal(signal.SIGHUP, in_thread(reload_all))
 	signal.signal(signal.SIGUSR1, in_thread(flush_cache)) # systemctl kill -s USR1 finbot: delete the cache

@@ -22,27 +22,30 @@ def try_call(method, **kwargs):
 		print(f"Telegram {method} failed:", net.redact(e), file=sys.stderr)
 
 def setWebhook():
-	"""Have Telegram post messages and button presses to telegramOutgoingWebhook, signed with telegramOutgoingToken."""
-	print("registering", config.env.telegramOutgoingWebhook, file=sys.stderr)
+	"""Have Telegram post messages and button presses to telegramOutgoingWebhook, signed with telegramOutgoingToken. The
+	log does not show the URL: its path is a secret."""
+	print("telegram: setting the webhook (telegramOutgoingWebhook)", file=sys.stderr)
 	params = {'url': config.env.telegramOutgoingWebhook, "allowed_updates": json.dumps(['message', 'callback_query']),
 		'secret_token': config.env.telegramOutgoingToken}
 	return call('setWebhook', params=params)
 
-def delWebhook():
-	"""Have Telegram stop posting updates."""
-	print("deregistering", config.env.telegramOutgoingWebhook, file=sys.stderr)
-	return call('setWebhook', params={'url': ''}) # unsubscribe
+def deleteWebhook():
+	"""Have Telegram stop posting updates. Those not delivered yet are kept, for the webhook set next or getUpdates."""
+	print("telegram: deleting the webhook", file=sys.stderr)
+	return call('deleteWebhook', json={'drop_pending_updates': False})
 
 def getMe():
 	"""The bot's own account: its username is the bot's name in chats."""
 	return call('getMe')
 
 def register():
-	"""Called once by bot.py as it starts, never on import (the job processes and the tests import this module too):
-	unregister and register the webhook again, which wakes up a stale connection on Telegram's side, then return the
-	bot's @username. Raises RuntimeError, or a requests error, if any of the three calls fails."""
-	delWebhook()
-	setWebhook()
+	"""Called once by bot.py as it starts, never on import (the job processes and the tests import this module too).
+	With telegramOutgoingWebhook (http mode): delete the webhook and set it again, which wakes up a stale connection on
+	Telegram's side. Without it (pull mode): delete any webhook, so that getUpdates may take the updates, those not
+	delivered yet included. Returns the bot's @username. Raises RuntimeError, or a requests error, if a call fails."""
+	deleteWebhook()
+	if config.env.telegramOutgoingWebhook:
+		setWebhook()
 	return '@' + getMe()['username']
 
 def pinChatMessage(chat_id, message_id):

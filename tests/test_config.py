@@ -181,6 +181,17 @@ class Parsing(unittest.TestCase):
 		path.write_text('port=80\n')
 		self.assertEqual(check_config.check(path, Path(common.temp_dir(self), 'none')), [])
 
+	def test_check_config_gives_the_startup_warnings_of_a_valid_file(self):
+		"""check_config shows what bot.py would warn about at start for the file it checks: here a Telegram token for
+		a webhook that is not set (pull mode)."""
+		path = Path(common.temp_dir(self), 'finbot.env')
+		path.write_text('telegramOutgoingToken=tok\n')
+		self.assertEqual(check_config.check(path, Path(common.temp_dir(self), 'none')), [])
+		self.assertEqual(check_config.warnings(path), ['telegramOutgoingToken is set but telegramOutgoingWebhook is'
+			' not: finbot fetches its Telegram updates (pull mode), and the token is not used'])
+		path.write_text('telegramOutgoingToken=tok\ntelegramOutgoingWebhook=https://example.com/t\n')
+		self.assertEqual(check_config.warnings(path), [])
+
 
 class Reload(unittest.TestCase):
 	def setUp(self):
@@ -419,10 +430,13 @@ class Startup(unittest.TestCase):
 		telegram_refused = ('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update'
 			' will be refused')
 		no_bot = 'slackChannelID is set but slackBotToken is not: scheduled reports cannot go there as the bot'
+		unused = ('telegramOutgoingToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram updates'
+			' (pull mode), and the token is not used')
 		cases = (({}, []), ({'slackBotToken': ''}, [no_reply]), ({'slackOutgoingToken': ''}, [slack_refused]),
 			({'slackChannelID': 'C9'}, []), ({'slackChannelID': 'C9', 'slackBotToken': ''}, [no_reply, no_bot]),
 			({'slackOutgoingToken': '', 'slackSigningSecret': 's'}, []),
-			({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, []))
+			({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, [unused]),
+			({'telegramOutgoingWebhook': '', 'telegramOutgoingToken': ''}, []))
 		for changes, warnings in cases:
 			with self.subTest(changes=changes), \
 					mock.patch.object(config, 'env', dataclasses.replace(config.env, **{**hooks, **changes})):

@@ -144,11 +144,7 @@ class TelegramBot(Transport):
 	name = 'telegram'
 	dialect = dialects.TELEGRAM
 	takes_charts = shows_typing = True
-
-	@property
-	def takes_buttons(self):
-		"""Buttons only where their presses reach finbot: with telegramOutgoingWebhook, Telegram posts them to it."""
-		return bool(config.env.telegramOutgoingWebhook)
+	takes_buttons = True # their presses reach finbot either way: posted to telegramOutgoingWebhook, or polled for
 
 	@staticmethod
 	def markup(buttons):

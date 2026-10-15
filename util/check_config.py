@@ -39,6 +39,16 @@ def check(startup_path, preferences_path):
 	return problems
 
 
+def warnings(startup_path):
+	"""What a valid finbot.env sets that keeps part of the bot from working or does nothing, a line each: what bot.py
+	logs at start."""
+	try:
+		values = config.read_startup_file(startup_path)
+		return config.startup_warnings(config.startup_values(lambda name, default=None: values.get(name, default)))
+	except config.ConfigError:
+		return []
+
+
 def notes(preferences_path):
 	"""The keys of a valid preferences.conf that do nothing any more, a line each."""
 	try:
@@ -59,6 +69,8 @@ if __name__ == '__main__':
 	if not problems:
 		print('config: ok', args.startup,
 			args.preferences if Path(args.preferences).is_file() else '(no preferences.conf, defaults)')
+		for line in warnings(args.startup):
+			print('config: warning:', line)
 		for line in notes(args.preferences):
 			print('config:', line)
 	sys.exit(1 if problems else 0)
