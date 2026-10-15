@@ -123,6 +123,8 @@ class TelegramBot(transports.Transport):
 	"""A Telegram chat via the Bot API: HTML, silent, no link previews; charts, buttons, edits, the typing notice."""
 	name = 'telegram'
 	dialect = dialects.TELEGRAM
+	TYPING = (0.5, 4, 18) # "typing…" shows for 5 s at most (sendChatAction), so it is sent again every 4 s
+	NO_PREVIEWS = {'is_disabled': True} # link_preview_options, which replaced disable_web_page_preview (Bot API 7.0)
 
 	@staticmethod
 	def markup(buttons):
@@ -136,7 +138,7 @@ class TelegramBot(transports.Transport):
 	def post_text(self, text, buttons=None):
 		"""sendMessage: Telegram's message, or None when it refused or failed (logged with Telegram's reason, such as
 		"can't parse entities")."""
-		payload = {'chat_id': self.where, 'text': text, 'parse_mode': 'HTML', 'disable_web_page_preview': True,
+		payload = {'chat_id': self.where, 'text': text, 'parse_mode': 'HTML', 'link_preview_options': self.NO_PREVIEWS,
 			'disable_notification': True}
 		if buttons:
 			payload['reply_markup'] = self.markup(buttons)
@@ -187,7 +189,7 @@ class TelegramBot(transports.Transport):
 	def edit_text(self, message, text, buttons=None):
 		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
 		payload = {'chat_id': self.where, 'message_id': message, 'text': text, 'parse_mode': 'HTML',
-			'disable_web_page_preview': True}
+			'link_preview_options': self.NO_PREVIEWS}
 		if buttons is not None:
 			payload['reply_markup'] = self.markup(buttons)
 		try_call('editMessageText', json=payload)

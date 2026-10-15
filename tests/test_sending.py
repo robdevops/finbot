@@ -39,6 +39,27 @@ class TelegramSending(FinbotCase):
 			self.post(outcome)
 		return log.getvalue()
 
+	def test_text_goes_silent_and_without_link_previews(self):
+		"""A message goes silent and without link previews, and so does an edit: link_preview_options, which replaced
+		disable_web_page_preview in Bot API 7.0."""
+		sent = []
+		self.patch(net, 'post', lambda url, **kwargs: sent.append((url.rsplit('/', 1)[1], kwargs['json'])) or
+			Resp({'ok': True, 'result': {'message_id': 8}}))
+		chat = telegram_common.TelegramBot('5')
+		chat.post_text('hi')
+		chat.edit_text('8', 'edited')
+		off = {'is_disabled': True}
+		self.assertEqual(sent, [('sendMessage', {'chat_id': '5', 'text': 'hi', 'parse_mode': 'HTML',
+			'link_preview_options': off, 'disable_notification': True}), ('editMessageText', {'chat_id': '5',
+			'message_id': '8', 'text': 'edited', 'parse_mode': 'HTML', 'link_preview_options': off})])
+
+	def test_typing_is_sent_again_before_it_lapses(self):
+		""""typing…" shows for 5 seconds at most (sendChatAction), so it is sent again sooner, and shows the whole time
+		a command works, for a minute at least."""
+		delay, every, times = telegram_common.TelegramBot.TYPING
+		self.assertLess(every, 5)
+		self.assertGreaterEqual(delay + every * times, 60)
+
 	def test_a_chart_goes_without_a_parameter_sendphoto_does_not_take(self):
 		"""sendPhoto is sent the chat, caption and markup, and no link-preview flag: a photo has no preview."""
 		sent = []

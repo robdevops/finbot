@@ -23,13 +23,16 @@ SUPPRESS_EMBEDS = 4 # message flag: no link previews
 NO_MENTIONS = {'parse': []} # text that looks like @everyone or a mention pings nobody
 GUILD, BOT_DM = 0, 1 # where a slash command may be used: in servers, and in a DM with the bot
 OPTION = 'arguments' # the name of a slash command's one option: its arguments as text
+USER_AGENT = 'DiscordBot (https://github.com/robdevops/finbot, {})' # the form Discord asks of every request's agent
+version = 'unknown' # finbot's commit, for USER_AGENT: bot.py sets it as it starts
 
 
 def call(method, path, **kwargs):
 	"""A REST call as the bot: Discord's answer as JSON, or None when it is empty. A 429 waits as long as Discord asks
 	(LONGEST_WAIT at most) and tries again. Raises RuntimeError with Discord's reason when it refuses, or a requests
 	error."""
-	headers = {'Authorization': 'Bot ' + config.env.discordBotToken, **kwargs.pop('headers', {})}
+	headers = {'Authorization': 'Bot ' + config.env.discordBotToken, 'User-Agent': USER_AGENT.format(version),
+		**kwargs.pop('headers', {})}
 	for attempt in range(1, TRIES + 1):
 		r = net.request(method, API + path, headers=headers, **kwargs)
 		if r.status_code != 429 or attempt == TRIES:

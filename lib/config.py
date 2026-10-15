@@ -444,6 +444,9 @@ def startup_warnings(settings=None):
 	if s.telegramOutgoingWebhook and not s.telegramOutgoingToken:
 		warnings.append('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update will be'
 			' refused')
+	if s.telegramOutgoingToken and not re.fullmatch(r'[A-Za-z0-9_-]{1,256}', s.telegramOutgoingToken):
+		warnings.append('telegramOutgoingToken is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the'
+			" webhook's secret, so setting the webhook will fail")
 	if s.telegramOutgoingToken and not s.telegramOutgoingWebhook:
 		warnings.append('telegramOutgoingToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram'
 			' updates (pull mode), and the token is not used')

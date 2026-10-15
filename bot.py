@@ -274,6 +274,7 @@ if __name__ == '__main__':
 		telegram_common.set_commands(worker.slash_commands(aliases=False)) # the menu; /profile and /job work typed
 		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
 	if config.env.discordBotToken:
+		discord_common.version = git_version() # in each request's User-Agent, as Discord asks
 		try:
 			discord_common.READER.bot_id = discord_common.register(worker.slash_commands())
 		except Exception as e:

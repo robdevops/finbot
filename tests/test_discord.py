@@ -228,11 +228,21 @@ class Sending(FinbotCase):
 		self.assertEqual(self.calls[1][2]['json'], {'content': 'list', 'components': []})
 
 	def test_a_command_in_a_message_shows_typing(self):
-		"""A command in a message (the gateway's) shows "typing…" in its channel."""
+		"""A command in a message (the gateway's) shows "typing…" in its channel, which lasts 10 seconds (POST
+		/typing): it is sent again sooner, so that it shows the whole time the command works."""
 		chat = discord_common.DiscordBot('77', '700')
 		self.assertTrue(chat.shows_typing)
 		chat.typing()
 		self.assertEqual(self.calls[0][:2], ('POST', '/channels/77/typing'))
+		self.assertLess(chat.TYPING[1], 10)
+
+	def test_each_request_names_finbot_as_discord_asks(self):
+		"""Each request carries the bot token, and the User-Agent that Discord asks of a bot: DiscordBot, its URL and
+		its version (the commit, which bot.py notes as it starts)."""
+		self.patch(discord_common, 'version', '0123456')
+		discord_common.call('GET', '/users/@me')
+		self.assertEqual(self.calls[0][2]['headers'], {'Authorization': 'Bot x',
+			'User-Agent': 'DiscordBot (https://github.com/robdevops/finbot, 0123456)'})
 
 	def test_rate_limits_are_waited_out_and_refusals_raise(self):
 		"""A 429 waits as long as Discord asks, then tries again, three times at most; a refusal raises with Discord's

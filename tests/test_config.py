@@ -427,11 +427,15 @@ class Startup(unittest.TestCase):
 			' and the app-level token is not used')
 		not_app = ("slackAppToken does not start with xapp-: it must be an app-level token (the app's Basic"
 			' Information, App-Level Tokens), not the bot token')
+		bad_secret = ("telegramOutgoingToken is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the"
+			" webhook's secret, so setting the webhook will fail")
 		cases = (({}, []), ({'slackBotToken': ''}, [no_reply]), ({'slackOutgoingToken': ''}, [slack_refused]),
 			({'slackChannelID': 'C9'}, []), ({'slackChannelID': 'C9', 'slackBotToken': ''}, [no_reply, no_bot]),
 			({'slackOutgoingToken': '', 'slackSigningSecret': 's'}, []),
 			({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, [unused]),
 			({'telegramOutgoingWebhook': '', 'telegramOutgoingToken': ''}, []),
+			({'telegramOutgoingToken': 'A-z_09' * 40}, []), ({'telegramOutgoingToken': 'x' * 257}, [bad_secret]),
+			({'telegramOutgoingToken': 'pass word!'}, [bad_secret]),
 			({'slackOutgoingWebhook': '', 'slackAppToken': 'xapp-1'}, []),
 			({'slackOutgoingWebhook': '', 'slackAppToken': 'xapp-1', 'slackBotToken': ''}, [app_no_reply]),
 			({'slackAppToken': 'xapp-1'}, [app_unused]),
