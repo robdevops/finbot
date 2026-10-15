@@ -1,8 +1,9 @@
 """What the networks send the bot. Reading an update is apart from how it arrives: a class per network reads its updates
-(Telegram, Slack), and a class per way of arriving takes them in (a webhook: the path the network posts to, how it
-proves itself, the body), so that another way (a pull mode) can hand its updates to the same reader. An update becomes
-a Message to answer, a Press of a button, or a Response the network gets straight back (a challenge, or nothing to
-do). The reader also acknowledges a press where the network waits for that (Telegram), however it arrived."""
+(Telegram, Slack, Discord), and a class per way of arriving takes them in (a webhook: the path the network posts to,
+how it proves itself, the body), so that another way (a pull mode) can hand its updates to the same reader. An update
+becomes a Message to answer, a Press of a button, or a Response the network gets straight back (a challenge, or nothing
+to do). The reader also acknowledges an update where the network waits for that, however it arrived: Telegram's press
+with a call, Discord's interaction with the answer it must have before any reply."""
 import dataclasses
 import hashlib
 import hmac
@@ -28,6 +29,7 @@ class Message:
 	bot_name: str # the bot's @name, which can start a command
 	user_name: str # what to call them
 	message_id: str = '' # the message itself: Slack shows ⏳ on it while finbot works
+	interaction: str = '' # Discord's slash command: its application id and token, to answer through
 
 
 @dataclasses.dataclass
@@ -39,13 +41,16 @@ class Press:
 	message_id: str
 	data: str
 	user: str = '' # who pressed it, for the log
+	interaction: str = '' # Discord's press: its application id and token, to edit the message pressed through
 
 
 @dataclasses.dataclass
 class Response:
-	"""What the network gets back at once: a status and a body."""
+	"""What the network gets back at once: a status and a body; and the work to start once it has them (`then`), when
+	the network must have this answer before any reply (Discord's deferred answer to an interaction)."""
 	status: str = '200 OK'
 	body: bytes = b''
+	then: object = dataclasses.field(default=None, compare=False)
 
 
 OK = Response()
@@ -53,6 +58,7 @@ UNSUPPORTED = Response(body=b'Unsupported') # an update of a kind the bot takes 
 UNHANDLED = Response(body=b'<h1>Unhandled</h1>') # a kind it might, which this code does not know
 BAD_REQUEST = Response('400 Bad Request', b'<h1>Bad Request</h1>')
 FORBIDDEN = Response('403 Forbidden', b'<h1>Unauthorized</h1>')
+UNAUTHORIZED = Response('401 Unauthorized', b'<h1>Unauthorized</h1>') # what Discord expects for a bad signature
 NOT_FOUND = Response('404 Not Found', b'<h1>404</h1>')
 TOO_LARGE = Response('413 Payload Too Large', b'<h1>Payload Too Large</h1>')
 
@@ -78,9 +84,11 @@ class Network:
 		"""What the update (a dict) says: a Message, a Press, or a Response to give straight back."""
 		raise NotImplementedError
 
-	def acknowledge(self, press):
-		"""Tell the network a press was taken, where it waits for a call to say so. Here nothing: taking the update is
-		the acknowledgement (Slack's is the 200, or the socket's ack)."""
+	def acknowledge(self, event):
+		"""Tell the network an update was taken (a Message or a Press), where it waits for that: None when the answer to
+		the update says nothing more, or the Response the network must have before any reply. Here None: taking the
+		update is the acknowledgement (Slack's is the 200, or the socket's ack)."""
+		return None
 
 
 class Telegram(Network):
@@ -128,10 +136,12 @@ class Telegram(Network):
 			return UNHANDLED
 		return Message(self.service, chat_id, user, text, self.bot_name, user_name, str(message.get('message_id', '')))
 
-	def acknowledge(self, press):
-		"""answerCallbackQuery: the client's spinner stops, and a toast made from the button's data says what is coming
-		(buttons.toast: 'Loading 1Y…'). A failure is only logged."""
-		telegram.answerCallbackQuery(press.press_id, buttons.toast(press.data))
+	def acknowledge(self, event):
+		"""A press: answerCallbackQuery, so that the client's spinner stops and a toast made from the button's data says
+		what is coming (buttons.toast: 'Loading 1Y…'). A failure is only logged. Nothing goes back with the update."""
+		if isinstance(event, Press):
+			telegram.answerCallbackQuery(event.press_id, buttons.toast(event.data))
+		return None
 
 
 class Slack(Network):
@@ -184,9 +194,77 @@ class Slack(Network):
 			container['message_ts'], value, who)
 
 
+class Discord(Network):
+	"""Discord's interactions (a slash command, a button pressed, the endpoint's check), which read the same from the
+	interactions endpoint and the gateway, and the gateway's messages."""
+	service = 'discord'
+	bot_id = None # the bot's user id, from discord.register() as bot.py starts: a message mentioning it is for the bot
+	PING, COMMAND, COMPONENT = 1, 2, 3 # interaction types
+	PONG, THINKING, LATER = 1, 5, 6 # answers: to the check, "thinking…" until the reply, nothing to see (a press)
+
+	def update_id(self, update):
+		"""The interaction's id, or the message's."""
+		return update.get('id')
+
+	def parse(self, update):
+		"""An interaction (it has a token) or a gateway message."""
+		return self.interaction(update) if 'token' in update else self.message(update)
+
+	@property
+	def bot_name(self):
+		"""The bot as a message names it, @ and its user id (Discord's <@id> mention, read as Slack's are)."""
+		return f'@{self.bot_id}' if self.bot_id else None
+
+	def interaction(self, update):
+		"""The endpoint's check (a PING, answered at once), a slash command as the message it stands for (/price 7d),
+		or a button pressed under one of the bot's messages; anything else, UNSUPPORTED."""
+		kind = update.get('type')
+		if kind == self.PING:
+			return Response(body=json.dumps({'type': self.PONG}).encode())
+		person = (update.get('member') or {}).get('user') or update.get('user') or {}
+		channel = str(update.get('channel_id') or (update.get('channel') or {}).get('id') or '')
+		through = f"{update.get('application_id')}/{update['token']}"
+		data = update.get('data') or {}
+		if kind == self.COMMAND and data.get('name'):
+			given = ' '.join(str(option.get('value', '')) for option in data.get('options') or []).strip()
+			text = f"/{data['name']} {given}".strip()
+			return Message(self.service, channel, f"<@{person.get('id')}>", text, self.bot_name, self.name(person),
+				interaction=through)
+		message = update.get('message') or {}
+		if kind == self.COMPONENT and data.get('custom_id') and message.get('id'):
+			return Press(self.service, str(update.get('id')), channel, str(message['id']), data['custom_id'],
+				'@' + str(person.get('username') or person.get('id') or 'unknown'), through)
+		return UNSUPPORTED
+
+	def message(self, update):
+		"""A message a person wrote (MESSAGE_CREATE); a mention <@id> reads as @id, as Slack's do. One by a bot (this
+		one's replies included) or a webhook is OK: answering a bot could loop."""
+		author = update.get('author') or {}
+		if author.get('bot') or update.get('webhook_id') or not author.get('id') or 'content' not in update:
+			return OK
+		text = re.sub(r'<@!?(\d+)>', r'@\1', update['content'])
+		return Message(self.service, str(update.get('channel_id')), f"<@{author['id']}>", text, self.bot_name,
+			self.name(author), str(update.get('id', '')))
+
+	@staticmethod
+	def name(person):
+		"""What to call someone: their display name, else their username."""
+		return person.get('global_name') or person.get('username') or 'unknown'
+
+	def acknowledge(self, event):
+		"""An interaction's answer, which Discord must have within 3 seconds and before any reply: "thinking…" for a
+		slash command, until the reply replaces it; nothing to see for a press, whose message is edited after. A
+		gateway message needs none."""
+		if not event.interaction:
+			return None
+		answer = self.THINKING if isinstance(event, Message) else self.LATER
+		return Response(body=json.dumps({'type': answer}).encode())
+
+
 class Webhook:
 	"""Updates a network posts to the bot, for its reader (a Network); subclasses give the path it posts to and how it
 	proves itself."""
+	REFUSED = FORBIDDEN # the answer to a request that does not prove itself
 	def __init__(self, network):
 		"""network: the reader of its updates."""
 		self.network = network
@@ -267,8 +345,34 @@ class SlackWebhook(Webhook):
 		return super().decode(body)
 
 
-TELEGRAM, SLACK = Telegram(), Slack() # the readers
-WEBHOOKS = (TelegramWebhook(TELEGRAM), SlackWebhook(SLACK))
+class DiscordInteractions(Webhook):
+	"""Discord posting interactions to discordOutgoingWebhook (the app's Interactions Endpoint URL), each signed with
+	the app's Ed25519 key, whose public half is discordPublicKey."""
+	REFUSED = UNAUTHORIZED # Discord checks that a bad signature gets a 401, and drops a URL that answers otherwise
+
+	def path(self):
+		"""The path of discordOutgoingWebhook."""
+		return urlparse(config.env.discordOutgoingWebhook).path if config.env.discordOutgoingWebhook else ''
+
+	def refuse(self, environ, body, update):
+		"""The request must carry Discord's signature of its timestamp and body under discordPublicKey, checked with
+		PyNaCl (imported here only: Discord's http mode is the one thing that needs it)."""
+		signature = environ.get('HTTP_X_SIGNATURE_ED25519', '')
+		timestamp = environ.get('HTTP_X_SIGNATURE_TIMESTAMP', '')
+		if not signature or not timestamp:
+			return "Discord signature not present"
+		from nacl.exceptions import BadSignatureError
+		from nacl.signing import VerifyKey
+		try:
+			VerifyKey(bytes.fromhex(config.env.discordPublicKey)).verify(timestamp.encode() + body,
+				bytes.fromhex(signature))
+		except (BadSignatureError, ValueError):
+			return "Discord signature incorrect"
+		return None
+
+
+TELEGRAM, SLACK, DISCORD = Telegram(), Slack(), Discord() # the readers
+WEBHOOKS = (TelegramWebhook(TELEGRAM), SlackWebhook(SLACK), DiscordInteractions(DISCORD))
 
 
 def route(path):

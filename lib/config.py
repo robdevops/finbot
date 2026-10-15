@@ -18,10 +18,12 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'telegramChatID', 'scheduler', 'scheduler_catchup', 'sharesight_code',
 	'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
 	'slackAppToken', 'slackChannelID', 'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret',
-	'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook')
+	'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook', 'discordBotToken', 'discordChannelID',
+	'discordOutgoingWebhook', 'discordPublicKey')
 SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook',
 	'discord_webhook', 'slackBotToken', 'slackAppToken', 'slackOutgoingToken', 'slackOutgoingWebhook',
-	'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook') # never printed
+	'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook', 'discordBotToken',
+	'discordOutgoingWebhook') # never printed
 PREFERENCES_FILE = 'preferences.conf'
 RETIRED = ('alliterate', 'chunk_maxlines', 'performance_use_sharesight') # preferences.conf keys that do nothing any
 # more: accepted, with a note at start to delete them
@@ -197,6 +199,10 @@ class Env:
 	slackOutgoingWebhook: str
 	slackOutgoingToken: str
 	slackSigningSecret: str
+	discordBotToken: str
+	discordChannelID: str # with discordBotToken, scheduled reports go to this channel as the bot
+	discordOutgoingWebhook: str # the interactions endpoint URL (http mode); unset, finbot keeps to the gateway
+	discordPublicKey: str # the app's key, which checks the signature of each interaction posted to the endpoint
 	sharesight_auth: dict
 	webhooks: dict # service -> outbound URL: Telegram's Bot API base, the Slack and Discord incoming webhooks
 
@@ -236,6 +242,10 @@ def startup_values(getenv):
 		slackOutgoingWebhook=r.str('slackOutgoingWebhook', ''),
 		slackOutgoingToken=r.str('slackOutgoingToken', ''),
 		slackSigningSecret=r.str('slackSigningSecret', ''),
+		discordBotToken=r.str('discordBotToken', ''),
+		discordChannelID=r.str('discordChannelID', ''),
+		discordOutgoingWebhook=r.str('discordOutgoingWebhook', ''),
+		discordPublicKey=r.str('discordPublicKey', ''),
 		sharesight_auth={
 			"grant_type": 'client_credentials',
 			"code": getenv('sharesight_code'),
@@ -446,4 +456,15 @@ def startup_warnings(settings=None):
 	if s.telegramOutgoingToken and not s.telegramOutgoingWebhook:
 		warnings.append('telegramOutgoingToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram'
 			' updates (pull mode), and the token is not used')
+	if s.discordOutgoingWebhook and not s.discordBotToken:
+		warnings.append('discordOutgoingWebhook is set but discordBotToken is not: Discord commands will get no reply')
+	if s.discordChannelID and not s.discordBotToken:
+		warnings.append('discordChannelID is set but discordBotToken is not: scheduled reports cannot go there as the'
+			' bot')
+	if s.discordOutgoingWebhook and not re.fullmatch(r'[0-9a-fA-F]{64}', s.discordPublicKey):
+		warnings.append("discordOutgoingWebhook is set but discordPublicKey is not the app's public key (64 hex"
+			' digits): every Discord interaction will be refused')
+	if s.discordPublicKey and not s.discordOutgoingWebhook:
+		warnings.append('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway'
+			' (pull mode), and the key is not used')
 	return warnings

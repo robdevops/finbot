@@ -11,6 +11,7 @@ import requests
 
 from lib import config
 from lib import dialects
+from lib import discord
 from lib import net
 from lib import state
 from lib import telegram
@@ -35,10 +36,14 @@ class Transport:
 	_notices = None # the thread sending the notices
 	_quiet = None # set to stop them
 
-	def __init__(self, where, message=None):
-		"""where: the chat id, or the incoming webhook's URL; message: the id of the message being answered, if any."""
+	def __init__(self, where, message=None, interaction='', pressed=False):
+		"""where: the chat id, or the incoming webhook's URL; message: the id of the message being answered, if any;
+		interaction: what the network answers through, where it has one (Discord's application id and token), for a
+		slash command, or for a button press (pressed)."""
 		self.where = where
 		self.message = message
+		self.interaction = interaction
+		self.pressed = pressed
 
 	def __repr__(self):
 		"""<TelegramBot 55>: the kind and where, for logs and test failures."""
@@ -476,6 +481,117 @@ class DiscordWebhook(Transport):
 				return {}
 		print(r.status_code, "error discord chart", net.redact(r.text[:300]), file=sys.stderr)
 		return None
+
+
+class DiscordBot(Transport):
+	"""A Discord channel or DM, as the bot (discordBotToken): no link previews, no pings, charts attached, buttons as
+	components, edits in place, the typing notice. A slash command's first message replaces Discord's "thinking…" and
+	the rest follow it up, through its interaction; a pressed message is edited through the press's."""
+	name = 'discord'
+	dialect = dialects.DISCORD
+	takes_charts = takes_buttons = True
+
+	def __init__(self, where, message=None, interaction='', pressed=False):
+		"""As Transport; a press has no "thinking…" to replace, so its new messages go into the channel."""
+		super().__init__(where, message, interaction, pressed)
+		self.answered = pressed # the slash command's "thinking…" replaced
+
+	@property
+	def shows_typing(self):
+		"""The typing notice for a command in a message; a slash command shows Discord's "thinking…" instead."""
+		return not self.interaction
+
+	def typing(self):
+		"""POST /typing: "finbot is typing…" for ten seconds, or until it posts."""
+		discord.try_call('POST', f'/channels/{self.where}/typing')
+
+	def typing_done(self):
+		"""A slash command over with nothing said: its "thinking…" deleted, or it would show for 15 minutes."""
+		if self.interaction and not self.answered:
+			self.answered = True
+			discord.try_call('DELETE', f'/webhooks/{self.interaction}/messages/@original')
+
+	@staticmethod
+	def extras(buttons):
+		"""What a message carries besides its text: no link previews, no pings, and its buttons as components."""
+		extra = {'flags': discord.SUPPRESS_EMBEDS, 'allowed_mentions': discord.NO_MENTIONS}
+		if buttons and not isinstance(buttons, dict):
+			extra['components'] = components(buttons)
+		return extra
+
+	def post_text(self, text, buttons=None):
+		"""Post one message (see post)."""
+		return self.post({'content': text, **self.extras(buttons)})
+
+	def post_chart(self, image, caption, buttons=None):
+		"""Post a chart, attached to the report as its message (see post)."""
+		attached = {'content': caption, 'attachments': [{'id': 0, 'filename': 'chart.png'}], **self.extras(buttons)}
+		return self.post(attached, image)
+
+	def post(self, payload, image=None):
+		"""Post one message: a slash command's first replaces its "thinking…" and the rest follow it up; otherwise it
+		goes into the channel. Discord's message; MAYBE_SENT when a chart's post timed out; None when it failed
+		(logged)."""
+		if self.interaction and not self.answered:
+			method, path = 'PATCH', f'/webhooks/{self.interaction}/messages/@original'
+		elif self.interaction and not self.pressed:
+			method, path = 'POST', f'/webhooks/{self.interaction}'
+		else:
+			method, path = 'POST', f'/channels/{self.where}/messages'
+		try:
+			answer = discord.call(method, path, **message_body(payload, image))
+		except requests.exceptions.ReadTimeout as e:
+			self.answered = True # it may have arrived
+			print("Discord post timed out, it may still arrive:", net.redact(e), file=sys.stderr)
+			return MAYBE_SENT if image is not None else None
+		except Exception as e:
+			print("Discord post to", self.where, "failed:", net.redact(e), file=sys.stderr)
+			return None
+		self.answered = True
+		print("OK discord message to", self.where, file=sys.stderr)
+		return answer or {}
+
+	def message_path(self, message):
+		"""Where a message is edited: through the press's interaction where there is one (a message that answered a
+		slash command can be edited only so), else in the channel as the bot."""
+		if self.interaction:
+			return f'/webhooks/{self.interaction}/messages/@original'
+		return f'/channels/{self.where}/messages/{message}'
+
+	def edit_chart(self, message, image, caption, buttons=None):
+		"""Replace a chart message's image, caption and buttons in place. Raises RuntimeError when Discord refuses."""
+		if hasattr(image, 'seek'):
+			image.seek(0)
+		payload = {'content': fit_caption(caption, self.dialect), 'attachments': [{'id': 0, 'filename': 'chart.png'}],
+			'components': components(buttons or [])}
+		discord.call('PATCH', self.message_path(message), **message_body(payload, image))
+
+	def edit_text(self, message, text, buttons=None):
+		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
+		payload = {'content': text}
+		if buttons is not None:
+			payload['components'] = components(buttons)
+		discord.try_call('PATCH', self.message_path(message), json=payload)
+
+
+DISCORD_ROW = 5 # buttons in a row of components, and rows in a message: Discord's limits
+
+
+def components(buttons):
+	"""Rows of buttons.Button as Discord's action rows: DISCORD_ROW buttons to a row and as many rows at most (the
+	buttons past that are left out), the one shown now blurple and the rest grey."""
+	flat = [button for row in buttons for button in row][:DISCORD_ROW * DISCORD_ROW]
+	return [{'type': 1, 'components': [{'type': 2, 'style': 1 if button.active else 2, 'label': button.label[:80],
+		'custom_id': button.data} for button in flat[i:i + DISCORD_ROW]]} for i in range(0, len(flat), DISCORD_ROW)]
+
+
+def message_body(payload, image=None):
+	"""A Discord message's request arguments: its JSON; with a chart, a form of the JSON and the PNG (bytes, so that a
+	rate-limited call can send it again)."""
+	if image is None:
+		return {'json': payload}
+	data = image.read() if hasattr(image, 'read') else bytes(image)
+	return {'data': {'payload_json': json.dumps(payload)}, 'files': {'files[0]': ('chart.png', data, 'image/png')}}
 
 
 def slack_api(method, as_app=False, **data):

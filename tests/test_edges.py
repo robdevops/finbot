@@ -219,9 +219,9 @@ class CommandArguments(FinbotCase):
 				('.price @bot', 'price')):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[0], (name,))
-		for message in ('.planet', '.shortman', '.pricey'):
+		for message in ('.planet', '.shortman', '.pricey', '.stock T1', '/profile T1'):
 			with self.subTest(message=message):
-				self.assertEqual(self.args(message)[0], (), message) # .SYMBOL
+				self.assertEqual(self.args(message)[0], ('stock',), message) # .SYMBOL
 		self.assertEqual(self.args('.price @bot')[1].words, [])
 		for message in ('price 7d', '/price@otherbot', '...', '. ?'):
 			with self.subTest(message=message):

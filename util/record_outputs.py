@@ -81,12 +81,12 @@ def record(output):
 		def runTest(self):
 			"""Record what each step posts: the real sending code runs, and net.post notes each request."""
 			posts = []
-			def post(url, **kwargs):
-				"""Note a request, the typing notices aside (Telegram's, Slack's ⏳: timing, not output), and answer
-				like the APIs do."""
-				if 'sendChatAction' in url or '/reactions.' in url:
+			def post(url, method='POST', **kwargs):
+				"""Note a request, the typing notices aside (Telegram's, Slack's ⏳, Discord's: timing, not output), and
+				answer like the APIs do."""
+				if 'sendChatAction' in url or '/reactions.' in url or url.endswith('/typing'):
 					return common.mock.Mock(status_code=200, json=lambda: {'ok': True, 'result': True})
-				entry = {'url': url.replace('botX/', 'bot<token>/')}
+				entry = {'url': url.replace('botX/', 'bot<token>/'), **({'method': method} if method != 'POST' else {})}
 				for key in ('json', 'data', 'params'):
 					body = kwargs.get(key)
 					if isinstance(body, dict):
@@ -99,10 +99,14 @@ def record(output):
 				answer = {**ANSWER, 'result': {'message_id': len(posts), 'chat': {'id': 5}}}
 				return common.mock.Mock(status_code=200, json=lambda: answer, text='OK')
 			self.patch(net, 'post', post)
+			if hasattr(net, 'request'): # Discord's calls, since the Discord bot
+				self.patch(net, 'request', lambda method, url, **kwargs: post(url, method, **kwargs))
 			for target, name, real in real_sending: # what the fixture replaces with recorders, put back
 				self.patch(target, name, real)
 			self.patch(common.time, 'sleep', lambda seconds: None) # no pauses between a long report's messages
 			self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack') # Slack's buttons too
+			if 'discordBotToken' in {field.name for field in common.dataclasses.fields(common.config.env)}:
+				self.env(discordBotToken='discord-test')
 			steps = []
 			def step(label, run):
 				"""Run one step and note what it posted, or what it raised."""
@@ -114,11 +118,11 @@ def record(output):
 				except Exception as e:
 					raised = f'{type(e).__name__}: {e}'
 				steps.append({'step': label, 'posts': list(posts), 'raised': raised})
-			for service, chat, user in (('telegram', '55', '@u'), ('slack', 'C1', '<@U1>')):
+			for service, chat, user in (('telegram', '55', '@u'), ('slack', 'C1', '<@U1>'), ('discord', '77', '<@5>')):
 				for text in COMMANDS:
 					step(f'{service} {text}', handing(worker.process_request, 'Message', service, chat, user, text,
 						common.BOT, 'U'))
-			for service, chat, message in (('telegram', '55', '9'), ('slack', 'C1', '1.5')):
+			for service, chat, message in (('telegram', '55', '9'), ('slack', 'C1', '1.5'), ('discord', '77', '333')):
 				for data in BUTTONS:
 					label = f'button {data}' if service == 'telegram' else f'{service} button {data}'
 					step(label, pressing(service, 'cb', chat, message, data))

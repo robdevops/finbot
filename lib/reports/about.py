@@ -1,5 +1,6 @@
 """What finbot can do: the .help text, and the .jobs listing of the schedule (with running a job from it)."""
 from lib import buttons
+from lib import config
 from lib import formats
 from lib import jobs
 
@@ -46,8 +47,12 @@ def job_line(scheduler, label, outcome):
 
 def prepare_help(service, botName, sections):
 	"""The .help text: each section's command lines under its heading (worker.help_sections() has them), then the bot's
-	@name as another way to start a command. botName is the bot's @name."""
-	example = '<' + botName + '> trades' if service == 'slack' else botName + ' price'
+	@name as another way to start a command. botName is the bot's @name. On Discord the lines are slash commands, and
+	the other ways, which are messages, work only over the gateway."""
+	if service == 'discord':
+		example = None if config.env.discordOutgoingWebhook else f'.price, or <{botName}> price'
+	else:
+		example = '<' + botName + '> trades' if service == 'slack' else botName + ' price'
 	return formats.sections(*([service.bold(heading + ":")] + lines for heading, lines in sections),
-		[service.bold("Alternative syntax:"), example],
+		[service.bold("Alternative syntax:"), example] if example else [],
 		[f"Full help on {service.link('https://github.com/robdevops/finbot', 'GitHub')}"])

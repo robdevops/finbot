@@ -23,6 +23,10 @@ def post(url, **kwargs):
 	"""requests.post through the shared session, which reuses connections; timed out as timeouts() says."""
 	return session.post(url, **timeouts(kwargs))
 
+def request(method, url, **kwargs):
+	"""A request of any method through the shared session, which reuses connections; timed out as timeouts() says."""
+	return session.request(method, url, **timeouts(kwargs))
+
 def timeouts(kwargs):
 	"""The request's arguments with a timeout, unless it has its own: CONNECT_TIMEOUT to connect, then http_timeout for
 	the answer."""
@@ -30,9 +34,12 @@ def timeouts(kwargs):
 
 def redact(text):
 	"""text (or an exception) without the secrets that request URLs, headers and error messages carry: Telegram and
-	Slack tokens, Slack and Discord webhook paths, bearer tokens, and token, crumb, key, secret and auth parameters."""
+	Slack tokens, Slack and Discord webhook paths, Discord's bot and interaction tokens, bearer tokens, and token,
+	crumb, key, secret and auth parameters."""
 	text = re.sub(r'bot\d+:[\w-]+', 'bot<redacted>', str(text))
 	text = re.sub(r'\bx(?:ox[a-z]|app)-[\w-]+', '<redacted>', text) # Slack's tokens
 	text = re.sub(r'(/services/|/api/webhooks/)[^\s\'"?&]+', r'\1<redacted>', text)
+	text = re.sub(r'(/(?:webhooks|interactions)/\d+/)[^\s\'"?&/]+', r'\1<redacted>', text) # Discord's API
+	text = re.sub(r'\b[\w-]{23,28}\.[\w-]{6,7}\.[\w-]{27,}', '<redacted>', text) # a Discord bot token
 	text = re.sub(r'(?i)(bearer\s+)[\w.~+/=-]+', r'\1<redacted>', text)
 	return re.sub(r'(?i)(token|crumb|auth\w*|key|secret)=[^&\s\'"]+', r'\1=<redacted>', text)

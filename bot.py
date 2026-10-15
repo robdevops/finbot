@@ -5,10 +5,11 @@ if __name__ == '__main__':
 	# ignored until startup is done (the reload handler is installed last): its default action kills the bot
 	signal.signal(signal.SIGHUP, signal.SIG_IGN)
 	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise the cache flush
-import collections, json, os, re, sys, threading, traceback
+import collections, dataclasses, json, os, re, sys, threading, traceback
 from pathlib import Path
 
 from lib import config
+from lib import discord
 from lib import inbound
 from lib import worker
 from lib import jobs
@@ -68,12 +69,12 @@ def handle(environ, start_response):
 	bytes, up to MAX_BODY) and take it (take): the network gets its answer at once."""
 	def respond(response):
 		"""Answer the request: a status line and a body (logged with the debug preference, naming the network, not the
-		path)."""
+		path). Work that must wait for the answer starts once the server has sent it."""
 		if config.prefs.debug:
 			print(f"[http] request for {environ.get(ROUTED) or 'no network'} answered {response.status}",
 				file=sys.stderr)
 		start_response(response.status, [('Content-type', 'application/json')])
-		return [response.body]
+		return Sent([response.body], response.then) if response.then else [response.body]
 	def print_headers():
 		"""Log the request headers, Telegram's secret header redacted."""
 		for name, value in sorted(environ.items()):
@@ -104,22 +105,35 @@ def handle(environ, start_response):
 		shown = {k: '<redacted>' if k == 'token' else v for k, v in update.items()} # Slack's verification token
 		print("warning:", why, file=sys.stderr)
 		print(f"[{source.service}]: refused update", json.dumps(shown, indent=4, default=str), file=sys.stderr)
-		return respond(inbound.FORBIDDEN)
+		return respond(source.REFUSED)
 	environ[AUTHENTICATED] = True
 	return respond(take(source.network, update))
 
+class Sent(list):
+	"""A response body that starts some work once the server has sent it: WSGI calls close() then."""
+	def __init__(self, body, then):
+		"""body: the chunks; then: the work."""
+		super().__init__(body)
+		self.then = then
+
+	def close(self):
+		"""The answer is out: start the work."""
+		self.then()
+
 def take(network, update):
 	"""An update from a network (an inbound.Network reads it), however it arrived: what it says goes to lib/worker in a
-	thread of its own (dispatch), unless it is a repeat; a button press is acknowledged first, the one place that does.
-	Returns the inbound.Response for the network."""
+	thread of its own (dispatch), unless it is a repeat. It is acknowledged first, the one place that does
+	(Network.acknowledge: Telegram's toast for a press). Returns the inbound.Response for the network; when the network
+	must have it before any reply (Discord's interactions), the work waits in its `then`, for whoever delivers it."""
 	event = network.parse(update)
 	if isinstance(event, inbound.Response):
 		return event
 	if seen_before(network.service, network.update_id(update)):
 		print(f"[{network.service}]: update {network.update_id(update)} seen already, not run again", file=sys.stderr)
 		return inbound.OK
-	if isinstance(event, inbound.Press):
-		network.acknowledge(event) # Telegram's toast ("Loading 1Y…") shows while the worker builds the answer
+	answer = network.acknowledge(event)
+	if answer is not None:
+		return dataclasses.replace(answer, then=lambda: dispatch(event))
 	dispatch(event)
 	return inbound.OK
 
@@ -245,6 +259,12 @@ if __name__ == '__main__':
 			print('ERROR', delivery.error_line(e, 'telegram'), file=sys.stderr)
 			sys.exit(1)
 		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
+	if config.env.discordBotToken:
+		try:
+			inbound.DISCORD.bot_id = discord.register(worker.slash_commands())
+		except Exception as e:
+			print('ERROR', delivery.error_line(e, 'discord'), file=sys.stderr)
+			sys.exit(1)
 	if scheduler:
 		jobs.current = scheduler # for the .jobs chat command
 		threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs

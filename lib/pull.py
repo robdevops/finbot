@@ -1,13 +1,16 @@
 """The pull modes: a network that finbot.env gives no webhook URL is asked for its updates instead, by a listener in a
 thread of its own, which hands each update to bot.take(network, update) as the webhook would, so that reading it, the
 repeat check and acknowledging a press are the same both ways. Each listener keeps going through failures, waiting
-longer after each one in a row (backoff). Telegram's long polling and Slack's Socket Mode."""
+longer after each one in a row (backoff). Telegram's long polling, Slack's Socket Mode and Discord's gateway."""
+import asyncio
 import json
 import sys
+import threading
 import time
 
 from lib import config
 from lib import delivery
+from lib import discord
 from lib import inbound
 from lib import net
 from lib import telegram
@@ -50,12 +53,20 @@ class Listener:
 		return wait
 
 	def hand_on(self, take, update):
-		"""take(network, update), a failure reported as bot.main reports one of an authenticated request: the update
-		came from the network, so the default chats are told."""
+		"""take(network, update), and the answer delivered where the network must have it before any reply. A failure
+		is reported as bot.main reports one of an authenticated request: the update came from the network, so the
+		default chats are told."""
 		try:
-			take(self.network, update)
+			answer = take(self.network, update)
+			if getattr(answer, 'then', None):
+				self.answer(update, answer)
 		except Exception as e:
 			delivery.report_error(e, context=self.network.service)
+
+	def answer(self, update, answer):
+		"""Deliver an answer that the network must have before any reply, then start the work waiting on it. Only
+		Discord's interactions have one (DiscordGateway)."""
+		answer.then()
 
 
 class TelegramPoll(Listener):
@@ -193,6 +204,69 @@ class SlackSocket(Listener):
 				self.hand_on(take, envelope.get('payload') or {})
 
 
+class DiscordGateway(Listener):
+	"""Discord's gateway, through discord.py: imported here only, as Discord's pull mode is the one thing that needs it
+	(Debian's python3-discord). Its client keeps the connection, reconnecting by itself; finbot takes the raw
+	MESSAGE_CREATE and INTERACTION_CREATE events, which read as the interactions endpoint's, each in a thread of its
+	own, off the client's event loop. The gateway takes no answers: an interaction's goes to its callback over REST."""
+	network = inbound.DISCORD
+	TAKEN = ('MESSAGE_CREATE', 'INTERACTION_CREATE')
+
+	def describe(self):
+		"""The mode, for the log."""
+		return 'gateway (no discordOutgoingWebhook)'
+
+	def poll(self, take):
+		"""Run discord.py's client until it stops, which it does only on a failure it does not get over (a token Discord
+		refuses, or an intent the app is not allowed): then the back-off."""
+		try:
+			asyncio.run(self.run_client(take))
+		except Exception as e:
+			return self.failed('the gateway', e)
+		return self.failed('the gateway', 'the client stopped')
+
+	async def run_client(self, take):
+		"""Start the client with the bot token, and close it however it ends."""
+		client = self.client(take)
+		async with client:
+			await client.start(config.env.discordBotToken)
+
+	def client(self, take):
+		"""discord.py's client, with the intents for messages in servers and DMs, and their text (Message Content, which
+		the app must be allowed in the Developer Portal); its raw events go to receive()."""
+		import discord as library
+		library.VoiceClient.warn_nacl = False # finbot has no voice: no warning that PyNaCl is missing
+		intents = library.Intents.default()
+		intents.message_content = True
+		client = library.Client(intents=intents, enable_debug_events=True)
+
+		@client.event
+		async def on_socket_raw_receive(raw):
+			"""A gateway message, as it arrived."""
+			self.receive(raw, take)
+
+		@client.event
+		async def on_ready():
+			"""Connected: the failures in a row are over."""
+			self.failures = 0
+		return client
+
+	def receive(self, raw, take):
+		"""A raw gateway message: an event finbot takes goes to hand_on in a thread of its own, so that the client's
+		event loop never waits on finbot; the rest is the client's business."""
+		try:
+			message = json.loads(raw)
+		except (TypeError, ValueError):
+			return
+		if message.get('op') == 0 and message.get('t') in self.TAKEN and isinstance(message.get('d'), dict):
+			threading.Thread(target=self.hand_on, args=(take, message['d']), daemon=True).start()
+
+	def answer(self, update, answer):
+		"""Post an interaction's answer to its callback, then start the work waiting on it."""
+		discord.call('POST', f"/interactions/{update['id']}/{update['token']}/callback", json=json.loads(answer.body))
+		answer.then()
+
+
 def listeners():
 	"""The listeners finbot.env asks for: each network with its bot token and no webhook URL (Slack's also needs its
 	app-level token)."""
@@ -202,4 +276,6 @@ def listeners():
 		found.append(TelegramPoll())
 	if env.slackBotToken and env.slackAppToken and not env.slackOutgoingWebhook:
 		found.append(SlackSocket())
+	if env.discordBotToken and not env.discordOutgoingWebhook:
+		found.append(DiscordGateway())
 	return found

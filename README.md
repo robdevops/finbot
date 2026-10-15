@@ -14,7 +14,7 @@
   * Ex-dividend date warnings
   * Highly shorted stock warnings (AU, US)
   * Interday and premarket price movements over a defined threshold
-* Interactive chat commands (Slack & Telegram):
+* Interactive chat commands (Telegram, Slack & Discord):
   * All the above reports
   * Price history graph
   * Stock lookup with price/valuation related stats and warnings
@@ -27,14 +27,14 @@ What finbot can do on each network. Telegram takes everything; the others take w
 
 | Feature | Telegram | Slack | Discord |
 |---|---|---|---|
-| Chat commands | ✓ | ✓ | ✗ (a webhook only posts) |
-| "typing…" while a command works | ✓ | ⏳ on the command's message (Slack has no typing notice for bots) | ✗ |
-| Charts in replies | ✓ | ✓ with `slackBotToken` | n/a |
+| Chat commands | ✓ | ✓ | ✓ with the bot: slash commands (`/price`), and messages (`.price`) over the gateway |
+| "typing…" while a command works | ✓ | ⏳ on the command's message (Slack has no typing notice for bots) | ✓ for a message; "thinking…" for a slash command |
+| Charts in replies | ✓ | ✓ with `slackBotToken` | ✓ |
 | Charts in scheduled reports | ✓ | ✓ with `slackChannelID` and `slackBotToken` (the incoming webhook takes text only) | ✓ |
-| Period and job buttons | ✓ | Period buttons, with the interactive bot | ✗ |
+| Period and job buttons | ✓ | Period buttons, with the interactive bot | ✓ with the bot |
 | No link previews | ✓ | ✓ | ✓ |
 | Linked tickers | ✓ | ✓ | ✓ |
-| Charts updated in place by their buttons | ✓ | ✓ | ✗ |
+| Charts updated in place by their buttons | ✓ | ✓ | ✓ |
 
 **Setting up a network:** [Telegram](doc/telegram.md) · [Slack](doc/slack.md) · [Discord](doc/discord.md). Each guide
 covers the whole setup of that network, and where there is a choice between reports only and the interactive bot, it
@@ -44,7 +44,7 @@ compares the two before the steps.
 
 ### Requirements
 * Most features require a Sharesight paid plan, preferably with automatic trade imports, and an API key
-* A Telegram bot, a Slack app or a Discord webhook (see the network's guide, above)
+* A Telegram bot, a Slack app or a Discord bot (see the network's guide, above)
 * Commands need no server: finbot fetches its updates from Telegram and Slack (pull mode). In HTTP mode instead, a network posts them to a public web server with a domain name and a matching certificate, which proxies them to the bot (see the [Telegram](doc/telegram.md#http-mode) and [Slack](doc/slack.md#http-mode) guides).
 * Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum)
 * Python modules, pinned to versions with 3.13 support in `requirements.txt`:
@@ -52,8 +52,9 @@ compares the two before the steps.
 croniter python-dateutil requests pandas matplotlib numpy
 ```
 * For a network in http mode (its webhook URL set), also `waitress` (Debian: `python3-waitress`); for Slack in Socket
-  Mode, `websocket-client` (`python3-websocket`). The optional modules are in `requirements-optional.txt`, each imported
-  only by the mode that needs it.
+  Mode, `websocket-client` (`python3-websocket`); for Discord's gateway, `discord.py` (`python3-discord`), and for its
+  http mode, `PyNaCl` (`python3-nacl`). The optional modules are in `requirements-optional.txt`, each imported only by
+  the mode that needs it.
 
 ### Supported commands
 
@@ -64,6 +65,7 @@ Where:
 * _symbol_ is a Yahoo Finance symbol; a bare one Yahoo does not know is tried again on your exchange (`exchange_suffix`: `BHP` may be `BHP.AX`)
 ```
 .symbol
+.stock symbol
 .beta
 .buy
 .sell
@@ -89,7 +91,7 @@ Where:
 .who symbol
 ```
 
-`!` or `/` work in place of the dot, and so does the bot's name: `@botname price 7d`, `@botname AAPL`. A command is its whole name, in any case, and so are its keywords (`.price TOP`); any other first word is a symbol. `.help` lists the commands in chat.
+`!` or `/` work in place of the dot, and so does the bot's name: `@botname price 7d`, `@botname AAPL`. Each command is also a slash command, as Discord registers them: `/stock symbol` (or `/profile symbol`) for `.symbol`, `/forwardpe` for `.forward pe`. A command is its whole name, in any case, and so are its keywords (`.price TOP`); any other first word is a symbol. `.help` lists the commands in chat.
 
 Trade notifications are peformed by polling the Sharesight trades API on a schedule (see [Scheduling](#scheduling)), and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 
@@ -472,7 +474,7 @@ of the chat network keys it needs.
 | `sharesight_client_id` | | Sharesight API access |
 | `sharesight_client_secret` | | Sharesight API access |
 | `slack_webhook` | | Slack incoming webhook, for outbound reports |
-| `discord_webhook` | | Discord webhook, for outbound reports |
+| `discord_webhook` | | Discord webhook, for outbound reports (not used with `discordBotToken` and `discordChannelID`) |
 | `telegramBotToken` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `telegramOutgoingWebhook` is set) |
 | `slackBotToken` | | Slack bot token, for replies and chart uploads in Slack |
 | `slackAppToken` | | Slack app-level token (`xapp-`): commands over a socket finbot opens to Slack (Socket Mode), when `slackOutgoingWebhook` is empty |
@@ -482,6 +484,10 @@ of the chat network keys it needs.
 | `slackOutgoingWebhook` | | The URL Slack posts its events and button presses to (HTTP mode); empty, Socket Mode with `slackAppToken` |
 | `slackOutgoingToken` | | Token Slack must present (HTTP mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
 | `slackSigningSecret` | | Secret Slack signs each request with (HTTP mode) |
+| `discordBotToken` | | Discord bot token: replies, and commands over the gateway unless `discordOutgoingWebhook` is set |
+| `discordChannelID` | | Channel id that scheduled reports go to on Discord as the bot, charts and buttons and all (with `discordBotToken`); `discord_webhook` is then not used |
+| `discordOutgoingWebhook` | | The Interactions Endpoint URL Discord posts slash commands and button presses to (HTTP mode); empty, the gateway (pull mode) |
+| `discordPublicKey` | | The app's public key, which checks the signature of each interaction (HTTP mode) |
 
 ### `preferences.conf` items
 

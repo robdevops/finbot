@@ -34,7 +34,7 @@ class Tables(unittest.TestCase):
 	def test_secrets_are_startup_keys(self):
 		"""Every secret is a startup key: preferences.conf holds none."""
 		self.assertTrue(set(config.SECRET_KEYS) <= set(config.STARTUP_KEYS))
-		self.assertEqual(len(config.SECRET_KEYS), 13)
+		self.assertEqual(len(config.SECRET_KEYS), 15)
 
 	def test_unset_preferences_take_their_defaults(self):
 		"""An unset preference takes its field's default, as it is: reading tidies nothing away."""
@@ -449,6 +449,26 @@ class Startup(unittest.TestCase):
 		for changes, warnings in cases:
 			with self.subTest(changes=changes), \
 					mock.patch.object(config, 'env', dataclasses.replace(config.env, **{**hooks, **changes})):
+				self.assertEqual(config.startup_warnings(), warnings)
+
+	def test_discord_settings_that_leave_part_of_it_unable_to_work_are_warned_about(self):
+		"""A startup warning for Discord's endpoint or channel without the bot token, the endpoint without the app's
+		public key (every interaction refused), and the key without the endpoint (the gateway is used)."""
+		key = 'ab' * 32
+		http = dict(discordBotToken='x', discordOutgoingWebhook='https://example.com/discord', discordPublicKey=key)
+		no_reply = 'discordOutgoingWebhook is set but discordBotToken is not: Discord commands will get no reply'
+		no_bot = 'discordChannelID is set but discordBotToken is not: scheduled reports cannot go there as the bot'
+		refused = ("discordOutgoingWebhook is set but discordPublicKey is not the app's public key (64 hex digits):"
+			' every Discord interaction will be refused')
+		unused = ('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway (pull'
+			' mode), and the key is not used')
+		cases = (({}, []), ({'discordBotToken': ''}, [no_reply]), ({'discordChannelID': '77'}, []),
+			({'discordChannelID': '77', 'discordBotToken': '', 'discordOutgoingWebhook': ''}, [no_bot, unused]),
+			({'discordPublicKey': 'not-hex'}, [refused]), ({'discordPublicKey': ''}, [refused]),
+			({'discordOutgoingWebhook': ''}, [unused]), ({'discordOutgoingWebhook': '', 'discordPublicKey': ''}, []))
+		for changes, warnings in cases:
+			with self.subTest(changes=changes), \
+					mock.patch.object(config, 'env', dataclasses.replace(config.env, **{**http, **changes})):
 				self.assertEqual(config.startup_warnings(), warnings)
 
 	def test_startup_report_is_a_short_count_never_names_or_values(self):

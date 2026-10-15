@@ -20,20 +20,21 @@ class Report:
 	buttons: list = None
 
 
-REPLIES = {'telegram': transports.TelegramBot, 'slack': transports.SlackBot} # a reply into the chat that asked
+REPLIES = {'telegram': transports.TelegramBot, 'slack': transports.SlackBot, 'discord': transports.DiscordBot}
 
 
-def reply_to(service, chat, message=None):
-	"""The destination of a reply into a chat (to `message`, the one being answered, if given), or None for a network
-	that takes none."""
+def reply_to(service, chat, message=None, interaction='', pressed=False):
+	"""The destination of a reply into a chat: to `message`, the one being answered, if given; through `interaction`
+	where the network answers one (Discord's slash command, or with pressed, its button press). None for a network that
+	takes no replies."""
 	kind = REPLIES.get(service)
-	return kind(chat, message) if kind else None
+	return kind(chat, message, interaction, pressed) if kind else None
 
 
 def default_chats():
 	"""Where a scheduled report goes, in this order: Telegram's telegramChatID; Slack's slackChannelID as the bot, with
-	slackBotToken (so that charts go too), else its incoming webhook; Discord's webhook. Raises RuntimeError when there
-	is nowhere to post."""
+	slackBotToken (so that charts go too), else its incoming webhook; Discord's discordChannelID as the bot, with
+	discordBotToken (buttons too), else its webhook. Raises RuntimeError when there is nowhere to post."""
 	env = config.env
 	chats = []
 	if env.telegramChatID and 'telegram' in env.webhooks:
@@ -42,11 +43,13 @@ def default_chats():
 		chats.append(transports.SlackBot(env.slackChannelID))
 	elif 'slack' in env.webhooks:
 		chats.append(transports.SlackWebhook(env.webhooks['slack']))
-	if 'discord' in env.webhooks:
+	if env.discordChannelID and env.discordBotToken:
+		chats.append(transports.DiscordBot(env.discordChannelID))
+	elif 'discord' in env.webhooks:
 		chats.append(transports.DiscordWebhook(env.webhooks['discord']))
 	if not chats:
-		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slackChannelID, slack_webhook or'
-			' discord_webhook')
+		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slackChannelID, discordChannelID,'
+			' slack_webhook or discord_webhook')
 	return chats
 
 

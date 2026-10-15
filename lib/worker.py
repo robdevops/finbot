@@ -31,10 +31,11 @@ class Request:
 	user_name: str # what to call them
 	bot_name: str
 	message_id: str = None # the message being answered
+	interaction: str = '' # what the network answers through, where it has one (Discord's slash command)
 
 	def __post_init__(self):
 		"""The chat's transport, which also keeps the typing notice going."""
-		self.dest = delivery.reply_to(self.service, self.chat_id, self.message_id)
+		self.dest = delivery.reply_to(self.service, self.chat_id, self.message_id, self.interaction)
 
 	def reply(self, lines, chart=None, buttons=None):
 		"""Answer in the chat (see delivery.deliver): the lines, perhaps a chart (drawn, or a spec drawn only where it
@@ -45,7 +46,7 @@ def process_job_callback(press, pressed):
 	"""A command button of .jobs (an inbound.Press; pressed, what its data says): run that command now and answer in
 	the chat. A button from an older list runs nothing: the list is redrawn in place as it is now."""
 	service = dialects.of(press.service)
-	chat = delivery.reply_to(service, press.chat_id)
+	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
 	try:
 		if jobs.current is None: # the scheduler is off now
 			raise jobs.ScheduleError('the scheduler is off')
@@ -69,7 +70,7 @@ def process_callback(press):
 	if not pressed:
 		return
 	service = dialects.of(press.service)
-	chat = delivery.reply_to(service, press.chat_id)
+	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
 	try:
 		args = buttons.resolve(pressed.ref)
 		markup = buttons.keyboard(pressed.kind, args, pressed.period)
@@ -90,7 +91,7 @@ def process_request(message):
 	none gets no answer. Arguments the command cannot take get its usage, and any failure a one-line reply in the
 	chat."""
 	request = Request(dialects.of(message.service), message.chat_id, message.user, message.user_name, message.bot_name,
-		message.message_id)
+		message.message_id, message.interaction)
 	command, args = read(message.text, message.bot_name)
 	if command:
 		try:
@@ -104,6 +105,8 @@ def process_request(message):
 			delivery.report_error(e, request.dest, context=message.text.split()[0][:30])
 		finally:
 			request.dest.end_typing()
+	elif message.interaction: # a slash command that reads as none: its notice taken off (Discord's "thinking…")
+		request.dest.end_typing()
 	if message.service == 'telegram':
 		try:
 			ensure_keyboard(message.chat_id) # keep DM keyboards current after the reply
@@ -216,11 +219,13 @@ def on_watchlist(request, args):
 		request.reply(holdings.prepare_watchlist(request.service, request.user))
 
 def on_help(request, args):
-	""".help: every command; in a Telegram DM the command keyboard too."""
+	""".help: every command (on Discord as its slash command, which works in both modes); in a Telegram DM the command
+	keyboard too."""
 	markup = None
 	if request.service == 'telegram' and int(request.chat_id) > 0: # positive chat ids are DMs; groups are negative
 		markup = command_keyboard()
-	request.reply(about.prepare_help(request.service, request.bot_name, help_sections()), buttons=markup)
+	sections = help_sections(slash=request.service == 'discord')
+	request.reply(about.prepare_help(request.service, request.bot_name, sections), buttons=markup)
 	if markup:
 		mark_keyboard(request.chat_id) # this chat now has the current keyboard
 
@@ -357,8 +362,14 @@ def on_jobs(request, args):
 	request.reply(payload, buttons=markup)
 
 def on_profile(request, args):
-	""".SYMBOL: the company's profile."""
-	request.reply(profile.prepare_profile_payload(request.service, request.user, yahoo.symbol(args.word)))
+	""".SYMBOL, or .stock (.profile) SYMBOL: the company's profile."""
+	if args.word.lower() in PROFILE.names:
+		if len(args.words) != 1:
+			raise Usage
+		symbol = ticker(args)
+	else:
+		symbol = yahoo.symbol(args.word)
+	request.reply(profile.prepare_profile_payload(request.service, request.user, symbol))
 
 @dataclasses.dataclass(frozen=True)
 class Command:
@@ -382,7 +393,8 @@ NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # t
 CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'delete') # of the watchlist
 BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .pie's
 BUY_SELL = ('buy', 'sell', *(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')))
-PROFILE = Command((), on_profile, ('.SYMBOL',), COMPANY) # any other first word that may be a ticker
+PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL'), COMPANY) # any first word that is no
+# command's name but may be a ticker calls it too
 
 COMMANDS = [ # .help lists a section's commands in this order. The odd spellings (earrings, prince, hospital...) are
 	# kept on purpose.
@@ -419,10 +431,39 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	PROFILE,
 ]
 
-def help_sections():
-	"""The sections of .help: (heading, the .help lines of its commands, in table order), in SECTIONS order."""
-	return [(section, [line for command in COMMANDS if command.section == section for line in command.usage])
-		for section in SECTIONS]
+def help_sections(slash=False):
+	"""The sections of .help: (heading, the .help lines of its commands, in table order), in SECTIONS order; with slash,
+	each line as its slash command (/forwardpe for .forward pe, /stock SYMBOL for .SYMBOL)."""
+	def shown(command, line):
+		"""The line, or its first slash command."""
+		forms = slash_forms(command, line) if slash else []
+		return f'/{forms[0][0]} {forms[0][1]}'.strip() if forms else line
+	return [(section, list(dict.fromkeys(shown(command, line) for command in COMMANDS if command.section == section
+		for line in command.usage))) for section in SECTIONS]
+
+SLASH_NAME = re.compile(r'[a-z0-9_-]{1,32}') # what a slash command may be named, on every network
+
+def slash_forms(command, line):
+	"""The slash commands of one of a command's .help lines: [(name, the arguments it shows)]. One, named by the
+	command's name the line starts with where a slash command may be so named, else by the command's first name that it
+	may (.forward pe is /forwardpe); a line that starts with no name (.SYMBOL) has one under each of them."""
+	valid = [name for name in command.names if SLASH_NAME.fullmatch(name)]
+	words = line.removeprefix('.').split()
+	named = next((name for name in command.names if [w.lower() for w in words[:len(name.split())]] == name.split()),
+		None)
+	if named is None:
+		return [(name, ' '.join(words)) for name in valid]
+	return [(named if named in valid else valid[0], ' '.join(words[len(named.split()):]))] if valid else []
+
+def slash_commands():
+	"""The slash commands to register, each with its description and the arguments it shows: [(name, description,
+	arguments)], from the .help lines (slash_forms), and /help."""
+	found = {'help': ('help', 'every command, and what it takes', '')}
+	for command in COMMANDS:
+		for line in command.usage:
+			for name, arguments in slash_forms(command, line):
+				found.setdefault(name, (name, f'{name} {arguments}'.strip(), arguments))
+	return list(found.values())
 
 def command_keyboard(per_row=3):
 	"""Persistent reply keyboard of the commands that have buttons (Telegram DMs), alphabetical, row by row; a press
