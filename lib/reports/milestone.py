@@ -11,64 +11,60 @@ from lib import yahoo
 # - need to handle stock splits: flush cache if we see a split in the data
 # https://finance.yahoo.com/quote/TSLA/history?period1=0&period2=1707609600&filter=split
 
+STATE_FILE = 'finbot_milestone.json' # {ticker: {'record_high': ..., 'record_low': ...}}
+
 def run(dest=None):
-	"""Post the stocks followed that set an all-time high or low (their 52-week range against the record, which a first
-	sighting takes from the stock's history) to the default chats (or dest), and record the new records."""
-	def prepare_milestone_payload(service, market_data):
-		"""(the report in one network's markup, the records it changes)."""
-		payload = []
-		payloadhigh = []
-		payloadlow = []
-		changed = {} # ticker -> its records after this run
-		for ticker in tickers:
-			try:
-				oldhigh, oldlow = records[ticker]['record_high'], records[ticker]['record_low']
-			except (KeyError, TypeError): # first sighting, or a record kept before records were all-time (52-week, under 'high'/'low')
-				try:
-					oldhigh, oldlow = yahoo.historic_high(ticker) # its history so far
-				except (RuntimeError, KeyError, IndexError, ValueError):
-					continue # no usable history: nothing recorded, so a later run cannot take zeros for its record
-			try:
-				newhigh = round(market_data[ticker]['fiftyTwoWeekHigh'], 2)
-				newlow = round(market_data[ticker]['fiftyTwoWeekLow'], 2)
-			except (KeyError, ValueError):
-				continue # likewise: a ticker is recorded only with both of its new values
-			title = market_data[ticker]['profile_title']
-			ticker_link = links.finance_link(ticker, market_data[ticker]['profile_exchange'], service)
-			emoji = markets.flag_from_ticker(ticker)
-			changed[ticker] = {'record_high': max(oldhigh, newhigh), 'record_low': min(oldlow, newlow)} # all-time: a 52-week high below it is no record
-			if newhigh > oldhigh:
-				payloadhigh.append(f"{emoji} {title} ({ticker_link})")
-			if newlow < oldlow:
-				payloadlow.append(f"{emoji} {title} ({ticker_link})")
-		payloadlow.sort()
-		payloadhigh.sort()
-		if payloadhigh:
-			message = 'Record high:'
-			message = service.bold(message)
-			payload.append(message)
-			payload = payload + payloadhigh
-		if payloadlow:
-			payload.append("")
-			message = 'Record low:'
-			message = service.bold(message)
-			payload.append(message)
-			payload = payload + payloadlow
-		payload = [i[0] for i in groupby(payload)] # de-dupe white space
-		return payload, changed
+	"""Post the stocks followed that set an all-time high or low to the default chats (or dest), and record the new
+	records."""
+	market_data, highs, lows, changed = gather()
+	for chat in delivery.targets(dest):
+		delivery.deliver(chat, delivery.Report(report(chat.dialect, market_data, highs, lows)))
+	if changed:
+		with state.edit(STATE_FILE, {}) as recorded:
+			recorded.update(changed)
 
-	# MAIN #
-
+def gather():
+	"""(the quotes, the tickers at a record high, those at a record low, {ticker: its records after this run}) of the
+	stocks followed: each one's 52-week range against its all-time record, which a first sighting takes from its
+	history."""
 	tickers = watchlist.with_holdings()
 	market_data = yahoo.fetch(tickers)
-	records, changed = state.load('finbot_milestone.json', {}), {}
-	for chat in delivery.targets(dest):
-		payload, changed = prepare_milestone_payload(chat.dialect, market_data)
-		delivery.deliver(chat, delivery.Report(payload))
+	records = state.load(STATE_FILE, {})
+	highs, lows, changed = [], [], {}
+	for ticker in tickers:
+		try:
+			oldhigh, oldlow = records[ticker]['record_high'], records[ticker]['record_low']
+		except (KeyError, TypeError): # first sighting, or a 52-week record of old, under 'high' and 'low'
+			try:
+				oldhigh, oldlow = yahoo.historic_high(ticker) # its history so far
+			except (RuntimeError, KeyError, IndexError, ValueError):
+				continue # no usable history: nothing recorded, so a later run cannot take zeros for its record
+		try:
+			newhigh = round(market_data[ticker]['fiftyTwoWeekHigh'], 2)
+			newlow = round(market_data[ticker]['fiftyTwoWeekLow'], 2)
+		except (KeyError, ValueError):
+			continue # likewise: a ticker is recorded only with both of its new values
+		# all-time: a 52-week high below the record is no record
+		changed[ticker] = {'record_high': max(oldhigh, newhigh), 'record_low': min(oldlow, newlow)}
+		if newhigh > oldhigh:
+			highs.append(ticker)
+		if newlow < oldlow:
+			lows.append(ticker)
+	return market_data, highs, lows, changed
 
-	if changed:
-		with state.edit('finbot_milestone.json', {}) as recorded:
-			recorded.update(changed)
+def report(service, market_data, highs, lows):
+	"""The records in one network's markup: the record highs, then the record lows, each list sorted."""
+	def line(ticker):
+		"""A stock's flag, name and link."""
+		data = market_data[ticker]
+		link = links.finance_link(ticker, data['profile_exchange'], service)
+		return f"{markets.flag_from_ticker(ticker)} {data['profile_title']} ({link})"
+	payload = []
+	if highs:
+		payload += [service.bold('Record high:')] + sorted(line(ticker) for ticker in highs)
+	if lows:
+		payload += ["", service.bold('Record low:')] + sorted(line(ticker) for ticker in lows)
+	return [i[0] for i in groupby(payload)] # de-dupe white space
 
 def job(argv):
 	"""Arguments of a scheduled run: milestone.py takes none."""

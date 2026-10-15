@@ -95,16 +95,19 @@ def run(dest=None, *, feed_url):
 	if not guids:
 		return
 	for chat in delivery.targets(dest):
-		service = chat.dialect
-		payload = []
-		for episode in episodes:
-			podcast_name = episode['podcast']
-			title = episode['title'].removeprefix(podcast_name).lstrip(string.punctuation + " ")
-			duration = f" {episode['duration']}" if episode['duration'] else ""
-			payload.append(f"📣 {podcast_name}: {service.link(episode['url'], title)}{duration} ({episode['ago']})")
-		delivery.deliver(chat, delivery.Report(payload))
+		delivery.deliver(chat, delivery.Report(report(chat.dialect, episodes)))
 	with state.edit(seen_file, []) as recorded: # last, so that a failure above leaves these episodes for next run
 		recorded[:] = sorted(guids.union(recorded))
+
+def report(service, episodes):
+	"""The episodes in one network's markup, each linked to its media, with its length and age."""
+	payload = []
+	for episode in episodes:
+		podcast_name = episode['podcast']
+		title = episode['title'].removeprefix(podcast_name).lstrip(string.punctuation + " ")
+		duration = f" {episode['duration']}" if episode['duration'] else ""
+		payload.append(f"📣 {podcast_name}: {service.link(episode['url'], title)}{duration} ({episode['ago']})")
+	return payload
 
 def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""

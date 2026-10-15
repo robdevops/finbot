@@ -6,69 +6,59 @@ from lib import markets
 from lib import watchlist
 from lib import yahoo
 
+STATE_FILE = 'finbot_rating.json' # {ticker: [action, index]} as last seen
+
 def run(dest=None, *, specific_stock=None):
 	"""Post the analysts' consensus ratings that changed since the last scheduled run, which records the ratings it saw:
 	to the chat that asked (dest), else to the default chats."""
 	interactive = dest is not None
-	def prepare_rating_payload(service, market_data):
-		"""(the report in one network's markup, the ratings seen this run)."""
-		def get_emoji(old, new):
-			"""📈 when the consensus improved (its index fell: 1 is a strong buy), 📉 when it worsened, ▪️ otherwise."""
-			if old > new:
-				return '📈'
-			if old < new:
-				return '📉'
-			else:
-				return '▪️'
-		payload = []
-		new = {}
-		for ticker in tickers:
-			old_action=None
-			old_index = float()
-			try:
-				action = market_data[ticker]['recommend'].replace('_', ' ')
-				index = round(float(market_data[ticker]['recommend_index']), 1)
-				analysts = market_data[ticker]['recommend_analysts']
-			except (KeyError, ValueError):
-				continue
-			title = market_data[ticker]['profile_title']
-			ticker_link = links.finance_link(ticker, market_data[ticker]['profile_exchange'], service, brief=False)
-			new[ticker] = [action, index]
-			try:
-				old_action, old_index = old[ticker]
-			except (KeyError, TypeError, ValueError):
-				pass
-			if old_action and action != old_action:
-				emoji = get_emoji(old_index, index)
-				message = f"{service.bold(f'{old_index} {old_action}')} to {service.bold(f'{index} {action}')} ({analysts} analysts)"
-				payload.append(f"{emoji} {title} ({ticker_link}) changed from {message}")
-		payload.sort()
-		if payload:
-			if not specific_stock:
-				message = 'Consensus rating changes:'
-				message = service.bold(message)
-				payload.insert(0, message)
-		else:
-			if interactive:
-				if specific_stock:
-					payload = [f"No rating changes found for {tickers[0]}"]
-				else:
-					payload = ["No rating changes found"]
-		return payload, new
-
-	# MAIN #
-
 	tickers = [markets.transform_to_yahoo(specific_stock)] if specific_stock else watchlist.with_holdings()
-	old = state.load('finbot_rating.json', {})
-	market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
-
+	changes, seen = gather(tickers, specific_stock)
 	for chat in delivery.targets(dest):
-		payload, new = prepare_rating_payload(chat.dialect, market_data)
-		delivery.deliver(chat, delivery.Report(payload))
+		delivery.deliver(chat, delivery.Report(report(chat.dialect, changes, tickers, specific_stock, interactive)))
+	if seen and not interactive: # added to what is recorded: a ticker missing from this run keeps its last rating
+		with state.edit(STATE_FILE, {}) as ratings:
+			ratings.update(seen)
 
-	if new and not interactive: # added to what is recorded: a ticker missing from this run keeps its last rating
-		with state.edit('finbot_rating.json', {}) as ratings:
-			ratings.update(new)
+def gather(tickers, specific_stock):
+	"""(the ratings that changed since the last scheduled run, [(ticker, its details, old [action, index], new [action,
+	index], analysts)]; {ticker: [action, index]} of every rating seen)."""
+	old = state.load(STATE_FILE, {})
+	market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
+	changes, seen = [], {}
+	for ticker in tickers:
+		try:
+			action = market_data[ticker]['recommend'].replace('_', ' ')
+			index = round(float(market_data[ticker]['recommend_index']), 1)
+			analysts = market_data[ticker]['recommend_analysts']
+		except (KeyError, ValueError):
+			continue
+		seen[ticker] = [action, index]
+		try:
+			old_action, old_index = old[ticker]
+		except (KeyError, TypeError, ValueError):
+			continue
+		if old_action and action != old_action:
+			changes.append((ticker, market_data[ticker], (old_action, old_index), (action, index), analysts))
+	return changes, seen
+
+def report(service, changes, tickers, specific_stock, interactive):
+	"""The rating changes in one network's markup, sorted: 📈 when the consensus improved (its index fell: 1 is a strong
+	buy), 📉 when it worsened."""
+	payload = []
+	for ticker, data, (old_action, old_index), (action, index), analysts in changes:
+		emoji = '📈' if old_index > index else '📉' if old_index < index else '▪️'
+		ticker_link = links.finance_link(ticker, data['profile_exchange'], service, brief=False)
+		before, after = service.bold(f'{old_index} {old_action}'), service.bold(f'{index} {action}')
+		message = f"{before} to {after} ({analysts} analysts)"
+		payload.append(f"{emoji} {data['profile_title']} ({ticker_link}) changed from {message}")
+	payload.sort()
+	if payload:
+		if not specific_stock:
+			payload.insert(0, service.bold('Consensus rating changes:'))
+	elif interactive:
+		payload = [f"No rating changes found for {tickers[0]}" if specific_stock else "No rating changes found"]
+	return payload
 
 def job(argv):
 	"""Arguments of a scheduled run: rating.py takes none."""
