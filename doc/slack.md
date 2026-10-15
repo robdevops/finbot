@@ -11,7 +11,8 @@ the bot posts them itself, charts and all (`slackChannelID`).
 | Scheduled reports: trades, price alerts, earnings and dividend dates, performance and the rest | ✓, as text | ✓, as text through the webhook, or with their charts as the bot (`slackChannelID`) |
 | Chat commands: `.price`, `@finbot price` and the rest ([the list](../README.md#supported-commands)) | ✗ | ✓ |
 | Charts in the replies to commands | n/a | ✓, uploaded into the channel |
-| Period buttons and "typing…" | ✗ | ✗: Slack has no typing notice for bots, and finbot has no Slack buttons yet |
+| A sign that finbot is working on a command | ✗ | ✓: ⏳ on the command's message, Slack having no typing notice for bots |
+| Period buttons | ✗ | ✗: finbot has no Slack buttons yet |
 | Public HTTPS server | Not needed | Needed: a domain name with a valid certificate |
 | `finbot.env` keys | `slack_webhook` | That one, plus `slackOutgoingWebhook`, `slackSigningSecret` and `slackBotToken` (and `slackChannelID`, for charts in the scheduled reports) |
 
@@ -79,8 +80,9 @@ on a domain name with a valid certificate.
      * For direct messages to the bot, add `message.im`, and tick _App Home > Allow users to send Slash commands and
        messages from the messages tab_.
    * _Save Changes_.
-6. Under _OAuth & Permissions > Scopes > Bot Token Scopes_, add `chat:write`, `files:write` and `files:read`. The upload
-   of a chart needs both `files` scopes.
+6. Under _OAuth & Permissions > Scopes > Bot Token Scopes_, add `chat:write`, `files:write`, `files:read` and
+   `reactions:write`. The upload of a chart needs both `files` scopes, and the ⏳ on a command that takes a while
+   `reactions:write`.
 7. At the top of _OAuth & Permissions_, _Install to Workspace_ (or _Reinstall to Workspace_ when you changed scopes of
    an installed app), and copy the _Bot User OAuth Token_ into `finbot.env` as `slackBotToken`. finbot replies with it;
    without it, commands get no reply, and the log says so at startup and for each reply.

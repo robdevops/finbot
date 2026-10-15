@@ -26,9 +26,10 @@ class Transport:
 	takes_buttons = False # buttons under a message
 	shows_typing = False # a typing notice while a command works
 
-	def __init__(self, where):
-		"""where: the chat id, or the incoming webhook's URL."""
+	def __init__(self, where, message=None):
+		"""where: the chat id, or the incoming webhook's URL; message: the id of the message being answered, if any."""
 		self.where = where
+		self.message = message
 
 	def __repr__(self):
 		"""<TelegramBot 55>: the kind and where, for logs and test failures."""
@@ -67,6 +68,9 @@ class Transport:
 
 	def typing(self):
 		"""Show the typing notice, where the network has one."""
+
+	def typing_done(self):
+		"""End the typing notice, where it lasts until ended (Slack's ⏳)."""
 
 	def _post_json(self, url, payload, headers=None):
 		"""POST a JSON message: the answer ({} when it is not JSON), or None when the network refused it or failed."""
@@ -186,11 +190,40 @@ class SlackBot(Transport):
 	"""A Slack channel, as the bot: chat.postMessage and the file upload, with slackBotToken."""
 	name = 'slack'
 	dialect = dialects.SLACK
+	WORKING = 'hourglass_flowing_sand' # ⏳: Slack has no typing notice for bots, so a reaction on the message stands in
+	working = None # True while ⏳ is on the message, False when putting it there failed
 
 	@property
 	def takes_charts(self):
 		"""Charts are uploaded with the bot token, so only with one."""
 		return bool(config.env.slackBotToken)
+
+	@property
+	def shows_typing(self):
+		"""⏳ on the message being answered, with the bot token."""
+		return bool(self.message and config.env.slackBotToken)
+
+	def typing(self):
+		"""Put ⏳ on the message being answered, once (the bot needs the reactions:write scope); a failure is only
+		logged, and not tried again."""
+		if self.working is not None:
+			return
+		try:
+			slack_api('reactions.add', channel=self.where, timestamp=self.message, name=self.WORKING)
+			self.working = True
+		except Exception as e:
+			self.working = False
+			print("Slack reactions.add failed:", net.redact(e), file=sys.stderr)
+
+	def typing_done(self):
+		"""Take ⏳ off the message again; a failure is only logged."""
+		if not self.working:
+			return
+		self.working = False
+		try:
+			slack_api('reactions.remove', channel=self.where, timestamp=self.message, name=self.WORKING)
+		except Exception as e:
+			print("Slack reactions.remove failed:", net.redact(e), file=sys.stderr)
 
 	def post_text(self, text, buttons=None):
 		"""chat.postMessage, without link previews (Slack reads those flags from the body)."""

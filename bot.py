@@ -119,7 +119,7 @@ def dispatch(event):
 		if config.prefs.debug:
 			print(f"[{event.service.capitalize()}]:", event.user, event.text, file=sys.stderr)
 		target = worker.process_request
-		args = (event.service, event.chat_id, event.user, event.text, event.bot_name, event.user_name)
+		args = (event.service, event.chat_id, event.user, event.text, event.bot_name, event.user_name, event.message_id)
 	threading.Thread(target=target, args=args).start()
 
 def git_version(checkout=None):

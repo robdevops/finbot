@@ -880,6 +880,36 @@ class SlackSending(FinbotCase):
 		self.assertEqual((self.posts, self.errors), ([], []))
 		self.assertEqual(err.getvalue().count('ERROR slack: a reply to channel C1 needs slackBotToken in finbot.env; not sent'), 3)
 
+	def test_a_command_at_work_shows_an_hourglass_on_its_message(self):
+		"""While a command works, ⏳ is on the message it answers (Slack has no typing notice for bots), and it comes off
+		when the answer is ready; only with that message and the bot token."""
+		self.env(slackBotToken='xoxb-test')
+		indicator = worker.TypingIndicator(transports.SlackBot('C1', '1.2'), delay=0)
+		indicator.start()
+		deadline = time.monotonic() + 5
+		while not self.posts and time.monotonic() < deadline:
+			time.sleep(0.01)
+		indicator.stop()
+		reaction = {'channel': 'C1', 'timestamp': '1.2', 'name': 'hourglass_flowing_sand'}
+		self.assertEqual([(url, kwargs['data']) for url, kwargs in self.posts],
+			[('https://slack.com/api/reactions.add', reaction), ('https://slack.com/api/reactions.remove', reaction)])
+		self.assertFalse(transports.SlackBot('C1').shows_typing) # no message to put it on
+		self.env(slackBotToken='')
+		self.assertFalse(transports.SlackBot('C1', '1.2').shows_typing)
+
+	def test_an_hourglass_slack_refuses_is_tried_once(self):
+		"""⏳ that Slack refuses (a missing scope) is logged and not tried again, and nothing is taken off."""
+		self.env(slackBotToken='xoxb-test')
+		refuse = Resp({'ok': False, 'error': 'missing_scope'})
+		self.patch(transports.net, 'post', lambda url, **kwargs: self.posts.append((url, kwargs)) or refuse)
+		chat = transports.SlackBot('C1', '1.2')
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			chat.typing()
+			chat.typing()
+			chat.typing_done()
+		self.assertEqual([url for url, _ in self.posts], ['https://slack.com/api/reactions.add'])
+		self.assertIn('Slack reactions.add failed: Slack reactions.add: missing_scope', err.getvalue())
+
 	def test_the_slack_api_says_what_is_missing(self):
 		"""slack_api without the bot token says so (it used to be a TypeError)."""
 		self.env(slackBotToken=False)

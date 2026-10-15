@@ -28,7 +28,7 @@ What finbot can do on each network. Telegram takes everything; the others take w
 | Feature | Telegram | Slack | Discord |
 |---|---|---|---|
 | Chat commands | ✓ | ✓ | ✗ (a webhook only posts) |
-| "typing…" while a command works | ✓ | ✗ (Slack has no typing notice for bots) | ✗ |
+| "typing…" while a command works | ✓ | ⏳ on the command's message (Slack has no typing notice for bots) | ✗ |
 | Charts in replies | ✓ | ✓ with `slackBotToken` | n/a |
 | Charts in scheduled reports | ✓ | ✓ with `slackChannelID` and `slackBotToken` (the incoming webhook takes text only) | ✓ |
 | Period and job buttons | ✓ | ✗ | ✗ |

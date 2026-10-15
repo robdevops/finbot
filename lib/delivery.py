@@ -24,10 +24,11 @@ class Report:
 REPLIES = {'telegram': transports.TelegramBot, 'slack': transports.SlackBot} # a reply into the chat that asked
 
 
-def reply_to(service, chat):
-	"""The destination of a reply into a chat, or None for a network that takes none."""
+def reply_to(service, chat, message=None):
+	"""The destination of a reply into a chat (to `message`, the one being answered, if given), or None for a network
+	that takes none."""
 	kind = REPLIES.get(service)
-	return kind(chat) if kind else None
+	return kind(chat, message) if kind else None
 
 
 def scheduled(service, url):

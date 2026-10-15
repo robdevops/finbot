@@ -349,6 +349,11 @@ class SlackEvents(FinbotCase):
 		gevent.sleep(0.05) # the worker runs in a (gevent) thread
 		return status[-1]
 
+	def test_the_message_goes_to_the_worker_with_its_ts(self):
+		"""A message reaches the worker with its ts, the message's id: finbot puts ⏳ on it while it works."""
+		self.assertEqual(self.event(user='U1', text='.price'), '200 OK')
+		self.assertEqual(self.requests[0][6], '1.2')
+
 	def test_only_people_are_answered(self):
 		"""Messages from bots, this bot included, joins, edits and events without a user are not answered; people's
 		messages are, with mentions turned into @names."""

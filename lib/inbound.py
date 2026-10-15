@@ -23,6 +23,7 @@ class Message:
 	text: str
 	bot_name: str # the bot's @name, which can start a command
 	user_name: str # what to call them
+	message_id: str = '' # the message itself: Slack shows ⏳ on it while finbot works
 
 
 @dataclasses.dataclass
@@ -147,7 +148,7 @@ class Telegram(Webhook):
 		else:
 			print("[telegram]: unhandled: 'message' without 'text/photo'", file=sys.stderr)
 			return UNHANDLED
-		return Message(self.service, chat_id, user, text, self.bot_name, user_name)
+		return Message(self.service, chat_id, user, text, self.bot_name, user_name, str(message.get('message_id', '')))
 
 
 class Slack(Webhook):
@@ -210,7 +211,7 @@ class Slack(Webhook):
 		text = re.sub(r'<http://.*\|([\w\.]+)>', r'\g<1>', event['text'])
 		text = re.sub(r'<(@[\w\.]+)>', r'\g<1>', text)
 		user = '<@' + event['user'] + '>' # a mention: Slack shows the name
-		return Message(self.service, event['channel'], user, text, '@' + bot_user, user)
+		return Message(self.service, event['channel'], user, text, '@' + bot_user, user, event.get('ts', ''))
 
 
 TELEGRAM, SLACK = Telegram(), Slack()

@@ -27,9 +27,9 @@ from lib import transports
 from lib import jobs
 
 class TypingIndicator:
-	"""The typing notice while a command works, where the destination shows one (Telegram). It starts after `delay`
-	seconds, so a quick answer gets none, and is sent again every 7 seconds until stopped, at most max_loops times. The
-	worker stops it before the answer goes out, however the command ends."""
+	"""The typing notice while a command works, where the destination shows one (Telegram; Slack's ⏳). It starts after
+	`delay` seconds, so a quick answer gets none, and is sent again every 7 seconds until stopped, at most max_loops
+	times. The worker stops it before the answer goes out, however the command ends."""
 	def __init__(self, dest, max_loops=10, delay=0.5):
 		"""dest: the chat's transport."""
 		self.dest = dest
@@ -54,11 +54,12 @@ class TypingIndicator:
 			self._thread.start()
 
 	def stop(self):
-		"""Stop the notices and wait for their thread to end."""
+		"""Stop the notices and wait for their thread to end, then end the notice where it lasts (Slack's ⏳)."""
 		if not self._thread: # never started
 			return
 		self._stop_event.set()
 		self._thread.join()
+		self.dest.typing_done()
 
 	def is_active(self):
 		"""Whether the notices are still going."""
@@ -72,10 +73,11 @@ class Request:
 	user: str # the sender's handle: whose watchlist add or plan it is
 	user_name: str # what to call them
 	bot_name: str
+	message_id: str = None # the message being answered
 
 	def __post_init__(self):
 		"""The chat's transport, and its typing notice (not started)."""
-		self.dest = delivery.reply_to(self.service, self.chat_id)
+		self.dest = delivery.reply_to(self.service, self.chat_id, self.message_id)
 		self.typing = TypingIndicator(self.dest)
 
 	def reply(self, lines, chart=None, buttons=None):
@@ -124,11 +126,11 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 	except Exception as e:
 		delivery.report_error(e, service, chat_id, context='chart')
 
-def process_request(service, chat_id, user, message, botName, userRealName):
+def process_request(service, chat_id, user, message, botName, userRealName, message_id=None):
 	"""Entry point for inbound chat requests: the first command in COMMANDS that fits the message answers it (a message
 	that fits none gets no answer), with the typing notice meanwhile. Any failure becomes a one-line reply in the
-	originating chat, after the typing stops."""
-	request = Request(dialects.of(service), chat_id, user, userRealName, botName)
+	originating chat, after the typing stops. message_id: the message's own id, where the network has one."""
+	request = Request(dialects.of(service), chat_id, user, userRealName, botName, message_id)
 	try:
 		for command in COMMANDS:
 			if m := match(command.pattern, message, botName):
