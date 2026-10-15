@@ -18,13 +18,13 @@ from pathlib import Path
 _auth = threading.RLock() # Yahoo's cookie and crumb are renewed by one thread at a time: two at once could cache a crumb for the cookie the other replaced
 HEADERS = {'User-Agent': 'Mozilla/5.0'}
 
-def getCookie(maxAge=1209600):
-	"""Yahoo's session cookie as 'name=value', cached for maxAge seconds (14 days, renewed 30 seconds early) whatever
+def get_cookie(max_age=1209600):
+	"""Yahoo's session cookie as 'name=value', cached for max_age seconds (14 days, renewed 30 seconds early) whatever
 	the cache preference, since the crumb must match it: a new cookie drops the crumb. A fallback cookie when Yahoo
 	sends none."""
 	with _auth:
 		cacheFile = "finbot_yahoo_cookie.json"
-		cached = cache.read(cacheFile, maxAge - 30) # renewed 30 seconds before it expires
+		cached = cache.read(cacheFile, max_age - 30) # renewed 30 seconds before it expires
 		if cached:
 			return cached[0][0] + '=' + cached[0][1]
 		url = 'https://fc.yahoo.com/' # 404, but that is ok because cookie is in response header
@@ -43,14 +43,14 @@ def getCookie(maxAge=1209600):
 		cookielist = [[name, morsel.value, int(morsel.get('max-age') or 0)] for name, morsel in cookie.items()]
 		cache.write(cacheFile, cookielist)
 		print("Got a new Yahoo cookie", file=sys.stderr)
-		rmCrumb() # we must invalidate the non-matching crumb
+		drop_crumb() # we must invalidate the non-matching crumb
 		return cookielist[0][0] + '=' + cookielist[0][1]
 
-def getCrumb(seconds=1209600):
+def get_crumb(seconds=1209600):
 	"""Yahoo's crumb, which goes with the cookie, cached for `seconds` (14 days) while the cache preference is on; a
 	fallback crumb when Yahoo gives none."""
 	with _auth:
-		cookie = getCookie()
+		cookie = get_cookie()
 		cacheFile = "finbot_yahoo_crumb.json"
 		if config.prefs.cache and (cached := cache.read(cacheFile, seconds)):
 			return cached
@@ -67,10 +67,10 @@ def credentials():
 	"""(cookie, crumb), taken together under the lock: a crumb is only good with the cookie it was issued for, and a renewal
 	between two separate calls could pair a new cookie with an old crumb."""
 	with _auth:
-		crumb = getCrumb() # renews the cookie too, when due
-		return getCookie(), crumb
+		crumb = get_crumb() # renews the cookie too, when due
+		return get_cookie(), crumb
 
-def rmCrumb():
+def drop_crumb():
 	"""Set the cached crumb aside (as .old): it belongs to the cookie being replaced."""
 	crumb = Path(cache.path("finbot_yahoo_crumb.json"))
 	if crumb.is_file():
@@ -285,7 +285,7 @@ def fetch_detail(ticker, seconds=None):
 			detail['revenueAnalysts'], detail['earningsAnalysts'] = estimates[2], estimates[3]
 	if dig(quarterly, 0, 'revenue', 'raw') is None:
 		print(f'{ticker}†', sep=' ', end='', flush=True, file=sys.stderr)
-	else: # a quarter without an earnings figure is bad data: None for both, which doDelta marks
+	else: # a quarter without an earnings figure is bad data: None for both, which trend_marks marks
 		detail['earningsQ'] = [None if dig(item, 'earnings', 'fmt') is None else dig(item, 'earnings', 'raw') for item in quarterly]
 		detail['revenueQ'] = [None if dig(item, 'earnings', 'fmt') is None else dig(item, 'revenue', 'raw') for item in quarterly]
 		yearly = _list(dig(result, 'earnings', 'financialsChart', 'yearly'))

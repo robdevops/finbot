@@ -10,39 +10,23 @@ from lib import yahoo
 from lib import simplywallst
 from itertools import groupby
 
-def doDelta(inputList):
+TRENDS = {(True, False): '🔼', (False, False): '🔽', (True, True): '🔺', (False, True): '🔻'} # (rose, below zero)
+
+def trend_marks(figures):
 	"""Trend marks between consecutive figures (four quarters give three): 🔼 up and 🔽 down while the figure is positive,
-	🔺 up and 🔻 down while it is negative, ▪️ unchanged, ❌ missing; padded with ❌ to three."""
-	deltaString = ''
-	inputListFixed = inputList.copy()
-	# replace any NoneType to allow delta calculation
-	for idx, absolute in enumerate(inputList):
-		if absolute is None:
-			if idx == 0:
-				# get the next value that's not None
-				inputListFixed[idx] = next((x for x in inputList if x is not None), 0)
-			else:
-				# get the previous value
-				inputListFixed[idx] = inputListFixed[idx-1]
-	deltaList = [y-x for (x,y) in pairwise(inputListFixed)]
-	for idx, delta in enumerate(deltaList):
-		absolute = inputList[idx+1]
-		if absolute is None or (idx == 0 and inputList[0] is None):
-			deltaString = deltaString + '❌'
-		elif delta < 0 and absolute < 0:
-			deltaString = deltaString + '🔻'
-		elif delta < 0 and absolute >= 0:
-			deltaString = deltaString + '🔽'
-		elif delta > 0 and absolute < 0:
-			deltaString = deltaString + '🔺'
-		elif delta > 0 and absolute >= 0:
-			deltaString = deltaString + '🔼'
+	🔺 up and 🔻 down while it is negative, ▪️ unchanged, ❌ missing; padded with ❌ in front to three. A missing figure
+	takes the one before it (the first, the first there is) to measure the next against."""
+	filled = []
+	for figure in figures:
+		first = next((f for f in figures if f is not None), 0)
+		filled.append(figure if figure is not None else filled[-1] if filled else first)
+	marks = ''
+	for i, (before, after) in enumerate(pairwise(filled)):
+		if figures[i + 1] is None or (i == 0 and figures[0] is None):
+			marks += '❌'
 		else:
-			deltaString = deltaString + '▪️'
-	# fallback if input has missing elements
-	missingfromstart = 3 - len(deltaString) # desired length hard coded
-	deltaString = ("❌" * missingfromstart) + deltaString
-	return deltaString
+			marks += '▪️' if after == before else TRENDS[(after > before, figures[i + 1] < 0)]
+	return '❌' * (3 - len(marks)) + marks
 
 MARKET_STATE_EMOJI = {'REGULAR': '🟢', 'PRE': '🟠', 'POST': '🟠'} # any other state is closed: 🔴
 
@@ -107,7 +91,8 @@ def prepare_profile_payload(service, user, ticker):
 		payload.append("")
 
 	if 'currency' in data and 'market_cap' in data:
-		payload.append(service.bold("Mkt cap:") + f" {yahoo.market_cap_currency(data)} {formats.humanUnits(data['market_cap'])}") # GBP, not pence
+		cap = f"{yahoo.market_cap_currency(data)} {formats.human_units(data['market_cap'])}" # GBP, not pence
+		payload.append(service.bold("Mkt cap:") + f" {cap}")
 	if all(key in data for key in ('shareholder_equity', 'total_debt', 'total_cash', 'profile_industry')) and data['shareholder_equity'] and 'Bank' not in data['profile_industry']:
 		net_debt_equity_ratio = round((data['total_debt'] - data['total_cash']) / data['shareholder_equity'] * 100)
 		if net_debt_equity_ratio > 0:
@@ -134,9 +119,10 @@ def prepare_profile_payload(service, user, ticker):
 		payload.append("")
 
 	if 'earningsQ' in data:
-		deltas = [(doDelta(data[key]), label) for key, label in (('revenueQ', 'quarterly revenue'), ('earningsQ', 'quarterly earnings'),
-			('revenueY', 'annual revenue'), ('earningsY', 'annual earnings'))]
-		payload += [f"{delta}\t{label} delta" for delta, label in deltas] # doDelta always gives at least three symbols
+		figures = (('revenueQ', 'quarterly revenue'), ('earningsQ', 'quarterly earnings'),
+			('revenueY', 'annual revenue'), ('earningsY', 'annual earnings'))
+		deltas = [(trend_marks(data[key]), label) for key, label in figures]
+		payload += [f"{delta}\t{label} delta" for delta, label in deltas] # trend_marks always gives at least three
 
 	if payload:
 		payload.append("")
@@ -147,9 +133,11 @@ def prepare_profile_payload(service, user, ticker):
 			payload.append(service.bold(label) + f" {formats.signed_percent(growth)} " + ('' if growth > 0 else '⚠️ '))
 	if 'insiderBuy' in data:
 		if data['insiderBuy'] > data['insiderSell']:
-			payload.append(service.bold("Net insider action (3M):") + f" Buy {currency} {formats.humanUnits(data['insiderBuyValue'])} ")
+			value = formats.human_units(data['insiderBuyValue'])
+			payload.append(service.bold("Net insider action (3M):") + f" Buy {currency} {value} ")
 		elif data['insiderBuy'] < data['insiderSell']:
-			payload.append(service.bold("Net insider action (3M):") + f" Sell {currency} {formats.humanUnits(data['insiderSellValue'])}⚠️ ")
+			value = formats.human_units(data['insiderSellValue'])
+			payload.append(service.bold("Net insider action (3M):") + f" Sell {currency} {value}⚠️ ")
 	if 'short_percent' in data:
 		payload.append(service.bold("Shorted stock:") + f" {data['short_percent']}%" + ('⚠️ ' if data['short_percent'] > 10 else ''))
 	if 'recommend' in data:

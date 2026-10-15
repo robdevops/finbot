@@ -33,7 +33,10 @@ def _request(send, url, what, **kwargs):
 		raise RuntimeError(f"Sharesight {what} request failed: {e}")
 	if r.status_code != 200:
 		print(r.status_code, "error", url, file=sys.stderr)
-	return r.json()
+	try:
+		return r.json()
+	except ValueError: # an HTML error page, say: "Expecting value: line 1 column 1" would say nothing
+		raise RuntimeError(f"Sharesight {what}: a {r.status_code} answer that is not JSON") from None
 
 def _check(data, what):
 	"""Raise RuntimeError with Sharesight's error, when it answered with one."""

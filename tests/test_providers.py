@@ -48,8 +48,8 @@ class ProviderCase(FinbotCase):
 		for module, name in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (sharesight, 'get_portfolios'),
 							 (sharesight, 'get_trades'), (sharesight, 'get_performance')):
 			self.patch(module, name, REAL[(module.__name__, name)])
-		self.patch(yahoo, 'getCookie', lambda *a, **k: 'A=B')
-		self.patch(yahoo, 'getCrumb', lambda *a, **k: 'crumb')
+		self.patch(yahoo, 'get_cookie', lambda *a, **k: 'A=B')
+		self.patch(yahoo, 'get_crumb', lambda *a, **k: 'crumb')
 		self.patch(sharesight, 'get_token', lambda: 'token')
 		self.patch(sharesight.time, 'sleep', lambda s: None)
 
@@ -302,6 +302,13 @@ class SharesightApi(ProviderCase):
 				self.http(sharesight, failure)
 				with self.assertRaises(RuntimeError):
 					sharesight.get_portfolios()
+
+	def test_an_answer_that_is_not_json_says_so(self):
+		"""An HTML error page from Sharesight is a RuntimeError naming the request and the status, not a JSON parse
+		error."""
+		self.http(sharesight, Resp(None, 502, '<html>Bad gateway</html>'))
+		with self.assertRaisesRegex(RuntimeError, 'Sharesight trades: a 502 answer that is not JSON'):
+			sharesight.get_trades('RobSMSF', 684141, 1)
 
 	def test_trades_from_real_response(self):
 		"""Trades parse from a real answer, tagged with their portfolio."""

@@ -50,7 +50,7 @@ def transform_title(title):
 		title = title.strip().removesuffix(suffix)
 	return ' '.join(title.replace(' Usd', ' USD').replace('Ishares', 'iShares').split())
 
-def humanUnits(value, decimal_places=2):
+def human_units(value, decimal_places=2):
 	"""1234567 -> '1.23 M'."""
 	for unit in ['', 'K', 'M', 'B', 'T', 'Q']:
 		if value < 1000.0 or unit == 'Q':
@@ -94,24 +94,15 @@ def date_range_english(days, end):
 def days_english(days, prefix='the past ', article=''):
 	"""A span of days in words: 'today' for 0 or None; prefix + article + 'day', 'week', 'month' or 'year'; else prefix
 	and a count of weeks, months, years or days ('the past 3 weeks')."""
-	if days is None or days == 0:
+	if not days:
 		return 'today'
-	elif days == 1:
-		return prefix + article + 'day'
-	elif days == 7:
-		return prefix + article + 'week'
-	elif days == 30:
-		return prefix + article + 'month'
-	elif days == 365:
-		return prefix + article + 'year'
-	elif days % 7 == 0:
-		return prefix + str(int(days/7)) + ' weeks'
-	elif days % 30 == 0:
-		return prefix + str(int(days/30)) + ' months'
-	elif days % 365 == 0:
-		return prefix + str(int(days/365)) + ' years'
-	else:
-		return prefix + str(days) + ' days'
+	for size, unit in ((1, 'day'), (7, 'week'), (30, 'month'), (365, 'year')):
+		if days == size:
+			return prefix + article + unit
+	for size, units in ((7, 'weeks'), (30, 'months'), (365, 'years')): # weeks first: 210 days are 30 weeks
+		if days % size == 0:
+			return f"{prefix}{int(days // size)} {units}"
+	return f"{prefix}{days} days"
 
 def signed_percent(value, decimals=None):
 	"""12 -> '+12%', -3.5 -> '-3.5%', 0 -> '0%'; thousands separated. decimals=None keeps the value's own digits."""

@@ -3,8 +3,7 @@ from lib import config
 from lib import net
 
 def fetch(market_data):
-	"""market_data plus each ASX ticker's short interest from Short Man's daily CSV (unchanged if it is unreachable)."""
-	local_market_data = market_data.copy()
+	"""market_data with each ASX ticker's short interest added from Short Man's daily CSV (as it was if unreachable)."""
 	url = 'https://www.shortman.com.au/downloadeddata/latest.csv'
 	try:
 		r = net.get(url, timeout=config.prefs.http_timeout)
@@ -23,5 +22,5 @@ def fetch(market_data):
 		ticker = cells[1] + '.AX'
 		short_percent = float(cells[4]) # every row, so a malformed one still fails the fetch
 		if ticker in market_data:
-			local_market_data[ticker]['short_percent'] = short_percent
-	return local_market_data
+			market_data[ticker]['short_percent'] = short_percent
+	return market_data

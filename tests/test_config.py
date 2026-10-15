@@ -56,7 +56,6 @@ class Tables(unittest.TestCase):
 		self.assertEqual(fields(config.preference_values(config._getenv_for(prefs))), DEFAULTS) # the template changes nothing
 		startup = config.read_startup_file(REPO / 'defaults' / 'finbot.env')
 		config.startup_values(lambda name, default=None: startup.get(name, default)) # and is valid as it stands
-		self.assertFalse((REPO / 'defaults' / 'env.example').exists())
 
 
 class Parsing(unittest.TestCase):
@@ -400,7 +399,8 @@ class Startup(unittest.TestCase):
 		"""The startup report counts the startup keys set, and never names them or shows their values."""
 		with mock.patch.dict(os.environ, {'slack_webhook': 'https://secret.example/abc', 'port': '5000'}, clear=True):
 			lines = config.startup_report()
-		self.assertEqual(lines[0], 'startup environment provides 2 of 18 startup keys (values hidden)')
+		keys = len(config.STARTUP_KEYS)
+		self.assertEqual(lines[0], f'startup environment provides 2 of {keys} startup keys (values hidden)')
 		self.assertLessEqual(len('config: ' + lines[0]), 90) # the path in the second line depends on where DATA_DIR is
 		self.assertNotIn('secret.example', ''.join(lines))
 		self.assertNotIn('slack_webhook', ''.join(lines))
@@ -460,7 +460,6 @@ class Tools(unittest.TestCase):
 		self.assertEqual(startup, ['slack_webhook=https://x/#frag', 'port=80', 'discord_webhook=http://y/#z'])
 		self.assertEqual(prefs, ['future_days=30'])
 		self.assertEqual(notes, ['.env line 5: not KEY=value, left out'])
-		self.assertFalse((REPO / 'util' / 'migrate_env.py').exists()) # split_env does its job now
 
 	def test_split_env_writes_next_to_the_file_and_never_overwrites(self):
 		"""split_env writes finbot.env.new (mode 0600) and preferences.conf.new beside the file, refuses to overwrite

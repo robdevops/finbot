@@ -24,9 +24,9 @@ def prepare_marketcap_payload(service, action='top', length=15):
 		if 'market_cap' not in data:
 			return [f"Mkt cap not found for {ticker}"]
 		currency = yahoo.market_cap_currency(data) or ''
-		cap = f"{currency} {formats.humanUnits(data['market_cap'])}".strip()
+		cap = f"{currency} {formats.human_units(data['market_cap'])}".strip()
 		if currency != 'USD' and 'market_cap_usd' in data:
-			cap += f" (USD {formats.humanUnits(data['market_cap_usd'])})"
+			cap += f" (USD {formats.human_units(data['market_cap_usd'])})"
 		link = links.finance_link(ticker, data.get('profile_exchange', ''), service)
 		return [formats.security_line(markets.flag_from_ticker(ticker), data.get('profile_title', ticker), link) + f" mkt cap: {cap}"]
 	caps = [] # (market cap in US dollars, line)
@@ -35,7 +35,8 @@ def prepare_marketcap_payload(service, action='top', length=15):
 			print(ticker, "no market cap" if 'market_cap' not in data else f"no exchange rate for {data.get('currency')}", file=sys.stderr)
 			continue
 		link = links.finance_link(ticker, data['profile_exchange'], service)
-		caps.append((data['market_cap_usd'], formats.security_line(markets.flag_from_ticker(ticker), data['profile_title'], link) + f" mkt cap: {formats.humanUnits(data['market_cap_usd'])}"))
+		line = formats.security_line(markets.flag_from_ticker(ticker), data['profile_title'], link)
+		caps.append((data['market_cap_usd'], line + f" mkt cap: {formats.human_units(data['market_cap_usd'])}"))
 	if not caps:
 		return ['No market cap data found']
 	caps.sort(key=lambda cap: cap[0], reverse=action == 'top')
