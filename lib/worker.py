@@ -8,6 +8,7 @@ import re
 import sys
 import typing
 from lib import answer
+from lib import config
 from lib import dialects
 from lib import state
 from lib import formats
@@ -245,9 +246,10 @@ def on_session(request, args):
 
 def on_price(request, args):
 	""".price [percent|SYMBOL|top|bottom] [period]: a bare number is a percent, as on the other commands; a period has
-	its unit. One stock over a period is its chart, as its period buttons draw it."""
+	its unit. One stock over a period is its chart, as its period buttons draw it, from the history that the lists
+	take their figures from too (not with performance_use_sharesight: Sharesight has no history to draw)."""
 	symbol = None if args.keyword else ticker(args)
-	if symbol and args.days:
+	if symbol and args.days and not config.prefs.performance_use_sharesight:
 		return chart_reply(request, 'p', [symbol], args.days)
 	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
 	price.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,

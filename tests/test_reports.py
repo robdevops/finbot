@@ -1,6 +1,7 @@
 """Every chat command and scheduled report produces output on mocked data."""
 import unittest
 import datetime
+import re
 from tests.common import *
 
 
@@ -13,6 +14,23 @@ class Commands(FinbotCase):
 					'.premarket T1', '.shorts T1', '.watchlist', '.T1'):
 			with self.subTest(cmd=cmd):
 				self.assertTrue(self.command(cmd), f'{cmd} sent nothing')
+
+	def test_a_period_list_and_one_stocks_view_give_the_same_figure(self):
+		"""Over a period, the list and one stock's view take a holding's figure from the same place: Yahoo's history,
+		which its chart draws (-36% for T1), or with performance_use_sharesight Sharesight's gain over the time it was
+		held (+33%), and then no chart, which Sharesight cannot draw. The list used to take Sharesight's either way."""
+		holding = {'id': 1, 'instrument': {'code': 'T1', 'market_code': 'NASDAQ'}, 'capital_gain_percent': '33'}
+		self.patch(sharesight, '_performance', lambda pid, days=None, seconds=None:
+			{'capital_gain_percent': '0', 'holdings': [holding]})
+		def t1(text):
+			"""T1's figure in what the command sends as text."""
+			return re.search(r'Co T1 \(.*?\) ([+-]\d+%)', str(self.command(text))).group(1)
+		self.prefs(graph=False) # the list as text: a chart's caption is recorded by its heading
+		self.assertEqual((t1('.price 7d'), t1('.price T1 7d')), ('-36%', '-36%'))
+		self.prefs(performance_use_sharesight=True)
+		self.assertEqual((t1('.price 7d'), t1('.price T1 7d')), ('+33%', '+33%'))
+		self.prefs(graph=True)
+		self.assertEqual(self.command('.price T1 7d')[0][0], 'text') # no chart: Sharesight has no history
 
 	def test_chart_commands(self):
 		"""Every chart command answers with a chart."""
