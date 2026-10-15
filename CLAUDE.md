@@ -37,8 +37,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   straight back.
 - `lib/worker.py`: `COMMANDS`, a table of `Command(pattern, handler, usage, section, buttons)` (first match wins,
   `.SYMBOL` last), which also makes `.help` and the Telegram command keyboard, kept current in DMs; `Request`
-  (`request.reply(lines, chart, buttons)`); the typing notice (Slack: ⏳ on the message), which every command gets after
-  half a second.
+  (`request.reply(lines, chart, buttons)`); each command gets the typing notice while it works.
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
   or else the default chats, and `job(argv)`, its schedule-line parser): `price performance trades shorts cal rating
   milestone reminder podcasts cleanup`; the top-level `price.py` and the rest are shims that run them. Chat-only
@@ -46,8 +45,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or the default chats),
   `deliver(dest, report)`, the one-line error report. `lib/transports.py`: a class per way of posting (`TelegramBot`,
-  `SlackBot`, `SlackWebhook`, `DiscordWebhook`): splitting, captions, charts, buttons, edits, typing. `lib/telegram.py`:
-  Bot API calls.
+  `SlackBot`, `SlackWebhook`, `DiscordWebhook`): splitting, captions, charts, buttons, edits, and the typing notice
+  (`start_typing`: after half a second; Slack's ⏳ on the message), which `text()` and `chart()` stop before posting.
+  `lib/telegram.py`: Bot API calls.
 - `lib/buttons.py`: `Button` and a chart's period buttons (each transport draws them). `lib/charts.py`: a period
   button press rebuilds its chart.
 - `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: market tables, flags, ticker translation.

@@ -20,6 +20,7 @@ REAL_GET_HOLDINGS = watchlist.with_holdings
 REAL_TEXT = transports.Transport.text # FinbotCase replaces it with a recorder; tests of the real thing put it back
 REAL_CHART = transports.Transport.chart # likewise
 REAL_REPORT_ERROR = delivery.report_error # likewise
+REAL_START_TYPING = transports.Transport.start_typing # FinbotCase notes each chat it is started in
 # what FinbotCase replaces with recorders; util/record_outputs.py puts them back to record the real requests
 REAL_SENDING = ((transports.Transport, 'text', REAL_TEXT), (transports.Transport, 'chart', REAL_CHART),
 	(delivery, 'report_error', REAL_REPORT_ERROR))
@@ -88,8 +89,8 @@ class FinbotCase(unittest.TestCase):
 		self.patch(delivery, 'report_error',
 			lambda e, *a, **k: self.errors.append(delivery.error_line(e, k.get('context'))))
 		self.patch(transports.Transport, 'chart', lambda dest, image, caption, markup=None:
-			self.record_chart(image, caption, markup))
-		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None: self.record_text(lines))
+			self.record_chart(dest, image, caption, markup))
+		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None: self.record_text(dest, lines))
 		self.patch(watchlist, 'with_holdings', lambda: TICKERS)
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
@@ -108,31 +109,35 @@ class FinbotCase(unittest.TestCase):
 		self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{
 			'id': 1, 'transaction_type': 'BUY', 'symbol': 'T1', 'market': 'NASDAQ', 'portfolio': name,
 			'transaction_date': time.strftime('%Y-%m-%d'), 'quantity': '10', 'price': '5.0', 'value': '50', 'brokerage_currency_code': 'USD', 'holding_id': 7}])
-		self.typing = [] # every typing indicator a test starts; none may still be running when the test ends
-		real_start = worker.TypingIndicator.start
-		self.patch(worker.TypingIndicator, 'start', lambda indicator: (self.typing.append(indicator), real_start(indicator)))
+		self.typing = [] # every chat a test starts a typing notice in; none may still be sending it when the test ends
+		noted = lambda chat: self.typing.append(chat) or REAL_START_TYPING(chat)
+		self.patch(transports.Transport, 'start_typing', noted)
 		self.addCleanup(self.no_typing_left)
 
-	def record_text(self, lines):
-		"""Transport.text in tests: note ('text', lines), unless there are none: the real one posts nothing then."""
+	def record_text(self, dest, lines):
+		"""Transport.text in tests: the typing notice stopped, as the real one does, and ('text', lines) noted, unless
+		there are none: the real one posts nothing then."""
+		dest.stop_typing()
 		lines = list(lines)
 		if lines:
 			self.sent.append(('text', lines))
 		return []
 
-	def record_chart(self, image, caption, markup=None):
-		"""Transport.chart in tests: note ('photo', size, first caption line) and its buttons as Telegram gets them."""
+	def record_chart(self, dest, image, caption, markup=None):
+		"""Transport.chart in tests: the typing notice stopped, as the real one does, and ('photo', size, first caption
+		line) noted with its buttons as Telegram gets them."""
+		dest.stop_typing()
 		image.seek(0)
 		self.sent.append(('photo', len(image.read()), caption.split('\n')[0]))
 		self.markups.append(transports.TelegramBot.markup(markup) if markup else None)
 		return {'ok': True}
 
 	def no_typing_left(self):
-		"""Fail the test if a typing indicator it started is still running, after stopping it."""
-		left = [indicator for indicator in self.typing if indicator.is_active()]
-		for indicator in left:
-			indicator.stop()
-		self.assertEqual(left, [], 'a typing indicator was left running')
+		"""Fail the test if a typing notice it started is still being sent, after stopping it."""
+		left = [dest for dest in self.typing if dest.is_typing()]
+		for dest in left:
+			dest.stop_typing()
+		self.assertEqual(left, [], 'a typing notice was left running')
 
 	def command(self, text, chat='55'):
 		"""Run a chat message through the real command parser and handlers."""

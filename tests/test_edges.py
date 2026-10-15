@@ -54,17 +54,25 @@ class UpstreamEmpty(FinbotCase):
 		worker.process_request('telegram', '55', '@u', '.performance 7d', BOT, 'U')
 		self.assertEqual(len(self.errors), 1)
 
-	def test_a_failed_command_stops_typing_before_saying_why(self):
-		"""A command that fails stops its typing indicator before the error line goes out."""
+	def test_the_typing_notice_stops_before_any_message_goes_out(self):
+		"""The typing notice stops before the first message of an answer goes out, for a command that replies, one that
+		posts its report itself (.price, .trades), and one that fails: a later notice would show "typing…" again."""
 		def down(*a, **k):
 			"""Fail like Sharesight when it errors."""
 			raise RuntimeError('Sharesight performance error: boom')
-		self.patch(sharesight, 'get_portfolios', down)
-		typing_when_reported = []
-		self.patch(delivery, 'report_error', lambda e, *a, **k:
-			typing_when_reported.append([t.is_active() for t in self.typing]))
-		worker.process_request('telegram', '55', '@u', '.performance 7d', BOT, 'U')
-		self.assertEqual(typing_when_reported, [[False]]) # its one indicator had stopped when the error line went out
+		self.patch(sharesight, 'get_performance', down)
+		self.patch(delivery, 'report_error', REAL_REPORT_ERROR)
+		self.patch(transports.Transport, 'text', REAL_TEXT)
+		self.patch(transports.Transport, 'chart', REAL_CHART)
+		typing = []
+		self.patch(transports.TelegramBot, 'post_text', lambda dest, *a, **k: typing.append(dest.is_typing()))
+		self.patch(transports.TelegramBot, 'post_chart', lambda dest, *a, **k: typing.append(dest.is_typing()) or
+			{'ok': True})
+		for cmd in ('.help', '.price', '.trades 7d', '.performance 7d'):
+			with self.subTest(cmd=cmd), contextlib.redirect_stderr(io.StringIO()):
+				typing.clear()
+				worker.process_request('telegram', '55', '@u', cmd, BOT, 'U')
+				self.assertEqual(typing, [False])
 
 	def test_no_holdings_and_empty_watchlist(self):
 		"""With nothing held and nothing watched, the watchlist, price and earnings commands still answer."""
@@ -557,7 +565,7 @@ class SecretsStayOutOfLogs(FinbotCase):
 		try:
 			raise ConnectionError('failed: ' + self.SECRET_URL)
 		except ConnectionError as e:
-			log = self.stderr_of(lambda: delivery.report_error(e, 'telegram', '55', context='x'))
+			log = self.stderr_of(lambda: delivery.report_error(e, transports.TelegramBot('55'), context='x'))
 		self.assertIn('Traceback', log)
 		self.assertIn('bot<redacted>', log)
 		self.assertNotIn('SECRET-tok_en', log)

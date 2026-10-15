@@ -8,7 +8,6 @@ import math
 import random
 import re
 import sys
-import threading
 import typing
 from lib import answer
 from lib import config
@@ -26,48 +25,9 @@ from lib import telegram
 from lib import transports
 from lib import jobs
 
-class TypingIndicator:
-	"""The typing notice while a command works, where the destination shows one (Telegram; Slack's ⏳). It starts after
-	`delay` seconds, so a quick answer gets none, and is sent again every 7 seconds until stopped, at most max_loops
-	times. The worker stops it before the answer goes out, however the command ends."""
-	def __init__(self, dest, max_loops=10, delay=0.5):
-		"""dest: the chat's transport."""
-		self.dest = dest
-		self.max_loops = max_loops
-		self.delay = delay
-		self._stop_event = threading.Event()
-		self._thread = None
-
-	def _worker(self):
-		"""Wait out the delay, then send the notice every 7 seconds until stopped, or until max_loops are sent."""
-		if self._stop_event.wait(self.delay):
-			return
-		for _ in range(self.max_loops):
-			self.dest.typing()
-			if self._stop_event.wait(7):
-				return
-
-	def start(self):
-		"""Start the notices, where the destination shows them."""
-		if self.dest is not None and self.dest.shows_typing:
-			self._thread = threading.Thread(target=self._worker, daemon=True)
-			self._thread.start()
-
-	def stop(self):
-		"""Stop the notices and wait for their thread to end, then end the notice where it lasts (Slack's ⏳)."""
-		if not self._thread: # never started
-			return
-		self._stop_event.set()
-		self._thread.join()
-		self.dest.typing_done()
-
-	def is_active(self):
-		"""Whether the notices are still going."""
-		return self._thread is not None and self._thread.is_alive()
-
 @dataclasses.dataclass
 class Request:
-	"""A message being answered: where it came from (service is its dialect), who sent it, and its typing notice."""
+	"""A message being answered: where it came from (service is its dialect) and who sent it."""
 	service: str
 	chat_id: str
 	user: str # the sender's handle: whose watchlist add or plan it is
@@ -76,14 +36,12 @@ class Request:
 	message_id: str = None # the message being answered
 
 	def __post_init__(self):
-		"""The chat's transport, and its typing notice (not started)."""
+		"""The chat's transport, which also keeps the typing notice going."""
 		self.dest = delivery.reply_to(self.service, self.chat_id, self.message_id)
-		self.typing = TypingIndicator(self.dest)
 
 	def reply(self, lines, chart=None, buttons=None):
 		"""Answer in the chat (see delivery.deliver): the lines, perhaps a chart (drawn, or a spec drawn only where it
-		can go) and buttons. The typing notice stops first."""
-		self.typing.stop()
+		can go) and buttons."""
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
 def process_job_callback(service, callback_id, chat_id, message_id, data):
@@ -102,7 +60,7 @@ def process_job_callback(service, callback_id, chat_id, message_id, data):
 		line = about.job_line(jobs.current, *jobs.current.run_command(command))
 		delivery.deliver(chat, delivery.Report([line]))
 	except Exception as e:
-		delivery.report_error(e, service, chat_id, context='jobs')
+		delivery.report_error(e, chat, context='jobs')
 
 def process_callback(service, callback_id, chat_id, message_id, data):
 	"""Button press: run a scheduled command from .jobs, or rebuild a chart message for the chosen period and edit it in place."""
@@ -126,26 +84,26 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 	except answer.Answer as e: # nothing to draw for that period: said in the chat, as a command would
 		delivery.deliver(chat, delivery.Report(e.lines))
 	except Exception as e:
-		delivery.report_error(e, service, chat_id, context='chart')
+		delivery.report_error(e, chat, context='chart')
 
 def process_request(service, chat_id, user, message, botName, userRealName, message_id=None):
 	"""Entry point for inbound chat requests: the first command in COMMANDS that fits the message answers it (a message
-	that fits none gets no answer), with the typing notice meanwhile. Any failure becomes a one-line reply in the
-	originating chat, after the typing stops. message_id: the message's own id, where the network has one."""
+	that fits none gets no answer), with the typing notice meanwhile, which the first message of the answer stops and
+	the end of the command takes off. Any failure becomes a one-line reply in the originating chat. message_id: the
+	message's own id, where the network has one."""
 	request = Request(dialects.of(service), chat_id, user, userRealName, botName, message_id)
 	try:
 		for command in COMMANDS:
 			if m := match(command.pattern, message, botName):
-				request.typing.start()
+				request.dest.start_typing()
 				command.handler(request, m)
 				break
 	except answer.Answer as e: # a portfolio name the user got wrong, a ticker with no prices: an answer, not an error
 		request.reply(e.lines)
 	except Exception as e:
-		request.typing.stop() # before the error line
-		delivery.report_error(e, service, chat_id, context=message.split()[0][:30] if message.split() else None)
+		delivery.report_error(e, request.dest, context=message.split()[0][:30] if message.split() else None)
 	finally:
-		request.typing.stop()
+		request.dest.end_typing()
 	if service == 'telegram':
 		try:
 			ensure_keyboard(chat_id) # keep DM keyboards current after the reply

@@ -4,6 +4,7 @@ limits; text() and chart() are the same everywhere, and each network posts one m
 post_chart)."""
 import json
 import sys
+import threading
 import time
 
 import requests
@@ -19,12 +20,16 @@ NO_MENTIONS = {'parse': []} # Discord: text that looks like @everyone or a menti
 
 
 class Transport:
-	"""A destination. Subclasses set what it carries and post one message; the base splits and trims."""
+	"""A destination. Subclasses set what it carries and post one message; the base splits and trims, and keeps the
+	typing notice going while a command works."""
 	name = '' # the network, in logs
 	dialect = None
 	takes_charts = False # a chart, with the report as its caption
 	takes_buttons = False # buttons under a message
 	shows_typing = False # a typing notice while a command works
+	TYPING = (0.5, 7, 10) # the notice: first after 0.5 s (a quick answer gets none), then every 7 s, 10 times at most
+	_notices = None # the thread sending the notices
+	_quiet = None # set to stop them
 
 	def __init__(self, where, message=None):
 		"""where: the chat id, or the incoming webhook's URL; message: the id of the message being answered, if any."""
@@ -35,9 +40,44 @@ class Transport:
 		"""<TelegramBot 55>: the kind and where, for logs and test failures."""
 		return f'<{type(self).__name__} {self.where}>'
 
+	def start_typing(self):
+		"""Show the typing notice while a command works, where the network has one (TYPING says when), until the first
+		message goes out or the command ends (end_typing)."""
+		if not self.shows_typing or self._notices:
+			return
+		delay, every, times = self.TYPING
+		self._quiet = threading.Event()
+		def notices():
+			"""The notices, until quiet."""
+			if self._quiet.wait(delay):
+				return
+			for _ in range(times):
+				self.typing()
+				if self._quiet.wait(every):
+					return
+		self._notices = threading.Thread(target=notices, daemon=True)
+		self._notices.start()
+
+	def stop_typing(self):
+		"""Send no more notices, and wait for one on its way: none may arrive after the answer."""
+		if self._notices:
+			self._quiet.set()
+			self._notices.join()
+
+	def end_typing(self):
+		"""The command is over: no more notices, and one that lasts until taken off (Slack's ⏳) taken off."""
+		self.stop_typing()
+		self.typing_done()
+
+	def is_typing(self):
+		"""Whether the notices are still going."""
+		return bool(self._notices and self._notices.is_alive())
+
 	def text(self, lines, buttons=None):
 		"""Post lines of text: one message, or several when they are too long for one (then at most chunk_maxlines lines
-		each), buttons under the last. Returns the network's answer for each message (None for one that failed)."""
+		each), buttons under the last; the typing notice stops first. Returns the network's answer for each message
+		(None for one that failed)."""
+		self.stop_typing()
 		lines = [str(line) for line in lines]
 		if not lines:
 			return []
@@ -53,7 +93,9 @@ class Transport:
 		return answers
 
 	def chart(self, image, caption, buttons=None):
-		"""Post a chart, the caption under it cut to fit: the network's answer, MAYBE_SENT, or None if it failed."""
+		"""Post a chart, the caption under it cut to fit, the typing notice stopped first: the network's answer,
+		MAYBE_SENT, or None if it failed."""
+		self.stop_typing()
 		if hasattr(image, 'seek'):
 			image.seek(0)
 		return self.post_chart(image, fit_caption(caption, self.dialect), buttons)
@@ -67,10 +109,10 @@ class Transport:
 		raise NotImplementedError
 
 	def typing(self):
-		"""Show the typing notice, where the network has one."""
+		"""Show the typing notice once, where the network has one."""
 
 	def typing_done(self):
-		"""End the typing notice, where it lasts until ended (Slack's ⏳)."""
+		"""Take the typing notice off, where it lasts until taken off (Slack's ⏳)."""
 
 	def acknowledge(self, press, text=None):
 		"""Answer a button press, where the network waits for that (Telegram, with `text` as a toast)."""

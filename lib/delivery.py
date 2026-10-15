@@ -95,22 +95,21 @@ def error_line(e, context=None, limit=200):
 	return f"⚠️ {context}: {text}" if context else f"⚠️ {text}"
 
 
-def report_error(e, service=None, chat_id=None, context=None):
-	"""Send a one-line error summary to the initiating chat, else to every default channel in finbot.env. The line is
-	escaped for Telegram (sent as HTML, which refuses a stray < such as the one in <redacted>) and Slack (which asks for
-	the same escapes). Never raises: error reporting must not become a second failure."""
+def report_error(e, dest=None, context=None):
+	"""Send a one-line error summary to dest, the chat that asked (its transport), else to every default chat. The line
+	is escaped for Telegram (sent as HTML, which refuses a stray < such as the one in <redacted>) and Slack (which asks
+	for the same escapes). Never raises: error reporting must not become a second failure."""
 	try:
 		line = error_line(e, context)
 		print(line, file=sys.stderr)
 		if isinstance(e, BaseException):
 			trace = ''.join(traceback.format_exception(e))
 			print(net.redact(trace), end='', file=sys.stderr) # a request's error carries its URL
-		for dest in [reply_to(service, chat_id)] if service and chat_id else default_chats():
-			if dest:
-				try:
-					dest.post_text(line if dest.dialect == 'discord' else html.escape(line, quote=False))
-				except Exception as send_error:
-					print("Failed to report error to", dest.name, ":", send_error, file=sys.stderr)
+		for chat in targets(dest):
+			try:
+				chat.text([line if chat.dialect == 'discord' else html.escape(line, quote=False)])
+			except Exception as send_error:
+				print("Failed to report error to", chat.name, ":", send_error, file=sys.stderr)
 	except Exception as reporting_error:
 		print("Failed to report error:", reporting_error, file=sys.stderr)
 

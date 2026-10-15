@@ -1,6 +1,6 @@
 """Yahoo, Sharesight and Telegram parsing and failure handling, driven by the real API responses saved under doc/.
 HTTP is mocked at lib.net, so the production parsing code runs unchanged."""
-import contextlib, copy, datetime, io, json, os, subprocess, unittest
+import contextlib, copy, datetime, io, json, os, subprocess, threading, unittest
 import gevent
 from unittest import mock
 from tests.common import *
@@ -595,6 +595,7 @@ class TelegramSending(FinbotCase):
 	def test_error_reports_are_escaped_for_telegram_and_slack(self):
 		"""An error line is escaped for Telegram's HTML and Slack (the same), and left as it is for Discord."""
 		sent = []
+		self.patch(transports.Transport, 'text', REAL_TEXT)
 		for kind in (transports.TelegramBot, transports.SlackWebhook, transports.DiscordWebhook):
 			self.patch(kind, 'post_text', lambda dest, text, buttons=None: sent.append((dest.name, text)))
 		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/', 'slack': 'https://hooks.slack.com/x', 'discord': 'https://discord.com/x/slack'})
@@ -603,7 +604,7 @@ class TelegramSending(FinbotCase):
 		error = RuntimeError("404 for ZZ at https://x/?a=1&crumb=abc; '<' not supported between <urllib3.connection>")
 		with contextlib.redirect_stderr(io.StringIO()):
 			REAL_REPORT_ERROR(error, context='.compare <b>')
-			REAL_REPORT_ERROR(error, service='telegram', chat_id='55', context='.compare')
+			REAL_REPORT_ERROR(error, transports.TelegramBot('55'), context='.compare')
 		texts = dict(sent[:3])
 		self.assertIn('crumb=&lt;redacted&gt;', texts['telegram']) # Telegram's HTML parser rejects a bare <redacted>
 		self.assertNotIn('<', texts['telegram'] + sent[3][1])
@@ -613,9 +614,10 @@ class TelegramSending(FinbotCase):
 
 	def test_report_error_never_raises(self):
 		"""report_error survives a failed send."""
-		self.patch(transports.TelegramBot, 'post_text', mock.Mock(side_effect=RuntimeError('send failed')))
-		delivery.report_error(ValueError('boom'), service='telegram', chat_id='5')
-		delivery.report_error(ValueError('boom'))
+		self.patch(transports.Transport, 'text', mock.Mock(side_effect=RuntimeError('send failed')))
+		with contextlib.redirect_stderr(io.StringIO()):
+			REAL_REPORT_ERROR(ValueError('boom'), transports.TelegramBot('5'))
+			REAL_REPORT_ERROR(ValueError('boom'))
 
 	def test_guarded_reports_and_exits_nonzero(self):
 		"""guarded reports a failure and exits 1; a success returns its value."""
@@ -890,18 +892,25 @@ class SlackSending(FinbotCase):
 		self.assertEqual(err.getvalue().count('ERROR slack: a reply to channel C1 needs slackBotToken in finbot.env; not sent'), 3)
 
 	def test_a_command_at_work_shows_an_hourglass_on_its_message(self):
-		"""While a command works, ⏳ is on the message it answers (Slack has no typing notice for bots), and it comes off
-		when the answer is ready; only with that message and the bot token."""
+		"""While a command works, ⏳ is on the message it answers (Slack has no typing notice for bots); it comes off
+		once the answer is out, so the answer does not wait for it. Only with that message and the bot token."""
 		self.env(slackBotToken='xoxb-test')
-		indicator = worker.TypingIndicator(transports.SlackBot('C1', '1.2'), delay=0)
-		indicator.start()
-		deadline = time.monotonic() + 5
-		while not self.posts and time.monotonic() < deadline:
-			time.sleep(0.01)
-		indicator.stop()
+		self.patch(transports.Transport, 'TYPING', (0, 7, 10))
+		added = threading.Event()
+		def post(url, **kwargs):
+			"""Record the post; note when ⏳ is on."""
+			self.posts.append((url, kwargs))
+			if url.endswith('/reactions.add'):
+				added.set()
+			return Resp({'ok': True})
+		self.patch(transports.net, 'post', post)
+		help_text = about.prepare_help
+		self.patch(about, 'prepare_help', lambda *a: (added.wait(5), help_text(*a))[1]) # a command slow enough for ⏳
+		worker.process_request('slack', 'C1', '<@U1>', '.help', BOT, 'U', '1.2')
+		self.assertEqual([url.rsplit('/', 1)[-1] for url, _ in self.posts],
+			['reactions.add', 'chat.postMessage', 'reactions.remove'])
 		reaction = {'channel': 'C1', 'timestamp': '1.2', 'name': 'hourglass_flowing_sand'}
-		self.assertEqual([(url, kwargs['data']) for url, kwargs in self.posts],
-			[('https://slack.com/api/reactions.add', reaction), ('https://slack.com/api/reactions.remove', reaction)])
+		self.assertEqual((self.posts[0][1]['data'], self.posts[2][1]['data']), (reaction, reaction))
 		self.assertFalse(transports.SlackBot('C1').shows_typing) # no message to put it on
 		self.env(slackBotToken='')
 		self.assertFalse(transports.SlackBot('C1', '1.2').shows_typing)
