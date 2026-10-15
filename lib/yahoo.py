@@ -355,9 +355,9 @@ def price_history(ticker, days=None):
 	tz = zoneinfo.ZoneInfo(stock.get('exchangeTimezoneName') or 'UTC')
 	if days:
 		df = df[df['Date'] >= (now - datetime.timedelta(days=days)).date()].reset_index(drop=True)
-		if df.empty:
+		if df['Close'].dropna().empty:
 			raise NoData(f"no price history for {ticker} in the past {days} days")
-		past_price = df['Close'].iloc[0]
+		past_price = df['Close'].dropna().iloc[0]
 		percent_dict[days] = round((price - past_price) / past_price * 100, 2)
 	else:
 		default_price = df['Close'].iloc[0]
@@ -384,7 +384,7 @@ def price_history(ticker, days=None):
 					percent_dict['Max'] = default_percent
 					continue
 			percent_dict[period] = round((price - past_price) / past_price * 100)
-	closes = tuple((str(day), float(close)) for day, close in zip(df['Date'], df['Close']))
+	closes = tuple((str(day), float(close)) for day, close in zip(df['Date'], df['Close']) if pd.notnull(close))
 	exchange = stock.get('fullExchangeName') or stock.get('exchangeName') or ''
 	name = formats.transform_title(stock.get('longName', ''))
 	return percent_dict, Line(name, exchange, stock.get('currency') or '', price, closes)

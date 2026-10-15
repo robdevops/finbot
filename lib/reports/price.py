@@ -44,15 +44,15 @@ def gather(specific_stock=None, days=None):
 		yahoo.prefetch_history(missing)
 	for ticker in missing:
 		try:
-			changes, line = yahoo.price_history(ticker, days)
+			changes, chart = history.price_line(ticker, days)
 		except RuntimeError as e: # no history: the one stock asked about says so, a list leaves it out
 			if specific_stock:
 				raise
 			print(ticker, e, file=sys.stderr)
 			continue
 		market_data[ticker]['percent_change_period'] = changes[days]
-		if specific_stock:
-			chart = history.line_chart(ticker, changes, line, days)
+	if not specific_stock:
+		chart = None # the line of one stock only
 	return tickers, market_data, chart
 
 def needs_beta(quote):
@@ -153,7 +153,7 @@ def report(service, found, mode='interday', threshold=None, days=None, top=None,
 		return [nothing(mode, threshold, user, specific_stock, found.in_session, days)] if interactive else [], None
 	if specific_stock:
 		return lines, found.chart
-	label = lambda rows: [(ticker.split('.')[0].removesuffix('-USD'), percent) for ticker, percent, _ in rows]
+	label = lambda rows: [(formats.short_ticker(ticker), percent) for ticker, percent, _ in rows]
 	on = formats.date_short(found.as_of, True)
 	span = formats.date_range_english(days, found.as_of) if days else on
 	if not top:

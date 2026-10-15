@@ -113,6 +113,14 @@ def days_english(days, prefix='the past ', article=''):
 			return f"{prefix}{int(days // size)} {units}"
 	return f"{prefix}{days} days"
 
+def price(value):
+	"""A price to show: two decimals, thousands separated (1,234.50); under 1, three significant digits (0.0123)."""
+	return f"{value:,.2f}" if abs(value) >= 1 else f"{value:.3g}"
+
+def short_ticker(ticker):
+	"""A ticker as a chart labels it: without its exchange (BHP.AX: BHP) or a crypto's dollar (BTC-USD: BTC)."""
+	return ticker.split('.')[0].removesuffix('-USD')
+
 def signed_percent(value, decimals=None):
 	"""12 -> '+12%', -3.5 -> '-3.5%', 0 -> '0%'; thousands separated. decimals=None keeps the value's own digits."""
 	if value == 0:

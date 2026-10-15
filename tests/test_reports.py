@@ -616,7 +616,7 @@ class PieCommand(FinbotCase):
 		payload, chart = holdings.prepare_pie('Rob', 'industry', TELEGRAM)
 		self.assertEqual(len(chart.rows), 8)
 		self.assertEqual(chart.rows[-1][0], 'Other')
-		self.assertTrue(render.pie_chart(chart.rows, chart.title, chart.subtitle).read().startswith(b'\x89PNG'))
+		self.assertTrue(render.draw_pie(chart).read().startswith(b'\x89PNG'))
 
 	def test_unknown_or_missing_portfolio_lists_known(self):
 		""".pie with no portfolio, or an unknown one, lists the portfolios there are."""

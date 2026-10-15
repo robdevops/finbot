@@ -56,7 +56,7 @@ def prepare_rating_payload(service, action, length=15):
 	if not payload:
 		return [f"No tracked stocks rated {action} by {config.prefs.min_analysts}+ analysts"], None
 	message = f"Top {length} analyst {action} ratings for tracked stocks ({config.prefs.min_analysts}+ analysts)"
-	shown = [(ticker.split('.')[0], rating) for rating, _, _, ticker in found]
+	shown = [(formats.short_ticker(ticker), rating) for rating, _, _, ticker in found]
 	low, high = min(r for _, r in shown), max(r for _, r in shown)
 	spread = (high - low) or 0.2
 	# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
@@ -101,7 +101,7 @@ def ratio_list(service, kind, mode='top', length=15):
 		ratio = data.get(field)
 		if ratio is None or (covered is not None and ticker not in covered) or (ratio < 0) != (mode == 'negative'):
 			continue # the negative ones, or none of them
-		rows.append((ratio, ticker.split('.')[0], f"{links.stock_line(ticker, data, service)} {ratio}"))
+		rows.append((ratio, formats.short_ticker(ticker), f"{links.stock_line(ticker, data, service)} {ratio}"))
 	rows.sort(key=lambda row: row[0])
 	if mode == 'bottom':
 		rows.reverse()
@@ -126,7 +126,7 @@ def prepare_beta_payload(service):
 		beta = round(data['beta'], 1)
 		if beta > 1.5 and data.get('market_cap_usd', float('inf')) < 2e9:
 			line = f"{links.stock_line(ticker, data, service)} {beta} β"
-			found.append((beta, line, (ticker.split('.')[0], float(beta))))
+			found.append((beta, line, (formats.short_ticker(ticker), float(beta))))
 	if not found:
 		return ['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None
 	found.sort(key=lambda row: row[0], reverse=True)

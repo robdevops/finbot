@@ -37,22 +37,18 @@ def report(service, past_days, portfolio_select=None, performance=None):
 	gather()'s, fetched when not given."""
 	if performance is None:
 		performance = gather(past_days, portfolio_select)
-	lines = [] # (percent, text), sorted into the payload below
-	chart_rows = []
+	rows = [] # (percent or None, line, chart label), one list for the caption and the chart, best first
 	for portfolio_id, (name, data) in performance.items(): # the name from the portfolio list: one with no holdings names none
 		link = service.link("https://portfolio.sharesight.com/portfolios/" + str(portfolio_id), name)
 		percent = float(data['report']['capital_gain_percent'])
-		lines.append((percent, f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}"))
-		chart_rows.append((name, percent))
+		rows.append((percent, f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}", name))
 	for ticker, market, text in BENCHMARKS:
 		line, percent = benchmark(ticker, market, text, past_days, service)
-		lines.append((float('-inf') if percent is None else float(percent), line)) # an error line sorts last
-		if percent is not None:
-			chart_rows.append((text, float(percent)))
-	lines.sort(key=lambda item: item[0], reverse=True)
+		rows.append((None if percent is None else float(percent), line, text))
+	rows.sort(key=lambda row: float('-inf') if row[0] is None else row[0], reverse=True) # an error line sorts last
 	period = formats.days_english(past_days)
-	payload = [service.bold(f"Performance over {period}")] + [line for _, line in lines]
-	chart_rows.sort(key=lambda row: row[1], reverse=True) # best first
+	payload = [service.bold(f"Performance over {period}")] + [line for _, line, _ in rows]
+	chart_rows = [(label, percent) for percent, _, label in rows if percent is not None]
 	span = f"% change {'' if period == 'today' else 'over '}{period}"
 	return payload, render.Chart('bars', "Performance", span, tuple(chart_rows), value_format='percent2')
 

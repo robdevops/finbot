@@ -88,8 +88,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   print there (a test checks); only the util/ tools, run by hand, do.
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
   charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's).
-- A chart renderer in `lib/render.py` gets `@_drawn` (the bot draws in one native thread); it must not call another `@_drawn`
-  function, or that thread waits on itself.
+- A chart renderer in `lib/render.py` takes its `Chart` and is listed in `RENDERERS` by kind; it gets `@_drawn` (the
+  bot draws in one native thread) and must not call another `@_drawn` function, or that thread waits on itself.
 - A new command: a `Command` in `COMMANDS` (its names, and what its arguments may hold), whose usage, section and
   buttons make its `.help` lines and keyboard buttons, and the README command list.
 

@@ -33,12 +33,12 @@ def prepare_compare(service, tickers, period_days=None):
 	span_days = (datetime.datetime.now().date() - start.date()).days
 	period_label = formats.days_english(period_days) if period_days and not note else f"{span_days} days"
 	by_performance = sorted(cropped, key=lambda item: item[1].iloc[-1] / item[1].iloc[0], reverse=True)
-	title = ' vs '.join(t.split('.')[0] for t, _ in by_performance) # best first; line colours stay tied to input order
-	subtitle = f"% change over {period_label}, since {start:%d %b %Y}" + note
-	lines = tuple((t.split('.')[0], tuple((f"{day:%Y-%m-%d}", float(close)) for day, close in series.items()))
+	title = ' vs '.join(formats.short_ticker(t) for t, _ in by_performance) # best first; colours keep input order
+	subtitle = f"% change over {period_label}, since {start:%-d %b %Y}" + note
+	lines = tuple((formats.short_ticker(t), tuple((f"{day:%Y-%m-%d}", float(close)) for day, close in series.items()))
 		for t, series in cropped)
 	chart = render.Chart('compare', title, subtitle, lines)
-	caption = [service.bold(f"{period_label}, since {start:%d %b %Y}") + note]
+	caption = [service.bold(f"{period_label}, since {start:%-d %b %Y}") + note]
 	results = sorted(((series.iloc[-1] / series.iloc[0] - 1) * 100, t) for t, series in cropped)
 	for pct, t in reversed(results):
 		link = links.finance_link(t, exchanges[t], service, days=span_days, brief=False)
@@ -51,6 +51,7 @@ def history_payload(ticker, service, days=None):
 	the chart."""
 	highlight = buttons.PERIODS[buttons.period_for_days(days, 'x')][0]
 	table, line = yahoo.price_history(ticker)
+	chart = line_chart(ticker, table, line)
 	ticker_link = links.finance_link(ticker, line.exchange, service, days=1825, brief=False)
 	lines = [service.bold(f"{line.name} ({ticker_link}) performance history")]
 	for interval in ('Max', '10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
@@ -61,12 +62,13 @@ def history_payload(ticker, service, days=None):
 				label = '● ' + label
 			lines.append(f"{formats.get_emoji(percent)} {label} {formats.signed_percent(percent)}")
 	if days:
-		table, line = yahoo.price_history(ticker, days)
-	return lines, line_chart(ticker, table, line, days)
+		_, chart = price_line(ticker, days)
+	return lines, chart
 
 def line_chart(ticker, changes, line, days=None):
-	"""The line chart of a price_history (its changes and Line), titled with the company, the change over the span and
-	the last price; None for a span under 2 days or fewer than 2 closes."""
+	"""The line chart of a price_history (its changes and Line), titled with the company and the span; beneath, the
+	price and the change over the span, the figures the caption gives. None for a span under 2 days or fewer than 2
+	closes."""
 	if len(line.closes) < 2 or (days and days < 2):
 		return None
 	if days:
@@ -74,5 +76,13 @@ def line_chart(ticker, changes, line, days=None):
 	else:
 		span = "Max" if "Max" in changes else "10Y"
 		change = changes[span]
-	title = f"{line.name} ({ticker}) {span} {formats.signed_percent(change)} Last: {line.price}"
-	return render.Chart('line', title, rows=line.closes, unit=line.currency)
+	arrow = '▲' if change > 0 else '▼' if change < 0 else '■'
+	price = ' '.join(filter(None, (formats.price(line.price), line.currency)))
+	subtitle = f"{price}   {arrow} {abs(change):,g}%"
+	return render.Chart('line', f"{line.name} ({ticker}) {span}", subtitle, line.closes, change=float(change))
+
+def price_line(ticker, days=None):
+	"""(its changes, its line chart or None) of a ticker over `days`, else over its whole history: price_history and
+	line_chart."""
+	changes, line = yahoo.price_history(ticker, days)
+	return changes, line_chart(ticker, changes, line, days)
