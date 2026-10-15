@@ -1,8 +1,6 @@
-#!/usr/bin/env python3
-
+"""Deletes old cache files (scheduled: cleanup.py [days]); with days=0 it is the cache flush."""
 import os, sys, time
 from lib import config
-from lib import webhook
 
 def lambda_handler(days=30):
 	"""Delete the cache files (finbot_*) that were last written more than `days` days ago (days=0: all of them, a flush), but not
@@ -34,6 +32,3 @@ def job(argv):
 			return f'cleanup.py {days}', {'days': int(days)}
 		case _:
 			raise ValueError('[days]')
-
-if __name__ == "__main__":
-	webhook.cli(sys.argv[0], job, lambda_handler)

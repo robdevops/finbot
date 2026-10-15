@@ -10,8 +10,8 @@ os.chdir(ROOT)
 os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok', telegramChatID='1')
 
 import bot # first, and once: it monkey-patches with gevent, which must happen before requests imports ssl and never mid-test
-from lib import cache, config, state, webhook, formats, links, markets, render, yahoo, sharesight, shortman, worker, charts, telegram, reports, watchlist, words
-import performance, shorts, price, reminder, cal, trades, milestone, rating
+from lib import buttons, cache, config, state, webhook, formats, links, markets, render, yahoo, sharesight, shortman, worker, charts, telegram, watchlist, words
+from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating, reminder, shorts, trades
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (yahoo, 'price_history'),
 	(sharesight, 'get_portfolios'), (sharesight, 'get_trades'), (sharesight, 'get_performance'))}
@@ -82,11 +82,11 @@ class FinbotCase(unittest.TestCase):
 		dates = pd.date_range(end=pd.Timestamp.today().normalize(), periods=400)
 		self.patch(yahoo, 'price_series', lambda t: ('Co ' + t, 'NASDAQ', pd.Series(range(100, 500), index=dates, name=t, dtype=float)))
 		self.patch(shortman, 'fetch', lambda md: md)
-		holdings = [{'id': i, 'instrument': {'code': t, 'market_code': 'NASDAQ'}, 'portfolio': {'name': 'Rob'},
+		held = [{'id': i, 'instrument': {'code': t, 'market_code': 'NASDAQ'}, 'portfolio': {'name': 'Rob'},
 					 'capital_gain_percent': str(i * 4 - 40), 'value': '1000'} for i, t in enumerate(TICKERS)]
 		self.patch(sharesight, 'get_portfolios', lambda: {'Rob': 1})
 		self.patch(sharesight, 'get_performance', lambda pid, d, *a: {'report': {
-			'holdings': holdings, 'currency_gain_percent': '0', 'capital_gain_percent': '2.5', 'total_gain_percent': '0'}})
+			'holdings': held, 'currency_gain_percent': '0', 'capital_gain_percent': '2.5', 'total_gain_percent': '0'}})
 		self.patch(sharesight, 'get_trades', lambda name, pid, days=7: [{
 			'id': 1, 'transaction_type': 'BUY', 'symbol': 'T1', 'market': 'NASDAQ', 'portfolio': name,
 			'transaction_date': time.strftime('%Y-%m-%d'), 'quantity': '10', 'price': '5.0', 'value': '50', 'brokerage_currency_code': 'USD', 'holding_id': 7}])

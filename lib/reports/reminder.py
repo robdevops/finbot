@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-
-import sys
+"""Reminders for the day: those in reminder.json, and the Australian end of financial year (scheduled: reminder.py)."""
 import datetime
 import zoneinfo
 from dateutil.relativedelta import relativedelta
@@ -74,6 +72,3 @@ def lambda_handler():
 
 def job(argv):
 	return 'reminder.py', {}
-
-if __name__ == "__main__":
-	webhook.cli(sys.argv[0], job, lambda_handler)

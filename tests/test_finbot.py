@@ -60,7 +60,7 @@ class Logging(unittest.TestCase):
 		"""systemd discards finbot's stdout (StandardOutput=null), so a print there is never read. The util/ tools, run by
 		hand, may use it."""
 		offenders = []
-		for path in sorted([*Path(ROOT, 'lib').glob('*.py'), *Path(ROOT).glob('*.py')]):
+		for path in sorted([*Path(ROOT, 'lib').rglob('*.py'), *Path(ROOT).glob('*.py')]):
 			for node in ast.walk(ast.parse(path.read_text())):
 				if isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'print' and \
 						not any(keyword.arg == 'file' for keyword in node.keywords):

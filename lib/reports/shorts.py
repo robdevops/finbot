@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-
-import sys
+""".shorts: the most shorted stocks followed, from Short Man (ASX) and Yahoo (scheduled: shorts.py)."""
 from lib import config
 from lib import webhook
 from lib import links
@@ -52,6 +50,3 @@ def lambda_handler(chat_id=None, threshold=None, specific_stock=None, service=No
 
 def job(argv):
 	return 'shorts.py', {}
-
-if __name__ == "__main__":
-	webhook.cli(sys.argv[0], job, lambda_handler)

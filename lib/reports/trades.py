@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-
+""".trades: Sharesight buys and sells; a scheduled run reports only new ones (scheduled: trades.py)."""
 import random, sys
 import datetime
 
@@ -105,6 +104,3 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 
 def job(argv):
 	return 'trades.py', {}
-
-if __name__ == "__main__":
-	webhook.cli(sys.argv[0], job, lambda_handler)

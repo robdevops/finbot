@@ -13,16 +13,12 @@ from lib import formats
 from lib import markets
 from lib import render
 from lib import webhook
-from lib import reports
+from lib import buttons
 from lib import charts
+from lib.reports import about, cal, history, holdings, performance, price, profile, rankings, shorts, trades
 from lib import telegram
 from lib import sharesight
 from lib import jobs
-import cal
-import performance
-import price
-import shorts
-import trades
 
 class TypingIndicator:
 	"""Telegram's "typing…" while a with block runs, sent again every 7 seconds, at most max_loops times. It stops however the block
@@ -106,12 +102,12 @@ def process_job_callback(service, callback_id, chat_id, message_id, data):
 		command = jobs.current.pick(number, crc)
 	except (ValueError, jobs.ScheduleError, AttributeError):
 		telegram.answerCallbackQuery(callback_id, 'Buttons updated, try again')
-		payload, markup = reports.prepare_jobs_payload(service, '') # the list as it is now, in place of the stale one
+		payload, markup = about.prepare_jobs_payload(service, '') # the list as it is now, in place of the stale one
 		webhook.editMessageText(chat_id, message_id, '\n'.join(payload), markup or {'inline_keyboard': []})
 		return
 	telegram.answerCallbackQuery(callback_id, f'Running {jobs.display(command[0])}…'[:100])
 	try:
-		webhook.payload_wrapper(service, webhook.chat_url(service, chat_id), [reports.job_line(jobs.current, *jobs.current.run_command(command))], chat_id)
+		webhook.payload_wrapper(service, webhook.chat_url(service, chat_id), [about.job_line(jobs.current, *jobs.current.run_command(command))], chat_id)
 	except Exception as e:
 		webhook.report_error(e, service, chat_id, context='jobs')
 
@@ -120,16 +116,16 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 	if data.startswith('j|'):
 		return process_job_callback(service, callback_id, chat_id, message_id, data)
 	parts = data.split('|', 3)
-	valid = len(parts) == 4 and parts[0] == 'c' and parts[1] in charts.BUTTONS and parts[2] in charts.BUTTONS[parts[1]]
+	valid = len(parts) == 4 and parts[0] == 'c' and parts[1] in buttons.BUTTONS and parts[2] in buttons.BUTTONS[parts[1]]
 	# answering now shows Telegram's toast bubble ("Loading 3M…") while the new chart is built
-	telegram.answerCallbackQuery(callback_id, f"Loading {charts.PERIODS[parts[2]][0]}…" if valid else None)
+	telegram.answerCallbackQuery(callback_id, f"Loading {buttons.PERIODS[parts[2]][0]}…" if valid else None)
 	if not valid:
 		return
 	try:
 		_, kind, period, ref = parts
-		tickers = charts.resolve(ref)
+		tickers = buttons.resolve(ref)
 		caption, image = charts.build(kind, tickers, period, service)
-		webhook.editMessageMedia(chat_id, message_id, image, caption, charts.keyboard(kind, tickers, period))
+		webhook.editMessageMedia(chat_id, message_id, image, caption, buttons.keyboard(kind, tickers, period))
 	except Exception as e:
 		webhook.report_error(e, service, chat_id, context='chart')
 
@@ -207,14 +203,14 @@ def on_watchlist(request, m):
 		request.say([f'"{action}" is not a valid watchlist action'])
 		return
 	with request.typing():
-		payload = reports.prepare_watchlist(request.service, request.user, action, ticker)
+		payload = holdings.prepare_watchlist(request.service, request.user, action, ticker)
 	request.say(payload)
 
 def on_help(request, m):
 	markup = None
 	if request.service == 'telegram' and int(request.chat_id) > 0: # positive chat ids are DMs; groups are negative
 		markup = charts.command_keyboard()
-	request.say(reports.prepare_help(request.service, request.bot_name), reply_markup=markup)
+	request.say(about.prepare_help(request.service, request.bot_name), reply_markup=markup)
 	if markup:
 		charts.mark_keyboard(request.chat_id) # this chat now has the current keyboard
 
@@ -243,7 +239,7 @@ def on_calendar(request, m):
 		cal.lambda_handler(request.chat_id, days, request.service, ticker, interactive=True, event=event)
 
 def on_performance(request, m):
-	days, portfolio = period_and_portfolio(m.group('args'), charts.PERIODS['m'][1]) # default view is the 1M button
+	days, portfolio = period_and_portfolio(m.group('args'), buttons.PERIODS['m'][1]) # default view is the 1M button
 	if days > 0:
 		with request.typing():
 			performance.lambda_handler(request.chat_id, days, request.service, request.user, portfolio, interactive=True)
@@ -286,12 +282,12 @@ def on_trades(request, m):
 
 def on_holdings(request, m):
 	with request.typing():
-		payload = reports.prepare_holdings_payload((m.group(1) or '').strip() or None, request.service)
+		payload = holdings.prepare_holdings_payload((m.group(1) or '').strip() or None, request.service)
 	request.say(payload)
 
 def on_marketcap(request, m):
 	with request.typing():
-		payload = reports.prepare_marketcap_payload(request.service, m.group(1) or 'top', length=15)
+		payload = rankings.prepare_marketcap_payload(request.service, m.group(1) or 'top', length=15)
 	request.say(payload)
 
 def on_ratio(kind, negative=False, chart=False):
@@ -307,13 +303,13 @@ def on_ratio(kind, negative=False, chart=False):
 		elif arg and arg != 'top':
 			ticker = markets.transform_to_yahoo(arg.upper())
 		with request.typing():
-			payload, spec = reports.prepare_value_payload(request.service, action, ticker, length=15)
+			payload, spec = rankings.prepare_value_payload(request.service, action, ticker, length=15)
 		request.deliver(payload, spec if chart else None)
 	return handler
 
 def on_beta(request, m):
 	with request.typing():
-		payload, chart = reports.prepare_beta_payload(request.service)
+		payload, chart = rankings.prepare_beta_payload(request.service)
 	request.deliver(payload, chart)
 
 def on_pie(request, m):
@@ -322,22 +318,22 @@ def on_pie(request, m):
 	if words and words[-1].lower() in ('sector', 'sectors', 'industry', 'industries'):
 		by = 'sector' if words.pop().lower().startswith('sector') else 'industry'
 	with request.typing():
-		payload, chart = reports.prepare_pie(' '.join(words), by, request.service)
+		payload, chart = holdings.prepare_pie(' '.join(words), by, request.service)
 	request.deliver(payload, chart)
 
 def on_rating(request, m):
 	"""The analysts' strongest buy ratings (.buy), sell ratings (.sell), or both (.buy & sell, a keyboard button), as asked."""
 	for action in dict.fromkeys(word.lower() for word in m.group('first', 'second') if word): # each once, in the order asked
 		with request.typing():
-			payload, chart = reports.prepare_rating_payload(request.service, action, length=15)
+			payload, chart = rankings.prepare_rating_payload(request.service, action, length=15)
 		request.deliver(payload, chart)
 
 def on_compare(request, m):
 	with request.typing():
-		payload, image, tickers, days = reports.prepare_compare(request.service, (m.group('args') or '').split())
+		payload, image, tickers, days = history.prepare_compare(request.service, (m.group('args') or '').split())
 	markup = None
 	if image and request.service == 'telegram':
-		markup = charts.keyboard('c', tickers, charts.period_for_days(days) if days else 'x')
+		markup = buttons.keyboard('c', tickers, buttons.period_for_days(days) if days else 'x')
 	request.send(payload, image, markup)
 
 def on_history(request, m):
@@ -347,7 +343,7 @@ def on_history(request, m):
 	ticker = markets.transform_to_yahoo(m.group('ticker').upper())
 	with request.typing():
 		caption, image = charts.build('h', [ticker], None, request.service)
-	request.send(caption.split('\n'), image, charts.keyboard('h', [ticker], 'x') if image and request.service == 'telegram' else None)
+	request.send(caption.split('\n'), image, buttons.keyboard('h', [ticker], 'x') if image and request.service == 'telegram' else None)
 
 def on_plan(request, m):
 	if m.group(1) and not m.group(1).startswith('@'):
@@ -365,17 +361,17 @@ def on_who(request, m):
 		request.say([".who: please try again specifying a ticker"])
 		return
 	with request.typing():
-		payload = reports.prepare_who(request.service, re.split(r'[.:]', m.group('ticker').upper())[0])
+		payload = holdings.prepare_who(request.service, re.split(r'[.:]', m.group('ticker').upper())[0])
 	request.say(payload)
 
 def on_jobs(request, m):
 	with request.typing(max_loops=10):
-		payload, markup = reports.prepare_jobs_payload(request.service, m.group('args'))
+		payload, markup = about.prepare_jobs_payload(request.service, m.group('args'))
 	request.say(payload, reply_markup=markup)
 
 def on_profile(request, m):
 	with request.typing():
-		payload = reports.prepare_profile_payload(request.service, request.user, m.group('ticker').upper())
+		payload = profile.prepare_profile_payload(request.service, request.user, m.group('ticker').upper())
 	request.say(payload)
 
 COMMANDS = [ # (pattern, function): tried in this order, the first match answers. .SYMBOL takes anything, so it stays last

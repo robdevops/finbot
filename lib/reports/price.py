@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-
+""".price, .session, .premarket, .postmarket: price moves past a threshold (scheduled: price.py midsession | interday |
+premarket | close | <days>)."""
 import sys
 import datetime
 
@@ -12,7 +12,7 @@ from lib import markets
 from lib import render
 from lib import watchlist
 from lib import yahoo
-from lib import charts
+from lib import buttons
 
 def gather(specific_stock=None, days=None):
 	"""(tickers, market data) for a price report: Yahoo's quotes; over `days` each holding's Sharesight figure, and for the tickers
@@ -168,17 +168,17 @@ def lambda_handler(chat_id=None, threshold=None, service=None, user='', specific
 	if threshold is None:
 		threshold = config.prefs.price_percent
 	market = gather(specific_stock, days)
-	def buttons(service): # a chart's period buttons: one ticker's chart, and the daily and N-day lists (not the intraday ones)
+	def markup(service): # a chart's period buttons: one ticker's chart, and the daily and N-day lists (not the intraday ones)
 		if service != 'telegram':
 			return None
 		if specific_stock:
-			return charts.keyboard('p', market[0], charts.period_for_days(days))
+			return buttons.keyboard('p', market[0], buttons.period_for_days(days))
 		if not (midsession or premarket or close):
-			return charts.keyboard('l', [f"{threshold:g}", str(top or 0)], charts.period_for_days(days, 'd' if not days else None))
+			return buttons.keyboard('l', [f"{threshold:g}", str(top or 0)], buttons.period_for_days(days, 'd' if not days else None))
 		return None
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		payload, graph = report(service, threshold, user, specific_stock, interactive, midsession, premarket, interday, days, close, top, market)
-		webhook.send(service, url, chat, payload, graph, reply_markup=buttons(service) if graph else None)
+		webhook.send(service, url, chat, payload, graph, reply_markup=markup(service) if graph else None)
 
 def job(argv):
 	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
@@ -189,6 +189,3 @@ def job(argv):
 			return f'price.py {days}', {'threshold': 0, 'days': int(days), 'top': 10}
 		case _:
 			raise ValueError('[midsession|interday|premarket|close|days (int)]')
-
-if __name__ == "__main__":
-	webhook.cli(sys.argv[0], job, lambda_handler)

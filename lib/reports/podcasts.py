@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-
-import sys
+"""New episodes of a podcast feed (scheduled: podcasts.py "<feed url>")."""
 import hashlib
 import string
 import xml.etree.ElementTree as ET
@@ -113,6 +111,3 @@ def job(argv):
 			return 'podcasts.py ' + hashlib.md5(feed_url.encode()).hexdigest()[:8], {'feed_url': feed_url} # the label matches the seen file's name
 		case _:
 			raise ValueError('"<podcast_feed_url>"')
-
-if __name__ == "__main__":
-	webhook.cli(sys.argv[0], job, lambda_handler)

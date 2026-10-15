@@ -1,0 +1,14 @@
+"""What finbot says. A module per scheduled report: cal, cleanup (of the cache), milestone, performance, podcasts, price, rating,
+reminder, shorts and trades, each with job(argv), which parses its schedule line, and lambda_handler(**kwargs), which runs it; the
+top-level script of the same name runs it from the command line. And the chat-only reports: about (.help, .jobs), history
+(.history, .compare), holdings (.holdings, .who, .pie, .watchlist), profile (.SYMBOL) and rankings (.marketcap, .pe and the rest)."""
+import os
+import sys
+
+
+def cli(path):
+	"""Run the report a top-level script is named for (price.py: lib/reports/price.py) with the script's arguments."""
+	import importlib
+	from lib import webhook
+	report = importlib.import_module('lib.reports.' + os.path.basename(path).removesuffix('.py'))
+	webhook.cli(sys.argv[0], report.job, report.lambda_handler)

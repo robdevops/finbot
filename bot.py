@@ -22,7 +22,7 @@ from lib import telegram
 from lib import webhook
 from lib import yahoo
 from lib import render
-import cleanup
+from lib.reports import cleanup
 
 botName = None # the Telegram bot's @username, from telegram.register() at start
 AUTHENTICATED = 'finbot.authenticated' # set in a request's WSGI environ once it has passed its service's check

@@ -24,7 +24,7 @@ from lib import config
 from lib import state
 from lib import jobrun
 from lib import webhook
-import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, shorts, trades
+from lib.reports import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, shorts, trades
 
 SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance': performance, 'podcasts': podcasts, 'price': price,
 	'rating': rating, 'reminder': reminder, 'shorts': shorts, 'trades': trades}

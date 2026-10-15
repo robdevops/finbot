@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-
+""".earnings and .dividend: upcoming earnings and ex-dividend dates (scheduled: cal.py earnings | ex-dividend)."""
 import datetime
 import sys
 
@@ -93,6 +92,3 @@ def job(argv):
 			return f'cal.py {event}', {'event': event}
 		case _:
 			raise ValueError('[earnings|ex-dividend]')
-
-if __name__ == "__main__":
-	webhook.cli(sys.argv[0], job, lambda_handler)

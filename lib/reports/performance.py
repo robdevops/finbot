@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-
+""".performance: each portfolio's return over a period, beside two benchmarks (scheduled: performance.py [days])."""
 import sys
 
 from lib import config
@@ -9,7 +8,7 @@ from lib import formats
 from lib import links
 from lib import render
 from lib import yahoo
-from lib import charts
+from lib import buttons
 
 BENCHMARKS = (('SPY', 'NYSEARCA', 'S&P 500'), ('QQQ', 'NasdaqGM', 'NASDAQ 100'))
 
@@ -69,8 +68,8 @@ def lambda_handler(chat_id=None, past_days=None, service=None, user='', portfoli
 	performance = gather(past_days, portfolio_select)
 	for service, url, chat in webhook.destinations(interactive, service, chat_id):
 		payload, graph = report(service, past_days, portfolio_select, interactive, performance)
-		buttons = charts.keyboard('f', [portfolio_select or ''], charts.period_for_days(past_days)) if graph and service == 'telegram' else None
-		webhook.send(service, url, chat, payload, graph, reply_markup=buttons)
+		markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days)) if graph and service == 'telegram' else None
+		webhook.send(service, url, chat, payload, graph, reply_markup=markup)
 
 def job(argv):
 	"""Arguments of a scheduled run: (label, lambda_handler kwargs). Raises ValueError with the usage on a bad argument."""
@@ -81,6 +80,3 @@ def job(argv):
 			return f'performance.py {days}', {'past_days': int(days)}
 		case _:
 			raise ValueError('[integer]')
-
-if __name__ == "__main__":
-	webhook.cli(sys.argv[0], job, lambda_handler)

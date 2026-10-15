@@ -27,13 +27,15 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `bot.py`: WSGI entry; routes /telegram and /slack, authenticates, hands each message to `lib/worker.py` in a thread; SIGHUP reload, SIGUSR1
   cache flush.
 - `lib/worker.py`: `COMMANDS` (regex → `on_*` handler, first match wins, `.SYMBOL` last); `Request`; the typing indicator.
-- `lib/reports.py`: `prepare_*` builders for the chat-only reports (lines, plus a chart spec).
-- `price.py performance.py trades.py shorts.py cal.py rating.py milestone.py reminder.py podcasts.py cleanup.py`: reports that also
-  run on a schedule; each has `lambda_handler()` and `job(argv)` (its schedule-line argument parser).
+- `lib/reports/`: what finbot says. Scheduled (each has `lambda_handler()` and `job(argv)`, its schedule-line parser): `price
+  performance trades shorts cal rating milestone reminder podcasts cleanup`; the top-level `price.py` and the rest are shims
+  that run them. Chat-only (`prepare_*`): `about` (.help .jobs), `history` (.history .compare), `holdings` (.holdings .who .pie
+  .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
 - `lib/webhook.py`: sending (chunking, photos, Slack upload), markup, escaping, error reporting. `lib/telegram.py`: Bot API calls.
-- `lib/charts.py`: Telegram period buttons and the rebuild behind them. `lib/markets.py`: market tables, flags, ticker
-  translation. `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: links. `lib/render.py`: every chart
-  (matplotlib).
+- `lib/buttons.py`: period buttons under a chart. `lib/charts.py`: a button press rebuilds its chart; the Telegram command
+  keyboard.
+- `lib/markets.py`: market tables, flags, ticker translation. `lib/formats.py`: names, units, dates, percents in words.
+  `lib/links.py`: links. `lib/render.py`: every chart (matplotlib).
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, cached in `DATA_DIR/cache`.
   `sharesight.portfolios(name=None)` gives `Portfolio` objects: `holdings()`, `tickers()`, `performance(days)`,
   `trades(days)`.
@@ -45,8 +47,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `('photo', size, caption)`.
 - Which test file: commands and scheduled reports `test_reports`; failures, bad input, WSGI and Slack events `test_edges`;
   Yahoo/Sharesight parsing, sending, Telegram API `test_providers`; scheduler `test_jobs`; config `test_config`; charts
-  `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); pure helpers `test_util`; data dir `test_datadir`; chunking, git_version
-  `test_finbot`.
+  `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets, formats, links, cache and state files `test_util`; data dir
+  `test_datadir`; chunking, git_version `test_finbot`.
 
 ## Conventions
 - Read settings as `config.env.<name>` / `config.prefs.<name>` where they are used, never into a default or module constant (a

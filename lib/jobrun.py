@@ -1,4 +1,4 @@
-"""Runs one scheduled command in its own process: `python -m lib.jobrun <script> '<json kwargs>'`.
+"""Runs one scheduled command in its own process: `python -m lib.jobrun lib.reports.<name> '<json kwargs>'`.
 
 The bot starts this for every scheduled or manual run, so a job's CPU-heavy work (charts, pandas) happens off the bot's event
 loop and cannot hold up incoming webhooks. Failures are reported to the channel and give the exit status REPORTED."""
@@ -14,14 +14,14 @@ REPORTED = 3 # exit status of a run that failed and said so in the chat; the bot
 
 
 def main(argv):
-	if len(argv) != 2 or not re.fullmatch(r'[a-z]+', argv[0]):
-		print('usage: python -m lib.jobrun <script> <json kwargs>', file=sys.stderr)
+	if len(argv) != 2 or not re.fullmatch(r'[a-z]+(\.[a-z]+)*', argv[0]):
+		print('usage: python -m lib.jobrun <module> <json kwargs>', file=sys.stderr)
 		return 2
-	name = argv[0]
-	def run(): # the import too: a script that cannot even be imported is reported like any other failure
-		importlib.import_module(name).lambda_handler(**json.loads(argv[1]))
+	module = argv[0]
+	def run(): # the import too: a report that cannot even be imported is reported like any other failure
+		importlib.import_module(module).lambda_handler(**json.loads(argv[1]))
 		return True
-	return 0 if webhook.guarded(f'{name}.py', run, exit=False) else REPORTED
+	return 0 if webhook.guarded(module.rsplit('.', 1)[-1] + '.py', run, exit=False) else REPORTED
 
 
 if __name__ == '__main__':

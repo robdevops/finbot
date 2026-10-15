@@ -5,8 +5,8 @@ from unittest import mock
 from lib import config
 from util import check_config, split_env
 import bot, cal
-from lib import cache, reports, sharesight, worker, yahoo
-import performance, price, shorts, trades
+from lib import cache, sharesight, worker, yahoo
+from lib.reports import performance, price, shorts, trades
 
 REPO = Path(config.__file__).resolve().parent.parent
 DEFAULTS = {'past_days': 28, 'future_days': 30, 'price_percent': 5.0, 'shorts_percent': 15, 'cache_seconds': 43200,
@@ -223,7 +223,7 @@ class Reload(unittest.TestCase):
 		def reads_prefs(node):
 			return any(isinstance(n, ast.Attribute) and n.attr == 'prefs' and isinstance(n.value, ast.Name) and n.value.id == 'config' for n in ast.walk(node))
 		offenders = []
-		for path in sorted([*(REPO / 'lib').glob('*.py'), *REPO.glob('*.py'), *(REPO / 'util').glob('*.py')]):
+		for path in sorted([*(REPO / 'lib').rglob('*.py'), *REPO.glob('*.py'), *(REPO / 'util').glob('*.py')]):
 			tree = ast.parse(path.read_text())
 			for node in ast.walk(tree):
 				if isinstance(node, ast.ImportFrom) and node.module == 'lib.config':
@@ -261,7 +261,7 @@ class Reload(unittest.TestCase):
 		self.write('future_days=45\n')
 		config.reload()
 		with mock.patch.object(jobs.subprocess, 'Popen', popen):
-			import cleanup
+			from lib.reports import cleanup
 			self.assertEqual(jobs.run_child('cleanup.py', cleanup, {}), 0)
 		self.assertEqual((seen['future_days'], seen[config.PASSED]), ('45', '1'))
 

@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-
-import sys
+"""Analysts' consensus rating changes since the last scheduled run (scheduled: rating.py). .buy and .sell are in rankings."""
 from lib import webhook
 from lib import state
 from lib import links
@@ -70,6 +68,3 @@ def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=
 
 def job(argv):
 	return 'rating.py', {}
-
-if __name__ == "__main__":
-	webhook.cli(sys.argv[0], job, lambda_handler)

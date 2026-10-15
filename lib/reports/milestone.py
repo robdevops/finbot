@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-
-import sys
+"""Record highs and lows (all-time) among the stocks followed (scheduled: milestone.py)."""
 from itertools import groupby
 from lib import state
 from lib import webhook
@@ -71,6 +69,3 @@ def lambda_handler():
 
 def job(argv):
 	return 'milestone.py', {}
-
-if __name__ == "__main__":
-	webhook.cli(sys.argv[0], job, lambda_handler)

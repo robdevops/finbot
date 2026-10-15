@@ -91,7 +91,7 @@ class WatchlistActions(FinbotCase):
 			time.sleep(0.01)
 			return {t: market_entry(t) for t in tickers}
 		self.patch(yahoo, 'fetch', slow_fetch)
-		threads = [threading.Thread(target=reports.prepare_watchlist, args=('telegram', '@u', 'add', t)) for t in ('T1', 'T2')]
+		threads = [threading.Thread(target=holdings.prepare_watchlist, args=('telegram', '@u', 'add', t)) for t in ('T1', 'T2')]
 		for thread in threads:
 			thread.start()
 		for thread in threads:
