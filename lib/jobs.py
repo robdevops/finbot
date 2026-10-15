@@ -10,14 +10,15 @@ import math
 import os
 import re
 import signal
+import subprocess
 import sys
+import threading
+import time
 import zlib
 import zoneinfo
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import gevent
-from gevent import subprocess
 from croniter import croniter, CroniterBadDateError
 
 from lib import config
@@ -31,7 +32,7 @@ SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance'
 current = None # the running Scheduler, set by bot.py; the chat commands use it
 HIDDEN = ('cleanup', 'podcasts') # scheduled, but not offered in the chat list
 STATE_FILE = 'finbot_jobs.json' # last fire time of every job, so a restart neither repeats a run nor loses one
-JOB_TIMEOUT = 5 * 60 # seconds a job may run before it is abandoned and reported
+JOB_TIMEOUT = 5 * 60 # seconds each command may run before it is stopped and reported
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')
 OPERATOR = re.compile(r'\d*>>?&?\d*|&>>?|;|&&|\|\|?|&|[<`$(){}]') # what a shell reads as more than a word, outside quotes
 REDIRECT = re.compile(r'\d*>>?&?\d*|&>>?') # > file, >> file, 2>&1, &> file
@@ -43,20 +44,35 @@ def checksum(label):
 
 
 def run_child(label, module, kwargs):
-	"""Run a command in its own process (python -m lib.jobrun) and return its exit status. The child inherits the environment,
-	user and output of the bot, so it behaves like the old cron job. A timeout or any other interruption stops the child."""
+	"""Run a command in its own process (python -m lib.jobrun) and return its exit status. The child inherits the
+	environment, user and output of the bot, so it behaves like the old cron job. One still running after JOB_TIMEOUT
+	is stopped and TimeoutError raised; any other interruption stops it too."""
 	env = dict(os.environ, **config.child_environment()) # the preferences this process runs on, not whatever the file says now
-	proc = subprocess.Popen([sys.executable, '-m', 'lib.jobrun', module.__name__, json.dumps(kwargs)], cwd=config.REPO_DIR, env=env)
+	args = [sys.executable, '-m', 'lib.jobrun', module.__name__, json.dumps(kwargs)]
+	proc = subprocess.Popen(args, cwd=config.REPO_DIR, env=env)
 	try:
-		return proc.wait()
+		return proc.wait(timeout=JOB_TIMEOUT)
+	except subprocess.TimeoutExpired:
+		stop(proc)
+		raise TimeoutError(f'still running after {JOB_TIMEOUT // 60} minutes') from None
 	except BaseException:
-		proc.terminate()
-		try:
-			proc.wait(timeout=10)
-		except subprocess.TimeoutExpired:
-			proc.kill()
-			proc.wait()
+		stop(proc)
 		raise
+
+
+def stop(proc):
+	"""End a child process: asked to stop, then killed if it is still there 10 seconds later."""
+	proc.terminate()
+	try:
+		proc.wait(timeout=10)
+	except subprocess.TimeoutExpired:
+		proc.kill()
+		proc.wait()
+
+
+def start_thread(target, *args):
+	"""Run target(*args) in a daemon thread of its own (a greenlet, under gevent's monkey patching)."""
+	threading.Thread(target=target, args=args, daemon=True).start()
 
 
 def exit_reason(status):
@@ -70,7 +86,7 @@ def exit_reason(status):
 
 
 def run_in_process(label, module, kwargs):
-	"""The runner for tests: call the handler here instead of in a child process."""
+	"""The runner for tests: call the handler here instead of in a child process (so without a deadline)."""
 	module.run(**kwargs)
 	return 0
 
@@ -239,7 +255,8 @@ def parse_schedule(text, default_zone=None):
 
 class Scheduler:
 	"""Fires the jobs of a schedule file. `path` is a callable returning the file (the data dir copy wins over the default, so a
-	new copy is found on reload). `clock`, `sleep` and `spawn` can be replaced, which the tests do."""
+	new copy is found on reload). `clock`, `sleep` and `spawn` can be replaced, which the tests do. Its lock covers
+	what the loop, a reload and runs from chat share: the jobs, their bases, the record of runs and what is running."""
 
 	def __init__(self, path, catchup=None, clock=None, sleep=None, spawn=None, zone=None, runner=None):
 		"""path() gives the schedule file's path. catchup is how late, in minutes, a missed run may still start (the
@@ -248,14 +265,15 @@ class Scheduler:
 		self.path = path
 		self.catchup = datetime.timedelta(minutes=config.env.scheduler_catchup if catchup is None else catchup)
 		self.clock = clock or (lambda: datetime.datetime.now(datetime.timezone.utc))
-		self.sleep = sleep or gevent.sleep
-		self.spawn = spawn or gevent.spawn
+		self.sleep = sleep or time.sleep
+		self.spawn = spawn or start_thread
 		self.runner = runner or run_child # (label, module, kwargs) -> exit status
 		self.zone = zone
 		self.jobs = []
 		self.base = {} # key -> the time after which the next run is due
 		self.last = {}
 		self.busy = set() # labels of the commands running now, scheduled or manual
+		self.lock = threading.Lock()
 
 	def load(self):
 		"""Read the schedule file. A line with an impossible time refuses the whole file: ImpossibleTime is raised, naming every such
@@ -274,19 +292,18 @@ class Scheduler:
 		if not jobs and self.jobs:
 			print('schedule: no usable line in', path, '- keeping the current schedule', file=sys.stderr)
 			return False
-		try:
-			last = state.load(STATE_FILE)
-		except (OSError, ValueError) as e: # unreadable or not JSON: carry on as if there were no record, the next run rewrites it
-			problem = f'cannot read {STATE_FILE}, starting without a record of past runs: {e}'
+		with self.lock: # no run is recorded between reading the record and swapping it in
+			try:
+				last, problem = state.load(STATE_FILE), None
+			except (OSError, ValueError) as e: # unreadable or not JSON: start without one; the next run rewrites it
+				last, problem = None, f'cannot read {STATE_FILE}, starting without a record of past runs: {e}'
+			self.last = last if isinstance(last, dict) else {}
+			now = self.clock()
+			old = {job.key: self.base[job.key] for job in self.jobs if job.key in self.base}
+			self.base = {job.key: old.get(job.key) or self.start_base(job, now) for job in jobs}
+			self.jobs = jobs
+		if problem:
 			delivery.report_error(ScheduleError(problem), context='schedule')
-			last = None
-		self.last = last if isinstance(last, dict) else {}
-		now = self.clock()
-		old = {job.key: self.base[job.key] for job in self.jobs if job.key in self.base}
-		self.base = {}
-		for job in jobs:
-			self.base[job.key] = old.get(job.key) or self.start_base(job, now)
-		self.jobs = jobs
 		print(f"schedule: {len(jobs)} job{'' if len(jobs) == 1 else 's'} from {path}", file=sys.stderr)
 		return True
 
@@ -321,66 +338,67 @@ class Scheduler:
 	def due(self, now):
 		"""The jobs to run now, as (job, fire time). Several missed fire times of one job run it once."""
 		fired = []
-		for job in self.jobs:
-			base, latest = self.base[job.key], None
-			while (t := self.next_fire(job, base)) <= now:
-				latest, base = t, t
-			if latest:
-				self.base[job.key] = latest
-				self.last[job.key] = latest.isoformat()
-				fired.append((job, latest))
-		if fired:
-			try:
-				state.save(STATE_FILE, self.last)
-			except OSError as e:
-				print('schedule: cannot save', STATE_FILE, e, file=sys.stderr)
+		with self.lock:
+			for job in self.jobs:
+				base, latest = self.base[job.key], None
+				while (t := self.next_fire(job, base)) <= now:
+					latest, base = t, t
+				if latest:
+					self.base[job.key] = latest
+					self.last[job.key] = latest.isoformat()
+					fired.append((job, latest))
+			if fired:
+				try:
+					state.save(STATE_FILE, self.last)
+				except OSError as e:
+					print('schedule: cannot save', STATE_FILE, e, file=sys.stderr)
 		return fired
 
 	def run_job(self, job, fire_time):
-		"""One job: its commands in order. Skipped if the previous run is still going; abandoned after JOB_TIMEOUT."""
-		if job.running:
-			print(f'schedule: {job.text} is still running, skipping {fire_time:%H:%M}', file=sys.stderr)
-			return 'already running'
-		return self.execute(job, job.commands)
-
-	def execute(self, job, commands):
-		"""Run commands one after another. `job` (None for a manual run of one command) is marked running meanwhile. A command that
-		is already running, scheduled or manual, is skipped. Returns 'done', 'timed out', 'failed' or 'already running'."""
-		if job:
+		"""One job: its commands in order (execute). Skipped if the previous run is still going."""
+		with self.lock:
+			if job.running:
+				print(f'schedule: {job.text} is still running, skipping {fire_time:%H:%M}', file=sys.stderr)
+				return 'already running'
 			job.running = True
-		outcome, label = 'done', ''
-		timeout = gevent.Timeout(JOB_TIMEOUT)
-		timeout.start()
 		try:
-			for label, module, kwargs in commands:
-				if label in self.busy:
-					print(f'schedule: {label} is already running, skipping it', file=sys.stderr)
-					outcome = 'already running'
-					continue
-				self.busy.add(label)
-				print(f'schedule: running {label}', file=sys.stderr)
-				try:
-					status = self.runner(label, module, kwargs)
-					if status:
-						outcome = 'failed'
-						if status != jobrun.REPORTED: # it ended without saying why
-							delivery.report_error(RuntimeError(exit_reason(status)), context=label)
-				except gevent.Timeout:
-					raise
-				except (Exception, SystemExit) as e:
-					delivery.report_error(e, context=label)
-					outcome = 'failed'
-				finally:
-					self.busy.discard(label)
-		except gevent.Timeout as t:
-			if t is not timeout:
-				raise
-			delivery.report_error(TimeoutError(f'still running after {JOB_TIMEOUT // 60} minutes'), context=label)
-			outcome = 'timed out'
+			return self.execute(job.commands)
 		finally:
-			timeout.close()
-			if job:
-				job.running = False
+			job.running = False
+
+	def claim(self, label):
+		"""Mark a command running, unless it already is (scheduled or manual): whether it was claimed."""
+		with self.lock:
+			if label in self.busy:
+				return False
+			self.busy.add(label)
+			return True
+
+	def execute(self, commands):
+		"""Run commands one after another, each stopped and reported if still running after JOB_TIMEOUT. One already
+		running, scheduled or manual, is skipped. Returns 'done', 'timed out', 'failed' or 'already running'."""
+		outcome = 'done'
+		for label, module, kwargs in commands:
+			if not self.claim(label):
+				print(f'schedule: {label} is already running, skipping it', file=sys.stderr)
+				outcome = 'already running'
+				continue
+			print(f'schedule: running {label}', file=sys.stderr)
+			try:
+				status = self.runner(label, module, kwargs)
+				if status:
+					outcome = 'failed'
+					if status != jobrun.REPORTED: # it ended without saying why
+						delivery.report_error(RuntimeError(exit_reason(status)), context=label)
+			except TimeoutError as e: # run_child stopped it: the rest of the line still runs
+				delivery.report_error(e, context=label)
+				outcome = 'timed out'
+			except (Exception, SystemExit) as e:
+				delivery.report_error(e, context=label)
+				outcome = 'failed'
+			finally:
+				with self.lock:
+					self.busy.discard(label)
 		return outcome
 
 	def commands(self):
@@ -427,7 +445,7 @@ class Scheduler:
 
 	def run_command(self, command):
 		"""Run one command returned by select() or pick(). Returns (label, outcome)."""
-		return command[0], self.execute(None, [command])
+		return command[0], self.execute([command])
 
 	def run_now(self, text):
 		"""`.jobs run`: one scheduled command, now, as cron would run it; the schedule is unchanged. Returns (label, outcome)."""
@@ -438,7 +456,8 @@ class Scheduler:
 		now = self.clock()
 		for job, fire_time in self.due(now):
 			self.spawn(self.run_job, job, fire_time)
-		waits = [(self.next_fire(job, self.base[job.key]) - now).total_seconds() for job in self.jobs]
+		with self.lock:
+			waits = [(self.next_fire(job, self.base[job.key]) - now).total_seconds() for job in self.jobs]
 		return min(30, max(1, math.ceil(min(waits)))) if waits else 30
 
 	def run_forever(self):

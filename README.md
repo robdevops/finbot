@@ -642,7 +642,7 @@ The bot logs the number of jobs when it starts or reloads, and each job as it ru
 
 Behaviour worth knowing:
 * A run that was due while the bot was down (a restart, a deploy) still fires once if it was due within the last `scheduler_catchup` minutes (default 5). A restart right after a run does not repeat it.
-* A job still running when it is next due is skipped, and a job that takes more than 5 minutes is abandoned and reported.
+* A job still running when it is next due is skipped. A command still running after 5 minutes is stopped and reported, and the rest of its line still runs: each command has 5 minutes of its own.
 * Failures are reported to your chat channels, as before.
 * With `scheduler=False` nothing is scheduled by the bot, so you can keep using cron or systemd timers and run the scripts yourself.
 

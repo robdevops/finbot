@@ -1,5 +1,6 @@
 """The in-process scheduler (lib/jobs.py): schedule file parsing, each script's job(argv), and firing with a fake clock."""
-import contextlib, datetime, hashlib, io, json, os, signal, subprocess, sys, tempfile, time, unittest, zoneinfo
+import contextlib, datetime, hashlib, io, json, os, signal, subprocess, sys, tempfile, threading, time, unittest
+import zoneinfo
 from pathlib import Path
 from unittest import mock
 import gevent
@@ -350,14 +351,21 @@ class SchedulerTests(SchedulerBase):
 		self.assertEqual(len(self.errors), 1)
 		self.assertFalse(s.jobs[0].running)
 
-	def test_a_job_that_hangs_is_abandoned_and_reported(self):
-		"""A job that runs past the timeout is abandoned and reported."""
-		self.patch(jobs, 'JOB_TIMEOUT', 0.05)
-		self.patch(jobs.SCRIPTS['trades'], 'run', lambda **k: gevent.sleep(5))
+	def test_a_command_stopped_at_its_deadline_is_reported_and_the_next_still_runs(self):
+		"""A command still running at its deadline (run_child stops it) is reported, and the rest of its line runs."""
+		self.file.write_text('*/20 * * * * trades.py; shorts.py\n')
+		def runner(label, module, kwargs):
+			"""trades.py hangs until run_child stops it; the rest run here."""
+			if label == 'trades.py':
+				raise TimeoutError('still running after 5 minutes')
+			return jobs.run_in_process(label, module, kwargs)
 		s = self.scheduler()
-		s.run_job(s.jobs[0], at(13, 21, 20))
-		self.assertTrue(any('still running' in e for e in self.errors))
+		s.runner = runner
+		self.assertEqual(s.run_job(s.jobs[0], at(13, 21, 20)), 'timed out')
+		self.assertEqual(self.errors, ['⚠️ trades.py: TimeoutError: still running after 5 minutes'])
+		self.assertEqual(self.ran, [('shorts', {})])
 		self.assertFalse(s.jobs[0].running)
+		self.assertEqual(s.busy, set())
 
 	def test_reload_applies_edits_keeps_state_and_survives_a_bad_file(self):
 		"""A reload applies edits and keeps unchanged jobs' timing; an unusable file keeps the running schedule."""
@@ -537,10 +545,29 @@ class ManualRuns(SchedulerBase):
 		self.assertEqual(self.ran, [('price', {'mode': 'close'})]) # price.py close ran, trades.py was skipped
 
 	def test_run_now_times_out(self):
-		"""A manual run past the timeout says so."""
-		self.patch(jobs, 'JOB_TIMEOUT', 0.05)
-		self.patch(jobs.SCRIPTS['trades'], 'run', lambda **k: gevent.sleep(5))
+		"""A manual run stopped at its deadline says so."""
+		def hang(label, module, kwargs):
+			"""Hang until run_child stops it."""
+			raise TimeoutError('still running after 5 minutes')
+		self.s.runner = hang
 		self.assertEqual(self.s.run_now('8'), ('trades.py', 'timed out'))
+		self.assertEqual(self.s.busy, set())
+
+	def test_two_runs_of_one_command_at_once_run_it_once(self):
+		"""Of two runs of the same command started together, one runs it and the other is told it is running."""
+		def slow(**k):
+			"""Take a while, letting the other run start."""
+			time.sleep(0.2)
+			self.ran.append(('trades', k))
+		self.patch(jobs.SCRIPTS['trades'], 'run', slow)
+		outcomes = []
+		threads = [threading.Thread(target=lambda: outcomes.append(self.s.run_now('8'))) for _ in range(2)]
+		for thread in threads:
+			thread.start()
+		for thread in threads:
+			thread.join()
+		self.assertEqual(sorted(outcomes), [('trades.py', 'already running'), ('trades.py', 'done')])
+		self.assertEqual(self.ran, [('trades', {})])
 		self.assertEqual(self.s.busy, set())
 
 	def list_in_chat(self, text='.jobs'):
@@ -751,15 +778,36 @@ class ChildProcess(FinbotCase):
 		self.assertEqual(len(ticks), 5) # the loop was not blocked by the child
 		self.assertLess(ticks[-1] - started, 0.8)
 
-	def test_a_timeout_kills_the_child(self):
-		"""A timeout stops the child, rather than leaving it running."""
+	def test_a_child_still_running_at_its_deadline_is_stopped(self):
+		"""A child still running after JOB_TIMEOUT is stopped, rather than left running, and TimeoutError raised."""
+		self.patch(jobs, 'JOB_TIMEOUT', 0.3)
 		self.sleeper(30)
 		started = time.monotonic()
+		with self.assertRaises(TimeoutError):
+			jobs.run_child('cleanup.py', cleanup, {})
+		self.assertLess(time.monotonic() - started, 5)
+		self.assertIsNotNone(self.children[0].poll()) # the child was stopped, not left running
+
+	def test_another_interruption_stops_the_child_too(self):
+		"""An interruption while a child runs (a greenlet killed, say) stops the child as well."""
+		self.sleeper(30)
 		with self.assertRaises(gevent.Timeout):
 			with gevent.Timeout(0.3):
 				jobs.run_child('cleanup.py', cleanup, {})
-		self.assertLess(time.monotonic() - started, 5)
-		self.assertIsNotNone(self.children[0].poll()) # the child was stopped, not left running
+		self.assertIsNotNone(self.children[0].poll())
+
+	def test_each_command_of_a_line_has_a_deadline_of_its_own(self):
+		"""The deadline is per command (it once covered the whole line): two that each take most of it both finish."""
+		self.patch(jobs, 'JOB_TIMEOUT', 0.8)
+		self.sleeper(0.5)
+		file = Path(tempfile.mkdtemp(), 'schedule.cron')
+		file.write_text('* * * * * trades.py; shorts.py\n')
+		s = jobs.Scheduler(lambda: file, zone=UTC)
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertTrue(s.load())
+			self.assertEqual(s.run_job(s.jobs[0], at(13, 21, 20)), 'done')
+		self.assertEqual(len(self.children), 2)
+		self.assertEqual(self.errors, [])
 
 
 
