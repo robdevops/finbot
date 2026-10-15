@@ -54,6 +54,8 @@ CHARTS = {
 	'price_line': lambda: render.graph(price_frame(), 'Apple Inc (AAPL)', 'USD'),
 	'compare_lines': lambda: render.compare_graph(compare_series(), 'Compare 120 days', 'subtitle here'),
 	'shorts': lambda: render.shorts_chart([('GME', 47.3), ('AMC', 32.1), ('TSLA', 21.6), ('AAPL', 15.2)], 15),
+	'pie': lambda: render.pie_chart([('Software', 41.0), ('Banks', 23.5), ('Mining', 12.0), ('Other', 8.0)],
+		'Rob by industry', '4 industries'),
 }
 # inputs that have broken chart code before or are likely to: sizes, signs, long names, zeros, a single row
 EDGE_ROWS = {
@@ -364,6 +366,10 @@ class GoldenImages(unittest.TestCase):
 	def test_compare_lines(self):
 		"""The compare chart matches its golden image."""
 		self.check('compare_lines')
+
+	def test_pie(self):
+		"""The pie matches its golden image."""
+		self.check('pie')
 
 
 if __name__ == '__main__':
