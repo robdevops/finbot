@@ -34,9 +34,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 
 ## Code map (open the one file you need)
 - `bot.py`: WSGI entry (route, verify, parse, then a thread of `lib/worker.py` per message or button press); SIGHUP
-  reload and SIGUSR1 cache flush, each in a thread. `lib/inbound.py`: a class per network that posts to the bot
-  (`Telegram`, `Slack`): its path, how it proves itself, and its updates as `Message`, `Press` or a `Response` given
-  straight back.
+  reload and SIGUSR1 cache flush, each in a thread. `lib/inbound.py`: a class per network that reads its updates
+  (`Telegram`, `Slack`: a `Message`, a `Press`, or a `Response` given straight back), apart from a class per way they
+  arrive (`TelegramWebhook`, `SlackWebhook`: the path, how it proves itself); `bot.take(network, update)` takes an
+  update however it arrived.
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
   keywords)`, which also makes `.help` and the Telegram command keyboard, kept current in DMs. `read()` finds the
   command by its whole name (any other first word that may be a ticker is `.SYMBOL`) and `read_args()` its `Args`: a

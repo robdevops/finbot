@@ -394,6 +394,22 @@ class WsgiRejections(FinbotCase):
 		gevent.sleep(0.05)
 		self.assertEqual(len(calls), 1)
 
+	def test_an_update_is_taken_however_it_arrived(self):
+		"""Reading an update needs no webhook: one handed over another way (as a pull mode would) reaches the worker as
+		from the webhook, Telegram's message and Slack's alike, and a repeat runs once."""
+		got = []
+		self.patch(worker, 'process_request', got.append)
+		message = {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A', 'username': 'a'}, 'text': '.price'}
+		event = {'type': 'event_callback', 'event_id': 'Ev9', 'authorizations': [{'user_id': 'UBOT'}],
+			'event': {'type': 'message', 'channel': 'C1', 'user': 'U1', 'text': '.trades', 'ts': '1.2'}}
+		with contextlib.redirect_stderr(io.StringIO()):
+			for _ in range(2):
+				self.assertEqual(bot.take(inbound.TELEGRAM, {'update_id': 70, 'message': message}), inbound.OK)
+				self.assertEqual(bot.take(inbound.SLACK, event), inbound.OK)
+		gevent.sleep(0.05) # the worker runs in a (gevent) thread
+		self.assertEqual([(m.service, m.chat_id, m.text) for m in got], [('telegram', '5', '.price'),
+			('slack', 'C1', '.trades')])
+
 	def test_button_presses_are_logged(self):
 		"""A button press is logged with who pressed it (handle, first name or unknown), the chat and the button."""
 		calls = []

@@ -1,6 +1,8 @@
-"""What the networks post to the bot: one class per network that sends updates, which knows the path it posts to, how
-it proves itself and how to read an update. An update becomes a Message to answer, a Press of a button, or a Response
-the network gets straight back (a challenge, or nothing to do)."""
+"""What the networks send the bot. Reading an update is apart from how it arrives: a class per network reads its updates
+(Telegram, Slack), and a class per way of arriving takes them in (a webhook: the path the network posts to, how it
+proves itself, the body), so that another way (a pull mode) can hand its updates to the same reader. An update becomes
+a Message to answer, a Press of a button, or a Response the network gets straight back (a challenge, or nothing to
+do)."""
 import dataclasses
 import hashlib
 import hmac
@@ -62,55 +64,25 @@ def same_secret(given, expected):
 	return bool(expected) and given is not None and hmac.compare_digest(given.encode(), expected.encode())
 
 
-class Webhook:
-	"""A network posting updates to the bot; subclasses give its path, how it proves itself and what an update says."""
+class Network:
+	"""How a network's updates read, however they arrive."""
 	service = ''
-
-	def path(self):
-		"""The URL path the network posts to, or '' when finbot.env sets none."""
-		return ''
-
-	def refuse_unread(self, environ):
-		"""Why to turn the request away before its body is read (a secret header missing or wrong), else None."""
-		return None
-
-	def decode(self, body):
-		"""The update in the request body, a dict. Raises ValueError when the body is not one."""
-		update = json.loads(body)
-		if not isinstance(update, dict):
-			raise ValueError('not a JSON object')
-		return update
-
-	def refuse(self, environ, body, update):
-		"""Why to refuse the request once read (the body's signature or a secret in it missing or wrong), else None."""
-		return None
 
 	def update_id(self, update):
 		"""The update's id, the same when the network resends it (unanswered in time), or None if it gives none."""
 		return None
 
 	def parse(self, update):
-		"""What the update says: a Message, a Press, or a Response to give straight back."""
+		"""What the update (a dict) says: a Message, a Press, or a Response to give straight back."""
 		raise NotImplementedError
 
 
-class Telegram(Webhook):
-	"""Telegram's updates, each sent with the secret header that setWebhook gave it."""
+class Telegram(Network):
+	"""Telegram's updates: messages and button presses."""
 	service = 'telegram'
 	bot_name = None # the bot's @username, from telegram.register() as bot.py starts
 	IGNORED = {'sticker', 'animation', 'voice', 'video', 'video_note', 'audio', 'document', 'contact', 'location',
 		'venue', 'poll', 'dice'} # nothing to answer, nothing worth logging
-
-	def path(self):
-		"""The path of telegramOutgoingWebhook."""
-		return urlparse(config.env.telegramOutgoingWebhook).path if config.env.telegramOutgoingWebhook else ''
-
-	def refuse_unread(self, environ):
-		"""The header must carry telegramOutgoingToken."""
-		secret = environ.get('HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN')
-		if not same_secret(secret, config.env.telegramOutgoingToken):
-			return f"Telegram authorisation header {'not present' if secret is None else 'is present but incorrect'}"
-		return None
 
 	def update_id(self, update):
 		"""Telegram's update_id."""
@@ -151,46 +123,10 @@ class Telegram(Webhook):
 		return Message(self.service, chat_id, user, text, self.bot_name, user_name, str(message.get('message_id', '')))
 
 
-class Slack(Webhook):
-	"""Slack's Events API, and its interactivity (a button pressed), at the same URL: each request signed with the app's
-	signing secret, and carrying its verification token."""
+class Slack(Network):
+	"""Slack's Events API (messages) and its interactivity (a button pressed)."""
 	service = 'slack'
 	BY_PEOPLE = (None, 'thread_broadcast') # message subtypes a person writes; the rest are bot posts, edits, joins...
-
-	def path(self):
-		"""The path of slackOutgoingWebhook."""
-		return urlparse(config.env.slackOutgoingWebhook).path if config.env.slackOutgoingWebhook else ''
-
-	def refuse(self, environ, body, update):
-		"""With slackSigningSecret, the request must carry Slack's signature of its body, made in the last five minutes;
-		without it, the body must carry slackOutgoingToken (the older way, which Slack has deprecated)."""
-		if config.env.slackSigningSecret:
-			return self.signature_problem(environ, body, config.env.slackSigningSecret)
-		if 'token' not in update:
-			return "Slack authorisation field not present"
-		if not same_secret(str(update['token']), config.env.slackOutgoingToken):
-			return "Slack auth incorrect"
-		return None
-
-	@staticmethod
-	def signature_problem(environ, body, secret):
-		"""Why the request's signature fails, or None: X-Slack-Signature must be v0= and the HMAC-SHA256, under the
-		signing secret, of v0:<X-Slack-Request-Timestamp>:<the body>, and the timestamp within five minutes of now."""
-		timestamp = environ.get('HTTP_X_SLACK_REQUEST_TIMESTAMP', '')
-		signature = environ.get('HTTP_X_SLACK_SIGNATURE')
-		if signature is None or not (timestamp.isascii() and timestamp.isdigit()):
-			return "Slack signature not present"
-		if abs(time.time() - int(timestamp)) > SIGNATURE_AGE:
-			return "Slack signature too old (a replay, or a clock is wrong)"
-		signed = b'v0:' + timestamp.encode() + b':' + body
-		expected = 'v0=' + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
-		return None if same_secret(signature, expected) else "Slack signature incorrect"
-
-	def decode(self, body):
-		"""The update: an event comes as JSON, a button press as a form whose `payload` field holds the JSON."""
-		if body.startswith(b'payload='):
-			body = parse_qs(body.decode('utf-8', 'replace')).get('payload', [''])[0].encode()
-		return super().decode(body)
 
 	def update_id(self, update):
 		"""Slack's event_id (a button press has none)."""
@@ -237,9 +173,93 @@ class Slack(Webhook):
 			container['message_ts'], value, who)
 
 
-TELEGRAM, SLACK = Telegram(), Slack()
+class Webhook:
+	"""Updates a network posts to the bot, for its reader (a Network); subclasses give the path it posts to and how it
+	proves itself."""
+	def __init__(self, network):
+		"""network: the reader of its updates."""
+		self.network = network
+		self.service = network.service
+
+	def path(self):
+		"""The URL path the network posts to, or '' when finbot.env sets none."""
+		return ''
+
+	def refuse_unread(self, environ):
+		"""Why to turn the request away before its body is read (a secret header missing or wrong), else None."""
+		return None
+
+	def decode(self, body):
+		"""The update in the request body, a dict. Raises ValueError when the body is not one."""
+		update = json.loads(body)
+		if not isinstance(update, dict):
+			raise ValueError('not a JSON object')
+		return update
+
+	def refuse(self, environ, body, update):
+		"""Why to refuse the request once read (the body's signature or a secret in it missing or wrong), else None."""
+		return None
+
+
+class TelegramWebhook(Webhook):
+	"""Telegram posting to telegramOutgoingWebhook, each update with the secret header that setWebhook gave it."""
+
+	def path(self):
+		"""The path of telegramOutgoingWebhook."""
+		return urlparse(config.env.telegramOutgoingWebhook).path if config.env.telegramOutgoingWebhook else ''
+
+	def refuse_unread(self, environ):
+		"""The header must carry telegramOutgoingToken."""
+		secret = environ.get('HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN')
+		if not same_secret(secret, config.env.telegramOutgoingToken):
+			return f"Telegram authorisation header {'not present' if secret is None else 'is present but incorrect'}"
+		return None
+
+
+class SlackWebhook(Webhook):
+	"""Slack posting events and button presses to slackOutgoingWebhook (the app's Events and Interactivity URL), each
+	request signed with the app's signing secret, and carrying its verification token."""
+
+	def path(self):
+		"""The path of slackOutgoingWebhook."""
+		return urlparse(config.env.slackOutgoingWebhook).path if config.env.slackOutgoingWebhook else ''
+
+	def refuse(self, environ, body, update):
+		"""With slackSigningSecret, the request must carry Slack's signature of its body, made in the last five minutes;
+		without it, the body must carry slackOutgoingToken (the older way, which Slack has deprecated)."""
+		if config.env.slackSigningSecret:
+			return self.signature_problem(environ, body, config.env.slackSigningSecret)
+		if 'token' not in update:
+			return "Slack authorisation field not present"
+		if not same_secret(str(update['token']), config.env.slackOutgoingToken):
+			return "Slack auth incorrect"
+		return None
+
+	@staticmethod
+	def signature_problem(environ, body, secret):
+		"""Why the request's signature fails, or None: X-Slack-Signature must be v0= and the HMAC-SHA256, under the
+		signing secret, of v0:<X-Slack-Request-Timestamp>:<the body>, and the timestamp within five minutes of now."""
+		timestamp = environ.get('HTTP_X_SLACK_REQUEST_TIMESTAMP', '')
+		signature = environ.get('HTTP_X_SLACK_SIGNATURE')
+		if signature is None or not (timestamp.isascii() and timestamp.isdigit()):
+			return "Slack signature not present"
+		if abs(time.time() - int(timestamp)) > SIGNATURE_AGE:
+			return "Slack signature too old (a replay, or a clock is wrong)"
+		signed = b'v0:' + timestamp.encode() + b':' + body
+		expected = 'v0=' + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
+		return None if same_secret(signature, expected) else "Slack signature incorrect"
+
+	def decode(self, body):
+		"""The update: an event comes as JSON, a button press as a form whose `payload` field holds the JSON."""
+		if body.startswith(b'payload='):
+			body = parse_qs(body.decode('utf-8', 'replace')).get('payload', [''])[0].encode()
+		return super().decode(body)
+
+
+TELEGRAM, SLACK = Telegram(), Slack() # the readers
+WEBHOOKS = (TelegramWebhook(TELEGRAM), SlackWebhook(SLACK))
 
 
 def route(path):
-	"""The network that posts to this path, or None."""
-	return next((source for source in (TELEGRAM, SLACK) if source.path() and path == source.path()), None)
+	"""The webhook whose path this is, or None."""
+	return next((hook for hook in WEBHOOKS if hook.path() and path == hook.path()), None)

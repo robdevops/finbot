@@ -63,10 +63,9 @@ def main(environ, start_response):
 		return [b'']
 
 def handle(environ, start_response):
-	"""Route a request by its path to the network that posts there, turn it away unless it proves it comes from that
-	network (before its body is read, when the proof is a header), read the update (CONTENT_LENGTH bytes, up to
-	MAX_BODY), turn away repeats, and hand a message or a button press to lib/worker in a thread of its own: the network
-	gets its answer at once."""
+	"""Route a request by its path to the webhook of the network that posts there, turn it away unless it proves it
+	comes from that network (before its body is read, when the proof is a header), read the update (CONTENT_LENGTH
+	bytes, up to MAX_BODY) and take it (take): the network gets its answer at once."""
 	def respond(response):
 		"""Answer the request: a status line and a body."""
 		start_response(response.status, [('Content-type', 'application/json')])
@@ -103,14 +102,19 @@ def handle(environ, start_response):
 		print(f"[{source.service}]: refused update", json.dumps(shown, indent=4, default=str), file=sys.stderr)
 		return respond(inbound.FORBIDDEN)
 	environ[AUTHENTICATED] = True
-	event = source.parse(update)
+	return respond(take(source.network, update))
+
+def take(network, update):
+	"""An update from a network (an inbound.Network reads it), however it arrived: what it says goes to lib/worker in a
+	thread of its own (dispatch), unless it is a repeat. Returns the inbound.Response for the network."""
+	event = network.parse(update)
 	if isinstance(event, inbound.Response):
-		return respond(event)
-	if seen_before(source.service, source.update_id(update)):
-		print(f"[{source.service}]: update {source.update_id(update)} seen already, not run again", file=sys.stderr)
-		return respond(inbound.OK)
+		return event
+	if seen_before(network.service, network.update_id(update)):
+		print(f"[{network.service}]: update {network.update_id(update)} seen already, not run again", file=sys.stderr)
+		return inbound.OK
 	dispatch(event)
-	return respond(inbound.OK)
+	return inbound.OK
 
 def dispatch(event):
 	"""Hand a message or a button press to lib/worker, in a thread of its own."""
