@@ -2,7 +2,7 @@
 
 finbot reaches Slack through a Slack app of your own, whose bot posts each channel's scheduled reports there, charts
 and all, and answers commands: `/price`, `.price`, `@finbot price` and the rest
-([the list](../README.md#supported-commands)), with charts in its replies, ⏳ on a command's message while it works
+([the list](commands.md#supported-commands)), with charts in its replies, ⏳ on a command's message while it works
 (Slack has no typing notice for bots), and period buttons under a chart that redraw it in place.
 
 ## The bot
@@ -103,7 +103,7 @@ slackChannelID=C0123456789
    in its _Messages_ tab.
 4. Set `slackChannelID` to the channel's id (in Slack, click the channel's name: the _Channel ID_, which starts with
    C, is at the bottom of _About_), and restart finbot. It is Slack's home chat: finbot's first start gives it the
-   default jobs ([Scheduling](../README.md#scheduling)), and it gets the error reports. Every channel manages its own
+   default jobs ([Scheduling](scheduling.md)), and it gets the error reports. Every channel manages its own
    jobs with `.jobs`.
 
 An app set up by hand before takes the manifest too: paste it into _Features > App Manifest_ and _Save Changes_;

@@ -6,7 +6,7 @@
 finbot.env (the startup file) is never read by the bot, so this is the only place its typos are caught: an unknown key,
 a preference key in it, a malformed line or a bad value. preferences.conf defaults to <DATA_DIR>/preferences.conf and is
 checked the way the bot checks it at start and on reload. Exits 1 and prints every problem if either file is wrong, so a
-launcher can refuse to start (see the README)."""
+launcher can refuse to start (see doc/install.md and doc/docker.md)."""
 
 import argparse
 import os

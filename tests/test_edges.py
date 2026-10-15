@@ -237,7 +237,7 @@ class CommandArguments(FinbotCase):
 		self.assertIn('Top 10 performers', str(self.command('.price TOP 7d')))
 
 	def test_a_bare_number_on_price_is_a_percent(self):
-		"""As on .session, .premarket and .shorts, and as the README has it; a period carries its unit."""
+		"""As on .session, .premarket and .shorts, and as doc/commands.md has it; a period carries its unit."""
 		self.assertIn('3% at close', str(self.command('.price 3'))) # it used to be a 3-day report
 		self.assertIn('Price movement ≥ 3%', str(self.command('.price 3 7d'))) # the 3 used to be dropped
 		self.assertIn('Price movement ≥ 5%', str(self.command('.price 7d')))

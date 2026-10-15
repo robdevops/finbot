@@ -27,9 +27,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `requirements.txt` is for pip/uv users and CI. The libraries in `requirements-optional.txt` are each imported only
   inside the code of the mode that needs it, never at module load (a test starts finbot with them all blocked).
 - A new preference goes in three places: a `Prefs` field with its default (`lib/config.py`; its type says how it is
-  read), `defaults/preferences.conf`, and the README's preferences table. The tests catch a key missing from the
-  template or a default that differs, but not the README (no test may read README.md: CI skips the tests for a
-  README-only change).
+  read), `defaults/preferences.conf`, and the preferences table of `doc/configuration.md`. The tests catch a key
+  missing from the template or a default that differs, but not the docs (no test may read README.md or `doc/*.md`: CI
+  skips the tests for a change to the docs alone).
 - If Yahoo and Sharesight are unreachable (the cloud environment's network policy can block them), check behaviour
   against the offline fixtures in `tests/common.py`.
 - For a refactor, `util/record_outputs.py` (or `--against COMMIT`) records what every command, button and scheduled
@@ -132,11 +132,13 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - A chart renderer in `lib/render.py` takes its `Chart` and is listed in `RENDERERS` by kind; it gets `@_drawn`, which
   draws one chart at a time (matplotlib's caches are shared by every thread).
 - A new command: a `Command` in `COMMANDS` (its names, and what its arguments may hold), whose usage, section and
-  buttons make its `.help` lines and keyboard buttons, and the README command list.
+  buttons make its `.help` lines and keyboard buttons, and the command list of `doc/commands.md`.
 
 ## Saving tokens
 - Run the tests quietly: `.venv/bin/python -m unittest discover -s tests -b` prints only failures (about 0.4 KB when
   green). One module: `.venv/bin/python -m unittest tests.test_reports -b`.
-- README.md is 36 KB: grep for the section instead of reading it whole. Each network's setup is in its own guide,
-  `doc/telegram.md`, `doc/slack.md` and `doc/discord.md`: a change to a network's setup or keys goes there. `doc/yahoo/`
-  and `doc/sharesight/` hold large API samples that the tests replay: inspect them with python, don't read them.
+- README.md is short: what finbot is, a quick start, and links. The rest is in `doc/`, a file per topic: `commands.md`
+  (the commands and reports, 16 KB: grep for the section instead of reading it whole), `configuration.md` (the keys
+  and preferences), `scheduling.md`, `caching.md`, `install.md` (a Debian host), `docker.md`, and a guide per network,
+  `telegram.md`, `slack.md` and `discord.md`: a change to a network's setup or keys goes in its guide. `doc/yahoo/` and
+  `doc/sharesight/` hold large API samples that the tests replay: inspect them with python, don't read them.

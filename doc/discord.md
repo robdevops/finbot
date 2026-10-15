@@ -39,7 +39,7 @@ change both, and restart finbot, to switch.
    server.
 4. In Discord, turn on _User Settings > Advanced > Developer Mode_; then right-click the channel to be Discord's home
    chat, _Copy Channel ID_, and put it in `finbot.env` as `discordChannelID`. finbot's first start gives that channel
-   the default jobs ([Scheduling](../README.md#scheduling)), and it gets the error reports. Every channel manages its
+   the default jobs ([Scheduling](scheduling.md)), and it gets the error reports. Every channel manages its
    own jobs with `.jobs`.
 5. Install discord.py: `sudo apt install python3-discord` (or `pip install discord.py`).
 6. Restart finbot (`sudo systemctl restart finbot`). As it starts, it registers the slash commands, which can take a
