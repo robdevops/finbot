@@ -16,7 +16,6 @@ from lib import config
 from lib import inbound
 from lib import worker
 from lib import jobs
-from lib import sharesight
 from lib import net
 from lib import telegram
 from lib import delivery
@@ -178,10 +177,9 @@ def reload_all(*args):
 
 def flush_cache(*args):
 	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings,
-	schedule). The Sharesight caches refill at once."""
+	schedule). The warm jobs fill it again on their next runs, and any request meanwhile fetches what it needs."""
 	try:
 		removed = cleanup.run(days=0)
-		sharesight.wake()
 		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}",
 			file=sys.stderr)
 	except Exception as e:
@@ -224,9 +222,6 @@ if __name__ == '__main__':
 			sys.exit(1)
 	if config.env.telegramBotToken:
 		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
-	if config.env.sharesight_auth.get('client_id'):
-		# keep the portfolio list and holdings report cached, while cache is on
-		threading.Thread(target=sharesight.keep_warm, daemon=True, name='sharesight_warm').start()
 	if scheduler:
 		jobs.current = scheduler # for the .jobs chat command
 		threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs

@@ -22,8 +22,10 @@
 # Weekly
 28  21 * * Sat cal.py earnings; cal.py ex-dividend; price.py 7; performance.py 7; rating.py
 
-# Housekeeping: fetch the price histories of the stocks followed afresh every 8 hours (they are cached 12 hours, so
-# period lists and charts never wait on Yahoo); delete cache files older than 30 days
+# Housekeeping: fetch afresh the Sharesight portfolio list and holdings every 30 minutes (cached 40 minutes) and the
+# price histories of the stocks followed every 8 hours (cached 12 hours), so requests never wait on Sharesight or
+# Yahoo; delete cache files older than 30 days
+14,44 * * * * sharesight_warm.py
 07 */8 * * * yahoo_warm.py
 51  18 * * Sat cleanup.py 30
 

@@ -510,7 +510,7 @@ The preferences, read by the bot itself. A change takes effect on a reload. A tr
 | `timezone` | `Australia/Melbourne` | Regional: your time zone, for the reminder report |
 | `cache` | `True` | Cache Yahoo and Sharesight responses |
 | `cache_seconds` | `43200` | Cache lifetime in seconds (12 hours) |
-| `performance_cache_seconds` | `1800` | Cache lifetime of Sharesight performance reports in seconds |
+| `performance_cache_seconds` | `2400` | Cache lifetime of Sharesight performance reports in seconds: longer than the 30 minutes between `sharesight_warm.py` runs, so the holdings never run out |
 | `http_timeout` | `18` | Seconds to wait on outbound HTTP requests |
 | `debug` | `False` | Extra diagnostics in the log |
 | `print_headers` | `False` | Log inbound request headers |
@@ -568,10 +568,10 @@ Many objects are cached for 12 hours by default (`cache_seconds`). Cache is cont
 ```
 cache=True
 cache_seconds=43200
-performance_cache_seconds=1800
+performance_cache_seconds=2400
 ```
 
-`performance_cache_seconds` (default 30 minutes) is the cache lifetime of Sharesight performance reports.
+`performance_cache_seconds` (default 40 minutes) is the cache lifetime of Sharesight performance reports.
 
 Charts are cached by what they show (with `cache=True`): the same chart, for another chat, a later run or a period button, is drawn once, and a chart of new figures is a new chart, so a cached one is never stale. The scheduled `cleanup.py` removes cache files after 30 days.
 
@@ -587,7 +587,11 @@ kill -USR1 <pid of bot.py>                  # anything else
 The log says `cache: flushed N files`. To install the `finbot-flush` shortcut: `sudo cp -v finbot-flush.service /etc/systemd/system/ &&
 sudo systemctl daemon-reload`. `finbot.service` itself needs no change. With the bot stopped, `cleanup.py 0` deletes the same files.
 
-Two warmers keep the caches full, so that chat requests do not wait on Yahoo or Sharesight. The scheduled `yahoo_warm.py` fetches the price history of every stock followed afresh every 8 hours (see [Scheduling](#scheduling)); a data directory with its own `schedule.cron` needs its line, `07 */8 * * * yahoo_warm.py`. And while `bot.py` is running with Sharesight configured and `cache=True` (a reload that switches `cache` pauses or resumes it), its `sharesight_warm` thread keeps the Sharesight portfolio list (`cache_seconds`) and each portfolio's holdings report (1 day, `performance_cache_seconds` cache) refreshed at 90% of their cache lifetime, so chat requests do not wait on Sharesight. If a refresh fails, the previous cache keeps being served and the job retries after 5 minutes.
+Two scheduled jobs keep the caches full, each on a fixed interval shorter than the cache lifetime, so that chat requests do not wait on Sharesight or Yahoo (see [Scheduling](#scheduling)): `sharesight_warm.py` fetches the Sharesight portfolio list and each portfolio's holdings report afresh every 30 minutes (`performance_cache_seconds`: 40 minutes), and `yahoo_warm.py` the price history of every stock followed every 8 hours (`cache_seconds`: 12 hours). Neither fetches anything with `cache=False`, and `sharesight_warm.py` nothing without Sharesight configured. A refresh that fails is logged, the previous cache keeps being served while fresh, and the next run tries again. After a flush, the next runs fill the cache again. A data directory with its own `schedule.cron` needs their lines:
+```
+14,44 * * * * sharesight_warm.py
+07 */8 * * * yahoo_warm.py
+```
 
 ### Hyperlinks
 These `preferences.conf` options relate to hyperlinks:
@@ -614,7 +618,7 @@ hyperlinkProvider=yahoo
 ## Scheduling
 The scheduled reports are started by `bot.py`, each run in its own child process (`python -m lib.jobrun`), so they use the same user, sandbox, environment and data directory as the bot, while heavy work (charts, large reports) cannot hold up incoming chat webhooks. A run that exceeds 5 minutes is stopped. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory. **This is on by default.** Remove the equivalent entries from any old crontab before the first start, otherwise every job runs twice; or set `scheduler=False` in the environment file to keep using cron.
 
-The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"`, `cleanup.py [days]` (deletes cache files older than `days`, default 30) and `yahoo_warm.py` (fetches the price histories of every stock followed afresh, so that period lists and charts never wait on Yahoo; the default schedule runs it every 8 hours, within the 12 hours of `cache_seconds`). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
+The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"`, `cleanup.py [days]` (deletes cache files older than `days`, default 30), `sharesight_warm.py` and `yahoo_warm.py` (they fill the cache: see [Caching](#caching)). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
 
 The schedule is `defaults/schedule.cron`, written in **cron-compatible syntax**: five time fields (minute, hour, day of month, month, day of week; `*/20`, `Mon-Fri`, ranges and lists work) or an `@macro` such as `@daily`, then a finbot script and its arguments. Quote an argument that has spaces or special characters (a feed URL with `&`, say). Several commands separated by `;` run one after another. `MAILTO=`, `SHELL=`, `PATH=` and `HOME=` lines are ignored. Anything else a crontab allows (a user column, pipes, other programs) is not supported: such a line is reported at startup and skipped. A time that cannot be or never comes (minute 61, 30 February) is different: finbot refuses to start with it, and a reload with it is refused, leaving the running schedule as it was. Existing crontab lines can be pasted as they are: `> /dev/null` redirects, `{ a; b ;}` groups and a path before the script name are understood.
 ```
@@ -637,7 +641,7 @@ sudo systemctl reload finbot        # the bot re-reads the file and logs how man
 ```
 The bot logs the number of jobs when it starts or reloads, and each job as it runs (`journalctl -u finbot`); a line it cannot use is reported by name. If the edited file has no usable line the previous schedule keeps running.
 
-**To run a job from chat**, send `.jobs` (also `.cron`, `.crons` or `.schedule`): it lists the scheduled commands, each once and without times, comments or `.py`, and on Telegram and Slack (with its buttons set up) adds a button per command. The system jobs (`cleanup`, `podcasts` and `yahoo_warm`) follow under _System_, without a number or a button: they run on their schedule only. `.jobs run 2` (or tapping the button) runs that command now, and `.jobs run price.py close` runs it by name; anything not in the schedule is refused, and so is a chain such as `a; b` (run them one at a time). A manual run is exactly a cron run: it reports to all configured chat networks, updates the same state (seen trades, ratings and so on), and does not change the schedule. Anyone who can message the bot can do this; a command that is already running is not started twice.
+**To run a job from chat**, send `.jobs` (also `.cron`, `.crons` or `.schedule`): it lists the scheduled commands, each once and without times, comments or `.py`, and on Telegram and Slack (with its buttons set up) adds a button per command. The system jobs (`cleanup`, `podcasts`, `sharesight_warm` and `yahoo_warm`) follow under _System_, without a number or a button: they run on their schedule only. `.jobs run 2` (or tapping the button) runs that command now, and `.jobs run price.py close` runs it by name; anything not in the schedule is refused, and so is a chain such as `a; b` (run them one at a time). A manual run is exactly a cron run: it reports to all configured chat networks, updates the same state (seen trades, ratings and so on), and does not change the schedule. Anyone who can message the bot can do this; a command that is already running is not started twice.
 
 Behaviour worth knowing:
 * A run that was due while the bot was down (a restart, a deploy) still fires once if it was due within the last `scheduler_catchup` minutes (default 5). A restart right after a run does not repeat it.

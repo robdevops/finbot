@@ -7,7 +7,7 @@ from unittest import mock
 import gevent
 from tests.common import *
 from lib import jobs
-from lib.reports import cleanup, podcasts, price, yahoo_warm
+from lib.reports import cleanup, podcasts, price, sharesight_warm, yahoo_warm
 
 PREFETCH_HISTORY = yahoo.prefetch_history # FinbotCase replaces it; the warm job's test puts it back
 
@@ -107,6 +107,32 @@ class YahooWarmJob(FinbotCase):
 		self.prefs(cache=False)
 		self.patch(yahoo, '_chart_answer', None)
 		self.assertEqual(yahoo_warm.run(), 0)
+
+
+class SharesightWarmJob(FinbotCase):
+	def test_the_portfolios_are_refreshed_where_sharesight_is_configured(self):
+		"""sharesight_warm refreshes the portfolio list and the holdings (sharesight.warm) and counts the portfolios;
+		without Sharesight configured, or with the cache preference off (nothing would be kept), it fetches nothing."""
+		self.patch(sharesight, 'warm', lambda: ['Rob', 'RobSMSF'])
+		self.env(sharesight_auth={'client_id': 'id'})
+		self.assertEqual(sharesight_warm.run(), 2)
+		self.prefs(cache=False)
+		self.assertEqual(sharesight_warm.run(), 0)
+		self.prefs(cache=True)
+		self.env(sharesight_auth={'client_id': None})
+		self.assertEqual(sharesight_warm.run(), 0)
+
+	def test_a_failure_is_logged_not_reported(self):
+		"""A refresh that fails is only logged, not reported in the chat: the next run tries again."""
+		def down():
+			"""Sharesight unreachable, as warm meets it."""
+			raise RuntimeError('Sharesight portfolios: unreachable')
+		self.patch(sharesight, 'warm', down)
+		self.env(sharesight_auth={'client_id': 'id'})
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			self.assertEqual(sharesight_warm.run(), 0)
+		self.assertIn('sharesight_warm: refresh failed: Sharesight portfolios: unreachable', log.getvalue())
+		self.assertEqual(self.errors, [])
 
 
 class SchedulerFlag(unittest.TestCase):

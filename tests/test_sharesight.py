@@ -1,7 +1,6 @@
 """Sharesight's portfolios, holdings, gains and trades on the answers saved under doc/, its failures,
 and the cache warmer."""
-import datetime, os, unittest
-import gevent
+import datetime, unittest
 from tests.common import *
 
 
@@ -117,8 +116,9 @@ class SharesightApi(ProviderCase):
 		self.assertIsNone(cache.read(sharesight.performance_cache_file(684141, 7))) # and is not cached
 
 
-class SharesightKeepWarm(ProviderCase):
-	"""The background refresher keeps the portfolio list and the holdings report (days=0) cached ahead of their TTLs."""
+class SharesightWarm(ProviderCase):
+	"""warm() fetches the portfolio list and the holdings reports (days=0) afresh, for sharesight_warm.py to run on its
+	schedule."""
 
 	def serve_sharesight(self):
 		"""Answer with the real portfolio list and holdings report; returns the URLs asked for."""
@@ -132,38 +132,16 @@ class SharesightKeepWarm(ProviderCase):
 		self.patch(sharesight.net, 'get', get)
 		return calls
 
-	def age(self, cache_file, seconds):
-		"""Make a cache file `seconds` older."""
-		path = os.path.join(config.env.cache_dir, cache_file)
-		old = os.path.getmtime(path) - seconds
-		os.utime(path, (old, old))
-
-	def test_cold_cache_is_filled_then_left_alone(self):
-		"""A cold cache is filled (the list and each portfolio's holdings, as of today), then left alone while fresh."""
+	def test_the_list_and_each_holdings_report_are_fetched_afresh(self):
+		"""warm fetches the list and each portfolio's holdings as of today, afresh even while their caches are fresh."""
 		calls = self.serve_sharesight()
-		sharesight.warm()
+		self.assertEqual([portfolio.name for portfolio in sharesight.warm()], ['Rob', 'RobSMSF'])
 		self.assertEqual(len(calls), 3) # portfolio list + one holdings report per portfolio (2)
 		self.assertEqual(sum('/performance' in c for c in calls), 2)
 		today = 'start_date=' + datetime.date.today().isoformat()
 		self.assertTrue(all(today in c for c in calls if '/performance' in c)) # days=0
 		sharesight.warm()
-		self.assertEqual(len(calls), 3) # nothing refetched while fresh
-
-	def test_refreshes_before_the_ttl_runs_out(self):
-		"""A cache file at 95% of its lifetime is fetched again, and only that one."""
-		calls = self.serve_sharesight()
-		sharesight.warm()
-		calls.clear()
-		# 95% of its lifetime
-		self.age(sharesight.performance_cache_file(684141, 0), 0.95 * config.prefs.performance_cache_seconds)
-		sharesight.warm()
-		self.assertEqual(len(calls), 1)
-		self.assertIn('684141/performance', calls[0])
-		calls.clear()
-		self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * config.prefs.cache_seconds)
-		sharesight.warm()
-		self.assertEqual(len(calls), 1)
-		self.assertTrue(calls[0].endswith('/portfolios'))
+		self.assertEqual(len(calls), 6)
 
 	def test_a_request_never_waits_on_a_cache_the_job_has_warmed(self):
 		"""Once warmed, the list and the holdings report need no request."""
@@ -184,88 +162,13 @@ class SharesightKeepWarm(ProviderCase):
 		self.assertEqual(calls, [])
 
 	def test_failed_refresh_keeps_the_old_cache(self):
-		"""A refresh that fails keeps the cache it would have replaced."""
+		"""A refresh that fails raises, and keeps the cache it would have replaced."""
 		self.serve_sharesight()
 		sharesight.warm()
-		self.age(sharesight.PORTFOLIOS_CACHE, 0.95 * config.prefs.cache_seconds)
 		self.http(sharesight, ConnectionError('down'))
 		with self.assertRaises(RuntimeError):
 			sharesight.warm()
 		self.assertEqual(portfolios(), {'Rob': 445825, 'RobSMSF': 684141}) # still served from the cache
-
-	def test_a_pass_says_when_the_next_is_due(self):
-		"""A pass reads each cache file once and gives the seconds until the next refresh: 90% of the shortest cache
-		lifetime once everything is fresh."""
-		self.serve_sharesight()
-		due = sharesight.warm() # a cold cache, filled
-		shortest = min(config.prefs.cache_seconds, config.prefs.performance_cache_seconds)
-		self.assertAlmostEqual(due, 0.9 * shortest, delta=5)
-		reads = []
-		real = cache.read
-		self.patch(cache, 'read', lambda name, *a, **k: (reads.append(name), real(name, *a, **k))[1])
-		self.age(sharesight.performance_cache_file(684141, 0), 600)
-		due = sharesight.warm()
-		self.assertAlmostEqual(due, 0.9 * config.prefs.performance_cache_seconds - 600, delta=5)
-		files = [sharesight.PORTFOLIOS_CACHE] + [sharesight.performance_cache_file(id, 0) for id in (445825, 684141)]
-		self.assertEqual(sorted(reads), sorted(files))
-
-	class Stopped(Exception):
-		"""Raised by the stand-in for keep_warm's wake event, to end the loop."""
-
-	def waits(self, count, on_wait=lambda n: None, **kwargs):
-		"""Run keep_warm until it has waited `count` times, noting each wait instead of sleeping (on_wait(n) at the
-		nth); returns the waits."""
-		waits, stopped = [], self.Stopped
-		class Wake:
-			"""keep_warm's wake event, which nobody sets."""
-			def wait(self, seconds):
-				"""Note the wait instead of sleeping, and end the loop after the last."""
-				waits.append(seconds)
-				on_wait(len(waits))
-				if len(waits) == count:
-					raise stopped
-			def clear(self):
-				"""Nothing to clear."""
-		self.patch(sharesight, '_wake', Wake())
-		with self.assertRaises(self.Stopped):
-			sharesight.keep_warm(**kwargs)
-		return waits
-
-	def test_loop_survives_failures_and_backs_off(self):
-		"""keep_warm survives a failure, retries slowly, then sleeps until the next cache is due."""
-		outcomes = [RuntimeError('boom'), 3000]
-		def warm():
-			"""Fail once, then succeed."""
-			outcome = outcomes.pop(0)
-			if isinstance(outcome, Exception):
-				raise outcome
-			return outcome
-		self.patch(sharesight, 'warm', warm)
-		self.assertEqual(self.waits(2, retry=300), [300, 3000]) # a slow retry after the failure, then until one is due
-
-	def test_with_cache_off_nothing_is_fetched_until_a_reload_turns_it_on(self):
-		"""With cache off, keep_warm idles without asking Sharesight, and starts when a reload turns it on."""
-		passes = []
-		self.patch(sharesight, 'warm', lambda: passes.append(1) or 3000)
-		self.prefs(cache=False)
-		def reload(n):
-			"""At the second wait, switch the cache on, as a reload would."""
-			if n == 2:
-				config.prefs = dataclasses.replace(config.prefs, cache=True)
-		self.assertEqual(self.waits(4, reload, idle=60), [60, 60, 3000, 3000]) # no request every 5 seconds while off
-		self.assertEqual(len(passes), 2)
-
-	def test_a_flush_wakes_the_loop_to_refill_at_once(self):
-		"""A flush wakes keep_warm, which refills the caches at once instead of when they are next due."""
-		passes = []
-		self.patch(sharesight, 'warm', lambda: passes.append(1) or 3000)
-		loop = gevent.spawn(sharesight.keep_warm)
-		self.addCleanup(loop.kill)
-		gevent.sleep(0.05)
-		self.assertEqual(len(passes), 1) # then it sleeps until the next cache is due, 50 minutes away
-		sharesight.wake()
-		gevent.sleep(0.05)
-		self.assertEqual(len(passes), 2)
 
 
 if __name__ == '__main__':

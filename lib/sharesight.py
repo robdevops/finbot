@@ -161,35 +161,12 @@ def tickers():
 	return sorted({ticker for portfolio in portfolios() for ticker in portfolio.tickers()})
 
 
-def warm(margin=0.9):
-	"""Refresh the portfolio list and each portfolio's holdings report (days=0) once they reach `margin` of their cache
-	lifetime, so that a request never waits on Sharesight. Returns the seconds until the next one is due."""
-	lifetimes = {PORTFOLIOS_CACHE: config.prefs.cache_seconds}
-	for portfolio in portfolios(seconds=margin * config.prefs.cache_seconds):
-		_performance(portfolio.id, 0, margin * config.prefs.performance_cache_seconds)
-		lifetimes[performance_cache_file(portfolio.id, 0)] = config.prefs.performance_cache_seconds
-	return max(0, min(margin * lifetime - (cache.age(name) or 0) for name, lifetime in lifetimes.items()))
+def warm():
+	"""Fetch afresh the portfolio list and each portfolio's holdings report (days=0), so that a request never waits on
+	Sharesight (scheduled: sharesight_warm.py). Returns the portfolios. Raises as the requests do, and then the caches
+	it would have replaced stay."""
+	found = portfolios(seconds=0)
+	for portfolio in found:
+		_performance(portfolio.id, 0, seconds=0)
+	return found
 
-
-_wake = threading.Event() # set by wake(): the caches were flushed, refill them now
-
-
-def wake():
-	"""Have keep_warm refill the caches now instead of when they would next be due."""
-	_wake.set()
-
-
-def keep_warm(min_wait=5, retry=300, idle=60):
-	"""Background loop: keep the portfolio list and the holdings reports cached, sleeping until the next one is due
-	(warm). While the cache preference is off (a reload can switch it either way) it fetches nothing, since nothing
-	would be written, and looks again every `idle` seconds. Never raises; after a failure it waits `retry` seconds."""
-	while True:
-		wait = idle
-		if config.prefs.cache:
-			try:
-				wait = max(min_wait, warm())
-			except Exception as e:
-				print("Sharesight cache refresh failed:", e, file=sys.stderr)
-				wait = retry
-		_wake.wait(wait)
-		_wake.clear()

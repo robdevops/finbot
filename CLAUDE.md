@@ -48,9 +48,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   the typing notice while it works. `process_request(message)` and `process_callback(press)` take inbound's objects.
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
   or else the default chats, and `job(argv)`, its schedule-line parser): `price performance trades shorts cal rating
-  milestone reminder podcasts cleanup yahoo_warm`; the top-level `price.py` and the rest are shims that run them.
-  Chat-only (`prepare_*`): `about` (.help .jobs), `history` (.history .compare), `holdings` (.holdings .who .pie
-  .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
+  milestone reminder podcasts cleanup sharesight_warm yahoo_warm`; the top-level `price.py` and the rest are shims that
+  run them. Chat-only (`prepare_*`): `about` (.help .jobs), `history` (.history .compare), `holdings` (.holdings .who
+  .pie .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or the default chats),
   `deliver(dest, report)`, the one-line error report. `lib/transports.py`: a class per way of posting (`TelegramBot`,
   `SlackBot`, `SlackWebhook`, `DiscordWebhook`): splitting, captions, charts, buttons, edits, and the typing notice

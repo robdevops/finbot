@@ -27,13 +27,14 @@ from lib import state
 from lib import jobrun
 from lib import delivery
 from lib.reports import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, shorts, trades
-from lib.reports import yahoo_warm
+from lib.reports import sharesight_warm, yahoo_warm
 
 SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance': performance, 'podcasts': podcasts,
 	'price': price, 'rating': rating, 'reminder': reminder, 'shorts': shorts, 'trades': trades,
-	'yahoo_warm': yahoo_warm}
+	'sharesight_warm': sharesight_warm, 'yahoo_warm': yahoo_warm}
 current = None # the running Scheduler, set by bot.py; the chat commands use it
-HIDDEN = ('cleanup', 'podcasts', 'yahoo_warm') # scheduled, but not run from chat: .jobs lists them under System
+# scheduled, but not run from chat: .jobs lists them under System
+HIDDEN = ('cleanup', 'podcasts', 'sharesight_warm', 'yahoo_warm')
 STATE_FILE = 'finbot_jobs.json' # last fire time of every job, so a restart neither repeats a run nor loses one
 JOB_TIMEOUT = 5 * 60 # seconds each command may run before it is stopped and reported
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')

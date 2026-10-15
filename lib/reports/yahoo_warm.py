@@ -1,5 +1,5 @@
 """Keeps the price history of every stock followed fresh in the cache (scheduled: yahoo_warm.py), so that a period list
-or a chart never waits on Yahoo. Sharesight's caches have their own warmer, the bot's sharesight_warm thread."""
+or a chart never waits on Yahoo. Sharesight's caches have their own, sharesight_warm.py."""
 import sys
 from lib import config, watchlist, yahoo
 
