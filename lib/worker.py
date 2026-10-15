@@ -52,7 +52,7 @@ def process_job_callback(press, pressed):
 		command = jobs.current.pick(pressed.number, pressed.checksum) # only a command .jobs offers; anything else fails
 	except jobs.ScheduleError:
 		chat.acknowledge(press.press_id, 'Buttons updated, try again')
-		payload, markup = about.prepare_jobs_payload(service, '') # the list as it is now, in place of the stale one
+		payload, markup = about.prepare_jobs_payload(service, '', chat.takes_buttons) # the list now, for the stale one
 		chat.edit_text(press.message_id, '\n'.join(payload), markup or [])
 		return
 	chat.acknowledge(press.press_id, f'Running {jobs.display(command[0])}…'[:100])
@@ -354,7 +354,7 @@ def on_jobs(request, args):
 	""".jobs [run NUMBER|COMMAND]: the schedule, or one of its commands run now."""
 	if bool(args.keyword) != bool(args.words): # run without a command, or words without run
 		raise Usage
-	payload, markup = about.prepare_jobs_payload(request.service, args.rest or None)
+	payload, markup = about.prepare_jobs_payload(request.service, args.rest or None, request.dest.takes_buttons)
 	request.reply(payload, buttons=markup)
 
 def on_profile(request, args):

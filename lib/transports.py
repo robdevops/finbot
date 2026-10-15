@@ -12,10 +12,13 @@ import requests
 from lib import config
 from lib import dialects
 from lib import net
+from lib import state
 from lib import telegram
 
 MAYBE_SENT = object() # a read timeout on the request that posts a chart: it may have arrived, so no text copy follows
 SUPPRESS_EMBEDS = 4 # Discord message flag: no link previews
+SLACK_CHARTS = 'finbot_slack_charts.json' # 'channel ts' of a chart message -> the file it shows (deleted once replaced)
+SLACK_CHARTS_KEPT = 500 # chart messages noted, newest last: an older one's file stays when a press replaces it
 NO_MENTIONS = {'parse': []} # Discord: text that looks like @everyone or a mention pings nobody
 
 
@@ -280,15 +283,19 @@ class SlackBot(Transport):
 			print("Slack reactions.remove failed:", net.redact(e), file=sys.stderr)
 
 	def post_text(self, text, buttons=None):
-		"""chat.postMessage, without link previews. Slack's answer, or None when it failed or refused (logged): Slack
-		refuses with HTTP 200 and ok false (not_in_channel, say), so a refusal is read from the answer."""
+		"""chat.postMessage, without link previews, and with buttons (a Block Kit message) where they work. Slack's
+		answer, or None when it failed or refused (logged): Slack refuses with HTTP 200 and ok false (not_in_channel,
+		say), so a refusal is read from the answer."""
 		if not config.env.slackBotToken:
 			print(f"ERROR slack: a reply to channel {self.where} needs slackBotToken in finbot.env; not sent",
 				file=sys.stderr)
 			return None
+		blocks = {}
+		if buttons and not isinstance(buttons, dict) and self.takes_buttons:
+			blocks['blocks'] = json.dumps(text_blocks(text, buttons))
 		try:
 			answer = slack_api('chat.postMessage', channel=self.where, text=text, unfurl_links='false',
-				unfurl_media='false')
+				unfurl_media='false', **blocks)
 		except Exception as e:
 			print("Slack chat.postMessage to", self.where, "failed:", net.redact(e), file=sys.stderr)
 			return None
@@ -339,23 +346,54 @@ class SlackBot(Transport):
 	def post_blocks(self, data, caption, buttons):
 		"""The chart in a Block Kit message, the report above it and the period buttons under it. Slack's answer, or
 		MAYBE_SENT when posting the message timed out (it may have arrived); raises RuntimeError when Slack refuses."""
-		blocks = chart_blocks(caption, buttons, self.unshared(data))
+		file_id = self.unshared(data)
+		blocks = chart_blocks(caption, buttons, file_id)
 		try:
-			return until_shown(lambda: slack_api('chat.postMessage', channel=self.where, text=caption[:SECTION_LIMIT],
-				blocks=json.dumps(blocks), unfurl_links='false', unfurl_media='false'))
+			answer = until_shown(lambda: slack_api('chat.postMessage', channel=self.where,
+				text=caption[:SECTION_LIMIT], blocks=json.dumps(blocks), unfurl_links='false', unfurl_media='false'))
 		except requests.exceptions.ReadTimeout as e:
 			print("Slack chat.postMessage timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
 			return MAYBE_SENT
+		if answer.get('ts'):
+			self.shows(answer['ts'], file_id)
+		return answer
 
 	def edit_chart(self, message, image, caption, buttons=None):
 		"""Show another period in a chart message: the new chart uploaded (a file cannot be replaced) and shown in its
-		image block, with its caption and buttons. Raises RuntimeError when Slack refuses."""
+		image block, with its caption and buttons, then the file it showed before deleted (nothing reuses an uploaded
+		chart: a period shown again is uploaded again). Raises RuntimeError when Slack refuses the update."""
 		if hasattr(image, 'seek'):
 			image.seek(0)
 		file_id = self.unshared(image.read() if hasattr(image, 'read') else bytes(image))
 		blocks = chart_blocks(caption, buttons or [], file_id)
 		until_shown(lambda: slack_api('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
 			blocks=json.dumps(blocks)))
+		replaced = self.shows(message, file_id)
+		if replaced and replaced != file_id:
+			try:
+				slack_api('files.delete', file=replaced)
+			except Exception as e: # it stays among the bot's files, in no channel
+				print("Slack files.delete failed:", net.redact(e), file=sys.stderr)
+
+	def shows(self, message, file_id):
+		"""Note that a chart message shows this file now (SLACK_CHARTS): the file it showed before, if noted."""
+		key = f'{self.where} {message}'
+		with state.edit(SLACK_CHARTS, {}) as shown:
+			replaced = shown.pop(key, None)
+			shown[key] = file_id
+			for old in list(shown)[:-SLACK_CHARTS_KEPT]:
+				del shown[old]
+		return replaced
+
+	def edit_text(self, message, text, buttons=None):
+		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
+		data = {'channel': self.where, 'ts': message, 'text': text}
+		if buttons is not None:
+			data['blocks'] = json.dumps(text_blocks(text, buttons))
+		try:
+			slack_api('chat.update', **data)
+		except Exception as e:
+			print("Slack chat.update failed:", net.redact(e), file=sys.stderr)
 
 
 class SlackWebhook(Transport):
@@ -423,18 +461,30 @@ def slack_api(method, **data):
 SECTION_LIMIT = 3000 # characters of text in a Block Kit section
 
 
+def section_blocks(text):
+	"""Block Kit sections of a message's text, as many as its length needs (none for no text)."""
+	return [{'type': 'section', 'text': {'type': 'mrkdwn', 'text': '\n'.join(part)}}
+		for part in chunked(text.split('\n'), SECTION_LIMIT, 1000) if '\n'.join(part).strip()]
+
+
+def actions_block(row):
+	"""A Block Kit row of buttons, the one shown now marked."""
+	return {'type': 'actions', 'elements': [{'type': 'button', 'text': {'type': 'plain_text', 'text': button.label},
+		'value': button.data, 'action_id': button.data, **({'style': 'primary'} if button.active else {})}
+		for button in row]}
+
+
 def chart_blocks(caption, buttons, file_id):
-	"""Block Kit for a chart message: the report (in as many sections as its length needs), the chart (an uploaded file,
-	by its id) and the buttons, the one shown now marked."""
-	blocks = [{'type': 'section', 'text': {'type': 'mrkdwn', 'text': '\n'.join(part)}}
-		for part in chunked(caption.split('\n'), SECTION_LIMIT, 1000) if '\n'.join(part).strip()]
-	blocks.append({'type': 'image', 'slack_file': {'id': file_id}, 'alt_text': 'chart'})
-	elements = [{'type': 'button', 'text': {'type': 'plain_text', 'text': button.label}, 'value': button.data,
-		'action_id': button.data, **({'style': 'primary'} if button.active else {})}
-		for row in buttons for button in row]
-	if elements:
-		blocks.append({'type': 'actions', 'elements': elements})
-	return blocks
+	"""Block Kit for a chart message: the report, the chart (an uploaded file, by its id) and the buttons in one
+	row."""
+	row = [button for line in buttons for button in line]
+	return section_blocks(caption) + [{'type': 'image', 'slack_file': {'id': file_id}, 'alt_text': 'chart'}] + \
+		([actions_block(row)] if row else [])
+
+
+def text_blocks(text, buttons):
+	"""Block Kit for a message with buttons: the text, then the buttons, a row of them to a block."""
+	return section_blocks(text) + [actions_block(row) for row in buttons if row]
 
 
 def until_shown(post, waits=(1, 2, 4)):

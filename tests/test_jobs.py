@@ -577,16 +577,42 @@ class ManualRuns(SchedulerBase):
 		self.s.busy.add('price.py 7')
 		self.assertIn('6. price 7 (running)', '\n'.join(map(str, self.list_in_chat())))
 
-	def test_telegram_gets_a_button_per_command_and_slack_does_not(self):
-		"""On Telegram each command gets a button whose data fits in 64 bytes; Slack gets none."""
-		payload, markup = about.prepare_jobs_payload(TELEGRAM, '')
+	def test_a_chat_that_takes_buttons_gets_one_per_command(self):
+		"""Where buttons work each command gets one, whose data fits in Telegram's 64 bytes, and the list says to tap
+		it; elsewhere there are none, and it does not."""
+		payload, markup = about.prepare_jobs_payload(TELEGRAM, '', tappable=True)
 		pressable = [b for row in markup for b in row]
 		self.assertEqual([b.label for b in pressable], ['1. performance 7', '2. performance 30', '3. performance 90',
 			'4. performance 180', '5. performance 365', '6. price 7', '7. price close', '8. trades'])
 		for b in pressable:
 			self.assertLessEqual(len(b.data.encode()), 64)
+		self.assertTrue(payload[-1].endswith('or tap it'))
 		payload, markup = about.prepare_jobs_payload(SLACK, '')
 		self.assertIsNone(markup)
+		self.assertTrue(payload[-1].endswith('.jobs run NUMBER'))
+
+	def test_slack_gets_the_buttons_in_block_kit_and_a_stale_list_is_replaced(self):
+		"""With the bot token and slackOutgoingWebhook, Slack's .jobs list carries a button per command, two to a row
+		of Block Kit, and a stale button's press puts the current list in its place."""
+		self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack')
+		self.patch(transports.Transport, 'text', REAL_TEXT)
+		posts = []
+		self.patch(transports.net, 'post', lambda url, **kwargs: posts.append((url, kwargs)) or
+			mock.Mock(status_code=200, json=lambda: {'ok': True, 'ts': '1.5'}))
+		with contextlib.redirect_stderr(io.StringIO()):
+			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.jobs', BOT, 'U'))
+		url, kwargs = posts[-1]
+		blocks = json.loads(kwargs['data']['blocks'])
+		self.assertTrue(url.endswith('/chat.postMessage'))
+		self.assertEqual([block['type'] for block in blocks], ['section'] + ['actions'] * 4)
+		self.assertEqual([button['text']['text'] for button in blocks[4]['elements']], ['7. price close', '8. trades'])
+		with contextlib.redirect_stderr(io.StringIO()):
+			worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'j|7|0000'))
+		url, kwargs = posts[-1]
+		self.assertTrue(url.endswith('/chat.update'))
+		self.assertEqual((kwargs['data']['channel'], kwargs['data']['ts']), ('C1', '1.5'))
+		self.assertEqual(len(json.loads(kwargs['data']['blocks'])), 5)
+		self.assertEqual(self.ran, [])
 
 	def test_the_chat_command_passes_the_keyboard_on(self):
 		""".jobs sends its buttons with the list."""
@@ -599,7 +625,7 @@ class ManualRuns(SchedulerBase):
 		"""Pressing a command's button runs it, says so in a toast, and reports how it went."""
 		sent = []
 		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: sent.append(text))
-		markup = about.prepare_jobs_payload(TELEGRAM, '')[1]
+		markup = about.prepare_jobs_payload(TELEGRAM, '', tappable=True)[1]
 		data = next(b.data for row in markup for b in row if b.label.startswith('7.'))
 		self.sent.clear()
 		worker.process_callback(inbound.Press('telegram', 'cb1', '55', '9', data))
@@ -647,7 +673,7 @@ class ManualRuns(SchedulerBase):
 		chat, mid, text, markup = self.edits[0]
 		self.assertEqual((chat, mid), ('55', '9')) # the message with the old buttons is edited in place
 		self.assertIn('7. price close', text)
-		self.assertEqual(markup, about.prepare_jobs_payload(TELEGRAM, '')[1]) # with the current buttons
+		self.assertEqual(markup, about.prepare_jobs_payload(TELEGRAM, '', tappable=True)[1]) # the current buttons
 		self.patch(jobs, 'current', None) # scheduler off: the list is replaced by the notice and the buttons removed
 		worker.process_callback(inbound.Press('telegram', 'cb1', '55', '9', 'j|7|0000'))
 		self.assertEqual(self.edits[-1][2:], ('Scheduled jobs are off (scheduler=False)', [])) # no buttons left

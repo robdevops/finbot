@@ -3,9 +3,10 @@ from lib import buttons
 from lib import formats
 from lib import jobs
 
-def prepare_jobs_payload(service, run=None):
+def prepare_jobs_payload(service, run=None, tappable=False):
 	"""`.jobs`: the scheduled commands, each once; with `run` (a number in that list, or a command's text) that command
-	run now, as cron would. Returns (payload, buttons): Telegram gets a button per command, two to a row."""
+	run now, as cron would. Returns (payload, buttons): with tappable (the chat takes buttons) a button per command, two
+	to a row."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['Scheduled jobs are off (scheduler=False)'], None
@@ -17,9 +18,9 @@ def prepare_jobs_payload(service, run=None):
 	payload = [service.bold('Scheduled commands:')]
 	for number, (label, _, _) in enumerate(commands, 1):
 		payload.append(f"{number}. {jobs.display(label)}" + (' (running)' if label in scheduler.busy else ''))
-	payload.append("\nRun one with .jobs run NUMBER" + (' or tap it' if service == 'telegram' else ''))
+	payload.append("\nRun one with .jobs run NUMBER" + (' or tap it' if tappable else ''))
 	markup = None
-	if service == 'telegram':
+	if tappable:
 		row = [buttons.job_button(number, jobs.display(label), jobs.checksum(label))
 			for number, (label, _, _) in enumerate(commands, 1)]
 		markup = [row[i:i + 2] for i in range(0, len(row), 2)]

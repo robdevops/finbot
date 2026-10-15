@@ -1084,6 +1084,25 @@ class SlackButtons(FinbotCase):
 		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
 		self.assertEqual([button.get('style') for button in blocks[2]['elements']], [None, 'primary'] + [None] * 3)
 
+	def test_a_press_deletes_the_chart_it_replaced(self):
+		"""Each press uploads its period's chart and, once the message shows it, deletes the file shown before: no
+		chart is reused, so the bot's files do not pile up. The file a press shows is never deleted."""
+		uploads = iter(f'F{n}' for n in range(1, 10))
+		record = transports.net.post
+		def post(url, **kwargs):
+			"""Answer as Slack does, with a new file id for each upload."""
+			answer = record(url, **kwargs)
+			if url.endswith('/files.getUploadURLExternal'):
+				return Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': next(uploads)})
+			return answer
+		self.patch(transports.net, 'post', post)
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U')) # F1, in message 1.5
+		for _ in range(2):
+			worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|w|5,0')) # F2, then F3
+		deleted = [kwargs['data']['file'] for url, kwargs in self.posts if url.endswith('/files.delete')]
+		self.assertEqual((deleted, self.errors), (['F1', 'F2'], []))
+		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F3'})
+
 	def test_a_chart_not_ready_to_show_is_shown_a_moment_later(self):
 		"""Slack refusing the blocks of a chart just uploaded (invalid_blocks) is asked again after a wait."""
 		self.refusals['chat.postMessage'] = ['invalid_blocks']
