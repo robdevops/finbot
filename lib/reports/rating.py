@@ -9,7 +9,9 @@ from lib import yahoo
 def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=False):
 	"""Analysts' consensus ratings that changed since the last scheduled run, which records the ratings it saw."""
 	def prepare_rating_payload(service, market_data):
+		"""(the report in one network's markup, the ratings seen this run)."""
 		def get_emoji(old, new):
+			"""📈 when the consensus improved (its index fell: 1 is a strong buy), 📉 when it worsened, ▪️ otherwise."""
 			if old > new:
 				return '📈'
 			if old < new:
@@ -67,4 +69,5 @@ def lambda_handler(chat_id=None, specific_stock=None, service=None, interactive=
 			ratings.update(new)
 
 def job(argv):
+	"""Arguments of a scheduled run: rating.py takes none."""
 	return 'rating.py', {}

@@ -20,6 +20,9 @@ def discord_url(url):
 	return url + ('&' if '?' in url else '?') + 'wait=true'
 
 def write(service, url, payload_string, chat_id=None, reply_markup=None):
+	"""POST one message to a service and return its answer, or None when it failed (logged). Telegram: HTML, no link
+	previews, silent, reply_markup as its buttons. Slack: into channel chat_id through chat.postMessage with the bot
+	token, or through the incoming webhook. Discord: the native webhook, without previews or mentions."""
 	headers = {'Content-type': 'application/json'}
 	payload = {'text': payload_string}
 	if service == 'discord': # the native webhook endpoint: Discord's Slack-compatible one takes no flags
@@ -171,6 +174,7 @@ def fit_caption(caption, limit=1024, visible=None):
 	(visible=len). Keep whole lines that fit and say how many were left out."""
 	if visible is None:
 		def visible(text):
+			"""The length without the HTML tags."""
 			return len(re.sub(r'<[^>]+>', '', text))
 	if visible(caption) <= limit:
 		return caption

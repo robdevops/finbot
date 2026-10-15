@@ -3,6 +3,8 @@ from lib import config
 from lib import net
 
 def fetch(market_data):
+	"""market_data with each ASX ticker's short interest added from Short Man's daily CSV; as it was when Short Man
+	cannot be reached."""
 	local_market_data = market_data.copy()
 	url = 'https://www.shortman.com.au/downloadeddata/latest.csv'
 	try:

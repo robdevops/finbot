@@ -15,15 +15,19 @@ class Dialect(str):
 	caption_limit = None # characters under a chart, as visible() counts them; None: no limit of its own
 
 	def bold(self, text):
+		"""text in bold."""
 		return self._styled('bold', text)
 
 	def italic(self, text):
+		"""text in italics."""
 		return self._styled('italic', text)
 
 	def strike(self, text):
+		"""text struck through."""
 		return self._styled('strike', text)
 
 	def _styled(self, style, text):
+		"""text between the markers of a style: bold, italic or strike."""
 		before, after = self.styles[style]
 		return before + text + after
 
@@ -49,10 +53,12 @@ class Telegram(Dialect):
 	caption_limit = 1024
 
 	def _link(self, url, text):
+		"""An HTML link."""
 		return '<a href="' + url + '">' + text + '</a>'
 
 	def visible(self, text):
-		return len(re.sub(r'<[^>]+>', '', text)) # the tags do not count
+		"""The length without the HTML tags, which Telegram does not count."""
+		return len(re.sub(r'<[^>]+>', '', text))
 
 
 class Slack(Dialect):
@@ -61,6 +67,7 @@ class Slack(Dialect):
 	styles = {'bold': ('*', '*'), 'italic': ('_', '_'), 'strike': ('~', '~')}
 
 	def _link(self, url, text):
+		"""A mrkdwn link: <url|text>."""
 		return '<' + url + '|' + text + '>'
 
 
@@ -76,7 +83,8 @@ class Discord(Dialect):
 		return '[' + text.replace('[', '\\[').replace(']', '\\]') + '](<' + url.replace('(', '%28').replace(')', '%29') + '>)'
 
 	def escape(self, text):
-		return html.unescape(str(text)) # markdown shows entities as they are: the plain text
+		"""The plain text: Discord's markdown shows entities as written."""
+		return html.unescape(str(text))
 
 
 TELEGRAM, SLACK, DISCORD = Telegram('telegram'), Slack('slack'), Discord('discord')

@@ -55,7 +55,17 @@ class Plumbing(FinbotCase):
 		self.assertEqual(bot.git_version(), head[:7]) # matches what git says
 
 
-class Logging(unittest.TestCase):
+class Conventions(unittest.TestCase):
+	def test_every_function_has_a_docstring(self):
+		"""Every function and method in the bot, lib/ and util/, nested ones included, says what it does."""
+		missing = []
+		code = [*Path(ROOT, 'lib').rglob('*.py'), *Path(ROOT).glob('*.py'), *Path(ROOT, 'util').glob('*.py')]
+		for path in sorted(code):
+			for node in ast.walk(ast.parse(path.read_text())):
+				if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and ast.get_docstring(node) is None:
+					missing.append(f'{path.relative_to(ROOT)}:{node.lineno} {node.name}')
+		self.assertEqual(missing, [])
+
 	def test_the_bot_and_its_reports_print_only_to_stderr(self):
 		"""systemd discards finbot's stdout (StandardOutput=null), so a print there is never read. The util/ tools, run by
 		hand, may use it."""

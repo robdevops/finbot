@@ -63,6 +63,9 @@ def report(service, past_days=None, portfolio_select=None, interactive=False, pe
 	return payload, graph
 
 def lambda_handler(chat_id=None, past_days=None, service=None, user='', portfolio_select=None, interactive=False):
+	"""Post each portfolio's performance over past_days (the past_days preference when None), or the one named, beside
+	the benchmarks: to the chat that asked (interactive), else to the default chats, with its chart and on Telegram
+	period buttons."""
 	if past_days is None:
 		past_days = config.prefs.past_days
 	performance = gather(past_days, portfolio_select)

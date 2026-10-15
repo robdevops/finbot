@@ -22,15 +22,19 @@ def try_call(method, **kwargs):
 		print(f"Telegram {method} failed:", net.redact(e), file=sys.stderr)
 
 def setWebhook():
+	"""Have Telegram post updates (messages and button presses) to telegramOutgoingWebhook, signed with
+	telegramOutgoingToken."""
 	print("registering", config.env.telegramOutgoingWebhook, file=sys.stderr)
 	params = {'url': config.env.telegramOutgoingWebhook, "allowed_updates": json.dumps(['message', 'callback_query']), 'secret_token': config.env.telegramOutgoingToken}
 	return call('setWebhook', params=params)
 
 def delWebhook():
+	"""Have Telegram stop posting updates."""
 	print("deregistering", config.env.telegramOutgoingWebhook, file=sys.stderr)
 	return call('setWebhook', params={'url': ''}) # unsubscribe
 
 def getMe():
+	"""The bot's own account: its username is the bot's name in chats."""
 	return call('getMe')
 
 def register():

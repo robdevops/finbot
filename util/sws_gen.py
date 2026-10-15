@@ -6,6 +6,7 @@ import time
 import os
 
 def get_symbols(file):
+	"""The symbols in a file, one per line."""
 	symbols = []
 	with open(file) as file:
 		while line := file.readline():
@@ -14,12 +15,14 @@ def get_symbols(file):
 	return symbols
 
 def get_sws(symbol, market):
+	"""The Simply Wall St page of a stock, found with Google's I'm Feeling Lucky."""
 	query = "site:simplywall.st " + market + " " + symbol + " Stock Price, News & Analysis"
 	url = googlesearch.lucky(query)
 	print(symbol, url)
 	return url
 
 def build_dict(symbols, market):
+	"""{symbol: its Simply Wall St page}, pausing 30 minutes after every 40 searches; ASX symbols get Yahoo's .AX."""
 	count=1
 	mydict = {}
 	for symbol in symbols:
@@ -34,6 +37,8 @@ def build_dict(symbols, market):
 	return mydict
 
 def do_sws_bulk(file):
+	"""Look up every symbol in a file (as ASX listings when its name says asx) and write them to finbot_sws_<name>.json
+	in the data dir."""
 	market = ''
 	if 'asx' in file or 'ASX' in file:
 		market = 'ASX'
@@ -44,8 +49,10 @@ def do_sws_bulk(file):
 	return mydict
 
 def write_cache(mydict, cache_file):
+	"""Write the dict as JSON to cache_file, mode 0640."""
 	os.umask(0)
 	def opener(path, flags):
+		"""open() that creates the file with mode 0640."""
 		return os.open(path, flags, 0o640)
 	with open(cache_file, "w", opener=opener, encoding="utf-8") as f:
 		f.write(json.dumps(mydict))

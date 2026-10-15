@@ -11,9 +11,11 @@ session = requests.Session()
 session.cookies.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[])) # no domain may set or receive a cookie
 
 def get(url, **kwargs):
+	"""requests.get through the shared session, which reuses connections."""
 	return session.get(url, **kwargs)
 
 def post(url, **kwargs):
+	"""requests.post through the shared session, which reuses connections."""
 	return session.post(url, **kwargs)
 
 def redact(text):

@@ -25,6 +25,7 @@ class TypingIndicator:
 	"""Telegram's "typing…" while a with block runs, sent again every 7 seconds, at most max_loops times. It stops however the block
 	ends, so a command that fails stops it before its error line goes out. Only Telegram has one: elsewhere it does nothing."""
 	def __init__(self, service, chat_id, max_loops=3):
+		"""service, chat_id: where; max_loops: how many notices at most, one every 7 seconds."""
 		self.service = service
 		self.chat_id = chat_id
 		self.max_loops = max_loops
@@ -32,6 +33,7 @@ class TypingIndicator:
 		self._thread = None
 
 	def _worker(self):
+		"""Send the notice every 7 seconds until stopped, or until max_loops are sent."""
 		loop_count = 0
 		while not self._stop_event.is_set() and loop_count < self.max_loops:
 			webhook.pleaseHold('typing', self.service, self.chat_id)
@@ -41,25 +43,30 @@ class TypingIndicator:
 				break
 
 	def start(self):
+		"""Start the notices, on Telegram only."""
 		if self.service != 'telegram':
 			return
 		self._thread = threading.Thread(target=self._worker, daemon=True)
 		self._thread.start()
 
 	def stop(self):
+		"""Stop the notices and wait for their thread to end."""
 		if not self._thread: # never started: only Telegram has a typing indicator
 			return
 		self._stop_event.set()
 		self._thread.join()
 
 	def is_active(self):
+		"""Whether the notices are still going."""
 		return self._thread is not None and self._thread.is_alive()
 
 	def __enter__(self):
+		"""Start the notices as the with block starts."""
 		self.start()
 		return self
 
 	def __exit__(self, *exc):
+		"""Stop them however the block ends."""
 		self.stop()
 
 @dataclasses.dataclass
@@ -73,12 +80,15 @@ class Request:
 
 	@property
 	def url(self):
+		"""The URL that posts into this chat."""
 		return webhook.chat_url(self.service, self.chat_id)
 
 	def typing(self, max_loops=3):
+		"""A typing indicator for this chat: `with request.typing():` around slow work."""
 		return TypingIndicator(self.service, self.chat_id, max_loops)
 
 	def say(self, payload, reply_markup=None):
+		"""Send lines of text to this chat, in several messages when long; reply_markup goes on the last."""
 		webhook.payload_wrapper(self.service, self.url, payload, self.chat_id, reply_markup=reply_markup)
 
 	def send(self, payload, image=None, reply_markup=None):
@@ -196,6 +206,7 @@ def period_and_portfolio(text, days):
 	return days, ' '.join(words) or None
 
 def on_watchlist(request, m):
+	""".watchlist [add|del SYMBOL]: the watchlist, or a change to it."""
 	action = ticker = None
 	if m.group('action') and m.group('ticker'):
 		action, ticker = m.group('action').lower(), m.group('ticker').upper()
@@ -209,6 +220,7 @@ def on_watchlist(request, m):
 	request.say(payload)
 
 def on_help(request, m):
+	""".help: every command; in a Telegram DM the command keyboard too."""
 	markup = None
 	if request.service == 'telegram' and int(request.chat_id) > 0: # positive chat ids are DMs; groups are negative
 		markup = charts.command_keyboard()
@@ -241,6 +253,7 @@ def on_calendar(request, m):
 		cal.lambda_handler(request.chat_id, days, request.service, ticker, interactive=True, event=event)
 
 def on_performance(request, m):
+	""".performance [period] [portfolio]: each portfolio's return, over a month by default."""
 	days, portfolio = period_and_portfolio(m.group('args'), buttons.PERIODS['m'][1]) # default view is the 1M button
 	if days > 0:
 		with request.typing():
@@ -273,21 +286,26 @@ def on_price(request, m):
 		price.lambda_handler(request.chat_id, threshold, request.service, request.user, ticker, interactive=True, interday=days is None, days=days, top=top)
 
 def on_shorts(request, m):
+	""".shorts [percent|SYMBOL]: the most shorted stocks followed, or one stock's short interest."""
 	threshold, ticker = percent_or_ticker(m.group(1), config.prefs.shorts_percent)
 	with request.typing():
 		shorts.lambda_handler(request.chat_id, threshold, ticker, request.service, interactive=True)
 
 def on_trades(request, m):
+	""".trades [period] [portfolio]: the buys and sells, of the past day by default."""
 	days, portfolio = period_and_portfolio(m.group('args'), 1)
 	with request.typing():
 		trades.lambda_handler(request.chat_id, days, request.service, request.user, portfolio, interactive=True)
 
 def on_holdings(request, m):
+	""".holdings PORTFOLIO: what it holds."""
 	with request.typing():
 		payload = holdings.prepare_holdings_payload((m.group(1) or '').strip() or None, request.service)
 	request.say(payload)
 
 def on_marketcap(request, m):
+	""".marketcap [top|bottom|SYMBOL]: the stocks followed by market cap, largest (or smallest) first, or one
+	stock's."""
 	with request.typing():
 		payload = rankings.prepare_marketcap_payload(request.service, m.group(1) or 'top', length=15)
 	request.say(payload)
@@ -296,6 +314,7 @@ def on_ratio(kind, negative=False, chart=False):
 	"""The function that answers .pe, .fpe or .peg: the top (the default) or bottom 15 by the ratio, the negative ones (where
 	there can be any), or one ticker's ratio. `chart`: with its chart."""
 	def handler(request, m):
+		""".pe, .fpe or .peg [top|bottom|negative|SYMBOL]."""
 		arg = (m.group(1) or '').strip()
 		action, ticker = kind, None
 		if arg == 'bottom':
@@ -310,11 +329,13 @@ def on_ratio(kind, negative=False, chart=False):
 	return handler
 
 def on_beta(request, m):
+	""".beta: the volatile small caps among the stocks followed."""
 	with request.typing():
 		payload, chart = rankings.prepare_beta_payload(request.service)
 	request.deliver(payload, chart)
 
 def on_pie(request, m):
+	""".pie PORTFOLIO [sector]: its value by industry, or by sector."""
 	words = m.group('args').split()
 	by = 'industry'
 	if words and words[-1].lower() in ('sector', 'sectors', 'industry', 'industries'):
@@ -331,6 +352,7 @@ def on_rating(request, m):
 		request.deliver(payload, chart)
 
 def on_compare(request, m):
+	""".compare SYMBOL SYMBOL... [period]: their price changes on one chart, with period buttons on Telegram."""
 	with request.typing():
 		payload, image, tickers, days = history.prepare_compare(request.service, (m.group('args') or '').split())
 	markup = None
@@ -339,6 +361,7 @@ def on_compare(request, m):
 	request.send(payload, image, markup)
 
 def on_history(request, m):
+	""".history SYMBOL: the stock's change over every period, with its price chart and, on Telegram, period buttons."""
 	if not m.group('ticker') or m.group('extra'):
 		request.say(["Usage: .history SYMBOL"])
 		return
@@ -348,17 +371,20 @@ def on_history(request, m):
 	request.send(caption.split('\n'), image, buttons.keyboard('h', [ticker], 'x') if image and request.service == 'telegram' else None)
 
 def on_plan(request, m):
+	""".plan [text]: record the sender's plan, and list everyone's."""
 	if m.group(1) and not m.group(1).startswith('@'):
 		with state.edit('finbot_plan.json', {}) as plans:
 			plans[request.user] = m.group(1)
 	plan = state.load('finbot_plan.json', {})
-	def who(user): # a Slack user is a mention (<@U123>), which is markup to keep; elsewhere a handle is text
+	def who(user):
+		"""A sender as shown: on Slack a mention (<@U123>), which is markup to keep; elsewhere the handle as text."""
 		user = user.removeprefix('@')
 		return user if request.service == 'slack' else request.service.escape(user)
 	request.say([f"{request.service.bold(who(k))}: {request.service.italic(request.service.escape(v))}\n"
 		for k, v in plan.items()])
 
 def on_who(request, m):
+	""".who SYMBOL: the portfolios that hold it."""
 	if not m.group('ticker'):
 		request.say([".who: please try again specifying a ticker"])
 		return
@@ -367,11 +393,13 @@ def on_who(request, m):
 	request.say(payload)
 
 def on_jobs(request, m):
+	""".jobs [run NUMBER|COMMAND]: the schedule, or one of its commands run now."""
 	with request.typing(max_loops=10):
 		payload, markup = about.prepare_jobs_payload(request.service, m.group('args'))
 	request.say(payload, reply_markup=markup)
 
 def on_profile(request, m):
+	""".SYMBOL: the company's profile."""
 	with request.typing():
 		payload = profile.prepare_profile_payload(request.service, request.user, m.group('ticker').upper())
 	request.say(payload)

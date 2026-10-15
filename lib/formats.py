@@ -63,6 +63,7 @@ def security_line(flag, title, link):
 	return f"{flag} {title} ({link})" if flag else f"{title} ({link})"
 
 def strip_url(url):
+	"""url without its scheme and www., to show as a link's text."""
 	url = url.removeprefix('https://www.')
 	url = url.removeprefix('http://www.')
 	url = url.removeprefix('https://')
@@ -91,6 +92,8 @@ def date_range_english(days, end):
 	return f"{date_short(start, start.year != end.year)} - {date_short(end, True)}"
 
 def days_english(days, prefix='the past ', article=''):
+	"""A span of days in words: 'today' for 0 or None; prefix + article + 'day', 'week', 'month' or 'year'; else prefix
+	and a count of weeks, months, years or days ('the past 3 weeks')."""
 	if days is None or days == 0:
 		return 'today'
 	elif days == 1:
@@ -117,6 +120,7 @@ def signed_percent(value, decimals=None):
 	return f"{value:+,}%" if decimals is None else f"{value:+,.{decimals}f}%"
 
 def get_emoji(number):
+	"""🔼 for a rise, 🔻 for a fall, ▪️ for no change."""
 	if number > 0:
 		return '🔼'
 	elif number < 0:
@@ -138,6 +142,7 @@ def days_from_human_days(arg):
 	return int(arg.removesuffix('Y')) * 365
 
 def ordinal(num):
+	"""The ordinal suffix of a number: 'st' for 1, 'nd' for 22, 'th' for 11 and 13."""
 	value = str(num)
 	if len(value) > 1:
 		secondToLastDigit = value[-2]
@@ -154,6 +159,7 @@ def ordinal(num):
 		return 'th'
 
 def td_to_human(timedelta):
+	"""A duration in words: '1 day, 2 hours, 5 seconds', zero parts left out ('0 seconds' for none)."""
 	days, remainder = divmod(timedelta.total_seconds(), 86400)
 	hours, remainder = divmod(remainder, 3600)
 	minutes, seconds = divmod(remainder, 60)

@@ -165,10 +165,14 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 
 def lambda_handler(chat_id=None, threshold=None, service=None, user='', specific_stock=None, interactive=False, midsession=False,
 		premarket=False, interday=False, days=None, close=False, top=None):
+	"""Post the price report (report() has the modes): to the chat that asked (interactive), else to the default chats,
+	with its chart and on Telegram period buttons."""
 	if threshold is None:
 		threshold = config.prefs.price_percent
 	market = gather(specific_stock, days)
-	def markup(service): # a chart's period buttons: one ticker's chart, and the daily and N-day lists (not the intraday ones)
+	def markup(service):
+		"""A chart's period buttons on Telegram: one ticker's chart, and the daily and N-day lists, but not the intraday
+		ones."""
 		if service != 'telegram':
 			return None
 		if specific_stock:

@@ -22,6 +22,7 @@ def command_keyboard(per_row=3):
 KEYBOARD_FILE = 'finbot_keyboards.json' # chat id -> version of the command keyboard that chat last received
 
 def keyboard_version():
+	"""A short hash of the command keyboard, which changes whenever its buttons do."""
 	return hashlib.sha1(json.dumps(command_keyboard(), sort_keys=True).encode()).hexdigest()[:8]
 
 def mark_keyboard(chat_id):

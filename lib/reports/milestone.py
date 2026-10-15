@@ -12,7 +12,10 @@ from lib import yahoo
 # https://finance.yahoo.com/quote/TSLA/history?period1=0&period2=1707609600&filter=split
 
 def lambda_handler():
+	"""Post the stocks followed that set an all-time high or low (their 52-week range against the record, which a first
+	sighting takes from the stock's history), and record the new records."""
 	def prepare_milestone_payload(service, market_data):
+		"""(the report in one network's markup, the records it changes)."""
 		payload = []
 		payloadhigh = []
 		payloadlow = []
@@ -68,4 +71,5 @@ def lambda_handler():
 			recorded.update(changed)
 
 def job(argv):
+	"""Arguments of a scheduled run: milestone.py takes none."""
 	return 'milestone.py', {}

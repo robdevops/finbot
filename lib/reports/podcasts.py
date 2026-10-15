@@ -19,6 +19,7 @@ def get_seen_filename(url):
 	return f"finbot_podcast_seen_{hashlib.md5(url.encode()).hexdigest()}.json"
 
 def fetch_and_parse_feed(url):
+	"""The feed at url, parsed as XML. Raises on an HTTP error."""
 	resp = net.get(url, timeout=30)
 	resp.raise_for_status()
 	return ET.fromstring(resp.content)

@@ -14,11 +14,14 @@ REPORTED = 3 # exit status of a run that failed and said so in the chat; the bot
 
 
 def main(argv):
+	"""Run one scheduled command: argv is the report's module and its JSON keyword arguments. Returns the exit status: 0
+	when it ran, REPORTED when it failed and said so in the chat, 2 for bad arguments."""
 	if len(argv) != 2 or not re.fullmatch(r'[a-z]+(\.[a-z]+)*', argv[0]):
 		print('usage: python -m lib.jobrun <module> <json kwargs>', file=sys.stderr)
 		return 2
 	module = argv[0]
-	def run(): # the import too: a report that cannot even be imported is reported like any other failure
+	def run():
+		"""Import the report and run it: an import that fails is reported like any other failure."""
 		importlib.import_module(module).lambda_handler(**json.loads(argv[1]))
 		return True
 	return 0 if webhook.guarded(module.rsplit('.', 1)[-1] + '.py', run, exit=False) else REPORTED

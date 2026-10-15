@@ -11,6 +11,8 @@ from lib import simplywallst
 from itertools import groupby
 
 def doDelta(inputList):
+	"""Trend marks between consecutive figures (four quarters give three): 🔼 up and 🔽 down while the figure is positive,
+	🔺 up and 🔻 down while it is negative, ▪️ unchanged, ❌ missing; padded with ❌ to three."""
 	deltaString = ''
 	inputListFixed = inputList.copy()
 	# replace any NoneType to allow delta calculation

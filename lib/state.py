@@ -30,6 +30,7 @@ def save(name, data):
 
 
 def _lock(name):
+	"""The lock edit() holds while it changes the file `name`."""
 	with _locks_lock:
 		return _locks.setdefault(name, threading.Lock())
 

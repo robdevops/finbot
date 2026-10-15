@@ -14,10 +14,12 @@ MAX_CONCURRENT = 1 # Sharesight rejects parallel requests beyond a few per accou
 _request_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
 
 def _get(url, **kwargs):
+	"""net.get, waiting its turn: one Sharesight request at a time (MAX_CONCURRENT)."""
 	with _request_slots:
 		return net.get(url, **kwargs)
 
 def _post(url, **kwargs):
+	"""net.post, waiting its turn like _get."""
 	with _request_slots:
 		return net.post(url, **kwargs)
 
@@ -40,12 +42,16 @@ def _check(data, what):
 
 class BearerAuth(requests.auth.AuthBase):
 	def __init__(self, token):
+		"""token: the access token."""
 		self.token = token
 	def __call__(self, r):
+		"""Add the token to a request's Authorization header."""
 		r.headers["Authorization"] = "Bearer " + self.token
 		return r
 
 def get_token():
+	"""An access token for the Sharesight API: the cached one while it has more than 20 seconds left, else a new one
+	(cached while the cache preference is on)."""
 	if config.prefs.cache:
 		cacheFile = "finbot_sharesight_token.json"
 		cached = cache.load(cacheFile)
@@ -68,6 +74,7 @@ def get_token():
 PORTFOLIOS_CACHE = "finbot_sharesight_portfolios.json" # ttl: the cache_seconds preference
 
 def performance_cache_file(portfolio_id, days):
+	"""The cache file of a portfolio's performance report over `days`."""
 	return "finbot_sharesight_performance_" + str(portfolio_id) + "_" + str(days) + '.json'
 
 def get_portfolios(refresh=False):
@@ -90,6 +97,7 @@ def get_portfolios(refresh=False):
 class PortfolioNotFound(LookupError):
 	"""No portfolio is called what was asked for. `lines` is the answer to give: the name, and the portfolios there are."""
 	def __init__(self, name, names):
+		"""name: what was asked for; names: the portfolios there are."""
 		self.lines = [f"{name} portfolio not found. I only know about:"] + list(names)
 		super().__init__(' '.join(self.lines))
 
@@ -136,6 +144,8 @@ def tickers():
 	return sorted({ticker for portfolio in portfolios() for ticker in portfolio.tickers()})
 
 def get_trades(portfolio_name, portfolio_id, days=None):
+	"""The portfolio's trades of the past `days` (the past_days preference when None), each tagged with its portfolio's
+	name; cached for 5 minutes. Raises RuntimeError when Sharesight cannot be reached or answers with an error."""
 	if days is None:
 		days = config.prefs.past_days
 	if config.prefs.cache:
@@ -157,6 +167,9 @@ def get_trades(portfolio_name, portfolio_id, days=None):
 	return data['trades']
 
 def get_performance(portfolio_id, days, seconds=None, refresh=False):
+	"""Sharesight's performance report of a portfolio since `days` ago (0: today's holdings), cached for `seconds` (the
+	performance_cache_seconds preference when None); refresh=True asks again. While Sharesight says too many requests
+	are in flight it retries, up to five tries. Raises RuntimeError on an error answer, or one without a report."""
 	if seconds is None:
 		seconds = config.prefs.performance_cache_seconds
 	start_date = datetime.datetime.now() - datetime.timedelta(days=days)

@@ -27,6 +27,8 @@ def _ref(tickers):
 	return '#' + key
 
 def resolve(ref):
+	"""The tickers a button's callback data names: listed inline ('T1,T2'), or a stored list's '#id' (see _ref). Raises
+	KeyError when the stored list is gone."""
 	if ref.startswith('#'):
 		tickers = state.load(REF_FILE, {}).get(ref[1:])
 		if not tickers:

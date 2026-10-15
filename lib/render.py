@@ -44,6 +44,7 @@ def _drawn(draw):
 	pool's one thread waiting on itself would never finish."""
 	@functools.wraps(draw)
 	def in_pool(*args, **kwargs):
+		"""Draw in the render thread when the bot has one (render_off_hub), else here."""
 		if _render_pool is None:
 			return draw(*args, **kwargs)
 		return _render_pool.apply(draw, args, kwargs)
@@ -113,6 +114,7 @@ def graph(df, title, ylabel):
 	_style_time_axes(fig, ax, x.iloc[0], x.iloc[-1])
 
 	def annotate(i, name, above):
+		"""Label the point at index i, the high or the low, with its value and date, above or below it."""
 		xd, yv = x.iloc[i], y.iloc[i]
 		frac = (mdates.date2num(xd) - mdates.date2num(x.iloc[0])) / max(mdates.date2num(x.iloc[-1]) - mdates.date2num(x.iloc[0]), 1)
 		# anchor text toward the inside of the plot so it cannot run off either edge
@@ -305,6 +307,7 @@ def shorts_chart(rows, threshold, step=5):
 	def shorts(x, y, w, h, color, frac=1.0, lw=1.6):
 		"""One pair, top-left at (x, y); frac < 1 crops it from the right."""
 		def P(px, py):
+			"""A point of the pair's box, from fractions of its width and height."""
 			return (x + px * w, y + py * h)
 		belt = '#' + ''.join(f"{int(int(color[i:i + 2], 16) * 0.7):02x}" for i in (1, 3, 5))
 		legs = Polygon([P(0.04, 0.2), P(0.96, 0.2), P(1.0, 0.97), P(0.56, 0.97), P(0.5, 0.58), P(0.44, 0.97), P(0.0, 0.97)],
@@ -329,7 +332,8 @@ def shorts_chart(rows, threshold, step=5):
 		a0, a1 = k * 2 * math.pi / rays + tilt, (k + 1) * 2 * math.pi / rays + tilt
 		ax.add_patch(Polygon([(sx, sy), (sx + 2000 * math.cos(a0), sy + 2000 * math.sin(a0)), (sx + 2000 * math.cos(a1), sy + 2000 * math.sin(a1))],
 			closed=True, facecolor=ray, edgecolor='none', zorder=-1))
-	def at(u, v): # face coordinates in sun radii, y down
+	def at(u, v):
+		"""A point on the sun's face, in sun radii from its centre with y down, in the axes' pixels."""
 		return (sx + u * R, sy + v * R)
 	ax.add_patch(Circle((sx, sy), R, facecolor='#ffb000', edgecolor='none'))
 	for dx, dy, r, c in ((-0.05, -0.06, 0.93, '#ffb90a'), (-0.1, -0.12, 0.78, '#ffc21f'), (-0.16, -0.2, 0.55, '#ffcb35')): # fake gradient

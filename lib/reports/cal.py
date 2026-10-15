@@ -24,6 +24,8 @@ def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, i
 		days = config.prefs.future_days
 	field, heading = EVENTS[event]
 	def prepare_payload(service, market_data):
+		"""The report in one network's markup: the events within `days`, grouped by date. An ADR or a second listing
+		without a date of its own takes its primary listing's."""
 		now = datetime.datetime.now()
 		soon = now + datetime.timedelta(days=days)
 		found = [] # (when, flag, title, link)

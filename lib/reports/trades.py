@@ -20,6 +20,8 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 	state_file = "finbot_sharesight_trades.json"
 
 	def prepare_trade_payload(service, trades):
+		"""The report in one network's markup: the buys and sells (on a scheduled run only new ones), grouped by date,
+		each linked to Sharesight and to the stock's page."""
 		payload_staging = []
 		dates = set()
 		wanted = [] # the trades to report: buys and sells that are new (or all of them, when interactive)
@@ -103,4 +105,5 @@ def lambda_handler(chat_id=None, days=None, service=None, user='', portfolio_sel
 			known.extend(sorted(newtrades.difference(known)))
 
 def job(argv):
+	"""Arguments of a scheduled run: trades.py takes none."""
 	return 'trades.py', {}

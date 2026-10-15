@@ -81,7 +81,8 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 
 def watchlist_change(service, user, action, asked):
 	"""The reply to adding or removing `asked` (a Yahoo ticker)."""
-	def described(ticker, quote): # "Full Name (TICKER)", bold
+	def described(ticker, quote):
+		"""'Full Name (TICKER)' in bold, linked to the stock's page."""
 		quote = quote or {}
 		link = links.finance_link(ticker, quote.get('profile_exchange') or ticker, service)
 		return service.bold(f"{quote['profile_title']} ({link})" if quote.get('profile_title') else link)

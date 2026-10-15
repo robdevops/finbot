@@ -8,9 +8,13 @@ from lib import yahoo
 from lib import shortman
 
 def lambda_handler(chat_id=None, threshold=None, specific_stock=None, service=None, interactive=False):
+	"""Post the stocks followed whose short interest is over `threshold` percent (the shorts_percent preference when
+	None), or one stock's: to the chat that asked (interactive), else to the default chats. Short Man has the ASX's
+	figures, Yahoo the US's."""
 	if threshold is None:
 		threshold = config.prefs.shorts_percent
 	def prepare_shorts_payload(service, market_data):
+		"""(the report in one network's markup, its chart or None), the most shorted first."""
 		found = [] # (percent, line, chart label)
 		for ticker in tickers:
 			try:
@@ -48,4 +52,5 @@ def lambda_handler(chat_id=None, threshold=None, specific_stock=None, service=No
 		webhook.send(service, url, chat, payload, graph)
 
 def job(argv):
+	"""Arguments of a scheduled run: shorts.py takes none."""
 	return 'shorts.py', {}

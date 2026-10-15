@@ -88,6 +88,7 @@ class ImpossibleTime(ScheduleError):
 	"""A time that cannot be (minute 61) or never comes (30 February). Other bad lines are reported and skipped, but this refuses the
 	whole file: finbot does not start with it, and a reload keeps the schedule that is running. `lines` says where, one per line."""
 	def __init__(self, lines):
+		"""lines: where, one message or a list of them."""
 		self.lines = [lines] if isinstance(lines, str) else list(lines)
 		super().__init__('; '.join(self.lines))
 
@@ -119,6 +120,7 @@ def tokenize(text):
 	"""A command line as ('word', text) and ('op', text) tokens. Quoted text is always a word, whatever it contains."""
 	tokens, word, started, i = [], '', False, 0
 	def flush():
+		"""End the word being read, if there is one, and add it to the tokens."""
 		nonlocal word, started
 		if started:
 			tokens.append(('word', word))
@@ -240,6 +242,9 @@ class Scheduler:
 	new copy is found on reload). `clock`, `sleep` and `spawn` can be replaced, which the tests do."""
 
 	def __init__(self, path, catchup=None, clock=None, sleep=None, spawn=None, zone=None, runner=None):
+		"""path() gives the schedule file's path. catchup is how late, in minutes, a missed run may still start (the
+		scheduler_catchup setting when None); clock, sleep, spawn, zone and runner stand in for the real ones in
+		tests."""
 		self.path = path
 		self.catchup = datetime.timedelta(minutes=config.env.scheduler_catchup if catchup is None else catchup)
 		self.clock = clock or (lambda: datetime.datetime.now(datetime.timezone.utc))

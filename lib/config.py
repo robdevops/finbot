@@ -27,6 +27,7 @@ OLD_ENV = REPO_DIR / '.env' # the single config file of old versions, which pyth
 class ConfigError(Exception):
 	"""One or more problems, each already naming the file and line. `errors` is the list."""
 	def __init__(self, errors):
+		"""errors: one message or a list of them."""
 		self.errors = [errors] if isinstance(errors, str) else list(errors)
 		super().__init__('\n'.join(self.errors))
 
@@ -113,17 +114,22 @@ class _Reader:
 	"""Typed reads from a getenv(name, default); a bad value is remembered, the default used, and all problems raised together.
 	A blank value means unset: the default."""
 	def __init__(self, getenv):
+		"""getenv(name, default) supplies the values; the problems found collect in `errors` until check()."""
 		self.getenv = getenv
 		self.errors = []
 
 	def value(self, name, default):
+		"""The raw value, or default when it is unset or blank."""
 		value = self.getenv(name, default)
 		return default if value == '' else value
 
 	def str(self, name, default=None):
+		"""A text setting."""
 		return self.value(name, default)
 
 	def bool(self, name, default):
+		"""A true/false setting: true/false, yes/no, on/off, 1/0 or t/f, in any case. Anything else is an error, and
+		gives default."""
 		value = self.value(name, default)
 		word = str(value).strip().lower()
 		if word in TRUE_WORDS or word in FALSE_WORDS:
@@ -132,6 +138,7 @@ class _Reader:
 		return default
 
 	def number(self, kind, name, default):
+		"""A setting of type `kind` (int or float). A value that is not one is an error, and gives default."""
 		value = self.value(name, default)
 		try:
 			return kind(value)
@@ -140,12 +147,15 @@ class _Reader:
 			return kind(default)
 
 	def int(self, name, default):
+		"""A whole-number setting."""
 		return self.number(int, name, default)
 
 	def float(self, name, default):
+		"""A number setting."""
 		return self.number(float, name, default)
 
 	def check(self):
+		"""Raise ConfigError with every problem found so far."""
 		if self.errors:
 			raise ConfigError(self.errors)
 
@@ -171,6 +181,7 @@ class Env:
 
 	@property
 	def preferences_path(self):
+		"""Where preferences.conf is read from: the data dir."""
 		return self.data_dir + '/' + PREFERENCES_FILE
 
 
@@ -286,6 +297,7 @@ PREFERENCE_KEYS = tuple(field.name for field in dataclasses.fields(Prefs) if fie
 def _getenv_for(preferences):
 	"""getenv(name, default): preferences.conf first (preference keys only), then the process environment."""
 	def getenv(name, default=None):
+		"""A preference from preferences.conf, else the process environment's value, else default."""
 		if name in preferences:
 			return preferences[name]
 		return os.environ.get(name, default)
@@ -298,6 +310,7 @@ def print_errors(e):
 		print('ERROR config:', line, file=sys.stderr)
 
 def _fail(e):
+	"""Log the configuration errors and exit: finbot does not start with a bad setting."""
 	print_errors(e)
 	sys.exit(1)
 
@@ -322,7 +335,8 @@ for _dir in (env.data_dir, env.cache_dir):
 os.environ.setdefault('MPLCONFIGDIR', os.path.abspath(env.cache_dir + '/matplotlib'))
 
 def data_file(name):
-	# user copy in the data dir wins over the shipped default in defaults/
+	"""Where a data file is read from: the user's copy in the data dir when there is one, else the default shipped in
+	defaults/."""
 	user = env.data_dir + '/' + name
 	return user if os.path.isfile(user) else str(REPO_DIR / 'defaults' / name)
 

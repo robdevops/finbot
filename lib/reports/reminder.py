@@ -8,7 +8,10 @@ from lib import webhook
 
 
 def lambda_handler():
+	"""Post today's reminders to the default chats, if there are any."""
 	def prepare_finance_calendar_payload(service):
+		"""Today's reminders in one network's markup: those in reminder.json for this day (and year, and country,
+		when given), the Australian end of financial year on 23 June, and finbot's birthday."""
 		payload = []
 		tz = zoneinfo.ZoneInfo(config.prefs.timezone)
 		localtime = datetime.datetime.now(tz)
@@ -70,4 +73,5 @@ def lambda_handler():
 		webhook.send(service, url, chat, prepare_finance_calendar_payload(service))
 
 def job(argv):
+	"""Arguments of a scheduled run: reminder.py takes none."""
 	return 'reminder.py', {}

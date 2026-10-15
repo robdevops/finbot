@@ -63,13 +63,19 @@ def main(environ, start_response):
 		return [b'']
 
 def handle(environ, start_response):
+	"""Route a request by its path, check that it comes from Telegram (its secret header) or Slack (its verification
+	token), turn away repeats, and hand a command or a button press to lib/worker in a thread of its own: the service
+	gets its answer at once."""
 	def print_body():
+		"""Log the request body, Slack's verification token redacted."""
 		shown = {k: '<redacted>' if k == 'token' else v for k, v in inbound.items()} # Slack's verification token
 		print(f"inbound {uri} ", json.dumps(shown, indent=4, default=str), file=sys.stderr)
 	def print_headers():
+		"""Log the request headers, Telegram's secret header redacted."""
 		for name, value in sorted(environ.items()):
 			print((name, '<redacted>' if name == 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' else value), file=sys.stderr)
 	def reply(status, body=b''):
+		"""Answer the request: a status line and a body."""
 		start_response(status, [('Content-type', 'application/json')])
 		return [body]
 	print_headers() if config.prefs.print_headers else None

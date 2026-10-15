@@ -35,10 +35,12 @@ def run_job_line(scheduler, text):
 		return str(e)
 
 def job_line(scheduler, label, outcome):
+	"""'3. trades.py: done': a command's number in the .jobs list, its name, and how its run went."""
 	number = [command[0] for command in scheduler.commands()].index(label) + 1
 	return f"{number}. {jobs.display(label)}: {outcome}"
 
 def prepare_help(service, botName):
+	"""The .help text: every command, by section. botName is the bot's @name, which can start a command too."""
 	payload = []
 	payload.append(service.bold("Tracked securities:"))
 	payload.append(".holdings")

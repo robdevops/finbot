@@ -3,11 +3,15 @@ from lib import config
 from lib import markets
 
 def yahoo_link(ticker, service, brief=True, text=None):
+	"""A link to the ticker's Yahoo Finance page, reading `text`, else the symbol without its market (brief) or the
+	whole ticker."""
 	if not text:
 		text = ticker.split('.')[0] if brief else ticker
 	return service.link("https://au.finance.yahoo.com/quote/" + ticker, text)
 
 def finance_link(symbol, exchange, service, days=1, brief=True, text=None):
+	"""A link to the stock's page on the site the hyperlinkProvider preference names: Google Finance (google) or
+	Yahoo."""
 	if config.prefs.hyperlinkProvider == 'google':
 		return gfinance_link(symbol, exchange, service, days, brief, text)
 	return yahoo_link(symbol, service, brief, text)
@@ -19,6 +23,8 @@ def quote_link(ticker, exchange, service, days=1):
 	return finance_link(ticker, exchange, service, days=days)
 
 def gfinance_link(symbol, exchange, service, days=1, brief=True, text=None):
+	"""A link to the stock's Google Finance page, its chart window the one nearest to `days`, reading `text`, else the
+	symbol (brief) or SYMBOL:EXCHANGE (a US listing: the symbol). The plain symbol with the hyperlink preference off."""
 	window = '1D'
 	if not days:
 		days = 1

@@ -71,6 +71,7 @@ YAHOO_COUNTRY = { # country -> its Yahoo ticker suffix, for a listing that has n
 }
 
 def flag_from_market(market):
+	"""The flag of a market by its Sharesight code: US for the NASDAQ and NYSE variants, '' when unknown."""
 	if market in MARKETS:
 		return MARKETS[market][0]
 	return '🇺🇸' if market.lower().startswith(('nasdaq', 'nyse')) else ''
@@ -79,9 +80,11 @@ TICKER_FLAGS = {'AS': '🇳🇱', 'AX': '🇦🇺', 'HK': '🇭🇰', 'KS': '�
 	'TW': '🇹🇼', 'TWO': '🇹🇼', 'TO': '🇨🇦'} # Yahoo suffix -> flag
 
 def flag_from_ticker(ticker):
+	"""The flag of a Yahoo ticker's market suffix, '' when unknown; a ticker without one is a US listing."""
 	return TICKER_FLAGS.get(ticker.split('.')[1], '') if '.' in ticker else '🇺🇸'
 
 def currency_from_market(market):
+	"""The currency of a market by its Sharesight code; None where it quotes in several, or is unknown."""
 	return MARKETS.get(market, (None, None))[1]
 
 VENUES = { # the names Yahoo, Sharesight and Google give an exchange -> (Google Finance code, country)
@@ -98,6 +101,7 @@ VENUES = { # the names Yahoo, Sharesight and Google give an exchange -> (Google 
 }
 
 def transform_to_google(exchange):
+	"""Google Finance's code for an exchange, as Yahoo, Sharesight or Google name it; the name itself when unknown."""
 	if 'Nasdaq' in exchange:
 		return 'NASDAQ'
 	if exchange == 'Cboe US':
@@ -105,6 +109,7 @@ def transform_to_google(exchange):
 	return VENUES.get(exchange, (None, None))[0] or exchange
 
 def exchange_human(exchange):
+	"""The country an exchange is in ('US', 'AU' and so on), or its name when unknown."""
 	if 'Nasdaq' in exchange or 'NYSE' in exchange or 'Other OTC' in exchange:
 		return 'US'
 	return VENUES.get(exchange, (None, None))[1] or exchange
@@ -118,6 +123,8 @@ YAHOO_SUFFIX = { # exchange code (Sharesight, Google) -> Yahoo's ticker suffix
 }
 
 def transform_to_yahoo(ticker, market=None):
+	"""Yahoo's symbol for a ticker: 'BHP:ASX', 'BHP.ASX' or ('BHP', 'ASX') give 'BHP.AX'. US venues take no suffix, and
+	class shares a dash ('BRK.B' gives 'BRK-B')."""
 	split = ticker.replace(':', '.').split('.')
 	if len(split) > 1:
 		ticker = split[0]
