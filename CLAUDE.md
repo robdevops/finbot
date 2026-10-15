@@ -21,7 +21,12 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - Python 3.13.5; tests are offline and need no network (`tests/`). CI runs them on the latest 3.x and 3.13.5, except for pull requests that change only README.md, CLAUDE.md or `img/*.png` (install, compile and tests are skipped; the allowlist in `.github/workflows/ci.yml` must never include a path a test reads).
 - Production runs the Debian system packages (including `python3-croniter`, for the scheduler in `lib/jobs.py`); `requirements.txt` is for pip/uv users and CI.
 - A new preference goes in five places: a `Prefs` field and its line in `preference_values` (`lib/config.py`), `defaults/preferences.conf`, the README's preferences table, and `DEFAULTS` plus the key count in `tests/test_config.py`. The tests catch all but the README (no test may read README.md: CI skips the tests for a README-only change).
-- If Yahoo and Sharesight are unreachable (the cloud environment's network policy can block them), check behaviour against the offline fixtures in `tests/common.py`. For a refactor, compare old and new output: load `git show HEAD:<file>` as a module beside the new one and diff what both produce for the same inputs.
+- If Yahoo and Sharesight are unreachable (the cloud environment's network policy can block them), check behaviour
+  against the offline fixtures in `tests/common.py`.
+- For a refactor, `util/record_outputs.py` (or `--against COMMIT`) records what every command, button and scheduled
+  report posts, for this tree and for HEAD in the same run, and prints the steps that differ (exit status 1 when any
+  do). A change to how the tests capture output goes in `tests/common.py`'s `REAL_SENDING`, which the tool puts back to
+  record real requests.
 
 ## Code map (open the one file you need)
 - `bot.py`: WSGI entry; routes /telegram and /slack, authenticates, hands each message to `lib/worker.py` in a thread; SIGHUP reload, SIGUSR1

@@ -89,6 +89,28 @@ class Conventions(unittest.TestCase):
 		self.assertEqual(offenders, [])
 
 
+class OutputComparison(unittest.TestCase):
+	def test_steps_are_compared_by_name_and_a_repeated_one_by_its_count(self):
+		"""util/record_outputs.py --diff shows a step that changed, appeared or went; a step run twice is told apart."""
+		from util import record_outputs
+		with tempfile.TemporaryDirectory() as tmp:
+			old, new = Path(tmp, 'old.json'), Path(tmp, 'new.json')
+			post = lambda text: {'url': 'u', 'json': {'text': text}}
+			step = lambda label, *texts: {'step': label, 'posts': [post(t) for t in texts], 'raised': None}
+			old.write_text(json.dumps([step('add', 'Ok'), step('add', 'Again'), step('gone', 'x')]))
+			new.write_text(json.dumps([step('add', 'Ok'), step('add', 'Once more'), step('new', 'y')]))
+			out = io.StringIO()
+			with contextlib.redirect_stdout(out):
+				self.assertEqual(record_outputs.compare(old, new), 3)
+				self.assertEqual(record_outputs.compare(old, old), 0)
+		shown = out.getvalue()
+		self.assertIn('== add (2)\n', shown)
+		self.assertIn('-    "text": "Again"', shown)
+		self.assertIn('== gone (only in the old recording)', shown)
+		self.assertIn('== new (only in the new recording)', shown)
+		self.assertIn('3 steps, identical', shown)
+
+
 class GitVersion(unittest.TestCase):
 	SHA = '0123456789abcdef0123456789abcdef01234567'
 

@@ -19,6 +19,9 @@ REAL_GET_HOLDINGS = watchlist.with_holdings
 REAL_PAYLOAD_WRAPPER = webhook.payload_wrapper # FinbotCase replaces it; tests of the real thing use this
 REAL_REPORT_ERROR = webhook.report_error # likewise
 REAL_SEND_PHOTO = webhook.sendPhoto # likewise
+# what FinbotCase replaces with recorders; util/record_outputs.py puts them back to record the real requests
+REAL_SENDING = ((webhook, 'payload_wrapper', REAL_PAYLOAD_WRAPPER), (webhook, 'sendPhoto', REAL_SEND_PHOTO),
+	(webhook, 'report_error', REAL_REPORT_ERROR))
 TICKERS = [f'T{i}' for i in range(25)]
 TELEGRAM, SLACK, DISCORD = dialects.TELEGRAM, dialects.SLACK, dialects.DISCORD
 BOT = '@bot'
