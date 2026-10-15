@@ -21,59 +21,72 @@ def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
 	interactive = dest is not None
 	if days is None:
 		days = config.prefs.future_days
-	field, heading = EVENTS[event]
-	def prepare_payload(service, market_data):
-		"""The report in one network's markup: the events within `days`, grouped by date. An ADR or a second listing
-		without a date of its own takes its primary listing's."""
-		now = datetime.datetime.now()
-		soon = now + datetime.timedelta(days=days)
-		found = [] # (when, flag, title, link)
-		for ticker in list(market_data):
-			if market_data[ticker]['quoteType'] == 'ETF':
-				continue
-			ticker_primary = ticker
-			if field not in market_data[ticker]: # an ADR or a second listing: its primary listing may have the date
-				title_orig = market_data[ticker]['profile_title']
-				if ticker in primary_listings():
-					ticker_primary = primary_listings()[ticker]
-				elif ticker.endswith('.AX') and market_data[ticker].get('financialCurrency') == 'NZD':
-					ticker_primary = ticker.replace('.AX', '.NZ') # fixes GTK.AX and SKO.AX
-				market_data = market_data | yahoo.fetch_detail(ticker_primary)
-				country = market_data.get(ticker_primary, {}).get('profile_country') # only in the details
-				if country in markets.YAHOO_COUNTRY and '.' not in ticker_primary:
-					ticker_primary = ticker_primary + '.' + markets.YAHOO_COUNTRY[country] # fixes ASML and INFY
-					market_data = market_data | yahoo.fetch_detail(ticker_primary)
-				primary = market_data.get(ticker_primary, {})
-				if primary.get('profile_title') != title_orig or field not in primary: # not the same company, or no date there either
-					continue
-			when = datetime.datetime.fromtimestamp(market_data[ticker_primary][field])
-			if now < when < soon or specific_stock:
-				found.append((when, markets.flag_from_ticker(ticker_primary), market_data[ticker]['profile_title'], links.yahoo_link(ticker, service)))
-		found.sort(key=lambda item: item[0])
-		payload = []
-		for date in sorted({when.date() for when, *_ in found}):
-			if not specific_stock:
-				payload += ["", service.bold(f"{date:%b %d}")]
-			for when, flag, title, link in found:
-				if when.date() == date:
-					payload.append(f"{flag} {date:%b %d} {title} ({link})" if specific_stock else f"{flag} {title} ({link})")
-		if payload and not specific_stock:
-			payload.insert(0, service.bold(f"{heading} {formats.days_english(days, 'for the next ')}:"))
-		elif not payload and interactive:
-			payload = [f"No events found for {tickers[0]}" if specific_stock else f"No events found {formats.days_english(days, 'for the next ')}"]
-		return payload
-
-	# MAIN #
 	tickers = [markets.transform_to_yahoo(specific_stock)] if specific_stock else watchlist.with_holdings()
+	events = gather(tickers, days, specific_stock, event)
+	for chat in delivery.targets(dest):
+		payload = report(chat.dialect, events, tickers, days, specific_stock, interactive, event)
+		answers = delivery.deliver(chat, delivery.Report(payload))
+		if event == 'earnings' and not specific_stock and hasattr(chat, 'pin'):
+			chat.pin(answers) # the earnings report stays on top, where the network can pin
+
+def gather(tickers, days, specific_stock, event):
+	"""The dates of `event` within `days` (any date for one stock), soonest first: [(when, flag, title, ticker)]. ETFs
+	are left out; an ADR or a second listing without a date of its own takes its primary listing's."""
+	field = EVENTS[event][0]
 	if event == 'earnings':
 		market_data = yahoo.fetch(tickers)
 	else: # ex-dividend dates are in Yahoo's details
 		market_data = yahoo.fetch_details(tickers, strict=bool(specific_stock))
+	now = datetime.datetime.now()
+	soon = now + datetime.timedelta(days=days)
+	found = []
+	for ticker, data in market_data.items():
+		if data['quoteType'] == 'ETF':
+			continue
+		primary, dated = (ticker, data) if field in data else primary_listing(ticker, data, field)
+		if primary is None:
+			continue
+		when = datetime.datetime.fromtimestamp(dated[field])
+		if now < when < soon or specific_stock:
+			found.append((when, markets.flag_from_ticker(primary), data['profile_title'], ticker))
+	return sorted(found, key=lambda item: item[0])
 
-	for chat in delivery.targets(dest):
-		answers = delivery.deliver(chat, delivery.Report(prepare_payload(chat.dialect, market_data)))
-		if event == 'earnings' and not specific_stock and hasattr(chat, 'pin'):
-			chat.pin(answers) # the earnings report stays on top, where the network can pin
+def primary_listing(ticker, data, field):
+	"""(the primary listing's ticker, its Yahoo details) where an ADR or a second listing without a `field` of its own
+	finds one, or (None, None): the listing in finbot_adr.json, the NZX for an ASX ticker reporting in NZD, an exchange
+	suffix for a foreign company's US ticker, else the ticker's own details. It must be the same company, with the
+	`field`."""
+	primary = primary_listings().get(ticker)
+	if primary is None:
+		nzd = ticker.endswith('.AX') and data.get('financialCurrency') == 'NZD'
+		primary = ticker.replace('.AX', '.NZ') if nzd else ticker # fixes GTK.AX and SKO.AX
+	details = yahoo.fetch_detail(primary).get(primary, {})
+	country = details.get('profile_country') # only in the details
+	if country in markets.YAHOO_COUNTRY and '.' not in primary:
+		primary = primary + '.' + markets.YAHOO_COUNTRY[country] # fixes ASML and INFY
+		details = yahoo.fetch_detail(primary).get(primary, {})
+	if details.get('profile_title') != data['profile_title'] or field not in details: # another company, or no date
+		return None, None
+	return primary, details
+
+def report(service, events, tickers, days, specific_stock, interactive, event):
+	"""The events in one network's markup, grouped by date under a heading (one stock's carry their dates instead)."""
+	heading = EVENTS[event][1]
+	payload = []
+	for date in sorted({when.date() for when, *_ in events}):
+		if not specific_stock:
+			payload += ["", service.bold(f"{date:%b %d}")]
+		for when, flag, title, ticker in events:
+			if when.date() == date:
+				link = links.yahoo_link(ticker, service)
+				day = f"{date:%b %d} " if specific_stock else '' # one stock's events carry their date
+				payload.append(f"{flag} {day}{title} ({link})")
+	if payload and not specific_stock:
+		payload.insert(0, service.bold(f"{heading} {formats.days_english(days, 'for the next ')}:"))
+	elif not payload and interactive:
+		ahead = formats.days_english(days, 'for the next ')
+		payload = [f"No events found for {tickers[0]}" if specific_stock else f"No events found {ahead}"]
+	return payload
 
 def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
