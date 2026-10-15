@@ -52,7 +52,7 @@ class Plumbing(FinbotCase):
 			"""Post a Telegram message update to the WSGI handler: (its answer, what it logged)."""
 			body = json.dumps({'update_id': 1, 'message': dict({'message_id': 5, 'chat': {'id': 55, 'type': 'private'},
 				'from': {'id': 9, 'first_name': 'Rob'}, 'date': 1}, **message)}).encode()
-			env = {'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(body), 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
+			env = wsgi_environ('/telegram', body, HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok')
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
 				out = bot.main(env, lambda *a, **k: None)

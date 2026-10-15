@@ -49,6 +49,7 @@ UNHANDLED = Response(body=b'<h1>Unhandled</h1>') # a kind it might, which this c
 BAD_REQUEST = Response('400 Bad Request', b'<h1>Bad Request</h1>')
 FORBIDDEN = Response('403 Forbidden', b'<h1>Unauthorized</h1>')
 NOT_FOUND = Response('404 Not Found', b'<h1>404</h1>')
+TOO_LARGE = Response('413 Payload Too Large', b'<h1>Payload Too Large</h1>')
 
 
 SIGNATURE_AGE = 300 # seconds: Slack's limit; an older signed request may be a replay

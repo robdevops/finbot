@@ -208,7 +208,7 @@ class WsgiRejections(FinbotCase):
 	def request(self, path='/telegram', body=None, headers=None):
 		"""(the body, the status) the WSGI handler answers a request with."""
 		body = body if isinstance(body, bytes) else json.dumps(body if body is not None else {}).encode()
-		env = {'PATH_INFO': path, 'wsgi.input': io.BytesIO(body), **(headers or {})}
+		env = wsgi_environ(path, body, **(headers or {}))
 		status = []
 		with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
 			out = bot.main(env, lambda s, *a, **k: status.append(s))
@@ -242,6 +242,24 @@ class WsgiRejections(FinbotCase):
 			self.assertEqual(self.request(body=body, headers=self.SECRET)[1], '400 Bad Request', body)
 		self.assertEqual(self.errors, [])
 
+	def test_only_the_body_is_read_and_a_huge_one_not_at_all(self):
+		"""Only CONTENT_LENGTH bytes are read, since a server need not end the stream there; a body over MAX_BODY is
+		refused unread, and a length that is not a number is a bad request."""
+		self.patch(worker, 'process_request', lambda *a: None)
+		def post(body, length):
+			"""(the status, the bytes read) for this body and CONTENT_LENGTH, with more on the stream after it."""
+			env = {**wsgi_environ('/telegram', body, **self.SECRET), 'CONTENT_LENGTH': length}
+			env['wsgi.input'] = stream = io.BytesIO(body + b'{"the next request": 1}')
+			status = []
+			with contextlib.redirect_stderr(io.StringIO()):
+				bot.main(env, lambda s, *a, **k: status.append(s))
+			return status[-1], stream.tell()
+		message = {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'text': '.help'}
+		update = json.dumps({'message': message}).encode()
+		self.assertEqual(post(update, str(len(update))), ('200 OK', len(update)))
+		self.assertEqual(post(update, str(bot.MAX_BODY + 1)), ('413 Payload Too Large', 0))
+		self.assertEqual(post(update, 'lots'), ('400 Bad Request', 0))
+
 	def test_strangers_cannot_post_into_the_chats(self):
 		"""Strangers (wrong paths, no or wrong secrets, malformed bodies) are refused, and nothing reaches the chats."""
 		self.env(slackOutgoingWebhook='https://example.com/slack')
@@ -263,7 +281,7 @@ class WsgiRejections(FinbotCase):
 			"""Fail while routing."""
 			raise RuntimeError('boom')
 		self.patch(inbound, 'urlparse', broken) # fails while routing, before the secret is even looked at
-		env = {'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(b'{}'), **self.SECRET}
+		env = wsgi_environ('/telegram', b'{}', **self.SECRET)
 		status = []
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			bot.main(env, lambda s, *a, **k: status.append(s))
@@ -304,7 +322,7 @@ class WsgiRejections(FinbotCase):
 			body = json.dumps({'callback_query': {'id': '1', 'from': sender, 'data': 'j|7|abcd', 'message': {'message_id': 9, 'chat': {'id': 55}}}}).encode()
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
-				bot.main({'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(body), **secret}, lambda *a, **k: None)
+				bot.main(wsgi_environ('/telegram', body, **secret), lambda *a, **k: None)
 			self.assertIn(f'[Telegram button]: {who} chat 55 j|7|abcd', err.getvalue())
 
 
@@ -327,7 +345,7 @@ class SlackEvents(FinbotCase):
 			'event': dict({'type': 'message', 'channel': 'C1', 'ts': '1.2'}, **event)}).encode()
 		status = []
 		with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
-			bot.main({'PATH_INFO': '/slack', 'wsgi.input': io.BytesIO(body)}, lambda s, *a, **k: status.append(s))
+			bot.main(wsgi_environ('/slack', body), lambda s, *a, **k: status.append(s))
 		gevent.sleep(0.05) # the worker runs in a (gevent) thread
 		return status[-1]
 
@@ -382,8 +400,7 @@ class SlackSigning(FinbotCase):
 		mac = hmac.new(secret.encode(), b'v0:' + timestamp.encode() + b':' + body, hashlib.sha256).hexdigest()
 		if headers is None:
 			headers = {'HTTP_X_SLACK_REQUEST_TIMESTAMP': timestamp, 'HTTP_X_SLACK_SIGNATURE': 'v0=' + mac}
-		env = {'PATH_INFO': '/slack', 'wsgi.input': io.BytesIO(body.replace(b'.price', b'.trades') if tamper else body),
-			**headers}
+		env = wsgi_environ('/slack', body.replace(b'.price', b'.trades') if tamper else body, **headers)
 		status = []
 		with contextlib.redirect_stderr(io.StringIO()):
 			bot.main(env, lambda s, *a, **k: status.append(s))
@@ -426,7 +443,7 @@ class UserTextIsEscaped(FinbotCase):
 		requests = []
 		self.patch(worker, 'process_request', lambda *a: requests.append(a))
 		body = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A<b>&'}, 'text': '.hello'}}
-		env = {'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(json.dumps(body).encode()), 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
+		env = wsgi_environ('/telegram', json.dumps(body).encode(), HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok')
 		with contextlib.redirect_stderr(io.StringIO()):
 			bot.main(env, lambda *a, **k: None)
 		gevent.sleep(0.05) # the worker runs in a (gevent) thread
@@ -482,6 +499,26 @@ class SharedSession(unittest.TestCase):
 		response = type('Response', (), {'info': lambda self: headers})()
 		net.session.cookies.extract_cookies(response, urllib.request.Request('https://fc.yahoo.com/'))
 		self.assertEqual(len(net.session.cookies), 0)
+
+
+class SignalHandOff(unittest.TestCase):
+	def test_a_signal_handler_hands_its_work_to_a_thread_one_at_a_time(self):
+		"""A signal handler returns at once, and its work runs in a thread of its own, one signal's after another's."""
+		events = []
+		def work():
+			"""Record the start and the end, a while apart."""
+			events.append('start')
+			time.sleep(0.1)
+			events.append('end')
+		handler = bot.in_thread(work)
+		started = time.monotonic()
+		handler(signal.SIGHUP, None)
+		handler(signal.SIGHUP, None)
+		self.assertLess(time.monotonic() - started, 0.05) # neither waited for the work
+		deadline = time.monotonic() + 5
+		while len(events) < 4 and time.monotonic() < deadline:
+			time.sleep(0.01)
+		self.assertEqual(events, ['start', 'end', 'start', 'end']) # never two at once
 
 
 class StartupSignals(unittest.TestCase):

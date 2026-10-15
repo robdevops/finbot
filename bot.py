@@ -24,6 +24,7 @@ from lib import render
 from lib.reports import cleanup
 
 AUTHENTICATED = 'finbot.authenticated' # set in a request's WSGI environ once it has passed its network's check
+MAX_BODY = 1 << 20 # bytes in a request body, at most: an update from Telegram or Slack takes a few thousand
 _updates_seen = collections.OrderedDict() # (service, update id) of the last updates taken, oldest first
 
 def seen_before(service, update_id, keep=1000):
@@ -61,8 +62,9 @@ def main(environ, start_response):
 
 def handle(environ, start_response):
 	"""Route a request by its path to the network that posts there, turn it away unless it proves it comes from that
-	network (before its body is read, when the proof is a header), read the update, turn away repeats, and hand a
-	message or a button press to lib/worker in a thread of its own: the network gets its answer at once."""
+	network (before its body is read, when the proof is a header), read the update (CONTENT_LENGTH bytes, up to
+	MAX_BODY), turn away repeats, and hand a message or a button press to lib/worker in a thread of its own: the network
+	gets its answer at once."""
 	def respond(response):
 		"""Answer the request: a status line and a body."""
 		start_response(response.status, [('Content-type', 'application/json')])
@@ -82,7 +84,11 @@ def handle(environ, start_response):
 		print_headers()
 		print("Fatal:", why, file=sys.stderr)
 		return respond(inbound.FORBIDDEN)
-	body = environ['wsgi.input'].read()
+	length = environ.get('CONTENT_LENGTH') or '0'
+	if not length.isdigit() or int(length) > MAX_BODY:
+		print(f"[{source.service}]: a body of {length!r} bytes refused unread", file=sys.stderr)
+		return respond(inbound.TOO_LARGE if length.isdigit() else inbound.BAD_REQUEST)
+	body = environ['wsgi.input'].read(int(length)) # the body and no more: a server need not end the stream there
 	try:
 		update = source.decode(body)
 	except ValueError:
@@ -137,6 +143,16 @@ def git_version(checkout=None):
 		return 'unknown'
 
 scheduler = None
+_signal_work = threading.Lock() # one signal's work at a time: a second reload waits for the first
+
+def in_thread(work):
+	"""A signal handler that runs `work` in a thread of its own and returns at once: a handler must not wait on the
+	network, nor on a lock that the code it interrupted may hold."""
+	def run():
+		"""The work, once any other signal's is done."""
+		with _signal_work:
+			work()
+	return lambda *args: threading.Thread(target=run, daemon=True).start()
 
 def reload_all(*args):
 	"""SIGHUP: re-read preferences.conf and, if the scheduler is running, schedule.cron. Each reports its own errors; a bad
@@ -204,8 +220,9 @@ if __name__ == '__main__':
 	if scheduler:
 		jobs.current = scheduler # for the .jobs chat command
 		threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
-	gevent.signal_handler(signal.SIGHUP, reload_all) # startup is done. systemctl reload finbot: pick up edited preferences.conf and schedule.cron
-	gevent.signal_handler(signal.SIGUSR1, flush_cache) # systemctl kill -s USR1 finbot: delete the cache
+	# Startup is done. systemctl reload finbot: pick up edited preferences.conf and schedule.cron
+	gevent.signal_handler(signal.SIGHUP, in_thread(reload_all))
+	gevent.signal_handler(signal.SIGUSR1, in_thread(flush_cache)) # systemctl kill -s USR1 finbot: delete the cache
 	try:
 		httpd.serve_forever()
 	except OSError as e:
