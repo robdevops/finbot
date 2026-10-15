@@ -21,10 +21,12 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - Python 3.13.5; tests are offline and need no network (`tests/`). CI runs them on the latest 3.x and 3.13.5, except for
   pull requests that change only README.md, CLAUDE.md, `doc/*.md` or `img/*.png` (install, compile and tests are
   skipped; the allowlist in `.github/workflows/ci.yml` must never include a path a test reads).
-- Production runs the Debian system packages (including `python3-croniter`, for the scheduler in `lib/jobs.py`); `requirements.txt` is for pip/uv users and CI.
-- A new preference goes in three places: a `Prefs` field with its default (`lib/config.py`; its type says how it is read),
-  `defaults/preferences.conf`, and the README's preferences table. The tests catch a key missing from the template or a
-  default that differs, but not the README (no test may read README.md: CI skips the tests for a README-only change).
+- Production runs the Debian system packages (including `python3-croniter`, for the scheduler in `lib/jobs.py`);
+  `requirements.txt` is for pip/uv users and CI.
+- A new preference goes in three places: a `Prefs` field with its default (`lib/config.py`; its type says how it is
+  read), `defaults/preferences.conf`, and the README's preferences table. The tests catch a key missing from the
+  template or a default that differs, but not the README (no test may read README.md: CI skips the tests for a
+  README-only change).
 - If Yahoo and Sharesight are unreachable (the cloud environment's network policy can block them), check behaviour
   against the offline fixtures in `tests/common.py`.
 - For a refactor, `util/record_outputs.py` (or `--against COMMIT`) records what every command, button and scheduled
@@ -43,7 +45,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   command by its whole name (any other first word that may be a ticker is `.SYMBOL`) and `read_args()` its `Args`: a
   percent, a period and a keyword from either end, the words between; a handler raises `Usage` for arguments it cannot
   take, and gets a ticker with `ticker(args)`. `Request` (`request.reply(lines, chart, buttons)`); each command gets
-  the typing notice while it works.
+  the typing notice while it works. `process_request(message)` and `process_callback(press)` take inbound's objects.
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
   or else the default chats, and `job(argv)`, its schedule-line parser): `price performance trades shorts cal rating
   milestone reminder podcasts cleanup`; the top-level `price.py` and the rest are shims that run them. Chat-only
@@ -53,12 +55,14 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `deliver(dest, report)`, the one-line error report. `lib/transports.py`: a class per way of posting (`TelegramBot`,
   `SlackBot`, `SlackWebhook`, `DiscordWebhook`): splitting, captions, charts, buttons, edits, and the typing notice
   (`start_typing`: after half a second; Slack's ⏳ on the message), which `text()` and `chart()` stop before posting.
-  `lib/telegram.py`: Bot API calls.
-- `lib/buttons.py`: `Button` and a chart's period buttons (each transport draws them). `lib/charts.py`: a period
-  button press rebuilds its chart.
-- `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: market tables, flags, ticker translation.
-  `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`: every chart,
-  `Chart` specs and `draw()`.
+  `lib/telegram.py`: Bot API calls (`call`, `try_call`).
+- `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), a `.jobs` command's (`job_button`), and what a
+  pressed button's data asks for (`parse`); each transport draws them. `lib/charts.py`: a chart with period buttons,
+  built by its kind's builder (`build`) for the command's first view (`worker.chart_reply`) and for each press.
+- `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: one table by market code (flag,
+  currency, Yahoo suffix, Google code; Sharesight's codes, so TSE is Toronto), and `code(name)` for any name an exchange
+  goes by. `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`:
+  every chart, `Chart` specs and `draw()`.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources. Yahoo's and Sharesight's answers
   are cached in `DATA_DIR/cache` as sent, not parsed, so a parser fix needs no flush (`cache.cached`).
   `yahoo.symbol(typed)` is Yahoo's symbol for a ticker as written, tried on the local exchange (`exchange_suffix`)
@@ -67,29 +71,36 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `trades(days)`.
 - `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save. `lib/watchlist.py`: the watchlist.
-- `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on each reload).
-  `lib/jobs.py` + `lib/jobrun.py`: the scheduler, its shared state under one lock; each command runs in a child
-  process, stopped after `JOB_TIMEOUT`.
-- `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent: `('text', lines)` or
-  `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
-- Which test file: commands and scheduled reports `test_reports`; failures, bad input, WSGI and Slack events `test_edges`;
-  Yahoo/Sharesight parsing, sending, Telegram API `test_providers`; scheduler `test_jobs`; config `test_config`; charts
-  `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets, formats, links, cache and state files `test_util`; data dir
-  `test_datadir`; chunking, git_version, and the docstring, stdout and line-width checks `test_finbot`.
+- `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on
+  each reload). `lib/jobs.py` + `lib/jobrun.py`: the scheduler, its shared state under one lock; each command runs in
+  a child process, stopped after `JOB_TIMEOUT`.
+- `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
+  `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
+  `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return
+  them; `temp_dir(self)` is a directory removed after the test, `bare_environment()` the environment without finbot's
+  settings.
+- Which test file: commands and scheduled reports `test_reports`; failures, bad input, secrets in logs, signals
+  `test_edges`; webhook requests, Slack events and signatures `test_inbound`; Yahoo `test_yahoo`; Sharesight
+  `test_sharesight`; posting to each network `test_sending`; registering Telegram's webhook `test_telegram_api`; the
+  schedule file and job arguments `test_schedule`; the scheduler and manual runs `test_scheduler`; config
+  `test_config`; charts `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets, formats, links, buttons,
+  cache and state files `test_util`; data dir `test_datadir`; chunking, git_version, and the docstring, stdout and
+  line-width checks `test_finbot`.
 
 ## Conventions
-- Read settings as `config.env.<name>` / `config.prefs.<name>` where they are used, never into a default or module constant (a
-  reload must be seen); in tests, `self.env(...)` / `self.prefs(...)` change them.
-- A report is a list of lines. `service` is a dialect (`lib/dialects.py`), which equals the network's name: markup with
-  `service.bold(text)`, `.italic`, `.strike`, `.link(url, text)`, user-written text through `service.escape(text)`, stock links
-  through `links.finance_link(symbol, exchange, service)`. Tests pass `TELEGRAM`, `SLACK`, `DISCORD`.
+- Read settings as `config.env.<name>` / `config.prefs.<name>` where they are used, never into a default or module
+  constant (a reload must be seen); in tests, `self.env(...)` / `self.prefs(...)` change them.
+- A report is a list of lines. `service` is a dialect (`lib/dialects.py`), which equals the network's name: markup
+  with `service.bold(text)`, `.italic`, `.strike`, `.link(url, text)`, user-written text through
+  `service.escape(text)`, stock links through `links.finance_link(symbol, exchange, service)`. Tests pass `TELEGRAM`,
+  `SLACK`, `DISCORD`.
 - A command that cannot give what was asked (no such portfolio, no prices) raises `answer.Answer(*lines)`, which the
   chat gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report.
 - Every function and method has a docstring, tests included (a test checks): one line where it fits, reworded rather
   than spilling a few words onto a second. Tabs everywhere (`.editorconfig`). Every line stays within 120 columns,
   tabs counting 4 (an edit quotes whole lines); a test checks all but README.md, CLAUDE.md and `doc/`.
-- Log with `print(..., file=sys.stderr)`. systemd discards stdout (`StandardOutput=null`), so the bot and its reports never
-  print there (a test checks); only the util/ tools, run by hand, do.
+- Log with `print(..., file=sys.stderr)`. systemd discards stdout (`StandardOutput=null`), so the bot and its reports
+  never print there (a test checks); only the util/ tools, run by hand, do.
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
   charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's).
 - A chart renderer in `lib/render.py` takes its `Chart` and is listed in `RENDERERS` by kind; it gets `@_drawn` (the
@@ -98,8 +109,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   buttons make its `.help` lines and keyboard buttons, and the README command list.
 
 ## Saving tokens
-- Run the tests quietly: `.venv/bin/python -m unittest discover -s tests -b` prints only failures (about 0.4 KB when green). One
-  module: `.venv/bin/python -m unittest tests.test_reports -b`.
-- README.md is 38 KB: grep for the section instead of reading it whole. Each network's setup is in its own guide,
+- Run the tests quietly: `.venv/bin/python -m unittest discover -s tests -b` prints only failures (about 0.4 KB when
+  green). One module: `.venv/bin/python -m unittest tests.test_reports -b`.
+- README.md is 36 KB: grep for the section instead of reading it whole. Each network's setup is in its own guide,
   `doc/telegram.md`, `doc/slack.md` and `doc/discord.md`: a change to a network's setup or keys goes there. `doc/yahoo/`
   and `doc/sharesight/` hold large API samples that the tests replay: inspect them with python, don't read them.

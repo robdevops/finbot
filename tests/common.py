@@ -1,6 +1,8 @@
 """Shared fixture: points finbot at a temp cache dir and replaces every external service
-(Telegram, Yahoo, Sharesight, Short Man) with canned data. Nothing here touches the network."""
-import collections, dataclasses, io, os, shutil, sys, tempfile, time, unittest
+(Telegram, Yahoo, Sharesight, Short Man) with canned data. Nothing here touches the network. ProviderCase runs the real
+parsers instead, on the API answers saved under doc/ (sample) as a stand-in network returns them (Resp, serve)."""
+import collections, dataclasses, io, json, os, shutil, sys, tempfile, time, unittest, zoneinfo
+from pathlib import Path
 import pandas as pd
 from unittest import mock
 
@@ -170,3 +172,72 @@ class FinbotCase(unittest.TestCase):
 		worker.process_request(inbound.Message('telegram', chat, '@u', text, BOT, 'U'))
 		self.assertEqual(self.errors, [], f'{text} crashed') # the worker reports crashes instead of raising
 		return list(self.sent)
+
+
+DOC = os.path.join(ROOT, 'doc')
+
+
+def sample(*path):
+	"""A saved API response from doc/."""
+	with open(os.path.join(DOC, *path), encoding='utf-8') as f:
+		return json.load(f)
+
+
+class Resp:
+	def __init__(self, payload=None, status=200, text=''):
+		"""A response with this JSON payload (None: not JSON), status and text."""
+		self.payload, self.status_code, self.text = payload, status, text or json.dumps(payload)
+	def json(self):
+		"""The payload, or ValueError when it is not JSON."""
+		if self.payload is None:
+			raise ValueError('no json')
+		return self.payload
+
+
+def serve(*responses):
+	"""net.get replacement: replays the responses in order (exceptions are raised); the last one repeats."""
+	queue = list(responses)
+	calls = []
+	def get(url, **kwargs):
+		"""The next response, or raise it when it is an exception."""
+		calls.append(url)
+		item = queue.pop(0) if len(queue) > 1 else queue[0]
+		if isinstance(item, Exception):
+			raise item
+		return item
+	get.calls = calls
+	return get
+
+
+REAL_CREDENTIALS = yahoo.credentials
+
+
+CHART = render.Chart('bars', 'Heading', rows=(('A', 1.0),)) # a chart for the sending tests, which draw it as b'png'
+
+
+REAL_TOKEN = sharesight._token
+
+
+class ProviderCase(FinbotCase):
+	def setUp(self):
+		"""Real parsers instead of the fixture's canned data, with a fixed cookie, crumb and token, and no waiting."""
+		super().setUp()
+		# these tests exercise the real parsers, so undo the canned data from the base fixture
+		for module, name in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),
+				(sharesight, '_portfolios'), (sharesight, '_trades'), (sharesight, '_performance')):
+			self.patch(module, name, REAL[(module.__name__, name)])
+		self.patch(yahoo, 'credentials', lambda renew=False: ('A=B', 'crumb'))
+		self.patch(sharesight, '_token', lambda: 'token')
+		self.patch(sharesight.time, 'sleep', lambda s: None)
+
+	def http(self, module, *responses):
+		"""Have module's net.get replay these responses; returns the stand-in, whose calls lists the URLs asked for."""
+		getter = serve(*responses)
+		self.patch(module.net, 'get', getter)
+		return getter
+
+
+UTC = zoneinfo.ZoneInfo('UTC')
+
+
+DEFAULT_SCHEDULE = Path(ROOT, 'defaults', 'schedule.cron')
