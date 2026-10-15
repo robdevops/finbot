@@ -22,20 +22,47 @@ class Parsing(unittest.TestCase):
 	def test_transform_to_yahoo(self):
 		"""Sharesight and Google tickers as Yahoo's: suffixes by market, none for US venues, a dash for class shares."""
 		for args, expected in ((('AAPL',), 'AAPL'), (('FANG', 'ASX'), 'FANG.AX'), (('ARM', 'NASDAQ'), 'ARM'),
-							   (('ARM:NASDAQ',), 'ARM'), (('BHP.AX',), 'BHP.AX'), (('0700', 'HKG'), '0700.HK'),
-							   (('BRK', 'B'), 'BRK-B'), (('2330', 'TAI'), '2330.TW'), (('VOD', 'LSE'), 'VOD.L'),
-							   (('7203', 'TSE'), '7203.T'), (('SHOP', 'TSX'), 'SHOP.TO'), (('AIR', 'NZX'), 'AIR.NZ'), (('D05', 'SGX'), 'D05.SI')):
+				(('ARM:NASDAQ',), 'ARM'), (('BHP.AX',), 'BHP.AX'), (('0700', 'HKG'), '0700.HK'),
+				(('BRK', 'B'), 'BRK-B'), (('2330', 'TAI'), '2330.TW'), (('VOD', 'LSE'), 'VOD.L'),
+				(('7203', 'TYO'), '7203.T'),
+				(('SHOP', 'TSE'), 'SHOP.TO'), (('SHOP', 'TSX'), 'SHOP.TO'), (('AIR', 'NZX'), 'AIR.NZ'),
+				(('D05', 'SGX'), 'D05.SI'), (('SAP', 'XETR'), 'SAP.DE'), (('SAP', 'ETR'), 'SAP.DE'),
+				(('NSRGY', 'OTC'), 'NSRGY'), (('NESN', 'SWX'), 'NESN.SW'), (('SAP:FRA',), 'SAP.F')):
 			with self.subTest(args=args):
 				self.assertEqual(markets.transform_to_yahoo(*args), expected)
 
 	def test_each_market_has_its_own_flag_and_currency(self):
-		"""Sharesight's market codes each have their own flag and currency: TSE is Tokyo, TSX Toronto, SGX Singapore."""
-		for market, ticker, flag, currency in (('TSE', '7203.T', '🇯🇵', 'JPY'), ('TSX', 'SHOP.TO', '🇨🇦', 'CAD'), ('NZX', 'AIR.NZ', '🇳🇿', 'NZD'),
-											   ('SGX', 'D05.SI', '🇸🇬', 'SGD'), ('CPSE', None, '🇩🇰', 'DKK')):
+		"""Sharesight's market codes each have their own flag and currency, the same as their Yahoo tickers' flags:
+		TSE is Toronto and TYO Tokyo (as Sharesight has them), SGX Singapore, XETR Germany."""
+		for market, ticker, flag, currency in (('TSE', 'SHOP.TO', '🇨🇦', 'CAD'), ('TYO', '7203.T', '🇯🇵', 'JPY'),
+				('TSX', 'SHOP.TO', '🇨🇦', 'CAD'), ('NZX', 'AIR.NZ', '🇳🇿', 'NZD'), ('SGX', 'D05.SI', '🇸🇬', 'SGD'),
+				('CPSE', 'NOVO-B.CO', '🇩🇰', 'DKK'), ('XETR', 'SAP.DE', '🇩🇪', 'EUR'), ('AMS', 'ASML.AS', '🇳🇱', 'EUR'),
+				('EURONEXT', None, '🇪🇺', 'EUR'), ('HKG', '0700.HK', '🇭🇰', None), ('NASDAQ', 'AAPL', '🇺🇸', 'USD')):
 			with self.subTest(market=market):
 				self.assertEqual((markets.flag_from_market(market), markets.currency_from_market(market)), (flag, currency))
 				if ticker:
 					self.assertEqual(markets.flag_from_ticker(ticker), flag)
+
+	def test_an_exchange_by_any_of_its_names(self):
+		"""Yahoo's name for an exchange, its tickers' suffix or Sharesight's code give the same country, flag and
+		Google code; a name nobody knows stays as it is."""
+		for names, country, google in ((('NasdaqGS', 'NasdaqCM', 'NASDAQ'), 'US', 'NASDAQ'),
+				(('NYSEArca', 'NYSEARCA'), 'US', 'NYSEARCA'), (('Cboe US', 'BATS'), 'US', 'BATS'),
+				(('Other OTC', 'OTC'), 'US', 'OTCMKTS'), (('ASX', 'AX'), 'AU', 'ASX'),
+				(('Toronto', 'TO', 'TSE'), 'CA', 'TSE'), (('London', 'L', 'LSE'), 'GB', 'LON'),
+				(('XETRA', 'DE', 'XETR'), 'DE', 'ETR'), (('NZSE', 'NZ'), 'NZ', 'NZE'),
+				(('Taiwan', 'TW', 'TAI'), 'TW', 'TPE'),
+				(('Unheard of',), 'Unheard of', 'Unheard of')):
+			for name in names:
+				with self.subTest(name=name):
+					found = markets.exchange_human(name), markets.transform_to_google(name)
+					self.assertEqual(found, (country, google))
+		self.assertEqual(markets.flag_from_market('NasdaqGS'), '🇺🇸') # a trade's market, with trades_use_yahoo
+
+	def test_no_yahoo_suffix_is_also_a_market_code(self):
+		"""A Yahoo suffix that is also a code in MARKETS would name two markets: BHP.AX typed in a chat must stay AX."""
+		suffixes = {market.yahoo for market in markets.MARKETS.values()}
+		self.assertEqual(suffixes & set(markets.MARKETS), set())
 
 	def test_make_paragraphs_keeps_every_word(self):
 		"""make_paragraphs breaks a long description into paragraphs at sentence ends without losing a word."""
