@@ -330,7 +330,7 @@ def on_rating(request, m):
 		request.reply(payload, chart)
 
 def on_compare(request, m):
-	""".compare SYMBOL SYMBOL... [period]: their price changes on one chart, with period buttons on Telegram."""
+	""".compare SYMBOL SYMBOL... [period]: their price changes on one chart, with period buttons where they work."""
 	payload, image, tickers, days = history.prepare_compare(request.service, (m.group('args') or '').split())
 	markup = None
 	if image and request.dest.takes_buttons:
@@ -338,7 +338,7 @@ def on_compare(request, m):
 	request.reply(payload, image, markup)
 
 def on_history(request, m):
-	""".history SYMBOL: the stock's change over every period, with its price chart and, on Telegram, period buttons."""
+	""".history SYMBOL: the stock's change over every period, with its price chart, and period buttons where they go."""
 	if not m.group('ticker') or m.group('extra'):
 		request.reply(["Usage: .history SYMBOL"])
 		return
