@@ -22,12 +22,30 @@
   * Shared watch list
   * List stocks (holdings + watchlist) by P/E, Forward P/E, PEG, market cap, or Yahoo analyst consensus
 
+### Chat networks
+What finbot can do on each network. Telegram takes everything; the others take what their APIs allow.
+
+| Feature | Telegram | Slack | Discord |
+|---|---|---|---|
+| Chat commands | ✓ | ✓ | ✗ (a webhook only posts) |
+| "typing…" while a command works | ✓ | ⏳ on the command's message (Slack has no typing notice for bots) | ✗ |
+| Charts in replies | ✓ | ✓ with `slackBotToken` | n/a |
+| Charts in scheduled reports | ✓ | ✓ with `slackChannelID` and `slackBotToken` (the incoming webhook takes text only) | ✓ |
+| Period and job buttons | ✓ | Period buttons, with the interactive bot | ✗ |
+| No link previews | ✓ | ✓ | ✓ |
+| Linked tickers | ✓ | ✓ | ✓ |
+| Charts updated in place by their buttons | ✓ | ✓ | ✗ |
+
+**Setting up a network:** [Telegram](doc/telegram.md) · [Slack](doc/slack.md) · [Discord](doc/discord.md). Each guide
+covers the whole setup of that network, and where there is a choice between reports only and the interactive bot, it
+compares the two before the steps.
+
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
 ### Requirements
 * Most features require a Sharesight paid plan, preferably with automatic trade imports, and an API key
-* Discord/Slack webhooks / Telegram bot user
-* Interactive commands require a public web server with domain name and matching certificate to proxy chat commands to the bot.
+* A Telegram bot, a Slack app or a Discord webhook (see the network's guide, above)
+* Interactive commands require a public web server with domain name and matching certificate to proxy chat commands to the bot (see the [Telegram](doc/telegram.md#interactive-bot) and [Slack](doc/slack.md#interactive-bot) guides).
 * Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum)
 * Python modules, pinned to versions with 3.13 support in `requirements.txt`:
 ```
@@ -37,53 +55,38 @@ croniter python-dateutil requests gevent pandas matplotlib numpy
 ### Supported commands
 
 Where:
-* _percent_ is a number followed by '%'
-* _period_ is a number followed by 'd' 'w' 'm' or 'y'
+* _percent_ is a number, optionally followed by '%'
+* _period_ is a number followed by 'd', 'w', 'm' or 'y', or 'ytd'
 * _portfolio_ is a Sharesight portfolio name
-* _symbol_ is a Yahoo Finance symbol
+* _symbol_ is a Yahoo Finance symbol; a bare one Yahoo does not know is tried again on your exchange (`exchange_suffix`: `BHP` may be `BHP.AX`)
 ```
 .symbol
+.beta
+.buy
+.sell
+.compare symbol symbol [symbol...] [period]
 .dividend [period|symbol]
 .earnings [period|symbol]
+.forward pe [symbol|top|bottom|negative]
 .history symbol
 .holdings portfolio
 .jobs [run number|command]
 .marketcap [symbol|top|bottom]
+.pe [symbol|top|bottom]
+.peg [symbol|top|bottom|negative]
 .performance [period] [portfolio]
 .pie portfolio [sector]
+.plan [your plan]
 .premarket [percent|symbol]
-.price [percent|symbol] [period]
-.rating [strong buy|buy|hold|underperform|sell]
+.price [percent|symbol|top|bottom] [period]
 .session [percent|symbol]
 .shorts [percent|symbol]
 .trades [period] [portfolio]
-.value [pe|forward pe|peg|bottom pe|bottom forward pe|bottom peg|negative forward pe|negative peg]
 .watchlist [add|del symbol]
 .who symbol
 ```
 
-Alternative syntax:
-
-```
-@botname <symbol>
-@botname dividend [period|symbol]
-@botname earnings [period|symbol]
-@botname history symbol
-@botname holdings [portfolio]
-@botname jobs [run number|command]
-@botname marketcap [symbol|top|bottom]
-@botname performance [period] [portfolio]
-@botname pie portfolio [sector]
-@botname premarket [percent|symbol]
-@botname price [percent|symbol] [period]
-@botname rating [buy|hold|underperform|sell]
-@botname session [percent|symbol]
-@botname shorts [percent|symbol]
-@botname trades [period] [portfolio]
-@botname value [pe|forward pe|peg]
-@botname watchlist [add|del symbol]
-@botname who symbol
-```
+`!` or `/` work in place of the dot, and so does the bot's name: `@botname price 7d`, `@botname AAPL`. A command is its whole name, in any case, and so are its keywords (`.price TOP`); any other first word is a symbol. `.help` lists the commands in chat.
 
 Trade notifications are peformed by polling the Sharesight trades API on a schedule (see [Scheduling](#scheduling)), and notifying your configured chat networks of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 
@@ -176,7 +179,7 @@ You can also specify a portfolio name to get trades for just that portfolio:
 ![Price chart triggered from Slack](img/finbot_price.png?raw=true "Price chart triggered from Slack")
 ![Price alert triggered by Cron](img/price.png?raw=true "Price alert triggered by Cron")
 
-`prices.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 5% but you can change it by setting `price_percent` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
+`price.py` sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 5% but you can change it by setting `price_percent` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
 If `demote_volatile` is `true`, stocks with a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) under US$150M, or a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a market cap of under US$1B will have their alert threshold (`price_percent`) doubled. A market cap in another currency is converted at Yahoo's exchange rate.
 
@@ -451,7 +454,8 @@ sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finb
 * **init.d / shell:** `util/check_config.py /opt/finbot.env && set -a && . /opt/finbot.env && set +a && ./bot.py` (`set -a` is what exports the values to the bot).
 * **Scheduled jobs:** they are started by `bot.py` (see [Scheduling](#scheduling)), so they run on the same settings. For a one-off run, see [Running a report by hand](#scheduling).
 
-All 17 keys, read by your launcher. A change needs a restart. Blank means unset.
+The startup keys, read by your launcher. A change needs a restart. Blank means unset. Each network's guide says which
+of the chat network keys it needs.
 
 | Key | Default | Description |
 |---|---|---|
@@ -468,19 +472,21 @@ All 17 keys, read by your launcher. A change needs a restart. Blank means unset.
 | `discord_webhook` | | Discord webhook, for outbound reports |
 | `telegramBotToken` | | Telegram bot token, for outbound reports |
 | `slackBotToken` | | Slack bot token, for replies and chart uploads in Slack |
+| `slackChannelID` | | Channel id that scheduled reports go to on Slack as the bot, charts and all (with `slackBotToken`); `slack_webhook` is then not used |
 | `telegramOutgoingWebhook` | | Telegram webhook path the bot accepts (interactive mode) |
 | `telegramOutgoingToken` | | Secret token Telegram must present (interactive mode) |
 | `slackOutgoingWebhook` | | Slack webhook path the bot accepts (interactive mode) |
-| `slackOutgoingToken` | | Token Slack must present (interactive mode) |
+| `slackOutgoingToken` | | Token Slack must present (interactive mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
+| `slackSigningSecret` | | Secret Slack signs each request with (interactive mode) |
 
 ### `preferences.conf` items
 
 Copies preferences.conf and metadata files into the data directory (never overwrites)
 ```
-util/sync_defaults.py [-d DEST] --apply
+util/sync_defaults.py [--dest DIR] --apply
 ```
 
-All 26 keys, read by the bot itself. A change takes effect on a reload.
+The preferences, read by the bot itself. A change takes effect on a reload. A true/false preference takes `true`/`false`, `yes`/`no`, `on`/`off` or `1`/`0`; anything else is a mistake, reported like any other. A blank value means the default.
 
 | Key | Default | Description |
 |---|---|---|
@@ -495,23 +501,21 @@ All 26 keys, read by the bot itself. A change takes effect on a reload.
 | `exclude_portfolios` | | Sharesight portfolio IDs to leave out, space separated |
 | `include_portfolios` | | Sharesight portfolio IDs to report on, space separated (empty: all that are not excluded) |
 | `trades_use_yahoo` | `True` | Use Yahoo for trades; set `False` if Yahoo breaks |
-| `performance_use_sharesight` | `False` | Use Sharesight rather than Yahoo for performance over a period |
-| `alliterate` | `False` | Greeting uses alliterating adjectives (easter egg) |
 | `graph` | `True` | Send charts with reports |
 | `hyperlink` | `True` | Hyperlink tickers in reports |
 | `hyperlinkFooter` | `True` | Add a website link footer to stock lookups |
 | `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` |
-| `chunk_maxlines` | `20` | Maximum lines per message before a report is split |
-| `country_code` | `AU` | Country, used by the reminder report |
-| `timezone` | `Australia/Melbourne` | Time zone, used by the reminder report |
+| `exchange_suffix` | `AX` | Regional: Yahoo's suffix for your exchange (`AX` for the ASX, `NZ`, `L`, `TO` and so on). A bare symbol Yahoo does not know is tried again with it, in every command that takes a symbol (`BHP` becomes `BHP.AX`); empty, a symbol is taken as written |
+| `country_code` | `AU` | Regional: your country, for the reminder report |
+| `timezone` | `Australia/Melbourne` | Regional: your time zone, for the reminder report |
 | `cache` | `True` | Cache Yahoo and Sharesight responses |
 | `cache_seconds` | `43200` | Cache lifetime in seconds (12 hours) |
-| `performance_cache_seconds` | `1800` | Cache lifetime of Sharesight performance reports in seconds |
+| `performance_cache_seconds` | `2400` | Cache lifetime of Sharesight performance reports in seconds: longer than the 30 minutes between `sharesight_warm.py` runs, so the holdings never run out |
 | `http_timeout` | `18` | Seconds to wait on outbound HTTP requests |
 | `debug` | `False` | Extra diagnostics in the log |
 | `print_headers` | `False` | Log inbound request headers |
 
-A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied.
+A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied. A key finbot no longer reads (`alliterate`, `chunk_maxlines`) is ignored, and the log at start says to delete it.
 
 edit `preferences.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
 
@@ -529,6 +533,8 @@ util/sync_defaults.py --apply  # copy missing files (including a starter prefere
 util/sync_defaults.py --force  # also replace changed files, keeping .bak copies
 util/sync_defaults.py --dest /srv/finbot --apply  # target another directory instead of the data directory
 ```
+`reminder.json` holds the reminders that `reminder.py` posts on their day. Each entry has a `month_day` (`06-30`) and a `message`, which is one line or a list of lines, and may name a `year` (`2026`) and a `gate_country` (posted only when `country_code` in `preferences.conf` matches; `{flag}` in its message becomes that country's flag). A message is text, with two kinds of markup that each network gets in its own form: `[text](https://example.com)` is a link, and a line wrapped in underscores, `_like this_`, is in italics. The Australian end of financial year checklist (23 June) is such an entry: if you keep your own `reminder.json` in the data directory, `util/sync_defaults.py` shows what it lacks.
+
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
 
 In Docker, one container is enough: `bot.py` runs the schedule too, so there is no cron or scheduler sidecar to set up.
@@ -541,35 +547,10 @@ sharesight_client_id=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 sharesight_client_secret=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 ```
 
-### Discord
-Discord support is currently only for trade notifications and scheduled reports.
-The Discord webhook can be provisioned in Discord under _Server Settings > Integrations > Webhooks_.
-Example:
-```
-discord_webhook=https://discord.com/api/webhooks/1009998000000000000/aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbb
-```
-
-### Slack
-A Slack webhook can be provisioned by creating a new app from scratch at https://api.slack.com/apps/ then navigating to _Incoming Webhooks_. Once the link is generated, add it to `finbot.env`. Example:
-```
-slack_webhook=https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA
-```
-The webhook is only used for the trade notifications and scheduled reports. The interactive bot requires further configuration of this Slack app (see below).
-
-### Telegram
-* Set up the bot by messaging [BotFather](https://telegram.me/BotFather).
-* Add your bot to a group or channel.
-* For security, run `/setjoingroups` and set to `Disabled`
-* Optionally, make the bot a group admin (for interactive features).
-* In `finbot.env`, set `telegramBotToken` to the token BotFather gave you.
-* In `finbot.env`, set `telegramChatID` to the chat group or channel id.
-   * For channels and supergroups, `telegramChatID` should be negative and 13 characters. Prepend `-100` if necessary.
-   * Be aware a group id can change if you edit group settings and it becomes a "supergroup". Currently, the bot does not automatically handle this.
-* Example `finbot.env` entry:
-```
-telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
-telegramChatID=-1001000000000
-```
+### Chat networks setup
+Follow the guide for each network you use: [Telegram](doc/telegram.md), [Slack](doc/slack.md) or
+[Discord](doc/discord.md). It covers the bot or webhook, its `finbot.env` keys, and for chat commands the HTTPS server in
+front of finbot.
 
 ### Portfolios
 Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `exclude_portfolios` in the `preferences.conf`:
@@ -583,21 +564,39 @@ include_portfolios=100001 100002
 ```
 
 ### Caching
-Many objects are cached for just under one day by default. Cache is controlled by the settings below. Trades IDs are stored on disk, but trade queries generally don't result in a cache hit for functional reasons.
+Many objects are cached for 12 hours by default (`cache_seconds`). Cache is controlled by the settings below. Trades IDs are stored on disk, but trade queries generally don't result in a cache hit for functional reasons.
 ```
 cache=True
-cache_seconds=82800
-performance_cache_seconds=1800
+cache_seconds=43200
+performance_cache_seconds=2400
 ```
 
-`performance_cache_seconds` (default 30 minutes) is the cache lifetime of Sharesight performance reports.
+`performance_cache_seconds` (default 40 minutes) is the cache lifetime of Sharesight performance reports.
 
-While `bot.py` is running with Sharesight configured and `cache=True` (a reload that switches `cache` pauses or resumes it), a background job keeps the Sharesight portfolio list (`cache_seconds`) and each portfolio's holdings report (1 day, `performance_cache_seconds` cache) refreshed at 90% of their cache lifetime, so chat requests do not wait on Sharesight. If a refresh fails, the previous cache keeps being served and the job retries after 5 minutes.
+Charts are cached by what they show (with `cache=True`): the same chart, for another chat, a later run or a period button, is drawn once, and a chart of new figures is a new chart, so a cached one is never stale. The scheduled `cleanup.py` removes cache files after 30 days.
+
+To flush the cache, so that everything is fetched afresh, signal the running bot: it deletes its cache files (Yahoo and Sharesight
+answers, charts, the Yahoo cookie) and keeps its state (watchlist, seen trades, ratings, schedule), then runs both warm jobs
+(`sharesight_warm.py`, `yahoo_warm.py`) straight away to fill the cache again. There is no `systemctl flush`, since systemctl takes no custom verbs; any of these does it:
+```
+sudo systemctl kill -s USR1 finbot          # systemd
+sudo systemctl start finbot-flush           # the same, once finbot-flush.service is installed (see below)
+docker kill -s USR1 <container>             # Docker
+kill -USR1 <pid of bot.py>                  # anything else
+```
+The log says `cache: flushed N files`, then `cache: warm jobs done` once the cache is full again. To install the `finbot-flush` shortcut: `sudo cp -v finbot-flush.service /etc/systemd/system/ &&
+sudo systemctl daemon-reload`. `finbot.service` itself needs no change. With the bot stopped, `cleanup.py 0` deletes the same files.
+
+Two scheduled jobs keep the caches full, each on a fixed interval shorter than the cache lifetime, so that chat requests do not wait on Sharesight or Yahoo (see [Scheduling](#scheduling)): `sharesight_warm.py` fetches the Sharesight portfolio list and each portfolio's holdings report afresh every 30 minutes (`performance_cache_seconds`: 40 minutes), and `yahoo_warm.py` the price history of every stock followed every 8 hours (`cache_seconds`: 12 hours). Neither fetches anything with `cache=False`, and `sharesight_warm.py` nothing without Sharesight configured. A refresh that fails is logged, the previous cache keeps being served while fresh, and the next run tries again. A flush runs both at once (see above). A data directory with its own `schedule.cron` needs their lines:
+```
+14,44 * * * * sharesight_warm.py
+07 */8 * * * yahoo_warm.py
+```
 
 ### Hyperlinks
 These `preferences.conf` options relate to hyperlinks:
 
-* `hyperlink`, if set to `False`, disables all hyperlinks. Note: it can not disable syntax highlighting and false positives by chat clients that try to detect domains. Setting it to `False` can be useful for chat networks like Discord that can't easily disable link previews. Defaults to `True`.
+* `hyperlink`, if set to `False`, disables all hyperlinks. Note: it can not disable syntax highlighting and false positives by chat clients that try to detect domains. Defaults to `True`.
 ```
 hyperlink=True
 ```
@@ -619,7 +618,7 @@ hyperlinkProvider=yahoo
 ## Scheduling
 The scheduled reports are started by `bot.py`, each run in its own child process (`python -m lib.jobrun`), so they use the same user, sandbox, environment and data directory as the bot, while heavy work (charts, large reports) cannot hold up incoming chat webhooks. A run that exceeds 5 minutes is stopped. There is no cron to set up, which matters under systemd `DynamicUser=` where only the bot's own user can read the state directory. **This is on by default.** Remove the equivalent entries from any old crontab before the first start, otherwise every job runs twice; or set `scheduler=False` in the environment file to keep using cron.
 
-The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"` and `cleanup.py [days]` (deletes cache files older than `days`, default 30). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
+The schedulable scripts are `trades.py`, `price.py`, `reminder.py`, `cal.py`, `shorts.py`, `performance.py`, `rating.py`, `milestone.py`, `podcasts.py "<feed url>"`, `cleanup.py [days]` (deletes cache files older than `days`, default 30), `sharesight_warm.py` and `yahoo_warm.py` (they fill the cache: see [Caching](#caching)). Other jobs, such as a DNS updater or backups, stay in cron or systemd timers.
 
 The schedule is `defaults/schedule.cron`, written in **cron-compatible syntax**: five time fields (minute, hour, day of month, month, day of week; `*/20`, `Mon-Fri`, ranges and lists work) or an `@macro` such as `@daily`, then a finbot script and its arguments. Quote an argument that has spaces or special characters (a feed URL with `&`, say). Several commands separated by `;` run one after another. `MAILTO=`, `SHELL=`, `PATH=` and `HOME=` lines are ignored. Anything else a crontab allows (a user column, pipes, other programs) is not supported: such a line is reported at startup and skipped. A time that cannot be or never comes (minute 61, 30 February) is different: finbot refuses to start with it, and a reload with it is refused, leaving the running schedule as it was. Existing crontab lines can be pasted as they are: `> /dev/null` redirects, `{ a; b ;}` groups and a path before the script name are understood.
 ```
@@ -642,11 +641,11 @@ sudo systemctl reload finbot        # the bot re-reads the file and logs how man
 ```
 The bot logs the number of jobs when it starts or reloads, and each job as it runs (`journalctl -u finbot`); a line it cannot use is reported by name. If the edited file has no usable line the previous schedule keeps running.
 
-**To run a job from chat**, send `.jobs` (also `.cron`, `.crons` or `.schedule`): it lists the scheduled commands, each once and without times, comments or `.py` (`cleanup` and `podcasts` are scheduled but not listed), and on Telegram adds a button per command. `.jobs run 2` (or tapping the button) runs that command now, and `.jobs run price.py close` runs it by name; anything not in the schedule is refused, and so is a chain such as `a; b` (run them one at a time). A manual run is exactly a cron run: it reports to all configured chat networks, updates the same state (seen trades, ratings and so on), and does not change the schedule. Anyone who can message the bot can do this; a command that is already running is not started twice.
+**To run a job from chat**, send `.jobs` (also `.cron`, `.crons` or `.schedule`): it lists the scheduled commands, each once and without times, comments or `.py`, and on Telegram and Slack (with its buttons set up) adds a button per command. The system jobs (`cleanup`, `podcasts`, `sharesight_warm` and `yahoo_warm`) follow under _System_, without a number or a button: they run on their schedule only. `.jobs run 2` (or tapping the button) runs that command now, and `.jobs run price.py close` runs it by name; anything not in the schedule is refused, and so is a chain such as `a; b` (run them one at a time). A manual run is exactly a cron run: it reports to all configured chat networks, updates the same state (seen trades, ratings and so on), and does not change the schedule. Anyone who can message the bot can do this; a command that is already running is not started twice.
 
 Behaviour worth knowing:
 * A run that was due while the bot was down (a restart, a deploy) still fires once if it was due within the last `scheduler_catchup` minutes (default 5). A restart right after a run does not repeat it.
-* A job still running when it is next due is skipped, and a job that takes more than 5 minutes is abandoned and reported.
+* A job still running when it is next due is skipped. A command still running after 5 minutes is stopped and reported, and the rest of its line still runs: each command has 5 minutes of its own.
 * Failures are reported to your chat channels, as before.
 * With `scheduler=False` nothing is scheduled by the bot, so you can keep using cron or systemd timers and run the scripts yourself.
 
@@ -656,70 +655,7 @@ sudo systemd-run --pty --wait --collect -p DynamicUser=yes -p StateDirectory=fin
 ```
 The script prints its output on your terminal and sends its report to your chat channels as usual. The transient unit gets its own dynamic user, and systemd may re-own the state directory to it for the run: check `ls -ln /var/lib/private/finbot` afterwards and `systemctl restart finbot` if the bot can no longer write there. The chat commands (`.price 7d`, `.performance 7d`, ...) run the same reports inside the bot, without any of this. Outside systemd, run a script from the checkout as your own user with the settings loaded into the shell: `set -a; . /opt/finbot.env; set +a; ./price.py 7` (this works while no value in the file contains spaces).
 
-## Interactive bot setup
-The backend `bot.py` needs a frontend https server on a valid domain name with a valid x509 certifcate.
-It defaults to listening on http://127.0.0.1:5000/, which can be changed with `ip` and `port` in `finbot.env`.
-
-Example frontend https server config (nginx):
-```
-server {
-	listen 8443 ssl;
-	deny all;
-
-	server_name         www.example.com;
-	ssl_certificate     /etc/letsencrypt/live/www.example.com/fullchain.pem;
-	ssl_certificate_key /etc/letsencrypt/live/www.example.com/privkey.pem;
-	ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
-	ssl_ciphers         HIGH:!aNULL:!MD5;
-
-	location /slack {
-		proxy_pass http://127.0.0.1:5000/slack;
-                include /etc/nginx/aws_subnets;
-                deny all;
-	}
-	location /telegram {
-		proxy_pass http://127.0.0.1:5000/telegram;
-		include /etc/nginx/telegram_subnets;
-		deny all;
-	}
-}
-```
-Note: The utils folder contains scripts to generate `/etc/nginx/aws_subnets` and `/etc/nginx/telegram_subnets`. They can be run once, or placed in `/etc/cron.daily/`.
-
-### Integrating the interactive bot with chat networks
-
-#### Telegram
-* Message BotFather to create a bot user.
-  * Set `telegramBotToken` in `finbot.env` to the token given by BotFather.
-  * Add your Telegram bot user to a group
-    * Give the bot group admin access so it can read the group chat.
-    * For security, message BotFather and disable `/setjoingroups`.
-* Set `telegramOutgoingWebhook` in `finbot.env` to your web server (e.g. https://www.example.com:8443/telegram).
-* Set `telegramOutgoingToken` to a password of your choosing. Telegram will use this to authenticate with finbot.
-With these options set, your bot will auto-subscribe your URL to events the bot sees, when you run `bot.py`. It unregisters and registers the webhook as it starts (and only then, which also wakes up a stale connection); if Telegram refuses, finbot does not start and the log says why.
-
-#### Slack
-Visit https://api.slack.com/apps/ to create a new Slack app from scratch (if you already created one for a finbot webhook, you can reuse that app). Charts in replies are uploaded into the channel with Slack's file upload API (`files.getUploadURLExternal`, then `files.completeUploadExternal`, which replaced the retired `files.upload`). Scheduled reports reach Slack through the incoming webhook, which takes text only, so they come without charts. If an upload fails (a missing scope, say), the reply goes out as text and the log says why.
-* From _Basic Information > Verification Token_, copy _Verification token_ into `finbot.env` as `slackOutgoingToken`. This allows Slack to authenticate with finbot.
-* In `finbot.env`, put your web server URL (e.g. https://www.example.com:8443/slack) into `slackOutgoingWebhook`
-* Save `finbot.env` and restart `bot.py`
-* Under _Event Subscriptions_:
-  * Go to _Enable Events > On > Request URL_ and enter your web server URL (e.g. https://www.example.com:8443/slack). At this time, if the bot is reachable, it will auto respond to Slack's verification request.
-  * Go down to _Subscribe to bot events_ and add event `app_mention` for the bot to see _@botname_ mentions.
-    * Alternatively, you can subscribe to `message.channels` if you want your bot to see everything and respond to `.` commands. To avoid duplicate responses, don't subscribe to `app_mention` and `message.channels` at the same time.
-    * If you want to DM the bot:
-      * Subscribe to `message.im`
-      * Check the box _App Home > Allow users to send Slash commands and messages from the messages tab_
-  * Save Changes
-* Under _OAuth & Permissions_:
-  * Scroll down to _Scopes > Bot Token Scopes_, and add: `chat:write`, `files:write` and `files:read` (Slack's file upload API needs both `files` scopes).
-    * Adding scopes to an app that is already installed takes effect only after _Reinstall to Workspace_.
-  * Scroll up to _OAuth Tokens for Your Workspace_:
-    * If _Bot User OAuth Token_ is not visible, hit _Install to Workspace > Allow_
-    * Copy _Bot User OAuth Token_ into `finbot.env` as `slackBotToken`. This allows finbot to authenticate with Slack so it can send replies.
-    * Restart `bot.py`
-
-### Daemonize (systemd)
+## Daemonize (systemd)
 `finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy `finbot.service` to `/etc/systemd/system/`, edit it to set the `User`, `ExecStart` and the path of [`finbot.env`](#setup) (`EnvironmentFile=`, and the `ExecStartPre=` check), then enable and start it. `systemctl reload finbot` re-reads `preferences.conf` and the [schedule](#scheduling) without a restart; a change to `finbot.env` needs `systemctl restart finbot`:
 
 ```
@@ -738,9 +674,6 @@ You can now monitor the bot's stderr with :
 ```
 journalctl -fu finbot
 ```
-
-## Limitations
-* Discord shows garbage link previews from Sharesight. Set `hyperlink=False`, or disable this for each Discord client under _Settings > Text & Images > Embeds and link previews_ (must be repeated for each participating Discord client).
 
 ## Suggestions
 * Is my code is doing something the hard way?

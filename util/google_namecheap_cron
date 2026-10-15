@@ -29,7 +29,8 @@ get_new_ip(){
 
 update_provider(){
 	if [[ $PROVIDER == namecheap ]]; then
-		curl -s "https://dynamicdns.park-your-domain.com/update?host=${RECORD}&domain=${BASEDOMAIN}&password=${PASSWORD}&ip=${newip}" > /dev/null
+		url="https://dynamicdns.park-your-domain.com/update?host=${RECORD}&domain=${BASEDOMAIN}"
+		curl -s "${url}&password=${PASSWORD}&ip=${newip}" > /dev/null
 	elif [[ $(is_ipv4 $PROVIDER) ]]; then # RFC 2136
 		sudo nsupdate -4 -l -k $KEYFILE <<EOF
 server $PROVIDER

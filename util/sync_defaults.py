@@ -11,19 +11,20 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lib import config
-from lib.config import REPO_DIR
 
 
 def sync(apply=False, force=False, dest=None):
 	"""One (file, outcome) per default: copied / would copy, replaced (old copy kept as .bak), or skipped."""
 	apply = apply or force
-	dest_dir = Path(dest or config.config_var_dir)
+	dest_dir = Path(dest or config.env.data_dir)
 	results = []
-	for src in sorted((REPO_DIR / 'defaults').iterdir()):
+	for src in sorted((config.REPO_DIR / 'defaults').iterdir()):
 		if not src.is_file():
 			continue
 		if src.name == 'finbot.env':
-			continue # the startup file is not data: it holds credentials, lives wherever the launcher loads it from, and the bot never reads it
+			# the startup file is not data: it holds credentials, lives wherever the launcher loads it from, and the bot
+			# never reads it
+			continue
 		name = src.name
 		target = dest_dir / name
 		if not target.exists():
@@ -50,7 +51,8 @@ if __name__ == '__main__':
 	ap.add_argument('--force', action='store_true', help='also replace differing files (keeps .bak); implies --apply')
 	ap.add_argument('--dest', metavar='DIR', help='destination directory (default: the data dir, DATA_DIR or var/)')
 	args = ap.parse_args()
-	print(f"{REPO_DIR / 'defaults'} -> {Path(args.dest or config.config_var_dir).resolve()}")
+	print(f"{config.REPO_DIR / 'defaults'} -> {Path(args.dest or config.env.data_dir).resolve()}")
 	for name, outcome in sync(args.apply or args.force, args.force, args.dest):
-		label = {'copied': '', 'skipped - destination identical': '', 'skipped - destination differs': '[differs]'}.get(outcome, f'[{outcome}]')
+		label = {'copied': '', 'skipped - destination identical': '',
+			'skipped - destination differs': '[differs]'}.get(outcome, f'[{outcome}]')
 		print(f"{name} {label}".rstrip())

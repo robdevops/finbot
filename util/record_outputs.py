@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+"""Old/new output comparison for refactors. It records every HTTP request the bot posts (the URL with the bot token
+redacted, the JSON or form body, a hash of each file) for a fixed list of chat commands, button presses and scheduled
+reports, run on the offline fixtures of tests/common.py, and compares two recordings step by step.
+
+	util/record_outputs.py                       this tree (uncommitted changes included) against HEAD
+	util/record_outputs.py --against COMMIT      this tree against COMMIT; both are recorded in this run, so dates match
+	util/record_outputs.py --record OUT.json     record the tree in the current directory only
+	util/record_outputs.py --diff OLD.json NEW.json
+
+--keep DIR keeps the two recordings; --full shows changed lines whole. The exit status is 0 when the recordings match,
+1 when they differ."""
+import argparse, difflib, hashlib, inspect, io, json, os, random, subprocess, sys, tempfile, unittest
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+COMMANDS = ['.help', '/start', '.hello', '.thanks', '.who T1', '.plan buy low', '.plan', '.holdings', '.holdings Rob',
+	'.marketcap', '.marketcap bottom', '.marketcap T1', '.pe', '.pe bottom', '.pe T1', '.fpe', '.fpe bottom',
+	'.fpe negative', '.forward pe T1', '.peg', '.peg negative', '.peg T1', '.beta', '.buy', '.sell', '.buy & sell',
+	'.earnings', '.earnings T1', '.dividend', '.dividend T1', '.trades', '.trades 30d', '.trades 7d Nope', '.price',
+	'.price 7d', '.price 3', '.price 3 7d', '.price top', '.price top 7d', '.price T1', '.price T1 7d', '.session',
+	'.session T1', '.premarket', '.postmarket', '.shorts', '.shorts 30', '.shorts T1', '.performance',
+	'.performance 7d', '.performance 1y', '.performance Nope', '.pie Rob', '.pie Rob sector', '.pie', '.compare T1 T2',
+	'.compare T1 T2 3m', '.compare T1', '.history T1', '.history', '.watchlist', '.watchlist add MSFT',
+	'.watchlist add MSFT', '.watchlist del MSFT', '.watchlist frob X', '.T1', '.jobs', 'hi @bot', 'noise']
+BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1']
+SCHEDULED = ['trades.py', 'price.py midsession', 'price.py interday', 'price.py premarket', 'price.py close',
+	'price.py 7', 'cal.py earnings', 'cal.py ex-dividend', 'performance.py 7', 'rating.py', 'shorts.py', 'milestone.py',
+	'reminder.py']
+WEBHOOKS = {'telegram': 'https://api.telegram.org/botX/', 'slack': 'https://hooks.slack.com/services/T/B/x',
+	'discord': 'https://discord.com/api/webhooks/1/abc'}
+ANSWER = {'ok': True, 'upload_url': 'https://files.slack.com/u', 'file_id': 'F1', 'id': '1'} # good enough for every API
+
+
+def digest(value):
+	"""A short hash of a file's bytes (or a file object's, or text), for a recording that stays small."""
+	if hasattr(value, 'read'):
+		if hasattr(value, 'seek'):
+			value.seek(0)
+		value = value.read()
+	if isinstance(value, str):
+		value = value.encode()
+	return 'sha256:' + hashlib.sha256(value).hexdigest()[:16]
+
+
+def record(output):
+	"""Run every step on the tree in the current directory and write what each posted to `output` (JSON)."""
+	here = Path(__file__).resolve().parent
+	sys.path[:] = [os.getcwd()] + [path for path in sys.path if Path(path or '.').resolve() != here] # the tree's code
+	from tests import common
+	from lib import jobs, net, worker
+	real_sending = getattr(common, 'REAL_SENDING', None)
+	if real_sending is None: # a commit from before REAL_SENDING, when lib/webhook.py did the sending
+		from lib import webhook
+		real_sending = ((webhook, 'payload_wrapper', common.REAL_PAYLOAD_WRAPPER),
+			(webhook, 'sendPhoto', common.REAL_SEND_PHOTO), (webhook, 'report_error', common.REAL_REPORT_ERROR))
+
+	def handing(func, kind, *fields):
+		"""A step that hands func the Message or Press (kind, its name in lib.inbound) of these fields, or the fields
+		one by one to a commit from before it took the object."""
+		if len(inspect.signature(func).parameters) > 1:
+			return lambda: func(*fields)
+		return lambda: func(getattr(common.inbound, kind)(*fields))
+
+	class Record(common.FinbotCase):
+		"""The steps, as one test, so that FinbotCase's fixtures (and their cleanup) apply."""
+		def runTest(self):
+			"""Record what each step posts: the real sending code runs, and net.post notes each request."""
+			posts = []
+			def post(url, **kwargs):
+				"""Note a request, the typing notices aside (Telegram's, Slack's ⏳: timing, not output), and answer
+				like the APIs do."""
+				if 'sendChatAction' in url or '/reactions.' in url:
+					return common.mock.Mock(status_code=200, json=lambda: {'ok': True, 'result': True})
+				entry = {'url': url.replace('botX/', 'bot<token>/')}
+				for key in ('json', 'data', 'params'):
+					body = kwargs.get(key)
+					if isinstance(body, dict):
+						entry[key] = {k: digest(v) if isinstance(v, (bytes, bytearray)) else v for k, v in body.items()}
+					elif body is not None:
+						entry[key] = digest(body)
+				if kwargs.get('files'):
+					entry['files'] = {name: [part[0], digest(part[1])] for name, part in kwargs['files'].items()}
+				posts.append(entry)
+				answer = {**ANSWER, 'result': {'message_id': len(posts), 'chat': {'id': 5}}}
+				return common.mock.Mock(status_code=200, json=lambda: answer, text='OK')
+			self.patch(net, 'post', post)
+			for target, name, real in real_sending: # what the fixture replaces with recorders, put back
+				self.patch(target, name, real)
+			self.patch(common.time, 'sleep', lambda seconds: None) # no pauses between a long report's messages
+			self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack') # Slack's buttons too
+			steps = []
+			def step(label, run):
+				"""Run one step and note what it posted, or what it raised."""
+				posts.clear()
+				random.seed(0)
+				try:
+					run()
+					raised = None
+				except Exception as e:
+					raised = f'{type(e).__name__}: {e}'
+				steps.append({'step': label, 'posts': list(posts), 'raised': raised})
+			for service, chat, user in (('telegram', '55', '@u'), ('slack', 'C1', '<@U1>')):
+				for text in COMMANDS:
+					step(f'{service} {text}', handing(worker.process_request, 'Message', service, chat, user, text,
+						common.BOT, 'U'))
+			for service, chat, message in (('telegram', '55', '9'), ('slack', 'C1', '1.5')):
+				for data in BUTTONS:
+					label = f'button {data}' if service == 'telegram' else f'{service} button {data}'
+					step(label, handing(worker.process_callback, 'Press', service, 'cb', chat, message, data))
+			self.env(webhooks=WEBHOOKS, telegramChatID='1')
+			for where in ('', ' (slackChannelID)'): # Slack's incoming webhook, then the channel as the bot
+				if where:
+					self.env(slackChannelID='C9')
+				for line in SCHEDULED:
+					label, module, kwargs = jobs.parse_command(line)[0]
+					run = getattr(module, 'run', None) or module.lambda_handler # lambda_handler: a commit before run()
+					step(f'scheduled {line}{where}', lambda: run(**kwargs))
+			Path(output).write_text(json.dumps(steps, indent=1, sort_keys=True, default=str))
+
+	result = unittest.TextTestRunner(verbosity=0, stream=io.StringIO()).run(Record())
+	for _, trace in result.errors + result.failures:
+		print(trace, file=sys.stderr)
+	return 0 if result.wasSuccessful() and Path(output).exists() else 2
+
+
+def record_tree(tree, output):
+	"""Record the tree at `tree` in a fresh interpreter of its own, with a data dir of its own. Exits when it fails."""
+	with tempfile.TemporaryDirectory() as data:
+		command = [sys.executable, str(Path(__file__).resolve()), '--record', str(output)]
+		run = subprocess.run(command, cwd=tree, env={**os.environ, 'DATA_DIR': data}, stdout=subprocess.DEVNULL,
+			stderr=subprocess.PIPE, text=True)
+	if run.returncode:
+		raise SystemExit(f'recording {tree} failed:\n{run.stderr[-3000:]}')
+
+
+def compare(old, new, full=False):
+	"""Print each step whose posts differ between two recordings, as a diff of its JSON. Returns how many differ."""
+	def by_label(path):
+		"""A recording's steps by label; a step run twice (the second .watchlist add) is told apart by a count."""
+		steps, seen = {}, {}
+		for step in json.loads(Path(path).read_text()):
+			seen[step['step']] = seen.get(step['step'], 0) + 1
+			steps[step['step'] + (f' ({seen[step["step"]]})' if seen[step['step']] > 1 else '')] = step
+		return steps
+	old_steps, new_steps = by_label(old), by_label(new)
+	differ = 0
+	for label in dict.fromkeys([*old_steps, *new_steps]):
+		a, b = old_steps.get(label), new_steps.get(label)
+		if a == b:
+			continue
+		differ += 1
+		where = ' (only in the new recording)' if a is None else ' (only in the old recording)' if b is None else ''
+		print(f'== {label}{where}')
+		if a and b:
+			lines = difflib.unified_diff(json.dumps(a, indent=1, sort_keys=True).splitlines(),
+				json.dumps(b, indent=1, sort_keys=True).splitlines(), lineterm='', n=1)
+			for line in list(lines)[2:]: # without the ---/+++ header
+				print(line if full or len(line) <= 220 else line[:217] + '...')
+	print(f'{len(new_steps)} steps, {differ} differ' if differ else f'{len(new_steps)} steps, identical')
+	return differ
+
+
+def against(commit, keep=None, full=False):
+	"""Record `commit` (checked out in a temporary worktree) and this tree one after the other, then compare them."""
+	with tempfile.TemporaryDirectory() as tmp:
+		out = Path(keep) if keep else Path(tmp)
+		out.mkdir(parents=True, exist_ok=True)
+		tree = Path(tmp, 'tree')
+		subprocess.run(['git', 'worktree', 'add', '--quiet', '--detach', str(tree), commit], cwd=REPO, check=True)
+		try:
+			record_tree(tree, out / 'old.json')
+			record_tree(REPO, out / 'new.json')
+		finally:
+			subprocess.run(['git', 'worktree', 'remove', '--force', str(tree)], cwd=REPO, check=True)
+		if keep:
+			print(f'recordings: {out / "old.json"} ({commit}), {out / "new.json"} (this tree)')
+		return compare(out / 'old.json', out / 'new.json', full)
+
+
+def main(argv):
+	"""Parse the arguments and run the mode they ask for; returns the exit status."""
+	parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0],
+		formatter_class=argparse.RawDescriptionHelpFormatter)
+	mode = parser.add_mutually_exclusive_group()
+	mode.add_argument('--against', metavar='COMMIT', default='HEAD', help='compare this tree with COMMIT (HEAD)')
+	mode.add_argument('--record', metavar='OUT', help='record the tree in the current directory to OUT')
+	mode.add_argument('--diff', nargs=2, metavar=('OLD', 'NEW'), help='compare two recordings')
+	parser.add_argument('--keep', metavar='DIR', help='with --against: keep the two recordings in DIR')
+	parser.add_argument('--full', action='store_true', help='show changed lines whole')
+	args = parser.parse_args(argv)
+	if args.record:
+		return record(os.path.abspath(args.record))
+	if args.diff:
+		return 1 if compare(*args.diff, full=args.full) else 0
+	return 1 if against(args.against, args.keep, args.full) else 0
+
+
+if __name__ == '__main__':
+	sys.exit(main(sys.argv[1:]))

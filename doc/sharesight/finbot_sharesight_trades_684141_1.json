@@ -26,8 +26,7 @@
 			"confirmed": true,
 			"links": {
 				"portfolio": "https://api.sharesight.com/api/v2/portfolios/684141"
-			},
-			"portfolio": "RobSMSF"
+			}
 		},
 		{
 			"id": 104446458,
@@ -55,8 +54,7 @@
 			"confirmed": true,
 			"links": {
 				"portfolio": "https://api.sharesight.com/api/v2/portfolios/684141"
-			},
-			"portfolio": "RobSMSF"
+			}
 		}
 	],
 	"api_transaction": {

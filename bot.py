@@ -2,41 +2,59 @@
 
 import signal
 if __name__ == '__main__':
-	signal.signal(signal.SIGHUP, signal.SIG_IGN) # ignored until startup is done (the reload handler is installed last): its default action kills the bot
+	# ignored until startup is done (the reload handler is installed last): its default action kills the bot
+	signal.signal(signal.SIGHUP, signal.SIG_IGN)
+	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise the cache flush
 import gevent.monkey
 gevent.monkey.patch_all()
-import json, os, re, sys, traceback
+import collections, json, os, re, sys, traceback
 from pathlib import Path
 from gevent import pywsgi
 import threading
-from urllib.parse import urlparse
 
-from lib.config import *
 from lib import config
+from lib import inbound
 from lib import worker
 from lib import jobs
-from lib import charts
-from lib import sharesight
 from lib import net
 from lib import telegram
-from lib import webhook
+from lib import delivery
+from lib import render
+from lib.reports import cleanup
 
-botName = None # the Telegram bot's @username, from telegram.register() at start
-AUTHENTICATED = 'finbot.authenticated' # set in a request's WSGI environ once it has passed its service's check
-SLACK_USER_SUBTYPES = (None, 'thread_broadcast') # Slack message subtypes a person writes; the others are bot posts, edits, joins and the like
+ROUTED = 'finbot.routed' # a request's WSGI environ: the network whose webhook path it came to (the path is a secret)
+AUTHENTICATED = 'finbot.authenticated' # set once it has passed that network's check
+MAX_BODY = 1 << 20 # bytes in a request body, at most: an update from Telegram or Slack takes a few thousand
+_updates_seen = collections.OrderedDict() # (service, update id) of the last updates taken, oldest first
+
+def seen_before(service, update_id, keep=1000):
+	"""Whether this update was taken already: Telegram's update_id, Slack's event_id. Slack resends an event it got no
+	answer to within 3 seconds and Telegram one that failed, and a command must not run twice. An update without an id
+	is never a repeat."""
+	if update_id is None:
+		return False
+	key = (service, update_id)
+	if key in _updates_seen:
+		return True
+	_updates_seen[key] = None
+	if len(_updates_seen) > keep:
+		_updates_seen.popitem(last=False)
+	return False
 
 def main(environ, start_response):
-	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is reported as one line to the
-	default channel and answered 200, so the service does not retry it into the chat again. Before authentication a failure is only
-	logged: a stranger must not be able to post into the chats."""
+	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is reported as one
+	line to the default channel and answered 200, so the service does not retry it into the chat again. Before
+	authentication a failure is only logged: a stranger must not be able to post into the chats. Either names the
+	network, not the path: a webhook's path is a secret (telegramOutgoingWebhook, slackOutgoingWebhook)."""
 	try:
 		return handle(environ, start_response)
 	except Exception as e:
 		if environ.get(AUTHENTICATED):
-			webhook.report_error(e, context=environ.get('PATH_INFO', 'bot'))
+			delivery.report_error(e, context=environ[ROUTED])
 			status = '200 OK'
 		else:
-			print(f"request to {environ.get('PATH_INFO')!r} failed:", webhook.error_line(e), file=sys.stderr)
+			where = environ.get(ROUTED) or repr(environ.get('PATH_INFO'))
+			print(f"request to {where} failed:", delivery.error_line(e), file=sys.stderr)
 			print(net.redact(traceback.format_exc()), end='', file=sys.stderr)
 			status = '500 Internal Server Error'
 		try:
@@ -46,129 +64,79 @@ def main(environ, start_response):
 		return [b'']
 
 def handle(environ, start_response):
-	def print_body():
-		shown = {k: '<redacted>' if k == 'token' else v for k, v in inbound.items()} # Slack's verification token
-		print(f"inbound {uri} ", json.dumps(shown, indent=4, default=str), file=sys.stderr)
+	"""Route a request by its path to the webhook of the network that posts there, turn it away unless it proves it
+	comes from that network (before its body is read, when the proof is a header), read the update (CONTENT_LENGTH
+	bytes, up to MAX_BODY) and take it (take): the network gets its answer at once."""
+	def respond(response):
+		"""Answer the request: a status line and a body."""
+		start_response(response.status, [('Content-type', 'application/json')])
+		return [response.body]
 	def print_headers():
+		"""Log the request headers, Telegram's secret header redacted."""
 		for name, value in sorted(environ.items()):
 			print((name, '<redacted>' if name == 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' else value), file=sys.stderr)
-	def reply(status, body=b''):
-		start_response(status, [('Content-type', 'application/json')])
-		return [body]
-	print_headers() if config_print_headers else None
-	# route on the path first, and turn strangers away before reading the body
-	uri = environ.get('PATH_INFO', '')
-	if config_telegramOutgoingWebhook and uri == urlparse(config_telegramOutgoingWebhook).path:
-		service = 'telegram'
-	elif config_slackOutgoingWebhook and uri == urlparse(config_slackOutgoingWebhook).path:
-		service = 'slack'
-	else:
-		print("Unknown URI", repr(uri), file=sys.stderr)
-		return reply('404 Not Found', b'<h1>404</h1>')
-	if service == 'telegram': # Telegram proves itself with a header
-		secret = environ.get('HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN')
-		if secret != config_telegramOutgoingToken:
-			print_headers()
-			print("Fatal: Telegram authorisation header", "not present" if secret is None else "is present but incorrect", file=sys.stderr)
-			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
-		environ[AUTHENTICATED] = True
+	if config.prefs.print_headers:
+		print_headers()
+	path = environ.get('PATH_INFO', '')
+	source = inbound.route(path)
+	if source is None:
+		print("Unknown URI", repr(path), file=sys.stderr)
+		return respond(inbound.NOT_FOUND)
+	environ[ROUTED] = source.service
+	if why := source.refuse_unread(environ): # strangers are turned away before their body is read
+		print_headers()
+		print("Fatal:", why, file=sys.stderr)
+		return respond(inbound.FORBIDDEN)
+	length = environ.get('CONTENT_LENGTH') or '0'
+	if not length.isdigit() or int(length) > MAX_BODY:
+		print(f"[{source.service}]: a body of {length!r} bytes refused unread", file=sys.stderr)
+		return respond(inbound.TOO_LARGE if length.isdigit() else inbound.BAD_REQUEST)
+	body = environ['wsgi.input'].read(int(length)) # the body and no more: a server need not end the stream there
 	try:
-		inbound = json.loads(environ['wsgi.input'].read())
+		update = source.decode(body)
 	except ValueError:
-		print(f"[{service}]: request body is not JSON", file=sys.stderr)
-		return reply('400 Bad Request', b'<h1>Bad Request</h1>')
-	if not isinstance(inbound, dict):
-		print(f"[{service}]: request body is not a JSON object", file=sys.stderr)
-		return reply('400 Bad Request', b'<h1>Bad Request</h1>')
-	if service == 'telegram':
-		bot_name = botName
-		if "callback_query" in inbound: # chart period buttons
-			cq = inbound["callback_query"]
-			cq_message = cq.get("message")
-			if not cq_message or not cq.get("data"):
-				return reply('200 OK', b'Unsupported')
-			sender = cq.get("from", {})
-			print("[Telegram button]:", '@' + sender["username"] if "username" in sender else sender.get("first_name", "unknown"), "chat", cq_message["chat"]["id"], cq["data"], file=sys.stderr)
-			threading.Thread(target=worker.process_callback, args=('telegram', cq["id"], str(cq_message["chat"]["id"]), str(cq_message["message_id"]), cq["data"])).start()
-			return reply('200 OK')
-		if "message" not in inbound:
-			return reply('200 OK', b'Unsupported')
-		msg = inbound["message"]
-		sender = msg["from"]
-		message_id = str(msg["message_id"])
-		chat_id = str(msg["chat"]["id"])
-		if "username" in sender:
-			user = '@' + sender["username"]
-			userRealName = sender["first_name"] or user # what to call them: the handle when the first name is blank
-		else:
-			user = userRealName = '@' + sender["first_name"]
-		if "text" in msg:
-			message = msg["text"]
-			print("[Telegram]:", user, message, file=sys.stderr) if debug else None
-		elif "photo" in msg:
-			message = msg.get("caption", '')
-			file_id = msg["photo"][-1]["file_id"]
-			print("[Telegram photo]:", user, file_id, message)
-		elif IGNORED_TELEGRAM_CONTENT & msg.keys():
-			return reply('200 OK') # stickers, GIFs, voice notes and the like: nothing to answer, nothing worth logging
-		else:
-			print(f"[{service}]: unhandled: 'message' without 'text/photo'", file=sys.stderr)
-			return reply('200 OK', b'<h1>Unhandled</h1>')
-	else: # Slack puts its token in the body
-		if 'token' not in inbound:
-			print("warning: Slack authorisation field not present", file=sys.stderr)
-			print_body()
-			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
-		if inbound['token'] != config_slackOutgoingToken:
-			print("Slack auth incorrect", file=sys.stderr)
-			print_body()
-			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
-		environ[AUTHENTICATED] = True
-		print("Incoming Slack request authenticated")
-		if 'type' not in inbound:
-			print(f"[{service}]: unhandled: no 'type'", file=sys.stderr)
-			return reply('200 OK', b'Unhandled')
-		if inbound['type'] == 'url_verification':
-			response = json.dumps({"challenge": inbound["challenge"]})
-			print("replying with", response, file=sys.stderr)
-			return reply('200 OK', bytes(response, "utf-8"))
-		if inbound['type'] == 'event_callback':
-			event = inbound['event']
-			bot_user = inbound['authorizations'][0]['user_id'] # QWERTY
-			if event.get('bot_id') or event.get('subtype') not in SLACK_USER_SUBTYPES or not event.get('user') or event['user'] == bot_user:
-				return reply('200 OK') # not written by a person: answering a bot (this one's replies and webhook reports included) could loop
-			if event["type"] not in ('message', 'app_mention') or "text" not in event:
-				print(f"[{service}]: unhandled event callback type", event["type"], file=sys.stderr)
-				return reply('200 OK', b'<h1>Unhandled</h1>')
-			message_id = str(event["ts"])
-			message = event['text']
-			message = re.sub(r'<http://.*\|([\w\.]+)>', r'\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
-			message = re.sub(r'<(@[\w\.]+)>', r'\g<1>', message) # <@QWERTY> becomes @QWERTY
-			user = userRealName = '<@' + event['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
-			bot_name = '@' + bot_user # QWERTY becomes @QWERTY
-			chat_id = event['channel']
-			print(f"[{service}]:", user, message, file=sys.stderr) if debug else None
-			# this condition spawns a worker before returning
-		else:
-			print(f"[{service}]: unhandled 'type'", file=sys.stderr)
-			return reply('200 OK', b'<h1>Unhandled</h1>')
+		print(f"[{source.service}]: request body is not a JSON object", file=sys.stderr)
+		return respond(inbound.BAD_REQUEST)
+	if why := source.refuse(environ, body, update):
+		shown = {k: '<redacted>' if k == 'token' else v for k, v in update.items()} # Slack's verification token
+		print("warning:", why, file=sys.stderr)
+		print(f"[{source.service}]: refused update", json.dumps(shown, indent=4, default=str), file=sys.stderr)
+		return respond(inbound.FORBIDDEN)
+	environ[AUTHENTICATED] = True
+	return respond(take(source.network, update))
 
-	# process in a background thread so we don't keep the requesting client waiting
-	threading.Thread(target=worker.process_request, args=(service, chat_id, user, message, bot_name, userRealName, message_id)).start()
+def take(network, update):
+	"""An update from a network (an inbound.Network reads it), however it arrived: what it says goes to lib/worker in a
+	thread of its own (dispatch), unless it is a repeat. Returns the inbound.Response for the network."""
+	event = network.parse(update)
+	if isinstance(event, inbound.Response):
+		return event
+	if seen_before(network.service, network.update_id(update)):
+		print(f"[{network.service}]: update {network.update_id(update)} seen already, not run again", file=sys.stderr)
+		return inbound.OK
+	dispatch(event)
+	return inbound.OK
 
-	# Return an empty response to the client
-	return reply('200 OK')
-
-IGNORED_TELEGRAM_CONTENT = {'sticker', 'animation', 'voice', 'video', 'video_note', 'audio', 'document', 'contact', 'location', 'venue', 'poll', 'dice'}
+def dispatch(event):
+	"""Hand a message or a button press to lib/worker, in a thread of its own."""
+	if isinstance(event, inbound.Press):
+		print(f"[{event.service.capitalize()} button]:", event.user, "chat", event.chat_id, event.data, file=sys.stderr)
+		target = worker.process_callback
+	else:
+		if config.prefs.debug:
+			print(f"[{event.service.capitalize()}]:", event.user, event.text, file=sys.stderr)
+		target = worker.process_request
+	threading.Thread(target=target, args=(event,)).start()
 
 def git_version(checkout=None):
-	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no "dubious
-	ownership" refusal when the service user does not own the checkout. 'unknown' when it cannot be read."""
+	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no
+	"dubious ownership" refusal when the service user does not own the checkout. 'unknown' when it cannot be read."""
 	try:
-		git = Path(checkout or REPO_DIR) / '.git'
+		git = Path(checkout or config.REPO_DIR) / '.git'
 		if git.is_file(): # a linked worktree or submodule: .git is a file saying "gitdir: <path>"
 			git = (git.parent / git.read_text().split(':', 1)[1].strip()).resolve()
-		common = (git / (git / 'commondir').read_text().strip()).resolve() if (git / 'commondir').is_file() else git # refs of a worktree
+		# refs of a worktree
+		common = (git / (git / 'commondir').read_text().strip()).resolve() if (git / 'commondir').is_file() else git
 		head = (git / 'HEAD').read_text().strip()
 		if head.startswith('ref:'):
 			ref = head.split(':', 1)[1].strip()
@@ -182,19 +150,42 @@ def git_version(checkout=None):
 		return 'unknown'
 
 scheduler = None
+_signal_work = threading.Lock() # one signal's work at a time: a second reload waits for the first
+
+def in_thread(work):
+	"""A signal handler that runs `work` in a thread of its own and returns at once: a handler must not wait on the
+	network, nor on a lock that the code it interrupted may hold."""
+	def run():
+		"""The work, once any other signal's is done."""
+		with _signal_work:
+			work()
+	return lambda *args: threading.Thread(target=run, daemon=True).start()
 
 def reload_all(*args):
-	"""SIGHUP: re-read preferences.conf and, if the scheduler is running, schedule.cron. Each reports its own errors; a bad
-	preferences.conf leaves the running config untouched."""
+	"""SIGHUP: re-read preferences.conf and, if the scheduler is running, schedule.cron. Each reports its own errors; a
+	bad preferences.conf leaves the running config untouched."""
 	try:
 		changes = config.reload()
 		for change in changes:
 			print('config:', change, file=sys.stderr)
-		print(f"config: reloaded {config.preferences_path}, {len(changes)} change{'' if len(changes) == 1 else 's'}", file=sys.stderr)
+		print(f"config: reloaded {config.preferences_path}, {len(changes)} change{'' if len(changes) == 1 else 's'}",
+			file=sys.stderr)
 	except config.ConfigError as e:
 		config.print_errors(e)
 	if scheduler:
 		scheduler.reload()
+
+def flush_cache(*args):
+	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings,
+	schedule), then fill it again straight away with the warm jobs, in a thread of their own (a reload need not wait
+	for them)."""
+	try:
+		removed = cleanup.run(days=0)
+		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}",
+			file=sys.stderr)
+	except Exception as e:
+		print('ERROR', delivery.error_line(e, 'cache flush'), file=sys.stderr)
+	jobs.start_thread(jobs.warm_now, scheduler)
 
 if __name__ == '__main__':
 	print(f'Starting finbot {git_version()}', file=sys.stderr)
@@ -205,10 +196,12 @@ if __name__ == '__main__':
 		sys.exit(1)
 	for line in config.startup_report():
 		print('config:', line, file=sys.stderr)
+	for line in config.startup_warnings():
+		print('ERROR config:', line, file=sys.stderr)
 	if os.getuid() == 0:
 		print("Running as superuser. This is not recommended.", file=sys.stderr)
-	if config_scheduler: # read before anything else happens: an impossible time in it stops the start
-		scheduler = jobs.Scheduler(lambda: data_file('schedule.cron'))
+	if config.env.scheduler: # read before anything else happens: an impossible time in it stops the start
+		scheduler = jobs.Scheduler(lambda: config.data_file('schedule.cron'))
 		try:
 			if not scheduler.load():
 				scheduler = None
@@ -219,23 +212,24 @@ if __name__ == '__main__':
 			sys.exit(1)
 	else:
 		print('Scheduled reports are off (scheduler=False)', file=sys.stderr)
-	httpd = pywsgi.WSGIServer((config_ip, config_port), main)
-	httpd.secure_repr = False if debug else None
-	print(f'Opening socket on http://{config_ip}:{config_port}', file=sys.stderr)
-	if config_telegramBotToken and config_telegramOutgoingWebhook:
+	render.render_off_hub() # charts drawn in a thread of their own: no chat waits while another's chart is drawn
+	httpd = pywsgi.WSGIServer((config.env.ip, config.env.port), main)
+	httpd.secure_repr = False if config.prefs.debug else None
+	print(f'Opening socket on http://{config.env.ip}:{config.env.port}', file=sys.stderr)
+	if config.env.telegramBotToken and config.env.telegramOutgoingWebhook:
 		try:
-			botName = telegram.register() # here and only here: the job processes import lib.telegram too
+			inbound.TELEGRAM.bot_name = telegram.register() # here only: the job processes import lib.telegram too
 		except Exception as e:
-			print('ERROR', webhook.error_line(e, 'telegram webhook'), file=sys.stderr)
+			print('ERROR', delivery.error_line(e, 'telegram webhook'), file=sys.stderr)
 			sys.exit(1)
-	if config_telegramBotToken:
-		threading.Thread(target=charts.refresh_keyboards, daemon=True).start() # update stale DM keyboards in the background
-	if config_sharesight_auth.get('client_id'):
-		threading.Thread(target=sharesight.keep_warm, daemon=True).start() # keep the portfolio list and holdings report cached, while cache is on
+	if config.env.telegramBotToken:
+		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
 	if scheduler:
 		jobs.current = scheduler # for the .jobs chat command
 		threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
-	gevent.signal_handler(signal.SIGHUP, reload_all) # startup is done. systemctl reload finbot: pick up edited preferences.conf and schedule.cron
+	# Startup is done. systemctl reload finbot: pick up edited preferences.conf and schedule.cron
+	gevent.signal_handler(signal.SIGHUP, in_thread(reload_all))
+	gevent.signal_handler(signal.SIGUSR1, in_thread(flush_cache)) # systemctl kill -s USR1 finbot: delete the cache
 	try:
 		httpd.serve_forever()
 	except OSError as e:
