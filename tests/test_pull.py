@@ -1,6 +1,7 @@
 """The pull modes: a network without a webhook URL is asked for its updates, which reach the same reader as the
-webhook's. Telegram's long polling."""
-import contextlib, io, json, unittest
+webhook's. Telegram's long polling, Slack's Socket Mode."""
+import contextlib, io, json, sys, types, unittest
+from urllib.parse import urlencode
 from tests.common import *
 from lib import pull
 
@@ -124,6 +125,166 @@ class TelegramPolling(FinbotCase):
 		self.assertEqual(len(presses), 2)
 		self.assertEqual(presses[0], presses[1])
 		self.assertEqual(toasts, ['Loading 1Y…'] * 2)
+
+
+SLACK_PRESS = {'type': 'block_actions', 'token': 'stok', 'trigger_id': 't1', 'user': {'id': 'U1', 'username': 'rob'},
+	'container': {'type': 'message', 'message_ts': '1.5', 'channel_id': 'C1'},
+	'actions': [{'action_id': 'c|h|w|T1', 'value': 'c|h|w|T1', 'type': 'button'}]} # a period button pressed
+SLACK_EVENT = {'type': 'event_callback', 'event_id': 'Ev1', 'authorizations': [{'user_id': 'UBOT'}],
+	'event': {'type': 'message', 'channel': 'C1', 'user': 'U1', 'text': '.price', 'ts': '1.2'}}
+
+
+class FakeSocket:
+	"""A connection that gives the messages it was made with, a dict sent as JSON, and notes what is sent and when."""
+
+	def __init__(self, messages, log):
+		"""messages: what receive() gives in turn (dicts as their JSON, None for a silence); log: a list to note in."""
+		self.messages, self.log = list(messages), log
+
+	def receive(self, timeout):
+		"""The next message; when there are none left, the socket fails."""
+		if not self.messages:
+			raise ConnectionError('the test socket has no more')
+		message = self.messages.pop(0)
+		return json.dumps(message) if isinstance(message, dict) else message
+
+	def send(self, text):
+		"""Note an ack."""
+		self.log.append(('ack', json.loads(text)['envelope_id']))
+
+	def ping(self):
+		"""Note a ping."""
+		self.log.append(('ping',))
+
+	def close(self):
+		"""Note the close."""
+		self.log.append(('close',))
+
+
+class SlackSocketMode(FinbotCase):
+	"""Socket Mode: envelopes acked before anything else, their payloads to the same reader as the webhook's, a socket
+	opened again when Slack closes it, and a silent one taken for dead."""
+
+	def setUp(self):
+		"""Slack in pull mode: the bot and app-level tokens, no webhook URL; apps.connections.open answers a URL."""
+		super().setUp()
+		self.env(slackBotToken='xoxb-1', slackAppToken='xapp-1', slackOutgoingWebhook='')
+		self.log = []
+		self.patch(transports, 'slack_api', lambda method, as_app=False, **data:
+			self.log.append((method, as_app)) or {'ok': True, 'url': 'wss://example.com/link'})
+
+	def socket(self, *messages):
+		"""A SlackSocket whose connections give these messages."""
+		listener = pull.SlackSocket()
+		self.patch(listener, 'connect', lambda url: self.log.append(('connect', url)) or FakeSocket(messages, self.log))
+		return listener
+
+	def test_each_envelope_is_acked_before_its_payload_is_handed_on(self):
+		"""After hello, an event and a button press each get their ack first, then go to take as Slack would post
+		them; Slack's disconnect ends the socket, and the next round opens another at once."""
+		take = lambda network, update: self.log.append(('take', network.service, update['type']))
+		listener = self.socket({'type': 'hello'},
+			{'envelope_id': 'e1', 'type': 'events_api', 'payload': SLACK_EVENT},
+			{'envelope_id': 'e2', 'type': 'interactive', 'payload': SLACK_PRESS},
+			{'type': 'disconnect', 'reason': 'refresh_requested'})
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual(listener.poll(take), 0)
+		self.assertEqual(self.log, [('apps.connections.open', True), ('connect', 'wss://example.com/link'),
+			('ack', 'e1'), ('take', 'slack', 'event_callback'), ('ack', 'e2'), ('take', 'slack', 'block_actions'),
+			('close',)])
+		self.assertIn('slack: Slack is closing the socket (refresh_requested), opening another', err.getvalue())
+
+	def test_a_silent_socket_is_pinged_then_taken_for_dead(self):
+		"""Silence sends a ping; a pong (or anything) keeps the socket; silence after a ping fails it, and the next
+		round waits the back-off."""
+		listener = self.socket({'type': 'hello'}, None, '', None, None)
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual(listener.poll(lambda *a: None), 5)
+		self.assertEqual([entry for entry in self.log if entry[0] in ('ping', 'close')], [('ping',), ('ping',),
+			('close',)])
+		self.assertIn('slack: the socket failed, trying again in 5 s: nothing from Slack for 60 s', err.getvalue())
+
+	def test_failures_wait_longer_each_time_and_hello_starts_again(self):
+		"""A socket that cannot be opened, or fails, waits longer each time; one that says hello starts again from 5."""
+		self.patch(transports, 'slack_api', mock.Mock(side_effect=RuntimeError('Slack apps.connections.open:'
+			' invalid_auth')))
+		listener = pull.SlackSocket()
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual([listener.poll(lambda *a: None) for _ in range(3)], [5, 10, 20])
+		self.assertIn('slack: opening a socket failed, trying again in 5 s: Slack apps.connections.open:'
+			' invalid_auth', err.getvalue())
+		self.patch(transports, 'slack_api', lambda *a, **k: {'url': 'wss://example.com/link'})
+		self.patch(listener, 'connect', lambda url: FakeSocket([{'type': 'hello'}], self.log))
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertEqual(listener.poll(lambda *a: None), 5) # the socket failed, after a hello
+
+	def test_a_press_over_the_socket_is_the_press_the_webhook_gets(self):
+		"""The same button press, posted to slackOutgoingWebhook (http mode) or sent over the socket, reaches the worker
+		as the same Press; an event already taken over one is not run again over the other (its event_id)."""
+		presses, messages = [], []
+		self.patch(worker, 'process_callback', presses.append)
+		self.patch(worker, 'process_request', messages.append)
+		self.env(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok')
+		with contextlib.redirect_stderr(io.StringIO()):
+			body = urlencode({'payload': json.dumps(SLACK_PRESS)}).encode()
+			bot.main(wsgi_environ('/slack', body), lambda *a: None)
+			bot.main(wsgi_environ('/slack', json.dumps({**SLACK_EVENT, 'token': 'stok'}).encode()), lambda *a: None)
+			self.env(slackOutgoingWebhook='')
+			self.socket({'type': 'hello'}, {'envelope_id': 'e1', 'type': 'interactive', 'payload': SLACK_PRESS},
+				{'envelope_id': 'e2', 'type': 'events_api', 'payload': SLACK_EVENT},
+				{'type': 'disconnect', 'reason': 'warning'}).poll(bot.take)
+		self.join_workers()
+		self.assertEqual(len(presses), 2)
+		self.assertEqual(presses[0], presses[1])
+		self.assertEqual([m.text for m in messages], ['.price'])
+
+	def test_the_websocket_is_imported_only_to_connect_and_read_as_slack_needs(self):
+		"""websocket-client is imported when a socket is opened, not before; its frames read as text, '' for a pong,
+		None for a timeout, and a close raises ConnectionError."""
+		class Timeout(Exception):
+			"""websocket-client's timeout."""
+		frames = [(1, b'{"type": "hello"}'), (10, b''), Timeout(), (8, b'')]
+		class WS:
+			"""A websocket-client connection that gives the frames."""
+			def settimeout(self, timeout):
+				"""Note the timeout."""
+				self.timeout = timeout
+			def recv_data(self, control_frame=False):
+				"""The next frame, with control frames (pings, pongs) too."""
+				frame = frames.pop(0)
+				if isinstance(frame, Exception):
+					raise frame
+				return frame
+		stub = types.SimpleNamespace(create_connection=lambda url, timeout: WS(), WebSocketTimeoutException=Timeout,
+			ABNF=types.SimpleNamespace(OPCODE_TEXT=1, OPCODE_CLOSE=8))
+		self.patch(sys, 'modules', {**sys.modules, 'websocket': stub})
+		socket = pull.WebSocket('wss://example.com/link')
+		self.assertEqual([socket.receive(30) for _ in range(3)], ['{"type": "hello"}', '', None])
+		with self.assertRaises(ConnectionError):
+			socket.receive(30)
+
+	def test_slack_is_listened_to_with_both_tokens_and_no_webhook(self):
+		"""The socket is opened with the bot and app-level tokens and no slackOutgoingWebhook; with the URL (http mode),
+		or without either token, it is not."""
+		self.env(telegramBotToken='')
+		self.assertEqual([type(listener) for listener in pull.listeners()], [pull.SlackSocket])
+		for changes in ({'slackOutgoingWebhook': 'https://example.com/slack'}, {'slackAppToken': ''},
+				{'slackBotToken': ''}):
+			with self.subTest(changes=changes):
+				self.env(**changes)
+				self.assertEqual(pull.listeners(), [])
+				self.env(slackBotToken='xoxb-1', slackAppToken='xapp-1', slackOutgoingWebhook='')
+
+	def test_slack_buttons_in_both_modes_only(self):
+		"""A Slack chat takes buttons with the bot token and either mode (the webhook or the app-level token), and not
+		with the bot token alone: their presses would reach nobody."""
+		http = {'slackAppToken': '', 'slackOutgoingWebhook': 'https://example.com/slack'}
+		bot_only = {'slackAppToken': ''}
+		for changes, takes in (({}, True), (http, True), (bot_only, False), ({'slackBotToken': ''}, False)):
+			with self.subTest(changes=changes):
+				self.env(**changes)
+				self.assertEqual(transports.SlackBot('C1').takes_buttons, takes)
+				self.env(slackBotToken='xoxb-1', slackAppToken='xapp-1', slackOutgoingWebhook='')
 
 
 class Backoff(unittest.TestCase):

@@ -17,11 +17,11 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 
 STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'telegramChatID', 'scheduler', 'scheduler_catchup', 'sharesight_code',
 	'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
-	'slackChannelID', 'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken',
-	'telegramOutgoingToken', 'telegramOutgoingWebhook')
+	'slackAppToken', 'slackChannelID', 'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret',
+	'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook')
 SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook',
-	'discord_webhook', 'slackBotToken', 'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret',
-	'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook') # never printed
+	'discord_webhook', 'slackBotToken', 'slackAppToken', 'slackOutgoingToken', 'slackOutgoingWebhook',
+	'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook') # never printed
 PREFERENCES_FILE = 'preferences.conf'
 RETIRED = ('alliterate', 'chunk_maxlines', 'performance_use_sharesight') # preferences.conf keys that do nothing any
 # more: accepted, with a note at start to delete them
@@ -192,6 +192,7 @@ class Env:
 	telegramOutgoingWebhook: str
 	telegramOutgoingToken: str
 	slackBotToken: str
+	slackAppToken: str # xapp-: Socket Mode, Slack's pull mode (without slackOutgoingWebhook)
 	slackChannelID: str # with slackBotToken, scheduled reports go to this channel as the bot, in place of slack_webhook
 	slackOutgoingWebhook: str
 	slackOutgoingToken: str
@@ -230,6 +231,7 @@ def startup_values(getenv):
 		telegramOutgoingWebhook=r.str('telegramOutgoingWebhook', ''),
 		telegramOutgoingToken=r.str('telegramOutgoingToken', ''),
 		slackBotToken=r.str('slackBotToken', ''),
+		slackAppToken=r.str('slackAppToken', ''),
 		slackChannelID=r.str('slackChannelID', ''),
 		slackOutgoingWebhook=r.str('slackOutgoingWebhook', ''),
 		slackOutgoingToken=r.str('slackOutgoingToken', ''),
@@ -424,8 +426,15 @@ def startup_warnings(settings=None):
 	from working, or do nothing, a line each."""
 	s = settings or env
 	warnings = []
-	if s.slackOutgoingWebhook and not s.slackBotToken:
-		warnings.append('slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply')
+	for key in ('slackOutgoingWebhook', 'slackAppToken'):
+		if getattr(s, key) and not s.slackBotToken:
+			warnings.append(f'{key} is set but slackBotToken is not: Slack commands will get no reply')
+	if s.slackAppToken and s.slackOutgoingWebhook:
+		warnings.append('slackAppToken is set but so is slackOutgoingWebhook: Slack posts its updates there'
+			' (http mode), and the app-level token is not used')
+	if s.slackAppToken and not s.slackAppToken.startswith('xapp-'):
+		warnings.append("slackAppToken does not start with xapp-: it must be an app-level token (the app's Basic"
+			' Information, App-Level Tokens), not the bot token')
 	if s.slackChannelID and not s.slackBotToken:
 		warnings.append('slackChannelID is set but slackBotToken is not: scheduled reports cannot go there as the bot')
 	if s.slackOutgoingWebhook and not (s.slackSigningSecret or s.slackOutgoingToken):

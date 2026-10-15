@@ -34,7 +34,7 @@ class Tables(unittest.TestCase):
 	def test_secrets_are_startup_keys(self):
 		"""Every secret is a startup key: preferences.conf holds none."""
 		self.assertTrue(set(config.SECRET_KEYS) <= set(config.STARTUP_KEYS))
-		self.assertEqual(len(config.SECRET_KEYS), 12)
+		self.assertEqual(len(config.SECRET_KEYS), 13)
 
 	def test_unset_preferences_take_their_defaults(self):
 		"""An unset preference takes its field's default, as it is: reading tidies nothing away."""
@@ -432,11 +432,20 @@ class Startup(unittest.TestCase):
 		no_bot = 'slackChannelID is set but slackBotToken is not: scheduled reports cannot go there as the bot'
 		unused = ('telegramOutgoingToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram updates'
 			' (pull mode), and the token is not used')
+		app_no_reply = 'slackAppToken is set but slackBotToken is not: Slack commands will get no reply'
+		app_unused = ('slackAppToken is set but so is slackOutgoingWebhook: Slack posts its updates there (http mode),'
+			' and the app-level token is not used')
+		not_app = ("slackAppToken does not start with xapp-: it must be an app-level token (the app's Basic"
+			' Information, App-Level Tokens), not the bot token')
 		cases = (({}, []), ({'slackBotToken': ''}, [no_reply]), ({'slackOutgoingToken': ''}, [slack_refused]),
 			({'slackChannelID': 'C9'}, []), ({'slackChannelID': 'C9', 'slackBotToken': ''}, [no_reply, no_bot]),
 			({'slackOutgoingToken': '', 'slackSigningSecret': 's'}, []),
 			({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, [unused]),
-			({'telegramOutgoingWebhook': '', 'telegramOutgoingToken': ''}, []))
+			({'telegramOutgoingWebhook': '', 'telegramOutgoingToken': ''}, []),
+			({'slackOutgoingWebhook': '', 'slackAppToken': 'xapp-1'}, []),
+			({'slackOutgoingWebhook': '', 'slackAppToken': 'xapp-1', 'slackBotToken': ''}, [app_no_reply]),
+			({'slackAppToken': 'xapp-1'}, [app_unused]),
+			({'slackOutgoingWebhook': '', 'slackAppToken': 'xoxb-1'}, [not_app]))
 		for changes, warnings in cases:
 			with self.subTest(changes=changes), \
 					mock.patch.object(config, 'env', dataclasses.replace(config.env, **{**hooks, **changes})):

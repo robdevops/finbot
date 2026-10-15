@@ -45,14 +45,15 @@ compares the two before the steps.
 ### Requirements
 * Most features require a Sharesight paid plan, preferably with automatic trade imports, and an API key
 * A Telegram bot, a Slack app or a Discord webhook (see the network's guide, above)
-* Telegram commands need no server: finbot fetches its updates (pull mode). Slack's commands, and Telegram's in HTTP mode, need a public web server with a domain name and a matching certificate to proxy chat commands to the bot (see the [Telegram](doc/telegram.md#http-mode) and [Slack](doc/slack.md#interactive-bot) guides).
+* Commands need no server: finbot fetches its updates from Telegram and Slack (pull mode). In HTTP mode instead, a network posts them to a public web server with a domain name and a matching certificate, which proxies them to the bot (see the [Telegram](doc/telegram.md#http-mode) and [Slack](doc/slack.md#http-mode) guides).
 * Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum)
 * Python modules, pinned to versions with 3.13 support in `requirements.txt`:
 ```
 croniter python-dateutil requests pandas matplotlib numpy
 ```
-* For a network in http mode (its webhook URL set), also `waitress` (Debian: `python3-waitress`); the optional modules are
-  in `requirements-optional.txt`, each imported only by the mode that needs it.
+* For a network in http mode (its webhook URL set), also `waitress` (Debian: `python3-waitress`); for Slack in Socket
+  Mode, `websocket-client` (`python3-websocket`). The optional modules are in `requirements-optional.txt`, each imported
+  only by the mode that needs it.
 
 ### Supported commands
 
@@ -94,7 +95,7 @@ Trade notifications are peformed by polling the Sharesight trades API on a sched
 
 The other various reports can also run on a schedule (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. Depending on how they're triggered, they will either report to all configured chat networks, or reply to the chat which triggered them.
 
-The interactive bot answers commands in your chats. On Telegram it fetches its updates itself, with no server to host (pull mode); Slack, and Telegram in HTTP mode, post them to a web service you host on a domain with a trusted certificate. It provides:
+The interactive bot answers commands in your chats. It fetches its updates from Telegram and Slack itself, with no server to host (pull mode); in HTTP mode instead, a network posts them to a web service you host on a domain with a trusted certificate. It provides:
 * Stock lookup (financials, company profile, price charts)
 * Group maintainable watch list, picked up by the various reports
 * Listing of portfolios and portfolio performance
@@ -474,12 +475,13 @@ of the chat network keys it needs.
 | `discord_webhook` | | Discord webhook, for outbound reports |
 | `telegramBotToken` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `telegramOutgoingWebhook` is set) |
 | `slackBotToken` | | Slack bot token, for replies and chart uploads in Slack |
+| `slackAppToken` | | Slack app-level token (`xapp-`): commands over a socket finbot opens to Slack (Socket Mode), when `slackOutgoingWebhook` is empty |
 | `slackChannelID` | | Channel id that scheduled reports go to on Slack as the bot, charts and all (with `slackBotToken`); `slack_webhook` is then not used |
 | `telegramOutgoingWebhook` | | The URL Telegram posts its updates to (HTTP mode); empty, finbot fetches them (pull mode) |
 | `telegramOutgoingToken` | | Secret token Telegram must present (HTTP mode) |
-| `slackOutgoingWebhook` | | Slack webhook path the bot accepts (interactive mode) |
-| `slackOutgoingToken` | | Token Slack must present (interactive mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
-| `slackSigningSecret` | | Secret Slack signs each request with (interactive mode) |
+| `slackOutgoingWebhook` | | The URL Slack posts its events and button presses to (HTTP mode); empty, Socket Mode with `slackAppToken` |
+| `slackOutgoingToken` | | Token Slack must present (HTTP mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
+| `slackSigningSecret` | | Secret Slack signs each request with (HTTP mode) |
 
 ### `preferences.conf` items
 

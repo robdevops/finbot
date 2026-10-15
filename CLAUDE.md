@@ -43,8 +43,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   the network waits for that (`acknowledge`: Telegram's toast), apart from a class per way they arrive
   (`TelegramWebhook`, `SlackWebhook`: the path, how it proves itself); `bot.take(network, update)` takes an update
   however it arrived, and is the one place a press is acknowledged (the worker never does). `lib/pull.py`: the pull
-  modes, a listener per network whose webhook URL is not set (`TelegramPoll`: getUpdates), each in a thread of its own
-  handing its updates to `bot.take`, waiting longer after each failure in a row (`backoff`).
+  modes, a listener per network whose webhook URL is not set (`TelegramPoll`: getUpdates; `SlackSocket`: Socket Mode,
+  over websocket-client), each in a thread of its own handing its updates to `bot.take`, waiting longer after each
+  failure in a row (`backoff`).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
   keywords)`, which also makes `.help` and the Telegram command keyboard, kept current in DMs. `read()` finds the
   command by its whole name (any other first word that may be a ticker is `.SYMBOL`) and `read_args()` its `Args`: a

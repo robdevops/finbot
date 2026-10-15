@@ -250,9 +250,9 @@ class SlackBot(Transport):
 
 	@property
 	def takes_buttons(self):
-		"""Buttons only where their presses reach finbot: with the bot token and slackOutgoingWebhook, the URL that the
-		app's interactivity posts to as its events do."""
-		return bool(config.env.slackBotToken and config.env.slackOutgoingWebhook)
+		"""Buttons only where their presses reach finbot: with the bot token, and the app's interactivity posting to
+		slackOutgoingWebhook (http mode) or sending over the socket (Socket Mode, with slackAppToken)."""
+		return bool(config.env.slackBotToken and (config.env.slackOutgoingWebhook or config.env.slackAppToken))
 
 	def typing(self):
 		"""Put ⏳ on the message being answered, once (the bot needs the reactions:write scope); a failure is only
@@ -478,12 +478,14 @@ class DiscordWebhook(Transport):
 		return None
 
 
-def slack_api(method, **data):
-	"""POST a Slack Web API method as the bot (form-encoded) and return the answer; an error raises RuntimeError."""
-	if not config.env.slackBotToken:
-		raise RuntimeError(f"Slack {method}: needs slackBotToken in finbot.env")
-	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + config.env.slackBotToken},
-		data=data)
+def slack_api(method, as_app=False, **data):
+	"""POST a Slack Web API method (form-encoded) as the bot, or with the app-level token (as_app, for Socket Mode's
+	apps.connections.open), and return the answer; an error raises RuntimeError."""
+	key = 'slackAppToken' if as_app else 'slackBotToken'
+	token = getattr(config.env, key)
+	if not token:
+		raise RuntimeError(f"Slack {method}: needs {key} in finbot.env")
+	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + token}, data=data)
 	try:
 		output = r.json()
 	except ValueError:

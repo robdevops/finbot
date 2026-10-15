@@ -29,9 +29,10 @@ def timeouts(kwargs):
 	return {'timeout': (CONNECT_TIMEOUT, config.prefs.http_timeout), **kwargs}
 
 def redact(text):
-	"""text (or an exception) without the secrets that request URLs, headers and error messages carry: Telegram bot
-	tokens, Slack and Discord webhook paths, bearer tokens, and token, crumb, key, secret and auth parameters."""
+	"""text (or an exception) without the secrets that request URLs, headers and error messages carry: Telegram and
+	Slack tokens, Slack and Discord webhook paths, bearer tokens, and token, crumb, key, secret and auth parameters."""
 	text = re.sub(r'bot\d+:[\w-]+', 'bot<redacted>', str(text))
+	text = re.sub(r'\bx(?:ox[a-z]|app)-[\w-]+', '<redacted>', text) # Slack's tokens
 	text = re.sub(r'(/services/|/api/webhooks/)[^\s\'"?&]+', r'\1<redacted>', text)
 	text = re.sub(r'(?i)(bearer\s+)[\w.~+/=-]+', r'\1<redacted>', text)
 	return re.sub(r'(?i)(token|crumb|auth\w*|key|secret)=[^&\s\'"]+', r'\1=<redacted>', text)
