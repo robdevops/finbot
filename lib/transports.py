@@ -155,37 +155,36 @@ class TelegramBot(Transport):
 			'callback_data': button.data} for button in row] for row in buttons]}
 
 	def post_text(self, text, buttons=None):
-		"""sendMessage."""
-		payload = {'text': text, 'parse_mode': 'HTML', 'disable_web_page_preview': 'true',
-			'disable_notification': 'true'}
+		"""sendMessage: Telegram's message, or None when it refused or failed (logged with Telegram's reason, such as
+		"can't parse entities")."""
+		payload = {'chat_id': self.where, 'text': text, 'parse_mode': 'HTML', 'disable_web_page_preview': True,
+			'disable_notification': True}
 		if buttons:
 			payload['reply_markup'] = self.markup(buttons)
-		return self._post_json(config.env.webhooks['telegram'] + 'sendMessage?chat_id=' + str(self.where), payload)
+		try:
+			message = telegram.call('sendMessage', json=payload)
+		except Exception as e:
+			print("Telegram sendMessage to", self.where, "failed:", net.redact(e), file=sys.stderr)
+			return None
+		print("OK telegram message to", self.where, file=sys.stderr)
+		return message
 
 	def post_chart(self, image, caption, buttons=None):
-		"""sendPhoto, the report as its caption."""
-		data = {'disable_notification': True, 'chat_id': self.where, 'caption': caption, 'parse_mode': 'HTML',
-			'disable_web_page_preview': True}
+		"""sendPhoto, the report as its caption: Telegram's message, MAYBE_SENT, or None when it refused or failed
+		(logged with Telegram's reason)."""
+		data = {'chat_id': self.where, 'caption': caption, 'parse_mode': 'HTML', 'disable_notification': True}
 		if buttons:
 			data['reply_markup'] = json.dumps(self.markup(buttons))
 		try:
-			r = net.post(config.env.webhooks['telegram'] + 'sendPhoto?chat_id=' + str(self.where), data=data,
-				files={'photo': ('image.png', image)})
+			message = telegram.call('sendPhoto', data=data, files={'photo': ('image.png', image)})
 		except requests.exceptions.ReadTimeout as e:
 			print("Telegram sendPhoto timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
 			return MAYBE_SENT
 		except Exception as e:
-			print("Telegram sendPhoto failed:", net.redact(e), file=sys.stderr)
+			print("Telegram sendPhoto to", self.where, "failed:", net.redact(e), file=sys.stderr)
 			return None
-		try:
-			output = r.json()
-		except ValueError:
-			output = {}
-		if r.status_code == 200 and output.get('ok'):
-			return output
-		print(r.status_code, "error telegram sendPhoto", output.get('error_code'),
-			output.get('description') or r.text[:300], file=sys.stderr)
-		return None
+		print("OK telegram chart to", self.where, file=sys.stderr)
+		return message
 
 	def edit_chart(self, message, image, caption, buttons=None):
 		"""Replace a chart message's image, caption and buttons in place. Raises RuntimeError when Telegram refuses,
@@ -223,11 +222,12 @@ class TelegramBot(Transport):
 		telegram.answerCallbackQuery(press, text)
 
 	def pin(self, answers):
-		"""Pin the messages these answers are for, last first, so the first ends up on top, without the notification."""
+		"""Pin the messages these answers are (Telegram's messages), last first, so the first ends up on top, without the
+		notification."""
 		sent = []
 		for answer in answers:
 			try:
-				sent.append((answer['result']['chat']['id'], answer['result']['message_id']))
+				sent.append((answer['chat']['id'], answer['message_id']))
 			except (KeyError, TypeError):
 				print("Unable to pin: unexpected response", file=sys.stderr)
 		for chat, message in reversed(sent):

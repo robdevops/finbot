@@ -638,18 +638,35 @@ class TelegramSending(FinbotCase):
 		self.patch(transports.net, 'post', fake)
 		return transports.TelegramBot('5').post_text('hi')
 
-	def test_success_returns_json(self):
-		"""A sent message returns Telegram's answer."""
-		self.assertEqual(self.post(Resp({'ok': True})), {'ok': True})
+	def test_success_returns_the_message(self):
+		"""A sent message returns the message, as Telegram gives it."""
+		self.assertEqual(self.post(Resp({'ok': True, 'result': {'message_id': 7}})), {'message_id': 7})
 
-	def test_http_error_and_exception_return_none(self):
-		"""A refused or failed send returns None."""
-		self.assertIsNone(self.post(Resp(status=429)))
-		self.assertIsNone(self.post(ConnectionError('down')))
+	def test_a_refusal_or_failure_returns_none_and_logs_why(self):
+		"""A refused or failed send returns None, and the log has Telegram's reason; a 200 that is not JSON is no
+		message either."""
+		refusal = Resp({'ok': False, 'error_code': 400, 'description': "Bad Request: can't parse entities"}, 400)
+		for outcome in (refusal, Resp(status=429), ConnectionError('down'), Resp(None)):
+			with self.subTest(outcome=outcome), contextlib.redirect_stderr(io.StringIO()):
+				self.assertIsNone(self.post(outcome))
+		self.assertIn("can't parse entities", self.logged(refusal))
 
-	def test_non_json_success_returns_empty_dict(self):
-		"""A 200 that is not JSON returns {}."""
-		self.assertEqual(self.post(Resp(None)), {})
+	def logged(self, outcome):
+		"""What posting with this outcome logs."""
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			self.post(outcome)
+		return log.getvalue()
+
+	def test_a_chart_goes_without_a_parameter_sendphoto_does_not_take(self):
+		"""sendPhoto is sent the chat, caption and markup, and no link-preview flag: a photo has no preview."""
+		sent = []
+		self.patch(transports.net, 'post', lambda url, **kwargs: sent.append((url, kwargs)) or
+			Resp({'ok': True, 'result': {'message_id': 8}}))
+		self.assertEqual(transports.TelegramBot('5').post_chart(io.BytesIO(b'png'), 'caption'), {'message_id': 8})
+		url, kwargs = sent[0]
+		self.assertTrue(url.endswith('/sendPhoto'))
+		self.assertEqual(kwargs['data'], {'chat_id': '5', 'caption': 'caption', 'parse_mode': 'HTML',
+			'disable_notification': True})
 
 	def test_error_line_redacts_secrets_and_truncates(self):
 		"""An error line has no token or crumb in it, and is cut to about 200 characters."""
