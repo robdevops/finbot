@@ -162,6 +162,11 @@ class _Reader:
 		"""A number setting."""
 		return self.number(float, name, default)
 
+	def words(self, name, default):
+		"""A list of words, separated by spaces: a tuple of them."""
+		value = self.value(name, default)
+		return tuple(value.split()) if isinstance(value, str) else tuple(value)
+
 	def check(self):
 		"""Raise ConfigError with every problem found so far."""
 		if self.errors:
@@ -236,71 +241,50 @@ def startup_values(getenv):
 
 @dataclasses.dataclass(frozen=True)
 class Prefs:
-	"""The preferences: preferences.conf, which the bot reads at start and on every reload. Read them as config.prefs.<name> when
-	they are used, never into a default or a module constant, so that a reload is seen."""
-	cache: bool
-	cache_seconds: int
-	chunk_maxlines: int
-	country_code: str
-	debug: bool
-	demote_leveraged: bool
-	demote_volatile: bool
-	exchange_suffix: str # Yahoo's suffix for the local exchange (AX): a bare ticker Yahoo does not know gets it
-	exclude_portfolios: tuple
-	future_days: int
-	graph: bool
-	http_timeout: int
-	hyperlink: bool
-	hyperlinkFooter: bool
-	hyperlinkProvider: str
-	include_portfolios: tuple
-	min_analysts: int # .buy, .sell and .forward pe list only stocks this many analysts cover
-	past_days: int
-	performance_cache_seconds: int # Sharesight performance reports (30 minutes)
-	performance_use_sharesight: bool
-	price_percent: float
-	print_headers: bool
-	shorts_percent: int
-	timezone: str
-	trades_use_yahoo: bool # set False if Yahoo breaks
-	volatility_multiplier: float
+	"""The preferences: preferences.conf, which the bot reads at start and on every reload, each with its default here
+	and read as its type says (preference_values). Read them as config.prefs.<name> when they are used, never into a
+	default or a module constant, so that a reload is seen."""
+	cache: bool = True
+	cache_seconds: int = 43200
+	chunk_maxlines: int = 20
+	country_code: str = 'AU'
+	debug: bool = False
+	demote_leveraged: bool = True
+	demote_volatile: bool = True
+	exchange_suffix: str = 'AX' # Yahoo's suffix for the local exchange: a bare ticker Yahoo does not know gets it
+	exclude_portfolios: tuple = () # portfolio ids
+	future_days: int = 30
+	graph: bool = True
+	http_timeout: int = 18
+	hyperlink: bool = True
+	hyperlinkFooter: bool = True
+	hyperlinkProvider: str = 'google'
+	include_portfolios: tuple = () # portfolio ids
+	min_analysts: int = 7 # .buy, .sell and .forward pe list only stocks this many analysts cover
+	past_days: int = 28
+	performance_cache_seconds: int = 1800 # Sharesight performance reports (30 minutes)
+	performance_use_sharesight: bool = False
+	price_percent: float = 5.0
+	print_headers: bool = False
+	shorts_percent: int = 15
+	timezone: str = 'Australia/Melbourne'
+	trades_use_yahoo: bool = True # set False if Yahoo breaks
+	volatility_multiplier: float = 2.0
 	source: dict = dataclasses.field(default_factory=dict, compare=False, repr=False) # the file's own lines, for job processes
 
 
 def preference_values(getenv, source=None):
-	"""The preferences (preferences.conf), computed from getenv(name, default); `source` is the file's own {key: value}. Raises
+	"""The preferences (preferences.conf), computed from getenv(name, default): each read as its Prefs field's type
+	says (a tuple is a list of words), its default the field's. `source` is the file's own {key: value}. Raises
 	ConfigError listing every bad value."""
 	r = _Reader(getenv)
-	prefs = Prefs(
-		cache=r.bool('cache', True),
-		cache_seconds=r.int('cache_seconds', 43200),
-		chunk_maxlines=r.int('chunk_maxlines', 20),
-		country_code=r.str('country_code', 'AU'),
-		debug=r.bool('debug', False),
-		demote_leveraged=r.bool('demote_leveraged', True),
-		demote_volatile=r.bool('demote_volatile', True),
-		exchange_suffix=r.blankable('exchange_suffix', 'AX').removeprefix('.').upper(),
-		exclude_portfolios=tuple(r.str('exclude_portfolios', '').split()),
-		future_days=r.int('future_days', 30),
-		graph=r.bool('graph', True),
-		http_timeout=r.int('http_timeout', 18),
-		hyperlink=r.bool('hyperlink', True),
-		hyperlinkFooter=r.bool('hyperlinkFooter', True),
-		hyperlinkProvider=r.str('hyperlinkProvider', 'google').lower(),
-		include_portfolios=tuple(r.str('include_portfolios', '').split()),
-		min_analysts=r.int('min_analysts', 7),
-		past_days=r.int('past_days', 28),
-		performance_cache_seconds=r.int('performance_cache_seconds', 1800),
-		performance_use_sharesight=r.bool('performance_use_sharesight', False),
-		price_percent=r.float('price_percent', 5),
-		print_headers=r.bool('print_headers', False),
-		shorts_percent=r.int('shorts_percent', 15),
-		timezone=r.str('timezone', 'Australia/Melbourne'),
-		trades_use_yahoo=r.bool('trades_use_yahoo', True),
-		volatility_multiplier=r.float('volatility_multiplier', 2),
-		source=dict(source or {}))
+	readers = {bool: r.bool, int: r.int, float: r.float, str: r.str, tuple: r.words,
+		'exchange_suffix': lambda name, default: r.blankable(name, default).removeprefix('.').upper(), # blank: none
+		'hyperlinkProvider': lambda name, default: r.str(name, default).lower()}
+	values = {field.name: readers.get(field.name, readers[field.type])(field.name, field.default)
+		for field in dataclasses.fields(Prefs) if field.compare}
 	r.check()
-	return prefs
+	return Prefs(**values, source=dict(source or {}))
 
 
 PREFERENCE_KEYS = tuple(field.name for field in dataclasses.fields(Prefs) if field.compare) # preferences.conf's keys: what a reload can change

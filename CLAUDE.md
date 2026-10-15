@@ -22,7 +22,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   pull requests that change only README.md, CLAUDE.md, `doc/*.md` or `img/*.png` (install, compile and tests are
   skipped; the allowlist in `.github/workflows/ci.yml` must never include a path a test reads).
 - Production runs the Debian system packages (including `python3-croniter`, for the scheduler in `lib/jobs.py`); `requirements.txt` is for pip/uv users and CI.
-- A new preference goes in five places: a `Prefs` field and its line in `preference_values` (`lib/config.py`), `defaults/preferences.conf`, the README's preferences table, and `DEFAULTS` plus the key count in `tests/test_config.py`. The tests catch all but the README (no test may read README.md: CI skips the tests for a README-only change).
+- A new preference goes in three places: a `Prefs` field with its default (`lib/config.py`; its type says how it is read),
+  `defaults/preferences.conf`, and the README's preferences table. The tests catch a key missing from the template or a
+  default that differs, but not the README (no test may read README.md: CI skips the tests for a README-only change).
 - If Yahoo and Sharesight are unreachable (the cloud environment's network policy can block them), check behaviour
   against the offline fixtures in `tests/common.py`.
 - For a refactor, `util/record_outputs.py` (or `--against COMMIT`) records what every command, button and scheduled

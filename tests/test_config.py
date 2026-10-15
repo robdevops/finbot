@@ -10,13 +10,6 @@ from lib import cache, sharesight, worker, yahoo
 from lib.reports import performance, price, shorts, trades
 
 REPO = Path(config.__file__).resolve().parent.parent
-DEFAULTS = {'past_days': 28, 'future_days': 30, 'price_percent': 5.0, 'shorts_percent': 15, 'cache_seconds': 43200,
-	'performance_cache_seconds': 1800, 'graph': True, 'http_timeout': 18, 'chunk_maxlines': 20, 'country_code': 'AU',
-	'timezone': 'Australia/Melbourne', 'cache': True, 'exchange_suffix': 'AX', 'hyperlink': True,
-	'hyperlinkFooter': True,
-	'hyperlinkProvider': 'google', 'demote_volatile': True, 'demote_leveraged': True, 'volatility_multiplier': 2.0, 'exclude_portfolios': (),
-	'include_portfolios': (), 'trades_use_yahoo': True, 'performance_use_sharesight': False, 'print_headers': False, 'min_analysts': 7,
-	'debug': False}
 
 
 def fields(prefs):
@@ -31,30 +24,31 @@ def keys_in(path):
 
 class Tables(unittest.TestCase):
 	def test_the_two_key_sets_are_disjoint_and_cover_everything_config_reads(self):
-		"""Startup and preference keys do not overlap, and between them name every setting config.py reads."""
+		"""Startup and preference keys do not overlap: config.py reads each startup key by name, and each preference
+		as a field of Prefs."""
 		self.assertEqual(set(config.STARTUP_KEYS) & set(config.PREFERENCE_KEYS), set())
-		self.assertEqual((len(config.STARTUP_KEYS), len(config.PREFERENCE_KEYS)), (19, 26))
 		source = (REPO / 'lib' / 'config.py').read_text()
 		read = set(re.findall(r"""(?:\br\.\w+|getenv)\(\s*['"]([A-Za-z_]+)['"]""", source))
 		read -= {'STATE_DIRECTORY'} # systemd's own variable, a source for DATA_DIR
-		self.assertEqual(read, set(config.STARTUP_KEYS) | set(config.PREFERENCE_KEYS))
+		self.assertEqual(read, set(config.STARTUP_KEYS))
 
 	def test_secrets_are_startup_keys(self):
 		"""Every secret is a startup key: preferences.conf holds none."""
 		self.assertTrue(set(config.SECRET_KEYS) <= set(config.STARTUP_KEYS))
 		self.assertEqual(len(config.SECRET_KEYS), 12)
 
-	def test_the_preference_defaults_are_the_old_defaults(self):
-		"""Unset preferences take the defaults finbot always had."""
+	def test_unset_preferences_take_their_defaults(self):
+		"""An unset preference takes its field's default, as it is: reading tidies nothing away."""
 		values = config.preference_values(lambda name, default=None: default)
-		self.assertEqual(fields(values), DEFAULTS)
+		self.assertEqual(fields(values), fields(config.Prefs()))
 
 	def test_templates_have_every_key_and_the_real_defaults(self):
 		"""defaults/preferences.conf and finbot.env list every key, change no default, and are valid as shipped."""
 		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'preferences.conf')), sorted(config.PREFERENCE_KEYS))
 		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'finbot.env')), sorted(config.STARTUP_KEYS))
 		prefs = config.read_preferences(REPO / 'defaults' / 'preferences.conf')
-		self.assertEqual(fields(config.preference_values(config._getenv_for(prefs))), DEFAULTS) # the template changes nothing
+		shipped = config.preference_values(config._getenv_for(prefs))
+		self.assertEqual(fields(shipped), fields(config.Prefs())) # the template changes nothing
 		startup = config.read_startup_file(REPO / 'defaults' / 'finbot.env')
 		config.startup_values(lambda name, default=None: startup.get(name, default)) # and is valid as it stands
 
