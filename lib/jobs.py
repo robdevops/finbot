@@ -33,7 +33,7 @@ SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance'
 	'price': price, 'rating': rating, 'reminder': reminder, 'shorts': shorts, 'trades': trades,
 	'yahoo_warm': yahoo_warm}
 current = None # the running Scheduler, set by bot.py; the chat commands use it
-HIDDEN = ('cleanup', 'podcasts', 'yahoo_warm') # scheduled, but not offered in the chat list
+HIDDEN = ('cleanup', 'podcasts', 'yahoo_warm') # scheduled, but not run from chat: .jobs lists them under System
 STATE_FILE = 'finbot_jobs.json' # last fire time of every job, so a restart neither repeats a run nor loses one
 JOB_TIMEOUT = 5 * 60 # seconds each command may run before it is stopped and reported
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')
@@ -395,15 +395,15 @@ class Scheduler:
 					self.busy.discard(label)
 		return outcome
 
-	def commands(self):
-		"""Every offered scheduled command once, sorted by name with numbers in numeric order: [(label, module,
-		kwargs)]. The time, comments, redirects and the other commands of a line are not part of it; HIDDEN scripts are
-		left out."""
+	def commands(self, hidden=False):
+		"""Every scheduled command offered in chat once, or with hidden=True each of the HIDDEN scripts' (System),
+		sorted by name with numbers in numeric order: [(label, module, kwargs)]. The time, comments, redirects and the
+		other commands of a line are not part of it."""
 		unique = {}
-		hidden = {SCRIPTS[name] for name in HIDDEN}
+		system = {SCRIPTS[name] for name in HIDDEN}
 		for job in self.jobs:
 			for command in job.commands:
-				if command[1] not in hidden:
+				if (command[1] in system) == hidden:
 					unique.setdefault(command[0], command)
 		natural = lambda label: [int(part) if part.isdigit() else part for part in re.split(r'(\d+)', label.lower())]
 		return [unique[label] for label in sorted(unique, key=natural)]
@@ -425,6 +425,8 @@ class Scheduler:
 		for command in commands:
 			if command[0] == wanted[0][0]:
 				return command
+		if any(command[0] == wanted[0][0] for command in self.commands(hidden=True)):
+			raise ScheduleError(f'{display(wanted[0][0])} is a system job: it runs on its schedule only')
 		raise ScheduleError(f"'{text}' is not in the schedule; send .jobs to list the commands")
 
 	def pick(self, number, crc):

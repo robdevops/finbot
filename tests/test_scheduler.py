@@ -396,6 +396,8 @@ class ManualRuns(SchedulerBase):
 				'nonsense', 'ls | wc', '', 'price.py close; trades.py'):
 			with self.assertRaises(jobs.ScheduleError, msg=text):
 				self.s.select(text)
+		with self.assertRaisesRegex(jobs.ScheduleError, '^cleanup is a system job: it runs on its schedule only$'):
+			self.s.select('cleanup.py')
 
 	def test_run_now_runs_one_command_and_leaves_the_schedule_alone(self):
 		"""run_now runs one command and leaves the schedule's timing alone."""
@@ -457,16 +459,24 @@ class ManualRuns(SchedulerBase):
 		return self.command(text)[0][1]
 
 	def test_list_in_chat_is_just_the_commands(self):
-		""".jobs and aliases number the commands, without times, comments or redirects, and mark one that is running."""
+		""".jobs and aliases number the commands, without times, comments or redirects, and mark one that is running;
+		the system jobs follow under their own heading, without a number."""
+		feed = jobs.display(podcasts.job(['https://example.com/feed'])[0]) # podcasts and the feed's hash
 		for alias in ('.jobs', '.cron', '.crons', '.schedule', '@' + BOT.lstrip('@') + ' jobs'):
 			text = '\n'.join(map(str, self.list_in_chat(alias)))
 			for line in ('1. performance 7', '2. performance 30', '5. performance 365', '6. price 7', '7. price close',
-					'8. trades'):
+					'8. trades\n\n<b>System:</b>\ncleanup\n' + feed + '\n'):
 				self.assertIn(line, text, alias)
-			for noise in ('*/20', '#', 'Mon-Fri', 'next', 'last', '/dev/null', 'weekly', '.py', 'cleanup', 'podcasts'):
+			for noise in ('*/20', '#', 'Mon-Fri', 'next', 'last', '/dev/null', 'weekly', '.py'):
 				self.assertNotIn(noise, text, alias)
 		self.s.busy.add('price.py 7')
 		self.assertIn('6. price 7 (running)', '\n'.join(map(str, self.list_in_chat())))
+
+	def test_a_schedule_of_system_jobs_alone_lists_them(self):
+		"""A schedule of system jobs alone lists them, with nothing to run or tap."""
+		self.file.write_text('0 2 * * * cleanup.py\n')
+		self.patch(jobs, 'current', self.scheduler())
+		self.assertEqual(about.prepare_jobs_payload(TELEGRAM, '', tappable=True), (['<b>System:</b>', 'cleanup'], None))
 
 	def test_a_chat_that_takes_buttons_gets_one_per_command(self):
 		"""Where buttons work each command gets one, whose data fits in Telegram's 64 bytes, and the list says to tap

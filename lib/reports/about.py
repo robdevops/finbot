@@ -4,23 +4,29 @@ from lib import formats
 from lib import jobs
 
 def prepare_jobs_payload(service, run=None, tappable=False):
-	"""`.jobs`: the scheduled commands, each once; with `run` (a number in that list, or a command's text) that command
-	run now, as cron would. Returns (payload, buttons): with tappable (the chat takes buttons) a button per command, two
-	to a row."""
+	"""`.jobs`: the scheduled commands, each once and numbered, then the system jobs (HIDDEN) under their own heading,
+	unnumbered: they run on their schedule only. With `run` (a number in that list, or a command's text) that command
+	run now, as cron would. Returns (payload, buttons): with tappable (the chat takes buttons) a button per numbered
+	command, two to a row."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['Scheduled jobs are off (scheduler=False)'], None
 	if run:
 		return [run_job_line(scheduler, run)], None
-	commands = scheduler.commands()
-	if not commands:
+	commands, system = scheduler.commands(), scheduler.commands(hidden=True)
+	if not commands and not system:
 		return ['No scheduled jobs'], None
-	payload = [service.bold('Scheduled commands:')]
-	for number, (label, _, _) in enumerate(commands, 1):
-		payload.append(f"{number}. {jobs.display(label)}" + (' (running)' if label in scheduler.busy else ''))
-	payload.append("\nRun one with .jobs run NUMBER" + (' or tap it' if tappable else ''))
+	shown = lambda label: jobs.display(label) + (' (running)' if label in scheduler.busy else '')
+	payload = []
+	if commands:
+		payload = [service.bold('Scheduled commands:')] + [f"{number}. {shown(label)}"
+			for number, (label, _, _) in enumerate(commands, 1)]
+	if system:
+		payload += ([''] if payload else []) + [service.bold('System:')] + [shown(label) for label, _, _ in system]
+	if commands:
+		payload.append("\nRun one with .jobs run NUMBER" + (' or tap it' if tappable else ''))
 	markup = None
-	if tappable:
+	if tappable and commands:
 		row = [buttons.job_button(number, jobs.display(label), jobs.checksum(label))
 			for number, (label, _, _) in enumerate(commands, 1)]
 		markup = [row[i:i + 2] for i in range(0, len(row), 2)]
