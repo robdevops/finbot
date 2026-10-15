@@ -1,5 +1,5 @@
 """The two config files: finbot.env (the startup file, which the launcher loads) and preferences.conf (reloadable)."""
-import ast, contextlib, dataclasses, io, os, re, subprocess, sys, types, unittest
+import ast, contextlib, dataclasses, io, os, re, shutil, subprocess, sys, types, unittest
 from pathlib import Path
 from unittest import mock
 from tests import common # first: it sets the environment that lib.config reads as it loads
@@ -42,12 +42,15 @@ class Tables(unittest.TestCase):
 		self.assertEqual(fields(values), fields(config.Prefs()))
 
 	def test_templates_have_every_key_and_the_real_defaults(self):
-		"""defaults/preferences.conf and finbot.env list every key, change no default, and are valid as shipped."""
-		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'preferences.conf')), sorted(config.PREFERENCE_KEYS))
+		"""defaults/preferences.conf lists every key, commented out at its built-in default, so that it sets none;
+		finbot.env lists every key; both are valid as shipped."""
+		template = REPO / 'defaults' / 'preferences.conf'
+		self.assertEqual(sorted(keys_in(template)), sorted(config.PREFERENCE_KEYS))
 		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'finbot.env')), sorted(config.STARTUP_KEYS))
-		prefs = config.read_preferences(REPO / 'defaults' / 'preferences.conf')
-		shipped = config.preference_values(config._getenv_for(prefs))
-		self.assertEqual(fields(shipped), fields(config.Prefs())) # the template changes nothing
+		self.assertEqual((config.read_preferences(template), config.template_keys()), ({}, [])) # it sets nothing
+		shown = dict(re.findall(r'^#([A-Za-z_][A-Za-z0-9_]*)=(.*)$', template.read_text(), re.M)) # #key=value lines
+		self.assertEqual(sorted(shown), sorted(config.PREFERENCE_KEYS))
+		self.assertEqual(fields(config.preference_values(config._getenv_for(shown))), fields(config.Prefs()))
 		startup = config.read_startup_file(REPO / 'defaults' / 'finbot.env')
 		config.startup_values(lambda name, default=None: startup.get(name, default)) # and is valid as it stands
 
@@ -353,6 +356,27 @@ class Startup(unittest.TestCase):
 			self.assertIn('ERROR config:', out.stderr)
 			self.assertIn(expect, out.stderr)
 
+	def test_the_template_is_never_read_and_a_key_set_there_is_pointed_elsewhere(self):
+		"""defaults/preferences.conf is only a template: a key set there changes nothing, and the log at start says to
+		set it in the data dir's preferences.conf, or to make that file first with util/sync_defaults.py."""
+		tree = Path(common.temp_dir(self)) # config.py and a template of its own, which sets a key
+		(tree / 'lib').mkdir()
+		shutil.copy(REPO / 'lib' / 'config.py', tree / 'lib')
+		(tree / 'defaults').mkdir()
+		(tree / 'defaults' / 'preferences.conf').write_text('# a comment\n#past_days=28\nfuture_days=45\n')
+		code = 'from lib import config as c; print(c.prefs.future_days); print(*c.startup_warnings(), sep="\\n")'
+		for made in (False, True):
+			data = common.temp_dir(self)
+			if made:
+				Path(data, 'preferences.conf').write_text('#future_days=30\n')
+			with self.subTest(preferences_conf=made):
+				out = subprocess.run([sys.executable, '-c', code], cwd=tree,
+					env={**common.bare_environment(), 'DATA_DIR': data}, capture_output=True, text=True)
+				conf = f'{data}/preferences.conf'
+				fix = f'edit {conf} instead' if made else f'run util/sync_defaults.py --apply, then edit {conf}'
+				self.assertEqual(out.stdout.split('\n')[:2], ['30',
+					f'defaults/preferences.conf sets future_days, but finbot never reads it: {fix}'], out.stderr)
+
 	def test_an_unreadable_preferences_file_refuses_to_start(self):
 		"""A preferences.conf that cannot be read stops the start."""
 		data = common.temp_dir(self)
@@ -512,6 +536,21 @@ class SigHup(unittest.TestCase):
 				bot.reload_all()
 			self.assertIn('ERROR config:', err.getvalue())
 			self.assertEqual(config.prefs.future_days, 45)
+
+	def test_a_reload_points_a_key_set_in_the_template_at_the_file_to_set_it_in(self):
+		"""A key set in defaults/preferences.conf, which finbot never reads, is reported on a reload too, with the file
+		to set it in."""
+		file = Path(common.temp_dir(self), 'preferences.conf')
+		file.write_text('')
+		self.addCleanup(self.restore, file)
+		template = Path(common.temp_dir(self), 'template.conf')
+		template.write_text('#past_days=28\ndebug=True\n')
+		with mock.patch.object(config, 'preferences_path', str(file)), mock.patch.object(config, 'TEMPLATE', template):
+			with contextlib.redirect_stderr(io.StringIO()) as err:
+				bot.reload_all()
+		self.assertIn(f'ERROR config: defaults/preferences.conf sets debug, but finbot never reads it: edit {file}'
+			' instead', err.getvalue())
+		self.assertFalse(config.prefs.debug)
 
 
 class Tools(unittest.TestCase):

@@ -91,7 +91,9 @@ class DataDirTests(FinbotCase):
 		self.assertFalse(Path(config.env.data_dir, 'finbot_adr.json').exists()) # dry run
 		sync_defaults.sync(apply=True)
 		self.assertTrue(Path(config.env.data_dir, 'finbot_adr.json').exists())
-		self.assertTrue(Path(config.env.data_dir, 'preferences.conf').exists())
+		copied = Path(config.env.data_dir, 'preferences.conf') # the template as it is: every key commented out
+		self.assertEqual(copied.read_bytes(), (config.REPO_DIR / 'defaults' / 'preferences.conf').read_bytes())
+		self.assertEqual(config.read_preferences(copied), {})
 		# the startup file is never copied into the data dir
 		self.assertFalse(Path(config.env.data_dir, 'finbot.env').exists())
 		mine = Path(config.env.data_dir, 'finbot_adr.json')

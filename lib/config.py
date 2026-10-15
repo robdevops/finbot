@@ -23,6 +23,7 @@ SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_sec
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
 	'telegramOutgoingWebhook', 'discordBotToken', 'discordOutgoingWebhook') # never printed
 PREFERENCES_FILE = 'preferences.conf'
+TEMPLATE = REPO_DIR / 'defaults' / PREFERENCES_FILE # every key commented out at its default; finbot never reads it
 RETIRED = { # keys of either file that do nothing any more: accepted, so that they never stop a start, with a note at
 	# start saying what to do instead
 	'alliterate': 'delete the line',
@@ -108,6 +109,29 @@ def read_preferences(path):
 	if errors:
 		raise ConfigError(errors)
 	return values
+
+
+def template_keys():
+	"""The keys that defaults/preferences.conf sets: its lines that are not commented out, none as shipped. finbot never
+	reads the template, so a key set there does nothing; an unreadable template sets nothing either."""
+	try:
+		text = read_text(TEMPLATE) or ''
+	except ConfigError:
+		return []
+	return [line.partition('=')[0].strip() for line in text.splitlines()
+		if line.strip() and not line.lstrip().startswith('#')]
+
+
+def template_note(preferences_path):
+	"""What to tell whoever set keys in defaults/preferences.conf, which finbot never reads: to set them in
+	preferences_path instead, made first with util/sync_defaults.py when there is none. None when the template sets
+	nothing, as shipped."""
+	keys = template_keys()
+	if not keys:
+		return None
+	fix = (f'edit {preferences_path} instead' if os.path.isfile(preferences_path) else
+		f'run util/sync_defaults.py --apply, then edit {preferences_path}')
+	return f"defaults/preferences.conf sets {', '.join(keys)}, but finbot never reads it: {fix}"
 
 
 def read_startup_file(path):
@@ -421,8 +445,9 @@ def retired_notes(values, file=PREFERENCES_FILE):
 
 
 def startup_warnings(settings=None):
-	"""Settings in finbot.env (an Env; the running one by default) that do not stop the start but keep part of the bot
-	from working, or do nothing, a line each."""
+	"""Settings in finbot.env (an Env; the running one by default), and keys set in the template
+	defaults/preferences.conf, that do not stop the start but keep part of the bot from working, or do nothing, a line
+	each."""
 	s = settings or env
 	warnings = []
 	if s.slackBotToken and not (s.slackAppToken or s.slackOutgoingWebhook):
@@ -462,4 +487,6 @@ def startup_warnings(settings=None):
 	if s.discordPublicKey and not s.discordOutgoingWebhook:
 		warnings.append('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway'
 			' (pull mode), and the key is not used')
+	if note := template_note(s.preferences_path):
+		warnings.append(note)
 	return warnings

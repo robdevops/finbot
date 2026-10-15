@@ -207,8 +207,9 @@ def in_thread(work):
 	return lambda *args: threading.Thread(target=run, daemon=True).start()
 
 def reload_all(*args):
-	"""SIGHUP: re-read preferences.conf; a bad one is reported and leaves the running config untouched. (Each chat's
-	jobs need no reload: a change made with .jobs counts at once.)"""
+	"""SIGHUP: re-read preferences.conf; a bad one is reported and leaves the running config untouched. A key set in
+	defaults/preferences.conf, which is never read, is pointed at the file to set it in. (Each chat's jobs need no
+	reload: a change made with .jobs counts at once.)"""
 	try:
 		changes = config.reload()
 		for change in changes:
@@ -217,6 +218,8 @@ def reload_all(*args):
 			file=sys.stderr)
 	except config.ConfigError as e:
 		config.print_errors(e)
+	if note := config.template_note(config.preferences_path):
+		print('ERROR config:', note, file=sys.stderr)
 
 def flush_cache(*args):
 	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings,

@@ -43,12 +43,13 @@ of the chat network keys it needs.
 
 ## `preferences.conf` items
 
-Copies preferences.conf and metadata files into the data directory (never overwrites)
+The preferences, read by the bot itself from `<DATA_DIR>/preferences.conf`; without that file, finbot runs on the built-in defaults below. `defaults/preferences.conf` is only its template: every key in it is commented out at its default, and finbot never reads it. To change a preference, copy the template into the data directory (this never overwrites a file there):
 ```
 util/sync_defaults.py [--dest DIR] --apply
 ```
+then remove the `#` before the key and edit its value. A key set in `defaults/preferences.conf` itself does nothing: the log at start (and check_config) says so, and where to set it instead.
 
-The preferences, read by the bot itself. A change takes effect on a reload. A true/false preference takes `true`/`false`, `yes`/`no`, `on`/`off` or `1`/`0`; anything else is a mistake, reported like any other. A blank value means the default.
+A change takes effect on a reload. A true/false preference takes `true`/`false`, `yes`/`no`, `on`/`off` or `1`/`0`; anything else is a mistake, reported like any other. A blank value means the default.
 
 | Key | Default | Description |
 |---|---|---|

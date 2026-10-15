@@ -27,7 +27,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `requirements.txt` is for pip/uv users and CI. The libraries in `requirements-optional.txt` are each imported only
   inside the code of the mode that needs it, never at module load (a test starts finbot with them all blocked).
 - A new preference goes in three places: a `Prefs` field with its default (`lib/config.py`; its type says how it is
-  read), `defaults/preferences.conf`, and the preferences table of `doc/configuration.md`. The tests catch a key
+  read), `defaults/preferences.conf` (commented out at its default, `#key=value`: the template sets nothing, and finbot
+  never reads it), and the preferences table of `doc/configuration.md`. The tests catch a key
   missing from the template or a default that differs, but not the docs (no test may read README.md or `doc/*.md`: CI
   skips the tests for a change to the docs alone).
 - If Yahoo and Sharesight are unreachable (the cloud environment's network policy can block them), check behaviour
