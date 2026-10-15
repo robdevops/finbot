@@ -22,7 +22,6 @@ class Report:
 
 
 REPLIES = {'telegram': transports.TelegramBot, 'slack': transports.SlackBot} # a reply into the chat that asked
-SCHEDULED = {'telegram': transports.TelegramBot, 'slack': transports.SlackWebhook, 'discord': transports.DiscordWebhook}
 
 
 def reply_to(service, chat):
@@ -31,14 +30,28 @@ def reply_to(service, chat):
 	return kind(chat) if kind else None
 
 
+def scheduled(service, url):
+	"""Where a scheduled report goes on a network: Telegram's telegramChatID; Slack's slackChannelID as the bot, with
+	slackBotToken (so that charts go too), else its incoming webhook; Discord's webhook."""
+	env = config.env
+	if service == 'telegram':
+		return transports.TelegramBot(env.telegramChatID)
+	if service == 'slack' and env.slackChannelID and env.slackBotToken:
+		return transports.SlackBot(env.slackChannelID)
+	return {'slack': transports.SlackWebhook, 'discord': transports.DiscordWebhook}[service](url)
+
+
 def default_chats():
-	"""Where a scheduled report goes: Telegram's telegramChatID (left out without one), and the Slack and Discord
-	incoming webhooks. Raises RuntimeError when there is nowhere to post."""
-	chats = [SCHEDULED[service](config.env.telegramChatID if service == 'telegram' else url)
-		for service, url in config.env.webhooks.items() if service != 'telegram' or config.env.telegramChatID]
-	if not chats:
-		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slack_webhook or discord_webhook')
-	return chats
+	"""Where a scheduled report goes: each network's destination (scheduled), Telegram's left out without a
+	telegramChatID. Raises RuntimeError when there is nowhere to post."""
+	env = config.env
+	services = [service for service in env.webhooks if service != 'telegram' or env.telegramChatID]
+	if env.slackChannelID and env.slackBotToken and 'slack' not in services: # the bot needs no incoming webhook
+		services.append('slack')
+	if not services:
+		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slackChannelID, slack_webhook or'
+			' discord_webhook')
+	return [scheduled(service, env.webhooks.get(service)) for service in services]
 
 
 def targets(dest):

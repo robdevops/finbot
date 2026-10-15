@@ -30,7 +30,7 @@ What finbot can do on each network. Telegram takes everything; the others take w
 | Chat commands | ✓ | ✓ | ✗ (a webhook only posts) |
 | "typing…" while a command works | ✓ | ✗ (Slack has no typing notice for bots) | ✗ |
 | Charts in replies | ✓ | ✓ with `slackBotToken` | n/a |
-| Charts in scheduled reports | ✓ | ✗ (the incoming webhook takes text only) | ✓ |
+| Charts in scheduled reports | ✓ | ✓ with `slackChannelID` and `slackBotToken` (the incoming webhook takes text only) | ✓ |
 | Period and job buttons | ✓ | ✗ | ✗ |
 | No link previews | ✓ | ✓ | ✓ |
 | Linked tickers | ✓ | ✓ | ✓ |
@@ -472,6 +472,7 @@ of the chat network keys it needs.
 | `discord_webhook` | | Discord webhook, for outbound reports |
 | `telegramBotToken` | | Telegram bot token, for outbound reports |
 | `slackBotToken` | | Slack bot token, for replies and chart uploads in Slack |
+| `slackChannelID` | | Channel id that scheduled reports go to on Slack as the bot, charts and all (with `slackBotToken`); `slack_webhook` is then not used |
 | `telegramOutgoingWebhook` | | Telegram webhook path the bot accepts (interactive mode) |
 | `telegramOutgoingToken` | | Secret token Telegram must present (interactive mode) |
 | `slackOutgoingWebhook` | | Slack webhook path the bot accepts (interactive mode) |

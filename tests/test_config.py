@@ -32,7 +32,7 @@ class Tables(unittest.TestCase):
 	def test_the_two_key_sets_are_disjoint_and_cover_everything_config_reads(self):
 		"""Startup and preference keys do not overlap, and between them name every setting config.py reads."""
 		self.assertEqual(set(config.STARTUP_KEYS) & set(config.PREFERENCE_KEYS), set())
-		self.assertEqual((len(config.STARTUP_KEYS), len(config.PREFERENCE_KEYS)), (18, 26))
+		self.assertEqual((len(config.STARTUP_KEYS), len(config.PREFERENCE_KEYS)), (19, 26))
 		source = (REPO / 'lib' / 'config.py').read_text()
 		read = set(re.findall(r"""(?:\br\.\w+|getenv)\(\s*['"]([A-Za-z_]+)['"]""", source))
 		read -= {'STATE_DIRECTORY'} # systemd's own variable, a source for DATA_DIR
@@ -378,8 +378,8 @@ class Startup(unittest.TestCase):
 			self.assertEqual(values.webhooks['discord'], 'https://discord.com/api/webhooks/1/abc')
 
 	def test_settings_that_leave_part_of_the_bot_unable_to_work_are_warned_about(self):
-		"""A startup warning for Slack commands without slackBotToken (they would get no reply), and for an inbound
-		webhook without its secret (every request would be refused)."""
+		"""A startup warning for Slack commands or slackChannelID without slackBotToken (no reply, no reports there),
+		and for an inbound webhook without its secret (every request would be refused)."""
 		hooks = dict(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok',
 			slackBotToken='xoxb-1', telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
 		no_reply = 'slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply'
@@ -387,7 +387,9 @@ class Startup(unittest.TestCase):
 			' every Slack request will be refused')
 		telegram_refused = ('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update'
 			' will be refused')
+		no_bot = 'slackChannelID is set but slackBotToken is not: scheduled reports cannot go there as the bot'
 		cases = (({}, []), ({'slackBotToken': ''}, [no_reply]), ({'slackOutgoingToken': ''}, [slack_refused]),
+			({'slackChannelID': 'C9'}, []), ({'slackChannelID': 'C9', 'slackBotToken': ''}, [no_reply, no_bot]),
 			({'slackOutgoingToken': '', 'slackSigningSecret': 's'}, []),
 			({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, []))
 		for changes, warnings in cases:

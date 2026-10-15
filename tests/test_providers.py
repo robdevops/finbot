@@ -655,15 +655,29 @@ class ChartDelivery(FinbotCase):
 		return [Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': 'F1'}), Resp(None, text='OK - 3'), Resp({'ok': True, 'files': [{'id': 'F1'}]})]
 
 	def test_where_charts_can_go(self):
-		"""Charts always go to Telegram and Discord; Slack gets them only in replies with the bot token."""
+		"""Charts always go to Telegram and Discord; Slack gets them as the bot, with the bot token, but not through its
+		incoming webhook."""
 		self.env(slackBotToken='xoxb-test')
 
-		kinds = (delivery.REPLIES['telegram'], delivery.SCHEDULED['telegram'], delivery.REPLIES['slack'],
-			delivery.SCHEDULED['slack'], delivery.SCHEDULED['discord'])
-		charted = [kind(None).takes_charts for kind in kinds]
-		self.assertEqual(charted, [True, True, True, False, True]) # Slack: replies, not scheduled reports
+		kinds = (transports.TelegramBot, transports.SlackBot, transports.SlackWebhook, transports.DiscordWebhook)
+		self.assertEqual([kind(None).takes_charts for kind in kinds], [True, True, False, True])
 		self.env(slackBotToken=False)
-		self.assertFalse(delivery.REPLIES['slack'](None).takes_charts)
+		self.assertFalse(transports.SlackBot(None).takes_charts)
+
+	def test_scheduled_reports_go_to_slack_as_the_bot_with_slackChannelID(self):
+		"""With slackChannelID and the bot token, scheduled reports reach Slack as the bot in place of the incoming
+		webhook, which it does not need; without the token, the webhook carries them."""
+		hook = 'https://hooks.slack.com/services/x'
+		telegram = config.env.webhooks['telegram']
+		self.env(webhooks={'telegram': telegram, 'slack': hook}, telegramChatID='1', slackChannelID='C9',
+			slackBotToken='xoxb-test')
+		self.assertEqual(list(map(repr, delivery.default_chats())), ['<TelegramBot 1>', '<SlackBot C9>'])
+		self.env(slackBotToken='')
+		self.assertEqual(list(map(repr, delivery.default_chats())), ['<TelegramBot 1>', f'<SlackWebhook {hook}>'])
+		self.env(webhooks={'telegram': telegram}, slackBotToken='xoxb-test')
+		self.assertEqual(list(map(repr, delivery.default_chats())), ['<TelegramBot 1>', '<SlackBot C9>'])
+		self.env(webhooks={}, telegramChatID='') # the bot alone
+		self.assertEqual(list(map(repr, delivery.default_chats())), ['<SlackBot C9>'])
 
 	def test_slack_replies_upload_their_charts(self):
 		"""A Slack reply uploads its chart in three steps (bot token), the report as its message, with no text copy."""
@@ -705,8 +719,9 @@ class ChartDelivery(FinbotCase):
 					delivery.deliver(transports.SlackBot('C1'), report)
 				self.assertEqual(self.sent, expect)
 
-	def test_scheduled_reports_to_slack_stay_text(self):
-		"""Scheduled reports reach Slack's incoming webhook as text and Telegram with their charts."""
+	def test_scheduled_reports_to_slack_carry_charts_only_as_the_bot(self):
+		"""Scheduled reports reach Slack's incoming webhook as text; the Slack bot (slackChannelID) and Telegram get
+		their charts."""
 		self.env(slackBotToken='xoxb-test')
 
 		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/x'}) # an incoming webhook cannot upload
@@ -720,6 +735,11 @@ class ChartDelivery(FinbotCase):
 				sent.clear()
 				report()
 				self.assertEqual(sorted(set(sent)), [('slack', 'text'), ('telegram', 'chart')])
+				self.env(slackChannelID='C9') # as the bot, the report's chart goes too
+				sent.clear()
+				report()
+				self.assertEqual(sorted(set(sent)), [('slack', 'chart'), ('telegram', 'chart')])
+				self.env(slackChannelID='')
 
 	def test_slack_without_a_bot_token_gets_text_and_no_chart_is_drawn(self):
 		"""Without the bot token, Slack replies are text and no chart is drawn for them."""

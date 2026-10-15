@@ -16,8 +16,8 @@ os.chdir(REPO_DIR)
 
 STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'telegramChatID', 'scheduler', 'scheduler_catchup',
 	'sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
-	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
-	'telegramOutgoingWebhook')
+	'slackChannelID', 'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken',
+	'telegramOutgoingToken', 'telegramOutgoingWebhook')
 SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slack_webhook', 'discord_webhook', 'slackBotToken',
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
 	'telegramOutgoingWebhook') # never printed
@@ -175,6 +175,7 @@ class Env:
 	telegramOutgoingWebhook: str
 	telegramOutgoingToken: str
 	slackBotToken: str
+	slackChannelID: str # with slackBotToken, scheduled reports go to this channel as the bot, in place of slack_webhook
 	slackOutgoingWebhook: str
 	slackOutgoingToken: str
 	slackSigningSecret: str
@@ -210,6 +211,7 @@ def startup_values(getenv):
 		telegramOutgoingWebhook=r.str('telegramOutgoingWebhook', ''),
 		telegramOutgoingToken=r.str('telegramOutgoingToken', ''),
 		slackBotToken=r.str('slackBotToken', ''),
+		slackChannelID=r.str('slackChannelID', ''),
 		slackOutgoingWebhook=r.str('slackOutgoingWebhook', ''),
 		slackOutgoingToken=r.str('slackOutgoingToken', ''),
 		slackSigningSecret=r.str('slackSigningSecret', ''),
@@ -411,6 +413,8 @@ def startup_warnings():
 	warnings = []
 	if env.slackOutgoingWebhook and not env.slackBotToken:
 		warnings.append('slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply')
+	if env.slackChannelID and not env.slackBotToken:
+		warnings.append('slackChannelID is set but slackBotToken is not: scheduled reports cannot go there as the bot')
 	if env.slackOutgoingWebhook and not (env.slackSigningSecret or env.slackOutgoingToken):
 		warnings.append('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
 			' every Slack request will be refused')

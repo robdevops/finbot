@@ -1,18 +1,19 @@
 # Slack
 
 finbot reaches Slack through a Slack app of your own. The app's incoming webhook posts the scheduled reports into a
-channel; the app's bot also answers commands. The bot builds on the webhook, which still carries the scheduled reports.
+channel; the app's bot also answers commands. The bot builds on the webhook, which carries the scheduled reports unless
+the bot posts them itself, charts and all (`slackChannelID`).
 
 ## Incoming webhook, or the interactive bot?
 
 | | Incoming webhook | Interactive bot (with the webhook) |
 |---|---|---|
-| Scheduled reports: trades, price alerts, earnings and dividend dates, performance and the rest | ✓, as text | ✓, as text, through the webhook |
+| Scheduled reports: trades, price alerts, earnings and dividend dates, performance and the rest | ✓, as text | ✓, as text through the webhook, or with their charts as the bot (`slackChannelID`) |
 | Chat commands: `.price`, `@finbot price` and the rest ([the list](../README.md#supported-commands)) | ✗ | ✓ |
 | Charts in the replies to commands | n/a | ✓, uploaded into the channel |
 | Period buttons and "typing…" | ✗ | ✗: Slack has no typing notice for bots, and finbot has no Slack buttons yet |
 | Public HTTPS server | Not needed | Needed: a domain name with a valid certificate |
-| `finbot.env` keys | `slack_webhook` | That one, plus `slackOutgoingWebhook`, `slackSigningSecret` and `slackBotToken` |
+| `finbot.env` keys | `slack_webhook` | That one, plus `slackOutgoingWebhook`, `slackSigningSecret` and `slackBotToken` (and `slackChannelID`, for charts in the scheduled reports) |
 
 Start with [Incoming webhook](#incoming-webhook). For commands, go on to [Interactive bot](#interactive-bot)
 afterwards, in the same app.
@@ -30,7 +31,8 @@ afterwards, in the same app.
 slack_webhook=https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA
 ```
 
-An incoming webhook takes text only, so the scheduled reports come without charts.
+An incoming webhook takes text only, so the scheduled reports come without charts. The [interactive bot](#interactive-bot)
+can post them with their charts.
 
 ## Interactive bot
 
@@ -84,12 +86,16 @@ on a domain name with a valid certificate.
    without it, commands get no reply, and the log says so at startup and for each reply.
 8. Restart finbot, and invite the bot to the channel: `/invite @finbot`.
 9. Send `@finbot help` in the channel (or `.help`, with `message.channels`).
+10. For charts in the scheduled reports, set `slackChannelID` to the channel's id (in Slack, click the channel's name:
+    the _Channel ID_, which starts with C, is at the bottom of _About_), and restart finbot. The bot then posts the
+    scheduled reports there, as it posts its replies, and `slack_webhook` is no longer used.
 
 ```
 slack_webhook=https://hooks.slack.com/services/XXXXXXXXXXX/YYYYYYYYYYY/AAAAAAAAmockupAAAAAAAAAAAA
 slackOutgoingWebhook=https://www.example.com:8443/slack
 slackSigningSecret=0123456789abcdef0123456789abcdef
 slackBotToken=xoxb-your-bot-token
+slackChannelID=C0123456789
 ```
 
 A chart in a reply is uploaded into the channel with Slack's file upload API (`files.getUploadURLExternal`, then
