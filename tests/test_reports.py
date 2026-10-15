@@ -127,7 +127,20 @@ class ReportFunctions(FinbotCase):
 
 		quote = price.gather()[1]['T1']
 		self.assertAlmostEqual(quote['market_cap_usd'], 1e11 / 1380.0) # US$72M
-		self.assertEqual(price.trigger_bar('T1', quote, 5), 5 * config.prefs.volatility_multiplier)
+		self.assertEqual(price.trigger_bar('T1', quote, 5, {}), 5 * config.prefs.volatility_multiplier)
+
+	def test_a_short_top_list_repeats_none_of_its_best_as_the_worst(self):
+		"""With fewer than twice `top` stocks, the Bottom list leaves out those in the Top list (it repeated them), and
+		with none left there is no Bottom list and no gap in the chart; the subtitle says "over the past 3 months"."""
+		for count, bottom, bars in ((12, 2, 13), (8, 0, 8)):
+			with self.subTest(count=count):
+				self.patch(watchlist, 'with_holdings', lambda: TICKERS[:count])
+				found = price.moves('period', 0, 90, interactive=True)
+				payload, chart = price.report(TELEGRAM, found, 'period', 0, 90, top=10, interactive=True)
+				shown = payload[payload.index('<b>Bottom 10</b>') + 1:] if bottom else []
+				self.assertEqual((len(shown), len(chart.rows)), (bottom, bars))
+				self.assertEqual(len(payload), 1 + min(count, 10) + (bottom and 2 + bottom))
+				self.assertEqual(chart.subtitle, '% change over the past 3 months') # it said "in 3 months"
 
 	def test_the_small_caps_betas_are_fetched_together(self):
 		"""A scheduled price report asks for the beta of each small cap that moved (US$150M to US$1B): together, not one by one."""

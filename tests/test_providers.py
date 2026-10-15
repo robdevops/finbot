@@ -685,7 +685,7 @@ class ChartDelivery(FinbotCase):
 		"""A Slack reply uploads its chart in three steps (bot token), the report as its message, with no text copy."""
 		self.env(slackBotToken='xoxb-test')
 
-		for cmd, heading in (('.beta', '*Beta over 1.5'), ('.price', '*5% at close'), ('.compare T1 T2', '*')):
+		for cmd, heading in (('.beta', '*Beta over 1.5'), ('.price', '*≥ 5% at close'), ('.compare T1 T2', '*')):
 			with self.subTest(cmd=cmd):
 				calls = self.slack_answers(*self.upload_steps())
 				self.sent.clear(); self.errors.clear()
@@ -829,7 +829,7 @@ class DiscordWebhook(FinbotCase):
 		self.assertEqual(url, self.URL + '?wait=true')
 		payload = json.loads(kwargs['data']['payload_json'])
 		self.assertEqual((payload['flags'], payload['allowed_mentions'], payload['attachments'][0]['filename']), (4, {'parse': []}, 'chart.png'))
-		self.assertTrue(payload['content'].startswith('**5% at close'), payload['content'][:60])
+		self.assertTrue(payload['content'].startswith('**≥ 5% at close'), payload['content'][:60])
 		self.assertLessEqual(len(payload['content']), 2000)
 		name, image, kind = kwargs['files']['files[0]']
 		self.assertEqual((name, kind), ('chart.png', 'image/png'))
@@ -980,7 +980,7 @@ class SlackButtons(FinbotCase):
 		self.assertNotIn('channel_id', self.posts[2][1]['data']) # in no channel: the message shows it
 		blocks = self.blocks('chat.postMessage')
 		self.assertEqual([block['type'] for block in blocks], ['section', 'image', 'actions'])
-		self.assertTrue(blocks[0]['text']['text'].startswith('*5% at close'))
+		self.assertTrue(blocks[0]['text']['text'].startswith('*≥ 5% at close'))
 		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
 		buttons_shown = blocks[2]['elements']
 		self.assertEqual([button['text']['text'] for button in buttons_shown], ['1D', '7D', '1M', '1Y', 'Max'])

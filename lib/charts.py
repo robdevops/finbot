@@ -37,7 +37,9 @@ def price_list_chart(service, period, days, threshold, top):
 	""".price: the moves past `threshold`, or the top and bottom `top` ('0': not a top list), over the period; period
 	'd' is today's moves, the command's default view, not a lookback of one day."""
 	span = {'mode': 'interday'} if period == 'd' else {'mode': 'period', 'days': days or buttons.MAX_DAYS}
-	payload, chart = price.report(service, threshold=float(threshold), interactive=True, top=int(top) or None, **span)
+	threshold, top = float(threshold), int(top) or None
+	found = price.moves(threshold=threshold, interactive=True, **span)
+	payload, chart = price.report(service, found, threshold=threshold, interactive=True, top=top, **span)
 	if not chart:
 		raise answer.Answer(*(payload or ['no price data']))
 	return '\n'.join(payload), chart

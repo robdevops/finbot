@@ -239,8 +239,8 @@ class CommandArguments(FinbotCase):
 	def test_a_bare_number_on_price_is_a_percent(self):
 		"""As on .session, .premarket and .shorts, and as the README has it; a period carries its unit."""
 		self.assertIn('3% at close', str(self.command('.price 3'))) # it used to be a 3-day report
-		self.assertIn('Price movement 3%', str(self.command('.price 3 7d'))) # the 3 used to be dropped
-		self.assertIn('Price movement 5%', str(self.command('.price 7d')))
+		self.assertIn('Price movement ≥ 3%', str(self.command('.price 3 7d'))) # the 3 used to be dropped
+		self.assertIn('Price movement ≥ 5%', str(self.command('.price 7d')))
 
 	def test_top_is_gone(self):
 		""".top is a ticker now, like any word: the command is .price top."""
