@@ -108,8 +108,7 @@ class ParseTests(unittest.TestCase):
 
 class JobArguments(unittest.TestCase):
 	def test_price(self):
-		"""price.py takes one mode or a number of days (the top and bottom ten over that span); anything else is its
-		usage."""
+		"""price.py takes one mode or a number of days (the top and bottom ten over it); anything else is its usage."""
 		self.assertEqual(price.job(['midsession']), ('price.py midsession', {'midsession': True}))
 		self.assertEqual(price.job(['premarket'])[1], {'premarket': True})
 		self.assertEqual(price.job(['interday'])[1], {'interday': True})
@@ -182,8 +181,7 @@ class JobArguments(unittest.TestCase):
 
 class CleanupJob(FinbotCase):
 	def test_removes_only_old_finbot_cache_files(self):
-		"""cleanup deletes finbot's cache files older than the days given, not newer ones, other files or
-		directories."""
+		"""cleanup deletes finbot's cache files older than the days given, not newer ones, other files or dirs."""
 		folder = tempfile.mkdtemp()
 		self.addCleanup(lambda: __import__('shutil').rmtree(folder, ignore_errors=True))
 		self.env(cache_dir=folder)
@@ -199,8 +197,7 @@ class CleanupJob(FinbotCase):
 		self.assertEqual(sorted(os.listdir(folder)), ['finbot_dir', 'finbot_new.json', 'other_old.json'])
 
 	def test_a_temp_file_being_written_is_left_alone(self):
-		"""A flush (0 days) leaves a temp file written in the last minute, an atomic write in flight, and deletes a
-		stale one."""
+		"""A flush (0 days) spares a temp file from the last minute (a write in flight) and deletes a stale one."""
 		folder = tempfile.mkdtemp()
 		self.addCleanup(lambda: __import__('shutil').rmtree(folder, ignore_errors=True))
 		self.env(cache_dir=folder)
@@ -238,8 +235,7 @@ class SchedulerFlag(unittest.TestCase):
 
 class SchedulerBase(FinbotCase):
 	def setUp(self):
-		"""A schedule of trades.py every 20 minutes on weekdays, a fake clock, and trades and shorts recorded instead of
-		run."""
+		"""A schedule of trades.py every 20 minutes on weekdays, a fake clock; trades and shorts recorded, not run."""
 		super().setUp()
 		tmp = tempfile.TemporaryDirectory()
 		self.addCleanup(tmp.cleanup)
@@ -364,8 +360,7 @@ class SchedulerTests(SchedulerBase):
 		self.assertFalse(s.jobs[0].running)
 
 	def test_reload_applies_edits_keeps_state_and_survives_a_bad_file(self):
-		"""A reload applies edits and keeps the timing of unchanged jobs; a file with nothing usable keeps the running
-		schedule."""
+		"""A reload applies edits and keeps unchanged jobs' timing; an unusable file keeps the running schedule."""
 		s = self.scheduler()
 		old_key = s.jobs[0].key
 		base = s.base[old_key]
@@ -507,8 +502,7 @@ class ManualRuns(SchedulerBase):
 		self.assertEqual(self.s.select('~/finbot/price.py 7')[0], 'price.py 7')
 
 	def test_select_refuses_what_is_not_offered(self):
-		"""Numbers out of range, cleanup, podcasts, commands not in the schedule, shell syntax and two commands are
-		refused."""
+		"""Numbers out of range, cleanup, podcasts, unscheduled commands, shell syntax and two commands are refused."""
 		for text in ('0', '9', 'cleanup.py', 'podcasts.py "https://example.com/feed"', 'price.py 99', 'cal.py earnings', 'nonsense', 'ls | wc', '', 'price.py close; trades.py'):
 			with self.assertRaises(jobs.ScheduleError, msg=text):
 				self.s.select(text)
@@ -554,8 +548,7 @@ class ManualRuns(SchedulerBase):
 		return self.command(text)[0][1]
 
 	def test_list_in_chat_is_just_the_commands(self):
-		""".jobs and its aliases list the commands by number, without times, comments or redirects, and mark one that is
-		running."""
+		""".jobs and aliases number the commands, without times, comments or redirects, and mark one that is running."""
 		for alias in ('.jobs', '.cron', '.crons', '.schedule', '@' + BOT.lstrip('@') + ' jobs'):
 			text = '\n'.join(map(str, self.list_in_chat(alias)))
 			for line in ('1. performance 7', '2. performance 30', '5. performance 365', '6. price 7', '7. price close', '8. trades'):
@@ -603,8 +596,7 @@ class ManualRuns(SchedulerBase):
 			self.edits.append((dest.where, mid, text, buttons)))
 
 	def test_forged_button_data_never_runs_anything_else(self):
-		"""Forged or malformed button data runs nothing and refreshes the buttons in place; cleanup and podcasts cannot
-		be picked by any number."""
+		"""Bad or forged button data runs nothing, refreshes buttons in place; no number picks cleanup or podcasts."""
 		self.stale_buttons()
 		good = jobs.checksum('trades.py')
 		for data in ('j|-1|' + good, 'j|0|' + good, 'j|9|' + good, 'j|8|0000', 'j|8|', 'j|8', 'j|8|' + good + '|x', 'j||' + good,
@@ -626,8 +618,7 @@ class ManualRuns(SchedulerBase):
 		self.assertEqual(self.ran, [('trades', {})])
 
 	def test_button_from_an_old_schedule_updates_the_message(self):
-		"""A button from an old schedule runs nothing, and the message gets the current list and buttons; with the
-		scheduler off, a notice."""
+		"""A stale button runs nothing; the message gets the current list and buttons (scheduler off: a notice)."""
 		self.stale_buttons()
 		worker.process_callback('telegram', 'cb1', '55', '9', 'j|7|0000')
 		worker.process_callback('telegram', 'cb1', '55', '9', 'j|9|0000')
@@ -651,8 +642,7 @@ class ManualRuns(SchedulerBase):
 		self.assertEqual(self.ran, [('price', {'close': True})])
 
 	def test_run_in_chat_refusals(self):
-		""".jobs run refuses a command not in the schedule, an unknown number and two commands, and gives its usage
-		otherwise."""
+		""".jobs run refuses an unscheduled command, an unknown number and two commands, else gives its usage."""
 		self.assertIn('not in the schedule', self.list_in_chat('.jobs run cal.py earnings')[0])
 		self.assertIn('no command 99', self.list_in_chat('.jobs run 99')[0])
 		self.assertIn('one command at a time', self.list_in_chat('.jobs run price.py close; trades.py')[0])
@@ -737,8 +727,7 @@ class ChildProcess(FinbotCase):
 				self.assertEqual(s.busy, set())
 
 	def test_a_report_script_loads_neither_pandas_nor_the_scheduler(self):
-		"""A job process imports only its own script: price used to pull in pandas and, through charts, reports and jobs, every
-		script there is."""
+		"""A job imports only its script; price once pulled in pandas and every script (via charts, reports, jobs)."""
 		code = 'import sys; from lib.reports import price, performance, trades, shorts, cal; print(sorted(m for m in ("pandas", "lib.jobs", "matplotlib") if m in sys.modules))'
 		with tempfile.TemporaryDirectory() as data:
 			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True, env={**os.environ, 'DATA_DIR': data})

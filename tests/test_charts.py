@@ -89,23 +89,20 @@ class ImageSanity(unittest.TestCase):
 					self.check_image(make(), name)
 
 	def test_edge_case_rows(self):
-		"""Rows that have broken charts before (one row, all zero, forty rows, long labels, huge or tiny values) draw
-		sane images."""
+		"""Rows that broke charts before (one, all zero, forty, long labels, huge or tiny values) draw sane images."""
 		for name, rows in EDGE_ROWS.items():
 			with self.subTest(rows=name):
 				self.check_image(render.hbar_chart(rows, 'Title', 'sub'), name)
 				self.check_image(render.rows_chart(rows, 'Title'), name + '/rows_chart')
 
 	def test_zoomed_axis(self):
-		"""A bar chart with a narrow x range (ratings from 1 to 5) draws sane images, wide labels and many rows
-		included."""
+		"""A bar chart with a narrow x range (ratings, 1 to 5) draws sane images, wide labels and many rows included."""
 		self.check_image(render.hbar_chart([('AAA', 1.2), ('BBB', 3.4)], 'Ratings', xlim=(0.9, 4.0)), 'zoomed')
 		self.check_image(render.hbar_chart([('WWWWWWWW', 1.2), ('MMM', 3.4)], 'Ratings', xlim=(0.9, 4.0)), 'zoomed wide labels')
 		self.check_image(render.hbar_chart([(f'T{i}', 1 + i / 10) for i in range(15)], 'Ratings', xlim=(0.9, 3.0)), 'zoomed 15 rows')
 
 	def test_shorts_chart_sizes_and_verdicts(self):
-		"""The shorts pictogram draws for 1 to 45 rows and a long label, and each tier of short interest gets its
-		verdict."""
+		"""The shorts pictogram draws 1 to 45 rows and a long label; each tier of short interest gets its verdict."""
 		for n in (1, 5, 45):
 			rows = [(f'T{i}', 60.0 - i) for i in range(n)]
 			self.check_image(render.shorts_chart(rows, 15), f'shorts {n} rows', bg=SHORTS_BG, edge_clean=False)
@@ -136,8 +133,7 @@ class RenderPool(unittest.TestCase):
 		self.addCleanup(setattr, render, '_render_pool', None)
 
 	def test_charts_asked_for_at_once_all_finish(self):
-		"""Six charts asked for at once all finish: one render thread, since several deadlock matplotlib under
-		gevent."""
+		"""Six charts asked for at once all finish: one render thread, as several deadlock matplotlib under gevent."""
 		jobs = [gevent.spawn(render.pie_chart, [('a', 1.0), ('b', 2.0)], f't{i}') for i in range(4)]
 		jobs += [gevent.spawn(render.hbar_chart, MIXED, 'T'), gevent.spawn(render.rows_chart, MIXED, 'T')]
 		gevent.joinall(jobs, timeout=120)
@@ -145,8 +141,7 @@ class RenderPool(unittest.TestCase):
 		self.assertTrue(all(decode(job.value).size == (1280, 800) for job in jobs))
 
 	def test_the_hub_keeps_serving_while_a_chart_is_drawn(self):
-		"""While the shorts pictogram is drawn (about a second), other greenlets keep running: no gap over half a
-		second."""
+		"""While the shorts pictogram draws (about a second), other greenlets run on: no gap over half a second."""
 		gaps, done = [], []
 		def ticker():
 			"""Note the time between wake-ups until the chart is done."""
@@ -218,8 +213,7 @@ class Contracts(unittest.TestCase):
 		self.assertGreater(blue, 1000); self.assertGreater(red, 1000)
 
 	def test_session_tints_the_background(self):
-		"""Mid-session tints the background a subtle green and pre-market a subtle yellow; at close and by default it
-		stays plain."""
+		"""Mid-session tints the background faint green, pre-market faint yellow; close and the default stay plain."""
 		corner = lambda session: tuple(np.asarray(decode(render.hbar_chart(MIXED, 'T', session=session)))[2, 2][:3])
 		plain, close, mid, pre = corner(None), corner('close'), corner('midsession'), corner('premarket')
 		self.assertEqual(plain, (0x14, 0x18, 0x1f))
@@ -276,8 +270,7 @@ class ReportChartInputs(FinbotCase):
 		return captured[0]
 
 	def test_price_top_lists_best_first_then_worst(self):
-		""".price top: the ten best, best first, a spacer, then the ten worst, worst first, as the caption lists
-		them."""
+		""".price top: the ten best, best first, a spacer, then the ten worst, worst first, as in the caption."""
 		chart = self.run_report(lambda: self.command('.price top 7d'))
 		values = [v for _, v in chart['rows'] if v is not None]
 		top, bottom = values[:10], values[10:]
@@ -332,8 +325,7 @@ class GoldenImages(unittest.TestCase):
 		return image.resize((160, 100), Image.LANCZOS) # goldens are stored at this size too: a few KB each, not 100 KB
 
 	def check(self, name):
-		"""Compare a chart type's thumbnail with its golden image (or write the golden with UPDATE_GOLDEN=1, or when
-		there is none)."""
+		"""Compare a chart's thumbnail with its golden image (written instead with UPDATE_GOLDEN=1, or when missing)."""
 		thumb = self.thumb(decode(CHARTS[name]()))
 		path = os.path.join(GOLDEN, name + '.png')
 		if os.environ.get('UPDATE_GOLDEN') or not os.path.exists(path):

@@ -130,8 +130,7 @@ class _Reader:
 		return self.value(name, default)
 
 	def bool(self, name, default):
-		"""A true/false setting: true/false, yes/no, on/off, 1/0 or t/f, in any case. Anything else is an error, and
-		gives default."""
+		"""A boolean: true/false, yes/no, on/off, 1/0 or t/f in any case; anything else is an error, giving default."""
 		value = self.value(name, default)
 		word = str(value).strip().lower()
 		if word in TRUE_WORDS or word in FALSE_WORDS:
@@ -339,8 +338,7 @@ for _dir in (env.data_dir, env.cache_dir):
 os.environ.setdefault('MPLCONFIGDIR', os.path.abspath(env.cache_dir + '/matplotlib'))
 
 def data_file(name):
-	"""Where a data file is read from: the user's copy in the data dir when there is one, else the default shipped in
-	defaults/."""
+	"""Where a data file is read from: the user's copy in the data dir if any, else the default shipped in defaults/."""
 	user = env.data_dir + '/' + name
 	return user if os.path.isfile(user) else str(REPO_DIR / 'defaults' / name)
 

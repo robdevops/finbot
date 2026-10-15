@@ -16,8 +16,7 @@ def primary_listings():
 EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'), 'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
 
 def lambda_handler(chat_id=None, days=None, service=None, specific_stock=None, interactive=False, event='earnings'):
-	"""The tracked stocks' (or one stock's) upcoming earnings or ex-dividend dates, as `event` says. A scheduled earnings report
-	is pinned on Telegram."""
+	"""Earnings or ex-dividend dates ahead (`event`) for tracked stocks or one; Telegram pins scheduled earnings."""
 	if days is None:
 		days = config.prefs.future_days
 	field, heading = EVENTS[event]

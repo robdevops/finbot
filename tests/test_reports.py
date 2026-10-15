@@ -414,8 +414,7 @@ class PeriodButtons(FinbotCase):
 
 class Podcasts(FinbotCase):
 	def test_format_helpers(self):
-		"""Durations in any of the feed formats, how long ago, and dates without a zone taken as UTC; nonsense gives
-		nothing."""
+		"""Durations in any feed format, how long ago, and zoneless dates taken as UTC; nonsense gives nothing."""
 		from lib.reports import podcasts
 		self.assertEqual(podcasts.format_duration('3725'), '01:02')
 		self.assertEqual(podcasts.format_duration('1:02:03'), '01:02')

@@ -34,8 +34,7 @@ class DataDirTests(FinbotCase):
 		self.assertEqual(out.split()[-2:], ['3.3', 'False'])
 
 	def test_state_directory_fallback(self):
-		"""systemd's STATE_DIRECTORY (its first entry) is the data dir when DATA_DIR is unset; MPLCONFIGDIR goes under
-		the cache unless set."""
+		"""Without DATA_DIR, STATE_DIRECTORY's first entry is the data dir; MPLCONFIGDIR is in the cache unless set."""
 		show = "from lib import config as c; print(c.env.data_dir, c.env.cache_dir, c.os.environ['MPLCONFIGDIR'])"
 		with tempfile.TemporaryDirectory() as d:
 			e = {k: v for k, v in os.environ.items() if k not in ('DATA_DIR', 'MPLCONFIGDIR')}
@@ -47,8 +46,7 @@ class DataDirTests(FinbotCase):
 			self.assertEqual(run(DATA_DIR=d, MPLCONFIGDIR='/custom')[2], '/custom') # explicit value kept
 
 	def test_render_import_sets_mplconfigdir_without_home(self):
-		"""Importing render sets MPLCONFIGDIR into the cache before matplotlib loads, so charts work without a home
-		directory."""
+		"""Importing render puts MPLCONFIGDIR in the cache before matplotlib loads: charts work without a home dir."""
 		e = {k: v for k, v in os.environ.items() if k not in ('MPLCONFIGDIR', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'HOME')}
 		code = "import os; from lib import render; import matplotlib.dates; print(os.environ['MPLCONFIGDIR'])" # render loads matplotlib lazily
 		with tempfile.TemporaryDirectory() as d:

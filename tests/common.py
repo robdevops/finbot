@@ -29,8 +29,7 @@ BOT = '@bot'
 
 
 def skip_if_old_env(case):
-	"""For the tests that start bot.py: it will not start while the checkout has a leftover .env
-	(config.check_startup_environment)."""
+	"""Skip a test that starts bot.py while the checkout has a leftover .env (config.check_startup_environment)."""
 	if config.OLD_ENV.exists():
 		case.skipTest(f'bot.py will not start while {config.OLD_ENV} exists')
 
@@ -110,8 +109,7 @@ class FinbotCase(unittest.TestCase):
 		self.addCleanup(self.no_typing_left)
 
 	def record_chart(self, image, caption, markup=None):
-		"""Transport.chart for the tests: note ('photo', its size, the caption's first line), and its buttons as
-		Telegram would get them."""
+		"""Transport.chart in tests: note ('photo', size, first caption line) and its buttons as Telegram gets them."""
 		image.seek(0)
 		self.sent.append(('photo', len(image.read()), caption.split('\n')[0]))
 		self.markups.append(transports.TelegramBot.markup(markup) if markup else None)

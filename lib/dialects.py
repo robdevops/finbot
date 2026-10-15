@@ -78,8 +78,7 @@ class Discord(Dialect):
 	text_limit = caption_limit = 2000 # markup included
 
 	def _link(self, url, text):
-		"""A masked link: the angle brackets keep its preview away; brackets in the text and parentheses in the url would end it
-		early."""
+		"""A masked link: <url> stops a preview; brackets in the text and parentheses in the url would end it early."""
 		return '[' + text.replace('[', '\\[').replace(']', '\\]') + '](<' + url.replace('(', '%28').replace(')', '%29') + '>)'
 
 	def escape(self, text):

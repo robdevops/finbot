@@ -113,8 +113,7 @@ class WatchlistActions(FinbotCase):
 		self.assertEqual(sorted(watchlist.tickers()), ['T1', 'T2'])
 
 	def test_removing_a_ticker_yahoo_no_longer_knows(self):
-		"""A ticker Yahoo no longer knows can still be removed, and is said to be; removing it again says it is not
-		there."""
+		"""A ticker Yahoo no longer knows is still removed, and said to be; removing it again says it is not there."""
 		state.save('finbot_watchlist.json', ['GONE', 'T1'])
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if t != 'GONE'})
 		self.assertIn('I deleted', str(self.command('.watchlist rm GONE')))
@@ -140,16 +139,14 @@ class BadArguments(FinbotCase):
 		self.assertEqual(len(self.errors), 1)
 
 	def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
-		""".history with no ticker, or with an extra argument, gets its usage, not the profile of a ticker called
-		HISTORY."""
+		""".history with no ticker or an extra argument gets its usage, not the profile of a ticker called HISTORY."""
 		self.assertEqual(self.command('.history'), [('text', ['Usage: .history SYMBOL'])]) # not the profile of a ticker called HISTORY
 		self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history SYMBOL'])])
 
 
 class PortfolioNames(FinbotCase):
 	def test_an_unknown_portfolio_gets_the_same_answer_everywhere(self):
-		"""An unknown portfolio name gets the same answer from .trades, .performance, .holdings and .pie: the portfolios
-		there are."""
+		"""An unknown portfolio gets one answer from .trades, .performance, .holdings and .pie: the ones there are."""
 		for cmd in ('.trades 7d Nope', '.performance Nope', '.holdings Nope', '.pie Nope'):
 			with self.subTest(cmd=cmd): # it used to be a ValueError, "no Sharesight data found", or two wordings of this
 				self.assertEqual(self.command(cmd), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
@@ -248,8 +245,7 @@ class WsgiRejections(FinbotCase):
 		self.assertEqual(self.errors, [])
 
 	def test_strangers_cannot_post_into_the_chats(self):
-		"""Requests from strangers (wrong paths, no or wrong secrets, malformed bodies) are refused, and nothing reaches
-		the chats."""
+		"""Strangers (wrong paths, no or wrong secrets, malformed bodies) are refused, and nothing reaches the chats."""
 		self.env(slackOutgoingWebhook='https://example.com/slack')
 
 		self.env(slackOutgoingToken='stok')
@@ -277,8 +273,7 @@ class WsgiRejections(FinbotCase):
 		self.assertIn('boom', err.getvalue())
 
 	def test_a_failure_after_authentication_is_reported_once_and_not_retried(self):
-		"""A failure on an authenticated update is reported once and answered 200, so Telegram does not send it
-		again."""
+		"""A failure on an authenticated update is reported once and answered 200, so Telegram doesn't send it again."""
 		broken = {'message': {'message_id': 1, 'from': {'first_name': 'A'}, 'text': '.help'}} # no chat
 		self.assertEqual(self.request(body=broken, headers=self.SECRET)[1], '200 OK') # a retry would only fail and report again
 		self.assertEqual(len(self.errors), 1)
@@ -524,8 +519,7 @@ class StartupSignals(unittest.TestCase):
 			self.assertIn('reload requested but', ''.join(lines))
 
 	def test_usr1_flushes_the_cache_and_keeps_the_state(self):
-		"""SIGUSR1 is ignored during startup; once serving, it deletes the cache files but not a write in flight,
-		matplotlib's cache or the state."""
+		"""SIGUSR1 is ignored in startup, then clears the cache but not writes in flight, matplotlib's or the state."""
 		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
 			cache = Path(data, 'cache')

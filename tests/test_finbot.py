@@ -29,8 +29,7 @@ class Plumbing(FinbotCase):
 		self.assertTrue(all('reply_markup' not in p for p in posted[:-1]))
 
 	def test_chunks_respect_both_the_line_count_and_the_size(self):
-		"""A message ends at chunk_maxlines lines or the size limit, whichever comes first; a line too long on its own
-		is cut short."""
+		"""A message ends at chunk_maxlines lines or the size limit, whichever first; an overlong line is cut short."""
 		chunks = transports.chunked(['a' * 30] * 10 + ['b' * 500], limit=100, max_lines=4)
 		self.assertEqual([len(chunk) for chunk in chunks], [3, 3, 3, 1, 1]) # 3 x 30 plus newlines is 92; a fourth would pass 100
 		self.assertTrue(all(len('\n'.join(chunk)) <= 100 for chunk in chunks))
@@ -77,8 +76,7 @@ class Conventions(unittest.TestCase):
 		self.assertEqual(missing, [])
 
 	def test_the_bot_and_its_reports_print_only_to_stderr(self):
-		"""systemd discards finbot's stdout (StandardOutput=null), so a print there is never read. The util/ tools, run by
-		hand, may use it."""
+		"""systemd discards stdout (StandardOutput=null), so only util/ tools, run by hand, may print there."""
 		offenders = []
 		for path in sorted([*Path(ROOT, 'lib').rglob('*.py'), *Path(ROOT).glob('*.py')]):
 			for node in ast.walk(ast.parse(path.read_text())):

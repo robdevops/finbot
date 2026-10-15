@@ -35,8 +35,7 @@ def prepare_who(service, code):
 	return payload or [f'{code} not found in any portfolio']
 
 def prepare_pie(portfolio_name, by, service, max_slices=8):
-	"""Portfolio value by industry (or by='sector'). Returns (payload, chart); chart is None unless there is something to draw.
-	Raises sharesight.PortfolioNotFound."""
+	"""Portfolio value by industry (or by='sector'): (payload, chart or None). Raises sharesight.PortfolioNotFound."""
 	if not portfolio_name:
 		names = [portfolio.name for portfolio in sharesight.portfolios()]
 		return [".pie: please try again specifying a portfolio:"] + names, None

@@ -37,8 +37,7 @@ def build_dict(symbols, market):
 	return mydict
 
 def do_sws_bulk(file):
-	"""Look up every symbol in a file (as ASX listings when its name says asx) and write them to finbot_sws_<name>.json
-	in the data dir."""
+	"""Look up a file's symbols (as ASX listings if its name says asx); write finbot_sws_<name>.json in the data dir."""
 	market = ''
 	if 'asx' in file or 'ASX' in file:
 		market = 'ASX'

@@ -20,8 +20,7 @@ class Parsing(unittest.TestCase):
 				formats.days_from_human_days(arg)
 
 	def test_transform_to_yahoo(self):
-		"""Sharesight and Google tickers become Yahoo's: suffixes by market, none for US venues, a dash for class
-		shares."""
+		"""Sharesight and Google tickers as Yahoo's: suffixes by market, none for US venues, a dash for class shares."""
 		for args, expected in ((('AAPL',), 'AAPL'), (('FANG', 'ASX'), 'FANG.AX'), (('ARM', 'NASDAQ'), 'ARM'),
 							   (('ARM:NASDAQ',), 'ARM'), (('BHP.AX',), 'BHP.AX'), (('0700', 'HKG'), '0700.HK'),
 							   (('BRK', 'B'), 'BRK-B'), (('2330', 'TAI'), '2330.TW'), (('VOD', 'LSE'), 'VOD.L'),
@@ -45,8 +44,7 @@ class Parsing(unittest.TestCase):
 		self.assertEqual(formats.make_paragraphs(long), ' '.join(['word'] * 22) + ' end.\n\nTail sentence here.')
 
 	def test_transform_title(self):
-		"""Company names lose shouting and legal suffixes (Inc, FPO, SE, a trailing &), from the end only, leaving no
-		run of spaces."""
+		"""Company names lose shouting and trailing legal suffixes (Inc, FPO, SE, a final &), with no double spaces."""
 		self.assertEqual(formats.transform_title('APPLE INC'), 'Apple')
 		self.assertEqual(formats.transform_title('Acme FPO'), 'Acme')
 		self.assertEqual(formats.transform_title('Mixed Case Name'), 'Mixed Case Name')
@@ -111,8 +109,7 @@ class StateFiles(FinbotCase):
 		self.assertEqual(state.load('state.json'), {'a': [1, 2]})
 
 	def test_a_failed_write_leaves_the_old_file_and_the_umask_alone(self):
-		"""A write that fails (disk full at replace or fsync) leaves the old file and no temp file; the umask is
-		untouched and files are 0640."""
+		"""A write failing at replace or fsync keeps the old file and no temp file; umask untouched, files 0640."""
 		state.save('state.json', {'a': 1})
 		path = Path(config.env.data_dir, 'state.json')
 		previous = os.umask(0o027)
@@ -134,8 +131,7 @@ class StateFiles(FinbotCase):
 		self.assertEqual((json.loads(path.read_text()), oct(path.stat().st_mode & 0o777)), ({'a': 3}, '0o640'))
 
 	def test_edit_writes_only_a_change_and_never_changes_the_default(self):
-		"""state.edit writes only when the block changed the data, never alters the default it was given, and writes
-		nothing when the block fails."""
+		"""state.edit writes only if the block changed the data without failing, and never alters the default given."""
 		default = {'seen': []}
 		with state.edit('edit.json', default):
 			pass
@@ -149,8 +145,7 @@ class StateFiles(FinbotCase):
 		self.assertEqual(state.load('edit.json'), {'seen': [1]}) # a block that fails writes nothing
 
 	def test_edits_at_once_all_count(self):
-		"""Each edit reads the file after the one before it wrote, so none overwrites another with what it read
-		earlier."""
+		"""Each edit reads the file once the previous one wrote, so none overwrites another with stale data."""
 		def edit(key):
 			"""Set data[key] slowly, so that the other edits start meanwhile."""
 			with state.edit('edit.json', {}) as data:

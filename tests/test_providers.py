@@ -42,8 +42,7 @@ def serve(*responses):
 
 class ProviderCase(FinbotCase):
 	def setUp(self):
-		"""The real parsers in place of the fixture's canned data, with a fixed cookie, crumb and token, and no
-		waiting."""
+		"""Real parsers instead of the fixture's canned data, with a fixed cookie, crumb and token, and no waiting."""
 		super().setUp()
 		# these tests exercise the real parsers, so undo the canned data from the base fixture
 		for module, name in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'), (sharesight, 'get_portfolios'),
@@ -55,8 +54,7 @@ class ProviderCase(FinbotCase):
 		self.patch(sharesight.time, 'sleep', lambda s: None)
 
 	def http(self, module, *responses):
-		"""Have module's net.get replay these responses; returns the replacement, whose calls lists the URLs asked
-		for."""
+		"""Have module's net.get replay these responses; returns the stand-in, whose calls lists the URLs asked for."""
 		getter = serve(*responses)
 		self.patch(module.net, 'get', getter)
 		return getter
@@ -441,8 +439,7 @@ class SharesightKeepWarm(ProviderCase):
 		self.assertEqual(stop.waits, [300, 3000]) # slow retry after the failure, then sleep until the next cache is due
 
 	def test_with_cache_off_nothing_is_fetched_until_a_reload_turns_it_on(self):
-		"""With the cache preference off, keep_warm idles without asking Sharesight, and starts when a reload turns it
-		on."""
+		"""With cache off, keep_warm idles without asking Sharesight, and starts when a reload turns it on."""
 		class Stop:
 			"""keep_warm's stop event: notes each wait, switches the cache on at the second, and is set after four."""
 			def __init__(self):
@@ -580,8 +577,7 @@ class TelegramSending(FinbotCase):
 
 
 class ChartDelivery(FinbotCase):
-	"""Charts go to Telegram, and to Slack in replies (uploaded into the channel). A report whose chart cannot be sent goes out as
-	text instead of vanishing."""
+	"""Charts reach Telegram and Slack replies (uploaded); a report whose chart fails still goes, as text."""
 	UPLOAD_URL = 'https://files.slack.com/upload/v1/abc'
 
 	def setUp(self):
@@ -607,8 +603,7 @@ class ChartDelivery(FinbotCase):
 		return [Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': 'F1'}), Resp(None, text='OK - 3'), Resp({'ok': True, 'files': [{'id': 'F1'}]})]
 
 	def test_where_charts_can_go(self):
-		"""Charts go to Telegram and Discord always, to Slack in replies with the bot token, never in Slack's scheduled
-		reports."""
+		"""Charts always go to Telegram and Discord; Slack gets them only in replies with the bot token."""
 		self.env(slackBotToken='xoxb-test')
 
 		cases = (('telegram',), ('telegram', False), ('slack',), ('slack', False), ('discord', False))
@@ -619,8 +614,7 @@ class ChartDelivery(FinbotCase):
 		self.assertFalse(delivery.takes_charts('slack'))
 
 	def test_slack_replies_upload_their_charts(self):
-		"""A Slack reply uploads its chart in three steps with the bot token, the report as its message, not sent again
-		as text."""
+		"""A Slack reply uploads its chart in three steps (bot token), the report as its message, with no text copy."""
 		self.env(slackBotToken='xoxb-test')
 
 		for cmd, heading in (('.beta', '*Beta over 1.5'), ('.price', '*5% at close'), ('.compare T1 T2', '*')):
@@ -640,8 +634,7 @@ class ChartDelivery(FinbotCase):
 				self.assertNotIn(share['data']['initial_comment'].split('\n'), [payload for _, payload in self.sent]) # not sent again as text
 
 	def test_a_slack_upload_that_fails_goes_out_as_text(self):
-		"""A Slack upload that fails at any step goes out as text, but not after a timeout on the last step, when it may
-		have arrived."""
+		"""A Slack upload failing at any step goes as text, but not on a last-step timeout, when it may have arrived."""
 		self.env(slackBotToken='xoxb-test')
 
 		good = self.upload_steps()
@@ -712,8 +705,7 @@ class ChartDelivery(FinbotCase):
 		self.assertEqual([url for url in posts if 'sendPhoto' in url or 'files.' in url], [])
 
 	def test_a_chart_telegram_refuses_goes_out_as_text(self):
-		"""A chart Telegram refuses or that fails goes out as text, but not after a timeout, when it may have
-		arrived."""
+		"""A chart Telegram refuses or that fails goes as text, but not after a timeout, when it may have arrived."""
 		def post(outcome):
 			"""A net.post that answers with outcome, or raises it."""
 			def fake(url, **kwargs):
@@ -757,8 +749,7 @@ class DiscordWebhook(FinbotCase):
 		self.assertEqual(kwargs['json'], {'content': 'hello @everyone', 'flags': 4, 'allowed_mentions': {'parse': []}})
 
 	def test_a_scheduled_report_carries_its_chart(self):
-		"""A scheduled report goes to Discord with its chart attached and the report, within 2,000 characters, as the
-		message."""
+		"""A scheduled Discord report has its chart attached and the report as its message, within 2,000 characters."""
 		price.lambda_handler()
 		(url, kwargs), = self.posts
 		self.assertEqual(url, self.URL + '?wait=true')

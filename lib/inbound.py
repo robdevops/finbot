@@ -61,8 +61,7 @@ def same_secret(given, expected):
 
 
 class Webhook:
-	"""A network that posts updates to the bot's web server. Subclasses say where it posts, how it proves itself and
-	what an update says."""
+	"""A network posting updates to the bot; subclasses give its path, how it proves itself and what an update says."""
 	service = ''
 
 	def path(self):
@@ -81,13 +80,11 @@ class Webhook:
 		return update
 
 	def refuse(self, environ, body, update):
-		"""Why to turn the request away once read (a signature of the body, or a secret in it, missing or wrong), else
-		None."""
+		"""Why to refuse the request once read (the body's signature or a secret in it missing or wrong), else None."""
 		return None
 
 	def update_id(self, update):
-		"""The update's id, the same when the network sends it again (it does when it got no answer in time), or None
-		when it gives none."""
+		"""The update's id, the same when the network resends it (unanswered in time), or None if it gives none."""
 		return None
 
 	def parse(self, update):
@@ -153,8 +150,7 @@ class Telegram(Webhook):
 
 
 class Slack(Webhook):
-	"""Slack's Events API: each request signed with the app's signing secret, and carrying its verification
-	token."""
+	"""Slack's Events API: each request signed with the app's signing secret, and carrying its verification token."""
 	service = 'slack'
 	BY_PEOPLE = (None, 'thread_broadcast') # message subtypes a person writes; the rest are bot posts, edits, joins...
 

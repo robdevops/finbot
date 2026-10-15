@@ -60,8 +60,7 @@ class TypingIndicator:
 
 @dataclasses.dataclass
 class Request:
-	"""A chat message being answered: where it came from (service is its dialect), who sent it, and the typing notice
-	while it is answered."""
+	"""A message being answered: where it came from (service is its dialect), who sent it, and its typing notice."""
 	service: str
 	chat_id: str
 	user: str # the sender's handle: whose watchlist add or plan it is
@@ -278,8 +277,7 @@ def on_holdings(request, m):
 	request.reply(payload)
 
 def on_marketcap(request, m):
-	""".marketcap [top|bottom|SYMBOL]: the stocks followed by market cap, largest (or smallest) first, or one
-	stock's."""
+	""".marketcap [top|bottom|SYMBOL]: stocks followed by market cap, largest (or smallest) first, or one stock's."""
 	payload = rankings.prepare_marketcap_payload(request.service, m.group(1) or 'top', length=15)
 	request.reply(payload)
 

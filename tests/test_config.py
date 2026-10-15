@@ -49,8 +49,7 @@ class Tables(unittest.TestCase):
 		self.assertEqual(fields(values), DEFAULTS)
 
 	def test_templates_have_every_key_and_the_real_defaults(self):
-		"""defaults/preferences.conf and defaults/finbot.env list every key, change no default, and are valid as
-		shipped."""
+		"""defaults/preferences.conf and finbot.env list every key, change no default, and are valid as shipped."""
 		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'preferences.conf')), sorted(config.PREFERENCE_KEYS))
 		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'finbot.env')), sorted(config.STARTUP_KEYS))
 		prefs = config.read_preferences(REPO / 'defaults' / 'preferences.conf')
@@ -97,8 +96,7 @@ class Parsing(unittest.TestCase):
 		self.assertNotIn('https://x', ''.join(errors)) # a value is never printed
 
 	def test_malformed_lines_sections_duplicates_and_the_old_name(self):
-		"""Sections, lines that are not KEY=value, a key set twice and the renamed volatile_multiplier are all
-		reported."""
+		"""Sections, lines not KEY=value, a key set twice and the renamed volatile_multiplier are all reported."""
 		errors = self.errors('[reports]\nnot a setting\nfuture_days=1\nfuture_days=2\nvolatile_multiplier=3\n')
 		self.assertEqual(len(errors), 4)
 		self.assertIn('no sections', errors[0])
@@ -189,8 +187,7 @@ class Reload(unittest.TestCase):
 		self.file.write_text(text)
 
 	def test_a_change_is_seen_at_once(self):
-		"""A reload applies every change, says what changed, and swaps in a new object, so no request sees half a
-		reload."""
+		"""A reload applies every change, says which, and swaps in a new object, so no request sees half a reload."""
 		self.write('future_days=45\nprice_percent=7\nshorts_percent=12\nexclude_portfolios=1156263\nalliterate=1\nhyperlinkProvider=yahoo\n'
 			'hyperlinkFooter=false\ndebug=1\ngraph=0\ndemote_volatile=0\nvolatility_multiplier=3\npast_days=14\nmin_analysts=3\n')
 		before = config.prefs
@@ -304,8 +301,7 @@ class Reload(unittest.TestCase):
 
 class Startup(unittest.TestCase):
 	def run_config(self, code='from lib import config as c; print(c.prefs.future_days)', prefs=None, **env):
-		"""Run code in a fresh interpreter with a data dir of its own (and prefs as its preferences.conf), and the
-		environment cleared of settings."""
+		"""Run code in a new interpreter: own data dir, prefs as preferences.conf, no settings in the environment."""
 		data = tempfile.mkdtemp()
 		if prefs is not None:
 			Path(data, 'preferences.conf').write_text(prefs)
@@ -322,8 +318,7 @@ class Startup(unittest.TestCase):
 		self.assertEqual(self.run_config(prefs='future_days=45\n').stdout.split()[-1], '45')
 
 	def test_a_broken_preferences_file_refuses_to_start(self):
-		"""A bad value, an unknown key, a startup key or a malformed line in preferences.conf stops the start, saying
-		why."""
+		"""A bad value, unknown key, startup key or malformed line in preferences.conf stops the start, saying why."""
 		for prefs, expect in (('future_days=abc\n', "future_days='abc' is not a whole number"), ('futur_days=1\n', 'unknown key futur_days'),
 				('slack_webhook=x\n', 'belongs in finbot.env'), ('what\n', 'expected KEY=value')):
 			out = self.run_config(prefs=prefs)
@@ -386,16 +381,17 @@ class Startup(unittest.TestCase):
 	def test_settings_that_leave_part_of_the_bot_unable_to_work_are_warned_about(self):
 		"""A startup warning for Slack commands without slackBotToken (they would get no reply), and for an inbound
 		webhook without its secret (every request would be refused)."""
-		hooks = dict(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok', slackBotToken='xoxb-1',
-			telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
+		hooks = dict(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok',
+			slackBotToken='xoxb-1', telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
 		no_reply = 'slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply'
 		slack_refused = ('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
 			' every Slack request will be refused')
 		telegram_refused = ('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update'
 			' will be refused')
-		for changes, warnings in (({}, []), ({'slackBotToken': ''}, [no_reply]),
-				({'slackOutgoingToken': ''}, [slack_refused]), ({'slackOutgoingToken': '', 'slackSigningSecret': 's'}, []),
-				({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, [])):
+		cases = (({}, []), ({'slackBotToken': ''}, [no_reply]), ({'slackOutgoingToken': ''}, [slack_refused]),
+			({'slackOutgoingToken': '', 'slackSigningSecret': 's'}, []),
+			({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, []))
+		for changes, warnings in cases:
 			with self.subTest(changes=changes), \
 					mock.patch.object(config, 'env', dataclasses.replace(config.env, **{**hooks, **changes})):
 				self.assertEqual(config.startup_warnings(), warnings)
@@ -418,8 +414,7 @@ class SigHup(unittest.TestCase):
 			config.reload()
 
 	def test_reload_all_reloads_preferences_and_the_schedule_independently(self):
-		"""SIGHUP reloads preferences and the schedule; a preferences error is logged, keeps the running values, and the
-		schedule reloads anyway."""
+		"""SIGHUP reloads preferences, keeping the running ones on an error (logged), and the schedule regardless."""
 		file = Path(tempfile.mkdtemp(), 'preferences.conf')
 		file.write_text('future_days=45\n')
 		scheduler = mock.Mock()
@@ -451,8 +446,7 @@ class SigHup(unittest.TestCase):
 
 class Tools(unittest.TestCase):
 	def test_split_env(self):
-		"""util/split_env.py sorts an old .env into startup keys and preferences, renames volatile_multiplier, and notes
-		what it drops."""
+		"""split_env sorts an old .env into startup keys and prefs, renames volatile_multiplier, lists what it drops."""
 		startup, prefs, notes = split_env.split('slack_webhook=x\nfuture_days=3\nvolatile_multiplier=2\nslackToken=y\nSTATE_DIRECTORY=/a\nbogus=1\nnot a setting\n# c\nport=80\n')
 		self.assertEqual(startup, ['slack_webhook=x', 'port=80'])
 		self.assertEqual(prefs, ['future_days=3', 'volatility_multiplier=2'])
@@ -485,8 +479,7 @@ class Tools(unittest.TestCase):
 		self.assertEqual((out.returncode, out.stderr.strip()), (1, f'{d}/missing.env does not exist: nothing to split'))
 
 	def test_check_config_script_exit_status_and_it_does_not_create_directories(self):
-		"""util/check_config.py exits 0 for a good file and 1 for a bad one, and creates no data directory (systemd may
-		run it as root)."""
+		"""check_config exits 0 for a good file, 1 for a bad one, and makes no data dir (systemd may run it as root)."""
 		d = Path(tempfile.mkdtemp())
 		(d / 'finbot.env').write_text('port=80\n')
 		data = d / 'data'

@@ -52,8 +52,7 @@ class Transport:
 		return answers
 
 	def chart(self, image, caption, buttons=None):
-		"""Post a chart with the caption under it, cut to fit. The network's answer, MAYBE_SENT, or None when it
-		failed."""
+		"""Post a chart, the caption under it cut to fit: the network's answer, MAYBE_SENT, or None if it failed."""
 		if hasattr(image, 'seek'):
 			image.seek(0)
 		return self.post_chart(image, fit_caption(caption, self.dialect), buttons)
@@ -70,8 +69,7 @@ class Transport:
 		"""Show the typing notice, where the network has one."""
 
 	def _post_json(self, url, payload, headers=None):
-		"""POST a JSON message; the answer (or {} when it is not JSON), or None when the network refused it or
-		failed."""
+		"""POST a JSON message: the answer ({} when it is not JSON), or None when the network refused it or failed."""
 		try:
 			r = net.post(url, headers={'Content-type': 'application/json', **(headers or {})}, json=payload,
 				timeout=config.prefs.http_timeout)
@@ -89,8 +87,7 @@ class Transport:
 
 
 class TelegramBot(Transport):
-	"""A Telegram chat, through the Bot API: HTML, silent, no link previews; charts, buttons, edits and the typing
-	notice."""
+	"""A Telegram chat via the Bot API: HTML, silent, no link previews; charts, buttons, edits, the typing notice."""
 	name = 'telegram'
 	dialect = dialects.TELEGRAM
 	takes_charts = takes_buttons = shows_typing = True
@@ -157,8 +154,7 @@ class TelegramBot(Transport):
 			print("Telegram editMessageMedia failed:", net.redact(e), file=sys.stderr)
 
 	def edit_text(self, message, text, buttons=None):
-		"""Replace a text message's text, and its buttons unless buttons is None ([] takes them away). A failure is only
-		logged."""
+		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
 		payload = {'chat_id': self.where, 'message_id': message, 'text': text, 'parse_mode': 'HTML',
 			'disable_web_page_preview': True}
 		if buttons is not None:
@@ -237,8 +233,7 @@ class SlackWebhook(Transport):
 
 
 class DiscordWebhook(Transport):
-	"""A Discord webhook, its native endpoint (the Slack-compatible one takes no flags): no link previews, no pings,
-	charts attached."""
+	"""A Discord webhook's native endpoint (the Slack one takes no flags): no previews, no pings, charts attached."""
 	name = 'discord'
 	dialect = dialects.DISCORD
 	takes_charts = True
@@ -252,8 +247,7 @@ class DiscordWebhook(Transport):
 		return self._post_json(self.url(), {'content': text, 'flags': SUPPRESS_EMBEDS, 'allowed_mentions': NO_MENTIONS})
 
 	def post_chart(self, image, caption, buttons=None):
-		"""The chart as an attachment, with the report as its message. Discord's answer, MAYBE_SENT, or None if
-		refused."""
+		"""The chart as an attachment, the report as its message: Discord's answer, MAYBE_SENT, or None if refused."""
 		payload = {'content': caption, 'flags': SUPPRESS_EMBEDS, 'allowed_mentions': NO_MENTIONS,
 			'attachments': [{'id': 0, 'filename': 'chart.png'}]}
 		try:
@@ -276,8 +270,7 @@ class DiscordWebhook(Transport):
 
 
 def slack_api(method, **data):
-	"""POST a Slack Web API method as the bot, form-encoded, and return its answer. Raises RuntimeError with Slack's
-	error if not ok."""
+	"""POST a Slack Web API method as the bot (form-encoded) and return the answer; an error raises RuntimeError."""
 	if not config.env.slackBotToken:
 		raise RuntimeError(f"Slack {method}: needs slackBotToken in finbot.env")
 	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + config.env.slackBotToken},
