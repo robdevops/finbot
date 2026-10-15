@@ -8,6 +8,24 @@
     "message": "SPCX IPO anniversary"
   },
   {
+    "month_day": "06-23",
+    "gate_country": "AU",
+    "message": [
+      "💸 Realise capital gains/losses by EOFY June 30{flag}",
+      "",
+      "💰 Finalise any deductables by EOF June 30: {flag}",
+      "• donations*",
+      "• Super contributions†",
+      "• work expenses‡",
+      "• investment subscriptions§",
+      "",
+      "_* Organisation must be [DGR-registered](https://abr.business.gov.au/Tools/DgrListing)_",
+      "_† Allow transfer time for Super, as contributions can only be deducted for the year they're received. Stake users: see [note about XX PCC in transaction description](https://hellostake.com/au/support/stake-super/employer-and-personal-contributions/33442327233305#h_01JQAPN9A6ZM41NZKP6XZWN1KP)_",
+      "_‡ See [eligible work expenses](https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim)_",
+      "_§ Must relate directly to specific trades and gains/income (e.g. not general finance news)_"
+    ]
+  },
+  {
     "month_day": "06-30",
     "message": "🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰"
   },

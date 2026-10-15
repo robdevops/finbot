@@ -1,77 +1,59 @@
-"""Reminders for the day: those in reminder.json, and the Australian end of financial year (scheduled: reminder.py)."""
+"""Reminders for the day: the entries of reminder.json for today, and finbot's birthday (scheduled: reminder.py)."""
 import datetime
+import re
 import zoneinfo
 from dateutil.relativedelta import relativedelta
 from lib import config
 from lib import formats
 from lib import delivery
 
+BIRTHDAY = datetime.date(2022, 8, 18)
+FLAGS = {'AU': '🇦🇺'} # what {flag} becomes in an entry gated to a country
+LINK = re.compile(r'\[([^\]]+)\]\(([^)\s]+)\)') # [text](url)
+
 
 def lambda_handler():
 	"""Post today's reminders to the default chats, if there are any."""
-	def prepare_finance_calendar_payload(service):
-		"""Today's reminders in one network's markup: those in reminder.json for this day (and year, and country,
-		when given), the Australian end of financial year on 23 June, and finbot's birthday."""
-		payload = []
-		tz = zoneinfo.ZoneInfo(config.prefs.timezone)
-		localtime = datetime.datetime.now(tz)
-
-		month_and_day = str(localtime.strftime('%m-%d')) # 09-20
-		year = str(localtime.strftime('%Y')) # 2023
-
-		# --- Simple, static one-line reminders loaded from reminders.json ---
-		for reminder in config.data_json("reminder.json", []):
-			if reminder.get("month_day") != month_and_day:
-				continue
-			if reminder.get("year") and reminder["year"] != year:
-				continue
-			gate_country = reminder.get("gate_country")
-			if gate_country and config.prefs.country_code != gate_country:
-				continue
-			message = reminder["message"]
-			if "{flag}" in message:
-				# Flag only ever applies to the AU-gated set today;
-				# extend this mapping if other gated countries are added.
-				flag = "🇦🇺" if gate_country == "AU" else ""
-				message = message.replace("{flag}", flag)
-			payload.append(message)
-
-		# --- Complex, dynamically-computed reminders (kept in code) ---
-		if config.prefs.country_code == 'AU':
-			flag = "🇦🇺"
-			if month_and_day == '06-23':
-				payload.append("💸 Realise capital gains/losses by EOFY June 30" + flag)
-				payload.append ("")
-				payload.append("💰 Finalise any deductables by EOF June 30: " + flag)
-				payload.append("• donations*")
-				payload.append("• Super contributions†")
-				payload.append("• work expenses‡")
-				payload.append("• investment subscriptions§")
-				payload.append ("")
-				abr_link = service.link('https://abr.business.gov.au/Tools/DgrListing', 'DGR-registered')
-				stake_note = service.link('https://hellostake.com/au/support/stake-super/employer-and-personal-contributions/33442327233305#h_01JQAPN9A6ZM41NZKP6XZWN1KP', 'note about XX PCC in transaction description')
-				work_link = service.link('https://www.ato.gov.au/individuals-and-families/income-deductions-offsets-and-records/deductions-you-can-claim', 'eligible work expenses')
-				payload.append(service.italic("* Organisation must be " + abr_link))
-				payload.append(service.italic("† Allow transfer time for Super, as contributions can only be deducted for the year they're received. Stake users: see " + stake_note))
-				payload.append(service.italic("‡ See " + work_link))
-				payload.append(service.italic("§ Must relate directly to specific trades and gains/income (e.g. not general finance news)"))
-
-		if month_and_day == '08-18':
-			myBirthday = datetime.datetime(2022,8,18,0,0,0,0, tzinfo=tz)
-			difference = relativedelta(localtime, myBirthday)
-			payload.append("It's my " + str(difference.years) + formats.ordinal(difference.years) + " birthday! 🥳")
-
-		if payload:
-			heading = service.bold("Finance event reminders:")
-			payload.insert(0, heading)
-		return payload
-
-
-	# MAIN #
-
+	today = datetime.datetime.now(zoneinfo.ZoneInfo(config.prefs.timezone)).date()
+	entries = config.data_json("reminder.json", [])
 	for dest in delivery.default_chats():
-		service = dest.dialect
-		delivery.deliver(dest, delivery.Report(prepare_finance_calendar_payload(service)))
+		delivery.deliver(dest, delivery.Report(report(dest.dialect, today, entries)))
+
+
+def report(service, today, entries):
+	"""Today's reminders in one network's markup, under a heading, or [] when there are none: the entries of
+	reminder.json for this day (and year, and country, where an entry names one), and finbot's birthday."""
+	payload = []
+	for entry in entries:
+		if entry.get("month_day") != today.strftime('%m-%d'):
+			continue
+		if entry.get("year") and str(entry["year"]) != today.strftime('%Y'):
+			continue
+		country = entry.get("gate_country")
+		if country and config.prefs.country_code != country:
+			continue
+		message = entry["message"] # a line, or a list of them
+		for line in [message] if isinstance(message, str) else message:
+			payload.append(markup(line.replace("{flag}", FLAGS.get(country, '')), service))
+	if today.strftime('%m-%d') == BIRTHDAY.strftime('%m-%d'):
+		years = relativedelta(today, BIRTHDAY).years
+		payload.append(f"It's my {years}{formats.ordinal(years)} birthday! 🥳")
+	return [service.bold("Finance event reminders:")] + payload if payload else []
+
+
+def markup(line, service):
+	"""A line of reminder.json in the network's markup: [text](url) is a link, a line wrapped in _underscores_ is in
+	italics, and the rest is text."""
+	italic = len(line) > 1 and line.startswith('_') and line.endswith('_')
+	if italic:
+		line = line[1:-1]
+	text, start = '', 0
+	for link in LINK.finditer(line):
+		text += service.escape(line[start:link.start()]) + service.link(link.group(2), service.escape(link.group(1)))
+		start = link.end()
+	text += service.escape(line[start:])
+	return service.italic(text) if italic else text
+
 
 def job(argv):
 	"""Arguments of a scheduled run: reminder.py takes none."""

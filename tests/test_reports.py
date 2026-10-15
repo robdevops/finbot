@@ -430,6 +430,38 @@ class PeriodButtons(FinbotCase):
 		self.assertEqual((edits, toasts), ([], [None]))
 
 
+class Reminders(FinbotCase):
+	def test_a_reminder_takes_links_and_italics_in_each_networks_markup(self):
+		"""[text](url) is a link and a line in _underscores_ is in italics, an underscore in a url included; the rest
+		is text, escaped where the network needs it."""
+		line = '_See [R&D notes](https://x.example/a_b) & more_'
+		self.assertEqual(reminder.markup(line, TELEGRAM),
+			'<i>See <a href="https://x.example/a_b">R&amp;D notes</a> &amp; more</i>')
+		self.assertEqual(reminder.markup(line, SLACK), '_See <https://x.example/a_b|R&amp;D notes> &amp; more_')
+		self.assertEqual(reminder.markup(line, DISCORD), '_See [R&D notes](<https://x.example/a_b>) & more_')
+		self.assertEqual(reminder.markup('a_b_c and _', TELEGRAM), 'a_b_c and _') # italic only when the whole line is
+
+	def test_the_end_of_financial_year_reminder_comes_from_reminder_json(self):
+		"""On 23 June an Australian gets the EOFY checklist from reminder.json, links and footnotes included; others do
+		not, and a year or a country an entry names must match."""
+		entries = config.data_json('reminder.json', [])
+		eofy = reminder.report(TELEGRAM, datetime.date(2026, 6, 23), entries)
+		self.assertEqual(eofy[0], '<b>Finance event reminders:</b>')
+		self.assertIn('💸 Realise capital gains/losses by EOFY June 30🇦🇺', eofy)
+		dgr = '<a href="https://abr.business.gov.au/Tools/DgrListing">DGR-registered</a>'
+		self.assertIn(f'<i>* Organisation must be {dgr}</i>', eofy)
+		self.prefs(country_code='US')
+		self.assertEqual(reminder.report(TELEGRAM, datetime.date(2026, 6, 23), entries), [])
+		dated = [{'month_day': '06-23', 'year': '2027', 'message': 'next year'},
+			{'month_day': '06-23', 'message': ['a', 'b']}]
+		self.assertEqual(reminder.report(SLACK, datetime.date(2026, 6, 23), dated),
+			['*Finance event reminders:*', 'a', 'b'])
+
+	def test_the_birthday(self):
+		"""On 18 August finbot counts its years."""
+		self.assertEqual(reminder.report(SLACK, datetime.date(2026, 8, 18), [])[1:], ["It's my 4th birthday! 🥳"])
+
+
 class Podcasts(FinbotCase):
 	def test_format_helpers(self):
 		"""Durations in any feed format, how long ago, and zoneless dates taken as UTC; nonsense gives nothing."""

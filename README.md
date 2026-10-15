@@ -534,6 +534,8 @@ util/sync_defaults.py --apply  # copy missing files (including a starter prefere
 util/sync_defaults.py --force  # also replace changed files, keeping .bak copies
 util/sync_defaults.py --dest /srv/finbot --apply  # target another directory instead of the data directory
 ```
+`reminder.json` holds the reminders that `reminder.py` posts on their day. Each entry has a `month_day` (`06-30`) and a `message`, which is one line or a list of lines, and may name a `year` (`2026`) and a `gate_country` (posted only when `country_code` in `preferences.conf` matches; `{flag}` in its message becomes that country's flag). A message is text, with two kinds of markup that each network gets in its own form: `[text](https://example.com)` is a link, and a line wrapped in underscores, `_like this_`, is in italics. The Australian end of financial year checklist (23 June) is such an entry: if you keep your own `reminder.json` in the data directory, `util/sync_defaults.py` shows what it lacks.
+
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
 
 In Docker, one container is enough: `bot.py` runs the schedule too, so there is no cron or scheduler sidecar to set up.
