@@ -101,7 +101,8 @@ class WatchlistActions(FinbotCase):
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if t.endswith('.AX')})
 		self.assertIn('I added', str(self.command('.watchlist add BHP')))
 		self.assertIn('already tracking', str(self.command('.watchlist add BHP')))
-		self.assertIn('could not find', str(self.command('.watchlist add BHP.L'))) # a ticker with a market is not retried
+		# a ticker with a market is not retried
+		self.assertIn('could not find', str(self.command('.watchlist add BHP.L')))
 		self.assertEqual(watchlist.tickers(), ['BHP.AX'])
 		self.assertIn('I deleted', str(self.command('.watchlist del bhp')))
 		self.assertEqual(watchlist.tickers(), [])
@@ -114,7 +115,8 @@ class WatchlistActions(FinbotCase):
 			time.sleep(0.01)
 			return {t: market_entry(t) for t in tickers}
 		self.patch(yahoo, 'fetch', slow_fetch)
-		threads = [threading.Thread(target=holdings.prepare_watchlist, args=(TELEGRAM, '@u', 'add', t)) for t in ('T1', 'T2')]
+		threads = [threading.Thread(target=holdings.prepare_watchlist, args=(TELEGRAM, '@u', 'add', t)) for t in ('T1',
+			'T2')]
 		for thread in threads:
 			thread.start()
 		for thread in threads:
@@ -154,7 +156,8 @@ class BadArguments(FinbotCase):
 
 	def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
 		""".history with no ticker or an extra argument gets its usage, not the profile of a ticker called HISTORY."""
-		self.assertEqual(self.command('.history'), [('text', ['Usage: .history SYMBOL'])]) # not the profile of a ticker called HISTORY
+		# not the profile of a ticker called HISTORY
+		self.assertEqual(self.command('.history'), [('text', ['Usage: .history SYMBOL'])])
 		self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history SYMBOL'])])
 
 
@@ -162,7 +165,8 @@ class PortfolioNames(FinbotCase):
 	def test_an_unknown_portfolio_gets_the_same_answer_everywhere(self):
 		"""An unknown portfolio gets one answer from .trades, .performance, .holdings and .pie: the ones there are."""
 		for cmd in ('.trades 7d Nope', '.performance Nope', '.holdings Nope', '.pie Nope'):
-			with self.subTest(cmd=cmd): # it used to be a ValueError, "no Sharesight data found", or two wordings of this
+			# it used to be a ValueError, "no Sharesight data found", or two wordings of this
+			with self.subTest(cmd=cmd):
 				self.assertEqual(self.command(cmd), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
 
 	def test_a_portfolio_name_in_any_case(self):
@@ -244,7 +248,8 @@ class CommandArguments(FinbotCase):
 
 	def test_top_is_gone(self):
 		""".top is a ticker now, like any word: the command is .price top."""
-		self.assertIn('Co TOP', str(self.command('.top 7d'))) # .price top 7d is the command; .top is a ticker now, like any word
+		# .price top 7d is the command; .top is a ticker now, like any word
+		self.assertIn('Co TOP', str(self.command('.top 7d')))
 
 	def test_a_ratio_command_reads_its_ticker_as_the_other_commands_do(self):
 		""".pe t1 reads its ticker in any case, and a trailing space after top is fine."""
@@ -292,7 +297,8 @@ class WsgiRejections(FinbotCase):
 		"""A Telegram update without the secret header, or with a wrong one, is refused and not processed."""
 		message = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'text': '.help'}}
 		self.assertIn(b'Unauthorized', self.request(body=message)[0])
-		self.assertIn(b'Unauthorized', self.request(body=message, headers={'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'wrong'})[0])
+		self.assertIn(b'Unauthorized',
+			self.request(body=message, headers={'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'wrong'})[0])
 		self.assertEqual(self.sent, []) # nothing was processed
 
 	def test_an_empty_secret_proves_nothing(self):
@@ -311,7 +317,8 @@ class WsgiRejections(FinbotCase):
 
 	def test_malformed_body_is_refused_not_a_crash(self):
 		"""A body that is not a JSON object is 400 once authenticated, and turned away unread before that."""
-		self.assertEqual(self.request(body=b'not json')[1], '403 Forbidden') # no secret: turned away before the body is read
+		# no secret: turned away before the body is read
+		self.assertEqual(self.request(body=b'not json')[1], '403 Forbidden')
 		for body in (b'not json', b'', b'[1, 2]', b'7'):
 			self.assertEqual(self.request(body=body, headers=self.SECRET)[1], '400 Bad Request', body)
 		self.assertEqual(self.errors, [])
@@ -340,10 +347,14 @@ class WsgiRejections(FinbotCase):
 
 		self.env(slackOutgoingToken='stok')
 
-		for path, body, headers, status in (('/', b'', {}, '404 Not Found'), ('/wp-login.php', b'log=x&pwd=y', {}, '404 Not Found'),
-				('/telegram', b'log=x', {}, '403 Forbidden'), ('/telegram', {'message': {}}, {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'wrong'}, '403 Forbidden'),
-				('/slack', b'', {}, '400 Bad Request'), ('/slack', b'token=stok', {}, '400 Bad Request'), ('/slack', {'type': 'event_callback'}, {}, '403 Forbidden'),
-				('/slack', {'token': 'wrong', 'type': 'event_callback'}, {}, '403 Forbidden'), ('/slack', {'token': 'stok'}, {}, '200 OK')):
+		for path, body, headers, status in (('/', b'', {}, '404 Not Found'),
+			('/wp-login.php', b'log=x&pwd=y', {}, '404 Not Found'),
+				('/telegram', b'log=x', {}, '403 Forbidden'),
+				('/telegram', {'message': {}}, {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'wrong'}, '403 Forbidden'),
+				('/slack', b'', {}, '400 Bad Request'), ('/slack', b'token=stok', {}, '400 Bad Request'),
+				('/slack', {'type': 'event_callback'}, {}, '403 Forbidden'),
+				('/slack', {'token': 'wrong', 'type': 'event_callback'}, {}, '403 Forbidden'),
+				('/slack', {'token': 'stok'}, {}, '200 OK')):
 			with self.subTest(path=path, body=body):
 				self.assertEqual(self.request(path, body, headers)[1], status)
 		self.assertEqual(self.errors, []) # nothing reached the chats
@@ -372,7 +383,8 @@ class WsgiRejections(FinbotCase):
 	def test_a_failure_after_authentication_is_reported_once_and_not_retried(self):
 		"""A failure on an authenticated update is reported once and answered 200, so Telegram doesn't send it again."""
 		broken = {'message': {'message_id': 1, 'from': {'first_name': 'A'}, 'text': '.help'}} # no chat
-		self.assertEqual(self.request(body=broken, headers=self.SECRET)[1], '200 OK') # a retry would only fail and report again
+		# a retry would only fail and report again
+		self.assertEqual(self.request(body=broken, headers=self.SECRET)[1], '200 OK')
 		self.assertEqual(len(self.errors), 1)
 		self.assertIn("KeyError: 'chat'", self.errors[0])
 
@@ -388,7 +400,8 @@ class WsgiRejections(FinbotCase):
 		"""An update Telegram sends again runs once."""
 		calls = []
 		self.patch(worker, 'process_request', lambda *a: calls.append(a))
-		body = {'update_id': 7, 'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'text': '.price'}}
+		body = {'update_id': 7,
+			'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'text': '.price'}}
 		for _ in range(2): # Telegram sends an update again when it got no answer
 			self.assertEqual(self.request(body=body, headers=self.SECRET)[1], '200 OK')
 		gevent.sleep(0.05)
@@ -415,8 +428,10 @@ class WsgiRejections(FinbotCase):
 		calls = []
 		self.patch(worker, 'process_callback', lambda *a: calls.append(a))
 		secret = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
-		for sender, who in (({'username': 'rob', 'first_name': 'Rob'}, '@rob'), ({'first_name': 'Ann'}, 'Ann'), ({}, 'unknown')):
-			body = json.dumps({'callback_query': {'id': '1', 'from': sender, 'data': 'j|7|abcd', 'message': {'message_id': 9, 'chat': {'id': 55}}}}).encode()
+		for sender, who in (({'username': 'rob', 'first_name': 'Rob'}, '@rob'), ({'first_name': 'Ann'}, 'Ann'),
+				({}, 'unknown')):
+			body = json.dumps({'callback_query': {'id': '1', 'from': sender, 'data': 'j|7|abcd',
+				'message': {'message_id': 9, 'chat': {'id': 55}}}}).encode()
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
 				bot.main(wsgi_environ('/telegram', body, **secret), lambda *a, **k: None)
@@ -438,8 +453,8 @@ class SlackEvents(FinbotCase):
 
 	def event(self, event_id=None, **event):
 		"""Post a Slack message event to the WSGI handler and return the status."""
-		body = json.dumps({'token': 'stok', 'type': 'event_callback', 'authorizations': [{'user_id': 'UBOT'}], 'event_id': event_id,
-			'event': dict({'type': 'message', 'channel': 'C1', 'ts': '1.2'}, **event)}).encode()
+		body = json.dumps({'token': 'stok', 'type': 'event_callback', 'authorizations': [{'user_id': 'UBOT'}],
+			'event_id': event_id, 'event': dict({'type': 'message', 'channel': 'C1', 'ts': '1.2'}, **event)}).encode()
 		status = []
 		with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
 			bot.main(wsgi_environ('/slack', body), lambda s, *a, **k: status.append(s))
@@ -475,7 +490,8 @@ class SlackEvents(FinbotCase):
 	def test_only_people_are_answered(self):
 		"""Messages from bots, this bot included, joins, edits and events without a user are not answered; people's
 		messages are, with mentions turned into @names."""
-		for event in ({'subtype': 'bot_message', 'bot_id': 'B1', 'text': "⚠️ /slack: KeyError: 'user'"}, # a webhook report
+		# a webhook report
+		for event in ({'subtype': 'bot_message', 'bot_id': 'B1', 'text': "⚠️ /slack: KeyError: 'user'"},
 					  {'user': 'UBOT', 'bot_id': 'B2', 'text': '.holdings: Please try again'}, # this bot's own reply
 					  {'user': 'UBOT', 'text': '.holdings'},
 					  {'subtype': 'channel_join', 'user': 'U1', 'text': '<@U1> has joined the channel'},
@@ -487,7 +503,8 @@ class SlackEvents(FinbotCase):
 		self.assertEqual(self.event(user='U1', text='.price <@UBOT>'), '200 OK')
 		self.assertEqual(self.event(user='U2', subtype='thread_broadcast', text='.trades'), '200 OK')
 		self.assertEqual([(r.service, r.chat_id, r.user, r.text, r.bot_name) for r in self.requests],
-						 [('slack', 'C1', '<@U1>', '.price @UBOT', '@UBOT'), ('slack', 'C1', '<@U2>', '.trades', '@UBOT')])
+						 [('slack', 'C1', '<@U1>', '.price @UBOT', '@UBOT'),
+						 	('slack', 'C1', '<@U2>', '.trades', '@UBOT')])
 
 	def test_links_and_escapes_lose_their_markup(self):
 		"""Each link loses Slack's markup, however many there are (Slack links .AX tickers as domains), and Slack's
@@ -572,8 +589,8 @@ class SlackSigning(FinbotCase):
 
 
 class UserTextIsEscaped(FinbotCase):
-	"""Replies go out as Telegram HTML: text a user wrote is shown, never read as markup. One stray < in a .plan entry made Telegram
-	refuse that reply and every .plan reply after it."""
+	"""Replies go out as Telegram HTML: text a user wrote is shown, never read as markup. One stray < in a .plan entry
+	made Telegram refuse that reply and every .plan reply after it."""
 
 	def test_a_plan_is_shown_as_text(self):
 		"""A .plan entry is shown as text on Telegram and on Slack, escaped once, and a Slack mention stays markup."""
@@ -601,7 +618,7 @@ class UserTextIsEscaped(FinbotCase):
 
 
 class SecretsStayOutOfLogs(FinbotCase):
-	"""A failed request's error message carries its URL: the Telegram token, a Slack or Discord webhook path, a Yahoo crumb."""
+	"""A failed request's error carries its URL: the Telegram token, a Slack or Discord webhook path, a Yahoo crumb."""
 	SECRET_URL = 'https://api.telegram.org/bot123456:SECRET-tok_en/sendMessage?chat_id=1'
 
 	def stderr_of(self, call):
@@ -641,7 +658,7 @@ class SecretsStayOutOfLogs(FinbotCase):
 
 class SharedSession(unittest.TestCase):
 	def test_the_session_keeps_no_cookies(self):
-		"""Yahoo's cookie goes in an explicit header: a stored one would be sent to fc.yahoo.com, which then sets no new one."""
+		"""Yahoo's cookie goes in a header: a stored one would go to fc.yahoo.com, which then sets no new one."""
 		import email.message, urllib.request
 		from lib import net
 		headers = email.message.Message()
@@ -678,13 +695,15 @@ class StartupSignals(unittest.TestCase):
 		"""A SIGHUP while bot.py starts is ignored, where its default action would kill it; once serving, it reloads."""
 		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
-			env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS}
+			env = bare_environment()
 			env.update(DATA_DIR=data, port='0', scheduler='False')
-			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
+			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE,
+				stdout=subprocess.DEVNULL, text=True)
 			self.addCleanup(proc.wait)
 			self.addCleanup(proc.kill)
 			deadline = time.monotonic() + 30
-			while not int(Path(f'/proc/{proc.pid}/status').read_text().split('SigIgn:')[1].split()[0], 16) & 1: # until SIGHUP is ignored
+			# until SIGHUP is ignored
+			while not int(Path(f'/proc/{proc.pid}/status').read_text().split('SigIgn:')[1].split()[0], 16) & 1:
 				self.assertLess(time.monotonic(), deadline)
 				time.sleep(0.001)
 			proc.send_signal(signal.SIGHUP) # still importing: the default action would kill it
@@ -713,13 +732,15 @@ class StartupSignals(unittest.TestCase):
 			for name in cached: # the last: a write in flight
 				(cache / name).write_text('{}')
 			Path(data, 'finbot_watchlist.json').write_text('["T1"]') # state, not cache
-			env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS}
+			env = bare_environment()
 			env.update(DATA_DIR=data, port='0', scheduler='False')
-			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
+			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE,
+				stdout=subprocess.DEVNULL, text=True)
 			self.addCleanup(proc.wait)
 			self.addCleanup(proc.kill)
 			deadline = time.monotonic() + 30
-			while not int(Path(f'/proc/{proc.pid}/status').read_text().split('SigIgn:')[1].split()[0], 16) & (1 << (signal.SIGUSR1 - 1)):
+			while not int(Path(f'/proc/{proc.pid}/status').read_text().split('SigIgn:')[1].split()[0],
+					16) & (1 << (signal.SIGUSR1 - 1)):
 				self.assertLess(time.monotonic(), deadline)
 				time.sleep(0.001)
 			proc.send_signal(signal.SIGUSR1) # still starting: ignored, where its default action would kill the bot

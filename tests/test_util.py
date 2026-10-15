@@ -1,4 +1,4 @@
-"""Pure helpers (lib/markets.py, formats.py, links.py) and the cache and state files: table-driven pass and fail cases."""
+"""Pure helpers (lib/markets.py, formats.py, links.py) and the cache and state files: table-driven cases."""
 import datetime, json, threading, unittest
 from pathlib import Path
 from tests.common import *
@@ -39,7 +39,8 @@ class Parsing(unittest.TestCase):
 				('CPSE', 'NOVO-B.CO', '🇩🇰', 'DKK'), ('XETR', 'SAP.DE', '🇩🇪', 'EUR'), ('AMS', 'ASML.AS', '🇳🇱', 'EUR'),
 				('EURONEXT', None, '🇪🇺', 'EUR'), ('HKG', '0700.HK', '🇭🇰', None), ('NASDAQ', 'AAPL', '🇺🇸', 'USD')):
 			with self.subTest(market=market):
-				self.assertEqual((markets.flag_from_market(market), markets.currency_from_market(market)), (flag, currency))
+				self.assertEqual((markets.flag_from_market(market), markets.currency_from_market(market)),
+					(flag, currency))
 				if ticker:
 					self.assertEqual(markets.flag_from_ticker(ticker), flag)
 
@@ -66,7 +67,8 @@ class Parsing(unittest.TestCase):
 
 	def test_make_paragraphs_keeps_every_word(self):
 		"""make_paragraphs breaks a long description into paragraphs at sentence ends without losing a word."""
-		self.assertEqual(formats.make_paragraphs('Acme makes widgets. It sells them.'), 'Acme makes widgets. It sells them.')
+		self.assertEqual(formats.make_paragraphs('Acme makes widgets. It sells them.'),
+			'Acme makes widgets. It sells them.')
 		long = ' '.join(['word'] * 22) + ' end. Tail sentence here.'
 		self.assertEqual(formats.make_paragraphs(long), ' '.join(['word'] * 22) + ' end.\n\nTail sentence here.')
 
@@ -75,7 +77,8 @@ class Parsing(unittest.TestCase):
 		self.assertEqual(formats.transform_title('APPLE INC'), 'Apple')
 		self.assertEqual(formats.transform_title('Acme FPO'), 'Acme')
 		self.assertEqual(formats.transform_title('Mixed Case Name'), 'Mixed Case Name')
-		for title, expected in (('Allianz Se', 'Allianz'), ('Foo SE AG', 'Foo'), ('Johnson & Johnson &', 'Johnson & Johnson'),
+		for title, expected in (('Allianz Se', 'Allianz'), ('Foo SE AG', 'Foo'),
+			('Johnson & Johnson &', 'Johnson & Johnson'),
 								('Black and White and', 'Black and White'), ('Big Holdings Things Ltd', 'Big Things')):
 			with self.subTest(title=title): # a suffix comes off the end only; no run of spaces is left behind
 				self.assertEqual(formats.transform_title(title), expected)
@@ -84,7 +87,8 @@ class Parsing(unittest.TestCase):
 class Formatting(unittest.TestCase):
 	def test_signed_percent(self):
 		"""A signed percent: a plus for gains, thousands separators, and the decimals asked for."""
-		for value, decimals, expected in ((12, None, '+12%'), (-3.5, None, '-3.5%'), (0, None, '0%'), (1234, None, '+1,234%'),
+		for value, decimals, expected in ((12, None, '+12%'), (-3.5, None, '-3.5%'), (0, None, '0%'),
+			(1234, None, '+1,234%'),
 										  (2.345, 1, '+2.3%'), (-0.04, 1, '-0.0%')):
 			with self.subTest(value=value):
 				self.assertEqual(formats.signed_percent(value, decimals), expected)
@@ -100,7 +104,8 @@ class Formatting(unittest.TestCase):
 		end = datetime.date(2026, 10, 5)
 		self.assertEqual(formats.date_range_english(7, end), '28 Sep - 5 Oct 2026')
 		self.assertEqual(formats.date_range_english(30, end), '5 Sep - 5 Oct 2026')
-		self.assertEqual(formats.date_range_english(10, datetime.date(2026, 1, 5)), '26 Dec 2025 - 5 Jan 2026') # crosses a year
+		# crosses a year
+		self.assertEqual(formats.date_range_english(10, datetime.date(2026, 1, 5)), '26 Dec 2025 - 5 Jan 2026')
 		with self.assertRaises(TypeError):
 			formats.date_range_english(None, end) # callers must pass a period
 
@@ -124,7 +129,8 @@ class Formatting(unittest.TestCase):
 
 	def test_ordinal(self):
 		"""Ordinal suffixes, the teens included."""
-		for number, suffix in ((1, 'st'), (2, 'nd'), (3, 'rd'), (4, 'th'), (11, 'th'), (12, 'th'), (13, 'th'), (21, 'st'), (112, 'th')):
+		for number, suffix in ((1, 'st'), (2, 'nd'), (3, 'rd'), (4, 'th'), (11, 'th'), (12, 'th'), (13, 'th'),
+				(21, 'st'), (112, 'th')):
 			with self.subTest(number=number):
 				self.assertEqual(formats.ordinal(number), suffix)
 

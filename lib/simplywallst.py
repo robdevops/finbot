@@ -1,6 +1,7 @@
 from lib import config
 
-FILES = ['finbot_sws_custom.json', 'finbot_sws_asx200.json', 'finbot_sws_sp500.json', 'finbot_sws_nasdaq100.json'] # the first to list a ticker wins
+# the first to list a ticker wins
+FILES = ['finbot_sws_custom.json', 'finbot_sws_asx200.json', 'finbot_sws_sp500.json', 'finbot_sws_nasdaq100.json']
 
 def get_url(symbol, name, exchange):
 	"""The ticker's page on simplywall.st, from the lists in FILES; without one, a search that lands on it."""
@@ -8,5 +9,6 @@ def get_url(symbol, name, exchange):
 		url = config.data_json(file, {}).get(symbol)
 		if url:
 			return url
-	return 'https://www.google.com/search?q=site:simplywall.st+(' + name + '+' + exchange + ':' + symbol.split('.')[0] + ')+Stock&btnI'
+	query = f"site:simplywall.st+({name}+{exchange}:{symbol.split('.')[0]})+Stock"
+	return 'https://www.google.com/search?q=' + query + '&btnI'
 

@@ -1,4 +1,4 @@
-"""The two config files: finbot.env (the startup file, loaded by the launcher) and preferences.conf (read by the bot, reloadable)."""
+"""The two config files: finbot.env (the startup file, which the launcher loads) and preferences.conf (reloadable)."""
 import ast, contextlib, dataclasses, io, os, re, subprocess, sys, unittest
 from pathlib import Path
 from unittest import mock
@@ -67,8 +67,10 @@ class Parsing(unittest.TestCase):
 
 	def test_comments_blanks_quotes_and_equals_in_values(self):
 		"""Comments and blank lines are skipped, quotes come off, and spaces and blanks in values are kept."""
-		values, _ = self.parse('# c\n\nfuture_days = 30\nhyperlinkProvider="google"\nexclude_portfolios=1 2\ncountry_code=\n')
-		self.assertEqual(values, {'future_days': '30', 'hyperlinkProvider': 'google', 'exclude_portfolios': '1 2', 'country_code': ''})
+		values, _ = self.parse('# c\n\nfuture_days = 30\nhyperlinkProvider="google"\nexclude_portfolios=1 2\n'
+			'country_code=\n')
+		self.assertEqual(values,
+			{'future_days': '30', 'hyperlinkProvider': 'google', 'exclude_portfolios': '1 2', 'country_code': ''})
 
 	def test_missing_file_is_none(self):
 		"""No preferences.conf is not an error: None."""
@@ -111,7 +113,8 @@ class Parsing(unittest.TestCase):
 
 	def test_booleans_take_the_usual_words_and_refuse_a_typo(self):
 		"""Booleans take true/false, yes/no, on/off and 1/0 in any case; a typo is an error (it used to mean False)."""
-		for word, value in (('True', True), ('yes', True), ('ON', True), ('1', True), ('false', False), ('No', False), ('off', False), ('0', False)):
+		for word, value in (('True', True), ('yes', True), ('ON', True), ('1', True), ('false', False), ('No', False),
+				('off', False), ('0', False)):
 			with self.subTest(word=word):
 				self.assertIs(config.preference_values(config._getenv_for({'graph': word})).graph, value)
 		with self.assertRaises(config.ConfigError) as caught: # it used to mean False without a word
@@ -156,11 +159,13 @@ class Parsing(unittest.TestCase):
 	def test_the_old_multiplier_name_is_gone_everywhere(self):
 		"""volatile_multiplier is no longer read, and in the environment it stops the start with the new name."""
 		with mock.patch.dict(os.environ, {'volatile_multiplier': '3'}):
-			self.assertEqual(config.preference_values(config._getenv_for({})).volatility_multiplier, 2.0) # not read any more
+			# not read any more
+			self.assertEqual(config.preference_values(config._getenv_for({})).volatility_multiplier, 2.0)
 			with self.assertRaises(config.ConfigError) as caught:
 				config.check_startup_environment()
 		self.assertIn('volatile_multiplier was renamed to volatility_multiplier', caught.exception.errors[0])
-		self.assertEqual(config.preference_values(config._getenv_for({'volatility_multiplier': '4'})).volatility_multiplier, 4.0)
+		values = config.preference_values(config._getenv_for({'volatility_multiplier': '4'}))
+		self.assertEqual(values.volatility_multiplier, 4.0)
 
 	def test_startup_file_linting(self):
 		"""util/check_config.py reports bad lines in finbot.env first, then bad values, and nothing for a good file."""
@@ -200,17 +205,20 @@ class Reload(unittest.TestCase):
 		"""A reload applies every change, says which, and swaps in a new object, so no request sees half a reload."""
 		self.write('future_days=45\nprice_percent=7\nshorts_percent=12\nexclude_portfolios=1156263\n'
 			'exchange_suffix=nz\nhyperlinkProvider=yahoo\n'
-			'hyperlinkFooter=false\ndebug=1\ngraph=0\ndemote_volatile=0\nvolatility_multiplier=3\npast_days=14\nmin_analysts=3\n')
+			'hyperlinkFooter=false\ndebug=1\ngraph=0\ndemote_volatile=0\nvolatility_multiplier=3\npast_days=14\n'
+			'min_analysts=3\n')
 		before = config.prefs
 		changes = config.reload()
 		self.assertEqual(len(changes), 13)
 		self.assertIn('future_days 30 -> 45', changes)
 		self.assertIsNot(config.prefs, before) # one new object: no request sees half a reload
-		self.assertEqual((config.prefs.future_days, config.prefs.past_days, config.prefs.price_percent, config.prefs.min_analysts), (45, 14, 7.0, 3))
+		self.assertEqual((config.prefs.future_days, config.prefs.past_days, config.prefs.price_percent,
+			config.prefs.min_analysts), (45, 14, 7.0, 3))
 		prefs = config.prefs
 		self.assertEqual((prefs.exclude_portfolios, prefs.exchange_suffix, prefs.hyperlinkProvider,
 			prefs.hyperlinkFooter), (('1156263',), 'NZ', 'yahoo', False))
-		self.assertEqual((config.prefs.debug, config.prefs.graph, config.prefs.demote_volatile, config.prefs.volatility_multiplier), (True, False, False, 3.0))
+		self.assertEqual((config.prefs.debug, config.prefs.graph, config.prefs.demote_volatile,
+			config.prefs.volatility_multiplier), (True, False, False, 3.0))
 		self.assertEqual(config.reload(), []) # nothing more to change
 
 	def test_a_value_removed_from_the_file_goes_back_to_its_default(self):
@@ -240,7 +248,8 @@ class Reload(unittest.TestCase):
 		"""A reload that finds any error applies nothing."""
 		self.write('future_days=45\n')
 		config.reload()
-		for text in ('future_days=3\nprice_percent=abc\n', 'future_days=3\nfutur_days=4\n', 'future_days=3\nslack_webhook=x\n'):
+		for text in ('future_days=3\nprice_percent=abc\n', 'future_days=3\nfutur_days=4\n',
+				'future_days=3\nslack_webhook=x\n'):
 			self.write(text)
 			with self.assertRaises(config.ConfigError):
 				config.reload()
@@ -258,17 +267,19 @@ class Reload(unittest.TestCase):
 		self.file.write_text('')
 
 	def test_nothing_copies_the_config_or_freezes_a_preference(self):
-		"""Modules read config.prefs.<name> when they run, so that a reload is seen: no star import (which copied every name into
-		each module), and no function default or module constant computed from a preference."""
+		"""Modules read config.prefs.<name> when they run, so that a reload is seen: no star import (which copied every
+		name into each module), and no function default or module constant computed from a preference."""
 		def reads_prefs(node):
 			"""Whether an expression reads config.prefs."""
-			return any(isinstance(n, ast.Attribute) and n.attr == 'prefs' and isinstance(n.value, ast.Name) and n.value.id == 'config' for n in ast.walk(node))
+			return any(isinstance(n, ast.Attribute) and n.attr == 'prefs' and isinstance(n.value,
+				ast.Name) and n.value.id == 'config' for n in ast.walk(node))
 		offenders = []
 		for path in sorted([*(REPO / 'lib').rglob('*.py'), *REPO.glob('*.py'), *(REPO / 'util').glob('*.py')]):
 			tree = ast.parse(path.read_text())
 			for node in ast.walk(tree):
 				if isinstance(node, ast.ImportFrom) and node.module == 'lib.config':
-					offenders.append(f'{path.name}:{node.lineno} from lib.config import {", ".join(a.name for a in node.names)}')
+					names = ', '.join(a.name for a in node.names)
+					offenders.append(f'{path.name}:{node.lineno} from lib.config import {names}')
 				if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
 					for default in [*node.args.defaults, *[d for d in node.args.kw_defaults if d]]:
 						if reads_prefs(default):
@@ -289,8 +300,9 @@ class Reload(unittest.TestCase):
 		data = common.temp_dir(self)
 		Path(data, 'preferences.conf').write_text('future_days=99\n')
 		show = "from lib import config as c; print(c.prefs.future_days)"
-		run = lambda **extra: subprocess.run([sys.executable, '-c', show], cwd=REPO, capture_output=True, text=True, check=True,
-			env={**{k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k != config.PASSED}, 'DATA_DIR': data, **extra}).stdout.split()[-1]
+		parent = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k != config.PASSED}
+		run = lambda **extra: subprocess.run([sys.executable, '-c', show], cwd=REPO, capture_output=True, text=True,
+			check=True, env={**parent, 'DATA_DIR': data, **extra}).stdout.split()[-1]
 		self.assertEqual(run(**env), '45') # the parent's values, and the file is not read
 		self.assertEqual(run(), '99') # a script run by hand reads the file itself
 
@@ -317,8 +329,9 @@ class Startup(unittest.TestCase):
 		data = common.temp_dir(self)
 		if prefs is not None:
 			Path(data, 'preferences.conf').write_text(prefs)
-		e = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS and k != config.PASSED}
-		return subprocess.run([sys.executable, '-c', code], cwd=REPO, env={**e, 'DATA_DIR': data, **env}, capture_output=True, text=True)
+		env = {**common.bare_environment(), 'DATA_DIR': data, **env}
+		return subprocess.run([sys.executable, '-c', code], cwd=REPO, env=env,
+			capture_output=True, text=True)
 
 	def test_no_preferences_file_is_fine(self):
 		"""finbot starts without a preferences.conf, on the defaults."""
@@ -331,7 +344,8 @@ class Startup(unittest.TestCase):
 
 	def test_a_broken_preferences_file_refuses_to_start(self):
 		"""A bad value, unknown key, startup key or malformed line in preferences.conf stops the start, saying why."""
-		for prefs, expect in (('future_days=abc\n', "future_days='abc' is not a whole number"), ('futur_days=1\n', 'unknown key futur_days'),
+		for prefs, expect in (('future_days=abc\n', "future_days='abc' is not a whole number"),
+			('futur_days=1\n', 'unknown key futur_days'),
 				('slack_webhook=x\n', 'belongs in finbot.env'), ('what\n', 'expected KEY=value')):
 			out = self.run_config(prefs=prefs)
 			self.assertEqual(out.returncode, 1, prefs)
@@ -342,7 +356,8 @@ class Startup(unittest.TestCase):
 		"""A preferences.conf that cannot be read stops the start."""
 		data = common.temp_dir(self)
 		Path(data, 'preferences.conf').mkdir()
-		out = subprocess.run([sys.executable, '-c', 'from lib import config'], cwd=REPO, env={**os.environ, 'DATA_DIR': data}, capture_output=True, text=True)
+		out = subprocess.run([sys.executable, '-c', 'from lib import config'], cwd=REPO,
+			env={**os.environ, 'DATA_DIR': data}, capture_output=True, text=True)
 		self.assertEqual(out.returncode, 1)
 		self.assertIn('cannot read', out.stderr)
 
@@ -359,7 +374,8 @@ class Startup(unittest.TestCase):
 			with self.assertRaises(config.ConfigError) as caught:
 				config.check_startup_environment()
 		self.assertEqual(len(caught.exception.errors), 2)
-		self.assertIn('future_days is a preference; move it from finbot.env to preferences.conf', '\n'.join(caught.exception.errors))
+		self.assertIn('future_days is a preference; move it from finbot.env to preferences.conf',
+			'\n'.join(caught.exception.errors))
 		with mock.patch.dict(os.environ, {'future_days': '30', config.PASSED: '1'}):
 			config.check_startup_environment() # a job process gets its preferences this way
 		with mock.patch.dict(os.environ, {'ip': '1.2.3.4', 'telegramChatID': '5'}):
@@ -382,11 +398,13 @@ class Startup(unittest.TestCase):
 				config.check_startup_environment()
 		self.assertEqual(len(caught.exception.errors), 2)
 		self.assertIn(f'{old} is the old single config file, which finbot no longer reads', caught.exception.errors[0])
-		self.assertIn('/util/split_env.py, which writes finbot.env.new and preferences.conf.new', caught.exception.errors[1])
+		self.assertIn('/util/split_env.py, which writes finbot.env.new and preferences.conf.new',
+			caught.exception.errors[1])
 
 	def test_a_discord_webhook_uses_the_native_endpoint(self):
 		"""A Discord webhook URL is used as is, its old /slack suffix removed."""
-		for url in ('https://discord.com/api/webhooks/1/abc', 'https://discord.com/api/webhooks/1/abc/slack/'): # the old setup's suffix
+		# the old setup's suffix
+		for url in ('https://discord.com/api/webhooks/1/abc', 'https://discord.com/api/webhooks/1/abc/slack/'):
 			values = config.startup_values(lambda name, default=None: url if name == 'discord_webhook' else default)
 			self.assertEqual(values.webhooks['discord'], 'https://discord.com/api/webhooks/1/abc')
 
@@ -440,7 +458,8 @@ class SigHup(unittest.TestCase):
 				bot.reload_all()
 			self.assertIn('config: future_days 30 -> 45', err.getvalue())
 			scheduler.reload.assert_called_once()
-			file.write_text('futur_days=1\n') # a preferences error does not stop the schedule reload, and the bot survives it
+			# a preferences error does not stop the schedule reload, and the bot survives it
+			file.write_text('futur_days=1\n')
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
 				bot.reload_all()
@@ -462,7 +481,8 @@ class SigHup(unittest.TestCase):
 class Tools(unittest.TestCase):
 	def test_split_env(self):
 		"""split_env sorts an old .env into startup keys and prefs, renames volatile_multiplier, lists what it drops."""
-		startup, prefs, notes = split_env.split('slack_webhook=x\nfuture_days=3\nvolatile_multiplier=2\nslackToken=y\nSTATE_DIRECTORY=/a\nbogus=1\nnot a setting\n# c\nport=80\n')
+		startup, prefs, notes = split_env.split('slack_webhook=x\nfuture_days=3\nvolatile_multiplier=2\nslackToken=y\n'
+			'STATE_DIRECTORY=/a\nbogus=1\nnot a setting\n# c\nport=80\n')
 		self.assertEqual(startup, ['slack_webhook=x', 'port=80'])
 		self.assertEqual(prefs, ['future_days=3', 'volatility_multiplier=2'])
 		self.assertEqual(len(notes), 4)
@@ -470,7 +490,8 @@ class Tools(unittest.TestCase):
 
 	def test_split_env_reads_the_old_dotenv_format_too(self):
 		"""split_env reads the old dotenv format: quotes, export, comments after values and # inside URLs."""
-		old = "# c\nfuture_days = '30' # note\nexport slack_webhook = \"https://x/#frag\"\nport = 80 # comment\nbare\ndiscord_webhook=http://y/#z\n\n"
+		old = ("# c\nfuture_days = '30' # note\nexport slack_webhook = \"https://x/#frag\"\nport = 80 # comment\nbare\n"
+			"discord_webhook=http://y/#z\n\n")
 		startup, prefs, notes = split_env.split(old)
 		self.assertEqual(startup, ['slack_webhook=https://x/#frag', 'port=80', 'discord_webhook=http://y/#z'])
 		self.assertEqual(prefs, ['future_days=30'])
@@ -481,7 +502,8 @@ class Tools(unittest.TestCase):
 		them, and says so for a missing file."""
 		d = Path(common.temp_dir(self))
 		(d / 'old.env').write_text('port=80\nfuture_days=3\n')
-		run = lambda: subprocess.run([sys.executable, str(REPO / 'util' / 'split_env.py'), str(d / 'old.env')], capture_output=True, text=True)
+		run = lambda: subprocess.run([sys.executable, str(REPO / 'util' / 'split_env.py'), str(d / 'old.env')],
+			capture_output=True, text=True)
 		self.assertEqual(run().returncode, 0)
 		self.assertIn('port=80', (d / 'finbot.env.new').read_text())
 		self.assertIn('future_days=3', (d / 'preferences.conf.new').read_text())
@@ -489,7 +511,8 @@ class Tools(unittest.TestCase):
 		out = run()
 		self.assertNotEqual(out.returncode, 0)
 		self.assertIn('refusing to overwrite', out.stderr)
-		out = subprocess.run([sys.executable, str(REPO / 'util' / 'split_env.py'), str(d / 'missing.env')], capture_output=True, text=True)
+		out = subprocess.run([sys.executable, str(REPO / 'util' / 'split_env.py'), str(d / 'missing.env')],
+			capture_output=True, text=True)
 		self.assertEqual((out.returncode, out.stderr.strip()), (1, f'{d}/missing.env does not exist: nothing to split'))
 
 	def test_check_config_script_exit_status_and_it_does_not_create_directories(self):
@@ -497,8 +520,8 @@ class Tools(unittest.TestCase):
 		d = Path(common.temp_dir(self))
 		(d / 'finbot.env').write_text('port=80\n')
 		data = d / 'data'
-		run = lambda: subprocess.run([sys.executable, str(REPO / 'util' / 'check_config.py'), str(d / 'finbot.env')], capture_output=True, text=True,
-			env={**os.environ, 'DATA_DIR': str(data)})
+		run = lambda: subprocess.run([sys.executable, str(REPO / 'util' / 'check_config.py'), str(d / 'finbot.env')],
+			capture_output=True, text=True, env={**os.environ, 'DATA_DIR': str(data)})
 		out = run()
 		self.assertEqual(out.returncode, 0, out.stderr)
 		self.assertFalse(data.exists()) # may run as root from systemd: must not create the data directory

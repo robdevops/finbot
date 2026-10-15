@@ -134,7 +134,8 @@ def trends(data):
 def outlook(service, data):
 	"""The analysts' forecasts and score, insiders' buying or selling, and the short interest."""
 	lines = []
-	for key, label in (('revenueEstimateY', 'Revenue forecast (1Y):'), ('earningsEstimateY', 'Earnings forecast (1Y):')):
+	for key, label in (('revenueEstimateY', 'Revenue forecast (1Y):'),
+			('earningsEstimateY', 'Earnings forecast (1Y):')):
 		if key in data:
 			growth = int(round(data[key]))
 			lines.append(service.bold(label) + f" {formats.signed_percent(growth)} " + ('' if growth > 0 else '⚠️ '))
@@ -164,7 +165,9 @@ def valuation(service, data, state):
 		if state != 'REGULAR' and 'prePostMarketPrice' in data:
 			price_line += f" ({data['prePostMarketPrice']:,.2f} after hrs)"
 		lines.append(price_line)
-	trailing_pe = str(int(round(data['price_to_earnings_trailing']))) if 'price_to_earnings_trailing' in data else 'N/A ⚠️ '
+	trailing_pe = 'N/A ⚠️ '
+	if 'price_to_earnings_trailing' in data:
+		trailing_pe = str(int(round(data['price_to_earnings_trailing'])))
 	if data.get('net_income', 0) > 0:
 		lines.append(service.bold("Trailing P/E:") + f" {trailing_pe}")
 	if data.get('netIncomeToCommon', 0) > 0 and data.get('sharesOutstanding') and 'regularMarketPrice' in data:
@@ -173,7 +176,8 @@ def valuation(service, data, state):
 	if 'price_to_earnings_forward' in data:
 		forward_pe = int(round(data['price_to_earnings_forward']))
 		warn = forward_pe < 0
-		if 'profile_industry' in data: # software is dear: it warns above 100, the rest above 30 or above their trailing P/E
+		# software is dear: it warns above 100, the rest above 30 or above their trailing P/E
+		if 'profile_industry' in data:
 			warn = warn or forward_pe > (100 if 'Software' in data['profile_industry'] else 30)
 			warn = warn or ('price_to_earnings_trailing' in data and forward_pe > int(trailing_pe))
 		lines.append(service.bold("Forward P/E:") + f" {forward_pe} " + ('⚠️ ' if warn else ''))

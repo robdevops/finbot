@@ -7,7 +7,8 @@ TITLE_TRIMS = [ # transform_title: (text, replacement), in order, as each sees w
 	('BlackRock Institutional Trust Company N.A.', ''), ('Listed Funds Trust', ''), ('GraniteShares ETF Trust', ''),
 	('ProShares Trust', ''), ('VanEck ETF Trust', ''), ('Direxion Shares ETF Trust', ''), (' of California', ''),
 	('Magnificent', 'Mag'), ('First Trust NASDAQ Clean Edge Green Energy Index Fund', 'First Trust Clean Energy'),
-	('First Trust Exchange-Traded Fund III First Trust Nasdaq Clean Edge Clean Energy Index Fund', 'First Trust Green Energy'),
+	('First Trust Exchange-Traded Fund III First Trust Nasdaq Clean Edge Clean Energy Index Fund',
+		'First Trust Green Energy'),
 	('Mirae Asset Global Investments (Hong Kong) Limited', ''), ('Space Exploration Technologies', 'SpaceX'),
 	('Exchange Traded Funds Series OFC', ''), ('Global X Global X', 'Global X'), ('Tema ETF Trust', ''), (' AUD', ' '),
 	(' USD', ' '), ('New York Shares', ''), ('China Electric Vehicle and Battery ETF', 'China EV ETF'),
@@ -18,15 +19,18 @@ TITLE_TRIMS = [ # transform_title: (text, replacement), in order, as each sees w
 ]
 
 TITLE_SHORTENINGS = [ # and these after the suffixes come off
-	('Microbalifesciences', 'Microba Life Sciences'), ('Walt Disney Co (The)', 'Disney'), ('Lisenergylimited', 'LI-S Energy'),
+	('Microbalifesciences', 'Microba Life Sciences'), ('Walt Disney Co (The)', 'Disney'),
+	('Lisenergylimited', 'LI-S Energy'),
 	('Invesco Capital Management LLC ', ''), ('QUALCOMM', 'Qualcomm'), ('Ordinary Shares Class A', ''),
 	('Ordinary Shares Class C', ''), ('Lbt Innovations', 'LBT Innovations'),
 	('Vanguard Information Technology', 'Vanguard Infotech'), ('The ', ''), (' Shares', ''), ('Rea ', 'REA '),
-	('Csl ', 'CSL '), ('Battery ', 'Batt '), ('.com', ''), ('Etf', 'ETF'), ('N.V.', ''), (' NV ', ' '), ('New York Re', ''),
+	('Csl ', 'CSL '), ('Battery ', 'Batt '), ('.com', ''), ('Etf', 'ETF'), ('N.V.', ''), (' NV ', ' '),
+	('New York Re', ''),
 	(' Australian', ' Aus'), (' Australia', ' Aus'), (' Infrastructure', ' Infra'), (' Manufacturing Company', ' '),
 	(' Limited', ' '), (' Ltd', ' '), (' Holdings', ' '), (' Holding', ' '), (' (Holdings)', ''), (' Corporation', ' '),
 	(' Incorporated', ' '), (' incorporated', ' '), (' Technologies', ' '), (' Technology', ' '), (' Enterprises', ' '),
-	(' Enterprise', ' '), (' Enterpr', ' '), (' Ventures', ' '), (' Resources', ' '), (' (Intrada', ''), (' Structured', ''),
+	(' Enterprise', ' '), (' Enterpr', ' '), (' Ventures', ' '), (' Resources', ' '), (' (Intrada', ''),
+	(' Structured', ''),
 	(' Co.', ' '), (' Corp.', ' '), (' Corp', ' '), (' Tech ', ' '), (' Company', ' '), (' Group', ' '), (', Inc', ' '),
 	(' Inc', ' '), (' Plc', ' '), (' plc', ' '), (' Index', ' '), (' ADR', ' '), (' Daily', ' '), (' Long', ' '),
 	(' Bull', ' '), (' .', ' '), (' ,', ' ')
@@ -92,7 +96,7 @@ def date_short(d, year=False):
 	return f"{d.day} {d:%b}" + (f" {d.year}" if year else "")
 
 def date_range_english(days, end):
-	"""'28 Sep - 5 Oct 2026' for the `days` ending on `end`; both ends carry their year when the range crosses a year boundary."""
+	"""'28 Sep - 5 Oct 2026' for the `days` ending on `end`; both ends carry their year when the range crosses one."""
 	start = end - datetime.timedelta(days=days)
 	return f"{date_short(start, start.year != end.year)} - {date_short(end, True)}"
 

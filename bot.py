@@ -2,7 +2,8 @@
 
 import signal
 if __name__ == '__main__':
-	signal.signal(signal.SIGHUP, signal.SIG_IGN) # ignored until startup is done (the reload handler is installed last): its default action kills the bot
+	# ignored until startup is done (the reload handler is installed last): its default action kills the bot
+	signal.signal(signal.SIGHUP, signal.SIG_IGN)
 	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise the cache flush
 import gevent.monkey
 gevent.monkey.patch_all()
@@ -28,8 +29,9 @@ MAX_BODY = 1 << 20 # bytes in a request body, at most: an update from Telegram o
 _updates_seen = collections.OrderedDict() # (service, update id) of the last updates taken, oldest first
 
 def seen_before(service, update_id, keep=1000):
-	"""Whether this update was taken already: Telegram's update_id, Slack's event_id. Slack resends an event it got no answer to
-	within 3 seconds and Telegram one that failed, and a command must not run twice. An update without an id is never a repeat."""
+	"""Whether this update was taken already: Telegram's update_id, Slack's event_id. Slack resends an event it got no
+	answer to within 3 seconds and Telegram one that failed, and a command must not run twice. An update without an id
+	is never a repeat."""
 	if update_id is None:
 		return False
 	key = (service, update_id)
@@ -41,10 +43,10 @@ def seen_before(service, update_id, keep=1000):
 	return False
 
 def main(environ, start_response):
-	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is reported as one line to the
-	default channel and answered 200, so the service does not retry it into the chat again. Before authentication a failure is only
-	logged: a stranger must not be able to post into the chats. Either names the network, not the path: a webhook's
-	path is a secret (telegramOutgoingWebhook, slackOutgoingWebhook)."""
+	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is reported as one
+	line to the default channel and answered 200, so the service does not retry it into the chat again. Before
+	authentication a failure is only logged: a stranger must not be able to post into the chats. Either names the
+	network, not the path: a webhook's path is a secret (telegramOutgoingWebhook, slackOutgoingWebhook)."""
 	try:
 		return handle(environ, start_response)
 	except Exception as e:
@@ -128,13 +130,14 @@ def dispatch(event):
 	threading.Thread(target=target, args=(event,)).start()
 
 def git_version(checkout=None):
-	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no "dubious
-	ownership" refusal when the service user does not own the checkout. 'unknown' when it cannot be read."""
+	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no
+	"dubious ownership" refusal when the service user does not own the checkout. 'unknown' when it cannot be read."""
 	try:
 		git = Path(checkout or config.REPO_DIR) / '.git'
 		if git.is_file(): # a linked worktree or submodule: .git is a file saying "gitdir: <path>"
 			git = (git.parent / git.read_text().split(':', 1)[1].strip()).resolve()
-		common = (git / (git / 'commondir').read_text().strip()).resolve() if (git / 'commondir').is_file() else git # refs of a worktree
+		# refs of a worktree
+		common = (git / (git / 'commondir').read_text().strip()).resolve() if (git / 'commondir').is_file() else git
 		head = (git / 'HEAD').read_text().strip()
 		if head.startswith('ref:'):
 			ref = head.split(':', 1)[1].strip()
@@ -160,25 +163,27 @@ def in_thread(work):
 	return lambda *args: threading.Thread(target=run, daemon=True).start()
 
 def reload_all(*args):
-	"""SIGHUP: re-read preferences.conf and, if the scheduler is running, schedule.cron. Each reports its own errors; a bad
-	preferences.conf leaves the running config untouched."""
+	"""SIGHUP: re-read preferences.conf and, if the scheduler is running, schedule.cron. Each reports its own errors; a
+	bad preferences.conf leaves the running config untouched."""
 	try:
 		changes = config.reload()
 		for change in changes:
 			print('config:', change, file=sys.stderr)
-		print(f"config: reloaded {config.preferences_path}, {len(changes)} change{'' if len(changes) == 1 else 's'}", file=sys.stderr)
+		print(f"config: reloaded {config.preferences_path}, {len(changes)} change{'' if len(changes) == 1 else 's'}",
+			file=sys.stderr)
 	except config.ConfigError as e:
 		config.print_errors(e)
 	if scheduler:
 		scheduler.reload()
 
 def flush_cache(*args):
-	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings, schedule).
-	The Sharesight caches refill at once."""
+	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings,
+	schedule). The Sharesight caches refill at once."""
 	try:
 		removed = cleanup.run(days=0)
 		sharesight.wake()
-		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}", file=sys.stderr)
+		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}",
+			file=sys.stderr)
 	except Exception as e:
 		print('ERROR', delivery.error_line(e, 'cache flush'), file=sys.stderr)
 
@@ -220,7 +225,8 @@ if __name__ == '__main__':
 	if config.env.telegramBotToken:
 		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
 	if config.env.sharesight_auth.get('client_id'):
-		threading.Thread(target=sharesight.keep_warm, daemon=True).start() # keep the portfolio list and holdings report cached, while cache is on
+		# keep the portfolio list and holdings report cached, while cache is on
+		threading.Thread(target=sharesight.keep_warm, daemon=True).start()
 	if scheduler:
 		jobs.current = scheduler # for the .jobs chat command
 		threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs

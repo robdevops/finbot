@@ -7,17 +7,27 @@ from unittest import mock
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
-os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok', telegramChatID='1')
+os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok',
+	telegramChatID='1')
 
-import bot # first, and once: it monkey-patches with gevent, which must happen before requests imports ssl and never mid-test
+# first, and once: it monkey-patches with gevent, which must happen before requests imports ssl and never mid-test
+import bot
 from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, render
 from lib import sharesight, shortman, state, telegram, transports, watchlist, worker, yahoo
-from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating, reminder, shorts, trades
+from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating
+from lib.reports import reminder, shorts, trades
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),
 	(yahoo, 'price_history'), (yahoo, 'historic_high'),
 	(sharesight, '_portfolios'), (sharesight, '_trades'), (sharesight, '_performance'))}
 REAL_GET_HOLDINGS = watchlist.with_holdings
+
+
+def bare_environment():
+	"""os.environ without finbot's settings (the startup keys, the preferences, the flag that hands a job its
+	preferences): for a process that must start from the defaults."""
+	settings = {*config.STARTUP_KEYS, *config.PREFERENCE_KEYS, config.PASSED}
+	return {k: v for k, v in os.environ.items() if k not in settings}
 
 
 def temp_dir(case):
@@ -57,12 +67,14 @@ def market_entry(ticker):
 	threshold, sort and branch has rows."""
 	i = int(ticker[1:]) if ticker[1:].isdigit() else 0 # varied data so threshold/sort/sell branches all have rows
 	return {'marketState': STATES[i % 4], 'regularMarketTime': time.time(), 'quoteType': 'EQUITY',
-			'profile_title': 'Co ' + ticker, 'profile_exchange': 'NasdaqGS', 'percent_change': (i - 12) * 1.5, 'percent_change_premarket': (i - 12) * 1.5, 'percent_change_postmarket': (i - 12) * 1.5,
+			'profile_title': 'Co ' + ticker, 'profile_exchange': 'NasdaqGS', 'percent_change': (i - 12) * 1.5,
+			'percent_change_premarket': (i - 12) * 1.5, 'percent_change_postmarket': (i - 12) * 1.5,
 			'market_cap': 1e9, 'price_to_earnings_trailing': 9, 'price_to_earnings_forward': 9,
 			'beta': 2.0, 'short_percent': 20, 'fiftyTwoWeekHigh': 120.0, 'fiftyTwoWeekLow': 80.0,
 			'regularMarketPrice': 100.0, 'earnings_date': time.time() + 86400 * 3,
-			'ex_dividend_date': time.time() + 86400 * 3, 'recommend': 'buy' if i % 2 else 'sell', 'recommend_index': 1.2 if i % 2 else 4.2,
-			'recommend_analysts': 8, 'price_to_earnings_peg': 1.2, 'currency': 'USD'}
+			'ex_dividend_date': time.time() + 86400 * 3, 'recommend': 'buy' if i % 2 else 'sell',
+			'recommend_index': 1.2 if i % 2 else 4.2, 'recommend_analysts': 8, 'price_to_earnings_peg': 1.2,
+			'currency': 'USD'}
 
 
 class FinbotCase(unittest.TestCase):
@@ -108,7 +120,8 @@ class FinbotCase(unittest.TestCase):
 		self.patch(yahoo, 'prefetch_history', lambda ts: None)
 		self.patch(yahoo, 'historic_high', lambda t: (100.0, 50.0))
 		dates = pd.date_range(end=pd.Timestamp.today().normalize(), periods=400)
-		self.patch(yahoo, 'price_series', lambda t: ('Co ' + t, 'NASDAQ', pd.Series(range(100, 500), index=dates, name=t, dtype=float)))
+		self.patch(yahoo, 'price_series',
+			lambda t: ('Co ' + t, 'NASDAQ', pd.Series(range(100, 500), index=dates, name=t, dtype=float)))
 		self.patch(shortman, 'fetch', lambda md: md)
 		held = [{'id': i, 'instrument': {'code': t, 'market_code': 'NASDAQ'}, 'portfolio': {'name': 'Rob'},
 					 'capital_gain_percent': str(i * 4 - 40), 'value': '1000'} for i, t in enumerate(TICKERS)]
@@ -117,7 +130,8 @@ class FinbotCase(unittest.TestCase):
 			'holdings': held, 'currency_gain_percent': '0', 'capital_gain_percent': '2.5', 'total_gain_percent': '0'})
 		self.patch(sharesight, '_trades', lambda pid, days=None: [{
 			'id': 1, 'transaction_type': 'BUY', 'symbol': 'T1', 'market': 'NASDAQ',
-			'transaction_date': time.strftime('%Y-%m-%d'), 'quantity': '10', 'price': '5.0', 'value': '50', 'brokerage_currency_code': 'USD', 'holding_id': 7}])
+			'transaction_date': time.strftime('%Y-%m-%d'), 'quantity': '10', 'price': '5.0', 'value': '50',
+			'brokerage_currency_code': 'USD', 'holding_id': 7}])
 		self.typing = [] # every chat a test starts a typing notice in; none may still be sending it when the test ends
 		noted = lambda chat: self.typing.append(chat) or REAL_START_TYPING(chat)
 		self.patch(transports.Transport, 'start_typing', noted)

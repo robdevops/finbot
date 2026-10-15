@@ -13,7 +13,8 @@ PYTHON_VERSION="$(tr -d '[:space:]' < .python-version)"
 uv python install "$PYTHON_VERSION"
 
 # (re)create .venv only when it is missing or on a different Python
-if [ ! -x .venv/bin/python ] || [ "$(.venv/bin/python -c 'import platform; print(platform.python_version())')" != "$PYTHON_VERSION" ]; then
+if [ ! -x .venv/bin/python ] ||
+	[ "$(.venv/bin/python -c 'import platform; print(platform.python_version())')" != "$PYTHON_VERSION" ]; then
 	rm -rf .venv
 	uv venv --python "$PYTHON_VERSION" .venv
 fi

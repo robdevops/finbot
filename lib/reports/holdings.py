@@ -9,7 +9,8 @@ from lib import yahoo
 
 def holding_line(holding, service, text=None):
 	"""'🇦🇺 Title (CODE)' for a Sharesight holding, CODE (or `text`) linking to the holding on Sharesight."""
-	link = service.link(f"https://portfolio.sharesight.com/holdings/{holding['holding_id']}/dashboard", holding['code'] if text is None else text)
+	link = service.link(f"https://portfolio.sharesight.com/holdings/{holding['holding_id']}/dashboard",
+		holding['code'] if text is None else text)
 	return f"{markets.flag_from_market(holding['market_code'])} {formats.transform_title(holding['name'])} ({link})"
 
 def prepare_holdings_payload(portfolio_name, service):

@@ -18,7 +18,7 @@ def gather(past_days, portfolio_select=None):
 	return [(portfolio, portfolio.gain(past_days)) for portfolio in sharesight.portfolios(portfolio_select)]
 
 def benchmark(ticker, market, text, past_days, service):
-	"""(report line, percent) of a benchmark over past_days; percent is None, and the line says so, when it has no history."""
+	"""(report line, percent) of a benchmark over past_days; percent None, and the line saying so, without history."""
 	try:
 		percent = yahoo.price_history(ticker, days=past_days)[0][past_days]
 	except Exception as e: # the rest of the report still goes out
@@ -28,8 +28,8 @@ def benchmark(ticker, market, text, past_days, service):
 	return f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}", percent
 
 def report(service, past_days, portfolio_select=None, performance=None):
-	"""(payload, chart) of the performance report for one service: each portfolio and the benchmarks, best first. performance:
-	gather()'s, fetched when not given."""
+	"""(payload, chart) of the performance report for one service: each portfolio and the benchmarks, best first.
+	performance: gather()'s, fetched when not given."""
 	if performance is None:
 		performance = gather(past_days, portfolio_select)
 	rows = [] # (percent or None, line, chart label), one list for the caption and the chart, best first

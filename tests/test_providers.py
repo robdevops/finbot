@@ -148,7 +148,8 @@ class YahooDetail(ProviderCase):
 	def combined():
 		"""quoteSummary as Yahoo returns it for several modules at once, assembled from the per-module samples."""
 		merged = {}
-		for module in ('price', 'summaryProfile', 'summaryDetail', 'defaultKeyStatistics', 'financialData', 'calendarEvents', 'earnings'):
+		for module in ('price', 'summaryProfile', 'summaryDetail', 'defaultKeyStatistics', 'financialData',
+				'calendarEvents', 'earnings'):
 			merged.update(sample('yahoo', f'sample_yahoo_v10_{module}.json')['quoteSummary']['result'][0])
 		return {'quoteSummary': {'result': [merged], 'error': None}}
 
@@ -256,16 +257,19 @@ class YahooChart(ProviderCase):
 		"""A v8 chart response with one daily bar per close, the last one today (14:30 UTC, New York's open)."""
 		today = datetime.datetime.now(datetime.timezone.utc).replace(hour=14, minute=30, second=0, microsecond=0)
 		stamps = [int((today - datetime.timedelta(days=len(closes) - 1 - i)).timestamp()) for i in range(len(closes))]
-		meta = {'currency': 'USD', 'symbol': 'T1', 'exchangeTimezoneName': 'America/New_York', 'regularMarketTime': stamps[-1],
+		meta = {'currency': 'USD', 'symbol': 'T1', 'exchangeTimezoneName': 'America/New_York',
+			'regularMarketTime': stamps[-1],
 				'regularMarketPrice': closes[-1], 'longName': 'Co T1'}
 		quote = {'open': closes, 'high': closes, 'low': closes, 'close': closes, 'volume': [1] * len(closes)}
-		return {'chart': {'result': [{'meta': meta, 'timestamp': stamps, 'indicators': {'quote': [quote]}}], 'error': None}}
+		return {'chart': {'result': [{'meta': meta, 'timestamp': stamps, 'indicators': {'quote': [quote]}}],
+			'error': None}}
 
 	def test_1d_is_the_change_since_the_previous_close(self):
 		"""1D is the change since the previous close, and 5D the week's; with a quote, its price and today's change
 		count, the chart's being up to cache_seconds old."""
 		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
-		self.http(yahoo, Resp(self.chart([90] * 30 + [100, 105, 110, 115, 120, 116.4]))) # up 20% in a week, down 3% today
+		# up 20% in a week, down 3% today
+		self.http(yahoo, Resp(self.chart([90] * 30 + [100, 105, 110, 115, 120, 116.4])))
 		table, line = yahoo.price_history('T1')
 		self.assertEqual(table['1D'], -3)
 		self.assertGreater(table['5D'], 10) # the week, not the day
@@ -340,7 +344,8 @@ class YahooChart(ProviderCase):
 	def test_the_chart_request_carries_the_cookie_of_its_crumb(self):
 		"""A chart request sends the cookie its crumb belongs to."""
 		headers = []
-		self.patch(yahoo.net, 'get', lambda url, **kwargs: headers.append(kwargs.get('headers', {})) or Resp(self.chart([100.0] * 5)))
+		self.patch(yahoo.net, 'get',
+			lambda url, **kwargs: headers.append(kwargs.get('headers', {})) or Resp(self.chart([100.0] * 5)))
 		yahoo.fetch_chart_json('T1', full=True)
 		self.assertEqual(headers[0].get('Cookie'), 'A=B') # the crumb used to go without its cookie
 
@@ -387,7 +392,8 @@ class SharesightApi(ProviderCase):
 
 	def test_portfolio_failures_raise(self):
 		"""An error answer, Sharesight unreachable or no portfolios is a RuntimeError."""
-		for failure in (Resp({'error': 'nope', 'error_code': 'x'}, 401), ConnectionError('down'), Resp({'portfolios': []})):
+		for failure in (Resp({'error': 'nope', 'error_code': 'x'}, 401), ConnectionError('down'),
+				Resp({'portfolios': []})):
 			with self.subTest(failure=failure):
 				self.http(sharesight, failure)
 				with self.assertRaises(RuntimeError):
@@ -456,7 +462,8 @@ class SharesightApi(ProviderCase):
 	def test_performance_retries_when_sharesight_is_busy(self):
 		"""While Sharesight says too many requests are in flight, the request is tried again."""
 		busy = Resp({'error': 'Too many parallel requests', 'error_code': 'x'}, 429)
-		getter = self.http(sharesight, busy, busy, Resp(sample('sharesight', 'finbot_sharesight_performance_684141_0.json')))
+		getter = self.http(sharesight, busy, busy,
+			Resp(sample('sharesight', 'finbot_sharesight_performance_684141_0.json')))
 		self.assertIn('holdings', sharesight._performance(684141, 0))
 		self.assertEqual(len(getter.calls), 3)
 
@@ -504,7 +511,8 @@ class SharesightKeepWarm(ProviderCase):
 		sharesight.warm()
 		self.assertEqual(len(calls), 3) # portfolio list + one holdings report per portfolio (2)
 		self.assertEqual(sum('/performance' in c for c in calls), 2)
-		self.assertTrue(all('start_date=' + datetime.date.today().isoformat() in c for c in calls if '/performance' in c)) # days=0
+		today = 'start_date=' + datetime.date.today().isoformat()
+		self.assertTrue(all(today in c for c in calls if '/performance' in c)) # days=0
 		sharesight.warm()
 		self.assertEqual(len(calls), 3) # nothing refetched while fresh
 
@@ -513,7 +521,8 @@ class SharesightKeepWarm(ProviderCase):
 		calls = self.serve_sharesight()
 		sharesight.warm()
 		calls.clear()
-		self.age(sharesight.performance_cache_file(684141, 0), 0.95 * config.prefs.performance_cache_seconds) # 95% of its lifetime
+		# 95% of its lifetime
+		self.age(sharesight.performance_cache_file(684141, 0), 0.95 * config.prefs.performance_cache_seconds)
 		sharesight.warm()
 		self.assertEqual(len(calls), 1)
 		self.assertIn('684141/performance', calls[0])
@@ -683,7 +692,8 @@ class TelegramSending(FinbotCase):
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		for kind in (transports.TelegramBot, transports.SlackWebhook, transports.DiscordWebhook):
 			self.patch(kind, 'post_text', lambda dest, text, buttons=None: sent.append((dest.name, text)))
-		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/', 'slack': 'https://hooks.slack.com/x', 'discord': 'https://discord.com/x/slack'})
+		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/', 'slack': 'https://hooks.slack.com/x',
+			'discord': 'https://discord.com/x/slack'})
 		self.env(telegramChatID='5')
 
 		error = RuntimeError("404 for ZZ at https://x/?a=1&crumb=abc; '<' not supported between <urllib3.connection>")
@@ -739,7 +749,8 @@ class ChartDelivery(FinbotCase):
 
 	def upload_steps(self):
 		"""Slack's answers to the three upload steps, each a success."""
-		return [Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': 'F1'}), Resp(None, text='OK - 3'), Resp({'ok': True, 'files': [{'id': 'F1'}]})]
+		return [Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': 'F1'}), Resp(None, text='OK - 3'),
+			Resp({'ok': True, 'files': [{'id': 'F1'}]})]
 
 	def test_where_charts_can_go(self):
 		"""Charts always go to Telegram and Discord; Slack gets them as the bot, with the bot token, but not through its
@@ -776,15 +787,20 @@ class ChartDelivery(FinbotCase):
 				self.sent.clear(); self.errors.clear()
 				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT, 'U'))
 				self.assertEqual(self.errors, [])
-				self.assertEqual([url for url, _ in calls], ['https://slack.com/api/files.getUploadURLExternal', self.UPLOAD_URL,
+				self.assertEqual([url for url, _ in calls],
+					['https://slack.com/api/files.getUploadURLExternal', self.UPLOAD_URL,
 															 'https://slack.com/api/files.completeUploadExternal'])
 				(_, ticket), (_, upload), (_, share) = calls
 				self.assertEqual(ticket['headers'], {'Authorization': 'Bearer xoxb-test'})
 				self.assertTrue(upload['data'].startswith(b'\x89PNG')) # the chart's bytes, as the body
-				self.assertEqual((ticket['data']['filename'], ticket['data']['length']), ('chart.png', len(upload['data'])))
-				self.assertEqual((share['data']['channel_id'], json.loads(share['data']['files'])), ('C1', [{'id': 'F1'}]))
-				self.assertTrue(share['data']['initial_comment'].startswith(heading), share['data']['initial_comment'][:80]) # the report
-				self.assertNotIn(share['data']['initial_comment'].split('\n'), [payload for _, payload in self.sent]) # not sent again as text
+				self.assertEqual((ticket['data']['filename'], ticket['data']['length']),
+					('chart.png', len(upload['data'])))
+				self.assertEqual((share['data']['channel_id'], json.loads(share['data']['files'])),
+					('C1', [{'id': 'F1'}]))
+				self.assertTrue(share['data']['initial_comment'].startswith(heading),
+					share['data']['initial_comment'][:80]) # the report
+				# not sent again as text
+				self.assertNotIn(share['data']['initial_comment'].split('\n'), [payload for _, payload in self.sent])
 
 	def test_a_slack_upload_that_fails_goes_out_as_text(self):
 		"""A Slack upload failing at any step goes as text, but not on a last-step timeout, when it may have arrived."""
@@ -794,7 +810,8 @@ class ChartDelivery(FinbotCase):
 		good = self.upload_steps()
 		slow = transports.requests.exceptions.ReadTimeout('slow')
 		text = [('text', ['*Heading*', 'line 2'])]
-		for outcomes, expect in (([Resp({'ok': False, 'error': 'missing_scope'})], text), ([ConnectionError('down')], text),
+		for outcomes, expect in (([Resp({'ok': False, 'error': 'missing_scope'})], text),
+			([ConnectionError('down')], text),
 								 ([good[0], Resp(None, status=500, text='nope')], text),
 								 ([good[0], good[1], Resp({'ok': False, 'error': 'not_in_channel'})], text),
 								 ([good[0], good[1], slow], []), # it may have been shared after all
@@ -811,7 +828,8 @@ class ChartDelivery(FinbotCase):
 		their charts."""
 		self.env(slackBotToken='xoxb-test')
 
-		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/x'}) # an incoming webhook cannot upload
+		# an incoming webhook cannot upload
+		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/x'})
 		sent = []
 		self.patch(transports.Transport, 'chart', lambda dest, image, caption, buttons=None:
 			sent.append((dest.name, 'chart')) or {'ok': True})
@@ -837,7 +855,8 @@ class ChartDelivery(FinbotCase):
 			raise AssertionError('a chart was drawn for Slack')
 		self.patch(render, 'draw', refuse) # every chart is drawn there
 		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/x'})
-		for cmd in ('.beta', '.pie Rob', '.buy', '.sell', '.peg', '.price', '.price top', '.price T1 7d', '.performance 7d', '.shorts', '.history T1', '.compare T1 T2'):
+		for cmd in ('.beta', '.pie Rob', '.buy', '.sell', '.peg', '.price', '.price top', '.price T1 7d',
+				'.performance 7d', '.shorts', '.history T1', '.compare T1 T2'):
 			with self.subTest(cmd=cmd):
 				self.sent.clear(); self.errors.clear()
 				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT, 'U'))
@@ -854,7 +873,8 @@ class ChartDelivery(FinbotCase):
 		posts = []
 		self.patch(transports.net, 'post', lambda url, **k: posts.append(url) or Resp({'ok': True, 'result': True}))
 		for service, chat in (('telegram', '55'), ('slack', 'C1')):
-			for cmd in ('.price', '.price top', '.performance 7d', '.shorts', '.buy', '.peg', '.beta', '.compare T1 T2', '.pie Rob'):
+			for cmd in ('.price', '.price top', '.performance 7d', '.shorts', '.buy', '.peg', '.beta', '.compare T1 T2',
+					'.pie Rob'):
 				with self.subTest(service=service, cmd=cmd):
 					self.sent.clear(); self.errors.clear()
 					worker.process_request(inbound.Message(service, chat, '@u', cmd, BOT, 'U'))
@@ -874,7 +894,8 @@ class ChartDelivery(FinbotCase):
 				return outcome
 			return fake
 		text = [('text', ['Heading', 'line 2'])]
-		for outcome, expect in ((Resp({'ok': False, 'error_code': 400, 'description': "Bad Request: can't parse entities"}, status=400), text),
+		for outcome, expect in ((Resp({'ok': False, 'error_code': 400,
+			'description': "Bad Request: can't parse entities"}, status=400), text),
 								(Resp(None, status=502), text), (ConnectionError('down'), text),
 								(transports.requests.exceptions.ReadTimeout('slow'), []), # it may be there
 								(Resp({'ok': True, 'result': {'message_id': 1}}), [])):
@@ -887,7 +908,7 @@ class ChartDelivery(FinbotCase):
 
 
 class DiscordWebhook(FinbotCase):
-	"""Discord's own webhook endpoint (the Slack-compatible one takes no flags): no link previews, no pings, charts attached."""
+	"""Discord's own webhook endpoint (the Slack-like one takes no flags): no previews, no pings, charts attached."""
 	URL = 'https://discord.com/api/webhooks/1/abc'
 
 	def setUp(self):
@@ -912,7 +933,8 @@ class DiscordWebhook(FinbotCase):
 		(url, kwargs), = self.posts
 		self.assertEqual(url, self.URL + '?wait=true')
 		payload = json.loads(kwargs['data']['payload_json'])
-		self.assertEqual((payload['flags'], payload['allowed_mentions'], payload['attachments'][0]['filename']), (4, {'parse': []}, 'chart.png'))
+		self.assertEqual((payload['flags'], payload['allowed_mentions'], payload['attachments'][0]['filename']),
+			(4, {'parse': []}, 'chart.png'))
 		self.assertTrue(payload['content'].startswith('**≥ 5% at close'), payload['content'][:60])
 		self.assertLessEqual(len(payload['content']), 2000)
 		name, image, kind = kwargs['files']['files[0]']
@@ -973,7 +995,8 @@ class SlackSending(FinbotCase):
 			for cmd in ('.help', '.price', '.compare T1 T2'):
 				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT, 'U'))
 		self.assertEqual((self.posts, self.errors), ([], []))
-		self.assertEqual(err.getvalue().count('ERROR slack: a reply to channel C1 needs slackBotToken in finbot.env; not sent'), 3)
+		refusal = 'ERROR slack: a reply to channel C1 needs slackBotToken in finbot.env; not sent'
+		self.assertEqual(err.getvalue().count(refusal), 3)
 
 	def test_a_command_at_work_shows_an_hourglass_on_its_message(self):
 		"""While a command works, ⏳ is on the message it answers (Slack has no typing notice for bots); it comes off
@@ -1016,7 +1039,8 @@ class SlackSending(FinbotCase):
 		"""slack_api without the bot token says so (it used to be a TypeError)."""
 		self.env(slackBotToken=False)
 
-		with self.assertRaisesRegex(RuntimeError, 'Slack files.getUploadURLExternal: needs slackBotToken in finbot.env'):
+		with self.assertRaisesRegex(RuntimeError,
+				'Slack files.getUploadURLExternal: needs slackBotToken in finbot.env'):
 			transports.slack_api('files.getUploadURLExternal', filename='chart.png', length=1) # it was a TypeError
 		self.assertEqual(self.posts, [])
 
@@ -1152,7 +1176,7 @@ class SlackButtons(FinbotCase):
 
 
 class TelegramWebhook(FinbotCase):
-	"""bot.py registers the webhook once as it starts. Importing lib.telegram, as every job process does, touches nothing."""
+	"""bot.py registers the webhook once as it starts; importing lib.telegram, as each job does, does nothing."""
 
 	def setUp(self):
 		"""A Telegram bot with an outgoing webhook configured."""
@@ -1175,14 +1199,15 @@ class TelegramWebhook(FinbotCase):
 
 	def test_a_refused_call_raises(self):
 		"""A call Telegram refuses raises with its description."""
-		self.patch(telegram.net, 'post', lambda url, **k: Resp({'ok': False, 'description': 'Bad Request: bad webhook: HTTPS url must be provided'}))
+		self.patch(telegram.net, 'post',
+			lambda url, **k: Resp({'ok': False, 'description': 'Bad Request: bad webhook: HTTPS url must be provided'}))
 		with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(RuntimeError) as caught:
 			telegram.register()
 		self.assertIn('HTTPS url must be provided', str(caught.exception))
 
 	def test_edits_toasts_and_typing_go_through_call(self):
-		"""A chart edit that Telegram refuses is an error (unless nothing changed); a toast, a text edit or a typing notice that
-		fails, or an edit lost on the way, is only logged."""
+		"""A chart edit that Telegram refuses is an error (unless nothing changed); a toast, a text edit or a typing
+		notice that fails, or an edit lost on the way, is only logged."""
 		def answer(outcome):
 			"""A net.post that answers with outcome, or raises it."""
 			def post(url, **kwargs):
@@ -1192,9 +1217,11 @@ class TelegramWebhook(FinbotCase):
 				return outcome
 			return post
 		refused = Resp({'ok': False, 'description': 'Bad Request: message to edit not found'})
-		unchanged = Resp({'ok': False, 'description': 'Bad Request: message is not modified: specified new message content is the same'})
+		unchanged = Resp({'ok': False,
+			'description': 'Bad Request: message is not modified: specified new message content is the same'})
 		chat = transports.TelegramBot('5')
-		for outcome, raises in ((refused, True), (unchanged, False), (ConnectionError('down'), False), (Resp({'ok': True, 'result': True}), False)):
+		for outcome, raises in ((refused, True), (unchanged, False), (ConnectionError('down'), False),
+				(Resp({'ok': True, 'result': True}), False)):
 			with self.subTest(outcome=outcome):
 				self.patch(telegram.net, 'post', answer(outcome))
 				with contextlib.redirect_stderr(io.StringIO()):
@@ -1216,18 +1243,22 @@ class TelegramWebhook(FinbotCase):
 				'print("quiet")')
 		with tempfile.TemporaryDirectory() as data:
 			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True,
-				env={**os.environ, 'DATA_DIR': data, 'telegramBotToken': '123:abc', 'telegramOutgoingWebhook': 'https://example.com/telegram'})
+				env={**os.environ, 'DATA_DIR': data, 'telegramBotToken': '123:abc',
+					'telegramOutgoingWebhook': 'https://example.com/telegram'})
 		self.assertEqual(out.stdout.split()[-1:], ['quiet'], out.stderr)
 
 	def test_the_bot_will_not_start_unregistered_and_never_logs_the_token(self):
 		"""bot.py exits when the webhook cannot be registered, and never logs the token."""
 		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
-			env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS and 'proxy' not in k.lower()}
-			env.update(DATA_DIR=data, port='0', scheduler='False', telegramBotToken='123456:SECRET-token', telegramOutgoingToken='tok',
+			env = {k: v for k, v in bare_environment().items() if 'proxy' not in k.lower()}
+			env.update(DATA_DIR=data, port='0', scheduler='False', telegramBotToken='123456:SECRET-token',
+				telegramOutgoingToken='tok',
 					   telegramOutgoingWebhook='https://example.com/telegram',
-					   HTTPS_PROXY='http://127.0.0.1:9', https_proxy='http://127.0.0.1:9') # unreachable, so the registration fails at once and offline
-			out = subprocess.run([sys.executable, 'bot.py'], cwd=ROOT, env=env, capture_output=True, text=True, timeout=120)
+					   # unreachable, so the registration fails at once and offline
+					   HTTPS_PROXY='http://127.0.0.1:9', https_proxy='http://127.0.0.1:9')
+			out = subprocess.run([sys.executable, 'bot.py'], cwd=ROOT, env=env, capture_output=True, text=True,
+				timeout=120)
 		self.assertEqual(out.returncode, 1, out.stderr)
 		self.assertIn('ERROR ⚠️ telegram webhook:', out.stderr)
 		self.assertNotIn('SECRET-token', out.stderr + out.stdout)

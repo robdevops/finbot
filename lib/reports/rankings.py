@@ -39,9 +39,10 @@ def marketcap_list(service, bottom=False, length=15):
 	return [service.bold(heading)] + [line for _, line in caps[:length]]
 
 def prepare_rating_payload(service, action, length=15):
-	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by min_analysts or more analysts (fewer,
-	and the consensus says little: ASX small caps covered by two to six brokers are nearly all a perfect 1.0 buy), the strongest
-	rating first (1 is a strong buy, 5 a strong sell); on equal ratings, the one more analysts give first."""
+	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by min_analysts or more analysts
+	(fewer, and the consensus says little: ASX small caps covered by two to six brokers are nearly all a perfect 1.0
+	buy), the strongest rating first (1 is a strong buy, 5 a strong sell); on equal ratings, the one more analysts give
+	first."""
 	found = [] # (rating, analysts, line, ticker)
 	for ticker, data in yahoo.fetch_details(watchlist.with_holdings()).items():
 		if 'recommend' not in data or data['recommend_analysts'] < config.prefs.min_analysts:
@@ -118,7 +119,7 @@ def ratio_list(service, kind, mode='top', length=15):
 	return [service.bold(heading)] + [line for _, _, line in rows], chart
 
 def prepare_beta_payload(service):
-	"""(payload, chart) of the tracked stocks with a beta over 1.5 and a market cap under US$2B, the highest beta first."""
+	"""(payload, chart) of the stocks followed with a beta over 1.5 and a market cap under US$2B, highest beta first."""
 	found = [] # (beta, line, chart row)
 	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch_details(watchlist.with_holdings())).items():
 		if 'beta' not in data:

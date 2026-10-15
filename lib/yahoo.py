@@ -117,7 +117,9 @@ def _convert(convert, value):
 	except (TypeError, ValueError, OverflowError):
 		return None
 
-QUOTE_FIELDS = ( # (key, Yahoo's name, conversion) for the fields of a v7 quote; one Yahoo leaves out, sends as null or garbles is left out
+# (key, Yahoo's name, conversion) for the fields of a v7 quote; one Yahoo leaves out, sends as null or garbles is left
+# out
+QUOTE_FIELDS = (
 	('percent_change', 'regularMarketChangePercent', _round2),
 	('dividend', 'trailingAnnualDividendRate', lambda v: round(float(v), 1)),
 	('percent_change_premarket', 'preMarketChangePercent', _round2),
@@ -135,8 +137,8 @@ QUOTE_FIELDS = ( # (key, Yahoo's name, conversion) for the fields of a v7 quote;
 )
 
 def fetch(tickers):
-	"""v7 quotes for many tickers in one request: {ticker: {...}}. Cached for 5 minutes (DO NOT CACHE LONGER). A ticker Yahoo gives
-	no name or price for is left out. Raises RuntimeError when Yahoo cannot be reached."""
+	"""v7 quotes for many tickers in one request: {ticker: {...}}. Cached for 5 minutes (DO NOT CACHE LONGER). A ticker
+	Yahoo gives no name or price for is left out. Raises RuntimeError when Yahoo cannot be reached."""
 	if not tickers:
 		print("no tickers provided to yahoo.fetch()", file=sys.stderr)
 		return {}
@@ -149,15 +151,18 @@ def fetch(tickers):
 	now = datetime.datetime.now().timestamp()
 	yahoo_output = {}
 	for item in data['quoteResponse']['result']:
-		title = next((name for name in (item.get('longName'), item.get('shortName')) if isinstance(name, str) and name), None)
+		title = next((name for name in (item.get('longName'), item.get('shortName')) if isinstance(name, str) and name),
+			None)
 		if not title or item.get('regularMarketPrice') is None:
 			continue
-		quote = {'profile_title': formats.transform_title(title), 'ticker': item['symbol'], 'regularMarketPrice': item['regularMarketPrice'],
+		quote = {'profile_title': formats.transform_title(title), 'ticker': item['symbol'],
+			'regularMarketPrice': item['regularMarketPrice'],
 			'currency': item.get('currency'), 'percent_change': 0.0, 'dividend': 0.0}
 		for key, field, convert in QUOTE_FIELDS:
 			if (value := _convert(convert, item.get(field))) is not None:
 				quote[key] = value
-		stamps = [item[name] for name in ('earningsTimestamp', 'earningsTimestampStart', 'earningsTimestampEnd') if isinstance(item.get(name), (int, float))]
+		stamps = [item[name] for name in ('earningsTimestamp', 'earningsTimestampStart',
+			'earningsTimestampEnd') if isinstance(item.get(name), (int, float))]
 		if stamps: # the first still to come, else the announced date
 			quote['earnings_date'] = next((stamp for stamp in stamps if stamp > now), stamps[0])
 		yahoo_output[item['symbol']] = quote
@@ -170,7 +175,8 @@ def _quote_answer(tickers):
 	quotes = dig(data, 'quoteResponse') or {}
 	return data if quotes.get('result') is not None and quotes.get('error') is None else None
 
-DETAIL_FIELDS = ( # (key, path in the quoteSummary result[, conversion]); a field Yahoo leaves out, sends as null or garbles is left out
+# (key, path in the quoteSummary result[, conversion]); a field Yahoo leaves out, sends as null or garbles is left out
+DETAIL_FIELDS = (
 	('profile_bio', ('summaryProfile', 'longBusinessSummary')),
 	('profile_city', ('summaryProfile', 'city')),
 	('profile_country', ('summaryProfile', 'country')),
@@ -219,7 +225,8 @@ def fetch_detail(ticker, seconds=None):
 	if result is None: # Yahoo answers 404 Not Found, or result=null, for a symbol it does not know
 		print(ticker, "is unknown to Yahoo", file=sys.stderr)
 		return {}
-	title = next((name for name in (dig(result, 'price', 'longName'), dig(result, 'price', 'shortName')) if isinstance(name, str) and name), None)
+	title = next((name for name in (dig(result, 'price', 'longName'),
+		dig(result, 'price', 'shortName')) if isinstance(name, str) and name), None)
 	if not title: # catches some delisted stocks like "DUB"
 		print(ticker, "has no name at Yahoo", file=sys.stderr)
 		return {}
@@ -245,8 +252,10 @@ def fetch_detail(ticker, seconds=None):
 			detail['revenueEstimateY'], detail['earningsEstimateY'] = _percent(estimates[0]), _percent(estimates[1])
 	# a quarter without an earnings figure is bad data: None for both, which trend_marks marks
 	if dig(quarterly, 0, 'revenue', 'raw') is not None:
-		detail['earningsQ'] = [None if dig(item, 'earnings', 'fmt') is None else dig(item, 'earnings', 'raw') for item in quarterly]
-		detail['revenueQ'] = [None if dig(item, 'earnings', 'fmt') is None else dig(item, 'revenue', 'raw') for item in quarterly]
+		detail['earningsQ'] = [None if dig(item, 'earnings', 'fmt') is None else dig(item, 'earnings',
+			'raw') for item in quarterly]
+		detail['revenueQ'] = [None if dig(item, 'earnings', 'fmt') is None else dig(item, 'revenue',
+			'raw') for item in quarterly]
 		yearly = _list(dig(result, 'earnings', 'financialsChart', 'yearly'))
 		detail['earningsY'] = [dig(item, 'earnings', 'raw') for item in yearly]
 		detail['revenueY'] = [dig(item, 'revenue', 'raw') for item in yearly]
@@ -369,7 +378,7 @@ def price_series(ticker):
 	return name, meta.get('fullExchangeName') or meta.get('exchangeName') or '', series
 
 def fetch_each(get, tickers, workers=8):
-	"""get(ticker) for every ticker, `workers` at a time so their waits overlap: [its result, or the exception it raised], in order."""
+	"""get(ticker) for each ticker, `workers` at a time so the waits overlap: [its result or the exception raised]."""
 	def one(ticker):
 		"""get(ticker), or the exception it raised."""
 		try:
@@ -379,19 +388,21 @@ def fetch_each(get, tickers, workers=8):
 	with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
 		return list(executor.map(one, tickers))
 
-SUBUNITS = {'GBp': 'GBP', 'GBX': 'GBP', 'ILA': 'ILS', 'ZAc': 'ZAR'} # Yahoo prices these markets in a subunit but gives market caps in the unit
+# Yahoo prices these markets in a subunit but gives market caps in the unit
+SUBUNITS = {'GBp': 'GBP', 'GBX': 'GBP', 'ILA': 'ILS', 'ZAc': 'ZAR'}
 
 def market_cap_currency(data):
-	"""The currency of a ticker's market cap: its quote currency, but the unit where Yahoo quotes in pence or the like."""
+	"""The currency of a ticker's market cap: its quote currency, or the unit where Yahoo quotes in pence and so on."""
 	return SUBUNITS.get(data.get('currency'), data.get('currency'))
 
 def add_usd_market_caps(market_data):
-	"""Put 'market_cap_usd' beside each 'market_cap', which Yahoo gives in the ticker's own currency, converted at Yahoo's
-	exchange rates, so that market caps in won, yen and dollars compare. A ticker whose currency Yahoo has no rate for gets
-	none. Returns market_data."""
-	wanted = {market_cap_currency(data) for data in market_data.values() if 'market_cap' in data and market_cap_currency(data)} - {'USD'}
+	"""Put 'market_cap_usd' beside each 'market_cap', which Yahoo gives in the ticker's own currency, converted at
+	Yahoo's exchange rates, so that market caps in won, yen and dollars compare. A ticker whose currency Yahoo has no
+	rate for gets none. Returns market_data."""
+	wanted = {market_cap_currency(data) for data in market_data.values() if 'market_cap' in data} - {None, '', 'USD'}
 	rates = {'USD': 1.0}
-	for symbol, quote in (fetch([f'{currency}=X' for currency in wanted]) if wanted else {}).items(): # KRW=X: won per US dollar
+	# KRW=X: won per US dollar
+	for symbol, quote in (fetch([f'{currency}=X' for currency in wanted]) if wanted else {}).items():
 		if quote.get('regularMarketPrice'):
 			rates[symbol.removesuffix('=X')] = 1 / quote['regularMarketPrice']
 	for data in market_data.values():
@@ -400,8 +411,9 @@ def add_usd_market_caps(market_data):
 	return market_data
 
 def fetch_details(tickers, strict=False):
-	"""fetch_detail of every ticker, fetched at the same time, in one {ticker: detail}. A ticker whose fetch failed is left out
-	(and logged), so that a list goes out without it; strict=True raises its error instead, for a report on the ticker asked for."""
+	"""fetch_detail of every ticker, fetched at the same time, in one {ticker: detail}. A ticker whose fetch failed is
+	left out (and logged), so that a list goes out without it; strict=True raises its error instead, for a report on the
+	ticker asked for."""
 	tickers = list(tickers)
 	details = {}
 	for ticker, detail in zip(tickers, fetch_each(fetch_detail, tickers)):

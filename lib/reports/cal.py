@@ -10,10 +10,11 @@ from lib import delivery
 from lib import yahoo
 
 def primary_listings():
-	"""{ADR or second listing: its primary listing}, from finbot_adr.json: read when used, so an edit is seen without a restart."""
+	"""{ADR or second listing: its primary listing}, from finbot_adr.json, read when used: an edit needs no restart."""
 	return config.data_json('finbot_adr.json', {})
 
-EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'), 'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
+EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'),
+	'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
 
 def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
 	"""Post the earnings or ex-dividend dates ahead (`event`) for the tracked stocks or one (Yahoo's symbol): to the

@@ -75,7 +75,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - Which test file: commands and scheduled reports `test_reports`; failures, bad input, WSGI and Slack events `test_edges`;
   Yahoo/Sharesight parsing, sending, Telegram API `test_providers`; scheduler `test_jobs`; config `test_config`; charts
   `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets, formats, links, cache and state files `test_util`; data dir
-  `test_datadir`; chunking, git_version `test_finbot`.
+  `test_datadir`; chunking, git_version, and the docstring, stdout and line-width checks `test_finbot`.
 
 ## Conventions
 - Read settings as `config.env.<name>` / `config.prefs.<name>` where they are used, never into a default or module constant (a
@@ -86,8 +86,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - A command that cannot give what was asked (no such portfolio, no prices) raises `answer.Answer(*lines)`, which the
   chat gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report.
 - Every function and method has a docstring, tests included (a test checks): one line where it fits, reworded rather
-  than spilling a few words onto a second. Tabs everywhere (`.editorconfig`). New and changed lines stay within 120
-  columns, tabs counting 4 (an edit quotes whole lines).
+  than spilling a few words onto a second. Tabs everywhere (`.editorconfig`). Every line stays within 120 columns,
+  tabs counting 4 (an edit quotes whole lines); a test checks all but README.md, CLAUDE.md and `doc/`.
 - Log with `print(..., file=sys.stderr)`. systemd discards stdout (`StandardOutput=null`), so the bot and its reports never
   print there (a test checks); only the util/ tools, run by hand, do.
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes

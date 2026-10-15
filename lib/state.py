@@ -1,5 +1,6 @@
-"""State files in DATA_DIR: what must last from one run to the next (the watchlist, plans, seen trades, ratings, record highs,
-the schedule's last runs, chart button refs, keyboard versions, seen podcast episodes). Written whole or not at all, and flushed."""
+"""State files in DATA_DIR: what must last from one run to the next (the watchlist, plans, seen trades, ratings, record
+highs, the schedule's last runs, chart button refs, keyboard versions, seen podcast episodes). Written whole or not at
+all, and flushed."""
 import contextlib
 import copy
 import json
@@ -37,10 +38,10 @@ def _lock(name):
 
 @contextlib.contextmanager
 def edit(name, default):
-	"""Change a state file in place: `with state.edit(name, {}) as data: data[key] = value`. The file is read as the block starts
-	(a copy of `default` when there is none yet) and written as the block ends without an error, if the block changed it.
-	Meanwhile no other edit of the same file runs in this process, so two chats changing it at once both count. Keep slow work,
-	a network call say, outside the block."""
+	"""Change a state file in place: `with state.edit(name, {}) as data: data[key] = value`. The file is read as the
+	block starts (a copy of `default` when there is none yet) and written as the block ends without an error, if the
+	block changed it. Meanwhile no other edit of the same file runs in this process, so two chats changing it at once
+	both count. Keep slow work, a network call say, outside the block."""
 	with _lock(name):
 		data = load(name, copy.deepcopy(default))
 		before = copy.deepcopy(data)

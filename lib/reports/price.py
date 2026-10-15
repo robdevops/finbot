@@ -27,7 +27,8 @@ def gather(specific_stock=None, days=None):
 		yahoo.add_usd_market_caps(market_data)
 	if not days:
 		return tickers, market_data
-	# Sharesight reports a holding's performance only for the time it was held: held for 1Y and asked for 5Y, it gives 1Y
+	# Sharesight reports a holding's performance only for the time it was held: held for 1Y and asked for 5Y, it gives
+	# 1Y
 	if not specific_stock or config.prefs.performance_use_sharesight:
 		for portfolio in sharesight.portfolios():
 			for ticker, gain in portfolio.gains(days).items():
@@ -52,14 +53,14 @@ def gather(specific_stock=None, days=None):
 	return tickers, market_data
 
 def needs_beta(quote):
-	"""Whether trigger_bar must know this ticker's beta: a small cap between US$150M and US$1B, which counts as volatile when its
-	beta is over 1.5. The beta is only in Yahoo's details."""
+	"""Whether trigger_bar must know this ticker's beta: a small cap between US$150M and US$1B, which counts as volatile
+	when its beta is over 1.5. The beta is only in Yahoo's details."""
 	return config.prefs.demote_volatile and 1.5e8 <= quote.get('market_cap_usd', float('inf')) < 1e9
 
 def trigger_bar(ticker, quote, threshold, details):
-	"""The move this ticker needs before it alone sends a scheduled report: more for leveraged ETFs (demote_leveraged) and volatile
-	small caps (demote_volatile; their market caps in US dollars), else the threshold itself. details: Yahoo's details of the
-	tickers that need_beta, fetched together."""
+	"""The move this ticker needs before it alone sends a scheduled report: more for leveraged ETFs (demote_leveraged)
+	and volatile small caps (demote_volatile; their market caps in US dollars), else the threshold itself. details:
+	Yahoo's details of the tickers that need_beta, fetched together."""
 	title = quote['profile_title'].lower()
 	if config.prefs.demote_leveraged and ('2x' in title or '3x' in title):
 		return threshold * 1.3
@@ -197,7 +198,8 @@ def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user
 		if not chat.takes_buttons:
 			return None
 		if mode in ('interday', 'period'):
-			return buttons.keyboard('l', [f"{threshold:g}", str(top or 0)], buttons.period_for_days(days, 'd' if not days else None))
+			return buttons.keyboard('l', [f"{threshold:g}", str(top or 0)],
+				buttons.period_for_days(days, 'd' if not days else None))
 		return None
 	for chat in delivery.targets(dest):
 		payload, graph = report(chat.dialect, found, mode, threshold, days, top, user, specific_stock, interactive)

@@ -1,5 +1,5 @@
-"""The watchlist: tickers followed beside the Sharesight holdings, in DATA_DIR/finbot_watchlist.json. Every call reads the file,
-so the bot and its scheduled reports (other processes) always see the same list."""
+"""The watchlist: tickers followed beside the Sharesight holdings, in DATA_DIR/finbot_watchlist.json. Every call reads
+the file, so the bot and its scheduled reports (other processes) always see the same list."""
 from lib import config
 from lib import markets
 from lib import sharesight

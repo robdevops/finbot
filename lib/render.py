@@ -60,20 +60,21 @@ BAR_UP = CATEGORIES[0] # bars rise in blue; they fall in DOWN
 _render_pool = None # set by render_off_hub(): the bot draws its charts in one native thread
 
 def render_off_hub():
-	"""For the bot: draw charts in one native thread from now on, so that the gevent hub keeps serving every other chat while one
-	is drawn (the shorts pictogram takes over a second; in the hub that froze everything). One thread, because several at once
-	deadlock matplotlib under gevent's patched locks. matplotlib is imported here, at start, instead of by the first chart. Job
-	processes and the tests draw in place."""
+	"""For the bot: draw charts in one native thread from now on, so that the gevent hub keeps serving every other chat
+	while one is drawn (the shorts pictogram takes over a second; in the hub that froze everything). One thread, because
+	several at once deadlock matplotlib under gevent's patched locks. matplotlib is imported here, at start, instead of
+	by the first chart. Job processes and the tests draw in place."""
 	global _render_pool
 	import importlib
 	from gevent.threadpool import ThreadPool
-	for module in ('matplotlib.backends.backend_agg', 'matplotlib.dates', 'matplotlib.figure', 'matplotlib.patches', 'matplotlib.path', 'matplotlib.ticker'):
+	for module in ('matplotlib.backends.backend_agg', 'matplotlib.dates', 'matplotlib.figure', 'matplotlib.patches',
+			'matplotlib.path', 'matplotlib.ticker'):
 		importlib.import_module(module)
 	_render_pool = ThreadPool(1)
 
 def _drawn(draw):
-	"""A chart function that draws in the render pool when there is one. Only for a function that calls none of the others: the
-	pool's one thread waiting on itself would never finish."""
+	"""A chart function that draws in the render pool when there is one. Only for a function that calls none of the
+	others: the pool's one thread waiting on itself would never finish."""
 	@functools.wraps(draw)
 	def in_pool(*args, **kwargs):
 		"""Draw in the render thread when the bot has one (render_off_hub), else here."""
@@ -134,7 +135,7 @@ def _series(rows):
 	return pd.Series([float(close) for _, close in rows], index=pd.to_datetime([day for day, _ in rows]))
 
 def _png(fig, facecolor):
-	"""The figure as PNG bytes, rewound, or an upload sends an empty file. No bbox_inches='tight': it would change the 1280x800 size."""
+	"""The figure as PNG bytes, rewound (or an upload sends nothing); not bbox_inches='tight': it alters 1280x800."""
 	buf = io.BytesIO()
 	fig.savefig(buf, format='png', facecolor=facecolor)
 	buf.seek(0)
@@ -226,9 +227,10 @@ def draw_compare(chart):
 		label, y = rebased[i]
 		color = colors[i]
 		ax.plot([1.015], [p], marker='s', markersize=4, color=color, transform=ax.transAxes, clip_on=False, zorder=4)
-		ax.annotate(f"{label}  {value:+,.1f}%", xy=(y.index[-1], value), xycoords='data', xytext=(1.03, p), textcoords='axes fraction',
-			ha='left', va='center', fontsize=7.5, color=ink, annotation_clip=False,
-			arrowprops=dict(arrowstyle='-', color=color, linewidth=0.7, alpha=0.7, shrinkA=0, shrinkB=2, relpos=(0, 0.5)))
+		ax.annotate(f"{label}  {value:+,.1f}%", xy=(y.index[-1], value), xycoords='data', xytext=(1.03, p),
+			textcoords='axes fraction', ha='left', va='center', fontsize=7.5, color=ink, annotation_clip=False,
+			arrowprops=dict(arrowstyle='-', color=color, linewidth=0.7, alpha=0.7, shrinkA=0, shrinkB=2,
+				relpos=(0, 0.5)))
 	_heading(fig, chart.title, chart.subtitle)
 	return _png(fig, bg)
 
@@ -277,22 +279,26 @@ def draw_bars(chart):
 	axes_px = (top_edge - 0.02) * fig.get_figheight() * dpi
 	bar_px = 0.72 * axes_px / n
 	longest = max([len(str(label)) for _, label, _ in real] + [3])
-	em_px = min(bar_px * 1.3, 0.28 * (0.96 - left) * fig.get_figwidth() * dpi / (0.62 * longest)) # text height follows the bar thickness
+	# text height follows the bar thickness
+	em_px = min(bar_px * 1.3, 0.28 * (0.96 - left) * fig.get_figwidth() * dpi / (0.62 * longest))
 	size = max(5, min(30, em_px * 72 / dpi))
 	# each row's label sits beside the bar's base (left of the zero line for rising bars, right of it for falling ones)
 	base_labels = []
 	value_labels = []
-	drop = -0.365 * size # baseline sits half a cap height below the bar's centre, so the capitals are centred on the bar
+	# baseline sits half a cap height below the bar's centre, so the capitals are centred on the bar
+	drop = -0.365 * size
 	for y, label, v in real:
-		base_labels.append(ax.annotate(label, xy=(base, y), xytext=(-4, drop), textcoords='offset points', ha='right', va='baseline',
-			fontsize=size, color=ink, annotation_clip=False, zorder=5))
-		value_labels.append(ax.annotate(value_fmt(v), xy=(v, y), xytext=(4 if v >= 0 else -4, drop), textcoords='offset points',
-			ha='left' if v >= 0 else 'right', va='baseline', fontsize=size, color=ink, annotation_clip=False))
+		base_labels.append(ax.annotate(label, xy=(base, y), xytext=(-4, drop), textcoords='offset points', ha='right',
+			va='baseline', fontsize=size, color=ink, annotation_clip=False, zorder=5))
+		value_labels.append(ax.annotate(value_fmt(v), xy=(v, y), xytext=(4 if v >= 0 else -4, drop),
+			textcoords='offset points', ha='left' if v >= 0 else 'right', va='baseline', fontsize=size, color=ink,
+			annotation_clip=False))
 	renderer = canvas.get_renderer()
 	canvas.draw()
 	label_width = [t.get_window_extent(renderer).width for t in base_labels]
 	value_width = [t.get_window_extent(renderer).width for t in value_labels]
-	if xlim: # zoomed charts put the labels in the left margin: shrink the text until the widest label fits inside the image
+	# zoomed charts put the labels in the left margin: shrink the text until the widest label fits inside the image
+	if xlim:
 		factor = _shrink(base_labels, left * fig.get_figwidth() * dpi - 30) # leaves the 4pt gap before the bar base too
 		if factor < 1:
 			for t in value_labels:
@@ -302,9 +308,11 @@ def draw_bars(chart):
 			value_width = [t.get_window_extent(renderer).width for t in value_labels]
 	width = ax.get_window_extent(renderer).width
 	lo, hi = lo0, hi0
-	for _ in range(12): # the pixels-per-unit scale depends on the limits, which depend on the text beside the bars: settle it iteratively
+	# the pixels-per-unit scale depends on the limits, which depend on the text beside the bars: settle it iteratively
+	for _ in range(12):
 		per_unit = width / (hi - lo)
-		# room for the text outside the bars: each tip's value, and each base's label (zoomed charts keep those in the left margin)
+		# room for the text outside the bars: each tip's value, and each base's label (zoomed charts keep those in the
+		# left margin)
 		new_lo, new_hi = lo0, hi0
 		for (_, _, v), w, vw in zip(real, label_width, value_width):
 			if v >= 0:
@@ -325,8 +333,10 @@ def draw_bars(chart):
 	_heading(fig, chart.title, subtitle)
 	return _png(fig, bg)
 
-SHORTS_VERDICTS = ((5, 'board shorts'), (10, 'cargo shorts'), (15, 'boxers'), (20, 'gym shorts'), # five points each at the bottom
-	(30, 'cutoffs'), (40, 'short shorts'), (50, 'daisy dukes'), (60, 'hot pants'), (70, 'speedos'), (80, 'budgie smugglers'), (90, 'just a belt'),
+# five points each at the bottom
+SHORTS_VERDICTS = ((5, 'board shorts'), (10, 'cargo shorts'), (15, 'boxers'), (20, 'gym shorts'),
+	(30, 'cutoffs'), (40, 'short shorts'), (50, 'daisy dukes'), (60, 'hot pants'), (70, 'speedos'),
+	(80, 'budgie smugglers'), (90, 'just a belt'),
 	(float('inf'), 'never nudes')) # the extreme ones step in every 10 points
 
 def shorts_verdict(percent):
@@ -359,13 +369,14 @@ def draw_shorts(chart, step=5):
 			"""A point of the pair's box, from fractions of its width and height."""
 			return (x + px * w, y + py * h)
 		belt = '#' + ''.join(f"{int(int(color[i:i + 2], 16) * 0.7):02x}" for i in (1, 3, 5))
-		legs = Polygon([P(0.04, 0.2), P(0.96, 0.2), P(1.0, 0.97), P(0.56, 0.97), P(0.5, 0.58), P(0.44, 0.97), P(0.0, 0.97)],
-			closed=True, facecolor=color, edgecolor=ink, linewidth=lw, joinstyle='round')
+		legs = Polygon([P(0.04, 0.2), P(0.96, 0.2), P(1.0, 0.97), P(0.56, 0.97), P(0.5, 0.58), P(0.44, 0.97),
+			P(0.0, 0.97)], closed=True, facecolor=color, edgecolor=ink, linewidth=lw, joinstyle='round')
 		waist = Rectangle(P(0.04, 0.0), 0.92 * w, 0.22 * h, facecolor=belt, edgecolor=ink, linewidth=lw)
 		parts = [legs, waist]
 		for dx, dy in ((0.2, 0.5), (0.3, 0.78), (0.72, 0.5), (0.8, 0.78), (0.14, 0.8)): # polka dots
 			parts.append(Circle(P(dx, dy), 0.045 * w, facecolor='white', edgecolor='none'))
-		parts.append(Rectangle(P(0.47, 0.0), 0.06 * w, 0.22 * h, facecolor='#ffd23f', edgecolor=ink, linewidth=lw * 0.6)) # belt buckle
+		parts.append(Rectangle(P(0.47, 0.0), 0.06 * w, 0.22 * h, facecolor='#ffd23f', edgecolor=ink,
+			linewidth=lw * 0.6)) # belt buckle
 		clip = Rectangle((x - 2, y - 2), w * frac + 2, h + 4, transform=ax.transData) if frac < 1 else None
 		for part in parts:
 			ax.add_patch(part)
@@ -379,13 +390,15 @@ def draw_shorts(chart, step=5):
 	tilt = math.radians(-1) # beams turned 1 degree counter-clockwise (angles run clockwise here, as y points down)
 	for k in range(0, rays, 2): # every other wedge, so the rays alternate with the sky
 		a0, a1 = k * 2 * math.pi / rays + tilt, (k + 1) * 2 * math.pi / rays + tilt
-		ax.add_patch(Polygon([(sx, sy), (sx + 2000 * math.cos(a0), sy + 2000 * math.sin(a0)), (sx + 2000 * math.cos(a1), sy + 2000 * math.sin(a1))],
+		ax.add_patch(Polygon([(sx, sy), (sx + 2000 * math.cos(a0), sy + 2000 * math.sin(a0)),
+			(sx + 2000 * math.cos(a1), sy + 2000 * math.sin(a1))],
 			closed=True, facecolor=ray, edgecolor='none', zorder=-1))
 	def at(u, v):
 		"""A point on the sun's face, in sun radii from its centre with y down, in the axes' pixels."""
 		return (sx + u * R, sy + v * R)
 	ax.add_patch(Circle((sx, sy), R, facecolor='#ffb000', edgecolor='none'))
-	for dx, dy, r, c in ((-0.05, -0.06, 0.93, '#ffb90a'), (-0.1, -0.12, 0.78, '#ffc21f'), (-0.16, -0.2, 0.55, '#ffcb35')): # fake gradient
+	for dx, dy, r, c in ((-0.05, -0.06, 0.93, '#ffb90a'), (-0.1, -0.12, 0.78, '#ffc21f'),
+			(-0.16, -0.2, 0.55, '#ffcb35')): # fake gradient
 		ax.add_patch(Circle(at(dx, dy), r * R, facecolor=c, edgecolor='none'))
 	brown = '#5a3d37'
 	for (u, v), w, h in (((-0.46, -0.07), 0.21, 0.25), ((0.31, -0.37), 0.20, 0.24)): # lopsided eyes
@@ -393,20 +406,25 @@ def draw_shorts(chart, step=5):
 	nose = np.array([(-0.07, -0.35), (0.05, -0.26), (0.15, -0.13), (0.18, 0.0), (0.10, 0.10), (-0.03, 0.16)])
 	nose = nose.mean(axis=0) + 0.62 * (nose - nose.mean(axis=0)) # dainty: a smaller squiggle
 	pts = np.vstack([nose[0], nose, nose[-1]]) # Catmull-Rom through the points, so the squiggle is smooth
-	curve = [0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3)
+	curve = [0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t
+		+ (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3)
 		for p0, p1, p2, p3 in zip(pts, pts[1:], pts[2:], pts[3:]) for t in np.linspace(0, 1, 12)]
-	ax.plot([sx + u * R for u, _ in curve], [sy + v * R for _, v in curve], color='#e07b1a', linewidth=2.6, solid_capstyle='round')
-	mouth_pts = [(-0.47, 0.47), (0.73, 0.0), (0.75, 0.35), (0.45, 0.74), (0.1, 0.74), (-0.15, 0.74), (-0.42, 0.62), (-0.47, 0.47), (-0.47, 0.47)]
+	ax.plot([sx + u * R for u, _ in curve], [sy + v * R for _, v in curve], color='#e07b1a', linewidth=2.6,
+		solid_capstyle='round')
+	mouth_pts = [(-0.47, 0.47), (0.73, 0.0), (0.75, 0.35), (0.45, 0.74), (0.1, 0.74), (-0.15, 0.74), (-0.42, 0.62),
+		(-0.47, 0.47), (-0.47, 0.47)]
 	mc = (0.13, 0.37) # the mouth shrinks towards its middle
 	mouth = Path([at(mc[0] + 0.65 * (u - mc[0]), mc[1] + 0.65 * (v - mc[1])) for u, v in mouth_pts],
-		[Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CLOSEPOLY])
+		[Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.CURVE4,
+			Path.CLOSEPOLY])
 	ax.add_patch(PathPatch(mouth, facecolor='#2b2118', edgecolor='none'))
 	ax.add_patch(Rectangle((0, 748), W, H - 748, facecolor=sea, edgecolor='none'))
 	for cx in range(0, W + 36, 36):
 		ax.add_patch(Circle((cx, 748), 19, facecolor=foam, edgecolor='none'))
 
 	ax.text(40, 52, 'Shorts', color=ink, fontsize=21, fontweight='bold', ha='left', va='center')
-	ax.text(40, 104, f"each pair of shorts = {step}% of shares shorted", color=ink, fontsize=9.5, ha='left', va='center')
+	ax.text(40, 104, f"each pair of shorts = {step}% of shares shorted", color=ink, fontsize=9.5, ha='left',
+		va='center')
 
 	top, bottom = 205, 726 # below the sun
 	n = len(rows)
@@ -430,19 +448,23 @@ def draw_shorts(chart, step=5):
 		whole, frac = divmod(value / step, 1)
 		color = colors[i % len(colors)]
 		for k in range(int(whole) + (1 if frac > 0.02 else 0)):
-			shorts(x0 + k * icon_w, cy - icon_h / 2, icon_w * 0.92, icon_h, color, frac if k == int(whole) and frac > 0.02 else 1.0, lw)
+			shorts(x0 + k * icon_w, cy - icon_h / 2, icon_w * 0.92, icon_h, color,
+				frac if k == int(whole) and frac > 0.02 else 1.0, lw)
 		end = x0 + (value / step) * icon_w
-		pct_texts.append((ax.text(end + 14, cy, f"{round(value)}%", color=ink, fontsize=size, fontweight='bold', ha='left', va='center'), cy, value))
+		pct_texts.append((ax.text(end + 14, cy, f"{round(value)}%", color=ink, fontsize=size, fontweight='bold',
+			ha='left', va='center'), cy, value))
 	canvas.draw() # measure the percentages, then put each verdict right after its own
 	for text, cy, value in pct_texts:
 		x = text.get_window_extent(canvas.get_renderer()).x1 + 10
 		verdict = ax.text(x, cy, shorts_verdict(round(value)), color=ink, fontsize=size * 0.62, fontstyle='italic',
 			ha='left', va='center')
 		_shrink([verdict], W - 16 - x) # never run off the image
-	ax.text(W / 2, 784, 'past fashion not indicative of future fashion', color='white', fontsize=8, fontstyle='italic', ha='center', va='center')
+	ax.text(W / 2, 784, 'past fashion not indicative of future fashion', color='white', fontsize=8, fontstyle='italic',
+		ha='center', va='center')
 	line_x = x0 + threshold / step * icon_w
 	ax.plot([line_x, line_x], [top - 12, bottom], color=ink, linewidth=1.8, linestyle=(0, (5, 4)), zorder=0)
-	ax.text(line_x, top - 18, f"{threshold:g}% outrageous line", color=ink, fontsize=7.5, fontweight='bold', ha='center', va='bottom')
+	ax.text(line_x, top - 18, f"{threshold:g}% outrageous line", color=ink, fontsize=7.5, fontweight='bold',
+		ha='center', va='bottom')
 
 	return _png(fig, sky)
 
@@ -473,8 +495,10 @@ def draw_pie(chart):
 	step = min(0.075, 0.74 / max(len(rows), 1))
 	y = 0.5 + step * (len(rows) - 1) / 2 - 0.03 # legend block centred on the pie
 	for (label, value), color in zip(rows, colors):
-		fig.add_artist(Rectangle((0.57, y - 0.014), 0.018, 0.028, transform=fig.transFigure, facecolor=color, edgecolor='none'))
-		fig.text(0.60, y, label if len(label) <= 28 else label[:27] + '…', color=ink, fontsize=8.5, ha='left', va='center')
+		fig.add_artist(Rectangle((0.57, y - 0.014), 0.018, 0.028, transform=fig.transFigure, facecolor=color,
+			edgecolor='none'))
+		fig.text(0.60, y, label if len(label) <= 28 else label[:27] + '…', color=ink, fontsize=8.5, ha='left',
+			va='center')
 		fig.text(0.97, y, f"{value / total * 100:.1f}%", color=ink2, fontsize=8.5, ha='right', va='center')
 		y -= step
 	_heading(fig, chart.title, chart.subtitle)

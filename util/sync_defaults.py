@@ -22,7 +22,9 @@ def sync(apply=False, force=False, dest=None):
 		if not src.is_file():
 			continue
 		if src.name == 'finbot.env':
-			continue # the startup file is not data: it holds credentials, lives wherever the launcher loads it from, and the bot never reads it
+			# the startup file is not data: it holds credentials, lives wherever the launcher loads it from, and the bot
+			# never reads it
+			continue
 		name = src.name
 		target = dest_dir / name
 		if not target.exists():
@@ -51,5 +53,6 @@ if __name__ == '__main__':
 	args = ap.parse_args()
 	print(f"{config.REPO_DIR / 'defaults'} -> {Path(args.dest or config.env.data_dir).resolve()}")
 	for name, outcome in sync(args.apply or args.force, args.force, args.dest):
-		label = {'copied': '', 'skipped - destination identical': '', 'skipped - destination differs': '[differs]'}.get(outcome, f'[{outcome}]')
+		label = {'copied': '', 'skipped - destination identical': '',
+			'skipped - destination differs': '[differs]'}.get(outcome, f'[{outcome}]')
 		print(f"{name} {label}".rstrip())

@@ -3,8 +3,8 @@ import os, sys, time
 from lib import config
 
 def run(*, days=30):
-	"""Delete the cache files (finbot_*) that were last written more than `days` days ago (days=0: all of them, a flush), but not
-	a temp file written in the last minute: that is an atomic write in flight (cache.write_file)."""
+	"""Delete the cache files (finbot_*) that were last written more than `days` days ago (days=0: all of them, a
+	flush), but not a temp file written in the last minute: that is an atomic write in flight (cache.write_file)."""
 	now = time.time()
 	cutoff = now - days * 86400
 	removed = 0

@@ -1,6 +1,6 @@
-"""How each chat network marks text up: bold, italic, struck-through, links, user text made safe, and message sizes. A dialect is
-also the network's name (TELEGRAM == 'telegram'), so it can stand wherever the name did: reports take one as `service` and write
-`service.bold(text)`. dialects.of('slack') gives the one for a name."""
+"""How each chat network marks text up: bold, italic, struck-through, links, user text made safe, and message sizes. A
+dialect is also the network's name (TELEGRAM == 'telegram'), so it can stand wherever the name did: reports take one as
+`service` and write `service.bold(text)`. dialects.of('slack') gives the one for a name."""
 import html
 import re
 
@@ -36,9 +36,9 @@ class Dialect(str):
 		return self._link(url, text) if config.prefs.hyperlink else text
 
 	def escape(self, text):
-		"""Text a user wrote (a .plan entry, a name) made safe to show: Telegram's HTML and Slack's markup both take &amp; &lt; &gt;.
-		It is unescaped first because it may arrive escaped already (inbound escapes Telegram names as they arrive):
-		escaping twice would show &amp;amp;."""
+		"""Text a user wrote (a .plan entry, a name) made safe to show: Telegram's HTML and Slack's markup both take
+		&amp; &lt; &gt;. It is unescaped first because it may arrive escaped already (inbound escapes Telegram names as
+		they arrive): escaping twice would show &amp;amp;."""
 		return html.escape(html.unescape(str(text)), quote=False)
 
 	def visible(self, text):
@@ -79,7 +79,8 @@ class Discord(Dialect):
 
 	def _link(self, url, text):
 		"""A masked link: <url> stops a preview; brackets in the text and parentheses in the url would end it early."""
-		return '[' + text.replace('[', '\\[').replace(']', '\\]') + '](<' + url.replace('(', '%28').replace(')', '%29') + '>)'
+		return '[' + text.replace('[', '\\[').replace(']', '\\]') + '](<' + url.replace('(', '%28').replace(')',
+			'%29') + '>)'
 
 	def escape(self, text):
 		"""The plain text: Discord's markdown shows entities as written."""

@@ -1,8 +1,9 @@
 """The scheduled reports (formerly cron jobs), run by the bot itself.
 
-The schedule is a file in crontab syntax: five time fields (or an @macro) and then a finbot script with its arguments, e.g.
-`*/20 * * * Mon-Fri trades.py` or `28 21 * * Sat cal.py earnings; price.py 7`. Pasted crontab lines (`./price.py > /dev/null`,
-`{ a; b ;}`) are accepted too. Running in the bot means the jobs share its user, sandbox, environment and cache."""
+The schedule is a file in crontab syntax: five time fields (or an @macro) and then a finbot script with its
+arguments, e.g. `*/20 * * * Mon-Fri trades.py` or `28 21 * * Sat cal.py earnings; price.py 7`. Pasted crontab lines
+(`./price.py > /dev/null`, `{ a; b ;}`) are accepted too. Running in the bot means the jobs share its user, sandbox,
+environment and cache."""
 import datetime
 import hmac
 import json
@@ -27,19 +28,20 @@ from lib import jobrun
 from lib import delivery
 from lib.reports import cal, cleanup, milestone, performance, podcasts, price, rating, reminder, shorts, trades
 
-SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance': performance, 'podcasts': podcasts, 'price': price,
-	'rating': rating, 'reminder': reminder, 'shorts': shorts, 'trades': trades}
+SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance': performance, 'podcasts': podcasts,
+	'price': price, 'rating': rating, 'reminder': reminder, 'shorts': shorts, 'trades': trades}
 current = None # the running Scheduler, set by bot.py; the chat commands use it
 HIDDEN = ('cleanup', 'podcasts') # scheduled, but not offered in the chat list
 STATE_FILE = 'finbot_jobs.json' # last fire time of every job, so a restart neither repeats a run nor loses one
 JOB_TIMEOUT = 5 * 60 # seconds each command may run before it is stopped and reported
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')
-OPERATOR = re.compile(r'\d*>>?&?\d*|&>>?|;|&&|\|\|?|&|[<`$(){}]') # what a shell reads as more than a word, outside quotes
+# what a shell reads as more than a word, outside quotes
+OPERATOR = re.compile(r'\d*>>?&?\d*|&>>?|;|&&|\|\|?|&|[<`$(){}]')
 REDIRECT = re.compile(r'\d*>>?&?\d*|&>>?') # > file, >> file, 2>&1, &> file
 
 
 def checksum(label):
-	"""Short stand-in for a command in a Telegram button, whose data is limited to 64 bytes: detects a changed schedule."""
+	"""A command's short stand-in in a button (Telegram allows 64 bytes of data): it detects a changed schedule."""
 	return format(zlib.crc32(label.encode()) & 0xffff, '04x')
 
 
@@ -47,7 +49,8 @@ def run_child(label, module, kwargs):
 	"""Run a command in its own process (python -m lib.jobrun) and return its exit status. The child inherits the
 	environment, user and output of the bot, so it behaves like the old cron job. One still running after JOB_TIMEOUT
 	is stopped and TimeoutError raised; any other interruption stops it too."""
-	env = dict(os.environ, **config.child_environment()) # the preferences this process runs on, not whatever the file says now
+	# the preferences this process runs on, not whatever the file says now
+	env = dict(os.environ, **config.child_environment())
 	args = [sys.executable, '-m', 'lib.jobrun', module.__name__, json.dumps(kwargs)]
 	proc = subprocess.Popen(args, cwd=config.REPO_DIR, env=env)
 	try:
@@ -95,8 +98,9 @@ class ScheduleError(ValueError):
 
 
 class ImpossibleTime(ScheduleError):
-	"""A time that cannot be (minute 61) or never comes (30 February). Other bad lines are reported and skipped, but this refuses the
-	whole file: finbot does not start with it, and a reload keeps the schedule that is running. `lines` says where, one per line."""
+	"""A time that cannot be (minute 61) or never comes (30 February). Other bad lines are reported and skipped, but
+	this refuses the whole file: finbot does not start with it, and a reload keeps the schedule that is running. `lines`
+	says where, one per line."""
 	def __init__(self, lines):
 		"""lines: where, one message or a list of them."""
 		self.lines = [lines] if isinstance(lines, str) else list(lines)
@@ -161,7 +165,7 @@ def tokenize(text):
 
 
 def split_commands(tokens):
-	"""Word lists, one per command: split on unquoted ; and &&, redirects and braces dropped, any other shell syntax refused."""
+	"""Word lists, one per command: split on unquoted ; and &&, redirects and braces dropped, other syntax refused."""
 	commands, current, target = [], [], False
 	for kind, value in tokens:
 		if target: # the file of a redirect
@@ -247,9 +251,10 @@ def parse_schedule(text, default_zone=None):
 
 
 class Scheduler:
-	"""Fires the jobs of a schedule file. `path` is a callable returning the file (the data dir copy wins over the default, so a
-	new copy is found on reload). `clock`, `sleep` and `spawn` can be replaced, which the tests do. Its lock covers
-	what the loop, a reload and runs from chat share: the jobs, their bases, the record of runs and what is running."""
+	"""Fires the jobs of a schedule file. `path` is a callable returning the file (the data dir copy wins over the
+	default, so a new copy is found on reload). `clock`, `sleep` and `spawn` can be replaced, which the tests do. Its
+	lock covers what the loop, a reload and runs from chat share: the jobs, their bases, the record of runs and what is
+	running."""
 
 	def __init__(self, path, catchup=None, clock=None, sleep=None, spawn=None, zone=None, runner=None):
 		"""path() gives the schedule file's path. catchup is how late, in minutes, a missed run may still start (the
@@ -269,16 +274,18 @@ class Scheduler:
 		self.lock = threading.Lock()
 
 	def load(self):
-		"""Read the schedule file. A line with an impossible time refuses the whole file: ImpossibleTime is raised, naming every such
-		line, and nothing changes. Other bad lines are reported and skipped; a file with no usable line keeps the schedule that is
-		running."""
+		"""Read the schedule file. A line with an impossible time refuses the whole file: ImpossibleTime is raised,
+		naming every such line, and nothing changes. Other bad lines are reported and skipped; a file with no usable
+		line keeps the schedule that is running."""
 		path = self.path()
 		try:
 			jobs, errors = parse_schedule(Path(path).read_text(encoding='utf-8'), self.zone)
 		except OSError as e:
 			delivery.report_error(e, context='schedule')
 			return False
-		if impossible := [f'{path} line {number}: {error}: {line}' for number, line, error in errors if isinstance(error, ImpossibleTime)]:
+		impossible = [f'{path} line {number}: {error}: {line}' for number, line, error in errors
+			if isinstance(error, ImpossibleTime)]
+		if impossible:
 			raise ImpossibleTime(impossible)
 		for number, line, error in errors:
 			delivery.report_error(ScheduleError(f'{path} line {number}: {error}: {line}'), context='schedule')
@@ -301,7 +308,7 @@ class Scheduler:
 		return True
 
 	def reload(self, *args):
-		"""SIGHUP: read the edited file. One with an impossible time is refused and reported; the running schedule carries on."""
+		"""SIGHUP: read the edited file. One with an impossible time is refused and reported; the schedule stays."""
 		try:
 			self.load()
 		except ImpossibleTime as e:
@@ -309,7 +316,7 @@ class Scheduler:
 			delivery.report_error(ScheduleError(problem), context='schedule')
 
 	def start_base(self, job, now):
-		"""Where to count from at start: a run missed within the catch-up window fires once; with no record, nothing is missed."""
+		"""Where to count from at start: a run missed in the catch-up window fires once; with no record, none is."""
 		last = self.last.get(job.key)
 		if not last:
 			return now
@@ -319,13 +326,16 @@ class Scheduler:
 			return now
 
 	def next_fire(self, job, after):
-		"""The first fire time after `after`, in the job's zone. croniter is given the naive local time and the zone is put back after:
-		croniter up to 6.0 (the distro packages) mishandles zoneinfo across DST changes, firing daily jobs twice or an hour late. A
-		time the clocks repeat fires once, the first time; one they skip (02:30 as they go forward) fires an hour later by the clock."""
+		"""The first fire time after `after`, in the job's zone. croniter is given the naive local time and the zone is
+		put back after: croniter up to 6.0 (the distro packages) mishandles zoneinfo across DST changes, firing daily
+		jobs twice or an hour late. A time the clocks repeat fires once, the first time; one they skip (02:30 as they go
+		forward) fires an hour later by the clock."""
 		times = croniter(job.expr, after.astimezone(job.zone).replace(tzinfo=None))
 		while True:
-			t = times.get_next(datetime.datetime).replace(tzinfo=job.zone).timestamp() # fold 0: the first of a repeated time
-			if t > after.timestamp(): # by the instant: comparing two times of one zone ignores which of a repeated hour they are in
+			# fold 0: the first of a repeated time
+			t = times.get_next(datetime.datetime).replace(tzinfo=job.zone).timestamp()
+			# by the instant: comparing two times of one zone ignores which of a repeated hour they are in
+			if t > after.timestamp():
 				return datetime.datetime.fromtimestamp(t, job.zone)
 
 	def due(self, now):
@@ -384,8 +394,9 @@ class Scheduler:
 		return outcome
 
 	def commands(self):
-		"""Every offered scheduled command once, sorted by name with numbers in numeric order: [(label, module, kwargs)]. The time,
-		comments, redirects and the other commands of a line are not part of it; HIDDEN scripts are left out."""
+		"""Every offered scheduled command once, sorted by name with numbers in numeric order: [(label, module,
+		kwargs)]. The time, comments, redirects and the other commands of a line are not part of it; HIDDEN scripts are
+		left out."""
 		unique = {}
 		hidden = {SCRIPTS[name] for name in HIDDEN}
 		for job in self.jobs:
@@ -396,7 +407,7 @@ class Scheduler:
 		return [unique[label] for label in sorted(unique, key=natural)]
 
 	def select(self, text):
-		"""The scheduled command for `.jobs run <text>`: a number from the list, or the command itself. Raises ScheduleError."""
+		"""The scheduled command for `.jobs run <text>`: a number in the list, or the command. Raises ScheduleError."""
 		text = text.strip()
 		commands = self.commands()
 		if text.isdigit():
@@ -415,8 +426,8 @@ class Scheduler:
 		raise ScheduleError(f"'{text}' is not in the schedule; send .jobs to list the commands")
 
 	def pick(self, number, crc):
-		"""The offered command a button stands for. Button data is untrusted input: the number must be plain digits within the
-		list and the checksum must match that very command, else ScheduleError."""
+		"""The offered command a button stands for. Button data is untrusted input: the number must be plain digits
+		within the list and the checksum must match that very command, else ScheduleError."""
 		commands = self.commands()
 		if not (number.isascii() and number.isdigit() and 1 <= int(number) <= len(commands)):
 			raise ScheduleError('no such command')
@@ -430,7 +441,7 @@ class Scheduler:
 		return command[0], self.execute([command])
 
 	def run_now(self, text):
-		"""`.jobs run`: one scheduled command, now, as cron would run it; the schedule is unchanged. Returns (label, outcome)."""
+		"""`.jobs run`: one scheduled command now, as cron runs it; the schedule stays. Returns (label, outcome)."""
 		return self.run_command(self.select(text))
 
 	def tick(self):

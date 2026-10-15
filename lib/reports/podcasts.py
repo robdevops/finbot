@@ -36,7 +36,7 @@ def format_duration(duration_str):
 	return f"{total_seconds // 3600:02d}:{total_seconds % 3600 // 60:02d}"
 
 def published(pub_raw):
-	"""An episode's publication time (in UTC where the feed gives no zone), or None where it gives none or garbles it."""
+	"""An episode's publication time (UTC where the feed gives no zone), or None where it gives none or garbles it."""
 	try:
 		when = parsedate_to_datetime(pub_raw)
 	except (TypeError, ValueError):
@@ -57,8 +57,9 @@ def how_long_ago(when):
 	return f"{delta.seconds}s ago"
 
 def media_link(item):
-	"""An episode's media: <media:content><media:player url>, else <media:content url>, else <enclosure url>; None without any."""
-	for element in (item.find(".//media:content/media:player", NAMESPACES), item.find("media:content", NAMESPACES), item.find("enclosure")):
+	"""An episode's media: <media:content><media:player url>, else <media:content url>, <enclosure url>, or None."""
+	for element in (item.find(".//media:content/media:player", NAMESPACES), item.find("media:content", NAMESPACES),
+			item.find("enclosure")):
 		if element is not None and element.attrib.get("url"):
 			return element.attrib["url"]
 	return None
@@ -76,8 +77,10 @@ def fetch_new_episodes(feed_url, seen):
 		if not guid or guid in seen or not media_url:
 			continue
 		when = published(item.findtext("pubDate"))
-		episodes.append({"podcast": podcast_name, "title": (item.findtext("title") or "Untitled").strip(), "url": media_url,
-			"ago": how_long_ago(when), "duration": format_duration(item.findtext("itunes:duration", namespaces=NAMESPACES)),
+		episodes.append({"podcast": podcast_name, "title": (item.findtext("title") or "Untitled").strip(),
+			"url": media_url,
+			"ago": how_long_ago(when),
+			"duration": format_duration(item.findtext("itunes:duration", namespaces=NAMESPACES)),
 			"published": when or datetime.min.replace(tzinfo=timezone.utc)})
 		guids.add(guid)
 	episodes.sort(key=lambda episode: episode["published"], reverse=True)
@@ -113,6 +116,7 @@ def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case [feed_url]:
-			return 'podcasts.py ' + hashlib.md5(feed_url.encode()).hexdigest()[:8], {'feed_url': feed_url} # the label matches the seen file's name
+			# the label matches the seen file's name
+			return 'podcasts.py ' + hashlib.md5(feed_url.encode()).hexdigest()[:8], {'feed_url': feed_url}
 		case _:
 			raise ValueError('"<podcast_feed_url>"')

@@ -192,7 +192,7 @@ def read_args(command, word, text):
 	return args
 
 def parse_percent(arg):
-	"""'5', '5%' or '2.5' -> the number. Raises ValueError for anything else, nan and inf included: those are tickers."""
+	"""'5', '5%' or '2.5' -> the number. Raises ValueError for anything else, nan and inf too: those are tickers."""
 	value = float(arg.removesuffix('%'))
 	if not math.isfinite(value):
 		raise ValueError(f"{arg} is not a percentage")

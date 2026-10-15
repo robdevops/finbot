@@ -1,4 +1,4 @@
-"""Analysts' consensus rating changes since the last scheduled run (scheduled: rating.py). .buy and .sell are in rankings."""
+"""Analysts' consensus rating changes since the last scheduled run (rating.py); .buy and .sell are in rankings."""
 from lib import delivery
 from lib import state
 from lib import links

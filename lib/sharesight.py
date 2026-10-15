@@ -138,7 +138,8 @@ class Portfolio:
 
 	def tickers(self):
 		"""What it holds, as Yahoo tickers, sorted."""
-		return sorted({markets.transform_to_yahoo(each['code'], each['market_code']) for each in self.holdings().values()})
+		return sorted({markets.transform_to_yahoo(each['code'],
+			each['market_code']) for each in self.holdings().values()})
 
 	def trades(self, days=None):
 		"""Its trades of the past `days` (the past_days preference when None), each with the portfolio's name added."""

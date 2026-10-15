@@ -1,5 +1,6 @@
-# The scheduled reports, run by the bot (bot.py). Same time syntax as crontab(5): minute hour day-of-month month day-of-week,
-# or an @macro such as @daily. The command is a finbot script and its arguments; separate several with ";" to run them in turn.
+# The scheduled reports, run by the bot (bot.py). Same time syntax as crontab(5): minute hour day-of-month month
+# day-of-week, or an @macro such as @daily. The command is a finbot script and its arguments; separate several with ";"
+# to run them in turn.
 # Times are in the server's own time zone, like cron; add a line "CRON_TZ=Australia/Melbourne" above a job to pin one.
 # To change the schedule, copy this file to the data directory (util/sync_defaults.py --apply), edit the copy, then:
 #   systemctl reload finbot

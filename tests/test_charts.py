@@ -99,7 +99,8 @@ class ImageSanity(unittest.TestCase):
 		self.assertIn(tuple(int(c) for c in pixels[0, 0]), allowed, name)
 		if not edge_clean: # the shorts beach draws its sea right to the edge
 			return
-		edge = np.concatenate([pixels[:3].reshape(-1, 3), pixels[-3:].reshape(-1, 3), pixels[:, :3].reshape(-1, 3), pixels[:, -3:].reshape(-1, 3)])
+		edge = np.concatenate([pixels[:3].reshape(-1, 3), pixels[-3:].reshape(-1, 3), pixels[:, :3].reshape(-1, 3),
+			pixels[:, -3:].reshape(-1, 3)])
 		self.assertTrue((edge == bg).all(), f'{name}: something is drawn on the image edge (clipped text or bars?)')
 
 	def test_each_chart_type(self):
@@ -132,8 +133,10 @@ class ImageSanity(unittest.TestCase):
 				bg=SHORTS_BG, edge_clean=False)
 		self.check_image(shorts([('A VERY LONG LABEL', 15.0), ('B', 0.4)]), 'shorts long label and tiny value',
 			bg=SHORTS_BG, edge_clean=False)
-		tiers = [(0, 'board shorts'), (4.9, 'board shorts'), (5, 'cargo shorts'), (10, 'boxers'), (15, 'gym shorts'), (20, 'cutoffs'),
-				 (30, 'short shorts'), (40, 'daisy dukes'), (50, 'hot pants'), (60, 'speedos'), (70, 'budgie smugglers'),
+		tiers = [(0, 'board shorts'), (4.9, 'board shorts'), (5, 'cargo shorts'), (10, 'boxers'), (15, 'gym shorts'),
+			(20, 'cutoffs'),
+				 (30, 'short shorts'), (40, 'daisy dukes'), (50, 'hot pants'), (60, 'speedos'),
+				 (70, 'budgie smugglers'),
 				 (80, 'just a belt'), (90, 'never nudes'), (200, 'never nudes')]
 		self.assertEqual([render.shorts_verdict(p) for p, _ in tiers], [name for _, name in tiers])
 
@@ -156,7 +159,7 @@ class ImageSanity(unittest.TestCase):
 
 
 class RenderPool(unittest.TestCase):
-	"""The bot draws charts in one native thread (render.render_off_hub), so the gevent hub keeps serving while a chart is drawn."""
+	"""The bot draws charts in one native thread (render.render_off_hub): the hub keeps serving while one is drawn."""
 
 	def setUp(self):
 		"""Draw in the render thread, as the bot does, for this test only."""
@@ -170,7 +173,8 @@ class RenderPool(unittest.TestCase):
 		jobs += [gevent.spawn(bars, MIXED)]
 		jobs += [gevent.spawn(uncached, render.Chart('bars', 'T', rows=tuple(MIXED)))]
 		gevent.joinall(jobs, timeout=120)
-		self.assertTrue(all(job.successful() for job in jobs), 'a chart did not finish (several native threads deadlock matplotlib)')
+		self.assertTrue(all(job.successful() for job in jobs),
+			'a chart did not finish (several native threads deadlock matplotlib)')
 		self.assertTrue(all(decode(job.value).size == (1280, 800) for job in jobs))
 
 	def test_the_hub_keeps_serving_while_a_chart_is_drawn(self):
@@ -230,7 +234,8 @@ class Contracts(unittest.TestCase):
 		real = Axes.set_ylim
 		with mock.patch.object(Axes, 'set_ylim', lambda ax, *a, **k: (calls.append(a), real(ax, *a, **k))[1]):
 			bars(MIXED)
-		self.assertTrue(any(len(a) == 2 and a[0] > a[1] for a in calls), 'y axis must be inverted so row 0 is drawn first (top)')
+		self.assertTrue(any(len(a) == 2 and a[0] > a[1] for a in calls),
+			'y axis must be inverted so row 0 is drawn first (top)')
 
 	def test_pixels_follow_the_sign_of_the_data(self):
 		"""The drawn image is blue for gains and red for losses, in proportion to the rows."""
@@ -252,7 +257,8 @@ class Contracts(unittest.TestCase):
 		self.assertEqual(plain, (0x14, 0x18, 0x1f))
 		self.assertEqual(close, plain) # at close stays untinted
 		self.assertTrue(mid[1] > mid[0] and mid[1] > plain[1]) # green
-		self.assertTrue(pre[0] > plain[0] and pre[1] > plain[1] and pre[0] > pre[2] and pre[1] > pre[2]) # yellow: red and green channels both lead blue
+		# yellow: red and green channels both lead blue
+		self.assertTrue(pre[0] > plain[0] and pre[1] > plain[1] and pre[0] > pre[2] and pre[1] > pre[2])
 		self.assertLess(max(abs(int(a) - int(b)) for a, b in zip(pre, plain)), 20) # subtle
 
 	def test_longer_bar_is_drawn_longer(self):

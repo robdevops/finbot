@@ -17,7 +17,8 @@ class Commands(FinbotCase):
 	def test_chart_commands(self):
 		"""Every chart command answers with a chart."""
 		for cmd in ('.price', '.price 7d', '.price top', '.price bottom', '.session', '.premarket', '.postmarket',
-					'.performance', '.performance 7d', '.performance 1y', '.shorts', '.peg', '.buy', '.sell', '.beta', '.price top 7d',
+					'.performance', '.performance 7d', '.performance 1y', '.shorts', '.peg', '.buy', '.sell', '.beta',
+					'.price top 7d',
 					'.forward pe', '.fpe bottom'):
 			with self.subTest(cmd=cmd):
 				out = self.command(cmd)
@@ -107,12 +108,17 @@ class ReportFunctions(FinbotCase):
 			self.assertTrue(rankings.prepare_rating_payload(TELEGRAM, action, length=5)[0])
 
 	def test_ratings_list_the_strongest_first(self):
-		"""1 is a strong buy and 5 a strong sell: .sell used to list the mildest sells first. On equal ratings, more analysts first;
-		fewer than 7 analysts and the stock is left out (T7, T8: the ASX small caps that are always a perfect 1.0)."""
-		ratings = {'T1': ('buy', 1.5, 7), 'T2': ('strong_buy', 1.2, 12), 'T3': ('buy', 1.5, 9), 'T7': ('strong_buy', 1.0, 6),
-				   'T4': ('sell', 4.2, 7), 'T5': ('underperform', 4.6, 10), 'T6': ('sell', 4.2, 8), 'T8': ('strong_buy', 1.0, 2)}
+		"""1 is a strong buy and 5 a strong sell: .sell used to list the mildest sells first. On equal ratings, more
+		analysts first; fewer than 7 analysts and the stock is left out (T7, T8: the ASX small caps that are always a
+		perfect 1.0)."""
+		ratings = {'T1': ('buy', 1.5, 7), 'T2': ('strong_buy', 1.2, 12), 'T3': ('buy', 1.5, 9),
+			'T7': ('strong_buy', 1.0, 6),
+				   'T4': ('sell', 4.2, 7), 'T5': ('underperform', 4.6, 10), 'T6': ('sell', 4.2, 8),
+				   'T8': ('strong_buy', 1.0, 2)}
 		self.patch(watchlist, 'with_holdings', lambda: list(ratings))
-		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | dict(zip(('recommend', 'recommend_index', 'recommend_analysts'), ratings[t]))})
+		self.patch(yahoo, 'fetch_detail',
+			lambda t, *a, **k: {t: market_entry(t) | dict(zip(('recommend', 'recommend_index', 'recommend_analysts'),
+			ratings[t]))})
 		def order(action):
 			"""(the tickers listed, the tickers charted) of a ratings report, in order."""
 			payload, chart = rankings.prepare_rating_payload(TELEGRAM, action)
@@ -121,11 +127,14 @@ class ReportFunctions(FinbotCase):
 		self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
 		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'buy')[0][0])
 		self.patch(watchlist, 'with_holdings', lambda: ['T7', 'T8'])
-		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'buy'), (['No tracked stocks rated buy by 7+ analysts'], None))
+		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'buy'),
+			(['No tracked stocks rated buy by 7+ analysts'], None))
 
 	def test_a_small_cap_quoted_in_won_needs_the_bigger_move_too(self):
-		"""demote_volatile compares market caps in US dollars: unconverted, a small cap quoted in won was never small."""
-		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | ({'regularMarketPrice': 1380.0} if t == 'KRW=X' else {'currency': 'KRW', 'market_cap': 1e11}) for t in ts})
+		"""demote_volatile compares market caps in US dollars: unconverted, a small cap in won was never small."""
+		self.patch(yahoo, 'fetch',
+			lambda ts: {t: market_entry(t) | ({'regularMarketPrice': 1380.0} if t == 'KRW=X' else {'currency': 'KRW',
+			'market_cap': 1e11}) for t in ts})
 		self.prefs(demote_volatile=True)
 
 		quote = price.gather()[1]['T1']
@@ -146,9 +155,10 @@ class ReportFunctions(FinbotCase):
 				self.assertEqual(chart.subtitle, '% change over the past 3 months') # it said "in 3 months"
 
 	def test_the_small_caps_betas_are_fetched_together(self):
-		"""A scheduled price report asks for the beta of each small cap that moved (US$150M to US$1B): together, not one by one."""
+		"""A scheduled price report asks for the betas of the small caps that moved (US$150M to US$1B) together."""
 		calls = []
-		self.patch(yahoo, 'fetch_details', lambda tickers, strict=False: calls.append(sorted(tickers)) or {t: market_entry(t) for t in tickers})
+		self.patch(yahoo, 'fetch_details',
+			lambda tickers, strict=False: calls.append(sorted(tickers)) or {t: market_entry(t) for t in tickers})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: self.fail('a beta fetched on its own'))
 		self.prefs(demote_volatile=True)
 
@@ -158,10 +168,11 @@ class ReportFunctions(FinbotCase):
 		self.assertTrue(calls[0])
 
 	def test_forward_pe_lists_need_as_many_analysts_as_buy(self):
-		"""A forward P/E is analysts' estimate: with few of them it says little, as a perfect 1.0 buy from two brokers does."""
+		"""A forward P/E is analysts' estimate: from few, it says little, as a perfect 1.0 buy from two brokers does."""
 		analysts = {'T1': 7, 'T2': 6, 'T3': 12, 'T4': 2}
 		self.patch(watchlist, 'with_holdings', lambda: list(analysts))
-		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': -5 if t == 'T3' else 20} for t in ts})
+		self.patch(yahoo, 'fetch',
+			lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': -5 if t == 'T3' else 20} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
 		def listed(mode='top'):
 			"""(heading, the tickers listed, the chart) of a forward P/E list."""
@@ -175,22 +186,26 @@ class ReportFunctions(FinbotCase):
 		self.assertIn('Co T2', rankings.ratio_line(TELEGRAM, 'T2', 'forward pe')) # one ticker asked for: shown
 		self.prefs(min_analysts=13) # the one setting moves .buy and .forward pe together
 		self.assertEqual(listed()[0], 'No tracked stocks with 13+ analysts have a forward pe ratio')
-		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'buy')[0], ['No tracked stocks rated buy by 13+ analysts'])
+		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'buy')[0],
+			['No tracked stocks rated buy by 13+ analysts'])
 
 	def test_market_caps_compare_in_us_dollars(self):
 		"""Yahoo gives a market cap in the stock's own currency: unconverted, a won market cap topped every list."""
-		stocks = {'K1.KS': ('KRW', 1.01e15), 'K2.KS': ('KRW', 5e11), 'U1': ('USD', 5.39e12), 'L1.L': ('GBp', 6.25e10), 'Z1': ('XYZ', 1e12)}
+		stocks = {'K1.KS': ('KRW', 1.01e15), 'K2.KS': ('KRW', 5e11), 'U1': ('USD', 5.39e12), 'L1.L': ('GBp', 6.25e10),
+			'Z1': ('XYZ', 1e12)}
 		fx = {'KRW=X': 1380.0, 'GBP=X': 0.79} # units per US dollar; nothing for XYZ
 		def fetch(tickers):
 			"""Quotes in each stock's own currency, and the exchange rates."""
-			return {t: market_entry(t) | {'regularMarketPrice': fx[t]} if t in fx else market_entry(t) | {'currency': stocks[t][0], 'market_cap': stocks[t][1], 'beta': 2.0}
-					for t in tickers if t in fx or t in stocks}
+			own = lambda t: {'currency': stocks[t][0], 'market_cap': stocks[t][1], 'beta': 2.0}
+			return {t: market_entry(t) | ({'regularMarketPrice': fx[t]} if t in fx else own(t))
+				for t in tickers if t in fx or t in stocks}
 		self.patch(yahoo, 'fetch', fetch)
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: fetch([t]))
 		self.patch(watchlist, 'with_holdings', lambda: list(stocks))
 		payload = rankings.marketcap_list(TELEGRAM)
 		self.assertIn('by market cap (USD)', payload[0])
-		self.assertEqual([line.split('Co ')[1].split(' ')[0] for line in payload[1:]], ['U1', 'K1.KS', 'L1.L', 'K2.KS']) # Z1: no rate, left out
+		# Z1: no rate, left out
+		self.assertEqual([line.split('Co ')[1].split(' ')[0] for line in payload[1:]], ['U1', 'K1.KS', 'L1.L', 'K2.KS'])
 		self.assertIn('mkt cap: 731.88 B', payload[2]) # 1.01 Q won
 		self.assertIn('mkt cap: KRW 1.01 Q (USD 731.88 B)', rankings.marketcap_line(TELEGRAM, 'K1.KS'))
 		self.assertIn('mkt cap: GBP 62.50 B (USD 79.11 B)', rankings.marketcap_line(TELEGRAM, 'L1.L')) # pence: pounds
@@ -229,7 +244,8 @@ class ReportFunctions(FinbotCase):
 		self.assertIn('Beta over 1.5', payload[0])
 		self.assertEqual(len(chart.rows), len(payload) - 1) # a bar per stock listed
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'beta': 1.0}})
-		self.assertEqual(rankings.prepare_beta_payload(TELEGRAM), (['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None))
+		self.assertEqual(rankings.prepare_beta_payload(TELEGRAM),
+			(['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None))
 
 	def test_prepare_profile(self):
 		"""A company profile is built."""
@@ -237,11 +253,15 @@ class ReportFunctions(FinbotCase):
 
 	def test_a_profile_leaves_out_what_yahoo_did_not_send(self):
 		"""Each of these fields missing (or a zero equity) used to crash the whole profile."""
-		full = market_entry('T1') | {'insiderBuy': 1, 'insiderSell': 0, 'insiderBuyValue': 5e6, 'insiderSellValue': 0, 'netIncomeToCommon': 1e6,
-									 'sharesOutstanding': 1e6, 'shareholder_equity': 1e9, 'total_debt': 9e8, 'total_cash': 1e8, 'profile_industry': 'Tools'}
-		for missing in ('marketState', 'profile_exchange', 'market_cap', 'currency', 'regularMarketPrice', 'sharesOutstanding', 'percent_change'):
+		full = market_entry('T1') | {'insiderBuy': 1, 'insiderSell': 0, 'insiderBuyValue': 5e6, 'insiderSellValue': 0,
+			'netIncomeToCommon': 1e6,
+									 'sharesOutstanding': 1e6, 'shareholder_equity': 1e9, 'total_debt': 9e8,
+									 'total_cash': 1e8, 'profile_industry': 'Tools'}
+		for missing in ('marketState', 'profile_exchange', 'market_cap', 'currency', 'regularMarketPrice',
+				'sharesOutstanding', 'percent_change'):
 			with self.subTest(missing=missing):
-				self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: {k: v for k, v in full.items() if k != missing}})
+				self.patch(yahoo, 'fetch_detail',
+					lambda t, *a, **k: {t: {k: v for k, v in full.items() if k != missing}})
 				self.assertIn('Co T1', profile.prepare_profile_payload(TELEGRAM, '@u', 'T1')[0])
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: full | {'shareholder_equity': 0}})
 		self.assertNotIn('Net debt/equity', str(profile.prepare_profile_payload(TELEGRAM, '@u', 'T1')))
@@ -254,10 +274,13 @@ class ReportFunctions(FinbotCase):
 
 	def test_a_profile_warns_of_a_ps_ratio_only_above_15(self):
 		"""The PS ratio line warns only above 15; the forward P/E's warning used to show on it too."""
-		for ps, warned in ((12.3, False), (15.1, True)): # forward P/E 99 warns (above 30): its warning used to show on the PS line too
+		# forward P/E 99 warns (above 30): its warning used to show on the PS line too
+		for ps, warned in ((12.3, False), (15.1, True)):
 			with self.subTest(ps=ps):
-				self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'price_to_sales': ps, 'price_to_earnings_forward': 99, 'profile_industry': 'Tools'}})
-				line = next(line for line in profile.prepare_profile_payload(TELEGRAM, '@u', 'T1') if 'PS ratio' in line)
+				self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'price_to_sales': ps,
+					'price_to_earnings_forward': 99, 'profile_industry': 'Tools'}})
+				line = next(line for line in profile.prepare_profile_payload(TELEGRAM, '@u',
+					'T1') if 'PS ratio' in line)
 				self.assertEqual('⚠️' in line, warned, line)
 
 	def test_prepare_watchlist(self):
@@ -309,9 +332,10 @@ class ScheduledReports(FinbotCase):
 		self.assertEqual(pins, ['1'])
 
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
-		"""T1 has no earnings date, so its primary listing is looked up; Yahoo knowing nothing of it used to crash the report."""
+		"""T1 has no earnings date, so its primary listing is looked up: Yahoo not knowing it crashed the report."""
 		self.patch(cal, 'primary_listings', lambda: {'T1': 'T1.XX'})
-		self.patch(yahoo, 'fetch', lambda ts: {t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')} for t in ts})
+		undated = lambda t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')}
+		self.patch(yahoo, 'fetch', lambda ts: {t: undated(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1.XX' else {t: market_entry(t)})
 		cal.run(event='earnings')
 		self.assertIn('Co T2 ', str(self.sent))
@@ -333,7 +357,8 @@ class ScheduledReports(FinbotCase):
 	def test_trades_asks_yahoo_only_for_new_trades(self):
 		"""A scheduled trades run asks Yahoo only about trades it has not reported, and nothing once all are known."""
 		fetched = []
-		self.patch(yahoo, 'fetch', lambda tickers: fetched.append(set(tickers)) or {t: market_entry(t) for t in tickers})
+		self.patch(yahoo, 'fetch',
+			lambda tickers: fetched.append(set(tickers)) or {t: market_entry(t) for t in tickers})
 		trades.run()
 		self.assertEqual(fetched, [{'T1'}])
 		fetched.clear()
@@ -342,7 +367,8 @@ class ScheduledReports(FinbotCase):
 
 	def test_a_scheduled_run_keeps_the_trades_another_run_recorded_meanwhile(self):
 		"""The seen trades are read again as the run ends, so a trade another run recorded meanwhile is kept."""
-		meanwhile = lambda tickers: state.save('finbot_sharesight_trades.json', [999]) or {t: market_entry(t) for t in tickers}
+		meanwhile = lambda tickers: state.save('finbot_sharesight_trades.json',
+			[999]) or {t: market_entry(t) for t in tickers}
 		self.patch(yahoo, 'fetch', meanwhile) # called after the seen trades were read, before the new ones are recorded
 		trades.run()
 		known = state.load('finbot_sharesight_trades.json')
@@ -354,9 +380,10 @@ class ScheduledReports(FinbotCase):
 		self.assertTrue(self.sent)
 
 	def test_milestone_records_a_ticker_only_with_its_new_values(self):
-		"""A first sighting without 52-week values used to be recorded as 0/0, so the next run reported a record high for it."""
+		"""A first sighting without 52-week values was recorded as 0/0: the next run reported a record high for it."""
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0)) # beyond the 52-week range (120/80): nothing new
-		self.patch(yahoo, 'fetch', lambda ts: {t: {k: v for k, v in market_entry(t).items() if not k.startswith('fiftyTwoWeek')} for t in ts})
+		self.patch(yahoo, 'fetch',
+			lambda ts: {t: {k: v for k, v in market_entry(t).items() if not k.startswith('fiftyTwoWeek')} for t in ts})
 		milestone.run()
 		self.assertFalse(state.load('finbot_milestone.json'))
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
@@ -375,8 +402,8 @@ class ScheduledReports(FinbotCase):
 		self.assertEqual(state.load('finbot_milestone.json')['T1'], {'all_time_high': 150.0, 'all_time_low': 50.0})
 
 	def test_milestone_records_are_all_time(self):
-		"""A new 52-week high below the all-time high is no record. The record used to become the 52-week high after the first
-		run, so a stock far below its peak posted a record high each time it set a new 52-week one."""
+		"""A new 52-week high below the all-time high is no record. The record used to become the 52-week high after the
+		first run, so a stock far below its peak posted a record high each time it set a new 52-week one."""
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
 		milestone.run() # first sighting: the 52-week range (120/80) is inside the history (150/50)
 		for high, expected in ((130.0, False), (160.0, True), (155.0, False)):
@@ -404,7 +431,8 @@ class ScheduledReports(FinbotCase):
 		rating.run() # records every ticker's rating
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1' else {t: market_entry(t)})
 		rating.run() # no T1 this time: its rating used to be dropped from the record
-		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | ({'recommend': 'sell', 'recommend_index': 4.5} if t == 'T1' else {})})
+		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | ({'recommend': 'sell',
+			'recommend_index': 4.5} if t == 'T1' else {})})
 		self.sent.clear()
 		rating.run()
 		self.assertIn('Co T1 ', str(self.sent)) # so its change from buy to sell went unreported
@@ -415,8 +443,9 @@ class ScheduledReports(FinbotCase):
 		self.assertIsNone(state.load('finbot_rating.json'))
 
 	def test_slack_webhook_without_a_bot_token_gets_scheduled_reports(self):
-		"""Scheduled reports reach Slack through its incoming webhook, which takes no channel and no token. They used to send
-		Telegram's chat id along, which made write() need slackBotToken and crash without one, before Telegram got its copy."""
+		"""Scheduled reports reach Slack through its incoming webhook, which takes no channel and no token. They used to
+		send Telegram's chat id along, which made write() need slackBotToken and crash without one, before Telegram got
+		its copy."""
 		self.env(slackBotToken=False)
 
 		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/T/B/x'})
@@ -425,7 +454,8 @@ class ScheduledReports(FinbotCase):
 		posts = []
 		def post(url, **kwargs):
 			"""Record (host, whether a bot token was sent, the channel) and answer ok."""
-			posts.append((url.split('/')[2], 'Authorization' in kwargs.get('headers', {}), (kwargs.get('json') or {}).get('channel')))
+			posts.append((url.split('/')[2], 'Authorization' in kwargs.get('headers', {}),
+				(kwargs.get('json') or {}).get('channel')))
 			return mock.Mock(status_code=200, json=lambda: {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 1}}})
 		self.patch(transports.net, 'post', post)
 		for report in (price.run, shorts.run, milestone.run):
@@ -575,7 +605,8 @@ class Podcasts(FinbotCase):
 		self.assertEqual(podcasts.format_duration('62:05'), '01:02')
 		self.assertEqual(podcasts.format_duration('nonsense'), '')
 		self.assertTrue(podcasts.how_long_ago(podcasts.published('Mon, 01 Jan 2024 00:00:00 +0000')).endswith('d ago'))
-		self.assertEqual(podcasts.published('Mon, 01 Jan 2024 00:00:00 -0000').tzinfo, datetime.timezone.utc) # no zone given: UTC
+		# no zone given: UTC
+		self.assertEqual(podcasts.published('Mon, 01 Jan 2024 00:00:00 -0000').tzinfo, datetime.timezone.utc)
 		self.assertIsNone(podcasts.published('yesterday'))
 
 	def test_new_episodes_are_posted_once_newest_first(self):
@@ -583,14 +614,18 @@ class Podcasts(FinbotCase):
 		from lib.reports import podcasts
 		def item(n, date):
 			"""A feed item, its date optional."""
-			return f'<item><guid>g{n}</guid><title>Show: ep {n}</title><enclosure url="https://x/{n}.mp3"/>{date}<itunes:duration>600</itunes:duration></item>'
+			return (f'<item><guid>g{n}</guid><title>Show: ep {n}</title><enclosure url="https://x/{n}.mp3"/>{date}'
+				'<itunes:duration>600</itunes:duration></item>')
 		feed = ('<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel><title>Show</title>'
-				+ item(1, '<pubDate>Mon, 01 Jan 2024 00:00:00 +0000</pubDate>') + item(2, '') + item(3, '<pubDate>Tue, 02 Jan 2024 00:00:00 GMT</pubDate>')
+				+ item(1, '<pubDate>Mon, 01 Jan 2024 00:00:00 +0000</pubDate>') + item(2, '') + item(3,
+					'<pubDate>Tue, 02 Jan 2024 00:00:00 GMT</pubDate>')
 				+ '</channel></rss>').encode()
 		self.patch(podcasts.net, 'get', lambda url, **k: mock.Mock(content=feed, raise_for_status=lambda: None))
 		podcasts.run(feed_url='https://example.com/feed')
-		self.assertEqual([line.split(' (')[0] for line in self.sent[0][1]], ['📣 Show: <a href="https://x/3.mp3">ep 3</a> 00:10',
-						 '📣 Show: <a href="https://x/1.mp3">ep 1</a> 00:10', '📣 Show: <a href="https://x/2.mp3">ep 2</a> 00:10'])
+		self.assertEqual([line.split(' (')[0] for line in self.sent[0][1]],
+			['📣 Show: <a href="https://x/3.mp3">ep 3</a> 00:10',
+						 '📣 Show: <a href="https://x/1.mp3">ep 1</a> 00:10',
+						 '📣 Show: <a href="https://x/2.mp3">ep 2</a> 00:10'])
 		self.sent.clear()
 		podcasts.run(feed_url='https://example.com/feed')
 		self.assertEqual(self.sent, []) # all seen now
@@ -602,8 +637,10 @@ class PieCommand(FinbotCase):
 		super().setUp()
 		def holdings(portfolio):
 			"""The five holdings, whatever the portfolio."""
-			data = [('A', 'Semiconductors', 'Electronic Technology', 500), ('B', 'Semiconductors', 'Electronic Technology', 300),
-					('C', 'Biotechnology', 'Health Technology', 200), ('D', None, None, 100), ('E', 'Gold', 'Minerals', 0)]
+			data = [('A', 'Semiconductors', 'Electronic Technology', 500),
+				('B', 'Semiconductors', 'Electronic Technology', 300),
+					('C', 'Biotechnology', 'Health Technology', 200), ('D', None, None, 100),
+					('E', 'Gold', 'Minerals', 0)]
 			return {c + ':NASDAQ': {'code': c, 'market_code': 'NASDAQ', 'industry_classification_name': i,
 									'sector_classification_name': s, 'value': v} for c, i, s, v in data}
 		self.patch(sharesight.Portfolio, 'holdings', holdings)
@@ -623,7 +660,8 @@ class PieCommand(FinbotCase):
 
 	def test_folds_into_other_and_renders(self):
 		"""Over eight slices, the smallest fold into Other, and the chart draws."""
-		held = {f'T{i}:X': {'code': f'T{i}', 'industry_classification_name': f'Ind {i}', 'value': 100 - i} for i in range(12)}
+		held = {f'T{i}:X': {'code': f'T{i}', 'industry_classification_name': f'Ind {i}',
+			'value': 100 - i} for i in range(12)}
 		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: held)
 		payload, chart = holdings.prepare_pie('Rob', 'industry', TELEGRAM)
 		self.assertEqual(len(chart.rows), 8)

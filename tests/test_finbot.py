@@ -59,7 +59,8 @@ class Plumbing(FinbotCase):
 			return out, err.getvalue()
 		self.assertEqual(post({'sticker': {'file_id': 'x'}}), ([b''], '')) # stickers: silent, not logged
 		self.assertGreaterEqual(len(bot.git_version()), 7)
-		head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=bot.__file__.rsplit('/', 1)[0], capture_output=True, text=True).stdout.strip()
+		head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=bot.__file__.rsplit('/', 1)[0], capture_output=True,
+			text=True).stdout.strip()
 		self.assertEqual(bot.git_version(), head[:7]) # matches what git says
 
 
@@ -74,6 +75,20 @@ class Conventions(unittest.TestCase):
 				if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and ast.get_docstring(node) is None:
 					missing.append(f'{path.relative_to(ROOT)}:{node.lineno} {node.name}')
 		self.assertEqual(missing, [])
+
+	def test_every_line_fits_in_120_columns(self):
+		"""Every line of the code, the tests, the shipped defaults, the units, the tools and CI fits in 120
+		columns, tabs counting 4: an edit quotes whole lines. README.md, CLAUDE.md and doc/ are left out (CI runs no
+		tests for a change to those alone, so no test may read them), and so are data files."""
+		patterns = ('*.py', '*.service', 'lib/**/*.py', 'tests/*.py', 'util/*', 'defaults/*', '.github/workflows/*.yml',
+			'.claude/hooks/*')
+		files = sorted({path for pattern in patterns for path in Path(ROOT).glob(pattern)
+			if path.is_file() and path.suffix != '.json'})
+		long = [f'{path.relative_to(ROOT)}:{number}' for path in files
+			for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1)
+			if len(line.expandtabs(4)) > 120]
+		self.assertGreater(len(files), 60)
+		self.assertEqual(long, [])
 
 	def test_the_bot_and_its_reports_print_only_to_stderr(self):
 		"""systemd discards stdout (StandardOutput=null), so only util/ tools, run by hand, may print there."""
@@ -146,7 +161,8 @@ class GitVersion(unittest.TestCase):
 		"""No .git, a dangling ref, or a garbled HEAD all give 'unknown'."""
 		with tempfile.TemporaryDirectory() as empty, tempfile.TemporaryDirectory() as odd:
 			self.repo(odd, 'ref: refs/heads/gone')
-			self.assertEqual([bot.git_version(empty), bot.git_version(odd), bot.git_version('/nonexistent')], ['unknown'] * 3)
+			self.assertEqual([bot.git_version(empty), bot.git_version(odd), bot.git_version('/nonexistent')],
+				['unknown'] * 3)
 			self.repo(empty, 'garbage')
 			self.assertEqual(bot.git_version(empty), 'unknown')
 

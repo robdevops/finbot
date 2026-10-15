@@ -12,7 +12,8 @@ def run_config(code, **env):
 	"""What `code` prints when run in a fresh interpreter in the checkout, with DATA_DIR cleared and `env` added."""
 	e = {k: v for k, v in os.environ.items() if k != 'DATA_DIR'}
 	e.update(env)
-	return subprocess.run([sys.executable, '-c', code], cwd=REPO, env=e, capture_output=True, text=True, check=True).stdout.strip()
+	return subprocess.run([sys.executable, '-c', code], cwd=REPO, env=e, capture_output=True, text=True,
+		check=True).stdout.strip()
 
 
 class DataDirTests(FinbotCase):
@@ -37,7 +38,8 @@ class DataDirTests(FinbotCase):
 
 	def test_config_reads_environment_only(self):
 		"""Settings come from the environment; python-dotenv is not loaded."""
-		out = run_config("import sys; from lib import config as c; print(c.prefs.price_percent, 'dotenv' in sys.modules)", price_percent='3.3')
+		code = "import sys; from lib import config as c; print(c.prefs.price_percent, 'dotenv' in sys.modules)"
+		out = run_config(code, price_percent='3.3')
 		self.assertEqual(out.split()[-2:], ['3.3', 'False'])
 
 	def test_state_directory_fallback(self):
@@ -47,17 +49,21 @@ class DataDirTests(FinbotCase):
 			e = {k: v for k, v in os.environ.items() if k not in ('DATA_DIR', 'MPLCONFIGDIR')}
 			def run(**env):
 				"""The data dir, cache dir and MPLCONFIGDIR a fresh interpreter ends up with, given `env`."""
-				return subprocess.run([sys.executable, '-c', show], cwd=REPO, env=dict(e, **env), capture_output=True, text=True, check=True).stdout.split()[-3:]
+				return subprocess.run([sys.executable, '-c', show], cwd=REPO, env=dict(e, **env), capture_output=True,
+					text=True, check=True).stdout.split()[-3:]
 			self.assertEqual(run(STATE_DIRECTORY=d + ':/x/y'), [d, d + '/cache', d + '/cache/matplotlib'])
 			self.assertEqual(run(STATE_DIRECTORY='/x/y', DATA_DIR=d)[0], d) # DATA_DIR wins
 			self.assertEqual(run(DATA_DIR=d, MPLCONFIGDIR='/custom')[2], '/custom') # explicit value kept
 
 	def test_render_import_sets_mplconfigdir_without_home(self):
 		"""Importing render puts MPLCONFIGDIR in the cache before matplotlib loads: charts work without a home dir."""
-		e = {k: v for k, v in os.environ.items() if k not in ('MPLCONFIGDIR', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'HOME')}
-		code = "import os; from lib import render; import matplotlib.dates; print(os.environ['MPLCONFIGDIR'])" # render loads matplotlib lazily
+		e = {k: v for k, v in os.environ.items() if k not in ('MPLCONFIGDIR', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME',
+			'HOME')}
+		# render loads matplotlib lazily
+		code = "import os; from lib import render; import matplotlib.dates; print(os.environ['MPLCONFIGDIR'])"
 		with tempfile.TemporaryDirectory() as d:
-			out = subprocess.run([sys.executable, '-c', code], cwd=REPO, env=dict(e, DATA_DIR=d), capture_output=True, text=True, check=True).stdout.strip()
+			out = subprocess.run([sys.executable, '-c', code], cwd=REPO, env=dict(e, DATA_DIR=d), capture_output=True,
+				text=True, check=True).stdout.strip()
 			self.assertEqual(out.split()[-1], d + '/cache/matplotlib')
 
 	def test_data_file_override_and_fallback(self):
@@ -86,12 +92,14 @@ class DataDirTests(FinbotCase):
 		sync_defaults.sync(apply=True)
 		self.assertTrue(Path(config.env.data_dir, 'finbot_adr.json').exists())
 		self.assertTrue(Path(config.env.data_dir, 'preferences.conf').exists())
-		self.assertFalse(Path(config.env.data_dir, 'finbot.env').exists()) # the startup file is never copied into the data dir
+		# the startup file is never copied into the data dir
+		self.assertFalse(Path(config.env.data_dir, 'finbot.env').exists())
 		mine = Path(config.env.data_dir, 'finbot_adr.json')
 		mine.write_text('{"mine": 1}')
 		sync_defaults.sync(apply=True)
 		self.assertEqual(mine.read_text(), '{"mine": 1}') # never overwritten without --force
-		self.assertIn(('finbot_adr.json', 'skipped - destination differs'), sync_defaults.sync()) # existing files are skipped, and said so
+		# existing files are skipped, and said so
+		self.assertIn(('finbot_adr.json', 'skipped - destination differs'), sync_defaults.sync())
 		sync_defaults.sync(force=True)
 		self.assertNotEqual(mine.read_text(), '{"mine": 1}')
 		self.assertEqual(Path(str(mine) + '.bak').read_text(), '{"mine": 1}')
