@@ -1,6 +1,7 @@
 """Charts drawn as PNGs with matplotlib, one at a time (_drawn). A report describes its chart as a Chart, which draw()
 draws only for a chat that takes charts, and once: the image is cached by the spec's hash."""
 import dataclasses
+import datetime
 import functools
 import hashlib
 import importlib.metadata
@@ -121,10 +122,12 @@ def _heading(fig, title, subtitle='', subtitle_color=None):
 		_shrink([fig.text(0.03, 0.910, subtitle, color=subtitle_color or ink2, fontsize=8.5, ha='left', va='center')],
 			room)
 
-def _series(rows):
-	"""(date, close) rows as a pandas Series of the closes, indexed by date."""
-	import pandas as pd
-	return pd.Series([float(close) for _, close in rows], index=pd.to_datetime([day for day, _ in rows]))
+def _dated(rows):
+	"""(date, close) rows, each date an ISO date or a datetime.date, as (the dates as datetime.date, the closes as a
+	numpy array): matplotlib takes both as they are."""
+	import numpy as np
+	dates = [day if isinstance(day, datetime.date) else datetime.date.fromisoformat(day) for day, _ in rows]
+	return dates, np.array([float(close) for _, close in rows])
 
 def _png(fig, facecolor):
 	"""The figure as PNG bytes, rewound (or an upload sends nothing); not bbox_inches='tight': it alters 1280x800."""
@@ -141,8 +144,7 @@ def draw_line(chart):
 	import matplotlib.dates as mdates
 	import numpy as np
 	bg, ink, ink2, grid = PALETTE
-	series = _series(chart.rows)
-	x, y = series.index, series.values
+	x, y = _dated(chart.rows)
 	change = chart.change if chart.change is not None else y[-1] - y[0]
 	color = UP if change > 0 else DOWN if change < 0 else FLAT
 
@@ -189,23 +191,23 @@ def draw_compare(chart):
 	colors = NEITHER_UP_NOR_DOWN
 	fig, _ = _figure(bg)
 	ax = _time_axes(fig, bg, 0.72)
-	rebased = []
+	rebased = [] # (label, dates, % change since the first close)
 	for label, points in chart.rows:
-		y = _series(points)
-		rebased.append((label, (y / y.iloc[0] - 1) * 100))
+		x, y = _dated(points)
+		rebased.append((label, x, (y / y[0] - 1) * 100))
 	ax.axhline(0, color=ink2, linewidth=0.8, alpha=0.6, zorder=1)
-	for (label, y), color in zip(rebased, colors):
-		ax.plot(y.index, y.values, color=color, linewidth=1.5, solid_capstyle='round', zorder=3)
-	lo = min(y.min() for _, y in rebased)
-	hi = max(y.max() for _, y in rebased)
+	for (label, x, y), color in zip(rebased, colors):
+		ax.plot(x, y, color=color, linewidth=1.5, solid_capstyle='round', zorder=3)
+	lo = min(y.min() for _, _, y in rebased)
+	hi = max(y.max() for _, _, y in rebased)
 	span = (hi - lo) or 1.0
 	ax.set_ylim(min(lo, 0) - span * 0.06, max(hi, 0) + span * 0.06)
 	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+,.0f}%" if v else "0%"))
-	_style_time_axes(fig, ax, min(y.index[0] for _, y in rebased), max(y.index[-1] for _, y in rebased))
+	_style_time_axes(fig, ax, min(x[0] for _, x, _ in rebased), max(x[-1] for _, x, _ in rebased))
 
 	# direct end-labels in the right margin, spread so they never overlap
 	ymin, ymax = ax.get_ylim()
-	ends = sorted(((y.iloc[-1], i) for i, (_, y) in enumerate(rebased)))
+	ends = sorted(((y[-1], i) for i, (_, _, y) in enumerate(rebased)))
 	pos = [(v - ymin) / (ymax - ymin) for v, _ in ends]
 	gap = 0.065
 	for i in range(1, len(pos)):
@@ -216,10 +218,10 @@ def draw_compare(chart):
 		for i in range(len(pos) - 2, -1, -1):
 			pos[i] = min(pos[i], pos[i + 1] - gap)
 	for (value, i), p in zip(ends, pos):
-		label, y = rebased[i]
+		label, x, _ = rebased[i]
 		color = colors[i]
 		ax.plot([1.015], [p], marker='s', markersize=4, color=color, transform=ax.transAxes, clip_on=False, zorder=4)
-		ax.annotate(f"{label}  {value:+,.1f}%", xy=(y.index[-1], value), xycoords='data', xytext=(1.03, p),
+		ax.annotate(f"{label}  {value:+,.1f}%", xy=(x[-1], value), xycoords='data', xytext=(1.03, p),
 			textcoords='axes fraction', ha='left', va='center', fontsize=7.5, color=ink, annotation_clip=False,
 			arrowprops=dict(arrowstyle='-', color=color, linewidth=0.7, alpha=0.7, shrinkA=0, shrinkB=2,
 				relpos=(0, 0.5)))

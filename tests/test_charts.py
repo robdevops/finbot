@@ -4,10 +4,9 @@
   3. one golden image per chart type, compared with a tolerance. Refresh after an intended restyle with:
 		 UPDATE_GOLDEN=1 python -m unittest tests.test_charts
 """
-import datetime, os, threading, unittest
+import datetime, os, subprocess, sys, tempfile, threading, unittest
 from unittest import mock
 import numpy as np
-import pandas as pd
 from PIL import Image
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -47,7 +46,7 @@ def line(rows, title='Apple Inc (AAPL) 120 days', subtitle='164.12 USD   ▲ 6.9
 
 def compare_rows():
 	"""Three made-up price series over the same 120 days, as a compare chart's rows."""
-	days = [str(day.date()) for day in pd.date_range('2026-01-01', periods=120)]
+	days = [str(datetime.date(2026, 1, 1) + datetime.timedelta(days=i)) for i in range(120)]
 	return tuple((name, tuple(zip(days, 100 + np.cumsum(np.sin(np.arange(120) / k) + drift))))
 		for name, k, drift in (('AAA', 7, 0.2), ('BBB', 11, -0.1), ('CCC', 5, 0.05)))
 
@@ -344,6 +343,23 @@ class ReportChartInputs(FinbotCase):
 		values = [v for _, v in chart.rows]
 		self.assertEqual((chart.kind, values), ('shorts', sorted(values, reverse=True)))
 		self.assertTrue(all(v > chart.threshold for v in values))
+
+
+class WithoutPandas(unittest.TestCase):
+	def test_every_chart_draws_with_pandas_blocked(self):
+		"""Every kind of chart draws in a process that cannot import pandas: the line charts' dates are plain dates and
+		their closes numpy arrays, which matplotlib takes as they are."""
+		code = ('import sys\nfrom tests import test_charts\nfor draw in test_charts.CHARTS.values(): draw()\n'
+			'print(sorted(test_charts.CHARTS))')
+		with tempfile.TemporaryDirectory() as data:
+			stubs = Path(data, 'stubs')
+			stubs.mkdir()
+			(stubs / 'pandas.py').write_text('raise ImportError("blocked by the test")\n')
+			env = bare_environment()
+			env.update(DATA_DIR=data, PYTHONPATH=str(stubs))
+			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, env=env, capture_output=True, text=True,
+				timeout=120)
+		self.assertEqual(out.stdout.strip().splitlines()[-1:], [str(sorted(CHARTS))], out.stderr)
 
 
 class GoldenImages(unittest.TestCase):

@@ -364,18 +364,15 @@ def price_history(ticker, days=None, quote=None):
 		tuple((str(day), float(last)) for day, last in closes))
 
 def price_series(ticker):
-	"""A ticker's daily closes over 10 years, from the same chart as price_history(): (name, exchange, pandas Series
-	indexed by date). Raises NoData when there is no history."""
-	import pandas as pd
+	"""A ticker's daily closes over 10 years, from the same chart as price_history(): (name, exchange, ((date,
+	close), ...)), oldest first, each date a datetime.date. Raises NoData when there is no history."""
 	data = fetch_chart_json(ticker)
 	meta = dig(data, 'chart', 'result', 0, 'meta') or {}
-	closes = [(day, last) for day, _, last in bars(data) if last is not None]
+	closes = tuple((day, float(last)) for day, _, last in bars(data) if last is not None)
 	if not closes:
 		raise NoData(f"no price history for {ticker}")
-	series = pd.Series([float(last) for _, last in closes], index=pd.to_datetime([str(day) for day, _ in closes]),
-		name=ticker)
 	name = formats.transform_title(meta.get('longName') or meta.get('shortName') or ticker)
-	return name, meta.get('fullExchangeName') or meta.get('exchangeName') or '', series
+	return name, meta.get('fullExchangeName') or meta.get('exchangeName') or '', closes
 
 def fetch_each(get, tickers, workers=8):
 	"""get(ticker) for each ticker, `workers` at a time so the waits overlap: [its result or the exception raised]."""

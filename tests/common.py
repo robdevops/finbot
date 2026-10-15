@@ -1,9 +1,8 @@
 """Shared fixture: points finbot at a temp cache dir and replaces every external service
 (Telegram, Yahoo, Sharesight, Short Man) with canned data. Nothing here touches the network. ProviderCase runs the real
 parsers instead, on the API answers saved under doc/ (sample) as a stand-in network returns them (Resp, serve)."""
-import collections, dataclasses, io, json, os, shutil, sys, tempfile, time, unittest, zoneinfo
+import collections, dataclasses, datetime, io, json, os, shutil, sys, tempfile, time, unittest, zoneinfo
 from pathlib import Path
-import pandas as pd
 from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -146,9 +145,9 @@ class FinbotCase(unittest.TestCase):
 			())))
 		self.patch(yahoo, 'prefetch_history', lambda ts: None)
 		self.patch(yahoo, 'historic_high', lambda t: (100.0, 50.0))
-		dates = pd.date_range(end=pd.Timestamp.today().normalize(), periods=400)
-		self.patch(yahoo, 'price_series',
-			lambda t: ('Co ' + t, 'NASDAQ', pd.Series(range(100, 500), index=dates, name=t, dtype=float)))
+		today = datetime.date.today() # 400 days of closes, to today: 100, 101, ... 499
+		closes = tuple((today - datetime.timedelta(days=399 - i), float(100 + i)) for i in range(400))
+		self.patch(yahoo, 'price_series', lambda t: ('Co ' + t, 'NASDAQ', closes))
 		self.patch(shortman, 'fetch', lambda md: md)
 		held = [{'id': i, 'instrument': {'code': t, 'market_code': 'NASDAQ'}, 'portfolio': {'name': 'Rob'},
 					 'capital_gain_percent': str(i * 4 - 40), 'value': '1000'} for i, t in enumerate(TICKERS)]

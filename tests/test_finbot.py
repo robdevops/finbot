@@ -90,6 +90,17 @@ class Conventions(unittest.TestCase):
 		self.assertGreater(len(files), 60)
 		self.assertEqual(long, [])
 
+	def test_nothing_imports_pandas(self):
+		"""finbot has no use for pandas, which took 0.8 s and 37 MB to load for three small jobs on dated closes: no
+		module imports it, not even inside a function."""
+		files = [*Path(ROOT).glob('*.py'), *Path(ROOT, 'lib').rglob('*.py'), *Path(ROOT, 'util').glob('*.py'),
+			*Path(ROOT, 'tests').glob('*.py')]
+		found = [f'{path.relative_to(ROOT)}:{number}' for path in files
+			for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1)
+			if re.match(r'\s*(import|from) pandas\b', line)]
+		self.assertGreater(len(files), 60)
+		self.assertEqual(found, [])
+
 	def test_the_bot_and_its_reports_print_only_to_stderr(self):
 		"""systemd discards stdout (StandardOutput=null), so only util/ tools, run by hand, may print there."""
 		offenders = []

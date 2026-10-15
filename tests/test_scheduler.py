@@ -657,10 +657,11 @@ class JobsInChat(SchedulerBase):
 class ReportImports(FinbotCase):
 	"""What importing the reports brings in."""
 
-	def test_a_report_script_loads_neither_pandas_nor_the_scheduler(self):
-		"""A report imports only its script: price once pulled in pandas and every script (via charts and jobs)."""
+	def test_a_report_loads_neither_matplotlib_nor_the_scheduler(self):
+		"""A report imports only its own module: price once pulled in every report, through charts and jobs, and the
+		chart code until a chart is drawn."""
 		code = ('import sys; from lib.reports import price, performance, trades, shorts, cal; '
-			'print(sorted(m for m in ("pandas", "lib.jobs", "matplotlib") if m in sys.modules))')
+			'print(sorted(m for m in ("lib.jobs", "matplotlib") if m in sys.modules))')
 		with tempfile.TemporaryDirectory() as data:
 			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True,
 				env={**os.environ, 'DATA_DIR': data})

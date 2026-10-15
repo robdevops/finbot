@@ -49,7 +49,7 @@ posting them to your HTTPS server) before the steps.
 * Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum)
 * Python modules, pinned to versions with 3.13 support in `requirements.txt`:
 ```
-croniter python-dateutil requests pandas matplotlib numpy
+croniter python-dateutil requests matplotlib numpy
 ```
 * For a network in http mode (its webhook URL set), also `waitress` (Debian: `python3-waitress`); for Slack in Socket
   Mode, `websocket-client` (`python3-websocket`); for Discord's gateway, `discord.py` (`python3-discord`), and for its
