@@ -21,7 +21,7 @@ def price_chart(service, period, days, ticker):
 		raise answer.Answer(f"no data found for {ticker}")
 	changes, line = yahoo.price_history(ticker, days)
 	percent = float(changes.get(days, changes.get('Max', next(iter(changes.values()), 0))))
-	link = links.quote_link(ticker, market_data[ticker]['profile_exchange'], service, days=days)
+	link = links.finance_link(ticker, market_data[ticker]['profile_exchange'], service, days=days)
 	title = market_data[ticker]['profile_title']
 	caption = f"{formats.get_emoji(percent)} {title} ({link}) {formats.signed_percent(round(percent))}"
 	return caption, history.line_chart(ticker, changes, line, days)

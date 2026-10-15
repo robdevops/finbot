@@ -109,7 +109,8 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 		if abs(percent) >= threshold or (specific_stock and interactive):
 			exchange = quote['profile_exchange']
 			exchanges.add(markets.exchange_human(exchange))
-			rows.append((ticker, percent, f"{formats.get_emoji(percent)} {quote['profile_title']} ({links.quote_link(ticker, exchange, service, days=days)})"))
+			link = links.finance_link(ticker, exchange, service, days=days)
+			rows.append((ticker, percent, f"{formats.get_emoji(percent)} {quote['profile_title']} ({link})"))
 	if not triggered: # a scheduled report: is there a move big enough for its ticker? Small caps' betas are fetched together
 		details = yahoo.fetch_details([ticker for ticker, _, _ in rows if needs_beta(market_data[ticker])])
 		if not any(abs(percent) >= trigger_bar(ticker, market_data[ticker], threshold, details) for ticker, percent, _ in rows):

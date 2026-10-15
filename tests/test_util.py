@@ -101,6 +101,26 @@ class Formatting(unittest.TestCase):
 		self.assertIsInstance(markets.flag_from_ticker('XYZ.ZZ'), str) # unknown suffix must not crash
 
 
+class Links(FinbotCase):
+	def test_google_links_go_to_yahoo_where_google_has_no_page(self):
+		"""With the google provider an index, a crypto pair and a Taipei listing link to Yahoo; the rest to Google, with
+		the chart window nearest the period."""
+		self.prefs(hyperlinkProvider='google')
+		for symbol, exchange in (('^GSPC', 'SNP'), ('BTC-USD', 'CCC'), ('6488.TWO', 'Taipei Exchange')):
+			with self.subTest(symbol=symbol):
+				self.assertIn('au.finance.yahoo.com/quote/' + symbol, links.finance_link(symbol, exchange, TELEGRAM))
+		month = links.finance_link('BHP.AX', 'ASX', TELEGRAM, days=30)
+		self.assertIn('google.com/finance/quote/BHP:ASX?window=1M', month)
+
+	def test_without_hyperlinks_a_link_is_its_text(self):
+		"""With the hyperlink preference off, either provider shows the link's text: BHP, not BHP.AX."""
+		self.prefs(hyperlink=False)
+		for provider in ('google', 'yahoo'):
+			with self.subTest(provider=provider):
+				self.prefs(hyperlinkProvider=provider)
+				self.assertEqual(links.finance_link('BHP.AX', 'ASX', TELEGRAM), 'BHP')
+
+
 class StateFiles(FinbotCase):
 	def test_json_roundtrip_and_missing_file(self):
 		"""A state file reads back what was saved; a missing one is None."""
