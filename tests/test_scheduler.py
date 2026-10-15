@@ -71,9 +71,11 @@ class CleanupJob(FinbotCase):
 
 class YahooWarmJob(FinbotCase):
 	def setUp(self):
-		"""The real prefetch, Yahoo answering each history with the ticker's name, except T2's, which fails."""
+		"""The real prefetch, Yahoo answering each history with the ticker's name, except T2's, which fails; Sharesight
+		configured."""
 		super().setUp()
 		self.patch(yahoo, 'prefetch_history', PREFETCH_HISTORY)
+		self.env(sharesight_auth={'client_id': 'id'})
 		def answer(ticker, days, full):
 			"""A history that names its ticker; none for T2."""
 			if ticker == 'T2':
@@ -91,9 +93,12 @@ class YahooWarmJob(FinbotCase):
 		self.assertIn(f'yahoo_warm: {len(TICKERS) - 1} of {len(TICKERS)} price histories fetched', log.getvalue())
 
 	def test_without_sharesight_the_watchlist_is_fetched(self):
-		"""While Sharesight cannot be asked for the holdings, the watchlist's histories are fetched."""
+		"""While Sharesight cannot be asked for the holdings, the watchlist's histories are fetched; without Sharesight
+		configured, it is not asked."""
+		asked = []
 		def unreachable():
 			"""Sharesight failing, as watchlist.with_holdings meets it."""
+			asked.append(1)
 			raise RuntimeError('Sharesight auth: down')
 		self.patch(watchlist, 'with_holdings', unreachable)
 		self.patch(watchlist, 'tickers', lambda: ['W1'])
@@ -101,6 +106,8 @@ class YahooWarmJob(FinbotCase):
 			self.assertEqual(yahoo_warm.run(), 1)
 		self.assertEqual(cache.read('finbot_yahoo_history_W1.json'), {'history of': 'W1'})
 		self.assertIn('no holdings from Sharesight', log.getvalue())
+		self.env(sharesight_auth={'client_id': None})
+		self.assertEqual((yahoo_warm.run(), len(asked)), (1, 1))
 
 	def test_with_the_cache_off_nothing_is_fetched(self):
 		"""With the cache preference off nothing would be kept, so nothing is fetched."""
@@ -173,6 +180,36 @@ class SchedulerBase(FinbotCase):
 						   spawn=lambda f, *a: f(*a), zone=UTC, runner=run_in_process)
 		self.assertTrue(s.load())
 		return s
+
+
+class WarmNow(SchedulerBase):
+	def test_the_warm_jobs_run_through_the_scheduler(self):
+		"""warm_now runs both warm jobs through the scheduler, which does not start one that is running already."""
+		warmed = []
+		self.patch(jobs.SCRIPTS['sharesight_warm'], 'run', lambda: warmed.append('sharesight'))
+		self.patch(jobs.SCRIPTS['yahoo_warm'], 'run', lambda: warmed.append('yahoo'))
+		s = self.scheduler()
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			jobs.warm_now(s)
+			s.busy.add('yahoo_warm.py') # on its schedule
+			jobs.warm_now(s)
+		self.assertEqual(warmed, ['sharesight', 'yahoo', 'sharesight'])
+		self.assertIn('cache: filling it again: sharesight_warm.py, yahoo_warm.py', log.getvalue())
+
+	def test_without_a_scheduler_each_runs_in_a_child_process(self):
+		"""With the scheduler off, each warm job runs in a child process of its own, a failure reported."""
+		started = []
+		def child(label, module, kwargs):
+			"""Note the child process started; the second one runs out of time."""
+			started.append(label)
+			if label == 'yahoo_warm.py':
+				raise TimeoutError('still running after 5 minutes')
+			return 0
+		self.patch(jobs, 'run_child', child)
+		with contextlib.redirect_stderr(io.StringIO()):
+			jobs.warm_now()
+		self.assertEqual(started, ['sharesight_warm.py', 'yahoo_warm.py'])
+		self.assertTrue(any('still running after 5 minutes' in e for e in self.errors))
 
 
 class SchedulerTests(SchedulerBase):

@@ -177,13 +177,15 @@ def reload_all(*args):
 
 def flush_cache(*args):
 	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings,
-	schedule). The warm jobs fill it again on their next runs, and any request meanwhile fetches what it needs."""
+	schedule), then fill it again straight away with the warm jobs, in a thread of their own (a reload need not wait
+	for them)."""
 	try:
 		removed = cleanup.run(days=0)
 		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}",
 			file=sys.stderr)
 	except Exception as e:
 		print('ERROR', delivery.error_line(e, 'cache flush'), file=sys.stderr)
+	jobs.start_thread(jobs.warm_now, scheduler)
 
 if __name__ == '__main__':
 	print(f'Starting finbot {git_version()}', file=sys.stderr)

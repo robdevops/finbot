@@ -576,18 +576,18 @@ performance_cache_seconds=2400
 Charts are cached by what they show (with `cache=True`): the same chart, for another chat, a later run or a period button, is drawn once, and a chart of new figures is a new chart, so a cached one is never stale. The scheduled `cleanup.py` removes cache files after 30 days.
 
 To flush the cache, so that everything is fetched afresh, signal the running bot: it deletes its cache files (Yahoo and Sharesight
-answers, charts, the Yahoo cookie) and keeps its state (watchlist, seen trades, ratings, schedule), then refills the Sharesight caches
-at once. There is no `systemctl flush`, since systemctl takes no custom verbs; any of these does it:
+answers, charts, the Yahoo cookie) and keeps its state (watchlist, seen trades, ratings, schedule), then runs both warm jobs
+(`sharesight_warm.py`, `yahoo_warm.py`) straight away to fill the cache again. There is no `systemctl flush`, since systemctl takes no custom verbs; any of these does it:
 ```
 sudo systemctl kill -s USR1 finbot          # systemd
 sudo systemctl start finbot-flush           # the same, once finbot-flush.service is installed (see below)
 docker kill -s USR1 <container>             # Docker
 kill -USR1 <pid of bot.py>                  # anything else
 ```
-The log says `cache: flushed N files`. To install the `finbot-flush` shortcut: `sudo cp -v finbot-flush.service /etc/systemd/system/ &&
+The log says `cache: flushed N files`, then `cache: warm jobs done` once the cache is full again. To install the `finbot-flush` shortcut: `sudo cp -v finbot-flush.service /etc/systemd/system/ &&
 sudo systemctl daemon-reload`. `finbot.service` itself needs no change. With the bot stopped, `cleanup.py 0` deletes the same files.
 
-Two scheduled jobs keep the caches full, each on a fixed interval shorter than the cache lifetime, so that chat requests do not wait on Sharesight or Yahoo (see [Scheduling](#scheduling)): `sharesight_warm.py` fetches the Sharesight portfolio list and each portfolio's holdings report afresh every 30 minutes (`performance_cache_seconds`: 40 minutes), and `yahoo_warm.py` the price history of every stock followed every 8 hours (`cache_seconds`: 12 hours). Neither fetches anything with `cache=False`, and `sharesight_warm.py` nothing without Sharesight configured. A refresh that fails is logged, the previous cache keeps being served while fresh, and the next run tries again. After a flush, the next runs fill the cache again. A data directory with its own `schedule.cron` needs their lines:
+Two scheduled jobs keep the caches full, each on a fixed interval shorter than the cache lifetime, so that chat requests do not wait on Sharesight or Yahoo (see [Scheduling](#scheduling)): `sharesight_warm.py` fetches the Sharesight portfolio list and each portfolio's holdings report afresh every 30 minutes (`performance_cache_seconds`: 40 minutes), and `yahoo_warm.py` the price history of every stock followed every 8 hours (`cache_seconds`: 12 hours). Neither fetches anything with `cache=False`, and `sharesight_warm.py` nothing without Sharesight configured. A refresh that fails is logged, the previous cache keeps being served while fresh, and the next run tries again. A flush runs both at once (see above). A data directory with its own `schedule.cron` needs their lines:
 ```
 14,44 * * * * sharesight_warm.py
 07 */8 * * * yahoo_warm.py

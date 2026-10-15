@@ -35,6 +35,7 @@ SCRIPTS = {'cal': cal, 'cleanup': cleanup, 'milestone': milestone, 'performance'
 current = None # the running Scheduler, set by bot.py; the chat commands use it
 # scheduled, but not run from chat: .jobs lists them under System
 HIDDEN = ('cleanup', 'podcasts', 'sharesight_warm', 'yahoo_warm')
+WARM = 'sharesight_warm.py; yahoo_warm.py' # the jobs that fill the cache, run at once after a flush too
 STATE_FILE = 'finbot_jobs.json' # last fire time of every job, so a restart neither repeats a run nor loses one
 JOB_TIMEOUT = 5 * 60 # seconds each command may run before it is stopped and reported
 IGNORED_VARIABLES = ('MAILTO', 'SHELL', 'PATH', 'HOME', 'LOGNAME')
@@ -79,6 +80,23 @@ def stop(proc):
 def start_thread(target, *args):
 	"""Run target(*args) in a daemon thread of its own (a greenlet, under gevent's monkey patching)."""
 	threading.Thread(target=target, args=args, daemon=True).start()
+
+
+def warm_now(scheduler=None):
+	"""Run the warm jobs (WARM) now, one after the other, each in its own child process: through the scheduler when it
+	runs, so that one already running on its schedule is not started twice; else directly, a failure reported in the
+	chat as the scheduler reports one."""
+	commands = parse_command(WARM)
+	print('cache: filling it again:', ', '.join(label for label, _, _ in commands), file=sys.stderr)
+	if scheduler:
+		scheduler.execute(commands)
+	else:
+		for label, module, kwargs in commands:
+			try:
+				run_child(label, module, kwargs)
+			except Exception as e:
+				delivery.report_error(e, context=label)
+	print('cache: warm jobs done', file=sys.stderr)
 
 
 def exit_reason(status):

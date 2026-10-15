@@ -348,6 +348,18 @@ class SignalHandOff(unittest.TestCase):
 		self.assertEqual(events, ['start', 'end', 'start', 'end']) # never two at once
 
 
+class CacheFlush(FinbotCase):
+	def test_a_flush_fills_the_cache_again_at_once(self):
+		"""Once the cache is deleted, a flush starts the warm jobs, through the scheduler, in a thread of their own."""
+		started = []
+		self.patch(bot.jobs, 'start_thread', lambda target, *args: started.append((target, args)))
+		self.patch(bot, 'scheduler', 'the scheduler')
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			bot.flush_cache()
+		self.assertIn('cache: flushed', log.getvalue())
+		self.assertEqual(started, [(bot.jobs.warm_now, ('the scheduler',))])
+
+
 class StartupSignals(unittest.TestCase):
 	"""A reload (SIGHUP) that arrives while the bot is still starting must not kill it."""
 
@@ -392,6 +404,7 @@ class StartupSignals(unittest.TestCase):
 			for name in cached: # the last: a write in flight
 				(cache / name).write_text('{}')
 			Path(data, 'finbot_watchlist.json').write_text('["T1"]') # state, not cache
+			Path(data, 'preferences.conf').write_text('cache=False\n') # the warm jobs a flush starts fetch nothing
 			env = bare_environment()
 			env.update(DATA_DIR=data, port='0', scheduler='False')
 			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE,
@@ -415,9 +428,10 @@ class StartupSignals(unittest.TestCase):
 			proc.send_signal(signal.SIGUSR1)
 			for line in proc.stderr:
 				lines.append(line)
-				if 'cache: flushed' in line:
+				if 'cache: warm jobs done' in line: # each in a child process, as the scheduler is off
 					break
 			self.assertIn('cache: flushed 2 files', ''.join(lines))
+			self.assertIn('cache: filling it again: sharesight_warm.py, yahoo_warm.py', ''.join(lines))
 			self.assertEqual(sorted(os.listdir(cache)), ['finbot_x.json.abc.tmp', 'matplotlib'])
 			self.assertTrue(Path(data, 'finbot_watchlist.json').exists())
 
