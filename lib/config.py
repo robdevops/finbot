@@ -411,8 +411,7 @@ def startup_report():
 	if os.path.isfile(preferences_path):
 		lines.append(f'{preferences_path} ({keys(len(prefs.source))} set; SIGHUP to reload)')
 	else:
-		lines.append(f'no {PREFERENCES_FILE} in {env.data_dir}, using the defaults; reload will have nothing to'
-			' re-read')
+		lines.append(f'no {PREFERENCES_FILE} in {env.data_dir}, reload unavailable')
 	return lines + retired_notes(os.environ, 'finbot.env') + retired_notes(prefs.source)
 
 

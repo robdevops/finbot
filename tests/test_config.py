@@ -483,6 +483,9 @@ class Startup(unittest.TestCase):
 			with self.subTest(source=source), mock.patch.object(config, 'preferences_path', str(conf)), \
 					mock.patch.object(config, 'prefs', dataclasses.replace(config.prefs, source=source)):
 				self.assertEqual(config.startup_report()[1], f'{conf} ({count} set; SIGHUP to reload)')
+		with mock.patch.object(config, 'preferences_path', str(conf.with_name('missing.conf'))):
+			self.assertEqual(config.startup_report()[1], f'no preferences.conf in {config.env.data_dir}, reload'
+				' unavailable')
 
 
 class SigHup(unittest.TestCase):
