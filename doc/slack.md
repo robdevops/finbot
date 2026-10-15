@@ -1,7 +1,7 @@
 # Slack
 
-finbot reaches Slack through a Slack app of your own, whose bot posts the scheduled reports into a channel, charts and
-all, and answers commands: `.price`, `@finbot price` and the rest ([the list](../README.md#supported-commands)), with
+finbot reaches Slack through a Slack app of your own, whose bot posts each channel's scheduled reports there, charts
+and all, and answers commands: `.price`, `@finbot price` and the rest ([the list](../README.md#supported-commands)), with
 charts in its replies, ⏳ on a command's message while it works (Slack has no typing notice for bots), and period
 buttons under a chart that redraw it in place.
 

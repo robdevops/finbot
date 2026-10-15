@@ -14,7 +14,7 @@
   * Ex-dividend date warnings
   * Highly shorted stock warnings (AU, US)
   * Interday and premarket price movements over a defined threshold
-* Interactive chat commands (Telegram, Slack & Discord):
+* Chat commands (Telegram, Slack & Discord), with no server to host:
   * All the above reports
   * Price history graph
   * Stock lookup with price/valuation related stats and warnings
@@ -45,7 +45,7 @@ posting them to your HTTPS server) before the steps.
 ### Requirements
 * Most features require a Sharesight paid plan, preferably with automatic trade imports, and an API key
 * A Telegram bot, a Slack app or a Discord bot (see the network's guide, above)
-* Commands need no server: finbot fetches its updates from Telegram and Slack (pull mode). In HTTP mode instead, a network posts them to a public web server with a domain name and a matching certificate, which proxies them to the bot (see the [Telegram](doc/telegram.md#http-mode) and [Slack](doc/slack.md#http-mode) guides).
+* No server: finbot fetches its updates from each network itself (pull mode: Telegram's long polling, Slack's Socket Mode, Discord's gateway). In HTTP mode instead, a network posts them to a public web server with a domain name and a matching certificate, which proxies them to the bot (see the [Telegram](doc/telegram.md#http-mode), [Slack](doc/slack.md#http-mode) and [Discord](doc/discord.md#http-mode) guides).
 * Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum)
 * Python modules, pinned to versions with 3.13 support in `requirements.txt`:
 ```
@@ -97,9 +97,9 @@ Where:
 
 Trade notifications are peformed by polling the Sharesight trades API on a schedule (see [Scheduling](#scheduling)), and notifying each chat that schedules them of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 
-The other various reports can also run on a schedule (e.g. daily or weekly), or on demand through the interactive bot. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. A scheduled report posts to the chat whose job it is, and a command's reply to the chat that sent it.
+The other various reports can also run on a schedule (e.g. daily or weekly), or on demand with a command. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. A scheduled report posts to the chat whose job it is, and a command's reply to the chat that sent it.
 
-The interactive bot answers commands in your chats. It fetches its updates from Telegram and Slack itself, with no server to host (pull mode); in HTTP mode instead, a network posts them to a web service you host on a domain with a trusted certificate. It provides:
+The bot answers commands in every chat it is in. It fetches its updates from each network itself, with no server to host (pull mode); in HTTP mode instead, a network posts them to a web service you host on a domain with a trusted certificate. It provides:
 * Stock lookup (financials, company profile, price charts)
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
@@ -139,7 +139,7 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
     * 🔼🔼🔼 revenue increased in all of the past three years
     * 🔻🔺🔻 In the past three years, earnings decreased, increased, then decreased, and was negative for all three years
 
-This report can only be run through the interactive bot. Example usage:
+This report is a command only. Example usage:
 ```
 .AAPL
 ```
@@ -166,7 +166,7 @@ Job (see [Scheduling](#scheduling)), such as `.jobs add */20 * * * Mon-Fri trade
 trades
 ```
 
-Interactive trigger:
+Command:
 ```
 .trades [period]
 ```
@@ -207,7 +207,7 @@ When scheduled, the mode is its argument:
 * If `close` is passed, it reports daily change in stocks whose market closed in the past 3 hours.
 * If an integer [i] is passed, it reports current price against [i] days ago.
 
-Interactive trigger (pre-market):
+Command (pre-market):
 ```
 .premarket [percent]
 ```
@@ -215,7 +215,7 @@ Interactive trigger (pre-market):
 @botname premarket [percent]
 ```
 
-Interactive trigger (mid-session):
+Command (mid-session):
 ```
 .session [percent]
 ```
@@ -223,7 +223,7 @@ Interactive trigger (mid-session):
 @botname session [percent]
 ```
 
-Interactive trigger (interday).
+Command (interday).
 ```
 .price [percent]
 ```
@@ -256,7 +256,7 @@ Job (see [Scheduling](#scheduling)), such as `.jobs add 28 21 * * Sat performanc
 performance [DAYS]
 ```
 
-Interactive trigger:
+Command:
 ```
 .performance [period]
 ```
@@ -264,7 +264,7 @@ Interactive trigger:
 @botname performance [period]
 ```
 
-Interactively, you can also specify a portfolio:
+As a command, it also takes a portfolio:
 ```
 .performance [period] [[portfolio]
 ```
@@ -289,7 +289,7 @@ Job (see [Scheduling](#scheduling)), such as `.jobs add 28 21 * * Sat cal earnin
 cal earnings|ex-dividend
 ```
 
-Interactive trigger (earnings):
+Command (earnings):
 ```
 .earnings [period]
 ```
@@ -297,7 +297,7 @@ Interactive trigger (earnings):
 @botname earnings [period]
 ```
 
-Interactive trigger (ex-dividend):
+Command (ex-dividend):
 ```
 .dividend [period]
 ```
@@ -315,7 +315,7 @@ The `shorts` report sends short interest warnings. The data is sourced from Yaho
 shorts_percent=15
 ```
 
-Interactive trigger:
+Command:
 ```
 .shorts [percent]
 ```
@@ -328,7 +328,7 @@ Interactive trigger:
 
 List securities by P/E ratio, forward P/E ratio, or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `preferences.conf`).
 
-Interactive trigger:
+Command:
 ```
 .pe [SYMBOL]
 .fpe [SYMBOL|bottom|negative]
@@ -346,7 +346,7 @@ Interactive trigger:
 Shows the long term performance of a security.
 It creates a 5Y chart, and then lists performance for several periods (5Y 3Y 1Y 6M 3M 1M 1W 1D)
 
-Interactive trigger:
+Command:
 ```
 .history <symbol>
 ```
@@ -359,7 +359,7 @@ Interactive trigger:
 
 Show top recommended buys by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `preferences.conf`)
 
-Interactive trigger:
+Command:
 ```
 .buy
 ```
@@ -372,7 +372,7 @@ Interactive trigger:
 
 Show top recommended sells by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts
 
-Interactive trigger:
+Command:
 ```
 .sell
 ```
@@ -385,7 +385,7 @@ Interactive trigger:
 
 List the top (or bottom) stocks by market cap, in US dollars: market caps in other currencies are converted at Yahoo's exchange rates. With a symbol, its market cap in its own currency and in US dollars.
 
-Interactive trigger:
+Command:
 ```
 .marketcap [top|bottom|SYMBOL]
 ```
@@ -409,7 +409,7 @@ Tracks additional securities which are not in your Sharesight holdings. Each cha
 
 The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file. The first start with watchlists per chat gives each home chat the watchlist kept before, and the same goes for the plans that `.plan` records: each chat's `.plan` lists only the plans recorded in it.
 
-Interactive trigger:
+Command:
 ```
 .watchlist
 ```

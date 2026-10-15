@@ -1,8 +1,8 @@
 # Discord
 
 finbot talks to Discord as the bot user of a Discord application that you create in the Developer Portal. The bot
-posts the scheduled reports into a channel and answers commands: slash commands (`/price`) in both modes, and messages
-(`.price`, `@finbot price`) over the gateway.
+posts each channel's scheduled reports there and answers commands: slash commands (`/price`) in both modes, and
+messages (`.price`, `@finbot price`) over the gateway.
 
 ## Gateway mode or HTTP mode?
 
