@@ -1,13 +1,16 @@
 """Where a report goes and how: Report, the destinations (the chat that asked, or the default chats), deliver(), and the
-one-line error report. A destination is a transport (lib/transports.py)."""
+one-line error report. A destination is a transport: a network's bot (TelegramBot, SlackBot, DiscordBot)."""
 import dataclasses
 import html
 import sys
 import traceback
 
 from lib import config
+from lib import discord_common
 from lib import net
 from lib import render
+from lib import slack_common
+from lib import telegram_common
 from lib import transports
 
 
@@ -20,7 +23,8 @@ class Report:
 	buttons: list = None
 
 
-REPLIES = {'telegram': transports.TelegramBot, 'slack': transports.SlackBot, 'discord': transports.DiscordBot}
+REPLIES = {'telegram': telegram_common.TelegramBot, 'slack': slack_common.SlackBot,
+	'discord': discord_common.DiscordBot}
 
 
 def reply_to(service, chat, message=None, interaction='', pressed=False):
@@ -53,9 +57,9 @@ def default_chats():
 	its bot. Raises RuntimeError when there is nowhere to post."""
 	env = config.env
 	chats = []
-	for chat, token, kind in ((env.telegramChatID, env.telegramBotToken, transports.TelegramBot),
-			(env.slackChannelID, env.slackBotToken, transports.SlackBot),
-			(env.discordChannelID, env.discordBotToken, transports.DiscordBot)):
+	for chat, token, kind in ((env.telegramChatID, env.telegramBotToken, telegram_common.TelegramBot),
+			(env.slackChannelID, env.slackBotToken, slack_common.SlackBot),
+			(env.discordChannelID, env.discordBotToken, discord_common.DiscordBot)):
 		if chat and token:
 			chats.append(kind(chat))
 			chats[-1].scheduled = True

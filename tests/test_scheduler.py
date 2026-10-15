@@ -471,8 +471,8 @@ class JobsInChat(SchedulerBase):
 		self.s = self.scheduler()
 		self.patch(jobs, 'current', self.s)
 		self.toasts, self.edits = [], []
-		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: self.toasts.append(text))
-		self.patch(transports.TelegramBot, 'edit_text', lambda dest, mid, text, buttons=None:
+		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None: self.toasts.append(text))
+		self.patch(telegram_common.TelegramBot, 'edit_text', lambda dest, mid, text, buttons=None:
 			self.edits.append((dest.where, mid, text, buttons)))
 		self.replies = []
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None:
@@ -626,13 +626,13 @@ class JobsInChat(SchedulerBase):
 		added in http mode is that chat's in pull mode, listed and fired there, and the other way round."""
 		updates = test_sending.EveryNetworkAndMode()
 		updates.updates = 0
-		self.patch(inbound.DISCORD, 'bot_id', '99')
+		self.patch(discord_common.READER, 'bot_id', '99')
 		self.env(slackBotToken='xoxb-1', discordBotToken='x')
 		for network, chat in (('telegram', '-1001'), ('slack', 'C1'), ('discord', '77')):
 			for first, then in (('http', 'pull'), ('pull', 'http')):
 				with self.subTest(network=network, added=first):
 					self.env(**test_sending.EveryNetworkAndMode.MODES[(network, first)])
-					reader = getattr(inbound, network.upper())
+					reader = READERS[network]
 					with contextlib.redirect_stderr(io.StringIO()):
 						answer = bot.take(reader, updates.update(network, first, chat, '.jobs add 0 23 * * * shorts'))
 						if answer.then:

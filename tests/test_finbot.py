@@ -21,8 +21,8 @@ class Plumbing(FinbotCase):
 			posted.append(kwargs['json'])
 			return Response()
 
-		with mock.patch.object(transports.net, 'post', post), mock.patch.object(transports.time, 'sleep', lambda s: 0):
-			results = REAL_TEXT(transports.TelegramBot('5'), ['x' * 60] * 300, {'keyboard': []})
+		with mock.patch.object(net, 'post', post), mock.patch.object(transports.time, 'sleep', lambda s: 0):
+			results = REAL_TEXT(telegram_common.TelegramBot('5'), ['x' * 60] * 300, {'keyboard': []})
 		self.assertGreater(len(results), 1)
 		self.assertEqual(len(posted), len(results))
 		self.assertIn('reply_markup', posted[-1])

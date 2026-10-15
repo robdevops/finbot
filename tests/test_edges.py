@@ -61,8 +61,8 @@ class UpstreamEmpty(FinbotCase):
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
 		typing = []
-		self.patch(transports.TelegramBot, 'post_text', lambda dest, *a, **k: typing.append(dest.is_typing()))
-		self.patch(transports.TelegramBot, 'post_chart', lambda dest, *a, **k: typing.append(dest.is_typing()) or
+		self.patch(telegram_common.TelegramBot, 'post_text', lambda dest, *a, **k: typing.append(dest.is_typing()))
+		self.patch(telegram_common.TelegramBot, 'post_chart', lambda dest, *a, **k: typing.append(dest.is_typing()) or
 			{'ok': True})
 		for cmd in ('.help', '.price', '.trades 7d', '.performance 7d'):
 			with self.subTest(cmd=cmd), contextlib.redirect_stderr(io.StringIO()):
@@ -293,14 +293,15 @@ class SecretsStayOutOfLogs(FinbotCase):
 		def refuse(url, **kwargs):
 			"""Fail like requests does, the URL and headers in the message."""
 			raise ConnectionError(f"Max retries exceeded with url: {url} (headers {kwargs.get('headers')})")
-		self.patch(transports.net, 'post', refuse)
-		self.patch(transports.net, 'request', lambda method, url, **kwargs: refuse(url, **kwargs))
+		self.patch(net, 'post', refuse)
+		self.patch(net, 'request', lambda method, url, **kwargs: refuse(url, **kwargs))
 		token = 'MTAwMDAwMDAwMDAwMDAwMDAwMDA.SECRET.' + 'a' * 38 # a Discord bot token's shape
 		self.env(slackBotToken='xoxb-SECRET', telegram_api=self.SECRET_URL.split('sendMessage')[0],
 			discordBotToken=token)
-		log = self.stderr_of(lambda: transports.TelegramBot('1').post_text('hi'))
-		log += self.stderr_of(lambda: transports.SlackBot('C1').post_text('hi'))
-		log += self.stderr_of(lambda: transports.DiscordBot('77', interaction='42/SECRET-interaction').post_text('hi'))
+		log = self.stderr_of(lambda: telegram_common.TelegramBot('1').post_text('hi'))
+		log += self.stderr_of(lambda: slack_common.SlackBot('C1').post_text('hi'))
+		slash = discord_common.DiscordBot('77', interaction='42/SECRET-interaction')
+		log += self.stderr_of(lambda: slash.post_text('hi'))
 		self.assertIn('failed', log)
 		for secret in ('SECRET-tok_en', 'xoxb-SECRET', 'SECRET-interaction', token):
 			self.assertNotIn(secret, log)
@@ -308,11 +309,11 @@ class SecretsStayOutOfLogs(FinbotCase):
 	def test_the_traceback_of_a_reported_error_is_redacted(self):
 		"""The traceback logged with a reported error is redacted."""
 		self.patch(delivery, 'report_error', REAL_REPORT_ERROR)
-		self.patch(transports.TelegramBot, 'post_text', lambda *a, **k: None)
+		self.patch(telegram_common.TelegramBot, 'post_text', lambda *a, **k: None)
 		try:
 			raise ConnectionError('failed: ' + self.SECRET_URL)
 		except ConnectionError as e:
-			log = self.stderr_of(lambda: delivery.report_error(e, transports.TelegramBot('55'), context='x'))
+			log = self.stderr_of(lambda: delivery.report_error(e, telegram_common.TelegramBot('55'), context='x'))
 		self.assertIn('Traceback', log)
 		self.assertIn('bot<redacted>', log)
 		self.assertNotIn('SECRET-tok_en', log)

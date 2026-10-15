@@ -12,8 +12,9 @@ os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegr
 	telegramChatID='1')
 
 import bot
-from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, render
-from lib import sharesight, shortman, state, telegram, transports, watchlist, worker, yahoo
+from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, net
+from lib import render, sharesight, shortman, state, transports, watchlist, worker, yahoo
+from lib import discord_common, slack_common, telegram_common # each network's reader and bot
 from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating
 from lib.reports import reminder, shorts, trades
 
@@ -51,6 +52,7 @@ REAL_SENDING = ((transports.Transport, 'text', REAL_TEXT), (transports.Transport
 	(delivery, 'report_error', REAL_REPORT_ERROR))
 TICKERS = [f'T{i}' for i in range(25)]
 TELEGRAM, SLACK, DISCORD = dialects.TELEGRAM, dialects.SLACK, dialects.DISCORD
+READERS = {'telegram': telegram_common.READER, 'slack': slack_common.READER, 'discord': discord_common.READER}
 BOT = '@bot'
 
 
@@ -103,7 +105,7 @@ class FinbotCase(unittest.TestCase):
 	def press_button(self, data, chat_id=55, message_id=9):
 		"""Press a button under one of the bot's Telegram messages, as the update arrives: bot.take acknowledges it
 		(answerCallbackQuery) and hands it to the worker, whose thread this waits for."""
-		bot.take(inbound.TELEGRAM, {'callback_query': {'id': 'cb', 'from': {'username': 'u'}, 'data': data,
+		bot.take(telegram_common.READER, {'callback_query': {'id': 'cb', 'from': {'username': 'u'}, 'data': data,
 			'message': {'message_id': message_id, 'chat': {'id': chat_id}}}})
 		self.join_workers()
 
@@ -178,7 +180,7 @@ class FinbotCase(unittest.TestCase):
 		dest.stop_typing()
 		image.seek(0)
 		self.sent.append(('photo', len(image.read()), caption.split('\n')[0]))
-		self.markups.append(transports.TelegramBot.markup(markup) if markup else None)
+		self.markups.append(telegram_common.TelegramBot.markup(markup) if markup else None)
 		return {'ok': True}
 
 	def no_typing_left(self):

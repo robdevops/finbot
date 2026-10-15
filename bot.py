@@ -9,14 +9,19 @@ import collections, dataclasses, json, os, re, sys, threading, traceback
 from pathlib import Path
 
 from lib import config
-from lib import discord
+from lib import discord_common
+from lib import discord_webhook
+from lib import discord_websocket
 from lib import inbound
 from lib import worker
 from lib import jobs
 from lib import migrate
 from lib import net
-from lib import pull
-from lib import telegram
+from lib import slack_webhook
+from lib import slack_websocket
+from lib import telegram_common
+from lib import telegram_longpolling
+from lib import telegram_webhook
 from lib import delivery
 from lib import render
 from lib.reports import cleanup
@@ -24,6 +29,8 @@ from lib.reports import cleanup
 ROUTED = 'finbot.routed' # a request's WSGI environ: the network whose webhook path it came to (the path is a secret)
 AUTHENTICATED = 'finbot.authenticated' # set once it has passed that network's check
 MAX_BODY = 1 << 20 # bytes in a request body, at most: an update from Telegram or Slack takes a few thousand
+WEBHOOKS = (telegram_webhook.WEBHOOK, slack_webhook.WEBHOOK, discord_webhook.WEBHOOK) # HTTP: each network posts
+LISTENERS = (telegram_longpolling.TelegramPoll, slack_websocket.SlackSocket, discord_websocket.DiscordGateway) # pull
 _updates_seen = collections.OrderedDict() # (service, update id) of the last updates taken, oldest first
 _updates_lock = threading.Lock() # updates arrive on several threads: a resent one may race its first copy
 
@@ -41,6 +48,15 @@ def seen_before(service, update_id, keep=1000):
 		if len(_updates_seen) > keep:
 			_updates_seen.popitem(last=False)
 	return False
+
+def route(path):
+	"""The webhook whose path this is, or None."""
+	return next((hook for hook in WEBHOOKS if hook.path() and path == hook.path()), None)
+
+def listeners():
+	"""The listeners finbot.env asks for, each network's with its bot token and no webhook URL (Slack's also needs its
+	app-level token): finbot fetches the updates of those networks itself."""
+	return [kind() for kind in LISTENERS if kind.wanted()]
 
 def main(environ, start_response):
 	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is reported as one
@@ -83,7 +99,7 @@ def handle(environ, start_response):
 	if config.prefs.print_headers:
 		print_headers()
 	path = environ.get('PATH_INFO', '')
-	source = inbound.route(path)
+	source = route(path)
 	if source is None:
 		print("Unknown URI", repr(path), file=sys.stderr)
 		return respond(inbound.NOT_FOUND)
@@ -217,7 +233,7 @@ def flush_cache(*args):
 def http_server():
 	"""The HTTP server for the networks that post to finbot (those whose webhook is set), bound to ip and port, or None
 	when none does. waitress is imported only then. Raises OSError when the port cannot be had."""
-	if not any(hook.path() for hook in inbound.WEBHOOKS):
+	if not any(hook.path() for hook in WEBHOOKS):
 		return None
 	import waitress
 	return waitress.create_server(main, host=config.env.ip, port=config.env.port)
@@ -249,22 +265,23 @@ if __name__ == '__main__':
 	else:
 		print('No webhook is set: finbot takes no HTTP requests', file=sys.stderr)
 	if config.env.telegramBotToken:
-		try:
-			inbound.TELEGRAM.bot_name = telegram.register() # here only: the job processes import lib.telegram too
+		try: # here only, never on import: the webhook set (HTTP mode), or deleted for getUpdates (pull mode)
+			(telegram_webhook if config.env.telegramOutgoingWebhook else telegram_longpolling).register()
+			telegram_common.READER.bot_name = telegram_common.bot_name()
 		except Exception as e:
 			print('ERROR', delivery.error_line(e, 'telegram'), file=sys.stderr)
 			sys.exit(1)
-		telegram.set_commands(worker.slash_commands(aliases=False)) # the menu; /profile and /job work typed
+		telegram_common.set_commands(worker.slash_commands(aliases=False)) # the menu; /profile and /job work typed
 		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
 	if config.env.discordBotToken:
 		try:
-			inbound.DISCORD.bot_id = discord.register(worker.slash_commands())
+			discord_common.READER.bot_id = discord_common.register(worker.slash_commands())
 		except Exception as e:
 			print('ERROR', delivery.error_line(e, 'discord'), file=sys.stderr)
 			sys.exit(1)
 	jobs.current = scheduler # for the .jobs chat command
 	threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
-	for listener in pull.listeners(): # the networks without a webhook: finbot fetches their updates
+	for listener in listeners(): # the networks without a webhook: finbot fetches their updates
 		threading.Thread(target=listener.run, args=(take,), daemon=True).start()
 	# Startup is done. systemctl reload finbot: pick up an edited preferences.conf
 	signal.signal(signal.SIGHUP, in_thread(reload_all))

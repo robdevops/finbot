@@ -10,7 +10,8 @@ reports, run on the offline fixtures of tests/common.py, and compares two record
 
 --keep DIR keeps the two recordings; --full shows changed lines whole. The exit status is 0 when the recordings match,
 1 when they differ."""
-import argparse, contextlib, difflib, hashlib, inspect, io, json, os, random, subprocess, sys, tempfile, unittest
+import argparse, contextlib, difflib, hashlib, importlib, inspect, io, json, os, random, subprocess, sys, tempfile
+import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -64,11 +65,19 @@ def record(output):
 			return lambda: func(*fields)
 		return lambda: func(getattr(common.inbound, kind)(*fields))
 
+	def reader(service):
+		"""The tree's reader of a network's updates: READER in lib/<service>_common.py, or in a commit from before the
+		protocol code was split per network, lib/inbound.py's TELEGRAM, SLACK or DISCORD (None before the readers)."""
+		try:
+			return importlib.import_module(f'lib.{service}_common').READER
+		except ImportError:
+			return getattr(getattr(common, 'inbound', None), service.upper(), None)
+
 	def pressing(service, *fields):
 		"""A step that presses a button: acknowledged first where the tree's bot.take does that (Network.acknowledge),
 		then handed to the worker as handing() does."""
 		run = handing(worker.process_callback, 'Press', service, *fields)
-		network = getattr(getattr(common, 'inbound', None), service.upper(), None)
+		network = reader(service)
 		if not hasattr(network, 'acknowledge'):
 			return run
 		def press():

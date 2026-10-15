@@ -17,7 +17,7 @@ from lib import buttons
 from lib import charts
 from lib.reports import about, cal, holdings, performance, price, profile, rankings, shorts, trades
 from lib import sharesight
-from lib import transports
+from lib import telegram_common
 from lib import jobs
 from lib import watchlist
 from lib import yahoo
@@ -625,7 +625,7 @@ def mark_keyboard(chat_id):
 
 def push_keyboard(chat_id):
 	"""Telegram can only change a reply keyboard by sending a message, so send a short one carrying it."""
-	result = transports.TelegramBot(chat_id).post_text('⌨️ Keyboard updated', command_keyboard())
+	result = telegram_common.TelegramBot(chat_id).post_text('⌨️ Keyboard updated', command_keyboard())
 	if result is not None:
 		mark_keyboard(chat_id)
 	return result

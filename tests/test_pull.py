@@ -3,7 +3,7 @@ webhook's. Telegram's long polling, Slack's Socket Mode."""
 import contextlib, io, json, sys, types, unittest
 from urllib.parse import urlencode
 from tests.common import *
-from lib import pull
+from lib import pull, slack_websocket, telegram_longpolling
 
 
 def callback_query(update_id, data='c|h|y|T1'):
@@ -20,7 +20,7 @@ class TelegramPolling(FinbotCase):
 	"""getUpdates in a loop: each update handed on in order, the next asked for after it, and failures waited out."""
 
 	def setUp(self):
-		"""Telegram in pull mode: a bot token and no webhook URL; telegram.call answers from self.answers."""
+		"""Telegram in pull mode: a bot token and no webhook URL; telegram_common.call answers from self.answers."""
 		super().setUp()
 		self.env(telegramBotToken='123:abc', telegramOutgoingWebhook='')
 		self.calls, self.answers = [], []
@@ -31,7 +31,7 @@ class TelegramPolling(FinbotCase):
 			if isinstance(answer, Exception):
 				raise answer
 			return answer
-		self.patch(telegram, 'call', call)
+		self.patch(telegram_common, 'call', call)
 
 	def test_each_update_is_handed_on_in_order_and_the_next_asked_for_after_it(self):
 		"""Each update goes to take in order; the next getUpdates asks for those after the last (which also tells
@@ -40,10 +40,10 @@ class TelegramPolling(FinbotCase):
 		message = {'update_id': 10, 'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'},
 			'text': '.price'}}
 		self.answers += [[message, callback_query(11)], []]
-		poll = pull.TelegramPoll()
+		poll = telegram_longpolling.TelegramPoll()
 		self.assertEqual(poll.poll(lambda network, update: taken.append((network, update))), 0)
 		self.assertEqual(poll.poll(lambda network, update: taken.append((network, update))), 0)
-		self.assertEqual(taken, [(inbound.TELEGRAM, message), (inbound.TELEGRAM, callback_query(11))])
+		self.assertEqual(taken, [(telegram_common.READER, message), (telegram_common.READER, callback_query(11))])
 		allowed = ['message', 'callback_query']
 		self.assertEqual(self.calls, [
 			('getUpdates', {'json': {'timeout': 50, 'allowed_updates': allowed}, 'timeout': (5, 65)}),
@@ -55,7 +55,7 @@ class TelegramPolling(FinbotCase):
 		conflict = RuntimeError('Telegram getUpdates: Conflict: terminated by other getUpdates request')
 		down = ConnectionError("Max retries exceeded with url: /bot123:SECRET-token/getUpdates")
 		self.answers += [conflict, down, conflict, conflict, conflict, conflict, [], down]
-		poll = pull.TelegramPoll()
+		poll = telegram_longpolling.TelegramPoll()
 		err = io.StringIO()
 		with contextlib.redirect_stderr(err):
 			waits = [poll.poll(lambda *a: None) for _ in range(8)]
@@ -73,7 +73,7 @@ class TelegramPolling(FinbotCase):
 				raise KeyError('chat')
 			taken.append(update['update_id'])
 		self.answers += [[callback_query(20), callback_query(21)], []]
-		poll = pull.TelegramPoll()
+		poll = telegram_longpolling.TelegramPoll()
 		poll.poll(take)
 		poll.poll(take)
 		self.assertEqual(taken, [21])
@@ -83,7 +83,7 @@ class TelegramPolling(FinbotCase):
 	def test_run_polls_for_good_waiting_as_each_round_says(self):
 		"""run() logs the mode, then polls round after round, sleeping what each round returns."""
 		rounds, slept = iter([0, 5, 0]), []
-		poll = pull.TelegramPoll()
+		poll = telegram_longpolling.TelegramPoll()
 		self.patch(poll, 'poll', lambda take: next(rounds))
 		def sleep(seconds):
 			"""Note the wait; end the loop after three."""
@@ -100,18 +100,18 @@ class TelegramPolling(FinbotCase):
 	def test_a_listener_for_each_network_without_a_webhook(self):
 		"""Telegram is polled with its bot token and no telegramOutgoingWebhook; with the URL, or without a token, it
 		is not."""
-		self.assertEqual([type(listener) for listener in pull.listeners()], [pull.TelegramPoll])
+		self.assertEqual([type(listener) for listener in bot.listeners()], [telegram_longpolling.TelegramPoll])
 		self.env(telegramOutgoingWebhook='https://example.com/telegram')
-		self.assertEqual(pull.listeners(), [])
+		self.assertEqual(bot.listeners(), [])
 		self.env(telegramBotToken='', telegramOutgoingWebhook='')
-		self.assertEqual(pull.listeners(), [])
+		self.assertEqual(bot.listeners(), [])
 
 	def test_a_press_polled_for_is_the_press_the_webhook_gets(self):
 		"""The same button press, posted to the webhook (http mode) or polled for (pull mode), reaches the worker as the
 		same Press, and is acknowledged the same way."""
 		presses, toasts = [], []
 		self.patch(worker, 'process_callback', presses.append)
-		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
+		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
 		body = json.dumps(callback_query(80)).encode()
 		with contextlib.redirect_stderr(io.StringIO()):
 			self.env(telegramOutgoingWebhook='https://example.com/telegram')
@@ -120,7 +120,7 @@ class TelegramPolling(FinbotCase):
 			update = callback_query(81)
 			update['callback_query']['id'] = 'q80' # the same press, as getUpdates gives it
 			self.answers.append([update])
-			pull.TelegramPoll().poll(bot.take)
+			telegram_longpolling.TelegramPoll().poll(bot.take)
 		self.join_workers()
 		self.assertEqual(len(presses), 2)
 		self.assertEqual(presses[0], presses[1])
@@ -170,12 +170,12 @@ class SlackSocketMode(FinbotCase):
 		super().setUp()
 		self.env(slackBotToken='xoxb-1', slackAppToken='xapp-1', slackOutgoingWebhook='')
 		self.log = []
-		self.patch(transports, 'slack_api', lambda method, as_app=False, **data:
+		self.patch(slack_common, 'call', lambda method, as_app=False, **data:
 			self.log.append((method, as_app)) or {'ok': True, 'url': 'wss://example.com/link'})
 
 	def socket(self, *messages):
 		"""A SlackSocket whose connections give these messages."""
-		listener = pull.SlackSocket()
+		listener = slack_websocket.SlackSocket()
 		self.patch(listener, 'connect', lambda url: self.log.append(('connect', url)) or FakeSocket(messages, self.log))
 		return listener
 
@@ -206,14 +206,14 @@ class SlackSocketMode(FinbotCase):
 
 	def test_failures_wait_longer_each_time_and_hello_starts_again(self):
 		"""A socket that cannot be opened, or fails, waits longer each time; one that says hello starts again from 5."""
-		self.patch(transports, 'slack_api', mock.Mock(side_effect=RuntimeError('Slack apps.connections.open:'
+		self.patch(slack_common, 'call', mock.Mock(side_effect=RuntimeError('Slack apps.connections.open:'
 			' invalid_auth')))
-		listener = pull.SlackSocket()
+		listener = slack_websocket.SlackSocket()
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			self.assertEqual([listener.poll(lambda *a: None) for _ in range(3)], [5, 10, 20])
 		self.assertIn('slack: opening a socket failed, trying again in 5 s: Slack apps.connections.open:'
 			' invalid_auth', err.getvalue())
-		self.patch(transports, 'slack_api', lambda *a, **k: {'url': 'wss://example.com/link'})
+		self.patch(slack_common, 'call', lambda *a, **k: {'url': 'wss://example.com/link'})
 		self.patch(listener, 'connect', lambda url: FakeSocket([{'type': 'hello'}], self.log))
 		with contextlib.redirect_stderr(io.StringIO()):
 			self.assertEqual(listener.poll(lambda *a: None), 5) # the socket failed, after a hello
@@ -275,7 +275,7 @@ class SlackSocketMode(FinbotCase):
 		stub = types.SimpleNamespace(create_connection=lambda url, timeout: WS(), WebSocketTimeoutException=Timeout,
 			ABNF=types.SimpleNamespace(OPCODE_TEXT=1, OPCODE_CLOSE=8))
 		self.patch(sys, 'modules', {**sys.modules, 'websocket': stub})
-		socket = pull.WebSocket('wss://example.com/link')
+		socket = slack_websocket.WebSocket('wss://example.com/link')
 		self.assertEqual([socket.receive(30) for _ in range(3)], ['{"type": "hello"}', '', None])
 		with self.assertRaises(ConnectionError):
 			socket.receive(30)
@@ -284,12 +284,12 @@ class SlackSocketMode(FinbotCase):
 		"""The socket is opened with the bot and app-level tokens and no slackOutgoingWebhook; with the URL (http mode),
 		or without either token, it is not."""
 		self.env(telegramBotToken='')
-		self.assertEqual([type(listener) for listener in pull.listeners()], [pull.SlackSocket])
+		self.assertEqual([type(listener) for listener in bot.listeners()], [slack_websocket.SlackSocket])
 		for changes in ({'slackOutgoingWebhook': 'https://example.com/slack'}, {'slackAppToken': ''},
 				{'slackBotToken': ''}):
 			with self.subTest(changes=changes):
 				self.env(**changes)
-				self.assertEqual(pull.listeners(), [])
+				self.assertEqual(bot.listeners(), [])
 				self.env(slackBotToken='xoxb-1', slackAppToken='xapp-1', slackOutgoingWebhook='')
 
 

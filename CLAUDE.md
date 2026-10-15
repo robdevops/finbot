@@ -38,19 +38,25 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   record real requests.
 
 ## Code map (open the one file you need)
-- `bot.py`: WSGI entry (route, verify, parse, then a thread of `lib/worker.py` per message or button press), served by
-  waitress only when some network's webhook is set; plain threads, no gevent; SIGHUP reload and SIGUSR1 cache flush,
-  each in a thread. `lib/inbound.py`: a class per network that reads its updates
-  (`Telegram`, `Slack`: a `Message`, a `Press`, or a `Response` given straight back) and acknowledges a press where
-  the network waits for that (`acknowledge`: Telegram's toast), apart from a class per way they arrive
-  (`TelegramWebhook`, `SlackWebhook`: the path, how it proves itself); `bot.take(network, update)` takes an update
-  however it arrived, and is the one place a press is acknowledged (the worker never does). `lib/pull.py`: the pull
-  modes, a listener per network whose webhook URL is not set (`TelegramPoll`: getUpdates; `SlackSocket`: Socket Mode,
-  over websocket-client; `DiscordGateway`: discord.py's raw events), each in a thread of its own handing its updates to
-  `bot.take`, waiting longer after each failure in a row (`backoff`). An answer the network must have before any reply
-  (Discord's deferred interaction) carries the work in its `then`: started once the HTTP answer is sent (`bot.Sent`)
-  or, over the gateway, posted to its callback. `lib/discord.py`: Discord's REST calls (`call`, rate limits waited
-  out) and the slash commands registered at start (`register`, from `worker.slash_commands()`).
+- `bot.py`, which puts the networks together: the WSGI entry (`route()` by path to a network's `WEBHOOK`, verify,
+  parse, then a thread of `lib/worker.py` per message or button press), served by waitress only when some network's
+  webhook is set; the pull listeners that finbot.env asks for (`listeners()`), a thread each; each network registered
+  at start (Telegram's webhook set or deleted, and its menu; Discord's slash commands); plain threads, no gevent;
+  SIGHUP reload and SIGUSR1 cache flush, each in a thread. `bot.take(network, update)` takes an update however it
+  arrived, and is the one place a press is acknowledged (the worker never does). An answer the network must have
+  before any reply (Discord's deferred interaction) carries the work in its `then`: started once the HTTP answer is
+  sent (`bot.Sent`) or, over the gateway, posted to its callback.
+- Each network in three modules, flat in `lib/`. `<network>_common.py`, what both ways in share: the API calls (`call`,
+  `try_call`; Discord's wait out its rate limits), the reader of its updates (`READER`: a `Message`, a `Press`, a
+  `Suggest` or a `Response` given straight back; `acknowledge` where the network waits for that: Telegram's toast,
+  Discord's interaction answer) and its bot (`TelegramBot`, `SlackBot`, `DiscordBot`). `<network>_webhook.py`, the HTTP
+  mode: the path and how a request proves itself (`WEBHOOK`). The pull mode's persistent client, handing its updates
+  to `bot.take`: `telegram_longpolling.py` (`TelegramPoll`: getUpdates), `slack_websocket.py` (`SlackSocket`: Socket
+  Mode, over websocket-client), `discord_websocket.py` (`DiscordGateway`: discord.py's raw events). Telegram's
+  `register()`, in each mode's module, sets the webhook or deletes it; Discord's slash commands are registered at start
+  in both modes (`discord_common.register`, from `worker.slash_commands()`). What no network owns: `lib/inbound.py`
+  (`Message`, `Press`, `Suggest`, `Response`; the `Network` and `Webhook` bases), `lib/pull.py` (the `Listener` base,
+  which waits longer after each failure in a row: `backoff`), `lib/transports.py` (the `Transport` base, below).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
   keywords)`, which also makes `.help`, the Telegram command keyboard, kept current in DMs, and `slash_commands()`, which
   every network gets (Telegram's menu, Slack's manifest from `util/slack_manifest.py`, Discord's registered commands);
@@ -68,12 +74,12 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   Chat-only (`prepare_*`): `about` (.help .jobs), `history` (.history .compare), `holdings` (.holdings .who .pie
   .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, a chat by its key with
-  `chat(key)`, or each network's home chat as its bot), `deliver(dest, report)`, the one-line error report. `lib/transports.py`: a class per network's bot
-  (`TelegramBot`, `SlackBot`, `DiscordBot`), each taking charts and buttons: splitting, captions, charts, buttons,
-  edits, and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the message), which `text()` and
-  `chart()` stop before posting. `DiscordBot`: a slash command's first message replaces its "thinking…" through its
-  `interaction` (application id/token), and a pressed message is edited through the press's. `lib/telegram.py`: Bot API
-  calls (`call`, `try_call`).
+  `chat(key)`, or each network's home chat as its bot), `deliver(dest, report)`, the one-line error report.
+  `lib/transports.py`: `Transport`, the base of each network's bot, every one taking charts and buttons: splitting,
+  captions, charts, buttons, edits, and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the
+  message), which `text()` and `chart()` stop before posting. `DiscordBot`: a slash command's first message replaces
+  its "thinking…" through its `interaction` (application id/token), and a pressed message is edited through the
+  press's.
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), a `.jobs` command's (`job_button`), what a
   pressed button's data asks for (`parse`), and the toast it gets at once (`toast`); each transport draws them.
   `lib/charts.py`: a chart with period buttons, built by its kind's builder (`build`) for the command's first view

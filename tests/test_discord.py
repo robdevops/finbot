@@ -3,7 +3,7 @@ signatures, REST calls and their rate limits, messages with charts and buttons, 
 and the gateway."""
 import contextlib, io, json, sys, types, unittest
 from tests.common import *
-from lib import discord, jobs, net, pull
+from lib import discord_websocket, jobs
 
 try:
 	from nacl.signing import SigningKey
@@ -41,36 +41,36 @@ class Reading(FinbotCase):
 	def setUp(self):
 		"""The bot's user id is 99."""
 		super().setUp()
-		self.patch(inbound.DISCORD, 'bot_id', '99')
+		self.patch(discord_common.READER, 'bot_id', '99')
 
 	def test_a_slash_command_is_the_message_it_stands_for(self):
 		"""/price with its arguments is the message '/price 5 7d', answered through its interaction; in a DM the person
 		is the interaction's user."""
 		expected = inbound.Message('discord', '77', '<@5>', '/price 5 7d', '@99', 'Rob', '', '42/tok')
-		self.assertEqual(inbound.DISCORD.parse(COMMAND), expected)
+		self.assertEqual(discord_common.READER.parse(COMMAND), expected)
 		dm = {k: v for k, v in COMMAND.items() if k != 'member'} | {'user': {'id': '5', 'username': 'rob'}}
-		self.assertEqual(inbound.DISCORD.parse(dm), dataclasses.replace(expected, user_name='rob'))
-		self.assertEqual(inbound.DISCORD.parse({**COMMAND, 'data': {'name': 'beta'}}).text, '/beta')
+		self.assertEqual(discord_common.READER.parse(dm), dataclasses.replace(expected, user_name='rob'))
+		self.assertEqual(discord_common.READER.parse({**COMMAND, 'data': {'name': 'beta'}}).text, '/beta')
 
 	def test_a_press_is_a_press_of_its_message(self):
 		"""A button pressed is a Press of its message, its custom_id the button's data."""
-		self.assertEqual(inbound.DISCORD.parse(PRESS),
+		self.assertEqual(discord_common.READER.parse(PRESS),
 			inbound.Press('discord', '901', '77', '333', 'c|h|y|T1', '@rob', '42/tok'))
 
 	def test_a_message_by_a_person_reads_with_its_mentions_as_slacks(self):
 		"""A gateway message's mentions read as @id, so that '@bot price 7d' calls .price; one by a bot or a webhook
 		(this bot's replies included) is not answered."""
-		message = inbound.DISCORD.parse(MESSAGE)
+		message = discord_common.READER.parse(MESSAGE)
 		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 price 7d', '@99', 'rob', '700'))
 		command, args = worker.read(message.text, message.bot_name)
 		self.assertEqual((command.names[0], args.days), ('price', 7))
 		for other in ({**MESSAGE, 'author': {'id': '99', 'bot': True}}, {**MESSAGE, 'webhook_id': '1'}):
-			self.assertIs(inbound.DISCORD.parse(other), inbound.OK)
+			self.assertIs(discord_common.READER.parse(other), inbound.OK)
 
 	def test_the_endpoints_check_and_other_interactions(self):
 		"""A PING gets its PONG at once; an interaction of another kind is not taken."""
-		self.assertEqual(json.loads(inbound.DISCORD.parse(interaction(1)).body), {'type': 1})
-		self.assertIs(inbound.DISCORD.parse(interaction(5)), inbound.UNSUPPORTED)
+		self.assertEqual(json.loads(discord_common.READER.parse(interaction(1)).body), {'type': 1})
+		self.assertIs(discord_common.READER.parse(interaction(5)), inbound.UNSUPPORTED)
 
 	def test_an_interaction_is_answered_before_its_work_starts(self):
 		"""A slash command is answered "thinking…" and a press with nothing to see, and the work waits in the answer
@@ -78,13 +78,13 @@ class Reading(FinbotCase):
 		taken = []
 		self.patch(worker, 'process_request', taken.append)
 		self.patch(worker, 'process_callback', taken.append)
-		answer = bot.take(inbound.DISCORD, COMMAND)
+		answer = bot.take(discord_common.READER, COMMAND)
 		self.assertEqual(json.loads(answer.body), {'type': 5})
 		self.join_workers()
 		self.assertEqual(taken, [])
 		answer.then()
-		self.assertEqual(json.loads(bot.take(inbound.DISCORD, PRESS).body), {'type': 6})
-		self.assertIs(bot.take(inbound.DISCORD, MESSAGE), inbound.OK)
+		self.assertEqual(json.loads(bot.take(discord_common.READER, PRESS).body), {'type': 6})
+		self.assertIs(bot.take(discord_common.READER, MESSAGE), inbound.OK)
 		self.join_workers()
 		self.assertEqual([event.text if isinstance(event, inbound.Message) else event.data for event in taken],
 			['/price 5 7d', '@99 price 7d'])
@@ -161,9 +161,9 @@ class Sending(FinbotCase):
 		self.calls, self.answers = [], []
 		def request(method, url, **kwargs):
 			"""Note the call, and give the next answer."""
-			self.calls.append((method, url.removeprefix(discord.API), kwargs))
+			self.calls.append((method, url.removeprefix(discord_common.API), kwargs))
 			return self.answers.pop(0) if self.answers else Resp({'id': '1'})
-		self.patch(discord.net, 'request', request)
+		self.patch(net, 'request', request)
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
 
@@ -172,7 +172,7 @@ class Sending(FinbotCase):
 		blurple, and past 25 they are left out."""
 		row = [buttons.Button(f'B{i}', f'c|h|w|{i}', active=i == 0) for i in range(12)]
 		with contextlib.redirect_stderr(io.StringIO()):
-			transports.DiscordBot('77').text(['hello'], [row[:7], row[7:]])
+			discord_common.DiscordBot('77').text(['hello'], [row[:7], row[7:]])
 		method, path, kwargs = self.calls[0]
 		self.assertEqual((method, path), ('POST', '/channels/77/messages'))
 		payload = kwargs['json']
@@ -180,12 +180,12 @@ class Sending(FinbotCase):
 			{'parse': []}))
 		self.assertEqual([len(r['components']) for r in payload['components']], [5, 5, 2])
 		self.assertEqual([b['style'] for b in payload['components'][0]['components']], [1, 2, 2, 2, 2])
-		self.assertEqual(len(transports.components([[buttons.Button('x', 'y')] * 30])), 5)
+		self.assertEqual(len(discord_common.components([[buttons.Button('x', 'y')] * 30])), 5)
 
 	def test_a_chart_is_attached_to_its_report(self):
 		"""A chart goes as an attachment of the message that carries the report and the buttons."""
 		with contextlib.redirect_stderr(io.StringIO()):
-			transports.DiscordBot('77').chart(io.BytesIO(b'png'), 'caption', [[buttons.Button('7D', 'c|h|w|T1')]])
+			discord_common.DiscordBot('77').chart(io.BytesIO(b'png'), 'caption', [[buttons.Button('7D', 'c|h|w|T1')]])
 		method, path, kwargs = self.calls[0]
 		payload = json.loads(kwargs['data']['payload_json'])
 		self.assertEqual((method, path, payload['content'], payload['attachments']), ('POST', '/channels/77/messages',
@@ -196,7 +196,7 @@ class Sending(FinbotCase):
 	def test_a_slash_commands_answer_replaces_its_thinking_and_the_rest_follow_up(self):
 		"""A slash command's first message replaces Discord's "thinking…", through its interaction, and the rest
 		follow it up; there is no typing notice besides."""
-		chat = transports.DiscordBot('77', interaction='42/tok')
+		chat = discord_common.DiscordBot('77', interaction='42/tok')
 		self.assertFalse(chat.shows_typing)
 		with contextlib.redirect_stderr(io.StringIO()):
 			chat.text(['x' * 1500, 'y' * 1500])
@@ -208,7 +208,7 @@ class Sending(FinbotCase):
 	def test_a_slash_command_that_says_nothing_has_its_thinking_deleted(self):
 		"""A slash command over without a word, or one that reads as no command, has its "thinking…" deleted, or it
 		would show for 15 minutes."""
-		transports.DiscordBot('77', interaction='42/tok').typing_done()
+		discord_common.DiscordBot('77', interaction='42/tok').typing_done()
 		worker.process_request(inbound.Message('discord', '77', '<@5>', '/nothing@else', '@99', 'Rob', '', '42/t2'))
 		self.assertEqual([(m, p) for m, p, _ in self.calls], [('DELETE', '/webhooks/42/tok/messages/@original'),
 			('DELETE', '/webhooks/42/t2/messages/@original')])
@@ -216,7 +216,7 @@ class Sending(FinbotCase):
 	def test_a_press_edits_its_message_through_its_interaction(self):
 		"""A press edits its message through its own interaction (a message that answered a slash command can be
 		edited only so); a new message about it goes into the channel."""
-		chat = transports.DiscordBot('77', interaction='42/tok', pressed=True)
+		chat = discord_common.DiscordBot('77', interaction='42/tok', pressed=True)
 		chat.edit_chart('333', io.BytesIO(b'png'), 'caption', [[buttons.Button('1Y', 'c|h|y|T1', True)]])
 		chat.edit_text('333', 'list', [])
 		with contextlib.redirect_stderr(io.StringIO()):
@@ -229,7 +229,7 @@ class Sending(FinbotCase):
 
 	def test_a_command_in_a_message_shows_typing(self):
 		"""A command in a message (the gateway's) shows "typing…" in its channel."""
-		chat = transports.DiscordBot('77', '700')
+		chat = discord_common.DiscordBot('77', '700')
 		self.assertTrue(chat.shows_typing)
 		chat.typing()
 		self.assertEqual(self.calls[0][:2], ('POST', '/channels/77/typing'))
@@ -238,18 +238,18 @@ class Sending(FinbotCase):
 		"""A 429 waits as long as Discord asks, then tries again, three times at most; a refusal raises with Discord's
 		reason; the token in an interaction's path is never logged."""
 		slept = []
-		self.patch(discord.time, 'sleep', slept.append)
+		self.patch(discord_common.time, 'sleep', slept.append)
 		self.answers += [Resp({'retry_after': 0.25}, 429), Resp({'id': '5'})]
-		self.assertEqual(discord.call('GET', '/users/@me'), {'id': '5'})
+		self.assertEqual(discord_common.call('GET', '/users/@me'), {'id': '5'})
 		self.assertEqual(slept, [0.25])
 		self.answers += [Resp({'retry_after': 99}, 429)] * 3
 		with self.assertRaisesRegex(RuntimeError, '429'):
-			discord.call('GET', '/users/@me')
+			discord_common.call('GET', '/users/@me')
 		self.assertEqual(slept, [0.25, 10, 10])
 		self.answers.append(Resp({'message': 'Missing Access', 'code': 50001}, 403))
 		err = io.StringIO()
 		with contextlib.redirect_stderr(err):
-			self.assertIsNone(discord.try_call('PATCH', '/webhooks/42/s3cret-token/messages/@original'))
+			self.assertIsNone(discord_common.try_call('PATCH', '/webhooks/42/s3cret-token/messages/@original'))
 		self.assertIn('403 Missing Access (50001)', err.getvalue())
 		self.assertNotIn('s3cret-token', err.getvalue())
 
@@ -296,7 +296,8 @@ class Commands(FinbotCase):
 	def test_a_command_with_words_to_suggest_asks_for_suggestions(self):
 		"""The arguments of a command with words to suggest ask Discord for suggestions as they are typed; /plan's,
 		free text, do not, and a command without arguments has none."""
-		registered = {entry['name']: entry for entry in (discord.command(*each) for each in worker.slash_commands())}
+		commands = (discord_common.command(*each) for each in worker.slash_commands())
+		registered = {entry['name']: entry for entry in commands}
 		for name, completes in (('price', True), ('stock', True), ('jobs', True), ('performance', True),
 				('pie', True), ('plan', False)):
 			with self.subTest(name=name):
@@ -305,25 +306,25 @@ class Commands(FinbotCase):
 
 	def test_registering_replaces_the_commands_only_when_they_differ(self):
 		"""Registering puts the commands only when Discord's differ from them, and gives the bot's user id."""
-		wanted = [discord.command('price', 'price [period]', '[period]')]
+		wanted = [discord_common.command('price', 'price [period]', '[period]')]
 		calls = []
 		def call(method, path, **kwargs):
 			"""Answer as Discord would, the commands as registered now."""
 			calls.append((method, path))
 			return {'/applications/@me': {'id': '42'}, '/users/@me': {'id': '99'}}.get(path, registered)
-		self.patch(discord, 'call', call)
+		self.patch(discord_common, 'call', call)
 		registered = [{**wanted[0], 'id': '1', 'version': '2', 'application_id': '42'}]
-		self.assertEqual(discord.register([('price', 'price [period]', '[period]')]), '99')
+		self.assertEqual(discord_common.register([('price', 'price [period]', '[period]')]), '99')
 		self.assertNotIn(('PUT', '/applications/42/commands'), calls)
 		registered = []
 		with contextlib.redirect_stderr(io.StringIO()):
-			discord.register([('price', 'price [period]', '[period]')])
+			discord_common.register([('price', 'price [period]', '[period]')])
 		self.assertIn(('PUT', '/applications/42/commands'), calls)
 
 	def test_help_on_discord_lists_the_slash_commands(self):
 		""".help on Discord lists each command as its slash command, which works in both modes; the messages that also
 		work are given only over the gateway."""
-		self.patch(inbound.DISCORD, 'bot_id', '99')
+		self.patch(discord_common.READER, 'bot_id', '99')
 		sent = []
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None: sent.append(lines) or [])
 		message = inbound.Message('discord', '77', '<@5>', '/help', '@99', 'Rob', '', '42/tok')
@@ -461,9 +462,9 @@ class Gateway(FinbotCase):
 			Intents=types.SimpleNamespace(default=lambda: intents))
 		self.library = library
 		self.patch(sys, 'modules', {**sys.modules, 'discord': library})
-		self.patch(pull, 'threading', types.SimpleNamespace(Thread=Now)) # the listener's threads only
+		self.patch(discord_websocket, 'threading', types.SimpleNamespace(Thread=Now)) # the listener's threads only
 		self.calls = []
-		self.patch(discord, 'call', lambda method, path, **kwargs: self.calls.append((method, path, kwargs)))
+		self.patch(discord_common, 'call', lambda method, path, **kwargs: self.calls.append((method, path, kwargs)))
 
 	def test_messages_and_interactions_are_taken_and_an_interaction_answered_first(self):
 		"""The client asks for the message intents and raw events; MESSAGE_CREATE and INTERACTION_CREATE go to take, the
@@ -478,7 +479,7 @@ class Gateway(FinbotCase):
 			return inbound.OK
 		FakeClient.raw = [{'op': 11}, {'op': 0, 't': 'READY', 'd': {}},
 			{'op': 0, 't': 'MESSAGE_CREATE', 'd': MESSAGE}, {'op': 0, 't': 'INTERACTION_CREATE', 'd': COMMAND}]
-		listener = pull.DiscordGateway()
+		listener = discord_websocket.DiscordGateway()
 		listener.failures = 3
 		err = io.StringIO()
 		with contextlib.redirect_stderr(err):
@@ -495,7 +496,7 @@ class Gateway(FinbotCase):
 		"""Over the gateway, the suggestions for what is being typed go to the interaction's callback."""
 		FakeClient.raw = [{'op': 0, 't': 'INTERACTION_CREATE', 'd': TYPING}]
 		with contextlib.redirect_stderr(io.StringIO()):
-			pull.DiscordGateway().poll(bot.take)
+			discord_websocket.DiscordGateway().poll(bot.take)
 		self.assertEqual(self.calls, [('POST', '/interactions/902/tok/callback', {'json': {'type': 8, 'data': {
 			'choices': [{'name': '5 7d', 'value': '5 7d'}]}}})])
 
@@ -516,7 +517,7 @@ class Gateway(FinbotCase):
 			self.patch(bot, '_updates_seen', collections.OrderedDict()) # a restart in the other mode
 			self.env(discordOutgoingWebhook='')
 			FakeClient.raw = [{'op': 0, 't': 'INTERACTION_CREATE', 'd': PRESS}]
-			pull.DiscordGateway().poll(bot.take)
+			discord_websocket.DiscordGateway().poll(bot.take)
 		self.join_workers()
 		self.assertEqual(len(presses), 2)
 		self.assertEqual(presses[0], presses[1])
@@ -526,11 +527,11 @@ class Gateway(FinbotCase):
 		"""The gateway is used with the bot token and no discordOutgoingWebhook; with the URL (http mode), or without
 		the token, it is not."""
 		self.env(telegramBotToken='')
-		self.assertEqual([type(listener) for listener in pull.listeners()], [pull.DiscordGateway])
+		self.assertEqual([type(listener) for listener in bot.listeners()], [discord_websocket.DiscordGateway])
 		self.env(discordOutgoingWebhook='https://example.com/discord')
-		self.assertEqual(pull.listeners(), [])
+		self.assertEqual(bot.listeners(), [])
 		self.env(discordOutgoingWebhook='', discordBotToken='')
-		self.assertEqual(pull.listeners(), [])
+		self.assertEqual(bot.listeners(), [])
 
 
 if __name__ == '__main__':

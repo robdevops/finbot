@@ -367,7 +367,7 @@ class ScheduledReports(FinbotCase):
 		"""The scheduled earnings report is pinned on Telegram; a reply to .earnings is not, or the chat would collect
 		pinned copies, and neither is the ex-dividend report."""
 		pins = []
-		self.patch(transports.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
+		self.patch(telegram_common.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
 		self.command('.earnings')
 		self.assertEqual(pins, [])
 		self.env(telegramChatID='1')
@@ -380,14 +380,14 @@ class ScheduledReports(FinbotCase):
 		where a command's reply says so, and the earnings report is pinned. price, shorts and cal took any chat they
 		were given for a command."""
 		pins = []
-		self.patch(transports.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
+		self.patch(telegram_common.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
 		job_chat = delivery.chat('telegram:5', scheduled=True)
 		for module, kwargs in ((price, {'mode': 'premarket', 'threshold': 1000}), (shorts, {'threshold': 1000})):
 			with self.subTest(report=module.__name__):
 				self.sent.clear()
 				module.run(job_chat, **kwargs)
 				self.assertEqual(self.sent, [])
-				module.run(transports.TelegramBot('5'), **kwargs) # a command's reply says that nothing passed
+				module.run(telegram_common.TelegramBot('5'), **kwargs) # a command's reply says that nothing passed
 				self.assertTrue(self.sent)
 		cal.run(job_chat, event='earnings')
 		self.assertEqual(pins, ['5'])
@@ -404,7 +404,7 @@ class ScheduledReports(FinbotCase):
 
 	def test_trades(self):
 		""".trades run from a chat posts."""
-		trades.run(transports.TelegramBot('5'))
+		trades.run(telegram_common.TelegramBot('5'))
 		self.assertTrue(self.sent)
 
 	def test_a_trade_is_in_its_market_currency_not_the_brokerage_one(self):
@@ -506,7 +506,7 @@ class ScheduledReports(FinbotCase):
 
 	def test_rating(self):
 		""".rating run from a chat posts."""
-		rating.run(transports.TelegramBot('5'))
+		rating.run(telegram_common.TelegramBot('5'))
 		self.assertTrue(self.sent)
 
 	def test_rating_keeps_the_last_rating_of_a_ticker_missing_from_a_run(self):
@@ -523,7 +523,7 @@ class ScheduledReports(FinbotCase):
 
 	def test_an_interactive_rating_records_nothing(self):
 		"""A rating report asked for in a chat leaves the record for the scheduled runs alone."""
-		rating.run(transports.TelegramBot('5'))
+		rating.run(telegram_common.TelegramBot('5'))
 		self.assertIsNone(state.load(rating.STATE_FILE))
 
 	def test_scheduled_reports_reach_each_home_chat_with_its_own_token(self):
@@ -541,7 +541,7 @@ class ScheduledReports(FinbotCase):
 				data.get('channel') or data.get('channel_id') or data.get('chat_id')))
 			return mock.Mock(status_code=200, text='OK', json=lambda: {'ok': True, 'upload_url': 'https://files.x/u',
 				'file_id': 'F1', 'ts': '1.5', 'result': {'message_id': 1, 'chat': {'id': 1}}})
-		self.patch(transports.net, 'post', post)
+		self.patch(net, 'post', post)
 		for report in (price.run, shorts.run, milestone.run):
 			with self.subTest(report=report):
 				posts.clear()
@@ -621,9 +621,9 @@ class PeriodButtons(FinbotCase):
 	def press(self, data):
 		"""Press a period button: (the edits made, the toasts shown)."""
 		edits, toasts = [], []
-		self.patch(transports.TelegramBot, 'edit_chart', lambda dest, msg, img, caption, buttons=None:
-			edits.append((caption.split('\n')[0], transports.TelegramBot.markup(buttons))))
-		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
+		self.patch(telegram_common.TelegramBot, 'edit_chart', lambda dest, msg, img, caption, buttons=None:
+			edits.append((caption.split('\n')[0], telegram_common.TelegramBot.markup(buttons))))
+		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
 		self.press_button(data)
 		return edits, toasts
 

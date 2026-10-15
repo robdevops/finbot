@@ -95,7 +95,7 @@ class WsgiRejections(FinbotCase):
 		def broken(*a, **k):
 			"""Fail while routing."""
 			raise RuntimeError('boom')
-		self.patch(inbound, 'urlparse', broken) # fails while routing, before the secret is even looked at
+		self.patch(bot, 'route', broken) # fails while routing, before the secret is even looked at
 		env = wsgi_environ('/telegram', b'{}', **self.SECRET)
 		status = []
 		with contextlib.redirect_stderr(io.StringIO()) as err:
@@ -147,8 +147,8 @@ class WsgiRejections(FinbotCase):
 			'event': {'type': 'message', 'channel': 'C1', 'user': 'U1', 'text': '.trades', 'ts': '1.2'}}
 		with contextlib.redirect_stderr(io.StringIO()):
 			for _ in range(2):
-				self.assertEqual(bot.take(inbound.TELEGRAM, {'update_id': 70, 'message': message}), inbound.OK)
-				self.assertEqual(bot.take(inbound.SLACK, event), inbound.OK)
+				self.assertEqual(bot.take(telegram_common.READER, {'update_id': 70, 'message': message}), inbound.OK)
+				self.assertEqual(bot.take(slack_common.READER, event), inbound.OK)
 		self.join_workers()
 		self.assertEqual([(m.service, m.chat_id, m.text) for m in got], [('telegram', '5', '.price'),
 			('slack', 'C1', '.trades')])
@@ -172,15 +172,16 @@ class WsgiRejections(FinbotCase):
 		worker has it; a resent copy is neither acknowledged nor run again. Slack's needs no call: the answer to the
 		update is the acknowledgement."""
 		order = []
-		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: order.append(('acknowledged', cid, text)))
+		self.patch(telegram_common, 'answerCallbackQuery',
+			lambda cid, text=None: order.append(('acknowledged', cid, text)))
 		self.patch(worker, 'process_callback', lambda press: order.append(('worker', press.service, press.data)))
 		update = {'update_id': 71, 'callback_query': {'id': 'q1', 'from': {'username': 'u'}, 'data': 'c|h|y|T1',
 			'message': {'message_id': 9, 'chat': {'id': 55}}}}
 		with contextlib.redirect_stderr(io.StringIO()):
 			for _ in range(2):
-				self.assertEqual(bot.take(inbound.TELEGRAM, update), inbound.OK)
+				self.assertEqual(bot.take(telegram_common.READER, update), inbound.OK)
 				self.join_workers()
-			self.assertEqual(bot.take(inbound.SLACK, PRESS), inbound.OK)
+			self.assertEqual(bot.take(slack_common.READER, PRESS), inbound.OK)
 		self.join_workers()
 		self.assertEqual(order, [('acknowledged', 'q1', 'Loading 1Y…'), ('worker', 'telegram', 'c|h|y|T1'),
 			('worker', 'slack', 'c|h|w|T1')])
@@ -273,9 +274,9 @@ class SlackEvents(FinbotCase):
 
 	def test_slack_does_not_change_the_telegram_bot_name(self):
 		"""A Slack event leaves the Telegram bot's name alone."""
-		self.patch(inbound.TELEGRAM, 'bot_name', '@finbot_tg')
+		self.patch(telegram_common.READER, 'bot_name', '@finbot_tg')
 		self.event(user='U1', text='.price')
-		self.assertEqual(inbound.TELEGRAM.bot_name, '@finbot_tg')
+		self.assertEqual(telegram_common.READER.bot_name, '@finbot_tg')
 
 
 class SlackSigning(FinbotCase):
