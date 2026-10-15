@@ -127,6 +127,17 @@ def _convert(convert, value):
 	except (TypeError, ValueError, OverflowError):
 		return None
 
+def _cached(name, seconds, get, *args):
+	"""get(*args), Yahoo's answer as sent: from the cache file `name` while it is under `seconds` old (cache_seconds
+	when None) and the cache preference is on, else fetched and written there unless empty. Cached raw, not parsed, so
+	that a parser fix needs no flush."""
+	if config.prefs.cache and (cached := cache.read(name, seconds)):
+		return cached
+	data = get(*args)
+	if data and config.prefs.cache:
+		cache.write(name, data)
+	return data
+
 QUOTE_FIELDS = ( # (key, Yahoo's name, conversion) for the fields of a v7 quote; one Yahoo leaves out, sends as null or garbles is left out
 	('percent_change', 'regularMarketChangePercent', _round2),
 	('dividend', 'trailingAnnualDividendRate', lambda v: round(float(v), 1)),
@@ -153,21 +164,14 @@ def fetch(tickers):
 		print("no tickers provided to yahoo.fetch()", file=sys.stderr)
 		return {}
 	tickers = sorted(set(tickers)) # de-dupe
-	cacheFile = "finbot_yahoo_" + hashlib.sha256("_".join(tickers).encode()).hexdigest() + '.json'
-	if config.prefs.cache and (cached := cache.read(cacheFile, 300)):
-		return cached
-	cookie, crumb = credentials()
-	r = _get_first(_hosts('/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)), {**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie})
-	if r is None:
-		print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
-		raise RuntimeError("Yahoo API unavailable")
-	data = r.json()['quoteResponse']
-	if data['result'] is None or data['error'] is not None:
+	name = "finbot_yahoo_quote_" + hashlib.sha256("_".join(tickers).encode()).hexdigest() + '.json'
+	data = _cached(name, 300, _quote_answer, tickers)
+	if data is None:
 		print(f"{tickers}†", sep=' ', end='', flush=True, file=sys.stderr)
 		return {} # callers iterate the result
 	now = datetime.datetime.now().timestamp()
 	yahoo_output = {}
-	for item in data['result']:
+	for item in data['quoteResponse']['result']:
 		title = next((name for name in (item.get('longName'), item.get('shortName')) if isinstance(name, str) and name), None)
 		if not title or item.get('regularMarketPrice') is None:
 			continue
@@ -180,9 +184,19 @@ def fetch(tickers):
 		if stamps: # the first still to come, else the announced date
 			quote['earnings_date'] = next((stamp for stamp in stamps if stamp > now), stamps[0])
 		yahoo_output[item['symbol']] = quote
-	if config.prefs.cache:
-		cache.write(cacheFile, yahoo_output)
 	return yahoo_output
+
+def _quote_answer(tickers):
+	"""The v7 answer for the tickers, None for an error (not cached); raises RuntimeError when Yahoo is unreachable."""
+	cookie, crumb = credentials()
+	query = '/v7/finance/quote?crumb=' + crumb + '&symbols=' + ','.join(tickers)
+	r = _get_first(_hosts(query), {**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie})
+	if r is None:
+		print("Exhausted Yahoo API attempts. Giving up", file=sys.stderr)
+		raise RuntimeError("Yahoo API unavailable")
+	data = r.json()
+	quotes = data['quoteResponse']
+	return data if quotes['result'] is not None and quotes['error'] is None else None
 
 DETAIL_FIELDS = ( # (key, path in the quoteSummary result[, conversion]); a field Yahoo leaves out, sends as null or garbles is left out
 	('profile_bio', ('summaryProfile', 'longBusinessSummary')),
@@ -236,21 +250,11 @@ DETAIL_FIELDS = ( # (key, path in the quoteSummary result[, conversion]); a fiel
 RECOMMENDATION = ('recommend', 'recommend_index', 'recommend_analysts') # all three, or none
 
 def fetch_detail(ticker, seconds=None):
-	"""quoteSummary for one ticker: {ticker: {...}}, or {} when Yahoo has nothing usable (no name or no price)."""
-	if seconds is None:
-		seconds = config.prefs.cache_seconds
+	"""One ticker's quoteSummary: {ticker: {...}}, cached `seconds` (or cache_seconds); {} without a name or price."""
 	now = datetime.datetime.now()
-	cacheFile = "finbot_yahoo_detail_" + ticker + '.json'
-	data = cache.read(cacheFile, seconds) if config.prefs.cache else None
-	if not data:
-		cookie, crumb = credentials() # only on a miss: a cached detail needs neither, nor the lock
-		modules = 'calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,summaryDetail,price,earnings,earningsTrend,insiderTransactions'
-		r = _get_first(_hosts('/v10/finance/quoteSummary/' + ticker + '?modules=' + modules + '&crumb=' + crumb), {**HEADERS, 'Cookie': cookie})
-		if r is None:
-			return {} # catches some delisted stocks like "DRNA"
-		data = r.json()
-		if config.prefs.cache:
-			cache.write(cacheFile, data)
+	data = _cached("finbot_yahoo_detail_" + ticker + '.json', seconds, _detail_answer, ticker)
+	if data is None:
+		return {} # catches some delisted stocks like "DRNA"
 	result = dig(data, 'quoteSummary', 'result', 0)
 	if result is None: # Yahoo answers result=null for unknown symbols
 		print(ticker + 'x', sep=' ', end='', flush=True, file=sys.stderr)
@@ -307,6 +311,16 @@ def fetch_detail(ticker, seconds=None):
 		detail['insiderSell'], detail['insiderSellValue'] = totals['Sale']
 	return {ticker: dict(sorted(detail.items()))}
 
+DETAIL_MODULES = ('calendarEvents,defaultKeyStatistics,balanceSheetHistoryQuarterly,financialData,summaryProfile,'
+	'summaryDetail,price,earnings,earningsTrend,insiderTransactions') # the quoteSummary modules fetch_detail reads
+
+def _detail_answer(ticker):
+	"""Yahoo's quoteSummary answer for one ticker, with every module finbot reads, or None when no host gives one."""
+	cookie, crumb = credentials() # only on a miss: a cached detail needs neither, nor the lock
+	query = '/v10/finance/quoteSummary/' + ticker + '?modules=' + DETAIL_MODULES + '&crumb=' + crumb
+	r = _get_first(_hosts(query), {**HEADERS, 'Cookie': cookie})
+	return None if r is None else r.json()
+
 class Line(typing.NamedTuple):
 	"""The prices behind a price_history, for its chart: the company's name, Yahoo's full name for its exchange (as
 	fetch() gives profile_exchange), the currency, the current price (else the last close) and the closes over the span,
@@ -322,11 +336,9 @@ class NoData(answer.Answer, RuntimeError):
 	"""Yahoo has nothing for it (no such symbol, no prices): a reply in a chat, a RuntimeError where a list skips it."""
 
 
-def price_history(ticker, days=None, seconds=None):
+def price_history(ticker, days=None):
 	"""({period: percent change}, its Line): the change over `days`, else over each standard period, and the closes
 	behind it, for a chart. Raises NoData when there are no prices, RuntimeError when the history cannot be fetched."""
-	if seconds is None:
-		seconds = config.prefs.cache_seconds
 	import pandas as pd
 	from pandas.tseries.offsets import BDay as businessday
 	percent_dict = {}
@@ -454,15 +466,16 @@ def prefetch_history(tickers, workers=8):
 def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
 	"""Yahoo's daily chart for the last `days`, or with full=True its entire history (cached separately). Raises NoData
 	for a symbol Yahoo does not know, RuntimeError when Yahoo cannot be reached or refuses."""
-	if seconds is None:
-		seconds = config.prefs.cache_seconds
+	name = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
+	return _cached(name, seconds, _chart_answer, ticker, days, full)
+
+def _chart_answer(ticker, days, full):
+	"""The v8 chart answer: daily bars of the last `days`, or all with full=True. Raises as fetch_chart_json does."""
 	now = datetime.datetime.now()
-	cacheFile = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
-	if config.prefs.cache and (cached := cache.read(cacheFile, seconds)):
-		return cached
 	cookie, crumb = credentials()
 	start = '0' if full else str(int((now - datetime.timedelta(days=days)).timestamp()))
-	url = f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?period1={start}&period2={int(now.timestamp())}&interval=1d&crumb={crumb}'
+	url = (f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?period1={start}&period2={int(now.timestamp())}'
+		f'&interval=1d&crumb={crumb}')
 	print("Fetching", net.redact(url), file=sys.stderr) if config.prefs.debug else None
 	try:
 		r = net.get(url, headers={**HEADERS, 'Content-type': 'application/json', 'Cookie': cookie}, timeout=config.prefs.http_timeout)
@@ -472,10 +485,7 @@ def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
 		raise NoData(f"no price history for {ticker}")
 	if r.status_code != 200:
 		raise RuntimeError(f"{r.status_code} error for {ticker} from Yahoo's chart API")
-	data = r.json()
-	if config.prefs.cache:
-		cache.write(cacheFile, data)
-	return data
+	return r.json()
 
 def not_found(response):
 	"""Whether a chart API answer is Yahoo saying it has no such symbol, rather than some other 404."""

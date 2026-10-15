@@ -100,6 +100,31 @@ class YahooQuotes(ProviderCase):
 		self.http(yahoo, Resp({'quoteResponse': {'result': None, 'error': {'code': 'x'}}}))
 		self.assertEqual(yahoo.fetch(['NOPE']), {})
 
+	def test_an_error_answer_is_not_cached(self):
+		"""Yahoo's error answer is no quotes, and is not cached: the next fetch asks again."""
+		error = Resp({'quoteResponse': {'result': None, 'error': {'code': 'x'}}})
+		self.http(yahoo, error, Resp(sample('yahoo', 'sample_yahoo_v7.json')))
+		self.assertEqual(yahoo.fetch(['AAPL']), {})
+		self.assertIn('AAPL', yahoo.fetch(['AAPL']))
+
+	def test_the_cache_holds_yahoos_answer_so_a_parser_fix_needs_no_flush(self):
+		"""Quotes are cached as Yahoo sent them, not parsed: a change to the parsing applies to a cached answer."""
+		body = sample('yahoo', 'sample_yahoo_v7.json')
+		self.http(yahoo, Resp(body))
+		yahoo.fetch(['AAPL'])
+		self.http(yahoo, ConnectionError('down')) # from here on, only the cache answers
+		self.patch(yahoo, 'QUOTE_FIELDS', yahoo.QUOTE_FIELDS + (('short_name', 'shortName', None),))
+		self.assertEqual(yahoo.fetch(['AAPL'])['AAPL']['short_name'], 'Apple Inc.')
+
+	def test_with_the_cache_off_every_fetch_asks_yahoo(self):
+		"""With the cache preference off, every fetch asks Yahoo, and nothing is written to the cache."""
+		self.prefs(cache=False)
+		getter = self.http(yahoo, Resp(sample('yahoo', 'sample_yahoo_v7.json')))
+		yahoo.fetch(['AAPL'])
+		yahoo.fetch(['AAPL'])
+		self.assertEqual(len(getter.calls), 2)
+		self.assertEqual([name for name in os.listdir(config.env.cache_dir) if name.startswith('finbot_yahoo_')], [])
+
 	def test_no_tickers_is_none(self):
 		"""No tickers asked for: no quotes, and no request."""
 		self.assertEqual(yahoo.fetch([]), {})
@@ -140,6 +165,14 @@ class YahooDetail(ProviderCase):
 			raise AssertionError('a cached detail took the Yahoo auth lock')
 		self.patch(yahoo, 'credentials', refuse)
 		self.assertIn('NVDA', yahoo.fetch_detail('NVDA'))
+
+	def test_the_cache_holds_yahoos_answer_so_a_parser_fix_needs_no_flush(self):
+		"""A detail is cached as Yahoo sent it, not parsed: a change to the parsing applies to a cached answer."""
+		self.http(yahoo, Resp(self.combined()))
+		yahoo.fetch_detail('NVDA')
+		self.http(yahoo, ConnectionError('down')) # from here on, only the cache answers
+		self.patch(yahoo, 'DETAIL_FIELDS', yahoo.DETAIL_FIELDS + (('short_name', ('price', 'shortName')),))
+		self.assertEqual(yahoo.fetch_detail('NVDA')['NVDA']['short_name'], 'NVIDIA Corporation')
 
 	def test_http_failure_gives_empty(self):
 		"""A detail Yahoo will not give (404, unreachable) is empty, not an error."""
