@@ -35,16 +35,18 @@ class Commands(FinbotCase):
 		self.assertIn('analyst sell ratings', str(self.command('.sell & buy')[0])) # in the order asked
 		self.assertEqual(len(self.command('.buy & buy')), 1) # each report once
 
-	def test_the_keyboard_is_alphabetical_and_every_button_is_a_command(self):
-		"""The command keyboard is alphabetical, and each button is a command, not taken for a ticker by .SYMBOL."""
-		buttons = [button['text'] for row in charts.command_keyboard()['keyboard'] for button in row]
+	def test_the_keyboard_is_alphabetical_and_every_button_is_its_command(self):
+		"""The command keyboard is alphabetical, and each button runs the command it belongs to in the table, not taken
+		for a ticker by .SYMBOL."""
+		buttons = [button['text'] for row in worker.command_keyboard()['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertEqual(len(buttons), 15)
 		self.assertIn('.buy & sell', buttons)
 		self.assertIn('.forward pe', buttons)
-		for text in buttons: # not taken for a ticker by the catch-all .SYMBOL
-			with self.subTest(text=text):
-				self.assertIsNot(next(handler for pattern, handler in worker.COMMANDS if worker.match(pattern, text, BOT)), worker.on_profile)
+		for command in worker.COMMANDS:
+			for text in command.buttons:
+				with self.subTest(text=text):
+					first = next(c for c in worker.COMMANDS if worker.match(c.pattern, text, BOT))
+					self.assertIs(first.handler, command.handler)
 
 	def test_history_and_compare(self):
 		""".history and .compare answer."""
@@ -63,9 +65,21 @@ class Commands(FinbotCase):
 
 
 class ReportFunctions(FinbotCase):
-	def test_prepare_help(self):
-		"""The help text is built."""
-		self.assertTrue(about.prepare_help(TELEGRAM, BOT))
+	def test_help_comes_from_the_command_table(self):
+		""".help lists every command's lines from the table, under its section's heading, the sections in order; and
+		each line names a command that runs it."""
+		text = about.prepare_help(TELEGRAM, BOT, worker.help_sections())
+		headings = [line for line in text if line.startswith('<b>')]
+		self.assertEqual(headings[:len(worker.SECTIONS)], [f"<b>{'' if i == 0 else chr(10)}{s}:</b>"
+			for i, s in enumerate(worker.SECTIONS)])
+		for command in worker.COMMANDS:
+			for line in command.usage:
+				with self.subTest(line=line):
+					self.assertIn(line, text)
+					word = line.split()[0]
+					if word != '.SYMBOL':
+						self.assertIs(next(c for c in worker.COMMANDS if worker.match(c.pattern, word, BOT)).handler,
+							command.handler)
 
 	def test_a_portfolio_with_no_holdings_is_reported_by_name(self):
 		"""Its name used to be read from its first holding: an empty portfolio crashed .performance."""

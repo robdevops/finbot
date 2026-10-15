@@ -34,7 +34,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `bot.py`: WSGI entry (route, verify, parse, then a thread of `lib/worker.py` per message or button press); SIGHUP
   reload, SIGUSR1 cache flush. `lib/inbound.py`: a class per network that posts to the bot (`Telegram`, `Slack`): its
   path, how it proves itself, and its updates as `Message`, `Press` or a `Response` given straight back.
-- `lib/worker.py`: `COMMANDS` (regex → `on_*` handler, first match wins, `.SYMBOL` last); `Request`
+- `lib/worker.py`: `COMMANDS`, a table of `Command(pattern, handler, usage, section, buttons)` (first match wins,
+  `.SYMBOL` last), which also makes `.help` and the Telegram command keyboard, kept current in DMs; `Request`
   (`request.reply(lines, chart, buttons)`); the typing notice, which every command gets after half a second.
 - `lib/reports/`: what finbot says. Scheduled (each has `lambda_handler()` and `job(argv)`, its schedule-line parser): `price
   performance trades shorts cal rating milestone reminder podcasts cleanup`; the top-level `price.py` and the rest are shims
@@ -44,8 +45,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `deliver(dest, report)`, the one-line error report. `lib/transports.py`: a class per way of posting (`TelegramBot`,
   `SlackBot`, `SlackWebhook`, `DiscordWebhook`): splitting, captions, charts, buttons, edits, typing. `lib/telegram.py`:
   Bot API calls.
-- `lib/buttons.py`: `Button` and a chart's period buttons (each transport draws them). `lib/charts.py`: a button press
-  rebuilds its chart; the Telegram command keyboard.
+- `lib/buttons.py`: `Button` and a chart's period buttons (each transport draws them). `lib/charts.py`: a period
+  button press rebuilds its chart.
 - `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: market tables, flags, ticker translation.
   `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`: every chart.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, cached in `DATA_DIR/cache`.
@@ -77,7 +78,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   print there (a test checks); only the util/ tools, run by hand, do.
 - A chart renderer in `lib/render.py` gets `@_drawn` (the bot draws in one native thread); it must not call another `@_drawn`
   function, or that thread waits on itself.
-- A new command: `COMMANDS`, `prepare_help`, the README command list, and `command_keyboard` if it gets a button.
+- A new command: a `Command` in `COMMANDS`, whose usage, section and buttons make its `.help` lines and keyboard
+  buttons, and the README command list.
 
 ## Saving tokens
 - Run the tests quietly: `.venv/bin/python -m unittest discover -s tests -b` prints only failures (about 0.4 KB when green). One

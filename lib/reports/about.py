@@ -41,43 +41,13 @@ def job_line(scheduler, label, outcome):
 	number = [command[0] for command in scheduler.commands()].index(label) + 1
 	return f"{number}. {jobs.display(label)}: {outcome}"
 
-def prepare_help(service, botName):
-	"""The .help text: every command, by section. botName is the bot's @name, which can start a command too."""
+def prepare_help(service, botName, sections):
+	"""The .help text: each section's command lines under its heading (worker.help_sections() has them), then the bot's
+	@name as another way to start a command. botName is the bot's @name."""
 	payload = []
-	payload.append(service.bold("Tracked securities:"))
-	payload.append(".holdings")
-	payload.append(".pie PORTFOLIO [sector]")
-	payload.append(".watchlist [add|del SYMBOL]")
-	payload.append(".who SYMBOL")
-
-	payload.append(service.bold("\nCompany info:"))
-	payload.append('.SYMBOL')
-	payload.append(".dividend [period|SYMBOL]")
-	payload.append(".earnings [period|SYMBOL]")
-	payload.append(".marketcap [SYMBOL|bottom|top]")
-
-	payload.append(service.bold("\nPrice:"))
-	payload.append(".beta")
-	payload.append(".compare SYMBOL SYMBOL [...] [period|max]")
-	payload.append(".history SYMBOL")
-	payload.append(".performance [period] [portfolio]")
-	payload.append(".price [percent|SYMBOL] [period]")
-	payload.append(".session [percent|SYMBOL]")
-	payload.append(".premarket [percent|SYMBOL]")
-
-	payload.append(service.bold("\nRisk & Value:"))
-	payload.append(".buy")
-	payload.append(".sell")
-	payload.append(".pe [SYMBOL|top|bottom]")
-	payload.append(".forwardpe [SYMBOL|top|bottom|negative]")
-	payload.append(".peg [SYMBOL|top|bottom|negative]")
-	payload.append(".shorts [percent|SYMBOL]")
-
-	payload.append(service.bold("\nTrades:"))
-	payload.append(".trades [period] [portfolio]")
-
-	payload.append(service.bold("\nScheduled jobs:"))
-	payload.append(".jobs [run NUMBER|COMMAND]")
+	for i, (heading, lines) in enumerate(sections):
+		payload.append(service.bold(("\n" if i else "") + heading + ":"))
+		payload += lines
 
 	payload.append(service.bold("\nAlternative syntax:"))
 	if service == 'slack':

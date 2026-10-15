@@ -1,11 +1,15 @@
-"""Chat commands: a message is answered by the function of the first pattern in COMMANDS that fits it."""
+"""Chat commands: a message is answered by the handler of the first Command in COMMANDS that fits it. The table also
+makes the .help text and the Telegram command keyboard, which is kept current in every DM."""
 import dataclasses
 import datetime
+import hashlib
+import json
 import math
 import random
 import re
 import sys
 import threading
+import typing
 from lib import answer
 from lib import config
 from lib import dialects
@@ -18,6 +22,7 @@ from lib import buttons
 from lib import charts
 from lib.reports import about, cal, history, holdings, performance, price, profile, rankings, shorts, trades
 from lib import telegram
+from lib import transports
 from lib import jobs
 
 class TypingIndicator:
@@ -123,10 +128,10 @@ def process_request(service, chat_id, user, message, botName, userRealName):
 	originating chat, after the typing stops."""
 	request = Request(dialects.of(service), chat_id, user, userRealName, botName)
 	try:
-		for pattern, handler in COMMANDS:
-			if m := match(pattern, message, botName):
+		for command in COMMANDS:
+			if m := match(command.pattern, message, botName):
 				request.typing.start()
-				handler(request, m)
+				command.handler(request, m)
 				break
 	except answer.Answer as e: # a portfolio name the user got wrong, a ticker with no prices: an answer, not an error
 		request.reply(e.lines)
@@ -137,7 +142,7 @@ def process_request(service, chat_id, user, message, botName, userRealName):
 		request.typing.stop()
 	if service == 'telegram':
 		try:
-			charts.ensure_keyboard(chat_id) # keep DM keyboards current after the reply
+			ensure_keyboard(chat_id) # keep DM keyboards current after the reply
 		except Exception as e:
 			print("keyboard update failed:", e, file=sys.stderr)
 
@@ -203,10 +208,10 @@ def on_help(request, m):
 	""".help: every command; in a Telegram DM the command keyboard too."""
 	markup = None
 	if request.service == 'telegram' and int(request.chat_id) > 0: # positive chat ids are DMs; groups are negative
-		markup = charts.command_keyboard()
-	request.reply(about.prepare_help(request.service, request.bot_name), buttons=markup)
+		markup = command_keyboard()
+	request.reply(about.prepare_help(request.service, request.bot_name, help_sections()), buttons=markup)
 	if markup:
-		charts.mark_keyboard(request.chat_id) # this chat now has the current keyboard
+		mark_keyboard(request.chat_id) # this chat now has the current keyboard
 
 def on_hello(request, m):
 	"""Easter egg: a greeting, alliterated when the alliterate preference is on."""
@@ -369,29 +374,99 @@ def on_profile(request, m):
 	payload = profile.prepare_profile_payload(request.service, request.user, m.group('ticker').upper())
 	request.reply(payload)
 
-COMMANDS = [ # (pattern, function): tried in this order, the first match answers. .SYMBOL takes anything, so it stays last
-	(r"(?:watchlist|wishlist)\s*(?P<action>[\w]+)*\s*(?P<ticker>[\w\.\:\-\^\=]+)*", on_watchlist),
-	(r"(?:help|usage|start)", on_help), # /start is what Telegram sends when a chat opens
-	(r"(?:hi$|hello)|^(?:hi|hello)\s+{bot}", on_hello),
-	(r"(?:thanks|thank you)|^(?:thanks|thank you)\s+{bot}", on_thanks),
-	(r"(?P<kind>earnings?|earrings?|dividends?)\s*(?P<arg>[\w\.\:\-]+)*", on_calendar),
-	(r"performance?\s*(?P<args>[\w\s]*)", on_performance),
-	(r"(?P<kind>session|premarket|postmarket|permarket)\s*(?P<arg>[\w\.\:\-]+)*", on_session),
-	(r"(?:prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=\-\^]+)*\s*([\w\%]+)*", on_price),
-	(r"shorts?\s*([\w\.\:\-]+)*", on_shorts),
-	(r"trades?\s*(?P<args>[\w\s]*)", on_trades),
-	(r"holdings?\s*([\w\s]+)*", on_holdings),
-	(r"(?:marketcap|maletas|marketer)\s*([\w\.\:\-]+)*", on_marketcap),
-	(r"peg\s*([\w\.\:\-\s]+)*", on_ratio('peg', negative=True, chart=True)),
-	(r"pe(?:$|\s+)([\w\.\:\-\s]+)*", on_ratio('pe')),
-	(r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*", on_ratio('forward pe', negative=True, chart=True)),
-	(r"beta\s*([\w\.\:\-]+)*", on_beta),
-	(r"pie(?:$|\s+)(?P<args>[\w\s\-\.&]*)", on_pie),
-	(r"(?P<first>buy|sell)(?:\s*(?:&|and|/|\+)?\s*(?P<second>buy|sell))?", on_rating), # .buy & sell (or .buy sell): both
-	(r"compare(?:\s+(?P<args>[\w\.\:\-\^\=\s]+))?", on_compare),
-	(r"(?:history|hospital|visual|hosiery)\s*(?P<ticker>[\w\.\:\-]+)?\s*(?P<extra>[\w\%]+)*", on_history),
-	(r"plan\s*(.*)", on_plan),
-	(r"(?:who)\s*(?P<ticker>[\w\.\:\-\^]+)*", on_who),
-	(r"(?:jobs|crons?|schedule)(?:\s+(?P<args>.*?))?\s*$", on_jobs),
-	(r"(?P<ticker>[\w\.\:\-]+)", on_profile), # .SYMBOL: a company profile
+class Command(typing.NamedTuple):
+	"""A chat command: the pattern it answers (after . ! / or the bot's name), the handler that answers it, its .help
+	lines under its section's heading, and the Telegram keyboard buttons that send it."""
+	pattern: str
+	handler: typing.Callable
+	usage: tuple = () # its lines in .help; none keeps it out of .help
+	section: str = ''
+	buttons: tuple = ()
+
+SECTIONS = TRACKED, COMPANY, PRICE, RISK, TRADES, JOBS = ('Tracked securities', 'Company info', 'Price', 'Risk & Value',
+	'Trades', 'Scheduled jobs') # the headings of .help, in order
+
+COMMANDS = [ # tried in this order, the first match answers: .SYMBOL takes anything, so it stays last. Within a section,
+	# .help lists the commands in this order. The odd spellings (earrings, prince, hospital...) are kept on purpose.
+	Command(r"(?:help|usage|start)", on_help), # /start is what Telegram sends when a chat opens
+	Command(r"(?:hi$|hello)|^(?:hi|hello)\s+{bot}", on_hello),
+	Command(r"(?:thanks|thank you)|^(?:thanks|thank you)\s+{bot}", on_thanks),
+	Command(r"holdings?\s*([\w\s]+)*", on_holdings, ('.holdings',), TRACKED),
+	Command(r"pie(?:$|\s+)(?P<args>[\w\s\-\.&]*)", on_pie, ('.pie PORTFOLIO [sector]',), TRACKED),
+	Command(r"(?:watchlist|wishlist)\s*(?P<action>[\w]+)*\s*(?P<ticker>[\w\.\:\-\^\=]+)*", on_watchlist,
+		('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',)),
+	Command(r"(?:who)\s*(?P<ticker>[\w\.\:\-\^]+)*", on_who, ('.who SYMBOL',), TRACKED),
+	Command(r"(?P<kind>earnings?|earrings?|dividends?)\s*(?P<arg>[\w\.\:\-]+)*", on_calendar,
+		('.dividend [period|SYMBOL]', '.earnings [period|SYMBOL]'), COMPANY, ('.dividend', '.earnings')),
+	Command(r"(?:marketcap|maletas|marketer)\s*([\w\.\:\-]+)*", on_marketcap, ('.marketcap [SYMBOL|bottom|top]',),
+		COMPANY, ('.marketcap',)),
+	Command(r"beta\s*([\w\.\:\-]+)*", on_beta, ('.beta',), PRICE, ('.beta',)),
+	Command(r"compare(?:\s+(?P<args>[\w\.\:\-\^\=\s]+))?", on_compare, ('.compare SYMBOL SYMBOL [...] [period|max]',),
+		PRICE),
+	Command(r"(?:history|hospital|visual|hosiery)\s*(?P<ticker>[\w\.\:\-]+)?\s*(?P<extra>[\w\%]+)*", on_history,
+		('.history SYMBOL',), PRICE),
+	Command(r"performance?\s*(?P<args>[\w\s]*)", on_performance, ('.performance [period] [portfolio]',), PRICE,
+		('.performance',)),
+	Command(r"(?:prices?|prince|print|probe|piece|pierce|pence|prime)\s*([\w\.\:\%\=\-\^]+)*\s*([\w\%]+)*", on_price,
+		('.price [percent|SYMBOL] [period]',), PRICE, ('.price',)),
+	Command(r"(?P<kind>session|premarket|postmarket|permarket)\s*(?P<arg>[\w\.\:\-]+)*", on_session,
+		('.session [percent|SYMBOL]', '.premarket [percent|SYMBOL]'), PRICE, ('.session', '.premarket')),
+	Command(r"(?P<first>buy|sell)(?:\s*(?:&|and|/|\+)?\s*(?P<second>buy|sell))?", on_rating, ('.buy', '.sell'), RISK,
+		('.buy & sell',)), # .buy & sell (or .buy sell): both reports
+	Command(r"pe(?:$|\s+)([\w\.\:\-\s]+)*", on_ratio('pe'), ('.pe [SYMBOL|top|bottom]',), RISK, ('.pe',)),
+	Command(r"(?:fpe|forward\s?pe)\s*([\w\.\:\-\s]+)*", on_ratio('forward pe', negative=True, chart=True),
+		('.forwardpe [SYMBOL|top|bottom|negative]',), RISK, ('.forward pe',)),
+	Command(r"peg\s*([\w\.\:\-\s]+)*", on_ratio('peg', negative=True, chart=True),
+		('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',)),
+	Command(r"shorts?\s*([\w\.\:\-]+)*", on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',)),
+	Command(r"trades?\s*(?P<args>[\w\s]*)", on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',)),
+	Command(r"plan\s*(.*)", on_plan),
+	Command(r"(?:jobs|crons?|schedule)(?:\s+(?P<args>.*?))?\s*$", on_jobs, ('.jobs [run NUMBER|COMMAND]',), JOBS),
+	Command(r"(?P<ticker>[\w\.\:\-]+)", on_profile, ('.SYMBOL',), COMPANY), # a company profile
 ]
+
+def help_sections():
+	"""The sections of .help: (heading, the .help lines of its commands, in table order), in SECTIONS order."""
+	return [(section, [line for command in COMMANDS if command.section == section for line in command.usage])
+		for section in SECTIONS]
+
+def command_keyboard(per_row=3):
+	"""Persistent reply keyboard of the commands that have buttons (Telegram DMs), alphabetical, row by row; a press
+	sends the button's text as a message."""
+	texts = sorted(text for command in COMMANDS for text in command.buttons)
+	rows = [[{'text': text} for text in texts[i:i + per_row]] for i in range(0, len(texts), per_row)]
+	return {'keyboard': rows, 'resize_keyboard': True, 'is_persistent': True}
+
+KEYBOARD_FILE = 'finbot_keyboards.json' # chat id -> version of the command keyboard that chat last received
+
+def keyboard_version():
+	"""A short hash of the command keyboard, which changes whenever its buttons do."""
+	return hashlib.sha1(json.dumps(command_keyboard(), sort_keys=True).encode()).hexdigest()[:8]
+
+def mark_keyboard(chat_id):
+	"""Record that this chat now has the current command keyboard."""
+	with state.edit(KEYBOARD_FILE, {}) as versions:
+		versions[str(chat_id)] = keyboard_version()
+
+def push_keyboard(chat_id):
+	"""Telegram can only change a reply keyboard by sending a message, so send a short one carrying it."""
+	result = transports.TelegramBot(chat_id).post_text('⌨️ Keyboard updated', command_keyboard())
+	if result is not None:
+		mark_keyboard(chat_id)
+	return result
+
+def ensure_keyboard(chat_id):
+	"""DMs only (positive chat ids): update a chat's keyboard if its buttons changed or it never had them."""
+	if int(chat_id) <= 0:
+		return
+	if state.load(KEYBOARD_FILE, {}).get(str(chat_id)) != keyboard_version():
+		push_keyboard(chat_id)
+
+def refresh_keyboards():
+	"""At startup: update every chat we know of whose keyboard is out of date."""
+	for chat_id, version in state.load(KEYBOARD_FILE, {}).items():
+		if version != keyboard_version():
+			try:
+				push_keyboard(chat_id)
+			except Exception as e:
+				print("keyboard refresh failed for", chat_id, e, file=sys.stderr)

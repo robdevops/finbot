@@ -15,7 +15,6 @@ from lib import config
 from lib import inbound
 from lib import worker
 from lib import jobs
-from lib import charts
 from lib import sharesight
 from lib import net
 from lib import telegram
@@ -199,7 +198,7 @@ if __name__ == '__main__':
 			print('ERROR', delivery.error_line(e, 'telegram webhook'), file=sys.stderr)
 			sys.exit(1)
 	if config.env.telegramBotToken:
-		threading.Thread(target=charts.refresh_keyboards, daemon=True).start() # update stale DM keyboards in the background
+		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
 	if config.env.sharesight_auth.get('client_id'):
 		threading.Thread(target=sharesight.keep_warm, daemon=True).start() # keep the portfolio list and holdings report cached, while cache is on
 	if scheduler:
