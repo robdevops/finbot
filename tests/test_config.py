@@ -467,15 +467,22 @@ class Startup(unittest.TestCase):
 				self.assertEqual(config.startup_warnings(), warnings)
 
 	def test_startup_report_is_a_short_count_never_names_or_values(self):
-		"""The startup report counts the startup keys set, and never names them or shows their values."""
+		"""The startup report counts the startup keys set and the preferences, and never names them or shows their
+		values."""
 		with mock.patch.dict(os.environ, {'slackOutgoingWebhook': 'https://secret.example/abc', 'port': '5000'},
 				clear=True):
 			lines = config.startup_report()
-		keys = len(config.STARTUP_KEYS)
-		self.assertEqual(lines[0], f'startup environment provides 2 of {keys} startup keys (values hidden)')
-		self.assertLessEqual(len('config: ' + lines[0]), 90) # the path in the second line depends on where DATA_DIR is
+		self.assertEqual(lines[0], 'startup environment (2 keys set)')
 		self.assertNotIn('secret.example', ''.join(lines))
 		self.assertNotIn('slackOutgoingWebhook', ''.join(lines))
+		with mock.patch.dict(os.environ, {'port': '5000'}, clear=True):
+			self.assertEqual(config.startup_report()[0], 'startup environment (1 key set)')
+		conf = Path(common.temp_dir(self), 'preferences.conf')
+		conf.write_text('debug = true\n')
+		for source, count in (({'debug': 'true'}, '1 key'), ({'debug': 'true', 'graph': 'false'}, '2 keys')):
+			with self.subTest(source=source), mock.patch.object(config, 'preferences_path', str(conf)), \
+					mock.patch.object(config, 'prefs', dataclasses.replace(config.prefs, source=source)):
+				self.assertEqual(config.startup_report()[1], f'{conf} ({count} set; SIGHUP to reload)')
 
 
 class SigHup(unittest.TestCase):

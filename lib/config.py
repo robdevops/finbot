@@ -404,10 +404,12 @@ def check_startup_environment():
 
 def startup_report():
 	"""Lines for the log at start: where the config came from (counts only; check_config names the problems)."""
-	provided = [key for key in STARTUP_KEYS if key in os.environ]
-	lines = [f'startup environment provides {len(provided)} of {len(STARTUP_KEYS)} startup keys (values hidden)']
+	def keys(count):
+		"""'1 key', '2 keys'."""
+		return f"{count} key{'' if count == 1 else 's'}"
+	lines = [f'startup environment ({keys(sum(key in os.environ for key in STARTUP_KEYS))} set)']
 	if os.path.isfile(preferences_path):
-		lines.append(f'preferences from {preferences_path} ({len(prefs.source)} set; reload with SIGHUP)')
+		lines.append(f'{preferences_path} ({keys(len(prefs.source))} set; SIGHUP to reload)')
 	else:
 		lines.append(f'no {PREFERENCES_FILE} in {env.data_dir}, using the defaults; reload will have nothing to'
 			' re-read')
