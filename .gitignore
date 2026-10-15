@@ -1,6 +1,7 @@
 .*
 !.gitignore
 !.editorconfig
+!.dockerignore
 !.python-version
 !.claude
 !.github

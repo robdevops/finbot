@@ -1,0 +1,11 @@
+# what the image does without: history, tools for development, the tests and their samples, the docs
+.git
+.github
+.claude
+.venv
+var
+tests
+doc
+img
+**/__pycache__
+*.pyc

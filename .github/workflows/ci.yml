@@ -51,9 +51,89 @@ jobs:
           python -m compileall -q *.py lib util
           python -m unittest discover -s tests -v -b
 
+  docker:
+    # The image built as a Docker host builds it, from Debian's packages: a package renamed or gone fails here before
+    # production meets it. Then every module imports in it, and the container starts as compose.yaml starts it.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the base branch is needed to see what a pull request changes
+      - id: changes
+        name: Classify the change
+        # As in the test job: a pull request that only touches docs skips the steps below.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          docs_only=false
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            files=$(git -c core.quotePath=false diff --name-only --no-renames "origin/$BASE_REF...HEAD")
+            docs='^(README\.md|CLAUDE\.md|doc/[^/]+\.md|img/[^/]+\.png)$'
+            if [ -n "$files" ] && ! grep -qvE "$docs" <<< "$files"; then
+              docs_only=true
+            fi
+          fi
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+      - if: steps.changes.outputs.docs_only != 'true'
+        name: Build the image
+        run: docker build --build-arg GIT_COMMIT="$GITHUB_SHA" -t finbot .
+      - if: steps.changes.outputs.docs_only != 'true'
+        name: Every module imports in the image, the optional libraries too, and the log names the commit
+        run: |
+          docker run --rm -i --read-only --tmpfs /tmp -e DATA_DIR=/tmp/data finbot python3 - <<'EOF'
+          import importlib, os, pkgutil, bot, lib, lib.reports
+          for package in (lib, lib.reports):
+              for module in pkgutil.iter_modules(package.__path__, package.__name__ + '.'):
+                  importlib.import_module(module.name)
+          import discord, nacl, waitress, websocket
+          assert bot.git_version() == os.environ['FINBOT_COMMIT'][:7], bot.git_version()
+          print('every module imports; finbot', bot.git_version())
+          EOF
+      - if: steps.changes.outputs.docs_only != 'true'
+        name: The container starts as compose starts it, copies the defaults, reloads and flushes
+        run: |
+          data="$RUNNER_TEMP/finbot-data"
+          mkdir "$data" && sudo chown 10001:10001 "$data"
+          docker run -d --name finbot --init --read-only --tmpfs /tmp --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 256 --memory 400m --memory-swap 400m \
+            -e DATA_DIR=/data -v "$data:/data" -v "$PWD/defaults/finbot.env:/run/finbot.env:ro" finbot
+          wait_for() { # the log saved first: grep -q would cut docker logs off mid-write, which pipefail counts
+            for _ in $(seq 60); do
+              docker logs finbot > "$RUNNER_TEMP/log" 2>&1
+              grep -q "$1" "$RUNNER_TEMP/log" && return 0
+              sleep 1
+            done
+            cat "$RUNNER_TEMP/log"
+            echo "::error::never logged: $1"
+            return 1
+          }
+          wait_for 'finbot is running'
+          test -f "$data/preferences.conf"
+          docker kill -s HUP finbot
+          wait_for 'config: reloaded'
+          docker kill -s USR1 finbot
+          wait_for 'cache: flushed'
+          docker rm -f finbot
+      - if: steps.changes.outputs.docs_only != 'true'
+        name: A mistake in the startup file stops the container before the bot starts
+        run: |
+          printf 'telegramBotTokn=x\n' > "$RUNNER_TEMP/bad.env"
+          if docker run --rm --read-only --tmpfs /tmp -e DATA_DIR=/tmp \
+              -v "$RUNNER_TEMP/bad.env:/run/finbot.env:ro" finbot > "$RUNNER_TEMP/out" 2>&1; then
+            cat "$RUNNER_TEMP/out"
+            echo "::error::the container started with a mistake in its startup file"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/out"
+          grep -q 'unknown key telegramBotTokn' "$RUNNER_TEMP/out"
+          if grep -q 'finbot is running' "$RUNNER_TEMP/out"; then
+            echo "::error::the bot started with a mistake in its startup file"
+            exit 1
+          fi
+
   notify:
     # Telegram alert when the weekly run fails. Needs repository secrets TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
-    needs: test
+    needs: [test, docker]
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     steps:

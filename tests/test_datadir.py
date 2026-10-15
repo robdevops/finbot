@@ -3,7 +3,7 @@ from unittest import mock
 from pathlib import Path
 from lib import config
 from util import sync_defaults
-from tests.common import FinbotCase
+from tests.common import FinbotCase, ROOT, bare_environment
 
 REPO = Path(config.__file__).resolve().parent.parent
 
@@ -105,10 +105,32 @@ class DataDirTests(FinbotCase):
 		self.assertEqual(Path(str(mine) + '.bak').read_text(), '{"mine": 1}')
 
 	def test_sync_defaults_to_another_destination(self):
-		"""util/sync_defaults.py --dest copies there and leaves the data dir alone."""
+		"""util/sync_defaults.py --dest copies there and leaves the data dir alone; a destination that does not exist
+		is an error that names --create, which makes it, mode 750, as it copies."""
 		other = Path(config.env.data_dir, 'elsewhere')
-		self.assertIn(('finbot_adr.json', 'would copy'), sync_defaults.sync(dest=other))
+		with self.assertRaisesRegex(FileNotFoundError, 'does not exist: --create makes it'):
+			sync_defaults.sync(apply=True, dest=other)
+		self.assertIn(('finbot_adr.json', 'would copy'), sync_defaults.sync(dest=other, create=True))
 		self.assertFalse(other.exists()) # dry run
-		sync_defaults.sync(apply=True, dest=other)
+		sync_defaults.sync(apply=True, dest=other, create=True)
 		self.assertTrue((other / 'finbot_adr.json').exists())
+		self.assertEqual(other.stat().st_mode & 0o777, 0o750)
 		self.assertFalse(Path(config.env.data_dir, 'finbot_adr.json').exists()) # the data dir is untouched
+		self.assertTrue(sync_defaults.sync(dest=other)) # there now: no --create needed
+
+	def test_sync_defaults_runs_with_any_python_and_creates_nothing_unasked(self):
+		"""The tool needs only the standard library, so a bare python3 runs it (Docker's setup script does, on the
+		host); importing lib.config creates no data directory, and a missing destination is refused, naming
+		--create."""
+		with tempfile.TemporaryDirectory() as tmp:
+			dest = Path(tmp, 'data')
+			env = {**bare_environment(), 'DATA_DIR': str(Path(tmp, 'never'))}
+			run = lambda *args: subprocess.run([sys.executable, '-I', 'util/sync_defaults.py', *args], cwd=ROOT,
+				env=env, capture_output=True, text=True, timeout=60)
+			refused = run('--apply', '--dest', str(dest))
+			self.assertEqual(refused.returncode, 2, refused.stderr)
+			self.assertIn('does not exist: --create makes it', refused.stderr)
+			made = run('--create', '--apply', '--dest', str(dest))
+			self.assertEqual(made.returncode, 0, made.stderr)
+			self.assertTrue((dest / 'preferences.conf').exists())
+			self.assertFalse(Path(tmp, 'never').exists())

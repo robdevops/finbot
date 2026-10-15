@@ -424,6 +424,16 @@ Command:
 @botname watchlist [add|del] [symbol]
 ```
 
+## Quick start with Docker
+1. `git clone https://github.com/robdevops/finbot /opt/finbot`
+2. `sudo /opt/finbot/util/docker_setup.sh`
+3. Set `telegramBotToken` and `telegramChatID` in `/opt/finbot.env` (see [the Telegram guide](doc/telegram.md))
+4. `cd /opt/finbot && sudo docker compose up -d --build`
+5. `journalctl CONTAINER_NAME=finbot -f`
+
+[doc/docker.md](doc/docker.md) has the rest: the layout on the host, logs, reload and flush, updates, HTTP mode and the
+hardening. To install on the host instead, read on.
+
 ## Installation (Linux)
 ```
 sudo $(which apt dnf yum) install git python3-pip
@@ -453,7 +463,7 @@ sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finb
 ### `finbot.env`
 **Load `finbot.env` with your launcher:**
 * **systemd:** `EnvironmentFile=/opt/finbot.env` in `finbot.service`, plus `ExecStartPre=+.../util/check_config.py /opt/finbot.env` for pre-flight lint.
-* **Docker:** `--env-file /opt/finbot.env`. Docker keeps quotes literally, so use none. Run `util/check_config.py /opt/finbot.env` first if you want the lint check.
+* **Docker:** `compose.yaml` loads it, and checks it before the bot starts (see [doc/docker.md](doc/docker.md)). Write the values without quotes.
 * **init.d / shell:** `util/check_config.py /opt/finbot.env && set -a && . /opt/finbot.env && set +a && ./bot.py` (`set -a` is what exports the values to the bot).
 * **Scheduled jobs:** they are started by `bot.py` (see [Scheduling](#scheduling)), so they run on the same settings. For a one-off run, see [Running a report by hand](#scheduling).
 
@@ -527,22 +537,20 @@ edit `preferences.conf`, then reload if running. The service log shows what chan
 **Upgrading from one `.env`?** finbot no longer reads it, and refuses to start while a `.env` is in the checkout, so its settings cannot be silently ignored. Run `util/split_env.py` (or `util/split_env.py /path/to/old.env` for one elsewhere). It reads either format, the old dotenv one (`key = 'value' # comment`) or plain `KEY=value`, writes `finbot.env.new` and `preferences.conf.new` next to the old file, never overwriting, and lists any key it dropped or did not recognise. Put `finbot.env` where your launcher loads it and `preferences.conf` in the data directory, then delete the old file.
 
 ### Data directory
-All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`), e.g. for a Docker bind mount that survives rebuilds:
-```
-docker run -v /srv/finbot:/data -e DATA_DIR=/data --env-file /opt/finbot.env ...
-```
+All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`); in Docker it is `/data`, the host's `/opt/finbot-data` (see [doc/docker.md](doc/docker.md)).
 Reference data (`finbot_adr.json`, `finbot_sws_*.json`, `reminder.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
 ```
 util/sync_defaults.py          # dry run
 util/sync_defaults.py --apply  # copy missing files (including a starter preferences.conf)
 util/sync_defaults.py --force  # also replace changed files, keeping .bak copies
 util/sync_defaults.py --dest /srv/finbot --apply  # target another directory instead of the data directory
+util/sync_defaults.py --dest /srv/finbot --create --apply  # and make it (mode 750) if it does not exist yet
 ```
 `reminder.json` holds the reminders that the `reminder` report posts on their day. Each entry has a `month_day` (`06-30`) and a `message`, which is one line or a list of lines, and may name a `year` (`2026`) and a `gate_country` (posted only when `country_code` in `preferences.conf` matches; `{flag}` in its message becomes that country's flag). A message is text, with two kinds of markup that each network gets in its own form: `[text](https://example.com)` is a link, and a line wrapped in underscores, `_like this_`, is in italics. The Australian end of financial year checklist (23 June) is such an entry: if you keep your own `reminder.json` in the data directory, `util/sync_defaults.py` shows what it lacks.
 
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
 
-In Docker, one container is enough: `bot.py` runs the schedule too, so there is no cron or scheduler sidecar to set up.
+In Docker, one container is enough: `bot.py` runs the schedule too, so there is no cron or scheduler sidecar to set up. Each start copies the defaults the data directory lacks (`util/sync_defaults.py --apply`).
 
 ### Sharesight
 * Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to `finbot.env`. Example:
@@ -586,7 +594,7 @@ answers, charts, the Yahoo cookie) and keeps its state (watchlist, jobs, seen tr
 ```
 sudo systemctl kill -s USR1 finbot          # systemd
 sudo systemctl start finbot-flush           # the same, once finbot-flush.service is installed (see below)
-docker kill -s USR1 <container>             # Docker
+sudo docker compose kill -s USR1 finbot     # Docker
 kill -USR1 <pid of bot.py>                  # anything else
 ```
 The log says `cache: flushed N files`, then `cache: warm jobs done` once the cache is full again. To install the `finbot-flush` shortcut: `sudo cp -v finbot-flush.service /etc/systemd/system/ &&

@@ -77,11 +77,11 @@ class Conventions(unittest.TestCase):
 		self.assertEqual(missing, [])
 
 	def test_every_line_fits_in_120_columns(self):
-		"""Every line of the code, the tests, the shipped defaults, the units, the tools and CI fits in 120
-		columns, tabs counting 4: an edit quotes whole lines. README.md, CLAUDE.md and doc/ are left out (CI runs no
-		tests for a change to those alone, so no test may read them), and so are data files."""
+		"""Every line of the code, the tests, the shipped defaults, the units, the tools, CI and the Docker files fits
+		in 120 columns, tabs counting 4: an edit quotes whole lines. README.md, CLAUDE.md and doc/ are left out (CI runs
+		no tests for a change to those alone, so no test may read them), and so are data files."""
 		patterns = ('*.py', '*.service', 'lib/**/*.py', 'tests/*.py', 'util/*', 'defaults/*', '.github/workflows/*.yml',
-			'.claude/hooks/*')
+			'.claude/hooks/*', 'Dockerfile', 'compose.yaml', '.dockerignore')
 		files = sorted({path for pattern in patterns for path in Path(ROOT).glob(pattern)
 			if path.is_file() and path.suffix != '.json'})
 		long = [f'{path.relative_to(ROOT)}:{number}' for path in files
@@ -192,6 +192,18 @@ class GitVersion(unittest.TestCase):
 				['unknown'] * 3)
 			self.repo(empty, 'garbage')
 			self.assertEqual(bot.git_version(empty), 'unknown')
+
+	def test_an_image_without_git_names_the_commit_it_was_built_from(self):
+		"""A Docker image has no .git: the commit it was built from (FINBOT_COMMIT, from the build's GIT_COMMIT) names
+		the version; a value that is no commit is 'unknown', and a .git still wins."""
+		with tempfile.TemporaryDirectory() as empty, tempfile.TemporaryDirectory() as checkout:
+			self.repo(checkout, self.SHA)
+			for built, expected in ((self.SHA, '0123456'), ('abcdef1', 'abcdef1'), ('unknown', 'unknown'),
+					('', 'unknown'), ('$(id)', 'unknown')):
+				with self.subTest(built=built), mock.patch.dict(os.environ, {'FINBOT_COMMIT': built}):
+					self.assertEqual(bot.git_version(empty), expected)
+			with mock.patch.dict(os.environ, {'FINBOT_COMMIT': 'f' * 40}):
+				self.assertEqual(bot.git_version(checkout), '0123456')
 
 	def test_does_not_run_git(self):
 		"""git_version reads .git itself: no git binary is run."""

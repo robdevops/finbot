@@ -155,7 +155,8 @@ def dispatch(event):
 
 def git_version(checkout=None):
 	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no
-	"dubious ownership" refusal when the service user does not own the checkout. 'unknown' when it cannot be read."""
+	"dubious ownership" refusal when the service user does not own the checkout. Without one (a Docker image), the
+	commit it was built from (FINBOT_COMMIT); 'unknown' when neither can be read."""
 	try:
 		git = Path(checkout or config.REPO_DIR) / '.git'
 		if git.is_file(): # a linked worktree or submodule: .git is a file saying "gitdir: <path>"
@@ -170,9 +171,12 @@ def git_version(checkout=None):
 			else: # the branch is only in packed-refs
 				packed = (common / 'packed-refs').read_text().splitlines()
 				head = next((line.split()[0] for line in packed if line.endswith(' ' + ref)), '')
-		return head[:7] if re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', head) else 'unknown'
+		if re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', head):
+			return head[:7]
 	except (OSError, IndexError):
-		return 'unknown'
+		pass
+	built = os.environ.get('FINBOT_COMMIT', '')
+	return built[:7] if re.fullmatch(r'[0-9a-f]{7,64}', built) else 'unknown'
 
 scheduler = None
 _signal_work = threading.Lock() # one signal's work at a time: a second reload waits for the first
