@@ -144,7 +144,7 @@ def prepare_profile_payload(service, user, ticker):
 	for key, label in (('revenueEstimateY', 'Revenue forecast (1Y):'), ('earningsEstimateY', 'Earnings forecast (1Y):')):
 		if key in data:
 			growth = int(round(data[key]))
-			payload.append(service.bold(label) + (f" +{growth}% " if growth > 0 else f" {growth}% ⚠️ "))
+			payload.append(service.bold(label) + f" {formats.signed_percent(growth)} " + ('' if growth > 0 else '⚠️ '))
 	if 'insiderBuy' in data:
 		if data['insiderBuy'] > data['insiderSell']:
 			payload.append(service.bold("Net insider action (3M):") + f" Buy {currency} {formats.humanUnits(data['insiderBuyValue'])} ")
@@ -193,11 +193,13 @@ def prepare_profile_payload(service, user, ticker):
 	for interval in ('5Y', '1Y', '1M', '1D'):
 		if interval in price_history:
 			percent = price_history[interval]
-			payload.append(f"{formats.get_emoji(percent)} {service.bold(interval + ':')} {percent}%")
+			label = service.bold(interval + ':')
+			payload.append(f"{formats.get_emoji(percent)} {label} {formats.signed_percent(percent)}")
 	if state != 'REGULAR':
 		for key, label in (('percent_change_premarket', 'Pre-market:'), ('percent_change_postmarket', 'Post-market:')):
 			if key in data:
-				payload.append(f"{formats.get_emoji(data[key])} {service.bold(label)} {data[key]:,}%")
+				change = data[key]
+				payload.append(f"{formats.get_emoji(change)} {service.bold(label)} {formats.signed_percent(change)}")
 				break
 
 	if 'profile_website' in data and config.prefs.hyperlinkFooter and config.prefs.hyperlink:

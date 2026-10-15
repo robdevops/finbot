@@ -195,6 +195,12 @@ class ReportFunctions(FinbotCase):
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: full | {'shareholder_equity': 0}})
 		self.assertNotIn('Net debt/equity', str(profile.prepare_profile_payload(TELEGRAM, '@u', 'T1')))
 
+	def test_a_profile_signs_its_changes(self):
+		"""A profile signs its price changes, as .history does: +3% over a year, +1.5% pre-market."""
+		profile = '\n'.join(self.command('.T13')[0][1]) # T13 is pre-market, up 1.5%
+		self.assertIn('<b>1Y:</b> +3%', profile)
+		self.assertIn('<b>Pre-market:</b> +1.5%', profile)
+
 	def test_a_profile_warns_of_a_ps_ratio_only_above_15(self):
 		"""The PS ratio line warns only above 15; the forward P/E's warning used to show on it too."""
 		for ps, warned in ((12.3, False), (15.1, True)): # forward P/E 99 warns (above 30): its warning used to show on the PS line too

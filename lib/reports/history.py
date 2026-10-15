@@ -77,7 +77,7 @@ def prepare_compare(service, args):
 	results = sorted(((series.iloc[-1] / series.iloc[0] - 1) * 100, t) for t, series in cropped)
 	for pct, t in reversed(results):
 		link = links.finance_link(t, exchanges[t], service, days=span_days, brief=False)
-		caption.append(f"{formats.get_emoji(pct)} {names[t]} ({link}): {pct:+,.1f}%")
+		caption.append(f"{formats.get_emoji(pct)} {names[t]} ({link}): {formats.signed_percent(pct, 1)}")
 	if config.prefs.cache:
 		cache.write_bytes(image_cache_file, image)
 		cache.write(caption_cache_file, caption)
