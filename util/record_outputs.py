@@ -61,8 +61,9 @@ def record(output):
 			"""Record what each step posts: the real sending code runs, and net.post notes each request."""
 			posts = []
 			def post(url, **kwargs):
-				"""Note a request, the typing notice aside (timing, not output), and answer like the APIs do."""
-				if 'sendChatAction' in url:
+				"""Note a request, the typing notices aside (Telegram's, Slack's ⏳: timing, not output), and answer
+				like the APIs do."""
+				if 'sendChatAction' in url or '/reactions.' in url:
 					return common.mock.Mock(status_code=200, json=lambda: {'ok': True, 'result': True})
 				entry = {'url': url.replace('botX/', 'bot<token>/')}
 				for key in ('json', 'data', 'params'):
@@ -80,7 +81,7 @@ def record(output):
 			for target, name, real in real_sending: # what the fixture replaces with recorders, put back
 				self.patch(target, name, real)
 			self.patch(common.time, 'sleep', lambda seconds: None) # no pauses between a long report's messages
-			self.env(slackBotToken='xoxb-test')
+			self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack') # Slack's buttons too
 			steps = []
 			def step(label, run):
 				"""Run one step and note what it posted, or what it raised."""
@@ -96,13 +97,18 @@ def record(output):
 				for text in COMMANDS:
 					run = lambda: worker.process_request(service, chat, user, text, common.BOT, 'U')
 					step(f'{service} {text}', run)
-			for data in BUTTONS:
-				step(f'button {data}', lambda: worker.process_callback('telegram', 'cb', '55', '9', data))
+			for service, chat, message in (('telegram', '55', '9'), ('slack', 'C1', '1.5')):
+				for data in BUTTONS:
+					label = f'button {data}' if service == 'telegram' else f'{service} button {data}'
+					step(label, lambda: worker.process_callback(service, 'cb', chat, message, data))
 			self.env(webhooks=WEBHOOKS, telegramChatID='1')
-			for line in SCHEDULED:
-				label, module, kwargs = jobs.parse_command(line)[0]
-				run = getattr(module, 'run', None) or module.lambda_handler # lambda_handler: a commit before run()
-				step(f'scheduled {line}', lambda: run(**kwargs))
+			for where in ('', ' (slackChannelID)'): # Slack's incoming webhook, then the channel as the bot
+				if where:
+					self.env(slackChannelID='C9')
+				for line in SCHEDULED:
+					label, module, kwargs = jobs.parse_command(line)[0]
+					run = getattr(module, 'run', None) or module.lambda_handler # lambda_handler: a commit before run()
+					step(f'scheduled {line}{where}', lambda: run(**kwargs))
 			Path(output).write_text(json.dumps(steps, indent=1, sort_keys=True, default=str))
 
 	result = unittest.TextTestRunner(verbosity=0, stream=io.StringIO()).run(Record())
