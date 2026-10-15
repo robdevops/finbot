@@ -8,13 +8,6 @@ from lib import markets
 from lib import render
 from lib import yahoo
 
-def last_col(line):
-	"""Sort key: the number a report line ends with; a line without one sorts first."""
-	try:
-		return float(line.split()[-1])
-	except ValueError:
-		return float('-inf')
-
 def prepare_marketcap_payload(service, action='top', length=15):
 	"""The `length` tracked stocks of largest (action 'top') or smallest ('bottom') market cap, compared in US dollars at Yahoo's
 	exchange rates: a market cap in won or yen is a far bigger number. Any other action is one ticker's, in its own currency too."""
@@ -68,84 +61,53 @@ def prepare_rating_payload(service, action, length=15):
 		tuple(shown), value_format='number', xlim=(max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25)))
 	return [service.bold(message)] + payload, chart
 
+RATIOS = {'pe': 'price_to_earnings_trailing', 'forward pe': 'price_to_earnings_forward', 'peg': 'price_to_earnings_peg'}
+
 def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
-	"""(payload, chart): the tracked stocks by a ratio (`action`), or one ticker's. A forward P/E is analysts' estimate, so its lists
-	take only stocks that min_analysts or more analysts cover, as .buy does."""
-	payload = []
-	chart_rows = [] # (ticker, ratio)
+	"""(payload, chart): the tracked stocks by a ratio of RATIOS, or one ticker's. action is the ratio, or 'bottom' or
+	'negative' and the ratio: lowest first, highest first ('bottom'), or the negative ones only, lowest first. A forward
+	P/E is analysts' estimate, so its lists take only stocks that min_analysts or more analysts cover, as .buy does."""
+	mode, kind = action.split(' ', 1) if action.split()[0] in ('bottom', 'negative') else ('top', action)
+	field = RATIOS[kind]
 	tickers = [ticker_select] if ticker_select else watchlist.with_holdings()
 	market_data = yahoo.fetch(tickers)
-	if action in ('peg', 'bottom peg', 'negative peg'): # the PEG is in Yahoo's details
+	if kind == 'peg': # the PEG is in Yahoo's details
 		market_data |= yahoo.fetch_details(market_data, strict=bool(ticker_select))
 	covered = None # for a forward P/E list: the tickers enough analysts cover
-	if 'forward' in action and not ticker_select:
-		covered = {ticker for ticker, detail in yahoo.fetch_details(market_data).items() if detail.get('recommend_analysts', 0) >= config.prefs.min_analysts}
-	for ticker in market_data:
-		if covered is not None and ticker not in covered:
+	if kind == 'forward pe' and not ticker_select:
+		covered = {ticker for ticker, detail in yahoo.fetch_details(market_data).items()
+			if detail.get('recommend_analysts', 0) >= config.prefs.min_analysts}
+	rows = [] # (ratio, chart label, line), one sorted list for the caption and the chart
+	for ticker, data in market_data.items():
+		ratio = data.get(field)
+		if ratio is None or (covered is not None and ticker not in covered):
 			continue
-		trailing_ratio = None
-		forward_ratio = None
-		peg_ratio = None
-		ratio = None
-		if action in ('pe', 'bottom pe', 'forward pe', 'bottom forward pe'):
-			trailing_ratio = market_data.get(ticker).get('price_to_earnings_trailing')
-			forward_ratio = market_data.get(ticker).get('price_to_earnings_forward')
-			if action in ('forward pe', 'bottom forward pe'):
-				if not ticker_select and forward_ratio is not None and forward_ratio < 0:
-					continue
-				ratio = forward_ratio
-			else:
-				if not ticker_select and trailing_ratio is not None and trailing_ratio < 0:
-					continue
-				ratio = trailing_ratio
-		elif action == 'negative forward pe':
-			forward_ratio = market_data.get(ticker).get('price_to_earnings_forward')
-			if not ticker_select and (forward_ratio is None or forward_ratio >= 0):
-				continue
-			ratio = forward_ratio
-		elif action in ('peg', 'bottom peg'):
-			peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
-			if not ticker_select and peg_ratio is not None and peg_ratio < 0:
-				continue
-			ratio = peg_ratio
-		elif action == 'negative peg':
-			peg_ratio = market_data.get(ticker).get('price_to_earnings_peg')
-			if not ticker_select and (peg_ratio is None or peg_ratio >= 0):
-				continue
-			ratio = peg_ratio
-		if ratio is None:
+		if not ticker_select and (ratio < 0) != (mode == 'negative'): # a list: the negative ones, or none of them
 			continue
-		profile_title = market_data.get(ticker).get('profile_title')
-		ticker_link = links.finance_link(ticker, market_data.get(ticker).get('profile_exchange'), service)
-		flag = markets.flag_from_ticker(ticker)
-		if ticker_select and action in {'pe', 'forward pe'}:
-			parts = []
-			if trailing_ratio is not None:
-				parts.append(f"trailing {trailing_ratio}")
-			if forward_ratio is not None:
-				parts.append(f"forward {forward_ratio}")
-			payload.append(f"{flag} {profile_title} ({ticker_link}) PE: {', '.join(parts)}")
+		link = links.finance_link(ticker, data.get('profile_exchange'), service)
+		start = f"{markets.flag_from_ticker(ticker)} {data.get('profile_title')} ({link})"
+		if ticker_select and mode == 'top' and kind in ('pe', 'forward pe'): # one stock's P/E: trailing and forward
+			both = (('trailing', 'price_to_earnings_trailing'), ('forward', 'price_to_earnings_forward'))
+			parts = ', '.join(f'{name} {data[key]}' for name, key in both if data.get(key) is not None)
+			rows.append((ratio, None, f"{start} PE: {parts}"))
 		else:
-			payload.append(f"{flag} {profile_title} ({ticker_link}) {ratio}")
-			chart_rows.append((ticker.split('.')[0], float(ratio)))
-	payload.sort(key=last_col)
-	chart_rows.sort(key=lambda row: row[1])
-	chart = None
-	if not ticker_select:
-		heading_type = "Bottom" if 'bottom' in action else "Top"
-		heading_trail = action.replace('bottom ', '')
-		if 'bottom' in action:
-			payload.reverse()
-			chart_rows.reverse()
-		payload = payload[:length]
-		coverage = f" ({config.prefs.min_analysts}+ analysts)" if covered is not None else ''
-		if not payload:
-			payload = [f"No tracked stocks with {config.prefs.min_analysts}+ analysts have a {heading_trail} ratio" if covered is not None else f"{action}: no data found"]
-		else:
-			heading = f'{heading_type} {length} tracked stocks by {heading_trail} ratio{coverage}'
-			payload.insert(0, f"{service.bold(heading)}")
-			chart = render.Chart('bars', heading, rows=tuple(chart_rows[:length]), value_format='number')
-	return payload, chart
+			rows.append((ratio, ticker.split('.')[0], f"{start} {ratio}"))
+	rows.sort(key=lambda row: row[0])
+	if mode == 'bottom':
+		rows.reverse()
+	if ticker_select:
+		return [line for _, _, line in rows], None
+	rows = rows[:length]
+	trail = kind if mode != 'negative' else action # what the heading calls the ratio
+	if not rows:
+		if covered is not None:
+			return [f"No tracked stocks with {config.prefs.min_analysts}+ analysts have a {trail} ratio"], None
+		return [f"{action}: no data found"], None
+	coverage = f" ({config.prefs.min_analysts}+ analysts)" if covered is not None else ''
+	heading = f"{'Bottom' if mode == 'bottom' else 'Top'} {length} tracked stocks by {trail} ratio{coverage}"
+	bars = tuple((label, float(ratio)) for ratio, label, _ in rows)
+	chart = render.Chart('bars', heading, rows=bars, value_format='number')
+	return [service.bold(heading)] + [line for _, _, line in rows], chart
 
 def prepare_beta_payload(service):
 	"""(payload, chart) of the tracked stocks with a beta over 1.5 and a market cap under US$2B, the highest beta first."""
