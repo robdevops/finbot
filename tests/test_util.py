@@ -266,12 +266,20 @@ class StateFiles(FinbotCase):
 		self.assertEqual(cache.read_bytes('img.png').read(), b'png-bytes')
 
 	def test_holdings_and_watchlist_without_a_watchlist_file(self):
-		"""On the first run there is no watchlist file: the holdings alone, GOOGL dropped when GOOG is held."""
+		"""On the first run there is no watchlist file: the holdings alone, GOOGL dropped when GOOG is held. A chat's
+		watchlist adds to the holdings in that chat only; yahoo_warm keeps every chat's warm."""
 		self.patch(sharesight, 'tickers', lambda: ['AAPL', 'GOOG', 'GOOGL'])
 		self.patch(watchlist, 'with_holdings', REAL_GET_HOLDINGS)
-		self.assertEqual(watchlist.with_holdings(), ['AAPL', 'GOOG']) # GOOGL dropped when GOOG is present
-		state.save('finbot_watchlist.json', ['MSFT'])
-		self.assertEqual(watchlist.with_holdings(), ['AAPL', 'GOOG', 'MSFT'])
+		self.assertEqual(watchlist.with_holdings('telegram:1'), ['AAPL', 'GOOG']) # GOOGL dropped when GOOG is present
+		self.assertEqual((watchlist.all_watched(), watchlist.all_followed()), ([], ['AAPL', 'GOOG']))
+		watchlist.add('telegram:1', 'MSFT')
+		watchlist.add('slack:C1', 'NVDA')
+		watchlist.add('slack:C1', 'MSFT')
+		self.assertEqual(watchlist.with_holdings('telegram:1'), ['AAPL', 'GOOG', 'MSFT'])
+		self.assertEqual(watchlist.with_holdings('slack:C1'), ['AAPL', 'GOOG', 'MSFT', 'NVDA'])
+		self.assertEqual(watchlist.with_holdings('discord:7'), ['AAPL', 'GOOG'])
+		self.assertEqual(watchlist.all_watched(), ['MSFT', 'NVDA'])
+		self.assertEqual(watchlist.all_followed(), ['AAPL', 'GOOG', 'MSFT', 'NVDA'])
 
 
 if __name__ == '__main__':

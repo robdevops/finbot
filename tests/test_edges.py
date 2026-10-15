@@ -72,7 +72,7 @@ class UpstreamEmpty(FinbotCase):
 
 	def test_no_holdings_and_empty_watchlist(self):
 		"""With nothing held and nothing watched, the watchlist, price and earnings commands still answer."""
-		self.patch(watchlist, 'with_holdings', lambda: [])
+		self.patch(watchlist, 'with_holdings', lambda chat: [])
 		for cmd in ('.watchlist', '.price', '.earnings'):
 			with self.subTest(cmd=cmd):
 				self.command(cmd)
@@ -83,12 +83,12 @@ class WatchlistActions(FinbotCase):
 		"""Add, add again (said differently), remove, and an unknown action is refused by name."""
 		add = self.command('.watchlist add MSFT')
 		self.assertTrue(add)
-		self.assertEqual(state.load('finbot_watchlist.json'), ['MSFT'])
+		self.assertEqual(state.load('finbot_watchlist.json'), {'chats': {'telegram:55': ['MSFT']}})
 		again = self.command('.watchlist add MSFT')
 		self.assertNotEqual(add, again) # a duplicate is reported differently from a first add
-		self.assertEqual(state.load('finbot_watchlist.json'), ['MSFT'])
+		self.assertEqual(watchlist.tickers('telegram:55'), ['MSFT'])
 		self.command('.watchlist rm MSFT')
-		self.assertEqual(state.load('finbot_watchlist.json'), [])
+		self.assertEqual(watchlist.tickers('telegram:55'), [])
 		self.assertEqual(self.command('.watchlist frobnicate MSFT'), [('text', ['Usage: .watchlist [add|del SYMBOL]'])])
 
 	def test_a_bare_symbol_yahoo_does_not_know_is_tried_on_the_asx(self):
@@ -99,9 +99,9 @@ class WatchlistActions(FinbotCase):
 		self.assertIn('already tracking', str(self.command('.watchlist add BHP')))
 		# a ticker with a market is not retried
 		self.assertIn('could not find', str(self.command('.watchlist add BHP.L')))
-		self.assertEqual(watchlist.tickers(), ['BHP.AX'])
+		self.assertEqual(watchlist.tickers('telegram:55'), ['BHP.AX'])
 		self.assertIn('I deleted', str(self.command('.watchlist del bhp')))
-		self.assertEqual(watchlist.tickers(), [])
+		self.assertEqual(watchlist.tickers('telegram:55'), [])
 
 	def test_two_chats_adding_at_once_both_count(self):
 		"""Two chats adding at once both count: Yahoo is asked before the file is opened, where both adds used to read
@@ -111,21 +111,22 @@ class WatchlistActions(FinbotCase):
 			time.sleep(0.01)
 			return {t: market_entry(t) for t in tickers}
 		self.patch(yahoo, 'fetch', slow_fetch)
-		threads = [threading.Thread(target=holdings.prepare_watchlist, args=(TELEGRAM, '@u', 'add', t)) for t in ('T1',
-			'T2')]
+		threads = [threading.Thread(target=holdings.prepare_watchlist, args=(TELEGRAM, chat, '@u', 'add', ticker))
+			for chat, ticker in (('telegram:55', 'T1'), ('telegram:55', 'T2'), ('slack:C1', 'T3'))]
 		for thread in threads:
 			thread.start()
 		for thread in threads:
 			thread.join()
-		self.assertEqual(sorted(watchlist.tickers()), ['T1', 'T2'])
+		self.assertEqual(sorted(watchlist.tickers('telegram:55')), ['T1', 'T2'])
+		self.assertEqual(watchlist.tickers('slack:C1'), ['T3'])
 
 	def test_removing_a_ticker_yahoo_no_longer_knows(self):
 		"""A ticker Yahoo no longer knows is still removed, and said to be; removing it again says it is not there."""
-		state.save('finbot_watchlist.json', ['GONE', 'T1'])
+		state.save('finbot_watchlist.json', {'chats': {'telegram:55': ['GONE', 'T1']}})
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if t != 'GONE'})
 		self.assertIn('I deleted', str(self.command('.watchlist rm GONE')))
 		self.assertIn('could not find', str(self.command('.watchlist rm GONE')))
-		self.assertEqual(watchlist.tickers(), ['T1'])
+		self.assertEqual(watchlist.tickers('telegram:55'), ['T1'])
 
 
 class BadArguments(FinbotCase):

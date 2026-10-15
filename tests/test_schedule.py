@@ -4,7 +4,7 @@ import contextlib, hashlib, io, os, unittest
 from pathlib import Path
 from unittest import mock
 from tests.common import *
-from lib import jobs, migrate, state
+from lib import jobs, migrate, state, watchlist, worker
 from lib.reports import cal, cleanup, milestone, performance, podcasts, price, rating, trades
 
 LOCAL_ZONE = migrate.local_zone # the real one: the migration tests put UTC in its place
@@ -209,13 +209,14 @@ class Migration(FinbotCase):
 		self.assertFalse(os.path.exists(state.path(jobs.SCHEDULE_FILE)))
 		self.assertEqual(state.load(trades.STATE_FILE), ['t1'])
 
-	def test_the_reports_records_become_each_home_chats_once(self):
-		"""What a report has told the chats (trades, ratings, record highs, each feed's episodes) becomes each home
-		chat's record, so that nothing old is told again; a record kept per chat already is left as it is, and so is
-		one that cannot be read (said in the log)."""
+	def test_the_watchlist_plans_and_records_become_each_home_chats_once(self):
+		"""The watchlist and the plans become each home chat's, and so does what a report has told the chats (trades,
+		ratings, record highs, each feed's episodes), so that nothing old is told again; a file kept per chat already is
+		left as it is, and so is one that cannot be read (said in the log)."""
 		feed = podcasts.get_seen_filename('https://example.com/podcast.rss')
-		old = {trades.STATE_FILE: ['t1', 't2'], rating.STATE_FILE: {'NVDA': ['upgrade', 3]},
-			milestone.STATE_FILE: {'NVDA': {'all_time_high': 200}}, feed: ['guid-1']}
+		old = {watchlist.FILE: ['MSFT', 'BHP.AX'], worker.PLANS: {'@rob': 'buy low'}, trades.STATE_FILE: ['t1', 't2'],
+			rating.STATE_FILE: {'NVDA': ['upgrade', 3]}, milestone.STATE_FILE: {'NVDA': {'all_time_high': 200}},
+			feed: ['guid-1']}
 		for name, record in old.items():
 			state.save(name, record)
 		log = self.migrate()

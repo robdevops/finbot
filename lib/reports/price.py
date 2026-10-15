@@ -15,16 +15,15 @@ from lib import yahoo
 from lib import buttons
 from lib.reports import history
 
-def gather(specific_stock=None, days=None):
-	"""(tickers, market data) for a price report on the stocks followed or one (Yahoo's symbol): Yahoo's quotes, and
-	over `days` each one's change as percent_change_period, from its Yahoo history (the change its chart shows), the
-	histories fetched together up front."""
-	tickers = watchlist.covered(specific_stock)
+def gather(tickers, specific_stock=None, days=None):
+	"""The market data of a price report on tickers (the stocks a chat follows, or the one asked about, Yahoo's
+	symbol): Yahoo's quotes, and over `days` each one's change as percent_change_period, from its Yahoo history (the
+	change its chart shows), the histories fetched together up front."""
 	market_data = yahoo.fetch(tickers)
 	if config.prefs.demote_volatile: # trigger_bar compares market caps, in US dollars
 		yahoo.add_usd_market_caps(market_data)
 	if not days:
-		return tickers, market_data
+		return market_data
 	if not specific_stock:
 		yahoo.prefetch_history(list(market_data))
 	for ticker in list(market_data):
@@ -36,7 +35,7 @@ def gather(specific_stock=None, days=None):
 			print(ticker, e, file=sys.stderr)
 			continue
 		market_data[ticker]['percent_change_period'] = changes[days]
-	return tickers, market_data
+	return market_data
 
 def needs_beta(quote):
 	"""Whether trigger_bar must know this ticker's beta: a small cap between US$150M and US$1B, which counts as volatile
@@ -98,13 +97,13 @@ def change(mode, quote, now, interactive):
 		return quote.get('percent_change_premarket', quote.get('percent_change_postmarket'))
 	return quote.get('percent_change_period')
 
-def moves(mode='interday', threshold=None, days=None, specific_stock=None, interactive=False):
-	"""The Moves of a price report in a mode of MODES ('period': over `days`): each stock followed whose move is
-	`threshold` percent or more, or the one stock asked about, whatever its move. A scheduled report keeps them only
-	when one passes its trigger_bar."""
+def moves(tickers, mode='interday', threshold=None, days=None, specific_stock=None, interactive=False):
+	"""The Moves of a price report on tickers (watchlist.covered: the stocks a chat follows, or the one asked about) in
+	a mode of MODES ('period': over `days`): each whose move is `threshold` percent or more, or the one stock asked
+	about, whatever its move. A scheduled report keeps them only when one passes its trigger_bar."""
 	if threshold is None:
 		threshold = config.prefs.price_percent
-	_, market_data = gather(specific_stock, days)
+	market_data = gather(tickers, specific_stock, days)
 	now = datetime.datetime.now()
 	rows, exchanges = [], set()
 	for ticker, quote in market_data.items():
@@ -172,12 +171,11 @@ def nothing(mode, threshold, user, ticker, in_session, days=None):
 	return f"{user}, no price movements meet threshold {threshold:g}%"
 
 def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user='', specific_stock=None):
-	"""Post the price report (report() has the modes): to the chat that asked or whose job it is (dest), else to the
-	home chats, with its chart and period buttons where they can go."""
+	"""Post the price report (report() has the modes) on the stocks each chat follows: to the chat that asked or whose
+	job it is (dest), else to the home chats, with its chart and period buttons where they can go."""
 	interactive = delivery.interactive(dest)
 	if threshold is None:
 		threshold = config.prefs.price_percent
-	found = moves(mode, threshold, days, specific_stock, interactive)
 	def markup(chat):
 		"""A chart's period buttons, where the chat takes buttons: the daily and N-day lists, but not the intraday
 		ones."""
@@ -188,6 +186,7 @@ def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user
 				buttons.period_for_days(days, 'd' if not days else None))
 		return None
 	for chat in delivery.targets(dest):
+		found = moves(watchlist.covered(chat.key, specific_stock), mode, threshold, days, specific_stock, interactive)
 		payload, graph = report(chat.dialect, found, mode, threshold, days, top, user, specific_stock, interactive)
 		delivery.deliver(chat, delivery.Report(payload, graph, markup(chat) if graph else None))
 

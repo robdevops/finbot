@@ -19,7 +19,7 @@
   * Price history graph
   * Stock lookup with price/valuation related stats and warnings
   * Company profiles
-  * Shared watch list
+  * A watch list per chat
   * List stocks (holdings + watchlist) by P/E, Forward P/E, PEG, market cap, or Yahoo analyst consensus
 
 ### Chat networks
@@ -101,7 +101,7 @@ The other various reports can also run on a schedule (e.g. daily or weekly), or 
 
 The interactive bot answers commands in your chats. It fetches its updates from Telegram and Slack itself, with no server to host (pull mode); in HTTP mode instead, a network posts them to a web service you host on a domain with a trusted certificate. It provides:
 * Stock lookup (financials, company profile, price charts)
-* Group maintainable watch list, picked up by the various reports
+* A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
 * Listing of holdings sorted by various attributes 
 * Running the other stock reports on demand
@@ -405,14 +405,9 @@ rating
 ### Watchlist
 ![Shared watchlist in Slack](img/watchlist.png?raw=true "Shared watchlist in Slack")
 
-Tracks additional securities which are not in your Sharesight holdings. The various reports will include wishlist items as if they are holdings.
+Tracks additional securities which are not in your Sharesight holdings. Each chat has its own watchlist, which anyone in the chat can change: the reports in that chat, asked for or scheduled, include its watchlist's stocks as if they were holdings, and no other chat's. The Sharesight holdings are the same in every chat. `yahoo_warm` keeps every chat's watchlist warm in the cache.
 
-It is stored in `var/finbot_watchlist.json` by default. It is a JSON array literal containing Yahoo symbols. Example:
-```
-["2454.TW", "3217.TWO", "ASO.AX", "STEM"]
-```
-
-When the bot is run interactively, the watchlist is dynamic and can be edited by members of a chat group. In this case, there is no need to create/edit the file manually.
+The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file. The first start with watchlists per chat gives each home chat the watchlist kept before, and the same goes for the plans that `.plan` records: each chat's `.plan` lists only the plans recorded in it.
 
 Interactive trigger:
 ```

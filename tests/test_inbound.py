@@ -346,11 +346,10 @@ class UserTextIsEscaped(FinbotCase):
 		self.assertEqual(self.command('.plan')[0][1], reply) # and the same way again
 		self.sent.clear()
 		# inbound has unescaped Slack's text
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.plan sell <dear>', BOT, 'U'))
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.plan sell <dear> & run', BOT, 'U'))
 		text = '\n'.join(self.sent[0][1])
 		self.assertIn('*<@U1>*', text) # a Slack mention stays markup
-		self.assertIn('_sell &lt;dear&gt;_', text) # escaped once, not twice
-		self.assertIn('_buy &lt;cheap&gt; &amp; hold_', text)
+		self.assertIn('_sell &lt;dear&gt; &amp; run_', text) # escaped once, not twice
 
 	def test_a_telegram_name_is_escaped_where_it_arrives(self):
 		"""A Telegram first name is escaped as the update arrives, in the handle and the name."""

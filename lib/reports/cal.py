@@ -17,14 +17,14 @@ EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'),
 	'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
 
 def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
-	"""Post the earnings or ex-dividend dates ahead (`event`) for the tracked stocks or one (Yahoo's symbol): to the
-	chat that asked or whose job it is (dest), else to the home chats. The scheduled earnings report is pinned where the
-	network can; a reply is not, or the chat would collect pinned copies."""
+	"""Post the earnings or ex-dividend dates ahead (`event`) for the stocks a chat follows or one (Yahoo's symbol): to
+	the chat that asked or whose job it is (dest), else to the home chats. The scheduled earnings report is pinned where
+	the network can; a reply is not, or the chat would collect pinned copies."""
 	interactive = delivery.interactive(dest)
 	if days is None:
 		days = config.prefs.future_days
-	events = gather(watchlist.covered(specific_stock), days, specific_stock, event)
 	for chat in delivery.targets(dest):
+		events = gather(watchlist.covered(chat.key, specific_stock), days, specific_stock, event)
 		payload = report(chat.dialect, events, days, specific_stock, interactive, event)
 		answers = delivery.deliver(chat, delivery.Report(payload))
 		if event == 'earnings' and not specific_stock and not interactive and hasattr(chat, 'pin'):

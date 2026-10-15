@@ -13,13 +13,13 @@ from lib import yahoo
 STATE_FILE = 'finbot_milestone.json' # each chat's {ticker: {'all_time_high': ..., 'all_time_low': ...}}
 
 def run(dest=None):
-	"""Post the stocks followed that set an all-time high or low, against each chat's record, to each of the run's chats
+	"""Post the stocks a chat follows that set an all-time high or low, against its record, to each of the run's chats
 	(dest, a chat's job or the chat that asked; else the home chats); a scheduled run records each chat's new
 	records."""
 	interactive = delivery.interactive(dest)
-	tickers = watchlist.with_holdings()
-	market_data = yahoo.fetch(tickers)
 	for chat in delivery.targets(dest):
+		tickers = watchlist.with_holdings(chat.key)
+		market_data = yahoo.fetch(tickers)
 		highs, lows, changed = compare(tickers, market_data, state.load_for(chat.key, STATE_FILE, {}))
 		delivery.deliver(chat, delivery.Report(report(chat.dialect, market_data, highs, lows)))
 		if changed and not interactive:

@@ -68,8 +68,8 @@ def process_job_callback(press, pressed):
 		delivery.report_error(e, chat, context='jobs')
 
 def process_callback(press):
-	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): run a scheduled command from
-	.jobs, or rebuild a chart message for the chosen period and edit it in place. Data of neither is ignored."""
+	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): a job's (run it, or switch it),
+	or a chart's, whose message is rebuilt for the chosen period and edited in place. Data of neither is ignored."""
 	pressed = buttons.parse(press.data)
 	if isinstance(pressed, buttons.JobPress):
 		return process_job_callback(press, pressed)
@@ -82,7 +82,7 @@ def process_callback(press):
 		markup = buttons.keyboard(pressed.kind, args, pressed.period)
 		if chat.reshow(press.message_id, markup): # that period as posted lately, where the network keeps it (Slack)
 			return
-		caption, chart = charts.build(pressed.kind, args, service, period=pressed.period)
+		caption, chart = charts.build(pressed.kind, args, service, chat.key, period=pressed.period)
 		if chart is None: # too few prices in that period to draw a line
 			raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[pressed.period][0]}")
 		chat.edit_chart(press.message_id, render.draw(chart), caption, markup)
@@ -215,14 +215,15 @@ def portfolios():
 	return 'Portfolios: ' + ', '.join(portfolio.name for portfolio in sharesight.portfolios())
 
 def on_watchlist(request, args):
-	""".watchlist [add|del SYMBOL]: the watchlist, or a change to it."""
+	""".watchlist [add|del SYMBOL]: this chat's watchlist, or a change to it."""
+	chat = request.dest.key
 	if args.keyword and len(args.words) == 1: # what is removed is what is watched: Yahoo may know it no longer
-		symbol = ticker(args) if args.keyword == 'add' else watchlist.watched(args.words[0])
-		request.reply(holdings.prepare_watchlist(request.service, request.user, args.keyword, symbol))
+		symbol = ticker(args) if args.keyword == 'add' else watchlist.watched(chat, args.words[0])
+		request.reply(holdings.prepare_watchlist(request.service, chat, request.user, args.keyword, symbol))
 	elif args.keyword or args.words:
 		raise Usage
 	else:
-		request.reply(holdings.prepare_watchlist(request.service, request.user))
+		request.reply(holdings.prepare_watchlist(request.service, chat, request.user))
 
 def on_help(request, args):
 	""".help: every command (on Discord as its slash command, which works in both modes); in a Telegram DM the command
@@ -283,7 +284,8 @@ def on_marketcap(request, args):
 	if args.words:
 		request.reply([rankings.marketcap_line(request.service, ticker(args))])
 	else:
-		request.reply(rankings.marketcap_list(request.service, bottom=args.keyword == 'bottom', length=15))
+		request.reply(rankings.marketcap_list(request.service, request.dest.key, bottom=args.keyword == 'bottom',
+			length=15))
 
 def on_ratio(kind):
 	"""The handler of .pe, .forward pe or .peg (kind: pe, forward pe or peg): the top (by default) or bottom 15 by the
@@ -293,12 +295,13 @@ def on_ratio(kind):
 		if args.words:
 			request.reply([rankings.ratio_line(request.service, ticker(args), kind)])
 		else:
-			request.reply(*rankings.ratio_list(request.service, kind, args.keyword or 'top', length=15))
+			mode = args.keyword or 'top'
+			request.reply(*rankings.ratio_list(request.service, request.dest.key, kind, mode, length=15))
 	return handler
 
 def on_beta(request, args):
 	""".beta: the volatile small caps among the stocks followed."""
-	payload, chart = rankings.prepare_beta_payload(request.service)
+	payload, chart = rankings.prepare_beta_payload(request.service, request.dest.key)
 	request.reply(payload, chart)
 
 def on_pie(request, args):
@@ -311,7 +314,7 @@ def on_pie(request, args):
 def on_rating(request, args):
 	""".buy, .sell or both (.buy & sell, a keyboard button): the analysts' strongest buy or sell ratings, as asked."""
 	for action in dict.fromkeys(re.findall('buy|sell', f'{args.word} {args.text}'.lower())): # each once, as asked
-		payload, chart = rankings.prepare_rating_payload(request.service, action, length=15)
+		payload, chart = rankings.prepare_rating_payload(request.service, request.dest.key, action, length=15)
 		request.reply(payload, chart)
 
 def on_compare(request, args):
@@ -332,18 +335,18 @@ def on_history(request, args):
 def chart_reply(request, kind, args, days=None):
 	"""The first view of a chart with period buttons, built as a button press builds it (charts.build): its caption,
 	chart and buttons where they go, the period shown marked (Max when days is None)."""
-	caption, chart = charts.build(kind, args, request.service, days=days)
+	caption, chart = charts.build(kind, args, request.service, request.dest.key, days=days)
 	markup = None
 	if chart and request.dest.takes_buttons:
 		markup = buttons.keyboard(kind, args, buttons.period_for_days(days) if days else 'x')
 	request.reply(caption.split('\n'), chart, markup)
 
 def on_plan(request, args):
-	""".plan [text]: record the sender's plan, and list everyone's."""
+	""".plan [text]: record the sender's plan in this chat, and list everyone's here."""
 	if args.text and not args.text.startswith('@'):
-		with state.edit('finbot_plan.json', {}) as plans:
+		with state.edit_for(request.dest.key, PLANS, {}) as plans:
 			plans[request.user] = args.text
-	plan = state.load('finbot_plan.json', {})
+	plan = state.load_for(request.dest.key, PLANS, {})
 	if not plan:
 		raise answer.Answer("No plans yet: .plan TEXT records yours")
 	def who(user):
@@ -428,6 +431,7 @@ SECTIONS = TRACKED, COMPANY, PRICE, RISK, TRADES, JOBS = ('Tracked securities', 
 TOP = {'top': 'top', 'bottom': 'bottom'} # the ends of a ranked list
 NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # the ratios that can be negative
 CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'delete') # of the watchlist
+PLANS = 'finbot_plan.json' # each chat's plans, {user: plan}, as state.load_for keeps them
 BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .pie's
 JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'),
 	'del') # what .jobs does to a chat's jobs

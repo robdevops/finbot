@@ -21,11 +21,11 @@ def marketcap_line(service, ticker):
 		cap += f" (USD {formats.human_units(data['market_cap_usd'])})"
 	return f"{links.stock_line(ticker, data, service)} mkt cap: {cap}"
 
-def marketcap_list(service, bottom=False, length=15):
-	"""The `length` stocks followed of largest (or, `bottom`, smallest) market cap, compared in US dollars at Yahoo's
-	exchange rates: a market cap in won or yen is a far bigger number."""
+def marketcap_list(service, chat, bottom=False, length=15):
+	"""The `length` stocks a chat follows (by its key) of largest (or, `bottom`, smallest) market cap, compared in US
+	dollars at Yahoo's exchange rates: a market cap in won or yen is a far bigger number."""
 	caps = [] # (market cap in US dollars, line)
-	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch(watchlist.with_holdings())).items():
+	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch(watchlist.with_holdings(chat))).items():
 		if 'market_cap_usd' not in data:
 			why = "no market cap" if 'market_cap' not in data else f"no exchange rate for {data.get('currency')}"
 			print(ticker, why, file=sys.stderr)
@@ -38,13 +38,13 @@ def marketcap_list(service, bottom=False, length=15):
 	heading = f"{'Bottom' if bottom else 'Top'} {length} tracked stocks by market cap (USD)"
 	return [service.bold(heading)] + [line for _, line in caps[:length]]
 
-def prepare_rating_payload(service, action, length=15):
-	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by min_analysts or more analysts
-	(fewer, and the consensus says little: ASX small caps covered by two to six brokers are nearly all a perfect 1.0
-	buy), the strongest rating first (1 is a strong buy, 5 a strong sell); on equal ratings, the one more analysts give
-	first."""
+def prepare_rating_payload(service, chat, action, length=15):
+	"""(payload, chart) of the `length` stocks a chat follows (by its key) rated `action` ('buy' or 'sell') by
+	min_analysts or more analysts (fewer, and the consensus says little: ASX small caps covered by two to six brokers
+	are nearly all a perfect 1.0 buy), the strongest rating first (1 is a strong buy, 5 a strong sell); on equal
+	ratings, the one more analysts give first."""
 	found = [] # (rating, analysts, line, ticker)
-	for ticker, data in yahoo.fetch_details(watchlist.with_holdings()).items():
+	for ticker, data in yahoo.fetch_details(watchlist.with_holdings(chat)).items():
 		if 'recommend' not in data or data['recommend_analysts'] < config.prefs.min_analysts:
 			continue
 		recommend = data['recommend']
@@ -85,12 +85,12 @@ def ratio_line(service, ticker, kind):
 		raise answer.Answer(f"{ticker}: no {kind} ratio found")
 	return f"{links.stock_line(ticker, data, service)} {figures}"
 
-def ratio_list(service, kind, mode='top', length=15):
-	"""(payload, chart): the `length` stocks followed by a ratio (kind: pe, forward pe or peg), lowest first (mode top),
-	highest first (bottom), or the negative ones only, lowest first (negative). A forward P/E is analysts' estimate, so
-	its list takes only stocks that min_analysts or more analysts cover, as .buy does."""
+def ratio_list(service, chat, kind, mode='top', length=15):
+	"""(payload, chart): the `length` stocks a chat follows (by its key) by a ratio (kind: pe, forward pe or peg),
+	lowest first (mode top), highest first (bottom), or the negative ones only, lowest first (negative). A forward P/E
+	is analysts' estimate, so its list takes only stocks that min_analysts or more analysts cover, as .buy does."""
 	field = RATIOS[kind]
-	market_data = yahoo.fetch(watchlist.with_holdings())
+	market_data = yahoo.fetch(watchlist.with_holdings(chat))
 	if kind == 'peg': # the PEG is in Yahoo's details
 		market_data |= yahoo.fetch_details(market_data)
 	covered = None # for a forward P/E list: the tickers enough analysts cover
@@ -118,10 +118,11 @@ def ratio_list(service, kind, mode='top', length=15):
 	chart = render.Chart('bars', heading, rows=bars, value_format='number')
 	return [service.bold(heading)] + [line for _, _, line in rows], chart
 
-def prepare_beta_payload(service):
-	"""(payload, chart) of the stocks followed with a beta over 1.5 and a market cap under US$2B, highest beta first."""
+def prepare_beta_payload(service, chat):
+	"""(payload, chart) of the stocks a chat follows (by its key) with a beta over 1.5 and a market cap under US$2B,
+	highest beta first."""
 	found = [] # (beta, line, chart row)
-	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch_details(watchlist.with_holdings())).items():
+	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch_details(watchlist.with_holdings(chat))).items():
 		if 'beta' not in data:
 			continue
 		beta = round(data['beta'], 1)

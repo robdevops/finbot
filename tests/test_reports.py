@@ -114,12 +114,12 @@ class ReportFunctions(FinbotCase):
 
 	def test_prepare_marketcap(self):
 		"""The market cap list is built."""
-		self.assertTrue(rankings.marketcap_list(TELEGRAM, length=5))
+		self.assertTrue(rankings.marketcap_list(TELEGRAM, 'telegram:55', length=5))
 
 	def test_prepare_rating(self):
 		"""The buy and sell lists are built."""
 		for action in ('buy', 'sell'):
-			self.assertTrue(rankings.prepare_rating_payload(TELEGRAM, action, length=5)[0])
+			self.assertTrue(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', action, length=5)[0])
 
 	def test_ratings_list_the_strongest_first(self):
 		"""1 is a strong buy and 5 a strong sell: .sell used to list the mildest sells first. On equal ratings, more
@@ -129,19 +129,19 @@ class ReportFunctions(FinbotCase):
 			'T7': ('strong_buy', 1.0, 6),
 				   'T4': ('sell', 4.2, 7), 'T5': ('underperform', 4.6, 10), 'T6': ('sell', 4.2, 8),
 				   'T8': ('strong_buy', 1.0, 2)}
-		self.patch(watchlist, 'with_holdings', lambda: list(ratings))
+		self.patch(watchlist, 'with_holdings', lambda chat: list(ratings))
 		self.patch(yahoo, 'fetch_detail',
 			lambda t, *a, **k: {t: market_entry(t) | dict(zip(('recommend', 'recommend_index', 'recommend_analysts'),
 			ratings[t]))})
 		def order(action):
 			"""(the tickers listed, the tickers charted) of a ratings report, in order."""
-			payload, chart = rankings.prepare_rating_payload(TELEGRAM, action)
+			payload, chart = rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', action)
 			return [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], [label for label, _ in chart.rows]
 		self.assertEqual(order('buy'), (['T2', 'T3', 'T1'], ['T2', 'T3', 'T1']))
 		self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
-		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'buy')[0][0])
-		self.patch(watchlist, 'with_holdings', lambda: ['T7', 'T8'])
-		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'buy'),
+		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy')[0][0])
+		self.patch(watchlist, 'with_holdings', lambda chat: ['T7', 'T8'])
+		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy'),
 			(['No tracked stocks rated buy by 7+ analysts'], None))
 
 	def test_a_small_cap_quoted_in_won_needs_the_bigger_move_too(self):
@@ -151,7 +151,7 @@ class ReportFunctions(FinbotCase):
 			'market_cap': 1e11}) for t in ts})
 		self.prefs(demote_volatile=True)
 
-		quote = price.gather()[1]['T1']
+		quote = price.gather(TICKERS)['T1']
 		self.assertAlmostEqual(quote['market_cap_usd'], 1e11 / 1380.0) # US$72M
 		self.assertEqual(price.trigger_bar('T1', quote, 5, {}), 5 * config.prefs.volatility_multiplier)
 
@@ -160,8 +160,7 @@ class ReportFunctions(FinbotCase):
 		with none left there is no Bottom list and no gap in the chart; the subtitle says "over the past 3 months"."""
 		for count, bottom, bars in ((12, 2, 13), (8, 0, 8)):
 			with self.subTest(count=count):
-				self.patch(watchlist, 'with_holdings', lambda: TICKERS[:count])
-				found = price.moves('period', 0, 90, interactive=True)
+				found = price.moves(TICKERS[:count], 'period', 0, 90, interactive=True)
 				payload, chart = price.report(TELEGRAM, found, 'period', 0, 90, top=10, interactive=True)
 				shown = payload[payload.index('<b>Bottom 10</b>') + 1:] if bottom else []
 				self.assertEqual((len(shown), len(chart.rows)), (bottom, bars))
@@ -184,13 +183,13 @@ class ReportFunctions(FinbotCase):
 	def test_forward_pe_lists_need_as_many_analysts_as_buy(self):
 		"""A forward P/E is analysts' estimate: from few, it says little, as a perfect 1.0 buy from two brokers does."""
 		analysts = {'T1': 7, 'T2': 6, 'T3': 12, 'T4': 2}
-		self.patch(watchlist, 'with_holdings', lambda: list(analysts))
+		self.patch(watchlist, 'with_holdings', lambda chat: list(analysts))
 		self.patch(yahoo, 'fetch',
 			lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': -5 if t == 'T3' else 20} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
 		def listed(mode='top'):
 			"""(heading, the tickers listed, the chart) of a forward P/E list."""
-			payload, chart = rankings.ratio_list(TELEGRAM, 'forward pe', mode)
+			payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', 'forward pe', mode)
 			return payload[0], [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], chart
 		heading, names, chart = listed()
 		# T2 and T4: too few analysts; T3: negative
@@ -200,7 +199,7 @@ class ReportFunctions(FinbotCase):
 		self.assertIn('Co T2', rankings.ratio_line(TELEGRAM, 'T2', 'forward pe')) # one ticker asked for: shown
 		self.prefs(min_analysts=13) # the one setting moves .buy and .forward pe together
 		self.assertEqual(listed()[0], 'No tracked stocks with 13+ analysts have a forward pe ratio')
-		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'buy')[0],
+		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy')[0],
 			['No tracked stocks rated buy by 13+ analysts'])
 
 	def test_market_caps_compare_in_us_dollars(self):
@@ -215,15 +214,15 @@ class ReportFunctions(FinbotCase):
 				for t in tickers if t in fx or t in stocks}
 		self.patch(yahoo, 'fetch', fetch)
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: fetch([t]))
-		self.patch(watchlist, 'with_holdings', lambda: list(stocks))
-		payload = rankings.marketcap_list(TELEGRAM)
+		self.patch(watchlist, 'with_holdings', lambda chat: list(stocks))
+		payload = rankings.marketcap_list(TELEGRAM, 'telegram:55')
 		self.assertIn('by market cap (USD)', payload[0])
 		# Z1: no rate, left out
 		self.assertEqual([line.split('Co ')[1].split(' ')[0] for line in payload[1:]], ['U1', 'K1.KS', 'L1.L', 'K2.KS'])
 		self.assertIn('mkt cap: 731.88 B', payload[2]) # 1.01 Q won
 		self.assertIn('mkt cap: KRW 1.01 Q (USD 731.88 B)', rankings.marketcap_line(TELEGRAM, 'K1.KS'))
 		self.assertIn('mkt cap: GBP 62.50 B (USD 79.11 B)', rankings.marketcap_line(TELEGRAM, 'L1.L')) # pence: pounds
-		beta = rankings.prepare_beta_payload(TELEGRAM)[0]
+		beta = rankings.prepare_beta_payload(TELEGRAM, 'telegram:55')[0]
 		self.assertIn('Co K2.KS', str(beta)) # 500 billion won is US$362M: a small cap, which it never was unconverted
 		self.assertNotIn('Co K1.KS', str(beta))
 
@@ -234,7 +233,7 @@ class ReportFunctions(FinbotCase):
 				('peg', 'top', 'Top 5 tracked stocks by peg ratio'),
 				('peg', 'negative', 'negative peg: no data found')):
 			with self.subTest(kind=kind, mode=mode):
-				payload, chart = rankings.ratio_list(TELEGRAM, kind, mode, length=5)
+				payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', kind, mode, length=5)
 				self.assertIn(heading, payload[0])
 
 	def test_one_stocks_ratio_shows_what_yahoo_has(self):
@@ -254,11 +253,11 @@ class ReportFunctions(FinbotCase):
 
 	def test_prepare_beta(self):
 		"""The beta report charts a bar per stock listed, and says so when none qualify."""
-		payload, chart = rankings.prepare_beta_payload(TELEGRAM)
+		payload, chart = rankings.prepare_beta_payload(TELEGRAM, 'telegram:55')
 		self.assertIn('Beta over 1.5', payload[0])
 		self.assertEqual(len(chart.rows), len(payload) - 1) # a bar per stock listed
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'beta': 1.0}})
-		self.assertEqual(rankings.prepare_beta_payload(TELEGRAM),
+		self.assertEqual(rankings.prepare_beta_payload(TELEGRAM, 'telegram:55'),
 			(['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None))
 
 	def test_prepare_profile(self):
@@ -299,7 +298,38 @@ class ReportFunctions(FinbotCase):
 
 	def test_prepare_watchlist(self):
 		"""The watchlist is listed."""
-		self.assertTrue(holdings.prepare_watchlist(TELEGRAM, '@u'))
+		self.assertTrue(holdings.prepare_watchlist(TELEGRAM, 'telegram:55', '@u'))
+
+	def test_each_chat_follows_its_own_watchlist_besides_the_holdings(self):
+		"""Each chat has a watchlist of its own: .watchlist lists it, and a report, asked for or scheduled, covers that
+		chat's watchlist and the holdings, which every chat shares, and no other chat's watchlist."""
+		self.patch(watchlist, 'with_holdings', REAL_GET_HOLDINGS)
+		self.patch(sharesight, 'tickers', lambda: ['T1'])
+		fetched = []
+		self.patch(yahoo, 'fetch', lambda ts: fetched.append(sorted(ts)) or {t: market_entry(t) for t in ts})
+		self.command('.watchlist add T2')
+		self.command('.watchlist add T3', chat='56')
+		listed = [str(self.command('.watchlist', chat=chat)) for chat in ('55', '56')]
+		self.assertEqual([('Co T2' in text, 'Co T3' in text) for text in listed], [(True, False), (False, True)])
+		for chat, followed in (('55', ['T1', 'T2']), ('56', ['T1', 'T3'])):
+			with self.subTest(chat=chat):
+				fetched.clear()
+				self.command('.price', chat=chat)
+				self.assertEqual(fetched[0], followed)
+				fetched.clear()
+				self.command('.marketcap', chat=chat)
+				self.assertEqual(fetched[0], followed)
+		fetched.clear()
+		shorts.run(delivery.chat('telegram:56', scheduled=True))
+		self.assertEqual(fetched[0], ['T1', 'T3'])
+
+	def test_plans_are_kept_per_chat(self):
+		""".plan records the sender's plan in this chat, and lists this chat's plans, not another chat's."""
+		self.command('.plan buy low')
+		self.assertIn('buy low', str(self.command('.plan')))
+		self.assertEqual(self.command('.plan', chat='56'), [('text', ['No plans yet: .plan TEXT records yours'])])
+		self.assertNotIn('buy low', str(self.command('.plan sell high', chat='56')))
+		self.assertNotIn('sell high', str(self.command('.plan')))
 
 	def test_compare_usage(self):
 		""".compare with one ticker gets its usage, from the command table."""

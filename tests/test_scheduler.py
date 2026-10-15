@@ -86,16 +86,16 @@ class YahooWarmJob(FinbotCase):
 		self.assertEqual(cache.read('finbot_yahoo_history_T1.json'), {'history of': 'T1'})
 		self.assertIn(f'yahoo_warm: {len(TICKERS) - 1} of {len(TICKERS)} price histories fetched', log.getvalue())
 
-	def test_without_sharesight_the_watchlist_is_fetched(self):
-		"""While Sharesight cannot be asked for the holdings, the watchlist's histories are fetched; without Sharesight
-		configured, it is not asked."""
+	def test_without_sharesight_the_watchlists_are_fetched(self):
+		"""While Sharesight cannot be asked for the holdings, every chat's watchlist's histories are fetched; without
+		Sharesight configured, it is not asked."""
 		asked = []
 		def unreachable():
-			"""Sharesight failing, as watchlist.with_holdings meets it."""
+			"""Sharesight failing, as watchlist.all_followed meets it."""
 			asked.append(1)
 			raise RuntimeError('Sharesight auth: down')
-		self.patch(watchlist, 'with_holdings', unreachable)
-		self.patch(watchlist, 'tickers', lambda: ['W1'])
+		self.patch(watchlist, 'all_followed', unreachable)
+		self.patch(watchlist, 'all_watched', lambda: ['W1'])
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			self.assertEqual(yahoo_warm.run(), 1)
 		self.assertEqual(cache.read('finbot_yahoo_history_W1.json'), {'history of': 'W1'})

@@ -83,14 +83,17 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   when Yahoo does not know it bare: every ticker a chat gives goes through it. `sharesight.portfolios(name=None)` gives
   `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `trades(days)`.
 - `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
-  change one with `with state.edit(name, default) as data:`, never load-then-save. `lib/watchlist.py`: the watchlist.
-  A chat's key is its network and id (`Transport.key`, `telegram:-1001234`), the same in both modes.
+  change one with `with state.edit(name, default) as data:`, never load-then-save; a file of one record per chat with
+  `state.load_for(chat, name, default)` and `state.edit_for`. A chat's key is its network and id (`Transport.key`,
+  `telegram:-1001234`), the same in both modes. `lib/watchlist.py`: each chat's watchlist (`tickers(chat)`), and
+  `with_holdings(chat)`, the stocks a report in that chat covers; a report takes the chat from its destination.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on
   each reload). `lib/jobs.py`: the scheduler: each chat's jobs (`SCHEDULE_FILE`, by chat key; `add`, `delete`,
   `toggle`, `run`, which `.jobs` calls through `jobs.current`) and the fixed `SYSTEM` jobs, its shared state under one
   lock; each command runs in the bot's process, in a thread (`run_in_process`), reported once if still running after
   `JOB_TIMEOUT` and left to finish (every request goes through `net`, with its timeouts: a test checks).
-  `lib/migrate.py`: once, the old schedule.cron and the reports' shared records become the home chats'.
+  `lib/migrate.py`: once, the old schedule.cron, the watchlist, the plans and the reports' shared records become the
+  home chats'.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return

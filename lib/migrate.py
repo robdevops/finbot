@@ -1,7 +1,8 @@
 """Once, as finbot starts: what the bot kept for all chats at once becomes each home chat's (telegramChatID,
 slackChannelID, discordChannelID). The old schedule.cron (the data dir's copy, else the shipped one) is copied to every
-home chat as its jobs, each in the zone it ran in, and is read no more; and the reports' records of what they told the
-chats (trades, ratings, record highs, podcast episodes) are copied to each home chat, so that nothing old is told again.
+home chat as its jobs, each in the zone it ran in, and is read no more; the watchlist and the plans are copied to each
+home chat; and so are the reports' records of what they told the chats (trades, ratings, record highs, podcast
+episodes), so that nothing old is told again.
 
 This module, and defaults/schedule.cron, go once every install has started with it: they are its only users."""
 import copy
@@ -18,9 +19,12 @@ from lib import config
 from lib import delivery
 from lib import jobs
 from lib import state
+from lib import watchlist
+from lib import worker
 from lib.reports import milestone, podcasts, rating, trades
 
-RECORDS = (trades.STATE_FILE, rating.STATE_FILE, milestone.STATE_FILE) # and each podcast feed's seen file
+# kept for all chats, each now one record per chat; and each podcast feed's seen file
+RECORDS = (watchlist.FILE, worker.PLANS, trades.STATE_FILE, rating.STATE_FILE, milestone.STATE_FILE)
 # what a shell reads as more than a word, outside quotes, in a pasted crontab line
 OPERATOR = re.compile(r'\d*>>?&?\d*|&>>?|;|&&|\|\|?|&|[<`$(){}]')
 REDIRECT = re.compile(r'\d*>>?&?\d*|&>>?') # > file, >> file, 2>&1, &> file
@@ -70,7 +74,7 @@ def schedule(homes):
 
 
 def record(name, homes):
-	"""A report's record kept for all chats at once (anything but {'chats': ...}) becomes each home chat's."""
+	"""A file's record kept for all chats at once (anything but {'chats': ...}) becomes each home chat's."""
 	try:
 		data = state.load(name)
 	except (OSError, ValueError) as e:
