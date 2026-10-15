@@ -3,7 +3,6 @@ from itertools import groupby
 from lib import state
 from lib import delivery
 from lib import links
-from lib import markets
 from lib import watchlist
 from lib import yahoo
 
@@ -56,9 +55,7 @@ def report(service, market_data, highs, lows):
 	"""The records in one network's markup: the record highs, then the record lows, each list sorted."""
 	def line(ticker):
 		"""A stock's flag, name and link."""
-		data = market_data[ticker]
-		link = links.finance_link(ticker, data['profile_exchange'], service)
-		return f"{markets.flag_from_ticker(ticker)} {data['profile_title']} ({link})"
+		return links.stock_line(ticker, market_data[ticker], service)
 	payload = []
 	if highs:
 		payload += [service.bold('Record high:')] + sorted(line(ticker) for ticker in highs)

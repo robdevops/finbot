@@ -26,7 +26,7 @@ def gather(tickers):
 	changes, seen = [], {}
 	for ticker in tickers:
 		try:
-			action = market_data[ticker]['recommend'].replace('_', ' ')
+			action = market_data[ticker]['recommend']
 			index = round(float(market_data[ticker]['recommend_index']), 1)
 			analysts = market_data[ticker]['recommend_analysts']
 		except (KeyError, ValueError):

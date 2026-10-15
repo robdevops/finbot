@@ -96,7 +96,7 @@ class ReportFunctions(FinbotCase):
 
 	def test_prepare_marketcap(self):
 		"""The market cap list is built."""
-		self.assertTrue(rankings.prepare_marketcap_payload(TELEGRAM, 'top', length=5))
+		self.assertTrue(rankings.marketcap_list(TELEGRAM, length=5))
 
 	def test_prepare_rating(self):
 		"""The buy and sell lists are built."""
@@ -147,18 +147,18 @@ class ReportFunctions(FinbotCase):
 		self.patch(watchlist, 'with_holdings', lambda: list(analysts))
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': -5 if t == 'T3' else 20} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
-		def listed(action):
-			"""(heading, the tickers listed, the chart) of a ratio report."""
-			payload, chart = rankings.prepare_value_payload(TELEGRAM, action)
+		def listed(mode='top'):
+			"""(heading, the tickers listed, the chart) of a forward P/E list."""
+			payload, chart = rankings.ratio_list(TELEGRAM, 'forward pe', mode)
 			return payload[0], [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], chart
-		heading, names, chart = listed('forward pe')
+		heading, names, chart = listed()
 		# T2 and T4: too few analysts; T3: negative
 		self.assertEqual((names, [label for label, _ in chart.rows]), (['T1'], ['T1']))
 		self.assertIn('forward pe ratio (7+ analysts)', heading)
-		self.assertEqual(listed('negative forward pe')[1], ['T3'])
-		self.assertIn('Co T2', str(rankings.prepare_value_payload(TELEGRAM, 'forward pe', 'T2'))) # one ticker asked for: shown
+		self.assertEqual(listed('negative')[1], ['T3'])
+		self.assertIn('Co T2', rankings.ratio_line(TELEGRAM, 'T2', 'forward pe')) # one ticker asked for: shown
 		self.prefs(min_analysts=13) # the one setting moves .buy and .forward pe together
-		self.assertEqual(rankings.prepare_value_payload(TELEGRAM, 'forward pe')[0], ['No tracked stocks with 13+ analysts have a forward pe ratio'])
+		self.assertEqual(listed()[0], 'No tracked stocks with 13+ analysts have a forward pe ratio')
 		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'buy')[0], ['No tracked stocks rated buy by 13+ analysts'])
 
 	def test_market_caps_compare_in_us_dollars(self):
@@ -172,23 +172,40 @@ class ReportFunctions(FinbotCase):
 		self.patch(yahoo, 'fetch', fetch)
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: fetch([t]))
 		self.patch(watchlist, 'with_holdings', lambda: list(stocks))
-		payload = rankings.prepare_marketcap_payload(TELEGRAM)
+		payload = rankings.marketcap_list(TELEGRAM)
 		self.assertIn('by market cap (USD)', payload[0])
 		self.assertEqual([line.split('Co ')[1].split(' ')[0] for line in payload[1:]], ['U1', 'K1.KS', 'L1.L', 'K2.KS']) # Z1: no rate, left out
 		self.assertIn('mkt cap: 731.88 B', payload[2]) # 1.01 Q won
-		self.assertIn('mkt cap: KRW 1.01 Q (USD 731.88 B)', rankings.prepare_marketcap_payload(TELEGRAM, 'K1.KS')[0])
-		self.assertIn('mkt cap: GBP 62.50 B (USD 79.11 B)', rankings.prepare_marketcap_payload(TELEGRAM, 'L1.L')[0]) # pence quote, pound cap
+		self.assertIn('mkt cap: KRW 1.01 Q (USD 731.88 B)', rankings.marketcap_line(TELEGRAM, 'K1.KS'))
+		self.assertIn('mkt cap: GBP 62.50 B (USD 79.11 B)', rankings.marketcap_line(TELEGRAM, 'L1.L')) # pence: pounds
 		beta = rankings.prepare_beta_payload(TELEGRAM)[0]
 		self.assertIn('Co K2.KS', str(beta)) # 500 billion won is US$362M: a small cap, which it never was unconverted
 		self.assertNotIn('Co K1.KS', str(beta))
 
 	def test_prepare_value(self):
 		"""Each ratio report has its heading: top, bottom, and negative (with none found)."""
-		for action, heading in (('pe', 'Top 5 tracked stocks by pe ratio'), ('bottom forward pe', 'Bottom 5 tracked stocks by forward pe ratio'),
-								('peg', 'Top 5 tracked stocks by peg ratio'), ('negative peg', 'negative peg: no data found')):
-			with self.subTest(action=action):
-				payload, chart = rankings.prepare_value_payload(TELEGRAM, action, length=5)
+		for kind, mode, heading in (('pe', 'top', 'Top 5 tracked stocks by pe ratio'),
+				('forward pe', 'bottom', 'Bottom 5 tracked stocks by forward pe ratio'),
+				('peg', 'top', 'Top 5 tracked stocks by peg ratio'),
+				('peg', 'negative', 'negative peg: no data found')):
+			with self.subTest(kind=kind, mode=mode):
+				payload, chart = rankings.ratio_list(TELEGRAM, kind, mode, length=5)
 				self.assertIn(heading, payload[0])
+
+	def test_one_stocks_ratio_shows_what_yahoo_has(self):
+		""".pe of a loss-maker shows its forward P/E (it used to say nothing), .peg labels its figure, and a stock
+		without the ratio asked for, or one Yahoo does not know, is said to have none."""
+		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_trailing': None} for t in ts
+			if not t.startswith('NONE')})
+		self.assertEqual(self.command('.pe T1')[0][1][0].split(') ')[1], 'PE: forward 9')
+		self.assertEqual(self.command('.peg T1')[0][1][0].split(') ')[1], 'PEG: 1.2')
+		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'price_to_earnings_peg': None}})
+		self.assertEqual(self.command('.peg T1'), [('text', ['T1: no peg ratio found'])])
+		self.assertEqual(self.command('.pe NONE.L'), [('text', ['NONE.L: no data found'])])
+
+	def test_pe_sends_its_chart_as_forward_pe_and_peg_do(self):
+		""".pe builds a chart, and now sends it."""
+		self.assertEqual([kind for kind, *_ in self.command('.pe')], ['photo'])
 
 	def test_prepare_beta(self):
 		"""The beta report charts a bar per stock listed, and says so when none qualify."""

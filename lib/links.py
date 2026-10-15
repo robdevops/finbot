@@ -1,9 +1,16 @@
 """Links to a stock's page on Yahoo or Google Finance, in the markup of `service` (a dialect: see lib/dialects.py)."""
 from lib import config
+from lib import formats
 from lib import markets
 
 NO_GOOGLE_PAGE = ('Taipei Exchange', 'CCC') # exchanges Google Finance has no pages for (CCC: crypto), nor indices (^)
 WINDOWS = ((1825, 'Max'), (365, '5Y'), (183, '1Y'), (31, '6M'), (7, '1M'), (1, '5D')) # over that many days, that window
+
+def stock_line(ticker, quote, service, days=1):
+	"""'🇦🇺 Title (TICKER)': how a report line names a stock from its Yahoo quote, the symbol linked to its page
+	(finance_link) and the flag of its market left out where it has none."""
+	link = finance_link(ticker, quote.get('profile_exchange') or '', service, days)
+	return formats.security_line(markets.flag_from_ticker(ticker), quote.get('profile_title', ticker), link)
 
 def yahoo_link(ticker, service, brief=True, text=None):
 	"""A link to the ticker's Yahoo Finance page reading `text`, else the bare symbol (brief) or the whole ticker."""

@@ -159,7 +159,7 @@ def outlook(service, data):
 		shorted = data['short_percent']
 		lines.append(service.bold("Shorted stock:") + f" {shorted}%" + ('⚠️ ' if shorted > 10 else ''))
 	if 'recommend' in data:
-		rating = data['recommend'].replace('_', ' ')
+		rating = data['recommend']
 		score = f"{data['recommend_index']} {rating} ({data['recommend_analysts']} analysts)"
 		lines.append(service.bold("Score:") + f" {score}")
 	return lines

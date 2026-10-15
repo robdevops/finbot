@@ -1,40 +1,42 @@
-"""Ranked lists of the stocks followed: .marketcap, .pe, .fpe and .peg (top, bottom, negative), .beta, .buy and .sell."""
+"""Ranked lists of the stocks followed (.marketcap, .pe, .forward pe and .peg, .beta, .buy and .sell), and one stock's
+market cap or ratio."""
 import sys
 from lib import answer
 from lib import config
 from lib import watchlist
 from lib import formats
 from lib import links
-from lib import markets
 from lib import render
 from lib import yahoo
 
-def prepare_marketcap_payload(service, action='top', length=15):
-	"""The `length` tracked stocks of largest (action 'top') or smallest ('bottom') market cap, compared in US dollars at Yahoo's
-	exchange rates: a market cap in won or yen is a far bigger number. Any other action is one ticker's, in its own currency too."""
-	if action not in ('top', 'bottom'):
-		ticker = action
-		data = yahoo.add_usd_market_caps(yahoo.fetch_detail(ticker, 600)).get(ticker, {})
-		if 'market_cap' not in data:
-			return [f"Mkt cap not found for {ticker}"]
-		currency = yahoo.market_cap_currency(data) or ''
-		cap = f"{currency} {formats.human_units(data['market_cap'])}".strip()
-		if currency != 'USD' and 'market_cap_usd' in data:
-			cap += f" (USD {formats.human_units(data['market_cap_usd'])})"
-		link = links.finance_link(ticker, data.get('profile_exchange', ''), service)
-		return [formats.security_line(markets.flag_from_ticker(ticker), data.get('profile_title', ticker), link) + f" mkt cap: {cap}"]
+def marketcap_line(service, ticker):
+	"""One stock's market cap, in its own currency, and in US dollars too where that is another. Raises answer.Answer
+	when Yahoo has none."""
+	data = yahoo.add_usd_market_caps(yahoo.fetch_detail(ticker, 600)).get(ticker, {})
+	if 'market_cap' not in data:
+		raise answer.Answer(f"Mkt cap not found for {ticker}")
+	currency = yahoo.market_cap_currency(data) or ''
+	cap = f"{currency} {formats.human_units(data['market_cap'])}".strip()
+	if currency != 'USD' and 'market_cap_usd' in data:
+		cap += f" (USD {formats.human_units(data['market_cap_usd'])})"
+	return f"{links.stock_line(ticker, data, service)} mkt cap: {cap}"
+
+def marketcap_list(service, bottom=False, length=15):
+	"""The `length` stocks followed of largest (or, `bottom`, smallest) market cap, compared in US dollars at Yahoo's
+	exchange rates: a market cap in won or yen is a far bigger number."""
 	caps = [] # (market cap in US dollars, line)
 	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch(watchlist.with_holdings())).items():
 		if 'market_cap_usd' not in data:
-			print(ticker, "no market cap" if 'market_cap' not in data else f"no exchange rate for {data.get('currency')}", file=sys.stderr)
+			why = "no market cap" if 'market_cap' not in data else f"no exchange rate for {data.get('currency')}"
+			print(ticker, why, file=sys.stderr)
 			continue
-		link = links.finance_link(ticker, data['profile_exchange'], service)
-		line = formats.security_line(markets.flag_from_ticker(ticker), data['profile_title'], link)
-		caps.append((data['market_cap_usd'], line + f" mkt cap: {formats.human_units(data['market_cap_usd'])}"))
+		cap = formats.human_units(data['market_cap_usd'])
+		caps.append((data['market_cap_usd'], f"{links.stock_line(ticker, data, service)} mkt cap: {cap}"))
 	if not caps:
 		return ['No market cap data found']
-	caps.sort(key=lambda cap: cap[0], reverse=action == 'top')
-	return [service.bold(f'{action.title()} {length} tracked stocks by market cap (USD)')] + [line for _, line in caps[:length]]
+	caps.sort(key=lambda cap: cap[0], reverse=not bottom)
+	heading = f"{'Bottom' if bottom else 'Top'} {length} tracked stocks by market cap (USD)"
+	return [service.bold(heading)] + [line for _, line in caps[:length]]
 
 def prepare_rating_payload(service, action, length=15):
 	"""(payload, chart) of the `length` tracked stocks rated `action` ('buy' or 'sell') by min_analysts or more analysts (fewer,
@@ -44,11 +46,11 @@ def prepare_rating_payload(service, action, length=15):
 	for ticker, data in yahoo.fetch_details(watchlist.with_holdings()).items():
 		if 'recommend' not in data or data['recommend_analysts'] < config.prefs.min_analysts:
 			continue
-		recommend = data['recommend'].replace('_', ' ')
+		recommend = data['recommend']
 		if (action == 'buy' and 'buy' in recommend) or (action == 'sell' and recommend in ('sell', 'underperform')):
 			rating, analysts = round(data['recommend_index'], 2), data['recommend_analysts']
-			link = links.finance_link(ticker, data['profile_exchange'], service)
-			found.append((rating, analysts, f"{markets.flag_from_ticker(ticker)} {data['profile_title']} ({link}) {rating} ({analysts} analysts)", ticker))
+			line = f"{links.stock_line(ticker, data, service)} {rating} ({analysts} analysts)"
+			found.append((rating, analysts, line, ticker))
 	found = sorted(found, key=lambda row: (row[0] if action == 'buy' else -row[0], -row[1]))[:length]
 	payload = [line for _, _, line, _ in found]
 	if not payload:
@@ -64,48 +66,51 @@ def prepare_rating_payload(service, action, length=15):
 
 RATIOS = {'pe': 'price_to_earnings_trailing', 'forward pe': 'price_to_earnings_forward', 'peg': 'price_to_earnings_peg'}
 
-def prepare_value_payload(service, action='pe', ticker_select=None, length=15):
-	"""(payload, chart): the tracked stocks by a ratio of RATIOS, or one ticker's. action is the ratio, or 'bottom' or
-	'negative' and the ratio: lowest first, highest first ('bottom'), or the negative ones only, lowest first. A forward
-	P/E is analysts' estimate, so its lists take only stocks that min_analysts or more analysts cover, as .buy does."""
-	mode, kind = action.split(' ', 1) if action.split()[0] in ('bottom', 'negative') else ('top', action)
-	field = RATIOS[kind]
-	market_data = yahoo.fetch(watchlist.covered(ticker_select))
+def ratio_line(service, ticker, kind):
+	"""One stock's line for .pe, .forward pe or .peg SYMBOL (kind: pe, forward pe or peg): its P/E, trailing and
+	forward where Yahoo has them, or its PEG. Raises answer.Answer when Yahoo knows neither the stock nor the ratio (a
+	loss-maker has no trailing P/E)."""
+	data = yahoo.fetch([ticker]).get(ticker)
+	if data is None:
+		raise answer.Answer(f"{ticker}: no data found")
 	if kind == 'peg': # the PEG is in Yahoo's details
-		market_data |= yahoo.fetch_details(market_data, strict=bool(ticker_select))
+		data |= yahoo.fetch_details([ticker], strict=True).get(ticker, {})
+		figures = f"PEG: {data['price_to_earnings_peg']}" if data.get('price_to_earnings_peg') is not None else ''
+	else:
+		both = (('trailing', 'price_to_earnings_trailing'), ('forward', 'price_to_earnings_forward'))
+		figures = ', '.join(f'{name} {data[key]}' for name, key in both if data.get(key) is not None)
+		figures = f"PE: {figures}" if figures else ''
+	if not figures:
+		raise answer.Answer(f"{ticker}: no {kind} ratio found")
+	return f"{links.stock_line(ticker, data, service)} {figures}"
+
+def ratio_list(service, kind, mode='top', length=15):
+	"""(payload, chart): the `length` stocks followed by a ratio (kind: pe, forward pe or peg), lowest first (mode top),
+	highest first (bottom), or the negative ones only, lowest first (negative). A forward P/E is analysts' estimate, so
+	its list takes only stocks that min_analysts or more analysts cover, as .buy does."""
+	field = RATIOS[kind]
+	market_data = yahoo.fetch(watchlist.with_holdings())
+	if kind == 'peg': # the PEG is in Yahoo's details
+		market_data |= yahoo.fetch_details(market_data)
 	covered = None # for a forward P/E list: the tickers enough analysts cover
-	if kind == 'forward pe' and not ticker_select:
+	if kind == 'forward pe':
 		covered = {ticker for ticker, detail in yahoo.fetch_details(market_data).items()
 			if detail.get('recommend_analysts', 0) >= config.prefs.min_analysts}
 	rows = [] # (ratio, chart label, line), one sorted list for the caption and the chart
 	for ticker, data in market_data.items():
 		ratio = data.get(field)
-		if ratio is None or (covered is not None and ticker not in covered):
-			continue
-		if not ticker_select and (ratio < 0) != (mode == 'negative'): # a list: the negative ones, or none of them
-			continue
-		link = links.finance_link(ticker, data.get('profile_exchange'), service)
-		start = f"{markets.flag_from_ticker(ticker)} {data.get('profile_title')} ({link})"
-		if ticker_select and mode == 'top' and kind in ('pe', 'forward pe'): # one stock's P/E: trailing and forward
-			both = (('trailing', 'price_to_earnings_trailing'), ('forward', 'price_to_earnings_forward'))
-			parts = ', '.join(f'{name} {data[key]}' for name, key in both if data.get(key) is not None)
-			rows.append((ratio, None, f"{start} PE: {parts}"))
-		else:
-			rows.append((ratio, ticker.split('.')[0], f"{start} {ratio}"))
+		if ratio is None or (covered is not None and ticker not in covered) or (ratio < 0) != (mode == 'negative'):
+			continue # the negative ones, or none of them
+		rows.append((ratio, ticker.split('.')[0], f"{links.stock_line(ticker, data, service)} {ratio}"))
 	rows.sort(key=lambda row: row[0])
 	if mode == 'bottom':
 		rows.reverse()
-	if ticker_select:
-		if not rows: # Yahoo does not know it, or sends no such ratio for it (a loss-maker has no trailing P/E)
-			raise answer.Answer(f"{ticker_select}: no {kind.upper()} found" if ticker_select in market_data
-				else f"{ticker_select}: no data found")
-		return [line for _, _, line in rows], None
 	rows = rows[:length]
-	trail = kind if mode != 'negative' else action # what the heading calls the ratio
+	trail = f'negative {kind}' if mode == 'negative' else kind # what the heading calls the ratio
 	if not rows:
 		if covered is not None:
 			return [f"No tracked stocks with {config.prefs.min_analysts}+ analysts have a {trail} ratio"], None
-		return [f"{action}: no data found"], None
+		return [f"{kind if mode == 'top' else f'{mode} {kind}'}: no data found"], None
 	coverage = f" ({config.prefs.min_analysts}+ analysts)" if covered is not None else ''
 	heading = f"{'Bottom' if mode == 'bottom' else 'Top'} {length} tracked stocks by {trail} ratio{coverage}"
 	bars = tuple((label, float(ratio)) for ratio, label, _ in rows)
@@ -120,8 +125,8 @@ def prepare_beta_payload(service):
 			continue
 		beta = round(data['beta'], 1)
 		if beta > 1.5 and data.get('market_cap_usd', float('inf')) < 2e9:
-			link = links.finance_link(ticker, data['profile_exchange'], service)
-			found.append((beta, formats.security_line(markets.flag_from_ticker(ticker), data['profile_title'], link) + f" {beta} β", (ticker.split('.')[0], float(beta))))
+			line = f"{links.stock_line(ticker, data, service)} {beta} β"
+			found.append((beta, line, (ticker.split('.')[0], float(beta))))
 	if not found:
 		return ['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None
 	found.sort(key=lambda row: row[0], reverse=True)

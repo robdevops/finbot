@@ -244,7 +244,7 @@ DETAIL_FIELDS = ( # (key, path in the quoteSummary result[, conversion]); a fiel
 	('free_cashflow', ('financialData', 'freeCashflow', 'raw')),
 	('operating_cashflow', ('financialData', 'operatingCashflow', 'raw')),
 	('financialCurrency', ('financialData', 'financialCurrency')),
-	('recommend', ('financialData', 'recommendationKey')),
+	('recommend', ('financialData', 'recommendationKey'), lambda key: key.replace('_', ' ')), # strong_buy: strong buy
 	('recommend_index', ('financialData', 'recommendationMean', 'raw')),
 	('recommend_analysts', ('financialData', 'numberOfAnalystOpinions', 'raw')),
 )

@@ -263,16 +263,20 @@ def on_holdings(request, args):
 
 def on_marketcap(request, args):
 	""".marketcap [SYMBOL|top|bottom]: stocks followed by market cap, largest (or smallest) first, or one stock's."""
-	request.reply(rankings.prepare_marketcap_payload(request.service, args.keyword or ticker(args) or 'top', length=15))
+	if args.words:
+		request.reply([rankings.marketcap_line(request.service, ticker(args))])
+	else:
+		request.reply(rankings.marketcap_list(request.service, bottom=args.keyword == 'bottom', length=15))
 
-def on_ratio(kind, chart=True):
-	"""The handler of .pe, .forward pe or .peg: the top (by default) or bottom 15 by the ratio, the negative ones (where
-	there can be any), or one ticker's ratio. `chart`: with its chart."""
+def on_ratio(kind):
+	"""The handler of .pe, .forward pe or .peg (kind: pe, forward pe or peg): the top (by default) or bottom 15 by the
+	ratio and its chart, the negative ones (where there can be any), or one ticker's ratio."""
 	def handler(request, args):
 		""".pe, .forward pe or .peg [SYMBOL|top|bottom|negative]."""
-		action = f'{args.keyword} {kind}' if args.keyword in ('bottom', 'negative') else kind
-		payload, spec = rankings.prepare_value_payload(request.service, action, ticker(args), length=15)
-		request.reply(payload, spec if chart else None)
+		if args.words:
+			request.reply([rankings.ratio_line(request.service, ticker(args), kind)])
+		else:
+			request.reply(*rankings.ratio_list(request.service, kind, args.keyword or 'top', length=15))
 	return handler
 
 def on_beta(request, args):
@@ -394,7 +398,7 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('session', 'premarket', 'postmarket', 'permarket'), on_session,
 		('.session [percent|SYMBOL]', '.premarket [percent|SYMBOL]'), PRICE, ('.session', '.premarket'), percent=True),
 	Command(BUY_SELL, on_rating, ('.buy', '.sell'), RISK, ('.buy & sell',)), # .buy & sell (or .buy sell): both
-	Command(('pe',), on_ratio('pe', chart=False), ('.pe [SYMBOL|top|bottom]',), RISK, ('.pe',), keywords=TOP),
+	Command(('pe',), on_ratio('pe'), ('.pe [SYMBOL|top|bottom]',), RISK, ('.pe',), keywords=TOP),
 	Command(('forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'), ('.forward pe [SYMBOL|top|bottom|negative]',),
 		RISK, ('.forward pe',), keywords=NEGATIVE),
 	Command(('peg',), on_ratio('peg'), ('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',), keywords=NEGATIVE),

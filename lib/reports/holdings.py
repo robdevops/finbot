@@ -1,5 +1,4 @@
 """What is held and followed: .holdings, .who, .pie and .watchlist."""
-import re
 from lib import watchlist
 from lib import sharesight
 from lib import formats
@@ -74,8 +73,8 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 		return [watchlist_change(service, user, action, ticker)]
 	watched = watchlist.tickers()
 	market_data = yahoo.fetch(watched) if watched else {}
-	lines = sorted((f"{markets.flag_from_ticker(t)} {quote['profile_title']} ({links.finance_link(t, quote.get('profile_exchange'), service)})"
-		for t, quote in market_data.items()), key=lambda line: re.findall('[A-Z].*', line)) # by name, the flag aside
+	lines = [links.stock_line(ticker, quote, service)
+		for ticker, quote in sorted(market_data.items(), key=lambda item: item[1]['profile_title'].lower())]
 	if not lines:
 		return ['Watchlist is empty. Try ".watchlist add SYMBOL" to create it']
 	return [f"Hi {user}, I'm currently tracking:"] + lines
