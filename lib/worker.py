@@ -114,11 +114,11 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 		return
 	try:
 		_, kind, period, ref = parts
-		tickers = buttons.resolve(ref)
-		caption, chart = charts.build(kind, tickers, period, service)
+		args = buttons.resolve(ref)
+		caption, chart = charts.build(kind, args, period, service)
 		chat = delivery.reply_to(service, chat_id)
 		image = render.draw(chart) if chart else None
-		chat.edit_chart(message_id, image, caption, buttons.keyboard(kind, tickers, period))
+		chat.edit_chart(message_id, image, caption, buttons.keyboard(kind, args, period))
 	except answer.Answer as e: # nothing to draw for that period: said in the chat, as a command would
 		delivery.deliver(delivery.reply_to(service, chat_id), delivery.Report(e.lines))
 	except Exception as e:

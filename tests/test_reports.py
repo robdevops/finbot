@@ -408,6 +408,17 @@ class PeriodButtons(FinbotCase):
 			with self.subTest(command=command):
 				self.assertNotIn('1D', [b.lstrip('● ') for b in self.buttons(command)])
 
+	def test_a_long_list_is_stored_and_only_the_newest_are_kept(self):
+		"""A button whose tickers do not fit the callback data carries a stored list's id; only the newest REF_LIMIT
+		lists are kept, and an older button says it has expired."""
+		self.patch(buttons, 'REF_LIMIT', 2)
+		long = lambda i: [f'TICKER{i}.AX', 'LONGER.AX', 'LONGEST.AX', 'MORE.AX', 'EVEN.AX', 'MOST.AX', 'LAST.AX']
+		refs = [buttons._ref(long(i)) for i in range(3)]
+		self.assertTrue(all(ref.startswith('#') for ref in refs))
+		self.assertEqual(buttons.resolve(refs[2]), long(2))
+		with self.assertRaises(KeyError):
+			buttons.resolve(refs[0])
+
 	def test_no_buttons_where_their_presses_would_go_nowhere(self):
 		"""Without telegramOutgoingWebhook (reports only), Telegram hears nothing from finbot's buttons, so a chart, a
 		scheduled one included, comes without them."""

@@ -265,14 +265,9 @@ class ReportChartInputs(FinbotCase):
 	"""What the reports hand to the chart: sort order, titles and dates, taken from the real report code."""
 
 	def run_report(self, call):
-		"""Run call() and return what it handed hbar_chart: rows, title and subtitle."""
-		captured = []
-		real = render.hbar_chart
-		def spy(rows, title, subtitle='', **kw):
-			"""Record a chart's inputs, then draw it."""
-			captured.append({'rows': list(rows), 'title': title, 'subtitle': subtitle})
-			return real(rows, title, subtitle, **kw)
-		self.patch(render, 'hbar_chart', spy)
+		"""Run call() and return the first chart spec it handed render.draw."""
+		captured, real = [], render.draw
+		self.patch(render, 'draw', lambda chart: captured.append(chart) or real(chart))
 		call()
 		self.assertTrue(captured, 'no chart was drawn')
 		return captured[0]
@@ -297,46 +292,37 @@ class ReportChartInputs(FinbotCase):
 	def test_price_top_lists_best_first_then_worst(self):
 		""".price top: the ten best, best first, a spacer, then the ten worst, worst first, as in the caption."""
 		chart = self.run_report(lambda: self.command('.price top 7d'))
-		values = [v for _, v in chart['rows'] if v is not None]
+		values = [v for _, v in chart.rows if v is not None]
 		top, bottom = values[:10], values[10:]
 		self.assertEqual(top, sorted(top, reverse=True))
 		self.assertEqual(bottom, sorted(bottom)) # the worst performer comes first, like the caption's second list
 		self.assertGreater(min(top), max(bottom))
-		self.assertIn(None, [v for _, v in chart['rows']]) # spacer between the two lists
+		self.assertIn(None, [v for _, v in chart.rows]) # spacer between the two lists
 
 	def test_price_threshold_chart_is_sorted_and_titled_with_the_threshold(self):
 		""".price 5%: the chart is sorted best first and its title names the threshold."""
 		chart = self.run_report(lambda: self.command('.price 5%'))
-		values = [v for _, v in chart['rows'] if v is not None]
+		values = [v for _, v in chart.rows if v is not None]
 		self.assertEqual(values, sorted(values, reverse=True))
-		self.assertIn('5', chart['title'])
+		self.assertIn('5', chart.title)
 
 	def test_price_over_a_period_has_a_dated_title(self):
 		""".price 7d: the chart's title gives the dates covered."""
 		chart = self.run_report(lambda: self.command('.price 7d'))
-		self.assertRegex(chart['title'], r'\d{1,2} \w{3} - \d{1,2} \w{3} \d{4}') # 28 Sep - 5 Oct 2026
+		self.assertRegex(chart.title, r'\d{1,2} \w{3} - \d{1,2} \w{3} \d{4}') # 28 Sep - 5 Oct 2026
 
 	def test_performance_is_sorted_by_percent(self):
 		""".performance 7d: the chart is sorted best first."""
 		chart = self.run_report(lambda: self.command('.performance 7d'))
-		values = [v for _, v in chart['rows'] if v is not None]
+		values = [v for _, v in chart.rows if v is not None]
 		self.assertEqual(values, sorted(values, reverse=True))
 
 	def test_shorts_is_sorted_and_carries_the_threshold(self):
 		""".shorts: the pictogram gets the stocks over the threshold, most shorted first, and the threshold."""
-		captured = []
-		real = render.shorts_chart
-		def spy(rows, threshold, *a, **k):
-			"""Record the pictogram's inputs, then draw it."""
-			captured.append((list(rows), threshold))
-			return real(rows, threshold, *a, **k)
-		self.patch(render, 'shorts_chart', spy)
-		self.command('.shorts')
-		self.assertTrue(captured, 'no chart was drawn')
-		rows, threshold = captured[0]
-		values = [v for _, v in rows]
-		self.assertEqual(values, sorted(values, reverse=True))
-		self.assertTrue(all(v > threshold for v in values))
+		chart = self.run_report(lambda: self.command('.shorts'))
+		values = [v for _, v in chart.rows]
+		self.assertEqual((chart.kind, values), ('shorts', sorted(values, reverse=True)))
+		self.assertTrue(all(v > chart.threshold for v in values))
 
 
 class GoldenImages(unittest.TestCase):
