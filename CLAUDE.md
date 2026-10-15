@@ -29,8 +29,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   record real requests.
 
 ## Code map (open the one file you need)
-- `bot.py`: WSGI entry; routes /telegram and /slack, authenticates, hands each message to `lib/worker.py` in a thread; SIGHUP reload, SIGUSR1
-  cache flush.
+- `bot.py`: WSGI entry (route, verify, parse, then a thread of `lib/worker.py` per message or button press); SIGHUP
+  reload, SIGUSR1 cache flush. `lib/inbound.py`: a class per network that posts to the bot (`Telegram`, `Slack`): its
+  path, how it proves itself, and its updates as `Message`, `Press` or a `Response` given straight back.
 - `lib/worker.py`: `COMMANDS` (regex → `on_*` handler, first match wins, `.SYMBOL` last); `Request`
   (`request.reply(lines, chart, buttons)`); the typing notice, which every command gets after half a second.
 - `lib/reports/`: what finbot says. Scheduled (each has `lambda_handler()` and `job(argv)`, its schedule-line parser): `price

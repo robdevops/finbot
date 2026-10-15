@@ -226,6 +226,16 @@ class WsgiRejections(FinbotCase):
 		self.assertIn(b'Unauthorized', self.request(body=message, headers={'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'wrong'})[0])
 		self.assertEqual(self.sent, []) # nothing was processed
 
+	def test_an_empty_secret_proves_nothing(self):
+		"""With no secret configured, a request carrying an empty one is refused, on Telegram and on Slack."""
+		self.env(telegramOutgoingToken='', slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='')
+		message = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'text': '.help'}}
+		empty = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': ''}
+		self.assertEqual(self.request(body=message, headers=empty)[1], '403 Forbidden')
+		self.assertEqual(self.request('/slack', {'token': '', 'type': 'url_verification', 'challenge': 'c'})[1],
+			'403 Forbidden')
+		self.assertEqual((self.sent, self.errors), ([], []))
+
 	def test_unknown_path_is_404(self):
 		"""An unknown path is 404."""
 		self.assertEqual(self.request(path='/nope')[1], '404 Not Found')
@@ -258,7 +268,7 @@ class WsgiRejections(FinbotCase):
 		def broken(*a, **k):
 			"""Fail while routing."""
 			raise RuntimeError('boom')
-		self.patch(bot, 'urlparse', broken) # fails while routing, before the secret is even looked at
+		self.patch(inbound, 'urlparse', broken) # fails while routing, before the secret is even looked at
 		env = {'PATH_INFO': '/telegram', 'wsgi.input': io.BytesIO(b'{}'), **self.SECRET}
 		status = []
 		with contextlib.redirect_stderr(io.StringIO()) as err:
@@ -354,9 +364,9 @@ class SlackEvents(FinbotCase):
 
 	def test_slack_does_not_change_the_telegram_bot_name(self):
 		"""A Slack event leaves the Telegram bot's name alone."""
-		self.patch(bot, 'botName', '@finbot_tg')
+		self.patch(inbound.TELEGRAM, 'bot_name', '@finbot_tg')
 		self.event(user='U1', text='.price')
-		self.assertEqual(bot.botName, '@finbot_tg')
+		self.assertEqual(inbound.TELEGRAM.bot_name, '@finbot_tg')
 
 
 class UserTextIsEscaped(FinbotCase):

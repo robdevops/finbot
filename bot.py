@@ -6,13 +6,13 @@ if __name__ == '__main__':
 	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise the cache flush
 import gevent.monkey
 gevent.monkey.patch_all()
-import collections, html, json, os, re, sys, traceback
+import collections, json, os, re, sys, traceback
 from pathlib import Path
 from gevent import pywsgi
 import threading
-from urllib.parse import urlparse
 
 from lib import config
+from lib import inbound
 from lib import worker
 from lib import jobs
 from lib import charts
@@ -24,9 +24,7 @@ from lib import yahoo
 from lib import render
 from lib.reports import cleanup
 
-botName = None # the Telegram bot's @username, from telegram.register() at start
-AUTHENTICATED = 'finbot.authenticated' # set in a request's WSGI environ once it has passed its service's check
-SLACK_USER_SUBTYPES = (None, 'thread_broadcast') # Slack message subtypes a person writes; the others are bot posts, edits, joins and the like
+AUTHENTICATED = 'finbot.authenticated' # set in a request's WSGI environ once it has passed its network's check
 _updates_seen = collections.OrderedDict() # (service, update id) of the last updates taken, oldest first
 
 def seen_before(service, update_id, keep=1000):
@@ -63,128 +61,60 @@ def main(environ, start_response):
 		return [b'']
 
 def handle(environ, start_response):
-	"""Route a request by its path, check that it comes from Telegram (its secret header) or Slack (its verification
-	token), turn away repeats, and hand a command or a button press to lib/worker in a thread of its own: the service
-	gets its answer at once."""
-	def print_body():
-		"""Log the request body, Slack's verification token redacted."""
-		shown = {k: '<redacted>' if k == 'token' else v for k, v in inbound.items()} # Slack's verification token
-		print(f"inbound {uri} ", json.dumps(shown, indent=4, default=str), file=sys.stderr)
+	"""Route a request by its path to the network that posts there, turn it away unless it proves it comes from that
+	network (before its body is read, when the proof is a header), read the update, turn away repeats, and hand a
+	message or a button press to lib/worker in a thread of its own: the network gets its answer at once."""
+	def respond(response):
+		"""Answer the request: a status line and a body."""
+		start_response(response.status, [('Content-type', 'application/json')])
+		return [response.body]
 	def print_headers():
 		"""Log the request headers, Telegram's secret header redacted."""
 		for name, value in sorted(environ.items()):
 			print((name, '<redacted>' if name == 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' else value), file=sys.stderr)
-	def reply(status, body=b''):
-		"""Answer the request: a status line and a body."""
-		start_response(status, [('Content-type', 'application/json')])
-		return [body]
-	print_headers() if config.prefs.print_headers else None
-	# route on the path first, and turn strangers away before reading the body
-	uri = environ.get('PATH_INFO', '')
-	if config.env.telegramOutgoingWebhook and uri == urlparse(config.env.telegramOutgoingWebhook).path:
-		service = 'telegram'
-	elif config.env.slackOutgoingWebhook and uri == urlparse(config.env.slackOutgoingWebhook).path:
-		service = 'slack'
-	else:
-		print("Unknown URI", repr(uri), file=sys.stderr)
-		return reply('404 Not Found', b'<h1>404</h1>')
-	if service == 'telegram': # Telegram proves itself with a header
-		secret = environ.get('HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN')
-		if secret != config.env.telegramOutgoingToken:
-			print_headers()
-			print("Fatal: Telegram authorisation header", "not present" if secret is None else "is present but incorrect", file=sys.stderr)
-			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
-		environ[AUTHENTICATED] = True
+	if config.prefs.print_headers:
+		print_headers()
+	path = environ.get('PATH_INFO', '')
+	source = inbound.route(path)
+	if source is None:
+		print("Unknown URI", repr(path), file=sys.stderr)
+		return respond(inbound.NOT_FOUND)
+	if why := source.refuse_unread(environ): # strangers are turned away before their body is read
+		print_headers()
+		print("Fatal:", why, file=sys.stderr)
+		return respond(inbound.FORBIDDEN)
 	try:
-		inbound = json.loads(environ['wsgi.input'].read())
+		update = source.decode(environ['wsgi.input'].read())
 	except ValueError:
-		print(f"[{service}]: request body is not JSON", file=sys.stderr)
-		return reply('400 Bad Request', b'<h1>Bad Request</h1>')
-	if not isinstance(inbound, dict):
-		print(f"[{service}]: request body is not a JSON object", file=sys.stderr)
-		return reply('400 Bad Request', b'<h1>Bad Request</h1>')
-	if service == 'telegram':
-		if seen_before(service, inbound.get('update_id')):
-			print("[telegram]: update", inbound['update_id'], "seen already, not run again", file=sys.stderr)
-			return reply('200 OK')
-		bot_name = botName
-		if "callback_query" in inbound: # chart period buttons
-			cq = inbound["callback_query"]
-			cq_message = cq.get("message")
-			if not cq_message or not cq.get("data"):
-				return reply('200 OK', b'Unsupported')
-			sender = cq.get("from", {})
-			print("[Telegram button]:", '@' + sender["username"] if "username" in sender else sender.get("first_name", "unknown"), "chat", cq_message["chat"]["id"], cq["data"], file=sys.stderr)
-			threading.Thread(target=worker.process_callback, args=('telegram', cq["id"], str(cq_message["chat"]["id"]), str(cq_message["message_id"]), cq["data"])).start()
-			return reply('200 OK')
-		if "message" not in inbound:
-			return reply('200 OK', b'Unsupported')
-		msg = inbound["message"]
-		sender = msg["from"]
-		chat_id = str(msg["chat"]["id"])
-		first_name = html.escape(sender["first_name"], quote=False) # replies are Telegram HTML: a name is text, not markup
-		if "username" in sender:
-			user = '@' + sender["username"]
-			userRealName = first_name or user # what to call them: the handle when the first name is blank
-		else:
-			user = userRealName = '@' + first_name
-		if "text" in msg:
-			message = msg["text"]
-			print("[Telegram]:", user, message, file=sys.stderr) if config.prefs.debug else None
-		elif "photo" in msg:
-			message = msg.get("caption", '')
-		elif IGNORED_TELEGRAM_CONTENT & msg.keys():
-			return reply('200 OK') # stickers, GIFs, voice notes and the like: nothing to answer, nothing worth logging
-		else:
-			print(f"[{service}]: unhandled: 'message' without 'text/photo'", file=sys.stderr)
-			return reply('200 OK', b'<h1>Unhandled</h1>')
-	else: # Slack puts its token in the body
-		if 'token' not in inbound:
-			print("warning: Slack authorisation field not present", file=sys.stderr)
-			print_body()
-			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
-		if inbound['token'] != config.env.slackOutgoingToken:
-			print("Slack auth incorrect", file=sys.stderr)
-			print_body()
-			return reply('403 Forbidden', b'<h1>Unauthorized</h1>')
-		environ[AUTHENTICATED] = True
-		if 'type' not in inbound:
-			print(f"[{service}]: unhandled: no 'type'", file=sys.stderr)
-			return reply('200 OK', b'Unhandled')
-		if inbound['type'] == 'url_verification':
-			response = json.dumps({"challenge": inbound["challenge"]})
-			print("replying with", response, file=sys.stderr)
-			return reply('200 OK', bytes(response, "utf-8"))
-		if inbound['type'] == 'event_callback':
-			if seen_before(service, inbound.get('event_id')):
-				print("[slack]: event", inbound['event_id'], "seen already (a retry), not run again", file=sys.stderr)
-				return reply('200 OK')
-			event = inbound['event']
-			bot_user = inbound['authorizations'][0]['user_id'] # QWERTY
-			if event.get('bot_id') or event.get('subtype') not in SLACK_USER_SUBTYPES or not event.get('user') or event['user'] == bot_user:
-				return reply('200 OK') # not written by a person: answering a bot (this one's replies and webhook reports included) could loop
-			if event["type"] not in ('message', 'app_mention') or "text" not in event:
-				print(f"[{service}]: unhandled event callback type", event["type"], file=sys.stderr)
-				return reply('200 OK', b'<h1>Unhandled</h1>')
-			message = event['text']
-			message = re.sub(r'<http://.*\|([\w\.]+)>', r'\g<1>', message) # <http://dub.ax|dub.ax> becomes dub.ax
-			message = re.sub(r'<(@[\w\.]+)>', r'\g<1>', message) # <@QWERTY> becomes @QWERTY
-			user = userRealName = '<@' + event['user'] + '>' # ZXCVBN becomes <@ZXCVBN>
-			bot_name = '@' + bot_user # QWERTY becomes @QWERTY
-			chat_id = event['channel']
-			print(f"[{service}]:", user, message, file=sys.stderr) if config.prefs.debug else None
-			# this condition spawns a worker before returning
-		else:
-			print(f"[{service}]: unhandled 'type'", file=sys.stderr)
-			return reply('200 OK', b'<h1>Unhandled</h1>')
+		print(f"[{source.service}]: request body is not a JSON object", file=sys.stderr)
+		return respond(inbound.BAD_REQUEST)
+	if why := source.refuse(update):
+		shown = {k: '<redacted>' if k == 'token' else v for k, v in update.items()} # Slack's verification token
+		print("warning:", why, file=sys.stderr)
+		print(f"inbound {path} ", json.dumps(shown, indent=4, default=str), file=sys.stderr)
+		return respond(inbound.FORBIDDEN)
+	environ[AUTHENTICATED] = True
+	event = source.parse(update)
+	if isinstance(event, inbound.Response):
+		return respond(event)
+	if seen_before(source.service, source.update_id(update)):
+		print(f"[{source.service}]: update {source.update_id(update)} seen already, not run again", file=sys.stderr)
+		return respond(inbound.OK)
+	dispatch(event)
+	return respond(inbound.OK)
 
-	# process in a background thread so we don't keep the requesting client waiting
-	threading.Thread(target=worker.process_request, args=(service, chat_id, user, message, bot_name, userRealName)).start()
-
-	# Return an empty response to the client
-	return reply('200 OK')
-
-IGNORED_TELEGRAM_CONTENT = {'sticker', 'animation', 'voice', 'video', 'video_note', 'audio', 'document', 'contact', 'location', 'venue', 'poll', 'dice'}
+def dispatch(event):
+	"""Hand a message or a button press to lib/worker, in a thread of its own."""
+	if isinstance(event, inbound.Press):
+		print(f"[{event.service.capitalize()} button]:", event.user, "chat", event.chat_id, event.data, file=sys.stderr)
+		target = worker.process_callback
+		args = (event.service, event.press_id, event.chat_id, event.message_id, event.data)
+	else:
+		if config.prefs.debug:
+			print(f"[{event.service.capitalize()}]:", event.user, event.text, file=sys.stderr)
+		target = worker.process_request
+		args = (event.service, event.chat_id, event.user, event.text, event.bot_name, event.user_name)
+	threading.Thread(target=target, args=args).start()
 
 def git_version(checkout=None):
 	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no "dubious
@@ -263,7 +193,7 @@ if __name__ == '__main__':
 	print(f'Opening socket on http://{config.env.ip}:{config.env.port}', file=sys.stderr)
 	if config.env.telegramBotToken and config.env.telegramOutgoingWebhook:
 		try:
-			botName = telegram.register() # here and only here: the job processes import lib.telegram too
+			inbound.TELEGRAM.bot_name = telegram.register() # here only: the job processes import lib.telegram too
 		except Exception as e:
 			print('ERROR', delivery.error_line(e, 'telegram webhook'), file=sys.stderr)
 			sys.exit(1)
