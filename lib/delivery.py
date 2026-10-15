@@ -13,9 +13,8 @@ from lib import transports
 
 @dataclasses.dataclass
 class Report:
-	"""What a report says: its lines; perhaps a chart, a render.Chart that deliver() draws only for a destination that
-	takes charts (or one drawn already, a PNG file object); and buttons, rows of buttons.Button (or, on Telegram, a
-	keyboard markup of its own)."""
+	"""What a report says: its lines; perhaps a chart, a render.Chart spec that deliver() draws only for a destination
+	that takes charts; and buttons, rows of buttons.Button (or, on Telegram, a keyboard markup of its own)."""
 	lines: list
 	chart: object = None
 	buttons: list = None
@@ -31,28 +30,24 @@ def reply_to(service, chat, message=None):
 	return kind(chat, message) if kind else None
 
 
-def scheduled(service, url):
-	"""Where a scheduled report goes on a network: Telegram's telegramChatID; Slack's slackChannelID as the bot, with
-	slackBotToken (so that charts go too), else its incoming webhook; Discord's webhook."""
-	env = config.env
-	if service == 'telegram':
-		return transports.TelegramBot(env.telegramChatID)
-	if service == 'slack' and env.slackChannelID and env.slackBotToken:
-		return transports.SlackBot(env.slackChannelID)
-	return {'slack': transports.SlackWebhook, 'discord': transports.DiscordWebhook}[service](url)
-
-
 def default_chats():
-	"""Where a scheduled report goes: each network's destination (scheduled), Telegram's left out without a
-	telegramChatID. Raises RuntimeError when there is nowhere to post."""
+	"""Where a scheduled report goes, in this order: Telegram's telegramChatID; Slack's slackChannelID as the bot, with
+	slackBotToken (so that charts go too), else its incoming webhook; Discord's webhook. Raises RuntimeError when there
+	is nowhere to post."""
 	env = config.env
-	services = [service for service in env.webhooks if service != 'telegram' or env.telegramChatID]
-	if env.slackChannelID and env.slackBotToken and 'slack' not in services: # the bot needs no incoming webhook
-		services.append('slack')
-	if not services:
+	chats = []
+	if env.telegramChatID and 'telegram' in env.webhooks:
+		chats.append(transports.TelegramBot(env.telegramChatID))
+	if env.slackChannelID and env.slackBotToken:
+		chats.append(transports.SlackBot(env.slackChannelID))
+	elif 'slack' in env.webhooks:
+		chats.append(transports.SlackWebhook(env.webhooks['slack']))
+	if 'discord' in env.webhooks:
+		chats.append(transports.DiscordWebhook(env.webhooks['discord']))
+	if not chats:
 		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slackChannelID, slack_webhook or'
 			' discord_webhook')
-	return [scheduled(service, env.webhooks.get(service)) for service in services]
+	return chats
 
 
 def targets(dest):
@@ -61,20 +56,15 @@ def targets(dest):
 
 
 def deliver(dest, report):
-	"""Post a report: its chart, the lines as its caption, where the destination takes charts and the graph preference
-	is on; else the lines, buttons under the last message. A chart the network refuses goes as text without its buttons,
-	unless it may have arrived after all (a timeout). Returns the network's answers, one per message."""
-	if report.chart is None:
-		return dest.text(report.lines, report.buttons)
-	chart, caption = report.chart, '\n'.join(map(str, report.lines))
-	chartable = dest.takes_charts and config.prefs.graph
-	if isinstance(chart, render.Chart): # a spec: drawn only where it can go
-		if not (chartable and chart.rows):
-			return dest.text(report.lines)
-		chart, caption = render.draw(chart), caption if report.lines else chart.title
-	elif not chartable:
-		return dest.text(caption.split('\n'))
-	answer = dest.chart(chart, caption, report.buttons)
+	"""Post a report: its chart, drawn here only where it can go (a destination that takes charts, with the graph
+	preference on), with the lines as its caption; else the lines, and the buttons under the last message unless they
+	were the chart's. A chart the network refuses goes as text without its buttons, unless it may have arrived after all
+	(a timeout). Returns the network's answers, one per message."""
+	chart = report.chart
+	if chart is None or not (dest.takes_charts and config.prefs.graph and chart.rows):
+		return dest.text(report.lines, report.buttons if chart is None else None)
+	caption = '\n'.join(map(str, report.lines)) or chart.title
+	answer = dest.chart(render.draw(chart), caption, report.buttons)
 	if answer is transports.MAYBE_SENT:
 		return []
 	if answer:

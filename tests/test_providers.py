@@ -41,6 +41,7 @@ def serve(*responses):
 
 
 REAL_CREDENTIALS = yahoo.credentials
+CHART = render.Chart('bars', 'Heading', rows=(('A', 1.0),)) # a chart for the sending tests, which draw it as b'png'
 REAL_TOKEN = sharesight._token
 
 
@@ -788,6 +789,7 @@ class ChartDelivery(FinbotCase):
 	def test_a_slack_upload_that_fails_goes_out_as_text(self):
 		"""A Slack upload failing at any step goes as text, but not on a last-step timeout, when it may have arrived."""
 		self.env(slackBotToken='xoxb-test')
+		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
 
 		good = self.upload_steps()
 		slow = transports.requests.exceptions.ReadTimeout('slow')
@@ -801,8 +803,7 @@ class ChartDelivery(FinbotCase):
 				self.slack_answers(*outcomes)
 				self.sent.clear()
 				with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
-					report = delivery.Report(['*Heading*', 'line 2'], io.BytesIO(b'png'))
-					delivery.deliver(transports.SlackBot('C1'), report)
+					delivery.deliver(transports.SlackBot('C1'), delivery.Report(['*Heading*', 'line 2'], CHART))
 				self.assertEqual(self.sent, expect)
 
 	def test_scheduled_reports_to_slack_carry_charts_only_as_the_bot(self):
@@ -863,6 +864,7 @@ class ChartDelivery(FinbotCase):
 
 	def test_a_chart_telegram_refuses_goes_out_as_text(self):
 		"""A chart Telegram refuses or that fails goes as text, but not after a timeout, when it may have arrived."""
+		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
 		def post(outcome):
 			"""A net.post that answers with outcome, or raises it."""
 			def fake(url, **kwargs):
@@ -880,8 +882,7 @@ class ChartDelivery(FinbotCase):
 				self.sent.clear()
 				self.patch(transports.net, 'post', post(outcome))
 				with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
-					report = delivery.Report(['Heading', 'line 2'], io.BytesIO(b'png'), [[]])
-					delivery.deliver(transports.TelegramBot('5'), report)
+					delivery.deliver(transports.TelegramBot('5'), delivery.Report(['Heading', 'line 2'], CHART, [[]]))
 				self.assertEqual(self.sent, expect)
 
 
