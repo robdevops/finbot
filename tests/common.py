@@ -89,7 +89,8 @@ class FinbotCase(unittest.TestCase):
 		self.patch(watchlist, 'with_holdings', lambda: TICKERS)
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
-		self.patch(yahoo, 'price_history', lambda t, days=None, **k: ({days: 1.5} if days else {'Max': 5, '1Y': 3}, None))
+		self.patch(yahoo, 'price_history', lambda t, days=None, **k: # a history with no line to draw
+			({days: 1.5} if days else {'Max': 5, '1Y': 3}, yahoo.Line('Co ' + t, 'NasdaqGS', 'USD', 100.0, ())))
 		self.patch(yahoo, 'prefetch_history', lambda ts: None)
 		self.patch(yahoo, 'historic_high', lambda t: (100.0, 50.0))
 		dates = pd.date_range(end=pd.Timestamp.today().normalize(), periods=400)

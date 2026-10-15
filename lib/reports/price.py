@@ -13,6 +13,7 @@ from lib import render
 from lib import watchlist
 from lib import yahoo
 from lib import buttons
+from lib.reports import history
 
 def gather(specific_stock=None, days=None):
 	"""(tickers, market data) for a price report: Yahoo's quotes; over `days` each holding's Sharesight figure, and for the tickers
@@ -93,15 +94,15 @@ def report(service, threshold=None, user='', specific_stock=None, interactive=Fa
 				if config.prefs.performance_use_sharesight:
 					continue
 				if specific_stock: # the one ticker asked for: no history is reported in one line
-					drawn = config.prefs.graph and delivery.takes_charts(service, interactive)
-					history, graph = yahoo.price_history(ticker, days, graph=drawn, graphCache=False)
+					changes, line = yahoo.price_history(ticker, days)
+					graph = history.line_chart(ticker, changes, line, days)
 				else:
 					try:
-						history, _ = yahoo.price_history(ticker, days, graph=False)
+						changes, _ = yahoo.price_history(ticker, days)
 					except RuntimeError as e: # no history for this ticker: leave it out of the list
 						print(ticker, e, file=sys.stderr)
 						continue
-				percent = history[days]
+				percent = changes[days]
 		else:
 			percent = quote['percent_change']
 		percent = float(percent)

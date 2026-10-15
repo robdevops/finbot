@@ -4,6 +4,7 @@ from dateutil.relativedelta import relativedelta
 import hashlib
 import requests
 import threading
+import typing
 import zoneinfo
 import sys
 from lib import answer
@@ -11,7 +12,6 @@ from lib import config
 from lib import cache
 from lib import net
 from lib import formats
-from lib import render
 from http.cookies import SimpleCookie
 from pathlib import Path
 
@@ -307,21 +307,29 @@ def fetch_detail(ticker, seconds=None):
 		detail['insiderSell'], detail['insiderSellValue'] = totals['Sale']
 	return {ticker: dict(sorted(detail.items()))}
 
+class Line(typing.NamedTuple):
+	"""The prices behind a price_history, for its chart: the company's name, Yahoo's full name for its exchange (as
+	fetch() gives profile_exchange), the currency, the current price (else the last close) and the closes over the span,
+	((date, close), ...)."""
+	name: str
+	exchange: str
+	currency: str
+	price: float
+	closes: tuple
+
+
 class NoData(answer.Answer, RuntimeError):
 	"""Yahoo has nothing for it (no such symbol, no prices): a reply in a chat, a RuntimeError where a list skips it."""
 
 
-def price_history(ticker, days=None, seconds=None, graph=None, graphCache=True):
-	"""({period: percent change}, chart image or None): the change over `days`, else over each standard period. Raises
-	NoData when there are no prices, RuntimeError when the history cannot be fetched."""
-	if graph is None:
-		graph = config.prefs.graph
+def price_history(ticker, days=None, seconds=None):
+	"""({period: percent change}, its Line): the change over `days`, else over each standard period, and the closes
+	behind it, for a chart. Raises NoData when there are no prices, RuntimeError when the history cannot be fetched."""
 	if seconds is None:
 		seconds = config.prefs.cache_seconds
 	import pandas as pd
 	from pandas.tseries.offsets import BDay as businessday
 	percent_dict = {}
-	max_days = 3655 # 10 years + buffer
 	now = datetime.datetime.now()
 	interval = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D')
 	data = fetch_chart_json(ticker)
@@ -363,21 +371,10 @@ def price_history(ticker, days=None, seconds=None, graph=None, graphCache=True):
 					percent_dict['Max'] = default_percent
 					continue
 			percent_dict[period] = round((price - past_price) / past_price * 100)
-	if not graph or (days and days < 2):
-		return percent_dict, None
-	company_name = formats.transform_title(stock.get('longName', ''))
-	if days:
-		title = f"{company_name} ({ticker}) {min(days, max_days)} days {formats.signed_percent(percent_dict[days])} Last: {price}"
-	else:
-		label = "Max" if "Max" in percent_dict else "10Y"
-		title = f"{company_name} ({ticker}) {label} {formats.signed_percent(percent_dict[label])} Last: {price}"
-	image_cache_file = "finbot_graph_" + ticker + "_" + str(days) + ".png"
-	if config.prefs.cache and graphCache and (image := cache.read_bytes(image_cache_file, seconds)):
-		return percent_dict, image
-	image = render.graph(df, title, stock.get('currency'))
-	if config.prefs.cache:
-		cache.write_bytes(image_cache_file, image)
-	return percent_dict, image
+	closes = tuple((str(day), float(close)) for day, close in zip(df['Date'], df['Close']))
+	exchange = stock.get('fullExchangeName') or stock.get('exchangeName') or ''
+	name = formats.transform_title(stock.get('longName', ''))
+	return percent_dict, Line(name, exchange, stock.get('currency') or '', price, closes)
 
 def price_series(ticker):
 	"""Daily closes for a ticker via the same fetch/parse path as price_history(): (name, exchange, pandas Series indexed by datetime).

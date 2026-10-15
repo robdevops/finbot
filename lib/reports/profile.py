@@ -186,7 +186,7 @@ def prepare_profile_payload(service, user, ticker):
 		payload.append("")
 
 	try:
-		price_history, _ = yahoo.price_history(ticker, graph=False) # the percentages only: the profile has no chart
+		price_history, _ = yahoo.price_history(ticker) # the percentages only: the profile has no chart
 	except RuntimeError as e: # no chart data: the profile goes out without these lines
 		print(ticker, e, file=sys.stderr)
 		price_history = {}

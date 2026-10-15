@@ -574,6 +574,8 @@ performance_cache_seconds=1800
 
 `performance_cache_seconds` (default 30 minutes) is the cache lifetime of Sharesight performance reports.
 
+Charts are cached by what they show (with `cache=True`): the same chart, for another chat, a later run or a period button, is drawn once, and a chart of new figures is a new chart, so a cached one is never stale. The scheduled `cleanup.py` removes cache files after 30 days.
+
 To flush the cache, so that everything is fetched afresh, signal the running bot: it deletes its cache files (Yahoo and Sharesight
 answers, charts, the Yahoo cookie) and keeps its state (watchlist, seen trades, ratings, schedule), then refills the Sharesight caches
 at once. There is no `systemctl flush`, since systemctl takes no custom verbs; any of these does it:

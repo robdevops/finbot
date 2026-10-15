@@ -190,7 +190,7 @@ class YahooChart(ProviderCase):
 		"""1D is the change since the previous close, and 5D the week's."""
 		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
 		self.http(yahoo, Resp(self.chart([90] * 30 + [100, 105, 110, 115, 120, 116.4]))) # up 20% in a week, down 3% today
-		table, image = yahoo.price_history('T1', graph=False)
+		table, image = yahoo.price_history('T1')
 		self.assertEqual(table['1D'], -3)
 		self.assertGreater(table['5D'], 10) # the week, not the day
 
@@ -200,11 +200,11 @@ class YahooChart(ProviderCase):
 		unknown = {'chart': {'result': None, 'error': {'code': 'Not Found', 'description': 'No data found'}}}
 		self.http(yahoo, Resp(unknown, status=404))
 		with self.assertRaises(yahoo.NoData) as caught:
-			yahoo.price_history('XYZ', 7, graph=False)
+			yahoo.price_history('XYZ', 7)
 		self.assertEqual(caught.exception.lines, ['no price history for XYZ'])
 		self.http(yahoo, Resp(status=404)) # an endpoint that moved, say
 		with self.assertRaises(RuntimeError) as caught:
-			yahoo.price_history('XYZ', 7, graph=False)
+			yahoo.price_history('XYZ', 7)
 		self.assertNotIsInstance(caught.exception, answer.Answer)
 
 	def test_a_failed_chart_fetch_raises(self):
@@ -214,7 +214,7 @@ class YahooChart(ProviderCase):
 			with self.subTest(failure=failure):
 				self.http(yahoo, failure)
 				with self.assertRaises(RuntimeError):
-					yahoo.price_history('AAPL', 7, graph=False)
+					yahoo.price_history('AAPL', 7)
 
 	def test_one_failed_ticker_does_not_take_the_report_down(self):
 		"""One ticker without a chart is left out of a price list, a benchmark without one is said to have none, and
@@ -257,14 +257,13 @@ class YahooChart(ProviderCase):
 		self.assertEqual(headers[0].get('Cookie'), 'A=B') # the crumb used to go without its cookie
 
 	def test_with_the_cache_off_no_chart_is_written(self):
-		"""With the cache preference off, a drawn chart is not written to the cache."""
+		"""With the cache preference off, a chart is drawn but not written to the cache."""
 		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
 		self.prefs(cache=False)
-
 		self.http(yahoo, Resp(self.chart([100.0] * 30 + [110.0])))
-		table, image = yahoo.price_history('T1', 7, graph=True)
-		self.assertIsNotNone(image)
-		self.assertEqual([name for name in os.listdir(config.env.cache_dir) if name.startswith('finbot_graph_')], [])
+		changes, line = yahoo.price_history('T1', 7)
+		self.assertTrue(render.draw(history.line_chart('T1', changes, line, 7)).read().startswith(b'\x89PNG'))
+		self.assertEqual([name for name in os.listdir(config.env.cache_dir) if name.startswith('finbot_chart_')], [])
 
 	def test_price_series_raises_on_failure_and_on_empty_history(self):
 		"""price_series raises when Yahoo fails and when the history has no closes."""
@@ -619,12 +618,12 @@ class ChartDelivery(FinbotCase):
 		"""Charts always go to Telegram and Discord; Slack gets them only in replies with the bot token."""
 		self.env(slackBotToken='xoxb-test')
 
-		cases = (('telegram',), ('telegram', False), ('slack',), ('slack', False), ('discord', False))
-		charted = [delivery.takes_charts(*case) for case in cases]
+		kinds = (delivery.REPLIES['telegram'], delivery.SCHEDULED['telegram'], delivery.REPLIES['slack'],
+			delivery.SCHEDULED['slack'], delivery.SCHEDULED['discord'])
+		charted = [kind(None).takes_charts for kind in kinds]
 		self.assertEqual(charted, [True, True, True, False, True]) # Slack: replies, not scheduled reports
 		self.env(slackBotToken=False)
-
-		self.assertFalse(delivery.takes_charts('slack'))
+		self.assertFalse(delivery.REPLIES['slack'](None).takes_charts)
 
 	def test_slack_replies_upload_their_charts(self):
 		"""A Slack reply uploads its chart in three steps (bot token), the report as its message, with no text copy."""
@@ -689,7 +688,7 @@ class ChartDelivery(FinbotCase):
 		def refuse(*a, **k):
 			"""Fail: no chart should be drawn."""
 			raise AssertionError('a chart was drawn for Slack')
-		for name in ('draw', 'hbar_chart', 'pie_chart', 'shorts_chart'):
+		for name in ('draw', 'hbar_chart', 'pie_chart', 'shorts_chart', 'graph', 'compare_graph'):
 			self.patch(render, name, refuse)
 		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/x'})
 		for cmd in ('.beta', '.pie Rob', '.buy', '.sell', '.peg', '.price', '.price top', '.price T1 7d', '.performance 7d', '.shorts', '.history T1', '.compare T1 T2'):

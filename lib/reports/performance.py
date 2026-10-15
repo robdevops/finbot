@@ -25,7 +25,7 @@ def gather(past_days, portfolio_select=None):
 def benchmark(ticker, market, text, past_days, service):
 	"""(report line, percent) of a benchmark over past_days; percent is None, and the line says so, when it has no history."""
 	try:
-		percent = yahoo.price_history(ticker, days=past_days, graph=False)[0][past_days]
+		percent = yahoo.price_history(ticker, days=past_days)[0][past_days]
 	except Exception as e: # the rest of the report still goes out
 		print(ticker, e, file=sys.stderr)
 		return f"⚠️ {text}: no price history", None

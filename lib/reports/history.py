@@ -1,9 +1,6 @@
 """Price history: .history (one stock over every period) and .compare (two to six stocks, rebased)."""
-import hashlib
 import datetime
 from lib import answer
-from lib import config
-from lib import cache
 from lib import formats
 from lib import links
 from lib import markets
@@ -12,7 +9,8 @@ from lib import yahoo
 
 def prepare_compare(service, args):
 	"""Compare 2-6 tickers as rebased % change. A trailing time period (3m/1y/90d/ytd) is optional;
-	without one, the span is the earliest date covered by every ticker. Returns (caption lines, image, tickers, period days)."""
+	without one, the span is the earliest date covered by every ticker. Returns (caption lines, chart spec, tickers,
+	period days)."""
 	import pandas as pd
 	usage = ['Usage: .compare SYMBOL SYMBOL [SYMBOL...up to 6] [period|max]  (default: 10 years)']
 	period_days = None
@@ -31,14 +29,6 @@ def prepare_compare(service, args):
 	tickers = list(dict.fromkeys(markets.transform_to_yahoo(a.upper()) for a in args)) # de-duplicated, order kept
 	if not 2 <= len(tickers) <= 6:
 		return usage, None, tickers, period_days
-	spec = period_days or ('max' if full_history else 'default')
-	cache_key = hashlib.sha1(f"{service}|{','.join(tickers)}|{spec}".encode()).hexdigest()[:16]
-	image_cache_file, caption_cache_file = f"finbot_compare_{cache_key}.png", f"finbot_compare_{cache_key}.json"
-	if config.prefs.cache:
-		cached_image = cache.read_bytes(image_cache_file)
-		cached_caption = cache.read(caption_cache_file)
-		if cached_image and cached_caption:
-			return cached_caption, cached_image, tickers, period_days
 	names, exchanges, closes = {}, {}, {}
 	for ticker, history in zip(tickers, yahoo.fetch_each(yahoo.price_series, tickers)): # downloaded at the same time
 		if isinstance(history, Exception):
@@ -71,29 +61,22 @@ def prepare_compare(service, args):
 	by_performance = sorted(cropped, key=lambda item: item[1].iloc[-1] / item[1].iloc[0], reverse=True)
 	title = ' vs '.join(t.split('.')[0] for t, _ in by_performance) # best first; line colours stay tied to input order
 	subtitle = f"% change over {period_label}, since {start:%d %b %Y}" + note
-	image = render.compare_graph([(t.split('.')[0], series) for t, series in cropped], title, subtitle)
-	image.seek(0)
+	lines = tuple((t.split('.')[0], tuple((f"{day:%Y-%m-%d}", float(close)) for day, close in series.items()))
+		for t, series in cropped)
+	chart = render.Chart('compare', title, subtitle, lines)
 	caption = [service.bold(f"{period_label}, since {start:%d %b %Y}") + note]
 	results = sorted(((series.iloc[-1] / series.iloc[0] - 1) * 100, t) for t, series in cropped)
 	for pct, t in reversed(results):
 		link = links.finance_link(t, exchanges[t], service, days=span_days, brief=False)
 		caption.append(f"{formats.get_emoji(pct)} {names[t]} ({link}): {formats.signed_percent(pct, 1)}")
-	if config.prefs.cache:
-		cache.write_bytes(image_cache_file, image)
-		cache.write(caption_cache_file, caption)
-		image.seek(0)
-	return caption, image, tickers, period_days
+	return caption, chart, tickers, period_days
 
 def history_payload(ticker, service, highlight=None, graph=False):
-	"""Caption lines for .history: performance table, with the selected interval in bold. Returns (lines, percent table, image):
-	the full history's chart with graph=True (if the graph preference is on), else None."""
-	market_data = yahoo.fetch_detail(ticker, 600)
-	title = market_data.get(ticker, {}).get('profile_title', '')
-	ticker_link = links.finance_link(ticker, market_data.get(ticker, {}).get('profile_exchange', ''), service, days=1825, brief=False)
-	if ticker not in market_data or 'percent_change' not in market_data[ticker]:
-		return [f".history: no data found for ticker {ticker}"], None, None
-	table, image = yahoo.price_history(ticker) if graph else yahoo.price_history(ticker, graph=False)
-	lines = [service.bold(f"{title} ({ticker_link}) performance history")]
+	"""(lines, percent table, chart): .history's caption, the change over every period with the `highlight` one marked,
+	and with graph=True the line chart of the whole history (else None). The name and exchange come from the chart."""
+	table, line = yahoo.price_history(ticker)
+	ticker_link = links.finance_link(ticker, line.exchange, service, days=1825, brief=False)
+	lines = [service.bold(f"{line.name} ({ticker_link}) performance history")]
 	for interval in ('Max', '10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
 		if interval in table:
 			percent = table[interval]
@@ -101,4 +84,17 @@ def history_payload(ticker, service, highlight=None, graph=False):
 			if interval == highlight:
 				label = '● ' + label
 			lines.append(f"{formats.get_emoji(percent)} {label} {formats.signed_percent(percent)}")
-	return lines, table, image
+	return lines, table, line_chart(ticker, table, line) if graph else None
+
+def line_chart(ticker, changes, line, days=None):
+	"""The line chart of a price_history (its changes and Line), titled with the company, the change over the span and
+	the last price; None for a span under 2 days or fewer than 2 closes."""
+	if len(line.closes) < 2 or (days and days < 2):
+		return None
+	if days:
+		span, change = f"{min(days, 3655)} days", changes[days]
+	else:
+		span = "Max" if "Max" in changes else "10Y"
+		change = changes[span]
+	title = f"{line.name} ({ticker}) {span} {formats.signed_percent(change)} Last: {line.price}"
+	return render.Chart('line', title, rows=line.closes, unit=line.currency)

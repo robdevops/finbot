@@ -16,7 +16,9 @@ from lib import formats
 @dataclasses.dataclass(frozen=True)
 class Chart:
 	"""A chart not yet drawn, for draw(). kind 'bars': rows of (label, value), first on top, a (label, None) row a gap;
-	'pie': rows of (label, value); 'shorts': rows of (label, percent), and the threshold."""
+	'pie': rows of (label, value); 'shorts': rows of (label, percent), and the threshold; 'line': rows of (date, close),
+	a price line, and the unit (its currency); 'compare': rows of (label, ((date, close), ...)), two to six price
+	lines."""
 	kind: str
 	title: str = ''
 	subtitle: str = ''
@@ -25,6 +27,7 @@ class Chart:
 	xlim: tuple = None # bars: the value axis, zoomed
 	session: str = None # bars: 'midsession' or 'premarket' tints the background
 	threshold: float = None # shorts: the outrageous line
+	unit: str = '' # line: the prices' currency
 
 VALUE_FORMATS = {'percent': lambda v: formats.signed_percent(round(v)),
 	'percent2': lambda v: formats.signed_percent(v, 2), 'number': lambda v: f"{v:g}"}
@@ -108,7 +111,7 @@ def _png(fig, facecolor):
 	return buf
 
 @_drawn
-def graph(df, title, ylabel):
+def graph(df, title, currency):
 	"""Render a price chart as PNG bytes, sized for Telegram (1280px wide, no server-side resampling)."""
 	from matplotlib.ticker import MaxNLocator, FuncFormatter
 	import matplotlib.dates as mdates
@@ -155,7 +158,7 @@ def graph(df, title, ylabel):
 	if imin != len(y) - 1 and imin != imax:
 		annotate(imin, 'Low', False)
 
-	_heading(fig, title, f"{last:,.2f} {ylabel or ''}   {arrow} {abs(pct):.2f}%  over period", color)
+	_heading(fig, title, f"{last:,.2f} {currency or ''}   {arrow} {abs(pct):.2f}%  over period", color)
 
 	return _png(fig, bg)
 
@@ -479,6 +482,14 @@ def draw(chart):
 		image = pie_chart(chart.rows, chart.title, chart.subtitle)
 	elif chart.kind == 'shorts':
 		image = shorts_chart(chart.rows, chart.threshold)
+	elif chart.kind == 'line':
+		import pandas as pd
+		image = graph(pd.DataFrame(list(chart.rows), columns=['Date', 'Close']), chart.title, chart.unit)
+	elif chart.kind == 'compare':
+		import pandas as pd
+		series = [(label, pd.Series([close for _, close in points], index=pd.to_datetime([day for day, _ in points])))
+			for label, points in chart.rows]
+		image = compare_graph(series, chart.title, chart.subtitle)
 	else:
 		raise ValueError(f"unknown chart kind {chart.kind!r}")
 	if config.prefs.cache:

@@ -522,7 +522,8 @@ class StartupSignals(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as data:
 			cache = Path(data, 'cache')
 			(cache / 'matplotlib').mkdir(parents=True)
-			for name in ('finbot_yahoo_cookie.json', 'finbot_graph_T1_None.png', 'finbot_x.json.abc.tmp'): # the last: a write in flight
+			cached = ('finbot_yahoo_cookie.json', 'finbot_chart_0123456789abcdef0123.png', 'finbot_x.json.abc.tmp')
+			for name in cached: # the last: a write in flight
 				(cache / name).write_text('{}')
 			Path(data, 'finbot_watchlist.json').write_text('["T1"]') # state, not cache
 			env = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k not in config.STARTUP_KEYS}

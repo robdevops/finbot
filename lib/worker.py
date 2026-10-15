@@ -18,6 +18,7 @@ from lib import words
 from lib import formats
 from lib import markets
 from lib import delivery
+from lib import render
 from lib import buttons
 from lib import charts
 from lib.reports import about, cal, history, holdings, performance, price, profile, rankings, shorts, trades
@@ -114,8 +115,9 @@ def process_callback(service, callback_id, chat_id, message_id, data):
 	try:
 		_, kind, period, ref = parts
 		tickers = buttons.resolve(ref)
-		caption, image = charts.build(kind, tickers, period, service)
+		caption, chart = charts.build(kind, tickers, period, service)
 		chat = delivery.reply_to(service, chat_id)
+		image = render.draw(chart) if chart else None
 		chat.edit_chart(message_id, image, caption, buttons.keyboard(kind, tickers, period))
 	except answer.Answer as e: # nothing to draw for that period: said in the chat, as a command would
 		delivery.deliver(delivery.reply_to(service, chat_id), delivery.Report(e.lines))

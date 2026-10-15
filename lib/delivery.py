@@ -46,14 +46,6 @@ def targets(dest):
 	return [dest] if dest else default_chats()
 
 
-def takes_charts(service, reply=True):
-	"""Whether a report to `service` can carry a chart: never with the graph preference off; else as its transport says,
-	a reply going into the chat that asked and a scheduled report to the default chats. For the reports that draw their
-	own charts."""
-	kind = (REPLIES if reply else SCHEDULED).get(service)
-	return bool(config.prefs.graph and kind and kind(None).takes_charts)
-
-
 def deliver(dest, report):
 	"""Post a report: its chart, the lines as its caption, where the destination takes charts and the graph preference
 	is on; else the lines, buttons under the last message. A chart the network refuses goes as text without its buttons,
