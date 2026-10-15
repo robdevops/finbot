@@ -501,7 +501,6 @@ The preferences, read by the bot itself. A change takes effect on a reload. A tr
 | `exclude_portfolios` | | Sharesight portfolio IDs to leave out, space separated |
 | `include_portfolios` | | Sharesight portfolio IDs to report on, space separated (empty: all that are not excluded) |
 | `trades_use_yahoo` | `True` | Use Yahoo for trades; set `False` if Yahoo breaks |
-| `performance_use_sharesight` | `False` | Price moves over a period (`.price 7d`, `price.py 7`) from Sharesight rather than Yahoo: each holding's capital gain, which counts only the time it was held; watchlist stocks are left out, and one stock's moves (`.price BHP 7d`) come without a chart. Off, every figure comes from Yahoo's price history, the same as the charts |
 | `graph` | `True` | Send charts with reports |
 | `hyperlink` | `True` | Hyperlink tickers in reports |
 | `hyperlinkFooter` | `True` | Add a website link footer to stock lookups |

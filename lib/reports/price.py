@@ -5,7 +5,6 @@ import datetime
 import sys
 
 from lib import config
-from lib import sharesight
 from lib import delivery
 from lib import formats
 from lib import links
@@ -19,22 +18,12 @@ from lib.reports import history
 def gather(specific_stock=None, days=None):
 	"""(tickers, market data) for a price report on the stocks followed or one (Yahoo's symbol): Yahoo's quotes, and
 	over `days` each one's change as percent_change_period, from its Yahoo history (the change its chart shows), the
-	histories fetched together up front. With performance_use_sharesight, a holding's capital gain from Sharesight
-	instead, which counts only the time it was held (held for 1Y and asked for 5Y, it gives 1Y), and none for the
-	others."""
+	histories fetched together up front."""
 	tickers = watchlist.covered(specific_stock)
 	market_data = yahoo.fetch(tickers)
 	if config.prefs.demote_volatile: # trigger_bar compares market caps, in US dollars
 		yahoo.add_usd_market_caps(market_data)
 	if not days:
-		return tickers, market_data
-	if config.prefs.performance_use_sharesight:
-		for portfolio in sharesight.portfolios():
-			for ticker, gain in portfolio.gains(days).items():
-				if ticker in market_data:
-					market_data[ticker]['percent_change_period'] = gain
-				elif ticker in tickers:
-					print("Notice: price.py:", ticker, "has no data", file=sys.stderr)
 		return tickers, market_data
 	if not specific_stock:
 		yahoo.prefetch_history(list(market_data))

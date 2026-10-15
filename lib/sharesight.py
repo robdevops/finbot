@@ -123,13 +123,6 @@ class Portfolio:
 		"""Its capital gain over the past `days` (the past_days preference when None), in percent."""
 		return float(_performance(self.id, days)['capital_gain_percent'])
 
-	def gains(self, days=None):
-		"""{Yahoo ticker: capital gain in percent} of what it holds, over the past `days` (the past_days preference when
-		None), or over the time it was held where that is shorter."""
-		report = _performance(self.id, days)
-		return {markets.transform_to_yahoo(each['instrument']['code'], each['instrument']['market_code']):
-			float(each['capital_gain_percent']) for each in report['holdings']}
-
 	def holdings(self):
 		"""{'CODE:MARKET': Sharesight's instrument, with the holding's id and value added} of what it holds."""
 		return {each['instrument']['code'] + ':' + each['instrument']['market_code']:

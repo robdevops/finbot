@@ -67,8 +67,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   are cached in `DATA_DIR/cache` as sent, not parsed, so a parser fix needs no flush (`cache.cached`).
   `yahoo.symbol(typed)` is Yahoo's symbol for a ticker as written, tried on the local exchange (`exchange_suffix`)
   when Yahoo does not know it bare: every ticker a chat gives goes through it. `sharesight.portfolios(name=None)` gives
-  `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `gains(days)` (each holding's),
-  `trades(days)`.
+  `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `trades(days)`.
 - `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save. `lib/watchlist.py`: the watchlist.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on

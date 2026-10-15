@@ -81,8 +81,8 @@ class SharesightApi(ProviderCase):
 					sharesight.portfolios()
 
 	def test_performance_and_holdings_from_real_response(self):
-		"""A real holdings report parses: its tickers come out sorted, US ones without a suffix, and the gains are the
-		portfolio's and each holding's."""
+		"""A real holdings report parses: its tickers come out sorted, US ones without a suffix, and its gain is the
+		portfolio's."""
 		sent = sample('sharesight', 'finbot_sharesight_performance_684141_0.json')
 		self.http(sharesight, Resp(sent))
 		self.assertEqual(len(sharesight._performance(684141, 0)['holdings']), 18)
@@ -91,8 +91,6 @@ class SharesightApi(ProviderCase):
 		self.assertIn('ARM', tickers) # US venues carry no Yahoo suffix
 		self.assertEqual(tickers, sorted(tickers))
 		self.assertEqual(portfolio.gain(0), float(sent['report']['capital_gain_percent']))
-		self.assertEqual(sorted(portfolio.gains(0)), tickers)
-		self.assertTrue(all(isinstance(gain, float) for gain in portfolio.gains(0).values()))
 
 	def test_performance_retries_when_sharesight_is_busy(self):
 		"""While Sharesight says too many requests are in flight, the request is tried again."""

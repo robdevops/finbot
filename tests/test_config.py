@@ -132,10 +132,10 @@ class Parsing(unittest.TestCase):
 		self.assertEqual(config.preference_values(config._getenv_for({})).exchange_suffix, 'AX') # unset: the default
 
 	def test_a_retired_key_is_accepted_and_said_to_do_nothing(self):
-		"""A key finbot no longer reads (alliterate) does not stop a start, as an unknown key would: it is ignored, and
-		the log at start says to delete it."""
+		"""A key finbot no longer reads (alliterate, say) does not stop a start, as an unknown key would: it is ignored,
+		and the log at start says to delete it."""
 		path = Path(common.temp_dir(self), 'preferences.conf')
-		path.write_text('alliterate=True\nchunk_maxlines=20\nfuture_days=45\n')
+		path.write_text(''.join(f'{key}=True\n' for key in config.RETIRED) + 'future_days=45\n')
 		values = config.read_preferences(path)
 		self.assertEqual(config.preference_values(config._getenv_for(values)).future_days, 45)
 		notes = [f'{key} in preferences.conf does nothing any more: delete the line' for key in config.RETIRED]

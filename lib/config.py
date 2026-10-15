@@ -23,8 +23,8 @@ SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_sec
 	'discord_webhook', 'slackBotToken', 'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret',
 	'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook') # never printed
 PREFERENCES_FILE = 'preferences.conf'
-RETIRED = ('alliterate', 'chunk_maxlines') # preferences.conf keys that do nothing any more: accepted, with a note at
-# start to delete them
+RETIRED = ('alliterate', 'chunk_maxlines', 'performance_use_sharesight') # preferences.conf keys that do nothing any
+# more: accepted, with a note at start to delete them
 # set by the bot for its job processes: the preferences arrive in the environment, do not read the file
 PASSED = 'FINBOT_PREFERENCES_PASSED'
 OLD_ENV = REPO_DIR / '.env' # the single config file of old versions, which python-dotenv loaded; nothing reads it now
@@ -269,7 +269,6 @@ class Prefs:
 	min_analysts: int = 7 # .buy, .sell and .forward pe list only stocks this many analysts cover
 	past_days: int = 28
 	performance_cache_seconds: int = 1800 # Sharesight performance reports (30 minutes)
-	performance_use_sharesight: bool = False
 	price_percent: float = 5.0
 	print_headers: bool = False
 	shorts_percent: int = 15

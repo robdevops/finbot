@@ -117,7 +117,7 @@ class FinbotCase(unittest.TestCase):
 		self.patch(watchlist, 'with_holdings', lambda: TICKERS)
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
-		moved = {t: float(i * 4 - 40) for i, t in enumerate(TICKERS)} # over any period: the holdings' gains below
+		moved = {t: float(i * 4 - 40) for i, t in enumerate(TICKERS)} # each stock's move over any period
 		self.patch(yahoo, 'price_history', lambda t, days=None, quote=None: # a history with no line to draw
 			({days: moved.get(t, 1.5)} if days else {'Max': 5, '1Y': 3}, yahoo.Line('Co ' + t, 'NasdaqGS', 'USD', 100.0,
 			())))
