@@ -595,9 +595,10 @@ def draw_treemap(chart):
 	_heading(fig, chart.title, chart.subtitle, inline=True)
 	return _png(fig, bg)
 
+@_drawn
 def blank():
-	"""A 1x1 PNG in the chart background: the image of a picker's message, which an answer's chart then replaces (a text
-	message cannot become a photo)."""
+	"""A 1x1 PNG in the chart background: the image of a picker's answer that has no chart, whose message must stay a
+	photo for a press to turn into a chart (a text message cannot become one)."""
 	fig, _ = _figure(PALETTE[0])
 	fig.set_size_inches(1 / 200, 1 / 200)
 	return _png(fig, PALETTE[0])

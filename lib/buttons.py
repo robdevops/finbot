@@ -6,6 +6,7 @@ transport draws Button rows its own way."""
 import hashlib
 import typing
 
+from lib import answer
 from lib import state
 
 class Button(typing.NamedTuple):
@@ -93,11 +94,11 @@ def _ref(args):
 
 def resolve(ref):
 	"""The arguments a button's callback data carries: listed inline ('T1,T2'), or a stored list's '#id' (see _ref).
-	Raises KeyError when the stored list is gone."""
+	Raises answer.Answer when the stored list is gone: the chat is told to send the command again."""
 	if ref.startswith('#'):
 		args = state.load(REF_FILE, {}).get(ref[1:])
 		if not args:
-			raise KeyError("these buttons have expired, please re-run the command")
+			raise answer.Answer("These buttons have expired: send the command again")
 		return args
 	return ref.split(',')
 

@@ -653,8 +653,11 @@ class PeriodButtons(FinbotCase):
 		refs = [buttons._ref(long(i)) for i in range(3)]
 		self.assertTrue(all(ref.startswith('#') for ref in refs))
 		self.assertEqual(buttons.resolve(refs[2]), long(2))
-		with self.assertRaises(KeyError):
+		with self.assertRaises(answer.Answer):
 			buttons.resolve(refs[0])
+		self.press_button(f'c|c|w|{refs[0]}') # said in the chat, as an answer: no error report
+		self.assertEqual((self.sent, self.errors), ([('text', ['These buttons have expired: send the command again'])],
+			[]))
 
 	def test_telegram_charts_have_buttons_in_both_modes(self):
 		"""A Telegram chart, a scheduled one included, has its period buttons whether Telegram posts their presses to
@@ -690,6 +693,10 @@ class PeriodButtons(FinbotCase):
 		edits, toasts = self.press('c|h|w|T1') # the fixture's histories have no closes to draw
 		self.assertEqual((edits, toasts, self.errors), ([], ['Loading 7D…'], []))
 		self.assertEqual(self.sent, [('text', ['Too few prices to draw 7D'])])
+		self.sent.clear()
+		self.patch(charts, 'build', lambda *args, **kwargs: ('caption', render.Chart('bars'))) # a chart of no rows
+		edits, toasts = self.press('c|f|w|')
+		self.assertEqual((edits, self.sent, self.errors), ([], [('text', ['Too few prices to draw 7D'])], []))
 
 	def test_a_button_a_chart_does_not_offer_is_ignored(self):
 		"""A button a chart does not offer, or an unknown period, changes nothing."""
@@ -1007,6 +1014,15 @@ class Pickers(FinbotCase):
 		self.assertTrue(any('Co T10' in line for line in lines) and not any('Co T0' in line for line in lines))
 		self.assertEqual((self.toasts[-1], self.labels(rows)), (('Loading…', False), [['7D', '1M', '● 1Y', 'Max'],
 			['Select... (2)']])) # back at the top, with the period row
+		self.command('.compare max') # as typed: not the 7D a bare .compare starts on
+		self.assertEqual(self.labels()[0], ['7D', '1M', '1Y', '● Max'])
+
+	def test_an_answer_with_nothing_to_draw_is_a_photo_all_the_same(self):
+		"""A first answer with no chart (the fixture's histories have no closes to draw) goes as a blank photo, its
+		buttons under it, so that a press can turn it into a chart: a text message cannot become one."""
+		self.command('.history')
+		self.assertEqual((self.sent[-1][:2], self.labels()), (('photo', len(render.blank().read())),
+			[['7D', '1M', '1Y', '● Max'], ['Tickers ▶']]))
 
 	def test_compare_ticks_up_to_eight_and_refuses_a_ninth(self):
 		""".compare: ticks toggle, a ninth is refused with an alert and a note."""
@@ -1157,11 +1173,12 @@ class Pickers(FinbotCase):
 		self.assertEqual(len(started), 2)
 
 	def test_priming_draws_the_other_grouping_then_the_other_portfolios(self):
-		"""pick.prime draws the shown portfolio's other grouping, then each other portfolio by industry and by sector;
-		an empty chart is skipped, and a failure is logged and the rest still drawn."""
+		"""pick.prime draws a treemap's shown portfolio's other grouping, then each other portfolio by industry and by
+		sector; a pie's other portfolios in its own grouping alone, which no button changes. An empty chart is skipped,
+		and a failure is logged and the rest still drawn."""
 		drawn = []
 		self.patch(render, 'draw', lambda chart: drawn.append(chart.title))
-		self.portfolios('Amy', 'Bob', 'Zed')
+		self.portfolios('Amy', 'Bob', 'Cat', 'Zed')
 		pick.prime(TELEGRAM, 't', '0', ['Amy', 'Bob', 'Zed'], 0)
 		self.assertEqual(drawn, ['Amy treemap by sector', 'Bob treemap by industry', 'Bob treemap by sector',
 			'Zed treemap by industry', 'Zed treemap by sector'])
@@ -1174,9 +1191,9 @@ class Pickers(FinbotCase):
 			return real(name, by, service) if name != 'Zed' else (['x'], None)
 		self.patch(holdings, 'prepare_pie', prepare)
 		with contextlib.redirect_stderr(io.StringIO()) as err:
-			pick.prime(TELEGRAM, 'p', 's', ['Amy', 'Bob', 'Zed'], 0)
-		self.assertEqual(drawn, ['Amy by industry'])
-		self.assertIn('priming p Bob industry failed: boom', err.getvalue())
+			pick.prime(TELEGRAM, 'p', 's', ['Amy', 'Bob', 'Cat', 'Zed'], 0)
+		self.assertEqual(drawn, ['Cat by sector'])
+		self.assertIn('priming p Bob sector failed: boom', err.getvalue())
 
 	def test_compare_typed_with_tickers_has_the_tickers_button_too(self):
 		""".compare T1 T2 [period] answers with the period row and the tickers' menu under its chart, those typed ticked
@@ -1203,6 +1220,7 @@ class Pickers(FinbotCase):
 		self.assertEqual(started, [('c', ['T1', 'T2'], 'x'), ('f', [''], 'm'), ('l', ['5', '0'], 'd'),
 			('l', ['0', '10'], 'd'), ('c', ['T0', 'T1'], 'w')])
 		started.clear()
+		self.command('.price T1') # one stock's line, which has no chart
 		self.settings(graph=False)
 		self.command('.compare T1 T2')
 		self.assertEqual(started, [])

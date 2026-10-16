@@ -462,5 +462,7 @@ if __name__ == '__main__':
 
 class BlankImage(unittest.TestCase):
 	def test_the_picker_image_is_one_pixel(self):
-		"""The image of a picker's message is a 1x1 PNG, which the answer's chart replaces."""
+		"""The image of a picker's answer without a chart is a 1x1 PNG, drawn holding the drawing lock as every chart
+		is (render._drawn): a press draws it while charts are drawn in the background."""
 		self.assertEqual(decode(render.blank()).size, (1, 1))
+		self.assertTrue(hasattr(render.blank, '__wrapped__'), 'render.blank draws without the lock')

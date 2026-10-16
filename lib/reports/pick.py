@@ -74,12 +74,16 @@ def shown_names(cmd, found, shown):
 	return [found[shown - 1]] if 0 < shown <= len(found) else []
 
 def prime(service, cmd, group, found, index):
-	"""Draw, to fill the cache, the charts a button of a pie or treemap picker would ask for: first the other grouping
-	of the portfolio shown (found[index]), then every other portfolio in both. A failure is logged, never raised."""
+	"""Draw, to fill the cache, the charts a button of a pie or treemap picker would ask for: a treemap's other grouping
+	of the portfolio shown (found[index]) first, then every other portfolio in both; a pie's every other portfolio in
+	its grouping (it has no Group by button). A failure is logged, never raised."""
 	prepare = holdings.prepare_pie if cmd == 'p' else holdings.prepare_treemap
-	other = 'industry' if group == 's' else 'sector'
-	wanted = [(found[index], other)] + [(name, by) for name in found if name != found[index]
-		for by in ('industry', 'sector')]
+	by = 'sector' if group == 's' else 'industry'
+	if cmd == 't':
+		wanted = [(found[index], 'industry' if by == 'sector' else 'sector')] + [(name, each) for name in found
+			if name != found[index] for each in ('industry', 'sector')]
+	else:
+		wanted = [(name, by) for name in found if name != found[index]]
 	for name, by in wanted:
 		try:
 			_, chart = prepare(name, by, service)

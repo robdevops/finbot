@@ -71,7 +71,8 @@ def process_job_callback(press, pressed):
 			jobs.current.toggle(job)
 			redraw()
 		else:
-			delivery.deliver(chat, delivery.Report([about.job_line(pressed.number, job, jobs.current.run(job))]))
+			delivery.deliver(chat, delivery.Report([about.job_line(service, pressed.number, job,
+				jobs.current.run(job))]))
 	except Exception as e:
 		delivery.report_error(e, chat, context='jobs')
 
@@ -123,7 +124,7 @@ def menu_screen(service, chat, pressed):
 					scheduler.delete(job)
 					note = f'Deleted {number}. {service.escape(job.name)}'
 				else:
-					delivery.deliver(chat, delivery.Report([about.job_line(number, job, scheduler.run(job))]))
+					delivery.deliver(chat, delivery.Report([about.job_line(service, number, job, scheduler.run(job))]))
 			except jobs.ScheduleError as e:
 				note = service.escape(str(e))
 	return about.jobs_screen(service, key, screen, page, note)
@@ -232,7 +233,7 @@ def process_callback(press):
 		if chat.reshow(press.message_id, markup): # that period as posted lately, where the network keeps it (Slack)
 			return
 		caption, chart = charts.build(pressed.kind, args, service, chat.key, period=pressed.period)
-		if chart is None: # too few prices in that period to draw a line
+		if not (chart and chart.rows): # too few prices in that period to draw a line
 			raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[pressed.period][0]}")
 		chat.edit_chart(press.message_id, render.draw(chart), caption, markup)
 	except answer.Answer as e: # nothing to draw for that period: said in the chat, as a command would
@@ -418,9 +419,10 @@ def on_price(request, args):
 	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
 	price.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,
 		days=args.days, top=top, user=request.user, specific_stock=symbol)
-	threshold = 0 if top else config.settings.price_percent if args.percent is None else args.percent
-	prime_periods(request, 'l', [f"{threshold:g}", str(top or 0)], buttons.period_for_days(args.days, 'd'
-		if not args.days else None)) # the price list's period buttons (price.run's)
+	if symbol is None: # the list's chart and period buttons; one stock's line has neither
+		threshold = 0 if top else config.settings.price_percent if args.percent is None else args.percent
+		prime_periods(request, 'l', [f"{threshold:g}", str(top or 0)], buttons.period_for_days(args.days, 'd'
+			if not args.days else None)) # the price list's period buttons (price.run's)
 
 def on_shorts(request, args):
 	""".shorts [percent|SYMBOL]: the most shorted stocks followed, or one stock's short interest."""
@@ -532,7 +534,8 @@ def picker(request, cmd, args):
 	if not (dest.takes_buttons and delivery.interactive(dest)):
 		raise Usage(portfolios()) if pick.noun(cmd) == 'portfolio' else Usage
 	group = {'sector': 's', 'industry': 'i'}.get(args.keyword, '0')
-	period = buttons.period_for_days(args.days, 'w' if cmd == 'c' else 'x') if cmd in 'cy' else '0' # compare: 7D
+	first = 'w' if cmd == 'c' and args.keyword != 'max' else 'x' # compare starts on 7D, unless asked for max
+	period = buttons.period_for_days(args.days, first) if cmd in 'cy' else '0'
 	found = pick.items(request.service, cmd, dest.key)
 	shown, mask = pick.default(cmd, found)
 	send_picker(request, cmd, found, group, period, shown, mask)
@@ -545,11 +548,13 @@ def send_picker(request, cmd, found, group, period, shown, mask):
 	if not shown:
 		return dest.text(lines, rows)
 	caption, chart = pick_content(request.service, dest, cmd, group, period, pick.shown_names(cmd, found, shown))
-	if pick.as_photo(dest, cmd):
-		request.reply(caption.split('\n'), chart, rows)
-	else:
+	if not pick.as_photo(dest, cmd):
 		dest.text(caption.split('\n'), rows) # no chart goes: the answer as text, its buttons kept
-	if cmd in 'pt' and chart and pick.as_photo(dest, cmd):
+	elif chart and chart.rows:
+		request.reply(caption.split('\n'), chart, rows)
+	else: # nothing to draw (no holdings, too few prices): a photo all the same, which a press can turn into a chart
+		dest.chart(render.blank(), caption, rows)
+	if cmd in 'pt' and pick.as_photo(dest, cmd):
 		prime_in_background(request.service, cmd, group, found, 0)
 	elif cmd in 'yc' and chart:
 		prime_periods(request, 'c' if cmd == 'c' else 'h', pick.shown_names(cmd, found, shown), period)
@@ -633,10 +638,11 @@ def on_jobs(request, args):
 			number = args.words[0]
 			job = scheduler.job(chat, number)
 			if args.keyword == 'run':
-				request.reply([about.job_line(number, job, scheduler.run(job))])
+				request.reply([about.job_line(service, number, job, scheduler.run(job))])
 			elif args.keyword == 'del':
 				scheduler.delete(job)
-				request.reply([f"Deleted {number}. {job.name} · {job.schedule.describe(formats.zone().key)}"])
+				request.reply([f"Deleted {number}. {service.escape(job.name)} · "
+					f"{job.schedule.describe(formats.zone().key)}"])
 			else:
 				if args.keyword == 'toggle':
 					scheduler.toggle(job)
@@ -646,7 +652,7 @@ def on_jobs(request, args):
 		else:
 			raise Usage
 	except jobs.ScheduleError as e: # a job that cannot be, or a number that is none: said, as an answer
-		raise answer.Answer(str(e))
+		raise answer.Answer(service.escape(str(e))) # escaped: it may quote what was typed
 
 def on_profile(request, args):
 	""".SYMBOL, or .stock (.profile) SYMBOL: the company's profile."""

@@ -149,9 +149,9 @@ def delete_all_screen(service, chat, page=0):
 		' comes back only when the same job is added again'], [[buttons.menu_button('Yes, delete all', 'del', [page,
 		'allyes'], crc), buttons.menu_button('Cancel', 'top', [0], crc)]]
 
-def job_line(number, job, outcome):
+def job_line(service, number, job, outcome):
 	"""'3. trades: done': a job's number in the .jobs list, its name, and how its run went."""
-	return f"{number}. {job.name}: {outcome}"
+	return f"{number}. {service.escape(job.name)}: {outcome}"
 
 def next_screen(service, chat, count=20):
 	"""`.jobs upcoming`: a chat's next runs, in time order, at most count, each by the timezone setting's clock

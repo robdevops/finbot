@@ -604,6 +604,16 @@ class JobsInChat(ChatBase):
 				self.assertIn(why, self.say(f'.jobs add {text}')[0])
 		self.assertEqual(len(state.load(jobs.JOBS_FILE)[CHAT]['jobs']), 1)
 
+	def test_what_is_said_back_is_escaped(self):
+		"""A job's name and what was typed are text, not markup, wherever they are said back: a message job's run,
+		its deletion, and a report or number that is none."""
+		self.say('.jobs add message daily at 9am "R&D <b>soon</b>"')
+		name = 'message: R&amp;D &lt;b&gt;soon&lt;/b&gt;'
+		self.assertEqual(self.say('.jobs run 4'), [f'4. {name}: done'])
+		self.assertEqual(self.say('.jobs del 4'), [f'Deleted 4. {name} · daily at 9:00am'])
+		self.assertEqual(self.say('.jobs add <x> daily'), ["no report '&lt;x&gt;': send .jobs add for the reports"])
+		self.assertEqual(self.say('.jobs run <b>'), ['no job &lt;b&gt;: send .jobs for the list'])
+
 	def test_a_chat_adds_thirty_jobs_at_most(self):
 		"""A chat may add 30 jobs; the 31st is refused."""
 		for minute in range(1, 30):
