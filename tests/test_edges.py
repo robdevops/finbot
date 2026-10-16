@@ -405,19 +405,20 @@ class RequestLog(FinbotCase):
 	"""Each request that goes out (a cache miss, or a call that has no cache) is a line at INFO."""
 
 	def test_each_request_is_a_short_line_without_secrets(self):
-		"""A request logs its method and URL at INFO, without the scheme or a secret, cut to fit; Telegram's long
-		polling (logged=False) does not, and nothing does below INFO."""
+		"""A request logs its method and URL at INFO, without the scheme or a secret, cut to 73 bytes (the ellipsis
+		takes 3); Telegram's long polling (logged=False) does not, and nothing does below INFO."""
 		with contextlib.redirect_stderr(io.StringIO()) as err:
-			net.get('https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1y&crumb=s3cret')
+			net.get('https://query1.finance.yahoo.com/v7/finance/quote?crumb=s3cret')
 			net.post('https://api.telegram.org/bot123:ABC-def/sendMessage', json={})
 			net.request('PATCH', 'https://discord.com/api/v10/channels/7/messages/9', json={})
 			net.post('https://api.telegram.org/bot123:ABC-def/getUpdates', json={}, logged=False)
-			net.get('https://example.com/' + 'x' * 200)
+			net.get('https://query2.finance.yahoo.com/v10/finance/quoteSummary/ARM.L?modules=calendarEvents,'
+				'defaultKeyStatistics,earnings,financialData,price&crumb=s3cret')
 		lines = err.getvalue().splitlines()
-		self.assertEqual(lines[:3], ['GET query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1y&crumb=<redacted>',
-			'POST api.telegram.org/bot<redacted>/sendMessage', 'PATCH discord.com/api/v10/channels/7/messages/9'])
-		self.assertEqual((len(lines), lines[3][:16], lines[3][-1], len(lines[3])),
-			(4, 'GET example.com/', '…', len('GET ') + net.SHOWN))
+		self.assertEqual(lines, ['GET query1.finance.yahoo.com/v7/finance/quote?crumb=<redacted>',
+			'POST api.telegram.org/bot<redacted>/sendMessage', 'PATCH discord.com/api/v10/channels/7/messages/9',
+			'GET query2.finance.yahoo.com/v10/finance/quoteSummary/ARM.L?modules=ca…'])
+		self.assertEqual(len(lines[3].encode()), 73)
 		self.prefs(log_level='WARN')
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			net.get('https://example.com/')

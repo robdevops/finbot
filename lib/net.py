@@ -15,7 +15,7 @@ session = requests.Session()
 # no domain may set or receive a cookie
 session.cookies.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
 CONNECT_TIMEOUT = 5 # seconds to wait for a host to answer the connection: one that is down costs this, not http_timeout
-SHOWN = 100 # characters of a request's URL in the log, at most
+SHOWN = 73 # bytes of a request's log line, at most: the method and URL, cut with an ellipsis (3 bytes in UTF-8)
 
 def get(url, **kwargs):
 	"""requests.get through the shared session, which reuses connections; timed out as timeouts() says; logged."""
@@ -32,10 +32,10 @@ def request(method, url, **kwargs):
 
 def logged(method, url, kwargs):
 	"""The request's arguments without `logged`; the request noted at INFO first, unless logged=False (Telegram's long
-	polling, asked again and again): its method and URL, without secrets or the scheme, cut to SHOWN characters."""
+	polling, asked again and again): its method and URL, without secrets or the scheme, cut to SHOWN bytes."""
 	if kwargs.pop('logged', True):
-		shown = redact(url).split('://', 1)[-1]
-		log.info(method, shown if len(shown) <= SHOWN else shown[:SHOWN - 1] + '…')
+		line = f"{method} {redact(url).split('://', 1)[-1]}".encode()
+		log.info(line.decode() if len(line) <= SHOWN else line[:SHOWN - 3].decode(errors='ignore') + '…')
 	return kwargs
 
 def timeouts(kwargs):
