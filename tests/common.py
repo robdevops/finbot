@@ -67,12 +67,6 @@ def wsgi_environ(path, body, **headers):
 		'CONTENT_LENGTH': str(len(body)), **headers}
 
 
-def skip_if_old_env(case):
-	"""Skip a test that starts bot.py while the checkout has a leftover .env (config.check_startup_environment)."""
-	if config.OLD_ENV.exists():
-		case.skipTest(f'bot.py will not start while {config.OLD_ENV} exists')
-
-
 STATES = ('REGULAR', 'PRE', 'POST', 'CLOSED')
 
 

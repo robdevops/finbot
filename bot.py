@@ -16,7 +16,6 @@ from lib import discord_websocket
 from lib import inbound
 from lib import worker
 from lib import jobs
-from lib import migrate
 from lib import net
 from lib import slack_webhook
 from lib import slack_websocket
@@ -305,7 +304,6 @@ if __name__ == '__main__':
 		log.warn('WARN config:', line)
 	if os.getuid() == 0:
 		log.warn("Running as superuser. This is not recommended.")
-	migrate.run() # once, on an upgrade: what was kept for all chats becomes the old home chats'
 	jobs.current = jobs.Scheduler() # the scheduled jobs, which the .jobs chat command lists and changes
 	jobs.current.load()
 	render.preload()

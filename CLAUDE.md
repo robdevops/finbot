@@ -135,12 +135,6 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `describe()`, `next_after()` through daylight saving; `cycle()` the months of a quarterly or bi-annual one from its
   start month. `lib/catalog.py`: the default jobs (`ITEMS`), each with its
   name and schedule; the period of performance and price follows how often it runs (`period_args`).
-  `lib/migrate.py`: once, on an upgrade, the old home chats (the retired telegramChatID, slackChannelID and
-  discordChannelID, which it alone reads, from the environment) become chats finbot knows, and the watchlist, the
-  plans and the reports' shared records become theirs; one-off upgrades run at one start only (`once`, recorded in
-  `UPGRADES`): `dm_jobs_off` switched off the jobs of the DMs known before DMs started with them off, `mark_dms`
-  marked them `'dm'`, for the log's count of group chats and DMs, and `old_schedule` made the chats of the old cron
-  schedule file known.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return
@@ -150,7 +144,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `test_edges`; webhook requests, Slack events, slash commands and signatures, and the Slack manifest `test_inbound`;
   the pull modes `test_pull`; the Discord bot `test_discord`; Yahoo `test_yahoo`; Sharesight `test_sharesight`; posting
   to each network `test_sending`; Telegram's webhook and command menu `test_telegram_api`; job actions and arguments,
-  the default jobs, the messages and the migration `test_schedule`; the scheduler, and `.jobs` and its menu in a chat
+  the default jobs, the messages and DMs' jobs `test_schedule`; the scheduler, and `.jobs` and its menu in a chat
   `test_scheduler`; config `test_config`; charts `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets,
   formats, links, buttons, schedules (`lib/when.py`), cache and state files `test_util`; data dir `test_datadir`; log levels, request lines and whole lines `test_edges`; chunking, git_version, and the docstring, stdout, line-width and no-pandas
   checks `test_finbot`.

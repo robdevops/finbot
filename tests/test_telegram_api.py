@@ -117,7 +117,6 @@ class TelegramWebhook(FinbotCase):
 
 	def test_the_bot_will_not_start_unregistered_and_never_logs_the_token(self):
 		"""bot.py exits when the webhook cannot be registered, and never logs the token."""
-		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
 			env = {k: v for k, v in bare_environment().items() if 'proxy' not in k.lower()}
 			no_jobs(data)

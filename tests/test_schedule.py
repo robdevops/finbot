@@ -1,12 +1,11 @@
 """What a job may be (lib/jobs.py): an action of the fixed table, never a command, with the arguments its report's job()
-takes, as .jobs add reads them; the default jobs (lib/catalog.py) and the messages they post; and the one-time
-migration (lib/migrate.py) of the reports' records to an upgrade's home chats."""
-import contextlib, datetime, hashlib, io, os, re, unittest
+takes, as .jobs add reads them; the default jobs (lib/catalog.py) and the messages they post; and a direct message's
+jobs."""
+import contextlib, datetime, hashlib, io, re, unittest
 from pathlib import Path
-from unittest import mock
 from tests.common import *
-from lib import catalog, discord_common, inbound, jobs, migrate, state, watchlist, when, worker
-from lib.reports import cal, cleanup, message, milestone, performance, podcasts, price, rating, trades
+from lib import catalog, inbound, jobs, state, when, worker
+from lib.reports import cal, cleanup, message, performance, podcasts, price
 
 MELBOURNE = 'Australia/Melbourne'
 OCTOBER = datetime.datetime(2026, 10, 15, tzinfo=when.UTC)
@@ -265,68 +264,8 @@ class Messages(FinbotCase):
 		self.assertEqual(self.sent, [('text', ['&lt;b&gt;{0} {years since x}&lt;/b&gt; &amp; {__class__}'])])
 
 
-class Migration(FinbotCase):
-	"""As an upgraded finbot first starts with jobs per chat, the home chats that the retired keys still name in its
-	environment get what was kept for all chats, once."""
-
-	def setUp(self):
-		"""Two old home chats, Telegram's and Slack's, in the environment."""
-		super().setUp()
-		self.env(slackBotToken='xoxb-1')
-		homes = mock.patch.dict(os.environ, {'telegramChatID': '1', 'slackChannelID': 'C1'})
-		homes.start()
-		self.addCleanup(homes.stop)
-
-	def migrate(self):
-		"""Run the migration, as finbot does as it starts: what it logs."""
-		with contextlib.redirect_stderr(io.StringIO()) as log:
-			migrate.run()
-		return log.getvalue()
-
-	def test_each_home_chat_starts_with_the_default_jobs(self):
-		"""Each home chat becomes a chat finbot knows, with the default jobs switched on, unless it is known already."""
-		state.save(jobs.JOBS_FILE, {'slack:C1': {'off': ['trades']}})
-		self.assertIn('schedule: 1 old home chat start with the default jobs', self.migrate())
-		self.assertEqual(state.load(jobs.JOBS_FILE), {'slack:C1': {'off': ['trades']},
-			'telegram:1': {'defaults': 'off', 'dm': True}}) # a person's id: a DM, whose default jobs start off
-		self.assertNotIn('schedule:', self.migrate())
-
-	def test_with_no_home_chat_it_waits(self):
-		"""With no old home chat in the environment (a new install) there is nowhere to put the jobs and records, so
-		the migration waits for one; so it does for a chat without its bot token."""
-		state.save(trades.STATE_FILE, ['t1'])
-		with mock.patch.dict(os.environ, {'telegramChatID': '', 'slackChannelID': 'C1'}):
-			self.env(slackBotToken='')
-			self.assertEqual(self.migrate(), '')
-		self.assertFalse(os.path.exists(state.path(jobs.JOBS_FILE)))
-		self.assertEqual(state.load(trades.STATE_FILE), ['t1'])
-
-	def test_the_watchlist_plans_and_records_become_each_home_chats_once(self):
-		"""The watchlist and the plans become each home chat's, and so does what a report has told the chats (trades,
-		ratings, record highs, each feed's episodes), so that nothing old is told again; a file kept per chat already is
-		left as it is, and so is one that cannot be read (said in the log)."""
-		feed = podcasts.get_seen_filename('https://example.com/podcast.rss')
-		old = {watchlist.FILE: ['MSFT', 'BHP.AX'], worker.PLANS: {'@rob': 'buy low'}, trades.STATE_FILE: ['t1', 't2'],
-			rating.STATE_FILE: {'NVDA': ['upgrade', 3]}, milestone.STATE_FILE: {'NVDA': {'all_time_high': 200}},
-			feed: ['guid-1']}
-		for name, record in old.items():
-			state.save(name, record)
-		log = self.migrate()
-		for name, record in old.items():
-			with self.subTest(name=name):
-				self.assertEqual(state.load(name), {'chats': {'telegram:1': record, 'slack:C1': record}})
-		self.assertIn(f'state: {feed} is kept per chat now, its record copied to telegram:1, slack:C1', log)
-		state.save(trades.STATE_FILE, {'chats': {'telegram:1': ['t3']}})
-		Path(state.path(rating.STATE_FILE)).write_text('{"NVDA": ["upgr')
-		log = self.migrate()
-		self.assertEqual(state.load(trades.STATE_FILE), {'chats': {'telegram:1': ['t3']}})
-		self.assertEqual(Path(state.path(rating.STATE_FILE)).read_text(), '{"NVDA": ["upgr')
-		self.assertIn(f'state: {rating.STATE_FILE} left as it is, unreadable', log)
-
-
 class DirectMessages(FinbotCase):
-	"""A direct message with the bot starts with its default jobs off; those of the DMs finbot knew already were
-	switched off once, as it started."""
+	"""A direct message with the bot starts with its default jobs off."""
 
 	def test_a_direct_message_starts_with_its_default_jobs_off(self):
 		"""A chat new to finbot starts with its default jobs on, a direct message with them off: Telegram's (a person's
@@ -361,76 +300,6 @@ class DirectMessages(FinbotCase):
 			worker.process_request(inbound.Message('telegram', '5', '@u', '.help', BOT, 'U'))
 		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:88': {'defaults': 'off', 'dm': True}, 'discord:77': {},
 			'telegram:5': {'defaults': 'off', 'dm': True}})
-
-	def test_the_direct_messages_jobs_are_switched_off_once(self):
-		"""As finbot first starts with this version, every job of each direct message chat it knows is switched off,
-		the default ones and those added: Telegram's and Slack's as their keys tell, Discord's as Discord says; and the
-		old schedule file's chats become known, its DMs with their jobs off, once. Other chats are left as they are, and
-		a job switched on again afterwards stays on."""
-		trades = {'action': 'trades', 'args': [], 'schedule': {'days': 'weekdays', 'every': 20, 'zone': 'UTC'},
-			'on': True}
-		state.save(jobs.JOBS_FILE, {'telegram:5': {'jobs': [trades]}, 'telegram:-100': {'jobs': [trades]},
-			'slack:D1': {'off': ['trades']}, 'discord:7': {}, 'discord:8': {}})
-		state.save(migrate.OLD_FILE, {'telegram:6': [], 'discord:9': [], 'telegram:-6': []})
-		self.env(discordBotToken='x')
-		asked = []
-		def call(method, path, **kwargs):
-			"""Discord's answer: channels 8 and 9 are direct messages."""
-			asked.append(path)
-			return {'type': 1 if path in ('/channels/8', '/channels/9') else 0}
-		self.patch(discord_common, 'call', call)
-		with contextlib.redirect_stderr(io.StringIO()) as log:
-			migrate.run()
-		stored = state.load(jobs.JOBS_FILE)
-		self.assertEqual(stored['telegram:5'], {'defaults': 'off', 'dm': True, 'jobs': [{**trades, 'on': False}]})
-		for key in ('slack:D1', 'discord:8', 'telegram:6', 'discord:9'):
-			self.assertEqual(stored[key], {'defaults': 'off', 'dm': True}, key)
-		self.assertEqual((stored['telegram:-100'], stored['discord:7']), ({'jobs': [trades]}, {}))
-		self.assertEqual(stored['telegram:-6'], {}) # an old chat that is no DM is known too, its default jobs on
-		self.assertEqual(sorted(asked), ['/channels/7', '/channels/7', '/channels/8', '/channels/8', '/channels/9',
-			'/channels/9']) # once by each upgrade, at the one start
-		self.assertIn('every job switched off in 5 direct message chats', log.getvalue())
-		self.assertIn('finbot_schedule.json is read no more', log.getvalue())
-		self.assertTrue({'dm jobs off', 'dm flag', 'old schedule'} <= set(state.load(migrate.UPGRADES)))
-		state.save(jobs.JOBS_FILE, {**stored, 'telegram:5': {}}) # switched on again
-		migrate.run()
-		self.assertEqual((state.load(jobs.JOBS_FILE)['telegram:5'], len(asked)), ({}, 6))
-
-	def test_it_waits_for_discord_and_a_channel_discord_will_not_name_is_no_dm(self):
-		"""If Discord cannot be reached, nothing is switched and the upgrade waits for the next start; a channel Discord
-		refuses to say anything of (the bot has left it) is no direct message."""
-		state.save(jobs.JOBS_FILE, {'discord:8': {}, 'telegram:5': {}})
-		self.env(discordBotToken='x')
-		def down(method, path, **kwargs):
-			"""Discord unreachable."""
-			raise ConnectionError('Discord unreachable')
-		self.patch(discord_common, 'call', down)
-		with contextlib.redirect_stderr(io.StringIO()) as log:
-			migrate.run()
-		self.assertIn('upgrade: dm jobs off failed, and is tried again at the next start', log.getvalue())
-		self.assertEqual((state.load(jobs.JOBS_FILE), set(state.load(migrate.UPGRADES))), ({'discord:8': {},
-			'telegram:5': {}}, {'old schedule'})) # the upgrades that ask Discord wait
-		def refused(method, path, **kwargs):
-			"""Discord refusing: the channel is gone."""
-			raise RuntimeError(f'Discord {method} {path}: 404 Unknown Channel (10003)')
-		self.patch(discord_common, 'call', refused)
-		with contextlib.redirect_stderr(io.StringIO()):
-			migrate.run()
-		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:8': {}, 'telegram:5': {'defaults': 'off', 'dm': True}})
-
-	def test_the_direct_messages_known_are_marked_once(self):
-		"""Where the jobs of the DMs were switched off at an earlier start, the DMs finbot knows are marked as such
-		once, switching nothing: Telegram's and Slack's as their keys tell, Discord's as Discord says."""
-		state.save(migrate.UPGRADES, {'dm jobs off': '2026-10-16T00:00:00+00:00'})
-		state.save(jobs.JOBS_FILE, {'telegram:5': {'on': ['rating']}, 'telegram:-100': {}, 'slack:D1': {},
-			'discord:8': {}, 'discord:7': {}})
-		self.env(discordBotToken='x')
-		self.patch(discord_common, 'call', lambda method, path, **kwargs: {'type': 1 if path == '/channels/8' else 0})
-		with contextlib.redirect_stderr(io.StringIO()):
-			migrate.run()
-		self.assertEqual(state.load(jobs.JOBS_FILE), {'telegram:5': {'on': ['rating'], 'dm': True},
-			'telegram:-100': {}, 'slack:D1': {'dm': True}, 'discord:8': {'dm': True}, 'discord:7': {}})
-		self.assertIn('dm flag', state.load(migrate.UPGRADES))
 
 	def test_the_schedule_counts_group_chats_and_dms(self):
 		"""The schedule's line in the log at each load counts the chats' jobs, the group chats and the DMs apart (a

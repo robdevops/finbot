@@ -4,9 +4,9 @@ from pathlib import Path
 from unittest import mock
 from tests import common # first: it sets the environment that lib.config reads as it loads
 from lib import config
-from util import check_config, split_env
+from util import check_config
 import bot
-from lib import cache, yahoo
+from lib import cache
 
 REPO = Path(config.__file__).resolve().parent.parent
 
@@ -94,13 +94,14 @@ class Parsing(unittest.TestCase):
 		self.assertNotIn('https://x', ''.join(errors)) # a value is never printed
 
 	def test_malformed_lines_sections_duplicates_and_the_old_name(self):
-		"""Sections, lines not KEY=value, a key set twice and the renamed volatile_multiplier are all reported."""
+		"""Sections, lines not KEY=value, a key set twice and a key that is none (the old volatile_multiplier, say: the
+		key it may be is named) are all reported."""
 		errors = self.errors('[reports]\nnot a setting\nfuture_days=1\nfuture_days=2\nvolatile_multiplier=3\n')
 		self.assertEqual(len(errors), 4)
 		self.assertIn('no sections', errors[0])
 		self.assertIn('expected KEY=value', errors[1])
 		self.assertIn('future_days is set twice', errors[2])
-		self.assertIn('renamed to volatility_multiplier', errors[3])
+		self.assertIn('unknown key volatile_multiplier (did you mean volatility_multiplier?)', errors[3])
 
 	def test_every_problem_is_reported_not_just_the_first(self):
 		"""Every problem in the file is reported at once."""
@@ -183,17 +184,6 @@ class Parsing(unittest.TestCase):
 		with mock.patch.dict(os.environ, {'future_days': '5', 'past_days': '4'}):
 			values = config.setting_values(config._getenv_for({'future_days': '30'}))
 		self.assertEqual((values.future_days, values.past_days, values.shorts_percent), (30, 4, 15))
-
-	def test_the_old_multiplier_name_is_gone_everywhere(self):
-		"""volatile_multiplier is no longer read, and in the environment it stops the start with the new name."""
-		with mock.patch.dict(os.environ, {'volatile_multiplier': '3'}):
-			# not read any more
-			self.assertEqual(config.setting_values(config._getenv_for({})).volatility_multiplier, 2.0)
-			with self.assertRaises(config.ConfigError) as caught:
-				config.check_startup_environment()
-		self.assertIn('volatile_multiplier was renamed to volatility_multiplier', caught.exception.errors[0])
-		values = config.setting_values(config._getenv_for({'volatility_multiplier': '4'}))
-		self.assertEqual(values.volatility_multiplier, 4.0)
 
 	def test_startup_file_linting(self):
 		"""util/check_config.py reports bad lines in finbot.env first, then bad values, and nothing for a good file."""
@@ -440,19 +430,6 @@ class Startup(unittest.TestCase):
 		self.assertEqual(out.returncode, 1)
 		self.assertIn('future_days is a setting', out.stderr)
 
-	def test_a_leftover_env_in_the_checkout_refuses_to_start(self):
-		"""An old .env in the checkout stops the start, pointing to util/split_env.py."""
-		old = Path(common.temp_dir(self), '.env')
-		with mock.patch.object(config, 'OLD_ENV', old):
-			config.check_startup_environment() # none there: fine
-			old.write_text("future_days = '30'\n")
-			with self.assertRaises(config.ConfigError) as caught:
-				config.check_startup_environment()
-		self.assertEqual(len(caught.exception.errors), 2)
-		self.assertIn(f'{old} is the old single config file, which finbot no longer reads', caught.exception.errors[0])
-		self.assertIn('/util/split_env.py, which writes finbot.env.new and settings.conf.new',
-			caught.exception.errors[1])
-
 	def test_the_telegram_api_is_the_bot_tokens(self):
 		"""Telegram's Bot API base is made from the bot token (a trailing slash dropped), and is empty without one."""
 		for token, api in (('123:abc', 'https://api.telegram.org/bot123:abc/'), ('123:abc/',
@@ -580,45 +557,6 @@ class SigHup(unittest.TestCase):
 
 
 class Tools(unittest.TestCase):
-	def test_split_env(self):
-		"""split_env sorts an old .env into startup keys and settings, renames volatile_multiplier, lists what it
-		drops."""
-		startup, settings, notes = split_env.split('slackBotToken=x\nfuture_days=3\nvolatile_multiplier=2\n'
-			'slackToken=y\nSTATE_DIRECTORY=/a\nbogus=1\nnot a setting\n# c\nport=80\nslack_webhook=z\n')
-		self.assertEqual(startup, ['slackBotToken=x', 'port=80'])
-		self.assertEqual(settings, ['future_days=3', 'volatility_multiplier=2'])
-		self.assertEqual(len(notes), 5)
-		self.assertTrue(any('slackToken dropped' in n for n in notes) and any('unknown key bogus' in n for n in notes))
-		self.assertIn("line 10: slack_webhook dropped: each chat's jobs (/jobs) post there as the bot", notes[-1])
-
-	def test_split_env_reads_the_old_dotenv_format_too(self):
-		"""split_env reads the old dotenv format: quotes, export, comments after values and # inside URLs."""
-		old = ("# c\nfuture_days = '30' # note\nexport slackOutgoingWebhook = \"https://x/#frag\"\nport = 80 # note\n"
-			"bare\ndiscordOutgoingWebhook=http://y/#z\n\n")
-		startup, settings, notes = split_env.split(old)
-		self.assertEqual(startup, ['slackOutgoingWebhook=https://x/#frag', 'port=80',
-			'discordOutgoingWebhook=http://y/#z'])
-		self.assertEqual(settings, ['future_days=30'])
-		self.assertEqual(notes, ['.env line 5: not KEY=value, left out'])
-
-	def test_split_env_writes_next_to_the_file_and_never_overwrites(self):
-		"""split_env writes finbot.env.new (mode 0600) and settings.conf.new beside the file, refuses to overwrite
-		them, and says so for a missing file."""
-		d = Path(common.temp_dir(self))
-		(d / 'old.env').write_text('port=80\nfuture_days=3\n')
-		run = lambda: subprocess.run([sys.executable, str(REPO / 'util' / 'split_env.py'), str(d / 'old.env')],
-			capture_output=True, text=True)
-		self.assertEqual(run().returncode, 0)
-		self.assertIn('port=80', (d / 'finbot.env.new').read_text())
-		self.assertIn('future_days=3', (d / 'settings.conf.new').read_text())
-		self.assertEqual(oct((d / 'finbot.env.new').stat().st_mode & 0o777), '0o600')
-		out = run()
-		self.assertNotEqual(out.returncode, 0)
-		self.assertIn('refusing to overwrite', out.stderr)
-		out = subprocess.run([sys.executable, str(REPO / 'util' / 'split_env.py'), str(d / 'missing.env')],
-			capture_output=True, text=True)
-		self.assertEqual((out.returncode, out.stderr.strip()), (1, f'{d}/missing.env does not exist: nothing to split'))
-
 	def test_check_config_script_exit_status_and_it_does_not_create_directories(self):
 		"""check_config exits 0 for a good file, 1 for a bad one, and makes no data dir (systemd may run it as root)."""
 		d = Path(common.temp_dir(self))
@@ -633,33 +571,6 @@ class Tools(unittest.TestCase):
 		out = run()
 		self.assertEqual(out.returncode, 1)
 		self.assertIn('ERROR config:', out.stderr)
-
-
-class OldFileName(unittest.TestCase):
-	"""An upgrade from when settings.conf was called preferences.conf."""
-
-	def test_the_old_file_becomes_settings_conf(self):
-		"""preferences.conf in the data dir is renamed to settings.conf, its settings kept and the rename said on
-		stderr; a settings.conf already there is left alone, and the old file with it."""
-		data = Path(common.temp_dir(self))
-		(data / 'preferences.conf').write_text('future_days=45\n')
-		with contextlib.redirect_stderr(io.StringIO()) as err:
-			config.adopt_old_file(str(data))
-		self.assertEqual(((data / 'settings.conf').read_text(), (data / 'preferences.conf').exists()),
-			('future_days=45\n', False))
-		self.assertIn(f'config: renamed {data}/preferences.conf to {data}/settings.conf', err.getvalue())
-		(data / 'preferences.conf').write_text('future_days=99\n')
-		config.adopt_old_file(str(data))
-		self.assertEqual(((data / 'settings.conf').read_text(), (data / 'preferences.conf').exists()),
-			('future_days=45\n', True))
-
-	def test_nothing_to_rename(self):
-		"""No old file, or no data dir, is no error and says nothing."""
-		data = Path(common.temp_dir(self))
-		with contextlib.redirect_stderr(io.StringIO()) as err:
-			config.adopt_old_file(str(data))
-			config.adopt_old_file(str(data / 'missing'))
-		self.assertEqual((err.getvalue(), list(data.iterdir())), ('', []))
 
 
 if __name__ == '__main__':

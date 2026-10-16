@@ -540,7 +540,6 @@ class OptionalLibraries(unittest.TestCase):
 
 	def test_finbot_starts_without_them(self):
 		"""With no webhook set, bot.py starts with the optional libraries blocked: no HTTP server, so no waitress."""
-		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
 			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=self.blocked(data),
 				stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
@@ -560,7 +559,6 @@ class StartupSignals(unittest.TestCase):
 
 	def test_sighup_during_startup_is_ignored_and_works_afterwards(self):
 		"""A SIGHUP while bot.py starts is ignored, where its default action would kill it; once serving, it reloads."""
-		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
 			no_jobs(data)
 			env = bare_environment()
@@ -591,7 +589,6 @@ class StartupSignals(unittest.TestCase):
 
 	def test_usr1_flushes_the_cache_and_keeps_the_state(self):
 		"""SIGUSR1 is ignored in startup, then clears the cache but not writes in flight, matplotlib's or the state."""
-		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
 			cache = Path(data, 'cache')
 			(cache / 'matplotlib').mkdir(parents=True)

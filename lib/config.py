@@ -11,7 +11,7 @@ from pathlib import Path
 #                    bot: the launcher loads it into the environment (systemd EnvironmentFile=, docker --env-file,
 #                    init.d `set -a; . finbot.env`). A change needs a restart.
 #   settings.conf    how the bot behaves: <DATA_DIR>/settings.conf, read by the bot itself at start and on every
-#                    reload (SIGHUP). An older preferences.conf there is renamed to it at start.
+#                    reload (SIGHUP).
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
@@ -23,11 +23,9 @@ SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_sec
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
 	'telegramOutgoingWebhook', 'discordBotToken', 'discordOutgoingWebhook') # never printed
 SETTINGS_FILE = 'settings.conf'
-OLD_SETTINGS_FILE = 'preferences.conf' # what settings.conf was called: an upgrade renames it (adopt_old_file)
 TEMPLATE = REPO_DIR / 'defaults' / SETTINGS_FILE # every key commented out at its default; finbot never reads it
 HOME_CHAT = ("each chat has its own jobs (/jobs), which post there as the bot, and an error that belongs to no chat"
-	' goes to the log; an upgrade from before jobs per chat reads it once more, to give that chat the old schedule,'
-	' watchlist and plans (lib/migrate.py); delete the line after that start')
+	' goes to the log; delete the line')
 RETIRED = { # keys of either file that do nothing any more: accepted, so that they never stop a start, with a note at
 	# start saying what to do instead
 	'alliterate': 'delete the line',
@@ -42,7 +40,6 @@ RETIRED = { # keys of either file that do nothing any more: accepted, so that th
 	'debug': 'log_level sets what the log shows (INFO by default; DEBUG adds cache hits); delete the line',
 }
 LOG_LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG') # log_level's values, the most severe first (lib/log.py)
-OLD_ENV = REPO_DIR / '.env' # the single config file of old versions, which python-dotenv loaded; nothing reads it now
 
 
 class ConfigError(Exception):
@@ -60,8 +57,6 @@ def key_problem(key, this_keys, other_keys, other_file):
 	if key in other_keys:
 		why = ' (a change needs a restart)' if other_file == 'finbot.env' else ' (it is reloadable)'
 		return f"{key} belongs in {other_file}" + why
-	if key == 'volatile_multiplier':
-		return 'volatile_multiplier was renamed to volatility_multiplier'
 	near = difflib.get_close_matches(key, list(this_keys) + list(other_keys), n=1)
 	return f'unknown key {key}' + (f' (did you mean {near[0]}?)' if near else '')
 
@@ -117,20 +112,6 @@ def read_settings(path):
 		raise ConfigError(errors)
 	return values
 
-
-def adopt_old_file(data_dir):
-	"""An upgrade from when settings.conf was called preferences.conf: the old file in `data_dir` becomes
-	settings.conf, unless there is one already, so that no setting is lost in silence. Says so on stderr (the log is not
-	up yet); where the rename fails, the old file is left and a note says to rename it."""
-	old, new = Path(data_dir, OLD_SETTINGS_FILE), Path(data_dir, SETTINGS_FILE)
-	if not old.is_file() or new.exists():
-		return
-	try:
-		old.rename(new)
-		print(f'config: renamed {old} to {new}', file=sys.stderr)
-	except OSError as e:
-		print(f'WARN config: rename {old} to {new}: finbot no longer reads the old name ({e.strerror})',
-			file=sys.stderr)
 
 def template_keys():
 	"""The keys that defaults/settings.conf sets: its lines that are not commented out, none as shipped. finbot never
@@ -377,7 +358,6 @@ def _fail(e):
 
 try:
 	env = startup_values(os.environ.get)
-	adopt_old_file(env.data_dir)
 	settings_path = env.settings_path
 	_settings = read_settings(settings_path) or {}
 	settings = setting_values(_getenv_for(_settings), _settings)
@@ -435,19 +415,9 @@ def reload():
 
 
 def check_startup_environment():
-	"""For bot.py at start. Settings must come from settings.conf, not from the environment that finbot.env fills,
-	and a leftover .env from before the split stops the start: its settings would otherwise be silently ignored."""
+	"""For bot.py at start. Settings must come from settings.conf, not from the environment that finbot.env fills."""
 	problems = [f'{key} is a setting; move it from finbot.env to {SETTINGS_FILE}'
 		for key in SETTING_KEYS if key in os.environ]
-	if 'volatile_multiplier' in os.environ: # the old name, from before the split: it never worked as a setting
-		problems.append('volatile_multiplier was renamed to volatility_multiplier, a setting; move it from'
-			f' finbot.env to {SETTINGS_FILE}')
-	if OLD_ENV.exists():
-		problems.append(f'{OLD_ENV} is the old single config file, which finbot no longer reads; it will not start'
-			' while the file is there')
-		problems.append(f'split it with {REPO_DIR}/util/split_env.py, which writes finbot.env.new and'
-			f' settings.conf.new beside it; put finbot.env where your launcher loads it and {SETTINGS_FILE} in'
-			f' {env.data_dir}, then delete {OLD_ENV}')
 	if problems:
 		raise ConfigError(problems)
 

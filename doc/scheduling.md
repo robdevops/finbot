@@ -4,8 +4,7 @@ Each chat has its own jobs: reports and messages that run on a schedule and post
 manages them there, with `/jobs` (or `/job`; as a message, also `.cron`, `.crons` or `.schedule`).
 
 Every chat starts with the [default jobs](#the-default-jobs): switched on in a group or a channel, and switched off in a
-direct message with the bot, until the chat switches them. finbot knows a chat from its first command, and knows the
-chats of an earlier version's schedule and its home chats. A direct message is a person's chat on Telegram, a `D…`
+direct message with the bot, until the chat switches them. finbot knows a chat from its first command. A direct message is a person's chat on Telegram, a `D…`
 channel on Slack, and on Discord a message from no server.
 
 ## The menu
@@ -191,10 +190,11 @@ move as either side's daylight saving changes.
   it is not started again. A failure is reported to the job's chat, and the bot logs each job as it runs
   (`journalctl -u finbot`).
 
-**From an earlier version:**
-* The cron jobs in `finbot_schedule.json` are not carried over. Its chats start with the default jobs, and the file
-  can be deleted.
-* At the first start of this version, every job of each direct message chat finbot knew was switched off, once
-  (Discord's direct messages as Discord says), and those chats are marked as direct messages, for the log's count of
-  group chats and DMs at each start. Each is recorded in `finbot_upgrades.json`, so it never happens again.
-* `reminder.json` is read no more: its reminders are default jobs now. Delete the data directory's copy.
+## From an earlier version
+An install from before 16 Oct 2026 starts commit `ff52f2b` once first (`git checkout ff52f2b`, start finbot and wait
+for its schedule's line in the log, stop it, then `git checkout main`), as later versions no longer carry its one-off
+upgrades: the chats of the old schedule (`finbot_schedule.json`, whose cron jobs are not carried over) and the old home
+chats (the retired `telegramChatID`, `slackChannelID` and `discordChannelID`) become chats finbot knows, with the
+default jobs, and the home chats get the watchlist, the plans and the reports' records kept for all chats before; the
+jobs of the direct messages it knew are switched off. Then delete `finbot_schedule.json`, `finbot_upgrades.json` and
+`reminder.json` (its reminders are default jobs now) from the data directory.

@@ -38,11 +38,9 @@ of the chat network keys it needs.
 | `discordOutgoingWebhook` | | The Interactions Endpoint URL Discord posts slash commands and button presses to (push mode); empty, the gateway API (pull mode) |
 | `discordPublicKey` | | The app's public key, which checks the signature of each interaction (push mode) |
 
-Retired keys do nothing, and only get a note at start (and from check_config) saying to delete the line: `telegramChatID`, `slackChannelID` and `discordChannelID` (there are no home chats: each chat has its own jobs, and an error that belongs to no chat goes to the log; an upgrade from before jobs per chat reads them once, as [Scheduling](scheduling.md) says), and `slack_webhook` and `discord_webhook`.
+Retired keys do nothing, and only get a note at start (and from check_config) saying to delete the line: `telegramChatID`, `slackChannelID` and `discordChannelID` (there are no home chats: each chat has its own jobs, and an error that belongs to no chat goes to the log), and `slack_webhook` and `discord_webhook`.
 
 ## `settings.conf` items
-
-This file was called `preferences.conf` before: on an upgrade the bot renames an old `<DATA_DIR>/preferences.conf` to `settings.conf` at start (it says so in the log), unless a `settings.conf` is there already.
 
 The settings, read by the bot itself from `<DATA_DIR>/settings.conf`; without that file, finbot runs on the built-in defaults below. `defaults/settings.conf` is only its template: every key in it is commented out at its default, and finbot never reads it. To change a setting, copy the template into the data directory (this never overwrites a file there):
 ```
@@ -84,7 +82,7 @@ A key in the wrong file, or one that is not listed, stops finbot starting; on a 
 
 edit `settings.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
 
-**Upgrading from one `.env`?** finbot no longer reads it, and refuses to start while a `.env` is in the checkout, so its settings cannot be silently ignored. Run `util/split_env.py` (or `util/split_env.py /path/to/old.env` for one elsewhere). It reads either format, the old dotenv one (`key = 'value' # comment`) or plain `KEY=value`, writes `finbot.env.new` and `settings.conf.new` next to the old file, never overwriting, and lists any key it dropped or did not recognise. Put `finbot.env` where your launcher loads it and `settings.conf` in the data directory, then delete the old file.
+**Upgrading from a version before 16 Oct 2026?** Start commit `ff52f2b` once first, as [Scheduling](scheduling.md#from-an-earlier-version) says: it splits one old `.env` (`util/split_env.py`, which it asks for) and renames `preferences.conf` to `settings.conf`, which later versions no longer do.
 
 ## Data directory
 All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`); in Docker it is `/data`, the host's `/opt/finbot-data` (see [docker.md](docker.md)).

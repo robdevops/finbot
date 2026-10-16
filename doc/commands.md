@@ -329,7 +329,7 @@ rating
 
 Tracks additional securities which are not in your Sharesight holdings. Each chat has its own watchlist, which anyone in the chat can change: the reports in that chat, asked for or scheduled, include its watchlist's stocks as if they were holdings, and no other chat's. The Sharesight holdings are the same in every chat. `yahoo_warm` keeps every chat's watchlist warm in the cache.
 
-The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file. An upgrade from before watchlists per chat gives each old home chat the watchlist kept before, and the same goes for the plans that `/plan` records: each chat's `/plan` lists only the plans recorded in it.
+The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file. The plans that `/plan` records are kept by chat too: each chat's `/plan` lists only the plans recorded in it.
 
 Command:
 ```
