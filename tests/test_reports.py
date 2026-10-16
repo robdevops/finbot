@@ -1005,7 +1005,8 @@ class Pickers(FinbotCase):
 		kind, lines, rows = self.tap('✅ T0')
 		kind, lines, rows = self.tap('Compare')
 		self.assertTrue(any('Co T10' in line for line in lines) and not any('Co T0' in line for line in lines))
-		self.assertEqual((self.toasts[-1], self.labels(rows)[-1]), (('Loading…', False), ['◀ Back']))
+		self.assertEqual((self.toasts[-1], self.labels(rows)), (('Loading…', False), [['7D', '1M', '● 1Y', 'Max'],
+			['Tickers (2) ▶']])) # back at the top, with the period row
 
 	def test_compare_ticks_up_to_six_and_refuses_a_seventh(self):
 		""".compare: ticks toggle, a seventh is refused with an alert and a note."""

@@ -41,11 +41,11 @@ class MenuPress(typing.NamedTuple):
 class PickPress(typing.NamedTuple):
 	"""A press in a picker (lib/reports/pick.py): the command it picks for (a key of PICKERS), how it groups (a
 	treemap's or pie's: i industry, s sector, 0 neither), the period (a key of PERIODS, or 0), what the message shows
-	(shown: 0 nothing yet, an item's number plus one, or 1 for the ticked tickers), the items ticked (a bit of the mask
-	each), what the press asks for (act: a letter and a number: p the first screen and m the tickers' screen, each at
-	a page; f a tick refused, as too many, the tickers' screen at a page; r or s an item's number, to run it and show
-	the tickers' screen or the first; g the ticked ones, to run and show the tickers' screen at a page; h to run them
-	and show the first screen) and the checksum of the list of items it was drawn for, stale once that changes."""
+	(shown: 0 nothing yet, an item's number plus one, or the ticked tickers packed), the items ticked (a bit of the mask
+	each), what the press asks for (act: a letter and a number: p the first screen and m the tickers' screen, each at a
+	page; f a tick refused, as too many, the tickers' screen at a page; r an item's number, to run it and show the
+	tickers' screen (the first for portfolios); g or h the ticked ones, to run them and show the first screen) and the
+	checksum of the list of items it was drawn for, stale once that changes."""
 	cmd: str
 	group: str
 	period: str
