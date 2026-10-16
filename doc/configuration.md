@@ -12,7 +12,7 @@ sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finb
 * **systemd:** `EnvironmentFile=/opt/finbot.env` in `finbot.service`, plus `ExecStartPre=+.../util/check_config.py /opt/finbot.env` for pre-flight lint.
 * **Docker:** `compose.yaml` loads it, and checks it before the bot starts (see [docker.md](docker.md)). Write the values without quotes.
 * **init.d / shell:** `util/check_config.py /opt/finbot.env && set -a && . /opt/finbot.env && set +a && ./bot.py` (`set -a` is what exports the values to the bot).
-* **Scheduled jobs:** they are run by `bot.py` (see [Scheduling](scheduling.md)), so they run on the same settings. For a one-off run, send `.jobs run` in the chat.
+* **Scheduled jobs:** they are run by `bot.py` (see [Scheduling](scheduling.md)), so they run on the same settings. For a one-off run, send `/jobs run` in the chat.
 
 The startup keys, read by your launcher. A change needs a restart. Blank means unset. Each network's guide says which
 of the chat network keys it needs.
@@ -20,26 +20,25 @@ of the chat network keys it needs.
 | Key | Default | Description |
 |---|---|---|
 | `DATA_DIR` | `var/` in the checkout (`$STATE_DIRECTORY` under systemd `StateDirectory=`) | Where state and cache live |
-| `ip` | `127.0.0.1` | Address the bot listens on |
-| `port` | `5000` | Port the bot listens on |
+| `ip` | `127.0.0.1` | Address the bot listens on, in HTTP mode |
+| `port` | `5000` | Port the bot listens on, in HTTP mode |
 | `scheduler_catchup` | `5` | Minutes: a run missed while the bot was down still fires if it was due this recently |
-| `telegramChatID` | | Telegram's home chat, a group or channel id: finbot's first start gives it the default jobs, and error reports go there (see [Scheduling](scheduling.md)) |
 | `sharesight_code` | | Sharesight API access |
 | `sharesight_client_id` | | Sharesight API access |
 | `sharesight_client_secret` | | Sharesight API access |
 | `telegramBotToken` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `telegramOutgoingWebhook` is set) |
 | `slackBotToken` | | Slack bot token, for replies and chart uploads in Slack |
 | `slackAppToken` | | Slack app-level token (`xapp-`): commands over a socket finbot opens to Slack (Socket Mode), when `slackOutgoingWebhook` is empty |
-| `slackChannelID` | | Slack's home channel id, as `telegramChatID` (with `slackBotToken`) |
 | `telegramOutgoingWebhook` | | The URL Telegram posts its updates to (HTTP mode); empty, finbot fetches them (pull mode) |
 | `telegramOutgoingToken` | | Secret token Telegram must present (HTTP mode) |
 | `slackOutgoingWebhook` | | The URL Slack posts its events and button presses to (HTTP mode); empty, Socket Mode with `slackAppToken` |
 | `slackOutgoingToken` | | Token Slack must present (HTTP mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
 | `slackSigningSecret` | | Secret Slack signs each request with (HTTP mode) |
-| `discordBotToken` | | Discord bot token: replies, and commands over the gateway unless `discordOutgoingWebhook` is set |
-| `discordChannelID` | | Discord's home channel id, as `telegramChatID` (with `discordBotToken`) |
-| `discordOutgoingWebhook` | | The Interactions Endpoint URL Discord posts slash commands and button presses to (HTTP mode); empty, the gateway (pull mode) |
+| `discordBotToken` | | Discord bot token: replies, and commands over the gateway API unless `discordOutgoingWebhook` is set |
+| `discordOutgoingWebhook` | | The Interactions Endpoint URL Discord posts slash commands and button presses to (HTTP mode); empty, the gateway API (pull mode) |
 | `discordPublicKey` | | The app's public key, which checks the signature of each interaction (HTTP mode) |
+
+Retired keys do nothing, and only get a note at start (and from check_config) saying to delete the line: `telegramChatID`, `slackChannelID` and `discordChannelID` (there are no home chats: each chat has its own jobs, and an error that belongs to no chat goes to the log; an upgrade from before jobs per chat reads them once, as [Scheduling](scheduling.md) says), and `slack_webhook` and `discord_webhook`.
 
 ## `preferences.conf` items
 
@@ -57,7 +56,7 @@ A change takes effect on a reload. A true/false preference takes `true`/`false`,
 | `future_days` | `30` | How many days ahead the events calendar looks |
 | `price_percent` | `5` | Price alert threshold, percent |
 | `shorts_percent` | `15` | Short interest alert threshold, percent |
-| `min_analysts` | `7` | `.buy`, `.sell` and `.forward pe` list only stocks covered by at least this many analysts; with fewer, a consensus says little (thinly covered small caps are nearly all a perfect buy) |
+| `min_analysts` | `7` | `/buy`, `/sell` and `/forwardpe` list only stocks covered by at least this many analysts; with fewer, a consensus says little (thinly covered small caps are nearly all a perfect buy) |
 | `demote_volatile` | `True` | Volatile (small cap, high beta) stocks need a bigger move to alert |
 | `demote_leveraged` | `True` | Leveraged (2x, 3x) funds need a bigger move to alert |
 | `volatility_multiplier` | `2` | How much bigger a move volatile stocks need |
@@ -70,7 +69,7 @@ A change takes effect on a reload. A true/false preference takes `true`/`false`,
 | `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` |
 | `exchange_suffix` | `AX` | Regional: Yahoo's suffix for your exchange (`AX` for the ASX, `NZ`, `L`, `TO` and so on). A bare symbol Yahoo does not know is tried again with it, in every command that takes a symbol (`BHP` becomes `BHP.AX`); empty, a symbol is taken as written |
 | `country_code` | `AU` | Regional: your country, for the reminder report |
-| `timezone` | `Australia/Melbourne` | Regional: your time zone, for the reminder report, and for each job's next run in `.jobs` (besides UTC) |
+| `timezone` | `Australia/Melbourne` | Regional: your time zone, for the reminder report, and for each job's next run in `/jobs` (besides UTC) |
 | `cache` | `True` | Cache Yahoo and Sharesight responses |
 | `cache_seconds` | `43200` | Cache lifetime in seconds (12 hours) |
 | `performance_cache_seconds` | `2400` | Cache lifetime of Sharesight performance reports in seconds: longer than the 30 minutes between `sharesight_warm` runs, so the holdings never run out |

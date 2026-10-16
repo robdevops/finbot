@@ -7,7 +7,7 @@ What finbot can do on each network. Telegram takes everything; the others take w
 
 | Feature | Telegram | Slack | Discord |
 |---|---|---|---|
-| Chat commands | ✓: messages (`.price`), and slash commands (`/price`) from the command menu | ✓: messages, and slash commands (`/price`) from the app's manifest | ✓: slash commands (`/price`), and messages over the gateway |
+| Chat commands | ✓: slash commands (`/price`) from the command menu, and messages (`.price`) | ✓: slash commands (`/price`) from the app's manifest, and messages | ✓: slash commands (`/price`), and messages over the gateway API |
 | "typing…" while a command works | ✓ | ⏳ on the command's message (Slack has no typing notice for bots); none for a slash command, which has no message | ✓ for a message; "thinking…" for a slash command |
 | Charts in replies | ✓ | ✓ | ✓ |
 | Charts in scheduled reports | ✓ | ✓ | ✓ |
@@ -29,42 +29,44 @@ Where:
 * _portfolio_ is a Sharesight portfolio name
 * _symbol_ is a Yahoo Finance symbol; a bare one Yahoo does not know is tried again on your exchange (`exchange_suffix`: `BHP` may be `BHP.AX`)
 ```
-.symbol
-.stock symbol
-.beta
-.buy
-.sell
-.compare symbol symbol [symbol...] [period]
-.dividend [period|symbol]
-.earnings [period|symbol]
-.forward pe [symbol|top|bottom|negative]
-.history symbol
-.holdings portfolio
-.jobs [run|toggle] [number]
-.jobs add [CRON_TZ=zone] time report
-.jobs del number
-.marketcap [symbol|top|bottom]
-.pe [symbol|top|bottom]
-.peg [symbol|top|bottom|negative]
-.performance [period] [portfolio]
-.pie portfolio [sector]
-.plan [your plan]
-.premarket [percent|symbol]
-.price [percent|symbol|top|bottom] [period]
-.session [percent|symbol]
-.shorts [percent|symbol]
-.trades [period] [portfolio]
-.watchlist [add|del symbol]
-.who symbol
+/stock symbol
+/beta
+/buy
+/sell
+/compare symbol symbol [symbol...] [period]
+/dividend [period|symbol]
+/earnings [period|symbol]
+/forwardpe [symbol|top|bottom|negative]
+/help
+/history symbol
+/holdings portfolio
+/jobs [run|toggle] [number]
+/jobs add [CRON_TZ=zone] time report
+/jobs del number
+/marketcap [symbol|top|bottom]
+/pe [symbol|top|bottom]
+/peg [symbol|top|bottom|negative]
+/performance [period] [portfolio]
+/pie portfolio [sector]
+/plan [your plan]
+/premarket [percent|symbol]
+/price [percent|symbol|top|bottom] [period]
+/session [percent|symbol]
+/shorts [percent|symbol]
+/trades [period] [portfolio]
+/watchlist [add|del symbol]
+/who symbol
 ```
 
-`!` or `/` work in place of the dot, and so does the bot's name: `@botname price 7d`, `@botname AAPL`. Each command is also a slash command on every network, which completes its name as it is typed: Telegram's command menu, set as finbot starts; Slack's, from the app's manifest (`util/slack_manifest.py`, see the [Slack guide](slack.md#slash-commands)); Discord's, registered as finbot starts. `/stock symbol` (or `/profile symbol`) is `.symbol`, `/forwardpe` is `.forward pe`, and `/job` is `/jobs`. A command is its whole name, in any case, and so are its keywords (`.price TOP`); any other first word is a symbol. `.help` lists the commands in chat.
+Each command is a slash command on every network, which completes its name as it is typed: Telegram's command menu, set as finbot starts; Slack's, from the app's manifest (`util/slack_manifest.py`, see the [Slack guide](slack.md#slash-commands)); Discord's, registered as finbot starts. `/profile` is a second name of `/stock`, and `/job` of `/jobs`. `/help` lists the commands in chat.
+
+Every command also works as a plain message, which is quicker to type on a phone: a dot in place of the slash (`.price 7d`), or `!`, or the bot's name (`@botname price 7d`). As a message, `.forward pe` is `/forwardpe`, and a symbol alone is `/stock` (`.AAPL`, `@botname AAPL`). A message reaches the bot wherever it reads the chat: on Telegram, a direct chat, or a group where it is an administrator; on Slack, a direct message, a mention, or every message with `--every-message`; on Discord, in gateway API mode. A command is its whole name, in any case, and so are its keywords (`.price TOP`); any other first word is a symbol.
 
 Trade notifications are peformed by polling the Sharesight trades API on a schedule (see [Scheduling](scheduling.md)), and notifying each chat that schedules them of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 
 The other various reports can also run on a schedule (e.g. daily or weekly), or on demand with a command. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. A scheduled report posts to the chat whose job it is, and a command's reply to the chat that sent it.
 
-The bot answers commands in every chat it is in. It fetches its updates from each network itself, with no server to host (pull mode); in HTTP mode instead, a network posts them to a web service you host on a domain with a trusted certificate. It provides:
+The bot answers commands in every chat it is in. By default, it fetches its updates from each network itself (pull mode); alternatively, in HTTP mode, each network pushes them to your HTTPS gateway, which passes them to the bot. It provides:
 * Stock lookup (financials, company profile, price charts)
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
@@ -106,11 +108,9 @@ The stock lookup returns various stats relevant to a stock's valuation, growth a
 
 This report is a command only. Example usage:
 ```
-.AAPL
+/stock AAPL
 ```
-```
-@botname AAPL
-```
+As a message: `.AAPL`, or `@botname AAPL`.
 
 ### Trades
 ![trade update in Slack](../img/trades.png?raw=true "Trade update in Slack")
@@ -126,25 +126,19 @@ With persistent storage, the default of `past_days=28` suits. This is useful if 
 past_days=28
 ```
 
-Job (see [Scheduling](scheduling.md)), such as `.jobs add */20 * * * Mon-Fri trades`:
+Job (see [Scheduling](scheduling.md)), such as `/jobs add */20 * * * Mon-Fri trades`:
 ```
 trades
 ```
 
 Command:
 ```
-.trades [period]
-```
-```
-@botname trades [period]
+/trades [period]
 ```
 
 You can also specify a portfolio name to get trades for just that portfolio:
 ```
-.trades [period] [portfolio]
-```
-```
-@botname trades [period] [portfolio]
+/trades [period] [portfolio]
 ```
 
 ### Price alerts
@@ -161,7 +155,7 @@ price_percent=5
 demote_volatile=True
 ```
 
-Job (see [Scheduling](scheduling.md)), such as `.jobs add 29 21 * * Mon-Fri price interday`:
+Job (see [Scheduling](scheduling.md)), such as `/jobs add 29 21 * * Mon-Fri price interday`:
 ```
 price premarket|midsession|interday|close|DAYS
 ```
@@ -174,36 +168,27 @@ When scheduled, the mode is its argument:
 
 Command (pre-market):
 ```
-.premarket [percent]
-```
-```
-@botname premarket [percent]
+/premarket [percent]
 ```
 
 Command (mid-session):
 ```
-.session [percent]
-```
-```
-@botname session [percent]
+/session [percent]
 ```
 
 Command (interday).
 ```
-.price [percent]
-```
-```
-@botname price [percent]
+/price [percent]
 ```
 
-For interday, can also specify the time period. A bare number is the percent; a period carries its unit: `7d`, `2w`, `3m`, `1y` or `ytd`. For example, `.price 3 7d` lists the moves of 3% or more over the past week.
+For interday, can also specify the time period. A bare number is the percent; a period carries its unit: `7d`, `2w`, `3m`, `1y` or `ytd`. For example, `/price 3 7d` lists the moves of 3% or more over the past week.
 ```
-.price [percent] [period]
+/price [percent] [period]
 ```
 
 Or a specific stock. In this case, the output includes a graph.
 ```
-.price [symbol] [period]
+/price [symbol] [period]
 ```
 
 ### Portfolio performance
@@ -216,25 +201,19 @@ Config example:
 past_days=28
 ```
 
-Job (see [Scheduling](scheduling.md)), such as `.jobs add 28 21 * * Sat performance 7`:
+Job (see [Scheduling](scheduling.md)), such as `/jobs add 28 21 * * Sat performance 7`:
 ```
 performance [DAYS]
 ```
 
 Command:
 ```
-.performance [period]
-```
-```
-@botname performance [period]
+/performance [period]
 ```
 
 As a command, it also takes a portfolio:
 ```
-.performance [period] [[portfolio]
-```
-```
-@botname performance [period] [portfolio]
+/performance [period] [portfolio]
 ```
 
 ### Events calendar
@@ -249,25 +228,19 @@ The `cal` report sends upcoming earnings and ex-dividend date alerts. The data i
 future_days=30
 ```
 
-Job (see [Scheduling](scheduling.md)), such as `.jobs add 28 21 * * Sat cal earnings`:
+Job (see [Scheduling](scheduling.md)), such as `/jobs add 28 21 * * Sat cal earnings`:
 ```
 cal earnings|ex-dividend
 ```
 
 Command (earnings):
 ```
-.earnings [period]
-```
-```
-@botname earnings [period]
+/earnings [period]
 ```
 
 Command (ex-dividend):
 ```
-.dividend [period]
-```
-```
-@botname dividend [period]
+/dividend [period]
 ```
 
 ### Highly shorted stock warnings
@@ -282,10 +255,7 @@ shorts_percent=15
 
 Command:
 ```
-.shorts [percent]
-```
-```
-@botname shorts [percent]
+/shorts [percent]
 ```
 
 ### pe / forward pe / peg
@@ -295,14 +265,9 @@ List securities by P/E ratio, forward P/E ratio, or PEG ratio. A forward P/E is 
 
 Command:
 ```
-.pe [SYMBOL]
-.fpe [SYMBOL|bottom|negative]
-.peg [SYMBOL|bottom|negative]
-```
-```
-@botname pe [SYMBOL|top|bottom]
-@botname fpe [SYMBOL|top|bottom|negative]
-@botname peg [SYMBOL|top|bottom|negative]
+/pe [SYMBOL|top|bottom]
+/forwardpe [SYMBOL|top|bottom|negative]
+/peg [SYMBOL|top|bottom|negative]
 ```
 
 ### History
@@ -313,10 +278,7 @@ It creates a 5Y chart, and then lists performance for several periods (5Y 3Y 1Y 
 
 Command:
 ```
-.history <symbol>
-```
-```
-@botname history <symbol>
+/history <symbol>
 ```
 
 ### Buy
@@ -326,10 +288,7 @@ Show top recommended buys by Yahoo Finance analysts rating, among stocks rated b
 
 Command:
 ```
-.buy
-```
-```
-@botname buy
+/buy
 ```
 
 ### Sell
@@ -339,10 +298,7 @@ Show top recommended sells by Yahoo Finance analysts rating, among stocks rated 
 
 Command:
 ```
-.sell
-```
-```
-@botname sell
+/sell
 ```
 
 ### Marketcap
@@ -352,16 +308,13 @@ List the top (or bottom) stocks by market cap, in US dollars: market caps in oth
 
 Command:
 ```
-.marketcap [top|bottom|SYMBOL]
-```
-```
-@botname marketcap [top|bottom|SYMBOL]
+/marketcap [top|bottom|SYMBOL]
 ```
 
 ### Consensus rating changes
 ![Rating change report in Slack](../img/finbot_rating.png?raw=true "Rating change report in Slack")
 
-Notifies when Yahoo Finance analyst rating consensus changes category (e.g. from hold to buy). Designed to run on a schedule, such as `.jobs add 28 21 * * Sat rating` (see [Scheduling](scheduling.md)). Requires persistent storage.
+Notifies when Yahoo Finance analyst rating consensus changes category (e.g. from hold to buy). Designed to run on a schedule, such as `/jobs add 28 21 * * Sat rating` (see [Scheduling](scheduling.md)). Requires persistent storage.
 
 ```
 rating
@@ -372,18 +325,12 @@ rating
 
 Tracks additional securities which are not in your Sharesight holdings. Each chat has its own watchlist, which anyone in the chat can change: the reports in that chat, asked for or scheduled, include its watchlist's stocks as if they were holdings, and no other chat's. The Sharesight holdings are the same in every chat. `yahoo_warm` keeps every chat's watchlist warm in the cache.
 
-The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file. The first start with watchlists per chat gives each home chat the watchlist kept before, and the same goes for the plans that `.plan` records: each chat's `.plan` lists only the plans recorded in it.
+The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file. An upgrade from before watchlists per chat gives each old home chat the watchlist kept before, and the same goes for the plans that `/plan` records: each chat's `/plan` lists only the plans recorded in it.
 
 Command:
 ```
-.watchlist
+/watchlist
 ```
 ```
-.watchlist [add|del] [symbol]
-```
-```
-@botname watchlist
-```
-```
-@botname watchlist [add|del] [symbol]
+/watchlist [add|del] [symbol]
 ```

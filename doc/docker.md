@@ -8,8 +8,8 @@ The configuration lives on the host, beside the checkout, so a rebuild or an upd
 
 1. `git clone https://github.com/robdevops/finbot /opt/finbot`
 2. `sudo /opt/finbot/util/docker_setup.sh`
-3. Set `telegramBotToken` and `telegramChatID` in `/opt/finbot.env` (or another network's keys: see the
-   [Telegram](telegram.md), [Slack](slack.md) and [Discord](discord.md) guides).
+3. Set `telegramBotToken` in `/opt/finbot.env` (or another network's keys: see the [Telegram](telegram.md),
+   [Slack](slack.md) and [Discord](discord.md) guides).
 4. `cd /opt/finbot && sudo docker compose up -d --build`
 5. `journalctl CONTAINER_NAME=finbot -f`
 
@@ -18,7 +18,7 @@ The configuration lives on the host, beside the checkout, so a rebuild or an upd
 | Path | What | In the container |
 |---|---|---|
 | `/opt/finbot` | the checkout, with `Dockerfile` and `compose.yaml` | the image's `/opt/finbot`, copied at build |
-| `/opt/finbot.env` | the startup file: tokens, chat ids, the mode of each network | the environment, and `/run/finbot.env`, read-only, for the check |
+| `/opt/finbot.env` | the startup file: the tokens, and the mode of each network | the environment, and `/run/finbot.env`, read-only, for the check |
 | `/opt/finbot-data` | `DATA_DIR`: `preferences.conf`, each chat's jobs and watchlist, the records, the cache | `/data` |
 
 `compose.yaml` finds the other two beside the checkout (`../finbot.env`, `../finbot-data`): clone it elsewhere and

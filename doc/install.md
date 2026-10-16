@@ -1,21 +1,24 @@
 # Installing on a host
 
-finbot runs on any Linux host with Python 3.12 or later; production runs Debian's own packages under systemd, as
-below. To run it in a container instead, see [docker.md](docker.md).
+finbot runs wherever Python 3.12 or later does (Linux, macOS, WSL); production runs Debian's own packages under
+systemd, as below. To run it in a container instead, see [docker.md](docker.md).
 
 ## Requirements
 * Most features need a Sharesight paid plan, preferably with automatic trade imports, and an API key
   ([configuration.md](configuration.md#sharesight)).
 * A Telegram bot, a Slack app or a Discord bot: see the network's guide, [Telegram](telegram.md), [Slack](slack.md) or
   [Discord](discord.md).
-* No server: finbot fetches its updates from each network itself (pull mode: Telegram's long polling, Slack's Socket
-  Mode, Discord's gateway). In HTTP mode instead, a network posts them to a public web server with a domain name and a
-  matching certificate, which proxies them to the bot (each guide's _HTTP mode_).
+* By default, finbot fetches its updates from each network itself (pull mode: Telegram's long polling, Slack's Socket
+  Mode, Discord's gateway API). It only makes outgoing connections, so nothing has to listen on the internet.
+  Alternatively, if you prefer to run an HTTPS gateway (a web server with a domain name and a matching certificate),
+  HTTP mode subscribes the bot to push updates: each network posts its updates to the gateway, which passes them to
+  the bot (each guide's _HTTP mode_).
 * Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum), and these modules, pinned to versions with
   3.13 support in `requirements.txt`: croniter, python-dateutil, requests, matplotlib and numpy.
 * For a network in HTTP mode (its webhook URL set), also waitress; for Slack in Socket Mode, websocket-client; for
-  Discord's gateway, discord.py, and for its HTTP mode, PyNaCl. These are in `requirements-optional.txt`, each imported
-  only by the mode that needs it.
+  Discord's gateway API, discord.py, and for its HTTP mode, PyNaCl. These are in `requirements-optional.txt`, each
+  imported only by the mode that needs it. Docker and a Python venv install them all, Docker in its image and a venv
+  from that file, so every mode works without choosing; on a Debian host, install the packages of the modes you use.
 
 ## Debian
 1. The packages, and those of the modes you use:
@@ -23,7 +26,7 @@ below. To run it in a container instead, see [docker.md](docker.md).
    sudo apt install git python3 python3-requests python3-croniter python3-dateutil python3-matplotlib python3-numpy
    sudo apt install python3-waitress     # any network in HTTP mode
    sudo apt install python3-websocket    # Slack's Socket Mode
-   sudo apt install python3-discord      # Discord's gateway
+   sudo apt install python3-discord      # Discord's gateway API
    sudo apt install python3-nacl         # Discord's HTTP mode
    ```
 2. The code:
@@ -37,22 +40,32 @@ below. To run it in a container instead, see [docker.md](docker.md).
    ```
 4. Check it: `~/finbot/util/check_config.py /opt/finbot.env`
 5. Run it under systemd, below. The first start makes the data directory (`var/` in the checkout, or
-   `/var/lib/finbot` with `DynamicUser=`) and gives each home chat its first jobs ([scheduling.md](scheduling.md)).
+   `/var/lib/finbot` with `DynamicUser=`); each chat then schedules its own reports with `/jobs add`
+   ([scheduling.md](scheduling.md)).
 
 [configuration.md](configuration.md) has every key and preference.
 
-## Other distributions: pip or uv
+## Anywhere else: a Python venv
+On Linux, macOS or WSL, with git and Python 3.12 or later (on Debian and Ubuntu, also `python3-venv`):
 ```
-sudo $(which apt dnf yum) install git python3-pip
 git clone https://github.com/robdevops/finbot.git ~/finbot
 cd ~/finbot
-pip3 install -r requirements.txt -r requirements-optional.txt
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt -r requirements-optional.txt
 ```
 Or, with [uv](https://docs.astral.sh/uv/), which also fetches the exact Python from `.python-version`:
 ```
 uv venv && uv pip install -r requirements.txt -r requirements-optional.txt
 ```
-`requirements-optional.txt` can be left out, or cut down to the modes you use.
+`requirements-optional.txt` installs the library of every mode; it can be cut down to the modes you use. Then make the
+startup file as in step 3 above (anywhere: `~/finbot.env`, say), check it, and start the bot with its values in its
+environment:
+```
+.venv/bin/python util/check_config.py ~/finbot.env
+(set -a && . ~/finbot.env && exec .venv/bin/python bot.py)
+```
+Under systemd (below), `ExecStart=` runs the venv's Python: `/home/<you>/finbot/.venv/bin/python
+/home/<you>/finbot/bot.py`.
 
 ## Daemonize (systemd)
 `finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy
