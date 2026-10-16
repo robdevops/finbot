@@ -28,7 +28,7 @@ def marketcap_list(service, chat, bottom=False, length=15):
 	for ticker, data in yahoo.add_usd_market_caps(yahoo.fetch(watchlist.with_holdings(chat))).items():
 		if 'market_cap_usd' not in data:
 			why = "no market cap" if 'market_cap' not in data else f"no exchange rate for {data.get('currency')}"
-			log.info(ticker, why)
+			log.debug(ticker, why)
 			continue
 		cap = formats.human_units(data['market_cap_usd'])
 		caps.append((data['market_cap_usd'], f"{links.stock_line(ticker, data, service)} mkt cap: {cap}"))

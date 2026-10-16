@@ -393,14 +393,31 @@ class ScheduledReports(FinbotCase):
 		self.assertEqual(pins, ['5'])
 
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
-		"""T1 has no earnings date, so its primary listing is looked up: Yahoo not knowing it crashed the report."""
+		"""T1 has no earnings date, even in its details, so its primary listing is looked up: Yahoo not knowing it
+		crashed the report."""
 		self.patch(cal, 'primary_listings', lambda: {'T1': 'T1.XX'})
 		undated = lambda t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')}
 		self.patch(yahoo, 'fetch', lambda ts: {t: undated(t) for t in ts})
-		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1.XX' else {t: market_entry(t)})
+		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1.XX' else {t: undated(t)})
 		cal.run(event='earnings')
 		self.assertIn('Co T2 ', str(self.sent))
 		self.assertNotIn('Co T1 ', str(self.sent))
+
+	def test_a_us_listing_of_a_foreign_company_keeps_its_own_dates(self):
+		"""A foreign company's US listing (an ADR such as ARM, held as it is) whose quote lacks the date takes it from
+		its own details, never its home market's listing (ARM.L, which Yahoo may not even know); that one is asked
+		for only when the US listing has no date at all."""
+		asked = []
+		undated = lambda t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')}
+		self.patch(yahoo, 'fetch', lambda ts: {t: undated(t) for t in ts})
+		def details(t, *a, **k):
+			"""T1's details, of a British company, with its date; asked for, noted."""
+			asked.append(t)
+			return {t: {**market_entry(t.split('.')[0]), 'profile_country': 'United Kingdom'}}
+		self.patch(yahoo, 'fetch_detail', details)
+		cal.run(event='earnings')
+		self.assertIn('Co T1 ', str(self.sent))
+		self.assertEqual([t for t in asked if '.' in t], []) # no T1.L
 
 	def test_trades(self):
 		""".trades run from a chat posts."""

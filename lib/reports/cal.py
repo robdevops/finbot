@@ -53,22 +53,24 @@ def gather(tickers, days, specific_stock, event):
 	return sorted(found, key=lambda item: item[0])
 
 def primary_listing(ticker, data, field):
-	"""(the primary listing's ticker, its Yahoo details) where an ADR or a second listing without a `field` of its own
-	finds one, or (None, None): the listing in finbot_adr.json, the NZX for an ASX ticker reporting in NZD, an exchange
-	suffix for a foreign company's US ticker, else the ticker's own details. It must be the same company, with the
-	`field`."""
-	primary = primary_listings().get(ticker)
-	if primary is None:
-		nzd = ticker.endswith('.AX') and data.get('financialCurrency') == 'NZD'
-		primary = ticker.replace('.AX', '.NZ') if nzd else ticker # fixes GTK.AX and SKO.AX
-	details = yahoo.fetch_detail(primary).get(primary, {})
-	country = details.get('profile_country') # only in the details
-	if country in markets.YAHOO_COUNTRY and '.' not in primary:
-		primary = primary + '.' + markets.YAHOO_COUNTRY[country] # fixes ASML and INFY
-		details = yahoo.fetch_detail(primary).get(primary, {})
-	if details.get('profile_title') != data['profile_title'] or field not in details: # another company, or no date
-		return None, None
-	return primary, details
+	"""(a listing's ticker, its Yahoo details) with a `field` that a ticker's quote lacks, or (None, None). First the
+	ticker's own details: what is held is that listing, a US ADR say, so its own date counts, never its home market's
+	(ARM, not ARM.L). Only when it has none, another listing of the same company: the one in finbot_adr.json, the NZX
+	for an ASX ticker reporting in NZD (GTK.AX, SKO.AX), or the home market's for a foreign company's US ticker (ASML,
+	INFY)."""
+	own = yahoo.fetch_detail(ticker).get(ticker, {})
+	listings = [ticker]
+	if mapped := primary_listings().get(ticker):
+		listings.append(mapped)
+	elif ticker.endswith('.AX') and data.get('financialCurrency') == 'NZD':
+		listings.append(ticker.replace('.AX', '.NZ'))
+	elif own.get('profile_country') in markets.YAHOO_COUNTRY and '.' not in ticker: # the country: only in the details
+		listings.append(ticker + '.' + markets.YAHOO_COUNTRY[own['profile_country']])
+	for listing in listings:
+		details = own if listing == ticker else yahoo.fetch_detail(listing).get(listing, {})
+		if details.get('profile_title') == data['profile_title'] and field in details: # the same company, with a date
+			return listing, details
+	return None, None
 
 def report(service, events, days, specific_stock, interactive, event):
 	"""The events in one network's markup, grouped by date under a heading (one stock's carry their dates instead)."""

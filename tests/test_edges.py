@@ -401,6 +401,15 @@ class LogLevels(FinbotCase):
 		self.assertRegex(lines[2], r'^cache hit: \S+finbot_test\.json TTL: \d+s$')
 
 
+	def test_a_stock_without_a_market_cap_is_debug(self):
+		"""A stock that .marketcap cannot rank, without a market cap (an ETF), is logged at DEBUG only: nothing went
+		wrong."""
+		self.patch(yahoo, 'fetch', lambda tickers: {'ETF1': {'profile_title': 'A Fund', 'profile_exchange': 'NYSE'}})
+		self.patch(yahoo, 'add_usd_market_caps', lambda quotes: quotes)
+		rank = lambda: rankings.marketcap_list(TELEGRAM, '55')
+		self.assertEqual((self.logged('INFO', rank), self.logged('DEBUG', rank)), ([], ['ETF1 no market cap']))
+
+
 class RequestLog(FinbotCase):
 	"""Each request that goes out (a cache miss, or a call that has no cache) is a line at INFO."""
 
