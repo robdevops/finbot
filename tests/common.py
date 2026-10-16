@@ -148,6 +148,7 @@ class FinbotCase(unittest.TestCase):
 			self.record_chart(dest, image, caption, markup))
 		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None: self.record_text(dest, lines))
 		self.patch(watchlist, 'with_holdings', lambda chat: TICKERS)
+		self.patch(worker, 'prime_in_background', lambda *args: None) # no thread draws charts behind a test
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
 		moved = {t: float(i * 4 - 40) for i, t in enumerate(TICKERS)} # each stock's move over any period

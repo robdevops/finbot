@@ -6,8 +6,11 @@ import hashlib
 from lib import answer
 from lib import buttons
 from lib import config
+from lib import log
+from lib import render
 from lib import sharesight
 from lib import watchlist
+from lib.reports import holdings
 
 MOST_ITEMS = 100 # items offered, paged: what the mask of ticks in a button's data has room for
 CHARTS = 'ptyc' # the pickers whose answer is a chart
@@ -43,41 +46,78 @@ def checksum(found):
 	"""A short stand-in for a list of items, which tells any change of it."""
 	return hashlib.sha1('\n'.join(found).encode()).hexdigest()[:4]
 
-def start(service, cmd, chat, group='0', period='0'):
-	"""A picker's first screen: (lines, rows)."""
-	return screen(service, cmd, items(service, cmd, chat), group, period, 0, 0, 'p')
+def pack(numbers):
+	"""The numbers of the tickers on show (compare's), as one number for a button's data: two hex digits to each, its
+	number plus one; 0 for none."""
+	return int(''.join(f'{number + 1:02x}' for number in numbers), 16) if numbers else 0
+
+def unpack(shown):
+	"""The numbers of the tickers that pack made `shown` of."""
+	text = format(shown, 'x')
+	text = text.rjust(len(text) + len(text) % 2, '0')
+	return [int(text[i:i + 2], 16) - 1 for i in range(0, len(text), 2)]
+
+def default(cmd, found):
+	"""What a picker answers at first, as (shown, mask): the first portfolio (pie, treemap) or ticker (history), or the
+	first two tickers (compare), alphabetically; (0, 0) for nothing yet (holdings). Raises answer.Answer where compare
+	has fewer than two tickers."""
+	if cmd == 'c':
+		if len(found) < 2:
+			raise answer.Answer("Compare needs two tickers: .watchlist add SYMBOL adds one")
+		return pack([0, 1]), 0b11
+	return (0, 0) if cmd == 'h' else (1, 0)
+
+def shown_names(cmd, found, shown):
+	"""The items a picker's message shows now (shown, as a PickPress has it): none when it shows nothing yet."""
+	if cmd == 'c':
+		return [found[number] for number in unpack(shown) if 0 <= number < len(found)] if shown else []
+	return [found[shown - 1]] if 0 < shown <= len(found) else []
+
+def prime(service, cmd, group, found, index):
+	"""Draw, to fill the cache, the charts a button of a pie or treemap picker would ask for: first the other grouping
+	of the portfolio shown (found[index]), then every other portfolio in both. A failure is logged, never raised."""
+	prepare = holdings.prepare_pie if cmd == 'p' else holdings.prepare_treemap
+	other = 'industry' if group == 's' else 'sector'
+	wanted = [(found[index], other)] + [(name, by) for name in found if name != found[index]
+		for by in ('industry', 'sector')]
+	for name, by in wanted:
+		try:
+			_, chart = prepare(name, by, service)
+			if chart and chart.rows:
+				render.draw(chart)
+		except Exception as e:
+			log.warn("priming", cmd, name, by, "failed:", e)
 
 def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=None):
 	"""A picker's screen, as (lines, rows): `view` 'p', the first (the portfolios; for tickers the period and the way
 	to the tickers), or 'm', the tickers'; `page` of the items; `shown` what the message answers now (an item's number
-	plus one, or 1 for the ticked tickers, 0 for nothing yet, which a button then carries to redo with its change);
-	`mask` has a bit for each ticked ticker."""
+	plus one, or compare's tickers, see pack; 0 for nothing yet); `mask` has a bit for each ticked ticker."""
 	per_page, per_row = layout(service, cmd)
 	pages = -(-len(found) // per_page)
 	page = min(max(page, 0), pages - 1)
 	ticked = [name for i, name in enumerate(found) if mask >> i & 1]
+	to_compare = cmd == 'c' and len(ticked) >= 2 and pack([i for i in range(len(found)) if mask >> i & 1]) != shown
 	name = buttons.PICKERS[cmd]
 	def button(label, act, active=False, **changes):
 		"""A button of this screen, whatever it changes (group, period, shown or mask) in its data."""
 		state = {'group': group, 'period': period, 'shown': shown, 'mask': mask} | changes
 		return buttons.pick_button(label, buttons.PickPress(cmd, state['group'], state['period'], state['shown'],
 			state['mask'], act, checksum(found)), active)
-	redo = 'p0' if not shown else 'h0' if cmd == 'c' else f"s{shown - 1}" if cmd == 'y' else f"r{shown - 1}"
 	rows = []
 	if cmd in 'yc' and view == 'p': # the period, and the way to the tickers
-		rows.append([button(buttons.PERIODS[key][0], redo, key == period, period=key) for key in buttons.BUTTONS['c']])
+		rows.append([button(buttons.PERIODS[key][0], 'p0', key == period, period=key) for key in buttons.BUTTONS['c']])
 		more = f"Tickers ({len(ticked)}) ▶" if ticked else "Tickers ▶"
-		rows.append([button(more, 'm0')] + ([button('Compare', 'h0')] if cmd == 'c' and len(ticked) >= 2 else []))
-	shown_page = items_on(found, page, per_page)
+		rows.append([button(more, 'm0')] + ([button('Compare', 'h0')] if to_compare else []))
+	on_page = items_on(found, page, per_page)
 	if noun(cmd) == 'portfolio':
-		rows += chunks([button(name, f"r{i}", shown == i + 1, shown=i + 1) for i, name in shown_page], per_row)
+		rows += chunks([button(name, f"r{i}", shown == i + 1, shown=i + 1) for i, name in on_page], per_row)
 		if cmd == 't':
-			rows.append([button(f"Group by: {'Sector' if group == 's' else 'Industry'}", redo,
+			rows.append([button(f"Group by: {'Sector' if group == 's' else 'Industry'}", f"p{page}",
 				group='i' if group == 's' else 's')])
 	elif view == 'm':
 		full = len(ticked) >= buttons.MAX_PICKED
 		tickers = []
-		for i, ticker in shown_page:
+		for i, ticker in on_page:
 			if cmd == 'y':
 				tickers.append(button(ticker, f"r{i}", shown == i + 1, shown=i + 1))
 			elif mask >> i & 1:
@@ -86,11 +126,11 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 				tickers.append(button(ticker, f"f{page}") if full else button(ticker, f"m{page}", mask=mask | 1 << i))
 		rows += chunks(tickers, per_row)
 	nav = [button('◀ Back', 'p0')] if cmd in 'yc' and view == 'm' else []
-	if pages > 1:
+	if pages > 1 and (view == 'm' or noun(cmd) == 'portfolio'): # the page buttons: under the tickers, not above them
 		act = 'm' if view == 'm' else 'p'
 		nav += ([button('<', f"{act}{page - 1}")] if page else []) + (
 			[button('>', f"{act}{page + 1}")] if page < pages - 1 else [])
-	if cmd == 'c' and view == 'm' and len(ticked) >= 2:
+	if view == 'm' and to_compare:
 		nav.append(button('Compare', f"g{page}"))
 	if nav:
 		rows.append(nav)

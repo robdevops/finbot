@@ -172,9 +172,9 @@ class Formatting(unittest.TestCase):
 				'k|c|0|x|0|0|p0', 'k|c|0|x|0|0|p0|a-b2', 'k|c|0|x|0|0|p|a1b2'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
-		acts = ('p0', 'm1', 'r2', 's2', 'g0', 'h0', 'f0')
+		acts = ('p0', 'm1', 'r2', 'g0', 'h0', 'f0')
 		self.assertEqual([buttons.toast(f'k|c|0|x|0|3|{act}|a1b2') for act in acts],
-			['Updating…', 'Updating…', 'Loading…', 'Loading…', 'Loading…', 'Loading…', buttons.TOO_MANY])
+			['Updating…', 'Updating…', 'Loading…', 'Loading…', 'Loading…', buttons.TOO_MANY])
 		self.assertEqual([buttons.alert(f'k|c|0|x|0|3|{act}|a1b2') for act in ('m0', 'f0')], [False, True])
 
 	def test_a_press_is_told_what_is_coming_from_its_data_alone(self):

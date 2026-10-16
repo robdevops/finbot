@@ -154,7 +154,7 @@ class BadArguments(FinbotCase):
 	def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
 		""".history with an extra argument gets its usage, not the profile of a ticker called HISTORY; with no
 		ticker, the buttons for one."""
-		self.assertEqual(self.command('.history')[0][0], 'photo')
+		self.assertEqual(self.command('.history')[0][0], 'text') # the chart of the first ticker, as text here
 		self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history SYMBOL'])])
 
 

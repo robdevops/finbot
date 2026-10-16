@@ -7,6 +7,7 @@ import hmac
 import json
 import math
 import re
+import threading
 import typing
 from lib import log
 from lib import answer
@@ -141,17 +142,14 @@ def add_step(service, chat, steps):
 	return about.added_screen(service, chat.key, number)
 
 def show_pick(chat, message, cmd, lines, rows):
-	"""Put a picker's screen (lines and button rows) in place of the pressed message."""
-	text = '\n'.join(lines)
-	if pick.as_photo(chat, cmd):
-		chat.edit_chart(message, render.blank(), text, rows)
-	else:
-		chat.edit_text(message, text, rows)
+	"""Put a picker's screen (lines and button rows) in place of the pressed message: a picker with no answer yet, which
+	is text."""
+	chat.edit_text(message, '\n'.join(lines), rows)
 
 def process_pick_callback(press, pressed):
-	"""A press in a picker (an inbound.Press; pressed, the buttons.PickPress its data says): the screen it asks for in
-	place of the pressed message, or the answer for an item, or Compare, with the picker's buttons left under it (the
-	item shown marked). Buttons drawn for another list of items start the picker again, saying so."""
+	"""A press in a picker (an inbound.Press; pressed, the buttons.PickPress its data says): the message shows the
+	answer for what it shows now (`shown`), or for the item or Compare pressed, with the screen the press asks for
+	under it. Buttons drawn for another list of items start the picker again at its first answer, saying so."""
 	service = dialects.of(press.service)
 	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
 	cmd, group, period, shown, mask = pressed.cmd, pressed.group, pressed.period, pressed.shown, pressed.mask
@@ -160,19 +158,19 @@ def process_pick_callback(press, pressed):
 		stale = pick.checksum(found) != pressed.checksum
 		kind, number = (pressed.act[0], int(pressed.act[1:])) if not stale else ('p', 0)
 		if stale:
-			shown, mask = 0, 0
+			shown, mask = pick.default(cmd, found)
 		per_page = pick.layout(service, cmd)[0]
 		view = 'm' if kind in 'mfg' or kind == 'r' and noun_is_ticker(cmd) else 'p'
 		page = number if kind in 'pmfg' else number // per_page if kind == 'r' else 0
 		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if kind == 'f' else None
-		names = None
-		if kind in 'rs' and number < len(found):
-			names, shown = [found[number]], number + 1
+		if kind == 'r' and number < len(found):
+			shown = number + 1
 		elif kind in 'gh' and bin(mask).count('1') >= 2:
-			names, shown = [name for i, name in enumerate(found) if mask >> i & 1], 1
+			shown = pick.pack([i for i in range(len(found)) if mask >> i & 1])
+		names = pick.shown_names(cmd, found, shown)
 		lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, view, page, note)
 		if names:
-			return pick_answer(service, chat, press.message_id, cmd, group, period, names, rows)
+			return pick_answer(service, chat, press.message_id, cmd, group, period, names, rows, note)
 		show_pick(chat, press.message_id, cmd, lines, rows)
 	except answer.Answer as e:
 		delivery.deliver(chat, delivery.Report(e.lines))
@@ -183,24 +181,27 @@ def noun_is_ticker(cmd):
 	"""Whether a picker picks tickers (history, compare), not portfolios."""
 	return pick.noun(cmd) == 'ticker'
 
-def pick_answer(service, chat, message, cmd, group, period, names, rows):
+def pick_content(service, chat, cmd, group, period, names):
+	"""A picker's answer for the portfolio (pie, treemap) or tickers (history, compare) `names`: (caption, chart or
+	None)."""
+	if cmd in 'pt':
+		prepare = holdings.prepare_pie if cmd == 'p' else holdings.prepare_treemap
+		lines, chart = prepare(names[0], 'sector' if group == 's' else 'industry', service)
+		return '\n'.join(lines), chart
+	return charts.build('c' if cmd == 'c' else 'h', names, service, chat.key, period=period if period != '0' else 'x')
+
+def pick_answer(service, chat, message, cmd, group, period, names, rows, note=None):
 	"""The pressed picker message turned into the answer of its command for the item (history, a portfolio's) or items
-	(compare), the picker's button rows left under it: a chart, or the holdings as text."""
-	by = 'sector' if group == 's' else 'industry'
+	(compare), the picker's button rows left under it, after a note if there is one: a chart, or text (the holdings)."""
 	if cmd == 'h':
 		lines = holdings.prepare_holdings_payload(names[0], service) or [f"{names[0]} holds nothing"]
-		parts = transports.chunked(lines, chat.dialect.text_limit)
+		parts = transports.chunked(([note] if note else []) + lines, chat.dialect.text_limit)
 		chat.edit_text(message, '\n'.join(parts[0]), rows if len(parts) == 1 else [])
 		for i, part in enumerate(parts[1:], 1):
 			chat.text(part, rows if i == len(parts) - 1 else None)
 		return
-	if cmd in 'pt':
-		prepare = holdings.prepare_pie if cmd == 'p' else holdings.prepare_treemap
-		lines, chart = prepare(names[0], by, service)
-		caption = '\n'.join(lines)
-	else:
-		days = period if period != '0' else 'x'
-		caption, chart = charts.build('c' if cmd == 'c' else 'h', names, service, chat.key, period=days)
+	caption, chart = pick_content(service, chat, cmd, group, period, names)
+	caption = f"{note}\n{caption}" if note else caption
 	if pick.as_photo(chat, cmd):
 		chat.edit_chart(message, render.draw(chart) if chart and chart.rows else render.blank(), caption, rows)
 	else:
@@ -497,17 +498,30 @@ def on_history(request, args):
 
 def picker(request, cmd, args):
 	"""A command typed with nothing to say what it is about (cmd, a key of buttons.PICKERS): where there are buttons,
-	their picker as one message, a 1x1 image (pick.as_photo) that the answer then replaces; else the command's usage."""
+	its answer for the first portfolio or ticker (the first two to compare), alphabetically, with the picker's buttons
+	under it, one message that a press then edits (holdings, which has no first answer, is the picker alone); a pie or
+	treemap's other charts are then drawn in the background to fill the cache. Else the command's usage."""
 	dest = request.dest
 	if not (dest.takes_buttons and delivery.interactive(dest)):
 		raise Usage(portfolios()) if pick.noun(cmd) == 'portfolio' else Usage
 	group = {'sector': 's', 'industry': 'i'}.get(args.keyword, '0')
 	period = buttons.period_for_days(args.days, 'x') if cmd in 'cy' else '0'
-	lines, rows = pick.start(request.service, cmd, dest.key, group, period)
+	found = pick.items(request.service, cmd, dest.key)
+	shown, mask = pick.default(cmd, found)
+	lines, rows = pick.screen(request.service, cmd, found, group, period, shown, mask, 'p')
+	if not shown:
+		return dest.text(lines, rows)
+	caption, chart = pick_content(request.service, dest, cmd, group, period, pick.shown_names(cmd, found, shown))
 	if pick.as_photo(dest, cmd):
-		dest.chart(render.blank(), '\n'.join(lines), rows)
+		request.reply(caption.split('\n'), chart, rows)
 	else:
-		dest.text(lines, rows)
+		dest.text(caption.split('\n'), rows) # no chart goes: the answer as text, its buttons kept
+	if cmd in 'pt' and chart and pick.as_photo(dest, cmd):
+		prime_in_background(request.service, cmd, group, found, 0)
+
+def prime_in_background(service, cmd, group, found, index):
+	"""Start drawing a picker's other charts, to fill the cache, in a thread of its own (see pick.prime)."""
+	threading.Thread(target=pick.prime, args=(service, cmd, group, found, index), daemon=True).start()
 
 def chart_reply(request, kind, args, days=None):
 	"""The first view of a chart with period buttons, built as a button press builds it (charts.build): its caption,

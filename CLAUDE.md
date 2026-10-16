@@ -85,10 +85,12 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   its "thinking…" through its `interaction` (application id/token), and a pressed message is edited through the
   press's.
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.pie .treemap .holdings
-  .history .compare` typed bare (`worker.picker`, `process_pick_callback`): one message edited as it is pressed (a
-  1x1 image, `render.blank()`, where its answer is a chart) that keeps its buttons under the answer (`shown`), 32 items
-  a page (`pick.layout`; fewer on Discord) turned by `<` `>`, its list of items checked by checksum, `.compare`'s
-  ticks a bit each in the data's mask, a seventh refused by an alert toast (`buttons.alert`).
+  .history .compare` typed bare (`worker.picker`, `process_pick_callback`): the first answer at once (the first
+  portfolio or ticker, the first two to compare; `.holdings` only its buttons), the buttons kept under it and every
+  press re-editing the answer from `shown` (an item's number plus one; compare's tickers, `pick.pack`), 32 items a page
+  (`pick.layout`; fewer on Discord) turned by `<` `>` under the tickers menu, its list of items checked by checksum,
+  `.compare`'s ticks a bit each in the data's mask, a seventh refused by an alert toast (`buttons.alert`); a pie or
+  treemap primes its other charts in a thread (`pick.prime`, started by `worker.prime_in_background`).
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), the `.jobs` menu's (`menu_button`, a
   `MenuPress`; older lists' `j|`/`e|` buttons still parse), what a pressed button's data asks for (`parse`), and the
   toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so

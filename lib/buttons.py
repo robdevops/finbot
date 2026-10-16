@@ -127,7 +127,7 @@ def parse(data):
 	if kind == 'k':
 		parts = rest.split('|')
 		if (len(parts) == 7 and parts[0] in PICKERS and parts[1] in ('0', 'i', 's') and (parts[2] in PERIODS or
-				parts[2] == '0') and len(parts[3]) <= 3 and len(parts[4]) <= 25 and parts[5][:1] in 'pmfrsgh' and
+				parts[2] == '0') and len(parts[3]) <= 12 and len(parts[4]) <= 25 and parts[5][:1] in 'pmfrgh' and
 				parts[5][1:].isdigit() and all(part.isascii() and part.isalnum() for part in parts) and
 				len(data.encode()) <= MAX_CALLBACK_BYTES):
 			try:
