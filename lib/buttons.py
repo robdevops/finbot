@@ -45,7 +45,7 @@ class PickPress(typing.NamedTuple):
 	(shown: 0 nothing yet, an item's number plus one, or the ticked tickers packed), the items ticked (a bit of the mask
 	each), what the press asks for (act: a letter and a number: p the first screen and m the tickers' screen, each at a
 	page; f a tick refused, as too many, the tickers' screen at a page; r an item's number, to run it and show the
-	first screen; g or h the ticked ones, to run them and show the first screen) and the
+	first screen; h the ticked ones, to run them and show the first screen, as g does, an older button's) and the
 	checksum of the list of items it was drawn for, stale once that changes."""
 	cmd: str
 	group: str
@@ -120,10 +120,11 @@ def pick_button(label, press, active=False):
 	return Button(label[:40], data, active)
 
 def parse(data):
-	"""What a pressed button's data asks for: a MenuPress for a .jobs menu's button of a known screen, its parts plain
-	letters and digits; a JobPress for an older job button (whatever follows 'j|' or 'e|', which pick refuses unless
-	it is a job's number and checksum); a ChartPress for a period button of a known kind and period; or None for data
-	of none of them (from an older finbot, or forged)."""
+	"""What a pressed button's data asks for: a PickPress for a picker's button of a known command and act; a
+	MenuPress for a .jobs menu's button of a known screen, its parts plain letters and digits; a JobPress for an older
+	job button (whatever follows 'j|' or 'e|', which pick refuses unless it is a job's number and checksum); a
+	ChartPress for a period button of a known kind and period; or None for data of none of them (from an older
+	finbot, or forged)."""
 	kind, _, rest = data.partition('|')
 	if kind == 'k':
 		parts = rest.split('|')
@@ -153,7 +154,7 @@ def parse(data):
 	return None
 
 def alert(data):
-	"""Whether a press's toast is an alert the person must dismiss: a picker refusing a seventh ticker."""
+	"""Whether a press's toast is an alert the person must dismiss: a picker refusing a tick past MAX_PICKED."""
 	pressed = parse(data)
 	return isinstance(pressed, PickPress) and pressed.act[0] == 'f'
 
@@ -164,7 +165,7 @@ def toast(data):
 	of them."""
 	pressed = parse(data)
 	if isinstance(pressed, PickPress):
-		return TOO_MANY if pressed.act[0] == 'f' else 'Loading…' if pressed.act[0] in 'rsgh' else 'Updating…'
+		return TOO_MANY if pressed.act[0] == 'f' else 'Loading…' if pressed.act[0] in 'rgh' else 'Updating…'
 	if isinstance(pressed, MenuPress):
 		return 'Updating…'
 	if isinstance(pressed, JobPress):

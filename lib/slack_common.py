@@ -90,8 +90,8 @@ class Slack(inbound.Network):
 		return html.unescape(re.sub(r'<(@[\w\.]+)>', r'\g<1>', text)) # Slack sends & < > as &amp; &lt; &gt;
 
 	def press(self, update):
-		"""A button pressed under one of the bot's messages (a chart's period buttons), or UNSUPPORTED for one that is
-		not under a message or carries no value."""
+		"""A button pressed under one of the bot's messages, or UNSUPPORTED for one that is not under a message or
+		carries no value."""
 		container = update.get('container') or {}
 		actions = update.get('actions') or [{}]
 		value = actions[0].get('value') if isinstance(actions[0], dict) else None

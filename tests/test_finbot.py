@@ -115,6 +115,17 @@ class Conventions(unittest.TestCase):
 					offenders.append(f'{path.name}:{node.lineno}')
 		self.assertEqual(offenders, [])
 
+	def test_a_test_module_ends_with_its_main_guard(self):
+		"""Nothing follows a test module's `if __name__ == '__main__'`: run as a script, the module would stop there,
+		and the tests after it would not run."""
+		late = []
+		for path in sorted(Path(ROOT, 'tests').glob('test_*.py')):
+			body = ast.parse(path.read_text()).body
+			guards = [i for i, node in enumerate(body) if isinstance(node, ast.If) and
+				'__main__' in ast.unparse(node.test)]
+			late += [f'{path.name}:{node.lineno}' for node in body[guards[0] + 1:]] if guards else []
+		self.assertEqual(late, [])
+
 
 class Timeouts(unittest.TestCase):
 	def test_every_request_goes_through_net_with_a_timeout(self):

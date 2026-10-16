@@ -883,10 +883,6 @@ class WithoutSharesight(FinbotCase):
 					' (doc/configuration.md)'])])
 
 
-if __name__ == '__main__':
-	unittest.main()
-
-
 class Pickers(FinbotCase):
 	"""A command typed with nothing to say what it is about answers with buttons: one message, edited as they are
 	pressed."""
@@ -1242,3 +1238,7 @@ class Pickers(FinbotCase):
 			charts.prime('h', ['T1'], TELEGRAM, 'telegram:55', 'x')
 		self.assertEqual((built, drawn), (['w', 'm', 'y'], ['bars']))
 		self.assertIn("priming h ['T1'] m failed: boom", err.getvalue())
+
+
+if __name__ == '__main__':
+	unittest.main()

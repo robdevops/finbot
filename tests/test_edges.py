@@ -501,7 +501,7 @@ class CacheFlush(FinbotCase):
 		"""Once the cache is deleted, a flush starts the warm jobs, through the scheduler, in a thread of their own."""
 		started = []
 		self.patch(bot.jobs, 'start_thread', lambda target, *args: started.append((target, args)))
-		self.patch(bot, 'scheduler', 'the scheduler')
+		self.patch(bot.jobs, 'current', 'the scheduler')
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			bot.flush_cache()
 		self.assertIn('cache: flushed', log.getvalue())

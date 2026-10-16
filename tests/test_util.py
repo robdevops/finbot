@@ -550,7 +550,7 @@ class Schedules(unittest.TestCase):
 		and its next run is the next of them."""
 		self.assertEqual([when.cycle(2, 4), when.cycle(12, 4), when.cycle(7, 2), when.cycle(3, 1)],
 			[(2, 5, 8, 11), (3, 6, 9, 12), (1, 7), (3,)])
-		self.assertEqual((when.cycle(1, 4), when.cycle(1, 2)), (when.QUARTERS, when.HALVES))
+		self.assertEqual((when.cycle(1, 4), when.cycle(1, 2)), ((1, 4, 7, 10), (1, 7))) # no start month: January
 		october = datetime.datetime(2026, 10, 14, tzinfo=zoneinfo.ZoneInfo(self.MEL))
 		for text, run in (('quarterly from feb on the 15th', '2026-11-15 09:00'),
 				('bi-annual from mar', '2027-03-01 09:00'), ('quarterly', '2027-01-01 09:00')):

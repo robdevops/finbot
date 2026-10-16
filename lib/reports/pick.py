@@ -16,8 +16,8 @@ MOST_ITEMS = 100 # items offered, paged: what the mask of ticks in a button's da
 CHARTS = 'ptyc' # the pickers whose answer is a chart
 
 def as_photo(chat, cmd):
-	"""Whether a picker's message is a picture (a 1x1 image whose caption is the picker): when its answer is a chart,
-	and this chat takes charts (the graph setting on); else it is text."""
+	"""Whether a picker's message is a picture with the answer as its caption (the answer's chart, or render.blank where
+	there is none to draw): when its answer is a chart, and this chat takes charts (the graph setting on); else text."""
 	return cmd in CHARTS and chat.takes_charts and config.settings.graph
 
 def noun(cmd):
@@ -31,9 +31,9 @@ def layout(service, cmd):
 		return (20, 5) if noun(cmd) == 'ticker' else (12, 4)
 	return 32, 4
 
-def items(service, cmd, chat):
+def items(cmd, chat):
 	"""What a picker offers, sorted: portfolio names (a portfolio command), or tickers (history, compare): the ones
-	held, or the chat's watchlist where it holds none. Raises answer.Answer where there are none."""
+	held, or the chat's (by its key) watchlist where it holds none. Raises answer.Answer where there are none."""
 	if noun(cmd) == 'portfolio':
 		found = sorted(portfolio.name for portfolio in sharesight.portfolios())
 	else:
@@ -95,18 +95,19 @@ def prime(service, cmd, group, found, index):
 def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=None):
 	"""A picker's screen, as (lines, rows): `view` 'p', the first (the portfolios; for tickers the period and the way
 	to the tickers), or 'm', the tickers'; `page` of the items; `shown` what the message answers now (an item's number
-	plus one, or compare's tickers, see pack; 0 for nothing yet); `mask` has a bit for each ticked ticker."""
+	plus one, or compare's tickers, see pack; 0 for nothing yet); `mask` has a bit for each ticked ticker. The lines,
+	what to pick, show only where there is no answer yet (holdings): an answer's caption shows instead."""
 	per_page, per_row = layout(service, cmd)
 	pages = -(-len(found) // per_page)
 	page = min(max(page, 0), pages - 1)
-	ticked = [name for i, name in enumerate(found) if mask >> i & 1]
-	to_compare = cmd == 'c' and len(ticked) >= 2 and pack([i for i in range(len(found)) if mask >> i & 1]) != shown
-	name = buttons.PICKERS[cmd]
+	ticked = [i for i in range(len(found)) if mask >> i & 1]
+	to_compare = cmd == 'c' and len(ticked) >= 2 and pack(ticked) != shown
+	crc = checksum(found)
 	def button(label, act, active=False, **changes):
 		"""A button of this screen, whatever it changes (group, period, shown or mask) in its data."""
-		state = {'group': group, 'period': period, 'shown': shown, 'mask': mask} | changes
-		return buttons.pick_button(label, buttons.PickPress(cmd, state['group'], state['period'], state['shown'],
-			state['mask'], act, checksum(found)), active)
+		now = {'group': group, 'period': period, 'shown': shown, 'mask': mask} | changes
+		return buttons.pick_button(label, buttons.PickPress(cmd, now['group'], now['period'], now['shown'],
+			now['mask'], act, crc), active)
 	rows = []
 	if cmd in 'yc' and view == 'p': # the period, and the way to the tickers
 		rows.append([button(buttons.PERIODS[key][0], 'p0', key == period, period=key) for key in buttons.BUTTONS['c']])
@@ -135,15 +136,13 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		nav += ([button('<', f"{act}{page - 1}")] if page else []) + (
 			[button('>', f"{act}{page + 1}")] if page < pages - 1 else [])
 	if view == 'm' and to_compare:
-		nav.append(button('Compare', f"g{page}"))
+		nav.append(button('Compare', 'h0'))
 	if nav:
 		rows.append(nav)
 	picks = f'up to {buttons.MAX_PICKED} tickers' if cmd == 'c' else 'a ticker'
-	heading = f"{service.bold(name.capitalize())}: pick " + ('a portfolio' if noun(cmd) == 'portfolio' else picks)
-	lines = ([note] if note else []) + [heading + (f" (page {page + 1} of {pages})" if pages > 1 else '')]
-	if ticked:
-		lines.append(f"Ticked: {', '.join(ticked)}")
-	return lines, rows
+	title = service.bold(buttons.PICKERS[cmd].capitalize())
+	heading = f"{title}: pick " + ('a portfolio' if noun(cmd) == 'portfolio' else picks)
+	return ([note] if note else []) + [heading + (f" (page {page + 1} of {pages})" if pages > 1 else '')], rows
 
 def items_on(found, page, per_page):
 	"""(number, item) of the items on a page."""

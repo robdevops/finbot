@@ -635,10 +635,6 @@ class Tools(unittest.TestCase):
 		self.assertIn('ERROR config:', out.stderr)
 
 
-if __name__ == '__main__':
-	unittest.main()
-
-
 class OldFileName(unittest.TestCase):
 	"""An upgrade from when settings.conf was called preferences.conf."""
 
@@ -664,3 +660,7 @@ class OldFileName(unittest.TestCase):
 			config.adopt_old_file(str(data))
 			config.adopt_old_file(str(data / 'missing'))
 		self.assertEqual((err.getvalue(), list(data.iterdir())), ('', []))
+
+
+if __name__ == '__main__':
+	unittest.main()

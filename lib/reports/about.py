@@ -61,8 +61,7 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
 	(acts), which switches it on or off, deletes it or runs it now, and Enable all, Disable all or Delete all. A page at
 	a time, as many jobs as a message of the network takes (◀ and More ▶ for the others), after a note of what the last
 	press did. A one-off gone by is deleted first. Returns (lines, buttons); where the chat takes no buttons (tappable
-	false), the whole
-	list and what to type instead."""
+	false), the whole list and what to type instead."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
@@ -395,10 +394,9 @@ def built(frequency, values, zone):
 	schedule.check()
 	return schedule
 
-def choice(text, low, high, among=None):
-	"""A choice's number from a button's data, from low to high (and among those offered, where given). Raises
-	ValueError for one that is none."""
-	if not (text.isascii() and text.isdigit() and low <= int(text) <= high and (among is None or int(text) in among)):
+def choice(text, low, high):
+	"""A choice's number from a button's data, from low to high. Raises ValueError for one that is none."""
+	if not (text.isascii() and text.isdigit() and low <= int(text) <= high):
 		raise ValueError(f'no choice {text!r}')
 	return int(text)
 

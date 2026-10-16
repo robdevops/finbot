@@ -52,7 +52,6 @@ MAX_JOBS = 30 # the jobs a chat may add, at most
 JOB_TIMEOUT = 5 * 60 # seconds a job may run before it is reported as late, once (it runs on, see execute)
 MINUTE = datetime.timedelta(minutes=1)
 QUOTES = '"“”' # what opens and closes a message's text: phones type curly quotes
-UTC = when.UTC
 ScheduleError = when.ScheduleError
 current = None # the running Scheduler, set by bot.py; the chat commands use it
 
@@ -362,8 +361,7 @@ class Scheduler:
 			if isinstance(last, dict) and self.last != last: # a job gone: one added again later has not run
 				self.save_runs()
 			now = self.clock()
-			old = {job.key: self.base[job.key] for job in self.jobs if job.key in self.base}
-			self.base = {job.key: old.get(job.key) or self.start_base(job, now) for job in jobs}
+			self.base = {job.key: self.base.get(job.key) or self.start_base(job, now) for job in jobs}
 			self.next_at = {}
 			self.jobs, self.chats = jobs, set(chats)
 		if problem:
@@ -637,14 +635,6 @@ class Scheduler:
 		if gone:
 			self.change(chat, lambda record: record.update(jobs=[entry for entry in record['jobs']
 				if entry_key(chat, entry) not in gone]))
-
-	def next_run(self, job):
-		"""When a job runs next, or None when it is off (or a one-off gone by)."""
-		if not job.on:
-			return None
-		with self.lock:
-			base = self.base.get(job.key) or self.clock()
-		return job.schedule.next_after(max(base, self.clock()))
 
 	def upcoming(self, chat, count=20):
 		"""A chat's next runs, in time order, at most count: (first, last, job, number), first and last the same but for

@@ -143,11 +143,6 @@ def add_step(service, chat, steps):
 		return about.add_failed(service, chat.key, steps, str(e))
 	return about.added_screen(service, chat.key, number)
 
-def show_pick(chat, message, cmd, lines, rows):
-	"""Put a picker's screen (lines and button rows) in place of the pressed message: a picker with no answer yet, which
-	is text."""
-	chat.edit_text(message, '\n'.join(lines), rows)
-
 def process_pick_callback(press, pressed):
 	"""A press in a picker (an inbound.Press; pressed, the buttons.PickPress its data says): the message shows the
 	answer for what it shows now (`shown`), or for the item or Compare pressed, with the screen the press asks for
@@ -156,7 +151,7 @@ def process_pick_callback(press, pressed):
 	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
 	cmd, group, period, shown, mask = pressed.cmd, pressed.group, pressed.period, pressed.shown, pressed.mask
 	try:
-		found = pick.items(service, cmd, chat.key)
+		found = pick.items(cmd, chat.key)
 		stale = pick.checksum(found) != pressed.checksum
 		kind, number = (pressed.act[0], int(pressed.act[1:])) if not stale else ('p', 0)
 		if stale:
@@ -176,15 +171,11 @@ def process_pick_callback(press, pressed):
 			if cmd in 'yc' and (stale or kind in 'rgh') and pick.as_photo(chat, cmd): # a new ticker or set
 				charts.prime_in_background('c' if cmd == 'c' else 'h', names, service, chat.key, period)
 			return
-		show_pick(chat, press.message_id, cmd, lines, rows)
+		chat.edit_text(press.message_id, '\n'.join(lines), rows) # the picker alone: no answer yet, so text
 	except answer.Answer as e:
 		delivery.deliver(chat, delivery.Report(e.lines))
 	except Exception as e:
 		delivery.report_error(e, chat, context='pick')
-
-def noun_is_ticker(cmd):
-	"""Whether a picker picks tickers (history, compare), not portfolios."""
-	return pick.noun(cmd) == 'ticker'
 
 def pick_content(service, chat, cmd, group, period, names):
 	"""A picker's answer for the portfolio (pie, treemap) or tickers (history, compare) `names`: (caption, chart or
@@ -507,7 +498,7 @@ def compare_picker(request, tickers, days):
 	if not (dest.takes_buttons and delivery.interactive(dest)) or period is None:
 		return False
 	try:
-		found = pick.items(request.service, 'c', dest.key)
+		found = pick.items('c', dest.key)
 	except answer.Answer:
 		return False
 	if not set(tickers) <= set(found):
@@ -536,7 +527,7 @@ def picker(request, cmd, args):
 	group = {'sector': 's', 'industry': 'i'}.get(args.keyword, '0')
 	first = 'w' if cmd == 'c' and args.keyword != 'max' else 'x' # compare starts on 7D, unless asked for max
 	period = buttons.period_for_days(args.days, first) if cmd in 'cy' else '0'
-	found = pick.items(request.service, cmd, dest.key)
+	found = pick.items(cmd, dest.key)
 	shown, mask = pick.default(cmd, found)
 	send_picker(request, cmd, found, group, period, shown, mask)
 

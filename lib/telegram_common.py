@@ -81,7 +81,7 @@ class Telegram(inbound.Network):
 	def parse(self, update):
 		"""A message (its text, or a photo's caption) or a button press. A first name is escaped as it arrives:
 		replies are Telegram HTML, and a name is text, not markup."""
-		if 'callback_query' in update: # chart period and job buttons
+		if 'callback_query' in update: # a button of the bot's pressed
 			press = update['callback_query']
 			message = press.get('message')
 			if not message or not press.get('data'):
