@@ -103,11 +103,11 @@ def menu_screen(service, chat, pressed):
 		if not (hmac.compare_digest(jobs.list_checksum(own), pressed.checksum) and (every or number.isdigit() and
 				1 <= int(number) <= len(own))):
 			note = 'The jobs have changed: here they are now'
-		elif number == 'all' and screen == 'del': # Remove all asks first
-			return about.remove_all_screen(service, key, page)
+		elif number == 'all' and screen == 'del': # Delete all asks first
+			return about.delete_all_screen(service, key, page)
 		elif every and screen == 'del':
 			scheduler.delete_all(key)
-			return about.jobs_screen(service, key, 'top', 0, 'Every job here is removed')
+			return about.jobs_screen(service, key, 'top', 0, 'Every job here is deleted')
 		elif every:
 			scheduler.switch_all(key, screen == 'on')
 			note = f'Every job is {screen} now'
@@ -119,7 +119,7 @@ def menu_screen(service, chat, pressed):
 					note = f"{'Enabled' if screen == 'on' else 'Disabled'} {number}. {service.escape(job.name)}"
 				elif screen == 'del':
 					scheduler.delete(job)
-					note = f'Removed {number}. {service.escape(job.name)}'
+					note = f'Deleted {number}. {service.escape(job.name)}'
 				else:
 					delivery.deliver(chat, delivery.Report([about.job_line(number, job, scheduler.run(job))]))
 			except jobs.ScheduleError as e:
@@ -542,7 +542,7 @@ def on_who(request, args):
 
 def on_jobs(request, args):
 	""".jobs: this chat's jobs, with the menu's buttons; .jobs upcoming: the next runs; .jobs system: the system's;
-	.jobs enable, disable, remove, run or toggle NUMBER: one switched on or off, removed, run now, or switched the
+	.jobs enable, disable, delete, run or toggle NUMBER: one switched on or off, deleted, run now, or switched the
 	other way, and without a number the list with a button per job that does it; .jobs add REPORT SCHEDULE, or .jobs
 	add message SCHEDULE "TEXT": one more (alone, the reports a job can run)."""
 	scheduler, chat, service = jobs.current, request.dest.key, request.service
@@ -577,7 +577,7 @@ def on_jobs(request, args):
 				request.reply([about.job_line(number, job, scheduler.run(job))])
 			elif args.keyword == 'del':
 				scheduler.delete(job)
-				request.reply([f"Removed {number}. {job.name} · {job.schedule.describe(formats.zone().key)}"])
+				request.reply([f"Deleted {number}. {job.name} · {job.schedule.describe(formats.zone().key)}"])
 			else:
 				if args.keyword == 'toggle':
 					scheduler.toggle(job)
@@ -664,7 +664,7 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True),
 	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES, job=False),
 	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [upcoming|system]',
-		'.jobs enable|disable|remove|run [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'),
+		'.jobs enable|disable|delete|run [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'),
 		JOBS, ('.schedule',), keywords=JOB_CHANGES, job=False),
 	PROFILE,
 ]
@@ -791,7 +791,7 @@ def job_commands():
 	return found
 
 PERIOD_WORDS = ('1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y') # suggested where a command takes a period
-JOB_WORDS = ('add', 'remove', 'enable', 'disable', 'run', 'upcoming', 'system') # what /jobs suggests first
+JOB_WORDS = ('add', 'delete', 'enable', 'disable', 'run', 'upcoming', 'system') # what /jobs suggests first
 SCHEDULE_WORDS = ('daily', 'weekdays', 'weekly', 'monthly', 'quarterly', 'bi-annual', 'annual', 'hourly', 'every', 'at',
 	'from', 'between', 'on') # what a schedule in English is made of, suggested after a report
 
@@ -846,7 +846,7 @@ def argument_words(command, chat, given):
 	return [(word, word) for word in dict.fromkeys(words)]
 
 def job_words(chat, words):
-	"""(word, shown) pairs for /jobs, for suggest, after the words given: first its subcommands; after remove, run or
+	"""(word, shown) pairs for /jobs, for suggest, after the words given: first its subcommands; after delete, run or
 	toggle, this chat's job numbers, each shown with its name (after enable, those of the jobs off; after disable,
 	those on); after add, the reports, each shown with what it takes; after a report, the words it takes, then those
 	of a schedule."""

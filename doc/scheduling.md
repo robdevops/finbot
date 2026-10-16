@@ -20,10 +20,10 @@ never run, its name and its schedule in words. Under the list, in italics, is ho
 /jobs add REPORT SCHEDULE
 /jobs add message SCHEDULE "TEXT"
 ```
-Under it are six buttons, two to a row. Each screen is drawn in place of the last, with **Cancel** back to the list:
+Under it are up to six buttons, two to a row, each there only where it has something to act on (Add always; Delete and Run now with any job, Enable with a job that is off, Disable and Upcoming... with one that is on). Each screen is drawn in place of the last, with **Cancel** back to the list:
 * **Add**: what the job runs, how often, then the rest down to the minute ([below](#add-step-by-step)).
-* **Remove**: a button per job, the default ones too. **Remove all** asks first ("Remove all 37 jobs here?"), then
-  removes every job. A default job that is removed comes back when the same job is added again.
+* **Delete**: a button per job, the default ones too. **Delete all** asks first ("Delete all 37 jobs here?"), then
+  deletes every job. A default job that is deleted comes back when the same job is added again.
 * **Enable**: a button per job that is off; **Enable all** switches every job on.
 * **Disable**: a button per job that is on; **Disable all** switches every job off.
 * **Run now**: a button per job; a press runs it now, as its schedule would, and says how it went.
@@ -65,7 +65,7 @@ Or type:
 /jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"
 /jobs run 2                runs job 2 now; /jobs run alone: the list with a button per job
 /jobs enable 2             switches job 2 on; /jobs disable 2 off; /jobs toggle 2 the other way
-/jobs remove 36            removes job 36 (or /jobs del 36)
+/jobs delete 36            deletes job 36 (or /jobs remove 36, /jobs del 36)
 ```
 
 ## A job in English

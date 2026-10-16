@@ -41,7 +41,7 @@ Where:
 /history symbol
 /holdings portfolio
 /jobs [upcoming|system]
-/jobs enable|disable|remove|run [number]
+/jobs enable|disable|delete|run [number]
 /jobs add report schedule
 /jobs add message schedule "text"
 /marketcap [symbol|top|bottom]
