@@ -8,6 +8,7 @@ from lib import catalog
 from lib import config
 from lib import formats
 from lib import jobs
+from lib import sharesight
 from lib import when
 
 HEADINGS = {'top': 'Jobs here', 'on': 'Tap a job to enable it', 'off': 'Tap a job to disable it',
@@ -205,9 +206,9 @@ def add_screen(service, chat, steps):
 			tapped.append(back)
 			return text, [tapped[i:i + 5] for i in range(0, len(tapped), 5)]
 		return text, [tapped[i:i + row] for i in range(0, len(tapped), row)] + [nav or [back, cancel]]
-	if not steps: # a button per report, by its name alone, and Cancel
-		return choices('Add a job: which report?', [(label, number) for number, (label, _, _) in enumerate(REPORTS, 1)],
-			3, nav=[cancel])
+	if not steps: # a button per report, by its name alone (none that reports on Sharesight without it), and Cancel
+		return choices('Add a job: which report?', [(label, number) for number, (label, action, _) in
+			enumerate(REPORTS, 1) if sharesight.configured() or action not in catalog.SHARESIGHT], 3, nav=[cancel])
 	label, action, args = REPORTS[choice(steps[0], 1, len(REPORTS)) - 1]
 	if action == 'message':
 		return [service.bold('Add a message'), "A message's text is what you type:",

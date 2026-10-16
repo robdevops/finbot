@@ -106,6 +106,18 @@ def _trades(portfolio_id, days=None):
 	return cache.cached(f"finbot_sharesight_trades_{portfolio_id}_{days}.json", 299, fetch)['trades']
 
 
+class NotSetUp(answer.Answer, RuntimeError):
+	"""Sharesight is not set up (configured): what needs it says so, as an answer."""
+	def __init__(self):
+		"""The answer: what is missing, and where it goes."""
+		super().__init__('Sharesight is not set up: its keys go in finbot.env (doc/configuration.md)')
+
+
+def configured():
+	"""Whether Sharesight is set up, its keys in finbot.env: without, a chat's reports cover its watchlist alone."""
+	return bool(config.env.sharesight_auth.get('client_id'))
+
+
 class PortfolioNotFound(answer.Answer, LookupError):
 	"""No portfolio is called what was asked for: the answer names it, and the portfolios there are."""
 	def __init__(self, name, names):
@@ -148,8 +160,10 @@ def _chosen(listed):
 
 def portfolios(select=None, seconds=None):
 	"""The portfolios to report on (after include_portfolios and exclude_portfolios), or the one called `select`, in any
-	case; the list is cached for `seconds` (cache_seconds when None). Raises RuntimeError when there are none, and
-	PortfolioNotFound for a name that is none of them."""
+	case; the list is cached for `seconds` (cache_seconds when None). Raises NotSetUp without Sharesight's keys,
+	RuntimeError when there are none, and PortfolioNotFound for a name that is none of them."""
+	if not configured():
+		raise NotSetUp()
 	found = _chosen(_portfolios(seconds))
 	if not found:
 		raise RuntimeError("No Sharesight portfolios found")
@@ -162,7 +176,9 @@ def portfolios(select=None, seconds=None):
 
 
 def tickers():
-	"""Every portfolio's holdings as Yahoo tickers, sorted."""
+	"""Every portfolio's holdings as Yahoo tickers, sorted; none where Sharesight is not set up."""
+	if not configured():
+		return []
 	return sorted({ticker for portfolio in portfolios() for ticker in portfolio.tickers()})
 
 

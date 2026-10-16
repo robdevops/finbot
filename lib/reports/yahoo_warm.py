@@ -1,7 +1,7 @@
 """Keeps the price history of every stock followed fresh in the cache (scheduled: yahoo_warm), so that a period list
 or a chart never waits on Yahoo. Sharesight's caches have their own, sharesight_warm."""
 from lib import log
-from lib import config, watchlist, yahoo
+from lib import config, sharesight, watchlist, yahoo
 
 def run():
 	"""Fetch afresh the price history of every stock followed (every chat's watchlist, and the holdings where
@@ -11,7 +11,7 @@ def run():
 	if not config.prefs.cache:
 		return 0
 	tickers = watchlist.all_watched()
-	if config.env.sharesight_auth.get('client_id'):
+	if sharesight.configured():
 		try:
 			tickers = watchlist.all_followed()
 		except Exception as e: # Sharesight unreachable, say: the watchlists' at least

@@ -142,6 +142,13 @@ class DefaultJobs(unittest.TestCase):
 				if item.action in catalog.PERIODIC and all(arg.isdigit() for arg in item.args):
 					self.assertEqual(list(item.args), catalog.period_args(item.action, item.schedule))
 
+	def test_without_sharesight_no_default_job_reports_on_it(self):
+		"""Without Sharesight, the default jobs leave out those that report on it: trades and performance."""
+		names = {item.name for item in catalog.items('AU', sharesight=False)}
+		self.assertFalse(names & {'trades', 'performance'})
+		self.assertTrue({'trades', 'performance', 'price'} <= {item.name for item in catalog.items('AU')})
+		self.assertIn('price', names)
+
 	def test_the_default_jobs_as_a_melbourne_chat_sees_them(self):
 		"""The default jobs by name, each with its schedule in words, as a chat in Melbourne sees them in mid-October:
 		each in its market's zone, the local time beside it where the clocks differ."""

@@ -14,6 +14,7 @@ SYDNEY, NEW_YORK, HONG_KONG, LONDON = 'Australia/Sydney', 'America/New_York', 'A
 MORNING = '08:30' # by Sydney's clock: the weekly and longer reports, and the messages
 TUE_SAT = ['tue', 'wed', 'thu', 'fri', 'sat'] # the mornings after a US session
 FLAGS = {'AU': '🇦🇺'} # what {flag} becomes in a message for one country
+SHARESIGHT = ('trades', 'performance', 'holdings', 'pie', 'who') # the actions that report on Sharesight
 PERIODIC = ('performance', 'price') # the reports whose period follows how often they run
 PERIOD_DAYS = {'daily': 1, 'weekdays': 1, 'weekly': 7, 'monthly': 30, 'quarterly': 90, 'bi-annual': 180, 'annual': 365}
 MONEY_CAFE = ('https://www.omnycontent.com/d/playlist/b034de0e-930d-434b-9822-a7140060b2c0/'
@@ -131,9 +132,11 @@ ITEMS = (
 )
 
 
-def items(country):
-	"""The default jobs where the country_code preference is country: every item but those for another country."""
-	return [item for item in ITEMS if item.country in (None, country)]
+def items(country, sharesight=True):
+	"""The default jobs where the country_code preference is country: every item but those for another country, and
+	where Sharesight is not set up (sharesight false), those that report on it."""
+	return [item for item in ITEMS if item.country in (None, country) and (sharesight or item.action not in
+		SHARESIGHT)]
 
 
 def same_clock(a, b):

@@ -23,6 +23,7 @@ from lib import catalog
 from lib import config
 from lib import delivery
 from lib import log
+from lib import sharesight
 from lib import state
 from lib import when
 from lib.reports import cal, cleanup, message, milestone, performance, podcasts, price, rating, shorts, trades
@@ -316,7 +317,7 @@ class Scheduler:
 		counts from now, as one does that was off."""
 		jobs = system_jobs()
 		chats = self.stored_chats()
-		items = catalog.items(config.prefs.country_code)
+		items = catalog.items(config.prefs.country_code, sharesight.configured())
 		for chat, record in chats.items():
 			gone = set(removed(record))
 			jobs += [make_job(item.action, item.args, item.schedule, chat, item_on(record, item.key), item.key,
@@ -527,6 +528,8 @@ class Scheduler:
 		number in .jobs. Raises ScheduleError for a job that cannot be, a one-off gone by, one the chat has already, or
 		one more than MAX_JOBS."""
 		job = make_job(action, args, schedule, chat)
+		if job.action in catalog.SHARESIGHT and not sharesight.configured():
+			raise ScheduleError(f'{job.action} reports on Sharesight, which is not set up')
 		if schedule.frequency == 'once' and schedule.next_after(self.clock()) is None:
 			raise ScheduleError(f"{when.days_words(schedule.days)} has gone by: a one-off is for a time ahead")
 		if item := catalog.matching(job.action, job.args, schedule, config.prefs.country_code):

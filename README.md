@@ -4,6 +4,8 @@ finbot is a chat bot for Telegram, Slack and Discord that follows your [Sharesig
 portfolios and each chat's watchlist with Yahoo Finance data. It posts trades, price moves, earnings and ex-dividend
 dates, analyst rating changes and more on a schedule, and answers commands with reports and charts.
 
+If you don't have Sharesight, you can still add your holdings manually via the watchlist (`/watchlist add SYMBOL`).
+
 ## Features
 * Telegram, Slack and Discord (either the push or the pull method, depending on your environment)
 * Sharesight trades as they happen, portfolio performance comparisons

@@ -132,7 +132,8 @@ class FinbotCase(unittest.TestCase):
 		tmp = tempfile.TemporaryDirectory()
 		self.addCleanup(tmp.cleanup)
 		self.env(data_dir=tmp.name, cache_dir=tmp.name, telegramBotToken='X',
-			telegram_api='https://api.telegram.org/botX/')
+			telegram_api='https://api.telegram.org/botX/', sharesight_auth={**config.env.sharesight_auth,
+			'client_id': 'test'}) # Sharesight set up: its answers are the fixtures below
 		self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
 		self.patch(bot, '_said', {}) # nor any message
 		self.patch(bot, 'doubled', lambda message: False) # a test may send the same message twice on purpose

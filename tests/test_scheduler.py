@@ -527,6 +527,16 @@ class JobsInChat(ChatBase):
 		self.assertEqual(self.say('.job del 2'), ['Removed 2. shorts · daily at 10:00pm'])
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [], 'deleted': ['rating']})
 
+	def test_without_sharesight_no_job_reports_on_it(self):
+		"""Without Sharesight's keys, a chat cannot add a job that reports on it, and Add does not offer one."""
+		self.env(sharesight_auth={'client_id': None})
+		self.assertEqual(self.say('.jobs add trades every 20 mins weekdays from 10am to 4pm'), ['trades reports on'
+			' Sharesight, which is not set up'])
+		labels = [button.label for row in about.add_screen(TELEGRAM, CHAT, [])[1] for button in row]
+		self.assertNotIn('trades', labels)
+		self.assertNotIn('performance', labels)
+		self.assertIn('price', labels)
+
 	def test_add_reads_english_and_the_period_follows_how_often(self):
 		"""A job is a report, what it takes, and a schedule in English, by the timezone preference's clock unless it
 		names a zone; performance and price cover the days between runs where they name no period."""

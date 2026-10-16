@@ -775,5 +775,27 @@ class PieCommand(FinbotCase):
 			self.assertEqual(self.sent[-1], ('text', ['x']))
 
 
+class WithoutSharesight(FinbotCase):
+	"""Without Sharesight's keys, a chat's reports cover its watchlist alone, and what needs Sharesight says it is not
+	set up."""
+
+	def setUp(self):
+		"""No Sharesight keys in finbot.env."""
+		super().setUp()
+		self.env(sharesight_auth={**config.env.sharesight_auth, 'client_id': None})
+		self.patch(sharesight, '_portfolios', lambda seconds=None: self.fail('Sharesight was asked'))
+
+	def test_the_watchlist_alone_and_never_a_request(self):
+		"""The stocks a chat's reports cover are its watchlist alone, and Sharesight is never asked."""
+		self.assertEqual((watchlist._followed(['T9', 'T1']), sharesight.tickers()), (['T1', 'T9'], []))
+
+	def test_what_needs_sharesight_says_it_is_not_set_up(self):
+		""".holdings, .trades, .performance, .who and .pie say Sharesight is not set up, and where its keys go."""
+		for typed in ('.holdings Rob', '.holdings', '.trades', '.performance', '.who T1', '.pie Rob'):
+			with self.subTest(typed=typed):
+				self.assertEqual(self.command(typed), [('text', ['Sharesight is not set up: its keys go in finbot.env'
+					' (doc/configuration.md)'])])
+
+
 if __name__ == '__main__':
 	unittest.main()
