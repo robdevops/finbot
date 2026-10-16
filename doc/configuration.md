@@ -75,7 +75,7 @@ A change takes effect on a reload. A true/false preference takes `true`/`false`,
 | `cache_seconds` | `43200` | Cache lifetime in seconds (12 hours) |
 | `performance_cache_seconds` | `2400` | Cache lifetime of Sharesight performance reports in seconds: longer than the 30 minutes between `sharesight_warm` runs, so the holdings never run out |
 | `http_timeout` | `18` | Seconds to wait on outbound HTTP requests |
-| `log_level` | `INFO` | What the log shows: that level and those above it, syslog style. `ERROR`: what failed and was lost (a message not sent); `WARN`: what failed and was got over (a retry, a fallback, a request refused); `INFO`: what finbot does (each message sent, each job run, each request sent and answered, each cache miss); `DEBUG`: cache hits and writes too. Replaces `debug` |
+| `log_level` | `INFO` | What the log shows: that level and those above it, syslog style. `ERROR`: what failed and was lost (a message not sent); `WARN`: what failed and was got over (a retry, a fallback, a request refused); `INFO`: what finbot does (each message sent, each job run, each request sent and answered); `DEBUG`: each cache miss, hit and write too. Replaces `debug` |
 | `print_headers` | `False` | Log inbound request headers |
 
 A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied. A key finbot no longer reads (`alliterate`, `chunk_maxlines`) is ignored, and the log at start says to delete it.

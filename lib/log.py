@@ -30,10 +30,10 @@ def warn(*parts, **options):
 
 
 def info(*parts, **options):
-	"""What finbot does: a message sent, a job run, a cache miss, each request it sends and each it answers."""
+	"""What finbot does: a message sent, a job run, each request it sends (a cache miss's) and each it answers."""
 	write('INFO', parts, options)
 
 
 def debug(*parts, **options):
-	"""The detail of what it does, to find a fault: a cache hit, a cache write."""
+	"""The detail of what it does, to find a fault: a cache miss, hit or write."""
 	write('DEBUG', parts, options)

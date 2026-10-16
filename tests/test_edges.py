@@ -384,16 +384,16 @@ class LogLevels(FinbotCase):
 			with self.subTest(log_level=level):
 				self.assertEqual(self.logged(level, each), list(shown))
 
-	def test_a_cache_miss_is_info_and_a_hit_or_a_write_debug(self):
-		"""A cache miss, of a file not there or too old, is logged at INFO; a hit, and the write after a miss, at
-		DEBUG."""
+	def test_a_cache_miss_hit_or_write_is_debug(self):
+		"""A cache miss (of a file not there, or too old), a hit, and the write after a miss are logged at DEBUG only:
+		at INFO, the request a miss sends is the line."""
 		def twice():
 			"""A miss and its write, then a hit, then a miss of a file too old."""
 			cache.cached('finbot_test.json', 60, lambda: {'a': 1})
 			cache.cached('finbot_test.json', 60, lambda: {'a': 1})
 			cache.cached('finbot_test.json', -1, lambda: {})
 		where = cache.path('finbot_test.json')
-		self.assertEqual(self.logged('INFO', twice), [f'cache miss: {where}', f'cache miss: {where}'])
+		self.assertEqual(self.logged('INFO', twice), [])
 		os.remove(where)
 		lines = self.logged('DEBUG', twice)
 		kinds = [line.split(':')[0] for line in lines]

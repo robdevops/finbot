@@ -136,7 +136,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   tabs counting 4 (an edit quotes whole lines); a test checks all but README.md, CLAUDE.md and `doc/`.
 - Log with `lib/log.py`, at a level, with print()'s arguments: `log.error` (failed and lost: a message not sent),
   `log.warn` (failed and got over: a retry, a fallback, a refused request), `log.info` (what finbot does: a message
-  sent, a job run, a cache miss; `net` logs each request it sends), `log.debug` (cache hits and writes). The
+  sent, a job run; `net` logs each request it sends), `log.debug` (cache misses, hits and writes). The
   `log_level` preference sets what reaches the log; `lib/config.py` prints its own errors (it loads before
   preferences exist). Everything goes to stderr: systemd discards stdout (`StandardOutput=null`), so the bot and its reports
   never print there (a test checks); only the util/ tools, run by hand, do.

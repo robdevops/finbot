@@ -30,7 +30,7 @@ def _fresh(name, seconds):
 		seconds = config.prefs.cache_seconds
 	where, written = path(name), age(name)
 	if written is None or written >= seconds:
-		log.info("cache miss:", where)
+		log.debug("cache miss:", where)
 		return None
 	log.debug(f"cache hit: {where} TTL: {seconds - written:.0f}s")
 	return where
