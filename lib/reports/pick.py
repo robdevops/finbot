@@ -106,7 +106,7 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	rows = []
 	if cmd in 'yc' and view == 'p': # the period, and the way to the tickers
 		rows.append([button(buttons.PERIODS[key][0], 'p0', key == period, period=key) for key in buttons.BUTTONS['c']])
-		more = f"Tickers ({len(ticked)}) ▶" if ticked else "Tickers ▶"
+		more = ("Select..." + (f" ({len(ticked)})" if ticked else "")) if cmd == 'c' else "Tickers ▶"
 		rows.append([button(more, 'm0')] + ([button('Compare', 'h0')] if to_compare else []))
 	on_page = items_on(found, page, per_page)
 	if noun(cmd) == 'portfolio':

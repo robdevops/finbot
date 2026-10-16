@@ -995,8 +995,8 @@ class Pickers(FinbotCase):
 		ticking changes the buttons, not the chart, until Compare is pressed."""
 		self.command('.compare 1y')
 		first = self.sent[-1][2]
-		self.assertEqual(self.labels(), [['7D', '1M', '● 1Y', 'Max'], ['Tickers (2) ▶']])
-		kind, lines, rows = self.tap('Tickers (2) ▶')
+		self.assertEqual(self.labels(), [['7D', '1M', '● 1Y', 'Max'], ['Select... (2)']])
+		kind, lines, rows = self.tap('Select... (2)')
 		self.assertEqual(self.labels(rows)[0][:3], ['✅ T0', '✅ T1', 'T10'])
 		kind, lines, rows = self.tap('T10')
 		self.assertEqual((lines[0], self.labels(rows)[0][:3]), (first, ['✅ T0', '✅ T1', '✅ T10']))
@@ -1006,12 +1006,12 @@ class Pickers(FinbotCase):
 		kind, lines, rows = self.tap('Compare')
 		self.assertTrue(any('Co T10' in line for line in lines) and not any('Co T0' in line for line in lines))
 		self.assertEqual((self.toasts[-1], self.labels(rows)), (('Loading…', False), [['7D', '1M', '● 1Y', 'Max'],
-			['Tickers (2) ▶']])) # back at the top, with the period row
+			['Select... (2)']])) # back at the top, with the period row
 
 	def test_compare_ticks_up_to_six_and_refuses_a_seventh(self):
 		""".compare: ticks toggle, a seventh is refused with an alert and a note."""
 		self.command('.compare')
-		self.tap('Tickers (2) ▶')
+		self.tap('Select... (2)')
 		for ticker in ('T10', 'T11', 'T12', 'T13'):
 			kind, lines, rows = self.tap(ticker)
 		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')],
@@ -1033,7 +1033,7 @@ class Pickers(FinbotCase):
 		self.press_button(stale)
 		kind, lines, rows = self.edits[-1]
 		self.assertEqual(lines[0], 'The list has changed: here it is now')
-		self.assertEqual(self.labels(rows)[1], ['Tickers (2) ▶'])
+		self.assertEqual(self.labels(rows)[1], ['Select... (2)'])
 
 	def test_without_holdings_the_watchlist_is_offered(self):
 		"""Tickers to pick are the holdings', else the chat's watchlist; none at all says how to add one."""
@@ -1068,8 +1068,8 @@ class Pickers(FinbotCase):
 		there is another page, Back always, and ticks lasting across pages."""
 		self.many()
 		self.command('.compare')
-		self.assertEqual(self.labels(), [['● 7D', '1M', '1Y', 'Max'], ['Tickers (2) ▶']]) # compare starts on 7D
-		kind, lines, rows = self.tap('Tickers (2) ▶')
+		self.assertEqual(self.labels(), [['● 7D', '1M', '1Y', 'Max'], ['Select... (2)']]) # compare starts on 7D
+		kind, lines, rows = self.tap('Select... (2)')
 		self.assertEqual((len(rows) - 1, [t for row in self.labels(rows)[:-1] for t in row][-1], self.labels(rows)[-1]),
 			(8, 'S31', ['◀ Back', '>']))
 		kind, lines, rows = self.tap('>')
@@ -1083,13 +1083,13 @@ class Pickers(FinbotCase):
 		kind, lines, rows = self.tap('<')
 		self.assertIn('✅ S00', [t for row in self.labels(rows) for t in row])
 		kind, lines, rows = self.tap('◀ Back')
-		self.assertEqual(self.labels(rows)[1], ['Tickers (3) ▶', 'Compare'])
+		self.assertEqual(self.labels(rows)[1], ['Select... (3)', 'Compare'])
 
 	def test_a_seventh_tick_is_refused_on_a_later_page(self):
 		"""The limit of six counts every page's ticks, and the refusal stays on the page."""
 		self.many()
 		self.command('.compare')
-		self.tap('Tickers (2) ▶')
+		self.tap('Select... (2)')
 		for ticker in ('S02', 'S03', 'S04', 'S05'):
 			self.tap(ticker)
 		self.tap('>')
@@ -1180,8 +1180,8 @@ class Pickers(FinbotCase):
 		""".compare T1 T2 [period] answers with the period row and the tickers' menu under its chart, those typed ticked
 		and shown; tickers the chat does not offer, or a period no button has, leave the chart its period buttons."""
 		self.command('.compare T3 T1 1y')
-		self.assertEqual(self.labels(), [['7D', '1M', '● 1Y', 'Max'], ['Tickers (2) ▶']])
-		kind, lines, rows = self.tap('Tickers (2) ▶')
+		self.assertEqual(self.labels(), [['7D', '1M', '● 1Y', 'Max'], ['Select... (2)']])
+		kind, lines, rows = self.tap('Select... (2)')
 		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')], ['✅ T1', '✅ T3'])
 		self.command('.compare T1 NOPE')
 		self.assertEqual(self.labels(), [['7D', '1M', '1Y', '● Max']])
