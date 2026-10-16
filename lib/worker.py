@@ -149,62 +149,62 @@ def show_pick(chat, message, cmd, lines, rows):
 		chat.edit_text(message, text, rows)
 
 def process_pick_callback(press, pressed):
-	"""A press in a picker (an inbound.Press; pressed, the buttons.PickPress its data says): the screen it asks for, in
-	place of the pressed message, or a button of an item, or Compare, turning the message into the answer. Buttons
-	drawn for another list of items start the picker again, saying so."""
+	"""A press in a picker (an inbound.Press; pressed, the buttons.PickPress its data says): the screen it asks for in
+	place of the pressed message, or the answer for an item, or Compare, with the picker's buttons left under it (the
+	item shown marked). Buttons drawn for another list of items start the picker again, saying so."""
 	service = dialects.of(press.service)
 	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
-	cmd = pressed.cmd
+	cmd, group, period, shown, mask = pressed.cmd, pressed.group, pressed.period, pressed.shown, pressed.mask
 	try:
 		found = pick.items(service, cmd, chat.key)
 		stale = pick.checksum(found) != pressed.checksum
-		mask, act = (0, 'p') if stale else (pressed.mask, pressed.act)
-		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if act == 'f' else None
-		if act[0] in 'rg' and pick_answer(service, chat, press.message_id, pressed, found, mask, act):
-			return
-		lines, rows = pick.screen(service, cmd, found, pressed.group, pressed.period, mask, 'm' if act in 'mf' else 'p',
-			note)
+		kind, number = (pressed.act[0], int(pressed.act[1:])) if not stale else ('p', 0)
+		if stale:
+			shown, mask = 0, 0
+		per_page = pick.layout(service, cmd)[0]
+		view = 'm' if kind in 'mfg' or kind == 'r' and noun_is_ticker(cmd) else 'p'
+		page = number if kind in 'pmfg' else number // per_page if kind == 'r' else 0
+		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if kind == 'f' else None
+		names = None
+		if kind in 'rs' and number < len(found):
+			names, shown = [found[number]], number + 1
+		elif kind in 'gh' and bin(mask).count('1') >= 2:
+			names, shown = [name for i, name in enumerate(found) if mask >> i & 1], 1
+		lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, view, page, note)
+		if names:
+			return pick_answer(service, chat, press.message_id, cmd, group, period, names, rows)
 		show_pick(chat, press.message_id, cmd, lines, rows)
 	except answer.Answer as e:
 		delivery.deliver(chat, delivery.Report(e.lines))
 	except Exception as e:
 		delivery.report_error(e, chat, context='pick')
 
-def pick_answer(service, chat, message, pressed, found, mask, act):
-	"""The pressed picker message turned into the answer of its command for the item (act r and its number) or the
-	ticked items (g) it asks for; False when there is nothing to answer yet (a number out of the list, fewer than two
-	to compare)."""
-	cmd = pressed.cmd
-	if act == 'g':
-		names = [name for i, name in enumerate(found) if mask >> i & 1]
-	elif act[1:].isdigit() and int(act[1:]) < len(found):
-		names = [found[int(act[1:])]]
-	else:
-		return False
-	if cmd == 'c' and len(names) < 2:
-		return False
-	by = 'sector' if pressed.group == 's' else 'industry'
+def noun_is_ticker(cmd):
+	"""Whether a picker picks tickers (history, compare), not portfolios."""
+	return pick.noun(cmd) == 'ticker'
+
+def pick_answer(service, chat, message, cmd, group, period, names, rows):
+	"""The pressed picker message turned into the answer of its command for the item (history, a portfolio's) or items
+	(compare), the picker's button rows left under it: a chart, or the holdings as text."""
+	by = 'sector' if group == 's' else 'industry'
 	if cmd == 'h':
 		lines = holdings.prepare_holdings_payload(names[0], service) or [f"{names[0]} holds nothing"]
 		parts = transports.chunked(lines, chat.dialect.text_limit)
-		chat.edit_text(message, '\n'.join(parts[0]), [])
-		for part in parts[1:]:
-			chat.text(part)
-		return True
-	markup = []
+		chat.edit_text(message, '\n'.join(parts[0]), rows if len(parts) == 1 else [])
+		for i, part in enumerate(parts[1:], 1):
+			chat.text(part, rows if i == len(parts) - 1 else None)
+		return
 	if cmd in 'pt':
 		prepare = holdings.prepare_pie if cmd == 'p' else holdings.prepare_treemap
 		lines, chart = prepare(names[0], by, service)
 		caption = '\n'.join(lines)
 	else:
-		period = pressed.period if cmd == 'c' else None
-		caption, chart = charts.build('c' if cmd == 'c' else 'h', names, service, chat.key, period=period)
-		markup = buttons.keyboard('c' if cmd == 'c' else 'h', names, period if cmd == 'c' else 'x')
+		days = period if period != '0' else 'x'
+		caption, chart = charts.build('c' if cmd == 'c' else 'h', names, service, chat.key, period=days)
 	if pick.as_photo(chat, cmd):
-		chat.edit_chart(message, render.draw(chart) if chart and chart.rows else render.blank(), caption, markup)
+		chat.edit_chart(message, render.draw(chart) if chart and chart.rows else render.blank(), caption, rows)
 	else:
-		chat.edit_text(message, caption, [])
-	return True
+		chat.edit_text(message, caption, rows)
 
 def process_callback(press):
 	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): the .jobs menu's, an older job
@@ -502,7 +502,7 @@ def picker(request, cmd, args):
 	if not (dest.takes_buttons and delivery.interactive(dest)):
 		raise Usage(portfolios()) if pick.noun(cmd) == 'portfolio' else Usage
 	group = {'sector': 's', 'industry': 'i'}.get(args.keyword, '0')
-	period = buttons.period_for_days(args.days, 'x') if cmd == 'c' else '0'
+	period = buttons.period_for_days(args.days, 'x') if cmd in 'cy' else '0'
 	lines, rows = pick.start(request.service, cmd, dest.key, group, period)
 	if pick.as_photo(dest, cmd):
 		dest.chart(render.blank(), '\n'.join(lines), rows)

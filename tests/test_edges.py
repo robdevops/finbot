@@ -457,9 +457,9 @@ class RequestLog(FinbotCase):
 				bot.take(telegram_common.READER, update)
 				self.join_workers()
 			return err.getvalue().splitlines()
-		whole = '[Telegram]: @rob /jobs add message daily at 9am "Morning! The ASX opens at 10am, so coffee first"'
+		whole = 'Telegram @rob /jobs add message daily at 9am "Morning! The ASX opens at 10am, so coffee first"'
 		self.assertEqual(logged(1), [whole[:70] + '…'])
-		self.assertEqual(logged(2), ['[telegram]: @rob sent it again within 1 s, not run again: /jobs add me…'])
+		self.assertEqual(logged(2), ['Telegram @rob sent it again within 1 s, not run again: /jobs add messa…'])
 		self.prefs(log_width=0)
 		self.assertEqual(logged(3, chat=66), [whole]) # another chat's: taken
 

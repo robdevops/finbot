@@ -127,18 +127,18 @@ def handle(environ, start_response):
 		return respond(inbound.FORBIDDEN)
 	length = environ.get('CONTENT_LENGTH') or '0'
 	if not length.isdigit() or int(length) > MAX_BODY:
-		log.warn(f"[{source.service}]: a body of {length!r} bytes refused unread")
+		log.warn(f"{source.service.capitalize()} a body of {length!r} bytes refused unread")
 		return respond(inbound.TOO_LARGE if length.isdigit() else inbound.BAD_REQUEST)
 	body = environ['wsgi.input'].read(int(length)) # the body and no more: a server need not end the stream there
 	try:
 		update = source.decode(body)
 	except ValueError:
-		log.warn(f"[{source.service}]: request body is not a JSON object")
+		log.warn(f"{source.service.capitalize()} request body is not a JSON object")
 		return respond(inbound.BAD_REQUEST)
 	if why := source.refuse(environ, body, update):
 		shown = {k: '<redacted>' if k == 'token' else v for k, v in update.items()} # Slack's verification token
 		log.warn("warning:", why)
-		log.warn(f"[{source.service}]: refused update", json.dumps(shown, indent=4, default=str))
+		log.warn(f"{source.service.capitalize()} refused update", json.dumps(shown, indent=4, default=str))
 		return respond(source.REFUSED)
 	environ[AUTHENTICATED] = True
 	return respond(take(source.network, update))
@@ -198,11 +198,11 @@ def take(network, update):
 	if isinstance(event, inbound.Suggest): # answered here and at once, while the command is typed
 		return network.suggestions(worker.suggest(f'{event.service}:{event.chat_id}', event.text))
 	if seen_before(network.service, network.update_id(update)):
-		log.info(f"[{network.service}]: update {network.update_id(update)} seen already, not run again")
+		log.info(f"{network.service.capitalize()} update {network.update_id(update)} seen already, not run again")
 		return inbound.OK
 	if isinstance(event, inbound.Message) and not event.interaction and doubled(event): # each interaction is answered
-		log.info(log.cut(f"[{network.service}]: {event.user} sent it again within {DOUBLED} s, not run again: "
-			+ event.text))
+		log.info(log.cut(f"{network.service.capitalize()} {event.user} sent it again within {DOUBLED} s, not run "
+			"again: " + event.text))
 		return inbound.OK
 	answer = network.acknowledge(event)
 	if answer is not None:
@@ -213,10 +213,10 @@ def take(network, update):
 def dispatch(event):
 	"""Hand a message or a button press to lib/worker, in a thread of its own, which it returns."""
 	if isinstance(event, inbound.Press):
-		log.debug(f"[{event.service.capitalize()} button]:", event.user, "chat", event.chat_id, event.data)
+		log.debug(f"{event.service.capitalize()} button", event.user, "chat", event.chat_id, event.data)
 		target = worker.process_callback
 	else:
-		log.info(log.cut(f"[{event.service.capitalize()}]: {event.user} {event.text}"))
+		log.info(log.cut(f"{event.service.capitalize()} {event.user} {event.text}"))
 		target = worker.process_request
 	thread = threading.Thread(target=target, args=(event,))
 	thread.start()

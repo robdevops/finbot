@@ -61,7 +61,7 @@ class Slack(inbound.Network):
 		if kind == 'block_actions':
 			return self.press(update)
 		if kind != 'event_callback':
-			log.info(f"[slack]: unhandled 'type' {kind!r}")
+			log.info(f"Slack unhandled 'type' {kind!r}")
 			return inbound.UNHANDLED
 		event = update['event']
 		bot_user = update['authorizations'][0]['user_id'] # QWERTY
@@ -69,7 +69,7 @@ class Slack(inbound.Network):
 				event['user'] == bot_user: # not by a person: answering a bot (this one's replies included) could loop
 			return inbound.OK
 		if event['type'] not in ('message', 'app_mention') or 'text' not in event:
-			log.info("[slack]: unhandled event callback type", event['type'])
+			log.info("Slack unhandled event callback type", event['type'])
 			return inbound.UNHANDLED
 		user = '<@' + event['user'] + '>' # a mention: Slack shows the name
 		return inbound.Message(self.service, event['channel'], user, self.plain(event['text']), '@' + bot_user, user,
@@ -307,11 +307,10 @@ def actions_block(row):
 
 
 def chart_blocks(caption, buttons, file_id):
-	"""Block Kit for a chart message: the report, the chart (an uploaded file, by its id) and the buttons in one
-	row."""
-	row = [button for line in buttons for button in line]
+	"""Block Kit for a chart message: the report, the chart (an uploaded file, by its id) and the buttons, a row of
+	them to a block."""
 	return section_blocks(caption) + [{'type': 'image', 'slack_file': {'id': file_id}, 'alt_text': 'chart'}] + \
-		([actions_block(row)] if row else [])
+		[actions_block(row) for row in buttons if row]
 
 
 def marked(buttons):

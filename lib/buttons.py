@@ -40,13 +40,16 @@ class MenuPress(typing.NamedTuple):
 
 class PickPress(typing.NamedTuple):
 	"""A press in a picker (lib/reports/pick.py): the command it picks for (a key of PICKERS), how it groups (a
-	treemap's or pie's: i industry, s sector, 0 neither), the period (a key of PERIODS, or 0), the items ticked (a
-	bit of the mask each), what the press asks for (act: p the first screen, m the tickers' screen, r then an item's
-	number to run it, g to run the ticked ones, f a tick refused, as too many) and the checksum of the list of
-	items it was drawn for, stale once that changes."""
+	treemap's or pie's: i industry, s sector, 0 neither), the period (a key of PERIODS, or 0), what the message shows
+	(shown: 0 nothing yet, an item's number plus one, or 1 for the ticked tickers), the items ticked (a bit of the mask
+	each), what the press asks for (act: a letter and a number: p the first screen and m the tickers' screen, each at
+	a page; f a tick refused, as too many, the tickers' screen at a page; r or s an item's number, to run it and show
+	the tickers' screen or the first; g the ticked ones, to run and show the tickers' screen at a page; h to run them
+	and show the first screen) and the checksum of the list of items it was drawn for, stale once that changes."""
 	cmd: str
 	group: str
 	period: str
+	shown: int
 	mask: int
 	act: str
 	checksum: str
@@ -110,8 +113,9 @@ def menu_button(label, screen, args, checksum):
 	return Button(label[:40], '|'.join(['m', screen, *map(str, args), checksum]))
 
 def pick_button(label, press, active=False):
-	"""A picker's button: its label (cut to 40 characters) and a PickPress as its data: 'k|c|0|x|3|p|a1b2'."""
-	data = '|'.join(['k', press.cmd, press.group, press.period, format(press.mask, 'x'), press.act, press.checksum])
+	"""A picker's button: its label (cut to 40 characters) and a PickPress as its data: 'k|c|0|x|1|3|p0|a1b2'."""
+	data = '|'.join(['k', press.cmd, press.group, press.period, format(press.shown, 'x'), format(press.mask, 'x'),
+		press.act, press.checksum])
 	return Button(label[:40], data, active)
 
 def parse(data):
@@ -122,11 +126,13 @@ def parse(data):
 	kind, _, rest = data.partition('|')
 	if kind == 'k':
 		parts = rest.split('|')
-		if (len(parts) == 6 and parts[0] in PICKERS and parts[1] in ('0', 'i', 's') and (parts[2] in PERIODS or
-				parts[2] == '0') and len(parts[3]) <= 8 and parts[4][:1] in ('p', 'm', 'r', 'g', 'f') and
-				all(part.isascii() and part.isalnum() for part in parts) and len(data.encode()) <= MAX_CALLBACK_BYTES):
+		if (len(parts) == 7 and parts[0] in PICKERS and parts[1] in ('0', 'i', 's') and (parts[2] in PERIODS or
+				parts[2] == '0') and len(parts[3]) <= 3 and len(parts[4]) <= 25 and parts[5][:1] in 'pmfrsgh' and
+				parts[5][1:].isdigit() and all(part.isascii() and part.isalnum() for part in parts) and
+				len(data.encode()) <= MAX_CALLBACK_BYTES):
 			try:
-				return PickPress(parts[0], parts[1], parts[2], int(parts[3], 16), parts[4], parts[5])
+				return PickPress(parts[0], parts[1], parts[2], int(parts[3], 16), int(parts[4], 16), parts[5],
+					parts[6])
 			except ValueError:
 				return None
 		return None
@@ -147,7 +153,7 @@ def parse(data):
 def alert(data):
 	"""Whether a press's toast is an alert the person must dismiss: a picker refusing a seventh ticker."""
 	pressed = parse(data)
-	return isinstance(pressed, PickPress) and pressed.act == 'f'
+	return isinstance(pressed, PickPress) and pressed.act[0] == 'f'
 
 def toast(data):
 	"""What a press is told at once, from the button's data alone (the network acknowledges a press before finbot
@@ -156,7 +162,7 @@ def toast(data):
 	of them."""
 	pressed = parse(data)
 	if isinstance(pressed, PickPress):
-		return TOO_MANY if pressed.act == 'f' else 'Loading…' if pressed.act[0] in 'rg' else 'Updating…'
+		return TOO_MANY if pressed.act[0] == 'f' else 'Loading…' if pressed.act[0] in 'rsgh' else 'Updating…'
 	if isinstance(pressed, MenuPress):
 		return 'Updating…'
 	if isinstance(pressed, JobPress):

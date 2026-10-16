@@ -4,6 +4,7 @@ import unittest
 import datetime
 import re
 from tests.common import *
+from lib.reports import pick
 
 
 class Commands(FinbotCase):
@@ -924,78 +925,102 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.errors, [])
 		return self.edits[-1]
 
+	def labels(self, rows=None):
+		"""The labels of a screen's buttons, by row (the screen shown now unless given)."""
+		return [[text for text, _ in row] for row in (self.shown if rows is None else rows)]
+
 	def test_a_portfolio_command_offers_the_portfolios(self):
-		""".pie, .treemap and .holdings: a button for each portfolio; .treemap and its Group by button toggle."""
+		""".pie, .treemap and .holdings: a button for each portfolio; .treemap's Group by button comes after them."""
 		self.command('.pie')
 		self.assertEqual(self.sent[-1], ('photo', self.sent[-1][1], '<b>Pie</b>: pick a portfolio'))
-		self.assertEqual([[text for text, _ in row] for row in self.sent_rows()], [['Rob']])
+		self.assertEqual(self.labels(), [['Rob']])
 		self.command('.treemap sector')
-		self.assertEqual([[text for text, _ in row] for row in self.sent_rows()], [['Group by: Sector'], ['Rob']])
-		kind, lines, rows = self.tap('Group by: Sector')
-		self.assertEqual((kind, [[text for text, _ in row] for row in rows]),
-			('photo', [['Group by: Industry'], ['Rob']]))
+		self.assertEqual(self.labels(), [['Rob'], ['Group by: Sector']])
 		self.command('.holdings')
-		self.assertEqual((self.sent[-1][0], [[t for t, _ in row] for row in self.shown]), ('text', [['Rob']]))
+		self.assertEqual((self.sent[-1][0], self.labels()), ('text', [['Rob']]))
 
-	def test_a_portfolio_button_turns_its_message_into_the_answer(self):
-		""".pie, .treemap (by the group chosen) and .holdings: the pressed message becomes the chart, or the list."""
+	def test_portfolios_come_four_to_a_row(self):
+		"""Portfolios are in rows of four before the Group by row."""
+		names = [f'P{i}' for i in range(6)]
+		self.patch(sharesight, '_portfolios', lambda seconds=None: [{'name': n, 'id': i} for i, n in enumerate(names)])
 		self.command('.treemap')
-		kind, lines, rows = self.tap('Group by: Industry')
+		self.assertEqual(self.labels(), [names[:4], names[4:], ['Group by: Industry']])
+
+	def test_the_answer_keeps_the_buttons_and_the_group_toggle_redraws_it(self):
+		"""A portfolio button turns its message into the chart, the buttons still under it with that portfolio
+		marked; the Group by button and another portfolio redo it in place."""
+		self.command('.treemap')
 		kind, lines, rows = self.tap('Rob')
-		self.assertEqual((kind, lines[0], rows), ('photo', '<b>Rob treemap by sector</b>', []))
+		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Rob treemap by industry</b>',
+			[['● Rob'], ['Group by: Industry']]))
+		kind, lines, rows = self.tap('Group by: Industry')
+		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Rob treemap by sector</b>',
+			[['● Rob'], ['Group by: Sector']]))
+		self.assertEqual(self.toasts[-1], ('Loading…', False))
 		self.command('.pie')
-		self.assertEqual(self.tap('Rob')[:2], ('photo', ['<b>Rob by industry</b>', 'Unclassified: 100.0%']))
+		kind, lines, rows = self.tap('Rob')
+		self.assertEqual((kind, lines[:2], self.labels(rows)), ('photo', ['<b>Rob by industry</b>',
+			'Unclassified: 100.0%'], [['● Rob']]))
+
+	def test_a_holdings_answer_keeps_its_buttons(self):
+		""".holdings: the list as text, the portfolio buttons still under it."""
 		self.patch(holdings, 'prepare_holdings_payload', lambda name, service:
 			[f'<b>Holdings for {name} (25)</b>', 'x'])
 		self.command('.holdings')
 		kind, lines, rows = self.tap('Rob')
-		self.assertEqual((kind, lines, rows), ('text', ['<b>Holdings for Rob (25)</b>', 'x'], []))
-		self.assertEqual(self.toasts[-1], ('Loading…', False))
+		self.assertEqual((kind, lines, self.labels(rows)), ('text', ['<b>Holdings for Rob (25)</b>', 'x'], [['● Rob']]))
 
 	def test_history_picks_one_ticker_in_a_sub_menu(self):
-		""".history has a button for its tickers' screen, whose buttons are the tickers held, and Back."""
+		""".history has a period row and a button for its tickers' screen, whose buttons are the tickers held, and
+		Back; a ticker turns the message into its chart, the screen kept with that ticker marked."""
 		self.command('.history')
-		self.assertEqual([[t for t, _ in row] for row in self.sent_rows()], [['Tickers ▶']])
+		self.assertEqual(self.labels(), [['7D', '1M', '1Y', '● Max'], ['Tickers ▶']])
 		kind, lines, rows = self.tap('Tickers ▶')
-		self.assertEqual((kind, [t for t, _ in rows[0]], [t for t, _ in rows[-1]]),
+		self.assertEqual((kind, self.labels(rows)[0], self.labels(rows)[-1]),
 			('photo', ['T0', 'T1', 'T10', 'T11'], ['◀ Back']))
-		self.assertEqual(self.tap('◀ Back')[2][0][0][0], 'Tickers ▶')
+		self.assertEqual(self.labels(self.tap('◀ Back')[2])[1], ['Tickers ▶'])
 		self.tap('Tickers ▶')
 		kind, lines, rows = self.tap('T3')
 		self.assertEqual(kind, 'photo')
-		self.assertTrue(rows and rows[0][0][1].startswith('c|h|'), rows) # the chart's period buttons
+		self.assertIn('● T3', [t for row in self.labels(rows) for t in row]) # the tickers still there, T3 marked
+		kind, lines, rows = self.tap('◀ Back')
+		kind, lines, rows = self.tap('1Y') # a period redoes the chart for T3
+		self.assertEqual((self.toasts[-1], self.labels(rows)[0]), (('Loading…', False), ['7D', '1M', '● 1Y', 'Max']))
 
 	def test_compare_ticks_up_to_six_and_refuses_a_seventh(self):
 		""".compare: ticks toggle, Compare appears with two, a seventh is refused with an alert and a note."""
 		self.command('.compare')
-		self.assertEqual([[t for t, _ in row] for row in self.sent_rows()],
-			[['7D', '1M', '1Y', '● Max'], ['Tickers ▶']])
+		self.assertEqual(self.labels(), [['7D', '1M', '1Y', '● Max'], ['Tickers ▶']])
 		self.tap('Tickers ▶')
 		for ticker in ('T0', 'T1', 'T2', 'T3', 'T4', 'T5'):
 			kind, lines, rows = self.tap(ticker)
-		labels = [t for row in rows for t, _ in row]
+		labels = [t for row in self.labels(rows) for t in row]
 		self.assertIn('✅ T5', labels)
 		self.assertEqual(lines[-1], 'Ticked: T0, T1, T2, T3, T4, T5')
 		self.assertIn('Compare', labels)
 		self.assertEqual(self.toasts[-1], ('Updating…', False))
 		kind, lines, rows = self.tap('T6')
 		self.assertEqual((self.toasts[-1], lines[0]), ((buttons.TOO_MANY, True), buttons.TOO_MANY))
-		self.assertNotIn('✅ T6', [t for row in rows for t, _ in row])
+		self.assertNotIn('✅ T6', [t for row in self.labels(rows) for t in row])
 		kind, lines, rows = self.tap('✅ T5') # unticking makes room
 		self.assertNotIn(buttons.TOO_MANY, lines)
 		self.assertEqual(lines[-1], 'Ticked: T0, T1, T2, T3, T4')
 
-	def test_compare_turns_its_message_into_the_chart_of_the_ticked(self):
-		"""Compare with the period chosen edits the picker into the chart, with the chart's own period buttons."""
+	def test_compare_keeps_its_buttons_under_the_chart(self):
+		"""Compare edits the picker into the chart of the ticked, at the period chosen; the picker stays, and a period
+		button redoes the comparison."""
 		self.command('.compare 1y')
-		self.assertIn('● 1Y', [t for row in self.sent_rows() for t, _ in row])
+		self.assertIn('● 1Y', [t for row in self.labels() for t in row])
 		self.tap('Tickers ▶')
 		self.tap('T1')
-		self.assertNotIn('Compare', [t for row in self.edits[-1][2] for t, _ in row]) # one is too few
+		self.assertNotIn('Compare', [t for row in self.labels() for t in row]) # one is too few
 		self.tap('T2')
 		kind, lines, rows = self.tap('Compare')
-		self.assertEqual((kind, rows[0][2]), ('photo', ('● 1Y', 'c|c|y|T1,T2')))
-		self.assertEqual(self.toasts[-1], ('Loading…', False))
+		self.assertEqual((kind, self.toasts[-1]), ('photo', ('Loading…', False)))
+		self.assertIn('✅ T2', [t for row in self.labels(rows) for t in row])
+		kind, lines, rows = self.tap('◀ Back')
+		kind, lines, rows = self.tap('7D')
+		self.assertEqual((kind, self.labels(rows)[0]), ('photo', ['● 7D', '1M', '1Y', 'Max']))
 
 	def test_buttons_of_another_list_start_again(self):
 		"""A button drawn for other tickers than there are now starts the picker again, saying so."""
@@ -1012,7 +1037,7 @@ class Pickers(FinbotCase):
 		self.patch(watchlist, 'tickers', lambda chat: ['MSFT', 'AAPL'])
 		self.command('.history')
 		self.tap('Tickers ▶')
-		self.assertEqual([t for row in self.edits[-1][2] for t, _ in row], ['AAPL', 'MSFT', '◀ Back'])
+		self.assertEqual([t for row in self.labels(self.edits[-1][2]) for t in row], ['AAPL', 'MSFT', '◀ Back'])
 		self.patch(watchlist, 'tickers', lambda chat: [])
 		self.assertEqual(self.command('.compare'),
 			[('text', ['No tickers to pick from: .watchlist add SYMBOL adds one'])])
@@ -1023,4 +1048,86 @@ class Pickers(FinbotCase):
 		self.command('.pie')
 		self.assertEqual(self.sent[-1][0], 'text')
 		kind, lines, rows = self.tap('Rob')
-		self.assertEqual((kind, lines[0], rows), ('text', '<b>Rob by industry</b>', []))
+		self.assertEqual((kind, lines[0], self.labels(rows)), ('text', '<b>Rob by industry</b>', [['● Rob']]))
+
+	def many(self, count=70):
+		"""Held tickers S00, S01..., enough to need pages."""
+		self.patch(sharesight, 'tickers', lambda: [f'S{i:02d}' for i in range(count)])
+
+	def test_tickers_are_paged_32_to_a_page(self):
+		"""Thirty-two tickers to a page, in rows of four, with < and > where there is another page: the first page has
+		only >, a middle one both, the last only <; Back stays; ticks last across pages."""
+		self.many()
+		self.command('.compare')
+		kind, lines, rows = self.tap('Tickers ▶')
+		self.assertEqual((len(rows) - 1, [t for row in self.labels(rows)[:-1] for t in row][-1], self.labels(rows)[-1],
+			lines[0]), (8, 'S31', ['◀ Back', '>'], '<b>Compare</b>: pick up to 6 tickers (page 1 of 3)'))
+		kind, lines, rows = self.tap('S00')
+		kind, lines, rows = self.tap('>')
+		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['S32', 'S33', 'S34', 'S35'],
+			['◀ Back', '<', '>']))
+		kind, lines, rows = self.tap('S40')
+		kind, lines, rows = self.tap('>')
+		self.assertEqual((self.labels(rows)[-1], [t for row in self.labels(rows)[:-1] for t in row][-1]),
+			(['◀ Back', '<', 'Compare'], 'S69'))
+		self.assertEqual(lines[-1], 'Ticked: S00, S40')
+		kind, lines, rows = self.tap('<')
+		kind, lines, rows = self.tap('<')
+		self.assertIn('✅ S00', [t for row in self.labels(rows) for t in row])
+
+	def test_a_seventh_tick_is_refused_on_a_later_page(self):
+		"""The limit of six counts every page's ticks, and the refusal stays on the page."""
+		self.many()
+		self.command('.compare')
+		self.tap('Tickers ▶')
+		for ticker in ('S00', 'S01', 'S02', 'S03', 'S04'):
+			self.tap(ticker)
+		self.tap('>')
+		self.tap('S33')
+		kind, lines, rows = self.tap('S34')
+		self.assertEqual((self.toasts[-1], lines[0], self.labels(rows)[0][:2]), ((buttons.TOO_MANY, True),
+			buttons.TOO_MANY, ['S32', '✅ S33']))
+
+	def test_an_item_on_a_later_page_is_the_one_picked(self):
+		"""A ticker's button on page two picks that ticker, and the answer's screen stays on its page."""
+		self.many()
+		self.command('.history')
+		self.tap('Tickers ▶')
+		self.tap('>')
+		kind, lines, rows = self.tap('S40')
+		self.assertEqual(kind, 'photo')
+		self.assertIn('● S40', [t for row in self.labels(rows) for t in row])
+		self.assertEqual(self.labels(rows)[-1], ['◀ Back', '<', '>'])
+
+	def test_portfolios_page_too(self):
+		"""Thirty-two portfolios to a page, in rows of four, then Group by, then the page buttons."""
+		names = [f'P{i:02d}' for i in range(40)]
+		self.patch(sharesight, '_portfolios', lambda seconds=None: [{'name': n, 'id': i} for i, n in enumerate(names)])
+		self.command('.treemap')
+		rows = self.labels()
+		self.assertEqual((len(rows), rows[7], rows[8], rows[9]), (10, ['P28', 'P29', 'P30', 'P31'],
+			['Group by: Industry'], ['>']))
+		kind, lines, rows = self.tap('>')
+		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['P32', 'P33', 'P34', 'P35'], ['<']))
+
+	def test_discord_pages_hold_five_rows(self):
+		"""Discord's five rows of five buttons hold 12 portfolios with Group by and the page buttons, or 20 tickers
+		with Back, the page buttons and Compare."""
+		for cmd, items in (('t', 12), ('p', 12), ('c', 20), ('y', 20)):
+			with self.subTest(cmd=cmd):
+				names = [f'N{i:02d}' for i in range(60)]
+				rows = pick.screen(DISCORD, cmd, names, '0', '0', 0, 0b11 if cmd == 'c' else 0,
+					'm' if cmd in 'yc' else 'p', 1)[1]
+				self.assertLessEqual(len(rows), 5)
+				self.assertTrue(all(len(row) <= 5 for row in rows))
+				counted = sum(button.label.endswith(tuple('0123456789')) for row in rows for button in row)
+				self.assertEqual(counted, items)
+
+	def test_pick_data_carries_the_page_and_what_is_shown(self):
+		"""A button's data says its page and what the message answers, and stays within a button's 64 bytes with
+		100 items."""
+		press = buttons.PickPress('c', 's', 'x', 0x3e, (1 << 100) - 1, 'm2', 'a1b2')
+		button = buttons.pick_button('x', press)
+		self.assertEqual((buttons.parse(button.data), len(button.data) <= 64), (press, True))
+		for data in ('k|c|0|x|0|0|z1|a1b2', 'k|c|0|x|0|0|p|a1b2', 'k|c|0|x|0|0|r-1|a1b2'):
+			self.assertIsNone(buttons.parse(data))

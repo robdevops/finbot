@@ -167,7 +167,7 @@ class WsgiRejections(FinbotCase):
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
 				bot.main(wsgi_environ('/telegram', body, **secret), lambda *a, **k: None)
-			self.assertIn(f'[Telegram button]: {who} chat 55 j|7|abcd', err.getvalue())
+			self.assertIn(f'Telegram button {who} chat 55 j|7|abcd', err.getvalue())
 
 	def test_a_press_is_acknowledged_once_before_the_worker_gets_it(self):
 		"""bot.take acknowledges a press, the one place that does: Telegram's with the toast its data makes, before the

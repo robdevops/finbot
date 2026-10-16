@@ -108,7 +108,7 @@ class Telegram(inbound.Network):
 		elif self.IGNORED & message.keys():
 			return inbound.OK
 		else:
-			log.info("[telegram]: unhandled: 'message' without 'text/photo'")
+			log.info("Telegram unhandled: 'message' without 'text/photo'")
 			return inbound.UNHANDLED
 		return inbound.Message(self.service, chat_id, user, text, self.bot_name, user_name,
 			str(message.get('message_id', '')))

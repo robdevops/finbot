@@ -606,6 +606,13 @@ class SlackButtons(FinbotCase):
 		self.assertTrue(all(len(block['text']['text']) <= 3000 for block in blocks[:3]))
 		self.assertEqual([block['type'] for block in slack_common.chart_blocks('', [], 'F1')], ['image'])
 
+	def test_a_chart_messages_buttons_keep_their_rows(self):
+		"""The buttons of a chart message are a block a row, as a picker lays them out: never one row of them all, past
+		the 25 elements a block takes."""
+		rows = [[buttons.Button(f'B{i}{j}', f'k{i}{j}') for j in range(4)] for i in range(8)]
+		blocks = slack_common.chart_blocks('x', rows, 'F1')
+		self.assertEqual([len(block.get('elements', [])) for block in blocks], [0, 0] + [4] * 8)
+
 	def test_a_chart_message_that_times_out_is_not_posted_again(self):
 		"""A chart with its buttons whose chat.postMessage times out may have arrived: no plain copy follows."""
 		record = net.post
