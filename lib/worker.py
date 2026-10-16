@@ -542,7 +542,7 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 		period=True),
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
 		('.marketcap',), keywords=TOP),
-	Command(('beta',), on_beta, ('.beta',), PRICE, ('.beta',)),
+	Command(('beta',), on_beta, ('.beta',), PRICE),
 	Command(('compare',), on_compare, ('.compare SYMBOL SYMBOL [... up to 6] [period]',), PRICE, period=True,
 		keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
 	Command(('history', 'hospital', 'visual', 'hosiery'), on_history, ('.history SYMBOL',), PRICE),
@@ -562,7 +562,7 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES),
 	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [upcoming|system]',
 		'.jobs enable|disable|remove|run [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'),
-		JOBS, keywords=JOB_CHANGES),
+		JOBS, ('.schedule',), keywords=JOB_CHANGES),
 	PROFILE,
 ]
 

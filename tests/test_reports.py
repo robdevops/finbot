@@ -58,12 +58,12 @@ class Commands(FinbotCase):
 		self.assertEqual(len(self.command('.buy & buy')), 1) # each report once
 
 	def test_the_keyboard_is_alphabetical_and_every_button_is_its_command(self):
-		"""The command keyboard is alphabetical, and each button runs the command it belongs to in the table, not taken
-		for a ticker by .SYMBOL."""
+		"""The command keyboard is alphabetical, .schedule (the jobs) in place of .beta, and each button runs the
+		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in worker.command_keyboard()['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertIn('.buy & sell', buttons)
-		self.assertIn('.forward pe', buttons)
+		self.assertEqual(buttons, ['.buy & sell', '.dividend', '.earnings', '.forward pe', '.marketcap', '.pe', '.peg',
+			'.performance', '.premarket', '.price', '.schedule', '.session', '.shorts', '.trades', '.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
 				with self.subTest(text=text):
