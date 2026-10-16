@@ -172,7 +172,7 @@ class Sending(FinbotCase):
 
 	def test_a_message_has_no_previews_or_pings_and_its_buttons_in_rows_of_five(self):
 		"""A message suppresses link previews and pings nobody; its buttons go in rows of five, the one shown now
-		blurple, and past 25 they are left out."""
+		blurple, a row that fits stays a row, and past five rows they are left out."""
 		row = [buttons.Button(f'B{i}', f'c|h|w|{i}', active=i == 0) for i in range(12)]
 		with contextlib.redirect_stderr(io.StringIO()):
 			discord_common.DiscordBot('77').text(['hello'], [row[:7], row[7:]])
@@ -181,9 +181,11 @@ class Sending(FinbotCase):
 		payload = kwargs['json']
 		self.assertEqual((payload['content'], payload['flags'], payload['allowed_mentions']), ('hello', 4,
 			{'parse': []}))
-		self.assertEqual([len(r['components']) for r in payload['components']], [5, 5, 2])
+		self.assertEqual([len(r['components']) for r in payload['components']], [5, 2, 5])
 		self.assertEqual([b['style'] for b in payload['components'][0]['components']], [1, 2, 2, 2, 2])
 		self.assertEqual(len(discord_common.components([[buttons.Button('x', 'y')] * 30])), 5)
+		self.assertEqual([len(r['components']) for r in discord_common.components([[buttons.Button('x', 'y')] * 5,
+			[buttons.Button('x', 'y')] * 2])], [5, 2])
 
 	def test_a_chart_is_attached_to_its_report(self):
 		"""A chart goes as an attachment of the message that carries the report and the buttons."""

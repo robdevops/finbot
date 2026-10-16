@@ -60,10 +60,11 @@ def pinChatMessage(chat_id, message_id):
 	try_call('pinChatMessage', json={'chat_id': chat_id, 'message_id': message_id, 'disable_notification': True})
 
 
-def answerCallbackQuery(callback_query_id, text=None):
-	"""Acknowledge a button press (the client's spinner stops), `text` as a toast. A failure is only logged."""
-	try_call('answerCallbackQuery', json={'callback_query_id': callback_query_id} | ({'text': text} if text else {}),
-		logged='debug')
+def answerCallbackQuery(callback_query_id, text=None, alert=False):
+	"""Acknowledge a button press (the client's spinner stops), `text` as a toast, or with `alert` as an alert the
+	person dismisses. A failure is only logged."""
+	try_call('answerCallbackQuery', json={'callback_query_id': callback_query_id} | ({'text': text} if text else {}) |
+		({'show_alert': True} if alert else {}), logged='debug')
 
 
 class Telegram(inbound.Network):
@@ -116,7 +117,10 @@ class Telegram(inbound.Network):
 		"""A press: answerCallbackQuery, so that the client's spinner stops and a toast made from the button's data says
 		what is coming (buttons.toast: 'Loading 1Y…'). A failure is only logged. Nothing goes back with the update."""
 		if isinstance(event, inbound.Press):
-			answerCallbackQuery(event.press_id, buttons.toast(event.data))
+			if buttons.alert(event.data):
+				answerCallbackQuery(event.press_id, buttons.toast(event.data), alert=True)
+			else:
+				answerCallbackQuery(event.press_id, buttons.toast(event.data))
 		return None
 
 

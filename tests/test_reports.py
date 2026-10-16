@@ -62,8 +62,8 @@ class Commands(FinbotCase):
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in worker.command_keyboard()['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertEqual(buttons, ['.buy & sell', '.dividend', '.earnings', '.forward pe', '.marketcap', '.pe', '.peg',
-			'.performance', '.premarket', '.price', '.schedule', '.session', '.shorts', '.trades', '.watchlist'])
+		self.assertEqual(buttons, ['.buy & sell', '.compare', '.earnings', '.forward pe', '.peg', '.performance',
+			'.pie', '.premarket', '.price', '.schedule', '.session', '.shorts', '.trades', '.treemap', '.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
 				with self.subTest(text=text):
@@ -114,10 +114,18 @@ class ReportFunctions(FinbotCase):
 		self.assertTrue(any('>Rob</a>' in line for line in payload), payload)
 
 	def test_a_portfolio_command_without_a_portfolio_lists_them(self):
-		""".holdings and .pie without a portfolio say how to ask, with the portfolios there are."""
+		""".holdings, .pie and .treemap without a portfolio give buttons for the portfolios there are, and name them
+		where there are no buttons (a job's)."""
+		chat = delivery.chat('telegram:55', scheduled=True)
 		for text in ('.holdings', '.pie', '.treemap'):
 			with self.subTest(text=text):
-				self.assertIn('Portfolios: Rob', str(self.command(text)))
+				self.sent.clear()
+				self.command(text)
+				self.assertEqual(self.sent[0][0], 'text' if text == '.holdings' else 'photo')
+				self.sent.clear()
+				worker.job_commands()[text[1:]].run(chat, words=[])
+				usage = f"Usage: {text} PORTFOLIO" + ('' if text == '.holdings' else ' [sector]')
+				self.assertEqual(self.sent, [('text', [usage, 'Portfolios: Rob'])])
 
 	def test_prepare_marketcap(self):
 		"""The market cap list is built."""
@@ -764,7 +772,7 @@ class PieCommand(FinbotCase):
 
 	def test_unknown_or_missing_portfolio_lists_known(self):
 		""".pie with no portfolio, or an unknown one, lists the portfolios there are."""
-		self.assertEqual(self.command('.pie'), [('text', ['Usage: .pie PORTFOLIO [sector]', 'Portfolios: Rob'])])
+		self.assertEqual(self.command('.pie')[0][0], 'photo') # the buttons of the portfolios
 		self.assertEqual(self.command('.pie Nope'), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
 
 	def test_with_the_graph_preference_off_a_chart_goes_as_text(self):
@@ -821,8 +829,7 @@ class TreemapCommand(FinbotCase):
 
 	def test_unknown_or_missing_portfolio_lists_known(self):
 		""".treemap with no portfolio, or an unknown one, lists the portfolios there are."""
-		self.assertEqual(self.command('.treemap'),
-			[('text', ['Usage: .treemap PORTFOLIO [sector]', 'Portfolios: Rob'])])
+		self.assertEqual(self.command('.treemap')[0][0], 'photo') # the buttons of the portfolios
 		self.assertEqual(self.command('.treemap Nope'),
 			[('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
 
@@ -835,13 +842,15 @@ class CommandJobs(FinbotCase):
 		cannot take its words posts its usage."""
 		chat = delivery.chat('telegram:55', scheduled=True)
 		for name, words, typed in (('pe', [], '.pe'), ('beta', [], '.beta'), ('buy&sell', [], '.buy & sell'),
-				('compare', ['T1', 'T2'], '.compare T1 T2'), ('history', [], '.history')):
+				('compare', ['T1', 'T2'], '.compare T1 T2')):
 			with self.subTest(name=name):
 				posted = self.command(typed)
 				self.sent.clear()
 				worker.job_commands()[name].run(chat, words=words)
 				self.assertEqual(self.sent, posted)
-		self.assertEqual(posted, [('text', ['Usage: .history SYMBOL'])])
+		self.sent.clear()
+		worker.job_commands()['history'].run(chat, words=[])
+		self.assertEqual(self.sent, [('text', ['Usage: .history SYMBOL'])]) # a job has no buttons to pick with
 
 
 class WithoutSharesight(FinbotCase):
@@ -868,3 +877,150 @@ class WithoutSharesight(FinbotCase):
 
 if __name__ == '__main__':
 	unittest.main()
+
+
+class Pickers(FinbotCase):
+	"""A command typed with nothing to say what it is about answers with buttons: one message, edited as they are
+	pressed."""
+
+	def setUp(self):
+		"""Telegram's edits and toasts of a press are noted: self.edits (kind, lines, buttons by row), self.toasts."""
+		super().setUp()
+		self.edits, self.toasts, self.shown = [], [], []
+		bot_class = telegram_common.TelegramBot
+		def edited(kind, lines, buttons):
+			"""Note an edit, which is the screen shown now."""
+			self.edits.append((kind, lines, self.rows(buttons)))
+			self.shown = self.edits[-1][2]
+		def posted(dest, lines, buttons=None):
+			"""Transport.text in these tests: noted as the others are, and its buttons are the screen shown now."""
+			self.shown = self.rows(buttons)
+			return self.record_text(dest, lines)
+		real_chart = transports.Transport.chart
+		self.patch(bot_class, 'edit_chart', lambda dest, msg, image, caption, buttons=None:
+			edited('photo', caption.split('\n'), buttons))
+		self.patch(bot_class, 'edit_text', lambda dest, msg, text, buttons=None:
+			edited('text', text.split('\n'), buttons))
+		self.patch(transports.Transport, 'text', posted)
+		self.patch(transports.Transport, 'chart', lambda dest, image, caption, markup=None:
+			(setattr(self, 'shown', self.rows(markup)), self.record_chart(dest, image, caption, markup))[1])
+		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None, alert=False:
+			self.toasts.append((text, alert)))
+
+	@staticmethod
+	def rows(buttons):
+		"""Rows of (label, data) of the buttons a message was left with."""
+		return [[(b.label if not b.active else '● ' + b.label, b.data) for b in row] for row in buttons or []]
+
+	def sent_rows(self):
+		"""The buttons of the picker as shown now (posted or edited), by row: (label, data)."""
+		return self.shown
+
+	def tap(self, label, rows=None):
+		"""Press the button with this label (as marked, '✅ T1' or '● Max') in the last screen shown."""
+		rows = rows or self.shown
+		data = next(data for row in rows for text, data in row if text == label)
+		self.press_button(data)
+		self.assertEqual(self.errors, [])
+		return self.edits[-1]
+
+	def test_a_portfolio_command_offers_the_portfolios(self):
+		""".pie, .treemap and .holdings: a button for each portfolio; .treemap and its Group by button toggle."""
+		self.command('.pie')
+		self.assertEqual(self.sent[-1], ('photo', self.sent[-1][1], '<b>Pie</b>: pick a portfolio'))
+		self.assertEqual([[text for text, _ in row] for row in self.sent_rows()], [['Rob']])
+		self.command('.treemap sector')
+		self.assertEqual([[text for text, _ in row] for row in self.sent_rows()], [['Group by: Sector'], ['Rob']])
+		kind, lines, rows = self.tap('Group by: Sector')
+		self.assertEqual((kind, [[text for text, _ in row] for row in rows]),
+			('photo', [['Group by: Industry'], ['Rob']]))
+		self.command('.holdings')
+		self.assertEqual((self.sent[-1][0], [[t for t, _ in row] for row in self.shown]), ('text', [['Rob']]))
+
+	def test_a_portfolio_button_turns_its_message_into_the_answer(self):
+		""".pie, .treemap (by the group chosen) and .holdings: the pressed message becomes the chart, or the list."""
+		self.command('.treemap')
+		kind, lines, rows = self.tap('Group by: Industry')
+		kind, lines, rows = self.tap('Rob')
+		self.assertEqual((kind, lines[0], rows), ('photo', '<b>Rob treemap by sector</b>', []))
+		self.command('.pie')
+		self.assertEqual(self.tap('Rob')[:2], ('photo', ['<b>Rob by industry</b>', 'Unclassified: 100.0%']))
+		self.patch(holdings, 'prepare_holdings_payload', lambda name, service:
+			[f'<b>Holdings for {name} (25)</b>', 'x'])
+		self.command('.holdings')
+		kind, lines, rows = self.tap('Rob')
+		self.assertEqual((kind, lines, rows), ('text', ['<b>Holdings for Rob (25)</b>', 'x'], []))
+		self.assertEqual(self.toasts[-1], ('Loading…', False))
+
+	def test_history_picks_one_ticker_in_a_sub_menu(self):
+		""".history has a button for its tickers' screen, whose buttons are the tickers held, and Back."""
+		self.command('.history')
+		self.assertEqual([[t for t, _ in row] for row in self.sent_rows()], [['Tickers ▶']])
+		kind, lines, rows = self.tap('Tickers ▶')
+		self.assertEqual((kind, [t for t, _ in rows[0]], [t for t, _ in rows[-1]]),
+			('photo', ['T0', 'T1', 'T10', 'T11'], ['◀ Back']))
+		self.assertEqual(self.tap('◀ Back')[2][0][0][0], 'Tickers ▶')
+		self.tap('Tickers ▶')
+		kind, lines, rows = self.tap('T3')
+		self.assertEqual(kind, 'photo')
+		self.assertTrue(rows and rows[0][0][1].startswith('c|h|'), rows) # the chart's period buttons
+
+	def test_compare_ticks_up_to_six_and_refuses_a_seventh(self):
+		""".compare: ticks toggle, Compare appears with two, a seventh is refused with an alert and a note."""
+		self.command('.compare')
+		self.assertEqual([[t for t, _ in row] for row in self.sent_rows()],
+			[['7D', '1M', '1Y', '● Max'], ['Tickers ▶']])
+		self.tap('Tickers ▶')
+		for ticker in ('T0', 'T1', 'T2', 'T3', 'T4', 'T5'):
+			kind, lines, rows = self.tap(ticker)
+		labels = [t for row in rows for t, _ in row]
+		self.assertIn('✅ T5', labels)
+		self.assertEqual(lines[-1], 'Ticked: T0, T1, T2, T3, T4, T5')
+		self.assertIn('Compare', labels)
+		self.assertEqual(self.toasts[-1], ('Updating…', False))
+		kind, lines, rows = self.tap('T6')
+		self.assertEqual((self.toasts[-1], lines[0]), ((buttons.TOO_MANY, True), buttons.TOO_MANY))
+		self.assertNotIn('✅ T6', [t for row in rows for t, _ in row])
+		kind, lines, rows = self.tap('✅ T5') # unticking makes room
+		self.assertNotIn(buttons.TOO_MANY, lines)
+		self.assertEqual(lines[-1], 'Ticked: T0, T1, T2, T3, T4')
+
+	def test_compare_turns_its_message_into_the_chart_of_the_ticked(self):
+		"""Compare with the period chosen edits the picker into the chart, with the chart's own period buttons."""
+		self.command('.compare 1y')
+		self.assertIn('● 1Y', [t for row in self.sent_rows() for t, _ in row])
+		self.tap('Tickers ▶')
+		self.tap('T1')
+		self.assertNotIn('Compare', [t for row in self.edits[-1][2] for t, _ in row]) # one is too few
+		self.tap('T2')
+		kind, lines, rows = self.tap('Compare')
+		self.assertEqual((kind, rows[0][2]), ('photo', ('● 1Y', 'c|c|y|T1,T2')))
+		self.assertEqual(self.toasts[-1], ('Loading…', False))
+
+	def test_buttons_of_another_list_start_again(self):
+		"""A button drawn for other tickers than there are now starts the picker again, saying so."""
+		self.command('.compare')
+		stale = self.shown[1][0][1] # Tickers ▶
+		self.patch(sharesight, 'tickers', lambda: ['A1', 'B1'])
+		self.press_button(stale)
+		kind, lines, rows = self.edits[-1]
+		self.assertEqual(lines[0], 'The list has changed: here it is now')
+
+	def test_without_holdings_the_watchlist_is_offered(self):
+		"""Tickers to pick are the holdings', else the chat's watchlist; none at all says how to add one."""
+		self.patch(sharesight, 'tickers', lambda: [])
+		self.patch(watchlist, 'tickers', lambda chat: ['MSFT', 'AAPL'])
+		self.command('.history')
+		self.tap('Tickers ▶')
+		self.assertEqual([t for row in self.edits[-1][2] for t, _ in row], ['AAPL', 'MSFT', '◀ Back'])
+		self.patch(watchlist, 'tickers', lambda chat: [])
+		self.assertEqual(self.command('.compare'),
+			[('text', ['No tickers to pick from: .watchlist add SYMBOL adds one'])])
+
+	def test_with_the_graph_off_the_picker_is_text_and_edits_as_text(self):
+		"""Where charts are not drawn, the picker is a text message, and its answer the chart's lines as text."""
+		self.prefs(graph=False)
+		self.command('.pie')
+		self.assertEqual(self.sent[-1][0], 'text')
+		kind, lines, rows = self.tap('Rob')
+		self.assertEqual((kind, lines[0], rows), ('text', '<b>Rob by industry</b>', []))

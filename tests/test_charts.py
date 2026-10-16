@@ -458,3 +458,9 @@ class GoldenImages(unittest.TestCase):
 
 if __name__ == '__main__':
 	unittest.main()
+
+
+class BlankImage(unittest.TestCase):
+	def test_the_picker_image_is_one_pixel(self):
+		"""The image of a picker's message is a 1x1 PNG, which the answer's chart replaces."""
+		self.assertEqual(decode(render.blank()).size, (1, 1))

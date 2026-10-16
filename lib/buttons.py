@@ -1,6 +1,7 @@
 """Buttons under a message, what their data says when one is pressed (parse), and what a press is told at once
 (toast): a chart's period buttons (1D | 7D | 1M | 1Y | Max), whose data carries what its builder needs
-(charts.BUILDERS); the .jobs menu's (menu_button); and the job buttons of older .jobs lists, which still work. Each
+(charts.BUILDERS); the .jobs menu's (menu_button); the pickers of a command typed with nothing to say what it is
+about (pick_button); and the job buttons of older .jobs lists, which still work. Each
 transport draws Button rows its own way."""
 import hashlib
 import typing
@@ -37,9 +38,27 @@ class MenuPress(typing.NamedTuple):
 	checksum: str
 
 
+class PickPress(typing.NamedTuple):
+	"""A press in a picker (lib/reports/pick.py): the command it picks for (a key of PICKERS), how it groups (a
+	treemap's or pie's: i industry, s sector, 0 neither), the period (a key of PERIODS, or 0), the items ticked (a
+	bit of the mask each), what the press asks for (act: p the first screen, m the tickers' screen, r then an item's
+	number to run it, g to run the ticked ones, f a tick refused, as too many) and the checksum of the list of
+	items it was drawn for, stale once that changes."""
+	cmd: str
+	group: str
+	period: str
+	mask: int
+	act: str
+	checksum: str
+
+
 JOB_ACTIONS = {'j': 'run', 'e': 'toggle'} # an older job button's kind, its data's first letter, and what it does
 MENU_SCREENS = ('top', 'on', 'off', 'del', 'run', 'add', 'next') # the .jobs menu's screens (lib/reports/about.py)
 
+
+PICKERS = {'p': 'pie', 't': 'treemap', 'h': 'holdings', 'y': 'history', 'c': 'compare'} # command key -> its name
+MAX_PICKED = 6 # tickers .compare takes
+TOO_MANY = f"⚠️ Max {MAX_PICKED} tickers: untick one first"
 
 PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x': ('Max', None)}
 BUTTONS = {'h': 'wmyx', 'p': 'wmyx', 'c': 'wmyx', 'f': 'wmyx', 'l': 'dwmyx'} # chart kind -> its buttons, five at most
@@ -90,12 +109,27 @@ def menu_button(label, screen, args, checksum):
 	besides (words, numbers) and the list's checksum: 'm|on|0|5|a1b2'."""
 	return Button(label[:40], '|'.join(['m', screen, *map(str, args), checksum]))
 
+def pick_button(label, press, active=False):
+	"""A picker's button: its label (cut to 40 characters) and a PickPress as its data: 'k|c|0|x|3|p|a1b2'."""
+	data = '|'.join(['k', press.cmd, press.group, press.period, format(press.mask, 'x'), press.act, press.checksum])
+	return Button(label[:40], data, active)
+
 def parse(data):
 	"""What a pressed button's data asks for: a MenuPress for a .jobs menu's button of a known screen, its parts plain
 	letters and digits; a JobPress for an older job button (whatever follows 'j|' or 'e|', which pick refuses unless
 	it is a job's number and checksum); a ChartPress for a period button of a known kind and period; or None for data
 	of none of them (from an older finbot, or forged)."""
 	kind, _, rest = data.partition('|')
+	if kind == 'k':
+		parts = rest.split('|')
+		if (len(parts) == 6 and parts[0] in PICKERS and parts[1] in ('0', 'i', 's') and (parts[2] in PERIODS or
+				parts[2] == '0') and len(parts[3]) <= 8 and parts[4][:1] in ('p', 'm', 'r', 'g', 'f') and
+				all(part.isascii() and part.isalnum() for part in parts) and len(data.encode()) <= MAX_CALLBACK_BYTES):
+			try:
+				return PickPress(parts[0], parts[1], parts[2], int(parts[3], 16), parts[4], parts[5])
+			except ValueError:
+				return None
+		return None
 	if kind == 'm':
 		parts = rest.split('|')
 		if (len(parts) >= 2 and parts[0] in MENU_SCREENS and len(data.encode()) <= MAX_CALLBACK_BYTES and
@@ -110,11 +144,19 @@ def parse(data):
 		return ChartPress(*parts)
 	return None
 
+def alert(data):
+	"""Whether a press's toast is an alert the person must dismiss: a picker refusing a seventh ticker."""
+	pressed = parse(data)
+	return isinstance(pressed, PickPress) and pressed.act == 'f'
+
 def toast(data):
 	"""What a press is told at once, from the button's data alone (the network acknowledges a press before finbot
 	knows more): 'Loading 1Y…' for a period button, 'Updating…' for the .jobs menu's, 'Running…' or 'Switching…' for an
-	older job button, None for data of none of them."""
+	older job button, 'Loading…' or 'Updating…' for a picker's (an error for a refused tick), None for data of none
+	of them."""
 	pressed = parse(data)
+	if isinstance(pressed, PickPress):
+		return TOO_MANY if pressed.act == 'f' else 'Loading…' if pressed.act[0] in 'rg' else 'Updating…'
 	if isinstance(pressed, MenuPress):
 		return 'Updating…'
 	if isinstance(pressed, JobPress):

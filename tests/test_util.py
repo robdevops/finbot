@@ -162,6 +162,20 @@ class Formatting(unittest.TestCase):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
 
+	def test_a_pickers_data_reads_back_in_few_bytes(self):
+		"""A picker's button says what it asks for, with up to 32 ticked tickers in 64 bytes; data of no picker, with
+		an act or a command it has not, is nothing, and only a refused tick is an alert."""
+		press = buttons.PickPress('c', 's', 'x', 2 ** 32 - 1, 'r31', 'a1b2')
+		button = buttons.pick_button('x' * 99, press)
+		self.assertEqual((buttons.parse(button.data), len(button.label), len(button.data)), (press, 40, 25))
+		for data in ('k|z|0|x|0|p|a1b2', 'k|c|0|x|0|q|a1b2', 'k|c|0|x|zz|p|a1b2', 'k|c|0|q|0|p|a1b2', 'k|c|0|x|0|p',
+				'k|c|0|x|0|p|a-b2'):
+			with self.subTest(data=data):
+				self.assertIsNone(buttons.parse(data))
+		self.assertEqual([buttons.toast(f'k|c|0|x|3|{act}|a1b2') for act in ('p', 'm', 'r2', 'g', 'f')],
+			['Updating…', 'Updating…', 'Loading…', 'Loading…', buttons.TOO_MANY])
+		self.assertEqual([buttons.alert(f'k|c|0|x|3|{act}|a1b2') for act in ('m', 'f')], [False, True])
+
 	def test_a_press_is_told_what_is_coming_from_its_data_alone(self):
 		"""The toast a press gets as it arrives: the period a period button loads, 'Updating…' for the .jobs menu's,
 		'Running…' or 'Switching…' for an older job button (the worker checks them later), and none for other data."""

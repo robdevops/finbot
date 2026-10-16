@@ -592,6 +592,13 @@ def draw_treemap(chart):
 	_heading(fig, chart.title, chart.subtitle, inline=True)
 	return _png(fig, bg)
 
+def blank():
+	"""A 1x1 PNG in the chart background: the image of a picker's message, which an answer's chart then replaces (a text
+	message cannot become a photo)."""
+	fig, _ = _figure(PALETTE[0])
+	fig.set_size_inches(1 / 200, 1 / 200)
+	return _png(fig, PALETTE[0])
+
 def _code_version():
 	"""What else decides how a spec looks: this file and the matplotlib release."""
 	try:

@@ -133,7 +133,7 @@ class WatchlistActions(FinbotCase):
 class BadArguments(FinbotCase):
 	def test_compare_argument_errors_give_usage(self):
 		""".compare with too few or too many tickers, or one twice, gets its usage."""
-		for cmd in ('.compare', '.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7', '.compare T1 T1'):
+		for cmd in ('.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7', '.compare T1 T1'):
 			with self.subTest(cmd=cmd):
 				self.assertIn('Usage', str(self.command(cmd)))
 
@@ -152,9 +152,9 @@ class BadArguments(FinbotCase):
 		self.assertEqual((self.sent, self.errors), ([('text', ['no price history for T1'])], []))
 
 	def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
-		""".history with no ticker or an extra argument gets its usage, not the profile of a ticker called HISTORY."""
-		# not the profile of a ticker called HISTORY
-		self.assertEqual(self.command('.history'), [('text', ['Usage: .history SYMBOL'])])
+		""".history with an extra argument gets its usage, not the profile of a ticker called HISTORY; with no
+		ticker, the buttons for one."""
+		self.assertEqual(self.command('.history')[0][0], 'photo')
 		self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history SYMBOL'])])
 
 

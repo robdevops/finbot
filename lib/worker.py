@@ -17,7 +17,8 @@ from lib import delivery
 from lib import render
 from lib import buttons
 from lib import charts
-from lib.reports import about, cal, holdings, performance, price, profile, rankings, shorts, trades
+from lib import transports
+from lib.reports import about, cal, holdings, performance, pick, price, profile, rankings, shorts, trades
 from lib import sharesight
 from lib import telegram_common
 from lib import jobs
@@ -139,11 +140,79 @@ def add_step(service, chat, steps):
 		return about.add_failed(service, chat.key, steps, str(e))
 	return about.added_screen(service, chat.key, number)
 
+def show_pick(chat, message, cmd, lines, rows):
+	"""Put a picker's screen (lines and button rows) in place of the pressed message."""
+	text = '\n'.join(lines)
+	if pick.as_photo(chat, cmd):
+		chat.edit_chart(message, render.blank(), text, rows)
+	else:
+		chat.edit_text(message, text, rows)
+
+def process_pick_callback(press, pressed):
+	"""A press in a picker (an inbound.Press; pressed, the buttons.PickPress its data says): the screen it asks for, in
+	place of the pressed message, or a button of an item, or Compare, turning the message into the answer. Buttons
+	drawn for another list of items start the picker again, saying so."""
+	service = dialects.of(press.service)
+	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
+	cmd = pressed.cmd
+	try:
+		found = pick.items(service, cmd, chat.key)
+		stale = pick.checksum(found) != pressed.checksum
+		mask, act = (0, 'p') if stale else (pressed.mask, pressed.act)
+		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if act == 'f' else None
+		if act[0] in 'rg' and pick_answer(service, chat, press.message_id, pressed, found, mask, act):
+			return
+		lines, rows = pick.screen(service, cmd, found, pressed.group, pressed.period, mask, 'm' if act in 'mf' else 'p',
+			note)
+		show_pick(chat, press.message_id, cmd, lines, rows)
+	except answer.Answer as e:
+		delivery.deliver(chat, delivery.Report(e.lines))
+	except Exception as e:
+		delivery.report_error(e, chat, context='pick')
+
+def pick_answer(service, chat, message, pressed, found, mask, act):
+	"""The pressed picker message turned into the answer of its command for the item (act r and its number) or the
+	ticked items (g) it asks for; False when there is nothing to answer yet (a number out of the list, fewer than two
+	to compare)."""
+	cmd = pressed.cmd
+	if act == 'g':
+		names = [name for i, name in enumerate(found) if mask >> i & 1]
+	elif act[1:].isdigit() and int(act[1:]) < len(found):
+		names = [found[int(act[1:])]]
+	else:
+		return False
+	if cmd == 'c' and len(names) < 2:
+		return False
+	by = 'sector' if pressed.group == 's' else 'industry'
+	if cmd == 'h':
+		lines = holdings.prepare_holdings_payload(names[0], service) or [f"{names[0]} holds nothing"]
+		parts = transports.chunked(lines, chat.dialect.text_limit)
+		chat.edit_text(message, '\n'.join(parts[0]), [])
+		for part in parts[1:]:
+			chat.text(part)
+		return True
+	markup = []
+	if cmd in 'pt':
+		prepare = holdings.prepare_pie if cmd == 'p' else holdings.prepare_treemap
+		lines, chart = prepare(names[0], by, service)
+		caption = '\n'.join(lines)
+	else:
+		period = pressed.period if cmd == 'c' else None
+		caption, chart = charts.build('c' if cmd == 'c' else 'h', names, service, chat.key, period=period)
+		markup = buttons.keyboard('c' if cmd == 'c' else 'h', names, period if cmd == 'c' else 'x')
+	if pick.as_photo(chat, cmd):
+		chat.edit_chart(message, render.draw(chart) if chart and chart.rows else render.blank(), caption, markup)
+	else:
+		chat.edit_text(message, caption, [])
+	return True
+
 def process_callback(press):
 	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): the .jobs menu's, an older job
 	button (run it, or switch it), or a chart's, whose message is rebuilt for the chosen period and edited in place.
 	Data of none of them is ignored."""
 	pressed = buttons.parse(press.data)
+	if isinstance(pressed, buttons.PickPress):
+		return process_pick_callback(press, pressed)
 	if isinstance(pressed, buttons.MenuPress):
 		return process_menu_callback(press, pressed)
 	if isinstance(pressed, buttons.JobPress):
@@ -354,9 +423,9 @@ def on_trades(request, args):
 		portfolio_select=args.rest or None)
 
 def on_holdings(request, args):
-	""".holdings PORTFOLIO: what it holds."""
+	""".holdings PORTFOLIO: what it holds; with no portfolio, buttons for them."""
 	if not args.words:
-		raise Usage(portfolios())
+		return picker(request, 'h', args)
 	request.reply(holdings.prepare_holdings_payload(args.rest, request.service))
 
 def on_marketcap(request, args):
@@ -385,16 +454,17 @@ def on_beta(request, args):
 	request.reply(payload, chart)
 
 def on_pie(request, args):
-	""".pie PORTFOLIO [sector]: its value by industry, or by sector."""
+	""".pie PORTFOLIO [sector]: its value by industry, or by sector; with no portfolio, buttons for them."""
 	if not args.words:
-		raise Usage(portfolios())
+		return picker(request, 'p', args)
 	payload, chart = holdings.prepare_pie(args.rest, args.keyword or 'industry', request.service)
 	request.reply(payload, chart)
 
 def on_treemap(request, args):
-	""".treemap PORTFOLIO [sector]: its holdings as tiles, grouped by industry or by sector."""
+	""".treemap PORTFOLIO [sector]: its holdings as tiles, grouped by industry or by sector; with no portfolio, buttons
+	for them."""
 	if not args.words:
-		raise Usage(portfolios())
+		return picker(request, 't', args)
 	payload, chart = holdings.prepare_treemap(args.rest, args.keyword or 'industry', request.service)
 	request.reply(payload, chart)
 
@@ -405,7 +475,10 @@ def on_rating(request, args):
 		request.reply(payload, chart)
 
 def on_compare(request, args):
-	""".compare SYMBOL SYMBOL... [period]: their price changes on one chart, with period buttons where they work."""
+	""".compare SYMBOL SYMBOL... [period]: their price changes on one chart, with period buttons where they work; with
+	no symbols, buttons to pick them."""
+	if not args.words:
+		return picker(request, 'c', args)
 	if not 2 <= len(args.words) <= 6:
 		raise Usage
 	tickers = list(dict.fromkeys(yahoo.symbols(args.words))) # each once, in the order asked
@@ -414,10 +487,27 @@ def on_compare(request, args):
 	chart_reply(request, 'c', tickers, args.days)
 
 def on_history(request, args):
-	""".history SYMBOL: the stock's change over every period, with its price chart, and period buttons where they go."""
+	""".history SYMBOL: the stock's change over every period, with its price chart, and period buttons where they go;
+	with no symbol, buttons to pick one."""
+	if not args.words:
+		return picker(request, 'y', args)
 	if len(args.words) != 1:
 		raise Usage
 	chart_reply(request, 'h', [ticker(args)])
+
+def picker(request, cmd, args):
+	"""A command typed with nothing to say what it is about (cmd, a key of buttons.PICKERS): where there are buttons,
+	their picker as one message, a 1x1 image (pick.as_photo) that the answer then replaces; else the command's usage."""
+	dest = request.dest
+	if not (dest.takes_buttons and delivery.interactive(dest)):
+		raise Usage(portfolios()) if pick.noun(cmd) == 'portfolio' else Usage
+	group = {'sector': 's', 'industry': 'i'}.get(args.keyword, '0')
+	period = buttons.period_for_days(args.days, 'x') if cmd == 'c' else '0'
+	lines, rows = pick.start(request.service, cmd, dest.key, group, period)
+	if pick.as_photo(dest, cmd):
+		dest.chart(render.blank(), '\n'.join(lines), rows)
+	else:
+		dest.text(lines, rows)
 
 def chart_reply(request, kind, args, days=None):
 	"""The first view of a chart with period buttons, built as a button press builds it (charts.build): its caption,
@@ -545,19 +635,19 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	# kept on purpose.
 	Command(('help', 'usage', 'start'), on_help, job=False), # /start is what Telegram sends when a chat opens
 	Command(('holdings', 'holding'), on_holdings, ('.holdings PORTFOLIO',), TRACKED),
-	Command(('pie',), on_pie, ('.pie PORTFOLIO [sector]',), TRACKED, keywords=BY),
-	Command(('treemap',), on_treemap, ('.treemap PORTFOLIO [sector]',), TRACKED, keywords=BY),
+	Command(('pie',), on_pie, ('.pie PORTFOLIO [sector]',), TRACKED, ('.pie',), keywords=BY),
+	Command(('treemap',), on_treemap, ('.treemap PORTFOLIO [sector]',), TRACKED, ('.treemap',), keywords=BY),
 	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
 		keywords=CHANGE, job=False),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),
 	Command(('earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend', 'exdividend', 'ex-dividend'),
-		on_calendar, ('.dividend [period|SYMBOL]', '.earnings [period|SYMBOL]'), COMPANY, ('.dividend', '.earnings'),
+		on_calendar, ('.dividend [period|SYMBOL]', '.earnings [period|SYMBOL]'), COMPANY, ('.earnings',),
 		period=True),
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
-		('.marketcap',), keywords=TOP),
+		keywords=TOP),
 	Command(('beta',), on_beta, ('.beta',), PRICE),
-	Command(('compare',), on_compare, ('.compare SYMBOL SYMBOL [... up to 6] [period]',), PRICE, period=True,
-		keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
+	Command(('compare',), on_compare, ('.compare SYMBOL SYMBOL [... up to 6] [period]',), PRICE, ('.compare',),
+		period=True, keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
 	Command(('history', 'hospital', 'visual', 'hosiery'), on_history, ('.history SYMBOL',), PRICE),
 	Command(('performance', 'performanc'), on_performance, ('.performance [period] [portfolio]',), PRICE,
 		('.performance',), period=True),
@@ -566,7 +656,7 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('session', 'premarket', 'postmarket', 'permarket'), on_session,
 		('.session [percent|SYMBOL]', '.premarket [percent|SYMBOL]'), PRICE, ('.session', '.premarket'), percent=True),
 	Command(BUY_SELL, on_rating, ('.buy', '.sell'), RISK, ('.buy & sell',)), # .buy & sell (or .buy sell): both
-	Command(('pe',), on_ratio('pe'), ('.pe [SYMBOL|top|bottom]',), RISK, ('.pe',), keywords=TOP),
+	Command(('pe',), on_ratio('pe'), ('.pe [SYMBOL|top|bottom]',), RISK, keywords=TOP),
 	Command(('forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'), ('.forward pe [SYMBOL|top|bottom|negative]',),
 		RISK, ('.forward pe',), keywords=NEGATIVE),
 	Command(('peg',), on_ratio('peg'), ('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',), keywords=NEGATIVE),

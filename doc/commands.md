@@ -73,6 +73,7 @@ The bot answers commands in every chat it is in. By default, it fetches its upda
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
 * A pie or a treemap of a portfolio by industry or sector (`/pie portfolio [sector]`, `/treemap portfolio [sector]`): the treemap tiles each holding by value, grouped and coloured by industry (the default) or sector
+* Buttons to pick from where a command needs a portfolio or tickers and is typed without them: `/pie`, `/treemap`, `/holdings` (portfolios; `/treemap` also toggles Sector/Industry), `/history` (a ticker) and `/compare` (up to 6 ticked tickers and a period), the tickers those held (else the chat's watchlist), behind a `Tickers ▶` button. One message is edited as buttons are pressed, and becomes the answer. A job, or a chat with no buttons, gets the usage instead
 * Listing of holdings sorted by various attributes 
 * Running the other stock reports on demand
 
