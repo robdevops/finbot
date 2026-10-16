@@ -28,19 +28,18 @@ def benchmark(ticker, market, text, past_days, service):
 	return f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}", percent
 
 def report(service, past_days, portfolio_select=None, performance=None):
-	"""(payload, chart) of the performance report for one service: each portfolio and the benchmarks, best first.
-	performance: gather()'s, fetched when not given."""
+	"""(payload, chart) of the performance report for one service: each portfolio by name, in any case, then the
+	benchmarks. performance: gather()'s, fetched when not given."""
 	if performance is None:
 		performance = gather(past_days, portfolio_select)
-	rows = [] # (percent or None, line, chart label), one list for the caption and the chart, best first
-	for portfolio, percent in performance:
+	rows = [] # (percent or None, line, chart label), one list for the caption and the chart, in the same order
+	for portfolio, percent in sorted(performance, key=lambda each: each[0].name.casefold()):
 		link = service.link(f"https://portfolio.sharesight.com/portfolios/{portfolio.id}", portfolio.name)
 		line = f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}"
 		rows.append((percent, line, portfolio.name))
 	for ticker, market, text in BENCHMARKS:
 		line, percent = benchmark(ticker, market, text, past_days, service)
 		rows.append((None if percent is None else float(percent), line, text))
-	rows.sort(key=lambda row: float('-inf') if row[0] is None else row[0], reverse=True) # an error line sorts last
 	period = formats.days_english(past_days)
 	payload = [service.bold(f"Performance over {period}")] + [line for _, line, _ in rows]
 	chart_rows = [(label, percent) for percent, _, label in rows if percent is not None]

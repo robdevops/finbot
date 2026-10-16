@@ -4,7 +4,7 @@
   3. one golden image per chart type, compared with a tolerance. Refresh after an intended restyle with:
 		 UPDATE_GOLDEN=1 python -m unittest tests.test_charts
 """
-import datetime, os, subprocess, sys, tempfile, threading, unittest
+import datetime, os, re, subprocess, sys, tempfile, threading, unittest
 from unittest import mock
 import numpy as np
 from PIL import Image
@@ -338,11 +338,20 @@ class ReportChartInputs(FinbotCase):
 		chart = self.run_report(lambda: self.command('.price 7d'))
 		self.assertRegex(chart.title, r'\d{1,2} \w{3} - \d{1,2} \w{3} \d{4}') # 28 Sep - 5 Oct 2026
 
-	def test_performance_is_sorted_by_percent(self):
-		""".performance 7d: the chart is sorted best first."""
+	def test_performance_is_sorted_by_name(self):
+		""".performance 7d: the portfolios by name, in any case, whatever their gains, then the two benchmarks: the
+		list and the chart in the same order."""
+		self.patch(sharesight, '_portfolios', lambda seconds=None: [{'name': name, 'id': i} for i, name in
+			enumerate(('super', 'Rob', 'kids', 'Bonds'), 1)])
+		gains = {1: '9.5', 2: '-3.25', 3: '0.5', 4: '12'}
+		self.patch(sharesight, '_performance', lambda pid, days=None, seconds=None:
+			{'capital_gain_percent': gains[pid], 'holdings': []})
 		chart = self.run_report(lambda: self.command('.performance 7d'))
-		values = [v for _, v in chart.rows if v is not None]
-		self.assertEqual(values, sorted(values, reverse=True))
+		names = ['Bonds', 'kids', 'Rob', 'super', 'S&P 500', 'NASDAQ 100']
+		self.assertEqual([label for label, _ in chart.rows], names)
+		self.assertEqual([value for _, value in chart.rows][:4], [12.0, 0.5, -3.25, 9.5])
+		payload, _ = performance.report(TELEGRAM, 7)
+		self.assertEqual([re.search(r'>([^<]+)</a>', line).group(1) for line in payload[1:]], names)
 
 	def test_shorts_is_sorted_and_carries_the_threshold(self):
 		""".shorts: the pictogram gets the stocks over the threshold, most shorted first, and the threshold."""

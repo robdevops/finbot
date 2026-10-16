@@ -195,7 +195,7 @@ Or a specific stock. In this case, the output includes a graph.
 ### Portfolio performance
 ![Screenshot of Portfolio performance notification on Slack](../img/performance.png?raw=true "Screenshot performance notification on Slack")
 
-The `performance` report covers Sharesight portfolio performance over a given period. The default is set by `past_days` in the `preferences.conf`, which can be overridden at runtime by specifying an integer as the argument.
+The `performance` report covers Sharesight portfolio performance over a given period. The default is set by `past_days` in the `preferences.conf`, which can be overridden at runtime by specifying an integer as the argument. The portfolios are listed by name, then the S&P 500 and NASDAQ 100 benchmarks, in the list and the chart alike.
 
 Config example:
 ```
