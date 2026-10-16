@@ -488,7 +488,7 @@ def on_compare(request, args):
 	no symbols, buttons to pick them."""
 	if not args.words:
 		return picker(request, 'c', args)
-	if not 2 <= len(args.words) <= 6:
+	if not 2 <= len(args.words) <= buttons.MAX_PICKED:
 		raise Usage
 	tickers = list(dict.fromkeys(yahoo.symbols(args.words))) # each once, in the order asked
 	if len(tickers) < 2:
@@ -705,7 +705,7 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
 		keywords=TOP),
 	Command(('beta',), on_beta, ('.beta',), PRICE),
-	Command(('compare',), on_compare, ('.compare SYMBOL SYMBOL [... up to 6] [period]',), PRICE, ('.compare',),
+	Command(('compare',), on_compare, ('.compare SYMBOL SYMBOL [... up to 8] [period]',), PRICE, ('.compare',),
 		period=True, keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
 	Command(('history', 'hospital', 'visual', 'hosiery'), on_history, ('.history SYMBOL',), PRICE),
 	Command(('performance', 'performanc'), on_performance, ('.performance [period] [portfolio]',), PRICE,

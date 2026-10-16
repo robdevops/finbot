@@ -19,7 +19,7 @@ class Chart:
 	"""A chart not yet drawn, for draw(). kind 'bars': rows of (label, value), first on top, a (label, None) row a gap;
 	'pie': rows of (label, value); 'treemap': rows of (group, ((label, value), ...)); 'shorts': rows of (label,
 	percent), and the threshold; 'line': rows of (date, close), a price line, and the change it shows; 'compare':
-	rows of (label, ((date, close), ...)), two to six price lines."""
+	rows of (label, ((date, close), ...)), two to eight price lines."""
 	kind: str
 	title: str = ''
 	subtitle: str = ''
@@ -56,6 +56,7 @@ PALETTE = ('#14181f', '#eef1f5', '#9aa4b2', '#2a313c') # charts: dark surface, i
 CATEGORIES = ('#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767') # the dark
 # categorical slots, in fixed order; the green and red ones mean up and down, so lines that are neither leave them out
 NEITHER_UP_NOR_DOWN = tuple(color for color in CATEGORIES if color not in ('#008300', '#e66767'))
+COMPARE = (*NEITHER_UP_NOR_DOWN, '#2bb5d6', '#d9dde3') # .compare's eight lines: those slots, then a cyan, a pale gray
 UP, DOWN, FLAT = '#34d399', '#fb7185', PALETTE[2] # a rise, a fall, neither: a price line's colour by its change
 BAR_UP = CATEGORIES[0] # bars rise in blue; they fall in DOWN
 
@@ -201,11 +202,11 @@ def draw_line(chart):
 
 @_drawn
 def draw_compare(chart):
-	"""Rebased % change lines of two to six price series (rows of (label, ((date, close), ...)), already cropped to the
-	period), each labelled at its end: a 1280x800 PNG."""
+	"""Rebased % change lines of two to eight price series (rows of (label, ((date, close), ...)), already cropped to
+	the period), each labelled at its end: a 1280x800 PNG."""
 	from matplotlib.ticker import FuncFormatter
 	bg, ink, ink2, grid = PALETTE
-	colors = NEITHER_UP_NOR_DOWN
+	colors = COMPARE
 	fig, _ = _figure(bg)
 	ax = _time_axes(fig, bg, 0.72)
 	rebased = [] # (label, dates, % change since the first close)

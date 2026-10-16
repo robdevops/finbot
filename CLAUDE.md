@@ -89,7 +89,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   portfolio or ticker, the first two to compare; `.holdings` only its buttons), the buttons kept under it and every
   press re-editing the answer from `shown` (an item's number plus one; compare's tickers, `pick.pack`), 32 items a page
   (`pick.layout`; fewer on Discord) turned by `<` `>` under the tickers menu, its list of items checked by checksum,
-  `.compare`'s ticks a bit each in the data's mask, a seventh refused by an alert toast (`buttons.alert`); a pie or
+  `.compare`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert toast (`buttons.alert`); a pie or
   treemap primes its other charts in a thread (`pick.prime`, started by `worker.prime_in_background`); every chart
   with period buttons primes its other periods (`charts.prime`, `worker.prime_periods` after `.compare`, `.price`,
   `.performance`, `chart_reply` and the pickers; never for a scheduled run).

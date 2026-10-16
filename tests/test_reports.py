@@ -349,7 +349,7 @@ class ReportFunctions(FinbotCase):
 
 	def test_compare_usage(self):
 		""".compare with one ticker gets its usage, from the command table."""
-		usage = 'Usage: .compare SYMBOL SYMBOL [... up to 6] [period]'
+		usage = 'Usage: .compare SYMBOL SYMBOL [... up to 8] [period]'
 		self.assertEqual(self.command('.compare T1'), [('text', [usage])])
 
 
@@ -1008,21 +1008,21 @@ class Pickers(FinbotCase):
 		self.assertEqual((self.toasts[-1], self.labels(rows)), (('Loading…', False), [['7D', '1M', '● 1Y', 'Max'],
 			['Select... (2)']])) # back at the top, with the period row
 
-	def test_compare_ticks_up_to_six_and_refuses_a_seventh(self):
-		""".compare: ticks toggle, a seventh is refused with an alert and a note."""
+	def test_compare_ticks_up_to_eight_and_refuses_a_ninth(self):
+		""".compare: ticks toggle, a ninth is refused with an alert and a note."""
 		self.command('.compare')
 		self.tap('Select... (2)')
-		for ticker in ('T10', 'T11', 'T12', 'T13'):
+		for ticker in ('T10', 'T11', 'T12', 'T13', 'T14', 'T15'):
 			kind, lines, rows = self.tap(ticker)
 		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')],
-			['✅ T0', '✅ T1', '✅ T10', '✅ T11', '✅ T12', '✅ T13'])
+			['✅ T0', '✅ T1', '✅ T10', '✅ T11', '✅ T12', '✅ T13', '✅ T14', '✅ T15'])
 		self.assertEqual(self.toasts[-1], ('Updating…', False))
-		kind, lines, rows = self.tap('T14')
+		kind, lines, rows = self.tap('T16')
 		self.assertEqual((self.toasts[-1], lines[0]), ((buttons.TOO_MANY, True), buttons.TOO_MANY))
-		self.assertNotIn('✅ T14', [t for row in self.labels(rows) for t in row])
+		self.assertNotIn('✅ T16', [t for row in self.labels(rows) for t in row])
 		kind, lines, rows = self.tap('✅ T13') # unticking makes room
 		self.assertNotIn(buttons.TOO_MANY, lines)
-		self.assertEqual(len([t for row in self.labels(rows) for t in row if t.startswith('✅')]), 5)
+		self.assertEqual(len([t for row in self.labels(rows) for t in row if t.startswith('✅')]), 7)
 
 	def test_buttons_of_another_list_start_again(self):
 		"""A button drawn for other tickers than there are now starts the picker again, at its first answer, saying
@@ -1085,12 +1085,12 @@ class Pickers(FinbotCase):
 		kind, lines, rows = self.tap('◀ Back')
 		self.assertEqual(self.labels(rows)[1], ['Select... (3)', 'Compare'])
 
-	def test_a_seventh_tick_is_refused_on_a_later_page(self):
-		"""The limit of six counts every page's ticks, and the refusal stays on the page."""
+	def test_a_ninth_tick_is_refused_on_a_later_page(self):
+		"""The limit of eight counts every page's ticks, and the refusal stays on the page."""
 		self.many()
 		self.command('.compare')
 		self.tap('Select... (2)')
-		for ticker in ('S02', 'S03', 'S04', 'S05'):
+		for ticker in ('S02', 'S03', 'S04', 'S05', 'S06', 'S07'):
 			self.tap(ticker)
 		self.tap('>')
 		kind, lines, rows = self.tap('S33')
@@ -1134,12 +1134,12 @@ class Pickers(FinbotCase):
 				self.assertEqual(counted, items)
 
 	def test_pick_data_carries_the_page_and_what_is_shown(self):
-		"""A button's data says its page and what the message shows (compare's six tickers packed), within a button's
+		"""A button's data says its page and what the message shows (compare's eight tickers packed), within a button's
 		64 bytes with 100 items."""
-		press = buttons.PickPress('c', 's', 'x', pick.pack([0, 1, 2, 3, 98, 99]), (1 << 100) - 1, 'm2', 'a1b2')
+		press = buttons.PickPress('c', 's', 'x', pick.pack([0, 1, 2, 3, 4, 5, 98, 99]), (1 << 100) - 1, 'm2', 'a1b2')
 		button = buttons.pick_button('x', press)
 		self.assertEqual((buttons.parse(button.data), len(button.data) <= 64), (press, True))
-		self.assertEqual(pick.unpack(press.shown), [0, 1, 2, 3, 98, 99])
+		self.assertEqual(pick.unpack(press.shown), [0, 1, 2, 3, 4, 5, 98, 99])
 		for data in ('k|c|0|x|0|0|z1|a1b2', 'k|c|0|x|0|0|p|a1b2', 'k|c|0|x|0|0|r-1|a1b2', 'k|c|0|x|0|0|s1|a1b2'):
 			self.assertIsNone(buttons.parse(data))
 

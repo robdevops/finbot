@@ -134,8 +134,8 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		nav.append(button('Compare', f"g{page}"))
 	if nav:
 		rows.append(nav)
-	heading = f"{service.bold(name.capitalize())}: pick " + (
-		'a portfolio' if noun(cmd) == 'portfolio' else 'up to 6 tickers' if cmd == 'c' else 'a ticker')
+	picks = f'up to {buttons.MAX_PICKED} tickers' if cmd == 'c' else 'a ticker'
+	heading = f"{service.bold(name.capitalize())}: pick " + ('a portfolio' if noun(cmd) == 'portfolio' else picks)
 	lines = ([note] if note else []) + [heading + (f" (page {page + 1} of {pages})" if pages > 1 else '')]
 	if ticked:
 		lines.append(f"Ticked: {', '.join(ticked)}")

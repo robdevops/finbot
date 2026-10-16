@@ -60,7 +60,7 @@ MENU_SCREENS = ('top', 'on', 'off', 'del', 'run', 'add', 'next') # the .jobs men
 
 
 PICKERS = {'p': 'pie', 't': 'treemap', 'h': 'holdings', 'y': 'history', 'c': 'compare'} # command key -> its name
-MAX_PICKED = 6 # tickers .compare takes
+MAX_PICKED = 8 # tickers .compare takes
 TOO_MANY = f"⚠️ Max {MAX_PICKED} tickers: untick one first"
 
 PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x': ('Max', None)}
@@ -127,7 +127,8 @@ def parse(data):
 	if kind == 'k':
 		parts = rest.split('|')
 		if (len(parts) == 7 and parts[0] in PICKERS and parts[1] in ('0', 'i', 's') and (parts[2] in PERIODS or
-				parts[2] == '0') and len(parts[3]) <= 12 and len(parts[4]) <= 25 and parts[5][:1] in 'pmfrgh' and
+				parts[2] == '0') and len(parts[3]) <= 2 * MAX_PICKED and len(parts[4]) <= 25 and
+				parts[5][:1] in 'pmfrgh' and
 				parts[5][1:].isdigit() and all(part.isascii() and part.isalnum() for part in parts) and
 				len(data.encode()) <= MAX_CALLBACK_BYTES):
 			try:

@@ -586,7 +586,7 @@ class JobsInChat(ChatBase):
 		self.assertEqual(lines[0], '<b>What a job can run:</b>')
 		for line in ('cal earnings|ex-dividend', 'message "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
 				'price midsession|interday|premarket|close|DAYS', 'trades', '.jobs add price weekly', 'beta',
-				'pe [SYMBOL|top|bottom]', 'compare SYMBOL SYMBOL [... up to 6] [period]', '.jobs add pe top weekly'):
+				'pe [SYMBOL|top|bottom]', 'compare SYMBOL SYMBOL [... up to 8] [period]', '.jobs add pe top weekly'):
 			self.assertIn(line, lines)
 		self.assertFalse(any(name in line for line in lines for name in jobs.SYSTEM_ACTIONS))
 
