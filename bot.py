@@ -126,6 +126,38 @@ def handle(environ, start_response):
 	environ[AUTHENTICATED] = True
 	return respond(take(source.network, update))
 
+class WholeLines:
+	"""stderr, a whole line at a time. Threads log at once (a report's fetches, say), and print() writes its arguments,
+	the spaces between them and the newline one by one, so their lines would mix ("TTL:cache hit:  34254 s/var/..."):
+	each thread's pieces wait in a buffer of its own until its line ends, and the line goes out in one write."""
+	def __init__(self, stream):
+		"""stream: where the lines go."""
+		self.stream = stream
+		self.held = threading.local() # each thread's line so far
+		self.lock = threading.RLock() # re-entrant: a signal handler that logs may interrupt a write
+
+	def write(self, text):
+		"""Hold text until its line ends, then write the whole line; returns its length, as a stream does."""
+		lines, newline, rest = (getattr(self.held, 'text', '') + text).rpartition('\n')
+		self.held.text = rest
+		if newline:
+			with self.lock:
+				self.stream.write(lines + newline)
+				self.stream.flush()
+		return len(text)
+
+	def flush(self):
+		"""Write what this thread holds, though its line has not ended."""
+		text, self.held.text = getattr(self.held, 'text', ''), ''
+		with self.lock:
+			if text:
+				self.stream.write(text)
+			self.stream.flush()
+
+	def __getattr__(self, name):
+		"""Anything else as the stream has it: fileno, encoding, isatty."""
+		return getattr(self.stream, name)
+
 class Sent(list):
 	"""A response body that starts some work once the server has sent it: WSGI calls close() then."""
 	def __init__(self, body, then):
@@ -242,6 +274,7 @@ def http_server():
 	return waitress.create_server(main, host=config.env.ip, port=config.env.port)
 
 if __name__ == '__main__':
+	sys.stderr = WholeLines(sys.stderr) # threads log at once: each line goes out whole
 	print(f'Starting finbot {git_version()}', file=sys.stderr)
 	try:
 		config.check_startup_environment()

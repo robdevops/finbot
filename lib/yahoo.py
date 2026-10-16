@@ -111,10 +111,13 @@ def _positive(value):
 	return value
 
 def _convert(convert, value):
-	"""convert(value), or None for garbage where a number belongs (left out, like a missing field)."""
+	"""convert(value); None for a field Yahoo leaves out or sends as null (an ETF has no analysts' recommendation), and
+	for garbage, such as text where a number belongs (left out, like a missing field)."""
+	if value is None:
+		return None
 	try:
 		return convert(value) if convert else value
-	except (TypeError, ValueError, OverflowError):
+	except (TypeError, ValueError, OverflowError, AttributeError):
 		return None
 
 # (key, Yahoo's name, conversion) for the fields of a v7 quote; one Yahoo leaves out, sends as null or garbles is left

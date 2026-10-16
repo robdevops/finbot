@@ -1,6 +1,6 @@
 """Failure and no-data scenarios: empty or broken upstream data, bad arguments, unknown portfolios, secrets
 kept out of logs, and the bot's signals."""
-import contextlib, io, os, signal, subprocess, sys, tempfile, threading, time, unittest
+import contextlib, io, os, re, signal, subprocess, sys, tempfile, threading, time, unittest
 from pathlib import Path
 from tests.common import *
 
@@ -317,6 +317,48 @@ class SecretsStayOutOfLogs(FinbotCase):
 		self.assertIn('Traceback', log)
 		self.assertIn('bot<redacted>', log)
 		self.assertNotIn('SECRET-tok_en', log)
+
+
+class Unbuffered(io.StringIO):
+	"""A stream like stderr under PYTHONUNBUFFERED (finbot.service, the image): each write is a write to the journal,
+	whose system call lets another thread run."""
+
+	def write(self, text):
+		"""Let another thread run, then write."""
+		time.sleep(0)
+		return super().write(text)
+
+
+class WholeLogLines(unittest.TestCase):
+	"""bot.WholeLines, the bot's stderr: a line goes out whole, whichever threads log at once."""
+
+	def test_lines_that_threads_print_at_once_stay_whole(self):
+		"""Lines that threads print at the same time come out whole, never mixed ("TTL:cache hit:  34254 s/var/..."):
+		print() writes its pieces one by one, and a thread's pieces wait for the end of its line."""
+		out = Unbuffered()
+		stream = bot.WholeLines(out)
+		def log(n):
+			"""Print lines of several pieces each."""
+			for i in range(200):
+				print('cache hit:', f'/var/lib/finbot/cache/{n}.json', 'TTL:', f'{i}s', file=stream)
+		threads = [threading.Thread(target=log, args=(n,)) for n in range(8)]
+		for thread in threads:
+			thread.start()
+		for thread in threads:
+			thread.join()
+		lines = out.getvalue().splitlines()
+		self.assertEqual(len(lines), 8 * 200)
+		self.assertEqual([line for line in lines if not re.fullmatch(r'cache hit: \S+/\d\.json TTL: \d+s', line)], [])
+
+	def test_a_flush_writes_a_line_that_has_not_ended(self):
+		"""A flush writes what the thread holds, though its line has not ended; the rest passes through."""
+		out = io.StringIO()
+		stream = bot.WholeLines(out)
+		print('partial', end='', file=stream)
+		self.assertEqual(out.getvalue(), '')
+		stream.flush()
+		self.assertEqual(out.getvalue(), 'partial')
+		self.assertEqual(stream.getvalue(), 'partial') # the stream's own
 
 
 class SharedSession(unittest.TestCase):

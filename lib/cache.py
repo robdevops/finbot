@@ -35,7 +35,7 @@ def _fresh(name, seconds):
 	if written >= seconds:
 		print("cache expired:", where, file=sys.stderr) if config.prefs.debug else None
 		return None
-	print("cache hit:", where, "TTL:", f"{seconds - written:.0f} s", file=sys.stderr) if config.prefs.debug else None
+	print(f"cache hit: {where} TTL: {seconds - written:.0f}s", file=sys.stderr) if config.prefs.debug else None
 	return where
 
 

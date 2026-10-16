@@ -130,6 +130,19 @@ class YahooDetail(ProviderCase):
 				with self.assertRaises(RuntimeError):
 					yahoo.fetch_detail('TSLA')
 
+	def test_a_fund_without_an_analysts_recommendation_parses(self):
+		"""An ETF's quoteSummary has no analysts' recommendation (recommendationKey left out, or null), or a garbled
+		one: it parses without one, where .earnings failed on it ('NoneType' object has no attribute 'replace')."""
+		for ticker, financial in (('ETPMAG.AX', {}), ('MAGS', {'recommendationKey': None}), ('SMH', {
+				'recommendationKey': 5, 'recommendationMean': {'raw': 2.1}, 'numberOfAnalystOpinions': {'raw': 9}})):
+			with self.subTest(ticker=ticker, financialData=financial):
+				body = self.combined()
+				body['quoteSummary']['result'][0]['financialData'] = financial
+				self.http(yahoo, Resp(body))
+				data = yahoo.fetch_detail(ticker)[ticker]
+				self.assertIn('regularMarketPrice', data)
+				self.assertEqual([key for key in yahoo.RECOMMENDATION if key in data], [])
+
 	def test_missing_names_give_empty(self):
 		"""A detail without a name, or without a result, is empty."""
 		body = self.combined()
