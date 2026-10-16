@@ -31,11 +31,14 @@ def request(method, url, **kwargs):
 	return session.request(method, url, **timeouts(logged(method, url, kwargs)))
 
 def logged(method, url, kwargs):
-	"""The request's arguments without `logged`; the request noted at INFO first, unless logged=False (Telegram's long
-	polling, asked again and again): its method and URL, without secrets or the scheme, cut to SHOWN bytes."""
-	if kwargs.pop('logged', True):
+	"""The request's arguments without `logged`; the request noted first, its method and URL without secrets or the
+	scheme, cut to SHOWN bytes: at INFO; at DEBUG with logged='debug' (the routine of a press: its acknowledgement, the
+	message edited in place); not at all with logged=False (Telegram's long polling, asked again and again)."""
+	shown = kwargs.pop('logged', True)
+	if shown:
 		line = f"{method} {redact(url).split('://', 1)[-1]}".encode()
-		log.info(line.decode() if len(line) <= SHOWN else line[:SHOWN - 3].decode(errors='ignore') + '…')
+		(log.debug if shown == 'debug' else log.info)(line.decode() if len(line) <= SHOWN else
+			line[:SHOWN - 3].decode(errors='ignore') + '…')
 	return kwargs
 
 def timeouts(kwargs):

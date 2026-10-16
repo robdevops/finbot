@@ -139,7 +139,7 @@ class Discord(inbound.Network):
 			given = ' '.join(str(option.get('value', '')) for option in data.get('options') or []).strip()
 			text = f"/{data['name']} {given}".strip()
 			return inbound.Message(self.service, channel, f"<@{person.get('id')}>", text, self.bot_name,
-				self.name(person), interaction=through)
+				self.name(person), interaction=through, dm=self.dm(update))
 		if kind == self.AUTOCOMPLETE and data.get('name'):
 			options = data.get('options') or []
 			typed = next((str(option.get('value', '')) for option in options if option.get('focused')), '')
@@ -158,7 +158,13 @@ class Discord(inbound.Network):
 			return inbound.OK
 		text = re.sub(r'<@!?(\d+)>', r'@\1', update['content'])
 		return inbound.Message(self.service, str(update.get('channel_id')), f"<@{author['id']}>", text, self.bot_name,
-			self.name(author), str(update.get('id', '')))
+			self.name(author), str(update.get('id', '')), dm=self.dm(update))
+
+	@staticmethod
+	def dm(update):
+		"""Whether an interaction or a message is in a direct message with the bot: it comes from no server (no
+		guild_id, no member)."""
+		return not (update.get('guild_id') or update.get('member'))
 
 	@staticmethod
 	def name(person):
@@ -261,14 +267,14 @@ class DiscordBot(transports.Transport):
 			image.seek(0)
 		payload = {'content': transports.fit_caption(caption, self.dialect),
 			'attachments': [{'id': 0, 'filename': 'chart.png'}], 'components': components(buttons or [])}
-		call('PATCH', self.message_path(message), **message_body(payload, image))
+		call('PATCH', self.message_path(message), **message_body(payload, image), logged='debug')
 
 	def edit_text(self, message, text, buttons=None):
 		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
 		payload = {'content': text}
 		if buttons is not None:
 			payload['components'] = components(buttons)
-		try_call('PATCH', self.message_path(message), json=payload)
+		try_call('PATCH', self.message_path(message), json=payload, logged='debug')
 
 
 DISCORD_ROW = 5 # buttons in a row of components, and rows in a message: Discord's limits

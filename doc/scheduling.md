@@ -3,9 +3,10 @@
 Each chat has its own jobs: reports and messages that run on a schedule and post to that chat. Anyone in the chat
 manages them there, with `/jobs` (or `/job`; as a message, also `.cron`, `.crons` or `.schedule`).
 
-Every chat starts with the [default jobs](#the-default-jobs), each switched on: a chat finbot knows has them all until
-it switches some off. finbot knows a chat from its first command, and knows the chats of an earlier version's schedule
-and its home chats.
+Every chat starts with the [default jobs](#the-default-jobs): switched on in a group or a channel, and switched off in a
+direct message with the bot, until the chat switches them. finbot knows a chat from its first command, and knows the
+chats of an earlier version's schedule and its home chats. A direct message is a person's chat on Telegram, a `D…`
+channel on Slack, and on Discord a message from no server.
 
 ## The menu
 `/jobs` lists the chat's jobs, numbered, a page at a time: the default jobs, then those added here. Each line shows ✅
@@ -22,9 +23,17 @@ Under it are buttons, each screen drawn in place of the last:
   job on or off. **All on** switches every job of the chat on at once, or **All off**, shown when every job is on,
   switches them all off.
 * **Delete**: a button per job added here. A default job has no button: switch it off instead.
-* **Add**: the report, how often (one-off, daily, weekdays, weekly, monthly, quarterly, bi-annual, annual or repeating),
-  then the date, the day, or a repeat's interval and days, then the hour. **Back** takes a step back, **Cancel** goes
-  back to the list. A message's text cannot come from a button, so its screen says how to type one.
+* **Add**: the report and how often, then, a screen each, the rest down to the minute:
+  * one-off: the date (the next 14 days), the hour, the minute;
+  * daily and weekdays: the hour, the minute;
+  * weekly: the day of the week, the hour, the minute;
+  * monthly, quarterly and bi-annual: the day of the month, the hour, the minute;
+  * annual: the month, the day, the hour, the minute;
+  * repeating: the interval, then every day or weekdays.
+
+  Each screen marks its default with `†` (`Sat†`, `09†`, `09:00†`) and says `† indicates default`. **Back** takes a
+  step back, **Cancel** goes back to the list. A message's text cannot come from a button, so its screen says how to
+  type one.
 * **Run now**: a button per job; a press runs it now, as its schedule would, and says how it went.
 * **Next**: the next runs, in time order.
 
@@ -159,4 +168,6 @@ move as either side's daylight saving changes.
 **From an earlier version:**
 * The cron jobs in `finbot_schedule.json` are not carried over. Its chats start with the default jobs, and the file
   can be deleted.
+* At the first start of this version, every job of each direct message chat finbot knew was switched off, once
+  (Discord's direct messages as Discord says). It is recorded in `finbot_upgrades.json`, so it never happens again.
 * `reminder.json` is read no more: its reminders are default jobs now. Delete the data directory's copy.

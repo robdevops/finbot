@@ -154,7 +154,9 @@ class WsgiRejections(FinbotCase):
 			('slack', 'C1', '.trades')])
 
 	def test_button_presses_are_logged(self):
-		"""A button press is logged with who pressed it (handle, first name or unknown), the chat and the button."""
+		"""A button press is logged at DEBUG (the routine of a menu) with who pressed it (handle, first name or
+		unknown), the chat and the button."""
+		self.prefs(log_level='DEBUG')
 		calls = []
 		self.patch(worker, 'process_callback', lambda *a: calls.append(a))
 		secret = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}

@@ -102,10 +102,11 @@ def handle(environ, start_response):
 	comes from that network (before its body is read, when the proof is a header), read the update (CONTENT_LENGTH
 	bytes, up to MAX_BODY) and take it (take): the network gets its answer at once."""
 	def respond(response):
-		"""Answer the request: a status line and a body (logged at INFO, naming the network, not the path). Work that
-		must wait for the answer starts once the server has sent it."""
+		"""Answer the request: a status line and a body (logged, naming the network, not the path: at DEBUG when it is
+		a success, the routine; else at INFO). Work that must wait for the answer starts once the server has sent it."""
 		network = environ.get(ROUTED) or 'no network'
-		log.info(f"{environ['REQUEST_METHOD']} from {network}: we answered {response.status}")
+		(log.debug if response.status.startswith('2') else log.info)(
+			f"{environ['REQUEST_METHOD']} from {network}: we answered {response.status}")
 		start_response(response.status, [('Content-type', 'application/json')])
 		return Sent([response.body], response.then) if response.then else [response.body]
 	def print_headers(say=log.info):
@@ -211,7 +212,7 @@ def take(network, update):
 def dispatch(event):
 	"""Hand a message or a button press to lib/worker, in a thread of its own, which it returns."""
 	if isinstance(event, inbound.Press):
-		log.info(f"[{event.service.capitalize()} button]:", event.user, "chat", event.chat_id, event.data)
+		log.debug(f"[{event.service.capitalize()} button]:", event.user, "chat", event.chat_id, event.data)
 		target = worker.process_callback
 	else:
 		log.info(f"[{event.service.capitalize()}]:", event.user, event.text)

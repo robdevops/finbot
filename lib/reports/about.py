@@ -27,9 +27,15 @@ REPORTS = (('trades', 'trades', ()), ('price midsession', 'price', ('midsession'
 	('milestone', 'milestone', ()), ('message', 'message', None))
 FREQUENCIES = (('o', 'one-off'), ('d', 'daily'), ('k', 'weekdays'), ('w', 'weekly'), ('m', 'monthly'),
 	('q', 'quarterly'), ('b', 'bi-annual'), ('a', 'annual'), ('r', 'repeating'))
-DAYS = {'d': 'daily', 'k': 'weekdays', 'm': {'day': 1, 'months': ()}, 'q': {'day': 1, 'months': when.QUARTERS},
-	'b': {'day': 1, 'months': when.HALVES}, 'a': {'day': 1, 'months': (1,)}} # the days of Add's frequencies
+# Add's choices after how often, in turn; and the default of each, marked † on its button
+LEVELS = {'o': ('date', 'hour', 'minute'), 'd': ('hour', 'minute'), 'k': ('hour', 'minute'),
+	'w': ('weekday', 'hour', 'minute'), 'm': ('day', 'hour', 'minute'), 'q': ('day', 'hour', 'minute'),
+	'b': ('day', 'hour', 'minute'), 'a': ('month', 'day', 'hour', 'minute'), 'r': ('interval', 'repeat')}
+USUAL = {'frequency': 'd', 'weekday': 5, 'day': 1, 'month': 1, 'hour': 9, 'minute': 0, 'interval': 60, 'repeat': 'd'}
+MORE = 'p1' # Add's data for the second page of the days of a month
 INTERVALS = (5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 720) # minutes between a repeat's runs, as Add offers them
+MINUTES = tuple(range(0, 60, 5)) # the minutes Add offers
+MOST_DAYS = {'discord': 20} # days of the month on a page: Discord takes 25 buttons, elsewhere all 31
 
 def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
 	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered: the default ones (†), then those
@@ -152,22 +158,27 @@ def moment_words(moment, local, zone=None):
 	return said
 
 def add_screen(service, chat, steps):
-	"""A step of Add, from the choices made so far (steps, from the button pressed: the report's number, how often,
-	then the date, the day, or a repeat's interval and its days, then the hour): (lines, buttons) of the next choice,
-	or (None, (action, arguments, schedule)) once every choice is made, at a time by the timezone preference's clock.
-	Back takes a step back, Cancel goes back to the list. Raises ValueError for choices that are none (forged data)."""
-	crc = jobs.list_checksum(jobs.current.chat_jobs(chat))
-	local = formats.zone()
-	steps = list(steps)
-	# Back from the first step goes to the list too, but its data differs from Cancel's: Slack and Discord take a
-	# button's data as its id, one of its own in a message
+	"""A step of Add, from the choices made so far (steps, from the button pressed: the report's number, how often, then
+	the LEVELS of that frequency in turn: a date, a day of the week or of the month, a month, the hour and the minute,
+	or a repeat's interval and its days): (lines, buttons) of the next choice, its default (USUAL) marked †, or (None,
+	(action, arguments, schedule)) once every choice is made, at a time by the timezone preference's clock. Back takes a
+	step back, Cancel goes back to the list. Raises ValueError for choices that are none (forged data)."""
+	scheduler = jobs.current
+	crc, local = jobs.list_checksum(scheduler.chat_jobs(chat)), formats.zone()
+	tomorrow = scheduler.clock().astimezone(local).date() + datetime.timedelta(days=1)
+	steps, page = list(steps), 0
+	if steps and steps[-1] == MORE:
+		steps, page = steps[:-1], 1
 	back = buttons.menu_button('Back', *(('add', steps[:-1]) if steps else ('top', [])), crc)
 	cancel = buttons.menu_button('Cancel', 'top', [0], crc)
-	def choices(heading, offered, row, lines=()):
-		"""A choice's screen: its heading and lines, its buttons (label, data) `row` to a row, then Back and Cancel."""
-		tapped = [buttons.menu_button(label, 'add', [*steps, data], crc) for label, data in offered]
-		return [service.bold(heading), *lines], [tapped[i:i + row] for i in range(0, len(tapped), row)] + [[back,
-			cancel]]
+	def choices(heading, offered, row, lines=(), usual=None, nav=None):
+		"""A choice's screen: its heading and lines, and '† indicates default' where one is (usual: its data); its
+		buttons (label, data), `row` to a row, the default's label marked †; then Back and Cancel (or nav)."""
+		tapped = [buttons.menu_button(label + ('†' if data == usual else ''), 'add', [*steps, data], crc)
+			for label, data in offered]
+		key = [] if usual is None else ['', '† indicates default']
+		return [service.bold(heading), *lines, *key], [tapped[i:i + row] for i in range(0, len(tapped), row)] + [
+			nav or [back, cancel]]
 	if not steps:
 		return choices('Add a job: which report?', [(f'{number} {label}', number) for number, (label, _, _) in
 			enumerate(REPORTS, 1)], 3, [f'{number}. {label}' for number, (label, _, _) in enumerate(REPORTS, 1)])
@@ -178,49 +189,108 @@ def add_screen(service, chat, steps):
 			'.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"',
 			'.jobs add message on 28 oct 2026 "ubank draw 6/6"'], [[back, cancel]]
 	if len(steps) == 1:
-		return choices(f'Add {label}: how often?', [(name, code) for code, name in FREQUENCIES], 3)
-	frequency = steps[1]
-	if frequency not in dict(FREQUENCIES):
+		return choices(f'Add {label}: how often?', [(name, code) for code, name in FREQUENCIES], 3,
+			usual=USUAL['frequency'])
+	frequency, levels = steps[1], LEVELS.get(steps[1])
+	if levels is None:
 		raise ValueError(f'no frequency {frequency!r}')
-	needed = 4 if frequency in 'owr' else 3 # the choices it takes, the report's and how often included
-	if len(steps) == 2 and frequency == 'o':
-		today = jobs.current.clock().astimezone(local).date()
-		dates = [today + datetime.timedelta(days=n) for n in range(14)]
-		return choices(f'Add {label} once: on which day?', [(f'{date:%a} {date.day} {date:%b}', f'{date:%y%m%d}')
-			for date in dates], 4, ['A later one is typed: .jobs add REPORT on 28 oct 2026 at 9am'])
-	if len(steps) == 2 and frequency == 'w':
-		return choices(f'Add {label} weekly: on which day?', [(day.title(), number) for number, day in
-			enumerate(when.DAYS)], 4)
-	if len(steps) == 2 and frequency == 'r':
+	made = steps[2:]
+	if len(made) > len(levels) or (page and levels[len(made):len(made) + 1] != ('day',)):
+		raise ValueError('no such choices')
+	values = {}
+	for level, data in zip(levels, made):
+		values[level] = chosen(level, data, values)
+	if len(made) == len(levels):
+		if frequency == 'r':
+			schedule = when.Schedule('daily' if values['repeat'] == 'd' else 'weekdays', every=values['interval'],
+				zone=local.key)
+		else:
+			if frequency == 'o':
+				days = {'date': values['date'].isoformat()}
+			elif frequency == 'w':
+				days = (when.DAYS[values['weekday']],)
+			elif 'day' in values:
+				days = {'day': values['day'], 'months': {'m': (), 'q': when.QUARTERS, 'b': when.HALVES}.get(frequency,
+					(values.get('month'),))}
+			else:
+				days = 'daily' if frequency == 'd' else 'weekdays'
+			schedule = when.Schedule(days, at=values['hour'] * 60 + values['minute'], zone=local.key)
+		schedule.check()
+		return None, (action, list(args) if args is not None else catalog.period_args(action, schedule), schedule)
+	level, said = levels[len(made)], so_far(frequency, values)
+	if level == 'date':
+		dates = [tomorrow + datetime.timedelta(days=n) for n in range(-1, 13)]
+		return choices(f'Add {label}, once: on which day?', [(f'{date:%a} {date.day} {date:%b}', f'{date:%y%m%d}')
+			for date in dates], 4, ['A later one is typed: .jobs add REPORT on 28 oct 2026 at 9am'],
+			f'{tomorrow:%y%m%d}')
+	if level == 'weekday':
+		return choices(f'Add {label}, weekly: on which day?', [(day.title(), number) for number, day in
+			enumerate(when.DAYS)], 4, usual=USUAL['weekday'])
+	if level == 'month':
+		return choices(f'Add {label}, annual: in which month?', [(month.title(), number) for number, month in
+			enumerate(when.MONTHS, 1)], 4, usual=USUAL['month'])
+	if level == 'day':
+		last = {2: 29, 4: 30, 6: 30, 9: 30, 11: 30}.get(values.get('month'), 31)
+		most = MOST_DAYS.get(service, 31)
+		if page * most >= last:
+			raise ValueError('no such page')
+		nav = [back, cancel]
+		if page:
+			nav.insert(0, buttons.menu_button('◀', 'add', steps, crc))
+		elif last > most:
+			nav.insert(0, buttons.menu_button('More ▶', 'add', [*steps, MORE], crc))
+		return choices(f'Add {label}, {said}: on which day of the month?', [(str(day), day) for day in
+			range(1, last + 1)][page * most:(page + 1) * most], 5, ['A month without that day has no run'],
+			USUAL['day'], nav)
+	if level == 'hour':
+		lines, rows = choices(f'Add {label}, {said}: at what hour?', [(f'{hour:02d}', hour) for hour in range(24)], 5,
+			[f"By {when.place(local.key)}'s clock"], USUAL['hour'])
+		hours = [button for row in rows[:-1] for button in row] + [back] # 24 and Back: Discord takes 25 buttons
+		return lines, [hours[i:i + 5] for i in range(0, 25, 5)]
+	if level == 'minute':
+		hour = values['hour']
+		return choices(f'Add {label}, {said}: at what time?', [(f'{hour:02d}:{minute:02d}', minute) for minute in
+			MINUTES], 4, usual=USUAL['minute'])
+	if level == 'interval':
 		return choices(f'Add {label}, repeating: how often?', [(when.repeat_words(minutes, 0, False).removeprefix(
 			'every '), minutes) for minutes in INTERVALS], 4, ['A window of hours is typed: .jobs add REPORT every 20'
-			' mins weekdays from 10am to 4pm'])
-	if len(steps) == 3 and frequency == 'r':
-		choice(steps[2], 1, 1440, INTERVALS)
-		return choices(f'Add {label}, repeating: on which days?', [('every day', 'd'), ('weekdays', 'k')], 2)
-	if len(steps) == needed - 1:
-		hours = [buttons.menu_button(f'{hour:02d}', 'add', [*steps, hour], crc) for hour in range(24)] + [back]
-		return [service.bold(f'Add {label}: at what hour?'), f"By {when.place(local.key)}'s clock; a time such as"
-			' 9:30am is typed: .jobs add REPORT weekly at 9:30am'], [hours[i:i + 5] for i in range(0, 25, 5)]
-	if len(steps) != needed:
-		raise ValueError('too many choices')
+			' mins weekdays from 10am to 4pm'], USUAL['interval'])
+	return choices(f'Add {label}, {said}: on which days?', [('every day', 'd'), ('weekdays', 'k')], 2,
+		usual=USUAL['repeat'])
+
+def chosen(level, data, values):
+	"""A choice's value at a level of Add, from a button's data (values: the choices before it). Raises ValueError for
+	one that is none."""
+	if level == 'date':
+		if not (len(data) == 6 and data.isascii() and data.isdigit()):
+			raise ValueError(f'no date {data!r}')
+		return datetime.date(2000 + int(data[:2]), int(data[2:4]), int(data[4:]))
+	if level == 'day':
+		day = choice(data, 1, 31)
+		if 'month' in values:
+			datetime.date(2024, values['month'], day) # a day that month has, in a leap year
+		return day
+	if level in ('weekday', 'month', 'hour', 'minute', 'interval'):
+		return choice(data, *{'weekday': (0, 6), 'month': (1, 12), 'hour': (0, 23), 'minute': (0, 55, MINUTES),
+			'interval': (1, 1440, INTERVALS)}[level])
+	if data not in ('d', 'k'):
+		raise ValueError(f'no days {data!r}')
+	return data
+
+def so_far(frequency, values):
+	"""How often a job being added runs, as far as it is chosen: 'weekly, Fridays', 'annual, in Mar', 'monthly'."""
 	if frequency == 'r':
-		if steps[3] not in ('d', 'k'):
-			raise ValueError(f'no days {steps[3]!r}')
-		schedule = when.Schedule('daily' if steps[3] == 'd' else 'weekdays', every=choice(steps[2], 1, 1440,
-			INTERVALS), zone=local.key)
-	else:
-		at = choice(steps[-1], 0, 23) * 60
-		if frequency == 'o':
-			date = steps[2]
-			days = {'date': datetime.date(2000 + int(date[:2]), int(date[2:4]), int(date[4:6])).isoformat()}
-		elif frequency == 'w':
-			days = (when.DAYS[choice(steps[2], 0, 6)],)
-		else:
-			days = DAYS[frequency]
-		schedule = when.Schedule(days, at=at, zone=local.key)
-	schedule.check()
-	return None, (action, list(args) if args is not None else catalog.period_args(action, schedule), schedule)
+		return when.repeat_words(values['interval'], 0, False) if 'interval' in values else 'repeating'
+	if 'date' in values:
+		return f"once, {when.date_words(values['date'])}"
+	if 'weekday' in values:
+		return f"weekly, {when.plural(when.DAYS[values['weekday']])}"
+	if 'day' in values:
+		months = {'m': (), 'q': when.QUARTERS, 'b': when.HALVES}.get(frequency, (values.get('month'),))
+		return when.days_words({'day': values['day'], 'months': months})
+	if 'month' in values:
+		return f"annual, in {when.MONTHS[values['month'] - 1].title()}"
+	return dict(FREQUENCIES)[frequency].replace('one-off', 'once')
 
 def choice(text, low, high, among=None):
 	"""A choice's number from a button's data, from low to high (and among those offered, where given). Raises

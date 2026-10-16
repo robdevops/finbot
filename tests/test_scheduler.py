@@ -719,7 +719,7 @@ class JobsMenu(ChatBase):
 		lines, rows, data = self.press(data['All off'])
 		self.assertEqual(lines[0], 'Every job is off now')
 		self.assertEqual(rows, [['1 ❌ rating', '2 ❌ price close US', '3 ❌ trades'], ['All on', 'Back']])
-		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'off': ['rating', 'price-close-us'],
+		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'defaults': 'off', # the default jobs start off now
 			'jobs': [entry('trades every 20 mins weekdays', on=False)]})
 		lines, rows, data = self.press(data['3 ❌ trades'])
 		self.assertEqual(rows[-1], ['All on', 'Back']) # some on, some off: All switches them all on
@@ -782,42 +782,68 @@ class JobsMenu(ChatBase):
 		self.assertFalse(self.s.chat_jobs(CHAT)[2].on)
 
 	def test_add_by_buttons_back_and_cancel(self):
-		"""Add takes the report, how often, the day and the hour from buttons, by the timezone preference's clock,
-		Back a step back and Cancel back to the list; its last step adds the job and says so, the same job as typed."""
+		"""Add takes the report, how often, then the day, the hour and the minute from buttons, by the timezone
+		preference's clock, each choice's default marked † and the key under it; Back goes a step back and Cancel back
+		to the list; its last step adds the job and says so, the same job as typed."""
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
 		self.assertEqual(lines[0], '<b>Add a job: which report?</b>')
 		self.assertEqual(rows[1:], [['4 price close', '5 price', '6 performance'], ['7 cal earnings',
 			'8 cal ex-dividend', '9 shorts'], ['10 rating', '11 milestone', '12 message'], ['Back', 'Cancel']])
 		lines, rows, data = self.press(data['5 price'])
-		self.assertEqual((lines[0], rows[1]), ('<b>Add price: how often?</b>', ['weekly', 'monthly', 'quarterly']))
+		self.assertEqual((lines, rows[:2]), (['<b>Add price: how often?</b>', '', '† indicates default'],
+			[['one-off', 'daily†', 'weekdays'], ['weekly', 'monthly', 'quarterly']]))
 		lines, rows, data = self.press(data['weekly'])
-		self.assertEqual(rows[:2], [['Mon', 'Tue', 'Wed', 'Thu'], ['Fri', 'Sat', 'Sun']])
+		self.assertEqual(rows[:2], [['Mon', 'Tue', 'Wed', 'Thu'], ['Fri', 'Sat†', 'Sun']])
 		self.assertEqual(data['Cancel'], f'm|top|0|{self.crc()}')
-		lines, rows, data = self.press(data['Sat'])
-		self.assertEqual((len(rows), [len(row) for row in rows], rows[-1]), (5, [5] * 5, ['20', '21', '22', '23',
-			'Back']))
+		lines, rows, data = self.press(data['Fri'])
+		self.assertEqual(lines[0], '<b>Add price, weekly, Fridays: at what hour?</b>')
+		self.assertEqual((len(rows), [len(row) for row in rows], rows[1][4], rows[-1]), (5, [5] * 5, '09†',
+			['20', '21', '22', '23', 'Back']))
 		self.assertEqual(data['Back'], f'm|add|5|w|{self.crc()}')
-		lines, rows, data = self.press(data['09'])
-		self.assertEqual(lines, ['Added: 4. ✅* price · weekly, Saturdays at 9:00am'])
+		lines, rows, data = self.press(data['14'])
+		self.assertEqual((rows[0], rows[-1]), (['14:00†', '14:05', '14:10', '14:15'], ['Back', 'Cancel']))
+		lines, rows, data = self.press(data['14:30'])
+		self.assertEqual(lines, ['Added: 4. ✅* price · weekly, Fridays at 2:30pm'])
 		self.assertEqual(rows, [['Jobs', 'Add another']])
-		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['jobs'][-1], entry('price weekly',
+		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['jobs'][-1], entry('price every friday at 2:30pm',
 			zone='Australia/Melbourne'))
-		self.assertIn('that job is here already', self.say('.jobs add price every saturday at 9am')[0])
+		self.assertIn('that job is here already', self.say('.jobs add price weekly on friday at 14:30')[0])
+
+	def test_monthly_and_annual_take_their_day_hour_and_minute(self):
+		"""Monthly asks for the day of the month, then the hour and the minute; annual first for its month, offering
+		only the days it has. On Discord the days of a month come on two pages."""
+		lines, rows, data = self.press(f'm|add|6|m|{self.crc()}')
+		self.assertEqual((lines[0], rows[0], rows[-2], rows[-1]), ('<b>Add performance, monthly: on which day of the'
+			' month?</b>', ['1†', '2', '3', '4', '5'], ['31'], ['Back', 'Cancel']))
+		lines, rows, data = self.press(data['15'])
+		self.assertEqual(lines[0], '<b>Add performance, monthly, the 15th: at what hour?</b>')
+		lines, rows, data = self.press(data['09†'])
+		lines, rows, data = self.press(data['09:00†'])
+		self.assertEqual(lines, ['Added: 4. ✅* performance · monthly, the 15th at 9:00am'])
+		lines, rows, data = self.press(f'm|add|5|a|{self.crc()}')
+		self.assertEqual(rows[0], ['Jan†', 'Feb', 'Mar', 'Apr'])
+		lines, rows, data = self.press(data['Feb'])
+		self.assertEqual((lines[0], rows[-2]), ('<b>Add price, annual, in Feb: on which day of the month?</b>',
+			['26', '27', '28', '29']))
+		self.assertEqual(about.add_screen(DISCORD, CHAT, ['5', 'm'])[1][-1][0].label, 'More ▶')
+		self.assertEqual(about.add_screen(DISCORD, CHAT, ['5', 'm', 'p1'])[1][0][0].label, '21')
 
 	def test_a_repeat_a_one_off_and_a_message_by_buttons(self):
-		"""Add's repeat takes its interval and days, a one-off its day among the next 14 and its hour; a message's text
-		cannot come from a button, so its screen says how to type one."""
+		"""Add's repeat takes its interval and days, a one-off its day among the next 14 (tomorrow the default), its
+		hour and its minute; a message's text cannot come from a button, so its screen says how to type one."""
 		crc = self.crc()
 		self.assertEqual(self.press(f'm|add|1|r|20|k|{crc}')[0], ['Added: 4. ✅* trades · every 20 mins, weekdays'])
 		lines, rows, data = self.press(f'm|add|9|o|{self.crc()}')
-		self.assertEqual((rows[0][0], len(sum(rows, [])) - 2), ('Wed 14 Oct', 14))
-		self.assertEqual(self.press(data['Tue 20 Oct'].replace('|' + self.crc(), f'|8|{self.crc()}'))[0],
-			['Added: 5. ✅* shorts · once, 20 Oct 2026 at 8:00am'])
+		self.assertEqual((rows[0][:2], len(sum(rows, [])) - 2), (['Wed 14 Oct', 'Thu 15 Oct†'], 14))
+		lines, rows, data = self.press(data['Tue 20 Oct'])
+		lines, rows, data = self.press(data['08'])
+		self.assertEqual(self.press(data['08:00†'])[0], ['Added: 5. ✅* shorts · once, 20 Oct 2026 at 8:00am'])
 		lines, rows, _ = self.press(f'm|add|12|{self.crc()}')
 		self.assertIn('.jobs add message SCHEDULE "TEXT"', lines)
 		self.assertEqual(rows, [['Back', 'Cancel']])
 		for data in (f'm|add|13|{crc}', f'm|add|5|x|{crc}', f'm|add|5|w|7|9|{crc}', f'm|add|5|d|24|{crc}',
-				f'm|add|1|r|7|k|{crc}', f'm|add|5|o|261340|9|{crc}', f'm|add|5|d|9|9|{crc}'):
+				f'm|add|1|r|7|k|{crc}', f'm|add|5|o|261340|9|{crc}', f'm|add|5|d|9|9|{crc}', f'm|add|5|d|9|0|0|{crc}',
+				f'm|add|5|a|2|30|{crc}', f'm|add|5|w|p1|{crc}', f'm|add|5|m|p1|{crc}', f'm|add|5|m|def|{crc}'):
 			with self.subTest(data=data):
 				self.assertEqual(self.press(data)[0][0], 'That is no step of Add')
 
@@ -843,8 +869,11 @@ class JobsMenu(ChatBase):
 				for page in range(6):
 					with self.subTest(service=service, screen=screen, page=page):
 						fits(service, *about.jobs_screen(service, CHAT, screen, page))
-			for steps in ([], ['5'], ['5', 'w'], ['5', 'w', '5'], ['5', 'o'], ['5', 'o', '261020'], ['5', 'r'],
+			for steps in ([], ['5'], ['5', 'w'], ['5', 'w', '5'], ['5', 'w', '5', '14'], ['5', 'm'], ['5', 'm', 'p1'],
+					['5', 'a'], ['5', 'a', '2'], ['5', 'a', '2', '29'], ['5', 'o'], ['5', 'o', '261020'], ['5', 'r'],
 					['5', 'r', '20'], ['12']):
+				if steps[-1:] == ['p1'] and service != DISCORD: # Telegram and Slack take every day on one page
+					continue
 				with self.subTest(service=service, steps=steps):
 					fits(service, *about.add_screen(service, CHAT, steps))
 			fits(service, *about.next_screen(service, CHAT))

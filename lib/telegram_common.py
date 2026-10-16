@@ -62,7 +62,8 @@ def pinChatMessage(chat_id, message_id):
 
 def answerCallbackQuery(callback_query_id, text=None):
 	"""Acknowledge a button press (the client's spinner stops), `text` as a toast. A failure is only logged."""
-	try_call('answerCallbackQuery', json={'callback_query_id': callback_query_id} | ({'text': text} if text else {}))
+	try_call('answerCallbackQuery', json={'callback_query_id': callback_query_id} | ({'text': text} if text else {}),
+		logged='debug')
 
 
 class Telegram(inbound.Network):
@@ -179,7 +180,7 @@ class TelegramBot(transports.Transport):
 		if hasattr(image, 'seek'):
 			image.seek(0)
 		try:
-			call('editMessageMedia', data=data, files={'photo': ('image.png', image)})
+			call('editMessageMedia', data=data, files={'photo': ('image.png', image)}, logged='debug')
 		except RuntimeError as e:
 			if 'not modified' not in str(e):
 				raise
@@ -192,7 +193,7 @@ class TelegramBot(transports.Transport):
 			'link_preview_options': self.NO_PREVIEWS}
 		if buttons is not None:
 			payload['reply_markup'] = self.markup(buttons)
-		try_call('editMessageText', json=payload)
+		try_call('editMessageText', json=payload, logged='debug')
 
 	def typing(self):
 		"""sendChatAction: "typing…" for a few seconds."""

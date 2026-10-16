@@ -21,7 +21,8 @@ COMMAND = interaction(2, data={'name': 'price', 'options': [{'name': 'arguments'
 TYPING = interaction(4, id='902', data={'name': 'price', 'options': [{'name': 'arguments', 'type': 3, 'value': '5 7',
 	'focused': True}]}) # /price, its arguments being typed
 PRESS = interaction(3, id='901', data={'custom_id': 'c|h|y|T1', 'component_type': 2}, message={'id': '333'})
-MESSAGE = {'id': '700', 'channel_id': '77', 'author': {'id': '5', 'username': 'rob'}, 'content': '<@99> price 7d'}
+MESSAGE = {'id': '700', 'channel_id': '77', 'guild_id': '1', 'author': {'id': '5', 'username': 'rob'},
+	'content': '<@99> price 7d'} # in a server's channel
 
 
 class Now:
@@ -44,12 +45,12 @@ class Reading(FinbotCase):
 		self.patch(discord_common.READER, 'bot_id', '99')
 
 	def test_a_slash_command_is_the_message_it_stands_for(self):
-		"""/price with its arguments is the message '/price 5 7d', answered through its interaction; in a DM the person
-		is the interaction's user."""
-		expected = inbound.Message('discord', '77', '<@5>', '/price 5 7d', '@99', 'Rob', '', '42/tok')
+		"""/price with its arguments is the message '/price 5 7d', answered through its interaction; in a DM (no
+		member, no server) the person is the interaction's user, and the message says it is a DM."""
+		expected = inbound.Message('discord', '77', '<@5>', '/price 5 7d', '@99', 'Rob', '', '42/tok', dm=False)
 		self.assertEqual(discord_common.READER.parse(COMMAND), expected)
 		dm = {k: v for k, v in COMMAND.items() if k != 'member'} | {'user': {'id': '5', 'username': 'rob'}}
-		self.assertEqual(discord_common.READER.parse(dm), dataclasses.replace(expected, user_name='rob'))
+		self.assertEqual(discord_common.READER.parse(dm), dataclasses.replace(expected, user_name='rob', dm=True))
 		self.assertEqual(discord_common.READER.parse({**COMMAND, 'data': {'name': 'beta'}}).text, '/beta')
 
 	def test_a_press_is_a_press_of_its_message(self):
@@ -59,9 +60,11 @@ class Reading(FinbotCase):
 
 	def test_a_message_by_a_person_reads_with_its_mentions_as_slacks(self):
 		"""A gateway message's mentions read as @id, so that '@bot price 7d' calls .price; one by a bot or a webhook
-		(this bot's replies included) is not answered."""
+		(this bot's replies included) is not answered. One from no server is a DM."""
 		message = discord_common.READER.parse(MESSAGE)
-		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 price 7d', '@99', 'rob', '700'))
+		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 price 7d', '@99', 'rob', '700',
+			dm=False))
+		self.assertTrue(discord_common.READER.parse({k: v for k, v in MESSAGE.items() if k != 'guild_id'}).dm)
 		command, args = worker.read(message.text, message.bot_name)
 		self.assertEqual((command.names[0], args.days), ('price', 7))
 		for other in ({**MESSAGE, 'author': {'id': '99', 'bot': True}}, {**MESSAGE, 'webhook_id': '1'}):
@@ -493,7 +496,8 @@ class Gateway(FinbotCase):
 		self.assertTrue(client.debug and client.intents.message_content and client.closed)
 		self.assertFalse(self.library.VoiceClient.warn_nacl)
 		self.assertEqual(taken, ['<@99> price 7d', 2])
-		self.assertEqual(self.calls, [('POST', '/interactions/900/tok/callback', {'json': {'type': 5}})])
+		self.assertEqual(self.calls, [('POST', '/interactions/900/tok/callback', {'json': {'type': 5},
+			'logged': 'debug'})])
 		self.assertEqual(order, [('work', 1)])
 		self.assertIn('discord: the gateway failed, trying again in 5 s: Improper token', err.getvalue())
 
@@ -503,7 +507,8 @@ class Gateway(FinbotCase):
 		with contextlib.redirect_stderr(io.StringIO()):
 			discord_websocket.DiscordGateway().poll(bot.take)
 		self.assertEqual(self.calls, [('POST', '/interactions/902/tok/callback', {'json': {'type': 8, 'data': {
-			'choices': [{'name': '5 7d', 'value': '5 7d'}]}}})])
+			'choices': [{'name': '5 7d', 'value': '5 7d'}]}},
+			'logged': 'debug'})])
 
 	@unittest.skipUnless(SigningKey, 'PyNaCl is not installed')
 	def test_a_press_over_the_gateway_is_the_press_the_endpoint_gets(self):
@@ -526,7 +531,8 @@ class Gateway(FinbotCase):
 		self.join_workers()
 		self.assertEqual(len(presses), 2)
 		self.assertEqual(presses[0], presses[1])
-		self.assertEqual(self.calls[0][1:], ('/interactions/901/tok/callback', {'json': {'type': 6}}))
+		self.assertEqual(self.calls[0][1:], ('/interactions/901/tok/callback', {'json': {'type': 6},
+			'logged': 'debug'}))
 
 	def test_discord_is_listened_to_with_its_token_and_no_endpoint(self):
 		"""The gateway is used with the bot token and no discordOutgoingWebhook; with the URL (http mode), or without

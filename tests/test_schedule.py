@@ -5,7 +5,7 @@ import contextlib, datetime, hashlib, io, os, re, unittest
 from pathlib import Path
 from unittest import mock
 from tests.common import *
-from lib import catalog, jobs, migrate, state, watchlist, when, worker
+from lib import catalog, discord_common, inbound, jobs, migrate, state, watchlist, when, worker
 from lib.reports import cal, cleanup, message, milestone, performance, podcasts, price, rating, trades
 
 MELBOURNE = 'Australia/Melbourne'
@@ -249,7 +249,8 @@ class Migration(FinbotCase):
 		"""Each home chat becomes a chat finbot knows, with the default jobs switched on, unless it is known already."""
 		state.save(jobs.JOBS_FILE, {'slack:C1': {'off': ['trades']}})
 		self.assertIn('schedule: 1 old home chat start with the default jobs', self.migrate())
-		self.assertEqual(state.load(jobs.JOBS_FILE), {'slack:C1': {'off': ['trades']}, 'telegram:1': {}})
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'slack:C1': {'off': ['trades']},
+			'telegram:1': {'defaults': 'off'}}) # a person's id: a direct message, whose default jobs start off
 		self.assertNotIn('schedule:', self.migrate())
 
 	def test_with_no_home_chat_it_waits(self):
@@ -283,6 +284,98 @@ class Migration(FinbotCase):
 		self.assertEqual(state.load(trades.STATE_FILE), {'chats': {'telegram:1': ['t3']}})
 		self.assertEqual(Path(state.path(rating.STATE_FILE)).read_text(), '{"NVDA": ["upgr')
 		self.assertIn(f'state: {rating.STATE_FILE} left as it is, unreadable', log)
+
+
+class DirectMessages(FinbotCase):
+	"""A direct message with the bot starts with its default jobs off; those of the DMs finbot knew already were
+	switched off once, as it started."""
+
+	def test_a_direct_message_starts_with_its_default_jobs_off(self):
+		"""A chat new to finbot starts with its default jobs on, a direct message with them off: Telegram's (a person's
+		id) and Slack's (D…) as their keys tell, Discord's as its updates say. One switched on there is on; All on makes
+		them all start on."""
+		jobs.know(['telegram:5', 'telegram:-100', 'slack:D1', 'slack:C1', 'discord:7'])
+		jobs.know(['discord:8'], dm=True)
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'telegram:5': {'defaults': 'off'}, 'telegram:-100': {},
+			'slack:D1': {'defaults': 'off'}, 'slack:C1': {}, 'discord:7': {}, 'discord:8': {'defaults': 'off'}})
+		s = jobs.Scheduler(clock=lambda: OCTOBER)
+		with contextlib.redirect_stderr(io.StringIO()):
+			s.load()
+			self.assertFalse(any(job.on for job in s.chat_jobs('telegram:5')))
+			self.assertTrue(all(job.on for job in s.chat_jobs('telegram:-100')))
+			s.toggle(s.chat_jobs('telegram:5')[0])
+			self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {'defaults': 'off', 'on': ['trades']})
+			self.assertEqual([job.on for job in s.chat_jobs('telegram:5')][:2], [True, False])
+			s.switch_all('telegram:5', True)
+		self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {})
+
+	def test_a_chat_seen_says_whether_it_is_a_direct_message(self):
+		"""At a chat's first command it starts with its default jobs off where it is a direct message: Discord's update
+		says so, Telegram's chat id does."""
+		self.env(discordBotToken='x')
+		s = jobs.Scheduler(clock=lambda: OCTOBER)
+		with contextlib.redirect_stderr(io.StringIO()):
+			s.load()
+			self.patch(jobs, 'current', s)
+			for chat, dm in (('88', True), ('77', False)):
+				worker.process_request(inbound.Message('discord', chat, '<@5>', '.help', '@99', 'rob', dm=dm))
+			worker.process_request(inbound.Message('telegram', '5', '@u', '.help', BOT, 'U'))
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:88': {'defaults': 'off'}, 'discord:77': {},
+			'telegram:5': {'defaults': 'off'}})
+
+	def test_the_direct_messages_jobs_are_switched_off_once(self):
+		"""As finbot first starts with this version, every job of each direct message chat it knows is switched off,
+		the default ones and those added: Telegram's and Slack's as their keys tell, Discord's as Discord says; and the
+		old schedule file's DMs become known, with their jobs off. Other chats are left as they are, and a job switched
+		on again afterwards stays on."""
+		trades = {'action': 'trades', 'args': [], 'schedule': {'days': 'weekdays', 'every': 20, 'zone': 'UTC'},
+			'on': True}
+		state.save(jobs.JOBS_FILE, {'telegram:5': {'jobs': [trades]}, 'telegram:-100': {'jobs': [trades]},
+			'slack:D1': {'off': ['trades']}, 'discord:7': {}, 'discord:8': {}})
+		state.save(jobs.OLD_FILE, {'telegram:6': [], 'discord:9': [], 'telegram:-6': []})
+		self.env(discordBotToken='x')
+		asked = []
+		def call(method, path, **kwargs):
+			"""Discord's answer: channels 8 and 9 are direct messages."""
+			asked.append(path)
+			return {'type': 1 if path in ('/channels/8', '/channels/9') else 0}
+		self.patch(discord_common, 'call', call)
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			migrate.run()
+		stored = state.load(jobs.JOBS_FILE)
+		self.assertEqual(stored['telegram:5'], {'defaults': 'off', 'jobs': [{**trades, 'on': False}]})
+		for key in ('slack:D1', 'discord:8', 'telegram:6', 'discord:9'):
+			self.assertEqual(stored[key], {'defaults': 'off'}, key)
+		self.assertEqual((stored['telegram:-100'], stored['discord:7']), ({'jobs': [trades]}, {}))
+		self.assertNotIn('telegram:-6', stored) # an old chat that is no DM is known at the scheduler's first load
+		self.assertEqual(sorted(asked), ['/channels/7', '/channels/8', '/channels/9'])
+		self.assertIn('every job switched off in 5 direct message chats', log.getvalue())
+		self.assertIn('dm jobs off', state.load(migrate.UPGRADES))
+		state.save(jobs.JOBS_FILE, {**stored, 'telegram:5': {}}) # switched on again
+		migrate.run()
+		self.assertEqual((state.load(jobs.JOBS_FILE)['telegram:5'], len(asked)), ({}, 3))
+
+	def test_it_waits_for_discord_and_a_channel_discord_will_not_name_is_no_dm(self):
+		"""If Discord cannot be reached, nothing is switched and the upgrade waits for the next start; a channel Discord
+		refuses to say anything of (the bot has left it) is no direct message."""
+		state.save(jobs.JOBS_FILE, {'discord:8': {}, 'telegram:5': {}})
+		self.env(discordBotToken='x')
+		def down(method, path, **kwargs):
+			"""Discord unreachable."""
+			raise ConnectionError('Discord unreachable')
+		self.patch(discord_common, 'call', down)
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			migrate.run()
+		self.assertIn('upgrade: dm jobs off failed, and is tried again at the next start', log.getvalue())
+		self.assertEqual((state.load(jobs.JOBS_FILE), state.load(migrate.UPGRADES)), ({'discord:8': {},
+			'telegram:5': {}}, None))
+		def refused(method, path, **kwargs):
+			"""Discord refusing: the channel is gone."""
+			raise RuntimeError(f'Discord {method} {path}: 404 Unknown Channel (10003)')
+		self.patch(discord_common, 'call', refused)
+		with contextlib.redirect_stderr(io.StringIO()):
+			migrate.run()
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:8': {}, 'telegram:5': {'defaults': 'off'}})
 
 
 if __name__ == '__main__':

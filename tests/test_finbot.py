@@ -48,8 +48,8 @@ class Plumbing(FinbotCase):
 		self.assertEqual(self.sent, [('text', ['hello'])])
 
 	def test_bot_handler(self):
-		"""A sticker is answered 200, with nothing logged but the request's line (INFO); git_version matches what git
-		says."""
+		"""A sticker is answered 200, with nothing logged at INFO, and at DEBUG only the request's line: a success is
+		the routine; git_version matches what git says."""
 		def post(message):
 			"""Post a Telegram message update to the WSGI handler: (its answer, what it logged)."""
 			body = json.dumps({'update_id': 1, 'message': dict({'message_id': 5, 'chat': {'id': 55, 'type': 'private'},
@@ -59,6 +59,8 @@ class Plumbing(FinbotCase):
 			with contextlib.redirect_stderr(err):
 				out = bot.main(env, lambda *a, **k: None)
 			return out, err.getvalue()
+		self.assertEqual(post({'sticker': {'file_id': 'x'}}), ([b''], ''))
+		self.prefs(log_level='DEBUG')
 		self.assertEqual(post({'sticker': {'file_id': 'x'}}), ([b''], 'POST from telegram: we answered 200 OK\n'))
 		self.assertGreaterEqual(len(bot.git_version()), 7)
 		head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=bot.__file__.rsplit('/', 1)[0], capture_output=True,

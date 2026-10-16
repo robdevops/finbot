@@ -60,7 +60,7 @@ def gather(days, portfolio_select, known):
 	if raw and config.prefs.trades_use_yahoo:
 		tickers = {markets.transform_to_yahoo(trade['symbol'], trade['market']) for trade in raw}
 		try:
-			log.info("Fetching tickers from Yahoo: ", tickers)
+			log.info("Fetching tickers from Yahoo:", ', '.join(sorted(tickers)))
 			quotes = yahoo.fetch(tickers)
 		except Exception as e:
 			log.warn("Warning: could not fetch Yahoo:", e)

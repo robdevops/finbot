@@ -444,6 +444,18 @@ class ScheduledReports(FinbotCase):
 			'quantity': '10', 'price': '5.0', 'value': '50', 'brokerage_currency_code': 'AUD', 'holding_id': 7}])
 		self.assertIn(' USD 50 ', self.command('.trades')[0][1][-1])
 
+	def test_the_tickers_asked_of_yahoo_are_logged_in_order(self):
+		"""The trades' tickers that Yahoo is asked about are logged sorted, as names."""
+		bought = (('WTC', 'ASX'), ('AMD', 'NASDAQ'), ('APE', 'ASX'), ('AMAT', 'NASDAQ'))
+		self.patch(sharesight, '_trades', lambda pid, days=None: [{'id': n, 'transaction_type': 'BUY', 'symbol': symbol,
+			'market': market, 'transaction_date': time.strftime('%Y-%m-%d'), 'quantity': '1', 'price': '1',
+			'value': '1', 'brokerage_currency_code': 'AUD', 'holding_id': n} for n, (symbol, market) in
+			enumerate(bought, 1)])
+		self.patch(yahoo, 'fetch', lambda tickers: {t: market_entry(t) for t in tickers})
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			trades.run(scheduled())
+		self.assertIn('Fetching tickers from Yahoo: AMAT, AMD, APE.AX, WTC.AX\n', log.getvalue())
+
 	def test_trades_asks_yahoo_only_for_new_trades(self):
 		"""A scheduled trades run asks Yahoo only about trades it has not reported, and nothing once all are known."""
 		fetched = []

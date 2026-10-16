@@ -164,9 +164,9 @@ def process_request(message):
 	request = Request(dialects.of(message.service), message.chat_id, message.user, message.user_name, message.bot_name,
 		message.message_id, message.interaction)
 	command, args = read(message.text, message.bot_name)
-	if command and jobs.current: # a chat finbot does not know yet starts with the default jobs
+	if command and jobs.current: # a chat finbot does not know yet starts with the default jobs (off in a DM)
 		try:
-			jobs.current.see(request.dest.key)
+			jobs.current.see(request.dest.key, message.dm)
 		except Exception as e:
 			log.warn('schedule: cannot take on', request.dest.key, delivery.error_line(e))
 	if command:

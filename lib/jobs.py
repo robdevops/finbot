@@ -40,7 +40,9 @@ SYSTEM_ACTIONS = ('cleanup', 'sharesight_warm', 'yahoo_warm') # the system's alo
 SYSTEM = (('sharesight_warm', (), {'every': 30, 'from': '00:14'}), ('yahoo_warm', (), {'every': 480, 'from': '00:07'}),
 	('cleanup', ('30',), {'days': ['sat'], 'at': '18:51'}))
 WARM = ('sharesight_warm', 'yahoo_warm') # the jobs that fill the cache, run at once after a flush too
-JOBS_FILE = 'finbot_chat_jobs.json' # {chat key: {'off': [catalog keys], 'jobs': [{action, args, schedule, on}]}}
+# {chat key: {'jobs': [{action, args, schedule, on}], 'off': [catalog keys]}}; a chat whose default jobs start off (a
+# direct message) holds 'defaults': 'off' and 'on' instead, the catalog keys switched on
+JOBS_FILE = 'finbot_chat_jobs.json'
 OLD_FILE = 'finbot_schedule.json' # each chat's cron jobs, from before the catalog: read for its chats alone
 STATE_FILE = 'finbot_jobs.json' # each job's last run, by key: a restart neither repeats a run nor loses one
 MESSAGE_AT = 8 * 60 + 30 # a message's time of day where none is typed: 8:30am
@@ -184,22 +186,59 @@ def entry_key(chat, entry):
 		return None
 
 
+def item_on(record, key):
+	"""Whether a default job (by its catalog key) is on in a chat's record: unless it is switched off, or, where the
+	default jobs start off (a direct message), where it is switched on."""
+	if record.get('defaults') == 'off':
+		listed = record.get('on', [])
+		return isinstance(listed, list) and key in listed
+	listed = record.get('off', [])
+	return not (isinstance(listed, list) and key in listed)
+
+
 def switch_item(record, key, on):
 	"""Switch a default job on or off in a chat's record: whether it is on now."""
-	off = [each for each in record.get('off', []) if each != key] + ([] if on else [key])
-	if off:
-		record['off'] = off
+	starts_on = record.get('defaults') != 'off'
+	name = 'off' if starts_on else 'on' # the list of those switched from how they start
+	listed = [each for each in record.get(name, []) if each != key] + ([key] if on != starts_on else [])
+	if listed:
+		record[name] = listed
 	else:
-		record.pop('off', None)
+		record.pop(name, None)
 	return on
 
 
-def know(keys):
-	"""Make chats known (by key), each new one with the default jobs switched on and none added: how many were new."""
+def switch_record(record, on):
+	"""Switch every job of a chat's record on, or off: those it added, and the default ones, which then start so."""
+	record.pop('off', None)
+	record.pop('on', None)
+	if on:
+		record.pop('defaults', None)
+	else:
+		record['defaults'] = 'off'
+	for entry in record.get('jobs', []):
+		if isinstance(entry, dict):
+			entry['on'] = on
+
+
+def is_dm(key):
+	"""Whether a chat (by key) is a direct message with the bot, as its key tells: a person's positive id on Telegram,
+	an id starting D on Slack; None on Discord, whose key does not say."""
+	network, _, chat = key.partition(':')
+	if network == 'telegram':
+		return not chat.startswith('-')
+	if network == 'slack':
+		return chat.startswith('D')
+	return None
+
+
+def know(keys, dm=None):
+	"""Make chats known (by key), each new one with none added and the default jobs switched on, or off in a direct
+	message: where dm is True (else as its key tells, is_dm). How many were new."""
 	with state.edit(JOBS_FILE, {}) as chats:
 		new = [key for key in dict.fromkeys(keys) if key not in chats]
 		for key in new:
-			chats[key] = {}
+			chats[key] = {'defaults': 'off'} if (is_dm(key) if dm is None else dm) else {}
 	return len(new)
 
 
@@ -268,10 +307,8 @@ class Scheduler:
 		chats = self.stored_chats()
 		items = catalog.items(config.prefs.country_code)
 		for chat, record in chats.items():
-			off = {key for key in record.get('off', []) if isinstance(key, str)} if isinstance(record.get('off'),
-				list) else set()
-			jobs += [make_job(item.action, item.args, item.schedule, chat, item.key not in off, item.key, item.name)
-				for item in items]
+			jobs += [make_job(item.action, item.args, item.schedule, chat, item_on(record, item.key), item.key,
+				item.name) for item in items]
 			added = record.get('jobs', [])
 			keys = set()
 			for entry in added if isinstance(added, list) else []:
@@ -452,12 +489,13 @@ class Scheduler:
 			self.save_runs()
 		return self.execute(job)
 
-	def see(self, chat):
-		"""A chat seen, at a command of its: one finbot does not know yet starts with the default jobs, switched on."""
+	def see(self, chat, dm=None):
+		"""A chat seen, at a command of its: one finbot does not know yet starts with the default jobs, switched on,
+		or off in a direct message (dm, from the network, else as the chat's key tells: is_dm)."""
 		with self.lock:
 			known = chat in self.chats
 		if not known:
-			know([chat])
+			know([chat], dm)
 			self.load()
 
 	def change(self, chat, edit):
@@ -494,17 +532,7 @@ class Scheduler:
 
 	def switch_all(self, chat, on):
 		"""Switch every job of a chat on, or off: the default ones and those it added."""
-		keys = [item.key for item in catalog.items(config.prefs.country_code)]
-		def switch(record):
-			"""Set every switch, as stored."""
-			if on:
-				record.pop('off', None)
-			else:
-				record['off'] = keys
-			for entry in record['jobs']:
-				if isinstance(entry, dict):
-					entry['on'] = on
-		self.change(chat, switch)
+		self.change(chat, lambda record: switch_record(record, on))
 
 	def delete(self, job):
 		"""Delete a job its chat added (from job() or pick()); a default one raises ScheduleError: switch it off."""
@@ -517,7 +545,7 @@ class Scheduler:
 		def flip(record):
 			"""Flip the job's switch, as stored."""
 			if job.item:
-				return switch_item(record, job.item, job.item in record.get('off', []))
+				return switch_item(record, job.item, not item_on(record, job.item))
 			entry = record['jobs'][self.index(record, job)]
 			entry['on'] = not entry.get('on', True)
 			return entry['on']

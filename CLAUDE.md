@@ -106,7 +106,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `with_holdings(chat)`, the stocks a report in that chat covers; a report takes the chat from its destination.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on
   each reload). `lib/jobs.py`: the scheduler: each chat's jobs, the default ones and those it added (`JOBS_FILE`, by
-  chat key: the defaults it switched off, the jobs it added; `see` makes a chat known at its first command; `add`,
+  chat key: the defaults it switched off, the jobs it added; a direct message's defaults start off, `'defaults':
+  'off'` with those switched on; `see` makes a chat known at its first command, a DM as `inbound.Message.dm` or
+  `is_dm` says; `add`,
   `delete`, `toggle`, `switch_all`, `run`, `upcoming`, which `.jobs` calls through `jobs.current`; `parse_add` reads `.jobs add`),
   and the fixed `SYSTEM` jobs, its shared state under one lock. A job is an action of `ACTIONS` (the report modules,
   `message` among them) with the arguments its `job()` takes, never a command; one stored that is anything else is
@@ -118,7 +120,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   name and schedule; the period of performance and price follows how often it runs (`period_args`).
   `lib/migrate.py`: once, on an upgrade, the old home chats (the retired telegramChatID, slackChannelID and
   discordChannelID, which it alone reads, from the environment) become chats finbot knows, and the watchlist, the
-  plans and the reports' shared records become theirs.
+  plans and the reports' shared records become theirs; one-off upgrades run at one start only (`once`, recorded in
+  `UPGRADES`): `dm_jobs_off` switched off the jobs of the DMs known before DMs started with them off.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return
@@ -147,7 +150,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   tabs counting 4 (an edit quotes whole lines); a test checks all but README.md, CLAUDE.md and `doc/`.
 - Log with `lib/log.py`, at a level, with print()'s arguments: `log.error` (failed and lost: a message not sent),
   `log.warn` (failed and got over: a retry, a fallback, a refused request), `log.info` (what finbot does: a message
-  sent, a job run; `net` logs each request it sends), `log.debug` (cache misses, hits and writes). The
+  sent, a job run; `net` logs each request it sends), `log.debug` (cache misses, hits and writes; the routine of a
+  press: the press, its acknowledgement and the edit in place, sent with `logged='debug'`, and a success answered to
+  a network). The
   `log_level` preference sets what reaches the log; `lib/config.py` prints its own errors (it loads before
   preferences exist). Everything goes to stderr: systemd discards stdout (`StandardOutput=null`), so the bot and its reports
   never print there (a test checks); only the util/ tools, run by hand, do.

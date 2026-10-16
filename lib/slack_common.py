@@ -22,14 +22,15 @@ SLACK_CHARTS_KEPT = 500 # chart messages noted, newest last: an older one shows 
 SLACK_REUSE_SECONDS = 15 * 60 # a period pressed within this long of its chart's upload shows that upload again
 
 
-def call(method, as_app=False, **data):
+def call(method, as_app=False, logged=True, **data):
 	"""POST a Slack Web API method (form-encoded) as the bot, or with the app-level token (as_app, for Socket Mode's
-	apps.connections.open), and return the answer; an error raises RuntimeError."""
+	apps.connections.open), and return the answer; an error raises RuntimeError. logged: as net logs the request."""
 	key = 'slackAppToken' if as_app else 'slackBotToken'
 	token = getattr(config.env, key)
 	if not token:
 		raise RuntimeError(f"Slack {method}: needs {key} in finbot.env")
-	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + token}, data=data)
+	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + token}, data=data,
+		logged=logged)
 	try:
 		output = r.json()
 	except ValueError:
@@ -223,7 +224,7 @@ class SlackBot(transports.Transport):
 		_, file_id, caption = max(recent)
 		try:
 			call('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
-				blocks=json.dumps(chart_blocks(caption, buttons, file_id)))
+				blocks=json.dumps(chart_blocks(caption, buttons, file_id)), logged='debug')
 		except Exception as e:
 			log.warn("Slack chat.update with an earlier upload failed, uploading anew:", net.redact(e))
 			return False
@@ -239,7 +240,7 @@ class SlackBot(transports.Transport):
 		file_id = self.unshared(image.read() if hasattr(image, 'read') else bytes(image))
 		blocks = chart_blocks(caption, buttons or [], file_id)
 		until_shown(lambda: call('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
-			blocks=json.dumps(blocks)))
+			blocks=json.dumps(blocks), logged='debug'))
 		self.delete(self.shows(message, file_id, caption, buttons))
 
 	def shows(self, message, file_id, caption=None, buttons=None):
@@ -284,7 +285,7 @@ class SlackBot(transports.Transport):
 		if buttons is not None:
 			data['blocks'] = json.dumps(text_blocks(text, buttons))
 		try:
-			call('chat.update', **data)
+			call('chat.update', logged='debug', **data)
 		except Exception as e:
 			log.warn("Slack chat.update failed:", net.redact(e))
 
