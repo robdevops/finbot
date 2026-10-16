@@ -68,7 +68,7 @@ Trade notifications are peformed by polling the Sharesight trades API on a sched
 
 The other various reports can also run on a schedule (e.g. daily or weekly), or on demand with a command. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. A scheduled report posts to the chat whose job it is, and a command's reply to the chat that sent it.
 
-The bot answers commands in every chat it is in. By default, it fetches its updates from each network itself (pull mode); alternatively, in HTTP mode, each network pushes them to your HTTPS gateway, which passes them to the bot. It provides:
+The bot answers commands in every chat it is in. By default, it fetches its updates from each network itself (pull mode); alternatively, in push mode, each network pushes them to your HTTPS gateway, which passes them to the bot. It provides:
 * Stock lookup (financials, company profile, price charts)
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance

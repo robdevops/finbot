@@ -78,9 +78,9 @@ cd /opt/finbot && sudo git pull && sudo GIT_COMMIT=$(git rev-parse HEAD) docker 
 ```
 A change to `/opt/finbot.env` needs a restart: `sudo docker compose up -d`.
 
-## HTTP mode
+## Push mode
 
-In pull mode, the default, finbot fetches its updates and needs no port. In HTTP mode (a network's webhook URL set),
+In pull mode, the default, finbot fetches its updates and needs no port. In push mode (a network's webhook URL set),
 it listens inside the container on port 5000 of every interface (`ip: 0.0.0.0` in `compose.yaml`). Publish the port
 on the host's loopback only, by uncommenting `ports` in `compose.yaml`:
 ```

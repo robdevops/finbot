@@ -20,8 +20,8 @@ of the chat network keys it needs.
 | Key | Default | Description |
 |---|---|---|
 | `DATA_DIR` | `var/` in the checkout (`$STATE_DIRECTORY` under systemd `StateDirectory=`) | Where state and cache live |
-| `ip` | `127.0.0.1` | Address the bot listens on, in HTTP mode |
-| `port` | `5000` | Port the bot listens on, in HTTP mode |
+| `ip` | `127.0.0.1` | Address the bot listens on, in push mode |
+| `port` | `5000` | Port the bot listens on, in push mode |
 | `scheduler_catchup` | `5` | Minutes: a run missed while the bot was down still fires if it was due this recently |
 | `sharesight_code` | | Sharesight API access |
 | `sharesight_client_id` | | Sharesight API access |
@@ -29,14 +29,14 @@ of the chat network keys it needs.
 | `telegramBotToken` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `telegramOutgoingWebhook` is set) |
 | `slackBotToken` | | Slack bot token, for replies and chart uploads in Slack |
 | `slackAppToken` | | Slack app-level token (`xapp-`): commands over a socket finbot opens to Slack (Socket Mode), when `slackOutgoingWebhook` is empty |
-| `telegramOutgoingWebhook` | | The URL Telegram posts its updates to (HTTP mode); empty, finbot fetches them (pull mode) |
-| `telegramOutgoingToken` | | Secret token Telegram must present (HTTP mode) |
-| `slackOutgoingWebhook` | | The URL Slack posts its events and button presses to (HTTP mode); empty, Socket Mode with `slackAppToken` |
-| `slackOutgoingToken` | | Token Slack must present (HTTP mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
-| `slackSigningSecret` | | Secret Slack signs each request with (HTTP mode) |
+| `telegramOutgoingWebhook` | | The URL Telegram posts its updates to (push mode); empty, finbot fetches them (pull mode) |
+| `telegramOutgoingToken` | | Secret token Telegram must present (push mode) |
+| `slackOutgoingWebhook` | | The URL Slack posts its events and button presses to (push mode); empty, Socket Mode with `slackAppToken` |
+| `slackOutgoingToken` | | Token Slack must present (push mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
+| `slackSigningSecret` | | Secret Slack signs each request with (push mode) |
 | `discordBotToken` | | Discord bot token: replies, and commands over the gateway API unless `discordOutgoingWebhook` is set |
-| `discordOutgoingWebhook` | | The Interactions Endpoint URL Discord posts slash commands and button presses to (HTTP mode); empty, the gateway API (pull mode) |
-| `discordPublicKey` | | The app's public key, which checks the signature of each interaction (HTTP mode) |
+| `discordOutgoingWebhook` | | The Interactions Endpoint URL Discord posts slash commands and button presses to (push mode); empty, the gateway API (pull mode) |
+| `discordPublicKey` | | The app's public key, which checks the signature of each interaction (push mode) |
 
 Retired keys do nothing, and only get a note at start (and from check_config) saying to delete the line: `telegramChatID`, `slackChannelID` and `discordChannelID` (there are no home chats: each chat has its own jobs, and an error that belongs to no chat goes to the log; an upgrade from before jobs per chat reads them once, as [Scheduling](scheduling.md) says), and `slack_webhook` and `discord_webhook`.
 

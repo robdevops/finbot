@@ -4,11 +4,11 @@ finbot talks to Discord as the bot user of a Discord application that you create
 posts each channel's scheduled reports there and answers commands: slash commands (`/price`) in both modes, and
 messages (`.price`, `@finbot price`) over the gateway API.
 
-## Gateway API mode or HTTP mode?
+## Gateway API mode or push mode?
 
 The bot does the same either way. What differs is how it hears from Discord:
 
-| | Gateway API mode (the default) | HTTP mode |
+| | Gateway API mode (the default) | Push mode |
 |---|---|---|
 | How commands and button presses reach finbot | Over Discord's gateway API, a connection finbot keeps open to Discord | Discord posts them to your HTTPS server |
 | Listens on the internet | No: finbot opens the connection to Discord | Yes, behind your HTTPS server: a domain name with a valid certificate |
@@ -21,7 +21,7 @@ which redraw their message in place; linked tickers, without link previews and w
 and direct messages with the bot. A command in a message shows "finbot is typing…" while it works; a slash command
 shows Discord's "finbot is thinking…" until its answer takes its place.
 
-`discordOutgoingWebhook` chooses the mode: set, HTTP mode; empty, gateway API mode. Discord sends the slash commands
+`discordOutgoingWebhook` chooses the mode: set, push mode; empty, gateway API mode. Discord sends the slash commands
 and button presses to the app's _Interactions Endpoint URL_ while it is set, and over the gateway API while it is
 empty, so change both, and restart finbot, to switch.
 
@@ -48,7 +48,7 @@ empty, so change both, and restart finbot, to switch.
 discordBotToken=your-bot-token
 ```
 
-## HTTP mode
+## Push mode
 
 Discord posts the slash commands and button presses to finbot over HTTPS, each signed with the app's key. finbot
 listens on `http://127.0.0.1:5000` (`ip` and `port` in `finbot.env`), so it needs a web server in front of it, on a

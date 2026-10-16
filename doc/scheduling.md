@@ -163,7 +163,7 @@ move as either side's daylight saving changes.
 
 ## How jobs run
 * A job is kept by its chat's network and id, in `finbot_chat_jobs.json` in the data directory, so switching a network
-  between pull and HTTP mode keeps it. Only a chat's switches, the default jobs it removed and the jobs it added are
+  between pull and push mode keeps it. Only a chat's switches, the default jobs it removed and the jobs it added are
   stored: the default jobs come from finbot's code, so a change to them reaches every chat, and a new one arrives in
   every chat.
 * Each chat keeps its own record of what a report has told it (trades, rating changes, record highs, podcast
