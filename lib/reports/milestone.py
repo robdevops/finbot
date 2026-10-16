@@ -7,10 +7,6 @@ from lib import links
 from lib import watchlist
 from lib import yahoo
 
-# BUGS:
-# - need to handle stock splits: flush cache if we see a split in the data
-# https://finance.yahoo.com/quote/TSLA/history?period1=0&period2=1707609600&filter=split
-
 STATE_FILE = 'finbot_milestone.json' # each chat's {ticker: {'all_time_high': ..., 'all_time_low': ...}}
 
 def run(dest=None):

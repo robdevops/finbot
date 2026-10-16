@@ -19,8 +19,9 @@ if [ ! -x .venv/bin/python ] ||
 	uv venv --python "$PYTHON_VERSION" .venv
 fi
 
-# idempotent: a no-op when everything is already installed
-uv pip install --python .venv/bin/python -r requirements.txt
+# idempotent: a no-op when everything is already installed; the optional libraries too, as CI has them, so every test
+# runs
+uv pip install --python .venv/bin/python -r requirements.txt -r requirements-optional.txt
 
 # make `python` / `python3` resolve to the venv for the rest of the session
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
