@@ -103,8 +103,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   optional (`sharesight.configured()`): without its keys `tickers()` is empty, so reports cover the watchlist alone, and
   `portfolios()` raises `NotSetUp`, an answer.
 - `lib/log.py`: the log, by level (`error warn info debug`), as the `log_level` preference lets in, and `cut()`, which
-  keeps a line that can run long (a request's) within the `log_width` preference; bot.py's `WholeLines`
-  writes each line whole, whichever threads log at once. `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
+  keeps a line that can run long (a request's, a chat message's) on one line, within the `log_width` preference;
+  bot.py's `WholeLines` writes each line whole, whichever threads log at once. `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save; a file of one record per chat with
   `state.load_for(chat, name, default)` and `state.edit_for`. A chat's key is its network and id (`Transport.key`,
   `telegram:-1001234`), the same in both modes. `lib/watchlist.py`: each chat's watchlist (`tickers(chat)`), and

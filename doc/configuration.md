@@ -75,7 +75,7 @@ A change takes effect on a reload. A true/false preference takes `true`/`false`,
 | `performance_cache_seconds` | `2400` | Cache lifetime of Sharesight performance reports in seconds: longer than the 30 minutes between `sharesight_warm` runs, so the holdings never run out |
 | `http_timeout` | `18` | Seconds to wait on outbound HTTP requests |
 | `log_level` | `INFO` | What the log shows: that level and those above it, syslog style. `ERROR`: what failed and was lost (a message not sent); `WARN`: what failed and was got over (a retry, a fallback, a request refused); `INFO`: what finbot does (each message sent, each job run, each request sent, each request refused); `DEBUG`: the routine of a button press too (the press, its acknowledgement, the message edited in place), each request answered with success, and each cache miss, hit and write. Replaces `debug` |
-| `log_width` | `71` | The most characters of a log line that can run long: a longer one is cut there, ending in `…`. For now that is each request's line, its method and URL. `0`: no line is cut |
+| `log_width` | `71` | The most characters of a log line that can run long: a longer one is cut there, ending in `…`. That is each request's line (its method and URL) and each chat message's (who sent what, in which network). A message of several lines is logged on one line, its line breaks spaces. `0`: no line is cut |
 | `print_headers` | `False` | Log inbound request headers |
 
 A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied. A key finbot no longer reads (`alliterate`, `chunk_maxlines`) is ignored, and the log at start says to delete it.

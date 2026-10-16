@@ -443,6 +443,26 @@ class RequestLog(FinbotCase):
 					net.get('https://' + whole[4:])
 				self.assertEqual(err.getvalue().splitlines(), [line])
 
+	def test_a_chat_message_is_one_line_cut_to_log_width(self):
+		"""A chat message is logged on one line, its line breaks spaces, cut to log_width characters like a request's;
+		at 0 it is whole, still on one line. So is one not run again, sent twice within a second."""
+		self.patch(worker, 'process_request', lambda message: None)
+		self.patch(bot, 'doubled', REAL_DOUBLED)
+		text = '/jobs add message daily at 9am "Morning!\nThe ASX opens at 10am,\n\nso coffee first"'
+		def logged(update_id, chat=55):
+			"""What taking a Telegram message of that text in that chat logs."""
+			update = {'update_id': update_id, 'message': {'message_id': update_id, 'chat': {'id': chat},
+				'from': {'first_name': 'Rob', 'username': 'rob'}, 'text': text}}
+			with contextlib.redirect_stderr(io.StringIO()) as err:
+				bot.take(telegram_common.READER, update)
+				self.join_workers()
+			return err.getvalue().splitlines()
+		whole = '[Telegram]: @rob /jobs add message daily at 9am "Morning! The ASX opens at 10am, so coffee first"'
+		self.assertEqual(logged(1), [whole[:70] + '…'])
+		self.assertEqual(logged(2), ['[telegram]: @rob sent it again within 1 s, not run again: /jobs add me…'])
+		self.prefs(log_width=0)
+		self.assertEqual(logged(3, chat=66), [whole]) # another chat's: taken
+
 
 class SharedSession(unittest.TestCase):
 	def test_the_session_keeps_no_cookies(self):

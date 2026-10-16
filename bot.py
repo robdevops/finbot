@@ -201,7 +201,8 @@ def take(network, update):
 		log.info(f"[{network.service}]: update {network.update_id(update)} seen already, not run again")
 		return inbound.OK
 	if isinstance(event, inbound.Message) and not event.interaction and doubled(event): # each interaction is answered
-		log.info(f"[{network.service}]: {event.user} sent {event.text!r} again within {DOUBLED} s, not run again")
+		log.info(log.cut(f"[{network.service}]: {event.user} sent it again within {DOUBLED} s, not run again: "
+			+ event.text))
 		return inbound.OK
 	answer = network.acknowledge(event)
 	if answer is not None:
@@ -215,7 +216,7 @@ def dispatch(event):
 		log.debug(f"[{event.service.capitalize()} button]:", event.user, "chat", event.chat_id, event.data)
 		target = worker.process_callback
 	else:
-		log.info(f"[{event.service.capitalize()}]:", event.user, event.text)
+		log.info(log.cut(f"[{event.service.capitalize()}]: {event.user} {event.text}"))
 		target = worker.process_request
 	thread = threading.Thread(target=target, args=(event,))
 	thread.start()

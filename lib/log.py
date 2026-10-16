@@ -1,7 +1,7 @@
 """The log, syslog style: each line has a level, ERROR, WARN, INFO or DEBUG, and goes to stderr (which systemd and
 Docker take to the journal) when the log_level preference lets it in: that level and those above it, so ERROR always
-does. Each takes print()'s arguments. A line that can run long (a request's URL) goes through cut(), which keeps it
-within the log_width preference."""
+does. Each takes print()'s arguments. A line that can run long (a request's URL, a chat message) goes through cut(),
+which puts it on one line within the log_width preference."""
 import sys
 
 from lib import config
@@ -21,8 +21,9 @@ def write(level, parts, options):
 
 
 def cut(text):
-	"""A long log line (text) cut to log_width characters, its last an ellipsis (…); whole where log_width is 0."""
-	width = config.prefs.log_width
+	"""A log line that can run long (text) on one line, each run of line breaks and spaces one space, and cut to
+	log_width characters, its last an ellipsis (…); whole where log_width is 0."""
+	text, width = ' '.join(str(text).split()), config.prefs.log_width
 	return text if width <= 0 or len(text) <= width else text[:width - 1] + '…'
 
 
