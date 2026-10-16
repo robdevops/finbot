@@ -69,9 +69,18 @@ CHARTS = {
 	'shorts': lambda: shorts([('GME', 47.3), ('AMC', 32.1), ('TSLA', 21.6), ('AAPL', 15.2)]),
 	'pie': lambda: render.draw_pie(render.Chart('pie', 'Rob by industry', '4 industries',
 		(('Software', 41.0), ('Banks', 23.5), ('Mining', 12.0), ('Other', 8.0)))),
-	'treemap': lambda: render.draw_treemap(render.Chart('treemap', 'Rob treemap by industry',
-		'3 industries, 9 holdings', (('Software', (('MSFT', 30.0), ('ADBE', 8.0), ('NOW', 3.0))),
-		('Banks', (('JPM', 14.0), ('WFC', 9.0), ('C', 5.0))), ('Mining', (('BHP', 8.0), ('RIO', 4.0), ('FMG', 2.0)))))),
+	'treemap': lambda: render.draw_treemap(render.Chart('treemap', 'SueSMSF treemap by industry',
+		'17 industries, 36 holdings', (
+		('Semiconductors', (('NVDA', 15.8), ('ASML', 6.4), ('AMD', 5.4), ('TSM', 4.5), ('SITM', 2.9), ('AIP', 1.9),
+			('AXE', 0.5))),
+		('Packaged Software', (('PLTR', 8.7), ('CRWD', 5.6), ('S', 3.4), ('YOU', 2.2), ('QSI', 1.0), ('WRK', 0.8),
+			('CLBT', 0.6), ('NXT', 0.3))),
+		('Investment Trusts/Mutual Funds', (('NVDL', 6.6), ('QLD', 3.9), ('VTS', 1.8), ('XLK', 1.0))),
+		('Engineering & Construction', (('GNP', 5.9),)), ('Services to the Health Industry', (('PME', 5.6),)),
+		('Precious Metals', (('FRS', 1.8), ('AIS', 1.6), ('GOLD', 0.3))),
+		('Internet Software/Services', (('GOOGL', 3.4),)),
+		('Other', (('SPCX', 1.4), ('ONDS', 1.4), ('WDC', 1.0), ('AIRJ', 0.9), ('MAD', 0.8), ('AMPX', 0.8),
+			('NET', 0.8), ('MAP', 0.5), ('RKLB', 0.5)))))),
 }
 # inputs that have broken chart code before or are likely to: sizes, signs, long names, zeros, a single row
 EDGE_ROWS = {
