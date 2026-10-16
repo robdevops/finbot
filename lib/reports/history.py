@@ -1,4 +1,4 @@
-"""Price history: .history (one stock over every period) and .compare (two to six stocks, rebased)."""
+"""Price history: .history (one stock over every period) and .compare (two to eight stocks, rebased)."""
 import bisect
 import datetime
 from lib import answer

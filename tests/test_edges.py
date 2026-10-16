@@ -133,7 +133,7 @@ class WatchlistActions(FinbotCase):
 class BadArguments(FinbotCase):
 	def test_compare_argument_errors_give_usage(self):
 		""".compare with too few or too many tickers, or one twice, gets its usage."""
-		for cmd in ('.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7', '.compare T1 T1'):
+		for cmd in ('.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7 T8 T9', '.compare T1 T1'):
 			with self.subTest(cmd=cmd):
 				self.assertIn('Usage', str(self.command(cmd)))
 
