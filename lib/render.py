@@ -123,13 +123,19 @@ def _shrink(texts, room):
 		text.set_fontsize(text.get_fontsize() * factor)
 	return factor
 
-def _heading(fig, title, subtitle='', subtitle_color=None):
-	"""A chart's title at the top left, and its subtitle (if any) beneath, each shrunk to fit the width."""
+def _heading(fig, title, subtitle='', subtitle_color=None, inline=False):
+	"""A chart's title at the top left, and its subtitle (if any) beneath, or with `inline` to the right of it, each
+	shrunk to fit the width."""
 	_, ink, ink2, _ = PALETTE
 	room = 0.94 * fig.bbox.width
-	_shrink([fig.text(0.03, _from_top(0.957, fig), title, color=ink, fontsize=13, fontweight='bold', ha='left',
-		va='center')], room)
-	if subtitle:
+	heading = fig.text(0.03, _from_top(0.957, fig), title, color=ink, fontsize=13, fontweight='bold', ha='left',
+		va='center')
+	_shrink([heading], room)
+	if subtitle and inline:
+		right = heading.get_window_extent(fig.canvas.get_renderer()).x1 / fig.bbox.width
+		_shrink([fig.text(right + 0.015, _from_top(0.957, fig), subtitle, color=subtitle_color or ink2, fontsize=8.5,
+			ha='left', va='center')], (0.97 - right - 0.015) * fig.bbox.width)
+	elif subtitle:
 		_shrink([fig.text(0.03, _from_top(0.910, fig), subtitle, color=subtitle_color or ink2, fontsize=8.5, ha='left',
 			va='center')], room)
 
@@ -560,7 +566,7 @@ def draw_treemap(chart):
 	ax.set_ylim(800, 0)
 	ax.axis('off')
 	total = sum(value for _, held in rows for _, value in held) or 1.0
-	box = _squarify([sum(value for _, value in held) for _, held in rows], 24, 92, 1232, 684)
+	box = _squarify([sum(value for _, value in held) for _, held in rows], 0, 58, 1280, 742) # 2px edges, with the gaps
 	renderer = fig.canvas.get_renderer()
 	char, n = 14, 0 # pixels a character of the 8pt tile text takes, at most
 	for (label, held), (x, y, w, h) in zip(rows, box):
@@ -583,7 +589,7 @@ def draw_treemap(chart):
 				lines = name + ('\n%.1f%%' % (value / total * 100) if th > 64 and tw > 5 * char else '')
 				ax.text(tx + tw / 2, ty + th / 2, lines, color='#ffffff', fontsize=8, ha='center', va='center',
 					linespacing=1.3)
-	_heading(fig, chart.title, chart.subtitle)
+	_heading(fig, chart.title, chart.subtitle, inline=True)
 	return _png(fig, bg)
 
 def _code_version():
