@@ -94,9 +94,13 @@ def menu_screen(service, chat, pressed):
 	note = None
 	if len(args) == 2 and screen in ('on', 'del', 'run'):
 		own, number = scheduler.chat_jobs(key), args[1]
-		if not (hmac.compare_digest(jobs.list_checksum(own), pressed.checksum) and number.isdigit() and
-				1 <= int(number) <= len(own)):
+		every = screen == 'on' and number in ('allon', 'alloff') # All: every job switched on, or off
+		if not (hmac.compare_digest(jobs.list_checksum(own), pressed.checksum) and (every or number.isdigit() and
+				1 <= int(number) <= len(own))):
 			note = 'The jobs have changed: here they are now'
+		elif every:
+			scheduler.switch_all(key, number == 'allon')
+			note = f"Every job is {number.removeprefix('all')} now"
 		else:
 			job = own[int(number) - 1]
 			try:

@@ -107,7 +107,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on
   each reload). `lib/jobs.py`: the scheduler: each chat's jobs, the default ones and those it added (`JOBS_FILE`, by
   chat key: the defaults it switched off, the jobs it added; `see` makes a chat known at its first command; `add`,
-  `delete`, `toggle`, `run`, `upcoming`, which `.jobs` calls through `jobs.current`; `parse_add` reads `.jobs add`),
+  `delete`, `toggle`, `switch_all`, `run`, `upcoming`, which `.jobs` calls through `jobs.current`; `parse_add` reads `.jobs add`),
   and the fixed `SYSTEM` jobs, its shared state under one lock. A job is an action of `ACTIONS` (the report modules,
   `message` among them) with the arguments its `job()` takes, never a command; one stored that is anything else is
   logged and left out. Each job runs in the bot's process, in a thread (`run_in_process`), reported once if still

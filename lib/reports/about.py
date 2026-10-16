@@ -15,6 +15,7 @@ TYPED = ['.jobs run|toggle|del NUMBER: run one now, switch it on or off, delete 
 	'.jobs add REPORT SCHEDULE: add one (.jobs add lists the reports)', '.jobs next: the next runs',
 	'.jobs system: the system jobs'] # what a chat without buttons types instead
 TYPED_ACTIONS = {'on': 'toggle', 'del': 'del', 'run': 'run'}
+NOT_RUN, DEFAULT = '* not run yet', '† default (no delete, only disable)' # the key to a list's marks
 PAGE_ROOM = 500 # characters of a screen besides its jobs' lines: its headings, a note, the key to *
 JOB_ROW = 4 # job buttons in a row
 MOST_JOBS = {'discord': 16} # job buttons on a page: Discord takes five rows of five, one kept for the others; else 40
@@ -31,21 +32,22 @@ DAYS = {'d': 'daily', 'k': 'weekdays', 'm': {'day': 1, 'months': ()}, 'q': {'day
 INTERVALS = (5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 720) # minutes between a repeat's runs, as Add offers them
 
 def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
-	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered: the default ones, then those added
-	here, each ✅ (on) or ❌ (off), * where it has never run, its name and its schedule in words, by the timezone
-	preference's clock (lib/when.py). top has what can be done (Enable/disable, Delete, Add, Run now, Next); on, del and
-	run a button per job, which switches it, deletes it (one added here: a default one has none) or runs it now. A page
-	at a time, as many jobs as a message of the network takes (◀ and More ▶ for the others), after a note of what the
-	last press did. A one-off gone by is deleted first. Returns (lines, buttons); where the chat takes no buttons
-	(tappable false), the whole list and what to type instead."""
+	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered: the default ones (†), then those
+	added here, each ✅ (on) or ❌ (off), * where it has never run, its name and its schedule in words, by the timezone
+	preference's clock (lib/when.py), then the key to the marks shown. top has what can be done (Enable/disable,
+	Delete, Add, Run now, Next); on, del and run a button per job, which switches it (and All, every job), deletes it
+	(one added here: a default one has none) or runs it now. A page at a time, as many jobs as a message of the
+	network takes (◀ and More ▶ for the others), after a note of what the last press did. A one-off gone by is deleted
+	first. Returns (lines, buttons); where the chat takes no buttons (tappable false), the whole list and what to type
+	instead."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
 	scheduler.prune(chat)
 	own = scheduler.chat_jobs(chat)
 	running, local, now = scheduler.running(chat), formats.zone().key, scheduler.clock()
-	entries = [(number, job, job_entry(service, scheduler, number, job, running, local, now) +
-		(' (default)' if screen == 'del' and job.item else '')) for number, job in enumerate(own, 1)]
+	entries = [(number, job, job_entry(service, scheduler, number, job, running, local, now))
+		for number, job in enumerate(own, 1)]
 	parts = paged(entries, service) if tappable else [entries]
 	page = min(max(page, 0), len(parts) - 1)
 	shown = parts[page]
@@ -59,11 +61,13 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
 			kind = job.item is not None
 			lines += ['', service.bold('Default jobs:' if kind else 'Added here:')]
 		lines.append(line)
-	if not all(scheduler.has_run(job) for _, job, _ in shown):
-		lines += ['', '* not run yet']
+	key = [text for text, marked in ((NOT_RUN, not all(scheduler.has_run(job) for _, job, _ in shown)),
+		(DEFAULT, any(job.item for _, job, _ in shown))) if marked]
+	if key:
+		lines += ['', ', '.join(key)]
 	if not tappable:
 		return lines + [''] + (TYPED if screen == 'top' else [f'Send .jobs {TYPED_ACTIONS[screen]} NUMBER']), None
-	return lines, screen_buttons(screen, page, len(parts), shown, jobs.list_checksum(own))
+	return lines, screen_buttons(screen, page, len(parts), shown, jobs.list_checksum(own), all(job.on for job in own))
 
 def paged(entries, service):
 	"""The jobs' entries (number, job, line) a page at a time: as many as fit a message of the network with room to
@@ -78,10 +82,10 @@ def paged(entries, service):
 		size += len(entry[2]) + 1
 	return parts
 
-def screen_buttons(screen, page, pages, shown, crc):
+def screen_buttons(screen, page, pages, shown, crc, every_on=False):
 	"""A list screen's buttons: top's, what can be done; on, del and run's, one for each job shown that the screen
-	acts on, '<number> <name>' (with its ✅ or ❌ to switch it), JOB_ROW to a row, then Back; ◀ and More ▶ to the other
-	pages."""
+	acts on, '<number> <name>' (with its ✅ or ❌ to switch it), JOB_ROW to a row, then on's All, which switches every
+	job of the chat on (All off where every_on: off), and Back; ◀ and More ▶ to the other pages."""
 	if screen == 'top':
 		rows = [[buttons.menu_button('Enable/disable', 'on', [0], crc), buttons.menu_button('Delete', 'del', [0], crc)],
 			[buttons.menu_button('Add', 'add', [], crc), buttons.menu_button('Run now', 'run', [0], crc),
@@ -92,6 +96,9 @@ def screen_buttons(screen, page, pages, shown, crc):
 			screen, [page, number], crc) for number, job, _ in shown if screen != 'del' or not job.item]
 		rows = [tapped[i:i + JOB_ROW] for i in range(0, len(tapped), JOB_ROW)]
 		nav = [buttons.menu_button('Back', 'top', [0], crc)]
+		if screen == 'on':
+			nav.insert(0, buttons.menu_button('All off' if every_on else 'All on', 'on', [page, 'alloff' if every_on
+				else 'allon'], crc))
 	if page > 0:
 		nav.append(buttons.menu_button('◀', screen, [page - 1], crc))
 	if page < pages - 1:
@@ -99,11 +106,12 @@ def screen_buttons(screen, page, pages, shown, crc):
 	return rows + ([nav] if nav else [])
 
 def job_entry(service, scheduler, number, job, running=(), local=None, now=None):
-	"""'5. ✅ price close AU · weekdays at 4:30pm Sydney': a job in .jobs, with its number, whether it is on (and *
-	where it has never run), its name, its schedule in words, and whether it is running now."""
+	"""'5. ✅ price close AU† · weekdays at 4:30pm Sydney': a job in .jobs, with its number, whether it is on (and *
+	where it has never run), its name (and † for a default job), its schedule in words, and whether it is running."""
 	mark = ('✅' if job.on else '❌') + ('' if scheduler.has_run(job) else '*')
+	name = service.escape(job.name) + ('†' if job.item else '')
 	schedule = job.schedule.describe(local or formats.zone().key, now or scheduler.clock())
-	return f"{number}. {mark} {service.escape(job.name)} · {schedule}" + (' (running)' if job.key in running else '')
+	return f"{number}. {mark} {name} · {schedule}" + (' (running)' if job.key in running else '')
 
 def job_line(number, job, outcome):
 	"""'3. trades: done': a job's number in the .jobs list, its name, and how its run went."""

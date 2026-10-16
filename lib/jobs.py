@@ -492,6 +492,20 @@ class Scheduler:
 		self.change(chat, append)
 		return self.number(chat, job.key)
 
+	def switch_all(self, chat, on):
+		"""Switch every job of a chat on, or off: the default ones and those it added."""
+		keys = [item.key for item in catalog.items(config.prefs.country_code)]
+		def switch(record):
+			"""Set every switch, as stored."""
+			if on:
+				record.pop('off', None)
+			else:
+				record['off'] = keys
+			for entry in record['jobs']:
+				if isinstance(entry, dict):
+					entry['on'] = on
+		self.change(chat, switch)
+
 	def delete(self, job):
 		"""Delete a job its chat added (from job() or pick()); a default one raises ScheduleError: switch it off."""
 		if job.item:

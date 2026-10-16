@@ -9,14 +9,18 @@ and its home chats.
 
 ## The menu
 `/jobs` lists the chat's jobs, numbered, a page at a time: the default jobs, then those added here. Each line shows ✅
-(on) or ❌ (off), a `*` if the job has never run, its name, and its schedule in words:
+(on) or ❌ (off), a `*` if the job has never run, its name with a `†` if it is a default job, and its schedule in
+words. The page ends with a key to the marks it shows:
 ```
-1. ✅ trades · every 20 mins, Mon 9am – Sat 3pm Sydney
-3. ✅* price midsession US · weekdays at 12:45pm New York (3:45am local, Tue–Sat)
+1. ✅ trades† · every 20 mins, Mon 9am – Sat 3pm Sydney
+3. ✅* price midsession US† · weekdays at 12:45pm New York (3:45am local, Tue–Sat)
+
+* not run yet, † default (no delete, only disable)
 ```
 Under it are buttons, each screen drawn in place of the last:
 * **Enable/disable**: a button per job, its number, switch and name (`3 ✅ price midsession US`); a press switches the
-  job on or off.
+  job on or off. **All on** switches every job of the chat on at once, or **All off**, shown when every job is on,
+  switches them all off.
 * **Delete**: a button per job added here. A default job has no button: switch it off instead.
 * **Add**: the report, how often (one-off, daily, weekdays, weekly, monthly, quarterly, bi-annual, annual or repeating),
   then the date, the day, or a repeat's interval and days, then the hour. **Back** takes a step back, **Cancel** goes
