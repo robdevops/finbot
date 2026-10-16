@@ -53,20 +53,26 @@ def gather(tickers, days, specific_stock, event):
 	return sorted(found, key=lambda item: item[0])
 
 def primary_listing(ticker, data, field):
-	"""(a listing's ticker, its Yahoo details) with a `field` that a ticker's quote lacks, or (None, None). The ticker's
-	own details: what is held is that listing, so its own date counts, and a foreign company's US listing (ARM, CLBT)
-	is never swapped for its home market's (ARM.L, CLBT.TA). Only when it has none, the listing that finbot_adr.json
-	names, or the NZX's for an ASX ticker reporting in NZD (GTK.AX, SKO.AX)."""
+	"""(a listing's ticker, its Yahoo details) with a `field` that a ticker's quote lacks, or (None, None). First the
+	ticker's own details: what is held is that listing (a US ADR, say), so its own date counts. Only when it has none,
+	another listing of the same company, which may have the earnings or ex-dividend date: the one finbot_adr.json names,
+	the NZX's for an ASX ticker reporting in NZD (GTK.AX, SKO.AX), or the home market's for a foreign company's US
+	listing (ASML.AS for ASML). The last two are guesses: one that Yahoo does not know (ARM.L, CLBT.TA) is passed over,
+	logged at DEBUG only."""
 	own = yahoo.fetch_detail(ticker).get(ticker, {})
-	listings = [ticker]
+	if own.get('profile_title') == data['profile_title'] and field in own:
+		return ticker, own
 	if mapped := primary_listings().get(ticker):
-		listings.append(mapped)
+		other, guess = mapped, False # named in finbot_adr.json: one that Yahoo does not know is a mistake there
 	elif ticker.endswith('.AX') and data.get('financialCurrency') == 'NZD':
-		listings.append(ticker.replace('.AX', '.NZ'))
-	for listing in listings:
-		details = own if listing == ticker else yahoo.fetch_detail(listing).get(listing, {})
-		if details.get('profile_title') == data['profile_title'] and field in details: # the same company, with a date
-			return listing, details
+		other, guess = ticker.replace('.AX', '.NZ'), True
+	elif own.get('profile_country') in markets.YAHOO_COUNTRY and '.' not in ticker: # the country: only in the details
+		other, guess = ticker + '.' + markets.YAHOO_COUNTRY[own['profile_country']], True
+	else:
+		return None, None
+	details = yahoo.fetch_detail(other, guess=guess).get(other, {})
+	if details.get('profile_title') == data['profile_title'] and field in details: # the same company, with a date
+		return other, details
 	return None, None
 
 def report(service, events, days, specific_stock, interactive, event):

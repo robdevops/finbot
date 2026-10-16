@@ -219,19 +219,22 @@ DETAIL_FIELDS = (
 )
 RECOMMENDATION = ('recommend', 'recommend_index', 'recommend_analysts') # all three, or none
 
-def fetch_detail(ticker, seconds=None):
+def fetch_detail(ticker, seconds=None, guess=False):
 	"""One ticker's quoteSummary: {ticker: {...}}, cached `seconds` (or cache_seconds); {} for a symbol Yahoo does not
-	know, or without a name or price. Raises RuntimeError when Yahoo cannot be reached or refuses."""
+	know, or without a name or price, which is logged as a warning, or for a listing guessed at (guess: the calendar's
+	other listing of a company), whose absence is no fault, at DEBUG. Raises RuntimeError when Yahoo cannot be reached
+	or refuses."""
+	missing = log.debug if guess else log.warn
 	now = datetime.datetime.now()
 	data = cache.cached("finbot_yahoo_detail_" + ticker + '.json', seconds, lambda: _detail_answer(ticker))
 	result = dig(data, 'quoteSummary', 'result', 0)
 	if result is None: # Yahoo answers 404 Not Found, or result=null, for a symbol it does not know
-		log.warn(ticker, "is unknown to Yahoo")
+		missing(ticker, "is unknown to Yahoo")
 		return {}
 	title = next((name for name in (dig(result, 'price', 'longName'),
 		dig(result, 'price', 'shortName')) if isinstance(name, str) and name), None)
 	if not title: # catches some delisted stocks like "DUB"
-		log.warn(ticker, "has no name at Yahoo")
+		missing(ticker, "has no name at Yahoo")
 		return {}
 	detail = {'profile_title': formats.transform_title(title)}
 	for key, path, *convert in DETAIL_FIELDS:

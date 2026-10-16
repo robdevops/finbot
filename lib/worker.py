@@ -238,7 +238,7 @@ def on_help(request, args):
 
 def on_calendar(request, args):
 	""".earnings or .dividend [period|SYMBOL]: the coming earnings or ex-dividend dates."""
-	event = 'ex-dividend' if args.word.startswith('div') else 'earnings'
+	event = 'ex-dividend' if 'div' in args.word else 'earnings'
 	cal.run(request.dest, days=args.days, specific_stock=ticker(args), event=event)
 
 def on_performance(request, args):
@@ -447,8 +447,9 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
 		keywords=CHANGE),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),
-	Command(('earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend'), on_calendar,
-		('.dividend [period|SYMBOL]', '.earnings [period|SYMBOL]'), COMPANY, ('.dividend', '.earnings'), period=True),
+	Command(('earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend', 'exdividend', 'ex-dividend'),
+		on_calendar, ('.dividend [period|SYMBOL]', '.earnings [period|SYMBOL]'), COMPANY, ('.dividend', '.earnings'),
+		period=True),
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
 		('.marketcap',), keywords=TOP),
 	Command(('beta',), on_beta, ('.beta',), PRICE, ('.beta',)),

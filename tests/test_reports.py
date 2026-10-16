@@ -16,6 +16,13 @@ class Commands(FinbotCase):
 			with self.subTest(cmd=cmd):
 				self.assertTrue(self.command(cmd), f'{cmd} sent nothing')
 
+	def test_exdividend_is_the_ex_dividend_report(self):
+		""".exdividend and .ex-dividend are .dividend: the ex-dividend dates, not a stock named EXDIVIDEND."""
+		self.prefs(graph=False)
+		for text in ('.dividend', '.exdividend', '.ex-dividend'):
+			with self.subTest(text=text):
+				self.assertIn('Upcoming ex-dividends', str(self.command(text)))
+
 	def test_a_period_list_and_one_stocks_view_give_the_same_figure(self):
 		"""Over a period, the list and one stock's view take a holding's figure from its Yahoo history, which its chart
 		draws, not Sharesight's gain over the time it was held (+33% here), which the list used to take."""
@@ -402,24 +409,27 @@ class ScheduledReports(FinbotCase):
 		self.assertIn('Co T2 ', str(self.sent))
 		self.assertNotIn('Co T1 ', str(self.sent))
 
-	def test_a_us_listing_of_a_foreign_company_keeps_its_own_dates(self):
+	def test_a_us_listing_takes_its_home_markets_date_only_without_one_of_its_own(self):
 		"""A foreign company's US listing (ARM, CLBT: held on a US market) whose quote lacks the date takes it from its
-		own details, and is never swapped for its home market's listing (ARM.L, CLBT.TA), even when it has no date at
-		all: then it has none."""
+		own details; only when they have none, from its home market's listing (T1.L, a British company's), a guess:
+		one that Yahoo does not know (ARM.L, CLBT.TA: there are none) leaves the stock out."""
 		undated = lambda t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')}
 		self.patch(yahoo, 'fetch', lambda ts: {t: undated(t) for t in ts})
-		for own_date, listed in ((True, True), (False, False)):
-			with self.subTest(own_date=own_date):
+		for own_date, home, listed, guessed in ((True, True, True, []), (False, True, True, [('T1.L', True)]),
+				(False, False, False, [('T1.L', True)])):
+			with self.subTest(own_date=own_date, home=home):
 				asked = []
-				def details(t, *a, **k):
-					"""T1's details, of a British company, with its date or without; asked for, noted."""
-					asked.append(t)
+				def details(t, *a, guess=False, **k):
+					"""T1's details, of a British company, with its date or without; T1.L's, if Yahoo knows it."""
+					asked.append((t, guess))
+					if t == 'T1.L':
+						return {t: market_entry('T1')} if home else {}
 					return {t: {**(market_entry(t) if own_date else undated(t)), 'profile_country': 'United Kingdom'}}
 				self.patch(yahoo, 'fetch_detail', details)
 				self.sent.clear()
 				cal.run(scheduled(), event='earnings')
 				self.assertEqual('Co T1 ' in str(self.sent), listed)
-				self.assertEqual([t for t in asked if '.' in t], []) # no T1.L
+				self.assertEqual([(t, guess) for t, guess in asked if '.' in t], guessed)
 
 	def test_trades(self):
 		""".trades run from a chat posts."""
