@@ -40,9 +40,10 @@ Where:
 /help
 /history symbol
 /holdings portfolio
-/jobs [run|toggle] [number]
-/jobs add [CRON_TZ=zone] time report
-/jobs del number
+/jobs [next|system]
+/jobs run|toggle|del [number]
+/jobs add report schedule
+/jobs add message schedule "text"
 /marketcap [symbol|top|bottom]
 /pe [symbol|top|bottom]
 /peg [symbol|top|bottom|negative]
@@ -126,7 +127,7 @@ With persistent storage, the default of `past_days=28` suits. This is useful if 
 past_days=28
 ```
 
-Job (see [Scheduling](scheduling.md)), such as `/jobs add */20 * * * Mon-Fri trades`:
+Job (see [Scheduling](scheduling.md)), such as `/jobs add trades every 20 mins weekdays`:
 ```
 trades
 ```
@@ -155,7 +156,7 @@ price_percent=5
 demote_volatile=True
 ```
 
-Job (see [Scheduling](scheduling.md)), such as `/jobs add 29 21 * * Mon-Fri price interday`:
+Job (see [Scheduling](scheduling.md)), such as `/jobs add price close weekdays at 4:30pm New York`:
 ```
 price premarket|midsession|interday|close|DAYS
 ```
@@ -201,7 +202,7 @@ Config example:
 past_days=28
 ```
 
-Job (see [Scheduling](scheduling.md)), such as `/jobs add 28 21 * * Sat performance 7`:
+Job (see [Scheduling](scheduling.md)), such as `/jobs add performance weekly`:
 ```
 performance [DAYS]
 ```
@@ -228,7 +229,7 @@ The `cal` report sends upcoming earnings and ex-dividend date alerts. The data i
 future_days=30
 ```
 
-Job (see [Scheduling](scheduling.md)), such as `/jobs add 28 21 * * Sat cal earnings`:
+Job (see [Scheduling](scheduling.md)), such as `/jobs add cal earnings every sunday at 8:30am`:
 ```
 cal earnings|ex-dividend
 ```
@@ -314,7 +315,7 @@ Command:
 ### Consensus rating changes
 ![Rating change report in Slack](../img/finbot_rating.png?raw=true "Rating change report in Slack")
 
-Notifies when Yahoo Finance analyst rating consensus changes category (e.g. from hold to buy). Designed to run on a schedule, such as `/jobs add 28 21 * * Sat rating` (see [Scheduling](scheduling.md)). Requires persistent storage.
+Notifies when Yahoo Finance analyst rating consensus changes category (e.g. from hold to buy). Designed to run on a schedule, such as `/jobs add rating tue-sat at 8:30am` (see [Scheduling](scheduling.md)). Requires persistent storage.
 
 ```
 rating

@@ -16,8 +16,8 @@ The bot does the same either way. What differs is how it hears from Discord:
 | Python modules | `discord.py` (Debian: `python3-discord`) | `PyNaCl` and `waitress` (Debian: `python3-nacl`, `python3-waitress`) |
 | `finbot.env` keys | `discordBotToken` | `discordBotToken`, `discordOutgoingWebhook` and `discordPublicKey` |
 
-In both: the scheduled reports with their charts; period buttons under charts and the buttons of `/jobs run` and
-`/jobs toggle`, which redraw their message in place; linked tickers, without link previews and without pinging anyone;
+In both: the scheduled reports with their charts; period buttons under charts and the buttons of the `/jobs` menu,
+which redraw their message in place; linked tickers, without link previews and without pinging anyone;
 and direct messages with the bot. A command in a message shows "finbot is typing…" while it works; a slash command
 shows Discord's "finbot is thinking…" until its answer takes its place.
 
@@ -41,8 +41,8 @@ empty, so change both, and restart finbot, to switch.
    start have it).
 5. Restart finbot (`sudo systemctl restart finbot`). As it starts, it registers the slash commands, which can take a
    few minutes to show in Discord the first time, and the log says `discord: gateway (no discordOutgoingWebhook)`.
-6. Send `/help` (or `.help`) in the channel, or in a direct message to the bot. Each channel schedules its own reports
-   with `/jobs add` ([Scheduling](scheduling.md)).
+6. Send `/help` (or `.help`) in the channel, or in a direct message to the bot. Each channel has the default scheduled
+   jobs, which `/jobs` changes ([Scheduling](scheduling.md)).
 
 ```
 discordBotToken=your-bot-token
@@ -102,8 +102,9 @@ While the arguments are typed, Discord shows finbot's suggestions, in both modes
 * the portfolios, for the commands that take one;
 * tickers, for the commands that take one: the channel's watchlist and the holdings. They come from the cache, never
   from Sharesight or Yahoo, so the suggestions come at once; the holdings are there once `sharesight_warm` has run;
-* for `/jobs`: `run`, `toggle`, `add` and `del`; after `run`, `toggle` or `del` the channel's job numbers, each with
-  its line; after `add` and a time, the reports, each with what it takes, and then what the report takes.
+* for `/jobs`: `add`, `run`, `toggle`, `del`, `next` and `system`; after `run` or `toggle` the channel's job numbers,
+  each with its name (after `del`, those of the jobs it added); after `add` the reports, each with what it takes, then
+  what the report takes and the words of a schedule.
 
 A message holds up to 2,000 characters, so a long report arrives as several messages. A chart goes as an attachment of
 the message that carries its report, with its period buttons under it.

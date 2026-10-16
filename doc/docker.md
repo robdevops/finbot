@@ -29,7 +29,7 @@ must outlast every container.
 
 Run it once, as root; it is safe to run again. It:
 1. runs `util/sync_defaults.py --create --apply --dest /opt/finbot-data`, which makes the data dir (mode 750) and copies
-   the shipped defaults into it: `preferences.conf`, `reminder.json` and the data files. It never replaces a file you
+   the shipped defaults into it: `preferences.conf` and the data files. It never replaces a file you
    have changed. The script needs only the standard library, so any `python3` on the host runs it.
 2. gives the data dir to the container's user: `chown -R 10001:10001 /opt/finbot-data`.
 3. copies `defaults/finbot.env` to `/opt/finbot.env` if there is none, owned by `root:10001`, mode 640: root and the

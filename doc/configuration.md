@@ -68,8 +68,8 @@ A change takes effect on a reload. A true/false preference takes `true`/`false`,
 | `hyperlinkFooter` | `True` | Add a website link footer to stock lookups |
 | `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` |
 | `exchange_suffix` | `AX` | Regional: Yahoo's suffix for your exchange (`AX` for the ASX, `NZ`, `L`, `TO` and so on). A bare symbol Yahoo does not know is tried again with it, in every command that takes a symbol (`BHP` becomes `BHP.AX`); empty, a symbol is taken as written |
-| `country_code` | `AU` | Regional: your country, for the reminder report |
-| `timezone` | `Australia/Melbourne` | Regional: your time zone, for the reminder report, and for each job's next run in `/jobs` (besides UTC) |
+| `country_code` | `AU` | Regional: your country, for the default jobs' messages that are for one (`AU`: the tax year's reminders) |
+| `timezone` | `Australia/Melbourne` | Regional: your time zone, the clock of the times `/jobs` takes and shows, and a job's zone where it names none |
 | `cache` | `True` | Cache Yahoo and Sharesight responses |
 | `cache_seconds` | `43200` | Cache lifetime in seconds (12 hours) |
 | `performance_cache_seconds` | `2400` | Cache lifetime of Sharesight performance reports in seconds: longer than the 30 minutes between `sharesight_warm` runs, so the holdings never run out |
@@ -85,7 +85,7 @@ edit `preferences.conf`, then reload if running. The service log shows what chan
 
 ## Data directory
 All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`); in Docker it is `/data`, the host's `/opt/finbot-data` (see [docker.md](docker.md)).
-Reference data (`finbot_adr.json`, `finbot_sws_*.json`, `reminder.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
+Reference data (`finbot_adr.json`, `finbot_sws_*.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
 ```
 util/sync_defaults.py          # dry run
 util/sync_defaults.py --apply  # copy missing files (including a starter preferences.conf)
@@ -93,7 +93,7 @@ util/sync_defaults.py --force  # also replace changed files, keeping .bak copies
 util/sync_defaults.py --dest /srv/finbot --apply  # target another directory instead of the data directory
 util/sync_defaults.py --dest /srv/finbot --create --apply  # and make it (mode 750) if it does not exist yet
 ```
-`reminder.json` holds the reminders that the `reminder` report posts on their day. Each entry has a `month_day` (`06-30`) and a `message`, which is one line or a list of lines, and may name a `year` (`2026`) and a `gate_country` (posted only when `country_code` in `preferences.conf` matches; `{flag}` in its message becomes that country's flag). A message is text, with two kinds of markup that each network gets in its own form: `[text](https://example.com)` is a link, and a line wrapped in underscores, `_like this_`, is in italics. The Australian end of financial year checklist (23 June) is such an entry: if you keep your own `reminder.json` in the data directory, `util/sync_defaults.py` shows what it lacks.
+The reminders that `reminder.json` held are message jobs now, among the default jobs (see [Scheduling](scheduling.md#the-default-jobs)), and finbot reads that file no more: delete the data directory's copy. A chat adds its own with `/jobs add message SCHEDULE "TEXT"`.
 
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
 

@@ -14,7 +14,7 @@ systemd, as below. To run it in a container instead, see [docker.md](docker.md).
   HTTP mode subscribes the bot to push updates: each network posts its updates to the gateway, which passes them to
   the bot (each guide's _HTTP mode_).
 * Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum), and these modules, pinned to versions with
-  3.13 support in `requirements.txt`: croniter, python-dateutil, requests, matplotlib and numpy.
+  3.13 support in `requirements.txt`: python-dateutil, requests, matplotlib and numpy.
 * For a network in HTTP mode (its webhook URL set), also waitress; for Slack in Socket Mode, websocket-client; for
   Discord's gateway API, discord.py, and for its HTTP mode, PyNaCl. These are in `requirements-optional.txt`, each
   imported only by the mode that needs it. Docker and a Python venv install them all, Docker in its image and a venv
@@ -23,7 +23,7 @@ systemd, as below. To run it in a container instead, see [docker.md](docker.md).
 ## Debian
 1. The packages, and those of the modes you use:
    ```
-   sudo apt install git python3 python3-requests python3-croniter python3-dateutil python3-matplotlib python3-numpy
+   sudo apt install git python3 python3-requests python3-dateutil python3-matplotlib python3-numpy
    sudo apt install python3-waitress     # any network in HTTP mode
    sudo apt install python3-websocket    # Slack's Socket Mode
    sudo apt install python3-discord      # Discord's gateway API
@@ -40,7 +40,7 @@ systemd, as below. To run it in a container instead, see [docker.md](docker.md).
    ```
 4. Check it: `~/finbot/util/check_config.py /opt/finbot.env`
 5. Run it under systemd, below. The first start makes the data directory (`var/` in the checkout, or
-   `/var/lib/finbot` with `DynamicUser=`); each chat then schedules its own reports with `/jobs add`
+   `/var/lib/finbot` with `DynamicUser=`); each chat then has the default scheduled jobs, which `/jobs` changes
    ([scheduling.md](scheduling.md)).
 
 [configuration.md](configuration.md) has every key and preference.

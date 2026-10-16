@@ -15,7 +15,7 @@ Telegram:
 
 Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price`, `/history`,
 `/performance` and the rest, [the list](commands.md#supported-commands), or as messages, `.price`), period buttons
-under charts and the buttons of `/jobs run` and `/jobs toggle`, "typing…" while a command works, and a keyboard of the
+under charts and the buttons of the `/jobs` menu, "typing…" while a command works, and a keyboard of the
 common commands in a direct chat with the bot.
 
 As finbot starts, it sets the bot's command menu, which Telegram shows when `/` is typed: each command with its usage
@@ -40,7 +40,7 @@ arrive after the switch.
    Do this after step 2, as it stops you adding the bot to groups too.
 5. Start finbot (`sudo systemctl restart finbot`). The log says `telegram: long polling for updates`.
 6. Send `/help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
-   Each chat schedules its own reports with `/jobs add` ([Scheduling](scheduling.md)).
+   Each chat has the default scheduled jobs, which `/jobs` changes ([Scheduling](scheduling.md)).
 
 ```
 telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA

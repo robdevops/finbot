@@ -23,8 +23,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `compose.yaml` does; all except for pull requests that change only README.md, CLAUDE.md, `doc/*.md` or `img/*.png`
   (install, compile, tests and the build are skipped; the allowlist in `.github/workflows/ci.yml` must never include a
   path a test reads). This cloud environment cannot reach `deb.debian.org`, so only CI builds the image.
-- Production runs the Debian system packages (including `python3-croniter`, for the scheduler in `lib/jobs.py`);
-  `requirements.txt` is for pip/uv users and CI. The libraries in `requirements-optional.txt` are each imported only
+- Production runs the Debian system packages; `requirements.txt` is for pip/uv users and CI. The libraries in `requirements-optional.txt` are each imported only
   inside the code of the mode that needs it, never at module load (a test starts finbot with them all blocked).
 - A new preference goes in three places: a `Prefs` field with its default (`lib/config.py`; its type says how it is
   read), `defaults/preferences.conf` (commented out at its default, `#key=value`: the template sets nothing, and finbot
@@ -70,10 +69,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
   or the job's chat, and with no dest raises: there are no home chats; `job(argv)`, its arguments' parser; and
   `ARGUMENTS`, what `.jobs add` lists):
-  `price performance trades shorts cal rating milestone reminder podcasts cleanup sharesight_warm yahoo_warm`. trades,
+  `price performance trades shorts cal rating milestone message podcasts cleanup sharesight_warm yahoo_warm`. trades,
   rating, milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`),
   added to only by a scheduled run (`delivery.interactive(dest)` is false).
-  Chat-only (`prepare_*`): `about` (.help .jobs), `history` (.history .compare), `holdings` (.holdings .who .pie
+  Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens: `jobs_screen`, `add_screen`, `next_screen`), `history` (.history .compare), `holdings` (.holdings .who .pie
   .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
   `chat(key)`, as its network's bot), `deliver(dest, report)`, the one-line error report (to its chat; one that belongs
@@ -83,8 +82,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   message), which `text()` and `chart()` stop before posting. `DiscordBot`: a slash command's first message replaces
   its "thinking…" through its `interaction` (application id/token), and a pressed message is edited through the
   press's.
-- `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), a `.jobs` command's (`job_button`), what a
-  pressed button's data asks for (`parse`), and the toast it gets at once (`toast`); each transport draws them.
+- `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), the `.jobs` menu's (`menu_button`, a
+  `MenuPress`; older lists' `j|`/`e|` buttons still parse), what a pressed button's data asks for (`parse`), and the
+  toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so
+  it is unique in a message.
   `lib/charts.py`: a chart with period buttons, built by its kind's builder (`build`) for the command's first view
   (`worker.chart_reply`) and for each press.
 - `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: one table by market code (flag,
@@ -104,13 +105,20 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `telegram:-1001234`), the same in both modes. `lib/watchlist.py`: each chat's watchlist (`tickers(chat)`), and
   `with_holdings(chat)`, the stocks a report in that chat covers; a report takes the chat from its destination.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on
-  each reload). `lib/jobs.py`: the scheduler: each chat's jobs (`SCHEDULE_FILE`, by chat key; `add`, `delete`,
-  `toggle`, `run`, which `.jobs` calls through `jobs.current`) and the fixed `SYSTEM` jobs, its shared state under one
-  lock; each command runs in the bot's process, in a thread (`run_in_process`), reported once if still running after
-  `JOB_TIMEOUT` and left to finish (every request goes through `net`, with its timeouts: a test checks).
-  `lib/migrate.py`: once, on an upgrade, the old schedule.cron, the watchlist, the plans and the reports' shared
-  records become the old home chats' (the retired telegramChatID, slackChannelID and discordChannelID, which it alone
-  reads, from the environment).
+  each reload). `lib/jobs.py`: the scheduler: each chat's jobs, the default ones and those it added (`JOBS_FILE`, by
+  chat key: the defaults it switched off, the jobs it added; `see` makes a chat known at its first command; `add`,
+  `delete`, `toggle`, `run`, `upcoming`, which `.jobs` calls through `jobs.current`; `parse_add` reads `.jobs add`),
+  and the fixed `SYSTEM` jobs, its shared state under one lock. A job is an action of `ACTIONS` (the report modules,
+  `message` among them) with the arguments its `job()` takes, never a command; one stored that is anything else is
+  logged and left out. Each job runs in the bot's process, in a thread (`run_in_process`), reported once if still
+  running after `JOB_TIMEOUT` and left to finish (every request goes through `net`, with its timeouts: a test checks);
+  each job's next run is worked out once and again only after it runs, so a tick costs little. `lib/when.py`: a job's
+  `Schedule` (days, a time or a repeat, or a span across days, in a zone): `parse()` of the English a chat types,
+  `describe()`, `next_after()` through daylight saving. `lib/catalog.py`: the default jobs (`ITEMS`), each with its
+  name and schedule; the period of performance and price follows how often it runs (`period_args`).
+  `lib/migrate.py`: once, on an upgrade, the old home chats (the retired telegramChatID, slackChannelID and
+  discordChannelID, which it alone reads, from the environment) become chats finbot knows, and the watchlist, the
+  plans and the reports' shared records become theirs.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return
@@ -119,10 +127,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - Which test file: commands and scheduled reports `test_reports`; failures, bad input, secrets in logs, signals
   `test_edges`; webhook requests, Slack events, slash commands and signatures, and the Slack manifest `test_inbound`;
   the pull modes `test_pull`; the Discord bot `test_discord`; Yahoo `test_yahoo`; Sharesight `test_sharesight`; posting
-  to each network `test_sending`; Telegram's webhook and command menu `test_telegram_api`; job lines, job arguments and
-  the migration `test_schedule`; the scheduler and `.jobs` in a chat `test_scheduler`; config `test_config`; charts
-  `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets, formats, links, buttons, cache and state files
-  `test_util`; data dir `test_datadir`; log levels, request lines and whole lines `test_edges`; chunking, git_version, and the docstring, stdout, line-width and no-pandas
+  to each network `test_sending`; Telegram's webhook and command menu `test_telegram_api`; job actions and arguments,
+  the default jobs, the messages and the migration `test_schedule`; the scheduler, and `.jobs` and its menu in a chat
+  `test_scheduler`; config `test_config`; charts `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets,
+  formats, links, buttons, schedules (`lib/when.py`), cache and state files `test_util`; data dir `test_datadir`; log levels, request lines and whole lines `test_edges`; chunking, git_version, and the docstring, stdout, line-width and no-pandas
   checks `test_finbot`.
 
 ## Conventions

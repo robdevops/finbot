@@ -54,8 +54,8 @@ subscribes the bot to the updates each network pushes to it (each guide's _HTTP 
   finbot ([guide](doc/discord.md)).
 
 Then send `/help` in a chat with the bot. Commands work as plain messages too (`.help`), which are quicker to type on a
-phone ([Commands](doc/commands.md#supported-commands)). Each chat schedules its own reports with `/jobs add`
-([Scheduling](doc/scheduling.md)).
+phone ([Commands](doc/commands.md#supported-commands)). From its first command, each chat has the default scheduled
+jobs, which `/jobs` switches on and off, adds to and runs ([Scheduling](doc/scheduling.md)).
 
 ## Documentation
 * [Commands and reports](doc/commands.md), with screenshots

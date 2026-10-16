@@ -98,8 +98,8 @@ slackBotToken=xoxb-your-bot-token
 2. Restart finbot, and invite the bot to the channel: `/invite @finbot`. In Socket Mode the log says
    `slack: Socket Mode (no slackOutgoingWebhook)`.
 3. Send `/help` (or `@finbot help`) in the channel, or in a direct message to the bot in its _Messages_ tab, where
-   `.help` works too (and in the channels, with `--every-message`). Each channel schedules its own reports with
-   `/jobs add` ([Scheduling](scheduling.md)).
+   `.help` works too (and in the channels, with `--every-message`). Each channel has the default scheduled jobs,
+   which `/jobs` changes ([Scheduling](scheduling.md)).
 
 An app set up by hand before takes the manifest too: paste it into _Features > App Manifest_ and _Save Changes_;
 Slack shows what changes, and asks to reinstall the app when its scopes do.
@@ -123,5 +123,5 @@ drawn and uploaded anew (Slack cannot replace a file). An upload that no message
 are past, so the bot's files do not pile up. If Slack will not show a chart with its buttons, the chart is uploaded into
 the channel without them; if an upload fails (a missing scope, say), the report goes out as text. The log says why.
 
-`/jobs run` and `/jobs toggle` list the channel's jobs with a button for each, as on Telegram; a button from a list
-that has since changed puts the current list in its place.
+`/jobs` lists the channel's jobs with the menu's buttons, as on Telegram; a button from a list that has since changed
+puts the current list in its place.
