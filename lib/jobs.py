@@ -42,8 +42,8 @@ SYSTEM = (('sharesight_warm', (), {'every': 30, 'from': '00:14'}), ('yahoo_warm'
 	('cleanup', ('30',), {'days': ['sat'], 'at': '18:51'}))
 WARM = ('sharesight_warm', 'yahoo_warm') # the jobs that fill the cache, run at once after a flush too
 # {chat key: {'jobs': [{action, args, schedule, on}], 'off': [catalog keys], 'deleted': [catalog keys]}}: the jobs it
-# added, the default jobs it switched off and those it removed; a chat whose default jobs start off (a direct message)
-# holds 'defaults': 'off' and 'on' instead of 'off', the catalog keys switched on
+# added, the default jobs it switched off and those it removed; a chat whose default jobs start off holds 'defaults':
+# 'off' and 'on' instead of 'off', the catalog keys switched on; a direct message holds 'dm': True
 JOBS_FILE = 'finbot_chat_jobs.json'
 OLD_FILE = 'finbot_schedule.json' # each chat's cron jobs, from before the catalog: read for its chats alone
 STATE_FILE = 'finbot_jobs.json' # each job's last run, by key: a restart neither repeats a run nor loses one
@@ -263,11 +263,11 @@ def is_dm(key):
 
 def know(keys, dm=None):
 	"""Make chats known (by key), each new one with none added and the default jobs switched on, or off in a direct
-	message: where dm is True (else as its key tells, is_dm). How many were new."""
+	message (marked 'dm'): where dm is True (else as its key tells, is_dm). How many were new."""
 	with state.edit(JOBS_FILE, {}) as chats:
 		new = [key for key in dict.fromkeys(keys) if key not in chats]
 		for key in new:
-			chats[key] = {'defaults': 'off'} if (is_dm(key) if dm is None else dm) else {}
+			chats[key] = {'defaults': 'off', 'dm': True} if (is_dm(key) if dm is None else dm) else {}
 	return len(new)
 
 
@@ -368,8 +368,11 @@ class Scheduler:
 			self.jobs, self.chats = jobs, set(chats)
 		if problem:
 			delivery.report_error(ScheduleError(problem), context='schedule')
-		log.info(f"schedule: {len(jobs) - len(SYSTEM)} jobs of {len(chats)} chat{'' if len(chats) == 1 else 's'}, and"
-			f" {len(SYSTEM)} system jobs")
+		dms = sum(1 for key, record in chats.items() if isinstance(record, dict) and record.get('dm') is True or
+			is_dm(key))
+		log.info(f"schedule: {len(jobs) - len(SYSTEM)} jobs of {len(chats) - dms} group"
+			f" chat{'' if len(chats) - dms == 1 else 's'} and {dms} DM{'' if dms == 1 else 's'}, and {len(SYSTEM)}"
+			" system jobs")
 
 	def stored_chats(self):
 		"""The chats JOBS_FILE knows, each with its record. At the first load, those the old OLD_FILE knew join them

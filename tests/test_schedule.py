@@ -288,7 +288,7 @@ class Migration(FinbotCase):
 		state.save(jobs.JOBS_FILE, {'slack:C1': {'off': ['trades']}})
 		self.assertIn('schedule: 1 old home chat start with the default jobs', self.migrate())
 		self.assertEqual(state.load(jobs.JOBS_FILE), {'slack:C1': {'off': ['trades']},
-			'telegram:1': {'defaults': 'off'}}) # a person's id: a direct message, whose default jobs start off
+			'telegram:1': {'defaults': 'off', 'dm': True}}) # a person's id: a DM, whose default jobs start off
 		self.assertNotIn('schedule:', self.migrate())
 
 	def test_with_no_home_chat_it_waits(self):
@@ -334,18 +334,19 @@ class DirectMessages(FinbotCase):
 		them all start on."""
 		jobs.know(['telegram:5', 'telegram:-100', 'slack:D1', 'slack:C1', 'discord:7'])
 		jobs.know(['discord:8'], dm=True)
-		self.assertEqual(state.load(jobs.JOBS_FILE), {'telegram:5': {'defaults': 'off'}, 'telegram:-100': {},
-			'slack:D1': {'defaults': 'off'}, 'slack:C1': {}, 'discord:7': {}, 'discord:8': {'defaults': 'off'}})
+		dm = {'defaults': 'off', 'dm': True}
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'telegram:5': dm, 'telegram:-100': {}, 'slack:D1': dm,
+			'slack:C1': {}, 'discord:7': {}, 'discord:8': dm})
 		s = jobs.Scheduler(clock=lambda: OCTOBER)
 		with contextlib.redirect_stderr(io.StringIO()):
 			s.load()
 			self.assertFalse(any(job.on for job in s.chat_jobs('telegram:5')))
 			self.assertTrue(all(job.on for job in s.chat_jobs('telegram:-100')))
 			s.toggle(s.chat_jobs('telegram:5')[0])
-			self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {'defaults': 'off', 'on': ['trades']})
+			self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {**dm, 'on': ['trades']})
 			self.assertEqual([job.on for job in s.chat_jobs('telegram:5')][:2], [True, False])
 			s.switch_all('telegram:5', True)
-		self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {})
+		self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {'dm': True}) # still a DM
 
 	def test_a_chat_seen_says_whether_it_is_a_direct_message(self):
 		"""At a chat's first command it starts with its default jobs off where it is a direct message: Discord's update
@@ -358,8 +359,8 @@ class DirectMessages(FinbotCase):
 			for chat, dm in (('88', True), ('77', False)):
 				worker.process_request(inbound.Message('discord', chat, '<@5>', '.help', '@99', 'rob', dm=dm))
 			worker.process_request(inbound.Message('telegram', '5', '@u', '.help', BOT, 'U'))
-		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:88': {'defaults': 'off'}, 'discord:77': {},
-			'telegram:5': {'defaults': 'off'}})
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:88': {'defaults': 'off', 'dm': True}, 'discord:77': {},
+			'telegram:5': {'defaults': 'off', 'dm': True}})
 
 	def test_the_direct_messages_jobs_are_switched_off_once(self):
 		"""As finbot first starts with this version, every job of each direct message chat it knows is switched off,
@@ -381,17 +382,18 @@ class DirectMessages(FinbotCase):
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			migrate.run()
 		stored = state.load(jobs.JOBS_FILE)
-		self.assertEqual(stored['telegram:5'], {'defaults': 'off', 'jobs': [{**trades, 'on': False}]})
+		self.assertEqual(stored['telegram:5'], {'defaults': 'off', 'dm': True, 'jobs': [{**trades, 'on': False}]})
 		for key in ('slack:D1', 'discord:8', 'telegram:6', 'discord:9'):
-			self.assertEqual(stored[key], {'defaults': 'off'}, key)
+			self.assertEqual(stored[key], {'defaults': 'off', 'dm': True}, key)
 		self.assertEqual((stored['telegram:-100'], stored['discord:7']), ({'jobs': [trades]}, {}))
 		self.assertNotIn('telegram:-6', stored) # an old chat that is no DM is known at the scheduler's first load
-		self.assertEqual(sorted(asked), ['/channels/7', '/channels/8', '/channels/9'])
+		self.assertEqual(sorted(asked), ['/channels/7', '/channels/7', '/channels/8', '/channels/8', '/channels/9',
+			'/channels/9']) # once by each upgrade, at the one start
 		self.assertIn('every job switched off in 5 direct message chats', log.getvalue())
-		self.assertIn('dm jobs off', state.load(migrate.UPGRADES))
+		self.assertTrue({'dm jobs off', 'dm flag'} <= set(state.load(migrate.UPGRADES)))
 		state.save(jobs.JOBS_FILE, {**stored, 'telegram:5': {}}) # switched on again
 		migrate.run()
-		self.assertEqual((state.load(jobs.JOBS_FILE)['telegram:5'], len(asked)), ({}, 3))
+		self.assertEqual((state.load(jobs.JOBS_FILE)['telegram:5'], len(asked)), ({}, 6))
 
 	def test_it_waits_for_discord_and_a_channel_discord_will_not_name_is_no_dm(self):
 		"""If Discord cannot be reached, nothing is switched and the upgrade waits for the next start; a channel Discord
@@ -413,7 +415,31 @@ class DirectMessages(FinbotCase):
 		self.patch(discord_common, 'call', refused)
 		with contextlib.redirect_stderr(io.StringIO()):
 			migrate.run()
-		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:8': {}, 'telegram:5': {'defaults': 'off'}})
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:8': {}, 'telegram:5': {'defaults': 'off', 'dm': True}})
+
+	def test_the_direct_messages_known_are_marked_once(self):
+		"""Where the jobs of the DMs were switched off at an earlier start, the DMs finbot knows are marked as such
+		once, switching nothing: Telegram's and Slack's as their keys tell, Discord's as Discord says."""
+		state.save(migrate.UPGRADES, {'dm jobs off': '2026-10-16T00:00:00+00:00'})
+		state.save(jobs.JOBS_FILE, {'telegram:5': {'on': ['rating']}, 'telegram:-100': {}, 'slack:D1': {},
+			'discord:8': {}, 'discord:7': {}})
+		self.env(discordBotToken='x')
+		self.patch(discord_common, 'call', lambda method, path, **kwargs: {'type': 1 if path == '/channels/8' else 0})
+		with contextlib.redirect_stderr(io.StringIO()):
+			migrate.run()
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'telegram:5': {'on': ['rating'], 'dm': True},
+			'telegram:-100': {}, 'slack:D1': {'dm': True}, 'discord:8': {'dm': True}, 'discord:7': {}})
+		self.assertIn('dm flag', state.load(migrate.UPGRADES))
+
+	def test_the_schedule_counts_group_chats_and_dms(self):
+		"""The schedule's line in the log at each load counts the chats' jobs, the group chats and the DMs apart (a
+		DM by its mark, or its key), and the system's jobs."""
+		self.patch(catalog, 'ITEMS', ())
+		self.patch(jobs, 'SYSTEM', ())
+		state.save(jobs.JOBS_FILE, {'telegram:-100': {}, 'discord:8': {'dm': True}, 'slack:C1': {}})
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			jobs.Scheduler(clock=lambda: OCTOBER).load()
+		self.assertIn('schedule: 0 jobs of 2 group chats and 1 DM, and 0 system jobs', log.getvalue())
 
 
 if __name__ == '__main__':

@@ -36,10 +36,11 @@ def old_homes():
 
 
 def run():
-	"""Switch off the jobs of the direct message chats finbot knows, once (dm_jobs_off). Make the old home chats' own
-	what was kept for all chats, where that has not been done yet; without any (a new install, or the retired keys
-	deleted), there is nowhere to put it, so it waits."""
+	"""Switch off the jobs of the direct message chats finbot knows, and mark them as such, once each (dm_jobs_off,
+	mark_dms). Make the old home chats' own what was kept for all chats, where that has not been done yet; without any
+	(a new install, or the retired keys deleted), there is nowhere to put it, so it waits."""
 	once('dm jobs off', dm_jobs_off)
+	once('dm flag', mark_dms)
 	homes = old_homes()
 	if not homes:
 		return
@@ -93,6 +94,20 @@ def dm_jobs_off():
 	if dms:
 		log.info(f"schedule: every job switched off in {len(dms)} direct message chat{'' if len(dms) == 1 else 's'}"
 			f" ({', '.join(dms)}), as a direct message now starts with its jobs off")
+
+
+def mark_dms():
+	"""Mark each direct message chat finbot knows as one ('dm' in its record), for the schedule's count of group chats
+	and DMs: Telegram's and Slack's as their keys tell (jobs.is_dm), Discord's as Discord says. Nothing is switched."""
+	chats = state.load(jobs.JOBS_FILE, {})
+	keys = [key for key in (chats if isinstance(chats, dict) else {}) if isinstance(key, str)]
+	dms = [key for key in keys if jobs.is_dm(key)]
+	if config.env.discordBotToken:
+		dms += [key for key in keys if key.startswith('discord:') and discord_dm(key.partition(':')[2])]
+	with state.edit(jobs.JOBS_FILE, {}) as stored:
+		for key in dms:
+			if isinstance(stored.get(key), dict):
+				stored[key]['dm'] = True
 
 
 def discord_dm(channel):
