@@ -76,8 +76,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens: `jobs_screen`, `add_screen`, `next_screen`), `history` (.history .compare), `holdings` (.holdings .who .pie
   .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
-  `chat(key)`, as its network's bot), `deliver(dest, report)`, the one-line error report (to its chat; one that belongs
-  to no chat only logged).
+  `chat(key)`, as its network's bot), `deliver(dest, report)` (a chart refused goes again with its heading alone as the
+  caption, the lines as text after it), the one-line error report (to its chat; one that belongs to no chat only
+  logged). A caption is cut to fit as the network counts it (`Dialect.visible`: Telegram's in UTF-16 code units).
   `lib/transports.py`: `Transport`, the base of each network's bot, every one taking charts and buttons: splitting,
   captions, charts, buttons, edits, and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the
   message), which `text()` and `chart()` stop before posting. `DiscordBot`: a slash command's first message replaces

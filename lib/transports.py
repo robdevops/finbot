@@ -139,8 +139,8 @@ def chunked(lines, limit):
 
 
 def fit_caption(caption, dialect):
-	"""The caption cut to the dialect's caption limit (none for Slack), as the network counts it (Telegram leaves the
-	tags out): the whole lines that fit, and how many were left out."""
+	"""The caption cut to the dialect's caption limit (none for Slack), as the network counts it (Telegram: the text
+	its HTML shows, in UTF-16 code units): the whole lines that fit, and how many were left out."""
 	limit = dialect.caption_limit
 	if limit is None or dialect.visible(caption) <= limit:
 		return caption

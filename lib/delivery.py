@@ -62,17 +62,25 @@ def targets(dest):
 def deliver(dest, report):
 	"""Post a report: its chart, drawn here only where it can go (a destination that takes charts, with the graph
 	preference on), with the lines as its caption; else the lines, and the buttons under the last message unless they
-	were the chart's. A chart the network refuses goes as text without its buttons, unless it may have arrived after all
-	(a timeout). Returns the network's answers, one per message."""
+	were the chart's. A chart the network refuses goes again with its heading (the first line) alone as its caption, the
+	lines following as text; refused again, the lines go as text alone, without its buttons. A chart that may have
+	arrived after all (a timeout) is not sent again. Returns the network's answers, one per message."""
 	chart = report.chart
 	if chart is None or not (dest.takes_charts and config.prefs.graph and chart.rows):
 		return dest.text(report.lines, report.buttons if chart is None else None)
 	caption = '\n'.join(map(str, report.lines)) or chart.title
-	answer = dest.chart(render.draw(chart), caption, report.buttons)
+	image = render.draw(chart)
+	answer = dest.chart(image, caption, report.buttons)
 	if answer is transports.MAYBE_SENT:
 		return []
 	if answer:
 		return [answer]
+	heading = caption.split('\n', 1)[0]
+	if heading != caption: # the caption may be what was refused: too long, or markup the network cannot read
+		log.warn("chart not sent, sending it again with its heading alone, and the report as text")
+		answer = dest.chart(image, heading, report.buttons)
+		if answer:
+			return ([] if answer is transports.MAYBE_SENT else [answer]) + dest.text(caption.split('\n'))
 	log.warn("chart not sent, sending the report as text")
 	return dest.text(caption.split('\n'))
 

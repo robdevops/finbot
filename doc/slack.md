@@ -121,7 +121,8 @@ its id) and the buttons. A press shows the chart for that period in the message 
 that period from the last 15 minutes, for this message or another, with the report that came with it, or else the chart
 drawn and uploaded anew (Slack cannot replace a file). An upload that no message shows is deleted once those 15 minutes
 are past, so the bot's files do not pile up. If Slack will not show a chart with its buttons, the chart is uploaded into
-the channel without them; if an upload fails (a missing scope, say), the report goes out as text. The log says why.
+the channel without them. If an upload fails, it is tried once more with the report's heading alone as its message, the
+report following as text; if that fails too (a missing scope, say), the report goes out as text alone. The log says why.
 
 `/jobs` lists the channel's jobs with the menu's buttons, as on Telegram; a button from a list that has since changed
 puts the current list in its place.

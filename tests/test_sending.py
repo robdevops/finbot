@@ -1,6 +1,6 @@
 """Posting to the networks against their answers and failures: Telegram, Slack (text, charts, Block Kit
 buttons) and Discord."""
-import contextlib, io, json, threading, unittest
+import contextlib, html.parser, io, json, threading, unittest
 from unittest import mock
 import requests
 from tests.common import *
@@ -181,7 +181,8 @@ class ChartDelivery(FinbotCase):
 				self.assertNotIn(share['data']['initial_comment'].split('\n'), [payload for _, payload in self.sent])
 
 	def test_a_slack_upload_that_fails_goes_out_as_text(self):
-		"""A Slack upload failing at any step goes as text, but not on a last-step timeout, when it may have arrived."""
+		"""A Slack upload failing at any step, then again with its heading alone, goes as text, but not on a last-step
+		timeout, when it may have arrived."""
 		self.env(slackBotToken='xoxb-test')
 		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
 
@@ -195,11 +196,12 @@ class ChartDelivery(FinbotCase):
 								 ([good[0], good[1], slow], []), # it may have been shared after all
 								 (good, [])):
 			with self.subTest(outcomes=outcomes):
-				self.slack_answers(*outcomes)
+				calls = self.slack_answers(*outcomes, *outcomes) # a refused chart is tried again, failing the same way
 				self.sent.clear()
 				with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
 					delivery.deliver(slack_common.SlackBot('C1'), delivery.Report(['*Heading*', 'line 2'], CHART))
 				self.assertEqual(self.sent, expect)
+				self.assertEqual(len(calls), len(outcomes) * (2 if expect else 1))
 
 	def test_scheduled_reports_carry_their_charts_on_every_network(self):
 		"""A scheduled report's chart goes to the job's chat on every network, as its bot."""
@@ -258,6 +260,69 @@ class ChartDelivery(FinbotCase):
 					report = delivery.Report(['Heading', 'line 2'], CHART, [[]])
 					delivery.deliver(telegram_common.TelegramBot('5'), report)
 				self.assertEqual(self.sent, expect)
+
+	def telegram(self, refused):
+		"""net.post as Telegram, refusing each caption refused(caption) is true for: the captions sent, in turn."""
+		captions = []
+		def post(url, data, **kwargs):
+			"""Telegram's answer to sendPhoto: the message, or Bad Request."""
+			captions.append(data['caption'])
+			if refused(data['caption']):
+				return Resp({'ok': False, 'error_code': 400, 'description': 'Bad Request: caption refused'}, status=400)
+			return Resp({'ok': True, 'result': {'message_id': len(captions)}})
+		self.patch(net, 'post', post)
+		return captions
+
+	def test_a_caption_fits_as_telegram_counts_it(self):
+		"""A caption is cut to Telegram's 1,024 characters as it counts them: the text its HTML shows (no tags, an
+		entity one character), in UTF-16 code units, so each 🔼 counts 2. Counted by code points, a list of thirty
+		moves passed for 1,012 and was refused, and the chart went as text."""
+		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
+		class Shown(html.parser.HTMLParser):
+			"""The text an HTML caption shows, as Telegram parses it."""
+			def handle_data(self, data):
+				"""Keep the text between the tags, its entities read."""
+				self.text += data
+		def length(caption):
+			"""A caption's length as Telegram counts it: its text in UTF-16 code units."""
+			shown = Shown()
+			shown.text = ''
+			shown.feed(caption)
+			return sum(2 if ord(char) > 0xFFFF else 1 for char in shown.text)
+		self.assertEqual(length('<b>🔼 S&amp;P</b>'), TELEGRAM.visible('<b>🔼 S&amp;P</b>'))
+		self.assertEqual(TELEGRAM.visible('<b>🔼 S&amp;P</b> <a href="https://x.co/?a=1&amp;b=2">T1</a>'), 9)
+		lines = ['<b>Price alerts 3% (ASX, NASDAQ)</b>'] + [
+			f'{"🔼🔻"[i % 2]} Company Number {i:02d} Holdings Lt (<a href="https://finance.yahoo.com/quote/T{i}">T{i}'
+			f'</a>) {"+-"[i % 2]}{i % 9 + 3}%' for i in range(40)]
+		captions = self.telegram(lambda caption: length(caption) > 1024)
+		with contextlib.redirect_stderr(io.StringIO()):
+			delivery.deliver(telegram_common.TelegramBot('5'), delivery.Report(lines, CHART))
+		self.assertEqual(len(captions), 1) # accepted at once: nothing sent again, nothing as text
+		self.assertEqual(self.sent, [])
+		self.assertLessEqual(length(captions[0]), 1024)
+		self.assertGreater(length(captions[0]), 990) # as many whole lines as fit
+		self.assertTrue(captions[0].endswith(' more in the chart'), captions[0][-40:])
+
+	def test_a_chart_refused_with_its_caption_goes_again_with_its_heading(self):
+		"""A chart refused with its report as the caption goes again with the heading alone and its buttons, the
+		report following as text; refused again, or where the heading was the whole caption, the report goes as text."""
+		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
+		markup = [[buttons.Button('7D', 'l|3|0|w')]]
+		for refused, captions, sent in ((lambda caption: '\n' in caption, ['<b>Heading</b>\nline 2', '<b>Heading</b>'],
+				[('text', ['<b>Heading</b>', 'line 2'])]), (lambda caption: True, ['<b>Heading</b>\nline 2',
+				'<b>Heading</b>'], [('text', ['<b>Heading</b>', 'line 2'])])):
+			with self.subTest(captions=captions):
+				self.sent.clear()
+				asked = self.telegram(refused)
+				with contextlib.redirect_stderr(io.StringIO()):
+					delivery.deliver(telegram_common.TelegramBot('5'),
+						delivery.Report(['<b>Heading</b>', 'line 2'], CHART, markup))
+				self.assertEqual((asked, self.sent), (captions, sent))
+		asked = self.telegram(lambda caption: True)
+		self.sent.clear()
+		with contextlib.redirect_stderr(io.StringIO()):
+			delivery.deliver(telegram_common.TelegramBot('5'), delivery.Report(['<b>Heading</b>'], CHART))
+		self.assertEqual((asked, self.sent), (['<b>Heading</b>'], [('text', ['<b>Heading</b>'])]))
 
 
 class DiscordSending(FinbotCase):
