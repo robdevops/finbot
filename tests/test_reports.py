@@ -404,20 +404,23 @@ class ScheduledReports(FinbotCase):
 		self.assertNotIn('Co T1 ', str(self.sent))
 
 	def test_a_us_listing_of_a_foreign_company_keeps_its_own_dates(self):
-		"""A foreign company's US listing (an ADR such as ARM, held as it is) whose quote lacks the date takes it from
-		its own details, never its home market's listing (ARM.L, which Yahoo may not even know); that one is asked
-		for only when the US listing has no date at all."""
-		asked = []
+		"""A foreign company's US listing (ARM, CLBT: held on a US market) whose quote lacks the date takes it from its
+		own details, and is never swapped for its home market's listing (ARM.L, CLBT.TA), even when it has no date at
+		all: then it has none."""
 		undated = lambda t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')}
 		self.patch(yahoo, 'fetch', lambda ts: {t: undated(t) for t in ts})
-		def details(t, *a, **k):
-			"""T1's details, of a British company, with its date; asked for, noted."""
-			asked.append(t)
-			return {t: {**market_entry(t.split('.')[0]), 'profile_country': 'United Kingdom'}}
-		self.patch(yahoo, 'fetch_detail', details)
-		cal.run(event='earnings')
-		self.assertIn('Co T1 ', str(self.sent))
-		self.assertEqual([t for t in asked if '.' in t], []) # no T1.L
+		for own_date, listed in ((True, True), (False, False)):
+			with self.subTest(own_date=own_date):
+				asked = []
+				def details(t, *a, **k):
+					"""T1's details, of a British company, with its date or without; asked for, noted."""
+					asked.append(t)
+					return {t: {**(market_entry(t) if own_date else undated(t)), 'profile_country': 'United Kingdom'}}
+				self.patch(yahoo, 'fetch_detail', details)
+				self.sent.clear()
+				cal.run(event='earnings')
+				self.assertEqual('Co T1 ' in str(self.sent), listed)
+				self.assertEqual([t for t in asked if '.' in t], []) # no T1.L
 
 	def test_trades(self):
 		""".trades run from a chat posts."""
