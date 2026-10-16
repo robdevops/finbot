@@ -487,14 +487,6 @@ class Scheduler:
 		"""A chat's job's number in .jobs, by its key."""
 		return next(number for number, job in enumerate(self.chat_jobs(chat), 1) if job.key == key)
 
-	def pick(self, chat, number, crc):
-		"""The job a button stands for. Button data is untrusted input: the number must be plain digits within this
-		chat's list, and the checksum must match that very job, else ScheduleError."""
-		job = self.job(chat, number)
-		if buttons.checksum([job.key]) != crc:
-			raise ScheduleError('the jobs have changed')
-		return job
-
 	def run(self, job):
 		"""Run a job now, as its schedule would, and note the run: its outcome (see execute)."""
 		with self.lock:

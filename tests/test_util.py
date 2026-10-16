@@ -147,18 +147,16 @@ class Formatting(unittest.TestCase):
 
 	def test_button_data_reads_back(self):
 		"""A button's data says what was pressed: a period button of a known kind and period (as keyboard() makes
-		them), a .jobs menu's button of a known screen made of plain letters and digits, an older job button (pick
-		checks it), and nothing for anything else."""
+		them), a .jobs menu's button of a known screen made of plain letters and digits, and nothing for anything else:
+		the job buttons of older lists (j|, e|) included."""
 		self.assertEqual([buttons.parse(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
 			[buttons.ChartPress('l', key, '5,0') for key in 'dwmyx'])
 		self.assertEqual(buttons.parse(buttons.menu_button('1 ✅ trades', 'on', [0, 1], 'abcd').data),
 			buttons.MenuPress('on', ('0', '1'), 'abcd'))
 		self.assertEqual(buttons.parse('m|add|abcd'), buttons.MenuPress('add', (), 'abcd'))
-		self.assertEqual(buttons.parse('j|8|abcd'), buttons.JobPress('8', 'abcd'))
-		self.assertEqual(buttons.parse('j|8'), buttons.JobPress('8', ''))
 		self.assertEqual(buttons.menu_button('x' * 50, 'top', [0], 'abcd').label, 'x' * 40)
 		for data in ('c|h|d|T1', 'c|z|w|T1', 'c|h|w', 'x|h|w|T1', '', 'c', 'm|zz|0|abcd', 'm|on', 'm|on|0|a b',
-				'm|on|٨|abcd', 'm|on|0|1|' + 'a' * 60):
+				'm|on|٨|abcd', 'm|on|0|1|' + 'a' * 60, 'j|8|abcd', 'e|8|abcd'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
 
@@ -169,24 +167,21 @@ class Formatting(unittest.TestCase):
 		button = buttons.pick_button('x' * 99, press)
 		self.assertEqual((buttons.parse(button.data), len(button.label), len(button.data)), (press, 40, 27))
 		for data in ('k|z|0|x|0|0|p0|a1b2', 'k|c|0|x|0|0|q0|a1b2', 'k|c|0|x|0|zz|p0|a1b2', 'k|c|0|q|0|0|p0|a1b2',
-				'k|c|0|x|0|0|p0', 'k|c|0|x|0|0|p0|a-b2', 'k|c|0|x|0|0|p|a1b2'):
+				'k|c|0|x|0|0|p0', 'k|c|0|x|0|0|p0|a-b2', 'k|c|0|x|0|0|p|a1b2', 'k|c|0|x|0|3|g0|a1b2'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
-		acts = ('p0', 'm1', 'r2', 'g0', 'h0', 'f0')
+		acts = ('p0', 'm1', 'n1', 'r2', 'h0', 'f0')
 		self.assertEqual([buttons.toast(f'k|c|0|x|0|3|{act}|a1b2') for act in acts],
-			['Updating…', 'Updating…', 'Loading…', 'Loading…', 'Loading…', buttons.TOO_MANY])
+			['Updating…', 'Updating…', 'Updating…', 'Loading…', 'Loading…', buttons.TOO_MANY])
 		self.assertEqual([buttons.alert(f'k|c|0|x|0|3|{act}|a1b2') for act in ('m0', 'f0')], [False, True])
 
 	def test_a_press_is_told_what_is_coming_from_its_data_alone(self):
-		"""The toast a press gets as it arrives: the period a period button loads, 'Updating…' for the .jobs menu's,
-		'Running…' or 'Switching…' for an older job button (the worker checks them later), and none for other data."""
+		"""The toast a press gets as it arrives: the period a period button loads, 'Updating…' for the .jobs menu's, and
+		none for other data (the older lists' job buttons among them)."""
 		self.assertEqual([buttons.toast(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
 			['Loading 1D…', 'Loading 7D…', 'Loading 1M…', 'Loading 1Y…', 'Loading Max…'])
-		self.assertEqual(buttons.toast('j|8|abcd'), 'Running…')
-		self.assertEqual(buttons.toast('j|99|0000'), 'Running…')
-		self.assertEqual(buttons.toast('e|99|0000'), 'Switching…')
 		self.assertEqual(buttons.toast('m|on|0|1|abcd'), 'Updating…')
-		for data in ('c|f|d|', 'c|zz|m|T1', '', 'x'):
+		for data in ('c|f|d|', 'c|zz|m|T1', '', 'x', 'j|8|abcd', 'e|99|0000'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.toast(data))
 

@@ -96,7 +96,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   with period buttons primes its other periods (`charts.prime`, `worker.prime_periods` after `.compare`, `.price`,
   `.performance`, `chart_reply` and the pickers; never for a scheduled run).
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), the `.jobs` menu's (`menu_button`, a
-  `MenuPress`; older lists' `j|`/`e|` buttons still parse), what a pressed button's data asks for (`parse`), and the
+  `MenuPress`), what a pressed button's data asks for (`parse`), and the
   toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so
   it is unique in a message.
   `lib/charts.py`: a chart with period buttons, built by its kind's builder (`build`) for the command's first view

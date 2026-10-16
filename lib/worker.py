@@ -49,32 +49,6 @@ class Request:
 		can go) and buttons."""
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
-def process_job_callback(press, pressed):
-	"""An older job button (an inbound.Press; pressed, what its data says): run the job now and say how it went, or
-	switch it on or off and redraw the list in place, as the menu's screen that does the same. A button from an older
-	list does neither: the screen is drawn as the list is now."""
-	service = dialects.of(press.service)
-	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
-	def redraw():
-		"""Put the menu's screen that does the same, as the list is now, in place of the pressed one."""
-		lines, markup = about.jobs_screen(service, chat.key, 'top' if pressed.action == 'toggle' else 'run')
-		chat.edit_text(press.message_id, '\n'.join(lines), markup or [])
-	try:
-		if jobs.current is None:
-			raise jobs.ScheduleError('no schedule is running')
-		job = jobs.current.pick(chat.key, pressed.number, pressed.checksum) # only this chat's job, as listed
-	except jobs.ScheduleError:
-		return redraw()
-	try:
-		if pressed.action == 'toggle':
-			jobs.current.toggle(job)
-			redraw()
-		else:
-			delivery.deliver(chat, delivery.Report([about.job_line(service, pressed.number, job,
-				jobs.current.run(job))]))
-	except Exception as e:
-		delivery.report_error(e, chat, context='jobs')
-
 def process_menu_callback(press, pressed):
 	"""A press in the .jobs menu (an inbound.Press; pressed, the buttons.MenuPress its data says): a screen to show; or
 	first a job to switch, delete or run, as long as the list is the one the button was drawn for (its checksum), else
@@ -158,11 +132,11 @@ def process_pick_callback(press, pressed):
 			shown, mask = pick.default(cmd, found)
 		per_page = pick.layout(service, cmd)[0]
 		view = 'm' if kind in 'mnf' else 'p' # picking a ticker, or Compare, goes back to the top
-		page = number if kind in 'pmnfg' else number // per_page if kind == 'r' else 0
+		page = number if kind in 'pmnf' else number // per_page if kind == 'r' else 0
 		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if kind == 'f' else None
 		if kind == 'r' and number < len(found):
 			shown = number + 1
-		elif kind in 'gh' and bin(mask).count('1') >= 2:
+		elif kind == 'h' and mask.bit_count() >= 2:
 			shown = pick.pack([i for i in range(len(found)) if mask >> i & 1])
 		names = pick.shown_names(cmd, found, shown)
 		lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, view, page, note)
@@ -170,7 +144,7 @@ def process_pick_callback(press, pressed):
 			if kind == 'm' and chat.edit_buttons(press.message_id, rows): # a tick, a page: the answer stays as it is
 				return
 			pick_answer(service, chat, press.message_id, cmd, group, period, names, rows, note)
-			if cmd in 'yc' and (stale or kind in 'rgh'): # a new ticker or set
+			if cmd in 'yc' and (stale or kind in 'rh'): # a new ticker or set
 				prime_periods(chat, 'c' if cmd == 'c' else 'h', names, period)
 			return
 		chat.edit_text(press.message_id, '\n'.join(lines), rows) # the picker alone: no answer yet, so text
@@ -206,16 +180,13 @@ def pick_answer(service, chat, message, cmd, group, period, names, rows, note=No
 		chat.edit_text(message, caption, rows)
 
 def process_callback(press):
-	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): the .jobs menu's, an older job
-	button (run it, or switch it), or a chart's, whose message is rebuilt for the chosen period and edited in place.
-	Data of none of them is ignored."""
+	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): a picker's, the .jobs menu's, or
+	a chart's, whose message is rebuilt for the chosen period and edited in place. Data of none of them is ignored."""
 	pressed = buttons.parse(press.data)
 	if isinstance(pressed, buttons.PickPress):
 		return process_pick_callback(press, pressed)
 	if isinstance(pressed, buttons.MenuPress):
 		return process_menu_callback(press, pressed)
-	if isinstance(pressed, buttons.JobPress):
-		return process_job_callback(press, pressed)
 	if not pressed:
 		return
 	service = dialects.of(press.service)

@@ -840,32 +840,21 @@ class JobsMenu(ChatBase):
 		self.assertEqual(self.press(data['Cancel'])[0][0], '<b>Jobs here</b>')
 
 	def test_a_stale_or_forged_press_acts_on_nothing(self):
-		"""A press drawn for another list (its checksum), for a number that is none, or of no screen at all switches,
-		deletes and runs nothing: the screen is drawn as the list is now, or the press is ignored."""
+		"""A press drawn for another list (its checksum), for a number that is none, or of no screen at all (a job
+		button of the older lists, j| and e|, among them) switches, deletes and runs nothing: the screen is drawn as the
+		list is now, or the press is ignored."""
 		good = self.crc()
 		for data in (f'm|on|0|1|0000', f'm|off|0|1|0000', f'm|del|0|3|0000', f'm|run|0|3|0000', f'm|on|0|9|{good}',
 				f'm|on|0|0|{good}', f'm|run|0|x|{good}', f'm|run|0|all|{good}', f'm|on|0|allyes|{good}'):
 			with self.subTest(data=data):
 				lines, _, _ = self.press(data)
 				self.assertEqual(lines[0], 'The jobs have changed: here they are now')
-		for data in (f'm|zz|0|{good}', f'm|on|0|1|{good}|' + 'x' * 60, 'm|on|٨|1|' + good, 'm|on|0|1|a b'):
+		for data in (f'm|zz|0|{good}', f'm|on|0|1|{good}|' + 'x' * 60, 'm|on|٨|1|' + good, 'm|on|0|1|a b',
+				f'j|3|{good}', f'e|3|{good}'):
 			with self.subTest(data=data):
 				self.assertEqual(self.press(data), (None, None, None))
 		self.assertEqual((self.ran, len(self.s.chat_jobs(CHAT))), ([], 3))
 		self.assertTrue(all(job.on for job in self.s.chat_jobs(CHAT)))
-
-	def test_the_older_job_buttons_still_work(self):
-		"""A job button of an older list ('j|' runs a job, 'e|' switches one) still works, by the job's own checksum;
-		a switch redraws the list."""
-		job = self.s.chat_jobs(CHAT)[2]
-		self.press(f'j|3|{buttons.checksum([job.key])}')
-		self.assertEqual((self.toasts, self.ran), (['Running…'], [('trades', {})]))
-		lines, rows, _ = self.press(f'e|3|{buttons.checksum([job.key])}')
-		self.assertFalse(self.s.chat_jobs(CHAT)[2].on)
-		self.assertEqual((lines[0], rows[0]), ('<b>Jobs here</b>', ['Add', 'Delete']))
-		self.assertIn('3. ❌ trades · every 20 mins, weekdays UTC', lines)
-		lines, _, _ = self.press('e|3|0000') # stale: the screen as the list is now, nothing switched
-		self.assertFalse(self.s.chat_jobs(CHAT)[2].on)
 
 	def test_add_by_buttons_back_and_cancel(self):
 		"""Add takes the report (by its name alone), how often, then the day, the hour and the minute from buttons, by

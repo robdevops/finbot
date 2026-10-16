@@ -162,12 +162,12 @@ class WsgiRejections(FinbotCase):
 		secret = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
 		for sender, who in (({'username': 'rob', 'first_name': 'Rob'}, '@rob'), ({'first_name': 'Ann'}, 'Ann'),
 				({}, 'unknown')):
-			body = json.dumps({'callback_query': {'id': '1', 'from': sender, 'data': 'j|7|abcd',
+			body = json.dumps({'callback_query': {'id': '1', 'from': sender, 'data': 'c|h|y|T1',
 				'message': {'message_id': 9, 'chat': {'id': 55}}}}).encode()
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
 				bot.main(wsgi_environ('/telegram', body, **secret), lambda *a, **k: None)
-			self.assertIn(f'Telegram button {who} chat 55 j|7|abcd', err.getvalue())
+			self.assertIn(f'Telegram button {who} chat 55 c|h|y|T1', err.getvalue())
 
 	def test_a_press_is_acknowledged_once_before_the_worker_gets_it(self):
 		"""bot.take acknowledges a press, the one place that does: Telegram's with the toast its data makes, before the
