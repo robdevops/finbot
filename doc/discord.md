@@ -4,11 +4,11 @@ finbot talks to Discord as the bot user of a Discord application that you create
 posts each channel's scheduled reports there and answers commands: slash commands (`/price`) in both modes, and
 messages (`.price`, `@finbot price`) over the gateway API.
 
-## Gateway API mode or push mode?
+## Pull mode or push mode?
 
 The bot does the same either way. What differs is how it hears from Discord:
 
-| | Gateway API mode (the default) | Push mode |
+| | Pull mode (the default) | Push mode |
 |---|---|---|
 | How commands and button presses reach finbot | Over Discord's gateway API, a connection finbot keeps open to Discord | Discord posts them to your HTTPS server |
 | Listens on the internet | No: finbot opens the connection to Discord | Yes, behind your HTTPS server: a domain name with a valid certificate |
