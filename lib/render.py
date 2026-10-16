@@ -561,16 +561,20 @@ def draw_treemap(chart):
 	ax.axis('off')
 	total = sum(value for _, held in rows for _, value in held) or 1.0
 	box = _squarify([sum(value for _, value in held) for _, held in rows], 24, 92, 1232, 684)
-	char, n = 12.5, 0 # pixels a character of the 8pt tile text takes
+	renderer = fig.canvas.get_renderer()
+	char, n = 14, 0 # pixels a character of the 8pt tile text takes, at most
 	for (label, held), (x, y, w, h) in zip(rows, box):
 		color = '#6b7280' if label == 'Other' else CATEGORIES[n % len(CATEGORIES)]
 		n += label != 'Other'
 		x, y, w, h = x + 1, y + 1, w - 2, h - 2
-		head = 22 if h > 60 and w > 3 * char else 0
+		head = 22 if h > 60 and w > 4 * char else 0
 		if head:
-			room = int((w - 4) / char)
-			ax.text(x + 2, y + head / 2, label if len(label) <= room else label[:max(room - 1, 1)] + '…',
-				color=color, fontsize=8, fontweight='bold', ha='left', va='center', clip_on=True)
+			title = ax.text(x + 2, y + head / 2, label, color=color, fontsize=8, fontweight='bold', ha='left',
+				va='center')
+			while len(title.get_text()) > 2 and title.get_window_extent(renderer).width > w - 12:
+				title.set_text(title.get_text().rstrip('… ')[:-1].rstrip() + '…')
+			if title.get_window_extent(renderer).width > w - 12:
+				title.remove() # not even a few letters fit
 		tiles = _squarify([value for _, value in held], x, y + head, w, h - head)
 		for k, ((name, value), (tx, ty, tw, th)) in enumerate(zip(held, tiles)):
 			ax.add_patch(Rectangle((tx + 1, ty + 1), tw - 2, th - 2, facecolor=_mixed(color, bg, k % 3 * 0.14),
