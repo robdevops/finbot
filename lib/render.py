@@ -633,10 +633,10 @@ def draw(chart):
 		raise ValueError(f"unknown chart kind {chart.kind!r}")
 	key = json.dumps([CODE_VERSION, dataclasses.asdict(chart)], sort_keys=True, default=str)
 	name = f"finbot_chart_{hashlib.sha1(key.encode()).hexdigest()[:20]}.png"
-	if config.prefs.cache and (image := cache.read_bytes(name)):
+	if config.settings.cache and (image := cache.read_bytes(name)):
 		return image
 	image = RENDERERS[chart.kind](trimmed(chart))
-	if config.prefs.cache:
+	if config.settings.cache:
 		cache.write_bytes(name, image)
 		image.seek(0)
 	return image

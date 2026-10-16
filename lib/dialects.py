@@ -32,8 +32,8 @@ class Dialect(str):
 		return before + text + after
 
 	def link(self, url, text):
-		"""text linking to url; just the text with the hyperlink preference off."""
-		return self._link(url, text) if config.prefs.hyperlink else text
+		"""text linking to url; just the text with the hyperlink setting off."""
+		return self._link(url, text) if config.settings.hyperlink else text
 
 	def escape(self, text):
 		"""Text a user wrote (a .plan entry, a name) made safe to show: Telegram's HTML and Slack's markup both take

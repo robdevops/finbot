@@ -215,7 +215,7 @@ class DefaultJobs(unittest.TestCase):
 			'message: SPCX 5th mensiversary. End of (statistically) most … · once, 12 Nov 2026 at 8:30am Sydney'])
 
 	def test_a_message_for_one_country_only_there_with_its_flag(self):
-		"""A message for one country is a default job only where it is the country_code preference, with its flag."""
+		"""A message for one country is a default job only where it is the country_code setting, with its flag."""
 		au, nz = ({item.key for item in catalog.items(country)} for country in ('AU', 'NZ'))
 		self.assertEqual(sorted(au - nz), ['message-eofy-checklist', 'message-intent-to-claim', 'message-tax-due-soon',
 			'message-tax-due-today', 'message-ubank-draw-6'])
@@ -249,7 +249,7 @@ class Messages(FinbotCase):
 			'DGR-registered</a></i>')
 
 	def test_the_birthday_counts_the_years(self):
-		"""finbot's birthday says how old it is that day, by the timezone preference's clock."""
+		"""finbot's birthday says how old it is that day, by the timezone setting's clock."""
 		birthday = next(item for item in catalog.ITEMS if item.key == 'message-birthday')
 		for today, said in ((datetime.date(2026, 8, 18), "It's my 4th birthday! 🥳"),
 				(datetime.date(2026, 8, 17), "It's my 3rd birthday! 🥳")):

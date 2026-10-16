@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Split an old single .env into the two config files: finbot.env (the startup file) and preferences.conf.
+"""Split an old single .env into the two config files: finbot.env (the startup file) and settings.conf.
 
   util/split_env.py [old file]      (default: the .env in the checkout, which finbot will not start with)
 
 Reads the old file in either format: dotenv (key = 'value' # comment, export key=value) or plain KEY=value. Writes
-finbot.env.new and preferences.conf.new next to it; it never overwrites anything. Review them, then move them into
-place: finbot.env wherever your launcher loads it from, preferences.conf into DATA_DIR. Then delete the old file. Keys
+finbot.env.new and settings.conf.new next to it; it never overwrites anything. Review them, then move them into
+place: finbot.env wherever your launcher loads it from, settings.conf into DATA_DIR. Then delete the old file. Keys
 it cannot place (removed or unknown) are listed and left out."""
 
 import argparse
@@ -44,8 +44,8 @@ def parse_line(line):
 
 
 def split(text, path='.env'):
-	"""(startup lines, preference lines, notes) for the lines of an old env file."""
-	startup, preferences, notes = [], [], []
+	"""(startup lines, setting lines, notes) for the lines of an old env file."""
+	startup, settings, notes = [], [], []
 	for number, raw in enumerate(text.splitlines(), 1):
 		parsed = parse_line(raw)
 		if parsed is None:
@@ -62,11 +62,11 @@ def split(text, path='.env'):
 			notes.append(f'{path} line {number}: {key} dropped: {config.RETIRED[key]}')
 		elif key in config.STARTUP_KEYS:
 			startup.append(f'{key}={value}')
-		elif key in config.PREFERENCE_KEYS:
-			preferences.append(f'{key}={value}')
+		elif key in config.SETTING_KEYS:
+			settings.append(f'{key}={value}')
 		else:
 			notes.append(f'{path} line {number}: unknown key {key}, left out')
-	return startup, preferences, notes
+	return startup, settings, notes
 
 
 if __name__ == '__main__':
@@ -77,12 +77,12 @@ if __name__ == '__main__':
 	src = Path(args.file)
 	if not src.is_file():
 		sys.exit(f'{src} does not exist: nothing to split')
-	startup, preferences, notes = split(src.read_text(), src)
+	startup, settings, notes = split(src.read_text(), src)
 	outputs = {
 		src.with_name('finbot.env.new'):
 			('# finbot.env: the startup file, loaded by your launcher; a change needs a restart.', startup, 0o600),
-		src.with_name('preferences.conf.new'):
-			('# preferences.conf: read by the bot; reload with systemctl reload finbot.', preferences, 0o644)}
+		src.with_name('settings.conf.new'):
+			('# settings.conf: read by the bot; reload with systemctl reload finbot.', settings, 0o644)}
 	if any(path.exists() for path in outputs):
 		sys.exit('refusing to overwrite: ' + ', '.join(str(p) for p in outputs if p.exists()))
 	for path, (header, lines, mode) in outputs.items():
@@ -91,5 +91,5 @@ if __name__ == '__main__':
 		print(f'wrote {path} ({len(lines)} keys)', file=sys.stderr)
 	for note in notes:
 		print(note, file=sys.stderr)
-	print('next: put finbot.env where your launcher loads it and preferences.conf in the data directory (DATA_DIR),'
+	print('next: put finbot.env where your launcher loads it and settings.conf in the data directory (DATA_DIR),'
 		f' then delete {src}', file=sys.stderr)

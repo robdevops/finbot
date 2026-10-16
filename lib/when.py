@@ -487,7 +487,7 @@ def time_of(hours, mins, half):
 
 def parse(text, zone, default_at=DEFAULT_AT):
 	"""The Schedule that a chat typed ("weekly at 9am", "every 20 mins weekdays from 10am to 9pm New York"), in the
-	zone it names last, else in zone (the timezone preference's); at default_at where it says no time. Raises
+	zone it names last, else in zone (the timezone setting's); at default_at where it says no time. Raises
 	ScheduleError, with examples, for what it cannot read."""
 	words = text.lower().replace('–', '-').replace('—', '-').replace(',', ' ').split()
 	named = None

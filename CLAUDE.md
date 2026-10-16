@@ -25,9 +25,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   path a test reads). This cloud environment cannot reach `deb.debian.org`, so only CI builds the image.
 - Production runs the Debian system packages; `requirements.txt` is for pip/uv users and CI. The libraries in `requirements-optional.txt` are each imported only
   inside the code of the mode that needs it, never at module load (a test starts finbot with them all blocked).
-- A new preference goes in three places: a `Prefs` field with its default (`lib/config.py`; its type says how it is
-  read), `defaults/preferences.conf` (commented out at its default, `#key=value`: the template sets nothing, and finbot
-  never reads it), and the preferences table of `doc/configuration.md`. The tests catch a key
+- A new setting goes in three places: a `Settings` field with its default (`lib/config.py`; its type says how it is
+  read), `defaults/settings.conf` (commented out at its default, `#key=value`: the template sets nothing, and finbot
+  never reads it), and the settings table of `doc/configuration.md`. The tests catch a key
   missing from the template or a default that differs, but not the docs (no test may read README.md or `doc/*.md`: CI
   skips the tests for a change to the docs alone).
 - If Yahoo and Sharesight are unreachable (the cloud environment's network policy can block them), check behaviour
@@ -111,14 +111,14 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `trades(days)`. Sharesight is
   optional (`sharesight.configured()`): without its keys `tickers()` is empty, so reports cover the watchlist alone, and
   `portfolios()` raises `NotSetUp`, an answer.
-- `lib/log.py`: the log, by level (`error warn info debug`), as the `log_level` preference lets in, and `cut()`, which
-  keeps a line that can run long (a request's, a chat message's) on one line, within the `log_width` preference;
+- `lib/log.py`: the log, by level (`error warn info debug`), as the `log_level` setting lets in, and `cut()`, which
+  keeps a line that can run long (a request's, a chat message's) on one line, within the `log_width` setting;
   bot.py's `WholeLines` writes each line whole, whichever threads log at once. `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save; a file of one record per chat with
   `state.load_for(chat, name, default)` and `state.edit_for`. A chat's key is its network and id (`Transport.key`,
   `telegram:-1001234`), the same in both modes. `lib/watchlist.py`: each chat's watchlist (`tickers(chat)`), and
   `with_holdings(chat)`, the stocks a report in that chat covers; a report takes the chat from its destination.
-- `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on
+- `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.settings` (settings.conf, a new object on
   each reload). `lib/jobs.py`: the scheduler: each chat's jobs, the default ones and those it added (`JOBS_FILE`, by
   chat key: the defaults it switched off and those it removed, `'deleted'`, the jobs it added; a direct message's
   defaults start off, `'defaults': 'off'` with those switched on, and it is marked `'dm'`; `see` makes a chat known at
@@ -153,8 +153,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   checks `test_finbot`.
 
 ## Conventions
-- Read settings as `config.env.<name>` / `config.prefs.<name>` where they are used, never into a default or module
-  constant (a reload must be seen); in tests, `self.env(...)` / `self.prefs(...)` change them.
+- Read settings as `config.env.<name>` / `config.settings.<name>` where they are used, never into a default or module
+  constant (a reload must be seen); in tests, `self.env(...)` / `self.settings(...)` change them.
 - A report is a list of lines. `service` is a dialect (`lib/dialects.py`), which equals the network's name: markup
   with `service.bold(text)`, `.italic`, `.strike`, `.link(url, text)`, user-written text through
   `service.escape(text)`, stock links through `links.finance_link(symbol, exchange, service)`. Tests pass `TELEGRAM`,
@@ -169,8 +169,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   sent, a job run; `net` logs each request it sends), `log.debug` (cache misses, hits and writes; the routine of a
   press: the press, its acknowledgement and the edit in place, sent with `logged='debug'`, and a success answered to
   a network). The
-  `log_level` preference sets what reaches the log; `lib/config.py` prints its own errors (it loads before
-  preferences exist). Everything goes to stderr: systemd discards stdout (`StandardOutput=null`), so the bot and its reports
+  `log_level` setting sets what reaches the log; `lib/config.py` prints its own errors (it loads before
+  settings exist). Everything goes to stderr: systemd discards stdout (`StandardOutput=null`), so the bot and its reports
   never print there (a test checks); only the util/ tools, run by hand, do.
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
   charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's).
@@ -185,6 +185,6 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   green). One module: `.venv/bin/python -m unittest tests.test_reports -b`.
 - README.md is short: what finbot is, a quick start, and links. The rest is in `doc/`, a file per topic: `commands.md`
   (the commands and reports, 16 KB: grep for the section instead of reading it whole), `configuration.md` (the keys
-  and preferences), `scheduling.md`, `caching.md`, `install.md` (a Debian host), `docker.md`, and a guide per network,
+  and settings), `scheduling.md`, `caching.md`, `install.md` (a Debian host), `docker.md`, and a guide per network,
   `telegram.md`, `slack.md` and `discord.md`: a change to a network's setup or keys goes in its guide. `doc/yahoo/` and
   `doc/sharesight/` hold large API samples that the tests replay: inspect them with python, don't read them.

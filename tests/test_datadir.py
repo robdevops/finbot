@@ -39,7 +39,7 @@ class DataDirTests(FinbotCase):
 
 	def test_config_reads_environment_only(self):
 		"""Settings come from the environment; python-dotenv is not loaded."""
-		code = "import sys; from lib import config as c; print(c.prefs.price_percent, 'dotenv' in sys.modules)"
+		code = "import sys; from lib import config as c; print(c.settings.price_percent, 'dotenv' in sys.modules)"
 		out = run_config(code, price_percent='3.3')
 		self.assertEqual(out.split()[-2:], ['3.3', 'False'])
 
@@ -92,9 +92,9 @@ class DataDirTests(FinbotCase):
 		self.assertFalse(Path(config.env.data_dir, 'finbot_adr.json').exists()) # dry run
 		sync_defaults.sync(apply=True)
 		self.assertTrue(Path(config.env.data_dir, 'finbot_adr.json').exists())
-		copied = Path(config.env.data_dir, 'preferences.conf') # the template as it is: every key commented out
-		self.assertEqual(copied.read_bytes(), (config.REPO_DIR / 'defaults' / 'preferences.conf').read_bytes())
-		self.assertEqual(config.read_preferences(copied), {})
+		copied = Path(config.env.data_dir, 'settings.conf') # the template as it is: every key commented out
+		self.assertEqual(copied.read_bytes(), (config.REPO_DIR / 'defaults' / 'settings.conf').read_bytes())
+		self.assertEqual(config.read_settings(copied), {})
 		# the startup file is never copied into the data dir
 		self.assertFalse(Path(config.env.data_dir, 'finbot.env').exists())
 		mine = Path(config.env.data_dir, 'finbot_adr.json')
@@ -135,7 +135,7 @@ class DataDirTests(FinbotCase):
 			self.assertIn('does not exist: --create makes it', refused.stderr)
 			made = run('--create', '--apply', '--dest', str(dest))
 			self.assertEqual(made.returncode, 0, made.stderr)
-			self.assertTrue((dest / 'preferences.conf').exists())
+			self.assertTrue((dest / 'settings.conf').exists())
 			self.assertFalse(Path(tmp, 'never').exists())
 
 

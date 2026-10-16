@@ -22,7 +22,7 @@ def run(dest=None, *, lines):
 
 
 def today():
-	"""Today's date, by the timezone preference's clock."""
+	"""Today's date, by the timezone setting's clock."""
 	return datetime.datetime.now(formats.zone()).date()
 
 

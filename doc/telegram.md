@@ -2,12 +2,12 @@
 
 finbot talks to Telegram as a bot user that you create with BotFather.
 
-## Pull mode or HTTP mode?
+## Pull mode or push mode?
 
 The bot posts the scheduled reports and answers commands in your chats either way. What differs is how it hears from
 Telegram:
 
-| | Pull mode (the default) | HTTP mode |
+| | Pull mode (the default) | Push mode |
 |---|---|---|
 | How messages and button presses reach finbot | finbot asks Telegram for them (long polling) | Telegram posts them to your HTTPS server |
 | Listens on the internet | No: finbot only makes outgoing requests | Yes, behind your HTTPS server: a domain name with a valid certificate, on port 443, 80, 88 or 8443 |
@@ -23,8 +23,8 @@ As finbot starts, it sets the bot's command menu, which Telegram shows when `/` 
 left out of the menu, and work when typed, as every name of a command does. In a group, `/price@finbot_bot` is the same
 as `/price`.
 
-`telegramOutgoingWebhook` chooses the mode: set, HTTP mode; empty, pull mode. A restart switches. As finbot starts in
-pull mode it deletes the webhook, and in HTTP mode it sets it; the updates sent meanwhile are kept by Telegram and
+`telegramOutgoingWebhook` chooses the mode: set, push mode; empty, pull mode. A restart switches. As finbot starts in
+pull mode it deletes the webhook, and in push mode it sets it; the updates sent meanwhile are kept by Telegram and
 arrive after the switch.
 
 ## Pull mode
@@ -46,7 +46,7 @@ arrive after the switch.
 telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
 ```
 
-## HTTP mode
+## Push mode
 
 Telegram delivers the messages in your chats, and each button press, to finbot over HTTPS. finbot listens on
 `http://127.0.0.1:5000` (`ip` and `port` in `finbot.env`), so it needs a web server in front of it, on a domain name

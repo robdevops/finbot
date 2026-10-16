@@ -16,11 +16,11 @@ def tickers(chat):
 
 def watched(chat, typed):
 	"""The ticker of a chat's watchlist that a ticker as written names: BHP.AX as written, or BHP on the local exchange
-	(the exchange_suffix preference) when only BHP.AX is watched; else Yahoo's spelling of what was written. Yahoo is
+	(the exchange_suffix setting) when only BHP.AX is watched; else Yahoo's spelling of what was written. Yahoo is
 	not asked, so a ticker it no longer knows can still be removed."""
 	ticker, watching = markets.transform_to_yahoo(typed.upper()), tickers(chat)
-	local = f'{ticker}.{config.prefs.exchange_suffix}'
-	if ticker not in watching and config.prefs.exchange_suffix and '.' not in ticker and local in watching:
+	local = f'{ticker}.{config.settings.exchange_suffix}'
+	if ticker not in watching and config.settings.exchange_suffix and '.' not in ticker and local in watching:
 		return local
 	return ticker
 

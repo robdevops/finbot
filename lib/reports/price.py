@@ -20,7 +20,7 @@ def gather(tickers, specific_stock=None, days=None):
 	symbol): Yahoo's quotes, and over `days` each one's change as percent_change_period, from its Yahoo history (the
 	change its chart shows), the histories fetched together up front."""
 	market_data = yahoo.fetch(tickers)
-	if config.prefs.demote_volatile: # trigger_bar compares market caps, in US dollars
+	if config.settings.demote_volatile: # trigger_bar compares market caps, in US dollars
 		yahoo.add_usd_market_caps(market_data)
 	if not days:
 		return market_data
@@ -40,24 +40,24 @@ def gather(tickers, specific_stock=None, days=None):
 def needs_beta(quote):
 	"""Whether trigger_bar must know this ticker's beta: a small cap between US$150M and US$1B, which counts as volatile
 	when its beta is over 1.5. The beta is only in Yahoo's details."""
-	return config.prefs.demote_volatile and 1.5e8 <= quote.get('market_cap_usd', float('inf')) < 1e9
+	return config.settings.demote_volatile and 1.5e8 <= quote.get('market_cap_usd', float('inf')) < 1e9
 
 def trigger_bar(ticker, quote, threshold, details):
 	"""The move this ticker needs before it alone sends a scheduled report: more for leveraged ETFs (demote_leveraged)
 	and volatile small caps (demote_volatile; their market caps in US dollars), else the threshold itself. details:
 	Yahoo's details of the tickers that need_beta, fetched together."""
 	title = quote['profile_title'].lower()
-	if config.prefs.demote_leveraged and ('2x' in title or '3x' in title):
+	if config.settings.demote_leveraged and ('2x' in title or '3x' in title):
 		return threshold * 1.3
 	cap = quote.get('market_cap_usd')
-	if config.prefs.demote_volatile and cap is not None and cap < 1e9:
+	if config.settings.demote_volatile and cap is not None and cap < 1e9:
 		if cap < 1e7:
-			return threshold * config.prefs.volatility_multiplier * 1.3
+			return threshold * config.settings.volatility_multiplier * 1.3
 		if cap < 1.5e8:
-			return threshold * config.prefs.volatility_multiplier
+			return threshold * config.settings.volatility_multiplier
 		beta = details.get(ticker, {}).get('beta')
 		if beta is None or beta > 1.5:
-			return threshold * config.prefs.volatility_multiplier
+			return threshold * config.settings.volatility_multiplier
 	return threshold
 
 # today's moves, in session, out of it (pre- or post-market), at the close, over `days`
@@ -102,7 +102,7 @@ def moves(tickers, mode='interday', threshold=None, days=None, specific_stock=No
 	a mode of MODES ('period': over `days`): each whose move is `threshold` percent or more, or the one stock asked
 	about, whatever its move. A scheduled report keeps them only when one passes its trigger_bar."""
 	if threshold is None:
-		threshold = config.prefs.price_percent
+		threshold = config.settings.price_percent
 	market_data = gather(tickers, specific_stock, days)
 	now = datetime.datetime.now()
 	rows, exchanges = [], set()
@@ -126,7 +126,7 @@ def report(service, found, mode='interday', threshold=None, days=None, top=None,
 	"""(payload, chart) of a price report in one network's markup, from moves()' Moves: the moves of `threshold` percent
 	or more in a mode of MODES ('period': over `days`), or the top and bottom `top`."""
 	if threshold is None:
-		threshold = config.prefs.price_percent
+		threshold = config.settings.price_percent
 	lines = [f"{formats.get_emoji(percent)} {formats.short_name(quote['profile_title'])} "
 		f"({links.finance_link(ticker, quote['profile_exchange'], service, days=days)}) "
 		f"{formats.signed_percent(round(percent))}" for ticker, percent, quote in found.rows]
@@ -175,7 +175,7 @@ def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user
 	job it is (dest), with its chart and period buttons where they can go."""
 	interactive = delivery.interactive(dest)
 	if threshold is None:
-		threshold = config.prefs.price_percent
+		threshold = config.settings.price_percent
 	def markup(chat):
 		"""A chart's period buttons, where the chat takes buttons: the daily and N-day lists, but not the intraday
 		ones."""

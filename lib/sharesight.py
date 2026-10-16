@@ -16,7 +16,7 @@ API = 'https://api.sharesight.com/'
 MAX_CONCURRENT = 1 # Sharesight refuses parallel requests beyond a few per account: one at a time, whoever asks
 _request_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
 TOKEN = 'finbot_sharesight_token.json' # good until the expiry it carries
-PORTFOLIOS_CACHE = 'finbot_sharesight_portfolios.json' # good for the cache_seconds preference
+PORTFOLIOS_CACHE = 'finbot_sharesight_portfolios.json' # good for the cache_seconds setting
 
 
 def _request(path, what, expect, **kwargs):
@@ -52,12 +52,12 @@ def _request(path, what, expect, **kwargs):
 
 def _token():
 	"""An access token for Sharesight's API: the cached one while it has more than 20 seconds left, else a new one
-	(cached while the cache preference is on)."""
-	cached = cache.load(TOKEN) if config.prefs.cache else None
+	(cached while the cache setting is on)."""
+	cached = cache.load(TOKEN) if config.settings.cache else None
 	if cached and cached['created_at'] + cached['expires_in'] - time.time() > 20:
 		return cached['access_token']
 	data = _request('oauth2/token', 'auth', 'access_token', data=config.env.sharesight_auth)
-	if config.prefs.cache:
+	if config.settings.cache:
 		cache.write(TOKEN, data)
 	return data['access_token']
 
@@ -86,13 +86,13 @@ def _since(days):
 
 def _performance(portfolio_id, days=None, seconds=None):
 	"""Sharesight's performance report of a portfolio since `days` ago (0: today's holdings; past_days when None), from
-	the cache while under `seconds` old (the performance_cache_seconds preference when None)."""
+	the cache while under `seconds` old (the performance_cache_seconds setting when None)."""
 	if days is None:
-		days = config.prefs.past_days
+		days = config.settings.past_days
 	query = f'v3/portfolios/{portfolio_id}/performance?grouping=ungrouped&start_date={_since(days)}'
 	fetch = lambda: _api(query, f'performance of portfolio {portfolio_id}', 'report')
 	if seconds is None:
-		seconds = config.prefs.performance_cache_seconds
+		seconds = config.settings.performance_cache_seconds
 	return cache.cached(performance_cache_file(portfolio_id, days), seconds, fetch)['report']
 
 
@@ -100,7 +100,7 @@ def _trades(portfolio_id, days=None):
 	"""Sharesight's trades in a portfolio over the past `days` (past_days when None), from the cache while under 5
 	minutes old."""
 	if days is None:
-		days = config.prefs.past_days
+		days = config.settings.past_days
 	query = f'v2/portfolios/{portfolio_id}/trades.json?start_date={_since(days)}'
 	fetch = lambda: _api(query, 'trades', 'trades')
 	return cache.cached(f"finbot_sharesight_trades_{portfolio_id}_{days}.json", 299, fetch)['trades']
@@ -132,7 +132,7 @@ class Portfolio:
 	id: int
 
 	def gain(self, days=None):
-		"""Its capital gain over the past `days` (the past_days preference when None), in percent."""
+		"""Its capital gain over the past `days` (the past_days setting when None), in percent."""
 		return float(_performance(self.id, days)['capital_gain_percent'])
 
 	def holdings(self):
@@ -147,13 +147,13 @@ class Portfolio:
 			each['market_code']) for each in self.holdings().values()})
 
 	def trades(self, days=None):
-		"""Its trades of the past `days` (the past_days preference when None), each with the portfolio's name added."""
+		"""Its trades of the past `days` (the past_days setting when None), each with the portfolio's name added."""
 		return [trade | {'portfolio': self.name} for trade in _trades(self.id, days)]
 
 
 def _chosen(listed):
 	"""The portfolios of Sharesight's list to report on, after include_portfolios and exclude_portfolios."""
-	include, exclude = config.prefs.include_portfolios, config.prefs.exclude_portfolios
+	include, exclude = config.settings.include_portfolios, config.settings.exclude_portfolios
 	return [Portfolio(each['name'], each['id']) for each in listed
 		if str(each['id']) not in exclude and (not include or str(each['id']) in include)]
 

@@ -68,7 +68,7 @@ Trade notifications are peformed by polling the Sharesight trades API on a sched
 
 The other various reports can also run on a schedule (e.g. daily or weekly), or on demand with a command. They query the Yahoo Finance API for stock data based on current holdings across your Sharesight portfolios, your friends' Sharesight portfolios, plus a custom watch list. A scheduled report posts to the chat whose job it is, and a command's reply to the chat that sent it.
 
-The bot answers commands in every chat it is in. By default, it fetches its updates from each network itself (pull mode); alternatively, in HTTP mode, each network pushes them to your HTTPS gateway, which passes them to the bot. It provides:
+The bot answers commands in every chat it is in. By default, it fetches its updates from each network itself (pull mode); alternatively, in push mode, each network pushes them to your HTTPS gateway, which passes them to the bot. It provides:
 * Stock lookup (financials, company profile, price charts)
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
@@ -120,7 +120,7 @@ As a message: `.AAPL`, or `@botname AAPL`.
 ![trade update in Slack](../img/trades.png?raw=true "Trade update in Slack")
 
 The `trades` report sends recent Sharesight trades to each chat that schedules it.
-By default, this report searches Sharesight for trades from the past 28 days (`past_days`). You can override this in `preferences.conf`, or by providing a number as argument when triggered through the chat bot.
+By default, this report searches Sharesight for trades from the past 28 days (`past_days`). You can override this in `settings.conf`, or by providing a number as argument when triggered through the chat bot.
 
 Without persistent storage, set `past_days=0` to avoid duplicate trade notifications. In this case, the schedule must run the report exactly once per day, after market close.
 
@@ -149,7 +149,7 @@ You can also specify a portfolio name to get trades for just that portfolio:
 ![Price chart triggered from Slack](../img/finbot_price.png?raw=true "Price chart triggered from Slack")
 ![Price alert triggered by Cron](../img/price.png?raw=true "Price alert triggered by Cron")
 
-The `price` report sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 5% but you can change it by setting `price_percent` in the `preferences.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
+The `price` report sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 5% but you can change it by setting `price_percent` in the `settings.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
 If `demote_volatile` is `true`, stocks with a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) under US$150M, or a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a market cap of under US$1B will have their alert threshold (`price_percent`) doubled. A market cap in another currency is converted at Yahoo's exchange rate.
 
@@ -198,7 +198,7 @@ Or a specific stock. In this case, the output includes a graph.
 ### Portfolio performance
 ![Screenshot of Portfolio performance notification on Slack](../img/performance.png?raw=true "Screenshot performance notification on Slack")
 
-The `performance` report covers Sharesight portfolio performance over a given period. The default is set by `past_days` in the `preferences.conf`, which can be overridden at runtime by specifying an integer as the argument. The portfolios are listed by name, then the S&P 500 and NASDAQ 100 benchmarks, in the list and the chart alike.
+The `performance` report covers Sharesight portfolio performance over a given period. The default is set by `past_days` in the `settings.conf`, which can be overridden at runtime by specifying an integer as the argument. The portfolios are listed by name, then the S&P 500 and NASDAQ 100 benchmarks, in the list and the chart alike.
 
 Config example:
 ```
@@ -223,7 +223,7 @@ As a command, it also takes a portfolio:
 ### Events calendar
 ![earnings message in Slack](../img/earnings.png?raw=true "Earnings message in Slack")
 
-The `cal` report sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the `preferences.conf` for a scheduled run, or can be specified as an argument when triggered through the chat bot.
+The `cal` report sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the `settings.conf` for a scheduled run, or can be specified as an argument when triggered through the chat bot.
 
 **Finance Explainer:** When a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 
@@ -250,7 +250,7 @@ Command (ex-dividend):
 ### Highly shorted stock warnings
 ![short warnings in Slack](../img/shorts.png?raw=true "Short warnings in Slack")
 
-The `shorts` report sends short interest warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. This can be specified in the `preferences.conf` for a scheduled run, or as an argument when triggered through the chat bot.
+The `shorts` report sends short interest warnings. The data is sourced from Yahoo Finance and Shortman (AU). `shorts_percent` defines the alert threshold for the percentage of a stock's float shorted. This can be specified in the `settings.conf` for a scheduled run, or as an argument when triggered through the chat bot.
 
 **Finance Explainer:** A high short ratio indicates a stock is exposed to high risks, such as potential banktrupcy. It may also incentivise negative news articles which harm the stock price. If the market is wrong, however, risk tolerant investors may receive windfall gains. This report is intended to alert you to an above-average risk, and prompt you to investigate this stock more closely.
 ```
@@ -265,7 +265,7 @@ Command:
 ### pe / forward pe / peg
 ![Forward PE report in Slack](../img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
-List securities by P/E ratio, forward P/E ratio, or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `preferences.conf`).
+List securities by P/E ratio, forward P/E ratio, or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`).
 
 Command:
 ```
@@ -288,7 +288,7 @@ Command:
 ### Buy
 ![Buy ratings in Slack](../img/finbot_buy.png?raw=true "Buy ratings in Slack")
 
-Show top recommended buys by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `preferences.conf`)
+Show top recommended buys by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `settings.conf`)
 
 Command:
 ```

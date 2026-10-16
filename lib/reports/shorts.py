@@ -8,11 +8,11 @@ from lib import yahoo
 from lib import shortman
 
 def run(dest=None, *, threshold=None, specific_stock=None):
-	"""Post the stocks a chat follows whose short interest is over `threshold` percent (the shorts_percent preference
+	"""Post the stocks a chat follows whose short interest is over `threshold` percent (the shorts_percent setting
 	when None), or one stock's (Yahoo's symbol): to the chat that asked or whose job it is (dest)."""
 	interactive = delivery.interactive(dest)
 	if threshold is None:
-		threshold = config.prefs.shorts_percent
+		threshold = config.settings.shorts_percent
 	for chat in delivery.targets(dest):
 		tickers = watchlist.covered(chat.key, specific_stock)
 		market_data = gather(tickers, specific_stock)

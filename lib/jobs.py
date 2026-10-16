@@ -336,7 +336,7 @@ class Scheduler:
 		counts from now, as one does that was off."""
 		jobs = system_jobs()
 		chats = self.stored_chats()
-		items = catalog.items(config.prefs.country_code, sharesight.configured())
+		items = catalog.items(config.settings.country_code, sharesight.configured())
 		for chat, record in chats.items():
 			gone = set(removed(record))
 			jobs += [make_job(item.action, item.args, item.schedule, chat, item_on(record, item.key), item.key,
@@ -554,7 +554,7 @@ class Scheduler:
 			raise ScheduleError(f'{job.action} reports on Sharesight, which is not set up')
 		if schedule.frequency == 'once' and schedule.next_after(self.clock()) is None:
 			raise ScheduleError(f"{when.days_words(schedule.days)} has gone by: a one-off is for a time ahead")
-		if item := catalog.matching(job.action, job.args, schedule, config.prefs.country_code):
+		if item := catalog.matching(job.action, job.args, schedule, config.settings.country_code):
 			def restore(record):
 				"""Bring the default job back where the chat removed it, and switch it on."""
 				keep(record, 'deleted', [key for key in removed(record) if key != item.key])

@@ -61,12 +61,12 @@ def targets(dest):
 
 def deliver(dest, report):
 	"""Post a report: its chart, drawn here only where it can go (a destination that takes charts, with the graph
-	preference on), with the lines as its caption; else the lines, and the buttons under the last message unless they
+	setting on), with the lines as its caption; else the lines, and the buttons under the last message unless they
 	were the chart's. A chart the network refuses goes again with its heading (the first line) alone as its caption, the
 	lines following as text; refused again, the lines go as text alone, without its buttons. A chart that may have
 	arrived after all (a timeout) is not sent again. Returns the network's answers, one per message."""
 	chart = report.chart
-	if chart is None or not (dest.takes_charts and config.prefs.graph and chart.rows):
+	if chart is None or not (dest.takes_charts and config.settings.graph and chart.rows):
 		return dest.text(report.lines, report.buttons if chart is None else None)
 	caption = '\n'.join(map(str, report.lines)) or chart.title
 	image = render.draw(chart)

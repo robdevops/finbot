@@ -6,9 +6,9 @@ Type=simple
 User=CHANGEME
 # Or instead of User=: DynamicUser=yes and StateDirectory=finbot (state in /var/lib/finbot)
 ExecStart=/home/CHANGEME/finbot/bot.py
-# systemctl reload finbot re-reads preferences.conf without a restart
+# systemctl reload finbot re-reads settings.conf without a restart
 ExecReload=/bin/kill -HUP $MAINPID
-# Refuse to start on a typo in finbot.env or preferences.conf ("+" runs the check as root)
+# Refuse to start on a typo in finbot.env or settings.conf ("+" runs the check as root)
 ExecStartPre=+/home/CHANGEME/finbot/util/check_config.py /opt/finbot.env
 Restart=on-failure
 RestartSec=30s
@@ -16,7 +16,7 @@ StandardOutput=null
 StandardError=journal
 SyslogIdentifier=finbot
 Environment=PYTHONUNBUFFERED=1
-# finbot.env: loaded by systemd as root (chmod 600); a change needs a restart
+# finbot.env: loaded by systemd as root (600 root:root); a change needs a restart
 EnvironmentFile=/opt/finbot.env
 
 [Install]

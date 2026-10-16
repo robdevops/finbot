@@ -1,5 +1,5 @@
 # finbot with Docker Compose (doc/docker.md). The configuration lives beside the checkout, outside the image and the
-# container: ../finbot.env, the startup file, and ../finbot-data, DATA_DIR (preferences.conf, state and cache), both
+# container: ../finbot.env, the startup file, and ../finbot-data, DATA_DIR (settings.conf, state and cache), both
 # made by util/docker_setup.sh. Build and start: docker compose up -d --build
 services:
   finbot:
@@ -13,11 +13,11 @@ services:
     env_file: ../finbot.env
     environment:
       DATA_DIR: /data
-      ip: 0.0.0.0 # HTTP mode listens inside the container: publish its port below
+      ip: 0.0.0.0 # push mode listens inside the container: publish its port below
     volumes:
       - ../finbot-data:/data
       - ../finbot.env:/run/finbot.env:ro # checked before the bot starts
-    # ports: # HTTP mode only, on the host's loopback, behind your reverse proxy
+    # ports: # push mode only, on the host's loopback, behind your reverse proxy
     #   - 127.0.0.1:5000:5000
     logging:
       driver: ${FINBOT_LOG_DRIVER:-journald} # json-file where the host has no journald

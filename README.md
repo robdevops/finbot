@@ -46,8 +46,8 @@ To run it as a service, under systemd on a Debian host, see [doc/install.md](doc
 
 ### The chat networks
 Each network needs a bot of its own. By default, finbot fetches its updates from each network itself (pull mode).
-Alternatively, if you prefer to run an HTTPS gateway (a reverse proxy on a domain with a valid certificate), HTTP mode
-subscribes the bot to the updates each network pushes to it (each guide's _HTTP mode_).
+Alternatively, if you prefer to run an HTTPS gateway (a reverse proxy on a domain with a valid certificate), push mode
+subscribes the bot to the updates each network pushes to it (each guide's _push mode_).
 * **Telegram:** create the bot with [@BotFather](https://telegram.me/BotFather), set `telegramBotToken`, restart
   finbot ([guide](doc/telegram.md)).
 * **Slack:** create the app from the manifest that `util/slack_manifest.py` prints, add an app-level token, set
@@ -62,7 +62,7 @@ jobs, which `/jobs` switches on and off, adds to and runs ([Scheduling](doc/sche
 ## Documentation
 * [Commands and reports](doc/commands.md), with screenshots
 * [Scheduling](doc/scheduling.md): each chat's jobs, and the reports they can run
-* [Configuration](doc/configuration.md): `finbot.env` and `preferences.conf`, the data directory, Sharesight
+* [Configuration](doc/configuration.md): `finbot.env` and `settings.conf`, the data directory, Sharesight
 * [Caching](doc/caching.md)
 * Installing: [Docker](doc/docker.md) · [Python, or a Debian host with systemd](doc/install.md)
 * Networks: [Telegram](doc/telegram.md) · [Slack](doc/slack.md) · [Discord](doc/discord.md)

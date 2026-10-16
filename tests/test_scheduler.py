@@ -106,8 +106,8 @@ class YahooWarmJob(FinbotCase):
 		self.assertEqual((yahoo_warm.run(), len(asked)), (1, 1))
 
 	def test_with_the_cache_off_nothing_is_fetched(self):
-		"""With the cache preference off nothing would be kept, so nothing is fetched."""
-		self.prefs(cache=False)
+		"""With the cache setting off nothing would be kept, so nothing is fetched."""
+		self.settings(cache=False)
 		self.patch(yahoo, '_chart_answer', None)
 		self.assertEqual(yahoo_warm.run(), 0)
 
@@ -115,13 +115,13 @@ class YahooWarmJob(FinbotCase):
 class SharesightWarmJob(FinbotCase):
 	def test_the_portfolios_are_refreshed_where_sharesight_is_configured(self):
 		"""sharesight_warm refreshes the portfolio list and the holdings (sharesight.warm) and counts the portfolios;
-		without Sharesight configured, or with the cache preference off (nothing would be kept), it fetches nothing."""
+		without Sharesight configured, or with the cache setting off (nothing would be kept), it fetches nothing."""
 		self.patch(sharesight, 'warm', lambda: ['Rob', 'RobSMSF'])
 		self.env(sharesight_auth={'client_id': 'id'})
 		self.assertEqual(sharesight_warm.run(), 2)
-		self.prefs(cache=False)
+		self.settings(cache=False)
 		self.assertEqual(sharesight_warm.run(), 0)
-		self.prefs(cache=True)
+		self.settings(cache=True)
 		self.env(sharesight_auth={'client_id': None})
 		self.assertEqual(sharesight_warm.run(), 0)
 
@@ -229,8 +229,8 @@ class SystemJobs(FinbotCase):
 		self.assertEqual({job.label: job.schedule.describe('Australia/Melbourne') for job in s.system_jobs()},
 			{'sharesight_warm': 'every 30 mins from :14 UTC', 'yahoo_warm': 'every 4 hours at :07 UTC',
 				'cleanup 30': 'weekly, Saturdays at 18:51 UTC'})
-		self.assertLess(30 * 60, config.prefs.performance_cache_seconds)
-		self.assertLess(4 * 3600, config.prefs.cache_seconds)
+		self.assertLess(30 * 60, config.settings.performance_cache_seconds)
+		self.assertLess(4 * 3600, config.settings.cache_seconds)
 		self.assertEqual(s.chat_jobs(''), s.system_jobs())
 		for name in jobs.SYSTEM_ACTIONS:
 			with self.subTest(name=name):
@@ -548,7 +548,7 @@ class JobsInChat(ChatBase):
 		self.assertIn('price', labels)
 
 	def test_add_reads_english_and_the_period_follows_how_often(self):
-		"""A job is a report, what it takes, and a schedule in English, by the timezone preference's clock unless it
+		"""A job is a report, what it takes, and a schedule in English, by the timezone setting's clock unless it
 		names a zone; performance and price cover the days between runs where they name no period."""
 		for text, line, args in (('price weekly', 'price · weekly, Saturdays at 9:00am', ['7']),
 				('performance first day of each month at 9am', 'performance · monthly, the 1st at 9:00am', ['30']),
@@ -859,7 +859,7 @@ class JobsMenu(ChatBase):
 
 	def test_add_by_buttons_back_and_cancel(self):
 		"""Add takes the report (by its name alone), how often, then the day, the hour and the minute from buttons, by
-		the timezone preference's clock, each choice's default marked † and the key under it in italics; Cancel goes
+		the timezone setting's clock, each choice's default marked † and the key under it in italics; Cancel goes
 		back to the list, and after the report Back a step back; its last step adds the job and says so, the same job
 		as typed."""
 		lines, rows, data = self.press(f'm|add|{self.crc()}')

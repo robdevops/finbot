@@ -7,18 +7,18 @@ works (Slack has no typing notice for bots), and period buttons under a chart th
 
 ## The bot
 
-### Socket Mode or HTTP mode?
+### Socket Mode or push mode?
 
 The bot does the same either way. What differs is how it hears from Slack:
 
-| | Socket Mode (the default) | HTTP mode |
+| | Socket Mode (the default) | Push mode |
 |---|---|---|
 | How messages, slash commands and button presses reach finbot | Over a socket that finbot opens to Slack | Slack posts them to your HTTPS server |
 | Listens on the internet | No: finbot opens the socket to Slack | Yes, behind your HTTPS server: a domain name with a valid certificate |
 | Python module | `websocket-client` (Debian: `python3-websocket`) | `waitress` (Debian: `python3-waitress`) |
 | `finbot.env` keys | `slackBotToken`, `slackAppToken` | `slackBotToken`, `slackOutgoingWebhook`, `slackSigningSecret` |
 
-`slackOutgoingWebhook` chooses the mode: set, HTTP mode; empty, Socket Mode. The app's own _Socket Mode_ setting must
+`slackOutgoingWebhook` chooses the mode: set, push mode; empty, Socket Mode. The app's own _Socket Mode_ setting must
 agree, as Slack sends to one or the other: to finbot's socket while it is on, to the Request URLs while it is off. To
 switch, change both (paste the manifest for the other mode, which sets the app's side) and restart finbot.
 
@@ -42,7 +42,7 @@ slackAppToken=xapp-your-app-level-token
 slackBotToken=xoxb-your-bot-token
 ```
 
-### HTTP mode
+### Push mode
 
 Slack delivers the messages, the button presses and the slash commands to finbot over HTTPS. finbot listens on
 `http://127.0.0.1:5000` (`ip` and `port` in `finbot.env`), so it needs a web server in front of it, on a domain name

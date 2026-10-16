@@ -22,7 +22,7 @@ def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
 	the network can; a reply is not, or the chat would collect pinned copies."""
 	interactive = delivery.interactive(dest)
 	if days is None:
-		days = config.prefs.future_days
+		days = config.settings.future_days
 	for chat in delivery.targets(dest):
 		events = gather(watchlist.covered(chat.key, specific_stock), days, specific_stock, event)
 		payload = report(chat.dialect, events, days, specific_stock, interactive, event)

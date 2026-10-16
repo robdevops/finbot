@@ -18,10 +18,10 @@ class SharesightApi(ProviderCase):
 	def test_portfolio_exclusion_and_inclusion(self):
 		"""exclude_portfolios and include_portfolios pick the portfolios reported on."""
 		self.http(sharesight, Resp(sample('sharesight', 'finbot_sharesight_portfolios.json')))
-		self.prefs(exclude_portfolios=['445825'])
+		self.settings(exclude_portfolios=['445825'])
 
 		self.assertEqual(portfolios(), {'RobSMSF': 684141})
-		self.prefs(exclude_portfolios=[], include_portfolios=['445825'])
+		self.settings(exclude_portfolios=[], include_portfolios=['445825'])
 		self.assertEqual(portfolios(), {'Rob': 445825})
 
 	def test_portfolio_failures_raise(self):

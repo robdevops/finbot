@@ -17,8 +17,8 @@ CHARTS = 'ptyc' # the pickers whose answer is a chart
 
 def as_photo(chat, cmd):
 	"""Whether a picker's message is a picture (a 1x1 image whose caption is the picker): when its answer is a chart,
-	and this chat takes charts (the graph preference on); else it is text."""
-	return cmd in CHARTS and chat.takes_charts and config.prefs.graph
+	and this chat takes charts (the graph setting on); else it is text."""
+	return cmd in CHARTS and chat.takes_charts and config.settings.graph
 
 def noun(cmd):
 	"""What a picker picks: 'portfolio' or 'ticker'."""

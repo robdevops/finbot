@@ -211,7 +211,7 @@ def changes(service, data, ticker, state):
 
 def footer(service, data, ticker, exchange):
 	"""Links to the company on Google Finance, Yahoo and Simply Wall St, with hyperlinkFooter (and hyperlinks) on."""
-	if 'profile_website' not in data or not (config.prefs.hyperlinkFooter and config.prefs.hyperlink):
+	if 'profile_website' not in data or not (config.settings.hyperlinkFooter and config.settings.hyperlink):
 		return []
 	google = links.gfinance_link(ticker, exchange, service, brief=True, text='google')
 	sws = service.link(simplywallst.get_url(ticker, data.get('profile_title', ''), exchange), 'simplywall.st')
