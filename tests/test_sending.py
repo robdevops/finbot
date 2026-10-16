@@ -53,6 +53,24 @@ class TelegramSending(FinbotCase):
 			'link_preview_options': off, 'disable_notification': True}), ('editMessageText', {'chat_id': '5',
 			'message_id': '8', 'text': 'edited', 'parse_mode': 'HTML', 'link_preview_options': off})])
 
+	def test_buttons_alone_are_changed_with_no_upload(self):
+		"""editMessageReplyMarkup changes a message's buttons alone: True once they show, as when they were so already
+		(Telegram's "message is not modified"), else False, logged. Slack has no such edit: its message is edited
+		whole."""
+		sent = []
+		self.patch(net, 'post', lambda url, **kwargs: sent.append((url.rsplit('/', 1)[1], kwargs['json'])) or
+			Resp({'ok': True, 'result': True}))
+		chat = telegram_common.TelegramBot('5')
+		self.assertTrue(chat.edit_buttons('8', [[buttons.Button('7D', 'k|c|0|w|0|0|m0|ab12')]]))
+		self.assertEqual(sent, [('editMessageReplyMarkup', {'chat_id': '5', 'message_id': '8', 'reply_markup':
+			{'inline_keyboard': [[{'text': '7D', 'callback_data': 'k|c|0|w|0|0|m0|ab12'}]]}})])
+		for why, shown in (('message is not modified', True), ('message to edit not found', False)):
+			with self.subTest(why=why), contextlib.redirect_stderr(io.StringIO()):
+				refusal = Resp({'ok': False, 'description': f'Bad Request: {why}'}, 400)
+				self.patch(net, 'post', lambda url, **kwargs: refusal)
+				self.assertEqual(chat.edit_buttons('8', []), shown)
+		self.assertFalse(slack_common.SlackBot('C1').edit_buttons('1.2', []))
+
 	def test_typing_is_sent_again_before_it_lapses(self):
 		""""typing…" shows for 5 seconds at most (sendChatAction), so it is sent again sooner, and shows the whole time
 		a command works, for a minute at least."""

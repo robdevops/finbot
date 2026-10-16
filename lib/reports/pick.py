@@ -90,13 +90,16 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	"""A picker's screen, as (lines, rows): `view` 'p', the first (the portfolios; for tickers the period and the way
 	to the tickers), or 'm', the tickers'; `page` of the items; `shown` what the message answers now (an item's number
 	plus one, or compare's tickers, see pack; 0 for nothing yet); `mask` has a bit for each ticked ticker. The lines,
-	what to pick, show only where there is no answer yet (holdings): an answer's caption shows instead."""
+	what to pick, show only where there is no answer yet (holdings): an answer's caption shows instead. Where the
+	message shows a note, the tickers' screen's presses are n, not m: the next one draws the message whole again, which
+	takes the note away (an m press changes only the buttons)."""
 	per_page, per_row = layout(service, cmd)
 	pages = -(-len(found) // per_page)
 	page = min(max(page, 0), pages - 1)
 	ticked = [i for i in range(len(found)) if mask >> i & 1]
 	to_compare = cmd == 'c' and len(ticked) >= 2 and pack(ticked) != shown
 	crc = buttons.checksum(found)
+	step = 'n' if note else 'm' # the tickers' screen, at a page
 	def button(label, act, active=False, **changes):
 		"""A button of this screen, whatever it changes (group, period, shown or mask) in its data."""
 		now = {'group': group, 'period': period, 'shown': shown, 'mask': mask} | changes
@@ -106,7 +109,7 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	if cmd in 'yc' and view == 'p': # the period, and the way to the tickers
 		rows.append([button(buttons.PERIODS[key][0], 'p0', key == period, period=key) for key in buttons.BUTTONS['c']])
 		more = ("Select..." + (f" ({len(ticked)})" if ticked else "")) if cmd == 'c' else "Tickers ▶"
-		rows.append([button(more, 'm0')] + ([button('Compare', 'h0')] if to_compare else []))
+		rows.append([button(more, f"{step}0")] + ([button('Compare', 'h0')] if to_compare else []))
 	on_page = items_on(found, page, per_page)
 	if noun(cmd) == 'portfolio':
 		rows += chunks([button(name, f"r{i}", shown == i + 1, shown=i + 1) for i, name in on_page], per_row)
@@ -120,13 +123,14 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 			if cmd == 'y':
 				tickers.append(button(ticker, f"r{i}", shown == i + 1, shown=i + 1))
 			elif mask >> i & 1:
-				tickers.append(button(f"✅ {ticker}", f"m{page}", mask=mask ^ 1 << i))
+				tickers.append(button(f"✅ {ticker}", f"{step}{page}", mask=mask ^ 1 << i))
 			else:
-				tickers.append(button(ticker, f"f{page}") if full else button(ticker, f"m{page}", mask=mask | 1 << i))
+				tickers.append(button(ticker, f"f{page}") if full else button(ticker, f"{step}{page}",
+					mask=mask | 1 << i))
 		rows += chunks(tickers, per_row)
 	nav = [button('◀ Back', 'p0')] if cmd in 'yc' and view == 'm' else []
 	if pages > 1 and (view == 'm' or noun(cmd) == 'portfolio'): # the page buttons: under the tickers, not above them
-		act = 'm' if view == 'm' else 'p'
+		act = step if view == 'm' else 'p'
 		nav += ([button('<', f"{act}{page - 1}")] if page else []) + (
 			[button('>', f"{act}{page + 1}")] if page < pages - 1 else [])
 	if view == 'm' and to_compare:

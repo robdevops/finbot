@@ -232,6 +232,18 @@ class Sending(FinbotCase):
 			[{'id': 0, 'filename': 'chart.png'}])
 		self.assertEqual(self.calls[1][2]['json'], {'content': 'list', 'components': []})
 
+	def test_a_press_can_change_its_buttons_alone(self):
+		"""A press that changes only the buttons edits its message's components alone, through its interaction: an
+		edit that names neither the text nor the chart keeps both, and nothing is uploaded. A refusal is False."""
+		chat = discord_common.DiscordBot('77', interaction='42/tok', pressed=True)
+		self.assertTrue(chat.edit_buttons('333', [[buttons.Button('7D', 'k|c|0|w|0|0|m0|ab12', True)]]))
+		(method, path, kwargs), = self.calls
+		self.assertEqual((method, path, kwargs['json']), ('PATCH', '/webhooks/42/tok/messages/@original', {'components':
+			[{'type': 1, 'components': [{'type': 2, 'style': 1, 'label': '7D', 'custom_id': 'k|c|0|w|0|0|m0|ab12'}]}]}))
+		self.answers.append(Resp({'message': 'Unknown Message', 'code': 10008}, 404))
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertFalse(chat.edit_buttons('333', []))
+
 	def test_a_command_in_a_message_shows_typing(self):
 		"""A command in a message (the gateway's) shows "typing…" in its channel, which lasts 10 seconds (POST
 		/typing): it is sent again sooner, so that it shows the whole time the command works."""

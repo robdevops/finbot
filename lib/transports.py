@@ -120,6 +120,11 @@ class Transport:
 		that: True when it did. Here never: each period is drawn and sent anew."""
 		return False
 
+	def edit_buttons(self, message, buttons):
+		"""Change only the buttons under a message, its text or chart left as it is, where the network can: True when
+		they show now. Here never: the message is edited whole."""
+		return False
+
 
 def chunked(lines, limit):
 	"""The lines in messages of at most limit characters each, whole lines to a message; a line longer than limit on

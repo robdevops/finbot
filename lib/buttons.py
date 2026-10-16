@@ -45,9 +45,10 @@ class PickPress(typing.NamedTuple):
 	treemap's or pie's: i industry, s sector, 0 neither), the period (a key of PERIODS, or 0), what the message shows
 	(shown: 0 nothing yet, an item's number plus one, or the ticked tickers packed), the items ticked (a bit of the mask
 	each), what the press asks for (act: a letter and a number: p the first screen and m the tickers' screen, each at a
-	page; f a tick refused, as too many, the tickers' screen at a page; r an item's number, to run it and show the
-	first screen; h the ticked ones, to run them and show the first screen, as g does, an older button's) and the
-	checksum of the list of items it was drawn for, stale once that changes."""
+	page, n as m under a message showing a note, which it takes away; f a tick refused, as too many, the tickers'
+	screen at a page; r an item's number, to run it and show the first screen; h the ticked ones, to run them and show
+	the first screen, as g does, an older button's) and the checksum of the list of items it was drawn for, stale once
+	that changes."""
 	cmd: str
 	group: str
 	period: str
@@ -136,7 +137,7 @@ def parse(data):
 		parts = rest.split('|')
 		if (len(parts) == 7 and parts[0] in PICKERS and parts[1] in ('0', 'i', 's') and (parts[2] in PERIODS or
 				parts[2] == '0') and len(parts[3]) <= 2 * MAX_PICKED and len(parts[4]) <= 25 and
-				parts[5][:1] in 'pmfrgh' and
+				parts[5][:1] in 'pmnfrgh' and
 				parts[5][1:].isdigit() and all(part.isascii() and part.isalnum() for part in parts) and
 				len(data.encode()) <= MAX_CALLBACK_BYTES):
 			try:

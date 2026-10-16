@@ -145,7 +145,8 @@ def add_step(service, chat, steps):
 def process_pick_callback(press, pressed):
 	"""A press in a picker (an inbound.Press; pressed, the buttons.PickPress its data says): the message shows the
 	answer for what it shows now (`shown`), or for the item or Compare pressed, with the screen the press asks for
-	under it. Buttons drawn for another list of items start the picker again at its first answer, saying so."""
+	under it; a tick or a page of tickers changes only the buttons, where the network can (Transport.edit_buttons).
+	Buttons drawn for another list of items start the picker again at its first answer, saying so."""
 	service = dialects.of(press.service)
 	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
 	cmd, group, period, shown, mask = pressed.cmd, pressed.group, pressed.period, pressed.shown, pressed.mask
@@ -156,8 +157,8 @@ def process_pick_callback(press, pressed):
 		if stale:
 			shown, mask = pick.default(cmd, found)
 		per_page = pick.layout(service, cmd)[0]
-		view = 'm' if kind in 'mf' else 'p' # picking a ticker, or Compare, goes back to the top
-		page = number if kind in 'pmfg' else number // per_page if kind == 'r' else 0
+		view = 'm' if kind in 'mnf' else 'p' # picking a ticker, or Compare, goes back to the top
+		page = number if kind in 'pmnfg' else number // per_page if kind == 'r' else 0
 		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if kind == 'f' else None
 		if kind == 'r' and number < len(found):
 			shown = number + 1
@@ -166,6 +167,8 @@ def process_pick_callback(press, pressed):
 		names = pick.shown_names(cmd, found, shown)
 		lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, view, page, note)
 		if names:
+			if kind == 'm' and chat.edit_buttons(press.message_id, rows): # a tick, a page: the answer stays as it is
+				return
 			pick_answer(service, chat, press.message_id, cmd, group, period, names, rows, note)
 			if cmd in 'yc' and (stale or kind in 'rgh'): # a new ticker or set
 				prime_periods(chat, 'c' if cmd == 'c' else 'h', names, period)
@@ -928,8 +931,10 @@ def command_keyboard(per_row=3):
 
 KEYBOARD_FILE = 'finbot_keyboards.json' # chat id -> version of the command keyboard that chat last received
 
+@functools.cache
 def keyboard_version():
-	"""A short hash of the command keyboard, which changes whenever its buttons do."""
+	"""A short hash of the command keyboard, which changes whenever its buttons do (a new finbot: the table is fixed
+	while it runs, so it is worked out once)."""
 	return hashlib.sha1(json.dumps(command_keyboard(), sort_keys=True).encode()).hexdigest()[:8]
 
 def mark_keyboard(chat_id):

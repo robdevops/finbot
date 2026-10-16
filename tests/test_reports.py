@@ -888,26 +888,31 @@ class Pickers(FinbotCase):
 	pressed."""
 
 	def setUp(self):
-		"""Telegram's edits and toasts of a press are noted: self.edits (kind, lines, buttons by row), self.toasts."""
+		"""Telegram's edits and toasts of a press are noted: self.edits (kind, lines, buttons by row; an edit of the
+		buttons alone keeps the lines the message showed), self.toasts."""
 		super().setUp()
-		self.edits, self.toasts, self.shown = [], [], []
+		self.edits, self.toasts, self.shown, self.showing = [], [], [], []
 		bot_class = telegram_common.TelegramBot
 		def edited(kind, lines, buttons):
 			"""Note an edit, which is the screen shown now."""
 			self.edits.append((kind, lines, self.rows(buttons)))
-			self.shown = self.edits[-1][2]
+			self.shown, self.showing = self.edits[-1][2], lines
 		def posted(dest, lines, buttons=None):
 			"""Transport.text in these tests: noted as the others are, and its buttons are the screen shown now."""
-			self.shown = self.rows(buttons)
+			self.shown, self.showing = self.rows(buttons), list(lines)
 			return self.record_text(dest, lines)
-		real_chart = transports.Transport.chart
+		def charted(dest, image, caption, markup=None):
+			"""Transport.chart in these tests: noted as the others are, and its buttons are the screen shown now."""
+			self.shown, self.showing = self.rows(markup), caption.split('\n')
+			return self.record_chart(dest, image, caption, markup)
 		self.patch(bot_class, 'edit_chart', lambda dest, msg, image, caption, buttons=None:
 			edited('photo', caption.split('\n'), buttons))
 		self.patch(bot_class, 'edit_text', lambda dest, msg, text, buttons=None:
 			edited('text', text.split('\n'), buttons))
+		self.patch(bot_class, 'edit_buttons', lambda dest, msg, buttons:
+			edited('buttons', self.showing, buttons) or True)
 		self.patch(transports.Transport, 'text', posted)
-		self.patch(transports.Transport, 'chart', lambda dest, image, caption, markup=None:
-			(setattr(self, 'shown', self.rows(markup)), self.record_chart(dest, image, caption, markup))[1])
+		self.patch(transports.Transport, 'chart', charted)
 		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None, alert=False:
 			self.toasts.append((text, alert)))
 
@@ -1035,6 +1040,27 @@ class Pickers(FinbotCase):
 		kind, lines, rows = self.tap('✅ T13') # unticking makes room
 		self.assertNotIn(buttons.TOO_MANY, lines)
 		self.assertEqual(len([t for row in self.labels(rows) for t in row if t.startswith('✅')]), 7)
+
+	def test_a_tick_or_a_page_changes_the_buttons_alone(self):
+		"""Select..., a tick and a page of tickers change only the buttons, the chart left as it is (nothing drawn or
+		uploaded); under a note (a ninth tick refused), the next press draws the message whole, which takes the note
+		away; where the network cannot change buttons alone, the message is drawn whole."""
+		self.many()
+		self.command('.compare')
+		first = self.showing
+		for label in ('Select... (2)', 'S05', '>'):
+			kind, lines, rows = self.tap(label)
+			self.assertEqual((kind, lines), ('buttons', first), label)
+		for ticker in ('S40', 'S41', 'S42', 'S43', 'S44'): # eight ticked, with S00, S01 and S05
+			self.assertEqual(self.tap(ticker)[0], 'buttons')
+		kind, lines, rows = self.tap('S45') # refused, as the ninth: said in a note
+		self.assertEqual((kind, lines[0]), ('photo', buttons.TOO_MANY))
+		kind, lines, rows = self.tap('✅ S44')
+		self.assertEqual((kind, lines), ('photo', first))
+		self.assertEqual(self.tap('S45')[0], 'buttons') # room again, and no note to take away
+		self.assertEqual(self.tap('<')[0], 'buttons')
+		self.patch(telegram_common.TelegramBot, 'edit_buttons', transports.Transport.edit_buttons) # none on Slack
+		self.assertEqual(self.tap('>')[0], 'photo')
 
 	def test_buttons_of_another_list_start_again(self):
 		"""A button drawn for other tickers than there are now starts the picker again, at its first answer, saying

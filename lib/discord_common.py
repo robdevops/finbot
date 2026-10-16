@@ -284,6 +284,12 @@ class DiscordBot(transports.Transport):
 			payload['components'] = components(buttons)
 		try_call('PATCH', self.message_path(message), json=payload, logged='debug')
 
+	def edit_buttons(self, message, buttons):
+		"""The buttons under a message changed, its text and chart left as they are (an edit that names neither keeps
+		them, with no upload): True when they show now; a failure is logged, and False."""
+		return try_call('PATCH', self.message_path(message), json={'components': components(buttons)},
+			logged='debug') is not None
+
 
 DISCORD_ROW = 5 # buttons in a row of components, and rows in a message: Discord's limits
 

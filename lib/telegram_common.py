@@ -196,6 +196,19 @@ class TelegramBot(transports.Transport):
 			payload['reply_markup'] = self.markup(buttons)
 		try_call('editMessageText', json=payload, logged='debug')
 
+	def edit_buttons(self, message, buttons):
+		"""editMessageReplyMarkup: the buttons under a message changed, its text or chart left as it is (no upload).
+		True when they show now, as they do when they were so already; a failure is logged, and False."""
+		try:
+			call('editMessageReplyMarkup', json={'chat_id': self.where, 'message_id': message,
+				'reply_markup': self.markup(buttons)}, logged='debug')
+		except Exception as e:
+			if 'not modified' in str(e):
+				return True
+			log.warn("Telegram editMessageReplyMarkup failed:", net.redact(e))
+			return False
+		return True
+
 	def typing(self):
 		"""sendChatAction: "typing…" for a few seconds."""
 		try_call('sendChatAction', data={'chat_id': self.where, 'action': 'typing'})
