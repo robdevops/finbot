@@ -505,15 +505,17 @@ def draw_pie(chart):
 	ax.set_xlim(-1.03, 1.03) # matplotlib's default 1.25 leaves a wide margin around the pie
 	ax.set_ylim(-1.03, 1.03)
 	ax.set_aspect('equal')
-	step = min(0.075, 0.74 / max(len(rows), 1))
+	step = min(0.1, 0.74 / max(len(rows), 1))
 	y = 0.5 + step * (len(rows) - 1) / 2 - 0.03 # legend block centred on the pie
+	names = []
 	for (label, value), color in zip(rows, colors):
-		fig.add_artist(Rectangle((0.57, y - 0.014), 0.018, 0.028, transform=fig.transFigure, facecolor=color,
+		fig.add_artist(Rectangle((0.57, y - 0.019), 0.024, 0.038, transform=fig.transFigure, facecolor=color,
 			edgecolor='none'))
-		fig.text(0.60, y, label if len(label) <= 28 else label[:27] + '…', color=ink, fontsize=8.5, ha='left',
-			va='center')
-		fig.text(0.97, y, f"{value / total * 100:.1f}%", color=ink2, fontsize=8.5, ha='right', va='center')
+		names.append(fig.text(0.61, y, label if len(label) <= 28 else label[:27] + '…', color=ink, fontsize=11.5,
+			ha='left', va='center'))
+		fig.text(0.97, y, f"{value / total * 100:.1f}%", color=ink2, fontsize=11.5, ha='right', va='center')
 		y -= step
+	_shrink(names, 0.26 * fig.bbox.width) # no name runs into its share
 	_heading(fig, chart.title, chart.subtitle)
 	return _png(fig, bg)
 
