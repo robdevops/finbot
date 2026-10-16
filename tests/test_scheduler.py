@@ -527,6 +527,16 @@ class JobsInChat(ChatBase):
 		self.assertEqual(self.say('.job del 2'), ['Removed 2. shorts · daily at 10:00pm'])
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [], 'deleted': ['rating']})
 
+	def test_a_command_of_help_as_a_job(self):
+		""".jobs add takes a command of .help, with its words; the job is listed by its name and words, and runs as the
+		command does, posting what it posts; a command that changes something is no job."""
+		self.assertEqual(self.say('.jobs add pe top weekly'), ['4. ✅* pe top · weekly, Saturdays at 9:00am',
+			'Added: .jobs lists them all'])
+		self.sent.clear()
+		self.assertEqual(self.say('.jobs run 4'), ['4. pe top: done'])
+		self.assertTrue(self.sent or self.replies[:-1]) # what .pe top posts
+		self.assertIn("no report 'plan'", self.say('.jobs add plan buy low weekly')[0])
+
 	def test_without_sharesight_no_job_reports_on_it(self):
 		"""Without Sharesight's keys, a chat cannot add a job that reports on it, and Add does not offer one."""
 		self.env(sharesight_auth={'client_id': None})
@@ -570,11 +580,13 @@ class JobsInChat(ChatBase):
 			self.say('.jobs add message daily "no end')[0])
 
 	def test_add_alone_lists_the_reports_a_job_can_run(self):
-		""".jobs add alone lists the reports with what each takes, message among them, no system job, and examples."""
+		""".jobs add alone lists the reports and the commands with what each takes, message among them, no system job,
+		and examples."""
 		lines = self.say('.jobs add')
-		self.assertEqual(lines[0], '<b>Reports a job can run:</b>')
+		self.assertEqual(lines[0], '<b>What a job can run:</b>')
 		for line in ('cal earnings|ex-dividend', 'message "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
-				'price midsession|interday|premarket|close|DAYS', 'trades', '.jobs add price weekly'):
+				'price midsession|interday|premarket|close|DAYS', 'trades', '.jobs add price weekly', 'beta',
+				'pe [SYMBOL|top|bottom]', 'compare SYMBOL SYMBOL [... up to 6] [period]', '.jobs add pe top weekly'):
 			self.assertIn(line, lines)
 		self.assertFalse(any(name in line for line in lines for name in jobs.SYSTEM_ACTIONS))
 
@@ -840,7 +852,8 @@ class JobsMenu(ChatBase):
 		self.assertEqual(lines, ['<b>Add a job: which report?</b>'])
 		self.assertEqual(rows, [['trades', 'price midsession', 'price premarket'], ['price close', 'price',
 			'performance'], ['cal earnings', 'cal ex-dividend', 'shorts'], ['rating', 'milestone', 'message'],
-			['Cancel']])
+			['holdings', 'pie', 'who'], ['marketcap', 'beta', 'compare'], ['history', 'buy & sell', 'pe'],
+			['forward pe', 'peg', 'stock'], ['Cancel']])
 		self.assertEqual((data['price'], data['Cancel']), (f'm|add|5|{self.crc()}', f'm|top|0|{self.crc()}'))
 		lines, rows, data = self.press(data['price'])
 		self.assertEqual((lines, rows), (['<b>Add price: how often?</b>', '', '<i>† indicates default</i>'],
@@ -951,12 +964,31 @@ class JobsMenu(ChatBase):
 		self.assertIn('.jobs add message SCHEDULE "TEXT"', lines)
 		self.assertEqual(rows, [['Back', 'Cancel']])
 
+	def test_the_commands_of_help_by_buttons(self):
+		"""Add offers the commands of .help after the reports: one that takes no stock adds as a report does; one that
+		needs a stock or a portfolio says how to type it. On Discord the list comes on two pages."""
+		lines, rows, data = self.press(f'm|add|{self.crc()}')
+		for pressed in ('pe', 'weekly', 'Fri', '09†', '09:00†'):
+			lines, rows, data = self.press(data[pressed])
+		self.assertEqual(lines, ['Added: 4. ✅* pe · weekly, Fridays at 9:00am'])
+		self.assertEqual(self.s.chat_jobs(CHAT)[-1].action, 'pe')
+		lines, rows, data = self.press(f'm|add|{self.crc()}')
+		lines, rows, _ = self.press(data['history'])
+		self.assertEqual((lines, rows), (['<b>Add history</b>', 'What history is about is typed:',
+			'.jobs add history SYMBOL SCHEDULE', '', '<b>For example:</b>', '.jobs add history AAPL weekly'],
+			[['Back', 'Cancel']]))
+		first, second = (about.add_screen(DISCORD, CHAT, steps)[1] for steps in ([], ['p1']))
+		self.assertEqual(([len(row) for row in first], [button.label for button in first[-1]]), ([4, 4, 4, 4, 2],
+			['More ▶', 'Cancel']))
+		self.assertEqual([button.label for row in second for button in row], ['beta', 'compare', 'history',
+			'buy & sell', 'pe', 'forward pe', 'peg', 'stock', '◀', 'Cancel'])
+
 	def test_a_step_that_is_none_adds_nothing(self):
 		"""Data that is no step of Add (forged, or an older finbot's: the weekdays frequency, the next 14 days, every...
 		hourly) adds nothing and says so: a report, frequency, year, month or day not offered, a day gone by, 30 Feb, an
 		end not among the runs, a page where there is none."""
 		crc = self.crc()
-		for data in ('13', '5|x', '5|k', '5|o|261020', '5|r|60', '5|w|7|9', '5|d|24', '5|d|9|9', '5|d|9|0|0',
+		for data in ('25', '5|x', '5|k', '5|o|261020', '5|r|60', '5|w|7|9', '5|d|24', '5|d|9|9', '5|d|9|0|0',
 				'1|r|7', '5|o|2025', '5|o|2036', '5|o|2026|9', '5|o|2026|10|13', '5|o|2027|2|30', '5|a|2|30', '5|q|13',
 				'5|w|p1', '5|m|def', '5|h|d|10|5|600', '5|h|d|10|5|1000', '5|h|d|10|5|e|0'):
 			with self.subTest(data=data):
@@ -985,9 +1017,10 @@ class JobsMenu(ChatBase):
 				for page in range(6):
 					with self.subTest(service=service, screen=screen, page=page):
 						fits(service, *about.jobs_screen(service, CHAT, screen, page))
-			for steps in ([], ['5'], ['5', 'w'], ['5', 'w', '5'], ['5', 'w', '5', '14'], ['5', 'm'], ['5', 'm', 'p1'],
-					['5', 'q'], ['5', 'q', '2'], ['5', 'b', '3'], ['5', 'a'], ['5', 'a', '2'], ['5', 'a', '2', '29'],
-					['5', 'o'], ['5', 'o', '2026'], ['5', 'o', '2026', '10'], ['5', 'o', '2027', '1'],
+			for steps in ([], ['p1'], ['19'], ['5'], ['5', 'w'], ['5', 'w', '5'], ['5', 'w', '5', '14'], ['5', 'm'],
+					['5', 'm', 'p1'], ['5', 'q'], ['5', 'q', '2'], ['5', 'b', '3'], ['5', 'a'], ['5', 'a', '2'],
+					['5', 'a', '2', '29'], ['5', 'o'], ['5', 'o', '2026'], ['5', 'o', '2026', '10'],
+					['5', 'o', '2027', '1'],
 					['5', 'o', '2027', '1', 'p1'], ['5', 'o', '2027', '1', '31'], ['5', 'h'], ['5', 'h', 'd'],
 					['5', 'h', 'd', '0'], ['5', 'h', 'd', '0', '0'], ['5', 'r'], ['5', 'r', 'k'], ['5', 'r', 'k', '9'],
 					['5', 'r', '20'], ['5', 'r', '20', 'k', '10'], ['5', 'r', '20', 'k', '10', '5'], ['12']):

@@ -2,6 +2,7 @@
 disable, remove or run one; the steps of Add; the upcoming runs; the system jobs; and the reports a job can run."""
 import calendar
 import datetime
+import re
 
 from lib import buttons
 from lib import catalog
@@ -48,6 +49,7 @@ MORE = 'p1' # Add's data for the second page of the days of a month
 INTERVALS = (5, 10, 15, 20, 30, 120, 180, 240, 360, 720) # minutes between a repeat's runs, as every... offers them
 MINUTES = tuple(range(0, 60, 5)) # the minutes Add offers
 MOST_DAYS = {'discord': 20} # days of the month on a page: Discord takes 25 buttons, elsewhere all 31
+MOST_REPORTS = {'discord': 16} # Add's reports on a page, four to a row: Discord takes five rows, elsewhere all
 YEARS = 10 # the years a one-off may be in, this one first
 CROWDED = 20 # a screen of more choices takes them in rows of five, Back last: Discord takes 25 buttons
 
@@ -206,15 +208,31 @@ def add_screen(service, chat, steps):
 			tapped.append(back)
 			return text, [tapped[i:i + 5] for i in range(0, len(tapped), 5)]
 		return text, [tapped[i:i + row] for i in range(0, len(tapped), row)] + [nav or [back, cancel]]
+	reports = add_reports()
 	if not steps: # a button per report, by its name alone (none that reports on Sharesight without it), and Cancel
-		return choices('Add a job: which report?', [(label, number) for number, (label, action, _) in
-			enumerate(REPORTS, 1) if sharesight.configured() or action not in catalog.SHARESIGHT], 3, nav=[cancel])
-	label, action, args = REPORTS[choice(steps[0], 1, len(REPORTS)) - 1]
+		offer = [(label, number) for number, (label, action, _) in enumerate(reports, 1)
+			if sharesight.configured() or action not in catalog.SHARESIGHT]
+		most = MOST_REPORTS.get(service, len(offer))
+		if page * most >= len(offer):
+			raise ValueError('no such page')
+		nav = [cancel]
+		if page:
+			nav.insert(0, buttons.menu_button('◀', 'add', [], crc))
+		elif len(offer) > most:
+			nav.insert(0, buttons.menu_button('More ▶', 'add', [MORE], crc))
+		return choices('Add a job: which report?', offer[page * most:(page + 1) * most], 4 if service in
+			MOST_REPORTS else 3, nav=nav)
+	label, action, args = reports[choice(steps[0], 1, len(reports)) - 1]
 	if action == 'message':
 		return [service.bold('Add a message'), "A message's text is what you type:",
 			'.jobs add message SCHEDULE "TEXT"', '', service.bold('For example:'),
 			'.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"',
 			'.jobs add message on 28 oct 2026 "ubank draw 6/6"'], [[back, cancel]]
+	command = jobs.command_actions().get(action)
+	if command and command.needs: # what it is about, a stock or a portfolio, comes from typing, not a button
+		return [service.bold(f'Add {label}'), f'What {label} is about is typed:',
+			f'.jobs add {action} {command.ARGUMENTS} SCHEDULE', '', service.bold('For example:'),
+			f'.jobs add {action} {example(command.ARGUMENTS)} weekly'], [[back, cancel]]
 	if len(steps) == 1:
 		return choices(f'Add {label}: how often?', [(name, code) for code, name in FREQUENCIES], 3,
 			usual=USUAL['frequency'])
@@ -253,6 +271,24 @@ def add_screen(service, chat, steps):
 		'repeat': ('on which days?', 2, []), 'start hour': ('start hour?', 5, clock),
 		'start minute': ('start minute?', 4, []), 'end': ('end time?', 4, [])}[level]
 	return choices(f'Add {label}, {said}: {question}', offer, row, lines, usual)
+
+def add_reports():
+	"""What Add offers a job to run: the reports (REPORTS), then the commands of .help a job may run, in its order (buy
+	and sell as one), each (label, action, arguments; None where the period follows how often it runs). Each one's
+	place in this list is its button's data, whichever are offered."""
+	commands = []
+	for name, command in jobs.command_actions().items():
+		if command.listed and name != 'sell':
+			name = 'buy&sell' if name == 'buy' else name
+			commands.append((name.replace('&', ' & '), name, ()))
+	return REPORTS + tuple(commands)
+
+def example(arguments):
+	"""What a command's arguments may be, for an example: its words outside brackets, each SYMBOL a ticker in turn and
+	PORTFOLIO a portfolio's name (the first that Sharesight's cache has, else Growth)."""
+	tickers, names = iter(('AAPL', 'MSFT', 'GOOG')), sharesight.cached()[0] + ['Growth']
+	return ' '.join(next(tickers) if word == 'SYMBOL' else names[0] if word == 'PORTFOLIO' else word
+		for word in re.sub(r'\[[^\]]*\]', '', arguments).split())
 
 def levels_of(frequency, made):
 	"""The choices Add asks for after how often (LEVELS), as far as those made say: every... asks a weekday's hour and
@@ -384,12 +420,14 @@ def prepare_system(service):
 		(' (running)' if job.key in running else '') for job in scheduler.system_jobs()]
 
 def prepare_reports(service):
-	"""`.jobs add` alone: the reports a job can run, each with what it takes, and examples."""
-	return [service.bold('Reports a job can run:')] + [f"{name} {jobs.ACTIONS[name].ARGUMENTS}".strip()
+	"""`.jobs add` alone: what a job can run (the reports, then the commands of .help), each with what it takes, and
+	examples."""
+	known = jobs.actions()
+	return [service.bold('What a job can run:')] + [f"{name} {known[name].ARGUMENTS}".strip()
 		for name in jobs.chat_actions()] + ['', service.bold('For example:'), '.jobs add price weekly',
 		'.jobs add price close weekdays at 4:30pm New York', '.jobs add performance first day of each month at 9am',
-		'.jobs add trades every 20 mins weekdays from 10am to 4pm',
-		'.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"', '',
+		'.jobs add trades every 20 mins weekdays from 10am to 4pm', '.jobs add pe top weekly',
+		'.jobs add compare AAPL MSFT 1y monthly', '.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"', '',
 		f"Times are by {when.place(formats.zone().key)}'s clock unless one names a zone (UTC, New York, EST);"
 		" performance and price cover the days between runs"]
 

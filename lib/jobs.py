@@ -82,8 +82,8 @@ class Job:
 
 	@property
 	def module(self):
-		"""The report module that runs it."""
-		return ACTIONS[self.action]
+		"""What runs it: a report module, or a command of .help (worker.CommandJob)."""
+		return actions()[self.action]
 
 	def stored(self):
 		"""The job as JOBS_FILE keeps one a chat added."""
@@ -136,20 +136,37 @@ def warm_now(scheduler=None):
 	log.info('cache: warm jobs done')
 
 
+def actions():
+	"""Every action a job may name: the report modules (ACTIONS), and the commands of .help that a job may run
+	(command_actions), each standing in for a report module."""
+	return {**command_actions(), **ACTIONS}
+
+
+def command_actions():
+	"""The commands of .help that a job may run, by each name a job may call one by (worker.job_commands)."""
+	from lib import worker # here, not at the top: worker imports this module
+	return worker.job_commands()
+
+
 def chat_actions():
-	"""The actions a chat may schedule, by name."""
-	return sorted(name for name in ACTIONS if name not in SYSTEM_ACTIONS)
+	"""The actions a chat may schedule, by name: the reports, then the commands of .help a job may run, as .help names
+	them."""
+	return sorted(name for name in ACTIONS if name not in SYSTEM_ACTIONS) + [name for name, command in
+		command_actions().items() if command.listed]
 
 
 def make_job(action, args, schedule, chat='', on=True, item=None, name=None):
-	"""A Job of an action in ACTIONS with the arguments its parser takes (words), on a when.Schedule: the system's
-	actions only for a system job (no chat). Raises ScheduleError, saying what is wrong."""
-	if not isinstance(action, str) or action not in ACTIONS or (chat and action in SYSTEM_ACTIONS):
+	"""A Job of an action (actions()) with the arguments its parser takes (words), on a when.Schedule: the system's
+	actions only for a system job (no chat); a command by the name a job calls it (its name in .help). Raises
+	ScheduleError, saying what is wrong."""
+	known = actions()
+	if not isinstance(action, str) or action not in known or (chat and action in SYSTEM_ACTIONS):
 		raise ScheduleError(f"no report {action!r}: send .jobs add for the reports")
 	if not isinstance(args, (list, tuple)) or not all(isinstance(arg, str) for arg in args):
 		raise ScheduleError(f'{action} takes words, not {args!r}')
+	action = getattr(known[action], 'name', action) # a command's other name (a typo too) stands for its first
 	try:
-		label, kwargs = ACTIONS[action].job(list(args))
+		label, kwargs = known[action].job(list(args))
 	except ValueError as e:
 		raise ScheduleError(f'{action} takes {e}')
 	if not isinstance(schedule, when.Schedule):
@@ -269,9 +286,11 @@ def parse_add(text, zone):
 			raise ScheduleError('a message is a schedule, then its text in double quotes: .jobs add message every 31'
 				' mar "🥳 Happy EOFY"')
 		return 'message', rest[start + 1:end].replace('\r', '').split('\n'), when.parse(rest[:start], zone, MESSAGE_AT)
-	if name not in ACTIONS or name in SYSTEM_ACTIONS:
+	known, words = actions(), text.split()
+	name = next((' '.join(words[:size]).lower() for size in (2, 1) if ' '.join(words[:size]).lower() in known), name)
+	if name not in known or name in SYSTEM_ACTIONS:
 		raise ScheduleError(f"no report {name!r}: send .jobs add for the reports")
-	words, wrong, unread = rest.split(), None, None
+	words, wrong, unread = words[len(name.split()):], None, None
 	for cut in range(len(words) + 1):
 		try:
 			schedule = when.parse(' '.join(words[cut:]), zone)
@@ -280,7 +299,7 @@ def parse_add(text, zone):
 			continue
 		args = words[:cut] or catalog.period_args(name, schedule)
 		try:
-			ACTIONS[name].job(args)
+			known[name].job(args)
 		except ValueError as e:
 			wrong = ScheduleError(f'{name} takes {e}')
 			continue

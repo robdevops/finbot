@@ -775,6 +775,23 @@ class PieCommand(FinbotCase):
 			self.assertEqual(self.sent[-1], ('text', ['x']))
 
 
+class CommandJobs(FinbotCase):
+	"""A job that runs a command of .help posts in its chat what the command posts when typed there."""
+
+	def test_a_command_job_posts_what_the_typed_command_posts(self):
+		"""pe, beta, buy & sell and compare, run as a job's, post what each posts when typed in the chat; one that
+		cannot take its words posts its usage."""
+		chat = delivery.chat('telegram:55', scheduled=True)
+		for name, words, typed in (('pe', [], '.pe'), ('beta', [], '.beta'), ('buy&sell', [], '.buy & sell'),
+				('compare', ['T1', 'T2'], '.compare T1 T2'), ('history', [], '.history')):
+			with self.subTest(name=name):
+				posted = self.command(typed)
+				self.sent.clear()
+				worker.job_commands()[name].run(chat, words=words)
+				self.assertEqual(self.sent, posted)
+		self.assertEqual(posted, [('text', ['Usage: .history SYMBOL'])])
+
+
 class WithoutSharesight(FinbotCase):
 	"""Without Sharesight's keys, a chat's reports cover its watchlist alone, and what needs Sharesight says it is not
 	set up."""

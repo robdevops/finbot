@@ -13,15 +13,44 @@ OCTOBER = datetime.datetime(2026, 10, 15, tzinfo=when.UTC)
 
 
 class Actions(unittest.TestCase):
-	def test_a_job_runs_only_a_report_of_finbots_own(self):
-		"""Each action a job may run is a report module of finbot's own, with its run and its parser; a chat may
-		schedule all but the system's."""
+	def test_a_job_runs_only_a_report_or_a_command_of_finbots_own(self):
+		"""Each action a job may run is a report module of finbot's own, with its run and its parser, or a command of
+		.help that changes nothing, by one of its names; a chat may schedule all but the system's, the commands listed
+		by their names in .help."""
 		for name, module in jobs.ACTIONS.items():
 			with self.subTest(name=name):
 				self.assertEqual(module.__name__, f'lib.reports.{name}')
 				self.assertTrue(callable(module.run) and callable(module.job))
+		commands = jobs.command_actions()
+		for name, command in commands.items():
+			with self.subTest(name=name):
+				self.assertIn(command.command, worker.COMMANDS)
+				self.assertTrue(command.command.job and name in command.command.names)
+				self.assertNotIn(command.command.handler, worker.REPORTED)
+		self.assertFalse({'help', 'start', 'watchlist', 'wishlist', 'plan', 'jobs', 'cron', 'schedule', 'price',
+			'session', 'earnings', 'trades'} & set(commands))
 		self.assertEqual(jobs.chat_actions(), ['cal', 'message', 'milestone', 'performance', 'podcasts', 'price',
-			'rating', 'shorts', 'trades'])
+			'rating', 'shorts', 'trades', 'holdings', 'pie', 'who', 'marketcap', 'beta', 'compare', 'history', 'buy',
+			'sell', 'pe', 'forward pe', 'peg', 'stock'])
+
+	def test_a_command_of_help_as_a_job(self):
+		"""A job may run a command of .help by its name, the words it takes before the schedule; another of its names
+		(a typo too) stands for it, but buy and sell's, which say which; one that takes no words refuses them, and one
+		that needs a stock or a portfolio refuses none."""
+		weekly = when.parse('weekly', 'UTC')
+		for text, action, args in (('pe top weekly', 'pe', ['top']), ('forward pe weekly', 'forward pe', []),
+				('compare AAPL MSFT 1y weekly at 9am', 'compare', ['AAPL', 'MSFT', '1y']),
+				('buy&sell weekly', 'buy&sell', []), ('holdings Rob weekly', 'holdings', ['Rob'])):
+			with self.subTest(text=text):
+				self.assertEqual(jobs.parse_add(text, 'UTC')[:2], (action, args))
+		for text in ('beta x weekly', 'history weekly', 'compare AAPL weekly', 'holdings weekly'):
+			with self.subTest(text=text), self.assertRaises(jobs.ScheduleError):
+				jobs.parse_add(text, 'UTC')
+		for action, args, made, name in (('hospital', ['AAPL'], 'history', 'history AAPL'), ('fpe', [], 'forward pe',
+				'forward pe'), ('buy&sell', [], 'buy&sell', 'buy & sell'), ('sell', [], 'sell', 'sell')):
+			with self.subTest(action=action):
+				job = jobs.make_job(action, args, weekly, 'telegram:1')
+				self.assertEqual((job.action, job.name, job.kwargs), (made, name, {'words': args}))
 
 	def test_anything_else_is_refused(self):
 		"""A name that is no action (a shell command, a module's path, a builtin), a system job for a chat, arguments
@@ -29,11 +58,13 @@ class Actions(unittest.TestCase):
 		daily = when.parse('daily', 'UTC')
 		for action, args in (('os.system', ['ls']), ('price; rm -rf /', []), ('lib.reports.price', ['close']),
 				('__import__', ['os']), ('eval', ['1']), ('yahoo_warm', []), ('price', ['bogus']), ('trades', [7]),
-				(['trades'], []), ('price', 'close')):
+				(['trades'], []), ('price', 'close'), ('jobs', []), ('plan', ['x']), ('watchlist', ['add', 'X']),
+				('help', []), ('on_jobs', [])):
 			with self.subTest(action=action, args=args), self.assertRaises(jobs.ScheduleError):
 				jobs.make_job(action, args, daily, 'telegram:1')
 		for text in ('os.system daily', 'price; rm -rf / daily', '../../etc/passwd daily', 'trades daily; rm -rf /',
-				'message daily', 'trades.py daily'):
+				'message daily', 'trades.py daily', 'jobs add price daily daily', 'plan buy low daily',
+				'watchlist add X daily'):
 			with self.subTest(text=text), self.assertRaises(jobs.ScheduleError):
 				jobs.parse_add(text, 'UTC')
 		self.assertEqual(jobs.make_job('yahoo_warm', [], daily).label, 'yahoo_warm') # the system's own

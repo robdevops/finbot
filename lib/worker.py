@@ -1,6 +1,7 @@
 """Chat commands: a message is answered by the Command in COMMANDS whose name it starts with (read), or .SYMBOL. The
 table also makes the .help text and the Telegram command keyboard, which is kept current in every DM."""
 import dataclasses
+import functools
 import hashlib
 import hmac
 import json
@@ -25,7 +26,8 @@ from lib import yahoo
 
 @dataclasses.dataclass
 class Request:
-	"""A message being answered: where it came from (service is its dialect) and who sent it."""
+	"""A message being answered: where it came from (service is its dialect) and who sent it; or a job running a
+	command (CommandJob), its chat's transport given as dest."""
 	service: str
 	chat_id: str
 	user: str # the sender's handle: whose watchlist add or plan it is
@@ -33,10 +35,12 @@ class Request:
 	bot_name: str
 	message_id: str = None # the message being answered
 	interaction: str = '' # what the network answers through, where it has one (Discord's slash command)
+	dest: object = None # the chat's transport, where it is given
 
 	def __post_init__(self):
-		"""The chat's transport, which also keeps the typing notice going."""
-		self.dest = delivery.reply_to(self.service, self.chat_id, self.message_id, self.interaction)
+		"""The chat's transport, which also keeps the typing notice going, unless one is given."""
+		if self.dest is None:
+			self.dest = delivery.reply_to(self.service, self.chat_id, self.message_id, self.interaction)
 
 	def reply(self, lines, chart=None, buttons=None):
 		"""Answer in the chat (see delivery.deliver): the lines, perhaps a chart (drawn, or a spec drawn only where it
@@ -511,6 +515,7 @@ class Command:
 	percent: bool = False
 	period: bool = False
 	keywords: dict = dataclasses.field(default_factory=dict)
+	job: bool = True # whether a job may run it (job_commands): not one that changes something
 
 SECTIONS = TRACKED, COMPANY, PRICE, RISK, TRADES, JOBS = ('Tracked securities', 'Company info', 'Price', 'Risk & Value',
 	'Trades', 'Scheduled jobs') # the headings of .help, in order
@@ -531,11 +536,11 @@ PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL')
 
 COMMANDS = [ # .help lists a section's commands in this order. The odd spellings (earrings, prince, hospital...) are
 	# kept on purpose.
-	Command(('help', 'usage', 'start'), on_help), # /start is what Telegram sends when a chat opens
+	Command(('help', 'usage', 'start'), on_help, job=False), # /start is what Telegram sends when a chat opens
 	Command(('holdings', 'holding'), on_holdings, ('.holdings PORTFOLIO',), TRACKED),
 	Command(('pie',), on_pie, ('.pie PORTFOLIO [sector]',), TRACKED, keywords=BY),
 	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
-		keywords=CHANGE),
+		keywords=CHANGE, job=False),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),
 	Command(('earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend', 'exdividend', 'ex-dividend'),
 		on_calendar, ('.dividend [period|SYMBOL]', '.earnings [period|SYMBOL]'), COMPANY, ('.dividend', '.earnings'),
@@ -559,10 +564,10 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('peg',), on_ratio('peg'), ('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',), keywords=NEGATIVE),
 	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True),
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True),
-	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES),
+	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES, job=False),
 	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [upcoming|system]',
 		'.jobs enable|disable|remove|run [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'),
-		JOBS, ('.schedule',), keywords=JOB_CHANGES),
+		JOBS, ('.schedule',), keywords=JOB_CHANGES, job=False),
 	PROFILE,
 ]
 
@@ -628,6 +633,64 @@ def described(name, lines, most=100):
 			break
 		text = longer
 	return text
+
+REPORTED = (on_price, on_performance, on_trades, on_shorts, on_calendar, on_session) # what a scheduled report runs
+
+@dataclasses.dataclass(frozen=True)
+class CommandJob:
+	"""A command of .help as a job's action (job_commands), standing in for a report module: ARGUMENTS is what it takes,
+	from its usage; job() reads a scheduled run's words; run() answers in the job's chat as the command would."""
+	command: Command
+	name: str # what the job calls it, its name in .help, but buy, sell or both: on_rating reads which from the name
+	ARGUMENTS: str = ''
+	listed: bool = True # whether .jobs add lists it: not a command's other names, nor its typos
+
+	@property
+	def needs(self):
+		"""How many words it needs, each SYMBOL or PORTFOLIO of its usage outside brackets: none comes from a button."""
+		return len(re.findall(r'\b[A-Z]{2,}\b', re.sub(r'\[[^\]]*\]', '', self.ARGUMENTS)))
+
+	def job(self, argv):
+		"""A scheduled run's arguments (words): (label, run's keyword arguments). Raises ValueError, with what it takes,
+		for words where its usage takes none, or fewer than it needs."""
+		args = read_args(self.command, self.name, ' '.join(argv))
+		if (argv and not self.ARGUMENTS) or len(args.words) < self.needs:
+			raise ValueError(self.ARGUMENTS or 'no arguments')
+		return ' '.join([self.name.replace('&', ' & '), *argv]), {'words': list(argv)}
+
+	def run(self, dest, *, words):
+		"""Answer in the job's chat (dest) as the command would to these words, typed there: its usage where it cannot
+		take them, an answer as an answer; any other failure is the job's to report."""
+		request = Request(dest.dialect, dest.where, '', '', '', dest=dest)
+		try:
+			self.command.handler(request, read_args(self.command, self.name, ' '.join(words)))
+		except Usage as e:
+			request.reply([f"Usage: {line}" for line in self.command.usage] + list(e.lines))
+		except answer.Answer as e:
+			request.reply(e.lines)
+
+@functools.cache
+def job_commands():
+	"""The commands of .help a job may run, by each name a job may call one by: a CommandJob each. Every one but those
+	that change something (job false) and those a scheduled report runs already (REPORTED): first each by its name in
+	.help, with what it takes; then its other names (typos too), each standing for the first, but buy and sell's."""
+	found = {}
+	for command in COMMANDS:
+		if not (command.job and command.usage) or command.handler in REPORTED:
+			continue
+		listed = []
+		for line in command.usage:
+			words = line.lstrip('.').split()
+			name = next((' '.join(words[:size]).lower() for size in (2, 1) if ' '.join(words[:size]).lower() in
+				command.names), None)
+			if name:
+				found[name] = CommandJob(command, name, ' '.join(words[len(name.split()):]))
+				listed.append(name)
+		first = found[listed[0]]
+		for name in command.names:
+			found.setdefault(name, dataclasses.replace(first, name=name if command.handler is on_rating else first.name,
+				listed=False))
+	return found
 
 PERIOD_WORDS = ('1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y') # suggested where a command takes a period
 JOB_WORDS = ('add', 'remove', 'enable', 'disable', 'run', 'upcoming', 'system') # what /jobs suggests first
@@ -699,8 +762,8 @@ def job_words(chat, words):
 	if action != 'add':
 		return []
 	if len(words) == 1:
-		return [(name, f'{name} {jobs.ACTIONS[name].ARGUMENTS}'.strip()) for name in jobs.chat_actions()]
-	module = jobs.ACTIONS.get(words[1].lower())
+		return [(name, f'{name} {jobs.actions()[name].ARGUMENTS}'.strip()) for name in jobs.chat_actions()]
+	module = jobs.actions().get(words[1].lower())
 	if module is None or words[1].lower() not in jobs.chat_actions():
 		return []
 	takes = re.findall(r'[a-z][a-z-]*', module.ARGUMENTS) if len(words) == 2 else []
