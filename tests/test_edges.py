@@ -414,8 +414,8 @@ class RequestLog(FinbotCase):
 	"""Each request that goes out (a cache miss, or a call that has no cache) is a line at INFO."""
 
 	def test_each_request_is_a_short_line_without_secrets(self):
-		"""A request logs its method and URL at INFO, without the scheme or a secret, cut to 73 bytes (the ellipsis
-		takes 3); Telegram's long polling (logged=False) does not, and nothing does below INFO."""
+		"""A request logs its method and URL at INFO, without the scheme or a secret, cut to log_width characters (71,
+		the last an ellipsis); Telegram's long polling (logged=False) does not, and nothing does below INFO."""
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			net.get('https://query1.finance.yahoo.com/v7/finance/quote?crumb=s3cret')
 			net.post('https://api.telegram.org/bot123:ABC-def/sendMessage', json={})
@@ -427,11 +427,21 @@ class RequestLog(FinbotCase):
 		self.assertEqual(lines, ['GET query1.finance.yahoo.com/v7/finance/quote?crumb=<redacted>',
 			'POST api.telegram.org/bot<redacted>/sendMessage', 'PATCH discord.com/api/v10/channels/7/messages/9',
 			'GET query2.finance.yahoo.com/v10/finance/quoteSummary/ARM.L?modules=ca…'])
-		self.assertEqual(len(lines[3].encode()), 73)
+		self.assertEqual(len(lines[3]), 71)
 		self.prefs(log_level='WARN')
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			net.get('https://example.com/')
 		self.assertEqual(err.getvalue(), '')
+
+	def test_log_width_sets_where_a_long_line_is_cut(self):
+		"""The log_width preference is where a long line is cut, its last character an ellipsis; at 0 none is."""
+		whole = 'GET query2.finance.yahoo.com/v10/finance/quoteSummary/ARM.L?modules=calendarEvents' # 82 characters
+		for width, line in ((20, 'GET query2.finance.…'), (81, whole[:80] + '…'), (82, whole), (0, whole), (1, '…')):
+			with self.subTest(width=width):
+				self.prefs(log_width=width)
+				with contextlib.redirect_stderr(io.StringIO()) as err:
+					net.get('https://' + whole[4:])
+				self.assertEqual(err.getvalue().splitlines(), [line])
 
 
 class SharedSession(unittest.TestCase):

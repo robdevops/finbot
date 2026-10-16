@@ -15,7 +15,6 @@ session = requests.Session()
 # no domain may set or receive a cookie
 session.cookies.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
 CONNECT_TIMEOUT = 5 # seconds to wait for a host to answer the connection: one that is down costs this, not http_timeout
-SHOWN = 73 # bytes of a request's log line, at most: the method and URL, cut with an ellipsis (3 bytes in UTF-8)
 
 def get(url, **kwargs):
 	"""requests.get through the shared session, which reuses connections; timed out as timeouts() says; logged."""
@@ -32,13 +31,12 @@ def request(method, url, **kwargs):
 
 def logged(method, url, kwargs):
 	"""The request's arguments without `logged`; the request noted first, its method and URL without secrets or the
-	scheme, cut to SHOWN bytes: at INFO; at DEBUG with logged='debug' (the routine of a press: its acknowledgement, the
-	message edited in place); not at all with logged=False (Telegram's long polling, asked again and again)."""
+	scheme, cut to the log_width preference (log.cut): at INFO; at DEBUG with logged='debug' (the routine of a press:
+	its acknowledgement, the message edited in place); not at all with logged=False (Telegram's long polling, asked
+	again and again)."""
 	shown = kwargs.pop('logged', True)
 	if shown:
-		line = f"{method} {redact(url).split('://', 1)[-1]}".encode()
-		(log.debug if shown == 'debug' else log.info)(line.decode() if len(line) <= SHOWN else
-			line[:SHOWN - 3].decode(errors='ignore') + '…')
+		(log.debug if shown == 'debug' else log.info)(log.cut(f"{method} {redact(url).split('://', 1)[-1]}"))
 	return kwargs
 
 def timeouts(kwargs):

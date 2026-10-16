@@ -98,7 +98,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `yahoo.symbol(typed)` is Yahoo's symbol for a ticker as written, tried on the local exchange (`exchange_suffix`)
   when Yahoo does not know it bare: every ticker a chat gives goes through it. `sharesight.portfolios(name=None)` gives
   `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `trades(days)`.
-- `lib/log.py`: the log, by level (`error warn info debug`), as the `log_level` preference lets in; bot.py's `WholeLines`
+- `lib/log.py`: the log, by level (`error warn info debug`), as the `log_level` preference lets in, and `cut()`, which
+  keeps a line that can run long (a request's) within the `log_width` preference; bot.py's `WholeLines`
   writes each line whole, whichever threads log at once. `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save; a file of one record per chat with
   `state.load_for(chat, name, default)` and `state.edit_for`. A chat's key is its network and id (`Transport.key`,
