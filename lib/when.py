@@ -16,7 +16,7 @@ WEEK = 7 * DAY_MINUTES
 DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
 DAY_NAMES = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
 MONTHS = ('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec')
-QUARTERS = (1, 4, 7, 10)
+QUARTERS = (1, 4, 7, 10) # quarterly and bi-annual where no start month is said: from January
 HALVES = (1, 7)
 DEFAULT_AT = 9 * 60 # a schedule's time of day where none is typed: 9am
 ZONE_WORDS = { # what people call a zone -> the zone, with its daylight saving: EST is New York's clock all year
@@ -28,8 +28,8 @@ ZONE_WORDS = { # what people call a zone -> the zone, with its daylight saving: 
 	'aet': 'Australia/Sydney', 'aest': 'Australia/Sydney', 'aedt': 'Australia/Sydney'}
 AREAS = ('Africa', 'America', 'Antarctica', 'Asia', 'Atlantic', 'Australia', 'Europe', 'Indian', 'Pacific')
 EXAMPLES = ('daily at 9am', 'weekdays at 4:30pm', 'every saturday at 9am', 'first day of each month at 9am',
-	'quarterly', 'every 20 mins weekdays from 10am to 9pm', 'every 31 mar', 'on 28 oct 2026',
-	'weekdays at 4:30pm New York')
+	'quarterly', 'quarterly from feb on the 15th', 'every 20 mins weekdays from 10am to 9pm', 'every 31 mar',
+	'on 28 oct 2026', 'weekdays at 4:30pm New York')
 TIME = r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?'
 DAY = r'(mon|tue|wed|thu|fri|sat|sun)(?:day|sday|nesday|rsday|urday|r|s)?s?'
 MONTH = r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)(?:uary|ruary|ch|il|e|y|ust|tember|t|ober|ember)?'
@@ -209,8 +209,7 @@ class Schedule:
 			return 'weekly' if len(days) == 1 else None
 		if 'date' in days:
 			return 'once'
-		return {(): 'monthly', QUARTERS: 'quarterly', HALVES: 'bi-annual'}.get(days['months'],
-			'annual' if len(days['months']) == 1 else None)
+		return month_kind(days['months'])
 
 	def describe(self, local, now=None):
 		"""The schedule in words, by its own zone's clock: plain where that is local (the zone's name), in 24 hours with
@@ -400,12 +399,30 @@ def days_words(days):
 		return 'once, ' + date_words(datetime.date.fromisoformat(days['date']))
 	day, months = days['day'], days['months']
 	names = [MONTHS[m - 1].title() for m in months]
-	if not months:
+	kind = month_kind(months)
+	if kind == 'monthly':
 		return f'monthly, the {ordinal(day)}'
-	if months == HALVES:
+	if kind == 'bi-annual':
 		return f'bi-annual, {day} {names[0]} and {day} {names[1]}'
-	kind = 'quarterly' if months == QUARTERS else 'annual' if len(months) == 1 else 'yearly'
-	return f"{kind}, {day} {'/'.join(names)}"
+	return f"{kind or 'yearly'}, {day} {'/'.join(names)}"
+
+
+def cycle(start, count):
+	"""The months of a cycle that comes count times a year, from its start month (1–12), in order: quarterly from Feb
+	is (2, 5, 8, 11), bi-annual from Mar (3, 9)."""
+	return tuple(sorted((start - 1 + i * 12 // count) % 12 + 1 for i in range(count)))
+
+
+def month_kind(months):
+	"""How often some months of the year come round, in a word: monthly for none (every month), quarterly for four 3
+	apart, bi-annual for two 6 apart, from any month, annual for one; None for others."""
+	if not months:
+		return 'monthly'
+	if len(months) == 1:
+		return 'annual'
+	if len(months) in (2, 4) and tuple(months) == cycle(months[0], len(months)):
+		return 'bi-annual' if len(months) == 2 else 'quarterly'
+	return None
 
 
 def repeat_days(days):
@@ -577,9 +594,11 @@ def read_days(take):
 		day = 1
 	if day is not None and not 1 <= day <= 31:
 		raise ScheduleError(f'no day {day} of the month')
-	for pattern, months in ((r' monthly ', ()), (r' quarterly ', QUARTERS), (r' (?:bi-annual|biannual|bi-annually|'
-			r'biannually|half-yearly|semi-annual|semi-annually|twice a year) ', HALVES),
-			(r' (?:annual|annually|yearly|every year) ', (1,))):
-		if take(pattern):
-			return {'day': day or 1, 'months': months}
+	start = rf'(?: (?:from|starting(?: in)?) {MONTH})?' # the month a cycle starts in: quarterly from feb
+	for pattern, count in ((r' monthly ', 0), (rf' quarterly{start} ', 4), (r' (?:bi-annual|biannual|bi-annually|'
+			rf'biannually|half-yearly|semi-annual|semi-annually|twice a year){start} ', 2),
+			(rf' (?:annual|annually|yearly|every year){start} ', 1)):
+		if m := take(pattern):
+			first = MONTHS.index(m[1]) + 1 if count and m[1] else 1
+			return {'day': day or 1, 'months': cycle(first, count) if count else ()}
 	return None if day is None else {'day': day, 'months': ()}

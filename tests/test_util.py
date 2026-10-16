@@ -364,8 +364,11 @@ class Schedules(unittest.TestCase):
 				('monthly on the 2nd at 8:30am', {'days': {'day': 2}, 'at': '08:30'}),
 				('quarterly', {'days': {'day': 1, 'months': [1, 4, 7, 10]}, 'at': '09:00'}),
 				('quarterly on the 2nd', {'days': {'day': 2, 'months': [1, 4, 7, 10]}, 'at': '09:00'}),
+				('quarterly from feb on the 15th', {'days': {'day': 15, 'months': [2, 5, 8, 11]}, 'at': '09:00'}),
 				('bi-annual', {'days': {'day': 1, 'months': [1, 7]}, 'at': '09:00'}),
 				('half-yearly', {'days': {'day': 1, 'months': [1, 7]}, 'at': '09:00'}),
+				('bi-annual starting in march', {'days': {'day': 1, 'months': [3, 9]}, 'at': '09:00'}),
+				('annual from aug', {'days': {'day': 1, 'months': [8]}, 'at': '09:00'}),
 				('annual', {'days': {'day': 1, 'months': [1]}, 'at': '09:00'}),
 				('every 31 mar at 8:30am', {'days': {'day': 31, 'months': [3]}, 'at': '08:30'}),
 				('on 28 oct 2026', {'days': {'date': '2026-10-28'}, 'at': '09:00'}),
@@ -416,6 +419,12 @@ class Schedules(unittest.TestCase):
 					'quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney'),
 				({'days': {'day': 2, 'months': [1, 7]}, 'at': '08:30', 'zone': syd},
 					'bi-annual, 2 Jan and 2 Jul at 8:30am Sydney'),
+				({'days': {'day': 15, 'months': [2, 5, 8, 11]}, 'at': '09:00', 'zone': self.MEL},
+					'quarterly, 15 Feb/May/Aug/Nov at 9:00am'),
+				({'days': {'day': 1, 'months': [3, 9]}, 'at': '09:00', 'zone': self.MEL},
+					'bi-annual, 1 Mar and 1 Sep at 9:00am'),
+				({'days': {'day': 1, 'months': [1, 2]}, 'at': '09:00', 'zone': self.MEL},
+					'yearly, 1 Jan/Feb at 9:00am'),
 				({'days': {'day': 31, 'months': [3]}, 'at': '08:30', 'zone': syd}, 'annual, 31 Mar at 8:30am Sydney'),
 				({'days': {'date': '2026-10-28'}, 'at': '08:30', 'zone': syd}, 'once, 28 Oct 2026 at 8:30am Sydney'),
 				({'days': ['sat'], 'at': '09:00', 'zone': self.MEL}, 'weekly, Saturdays at 9:00am'),
@@ -514,10 +523,25 @@ class Schedules(unittest.TestCase):
 		"""How often a schedule's days come round, in a word; None for several weekdays, and for a span."""
 		for text, word in (('daily', 'daily'), ('weekdays', 'weekdays'), ('every sunday', 'weekly'),
 				('monthly on the 2nd', 'monthly'), ('quarterly', 'quarterly'), ('bi-annual', 'bi-annual'),
+				('quarterly from dec', 'quarterly'), ('bi-annual from mar', 'bi-annual'),
 				('annual', 'annual'), ('every 31 mar', 'annual'), ('on 28 oct 2026', 'once'), ('tue-sat', None),
 				('every 20 mins from mon 9am to sat 3pm', None)):
 			with self.subTest(text=text):
 				self.assertEqual(when.parse(text, self.MEL).frequency, word)
+		self.assertIsNone(when.Schedule({'day': 1, 'months': (1, 2)}, at=540).frequency) # no cycle: yearly
+
+	def test_a_cycle_runs_from_its_start_month(self):
+		"""A quarterly or bi-annual cycle may start in any month: its months are the start and every 3 or 6 months on,
+		and its next run is the next of them."""
+		self.assertEqual([when.cycle(2, 4), when.cycle(12, 4), when.cycle(7, 2), when.cycle(3, 1)],
+			[(2, 5, 8, 11), (3, 6, 9, 12), (1, 7), (3,)])
+		self.assertEqual((when.cycle(1, 4), when.cycle(1, 2)), (when.QUARTERS, when.HALVES))
+		october = datetime.datetime(2026, 10, 14, tzinfo=zoneinfo.ZoneInfo(self.MEL))
+		for text, run in (('quarterly from feb on the 15th', '2026-11-15 09:00'),
+				('bi-annual from mar', '2027-03-01 09:00'), ('quarterly', '2027-01-01 09:00')):
+			with self.subTest(text=text):
+				found = when.parse(text, self.MEL).next_after(october).astimezone(zoneinfo.ZoneInfo(self.MEL))
+				self.assertEqual(found.strftime('%Y-%m-%d %H:%M'), run)
 
 
 if __name__ == '__main__':
