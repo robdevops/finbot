@@ -1067,7 +1067,7 @@ class Pickers(FinbotCase):
 		there is another page, Back always, and ticks lasting across pages."""
 		self.many()
 		self.command('.compare')
-		self.assertEqual(self.labels(), [['7D', '1M', '1Y', '● Max'], ['Tickers (2) ▶']])
+		self.assertEqual(self.labels(), [['● 7D', '1M', '1Y', 'Max'], ['Tickers (2) ▶']]) # compare starts on 7D
 		kind, lines, rows = self.tap('Tickers (2) ▶')
 		self.assertEqual((len(rows) - 1, [t for row in self.labels(rows)[:-1] for t in row][-1], self.labels(rows)[-1]),
 			(8, 'S31', ['◀ Back', '>']))

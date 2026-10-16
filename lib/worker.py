@@ -505,7 +505,7 @@ def picker(request, cmd, args):
 	if not (dest.takes_buttons and delivery.interactive(dest)):
 		raise Usage(portfolios()) if pick.noun(cmd) == 'portfolio' else Usage
 	group = {'sector': 's', 'industry': 'i'}.get(args.keyword, '0')
-	period = buttons.period_for_days(args.days, 'x') if cmd in 'cy' else '0'
+	period = buttons.period_for_days(args.days, 'w' if cmd == 'c' else 'x') if cmd in 'cy' else '0' # compare: 7D
 	found = pick.items(request.service, cmd, dest.key)
 	shown, mask = pick.default(cmd, found)
 	lines, rows = pick.screen(request.service, cmd, found, group, period, shown, mask, 'p')
