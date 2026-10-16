@@ -978,14 +978,14 @@ class Pickers(FinbotCase):
 
 	def test_history_answers_with_the_first_ticker_and_picks_in_a_sub_menu(self):
 		""".history answers with the first ticker at once, a period row and a button for the tickers' screen under it;
-		that screen has the tickers held, the one shown marked, and Back; a ticker redoes the chart, a period too."""
+		that screen has the tickers held, the one shown marked, and Back; a ticker redoes the chart and goes back to the
+		top, a period redoes it too."""
 		self.command('.history')
 		self.assertEqual(self.labels(), [['7D', '1M', '1Y', '● Max'], ['Tickers ▶']])
 		kind, lines, rows = self.tap('Tickers ▶')
 		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['● T0', 'T1', 'T10', 'T11'], ['◀ Back']))
-		kind, lines, rows = self.tap('T3')
-		self.assertIn('● T3', [t for row in self.labels(rows) for t in row])
-		self.tap('◀ Back')
+		kind, lines, rows = self.tap('T3') # a ticker goes back to the top, with the period row
+		self.assertEqual(self.labels(rows), [['7D', '1M', '1Y', '● Max'], ['Tickers ▶']])
 		kind, lines, rows = self.tap('1Y')
 		self.assertEqual((self.toasts[-1], self.labels(rows)[0]), (('Updating…', False), ['7D', '1M', '● 1Y', 'Max']))
 		self.assertIn('● T3', [t for row in self.labels(self.tap('Tickers ▶')[2]) for t in row])
@@ -1098,14 +1098,16 @@ class Pickers(FinbotCase):
 			buttons.TOO_MANY, ['S32', 'S33']))
 
 	def test_an_item_on_a_later_page_is_the_one_picked(self):
-		"""A ticker's button on page two picks that ticker, and the screen stays on its page."""
+		"""A ticker's button on page two picks that ticker, back at the top, where the menu opens on the first page."""
 		self.many()
 		self.command('.history')
 		self.tap('Tickers ▶')
 		self.tap('>')
 		kind, lines, rows = self.tap('S40')
+		self.assertEqual(self.labels(rows), [['7D', '1M', '1Y', '● Max'], ['Tickers ▶']])
+		self.tap('Tickers ▶')
+		kind, lines, rows = self.tap('>')
 		self.assertIn('● S40', [t for row in self.labels(rows) for t in row])
-		self.assertEqual(self.labels(rows)[-1], ['◀ Back', '<', '>'])
 
 	def test_portfolios_page_too(self):
 		"""Thirty-two portfolios to a page, in rows of four, then Group by, then the page buttons."""

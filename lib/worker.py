@@ -161,7 +161,7 @@ def process_pick_callback(press, pressed):
 		if stale:
 			shown, mask = pick.default(cmd, found)
 		per_page = pick.layout(service, cmd)[0]
-		view = 'm' if kind in 'mf' or kind == 'r' and noun_is_ticker(cmd) else 'p' # Compare goes back to the top
+		view = 'm' if kind in 'mf' else 'p' # picking a ticker, or Compare, goes back to the top
 		page = number if kind in 'pmfg' else number // per_page if kind == 'r' else 0
 		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if kind == 'f' else None
 		if kind == 'r' and number < len(found):
