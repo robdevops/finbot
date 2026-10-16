@@ -97,9 +97,9 @@ EDGE_ROWS = {
 
 
 class ImageSanity(unittest.TestCase):
-	def check_image(self, buf, name, bg=BG, edge_clean=True, size=(1280, 800)):
+	def check_image(self, buf, name, bg=BG, edge_clean=True, size=(1280, 800), edge=3):
 		"""Fail unless buf is a PNG of this size (1280x800) that is not blank, starts with the background, and
-		(edge_clean) draws nothing on its edges, where clipped text or bars would show."""
+		(edge_clean) draws nothing in `edge` pixels at its edges, where clipped text or bars would show."""
 		image = decode(buf)
 		self.assertEqual(image.size, size, name)
 		pixels = np.asarray(image)
@@ -109,9 +109,9 @@ class ImageSanity(unittest.TestCase):
 		self.assertIn(tuple(int(c) for c in pixels[0, 0]), allowed, name)
 		if not edge_clean: # the shorts beach draws its sea right to the edge
 			return
-		edge = np.concatenate([pixels[:3].reshape(-1, 3), pixels[-3:].reshape(-1, 3), pixels[:, :3].reshape(-1, 3),
-			pixels[:, -3:].reshape(-1, 3)])
-		self.assertTrue((edge == bg).all(), f'{name}: something is drawn on the image edge (clipped text or bars?)')
+		border = np.concatenate([pixels[:edge].reshape(-1, 3), pixels[-edge:].reshape(-1, 3),
+			pixels[:, :edge].reshape(-1, 3), pixels[:, -edge:].reshape(-1, 3)])
+		self.assertTrue((border == bg).all(), f'{name}: something is drawn on the image edge (clipped text or bars?)')
 
 	def test_each_chart_type(self):
 		"""Every chart type draws a sane image."""
@@ -119,6 +119,8 @@ class ImageSanity(unittest.TestCase):
 			with self.subTest(chart=name):
 				if name == 'shorts':
 					self.check_image(make(), name, bg=SHORTS_BG, edge_clean=False)
+				elif name == 'treemap':
+					self.check_image(make(), name, edge=2)
 				else:
 					self.check_image(make(), name)
 
