@@ -17,7 +17,7 @@ jobs:
       matrix:
         python-version: ['3.x', '3.13.5'] # latest release, and the production version
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # the base branch is needed to see what a pull request changes
       - id: changes
@@ -41,7 +41,7 @@ jobs:
           fi
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
       - if: steps.changes.outputs.docs_only != 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -56,7 +56,7 @@ jobs:
     # production meets it. Then every module imports in it, and the container starts as compose.yaml starts it.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # the base branch is needed to see what a pull request changes
       - id: changes
