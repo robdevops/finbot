@@ -1,8 +1,9 @@
 """Failure and no-data scenarios: empty or broken upstream data, bad arguments, unknown portfolios, secrets
 kept out of logs, and the bot's signals."""
-import contextlib, io, os, signal, subprocess, sys, tempfile, threading, time, unittest
+import contextlib, io, os, re, signal, subprocess, sys, tempfile, threading, time, unittest
 from pathlib import Path
 from tests.common import *
+from lib import log
 
 
 COMMANDS = ('.price', '.price 7d', '.price top', '.session', '.premarket', '.performance 7d', '.shorts', '.peg', '.buy',
@@ -61,8 +62,8 @@ class UpstreamEmpty(FinbotCase):
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
 		typing = []
-		self.patch(transports.TelegramBot, 'post_text', lambda dest, *a, **k: typing.append(dest.is_typing()))
-		self.patch(transports.TelegramBot, 'post_chart', lambda dest, *a, **k: typing.append(dest.is_typing()) or
+		self.patch(telegram_common.TelegramBot, 'post_text', lambda dest, *a, **k: typing.append(dest.is_typing()))
+		self.patch(telegram_common.TelegramBot, 'post_chart', lambda dest, *a, **k: typing.append(dest.is_typing()) or
 			{'ok': True})
 		for cmd in ('.help', '.price', '.trades 7d', '.performance 7d'):
 			with self.subTest(cmd=cmd), contextlib.redirect_stderr(io.StringIO()):
@@ -72,7 +73,7 @@ class UpstreamEmpty(FinbotCase):
 
 	def test_no_holdings_and_empty_watchlist(self):
 		"""With nothing held and nothing watched, the watchlist, price and earnings commands still answer."""
-		self.patch(watchlist, 'with_holdings', lambda: [])
+		self.patch(watchlist, 'with_holdings', lambda chat: [])
 		for cmd in ('.watchlist', '.price', '.earnings'):
 			with self.subTest(cmd=cmd):
 				self.command(cmd)
@@ -83,12 +84,12 @@ class WatchlistActions(FinbotCase):
 		"""Add, add again (said differently), remove, and an unknown action is refused by name."""
 		add = self.command('.watchlist add MSFT')
 		self.assertTrue(add)
-		self.assertEqual(state.load('finbot_watchlist.json'), ['MSFT'])
+		self.assertEqual(state.load('finbot_watchlist.json'), {'chats': {'telegram:55': ['MSFT']}})
 		again = self.command('.watchlist add MSFT')
 		self.assertNotEqual(add, again) # a duplicate is reported differently from a first add
-		self.assertEqual(state.load('finbot_watchlist.json'), ['MSFT'])
+		self.assertEqual(watchlist.tickers('telegram:55'), ['MSFT'])
 		self.command('.watchlist rm MSFT')
-		self.assertEqual(state.load('finbot_watchlist.json'), [])
+		self.assertEqual(watchlist.tickers('telegram:55'), [])
 		self.assertEqual(self.command('.watchlist frobnicate MSFT'), [('text', ['Usage: .watchlist [add|del SYMBOL]'])])
 
 	def test_a_bare_symbol_yahoo_does_not_know_is_tried_on_the_asx(self):
@@ -99,9 +100,9 @@ class WatchlistActions(FinbotCase):
 		self.assertIn('already tracking', str(self.command('.watchlist add BHP')))
 		# a ticker with a market is not retried
 		self.assertIn('could not find', str(self.command('.watchlist add BHP.L')))
-		self.assertEqual(watchlist.tickers(), ['BHP.AX'])
+		self.assertEqual(watchlist.tickers('telegram:55'), ['BHP.AX'])
 		self.assertIn('I deleted', str(self.command('.watchlist del bhp')))
-		self.assertEqual(watchlist.tickers(), [])
+		self.assertEqual(watchlist.tickers('telegram:55'), [])
 
 	def test_two_chats_adding_at_once_both_count(self):
 		"""Two chats adding at once both count: Yahoo is asked before the file is opened, where both adds used to read
@@ -111,21 +112,22 @@ class WatchlistActions(FinbotCase):
 			time.sleep(0.01)
 			return {t: market_entry(t) for t in tickers}
 		self.patch(yahoo, 'fetch', slow_fetch)
-		threads = [threading.Thread(target=holdings.prepare_watchlist, args=(TELEGRAM, '@u', 'add', t)) for t in ('T1',
-			'T2')]
+		threads = [threading.Thread(target=holdings.prepare_watchlist, args=(TELEGRAM, chat, '@u', 'add', ticker))
+			for chat, ticker in (('telegram:55', 'T1'), ('telegram:55', 'T2'), ('slack:C1', 'T3'))]
 		for thread in threads:
 			thread.start()
 		for thread in threads:
 			thread.join()
-		self.assertEqual(sorted(watchlist.tickers()), ['T1', 'T2'])
+		self.assertEqual(sorted(watchlist.tickers('telegram:55')), ['T1', 'T2'])
+		self.assertEqual(watchlist.tickers('slack:C1'), ['T3'])
 
 	def test_removing_a_ticker_yahoo_no_longer_knows(self):
 		"""A ticker Yahoo no longer knows is still removed, and said to be; removing it again says it is not there."""
-		state.save('finbot_watchlist.json', ['GONE', 'T1'])
+		state.save('finbot_watchlist.json', {'chats': {'telegram:55': ['GONE', 'T1']}})
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if t != 'GONE'})
 		self.assertIn('I deleted', str(self.command('.watchlist rm GONE')))
 		self.assertIn('could not find', str(self.command('.watchlist rm GONE')))
-		self.assertEqual(watchlist.tickers(), ['T1'])
+		self.assertEqual(watchlist.tickers('telegram:55'), ['T1'])
 
 
 class BadArguments(FinbotCase):
@@ -146,7 +148,6 @@ class BadArguments(FinbotCase):
 		self.assertEqual(self.command('.compare T1 T2'), [('text', ['no price history for T1'])])
 		self.assertEqual(self.command('.history T1'), [('text', ['no price history for T1'])])
 		self.sent.clear()
-		self.patch(telegram, 'answerCallbackQuery', lambda *a, **k: None)
 		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', 'c|h|m|T1'))
 		self.assertEqual((self.sent, self.errors), ([('text', ['no price history for T1'])], []))
 
@@ -220,9 +221,9 @@ class CommandArguments(FinbotCase):
 				('.price @bot', 'price')):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[0], (name,))
-		for message in ('.planet', '.shortman', '.pricey'):
+		for message in ('.planet', '.shortman', '.pricey', '.stock T1', '/profile T1'):
 			with self.subTest(message=message):
-				self.assertEqual(self.args(message)[0], (), message) # .SYMBOL
+				self.assertEqual(self.args(message)[0], ('stock',), message) # .SYMBOL
 		self.assertEqual(self.args('.price @bot')[1].words, [])
 		for message in ('price 7d', '/price@otherbot', '...', '. ?'):
 			with self.subTest(message=message):
@@ -237,7 +238,7 @@ class CommandArguments(FinbotCase):
 		self.assertIn('Top 10 performers', str(self.command('.price TOP 7d')))
 
 	def test_a_bare_number_on_price_is_a_percent(self):
-		"""As on .session, .premarket and .shorts, and as the README has it; a period carries its unit."""
+		"""As on .session, .premarket and .shorts, and as doc/commands.md has it; a period carries its unit."""
 		self.assertIn('3% at close', str(self.command('.price 3'))) # it used to be a 3-day report
 		self.assertIn('Price movement ≥ 3%', str(self.command('.price 3 7d'))) # the 3 used to be dropped
 		self.assertIn('Price movement ≥ 5%', str(self.command('.price 7d')))
@@ -289,31 +290,148 @@ class SecretsStayOutOfLogs(FinbotCase):
 		return err.getvalue()
 
 	def test_a_failed_send_logs_no_token(self):
-		"""A failed send logs no Telegram token, Slack webhook path or bot token."""
+		"""A failed send logs no Telegram, Slack or Discord token, nor the token of a Discord interaction."""
 		def refuse(url, **kwargs):
 			"""Fail like requests does, the URL and headers in the message."""
 			raise ConnectionError(f"Max retries exceeded with url: {url} (headers {kwargs.get('headers')})")
-		self.patch(transports.net, 'post', refuse)
-		self.env(slackBotToken='xoxb-SECRET', webhooks={'telegram': self.SECRET_URL.split('sendMessage')[0]})
-		log = self.stderr_of(lambda: transports.TelegramBot('1').post_text('hi'))
-		log += self.stderr_of(lambda: transports.SlackBot('C1').post_text('hi'))
-		hook = transports.SlackWebhook('https://hooks.slack.com/services/T0/B0/SECRETpath')
-		log += self.stderr_of(lambda: hook.post_text('hi'))
-		self.assertIn('Failure sending', log)
-		for secret in ('SECRET-tok_en', 'SECRETpath', 'xoxb-SECRET'):
+		self.patch(net, 'post', refuse)
+		self.patch(net, 'request', lambda method, url, **kwargs: refuse(url, **kwargs))
+		token = 'MTAwMDAwMDAwMDAwMDAwMDAwMDA.SECRET.' + 'a' * 38 # a Discord bot token's shape
+		self.env(slackBotToken='xoxb-SECRET', telegram_api=self.SECRET_URL.split('sendMessage')[0],
+			discordBotToken=token)
+		log = self.stderr_of(lambda: telegram_common.TelegramBot('1').post_text('hi'))
+		log += self.stderr_of(lambda: slack_common.SlackBot('C1').post_text('hi'))
+		slash = discord_common.DiscordBot('77', interaction='42/SECRET-interaction')
+		log += self.stderr_of(lambda: slash.post_text('hi'))
+		self.assertIn('failed', log)
+		for secret in ('SECRET-tok_en', 'xoxb-SECRET', 'SECRET-interaction', token):
 			self.assertNotIn(secret, log)
 
 	def test_the_traceback_of_a_reported_error_is_redacted(self):
 		"""The traceback logged with a reported error is redacted."""
 		self.patch(delivery, 'report_error', REAL_REPORT_ERROR)
-		self.patch(transports.TelegramBot, 'post_text', lambda *a, **k: None)
+		self.patch(telegram_common.TelegramBot, 'post_text', lambda *a, **k: None)
 		try:
 			raise ConnectionError('failed: ' + self.SECRET_URL)
 		except ConnectionError as e:
-			log = self.stderr_of(lambda: delivery.report_error(e, transports.TelegramBot('55'), context='x'))
+			log = self.stderr_of(lambda: delivery.report_error(e, telegram_common.TelegramBot('55'), context='x'))
 		self.assertIn('Traceback', log)
 		self.assertIn('bot<redacted>', log)
 		self.assertNotIn('SECRET-tok_en', log)
+
+
+class Unbuffered(io.StringIO):
+	"""A stream like stderr under PYTHONUNBUFFERED (finbot.service, the image): each write is a write to the journal,
+	whose system call lets another thread run."""
+
+	def write(self, text):
+		"""Let another thread run, then write."""
+		time.sleep(0)
+		return super().write(text)
+
+
+class WholeLogLines(unittest.TestCase):
+	"""bot.WholeLines, the bot's stderr: a line goes out whole, whichever threads log at once."""
+
+	def test_lines_that_threads_print_at_once_stay_whole(self):
+		"""Lines that threads print at the same time come out whole, never mixed ("TTL:cache hit:  34254 s/var/..."):
+		print() writes its pieces one by one, and a thread's pieces wait for the end of its line."""
+		out = Unbuffered()
+		stream = bot.WholeLines(out)
+		def log(n):
+			"""Print lines of several pieces each."""
+			for i in range(200):
+				print('cache hit:', f'/var/lib/finbot/cache/{n}.json', 'TTL:', f'{i}s', file=stream)
+		threads = [threading.Thread(target=log, args=(n,)) for n in range(8)]
+		for thread in threads:
+			thread.start()
+		for thread in threads:
+			thread.join()
+		lines = out.getvalue().splitlines()
+		self.assertEqual(len(lines), 8 * 200)
+		self.assertEqual([line for line in lines if not re.fullmatch(r'cache hit: \S+/\d\.json TTL: \d+s', line)], [])
+
+	def test_a_flush_writes_a_line_that_has_not_ended(self):
+		"""A flush writes what the thread holds, though its line has not ended; the rest passes through."""
+		out = io.StringIO()
+		stream = bot.WholeLines(out)
+		print('partial', end='', file=stream)
+		self.assertEqual(out.getvalue(), '')
+		stream.flush()
+		self.assertEqual(out.getvalue(), 'partial')
+		self.assertEqual(stream.getvalue(), 'partial') # the stream's own
+
+
+class LogLevels(FinbotCase):
+	"""log_level: each of syslog's levels lets in its own lines and those of the levels above it."""
+
+	def logged(self, level, run):
+		"""What run() logs with log_level at this level."""
+		self.prefs(log_level=level)
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			run()
+		return err.getvalue().splitlines()
+
+	def test_each_level_lets_in_its_own_lines_and_those_above_it(self):
+		"""An error always reaches the log; WARN adds the warnings, INFO what finbot does, DEBUG its detail."""
+		def each():
+			"""A line at each level."""
+			log.error('e')
+			log.warn('w')
+			log.info('i')
+			log.debug('d')
+		for level, shown in (('ERROR', 'e'), ('WARN', 'ew'), ('INFO', 'ewi'), ('DEBUG', 'ewid')):
+			with self.subTest(log_level=level):
+				self.assertEqual(self.logged(level, each), list(shown))
+
+	def test_a_cache_miss_hit_or_write_is_debug(self):
+		"""A cache miss (of a file not there, or too old), a hit, and the write after a miss are logged at DEBUG only:
+		at INFO, the request a miss sends is the line."""
+		def twice():
+			"""A miss and its write, then a hit, then a miss of a file too old."""
+			cache.cached('finbot_test.json', 60, lambda: {'a': 1})
+			cache.cached('finbot_test.json', 60, lambda: {'a': 1})
+			cache.cached('finbot_test.json', -1, lambda: {})
+		where = cache.path('finbot_test.json')
+		self.assertEqual(self.logged('INFO', twice), [])
+		os.remove(where)
+		lines = self.logged('DEBUG', twice)
+		kinds = [line.split(':')[0] for line in lines]
+		self.assertEqual(kinds, ['cache miss', 'cache write', 'cache hit', 'cache miss'])
+		self.assertRegex(lines[2], r'^cache hit: \S+finbot_test\.json TTL: \d+s$')
+
+
+	def test_a_stock_without_a_market_cap_is_debug(self):
+		"""A stock that .marketcap cannot rank, without a market cap (an ETF), is logged at DEBUG only: nothing went
+		wrong."""
+		self.patch(yahoo, 'fetch', lambda tickers: {'ETF1': {'profile_title': 'A Fund', 'profile_exchange': 'NYSE'}})
+		self.patch(yahoo, 'add_usd_market_caps', lambda quotes: quotes)
+		rank = lambda: rankings.marketcap_list(TELEGRAM, '55')
+		self.assertEqual((self.logged('INFO', rank), self.logged('DEBUG', rank)), ([], ['ETF1 no market cap']))
+
+
+class RequestLog(FinbotCase):
+	"""Each request that goes out (a cache miss, or a call that has no cache) is a line at INFO."""
+
+	def test_each_request_is_a_short_line_without_secrets(self):
+		"""A request logs its method and URL at INFO, without the scheme or a secret, cut to 73 bytes (the ellipsis
+		takes 3); Telegram's long polling (logged=False) does not, and nothing does below INFO."""
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			net.get('https://query1.finance.yahoo.com/v7/finance/quote?crumb=s3cret')
+			net.post('https://api.telegram.org/bot123:ABC-def/sendMessage', json={})
+			net.request('PATCH', 'https://discord.com/api/v10/channels/7/messages/9', json={})
+			net.post('https://api.telegram.org/bot123:ABC-def/getUpdates', json={}, logged=False)
+			net.get('https://query2.finance.yahoo.com/v10/finance/quoteSummary/ARM.L?modules=calendarEvents,'
+				'defaultKeyStatistics,earnings,financialData,price&crumb=s3cret')
+		lines = err.getvalue().splitlines()
+		self.assertEqual(lines, ['GET query1.finance.yahoo.com/v7/finance/quote?crumb=<redacted>',
+			'POST api.telegram.org/bot<redacted>/sendMessage', 'PATCH discord.com/api/v10/channels/7/messages/9',
+			'GET query2.finance.yahoo.com/v10/finance/quoteSummary/ARM.L?modules=ca…'])
+		self.assertEqual(len(lines[3].encode()), 73)
+		self.prefs(log_level='WARN')
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			net.get('https://example.com/')
+		self.assertEqual(err.getvalue(), '')
 
 
 class SharedSession(unittest.TestCase):
@@ -360,6 +478,53 @@ class CacheFlush(FinbotCase):
 		self.assertEqual(started, [(bot.jobs.warm_now, ('the scheduler',))])
 
 
+OPTIONAL = ('waitress', 'websocket', 'discord', 'nacl') # each imported only by the mode that needs it
+
+
+class OptionalLibraries(unittest.TestCase):
+	"""An install without the optional libraries (requirements-optional.txt) runs every mode that does not need them."""
+
+	def blocked(self, data):
+		"""The environment of a process for which no optional library can be imported, and that has no webhook set."""
+		stubs = Path(data, 'stubs')
+		stubs.mkdir()
+		for name in OPTIONAL:
+			(stubs / f'{name}.py').write_text('raise ImportError("blocked by the test")\n')
+		env = bare_environment()
+		env.update(DATA_DIR=data, port='0', PYTHONPATH=str(stubs))
+		no_jobs(data)
+		return env
+
+	def test_every_module_imports_without_them(self):
+		"""bot and every module of lib and lib.reports import with the optional libraries blocked, and none of them is
+		imported."""
+		code = ('import importlib, pkgutil, sys, bot, lib, lib.reports\n'
+			'for package in (lib, lib.reports):\n'
+			'    for module in pkgutil.iter_modules(package.__path__, package.__name__ + "."):\n'
+			'        importlib.import_module(module.name)\n'
+			f'print(sorted(name for name in {OPTIONAL!r} if sys.modules.get(name)))')
+		with tempfile.TemporaryDirectory() as data:
+			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, env=self.blocked(data), capture_output=True,
+				text=True, timeout=60)
+		self.assertEqual(out.stdout.strip().splitlines()[-1:], ['[]'], out.stderr)
+
+	def test_finbot_starts_without_them(self):
+		"""With no webhook set, bot.py starts with the optional libraries blocked: no HTTP server, so no waitress."""
+		skip_if_old_env(self)
+		with tempfile.TemporaryDirectory() as data:
+			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=self.blocked(data),
+				stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
+			self.addCleanup(proc.wait)
+			self.addCleanup(proc.kill)
+			lines = []
+			for line in proc.stderr:
+				lines.append(line)
+				if line.startswith('finbot is running'):
+					break
+			self.assertIsNone(proc.poll(), ''.join(lines))
+			self.assertIn('No webhook is set: finbot takes no HTTP requests', ''.join(lines))
+
+
 class StartupSignals(unittest.TestCase):
 	"""A reload (SIGHUP) that arrives while the bot is still starting must not kill it."""
 
@@ -367,8 +532,9 @@ class StartupSignals(unittest.TestCase):
 		"""A SIGHUP while bot.py starts is ignored, where its default action would kill it; once serving, it reloads."""
 		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
+			no_jobs(data)
 			env = bare_environment()
-			env.update(DATA_DIR=data, port='0', scheduler='False')
+			env.update(DATA_DIR=data, port='0')
 			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE,
 				stdout=subprocess.DEVNULL, text=True)
 			self.addCleanup(proc.wait)
@@ -382,10 +548,9 @@ class StartupSignals(unittest.TestCase):
 			lines = []
 			for line in proc.stderr:
 				lines.append(line)
-				if line.startswith('Opening socket'):
+				if line.startswith('finbot is running'): # the handlers are in
 					break
 			self.assertIsNone(proc.poll(), ''.join(lines))
-			time.sleep(1) # the handler goes in just before serving
 			proc.send_signal(signal.SIGHUP)
 			for line in proc.stderr: # a reload now runs (there is no preferences.conf here, so it says so)
 				lines.append(line)
@@ -405,8 +570,9 @@ class StartupSignals(unittest.TestCase):
 				(cache / name).write_text('{}')
 			Path(data, 'finbot_watchlist.json').write_text('["T1"]') # state, not cache
 			Path(data, 'preferences.conf').write_text('cache=False\n') # the warm jobs a flush starts fetch nothing
+			no_jobs(data)
 			env = bare_environment()
-			env.update(DATA_DIR=data, port='0', scheduler='False')
+			env.update(DATA_DIR=data, port='0')
 			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE,
 				stdout=subprocess.DEVNULL, text=True)
 			self.addCleanup(proc.wait)
@@ -420,18 +586,17 @@ class StartupSignals(unittest.TestCase):
 			lines = []
 			for line in proc.stderr:
 				lines.append(line)
-				if line.startswith('Opening socket'):
+				if line.startswith('finbot is running'): # the handlers are in
 					break
 			self.assertIsNone(proc.poll(), ''.join(lines))
 			self.assertEqual(len(os.listdir(cache)), 4) # nothing flushed yet
-			time.sleep(1) # the handler goes in just before serving
 			proc.send_signal(signal.SIGUSR1)
 			for line in proc.stderr:
 				lines.append(line)
 				if 'cache: warm jobs done' in line: # each in a child process, as the scheduler is off
 					break
 			self.assertIn('cache: flushed 2 files', ''.join(lines))
-			self.assertIn('cache: filling it again: sharesight_warm.py, yahoo_warm.py', ''.join(lines))
+			self.assertIn('cache: filling it again: sharesight_warm, yahoo_warm', ''.join(lines))
 			self.assertEqual(sorted(os.listdir(cache)), ['finbot_x.json.abc.tmp', 'matplotlib'])
 			self.assertTrue(Path(data, 'finbot_watchlist.json').exists())
 

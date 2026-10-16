@@ -130,6 +130,19 @@ class YahooDetail(ProviderCase):
 				with self.assertRaises(RuntimeError):
 					yahoo.fetch_detail('TSLA')
 
+	def test_a_fund_without_an_analysts_recommendation_parses(self):
+		"""An ETF's quoteSummary has no analysts' recommendation (recommendationKey left out, or null), or a garbled
+		one: it parses without one, where .earnings failed on it ('NoneType' object has no attribute 'replace')."""
+		for ticker, financial in (('ETPMAG.AX', {}), ('MAGS', {'recommendationKey': None}), ('SMH', {
+				'recommendationKey': 5, 'recommendationMean': {'raw': 2.1}, 'numberOfAnalystOpinions': {'raw': 9}})):
+			with self.subTest(ticker=ticker, financialData=financial):
+				body = self.combined()
+				body['quoteSummary']['result'][0]['financialData'] = financial
+				self.http(yahoo, Resp(body))
+				data = yahoo.fetch_detail(ticker)[ticker]
+				self.assertIn('regularMarketPrice', data)
+				self.assertEqual([key for key in yahoo.RECOMMENDATION if key in data], [])
+
 	def test_missing_names_give_empty(self):
 		"""A detail without a name, or without a result, is empty."""
 		body = self.combined()
@@ -264,7 +277,8 @@ class YahooChart(ProviderCase):
 			return Resp(status=404) if '/chart/T3?' in url or '/chart/SPY?' in url else good
 		self.patch(yahoo.net, 'get', get)
 		def slack(text):
-			"""Run a command on Slack, where reports come as text, and return the text."""
+			"""Run a command on Slack, its report as text (no charts), and return the text."""
+			self.prefs(graph=False)
 			self.sent.clear(); self.errors.clear()
 			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', text, BOT, 'U'))
 			self.assertEqual(self.errors, [], text)

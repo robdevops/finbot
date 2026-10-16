@@ -1,6 +1,6 @@
-"""Buttons under a message, and what their data says when one is pressed (parse): a chart's period buttons (1D | 7D |
-1M | 1Y | Max), whose data carries what its builder needs (charts.BUILDERS), and a .jobs command's button. Each
-transport draws Button rows its own way."""
+"""Buttons under a message, what their data says when one is pressed (parse), and what a press is told at once
+(toast): a chart's period buttons (1D | 7D | 1M | 1Y | Max), whose data carries what its builder needs
+(charts.BUILDERS), and a job's buttons in .jobs run and .jobs toggle. Each transport draws Button rows its own way."""
 import hashlib
 import typing
 
@@ -21,10 +21,14 @@ class ChartPress(typing.NamedTuple):
 
 
 class JobPress(typing.NamedTuple):
-	"""A .jobs command's button pressed: the command's number in the list and its checksum, both for
-	jobs.Scheduler.pick to check."""
+	"""A job's button pressed: the job's number in its chat's list and its checksum, both for jobs.Scheduler.pick to
+	check, and what to do with it: run it now, or switch it on or off (toggle)."""
 	number: str
 	checksum: str
+	action: str = 'run'
+
+
+JOB_ACTIONS = {'j': 'run', 'e': 'toggle'} # a job button's kind, its data's first letter, and what it does
 
 
 PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x': ('Max', None)}
@@ -71,19 +75,30 @@ def keyboard(kind, args, active=None):
 	ref = _ref(args)
 	return [[Button(PERIODS[key][0], f"c|{kind}|{key}|{ref}", key == active) for key in BUTTONS[kind]]]
 
-def job_button(number, label, checksum):
-	"""A .jobs command's button: 'N. label', cut to 30 characters, its data the number and the command's checksum."""
-	return Button(f"{number}. {label}"[:30], f"j|{number}|{checksum}")
+def job_button(number, label, checksum, action='run'):
+	"""A job's button, which runs it now (or with action 'toggle', switches it on or off): 'N. label', cut to 30
+	characters, its data the job's number and checksum."""
+	kind = next(kind for kind, does in JOB_ACTIONS.items() if does == action)
+	return Button(f"{number}. {label}"[:30], f"{kind}|{number}|{checksum}")
 
 def parse(data):
-	"""What a pressed button's data asks for: a JobPress for a .jobs button (whatever follows 'j|', which pick refuses
-	unless it is a command's number and checksum), a ChartPress for a period button of a known kind and period, or None
-	for data of neither (from an older finbot, or forged)."""
+	"""What a pressed button's data asks for: a JobPress for a job's button (whatever follows 'j|' or 'e|', which pick
+	refuses unless it is a job's number and checksum), a ChartPress for a period button of a known kind and period, or
+	None for data of neither (from an older finbot, or forged)."""
 	kind, _, rest = data.partition('|')
-	if kind == 'j':
+	if kind in JOB_ACTIONS:
 		number, _, checksum = rest.partition('|')
-		return JobPress(number, checksum)
+		return JobPress(number, checksum, JOB_ACTIONS[kind])
 	parts = rest.split('|', 2)
 	if kind == 'c' and len(parts) == 3 and parts[0] in BUTTONS and parts[1] in BUTTONS[parts[0]]:
 		return ChartPress(*parts)
 	return None
+
+def toast(data):
+	"""What a press is told at once, from the button's data alone (the network acknowledges a press before finbot
+	knows more): 'Loading 1Y…' for a period button, 'Running…' or 'Switching…' for a job's, None for data of
+	neither."""
+	pressed = parse(data)
+	if isinstance(pressed, JobPress):
+		return 'Running…' if pressed.action == 'run' else 'Switching…'
+	return f"Loading {PERIODS[pressed.period][0]}…" if pressed else None

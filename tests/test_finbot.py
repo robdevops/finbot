@@ -1,5 +1,5 @@
 """Plumbing: message chunking, timezones, the WSGI handler."""
-import ast, contextlib, datetime, io, json, subprocess, tempfile, unittest, zoneinfo
+import ast, contextlib, datetime, io, json, re, subprocess, tempfile, unittest, zoneinfo
 from pathlib import Path
 from unittest import mock
 from tests.common import *
@@ -21,8 +21,8 @@ class Plumbing(FinbotCase):
 			posted.append(kwargs['json'])
 			return Response()
 
-		with mock.patch.object(transports.net, 'post', post), mock.patch.object(transports.time, 'sleep', lambda s: 0):
-			results = REAL_TEXT(transports.TelegramBot('5'), ['x' * 60] * 300, {'keyboard': []})
+		with mock.patch.object(net, 'post', post), mock.patch.object(transports.time, 'sleep', lambda s: 0):
+			results = REAL_TEXT(telegram_common.TelegramBot('5'), ['x' * 60] * 300, {'keyboard': []})
 		self.assertGreater(len(results), 1)
 		self.assertEqual(len(posted), len(results))
 		self.assertIn('reply_markup', posted[-1])
@@ -47,7 +47,8 @@ class Plumbing(FinbotCase):
 			reminder.run()
 
 	def test_bot_handler(self):
-		"""A sticker is answered 200 and not logged; git_version matches what git says."""
+		"""A sticker is answered 200, with nothing logged but the request's line (INFO); git_version matches what git
+		says."""
 		def post(message):
 			"""Post a Telegram message update to the WSGI handler: (its answer, what it logged)."""
 			body = json.dumps({'update_id': 1, 'message': dict({'message_id': 5, 'chat': {'id': 55, 'type': 'private'},
@@ -57,7 +58,7 @@ class Plumbing(FinbotCase):
 			with contextlib.redirect_stderr(err):
 				out = bot.main(env, lambda *a, **k: None)
 			return out, err.getvalue()
-		self.assertEqual(post({'sticker': {'file_id': 'x'}}), ([b''], '')) # stickers: silent, not logged
+		self.assertEqual(post({'sticker': {'file_id': 'x'}}), ([b''], 'POST from telegram: we answered 200 OK\n'))
 		self.assertGreaterEqual(len(bot.git_version()), 7)
 		head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=bot.__file__.rsplit('/', 1)[0], capture_output=True,
 			text=True).stdout.strip()
@@ -77,11 +78,11 @@ class Conventions(unittest.TestCase):
 		self.assertEqual(missing, [])
 
 	def test_every_line_fits_in_120_columns(self):
-		"""Every line of the code, the tests, the shipped defaults, the units, the tools and CI fits in 120
-		columns, tabs counting 4: an edit quotes whole lines. README.md, CLAUDE.md and doc/ are left out (CI runs no
-		tests for a change to those alone, so no test may read them), and so are data files."""
+		"""Every line of the code, the tests, the shipped defaults, the units, the tools, CI and the Docker files fits
+		in 120 columns, tabs counting 4: an edit quotes whole lines. README.md, CLAUDE.md and doc/ are left out (CI runs
+		no tests for a change to those alone, so no test may read them), and so are data files."""
 		patterns = ('*.py', '*.service', 'lib/**/*.py', 'tests/*.py', 'util/*', 'defaults/*', '.github/workflows/*.yml',
-			'.claude/hooks/*')
+			'.claude/hooks/*', 'Dockerfile', 'compose.yaml', '.dockerignore')
 		files = sorted({path for pattern in patterns for path in Path(ROOT).glob(pattern)
 			if path.is_file() and path.suffix != '.json'})
 		long = [f'{path.relative_to(ROOT)}:{number}' for path in files
@@ -89,6 +90,17 @@ class Conventions(unittest.TestCase):
 			if len(line.expandtabs(4)) > 120]
 		self.assertGreater(len(files), 60)
 		self.assertEqual(long, [])
+
+	def test_nothing_imports_pandas(self):
+		"""finbot has no use for pandas, which took 0.8 s and 37 MB to load for three small jobs on dated closes: no
+		module imports it, not even inside a function."""
+		files = [*Path(ROOT).glob('*.py'), *Path(ROOT, 'lib').rglob('*.py'), *Path(ROOT, 'util').glob('*.py'),
+			*Path(ROOT, 'tests').glob('*.py')]
+		found = [f'{path.relative_to(ROOT)}:{number}' for path in files
+			for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1)
+			if re.match(r'\s*(import|from) pandas\b', line)]
+		self.assertGreater(len(files), 60)
+		self.assertEqual(found, [])
 
 	def test_the_bot_and_its_reports_print_only_to_stderr(self):
 		"""systemd discards stdout (StandardOutput=null), so only util/ tools, run by hand, may print there."""
@@ -98,6 +110,22 @@ class Conventions(unittest.TestCase):
 				if isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'print' and \
 						not any(keyword.arg == 'file' for keyword in node.keywords):
 					offenders.append(f'{path.name}:{node.lineno}')
+		self.assertEqual(offenders, [])
+
+
+class Timeouts(unittest.TestCase):
+	def test_every_request_goes_through_net_with_a_timeout(self):
+		"""The scheduled reports run in the bot's threads, which cannot be stopped: every request must end. So no module
+		but lib/net.py calls requests itself (net gives each call its timeouts), and none passes timeout=None."""
+		call = re.compile(r'\brequests\.(?:get|post|put|patch|delete|head|request|Session)\(')
+		offenders = []
+		for path in sorted([*Path(ROOT, 'lib').rglob('*.py'), Path(ROOT, 'bot.py'), *Path(ROOT, 'util').glob('*.py')]):
+			for number, line in enumerate(path.read_text().splitlines(), 1):
+				where = f'{path.relative_to(ROOT)}:{number}'
+				if call.search(line) and path.name != 'net.py':
+					offenders.append(f'{where} calls requests itself')
+				if re.search(r'\btimeout\s*=\s*None\b', line):
+					offenders.append(f'{where} passes timeout=None')
 		self.assertEqual(offenders, [])
 
 
@@ -165,6 +193,18 @@ class GitVersion(unittest.TestCase):
 				['unknown'] * 3)
 			self.repo(empty, 'garbage')
 			self.assertEqual(bot.git_version(empty), 'unknown')
+
+	def test_an_image_without_git_names_the_commit_it_was_built_from(self):
+		"""A Docker image has no .git: the commit it was built from (FINBOT_COMMIT, from the build's GIT_COMMIT) names
+		the version; a value that is no commit is 'unknown', and a .git still wins."""
+		with tempfile.TemporaryDirectory() as empty, tempfile.TemporaryDirectory() as checkout:
+			self.repo(checkout, self.SHA)
+			for built, expected in ((self.SHA, '0123456'), ('abcdef1', 'abcdef1'), ('unknown', 'unknown'),
+					('', 'unknown'), ('$(id)', 'unknown')):
+				with self.subTest(built=built), mock.patch.dict(os.environ, {'FINBOT_COMMIT': built}):
+					self.assertEqual(bot.git_version(empty), expected)
+			with mock.patch.dict(os.environ, {'FINBOT_COMMIT': 'f' * 40}):
+				self.assertEqual(bot.git_version(checkout), '0123456')
 
 	def test_does_not_run_git(self):
 		"""git_version reads .git itself: no git binary is run."""

@@ -4,11 +4,9 @@
   3. one golden image per chart type, compared with a tolerance. Refresh after an intended restyle with:
 		 UPDATE_GOLDEN=1 python -m unittest tests.test_charts
 """
-import datetime, os, time, unittest
-import gevent
+import datetime, os, subprocess, sys, tempfile, threading, unittest
 from unittest import mock
 import numpy as np
-import pandas as pd
 from PIL import Image
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -48,7 +46,7 @@ def line(rows, title='Apple Inc (AAPL) 120 days', subtitle='164.12 USD   ▲ 6.9
 
 def compare_rows():
 	"""Three made-up price series over the same 120 days, as a compare chart's rows."""
-	days = [str(day.date()) for day in pd.date_range('2026-01-01', periods=120)]
+	days = [str(datetime.date(2026, 1, 1) + datetime.timedelta(days=i)) for i in range(120)]
 	return tuple((name, tuple(zip(days, 100 + np.cumsum(np.sin(np.arange(120) / k) + drift))))
 		for name, k, drift in (('AAA', 7, 0.2), ('BBB', 11, -0.1), ('CCC', 5, 0.05)))
 
@@ -87,11 +85,11 @@ EDGE_ROWS = {
 
 
 class ImageSanity(unittest.TestCase):
-	def check_image(self, buf, name, bg=BG, edge_clean=True):
-		"""Fail unless buf is a 1280x800 PNG that is not blank, starts with the background, and (edge_clean) draws
-		nothing on its edges, where clipped text or bars would show."""
+	def check_image(self, buf, name, bg=BG, edge_clean=True, size=(1280, 800)):
+		"""Fail unless buf is a PNG of this size (1280x800) that is not blank, starts with the background, and
+		(edge_clean) draws nothing on its edges, where clipped text or bars would show."""
 		image = decode(buf)
-		self.assertEqual(image.size, (1280, 800), name)
+		self.assertEqual(image.size, size, name)
 		pixels = np.asarray(image)
 		self.assertGreater(len({tuple(p) for p in pixels.reshape(-1, 3)[::97]}), 8, f'{name} looks blank')
 		self.assertGreater(pixels.std(), 5, f'{name} looks blank')
@@ -118,6 +116,11 @@ class ImageSanity(unittest.TestCase):
 			with self.subTest(rows=name):
 				self.check_image(bars(rows, 'Title', 'sub'), name)
 				self.check_image(uncached(render.Chart('bars', 'Title', rows=tuple(rows))), name + '/drawn')
+
+	def test_a_long_bar_chart_grows_taller_and_stays_sane(self):
+		"""Past 40 rows a bar chart's image grows taller, each row as tall as at 40, and draws as sanely."""
+		rows = [(f'T{i}', (i - 30) * 1.5) for i in range(60)]
+		self.check_image(bars(rows, 'Title', 'sub'), 'sixty rows', size=(1280, 1200))
 
 	def test_zoomed_axis(self):
 		"""A bar chart with a narrow x range (ratings, 1 to 5) draws sane images, wide labels and many rows included."""
@@ -158,41 +161,28 @@ class ImageSanity(unittest.TestCase):
 		self.check_image(render.draw_line(line(price_rows(), title)), 'long line title')
 
 
-class RenderPool(unittest.TestCase):
-	"""The bot draws charts in one native thread (render.render_off_hub): the hub keeps serving while one is drawn."""
-
-	def setUp(self):
-		"""Draw in the render thread, as the bot does, for this test only."""
-		render.render_off_hub()
-		self.addCleanup(setattr, render, '_render_pool', None)
+class DrawingLock(unittest.TestCase):
+	"""Charts asked for from several threads at once are drawn one at a time (render._drawn)."""
 
 	def test_charts_asked_for_at_once_all_finish(self):
-		"""Six charts asked for at once all finish: one render thread, as several deadlock matplotlib under gevent."""
+		"""Six charts asked for from six threads at once all finish, whole."""
 		pie = lambda title: render.Chart('pie', title, rows=(('a', 1.0), ('b', 2.0)))
-		jobs = [gevent.spawn(render.draw_pie, pie(f't{i}')) for i in range(4)]
-		jobs += [gevent.spawn(bars, MIXED)]
-		jobs += [gevent.spawn(uncached, render.Chart('bars', 'T', rows=tuple(MIXED)))]
-		gevent.joinall(jobs, timeout=120)
-		self.assertTrue(all(job.successful() for job in jobs),
-			'a chart did not finish (several native threads deadlock matplotlib)')
-		self.assertTrue(all(decode(job.value).size == (1280, 800) for job in jobs))
+		draws = [lambda i=i: render.draw_pie(pie(f't{i}')) for i in range(4)]
+		draws += [lambda: bars(MIXED), lambda: uncached(render.Chart('bars', 'T', rows=tuple(MIXED)))]
+		images = {}
+		threads = [threading.Thread(target=lambda n=n, draw=draw: images.__setitem__(n, draw()))
+			for n, draw in enumerate(draws)]
+		for thread in threads:
+			thread.start()
+		for thread in threads:
+			thread.join(120)
+		self.assertEqual(sorted(images), list(range(6)), 'a chart did not finish')
+		self.assertTrue(all(decode(image).size == (1280, 800) for image in images.values()))
 
-	def test_the_hub_keeps_serving_while_a_chart_is_drawn(self):
-		"""While the shorts pictogram draws (about a second), other greenlets run on: no gap over half a second."""
-		gaps, done = [], []
-		def ticker():
-			"""Note the time between wake-ups until the chart is done."""
-			last = time.monotonic()
-			while not done:
-				gevent.sleep(0.01)
-				now = time.monotonic()
-				gaps.append(now - last)
-				last = now
-		tick = gevent.spawn(ticker)
-		shorts([(f'T{i}', 60.0 - 2 * i) for i in range(24)]) # about a second of drawing
-		done.append(True)
-		tick.join()
-		self.assertLess(max(gaps), 0.5) # drawn in the hub, the ticker stopped for the whole chart
+	def test_one_chart_function_may_call_another(self):
+		"""The lock is re-entrant: a drawn function that calls another drawn one finishes."""
+		inner = render._drawn(lambda: 'drawn')
+		self.assertEqual(render._drawn(inner)(), 'drawn')
 
 
 class Contracts(unittest.TestCase):
@@ -306,11 +296,13 @@ class ReportChartInputs(FinbotCase):
 		self.assertTrue(captured, 'no chart was drawn')
 		return captured[0]
 
-	def test_over_forty_bars_keep_both_ends_with_a_gap(self):
-		"""A bar chart of over 40 rows keeps the first 20 and the last 20, a gap between them; the shorts pictogram,
-		over 24, the first and last 12, with the same gap (it used to drop the middle without a mark)."""
-		rows = render.trimmed(render.Chart('bars', 'T', rows=tuple((f'T{i}', i) for i in range(50)))).rows
-		self.assertEqual((len(rows), rows[20], rows[0][0], rows[-1][0]), (41, ('', None), 'T0', 'T49'))
+	def test_a_bar_chart_keeps_every_row_and_the_shorts_both_ends(self):
+		"""A bar chart keeps every row, however many: its image grows instead (the caption is cut, so the chart must
+		show them all); the shorts pictogram, a scene of a fixed size, keeps the first and last 12 of over 24, a gap
+		between."""
+		chart = render.Chart('bars', 'T', rows=tuple((f'T{i}', i) for i in range(50)))
+		self.assertEqual(render.trimmed(chart).rows, chart.rows)
+		self.assertEqual(decode(render.draw_bars(chart)).size, (1280, 1000))
 		rows = render.trimmed(render.Chart('shorts', rows=tuple((f'T{i}', 60 - i) for i in range(30)))).rows
 		self.assertEqual((len(rows), rows[12], rows[11][0], rows[13][0]), (25, ('', None), 'T11', 'T18'))
 		self.assertEqual(render.trimmed(render.Chart('pie', rows=(('a', 1.0),) * 50)).rows, (('a', 1.0),) * 50)
@@ -358,6 +350,23 @@ class ReportChartInputs(FinbotCase):
 		values = [v for _, v in chart.rows]
 		self.assertEqual((chart.kind, values), ('shorts', sorted(values, reverse=True)))
 		self.assertTrue(all(v > chart.threshold for v in values))
+
+
+class WithoutPandas(unittest.TestCase):
+	def test_every_chart_draws_with_pandas_blocked(self):
+		"""Every kind of chart draws in a process that cannot import pandas: the line charts' dates are plain dates and
+		their closes numpy arrays, which matplotlib takes as they are."""
+		code = ('import sys\nfrom tests import test_charts\nfor draw in test_charts.CHARTS.values(): draw()\n'
+			'print(sorted(test_charts.CHARTS))')
+		with tempfile.TemporaryDirectory() as data:
+			stubs = Path(data, 'stubs')
+			stubs.mkdir()
+			(stubs / 'pandas.py').write_text('raise ImportError("blocked by the test")\n')
+			env = bare_environment()
+			env.update(DATA_DIR=data, PYTHONPATH=str(stubs))
+			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, env=env, capture_output=True, text=True,
+				timeout=120)
+		self.assertEqual(out.stdout.strip().splitlines()[-1:], [str(sorted(CHARTS))], out.stderr)
 
 
 class GoldenImages(unittest.TestCase):

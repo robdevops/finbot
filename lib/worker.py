@@ -5,8 +5,8 @@ import hashlib
 import json
 import math
 import re
-import sys
 import typing
+from lib import log
 from lib import answer
 from lib import dialects
 from lib import state
@@ -17,7 +17,7 @@ from lib import buttons
 from lib import charts
 from lib.reports import about, cal, holdings, performance, price, profile, rankings, shorts, trades
 from lib import sharesight
-from lib import transports
+from lib import telegram_common
 from lib import jobs
 from lib import watchlist
 from lib import yahoo
@@ -31,10 +31,11 @@ class Request:
 	user_name: str # what to call them
 	bot_name: str
 	message_id: str = None # the message being answered
+	interaction: str = '' # what the network answers through, where it has one (Discord's slash command)
 
 	def __post_init__(self):
 		"""The chat's transport, which also keeps the typing notice going."""
-		self.dest = delivery.reply_to(self.service, self.chat_id, self.message_id)
+		self.dest = delivery.reply_to(self.service, self.chat_id, self.message_id, self.interaction)
 
 	def reply(self, lines, chart=None, buttons=None):
 		"""Answer in the chat (see delivery.deliver): the lines, perhaps a chart (drawn, or a spec drawn only where it
@@ -42,44 +43,46 @@ class Request:
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
 def process_job_callback(press, pressed):
-	"""A command button of .jobs (an inbound.Press; pressed, what its data says): run that command now and answer in
-	the chat."""
+	"""A job's button (an inbound.Press; pressed, what its data says): run the job now and say how it went, or switch
+	it on or off and redraw the list in place. A button from an older list does neither: the list is redrawn as it is
+	now."""
 	service = dialects.of(press.service)
-	chat = delivery.reply_to(service, press.chat_id)
-	try:
-		if jobs.current is None: # the scheduler is off now
-			raise jobs.ScheduleError('the scheduler is off')
-		command = jobs.current.pick(pressed.number, pressed.checksum) # only a command .jobs offers; anything else fails
-	except jobs.ScheduleError:
-		chat.acknowledge(press.press_id, 'Buttons updated, try again')
-		payload, markup = about.prepare_jobs_payload(service, '', chat.takes_buttons) # the list now, for the stale one
+	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
+	def redraw():
+		"""Put the chat's list, as it is now, in place of the pressed one, with the same kind of buttons."""
+		payload, markup = about.prepare_jobs_payload(service, chat.key, pressed.action, chat.takes_buttons)
 		chat.edit_text(press.message_id, '\n'.join(payload), markup or [])
-		return
-	chat.acknowledge(press.press_id, f'Running {jobs.display(command[0])}…'[:100])
 	try:
-		line = about.job_line(jobs.current, *jobs.current.run_command(command))
-		delivery.deliver(chat, delivery.Report([line]))
+		if jobs.current is None:
+			raise jobs.ScheduleError('no schedule is running')
+		job = jobs.current.pick(chat.key, pressed.number, pressed.checksum) # only this chat's job, as listed
+	except jobs.ScheduleError:
+		return redraw()
+	try:
+		if pressed.action == 'toggle':
+			jobs.current.toggle(job)
+			redraw()
+		else:
+			delivery.deliver(chat, delivery.Report([about.job_line(pressed.number, job, jobs.current.run(job))]))
 	except Exception as e:
 		delivery.report_error(e, chat, context='jobs')
 
 def process_callback(press):
-	"""A button pressed (an inbound.Press): run a scheduled command from .jobs, or rebuild a chart message for the
-	chosen period and edit it in place."""
+	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): a job's (run it, or switch it),
+	or a chart's, whose message is rebuilt for the chosen period and edited in place. Data of neither is ignored."""
 	pressed = buttons.parse(press.data)
 	if isinstance(pressed, buttons.JobPress):
 		return process_job_callback(press, pressed)
-	service = dialects.of(press.service)
-	chat = delivery.reply_to(service, press.chat_id)
-	# answering now shows Telegram's toast bubble ("Loading 1Y…") while the new chart is built
-	chat.acknowledge(press.press_id, f"Loading {buttons.PERIODS[pressed.period][0]}…" if pressed else None)
 	if not pressed:
 		return
+	service = dialects.of(press.service)
+	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
 	try:
 		args = buttons.resolve(pressed.ref)
 		markup = buttons.keyboard(pressed.kind, args, pressed.period)
 		if chat.reshow(press.message_id, markup): # that period as posted lately, where the network keeps it (Slack)
 			return
-		caption, chart = charts.build(pressed.kind, args, service, period=pressed.period)
+		caption, chart = charts.build(pressed.kind, args, service, chat.key, period=pressed.period)
 		if chart is None: # too few prices in that period to draw a line
 			raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[pressed.period][0]}")
 		chat.edit_chart(press.message_id, render.draw(chart), caption, markup)
@@ -94,7 +97,7 @@ def process_request(message):
 	none gets no answer. Arguments the command cannot take get its usage, and any failure a one-line reply in the
 	chat."""
 	request = Request(dialects.of(message.service), message.chat_id, message.user, message.user_name, message.bot_name,
-		message.message_id)
+		message.message_id, message.interaction)
 	command, args = read(message.text, message.bot_name)
 	if command:
 		try:
@@ -108,11 +111,13 @@ def process_request(message):
 			delivery.report_error(e, request.dest, context=message.text.split()[0][:30])
 		finally:
 			request.dest.end_typing()
+	elif message.interaction: # a slash command that reads as none: its notice taken off (Discord's "thinking…")
+		request.dest.end_typing()
 	if message.service == 'telegram':
 		try:
 			ensure_keyboard(message.chat_id) # keep DM keyboards current after the reply
 		except Exception as e:
-			print("keyboard update failed:", e, file=sys.stderr)
+			log.warn("keyboard update failed:", e)
 
 @dataclasses.dataclass
 class Args:
@@ -210,21 +215,24 @@ def portfolios():
 	return 'Portfolios: ' + ', '.join(portfolio.name for portfolio in sharesight.portfolios())
 
 def on_watchlist(request, args):
-	""".watchlist [add|del SYMBOL]: the watchlist, or a change to it."""
+	""".watchlist [add|del SYMBOL]: this chat's watchlist, or a change to it."""
+	chat = request.dest.key
 	if args.keyword and len(args.words) == 1: # what is removed is what is watched: Yahoo may know it no longer
-		symbol = ticker(args) if args.keyword == 'add' else watchlist.watched(args.words[0])
-		request.reply(holdings.prepare_watchlist(request.service, request.user, args.keyword, symbol))
+		symbol = ticker(args) if args.keyword == 'add' else watchlist.watched(chat, args.words[0])
+		request.reply(holdings.prepare_watchlist(request.service, chat, request.user, args.keyword, symbol))
 	elif args.keyword or args.words:
 		raise Usage
 	else:
-		request.reply(holdings.prepare_watchlist(request.service, request.user))
+		request.reply(holdings.prepare_watchlist(request.service, chat, request.user))
 
 def on_help(request, args):
-	""".help: every command; in a Telegram DM the command keyboard too."""
+	""".help: every command (on Discord as its slash command, which works in both modes); in a Telegram DM the command
+	keyboard too."""
 	markup = None
 	if request.service == 'telegram' and int(request.chat_id) > 0: # positive chat ids are DMs; groups are negative
 		markup = command_keyboard()
-	request.reply(about.prepare_help(request.service, request.bot_name, help_sections()), buttons=markup)
+	sections = help_sections(slash=request.service == 'discord')
+	request.reply(about.prepare_help(request.service, request.bot_name, sections), buttons=markup)
 	if markup:
 		mark_keyboard(request.chat_id) # this chat now has the current keyboard
 
@@ -276,7 +284,8 @@ def on_marketcap(request, args):
 	if args.words:
 		request.reply([rankings.marketcap_line(request.service, ticker(args))])
 	else:
-		request.reply(rankings.marketcap_list(request.service, bottom=args.keyword == 'bottom', length=15))
+		request.reply(rankings.marketcap_list(request.service, request.dest.key, bottom=args.keyword == 'bottom',
+			length=15))
 
 def on_ratio(kind):
 	"""The handler of .pe, .forward pe or .peg (kind: pe, forward pe or peg): the top (by default) or bottom 15 by the
@@ -286,12 +295,13 @@ def on_ratio(kind):
 		if args.words:
 			request.reply([rankings.ratio_line(request.service, ticker(args), kind)])
 		else:
-			request.reply(*rankings.ratio_list(request.service, kind, args.keyword or 'top', length=15))
+			mode = args.keyword or 'top'
+			request.reply(*rankings.ratio_list(request.service, request.dest.key, kind, mode, length=15))
 	return handler
 
 def on_beta(request, args):
 	""".beta: the volatile small caps among the stocks followed."""
-	payload, chart = rankings.prepare_beta_payload(request.service)
+	payload, chart = rankings.prepare_beta_payload(request.service, request.dest.key)
 	request.reply(payload, chart)
 
 def on_pie(request, args):
@@ -304,7 +314,7 @@ def on_pie(request, args):
 def on_rating(request, args):
 	""".buy, .sell or both (.buy & sell, a keyboard button): the analysts' strongest buy or sell ratings, as asked."""
 	for action in dict.fromkeys(re.findall('buy|sell', f'{args.word} {args.text}'.lower())): # each once, as asked
-		payload, chart = rankings.prepare_rating_payload(request.service, action, length=15)
+		payload, chart = rankings.prepare_rating_payload(request.service, request.dest.key, action, length=15)
 		request.reply(payload, chart)
 
 def on_compare(request, args):
@@ -325,18 +335,18 @@ def on_history(request, args):
 def chart_reply(request, kind, args, days=None):
 	"""The first view of a chart with period buttons, built as a button press builds it (charts.build): its caption,
 	chart and buttons where they go, the period shown marked (Max when days is None)."""
-	caption, chart = charts.build(kind, args, request.service, days=days)
+	caption, chart = charts.build(kind, args, request.service, request.dest.key, days=days)
 	markup = None
 	if chart and request.dest.takes_buttons:
 		markup = buttons.keyboard(kind, args, buttons.period_for_days(days) if days else 'x')
 	request.reply(caption.split('\n'), chart, markup)
 
 def on_plan(request, args):
-	""".plan [text]: record the sender's plan, and list everyone's."""
+	""".plan [text]: record the sender's plan in this chat, and list everyone's here."""
 	if args.text and not args.text.startswith('@'):
-		with state.edit('finbot_plan.json', {}) as plans:
+		with state.edit_for(request.dest.key, PLANS, {}) as plans:
 			plans[request.user] = args.text
-	plan = state.load('finbot_plan.json', {})
+	plan = state.load_for(request.dest.key, PLANS, {})
 	if not plan:
 		raise answer.Answer("No plans yet: .plan TEXT records yours")
 	def who(user):
@@ -354,15 +364,52 @@ def on_who(request, args):
 	request.reply(holdings.prepare_who(request.service, re.split(r'[.:]', args.words[0].upper())[0]))
 
 def on_jobs(request, args):
-	""".jobs [run NUMBER|COMMAND]: the schedule, or one of its commands run now."""
-	if bool(args.keyword) != bool(args.words): # run without a command, or words without run
-		raise Usage
-	payload, markup = about.prepare_jobs_payload(request.service, args.rest or None, request.dest.takes_buttons)
-	request.reply(payload, buttons=markup)
+	""".jobs: this chat's jobs; .jobs run or toggle [NUMBER]: one run now or switched on or off (without a number, the
+	list with a button per job that does it); .jobs add [CRON_TZ=ZONE] TIME REPORT: one more (alone, the reports it can
+	run); .jobs del NUMBER: one fewer."""
+	scheduler, chat, service = jobs.current, request.dest.key, request.service
+	if scheduler is None:
+		raise answer.Answer('No schedule is running')
+	try:
+		if args.keyword is None and not args.words:
+			request.reply(about.prepare_jobs_payload(service, chat)[0])
+		elif args.keyword == 'add':
+			first, line = (args.text.split(None, 1) + [''])[:2]
+			if first.lower() != 'add': # the job's line follows add
+				raise Usage
+			if not line:
+				return request.reply(about.prepare_reports(service))
+			number = scheduler.add(chat, line)
+			request.reply([about.job_entry(service, scheduler, number, scheduler.chat_jobs(chat)[number - 1]),
+				'Added: .jobs lists them all'])
+		elif args.keyword in ('run', 'toggle') and not args.words:
+			payload, markup = about.prepare_jobs_payload(service, chat, args.keyword, request.dest.takes_buttons)
+			request.reply(payload, buttons=markup)
+		elif args.keyword in ('run', 'toggle', 'del') and len(args.words) == 1:
+			number = args.words[0]
+			job = scheduler.job(chat, number)
+			if args.keyword == 'run':
+				request.reply([about.job_line(number, job, scheduler.run(job))])
+			elif args.keyword == 'toggle':
+				scheduler.toggle(job)
+				request.reply([about.job_entry(service, scheduler, number, scheduler.job(chat, number))])
+			else:
+				scheduler.delete(job)
+				request.reply([f"Deleted {number}. {job.line}"])
+		else:
+			raise Usage
+	except jobs.ScheduleError as e: # a job that cannot be, or a number that is none: said, as an answer
+		raise answer.Answer(str(e))
 
 def on_profile(request, args):
-	""".SYMBOL: the company's profile."""
-	request.reply(profile.prepare_profile_payload(request.service, request.user, yahoo.symbol(args.word)))
+	""".SYMBOL, or .stock (.profile) SYMBOL: the company's profile."""
+	if args.word.lower() in PROFILE.names:
+		if len(args.words) != 1:
+			raise Usage
+		symbol = ticker(args)
+	else:
+		symbol = yahoo.symbol(args.word)
+	request.reply(profile.prepare_profile_payload(request.service, request.user, symbol))
 
 @dataclasses.dataclass(frozen=True)
 class Command:
@@ -384,9 +431,13 @@ SECTIONS = TRACKED, COMPANY, PRICE, RISK, TRADES, JOBS = ('Tracked securities', 
 TOP = {'top': 'top', 'bottom': 'bottom'} # the ends of a ranked list
 NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # the ratios that can be negative
 CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'delete') # of the watchlist
+PLANS = 'finbot_plan.json' # each chat's plans, {user: plan}, as state.load_for keeps them
 BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .pie's
+JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'),
+	'del') # what .jobs does to a chat's jobs
 BUY_SELL = ('buy', 'sell', *(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')))
-PROFILE = Command((), on_profile, ('.SYMBOL',), COMPANY) # any other first word that may be a ticker
+PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL'), COMPANY) # any first word that is no
+# command's name but may be a ticker calls it too
 
 COMMANDS = [ # .help lists a section's commands in this order. The odd spellings (earrings, prince, hospital...) are
 	# kept on purpose.
@@ -418,15 +469,141 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True),
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True),
 	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES),
-	Command(('jobs', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [run NUMBER|COMMAND]',), JOBS,
-		keywords={'run': 'run'}),
+	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [run|toggle] [NUMBER]',
+		'.jobs add [CRON_TZ=ZONE] TIME REPORT', '.jobs del NUMBER'), JOBS, keywords=JOB_CHANGES),
 	PROFILE,
 ]
 
-def help_sections():
-	"""The sections of .help: (heading, the .help lines of its commands, in table order), in SECTIONS order."""
-	return [(section, [line for command in COMMANDS if command.section == section for line in command.usage])
-		for section in SECTIONS]
+def help_sections(slash=False):
+	"""The sections of .help: (heading, the .help lines of its commands, in table order), in SECTIONS order; with slash,
+	each line as its slash command (/forwardpe for .forward pe, /stock SYMBOL for .SYMBOL)."""
+	def shown(command, line):
+		"""The line, or its slash command."""
+		form = slash_form(command, line) if slash else None
+		return f'/{form[0]} {form[1]}'.strip() if form else line
+	return [(section, list(dict.fromkeys(shown(command, line) for command in COMMANDS if command.section == section
+		for line in command.usage))) for section in SECTIONS]
+
+SLASH_NAME = re.compile(r'[a-z0-9_]{1,32}') # what a slash command may be named, on every network
+SLASH_ALIASES = {'stock': 'profile', 'jobs': 'job'} # slash commands with a second name, which the networks that list
+# every slash command list too (Discord, Slack); typed, the second name works on Telegram too, as every name does
+
+def slash_form(command, line):
+	"""The slash command of one of a command's .help lines, (name, the arguments it shows): named by the command's name
+	the line starts with where a slash command may be so named, else by the command's first name that may (.forward pe
+	is /forwardpe, .SYMBOL /stock SYMBOL); None when none may."""
+	valid = [name for name in command.names if SLASH_NAME.fullmatch(name)]
+	if not valid:
+		return None
+	words = line.removeprefix('.').split()
+	named = next((name for name in command.names if [w.lower() for w in words[:len(name.split())]] == name.split()),
+		None)
+	if named is None:
+		return valid[0], ' '.join(words)
+	return (named if named in valid else valid[0]), ' '.join(words[len(named.split()):])
+
+class Slash(typing.NamedTuple):
+	"""A slash command to register: its name, its description, the arguments it shows, and whether Discord asks for
+	suggestions while they are typed (suggest)."""
+	name: str
+	description: str
+	arguments: str
+	completes: bool = False
+
+def slash_commands(aliases=True):
+	"""The slash commands to register (Slash), from the .help lines (slash_form), and /help; the arguments of a
+	command's several lines joined by " | ". With aliases, the second names of SLASH_ALIASES too, each after its
+	first."""
+	found = {'help': (None, [])} # name -> (its command, the arguments of its lines)
+	for command in COMMANDS:
+		for line in command.usage:
+			if form := slash_form(command, line):
+				name, arguments = form
+				for each in (name, SLASH_ALIASES.get(name) if aliases else None):
+					if each and arguments not in found.setdefault(each, (command, []))[1]:
+						found[each][1].append(arguments)
+	return [Slash('help', 'every command, and what it takes', '') if name == 'help' else
+		Slash(name, f"{name} {' | '.join(lines)}".strip(), ' | '.join(lines), completes(command))
+		for name, (command, lines) in found.items()]
+
+PERIOD_WORDS = ('1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y') # suggested where a command takes a period
+JOB_WORDS = ('run', 'toggle', 'add', 'del') # what /jobs suggests first
+
+def completes(command):
+	"""Whether suggest has words to offer for a command's arguments: its keywords, periods, tickers, portfolios, or
+	those of /jobs."""
+	usage = ' '.join(command.usage)
+	return bool(command.handler is on_jobs or command.keywords or command.period or 'SYMBOL' in usage or
+		'portfolio' in usage.lower())
+
+def suggest(chat, text):
+	"""What to suggest while a slash command's arguments are typed (Discord's autocomplete), from the message they make
+	so far (text: /price 5 7) in a chat (its key): up to 25 (name shown, value) pairs, each value the arguments with the
+	word being typed completed. The words come from the command's entry in the table: its keywords, periods, portfolios
+	and tickers (the chat's watchlist and the holdings, as cached, never a request: suggestions must come at once); for
+	/jobs, its subcommands, this chat's job numbers and the reports. Never raises: the failure is logged instead, and
+	nothing suggested."""
+	try:
+		command, _ = read(text, '')
+		if command is None:
+			return []
+		given = (text.split(None, 1) + [''])[1]
+		words = given.split()
+		typing = words.pop() if words and not given[-1].isspace() else ''
+		done = ' '.join(words)
+		if command.handler is on_jobs:
+			offered = job_words(chat, words)
+		else:
+			offered = argument_words(command, chat, read_args(command, '', done))
+		found = [(f'{done} {shown}'.strip()[:100], f'{done} {word}'.strip()) for word, shown in offered
+			if word.lower().startswith(typing.lower())]
+		return [(shown, value) for shown, value in found if len(value) <= 100][:25]
+	except Exception as e:
+		log.warn('suggest:', text, delivery.error_line(e))
+		return []
+
+def argument_words(command, chat, given):
+	"""(word, shown) pairs that a command's arguments may hold next, for suggest, after those given (Args): the
+	keywords its usage shows and periods, unless it has one already; portfolios; tickers (the chat's watchlist and the
+	holdings, as cached)."""
+	usage = ' '.join(command.usage)
+	words = [word for word in re.findall(r'[\w-]+', usage)
+		if word in command.keywords and word not in command.names and given.keyword is None]
+	if command.period and given.days is None:
+		words += PERIOD_WORDS
+	if 'SYMBOL' in usage or 'portfolio' in usage.lower():
+		names, held = sharesight.cached()
+		if 'portfolio' in usage.lower():
+			words += names
+		if 'SYMBOL' in usage:
+			words += sorted(set(watchlist.tickers(chat)) | set(held))
+	return [(word, word) for word in dict.fromkeys(words)]
+
+def job_words(chat, words):
+	"""(word, shown) pairs for /jobs, for suggest, after the words given: first its subcommands; after run, toggle or
+	del, this chat's job numbers, each shown with its line; after add and a time, the reports, each shown with what it
+	takes; after a report's name, the words it takes."""
+	if not words:
+		return [(word, word) for word in JOB_WORDS]
+	action = JOB_CHANGES.get(words[0].lower())
+	if action in ('run', 'toggle', 'del') and len(words) == 1:
+		own = jobs.current.chat_jobs(chat) if jobs.current else []
+		return [(str(number), f'{number}: {job.line}') for number, job in enumerate(own, 1)]
+	if action != 'add':
+		return []
+	line = words[1:][1:] if words[1:2] and words[1].startswith('CRON_TZ=') else words[1:]
+	time = 1 if line and line[0].startswith('@') else 5
+	if len(line) < time:
+		return []
+	after = line[time:]
+	if not after or after[-1].endswith(';'): # a report's name is next
+		return [(name, f'{name} {module.ARGUMENTS}'.strip()) for name, module in sorted(jobs.SCRIPTS.items())
+			if name not in jobs.SYSTEM_SCRIPTS]
+	start = max(i for i in range(len(after)) if i == 0 or after[i - 1].endswith(';')) # the report being given
+	module = jobs.SCRIPTS.get(after[start].rstrip(';'))
+	if module is None or len(after) - start > 1 or after[start].endswith(';'):
+		return []
+	return [(word, word) for word in re.findall(r'[a-z][a-z-]*', module.ARGUMENTS)]
 
 def command_keyboard(per_row=3):
 	"""Persistent reply keyboard of the commands that have buttons (Telegram DMs), alphabetical, row by row; a press
@@ -448,7 +625,7 @@ def mark_keyboard(chat_id):
 
 def push_keyboard(chat_id):
 	"""Telegram can only change a reply keyboard by sending a message, so send a short one carrying it."""
-	result = transports.TelegramBot(chat_id).post_text('⌨️ Keyboard updated', command_keyboard())
+	result = telegram_common.TelegramBot(chat_id).post_text('⌨️ Keyboard updated', command_keyboard())
 	if result is not None:
 		mark_keyboard(chat_id)
 	return result
@@ -467,4 +644,4 @@ def refresh_keyboards():
 			try:
 				push_keyboard(chat_id)
 			except Exception as e:
-				print("keyboard refresh failed for", chat_id, e, file=sys.stderr)
+				log.warn("keyboard refresh failed for", chat_id, e)

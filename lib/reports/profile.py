@@ -1,7 +1,7 @@
 """The .SYMBOL report: what Yahoo and Simply Wall St know about one company."""
 from itertools import pairwise
 import datetime
-import sys
+from lib import log
 from lib import config
 from lib import formats
 from lib import links
@@ -194,7 +194,7 @@ def changes(service, data, ticker, state):
 	try:
 		history, _ = yahoo.price_history(ticker, quote=data) # the percentages only: the profile has no chart
 	except RuntimeError as e: # no chart data: the profile goes out without these lines
-		print(ticker, e, file=sys.stderr)
+		log.warn(ticker, e)
 		history = {}
 	for interval in ('5Y', '1Y', '1M', '1D'):
 		if interval in history:

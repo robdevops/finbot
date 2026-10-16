@@ -1,13 +1,16 @@
 """Where a report goes and how: Report, the destinations (the chat that asked, or the default chats), deliver(), and the
-one-line error report. A destination is a transport (lib/transports.py)."""
+one-line error report. A destination is a transport: a network's bot (TelegramBot, SlackBot, DiscordBot)."""
 import dataclasses
 import html
-import sys
 import traceback
 
+from lib import log
 from lib import config
+from lib import discord_common
 from lib import net
 from lib import render
+from lib import slack_common
+from lib import telegram_common
 from lib import transports
 
 
@@ -20,33 +23,49 @@ class Report:
 	buttons: list = None
 
 
-REPLIES = {'telegram': transports.TelegramBot, 'slack': transports.SlackBot} # a reply into the chat that asked
+REPLIES = {'telegram': telegram_common.TelegramBot, 'slack': slack_common.SlackBot,
+	'discord': discord_common.DiscordBot}
 
 
-def reply_to(service, chat, message=None):
-	"""The destination of a reply into a chat (to `message`, the one being answered, if given), or None for a network
-	that takes none."""
+def reply_to(service, chat, message=None, interaction='', pressed=False):
+	"""The destination of a reply into a chat: to `message`, the one being answered, if given; through `interaction`
+	where the network answers one (Discord's slash command, or with pressed, its button press). None for a network that
+	takes no replies."""
 	kind = REPLIES.get(service)
-	return kind(chat, message) if kind else None
+	return kind(chat, message, interaction, pressed) if kind else None
+
+
+def chat(key, scheduled=False):
+	"""The destination of a chat by its key ('telegram:-1001234', Transport.key), as its network's bot; scheduled: for a
+	scheduled run, whose reports keep their record of what they told it."""
+	network, _, where = key.partition(':')
+	dest = reply_to(network, where)
+	if dest is None:
+		raise ValueError(f'no chat {key!r}: no such network')
+	dest.scheduled = scheduled
+	return dest
+
+
+def interactive(dest):
+	"""Whether a report answers a command (dest, the chat that asked), not a scheduled run (dest a job's chat, or None
+	for the home chats): a scheduled run tells each chat only what it has not told it before."""
+	return dest is not None and not dest.scheduled
 
 
 def default_chats():
-	"""Where a scheduled report goes, in this order: Telegram's telegramChatID; Slack's slackChannelID as the bot, with
-	slackBotToken (so that charts go too), else its incoming webhook; Discord's webhook. Raises RuntimeError when there
-	is nowhere to post."""
+	"""Where a scheduled report goes: each network's home chat (telegramChatID, slackChannelID, discordChannelID), as
+	its bot. Raises RuntimeError when there is nowhere to post."""
 	env = config.env
 	chats = []
-	if env.telegramChatID and 'telegram' in env.webhooks:
-		chats.append(transports.TelegramBot(env.telegramChatID))
-	if env.slackChannelID and env.slackBotToken:
-		chats.append(transports.SlackBot(env.slackChannelID))
-	elif 'slack' in env.webhooks:
-		chats.append(transports.SlackWebhook(env.webhooks['slack']))
-	if 'discord' in env.webhooks:
-		chats.append(transports.DiscordWebhook(env.webhooks['discord']))
+	for chat, token, kind in ((env.telegramChatID, env.telegramBotToken, telegram_common.TelegramBot),
+			(env.slackChannelID, env.slackBotToken, slack_common.SlackBot),
+			(env.discordChannelID, env.discordBotToken, discord_common.DiscordBot)):
+		if chat and token:
+			chats.append(kind(chat))
+			chats[-1].scheduled = True
 	if not chats:
-		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slackChannelID, slack_webhook or'
-			' discord_webhook')
+		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slackChannelID or discordChannelID,'
+			' each with its bot token')
 	return chats
 
 
@@ -69,7 +88,7 @@ def deliver(dest, report):
 		return []
 	if answer:
 		return [answer]
-	print("chart not sent, sending the report as text", file=sys.stderr)
+	log.warn("chart not sent, sending the report as text")
 	return dest.text(caption.split('\n'))
 
 
@@ -91,37 +110,15 @@ def report_error(e, dest=None, context=None):
 	for the same escapes). Never raises: error reporting must not become a second failure."""
 	try:
 		line = error_line(e, context)
-		print(line, file=sys.stderr)
+		log.error(line)
 		if isinstance(e, BaseException):
 			trace = ''.join(traceback.format_exception(e))
-			print(net.redact(trace), end='', file=sys.stderr) # a request's error carries its URL
+			log.error(net.redact(trace), end='') # a request's error carries its URL
 		for chat in targets(dest):
 			try:
 				chat.text([line if chat.dialect == 'discord' else html.escape(line, quote=False)])
 			except Exception as send_error:
-				print("Failed to report error to", chat.name, ":", send_error, file=sys.stderr)
+				log.error("Failed to report error to", chat.name, ":", send_error)
 	except Exception as reporting_error:
-		print("Failed to report error:", reporting_error, file=sys.stderr)
+		log.error("Failed to report error:", reporting_error)
 
-
-def guarded(context, func, *args, exit=True, **kwargs):
-	"""Run a scheduled entry point; on failure report one line to the default channel, then exit non-zero (exit=True,
-	for the command line) or just return None (exit=False, when the bot runs it in-process). A SystemExit inside counts
-	as a failure."""
-	try:
-		return func(*args, **kwargs)
-	except (Exception, SystemExit) as e:
-		report_error(e, context=context)
-		if exit:
-			sys.exit(1)
-
-
-def cli(script, job, handler, argv=None):
-	"""Command line entry point of a report script: parse its arguments with `job(argv) -> (label, kwargs)`, print the
-	usage on a bad argument, else run the handler guarded."""
-	try:
-		label, kwargs = job(sys.argv[1:] if argv is None else argv)
-	except ValueError as e:
-		print("Usage:", script, e, file=sys.stderr)
-		sys.exit(1)
-	guarded(label, handler, **kwargs)

@@ -1,4 +1,5 @@
 """Every chat command and scheduled report produces output on mocked data."""
+import contextlib
 import unittest
 import datetime
 import re
@@ -113,12 +114,12 @@ class ReportFunctions(FinbotCase):
 
 	def test_prepare_marketcap(self):
 		"""The market cap list is built."""
-		self.assertTrue(rankings.marketcap_list(TELEGRAM, length=5))
+		self.assertTrue(rankings.marketcap_list(TELEGRAM, 'telegram:55', length=5))
 
 	def test_prepare_rating(self):
 		"""The buy and sell lists are built."""
 		for action in ('buy', 'sell'):
-			self.assertTrue(rankings.prepare_rating_payload(TELEGRAM, action, length=5)[0])
+			self.assertTrue(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', action, length=5)[0])
 
 	def test_ratings_list_the_strongest_first(self):
 		"""1 is a strong buy and 5 a strong sell: .sell used to list the mildest sells first. On equal ratings, more
@@ -128,19 +129,19 @@ class ReportFunctions(FinbotCase):
 			'T7': ('strong_buy', 1.0, 6),
 				   'T4': ('sell', 4.2, 7), 'T5': ('underperform', 4.6, 10), 'T6': ('sell', 4.2, 8),
 				   'T8': ('strong_buy', 1.0, 2)}
-		self.patch(watchlist, 'with_holdings', lambda: list(ratings))
+		self.patch(watchlist, 'with_holdings', lambda chat: list(ratings))
 		self.patch(yahoo, 'fetch_detail',
 			lambda t, *a, **k: {t: market_entry(t) | dict(zip(('recommend', 'recommend_index', 'recommend_analysts'),
 			ratings[t]))})
 		def order(action):
 			"""(the tickers listed, the tickers charted) of a ratings report, in order."""
-			payload, chart = rankings.prepare_rating_payload(TELEGRAM, action)
+			payload, chart = rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', action)
 			return [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], [label for label, _ in chart.rows]
 		self.assertEqual(order('buy'), (['T2', 'T3', 'T1'], ['T2', 'T3', 'T1']))
 		self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
-		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'buy')[0][0])
-		self.patch(watchlist, 'with_holdings', lambda: ['T7', 'T8'])
-		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'buy'),
+		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy')[0][0])
+		self.patch(watchlist, 'with_holdings', lambda chat: ['T7', 'T8'])
+		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy'),
 			(['No tracked stocks rated buy by 7+ analysts'], None))
 
 	def test_a_small_cap_quoted_in_won_needs_the_bigger_move_too(self):
@@ -150,7 +151,7 @@ class ReportFunctions(FinbotCase):
 			'market_cap': 1e11}) for t in ts})
 		self.prefs(demote_volatile=True)
 
-		quote = price.gather()[1]['T1']
+		quote = price.gather(TICKERS)['T1']
 		self.assertAlmostEqual(quote['market_cap_usd'], 1e11 / 1380.0) # US$72M
 		self.assertEqual(price.trigger_bar('T1', quote, 5, {}), 5 * config.prefs.volatility_multiplier)
 
@@ -159,8 +160,7 @@ class ReportFunctions(FinbotCase):
 		with none left there is no Bottom list and no gap in the chart; the subtitle says "over the past 3 months"."""
 		for count, bottom, bars in ((12, 2, 13), (8, 0, 8)):
 			with self.subTest(count=count):
-				self.patch(watchlist, 'with_holdings', lambda: TICKERS[:count])
-				found = price.moves('period', 0, 90, interactive=True)
+				found = price.moves(TICKERS[:count], 'period', 0, 90, interactive=True)
 				payload, chart = price.report(TELEGRAM, found, 'period', 0, 90, top=10, interactive=True)
 				shown = payload[payload.index('<b>Bottom 10</b>') + 1:] if bottom else []
 				self.assertEqual((len(shown), len(chart.rows)), (bottom, bars))
@@ -183,13 +183,13 @@ class ReportFunctions(FinbotCase):
 	def test_forward_pe_lists_need_as_many_analysts_as_buy(self):
 		"""A forward P/E is analysts' estimate: from few, it says little, as a perfect 1.0 buy from two brokers does."""
 		analysts = {'T1': 7, 'T2': 6, 'T3': 12, 'T4': 2}
-		self.patch(watchlist, 'with_holdings', lambda: list(analysts))
+		self.patch(watchlist, 'with_holdings', lambda chat: list(analysts))
 		self.patch(yahoo, 'fetch',
 			lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': -5 if t == 'T3' else 20} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
 		def listed(mode='top'):
 			"""(heading, the tickers listed, the chart) of a forward P/E list."""
-			payload, chart = rankings.ratio_list(TELEGRAM, 'forward pe', mode)
+			payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', 'forward pe', mode)
 			return payload[0], [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], chart
 		heading, names, chart = listed()
 		# T2 and T4: too few analysts; T3: negative
@@ -199,7 +199,7 @@ class ReportFunctions(FinbotCase):
 		self.assertIn('Co T2', rankings.ratio_line(TELEGRAM, 'T2', 'forward pe')) # one ticker asked for: shown
 		self.prefs(min_analysts=13) # the one setting moves .buy and .forward pe together
 		self.assertEqual(listed()[0], 'No tracked stocks with 13+ analysts have a forward pe ratio')
-		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'buy')[0],
+		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy')[0],
 			['No tracked stocks rated buy by 13+ analysts'])
 
 	def test_market_caps_compare_in_us_dollars(self):
@@ -214,15 +214,15 @@ class ReportFunctions(FinbotCase):
 				for t in tickers if t in fx or t in stocks}
 		self.patch(yahoo, 'fetch', fetch)
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: fetch([t]))
-		self.patch(watchlist, 'with_holdings', lambda: list(stocks))
-		payload = rankings.marketcap_list(TELEGRAM)
+		self.patch(watchlist, 'with_holdings', lambda chat: list(stocks))
+		payload = rankings.marketcap_list(TELEGRAM, 'telegram:55')
 		self.assertIn('by market cap (USD)', payload[0])
 		# Z1: no rate, left out
 		self.assertEqual([line.split('Co ')[1].split(' ')[0] for line in payload[1:]], ['U1', 'K1.KS', 'L1.L', 'K2.KS'])
 		self.assertIn('mkt cap: 731.88 B', payload[2]) # 1.01 Q won
 		self.assertIn('mkt cap: KRW 1.01 Q (USD 731.88 B)', rankings.marketcap_line(TELEGRAM, 'K1.KS'))
 		self.assertIn('mkt cap: GBP 62.50 B (USD 79.11 B)', rankings.marketcap_line(TELEGRAM, 'L1.L')) # pence: pounds
-		beta = rankings.prepare_beta_payload(TELEGRAM)[0]
+		beta = rankings.prepare_beta_payload(TELEGRAM, 'telegram:55')[0]
 		self.assertIn('Co K2.KS', str(beta)) # 500 billion won is US$362M: a small cap, which it never was unconverted
 		self.assertNotIn('Co K1.KS', str(beta))
 
@@ -233,7 +233,7 @@ class ReportFunctions(FinbotCase):
 				('peg', 'top', 'Top 5 tracked stocks by peg ratio'),
 				('peg', 'negative', 'negative peg: no data found')):
 			with self.subTest(kind=kind, mode=mode):
-				payload, chart = rankings.ratio_list(TELEGRAM, kind, mode, length=5)
+				payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', kind, mode, length=5)
 				self.assertIn(heading, payload[0])
 
 	def test_one_stocks_ratio_shows_what_yahoo_has(self):
@@ -253,11 +253,11 @@ class ReportFunctions(FinbotCase):
 
 	def test_prepare_beta(self):
 		"""The beta report charts a bar per stock listed, and says so when none qualify."""
-		payload, chart = rankings.prepare_beta_payload(TELEGRAM)
+		payload, chart = rankings.prepare_beta_payload(TELEGRAM, 'telegram:55')
 		self.assertIn('Beta over 1.5', payload[0])
 		self.assertEqual(len(chart.rows), len(payload) - 1) # a bar per stock listed
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'beta': 1.0}})
-		self.assertEqual(rankings.prepare_beta_payload(TELEGRAM),
+		self.assertEqual(rankings.prepare_beta_payload(TELEGRAM, 'telegram:55'),
 			(['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None))
 
 	def test_prepare_profile(self):
@@ -298,7 +298,38 @@ class ReportFunctions(FinbotCase):
 
 	def test_prepare_watchlist(self):
 		"""The watchlist is listed."""
-		self.assertTrue(holdings.prepare_watchlist(TELEGRAM, '@u'))
+		self.assertTrue(holdings.prepare_watchlist(TELEGRAM, 'telegram:55', '@u'))
+
+	def test_each_chat_follows_its_own_watchlist_besides_the_holdings(self):
+		"""Each chat has a watchlist of its own: .watchlist lists it, and a report, asked for or scheduled, covers that
+		chat's watchlist and the holdings, which every chat shares, and no other chat's watchlist."""
+		self.patch(watchlist, 'with_holdings', REAL_GET_HOLDINGS)
+		self.patch(sharesight, 'tickers', lambda: ['T1'])
+		fetched = []
+		self.patch(yahoo, 'fetch', lambda ts: fetched.append(sorted(ts)) or {t: market_entry(t) for t in ts})
+		self.command('.watchlist add T2')
+		self.command('.watchlist add T3', chat='56')
+		listed = [str(self.command('.watchlist', chat=chat)) for chat in ('55', '56')]
+		self.assertEqual([('Co T2' in text, 'Co T3' in text) for text in listed], [(True, False), (False, True)])
+		for chat, followed in (('55', ['T1', 'T2']), ('56', ['T1', 'T3'])):
+			with self.subTest(chat=chat):
+				fetched.clear()
+				self.command('.price', chat=chat)
+				self.assertEqual(fetched[0], followed)
+				fetched.clear()
+				self.command('.marketcap', chat=chat)
+				self.assertEqual(fetched[0], followed)
+		fetched.clear()
+		shorts.run(delivery.chat('telegram:56', scheduled=True))
+		self.assertEqual(fetched[0], ['T1', 'T3'])
+
+	def test_plans_are_kept_per_chat(self):
+		""".plan records the sender's plan in this chat, and lists this chat's plans, not another chat's."""
+		self.command('.plan buy low')
+		self.assertIn('buy low', str(self.command('.plan')))
+		self.assertEqual(self.command('.plan', chat='56'), [('text', ['No plans yet: .plan TEXT records yours'])])
+		self.assertNotIn('buy low', str(self.command('.plan sell high', chat='56')))
+		self.assertNotIn('sell high', str(self.command('.plan')))
 
 	def test_compare_usage(self):
 		""".compare with one ticker gets its usage, from the command table."""
@@ -336,27 +367,64 @@ class ScheduledReports(FinbotCase):
 		"""The scheduled earnings report is pinned on Telegram; a reply to .earnings is not, or the chat would collect
 		pinned copies, and neither is the ex-dividend report."""
 		pins = []
-		self.patch(transports.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
+		self.patch(telegram_common.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
 		self.command('.earnings')
 		self.assertEqual(pins, [])
-		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/'}, telegramChatID='1')
+		self.env(telegramChatID='1')
 		cal.run(event='ex-dividend')
 		cal.run(event='earnings')
 		self.assertEqual(pins, ['1'])
 
+	def test_a_chats_job_runs_its_report_as_scheduled_not_as_a_command(self):
+		"""A report a chat's job runs is a scheduled run, as the home chats' is: it says nothing when nothing passes,
+		where a command's reply says so, and the earnings report is pinned. price, shorts and cal took any chat they
+		were given for a command."""
+		pins = []
+		self.patch(telegram_common.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
+		job_chat = delivery.chat('telegram:5', scheduled=True)
+		for module, kwargs in ((price, {'mode': 'premarket', 'threshold': 1000}), (shorts, {'threshold': 1000})):
+			with self.subTest(report=module.__name__):
+				self.sent.clear()
+				module.run(job_chat, **kwargs)
+				self.assertEqual(self.sent, [])
+				module.run(telegram_common.TelegramBot('5'), **kwargs) # a command's reply says that nothing passed
+				self.assertTrue(self.sent)
+		cal.run(job_chat, event='earnings')
+		self.assertEqual(pins, ['5'])
+
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
-		"""T1 has no earnings date, so its primary listing is looked up: Yahoo not knowing it crashed the report."""
+		"""T1 has no earnings date, even in its details, so its primary listing is looked up: Yahoo not knowing it
+		crashed the report."""
 		self.patch(cal, 'primary_listings', lambda: {'T1': 'T1.XX'})
 		undated = lambda t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')}
 		self.patch(yahoo, 'fetch', lambda ts: {t: undated(t) for t in ts})
-		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1.XX' else {t: market_entry(t)})
+		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1.XX' else {t: undated(t)})
 		cal.run(event='earnings')
 		self.assertIn('Co T2 ', str(self.sent))
 		self.assertNotIn('Co T1 ', str(self.sent))
 
+	def test_a_us_listing_of_a_foreign_company_keeps_its_own_dates(self):
+		"""A foreign company's US listing (ARM, CLBT: held on a US market) whose quote lacks the date takes it from its
+		own details, and is never swapped for its home market's listing (ARM.L, CLBT.TA), even when it has no date at
+		all: then it has none."""
+		undated = lambda t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')}
+		self.patch(yahoo, 'fetch', lambda ts: {t: undated(t) for t in ts})
+		for own_date, listed in ((True, True), (False, False)):
+			with self.subTest(own_date=own_date):
+				asked = []
+				def details(t, *a, **k):
+					"""T1's details, of a British company, with its date or without; asked for, noted."""
+					asked.append(t)
+					return {t: {**(market_entry(t) if own_date else undated(t)), 'profile_country': 'United Kingdom'}}
+				self.patch(yahoo, 'fetch_detail', details)
+				self.sent.clear()
+				cal.run(event='earnings')
+				self.assertEqual('Co T1 ' in str(self.sent), listed)
+				self.assertEqual([t for t in asked if '.' in t], []) # no T1.L
+
 	def test_trades(self):
 		""".trades run from a chat posts."""
-		trades.run(transports.TelegramBot('5'))
+		trades.run(telegram_common.TelegramBot('5'))
 		self.assertTrue(self.sent)
 
 	def test_a_trade_is_in_its_market_currency_not_the_brokerage_one(self):
@@ -380,12 +448,32 @@ class ScheduledReports(FinbotCase):
 
 	def test_a_scheduled_run_keeps_the_trades_another_run_recorded_meanwhile(self):
 		"""The seen trades are read again as the run ends, so a trade another run recorded meanwhile is kept."""
-		meanwhile = lambda tickers: state.save('finbot_sharesight_trades.json',
-			[999]) or {t: market_entry(t) for t in tickers}
+		meanwhile = lambda tickers: state.save(trades.STATE_FILE,
+			{'chats': {'telegram:1': [999]}}) or {t: market_entry(t) for t in tickers}
 		self.patch(yahoo, 'fetch', meanwhile) # called after the seen trades were read, before the new ones are recorded
 		trades.run()
-		known = state.load('finbot_sharesight_trades.json')
+		known = state.load_for('telegram:1', trades.STATE_FILE, [])
 		self.assertEqual((known[0], len(known)), (999, 2))
+
+	def test_a_trade_or_a_rating_change_reaches_each_chat_that_schedules_the_report(self):
+		"""Each chat keeps its own record of what a report told it, so a trade or a rating change reaches every chat
+		whose job runs the report, each once: the first chat's run used to mark it told for all."""
+		told = []
+		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None:
+			told.append((dest.key, ' '.join(lines))) or [])
+		chats = [delivery.chat(key, scheduled=True) for key in ('telegram:5', 'slack:C9')]
+		self.env(slackBotToken='xoxb-test')
+		for chat in chats * 2:
+			trades.run(chat)
+		self.assertEqual([key for key, text in told if 'T1' in text], ['telegram:5', 'slack:C9'])
+		for chat in chats:
+			rating.run(chat) # the first sighting, recorded
+		told.clear()
+		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | ({'recommend': 'sell',
+			'recommend_index': 4.5} if t == 'T1' else {})})
+		for chat in chats * 2:
+			rating.run(chat)
+		self.assertEqual([key for key, text in told if 'Co T1' in text], ['telegram:5', 'slack:C9'])
 
 	def test_milestone(self):
 		"""The milestone report posts."""
@@ -398,21 +486,23 @@ class ScheduledReports(FinbotCase):
 		self.patch(yahoo, 'fetch',
 			lambda ts: {t: {k: v for k, v in market_entry(t).items() if not k.startswith('fiftyTwoWeek')} for t in ts})
 		milestone.run()
-		self.assertFalse(state.load('finbot_milestone.json'))
+		self.assertFalse(state.load_for('telegram:1', milestone.STATE_FILE, {}))
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.sent.clear()
 		milestone.run()
 		self.assertNotIn('Record high', str(self.sent))
-		self.assertEqual(state.load('finbot_milestone.json')['T1'], {'all_time_high': 150.0, 'all_time_low': 50.0})
+		self.assertEqual(state.load_for('telegram:1', milestone.STATE_FILE, {})['T1'],
+			{'all_time_high': 150.0, 'all_time_low': 50.0})
 
 	def test_a_record_kept_from_ten_years_is_seeded_again_from_the_whole_history(self):
 		"""Records kept before they came from the whole history (record_high, from 10 years) are seeded again: a stock
 		above its 10-year high but below its all-time one posted a false record."""
-		state.save('finbot_milestone.json', {'T1': {'record_high': 110.0, 'record_low': 90.0}})
+		state.save(milestone.STATE_FILE, {'chats': {'telegram:1': {'T1': {'record_high': 110.0, 'record_low': 90.0}}}})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
 		milestone.run() # the 52-week range (120/80) was past the old record, but not the whole history's
 		self.assertNotIn('Co T1 ', str(self.sent))
-		self.assertEqual(state.load('finbot_milestone.json')['T1'], {'all_time_high': 150.0, 'all_time_low': 50.0})
+		self.assertEqual(state.load_for('telegram:1', milestone.STATE_FILE, {})['T1'],
+			{'all_time_high': 150.0, 'all_time_low': 50.0})
 
 	def test_milestone_records_are_all_time(self):
 		"""A new 52-week high below the all-time high is no record. The record used to become the 52-week high after the
@@ -428,14 +518,15 @@ class ScheduledReports(FinbotCase):
 
 	def test_a_52_week_record_kept_before_is_replaced_by_the_history(self):
 		"""A record kept in the old 52-week format is replaced by the history: no false record high."""
-		state.save('finbot_milestone.json', {f'T{i}': {'high': 110.0, 'low': 90.0} for i in range(25)})
+		state.save(milestone.STATE_FILE, {'chats': {'telegram:1': {f'T{i}': {'high': 110.0, 'low': 90.0}
+			for i in range(25)}}})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
 		milestone.run() # 120 beats the old 52-week record of 110, but not the history's 150
 		self.assertNotIn('Record high', str(self.sent))
 
 	def test_rating(self):
 		""".rating run from a chat posts."""
-		rating.run(transports.TelegramBot('5'))
+		rating.run(telegram_common.TelegramBot('5'))
 		self.assertTrue(self.sent)
 
 	def test_rating_keeps_the_last_rating_of_a_ticker_missing_from_a_run(self):
@@ -452,35 +543,37 @@ class ScheduledReports(FinbotCase):
 
 	def test_an_interactive_rating_records_nothing(self):
 		"""A rating report asked for in a chat leaves the record for the scheduled runs alone."""
-		rating.run(transports.TelegramBot('5'))
-		self.assertIsNone(state.load('finbot_rating.json'))
+		rating.run(telegram_common.TelegramBot('5'))
+		self.assertIsNone(state.load(rating.STATE_FILE))
 
-	def test_slack_webhook_without_a_bot_token_gets_scheduled_reports(self):
-		"""Scheduled reports reach Slack through its incoming webhook, which takes no channel and no token. They used to
-		send Telegram's chat id along, which made write() need slackBotToken and crash without one, before Telegram got
-		its copy."""
-		self.env(slackBotToken=False)
-
-		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/T/B/x'})
+	def test_scheduled_reports_reach_each_home_chat_with_its_own_token(self):
+		"""Scheduled reports reach Telegram's and Slack's home chats, each with its own bot's credentials: Slack's
+		request carries the Slack token and channel, and Telegram's chat id goes only to Telegram."""
+		self.env(slackBotToken='xoxb-test', slackChannelID='C9')
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
+		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
 		posts = []
 		def post(url, **kwargs):
-			"""Record (host, whether a bot token was sent, the channel) and answer ok."""
-			posts.append((url.split('/')[2], 'Authorization' in kwargs.get('headers', {}),
-				(kwargs.get('json') or {}).get('channel')))
-			return mock.Mock(status_code=200, json=lambda: {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 1}}})
-		self.patch(transports.net, 'post', post)
+			"""Record (host, the Slack token sent, the channel or chat) and answer ok."""
+			data = kwargs.get('data') or kwargs.get('json') or {}
+			posts.append((url.split('/')[2], kwargs.get('headers', {}).get('Authorization'),
+				data.get('channel') or data.get('channel_id') or data.get('chat_id')))
+			return mock.Mock(status_code=200, text='OK', json=lambda: {'ok': True, 'upload_url': 'https://files.x/u',
+				'file_id': 'F1', 'ts': '1.5', 'result': {'message_id': 1, 'chat': {'id': 1}}})
+		self.patch(net, 'post', post)
 		for report in (price.run, shorts.run, milestone.run):
 			with self.subTest(report=report):
 				posts.clear()
-				report()
-				self.assertIn(('hooks.slack.com', False, None), posts)
-				self.assertTrue(any(host == 'api.telegram.org' for host, _, _ in posts))
+				with contextlib.redirect_stderr(io.StringIO()):
+					report()
+				self.assertIn(('slack.com', 'Bearer xoxb-test', 'C9'), posts)
+				self.assertTrue(any(host == 'api.telegram.org' and chat == '1' for host, _, chat in posts))
+				self.assertFalse(any(host == 'slack.com' and chat == '1' for host, _, chat in posts))
 
 	def test_nowhere_to_post_is_an_error(self):
 		"""A scheduled report with nowhere to post is an error that says so."""
-		self.env(webhooks={})
+		self.env(telegramChatID='')
 		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
 			price.run()
 
@@ -533,25 +626,25 @@ class PeriodButtons(FinbotCase):
 		with self.assertRaises(KeyError):
 			buttons.resolve(refs[0])
 
-	def test_no_buttons_where_their_presses_would_go_nowhere(self):
-		"""Without telegramOutgoingWebhook (reports only), Telegram hears nothing from finbot's buttons, so a chart, a
-		scheduled one included, comes without them."""
-		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/'}, telegramChatID='1')
+	def test_telegram_charts_have_buttons_in_both_modes(self):
+		"""A Telegram chart, a scheduled one included, has its period buttons whether Telegram posts their presses to
+		telegramOutgoingWebhook (http mode) or finbot fetches them (pull mode)."""
+		self.env(telegramChatID='1')
 		label, kwargs = price.job(['7']) # as scheduled: price.py 7
-		for hook, buttons in (('https://example.com/telegram', True), ('', False)):
+		for hook in ('https://example.com/telegram', ''):
 			with self.subTest(telegramOutgoingWebhook=hook):
 				self.env(telegramOutgoingWebhook=hook)
 				self.markups.clear()
 				price.run(**kwargs)
-				self.assertEqual(bool(self.markups and self.markups[0]), buttons)
+				self.assertTrue(self.markups and self.markups[0])
 
 	def press(self, data):
 		"""Press a period button: (the edits made, the toasts shown)."""
 		edits, toasts = [], []
-		self.patch(transports.TelegramBot, 'edit_chart', lambda dest, msg, img, caption, buttons=None:
-			edits.append((caption.split('\n')[0], transports.TelegramBot.markup(buttons))))
-		self.patch(telegram, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
-		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', data))
+		self.patch(telegram_common.TelegramBot, 'edit_chart', lambda dest, msg, img, caption, buttons=None:
+			edits.append((caption.split('\n')[0], telegram_common.TelegramBot.markup(buttons))))
+		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
+		self.press_button(data)
 		return edits, toasts
 
 	def test_pressing_1d_rebuilds_todays_list_and_moves_the_marker(self):
@@ -686,11 +779,12 @@ class PieCommand(FinbotCase):
 		self.assertEqual(self.command('.pie'), [('text', ['Usage: .pie PORTFOLIO [sector]', 'Portfolios: Rob'])])
 		self.assertEqual(self.command('.pie Nope'), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
 
-	def test_a_service_that_takes_no_images_gets_text(self):
-		"""Slack without the bot token takes no images: the report goes as text."""
-		self.env(slackBotToken=False)
-		worker.Request(SLACK, 'C1', '@u', 'U', BOT).reply(['x'], render.Chart('pie', 't', rows=(('a', 1.0),)))
-		self.assertEqual(self.sent[-1][0], 'text')
+	def test_with_the_graph_preference_off_a_chart_goes_as_text(self):
+		"""With graph off, a report's chart is left out and its lines go as text, on every network."""
+		self.prefs(graph=False)
+		for service in (TELEGRAM, SLACK, DISCORD):
+			worker.Request(service, 'C1', '@u', 'U', BOT).reply(['x'], render.Chart('pie', 't', rows=(('a', 1.0),)))
+			self.assertEqual(self.sent[-1], ('text', ['x']))
 
 
 if __name__ == '__main__':

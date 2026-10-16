@@ -1,6 +1,6 @@
-"""Keeps Sharesight's portfolio list and holdings reports fresh in the cache (scheduled: sharesight_warm.py), so that a
-request never waits on Sharesight. The price histories have their own, yahoo_warm.py."""
-import sys
+"""Keeps Sharesight's portfolio list and holdings reports fresh in the cache (scheduled: sharesight_warm), so that a
+request never waits on Sharesight. The price histories have their own, yahoo_warm."""
+from lib import log
 from lib import config, sharesight
 
 def run():
@@ -14,9 +14,14 @@ def run():
 	try:
 		return len(sharesight.warm())
 	except Exception as e:
-		print("sharesight_warm: refresh failed:", e, file=sys.stderr)
+		log.warn("sharesight_warm: refresh failed:", e)
 		return 0
 
+ARGUMENTS = '' # what a scheduled run takes: none
+
 def job(argv):
-	"""Arguments of a scheduled run: sharesight_warm.py takes none."""
-	return 'sharesight_warm.py', {}
+	"""A scheduled run's arguments: (label, run's keyword arguments); sharesight_warm takes none, and an argument raises
+	ValueError."""
+	if argv:
+		raise ValueError('no arguments')
+	return 'sharesight_warm', {}

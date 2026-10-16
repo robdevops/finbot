@@ -3,12 +3,12 @@ seconds. Anything here may be deleted at any time (cleanup.py, a flush); what mu
 import io
 import json
 import os
-import sys
 import tempfile
 import time
 from pathlib import Path
 
 from lib import config
+from lib import log
 
 
 def path(name):
@@ -29,13 +29,10 @@ def _fresh(name, seconds):
 	if seconds is None:
 		seconds = config.prefs.cache_seconds
 	where, written = path(name), age(name)
-	if written is None:
-		print("cache miss:", where, file=sys.stderr) if config.prefs.debug else None
+	if written is None or written >= seconds:
+		log.debug("cache miss:", where)
 		return None
-	if written >= seconds:
-		print("cache expired:", where, file=sys.stderr) if config.prefs.debug else None
-		return None
-	print("cache hit:", where, "TTL:", f"{seconds - written:.0f} s", file=sys.stderr) if config.prefs.debug else None
+	log.debug(f"cache hit: {where} TTL: {seconds - written:.0f}s")
 	return where
 
 
@@ -85,7 +82,7 @@ def write(name, data):
 	"""Write a cache file's JSON, compact: nobody reads it but finbot (a 10-year chart takes a third of the space, and
 	parses faster). See write_file."""
 	where = path(name)
-	print("cache write:", where, file=sys.stderr) if config.prefs.debug else None
+	log.debug("cache write:", where)
 	write_file(where, json.dumps(data, separators=(',', ':')).encode('utf-8'))
 
 

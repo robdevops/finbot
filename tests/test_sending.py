@@ -2,7 +2,9 @@
 buttons) and Discord."""
 import contextlib, io, json, threading, unittest
 from unittest import mock
+import requests
 from tests.common import *
+from lib import jobs
 
 
 class TelegramSending(FinbotCase):
@@ -15,8 +17,8 @@ class TelegramSending(FinbotCase):
 			if isinstance(outcome, Exception):
 				raise outcome
 			return outcome
-		self.patch(transports.net, 'post', fake)
-		return transports.TelegramBot('5').post_text('hi')
+		self.patch(net, 'post', fake)
+		return telegram_common.TelegramBot('5').post_text('hi')
 
 	def test_success_returns_the_message(self):
 		"""A sent message returns the message, as Telegram gives it."""
@@ -37,12 +39,33 @@ class TelegramSending(FinbotCase):
 			self.post(outcome)
 		return log.getvalue()
 
+	def test_text_goes_silent_and_without_link_previews(self):
+		"""A message goes silent and without link previews, and so does an edit: link_preview_options, which replaced
+		disable_web_page_preview in Bot API 7.0."""
+		sent = []
+		self.patch(net, 'post', lambda url, **kwargs: sent.append((url.rsplit('/', 1)[1], kwargs['json'])) or
+			Resp({'ok': True, 'result': {'message_id': 8}}))
+		chat = telegram_common.TelegramBot('5')
+		chat.post_text('hi')
+		chat.edit_text('8', 'edited')
+		off = {'is_disabled': True}
+		self.assertEqual(sent, [('sendMessage', {'chat_id': '5', 'text': 'hi', 'parse_mode': 'HTML',
+			'link_preview_options': off, 'disable_notification': True}), ('editMessageText', {'chat_id': '5',
+			'message_id': '8', 'text': 'edited', 'parse_mode': 'HTML', 'link_preview_options': off})])
+
+	def test_typing_is_sent_again_before_it_lapses(self):
+		""""typing…" shows for 5 seconds at most (sendChatAction), so it is sent again sooner, and shows the whole time
+		a command works, for a minute at least."""
+		delay, every, times = telegram_common.TelegramBot.TYPING
+		self.assertLess(every, 5)
+		self.assertGreaterEqual(delay + every * times, 60)
+
 	def test_a_chart_goes_without_a_parameter_sendphoto_does_not_take(self):
 		"""sendPhoto is sent the chat, caption and markup, and no link-preview flag: a photo has no preview."""
 		sent = []
-		self.patch(transports.net, 'post', lambda url, **kwargs: sent.append((url, kwargs)) or
+		self.patch(net, 'post', lambda url, **kwargs: sent.append((url, kwargs)) or
 			Resp({'ok': True, 'result': {'message_id': 8}}))
-		self.assertEqual(transports.TelegramBot('5').post_chart(io.BytesIO(b'png'), 'caption'), {'message_id': 8})
+		self.assertEqual(telegram_common.TelegramBot('5').post_chart(io.BytesIO(b'png'), 'caption'), {'message_id': 8})
 		url, kwargs = sent[0]
 		self.assertTrue(url.endswith('/sendPhoto'))
 		self.assertEqual(kwargs['data'], {'chat_id': '5', 'caption': 'caption', 'parse_mode': 'HTML',
@@ -60,16 +83,15 @@ class TelegramSending(FinbotCase):
 		"""An error line is escaped for Telegram's HTML and Slack (the same), and left as it is for Discord."""
 		sent = []
 		self.patch(transports.Transport, 'text', REAL_TEXT)
-		for kind in (transports.TelegramBot, transports.SlackWebhook, transports.DiscordWebhook):
+		for kind in (telegram_common.TelegramBot, slack_common.SlackBot, discord_common.DiscordBot):
 			self.patch(kind, 'post_text', lambda dest, text, buttons=None: sent.append((dest.name, text)))
-		self.env(webhooks={'telegram': 'https://api.telegram.org/botX/', 'slack': 'https://hooks.slack.com/x',
-			'discord': 'https://discord.com/x/slack'})
-		self.env(telegramChatID='5')
+		self.env(telegramChatID='5', slackChannelID='C9', slackBotToken='xoxb-1', discordChannelID='77',
+			discordBotToken='x')
 
 		error = RuntimeError("404 for ZZ at https://x/?a=1&crumb=abc; '<' not supported between <urllib3.connection>")
 		with contextlib.redirect_stderr(io.StringIO()):
 			REAL_REPORT_ERROR(error, context='.compare <b>')
-			REAL_REPORT_ERROR(error, transports.TelegramBot('55'), context='.compare')
+			REAL_REPORT_ERROR(error, telegram_common.TelegramBot('55'), context='.compare')
 		texts = dict(sent[:3])
 		self.assertIn('crumb=&lt;redacted&gt;', texts['telegram']) # Telegram's HTML parser rejects a bare <redacted>
 		self.assertNotIn('<', texts['telegram'] + sent[3][1])
@@ -81,18 +103,8 @@ class TelegramSending(FinbotCase):
 		"""report_error survives a failed send."""
 		self.patch(transports.Transport, 'text', mock.Mock(side_effect=RuntimeError('send failed')))
 		with contextlib.redirect_stderr(io.StringIO()):
-			REAL_REPORT_ERROR(ValueError('boom'), transports.TelegramBot('5'))
+			REAL_REPORT_ERROR(ValueError('boom'), telegram_common.TelegramBot('5'))
 			REAL_REPORT_ERROR(ValueError('boom'))
-
-	def test_guarded_reports_and_exits_nonzero(self):
-		"""guarded reports a failure and exits 1; a success returns its value."""
-		reported = []
-		self.patch(delivery, 'report_error', lambda e, **k: reported.append(e))
-		with self.assertRaises(SystemExit) as raised:
-			delivery.guarded('job', lambda: 1 / 0)
-		self.assertEqual(raised.exception.code, 1)
-		self.assertEqual(len(reported), 1)
-		self.assertEqual(delivery.guarded('job', lambda: 'fine'), 'fine')
 
 
 class ChartDelivery(FinbotCase):
@@ -114,7 +126,7 @@ class ChartDelivery(FinbotCase):
 			if isinstance(outcome, Exception):
 				raise outcome
 			return outcome
-		self.patch(transports.net, 'post', post)
+		self.patch(net, 'post', post)
 		return calls
 
 	def upload_steps(self):
@@ -122,36 +134,30 @@ class ChartDelivery(FinbotCase):
 		return [Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': 'F1'}), Resp(None, text='OK - 3'),
 			Resp({'ok': True, 'files': [{'id': 'F1'}]})]
 
-	def test_where_charts_can_go(self):
-		"""Charts always go to Telegram and Discord; Slack gets them as the bot, with the bot token, but not through its
-		incoming webhook."""
-		self.env(slackBotToken='xoxb-test')
+	def test_every_bot_takes_charts_and_buttons(self):
+		"""Every network's bot takes charts and buttons, whichever way its updates arrive: their presses reach finbot,
+		and no setting holds them back."""
+		self.env(slackBotToken='', slackAppToken='', slackOutgoingWebhook='', telegramOutgoingWebhook='')
+		for kind in (telegram_common.TelegramBot, slack_common.SlackBot, discord_common.DiscordBot):
+			with self.subTest(kind=kind.__name__):
+				self.assertTrue(kind('1').takes_charts and kind('1').takes_buttons)
 
-		kinds = (transports.TelegramBot, transports.SlackBot, transports.SlackWebhook, transports.DiscordWebhook)
-		self.assertEqual([kind(None).takes_charts for kind in kinds], [True, True, False, True])
-		self.env(slackBotToken=False)
-		self.assertFalse(transports.SlackBot(None).takes_charts)
-
-	def test_scheduled_reports_go_to_slack_as_the_bot_with_slackChannelID(self):
-		"""With slackChannelID and the bot token, scheduled reports reach Slack as the bot in place of the incoming
-		webhook, which it does not need; without the token, the webhook carries them."""
-		hook = 'https://hooks.slack.com/services/x'
-		telegram = config.env.webhooks['telegram']
-		self.env(webhooks={'telegram': telegram, 'slack': hook}, telegramChatID='1', slackChannelID='C9',
-			slackBotToken='xoxb-test')
-		self.assertEqual(list(map(repr, delivery.default_chats())), ['<TelegramBot 1>', '<SlackBot C9>'])
-		self.env(slackBotToken='')
-		self.assertEqual(list(map(repr, delivery.default_chats())), ['<TelegramBot 1>', f'<SlackWebhook {hook}>'])
-		self.env(webhooks={'telegram': telegram}, slackBotToken='xoxb-test')
-		self.assertEqual(list(map(repr, delivery.default_chats())), ['<TelegramBot 1>', '<SlackBot C9>'])
-		self.env(webhooks={}, telegramChatID='') # the bot alone
-		self.assertEqual(list(map(repr, delivery.default_chats())), ['<SlackBot C9>'])
+	def test_scheduled_reports_go_to_each_networks_home_chat_as_its_bot(self):
+		"""Scheduled reports go to each network's home chat (telegramChatID, slackChannelID, discordChannelID), as its
+		bot: a chat without its bot token is left out."""
+		self.env(telegramChatID='1', slackChannelID='C9', slackBotToken='xoxb-test', discordChannelID='77',
+			discordBotToken='x')
+		self.assertEqual(list(map(repr, delivery.default_chats())), ['<TelegramBot 1>', '<SlackBot C9>',
+			'<DiscordBot 77>'])
+		self.env(slackBotToken='', telegramBotToken='')
+		self.assertEqual(list(map(repr, delivery.default_chats())), ['<DiscordBot 77>'])
 
 	def test_slack_replies_upload_their_charts(self):
-		"""A Slack reply uploads its chart in three steps (bot token), the report as its message, with no text copy."""
+		"""A Slack reply whose chart has no buttons uploads it in three steps (bot token), the report as its message,
+		with no text copy (a chart with buttons goes in a Block Kit message: SlackButtons)."""
 		self.env(slackBotToken='xoxb-test')
 
-		for cmd, heading in (('.beta', '*Beta over 1.5'), ('.price', '*≥ 5% at close'), ('.compare T1 T2', '*')):
+		for cmd, heading in (('.beta', '*Beta over 1.5'), ('.pie Rob', '*')):
 			with self.subTest(cmd=cmd):
 				calls = self.slack_answers(*self.upload_steps())
 				self.sent.clear(); self.errors.clear()
@@ -178,7 +184,7 @@ class ChartDelivery(FinbotCase):
 		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
 
 		good = self.upload_steps()
-		slow = transports.requests.exceptions.ReadTimeout('slow')
+		slow = requests.exceptions.ReadTimeout('slow')
 		text = [('text', ['*Heading*', 'line 2'])]
 		for outcomes, expect in (([Resp({'ok': False, 'error': 'missing_scope'})], text),
 			([ConnectionError('down')], text),
@@ -190,16 +196,12 @@ class ChartDelivery(FinbotCase):
 				self.slack_answers(*outcomes)
 				self.sent.clear()
 				with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
-					delivery.deliver(transports.SlackBot('C1'), delivery.Report(['*Heading*', 'line 2'], CHART))
+					delivery.deliver(slack_common.SlackBot('C1'), delivery.Report(['*Heading*', 'line 2'], CHART))
 				self.assertEqual(self.sent, expect)
 
-	def test_scheduled_reports_to_slack_carry_charts_only_as_the_bot(self):
-		"""Scheduled reports reach Slack's incoming webhook as text; the Slack bot (slackChannelID) and Telegram get
-		their charts."""
-		self.env(slackBotToken='xoxb-test')
-
-		# an incoming webhook cannot upload
-		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/x'})
+	def test_scheduled_reports_carry_their_charts_to_every_home_chat(self):
+		"""A scheduled report's chart goes to each network's home chat, as its bot."""
+		self.env(slackBotToken='xoxb-test', slackChannelID='C9', discordBotToken='x', discordChannelID='77')
 		sent = []
 		self.patch(transports.Transport, 'chart', lambda dest, image, caption, buttons=None:
 			sent.append((dest.name, 'chart')) or {'ok': True})
@@ -209,39 +211,16 @@ class ChartDelivery(FinbotCase):
 			with self.subTest(report=report):
 				sent.clear()
 				report()
-				self.assertEqual(sorted(set(sent)), [('slack', 'text'), ('telegram', 'chart')])
-				self.env(slackChannelID='C9') # as the bot, the report's chart goes too
-				sent.clear()
-				report()
-				self.assertEqual(sorted(set(sent)), [('slack', 'chart'), ('telegram', 'chart')])
-				self.env(slackChannelID='')
-
-	def test_slack_without_a_bot_token_gets_text_and_no_chart_is_drawn(self):
-		"""Without the bot token, Slack replies are text and no chart is drawn for them."""
-		self.env(slackBotToken=False)
-
-		def refuse(*a, **k):
-			"""Fail: no chart should be drawn."""
-			raise AssertionError('a chart was drawn for Slack')
-		self.patch(render, 'draw', refuse) # every chart is drawn there
-		self.env(webhooks={**config.env.webhooks, 'slack': 'https://hooks.slack.com/services/x'})
-		for cmd in ('.beta', '.pie Rob', '.buy', '.sell', '.peg', '.price', '.price top', '.price T1 7d',
-				'.performance 7d', '.shorts', '.history T1', '.compare T1 T2'):
-			with self.subTest(cmd=cmd):
-				self.sent.clear(); self.errors.clear()
-				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT, 'U'))
-				self.assertEqual(self.errors, [])
-				self.assertTrue(self.sent)
-				self.assertEqual({kind for kind, *_ in self.sent}, {'text'})
+				self.assertEqual(sorted(set(sent)), [('discord', 'chart'), ('slack', 'chart'), ('telegram', 'chart')])
 
 	def test_the_graph_preference_off_sends_no_chart_anywhere(self):
-		"""graph=False means no charts, as the README says; it used to hold back only the price-line charts."""
+		"""graph=False means no charts, as doc/configuration.md says; it held back only the price-line charts."""
 		self.prefs(graph=False)
 
 		self.env(slackBotToken='xoxb-test')
 
 		posts = []
-		self.patch(transports.net, 'post', lambda url, **k: posts.append(url) or Resp({'ok': True, 'result': True}))
+		self.patch(net, 'post', lambda url, **k: posts.append(url) or Resp({'ok': True, 'result': True}))
 		for service, chat in (('telegram', '55'), ('slack', 'C1')):
 			for cmd in ('.price', '.price top', '.performance 7d', '.shorts', '.buy', '.peg', '.beta', '.compare T1 T2',
 					'.pie Rob'):
@@ -267,41 +246,37 @@ class ChartDelivery(FinbotCase):
 		for outcome, expect in ((Resp({'ok': False, 'error_code': 400,
 			'description': "Bad Request: can't parse entities"}, status=400), text),
 								(Resp(None, status=502), text), (ConnectionError('down'), text),
-								(transports.requests.exceptions.ReadTimeout('slow'), []), # it may be there
+								(requests.exceptions.ReadTimeout('slow'), []), # it may be there
 								(Resp({'ok': True, 'result': {'message_id': 1}}), [])):
 			with self.subTest(outcome=outcome):
 				self.sent.clear()
-				self.patch(transports.net, 'post', post(outcome))
+				self.patch(net, 'post', post(outcome))
 				with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
-					delivery.deliver(transports.TelegramBot('5'), delivery.Report(['Heading', 'line 2'], CHART, [[]]))
+					report = delivery.Report(['Heading', 'line 2'], CHART, [[]])
+					delivery.deliver(telegram_common.TelegramBot('5'), report)
 				self.assertEqual(self.sent, expect)
 
 
-class DiscordWebhook(FinbotCase):
-	"""Discord's own webhook endpoint (the Slack-like one takes no flags): no previews, no pings, charts attached."""
-	URL = 'https://discord.com/api/webhooks/1/abc'
+class DiscordSending(FinbotCase):
+	"""Discord's home channel, as the bot: a scheduled report's chart attached, within Discord's 2,000 characters."""
 
 	def setUp(self):
-		"""Discord as the only destination, sent through the real path, its posts recorded."""
+		"""Discord as the only destination, sent through the real path, its calls recorded."""
 		super().setUp()
-		self.env(webhooks={'discord': self.URL})
+		self.env(telegramChatID='', discordBotToken='x', discordChannelID='77')
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
-		self.posts = []
-		self.patch(transports.net, 'post', lambda url, **kwargs: self.posts.append((url, kwargs)) or Resp({'id': '1'}))
-
-	def test_text_goes_to_the_native_endpoint_without_previews_or_pings(self):
-		"""Text goes to the native endpoint with ?wait=true, without previews or mentions."""
-		transports.DiscordWebhook(self.URL).post_text('hello @everyone')
-		url, kwargs = self.posts[0]
-		self.assertEqual(url, self.URL + '?wait=true') # without wait Discord answers 204, which counted as a failure
-		self.assertEqual(kwargs['json'], {'content': 'hello @everyone', 'flags': 4, 'allowed_mentions': {'parse': []}})
+		self.calls = []
+		self.patch(net, 'request', lambda method, url, **kwargs: self.calls.append((url, kwargs))
+			or Resp({'id': '1'}))
 
 	def test_a_scheduled_report_carries_its_chart(self):
-		"""A scheduled Discord report has its chart attached and the report as its message, within 2,000 characters."""
-		price.run()
-		(url, kwargs), = self.posts
-		self.assertEqual(url, self.URL + '?wait=true')
+		"""A scheduled Discord report has its chart attached and the report as its message, within 2,000 characters,
+		without previews or pings."""
+		with contextlib.redirect_stderr(io.StringIO()):
+			price.run()
+		(url, kwargs), = self.calls
+		self.assertEqual(url, 'https://discord.com/api/v10/channels/77/messages')
 		payload = json.loads(kwargs['data']['payload_json'])
 		self.assertEqual((payload['flags'], payload['allowed_mentions'], payload['attachments'][0]['filename']),
 			(4, {'parse': []}, 'chart.png'))
@@ -309,13 +284,14 @@ class DiscordWebhook(FinbotCase):
 		self.assertLessEqual(len(payload['content']), 2000)
 		name, image, kind = kwargs['files']['files[0]']
 		self.assertEqual((name, kind), ('chart.png', 'image/png'))
-		self.assertTrue(image.read().startswith(b'\x89PNG'))
+		self.assertTrue(image.startswith(b'\x89PNG'))
 
 	def test_a_long_report_is_split_by_size(self):
 		"""A long report is split into messages of at most 2,000 characters."""
 		line = 'x' * 150
-		transports.DiscordWebhook(self.URL).text([line] * 30)
-		sizes = [len(kwargs['json']['content']) for _, kwargs in self.posts]
+		with contextlib.redirect_stderr(io.StringIO()):
+			discord_common.DiscordBot('77').text([line] * 30)
+		sizes = [len(kwargs['json']['content']) for _, kwargs in self.calls]
 		self.assertGreater(len(sizes), 2)
 		self.assertTrue(all(size <= 2000 for size in sizes), sizes) # 20 lines a chunk used to make 3,019 characters
 
@@ -325,7 +301,7 @@ class DiscordWebhook(FinbotCase):
 
 
 class SlackSending(FinbotCase):
-	"""Slack replies go through chat.postMessage with the bot token; scheduled reports through the incoming webhook."""
+	"""Slack's messages go through chat.postMessage with the bot token, replies and scheduled reports alike."""
 
 	def setUp(self):
 		"""The real send path, its posts recorded."""
@@ -333,26 +309,24 @@ class SlackSending(FinbotCase):
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
 		self.posts = []
-		self.patch(transports.net, 'post', lambda url, **kwargs: self.posts.append((url, kwargs)) or Resp({'ok': True}))
+		self.patch(net, 'post', lambda url, **kwargs: self.posts.append((url, kwargs)) or Resp({'ok': True}))
 
 	def test_link_previews_are_turned_off_in_the_body(self):
-		"""Link previews are turned off in the body, where Slack reads them, for replies and for the webhook."""
+		"""Link previews are turned off in the body, where Slack reads them."""
 		self.env(slackBotToken='xoxb-test')
 
-		transports.SlackBot('C1').post_text('hi')
-		transports.SlackWebhook('https://hooks.slack.com/services/T/B/x').post_text('hi')
-		(_, reply), (_, hook) = self.posts
+		with contextlib.redirect_stderr(io.StringIO()):
+			slack_common.SlackBot('C1').post_text('hi')
+		(_, reply), = self.posts
 		self.assertEqual((reply['data']['unfurl_links'], reply['data']['unfurl_media']), ('false', 'false'))
-		self.assertEqual((hook['json']['unfurl_links'], hook['json']['unfurl_media']), (False, False))
-		for kwargs in (reply, hook): # they used to go in the headers, where Slack does not look
-			self.assertNotIn('unfurl_links', kwargs['headers'])
+		self.assertNotIn('unfurl_links', reply['headers']) # they used to go in the headers, where Slack does not look
 
 	def test_a_reply_slack_refuses_is_logged_as_failed(self):
 		"""Slack refuses with HTTP 200 and ok false (the bot is not in the channel, say): a failure, logged as one."""
 		self.env(slackBotToken='xoxb-test')
-		self.patch(transports.net, 'post', lambda url, **kwargs: Resp({'ok': False, 'error': 'not_in_channel'}))
+		self.patch(net, 'post', lambda url, **kwargs: Resp({'ok': False, 'error': 'not_in_channel'}))
 		with contextlib.redirect_stderr(io.StringIO()) as err:
-			self.assertIsNone(transports.SlackBot('C1').post_text('hi'))
+			self.assertIsNone(slack_common.SlackBot('C1').post_text('hi'))
 		self.assertIn('Slack chat.postMessage to C1 failed: Slack chat.postMessage: not_in_channel', err.getvalue())
 		self.assertNotIn('OK', err.getvalue())
 
@@ -370,7 +344,7 @@ class SlackSending(FinbotCase):
 
 	def test_a_command_at_work_shows_an_hourglass_on_its_message(self):
 		"""While a command works, ⏳ is on the message it answers (Slack has no typing notice for bots); it comes off
-		once the answer is out, so the answer does not wait for it. Only with that message and the bot token."""
+		once the answer is out, so the answer does not wait for it. Only with that message."""
 		self.env(slackBotToken='xoxb-test')
 		self.patch(transports.Transport, 'TYPING', (0, 7, 10))
 		added = threading.Event()
@@ -380,7 +354,7 @@ class SlackSending(FinbotCase):
 			if url.endswith('/reactions.add'):
 				added.set()
 			return Resp({'ok': True})
-		self.patch(transports.net, 'post', post)
+		self.patch(net, 'post', post)
 		help_text = about.prepare_help
 		self.patch(about, 'prepare_help', lambda *a: (added.wait(5), help_text(*a))[1]) # a command slow enough for ⏳
 		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.help', BOT, 'U', '1.2'))
@@ -388,16 +362,14 @@ class SlackSending(FinbotCase):
 			['reactions.add', 'chat.postMessage', 'reactions.remove'])
 		reaction = {'channel': 'C1', 'timestamp': '1.2', 'name': 'hourglass_flowing_sand'}
 		self.assertEqual((self.posts[0][1]['data'], self.posts[2][1]['data']), (reaction, reaction))
-		self.assertFalse(transports.SlackBot('C1').shows_typing) # no message to put it on
-		self.env(slackBotToken='')
-		self.assertFalse(transports.SlackBot('C1', '1.2').shows_typing)
+		self.assertFalse(slack_common.SlackBot('C1').shows_typing) # no message to put it on
 
 	def test_an_hourglass_slack_refuses_is_tried_once(self):
 		"""⏳ that Slack refuses (a missing scope) is logged and not tried again, and nothing is taken off."""
 		self.env(slackBotToken='xoxb-test')
 		refuse = Resp({'ok': False, 'error': 'missing_scope'})
-		self.patch(transports.net, 'post', lambda url, **kwargs: self.posts.append((url, kwargs)) or refuse)
-		chat = transports.SlackBot('C1', '1.2')
+		self.patch(net, 'post', lambda url, **kwargs: self.posts.append((url, kwargs)) or refuse)
+		chat = slack_common.SlackBot('C1', '1.2')
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			chat.typing()
 			chat.typing()
@@ -411,13 +383,13 @@ class SlackSending(FinbotCase):
 
 		with self.assertRaisesRegex(RuntimeError,
 				'Slack files.getUploadURLExternal: needs slackBotToken in finbot.env'):
-			transports.slack_api('files.getUploadURLExternal', filename='chart.png', length=1) # it was a TypeError
+			slack_common.call('files.getUploadURLExternal', filename='chart.png', length=1) # it was a TypeError
 		self.assertEqual(self.posts, [])
 
 
 class SlackButtons(FinbotCase):
 	"""A chart's period buttons on Slack: a Block Kit message (the report, the chart uploaded into no channel, the
-	buttons) that a press redraws in place, where the presses reach finbot (the bot token and slackOutgoingWebhook)."""
+	buttons) that a press redraws in place, in either mode."""
 	UPLOAD_URL = 'https://files.slack.com/upload/v1/abc'
 
 	def setUp(self):
@@ -427,7 +399,7 @@ class SlackButtons(FinbotCase):
 		self.patch(transports.Transport, 'chart', REAL_CHART)
 		self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack')
 		self.posts, self.refusals, self.waits = [], {}, []
-		self.patch(transports.time, 'sleep', self.waits.append)
+		self.patch(slack_common.time, 'sleep', self.waits.append)
 		def post(url, **kwargs):
 			"""Record the post and answer it: a refusal set for the method, while there is one left, else success."""
 			self.posts.append((url, kwargs))
@@ -438,7 +410,7 @@ class SlackButtons(FinbotCase):
 				return Resp(None, text='OK - 3')
 			return Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': 'F1', 'files': [{'id': 'F1'}],
 				'ts': '1.5'})
-		self.patch(transports.net, 'post', post)
+		self.patch(net, 'post', post)
 
 	def calls(self):
 		"""The methods posted, in order (the upload as 'upload')."""
@@ -481,14 +453,14 @@ class SlackButtons(FinbotCase):
 	def uploading(self):
 		"""Answer each upload with a new file id, F1 first, as Slack does."""
 		uploads = iter(f'F{n}' for n in range(1, 10))
-		record = transports.net.post
+		record = net.post
 		def post(url, **kwargs):
 			"""Answer as Slack does, with a new file id for each upload."""
 			answer = record(url, **kwargs)
 			if url.endswith('/files.getUploadURLExternal'):
 				return Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': next(uploads)})
 			return answer
-		self.patch(transports.net, 'post', post)
+		self.patch(net, 'post', post)
 
 	def test_a_period_shown_again_within_15_minutes_shows_its_upload_again(self):
 		"""A press for a period whose chart was uploaded in the last 15 minutes, for this message or another, shows
@@ -506,7 +478,7 @@ class SlackButtons(FinbotCase):
 		blocks = self.blocks('chat.update')
 		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
 		self.assertTrue(blocks[0]['text']['text'].startswith('*≥ 5% at close'))
-		with state.edit(transports.SLACK_CHARTS, {}) as noted: # 16 minutes on
+		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 16 minutes on
 			for upload in noted['uploads'].values():
 				upload[0] -= 16 * 60 + 1
 		worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|d|5,0')) # 1D again: F3
@@ -528,10 +500,10 @@ class SlackButtons(FinbotCase):
 
 	def test_the_charts_noted_before_uploads_were_reused_are_left_alone(self):
 		"""The chart messages noted as before ({'channel ts': file}) are forgotten, their files never deleted."""
-		state.save(transports.SLACK_CHARTS, {'C1 1.5': 'F0'})
+		state.save(slack_common.SLACK_CHARTS, {'C1 1.5': 'F0'})
 		worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|w|5,0'))
 		self.assertNotIn('files.delete', self.calls())
-		self.assertEqual(state.load(transports.SLACK_CHARTS)['shown'], {'C1 1.5': 'F1'})
+		self.assertEqual(state.load(slack_common.SLACK_CHARTS)['shown'], {'C1 1.5': 'F1'})
 
 	def test_a_chart_not_ready_to_show_is_shown_a_moment_later(self):
 		"""Slack refusing the blocks of a chart just uploaded (invalid_blocks) is asked again after a wait."""
@@ -549,36 +521,117 @@ class SlackButtons(FinbotCase):
 		self.assertEqual(self.posts[-1][1]['data']['channel_id'], 'C1')
 		self.assertEqual((self.waits, self.sent, self.errors), ([1, 2, 4], [], []))
 
-	def test_without_slackOutgoingWebhook_a_chart_has_no_buttons(self):
-		"""Without slackOutgoingWebhook, no press could reach finbot, so a chart goes without buttons."""
-		self.env(slackOutgoingWebhook='')
+	def test_in_socket_mode_a_chart_has_its_buttons_too(self):
+		"""In Socket Mode (no slackOutgoingWebhook) a press reaches finbot over the socket, so a chart has its buttons
+		as in http mode."""
+		self.env(slackOutgoingWebhook='', slackAppToken='xapp-1')
 		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
-		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal'])
-		self.assertEqual(self.posts[-1][1]['data']['channel_id'], 'C1')
+		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
+			'chat.postMessage'])
+		self.assertEqual(self.blocks('chat.postMessage')[-1]['type'], 'actions')
 
 	def test_a_long_report_takes_several_sections(self):
 		"""A report longer than a section takes holds is split into sections, and an empty one takes none."""
 		caption = '\n'.join('x' * 99 for _ in range(70)) # 6,999 characters
-		blocks = transports.chart_blocks(caption, [], 'F1')
+		blocks = slack_common.chart_blocks(caption, [], 'F1')
 		self.assertEqual([block['type'] for block in blocks], ['section'] * 3 + ['image'])
 		self.assertTrue(all(len(block['text']['text']) <= 3000 for block in blocks[:3]))
-		self.assertEqual([block['type'] for block in transports.chart_blocks('', [], 'F1')], ['image'])
+		self.assertEqual([block['type'] for block in slack_common.chart_blocks('', [], 'F1')], ['image'])
 
 	def test_a_chart_message_that_times_out_is_not_posted_again(self):
 		"""A chart with its buttons whose chat.postMessage times out may have arrived: no plain copy follows."""
-		record = transports.net.post
+		record = net.post
 		def post(url, **kwargs):
 			"""Time out on chat.postMessage, as a slow Slack does."""
 			if url.endswith('/chat.postMessage'):
 				self.posts.append((url, kwargs))
-				raise transports.requests.exceptions.ReadTimeout('slow')
+				raise requests.exceptions.ReadTimeout('slow')
 			return record(url, **kwargs)
-		self.patch(transports.net, 'post', post)
+		self.patch(net, 'post', post)
 		with contextlib.redirect_stderr(io.StringIO()):
 			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.postMessage'])
 		self.assertEqual(self.errors, [])
+
+
+
+class EveryNetworkAndMode(FinbotCase):
+	"""One rule for the six networks and modes, in a channel and in a DM: a chart has its period buttons and a .jobs
+	run list its buttons, a command shows the network's notice that finbot is at work, and the reply goes to the chat
+	that asked."""
+	MODES = {
+		('telegram', 'http'): {'telegramOutgoingWebhook': 'https://example.com/telegram'},
+		('telegram', 'pull'): {'telegramOutgoingWebhook': ''},
+		('slack', 'http'): {'slackBotToken': 'xoxb-1', 'slackOutgoingWebhook': 'https://example.com/slack'},
+		('slack', 'pull'): {'slackBotToken': 'xoxb-1', 'slackAppToken': 'xapp-1', 'slackOutgoingWebhook': ''},
+		('discord', 'http'): {'discordBotToken': 'x', 'discordOutgoingWebhook': 'https://example.com/discord',
+			'discordPublicKey': 'ab' * 32},
+		('discord', 'pull'): {'discordBotToken': 'x', 'discordOutgoingWebhook': ''},
+	}
+	CHATS = {'telegram': ('-1001', '55'), 'slack': ('C1', 'D1'), 'discord': ('77', '88')} # a channel, then a DM
+
+	def setUp(self):
+		"""A job in each chat for .jobs run to list, and what each command posts noted with its destination."""
+		super().setUp()
+		self.patch(discord_common.READER, 'bot_id', '99')
+		every = [{'when': '*/20 * * * Mon-Fri', 'reports': 'trades', 'zone': 'UTC', 'on': True}]
+		state.save(jobs.SCHEDULE_FILE, {f'{network}:{chat}': every for network, chats in self.CHATS.items()
+			for chat in chats})
+		scheduler = jobs.Scheduler()
+		with contextlib.redirect_stderr(io.StringIO()):
+			scheduler.load()
+		self.patch(jobs, 'current', scheduler)
+		self.posted = []
+		self.patch(transports.Transport, 'chart', lambda dest, image, caption, buttons=None:
+			self.posted.append((dest, buttons)) or {'ok': True})
+		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None: self.posted.append((dest, buttons))
+			or [])
+		self.updates = 0
+
+	def update(self, network, mode, chat, text):
+		"""The update the network sends for a message in this mode: Discord's http mode has only the slash command."""
+		self.updates += 1
+		n, person = self.updates, {'id': '5', 'username': 'rob', 'first_name': 'Rob'}
+		if network == 'telegram':
+			message = {'message_id': n, 'chat': {'id': int(chat)}, 'from': person, 'text': text}
+			return {'update_id': n, 'message': message}
+		if network == 'slack':
+			return {'type': 'event_callback', 'event_id': f'Ev{n}', 'authorizations': [{'user_id': 'UBOT'}],
+				'event': {'type': 'message', 'channel': chat, 'user': 'U1', 'text': text, 'ts': f'{n}.1'}}
+		if mode == 'pull':
+			return {'id': str(700 + n), 'channel_id': chat, 'author': person, 'content': text}
+		name, _, arguments = text.removeprefix('.').partition(' ')
+		options = [{'name': 'arguments', 'type': 3, 'value': arguments}] if arguments else []
+		who = {'user': person} if chat == '88' else {'member': {'user': person}}
+		return {'id': str(900 + n), 'application_id': '42', 'token': f't{n}', 'type': 2, 'channel_id': chat, **who,
+			'data': {'name': name, 'options': options}}
+
+	def test_every_network_in_both_modes_in_a_channel_and_a_dm(self):
+		"""A chart and a .jobs run list each come with their buttons, in the chat that asked; the command showed the
+		notice that finbot is at work: "typing…" (Telegram, a Discord message), ⏳ on the message (Slack), or Discord's
+		"thinking…" for a slash command, which its answer replaces."""
+		for (network, mode), keys in self.MODES.items():
+			for chat in self.CHATS[network]:
+				with self.subTest(network=network, mode=mode, chat=chat):
+					self.env(**keys)
+					self.posted.clear(); self.typing.clear()
+					answers = []
+					with contextlib.redirect_stderr(io.StringIO()):
+						for text in ('.price', '.jobs run'):
+							answer = bot.take(READERS[network], self.update(network, mode, chat, text))
+							answers.append(answer)
+							if answer.then:
+								answer.then()
+						self.join_workers()
+					self.assertEqual(self.errors, [])
+					self.assertEqual([(dest.where, bool(buttons)) for dest, buttons in self.posted], [(chat, True)] * 2)
+					if network == 'discord' and mode == 'http':
+						self.assertEqual([json.loads(answer.body) for answer in answers], [{'type': 5}] * 2)
+						self.assertTrue(all(dest.interaction and not dest.shows_typing for dest, _ in self.posted))
+					else:
+						self.assertEqual(len(self.typing), 2)
+						self.assertTrue(all(dest.shows_typing for dest in self.typing))
 
 
 if __name__ == '__main__':

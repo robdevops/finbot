@@ -1,5 +1,5 @@
 """The two config files: finbot.env (the startup file, which the launcher loads) and preferences.conf (reloadable)."""
-import ast, contextlib, dataclasses, io, os, re, subprocess, sys, unittest
+import ast, contextlib, dataclasses, io, os, re, shutil, subprocess, sys, types, unittest
 from pathlib import Path
 from unittest import mock
 from tests import common # first: it sets the environment that lib.config reads as it loads
@@ -34,7 +34,7 @@ class Tables(unittest.TestCase):
 	def test_secrets_are_startup_keys(self):
 		"""Every secret is a startup key: preferences.conf holds none."""
 		self.assertTrue(set(config.SECRET_KEYS) <= set(config.STARTUP_KEYS))
-		self.assertEqual(len(config.SECRET_KEYS), 12)
+		self.assertEqual(len(config.SECRET_KEYS), 13)
 
 	def test_unset_preferences_take_their_defaults(self):
 		"""An unset preference takes its field's default, as it is: reading tidies nothing away."""
@@ -42,12 +42,15 @@ class Tables(unittest.TestCase):
 		self.assertEqual(fields(values), fields(config.Prefs()))
 
 	def test_templates_have_every_key_and_the_real_defaults(self):
-		"""defaults/preferences.conf and finbot.env list every key, change no default, and are valid as shipped."""
-		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'preferences.conf')), sorted(config.PREFERENCE_KEYS))
+		"""defaults/preferences.conf lists every key, commented out at its built-in default, so that it sets none;
+		finbot.env lists every key; both are valid as shipped."""
+		template = REPO / 'defaults' / 'preferences.conf'
+		self.assertEqual(sorted(keys_in(template)), sorted(config.PREFERENCE_KEYS))
 		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'finbot.env')), sorted(config.STARTUP_KEYS))
-		prefs = config.read_preferences(REPO / 'defaults' / 'preferences.conf')
-		shipped = config.preference_values(config._getenv_for(prefs))
-		self.assertEqual(fields(shipped), fields(config.Prefs())) # the template changes nothing
+		self.assertEqual((config.read_preferences(template), config.template_keys()), ({}, [])) # it sets nothing
+		shown = dict(re.findall(r'^#([A-Za-z_][A-Za-z0-9_]*)=(.*)$', template.read_text(), re.M)) # #key=value lines
+		self.assertEqual(sorted(shown), sorted(config.PREFERENCE_KEYS))
+		self.assertEqual(fields(config.preference_values(config._getenv_for(shown))), fields(config.Prefs()))
 		startup = config.read_startup_file(REPO / 'defaults' / 'finbot.env')
 		config.startup_values(lambda name, default=None: startup.get(name, default)) # and is valid as it stands
 
@@ -84,7 +87,7 @@ class Parsing(unittest.TestCase):
 
 	def test_a_startup_key_in_preferences_says_where_it_belongs(self):
 		"""A startup key in preferences.conf is sent to finbot.env, without printing its value."""
-		errors = self.errors('slack_webhook=https://x\nip=0.0.0.0\ntelegramChatID=5\nscheduler=False\n')
+		errors = self.errors('slackOutgoingWebhook=https://x\nip=0.0.0.0\ntelegramChatID=5\nscheduler_catchup=3\n')
 		self.assertEqual(len(errors), 4)
 		for line in errors:
 			self.assertIn('belongs in finbot.env (a change needs a restart)', line)
@@ -131,16 +134,38 @@ class Parsing(unittest.TestCase):
 				self.assertEqual(values.exchange_suffix, suffix)
 		self.assertEqual(config.preference_values(config._getenv_for({})).exchange_suffix, 'AX') # unset: the default
 
+	def test_log_level_is_one_of_syslogs_levels_in_any_case(self):
+		"""log_level takes ERROR, WARN, INFO or DEBUG, in any case, INFO by default; anything else is a mistake that
+		names the levels."""
+		for given, level in (('warn', 'WARN'), ('Debug', 'DEBUG'), ('ERROR', 'ERROR'), ('', 'INFO')):
+			with self.subTest(log_level=given):
+				values = config.preference_values(config._getenv_for({'log_level': given}))
+				self.assertEqual(values.log_level, level)
+		with self.assertRaises(config.ConfigError) as caught:
+			config.preference_values(config._getenv_for({'log_level': 'loud'}))
+		self.assertEqual(caught.exception.errors, ["log_level='loud' is not one of ERROR, WARN, INFO, DEBUG"])
+
 	def test_a_retired_key_is_accepted_and_said_to_do_nothing(self):
-		"""A key finbot no longer reads (alliterate, say) does not stop a start, as an unknown key would: it is ignored,
-		and the log at start says to delete it."""
+		"""A key finbot no longer reads (alliterate in preferences.conf, slack_webhook in finbot.env, say) does not stop
+		a start, as an unknown key would: it is ignored, and the log at start (and check_config) says what to do
+		instead."""
 		path = Path(common.temp_dir(self), 'preferences.conf')
 		path.write_text(''.join(f'{key}=True\n' for key in config.RETIRED) + 'future_days=45\n')
 		values = config.read_preferences(path)
 		self.assertEqual(config.preference_values(config._getenv_for(values)).future_days, 45)
-		notes = [f'{key} in preferences.conf does nothing any more: delete the line' for key in config.RETIRED]
+		notes = [f'{key} in preferences.conf does nothing any more: {instead}'
+			for key, instead in config.RETIRED.items()]
 		self.assertEqual(config.retired_notes(values), notes)
 		self.assertEqual(check_config.notes(path), config.retired_notes(values))
+		startup = Path(common.temp_dir(self), 'finbot.env')
+		startup.write_text('slack_webhook=https://hooks.slack.com/services/x\nport=80\n')
+		self.assertEqual(check_config.check(startup, path), [])
+		self.assertEqual(check_config.notes(path, startup)[0], 'slack_webhook in finbot.env does nothing any more:'
+			' the scheduled reports go to slackChannelID as the bot (slackBotToken); set those, and delete the line')
+		with mock.patch.dict(os.environ, {'discord_webhook': 'https://discord.com/api/webhooks/1/x'}):
+			report = config.startup_report()
+		self.assertIn('discord_webhook in finbot.env does nothing any more: the scheduled reports go to'
+			' discordChannelID as the bot (discordBotToken); set those, and delete the line', report)
 
 	def test_unreadable_file_is_an_error_naming_it(self):
 		"""A preferences file that cannot be read is an error that names it."""
@@ -170,16 +195,27 @@ class Parsing(unittest.TestCase):
 	def test_startup_file_linting(self):
 		"""util/check_config.py reports bad lines in finbot.env first, then bad values, and nothing for a good file."""
 		path = Path(common.temp_dir(self), 'finbot.env')
-		path.write_text('ip=1.2.3.4\nfuture_days=3\nslak_webhook=x\nport=http\n')
+		path.write_text('ip=1.2.3.4\nfuture_days=3\nslackBotTokn=x\nport=http\n')
 		problems = check_config.check(path, Path(common.temp_dir(self), 'none'))
 		self.assertEqual(len(problems), 2) # the two bad lines; the bad value is only found once the lines are valid
 		self.assertIn('future_days belongs in preferences.conf (it is reloadable)', problems[0])
-		self.assertIn('unknown key slak_webhook (did you mean slack_webhook?)', problems[1])
+		self.assertIn('unknown key slackBotTokn (did you mean slackBotToken?)', problems[1])
 		path.write_text('port=http\n')
 		nowhere = Path(common.temp_dir(self), 'none')
 		self.assertIn("port='http' is not a whole number", check_config.check(path, nowhere)[0])
 		path.write_text('port=80\n')
 		self.assertEqual(check_config.check(path, Path(common.temp_dir(self), 'none')), [])
+
+	def test_check_config_gives_the_startup_warnings_of_a_valid_file(self):
+		"""check_config shows what bot.py would warn about at start for the file it checks: here a Telegram token for
+		a webhook that is not set (pull mode)."""
+		path = Path(common.temp_dir(self), 'finbot.env')
+		path.write_text('telegramOutgoingToken=tok\n')
+		self.assertEqual(check_config.check(path, Path(common.temp_dir(self), 'none')), [])
+		self.assertEqual(check_config.warnings(path), ['telegramOutgoingToken is set but telegramOutgoingWebhook is'
+			' not: finbot fetches its Telegram updates (pull mode), and the token is not used'])
+		path.write_text('telegramOutgoingToken=tok\ntelegramOutgoingWebhook=https://example.com/t\n')
+		self.assertEqual(check_config.warnings(path), [])
 
 
 class Reload(unittest.TestCase):
@@ -204,9 +240,8 @@ class Reload(unittest.TestCase):
 	def test_a_change_is_seen_at_once(self):
 		"""A reload applies every change, says which, and swaps in a new object, so no request sees half a reload."""
 		self.write('future_days=45\nprice_percent=7\nshorts_percent=12\nexclude_portfolios=1156263\n'
-			'exchange_suffix=nz\nhyperlinkProvider=yahoo\n'
-			'hyperlinkFooter=false\ndebug=1\ngraph=0\ndemote_volatile=0\nvolatility_multiplier=3\npast_days=14\n'
-			'min_analysts=3\n')
+			'exchange_suffix=nz\nhyperlinkProvider=yahoo\nhyperlinkFooter=false\nlog_level=debug\ngraph=0\n'
+			'demote_volatile=0\nvolatility_multiplier=3\npast_days=14\nmin_analysts=3\n')
 		before = config.prefs
 		changes = config.reload()
 		self.assertEqual(len(changes), 13)
@@ -217,8 +252,8 @@ class Reload(unittest.TestCase):
 		prefs = config.prefs
 		self.assertEqual((prefs.exclude_portfolios, prefs.exchange_suffix, prefs.hyperlinkProvider,
 			prefs.hyperlinkFooter), (('1156263',), 'NZ', 'yahoo', False))
-		self.assertEqual((config.prefs.debug, config.prefs.graph, config.prefs.demote_volatile,
-			config.prefs.volatility_multiplier), (True, False, False, 3.0))
+		self.assertEqual((config.prefs.log_level, config.prefs.graph, config.prefs.demote_volatile,
+			config.prefs.volatility_multiplier), ('DEBUG', False, False, 3.0))
 		self.assertEqual(config.reload(), []) # nothing more to change
 
 	def test_a_value_removed_from_the_file_goes_back_to_its_default(self):
@@ -249,7 +284,7 @@ class Reload(unittest.TestCase):
 		self.write('future_days=45\n')
 		config.reload()
 		for text in ('future_days=3\nprice_percent=abc\n', 'future_days=3\nfutur_days=4\n',
-				'future_days=3\nslack_webhook=x\n'):
+				'future_days=3\nslackBotToken=x\n'):
 			self.write(text)
 			with self.assertRaises(config.ConfigError):
 				config.reload()
@@ -289,38 +324,17 @@ class Reload(unittest.TestCase):
 					offenders.append(f'{path.name}:{node.lineno} module constant')
 		self.assertEqual(offenders, [])
 
-	def test_a_job_process_runs_on_the_snapshot_not_the_edited_file(self):
-		"""A job process gets the bot's preferences in its environment and does not read the file, which may have been
-		edited since; a script run by hand reads the file."""
-		self.write('future_days=45\n')
-		config.reload()
-		env = config.child_environment()
-		self.assertEqual((env['future_days'], env[config.PASSED]), ('45', '1'))
-		self.write('future_days=99\n') # edited, no reload sent
-		data = common.temp_dir(self)
-		Path(data, 'preferences.conf').write_text('future_days=99\n')
-		show = "from lib import config as c; print(c.prefs.future_days)"
-		parent = {k: v for k, v in os.environ.items() if k not in config.PREFERENCE_KEYS and k != config.PASSED}
-		run = lambda **extra: subprocess.run([sys.executable, '-c', show], cwd=REPO, capture_output=True, text=True,
-			check=True, env={**parent, 'DATA_DIR': data, **extra}).stdout.split()[-1]
-		self.assertEqual(run(**env), '45') # the parent's values, and the file is not read
-		self.assertEqual(run(), '99') # a script run by hand reads the file itself
-
-	def test_run_child_hands_the_snapshot_to_the_job(self):
-		"""run_child passes the preferences in force to the job process."""
+	def test_a_scheduled_job_runs_on_the_preferences_in_force_not_the_edited_file(self):
+		"""A scheduled job runs in the bot's process, on the preferences of the last reload: a file edited since, and
+		not reloaded, is not read."""
 		from lib import jobs
-		seen = {}
-		real = jobs.subprocess.Popen
-		def popen(args, **kw):
-			"""Note the environment the job is started with, and run a no-op instead."""
-			seen.update(kw.get('env', {}))
-			return real([sys.executable, '-c', 'pass'])
+		seen = []
 		self.write('future_days=45\n')
 		config.reload()
-		with mock.patch.object(jobs.subprocess, 'Popen', popen):
-			from lib.reports import cleanup
-			self.assertEqual(jobs.run_child('cleanup.py', cleanup, {}), 0)
-		self.assertEqual((seen['future_days'], seen[config.PASSED]), ('45', '1'))
+		self.write('future_days=99\n') # edited, no reload sent
+		module = types.SimpleNamespace(run=lambda: seen.append(config.prefs.future_days))
+		jobs.run_in_process('look.py', module, {})
+		self.assertEqual(seen, [45])
 
 
 class Startup(unittest.TestCase):
@@ -346,11 +360,32 @@ class Startup(unittest.TestCase):
 		"""A bad value, unknown key, startup key or malformed line in preferences.conf stops the start, saying why."""
 		for prefs, expect in (('future_days=abc\n', "future_days='abc' is not a whole number"),
 			('futur_days=1\n', 'unknown key futur_days'),
-				('slack_webhook=x\n', 'belongs in finbot.env'), ('what\n', 'expected KEY=value')):
+				('slackBotToken=x\n', 'belongs in finbot.env'), ('what\n', 'expected KEY=value')):
 			out = self.run_config(prefs=prefs)
 			self.assertEqual(out.returncode, 1, prefs)
 			self.assertIn('ERROR config:', out.stderr)
 			self.assertIn(expect, out.stderr)
+
+	def test_the_template_is_never_read_and_a_key_set_there_is_pointed_elsewhere(self):
+		"""defaults/preferences.conf is only a template: a key set there changes nothing, and the log at start says to
+		set it in the data dir's preferences.conf, or to make that file first with util/sync_defaults.py."""
+		tree = Path(common.temp_dir(self)) # config.py and a template of its own, which sets a key
+		(tree / 'lib').mkdir()
+		shutil.copy(REPO / 'lib' / 'config.py', tree / 'lib')
+		(tree / 'defaults').mkdir()
+		(tree / 'defaults' / 'preferences.conf').write_text('# a comment\n#past_days=28\nfuture_days=45\n')
+		code = 'from lib import config as c; print(c.prefs.future_days); print(*c.startup_warnings(), sep="\\n")'
+		for made in (False, True):
+			data = common.temp_dir(self)
+			if made:
+				Path(data, 'preferences.conf').write_text('#future_days=30\n')
+			with self.subTest(preferences_conf=made):
+				out = subprocess.run([sys.executable, '-c', code], cwd=tree,
+					env={**common.bare_environment(), 'DATA_DIR': data}, capture_output=True, text=True)
+				conf = f'{data}/preferences.conf'
+				fix = f'edit {conf} instead' if made else f'run util/sync_defaults.py --apply, then edit {conf}'
+				self.assertEqual(out.stdout.split('\n')[:2], ['30',
+					f'defaults/preferences.conf sets future_days, but finbot never reads it: {fix}'], out.stderr)
 
 	def test_an_unreadable_preferences_file_refuses_to_start(self):
 		"""A preferences.conf that cannot be read stops the start."""
@@ -370,14 +405,12 @@ class Startup(unittest.TestCase):
 	def test_a_preference_in_the_environment_is_refused_by_the_bot(self):
 		"""A preference in the bot's environment (finbot.env) is refused, but a job process gets its preferences that
 		way, and startup keys belong there."""
-		with mock.patch.dict(os.environ, {'future_days': '30', 'debug': '1'}):
+		with mock.patch.dict(os.environ, {'future_days': '30', 'log_level': 'DEBUG'}):
 			with self.assertRaises(config.ConfigError) as caught:
 				config.check_startup_environment()
 		self.assertEqual(len(caught.exception.errors), 2)
 		self.assertIn('future_days is a preference; move it from finbot.env to preferences.conf',
 			'\n'.join(caught.exception.errors))
-		with mock.patch.dict(os.environ, {'future_days': '30', config.PASSED: '1'}):
-			config.check_startup_environment() # a job process gets its preferences this way
 		with mock.patch.dict(os.environ, {'ip': '1.2.3.4', 'telegramChatID': '5'}):
 			config.check_startup_environment() # startup keys are what the environment is for
 
@@ -401,42 +434,92 @@ class Startup(unittest.TestCase):
 		self.assertIn('/util/split_env.py, which writes finbot.env.new and preferences.conf.new',
 			caught.exception.errors[1])
 
-	def test_a_discord_webhook_uses_the_native_endpoint(self):
-		"""A Discord webhook URL is used as is, its old /slack suffix removed."""
-		# the old setup's suffix
-		for url in ('https://discord.com/api/webhooks/1/abc', 'https://discord.com/api/webhooks/1/abc/slack/'):
-			values = config.startup_values(lambda name, default=None: url if name == 'discord_webhook' else default)
-			self.assertEqual(values.webhooks['discord'], 'https://discord.com/api/webhooks/1/abc')
+	def test_the_telegram_api_is_the_bot_tokens(self):
+		"""Telegram's Bot API base is made from the bot token (a trailing slash dropped), and is empty without one."""
+		for token, api in (('123:abc', 'https://api.telegram.org/bot123:abc/'), ('123:abc/',
+				'https://api.telegram.org/bot123:abc/'), ('', '')):
+			values = config.startup_values(lambda name, default=None: token if name == 'telegramBotToken' else default)
+			self.assertEqual(values.telegram_api, api)
 
 	def test_settings_that_leave_part_of_the_bot_unable_to_work_are_warned_about(self):
 		"""A startup warning for Slack commands or slackChannelID without slackBotToken (no reply, no reports there),
 		and for an inbound webhook without its secret (every request would be refused)."""
 		hooks = dict(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok',
 			slackBotToken='xoxb-1', telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
+		deaf = ('slackBotToken is set but neither slackAppToken nor slackOutgoingWebhook is: finbot hears nothing from'
+			' Slack, so its commands and buttons get no answer')
 		no_reply = 'slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply'
 		slack_refused = ('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
 			' every Slack request will be refused')
 		telegram_refused = ('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update'
 			' will be refused')
 		no_bot = 'slackChannelID is set but slackBotToken is not: scheduled reports cannot go there as the bot'
+		unused = ('telegramOutgoingToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram updates'
+			' (pull mode), and the token is not used')
+		app_no_reply = 'slackAppToken is set but slackBotToken is not: Slack commands will get no reply'
+		app_unused = ('slackAppToken is set but so is slackOutgoingWebhook: Slack posts its updates there (http mode),'
+			' and the app-level token is not used')
+		not_app = ("slackAppToken does not start with xapp-: it must be an app-level token (the app's Basic"
+			' Information, App-Level Tokens), not the bot token')
+		bad_secret = ("telegramOutgoingToken is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the"
+			" webhook's secret, so setting the webhook will fail")
 		cases = (({}, []), ({'slackBotToken': ''}, [no_reply]), ({'slackOutgoingToken': ''}, [slack_refused]),
 			({'slackChannelID': 'C9'}, []), ({'slackChannelID': 'C9', 'slackBotToken': ''}, [no_reply, no_bot]),
 			({'slackOutgoingToken': '', 'slackSigningSecret': 's'}, []),
-			({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, []))
+			({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, [unused]),
+			({'telegramOutgoingWebhook': '', 'telegramOutgoingToken': ''}, []),
+			({'telegramOutgoingToken': 'A-z_09' * 40}, []), ({'telegramOutgoingToken': 'x' * 257}, [bad_secret]),
+			({'telegramOutgoingToken': 'pass word!'}, [bad_secret]),
+			({'slackOutgoingWebhook': '', 'slackAppToken': 'xapp-1'}, []),
+			({'slackOutgoingWebhook': '', 'slackAppToken': 'xapp-1', 'slackBotToken': ''}, [app_no_reply]),
+			({'slackAppToken': 'xapp-1'}, [app_unused]),
+			({'slackOutgoingWebhook': '', 'slackAppToken': 'xoxb-1'}, [not_app]),
+			({'slackOutgoingWebhook': ''}, [deaf]))
 		for changes, warnings in cases:
 			with self.subTest(changes=changes), \
 					mock.patch.object(config, 'env', dataclasses.replace(config.env, **{**hooks, **changes})):
 				self.assertEqual(config.startup_warnings(), warnings)
 
+	def test_discord_settings_that_leave_part_of_it_unable_to_work_are_warned_about(self):
+		"""A startup warning for Discord's endpoint or channel without the bot token, the endpoint without the app's
+		public key (every interaction refused), and the key without the endpoint (the gateway is used)."""
+		key = 'ab' * 32
+		http = dict(discordBotToken='x', discordOutgoingWebhook='https://example.com/discord', discordPublicKey=key)
+		no_reply = 'discordOutgoingWebhook is set but discordBotToken is not: Discord commands will get no reply'
+		no_bot = 'discordChannelID is set but discordBotToken is not: scheduled reports cannot go there as the bot'
+		refused = ("discordOutgoingWebhook is set but discordPublicKey is not the app's public key (64 hex digits):"
+			' every Discord interaction will be refused')
+		unused = ('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway (pull'
+			' mode), and the key is not used')
+		cases = (({}, []), ({'discordBotToken': ''}, [no_reply]), ({'discordChannelID': '77'}, []),
+			({'discordChannelID': '77', 'discordBotToken': '', 'discordOutgoingWebhook': ''}, [no_bot, unused]),
+			({'discordPublicKey': 'not-hex'}, [refused]), ({'discordPublicKey': ''}, [refused]),
+			({'discordOutgoingWebhook': ''}, [unused]), ({'discordOutgoingWebhook': '', 'discordPublicKey': ''}, []))
+		for changes, warnings in cases:
+			with self.subTest(changes=changes), \
+					mock.patch.object(config, 'env', dataclasses.replace(config.env, **{**http, **changes})):
+				self.assertEqual(config.startup_warnings(), warnings)
+
 	def test_startup_report_is_a_short_count_never_names_or_values(self):
-		"""The startup report counts the startup keys set, and never names them or shows their values."""
-		with mock.patch.dict(os.environ, {'slack_webhook': 'https://secret.example/abc', 'port': '5000'}, clear=True):
+		"""The startup report counts the startup keys set and the preferences, and never names them or shows their
+		values."""
+		with mock.patch.dict(os.environ, {'slackOutgoingWebhook': 'https://secret.example/abc', 'port': '5000'},
+				clear=True):
 			lines = config.startup_report()
-		keys = len(config.STARTUP_KEYS)
-		self.assertEqual(lines[0], f'startup environment provides 2 of {keys} startup keys (values hidden)')
-		self.assertLessEqual(len('config: ' + lines[0]), 90) # the path in the second line depends on where DATA_DIR is
+		self.assertEqual(lines[0], 'startup environment (2 keys set)')
 		self.assertNotIn('secret.example', ''.join(lines))
-		self.assertNotIn('slack_webhook', ''.join(lines))
+		self.assertNotIn('slackOutgoingWebhook', ''.join(lines))
+		with mock.patch.dict(os.environ, {'port': '5000'}, clear=True):
+			self.assertEqual(config.startup_report()[0], 'startup environment (1 key set)')
+		conf = Path(common.temp_dir(self), 'preferences.conf')
+		conf.write_text('graph = false\n')
+		for source, count in (({'graph': 'false'}, '1 key'), ({'log_level': 'DEBUG', 'graph': 'false'}, '2 keys')):
+			with self.subTest(source=source), mock.patch.object(config, 'preferences_path', str(conf)), \
+					mock.patch.object(config, 'prefs', dataclasses.replace(config.prefs, source=source)):
+				self.assertEqual(config.startup_report()[1], f'{conf} ({count} set; SIGHUP to reload)')
+		with mock.patch.object(config, 'preferences_path', str(conf.with_name('missing.conf'))):
+			self.assertEqual(config.startup_report()[1], f'no preferences.conf in {config.env.data_dir}, reload'
+				' unavailable')
 
 
 class SigHup(unittest.TestCase):
@@ -446,54 +529,58 @@ class SigHup(unittest.TestCase):
 			file.write_text('')
 			config.reload()
 
-	def test_reload_all_reloads_preferences_and_the_schedule_independently(self):
-		"""SIGHUP reloads preferences, keeping the running ones on an error (logged), and the schedule regardless."""
+	def test_reload_all_reloads_preferences_and_keeps_them_on_an_error(self):
+		"""SIGHUP reloads preferences; on an error (logged) the running ones stay, and the bot survives it. The jobs
+		need no reload: a change made with .jobs counts at once."""
 		file = Path(common.temp_dir(self), 'preferences.conf')
 		file.write_text('future_days=45\n')
-		scheduler = mock.Mock()
 		self.addCleanup(self.restore, file)
-		with mock.patch.object(config, 'preferences_path', str(file)), mock.patch.object(bot, 'scheduler', scheduler):
+		with mock.patch.object(config, 'preferences_path', str(file)):
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
 				bot.reload_all()
 			self.assertIn('config: future_days 30 -> 45', err.getvalue())
-			scheduler.reload.assert_called_once()
-			# a preferences error does not stop the schedule reload, and the bot survives it
 			file.write_text('futur_days=1\n')
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
 				bot.reload_all()
 			self.assertIn('ERROR config:', err.getvalue())
-			self.assertEqual(scheduler.reload.call_count, 2)
 			self.assertEqual(config.prefs.future_days, 45)
 
-	def test_reload_with_the_scheduler_off_still_reloads_preferences(self):
-		"""With the scheduler off, SIGHUP still reloads preferences."""
+	def test_a_reload_points_a_key_set_in_the_template_at_the_file_to_set_it_in(self):
+		"""A key set in defaults/preferences.conf, which finbot never reads, is reported on a reload too, with the file
+		to set it in."""
 		file = Path(common.temp_dir(self), 'preferences.conf')
-		file.write_text('future_days=11\n')
+		file.write_text('')
 		self.addCleanup(self.restore, file)
-		with mock.patch.object(config, 'preferences_path', str(file)), mock.patch.object(bot, 'scheduler', None):
-			with contextlib.redirect_stderr(io.StringIO()):
+		template = Path(common.temp_dir(self), 'template.conf')
+		template.write_text('#past_days=28\nlog_level=DEBUG\n')
+		with mock.patch.object(config, 'preferences_path', str(file)), mock.patch.object(config, 'TEMPLATE', template):
+			with contextlib.redirect_stderr(io.StringIO()) as err:
 				bot.reload_all()
-			self.assertEqual(config.prefs.future_days, 11)
+		self.assertIn(f'WARN config: defaults/preferences.conf sets log_level, but finbot never reads it: edit {file}'
+			' instead', err.getvalue())
+		self.assertEqual(config.prefs.log_level, 'INFO')
 
 
 class Tools(unittest.TestCase):
 	def test_split_env(self):
 		"""split_env sorts an old .env into startup keys and prefs, renames volatile_multiplier, lists what it drops."""
-		startup, prefs, notes = split_env.split('slack_webhook=x\nfuture_days=3\nvolatile_multiplier=2\nslackToken=y\n'
-			'STATE_DIRECTORY=/a\nbogus=1\nnot a setting\n# c\nport=80\n')
-		self.assertEqual(startup, ['slack_webhook=x', 'port=80'])
+		startup, prefs, notes = split_env.split('slackBotToken=x\nfuture_days=3\nvolatile_multiplier=2\nslackToken=y\n'
+			'STATE_DIRECTORY=/a\nbogus=1\nnot a setting\n# c\nport=80\nslack_webhook=z\n')
+		self.assertEqual(startup, ['slackBotToken=x', 'port=80'])
 		self.assertEqual(prefs, ['future_days=3', 'volatility_multiplier=2'])
-		self.assertEqual(len(notes), 4)
+		self.assertEqual(len(notes), 5)
 		self.assertTrue(any('slackToken dropped' in n for n in notes) and any('unknown key bogus' in n for n in notes))
+		self.assertIn('line 10: slack_webhook dropped: the scheduled reports go to slackChannelID', notes[-1])
 
 	def test_split_env_reads_the_old_dotenv_format_too(self):
 		"""split_env reads the old dotenv format: quotes, export, comments after values and # inside URLs."""
-		old = ("# c\nfuture_days = '30' # note\nexport slack_webhook = \"https://x/#frag\"\nport = 80 # comment\nbare\n"
-			"discord_webhook=http://y/#z\n\n")
+		old = ("# c\nfuture_days = '30' # note\nexport slackOutgoingWebhook = \"https://x/#frag\"\nport = 80 # note\n"
+			"bare\ndiscordOutgoingWebhook=http://y/#z\n\n")
 		startup, prefs, notes = split_env.split(old)
-		self.assertEqual(startup, ['slack_webhook=https://x/#frag', 'port=80', 'discord_webhook=http://y/#z'])
+		self.assertEqual(startup, ['slackOutgoingWebhook=https://x/#frag', 'port=80',
+			'discordOutgoingWebhook=http://y/#z'])
 		self.assertEqual(prefs, ['future_days=30'])
 		self.assertEqual(notes, ['.env line 5: not KEY=value, left out'])
 

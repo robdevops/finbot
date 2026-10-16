@@ -1,9 +1,8 @@
 """Shared fixture: points finbot at a temp cache dir and replaces every external service
 (Telegram, Yahoo, Sharesight, Short Man) with canned data. Nothing here touches the network. ProviderCase runs the real
 parsers instead, on the API answers saved under doc/ (sample) as a stand-in network returns them (Resp, serve)."""
-import collections, dataclasses, io, json, os, shutil, sys, tempfile, time, unittest, zoneinfo
+import collections, dataclasses, datetime, io, json, os, shutil, sys, tempfile, time, unittest, zoneinfo
 from pathlib import Path
-import pandas as pd
 from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -12,10 +11,10 @@ os.chdir(ROOT)
 os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok',
 	telegramChatID='1')
 
-# first, and once: it monkey-patches with gevent, which must happen before requests imports ssl and never mid-test
 import bot
-from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, render
-from lib import sharesight, shortman, state, telegram, transports, watchlist, worker, yahoo
+from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, net
+from lib import render, sharesight, shortman, state, transports, watchlist, worker, yahoo
+from lib import discord_common, slack_common, telegram_common # each network's reader and bot
 from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating
 from lib.reports import reminder, shorts, trades
 
@@ -23,12 +22,19 @@ REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'f
 	(yahoo, 'price_history'), (yahoo, 'historic_high'),
 	(sharesight, '_portfolios'), (sharesight, '_trades'), (sharesight, '_performance'))}
 REAL_GET_HOLDINGS = watchlist.with_holdings
+REAL_DISPATCH = bot.dispatch # FinbotCase notes the worker thread of each update, so that a test can wait for it
+REAL_DOUBLED = bot.doubled # FinbotCase takes every message, a repeat sent on purpose too; DoubledMessages puts it back
+
+
+def no_jobs(data):
+	"""No chat's jobs in a data dir, so that a bot started there runs no scheduled report (and migrates none)."""
+	Path(data, 'finbot_schedule.json').write_text('{}')
 
 
 def bare_environment():
-	"""os.environ without finbot's settings (the startup keys, the preferences, the flag that hands a job its
-	preferences): for a process that must start from the defaults."""
-	settings = {*config.STARTUP_KEYS, *config.PREFERENCE_KEYS, config.PASSED}
+	"""os.environ without finbot's settings (the startup keys and the preferences): for a process that must start from
+	the defaults."""
+	settings = {*config.STARTUP_KEYS, *config.PREFERENCE_KEYS}
 	return {k: v for k, v in os.environ.items() if k not in settings}
 
 
@@ -47,12 +53,14 @@ REAL_SENDING = ((transports.Transport, 'text', REAL_TEXT), (transports.Transport
 	(delivery, 'report_error', REAL_REPORT_ERROR))
 TICKERS = [f'T{i}' for i in range(25)]
 TELEGRAM, SLACK, DISCORD = dialects.TELEGRAM, dialects.SLACK, dialects.DISCORD
+READERS = {'telegram': telegram_common.READER, 'slack': slack_common.READER, 'discord': discord_common.READER}
 BOT = '@bot'
 
 
 def wsgi_environ(path, body, **headers):
 	"""A WSGI environ posting `body` (bytes) to `path`, with these headers (as HTTP_* keys)."""
-	return {'PATH_INFO': path, 'wsgi.input': io.BytesIO(body), 'CONTENT_LENGTH': str(len(body)), **headers}
+	return {'REQUEST_METHOD': 'POST', 'PATH_INFO': path, 'wsgi.input': io.BytesIO(body),
+		'CONTENT_LENGTH': str(len(body)), **headers}
 
 
 def skip_if_old_env(case):
@@ -64,17 +72,20 @@ def skip_if_old_env(case):
 STATES = ('REGULAR', 'PRE', 'POST', 'CLOSED')
 
 
+NOW = time.time() # one moment for every fixture quote: fetched together in threads, they still tie on their dates
+
+
 def market_entry(ticker):
 	"""A Yahoo quote for a fixture ticker; T0 to T24 vary in market state, move, rating and so on, so that every
 	threshold, sort and branch has rows."""
 	i = int(ticker[1:]) if ticker[1:].isdigit() else 0 # varied data so threshold/sort/sell branches all have rows
-	return {'marketState': STATES[i % 4], 'regularMarketTime': time.time(), 'quoteType': 'EQUITY',
+	return {'marketState': STATES[i % 4], 'regularMarketTime': NOW, 'quoteType': 'EQUITY',
 			'profile_title': 'Co ' + ticker, 'profile_exchange': 'NasdaqGS', 'percent_change': (i - 12) * 1.5,
 			'percent_change_premarket': (i - 12) * 1.5, 'percent_change_postmarket': (i - 12) * 1.5,
 			'market_cap': 1e9, 'price_to_earnings_trailing': 9, 'price_to_earnings_forward': 9,
 			'beta': 2.0, 'short_percent': 20, 'fiftyTwoWeekHigh': 120.0, 'fiftyTwoWeekLow': 80.0,
-			'regularMarketPrice': 100.0, 'earnings_date': time.time() + 86400 * 3,
-			'ex_dividend_date': time.time() + 86400 * 3, 'recommend': 'buy' if i % 2 else 'sell',
+			'regularMarketPrice': 100.0, 'earnings_date': NOW + 86400 * 3,
+			'ex_dividend_date': NOW + 86400 * 3, 'recommend': 'buy' if i % 2 else 'sell',
 			'recommend_index': 1.2 if i % 2 else 4.2, 'recommend_analysts': 8, 'price_to_earnings_peg': 1.2,
 			'currency': 'USD'}
 
@@ -87,6 +98,18 @@ class FinbotCase(unittest.TestCase):
 		p = mock.patch.object(target, attr, value)
 		p.start()
 		self.addCleanup(p.stop)
+
+	def join_workers(self):
+		"""Wait for the worker thread of every update taken so far (bot.dispatch starts one each)."""
+		for thread in self.workers:
+			thread.join(10)
+
+	def press_button(self, data, chat_id=55, message_id=9):
+		"""Press a button under one of the bot's Telegram messages, as the update arrives: bot.take acknowledges it
+		(answerCallbackQuery) and hands it to the worker, whose thread this waits for."""
+		bot.take(telegram_common.READER, {'callback_query': {'id': 'cb', 'from': {'username': 'u'}, 'data': data,
+			'message': {'message_id': message_id, 'chat': {'id': chat_id}}}})
+		self.join_workers()
 
 	def env(self, **changes):
 		"""Startup settings for this test: config.env with these fields changed."""
@@ -104,8 +127,13 @@ class FinbotCase(unittest.TestCase):
 		self.patch(__import__('requests').Session, 'request', mock.Mock(return_value=fake)) # no real network traffic
 		tmp = tempfile.TemporaryDirectory()
 		self.addCleanup(tmp.cleanup)
-		self.env(data_dir=tmp.name, cache_dir=tmp.name, webhooks={'telegram': 'https://api.telegram.org/botX/'})
+		self.env(data_dir=tmp.name, cache_dir=tmp.name, telegramBotToken='X',
+			telegram_api='https://api.telegram.org/botX/')
 		self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
+		self.patch(bot, '_said', {}) # nor any message
+		self.patch(bot, 'doubled', lambda message: False) # a test may send the same message twice on purpose
+		self.workers = []
+		self.patch(bot, 'dispatch', lambda event: self.workers.append(REAL_DISPATCH(event)))
 		self.sent = []
 		self.markups = [] # reply_markup of each photo sent
 		self.errors = []
@@ -114,7 +142,7 @@ class FinbotCase(unittest.TestCase):
 		self.patch(transports.Transport, 'chart', lambda dest, image, caption, markup=None:
 			self.record_chart(dest, image, caption, markup))
 		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None: self.record_text(dest, lines))
-		self.patch(watchlist, 'with_holdings', lambda: TICKERS)
+		self.patch(watchlist, 'with_holdings', lambda chat: TICKERS)
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
 		moved = {t: float(i * 4 - 40) for i, t in enumerate(TICKERS)} # each stock's move over any period
@@ -123,9 +151,9 @@ class FinbotCase(unittest.TestCase):
 			())))
 		self.patch(yahoo, 'prefetch_history', lambda ts: None)
 		self.patch(yahoo, 'historic_high', lambda t: (100.0, 50.0))
-		dates = pd.date_range(end=pd.Timestamp.today().normalize(), periods=400)
-		self.patch(yahoo, 'price_series',
-			lambda t: ('Co ' + t, 'NASDAQ', pd.Series(range(100, 500), index=dates, name=t, dtype=float)))
+		today = datetime.date.today() # 400 days of closes, to today: 100, 101, ... 499
+		closes = tuple((today - datetime.timedelta(days=399 - i), float(100 + i)) for i in range(400))
+		self.patch(yahoo, 'price_series', lambda t: ('Co ' + t, 'NASDAQ', closes))
 		self.patch(shortman, 'fetch', lambda md: md)
 		held = [{'id': i, 'instrument': {'code': t, 'market_code': 'NASDAQ'}, 'portfolio': {'name': 'Rob'},
 					 'capital_gain_percent': str(i * 4 - 40), 'value': '1000'} for i, t in enumerate(TICKERS)]
@@ -156,7 +184,7 @@ class FinbotCase(unittest.TestCase):
 		dest.stop_typing()
 		image.seek(0)
 		self.sent.append(('photo', len(image.read()), caption.split('\n')[0]))
-		self.markups.append(transports.TelegramBot.markup(markup) if markup else None)
+		self.markups.append(telegram_common.TelegramBot.markup(markup) if markup else None)
 		return {'ok': True}
 
 	def no_typing_left(self):

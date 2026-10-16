@@ -1,4 +1,4 @@
-""".earnings and .dividend: upcoming earnings and ex-dividend dates (scheduled: cal.py earnings | ex-dividend)."""
+""".earnings and .dividend: upcoming earnings and ex-dividend dates (scheduled: cal earnings | ex-dividend)."""
 import datetime
 
 from lib import config
@@ -17,14 +17,14 @@ EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'),
 	'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
 
 def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
-	"""Post the earnings or ex-dividend dates ahead (`event`) for the tracked stocks or one (Yahoo's symbol): to the
-	chat that asked (dest), else to the default chats. The scheduled earnings report is pinned where the network can; a
-	reply is not, or the chat would collect pinned copies."""
-	interactive = dest is not None
+	"""Post the earnings or ex-dividend dates ahead (`event`) for the stocks a chat follows or one (Yahoo's symbol): to
+	the chat that asked or whose job it is (dest), else to the home chats. The scheduled earnings report is pinned where
+	the network can; a reply is not, or the chat would collect pinned copies."""
+	interactive = delivery.interactive(dest)
 	if days is None:
 		days = config.prefs.future_days
-	events = gather(watchlist.covered(specific_stock), days, specific_stock, event)
 	for chat in delivery.targets(dest):
+		events = gather(watchlist.covered(chat.key, specific_stock), days, specific_stock, event)
 		payload = report(chat.dialect, events, days, specific_stock, interactive, event)
 		answers = delivery.deliver(chat, delivery.Report(payload))
 		if event == 'earnings' and not specific_stock and not interactive and hasattr(chat, 'pin'):
@@ -53,22 +53,21 @@ def gather(tickers, days, specific_stock, event):
 	return sorted(found, key=lambda item: item[0])
 
 def primary_listing(ticker, data, field):
-	"""(the primary listing's ticker, its Yahoo details) where an ADR or a second listing without a `field` of its own
-	finds one, or (None, None): the listing in finbot_adr.json, the NZX for an ASX ticker reporting in NZD, an exchange
-	suffix for a foreign company's US ticker, else the ticker's own details. It must be the same company, with the
-	`field`."""
-	primary = primary_listings().get(ticker)
-	if primary is None:
-		nzd = ticker.endswith('.AX') and data.get('financialCurrency') == 'NZD'
-		primary = ticker.replace('.AX', '.NZ') if nzd else ticker # fixes GTK.AX and SKO.AX
-	details = yahoo.fetch_detail(primary).get(primary, {})
-	country = details.get('profile_country') # only in the details
-	if country in markets.YAHOO_COUNTRY and '.' not in primary:
-		primary = primary + '.' + markets.YAHOO_COUNTRY[country] # fixes ASML and INFY
-		details = yahoo.fetch_detail(primary).get(primary, {})
-	if details.get('profile_title') != data['profile_title'] or field not in details: # another company, or no date
-		return None, None
-	return primary, details
+	"""(a listing's ticker, its Yahoo details) with a `field` that a ticker's quote lacks, or (None, None). The ticker's
+	own details: what is held is that listing, so its own date counts, and a foreign company's US listing (ARM, CLBT)
+	is never swapped for its home market's (ARM.L, CLBT.TA). Only when it has none, the listing that finbot_adr.json
+	names, or the NZX's for an ASX ticker reporting in NZD (GTK.AX, SKO.AX)."""
+	own = yahoo.fetch_detail(ticker).get(ticker, {})
+	listings = [ticker]
+	if mapped := primary_listings().get(ticker):
+		listings.append(mapped)
+	elif ticker.endswith('.AX') and data.get('financialCurrency') == 'NZD':
+		listings.append(ticker.replace('.AX', '.NZ'))
+	for listing in listings:
+		details = own if listing == ticker else yahoo.fetch_detail(listing).get(listing, {})
+		if details.get('profile_title') == data['profile_title'] and field in details: # the same company, with a date
+			return listing, details
+	return None, None
 
 def report(service, events, days, specific_stock, interactive, event):
 	"""The events in one network's markup, grouped by date under a heading (one stock's carry their dates instead)."""
@@ -76,7 +75,7 @@ def report(service, events, days, specific_stock, interactive, event):
 	blocks = []
 	for date in sorted({when.date() for when, *_ in events}):
 		day = f"{date:%b %d} " if specific_stock else '' # one stock's events carry their date
-		lines = [f"{flag} {day}{title} ({links.yahoo_link(ticker, service)})"
+		lines = [f"{flag} {day}{formats.short_name(title)} ({links.yahoo_link(ticker, service)})"
 			for when, flag, title, ticker in events if when.date() == date]
 		blocks.append(lines if specific_stock else [service.bold(f"{date:%b %d}")] + lines)
 	payload = sum(blocks, []) if specific_stock else formats.sections(*blocks)
@@ -87,10 +86,12 @@ def report(service, events, days, specific_stock, interactive, event):
 		payload = [f"No events found for {specific_stock}" if specific_stock else f"No events found {ahead}"]
 	return payload
 
+ARGUMENTS = 'earnings|ex-dividend' # what a scheduled run takes
+
 def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case ['earnings' | 'ex-dividend' as event]:
-			return f'cal.py {event}', {'event': event}
+			return f'cal {event}', {'event': event}
 		case _:
-			raise ValueError('[earnings|ex-dividend]')
+			raise ValueError(ARGUMENTS)

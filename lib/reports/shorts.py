@@ -1,29 +1,31 @@
-""".shorts: the most shorted stocks followed, from Short Man (ASX) and Yahoo (scheduled: shorts.py)."""
+""".shorts: the most shorted stocks followed, from Short Man (ASX) and Yahoo (scheduled: shorts)."""
 from lib import config
 from lib import delivery
+from lib import formats
 from lib import render
 from lib import watchlist
 from lib import yahoo
 from lib import shortman
 
 def run(dest=None, *, threshold=None, specific_stock=None):
-	"""Post the stocks followed whose short interest is over `threshold` percent (the shorts_percent preference when
-	None), or one stock's (Yahoo's symbol): to the chat that asked (dest), else to the default chats."""
-	interactive = dest is not None
+	"""Post the stocks a chat follows whose short interest is over `threshold` percent (the shorts_percent preference
+	when None), or one stock's (Yahoo's symbol): to the chat that asked or whose job it is (dest), else to the home
+	chats."""
+	interactive = delivery.interactive(dest)
 	if threshold is None:
 		threshold = config.prefs.shorts_percent
-	tickers, market_data = gather(specific_stock)
 	for chat in delivery.targets(dest):
+		tickers = watchlist.covered(chat.key, specific_stock)
+		market_data = gather(tickers, specific_stock)
 		payload, graph = report(chat.dialect, tickers, market_data, threshold, specific_stock, interactive)
 		delivery.deliver(chat, delivery.Report(payload, graph))
 
-def gather(specific_stock):
-	"""(the stocks followed, or the one, their quotes with short interest): Short Man has the ASX's figures, Yahoo's
-	details the US's."""
-	tickers = watchlist.covered(specific_stock)
+def gather(tickers, specific_stock):
+	"""The quotes of tickers (the stocks a chat follows, or the one asked about), with their short interest: Short Man
+	has the ASX's figures, Yahoo's details the US's."""
 	market_data = yahoo.fetch(tickers)
 	market_data |= yahoo.fetch_details((ticker for ticker in tickers if '.' not in ticker), strict=bool(specific_stock))
-	return tickers, shortman.fetch(market_data)
+	return shortman.fetch(market_data)
 
 def report(service, tickers, market_data, threshold, specific_stock, interactive):
 	"""(the report in one network's markup, its chart or None), the most shorted first."""
@@ -39,7 +41,7 @@ def report(service, tickers, market_data, threshold, specific_stock, interactive
 				url = 'https://www.shortman.com.au/stock?q=' + code
 			else:
 				url = 'https://finance.yahoo.com/quote/' + ticker + '/key-statistics?p=' + ticker
-			title = market_data[ticker]['profile_title']
+			title = formats.short_name(market_data[ticker]['profile_title'])
 			found.append((short_percent, f"🩳 {title} ({service.link(url, code)}) {round(short_percent)}%", code))
 	found.sort(key=lambda row: row[0], reverse=True) # largest first, as the chart has them
 	payload, graph = [line for _, line, _ in found], None
@@ -53,6 +55,11 @@ def report(service, tickers, market_data, threshold, specific_stock, interactive
 			payload = [f"🩳 No stocks shorted over {threshold:g}%. Try specifying a number."]
 	return payload, graph
 
+ARGUMENTS = '' # what a scheduled run takes: none
+
 def job(argv):
-	"""Arguments of a scheduled run: shorts.py takes none."""
-	return 'shorts.py', {}
+	"""A scheduled run's arguments: (label, run's keyword arguments); shorts takes none, and an argument raises
+	ValueError."""
+	if argv:
+		raise ValueError('no arguments')
+	return 'shorts', {}

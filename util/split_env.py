@@ -58,6 +58,8 @@ def split(text, path='.env'):
 			notes.append(f'{path} line {number}: {key} dropped ({REMOVED[key]})')
 		elif key == 'STATE_DIRECTORY':
 			notes.append(f'{path} line {number}: {key} is set by systemd, left out')
+		elif key in config.RETIRED:
+			notes.append(f'{path} line {number}: {key} dropped: {config.RETIRED[key]}')
 		elif key in config.STARTUP_KEYS:
 			startup.append(f'{key}={value}')
 		elif key in config.PREFERENCE_KEYS:

@@ -11,7 +11,8 @@ def holding_line(holding, service, text=None):
 	"""'🇦🇺 Title (CODE)' for a Sharesight holding, CODE (or `text`) linking to the holding on Sharesight."""
 	link = service.link(f"https://portfolio.sharesight.com/holdings/{holding['holding_id']}/dashboard",
 		holding['code'] if text is None else text)
-	return f"{markets.flag_from_market(holding['market_code'])} {formats.transform_title(holding['name'])} ({link})"
+	name = formats.short_name(formats.transform_title(holding['name']))
+	return f"{markets.flag_from_market(holding['market_code'])} {name} ({link})"
 
 def prepare_holdings_payload(portfolio_name, service):
 	"""The holdings of the portfolio called `portfolio_name`. Raises sharesight.PortfolioNotFound."""
@@ -60,12 +61,12 @@ def prepare_pie(portfolio_name, by, service, max_slices=8):
 	subtitle = f"{len(totals)} {noun[0] if len(totals) == 1 else noun[1]}"
 	return payload, render.Chart('pie', title, subtitle, tuple(rows))
 
-def prepare_watchlist(service, user, action=None, ticker=None):
-	"""The .watchlist reply: the companies watched, or one line on adding ('add') or removing ('delete') a ticker
-	(Yahoo's symbol, as yahoo.symbol gives it)."""
+def prepare_watchlist(service, chat, user, action=None, ticker=None):
+	"""The .watchlist reply in a chat (by its key): the companies it watches, or one line on adding ('add') or removing
+	('delete') a ticker (Yahoo's symbol, as yahoo.symbol gives it)."""
 	if action:
-		return [watchlist_change(service, user, action, ticker)]
-	watched = watchlist.tickers()
+		return [watchlist_change(service, chat, user, action, ticker)]
+	watched = watchlist.tickers(chat)
 	market_data = yahoo.fetch(watched) if watched else {}
 	lines = [links.stock_line(ticker, quote, service)
 		for ticker, quote in sorted(market_data.items(), key=lambda item: item[1]['profile_title'].lower())]
@@ -73,15 +74,17 @@ def prepare_watchlist(service, user, action=None, ticker=None):
 		return ['Watchlist is empty. Try ".watchlist add SYMBOL" to create it']
 	return [f"Hi {user}, I'm currently tracking:"] + lines
 
-def watchlist_change(service, user, action, ticker):
-	"""The reply to adding or removing `ticker` (Yahoo's symbol)."""
+def watchlist_change(service, chat, user, action, ticker):
+	"""The reply to adding `ticker` (Yahoo's symbol) to a chat's watchlist, or removing it."""
 	quote = yahoo.fetch([ticker]).get(ticker) or {}
 	link = links.finance_link(ticker, quote.get('profile_exchange') or ticker, service)
 	described = service.bold(f"{quote['profile_title']} ({link})" if quote.get('profile_title') else link)
 	if action == 'delete':
-		if not watchlist.remove(ticker):
+		if not watchlist.remove(chat, ticker):
 			return f"Beep Boop. I could not find {service.bold(ticker)} to remove it"
 		return f"Ok {user}, I deleted {described}"
 	if not quote:
 		return f"Beep Boop. I could not find {service.bold(ticker)} to add it"
-	return f"Ok {user}, I added {described}" if watchlist.add(ticker) else f"{user}, I'm already tracking {described}"
+	if not watchlist.add(chat, ticker):
+		return f"{user}, I'm already tracking {described}"
+	return f"Ok {user}, I added {described}"

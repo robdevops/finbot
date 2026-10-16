@@ -1,57 +1,71 @@
 # Telegram
 
-finbot talks to Telegram as a bot user that you create with BotFather. The same bot can post the scheduled reports
-only, or also answer commands in your chats: the second builds on the first.
+finbot talks to Telegram as a bot user that you create with BotFather.
 
-## Reports only, or the interactive bot?
+## Pull mode or HTTP mode?
 
-| | Reports only | Interactive bot |
+The bot posts the scheduled reports and answers commands in your chats either way. What differs is how it hears from
+Telegram:
+
+| | Pull mode (the default) | HTTP mode |
 |---|---|---|
-| Scheduled reports: trades, price alerts, earnings and dividend dates, performance and the rest | ✓ | ✓ |
-| Charts with the reports | ✓ | ✓ |
-| Chat commands: `.price`, `.history`, `.performance` and the rest ([the list](../README.md#supported-commands)) | ✗ | ✓ |
-| Period buttons under charts, and `.jobs` buttons | ✗ | ✓ |
-| "typing…" while a command works | ✗ | ✓ |
-| A keyboard of the common commands in a direct chat with the bot | ✗ | ✓ |
-| Public HTTPS server | Not needed | Needed: a domain name with a valid certificate |
+| How messages and button presses reach finbot | finbot asks Telegram for them (long polling) | Telegram posts them to your HTTPS server |
+| Public HTTPS server | Not needed | Needed: a domain name with a valid certificate, on port 443, 80, 88 or 8443 |
 | `finbot.env` keys | `telegramBotToken`, `telegramChatID` | Those two, plus `telegramOutgoingWebhook` and `telegramOutgoingToken` |
 
-Start with [Reports only](#reports-only). For commands, go on to [Interactive bot](#interactive-bot) afterwards.
+Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price` or `.price`,
+`.history`, `.performance` and the rest, [the list](commands.md#supported-commands)), period buttons under charts and
+the buttons of `.jobs run` and `.jobs toggle`, "typing…" while a command works, and a keyboard of the common commands in
+a direct chat with the bot.
 
-## Reports only
+As finbot starts, it sets the bot's command menu, which Telegram shows when `/` is typed: each command with its usage
+(`/forwardpe` for `.forward pe`, `/stock` for `.SYMBOL`). `/profile` and `/job`, the second names of `/stock` and
+`/jobs`, are left out of the menu, and work when typed, as every name of a command does. In a group, `/price@finbot_bot`
+is the same as `/price`.
+
+`telegramOutgoingWebhook` chooses the mode: set, HTTP mode; empty, pull mode. A restart switches. As finbot starts in
+pull mode it deletes the webhook, and in HTTP mode it sets it; the updates sent meanwhile are kept by Telegram and
+arrive after the switch.
+
+## Pull mode
 
 1. Create the bot: message [@BotFather](https://telegram.me/BotFather), send `/newbot` and answer its questions. It
    replies with the bot's token: put it in `finbot.env` as `telegramBotToken`.
 2. Add the bot to the group or channel the reports should go to. In a channel, make it an administrator, so that it can
    post.
-3. Stop strangers adding your bot to their groups: send BotFather `/setjoingroups`, pick the bot and choose `Disable`.
+3. Let the bot read the chat: make it an administrator of the group. A bot that is not an administrator sees only the
+   commands that start with `/`, and finbot's start with `.`. Alternatively, send BotFather `/setprivacy` and choose
+   `Disable`.
+4. Stop strangers adding your bot to their groups: send BotFather `/setjoingroups`, pick the bot and choose `Disable`.
    Do this after step 2, as it stops you adding the bot to groups too.
-4. Put the chat's id in `finbot.env` as `telegramChatID`.
+5. Put the chat's id in `finbot.env` as `telegramChatID`.
    * A group's id is negative. A channel's or a supergroup's is negative and 13 characters long: prepend `-100` if
      yours is shorter.
-   * To find it, send `/start@<your bot's username>` in the chat, then open
-     `https://api.telegram.org/bot<telegramBotToken>/getUpdates` in a browser and look for `"chat":{"id":`. This works
-     only while the bot has no webhook, so before you set up the interactive bot.
+   * To find it, stop finbot first (`sudo systemctl stop finbot`): Telegram hands each update to one reader only. Send
+     `/start@<your bot's username>` in the chat, then open `https://api.telegram.org/bot<telegramBotToken>/getUpdates`
+     in a browser and look for `"chat":{"id":`. If the bot is in HTTP mode, getUpdates refuses while the webhook is
+     set: open `https://api.telegram.org/bot<telegramBotToken>/deleteWebhook` first (finbot sets it again as it
+     starts).
    * A group's id changes when Telegram turns it into a supergroup, which some changes to its settings do. Update
      `telegramChatID` then: finbot does not follow the change.
-5. Restart finbot (`sudo systemctl restart finbot`). The scheduled reports now arrive in the chat.
+6. Start finbot (`sudo systemctl restart finbot`). The log says `telegram: long polling for updates`. The first start
+   gives this chat, Telegram's home chat, the default jobs ([Scheduling](scheduling.md)), so the scheduled
+   reports arrive there; it gets the error reports too. Every chat manages its own jobs with `.jobs`.
+7. Send `.help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
 
 ```
 telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
 telegramChatID=-1001000000000
 ```
 
-## Interactive bot
+## HTTP mode
 
 Telegram delivers the messages in your chats, and each button press, to finbot over HTTPS. finbot listens on
 `http://127.0.0.1:5000` (`ip` and `port` in `finbot.env`), so it needs a web server in front of it, on a domain name
 with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
 
-1. Set up the bot for [reports only](#reports-only), above.
-2. Let the bot read the chat: make it an administrator of the group. A bot that is not an administrator sees only the
-   commands that start with `/`, and finbot's start with `.`. Alternatively, send BotFather `/setprivacy` and choose
-   `Disable`.
-3. Put finbot behind an HTTPS server. An nginx example, which lets in only Telegram's addresses:
+1. Set up the bot as for [pull mode](#pull-mode), above.
+2. Put finbot behind an HTTPS server. An nginx example, which lets in only Telegram's addresses:
    ```
    server {
    	listen 8443 ssl;
@@ -73,12 +87,12 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
    and reloads nginx. Run it once as root before nginx loads this configuration, or put it in `/etc/cron.daily/` to
    keep the list current. `util/iptables_telegram_cron` goes further, in the firewall: of the traffic to ports 443 and
    8443 it lets in only Telegram's networks on 8443 and drops the rest, so nothing else can be served on those ports.
-4. In `finbot.env`, set `telegramOutgoingWebhook` to the URL Telegram should post to, and `telegramOutgoingToken` to a
+3. In `finbot.env`, set `telegramOutgoingWebhook` to the URL Telegram should post to, and `telegramOutgoingToken` to a
    password of your choosing: 1 to 256 characters, of letters, digits, `_` and `-`. Telegram sends the password with
    every update, and finbot turns away a request without it.
-5. Restart finbot. As it starts, it registers the URL with Telegram, unregistering it first, which also wakes up a stale
-   connection. If Telegram refuses, finbot does not start, and the log says why.
-6. Send `.help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
+4. Restart finbot. As it starts, it sets the webhook again, deleting it first, which also wakes up a stale connection.
+   If Telegram refuses, finbot does not start, and the log says why.
+5. Send `.help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
 
 ```
 telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA

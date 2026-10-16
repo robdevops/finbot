@@ -1,6 +1,6 @@
-""".performance: each portfolio's return over a period, beside two benchmarks (scheduled: performance.py [days])."""
-import sys
+""".performance: each portfolio's return over a period, beside two benchmarks (scheduled: performance [days])."""
 
+from lib import log
 from lib import config
 from lib import sharesight
 from lib import delivery
@@ -22,7 +22,7 @@ def benchmark(ticker, market, text, past_days, service):
 	try:
 		percent = yahoo.price_history(ticker, days=past_days)[0][past_days]
 	except Exception as e: # the rest of the report still goes out
-		print(ticker, e, file=sys.stderr)
+		log.warn(ticker, e)
 		return f"⚠️ {text}: no price history", None
 	link = links.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
 	return f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}", percent
@@ -49,8 +49,8 @@ def report(service, past_days, portfolio_select=None, performance=None):
 
 def run(dest=None, *, past_days=None, user='', portfolio_select=None):
 	"""Post each portfolio's performance over past_days (the past_days preference when None), or the one named, beside
-	the benchmarks: to the chat that asked (dest), else to the default chats, with its chart and period buttons where
-	they can go."""
+	the benchmarks: to the chat that asked or whose job it is (dest), else to the home chats, with its chart and period
+	buttons where they can go."""
 	if past_days is None:
 		past_days = config.prefs.past_days
 	performance = gather(past_days, portfolio_select)
@@ -61,12 +61,14 @@ def run(dest=None, *, past_days=None, user='', portfolio_select=None):
 			markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days))
 		delivery.deliver(chat, delivery.Report(payload, graph, markup))
 
+ARGUMENTS = '[DAYS]' # what a scheduled run takes
+
 def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case []:
-			return 'performance.py', {}
+			return 'performance', {}
 		case [days] if days.isdigit():
-			return f'performance.py {days}', {'past_days': int(days)}
+			return f'performance {days}', {'past_days': int(days)}
 		case _:
-			raise ValueError('[integer]')
+			raise ValueError(ARGUMENTS)

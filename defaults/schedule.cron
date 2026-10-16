@@ -1,9 +1,8 @@
-# The scheduled reports, run by the bot (bot.py). Same time syntax as crontab(5): minute hour day-of-month month
-# day-of-week, or an @macro such as @daily. The command is a finbot script and its arguments; separate several with ";"
-# to run them in turn.
-# Times are in the server's own time zone, like cron; add a line "CRON_TZ=Australia/Melbourne" above a job to pin one.
-# To change the schedule, copy this file to the data directory (util/sync_defaults.py --apply), edit the copy, then:
-#   systemctl reload finbot
+# NO LONGER READ, BUT ONCE: each chat has its own jobs now, changed with .jobs (add, del, toggle, run). As finbot
+# starts the first time without them, it gives every home chat (telegramChatID, slackChannelID, discordChannelID) the
+# jobs below (or those of the data directory's copy of this file), each in the zone it ran in, and reads this file no
+# more. It goes once every install has done that (lib/migrate.py). The system jobs (sharesight_warm, yahoo_warm,
+# cleanup) are not copied: they run on their own schedule, in lib/jobs.py.
 
 # Every 20 minutes on weekdays
 */20 * * * Mon-Fri trades.py

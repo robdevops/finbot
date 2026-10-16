@@ -10,7 +10,8 @@ reports, run on the offline fixtures of tests/common.py, and compares two record
 
 --keep DIR keeps the two recordings; --full shows changed lines whole. The exit status is 0 when the recordings match,
 1 when they differ."""
-import argparse, difflib, hashlib, inspect, io, json, os, random, subprocess, sys, tempfile, unittest
+import argparse, contextlib, difflib, hashlib, importlib, inspect, io, json, os, random, subprocess, sys, tempfile
+import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -22,13 +23,15 @@ COMMANDS = ['.help', '/start', '.hello', '.thanks', '.who T1', '.plan buy low', 
 	'.session T1', '.premarket', '.postmarket', '.shorts', '.shorts 30', '.shorts T1', '.performance',
 	'.performance 7d', '.performance 1y', '.performance Nope', '.pie Rob', '.pie Rob sector', '.pie', '.compare T1 T2',
 	'.compare T1 T2 3m', '.compare T1', '.history T1', '.history', '.watchlist', '.watchlist add MSFT',
-	'.watchlist add MSFT', '.watchlist del MSFT', '.watchlist frob X', '.T1', '.jobs', 'hi @bot', 'noise']
-BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1']
-SCHEDULED = ['trades.py', 'price.py midsession', 'price.py interday', 'price.py premarket', 'price.py close',
-	'price.py 7', 'cal.py earnings', 'cal.py ex-dividend', 'performance.py 7', 'rating.py', 'shorts.py', 'milestone.py',
-	'reminder.py']
-WEBHOOKS = {'telegram': 'https://api.telegram.org/botX/', 'slack': 'https://hooks.slack.com/services/T/B/x',
-	'discord': 'https://discord.com/api/webhooks/1/abc'}
+	'.watchlist add MSFT', '.watchlist del MSFT', '.watchlist frob X', '.T1', '.jobs', '.jobs run', '.jobs toggle',
+	'.jobs add', '.jobs add 0 22 * * * shorts', '.jobs del 4', '.jobs run 1', 'hi @bot', 'noise']
+BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1',
+	'j|1|0000', 'e|1|0000']
+JOBS = ['*/20 * * * Mon-Fri trades', '29 21 * * Mon-Fri price interday', # each chat's, for .jobs
+	'28 21 * * Sat cal earnings; cal ex-dividend; price 7; performance 7; rating']
+SCHEDULED = ['trades', 'price midsession', 'price interday', 'price premarket', 'price close', 'price 7',
+	'cal earnings', 'cal ex-dividend', 'performance 7', 'rating', 'shorts', 'milestone', 'reminder']
+TELEGRAM_API = 'https://api.telegram.org/botX/'
 ANSWER = {'ok': True, 'upload_url': 'https://files.slack.com/u', 'file_id': 'F1', 'id': '1'} # good enough for every API
 
 
@@ -62,17 +65,38 @@ def record(output):
 			return lambda: func(*fields)
 		return lambda: func(getattr(common.inbound, kind)(*fields))
 
+	def reader(service):
+		"""The tree's reader of a network's updates: READER in lib/<service>_common.py, or in a commit from before the
+		protocol code was split per network, lib/inbound.py's TELEGRAM, SLACK or DISCORD (None before the readers)."""
+		try:
+			return importlib.import_module(f'lib.{service}_common').READER
+		except ImportError:
+			return getattr(getattr(common, 'inbound', None), service.upper(), None)
+
+	def pressing(service, *fields):
+		"""A step that presses a button: acknowledged first where the tree's bot.take does that (Network.acknowledge),
+		then handed to the worker as handing() does."""
+		run = handing(worker.process_callback, 'Press', service, *fields)
+		network = reader(service)
+		if not hasattr(network, 'acknowledge'):
+			return run
+		def press():
+			"""Acknowledge the press, then hand it to the worker."""
+			network.acknowledge(common.inbound.Press(service, *fields))
+			run()
+		return press
+
 	class Record(common.FinbotCase):
 		"""The steps, as one test, so that FinbotCase's fixtures (and their cleanup) apply."""
 		def runTest(self):
 			"""Record what each step posts: the real sending code runs, and net.post notes each request."""
 			posts = []
-			def post(url, **kwargs):
-				"""Note a request, the typing notices aside (Telegram's, Slack's ⏳: timing, not output), and answer
-				like the APIs do."""
-				if 'sendChatAction' in url or '/reactions.' in url:
+			def post(url, method='POST', **kwargs):
+				"""Note a request, the typing notices aside (Telegram's, Slack's ⏳, Discord's: timing, not output), and
+				answer like the APIs do."""
+				if 'sendChatAction' in url or '/reactions.' in url or url.endswith('/typing'):
 					return common.mock.Mock(status_code=200, json=lambda: {'ok': True, 'result': True})
-				entry = {'url': url.replace('botX/', 'bot<token>/')}
+				entry = {'url': url.replace('botX/', 'bot<token>/'), **({'method': method} if method != 'POST' else {})}
 				for key in ('json', 'data', 'params'):
 					body = kwargs.get(key)
 					if isinstance(body, dict):
@@ -85,10 +109,25 @@ def record(output):
 				answer = {**ANSWER, 'result': {'message_id': len(posts), 'chat': {'id': 5}}}
 				return common.mock.Mock(status_code=200, json=lambda: answer, text='OK')
 			self.patch(net, 'post', post)
+			if hasattr(net, 'request'): # Discord's calls, since the Discord bot
+				self.patch(net, 'request', lambda method, url, **kwargs: post(url, method, **kwargs))
 			for target, name, real in real_sending: # what the fixture replaces with recorders, put back
 				self.patch(target, name, real)
 			self.patch(common.time, 'sleep', lambda seconds: None) # no pauses between a long report's messages
 			self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack') # Slack's buttons too
+			if 'discordBotToken' in {field.name for field in common.dataclasses.fields(common.config.env)}:
+				self.env(discordBotToken='discord-test')
+			if hasattr(jobs, 'SCHEDULE_FILE'): # each chat's jobs, since jobs per chat
+				entries = [{'when': job.when, 'reports': job.text, 'zone': 'UTC', 'on': True}
+					for job in map(jobs.parse_job, JOBS)]
+				chats = ('telegram:55', 'slack:C1', 'discord:77')
+				common.state.save(jobs.SCHEDULE_FILE, {key: entries for key in chats})
+				schedule = jobs.Scheduler()
+			else: # one schedule for all chats, the shipped one
+				schedule = jobs.Scheduler(lambda: REPO / 'defaults' / 'schedule.cron', zone=common.UTC)
+			with contextlib.redirect_stderr(io.StringIO()):
+				schedule.load()
+			self.patch(jobs, 'current', schedule)
 			steps = []
 			def step(label, run):
 				"""Run one step and note what it posted, or what it raised."""
@@ -100,22 +139,29 @@ def record(output):
 				except Exception as e:
 					raised = f'{type(e).__name__}: {e}'
 				steps.append({'step': label, 'posts': list(posts), 'raised': raised})
-			for service, chat, user in (('telegram', '55', '@u'), ('slack', 'C1', '<@U1>')):
+			for service, chat, user in (('telegram', '55', '@u'), ('slack', 'C1', '<@U1>'), ('discord', '77', '<@5>')):
 				for text in COMMANDS:
 					step(f'{service} {text}', handing(worker.process_request, 'Message', service, chat, user, text,
 						common.BOT, 'U'))
-			for service, chat, message in (('telegram', '55', '9'), ('slack', 'C1', '1.5')):
+			for service, chat, message in (('telegram', '55', '9'), ('slack', 'C1', '1.5'), ('discord', '77', '333')):
 				for data in BUTTONS:
 					label = f'button {data}' if service == 'telegram' else f'{service} button {data}'
-					step(label, handing(worker.process_callback, 'Press', service, 'cb', chat, message, data))
-			self.env(webhooks=WEBHOOKS, telegramChatID='1')
-			for where in ('', ' (slackChannelID)'): # Slack's incoming webhook, then the channel as the bot
-				if where:
-					self.env(slackChannelID='C9')
-				for line in SCHEDULED:
-					label, module, kwargs = jobs.parse_command(line)[0]
-					run = getattr(module, 'run', None) or module.lambda_handler # lambda_handler: a commit before run()
-					step(f'scheduled {line}{where}', lambda: run(**kwargs))
+					step(label, pressing(service, 'cb', chat, message, data))
+			# the scheduled reports go to each network's home chat as its bot (a commit from before telegram_api had
+			# webhooks, the incoming ones among them, and one from before the Discord bot no discordChannelID)
+			fields = {field.name for field in common.dataclasses.fields(common.config.env)}
+			api = {'telegram_api': TELEGRAM_API} if 'telegram_api' in fields else {
+				'webhooks': {'telegram': TELEGRAM_API}}
+			discord = {'discordChannelID': '78'} if 'discordChannelID' in fields else {}
+			self.env(telegramChatID='1', slackChannelID='C9', **api, **discord)
+			for line in SCHEDULED:
+				if hasattr(jobs, 'parse_reports'):
+					label, module, kwargs = jobs.parse_reports(line)[0]
+				else: # a commit from before jobs per chat, whose reports were scripts
+					name, _, arguments = line.partition(' ')
+					label, module, kwargs = jobs.parse_command(f'{name}.py {arguments}'.strip())[0]
+				run = getattr(module, 'run', None) or module.lambda_handler # lambda_handler: a commit before run()
+				step(f'scheduled {line}', lambda: run(**kwargs))
 			Path(output).write_text(json.dumps(steps, indent=1, sort_keys=True, default=str))
 
 	result = unittest.TextTestRunner(verbosity=0, stream=io.StringIO()).run(Record())

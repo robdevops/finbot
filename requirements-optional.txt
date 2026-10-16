@@ -1,0 +1,6 @@
+# Each is needed only by one way of receiving updates, and imported only when that way is configured. CI installs them
+# all; an install needs only those of the modes it uses (Debian: the python3-* package named).
+waitress>=3.0.2 # any network in http mode (python3-waitress)
+websocket-client>=1.8.0 # Slack in pull mode, Socket Mode (python3-websocket)
+discord.py>=2.5.0 # Discord in pull mode, the gateway (python3-discord)
+PyNaCl>=1.5.0 # Discord in http mode, the interactions' signatures (python3-nacl)

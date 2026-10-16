@@ -1,4 +1,5 @@
 """Price history: .history (one stock over every period) and .compare (two to six stocks, rebased)."""
+import bisect
 import datetime
 from lib import answer
 from lib import buttons
@@ -10,36 +11,35 @@ from lib import yahoo
 def prepare_compare(service, tickers, period_days=None):
 	"""(caption lines, chart spec): 2-6 tickers (Yahoo's symbols) as rebased % change over the last `period_days`, else
 	10 years (as Max is on every chart), from no earlier than the first date every one of them covers."""
-	import pandas as pd
 	names, exchanges, closes = {}, {}, {}
 	for ticker, history in zip(tickers, yahoo.fetch_each(yahoo.price_series, tickers)): # downloaded at the same time
 		if isinstance(history, Exception):
 			raise history
 		names[ticker], exchanges[ticker], closes[ticker] = history
-	limiting = max(closes, key=lambda t: closes[t].index[0]) # ticker with the shortest history
-	common_start = closes[limiting].index[0]
-	requested = pd.Timestamp(datetime.datetime.now().date() - datetime.timedelta(days=period_days or 3655))
+	limiting = max(closes, key=lambda t: closes[t][0][0]) # ticker with the shortest history
+	common_start = closes[limiting][0][0]
+	requested = datetime.datetime.now().date() - datetime.timedelta(days=period_days or 3655)
 	start = max(common_start, requested)
 	note = f" (limited by {limiting} history)" if period_days and requested < common_start else ''
 	cropped = []
 	for ticker in tickers:
-		series = closes[ticker]
-		base = series[series.index <= start]
-		base_value = base.iloc[-1] if len(base) else series.iloc[0] # last close on/before the start date
-		series = pd.concat([pd.Series([base_value], index=[start]), series[series.index > start]])
-		cropped.append((ticker, series))
-	if any(len(series) < 2 for _, series in cropped):
+		rows = closes[ticker]
+		before = bisect.bisect_right([day for day, _ in rows], start) # the closes on or before the start date
+		base_value = rows[before - 1][1] if before else rows[0][1] # the last of them, else the first close
+		cropped.append((ticker, ((start, base_value), *rows[before:])))
+	if any(len(rows) < 2 for _, rows in cropped):
 		raise answer.Answer("not enough price history in that period to compare")
-	span_days = (datetime.datetime.now().date() - start.date()).days
+	span_days = (datetime.datetime.now().date() - start).days
 	period_label = formats.days_english(period_days) if period_days and not note else f"{span_days} days"
-	by_performance = sorted(cropped, key=lambda item: item[1].iloc[-1] / item[1].iloc[0], reverse=True)
+	growth = lambda rows: rows[-1][1] / rows[0][1] # last close over first
+	by_performance = sorted(cropped, key=lambda item: growth(item[1]), reverse=True)
 	title = ' vs '.join(formats.short_ticker(t) for t, _ in by_performance) # best first; colours keep input order
 	subtitle = f"% change over {period_label}, since {start:%-d %b %Y}" + note
-	lines = tuple((formats.short_ticker(t), tuple((f"{day:%Y-%m-%d}", float(close)) for day, close in series.items()))
-		for t, series in cropped)
+	lines = tuple((formats.short_ticker(t), tuple((f"{day:%Y-%m-%d}", float(close)) for day, close in rows))
+		for t, rows in cropped)
 	chart = render.Chart('compare', title, subtitle, lines)
 	caption = [service.bold(f"{period_label}, since {start:%-d %b %Y}") + note]
-	results = sorted(((series.iloc[-1] / series.iloc[0] - 1) * 100, t) for t, series in cropped)
+	results = sorted(((growth(rows) - 1) * 100, t) for t, rows in cropped)
 	for pct, t in reversed(results):
 		link = links.finance_link(t, exchanges[t], service, days=span_days, brief=False)
 		caption.append(f"{formats.get_emoji(pct)} {names[t]} ({link}): {formats.signed_percent(pct, 1)}")

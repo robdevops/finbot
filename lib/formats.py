@@ -1,6 +1,9 @@
 """Text for people: company names trimmed, numbers in units, dates and spans in words, signed percents, ordinals."""
 import datetime
 import re
+import zoneinfo
+
+from lib import config
 
 TITLE_TRIMS = [ # transform_title: (text, replacement), in order, as each sees what the ones before it made
 	(' - ', ' '), ('Roundhill ETF Trust ', ''), ('Class A Common Stock', ''),
@@ -36,6 +39,20 @@ TITLE_SHORTENINGS = [ # and these after the suffixes come off
 	(' Bull', ' '), (' .', ' '), (' ,', ' ')
 ]
 
+TRUST_WORDS = ('ETF', 'ETFs', 'Series', 'Trust', 'Fund', 'Funds', 'OFC', 'Exchange-Traded', 'Portfolios') # a trust's
+
+def fund_name(title):
+	"""A fund's own name, without its trust's before it: up to its brand again, where the trust's words come first
+	('Global X ETF Series OFC Global X China EV ETF': 'Global X China EV ETF'); an earlier ETF, with the trust's words
+	after it ('Betashares ETF Trust Global Cybersecurity ETF': 'Betashares Global Cybersecurity ETF'); OFC (a fund
+	company) anywhere. A company's name ('Johnson & Johnson') stays as it is."""
+	words = title.split()
+	again = next((i for i in range(1, len(words) - 1)
+		if words[i] == words[0] and any(word in TRUST_WORDS for word in words[1:i])), 0)
+	title = ' '.join(word for word in words[again:] if word != 'OFC')
+	trust = '|'.join(re.escape(word) for word in TRUST_WORDS)
+	return re.sub(rf'\bETFs? (?:(?:{trust}) )*(?=.*\bETF\b)', '', title)
+
 def transform_title(title):
 	"""A company or fund name as the reports show it: shorter, without fund-trust boilerplate and legal suffixes."""
 	title = title.replace(' FPO', '')
@@ -52,7 +69,7 @@ def transform_title(title):
 		title = title.title()
 	for suffix in (' &', ' and'):
 		title = title.strip().removesuffix(suffix)
-	return ' '.join(title.replace(' Usd', ' USD').replace('Ishares', 'iShares').split())
+	return fund_name(' '.join(title.replace(' Usd', ' USD').replace('Ishares', 'iShares').split()))
 
 def human_units(value, decimal_places=2):
 	"""1234567 -> '1.23 M'."""
@@ -71,8 +88,22 @@ def sections(*blocks):
 		lines += block or []
 	return lines
 
+NAME_LIMIT = 30 # characters of a name in a report's list: a longer line wraps on a phone
+
+def short_name(name):
+	"""A name for a report's list, cut at a word to at most NAME_LIMIT characters, an ellipsis last: 'Global X Asia
+	Semiconductor ETF' -> 'Global X Asia Semiconductor…'. The name stays whole everywhere else."""
+	if len(name) <= NAME_LIMIT:
+		return name
+	cut = name[:NAME_LIMIT - 1]
+	if ' ' in cut[NAME_LIMIT // 2:]: # a word break past halfway: cut there rather than mid-word
+		cut = cut[:cut.rindex(' ')]
+	return cut.rstrip(' ,&-') + '…'
+
 def security_line(flag, title, link):
-	"""'🇦🇺 Title (link)': how a report line names a security (without a leading space where its market has no flag)."""
+	"""'🇦🇺 Title (link)': how a report line names a security (without a leading space where its market has no flag),
+	the name cut to fit a phone (short_name)."""
+	title = short_name(title)
 	return f"{flag} {title} ({link})" if flag else f"{title} ({link})"
 
 def strip_url(url):
@@ -149,6 +180,22 @@ def days_from_human_days(arg):
 			pass
 	return int(arg.removesuffix('Y')) * 365
 
+def seconds_from_human(arg):
+	"""180s, 24h, or any period that days_from_human_days takes (7d, 2w, 3m, 1y, ytd, 7) -> seconds. Raises ValueError
+	for anything else."""
+	for suffix, seconds in (('s', 1), ('h', 3600)):
+		if arg.lower().endswith(suffix) and arg[:-1].isdigit():
+			return int(arg[:-1]) * seconds
+	return days_from_human_days(arg) * 86400
+
 def ordinal(num):
 	"""The ordinal suffix of a whole number: 'st' for 1, 'nd' for 22, 'th' for 11 and 13."""
 	return 'th' if num % 100 in (11, 12, 13) else {1: 'st', 2: 'nd', 3: 'rd'}.get(num % 10, 'th')
+
+
+def zone():
+	"""The timezone preference as a zone: UTC where it names none."""
+	try:
+		return zoneinfo.ZoneInfo(config.prefs.timezone)
+	except (ValueError, zoneinfo.ZoneInfoNotFoundError):
+		return zoneinfo.ZoneInfo('UTC')

@@ -19,6 +19,17 @@ class Parsing(unittest.TestCase):
 			with self.subTest(arg=arg), self.assertRaises(ValueError):
 				formats.days_from_human_days(arg)
 
+	def test_seconds_from_human(self):
+		"""A time in seconds from 180s or 24h, or any period in days (7d, 2w, 3m, 1y, 7); anything else is a
+		ValueError."""
+		for arg, seconds in (('180s', 180), ('24H', 86400), ('7d', 7 * 86400), ('2w', 14 * 86400), ('3m', 90 * 86400),
+				('1y', 365 * 86400), ('7', 7 * 86400), ('0s', 0)):
+			with self.subTest(arg=arg):
+				self.assertEqual(formats.seconds_from_human(arg), seconds)
+		for arg in ('', 's', 'h5', '1.5h', '-5s', '5x', 'AAPL'):
+			with self.subTest(arg=arg), self.assertRaises(ValueError):
+				formats.seconds_from_human(arg)
+
 	def test_transform_to_yahoo(self):
 		"""Sharesight and Google tickers as Yahoo's: suffixes by market, none for US venues, a dash for class shares."""
 		for args, expected in ((('AAPL',), 'AAPL'), (('FANG', 'ASX'), 'FANG.AX'), (('ARM', 'NASDAQ'), 'ARM'),
@@ -83,6 +94,30 @@ class Parsing(unittest.TestCase):
 			with self.subTest(title=title): # a suffix comes off the end only; no run of spaces is left behind
 				self.assertEqual(formats.transform_title(title), expected)
 
+	def test_a_name_in_a_list_is_cut_to_fit_a_phone(self):
+		"""A name over 30 characters is cut at a word, with an ellipsis (mid-word where a word break would cut it too
+		short); a shorter one stays whole."""
+		for name, shown in (('Global X Asia Semiconductor ETF', 'Global X Asia Semiconductor…'),
+				('Global X China EV ETF', 'Global X China EV ETF'), ('A' * 40, 'A' * 29 + '…'),
+				('Short Supercalifragilisticexpialidocious', 'Short Supercalifragilisticexp…')):
+			with self.subTest(name=name):
+				self.assertEqual(formats.short_name(name), shown)
+				self.assertLessEqual(len(formats.short_name(name)), formats.NAME_LIMIT)
+
+	def test_a_funds_name_loses_its_trusts(self):
+		"""A fund's name loses the trust's before it, a repeated brand or ETF, and OFC; a company's repeated word, or a
+		fund's own Trust, stays."""
+		for title, expected in (('Global X ETF Series OFC Global X China EV ETF', 'Global X China EV ETF'),
+				('iShares Trust iShares Core S&P 500 ETF', 'iShares Core S&P 500 ETF'),
+				('SPDR Series Trust SPDR S&P Biotech ETF', 'SPDR S&P Biotech ETF'),
+				('Betashares ETF Trust Global Cybersecurity ETF', 'Betashares Global Cybersecurity ETF'),
+				('Global X Uranium ETF ETF', 'Global X Uranium ETF'),
+				('VanEck Semiconductor ETF', 'VanEck Semiconductor ETF'),
+				('SPDR S&P 500 ETF Trust', 'SPDR S&P 500 ETF Trust'), ('Johnson & Johnson', 'Johnson & Johnson'),
+				('Johnson & Johnson Health', 'Johnson & Johnson Health')):
+			with self.subTest(title=title):
+				self.assertEqual(formats.transform_title(title), expected)
+
 
 class Formatting(unittest.TestCase):
 	def test_signed_percent(self):
@@ -119,6 +154,17 @@ class Formatting(unittest.TestCase):
 		for data in ('c|h|d|T1', 'c|z|w|T1', 'c|h|w', 'x|h|w|T1', '', 'c'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
+
+	def test_a_press_is_told_what_is_coming_from_its_data_alone(self):
+		"""The toast a press gets as it arrives: the period a period button loads, 'Running…' for any .jobs button
+		(the worker checks it later), and none for data of neither."""
+		self.assertEqual([buttons.toast(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
+			['Loading 1D…', 'Loading 7D…', 'Loading 1M…', 'Loading 1Y…', 'Loading Max…'])
+		self.assertEqual(buttons.toast(buttons.job_button(8, 'trades', 'abcd').data), 'Running…')
+		self.assertEqual(buttons.toast('j|99|0000'), 'Running…')
+		for data in ('c|f|d|', 'c|zz|m|T1', '', 'x'):
+			with self.subTest(data=data):
+				self.assertIsNone(buttons.toast(data))
 
 	def test_strip_url(self):
 		"""A link's text is its address without the scheme or www."""
@@ -255,12 +301,20 @@ class StateFiles(FinbotCase):
 		self.assertEqual(cache.read_bytes('img.png').read(), b'png-bytes')
 
 	def test_holdings_and_watchlist_without_a_watchlist_file(self):
-		"""On the first run there is no watchlist file: the holdings alone, GOOGL dropped when GOOG is held."""
+		"""On the first run there is no watchlist file: the holdings alone, GOOGL dropped when GOOG is held. A chat's
+		watchlist adds to the holdings in that chat only; yahoo_warm keeps every chat's warm."""
 		self.patch(sharesight, 'tickers', lambda: ['AAPL', 'GOOG', 'GOOGL'])
 		self.patch(watchlist, 'with_holdings', REAL_GET_HOLDINGS)
-		self.assertEqual(watchlist.with_holdings(), ['AAPL', 'GOOG']) # GOOGL dropped when GOOG is present
-		state.save('finbot_watchlist.json', ['MSFT'])
-		self.assertEqual(watchlist.with_holdings(), ['AAPL', 'GOOG', 'MSFT'])
+		self.assertEqual(watchlist.with_holdings('telegram:1'), ['AAPL', 'GOOG']) # GOOGL dropped when GOOG is present
+		self.assertEqual((watchlist.all_watched(), watchlist.all_followed()), ([], ['AAPL', 'GOOG']))
+		watchlist.add('telegram:1', 'MSFT')
+		watchlist.add('slack:C1', 'NVDA')
+		watchlist.add('slack:C1', 'MSFT')
+		self.assertEqual(watchlist.with_holdings('telegram:1'), ['AAPL', 'GOOG', 'MSFT'])
+		self.assertEqual(watchlist.with_holdings('slack:C1'), ['AAPL', 'GOOG', 'MSFT', 'NVDA'])
+		self.assertEqual(watchlist.with_holdings('discord:7'), ['AAPL', 'GOOG'])
+		self.assertEqual(watchlist.all_watched(), ['MSFT', 'NVDA'])
+		self.assertEqual(watchlist.all_followed(), ['AAPL', 'GOOG', 'MSFT', 'NVDA'])
 
 
 if __name__ == '__main__':

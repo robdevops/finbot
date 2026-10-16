@@ -1,12 +1,13 @@
-"""Charts drawn as PNGs with matplotlib: the bot draws them in one native thread, off the gevent hub (render_off_hub). A
-report describes its chart as a Chart, which draw() draws only for a chat that takes charts, and once: the image is
-cached by the spec's hash."""
+"""Charts drawn as PNGs with matplotlib, one at a time (_drawn). A report describes its chart as a Chart, which draw()
+draws only for a chat that takes charts, and once: the image is cached by the spec's hash."""
 import dataclasses
+import datetime
 import functools
 import hashlib
 import importlib.metadata
 import io
 import json
+import threading
 from pathlib import Path
 from lib import config # first: sets MPLCONFIGDIR before matplotlib is imported (lazily, by the chart functions)
 from lib import cache
@@ -57,38 +58,39 @@ NEITHER_UP_NOR_DOWN = tuple(color for color in CATEGORIES if color not in ('#008
 UP, DOWN, FLAT = '#34d399', '#fb7185', PALETTE[2] # a rise, a fall, neither: a price line's colour by its change
 BAR_UP = CATEGORIES[0] # bars rise in blue; they fall in DOWN
 
-_render_pool = None # set by render_off_hub(): the bot draws its charts in one native thread
+_drawing = threading.RLock() # one chart at a time: matplotlib's caches are shared by every thread
 
-def render_off_hub():
-	"""For the bot: draw charts in one native thread from now on, so that the gevent hub keeps serving every other chat
-	while one is drawn (the shorts pictogram takes over a second; in the hub that froze everything). One thread, because
-	several at once deadlock matplotlib under gevent's patched locks. matplotlib is imported here, at start, instead of
-	by the first chart. Job processes and the tests draw in place."""
-	global _render_pool
+def preload():
+	"""For the bot, at start: import matplotlib now, instead of when the first chart is asked for."""
 	import importlib
-	from gevent.threadpool import ThreadPool
 	for module in ('matplotlib.backends.backend_agg', 'matplotlib.dates', 'matplotlib.figure', 'matplotlib.patches',
 			'matplotlib.path', 'matplotlib.ticker'):
 		importlib.import_module(module)
-	_render_pool = ThreadPool(1)
 
 def _drawn(draw):
-	"""A chart function that draws in the render pool when there is one. Only for a function that calls none of the
-	others: the pool's one thread waiting on itself would never finish."""
+	"""A chart function that draws while no other thread does (it may call another such function)."""
 	@functools.wraps(draw)
-	def in_pool(*args, **kwargs):
-		"""Draw in the render thread when the bot has one (render_off_hub), else here."""
-		if _render_pool is None:
+	def alone(*args, **kwargs):
+		"""Draw, holding the drawing lock."""
+		with _drawing:
 			return draw(*args, **kwargs)
-		return _render_pool.apply(draw, args, kwargs)
-	return in_pool
+	return alone
 
-def _figure(facecolor):
-	"""A 1280x800 figure (Telegram's photo size, so it is never resampled) and its Agg canvas."""
+def _figure(facecolor, height=4.0):
+	"""A 1280x800 figure (Telegram's photo size, so it is never resampled), or one `height` inches tall (200 pixels to
+	the inch), and its Agg canvas."""
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
-	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=facecolor)
+	fig = Figure(figsize=(6.4, height), dpi=200, facecolor=facecolor)
 	return fig, FigureCanvasAgg(fig)
+
+def _from_top(y, fig):
+	"""A height in a 1280x800 figure, as a fraction of it, kept as far from the top in a taller figure."""
+	return y if fig.get_figheight() == 4.0 else 1 - (1 - y) * 4.0 / fig.get_figheight()
+
+def _from_bottom(y, fig):
+	"""A height in a 1280x800 figure, as a fraction of it, kept as far from the bottom in a taller figure."""
+	return y if fig.get_figheight() == 4.0 else y * 4.0 / fig.get_figheight()
 
 def _time_axes(fig, bg, width):
 	"""The axes of a chart over time, `width` of the figure wide: the line chart's, and the compare chart's, whose end
@@ -124,15 +126,18 @@ def _heading(fig, title, subtitle='', subtitle_color=None):
 	"""A chart's title at the top left, and its subtitle (if any) beneath, each shrunk to fit the width."""
 	_, ink, ink2, _ = PALETTE
 	room = 0.94 * fig.bbox.width
-	_shrink([fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')], room)
+	_shrink([fig.text(0.03, _from_top(0.957, fig), title, color=ink, fontsize=13, fontweight='bold', ha='left',
+		va='center')], room)
 	if subtitle:
-		_shrink([fig.text(0.03, 0.910, subtitle, color=subtitle_color or ink2, fontsize=8.5, ha='left', va='center')],
-			room)
+		_shrink([fig.text(0.03, _from_top(0.910, fig), subtitle, color=subtitle_color or ink2, fontsize=8.5, ha='left',
+			va='center')], room)
 
-def _series(rows):
-	"""(date, close) rows as a pandas Series of the closes, indexed by date."""
-	import pandas as pd
-	return pd.Series([float(close) for _, close in rows], index=pd.to_datetime([day for day, _ in rows]))
+def _dated(rows):
+	"""(date, close) rows, each date an ISO date or a datetime.date, as (the dates as datetime.date, the closes as a
+	numpy array): matplotlib takes both as they are."""
+	import numpy as np
+	dates = [day if isinstance(day, datetime.date) else datetime.date.fromisoformat(day) for day, _ in rows]
+	return dates, np.array([float(close) for _, close in rows])
 
 def _png(fig, facecolor):
 	"""The figure as PNG bytes, rewound (or an upload sends nothing); not bbox_inches='tight': it alters 1280x800."""
@@ -149,8 +154,7 @@ def draw_line(chart):
 	import matplotlib.dates as mdates
 	import numpy as np
 	bg, ink, ink2, grid = PALETTE
-	series = _series(chart.rows)
-	x, y = series.index, series.values
+	x, y = _dated(chart.rows)
 	change = chart.change if chart.change is not None else y[-1] - y[0]
 	color = UP if change > 0 else DOWN if change < 0 else FLAT
 
@@ -197,23 +201,23 @@ def draw_compare(chart):
 	colors = NEITHER_UP_NOR_DOWN
 	fig, _ = _figure(bg)
 	ax = _time_axes(fig, bg, 0.72)
-	rebased = []
+	rebased = [] # (label, dates, % change since the first close)
 	for label, points in chart.rows:
-		y = _series(points)
-		rebased.append((label, (y / y.iloc[0] - 1) * 100))
+		x, y = _dated(points)
+		rebased.append((label, x, (y / y[0] - 1) * 100))
 	ax.axhline(0, color=ink2, linewidth=0.8, alpha=0.6, zorder=1)
-	for (label, y), color in zip(rebased, colors):
-		ax.plot(y.index, y.values, color=color, linewidth=1.5, solid_capstyle='round', zorder=3)
-	lo = min(y.min() for _, y in rebased)
-	hi = max(y.max() for _, y in rebased)
+	for (label, x, y), color in zip(rebased, colors):
+		ax.plot(x, y, color=color, linewidth=1.5, solid_capstyle='round', zorder=3)
+	lo = min(y.min() for _, _, y in rebased)
+	hi = max(y.max() for _, _, y in rebased)
 	span = (hi - lo) or 1.0
 	ax.set_ylim(min(lo, 0) - span * 0.06, max(hi, 0) + span * 0.06)
 	ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+,.0f}%" if v else "0%"))
-	_style_time_axes(fig, ax, min(y.index[0] for _, y in rebased), max(y.index[-1] for _, y in rebased))
+	_style_time_axes(fig, ax, min(x[0] for _, x, _ in rebased), max(x[-1] for _, x, _ in rebased))
 
 	# direct end-labels in the right margin, spread so they never overlap
 	ymin, ymax = ax.get_ylim()
-	ends = sorted(((y.iloc[-1], i) for i, (_, y) in enumerate(rebased)))
+	ends = sorted(((y[-1], i) for i, (_, _, y) in enumerate(rebased)))
 	pos = [(v - ymin) / (ymax - ymin) for v, _ in ends]
 	gap = 0.065
 	for i in range(1, len(pos)):
@@ -224,10 +228,10 @@ def draw_compare(chart):
 		for i in range(len(pos) - 2, -1, -1):
 			pos[i] = min(pos[i], pos[i + 1] - gap)
 	for (value, i), p in zip(ends, pos):
-		label, y = rebased[i]
+		label, x, _ = rebased[i]
 		color = colors[i]
 		ax.plot([1.015], [p], marker='s', markersize=4, color=color, transform=ax.transAxes, clip_on=False, zorder=4)
-		ax.annotate(f"{label}  {value:+,.1f}%", xy=(y.index[-1], value), xycoords='data', xytext=(1.03, p),
+		ax.annotate(f"{label}  {value:+,.1f}%", xy=(x[-1], value), xycoords='data', xytext=(1.03, p),
 			textcoords='axes fraction', ha='left', va='center', fontsize=7.5, color=ink, annotation_clip=False,
 			arrowprops=dict(arrowstyle='-', color=color, linewidth=0.7, alpha=0.7, shrinkA=0, shrinkB=2,
 				relpos=(0, 0.5)))
@@ -245,21 +249,23 @@ def tinted(bg, color, amount=0.07):
 def draw_bars(chart):
 	"""Horizontal bars that mirror the caption list, first row on top, filling the whole 1280x800 canvas: blue for >= 0,
 	red below, each row's label at the bar's base and its value (as value_format prints it) at the tip. Rows of (label,
-	value); a (label, None) row is a gap. xlim zooms the value axis (bars then start at its left edge); session
-	'midsession' or 'premarket' washes the background green or yellow."""
+	value); a (label, None) row is a gap. Past ROWS rows the image grows taller, each row as tall as at ROWS, so that
+	every row is in it. xlim zooms the value axis (bars then start at its left edge); session 'midsession' or
+	'premarket' washes the background green or yellow."""
 	rows, subtitle, xlim, session = chart.rows, chart.subtitle, chart.xlim, chart.session
 	value_fmt = VALUE_FORMATS[chart.value_format]
 	bg, ink, ink2, _ = PALETTE
 	up, down = BAR_UP, DOWN
 	if session in SESSION_TINTS:
 		bg = tinted(bg, SESSION_TINTS[session])
-	fig, canvas = _figure(bg)
-	top_edge = 0.85 if subtitle else 0.89
+	n = len(rows)
+	fig, canvas = _figure(bg, 4.0 * max(1, n / ROWS))
+	top_edge = _from_top(0.85 if subtitle else 0.89, fig)
+	bottom_edge = _from_bottom(0.02, fig)
 	left = 0.14 if xlim else 0.04 # zoomed charts keep their labels outside the plot
-	ax = fig.add_axes([left, 0.02, 0.96 - left, top_edge - 0.02], facecolor=bg)
+	ax = fig.add_axes([left, bottom_edge, 0.96 - left, top_edge - bottom_edge], facecolor=bg)
 	real = [(y, label, v) for y, (label, v) in enumerate(rows) if v is not None]
 	values = [v for _, _, v in real]
-	n = len(rows)
 	ax.barh([y for y, _, _ in real], values, height=0.72, color=[up if v >= 0 else down for v in values], zorder=3)
 	base = max(xlim[0], 0) if xlim else 0
 	if not xlim:
@@ -276,7 +282,7 @@ def draw_bars(chart):
 	for side in ax.spines.values():
 		side.set_visible(False)
 	dpi = fig.dpi
-	axes_px = (top_edge - 0.02) * fig.get_figheight() * dpi
+	axes_px = (top_edge - bottom_edge) * fig.get_figheight() * dpi
 	bar_px = 0.72 * axes_px / n
 	longest = max([len(str(label)) for _, label, _ in real] + [3])
 	# text height follows the bar thickness
@@ -515,7 +521,8 @@ def _code_version():
 CODE_VERSION = _code_version()
 
 RENDERERS = {'bars': draw_bars, 'pie': draw_pie, 'shorts': draw_shorts, 'line': draw_line, 'compare': draw_compare}
-LIMITS = {'bars': 40, 'shorts': 24} # the rows a chart has room for
+ROWS = 40 # bars: the rows a 1280x800 image has room for; more make it taller (draw_bars)
+LIMITS = {'shorts': 24} # the rows a chart of a fixed size has room for
 
 def trimmed(chart):
 	"""The chart with no more rows than it has room for (LIMITS): over that, the first half and the last, a gap
