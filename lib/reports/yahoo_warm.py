@@ -1,5 +1,6 @@
 """Keeps the price history of every stock followed fresh in the cache (scheduled: yahoo_warm), so that a period list
 or a chart never waits on Yahoo. Sharesight's caches have their own, sharesight_warm."""
+from lib import reports
 from lib import log
 from lib import config, sharesight, watchlist, yahoo
 
@@ -22,9 +23,4 @@ def run():
 
 ARGUMENTS = '' # what a scheduled run takes: none
 
-def job(argv):
-	"""A scheduled run's arguments: (label, run's keyword arguments); yahoo_warm takes none, and an argument raises
-	ValueError."""
-	if argv:
-		raise ValueError('no arguments')
-	return 'yahoo_warm', {}
+job = reports.no_arguments('yahoo_warm')

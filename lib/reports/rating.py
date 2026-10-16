@@ -1,4 +1,5 @@
 """Analysts' consensus rating changes since the last scheduled run (rating); .buy and .sell are in rankings."""
+from lib import reports
 from lib import delivery
 from lib import formats
 from lib import state
@@ -12,14 +13,13 @@ def run(dest=None):
 	"""Post the analysts' consensus ratings of the stocks a chat follows that changed since its last scheduled run: to
 	the chat that asked (dest), against its record; or, a scheduled run, to the job's chat (dest), recording the
 	ratings it saw."""
-	interactive = delivery.interactive(dest)
-	for chat in delivery.targets(dest):
-		market_data, seen = gather(watchlist.with_holdings(chat.key))
-		changes = changed(market_data, seen, state.load_for(chat.key, STATE_FILE, {}))
-		delivery.deliver(chat, delivery.Report(report(chat.dialect, changes, interactive)))
-		if seen and not interactive: # added to its record: a ticker missing from this run keeps its last rating
-			with state.edit_for(chat.key, STATE_FILE, {}) as ratings:
-				ratings.update(seen)
+	chat, interactive = delivery.target(dest), delivery.interactive(dest)
+	market_data, seen = gather(watchlist.with_holdings(chat.key))
+	changes = changed(market_data, seen, state.load_for(chat.key, STATE_FILE, {}))
+	delivery.deliver(chat, delivery.Report(report(chat.dialect, changes, interactive)))
+	if seen and not interactive: # added to its record: a ticker missing from this run keeps its last rating
+		with state.edit_for(chat.key, STATE_FILE, {}) as ratings:
+			ratings.update(seen)
 
 def gather(tickers):
 	"""(the stocks' details; {ticker: [action, index]} of every rating seen, which counts only with its analysts)."""
@@ -68,9 +68,4 @@ def report(service, changes, interactive):
 
 ARGUMENTS = '' # what a scheduled run takes: none
 
-def job(argv):
-	"""A scheduled run's arguments: (label, run's keyword arguments); rating takes none, and an argument raises
-	ValueError."""
-	if argv:
-		raise ValueError('no arguments')
-	return 'rating', {}
+job = reports.no_arguments('rating')

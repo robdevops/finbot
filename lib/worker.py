@@ -3,7 +3,6 @@ table also makes the .help text and the Telegram command keyboard, which is kept
 import dataclasses
 import functools
 import hashlib
-import hmac
 import json
 import math
 import re
@@ -103,7 +102,7 @@ def menu_screen(service, chat, pressed):
 	if len(args) == 2 and screen in ('on', 'off', 'del', 'run'):
 		own, number = scheduler.chat_jobs(key), args[1]
 		every = number == 'all' and screen != 'run' or number == 'allyes' and screen == 'del' # every job at once
-		if not (hmac.compare_digest(jobs.list_checksum(own), pressed.checksum) and (every or number.isdigit() and
+		if not (jobs.list_checksum(own) == pressed.checksum and (every or number.isdigit() and
 				1 <= int(number) <= len(own))):
 			note = 'The jobs have changed: here they are now'
 		elif number == 'all' and screen == 'del': # Delete all asks first
@@ -152,7 +151,7 @@ def process_pick_callback(press, pressed):
 	cmd, group, period, shown, mask = pressed.cmd, pressed.group, pressed.period, pressed.shown, pressed.mask
 	try:
 		found = pick.items(cmd, chat.key)
-		stale = pick.checksum(found) != pressed.checksum
+		stale = buttons.checksum(found) != pressed.checksum
 		kind, number = (pressed.act[0], int(pressed.act[1:])) if not stale else ('p', 0)
 		if stale:
 			shown, mask = pick.default(cmd, found)
@@ -168,8 +167,8 @@ def process_pick_callback(press, pressed):
 		lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, view, page, note)
 		if names:
 			pick_answer(service, chat, press.message_id, cmd, group, period, names, rows, note)
-			if cmd in 'yc' and (stale or kind in 'rgh') and pick.as_photo(chat, cmd): # a new ticker or set
-				charts.prime_in_background('c' if cmd == 'c' else 'h', names, service, chat.key, period)
+			if cmd in 'yc' and (stale or kind in 'rgh'): # a new ticker or set
+				prime_periods(chat, 'c' if cmd == 'c' else 'h', names, period)
 			return
 		chat.edit_text(press.message_id, '\n'.join(lines), rows) # the picker alone: no answer yet, so text
 	except answer.Answer as e:
@@ -393,7 +392,7 @@ def on_performance(request, args):
 	if days < 1: # 0d, or ytd on 1 January
 		raise answer.Answer("The period must cover a day or more, such as 7d, 3m or ytd")
 	performance.run(request.dest, past_days=days, user=request.user, portfolio_select=args.rest or None)
-	prime_periods(request, 'f', [args.rest or ''], buttons.period_for_days(days))
+	prime_periods(request.dest, 'f', [args.rest or ''], buttons.period_for_days(days))
 
 def on_session(request, args):
 	""".session or .premarket (.postmarket) [percent|SYMBOL]: the moves mid-session, or pre-market (and post-market)."""
@@ -411,9 +410,7 @@ def on_price(request, args):
 	price.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,
 		days=args.days, top=top, user=request.user, specific_stock=symbol)
 	if symbol is None: # the list's chart and period buttons; one stock's line has neither
-		threshold = 0 if top else config.settings.price_percent if args.percent is None else args.percent
-		prime_periods(request, 'l', [f"{threshold:g}", str(top or 0)], buttons.period_for_days(args.days, 'd'
-			if not args.days else None)) # the price list's period buttons (price.run's)
+		prime_periods(request.dest, 'l', *price.list_buttons(0 if top else args.percent, top, args.days))
 
 def on_shorts(request, args):
 	""".shorts [percent|SYMBOL]: the most shorted stocks followed, or one stock's short interest."""
@@ -548,7 +545,7 @@ def send_picker(request, cmd, found, group, period, shown, mask):
 	if cmd in 'pt' and pick.as_photo(dest, cmd):
 		prime_in_background(request.service, cmd, group, found, 0)
 	elif cmd in 'yc' and chart:
-		prime_periods(request, 'c' if cmd == 'c' else 'h', pick.shown_names(cmd, found, shown), period)
+		prime_periods(dest, 'c' if cmd == 'c' else 'h', pick.shown_names(cmd, found, shown), period)
 
 def prime_in_background(service, cmd, group, found, index):
 	"""Start drawing a picker's other charts, to fill the cache, in a thread of its own (see pick.prime)."""
@@ -563,15 +560,14 @@ def chart_reply(request, kind, args, days=None):
 		markup = buttons.keyboard(kind, args, buttons.period_for_days(days) if days else 'x')
 	request.reply(caption.split('\n'), chart, markup)
 	if chart:
-		prime_periods(request, kind, args, buttons.period_for_days(days) if days else 'x')
+		prime_periods(request.dest, kind, args, buttons.period_for_days(days) if days else 'x')
 
-def prime_periods(request, kind, args, shown):
-	"""After a chart with period buttons is sent (kind, args and the period `shown`: charts.build), the other periods
-	are drawn in the background to fill the cache, where the chat can use them: a command asked for, with charts and
-	buttons."""
-	dest = request.dest
+def prime_periods(dest, kind, args, shown):
+	"""After a chart with period buttons is sent to a chat (dest; kind, args and the period `shown`: charts.build), its
+	other periods are drawn in the background to fill the cache, where the chat can use them: a command asked for, or a
+	picker's press, with charts and buttons."""
 	if dest.takes_buttons and dest.takes_charts and config.settings.graph and delivery.interactive(dest):
-		charts.prime_in_background(kind, args, request.service, dest.key, shown)
+		charts.prime_in_background(kind, args, dest.dialect, dest.key, shown)
 
 def on_plan(request, args):
 	""".plan [text]: record the sender's plan in this chat, and list everyone's here."""

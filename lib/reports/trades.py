@@ -2,6 +2,7 @@
 import dataclasses
 import datetime
 
+from lib import reports
 from lib import log
 from lib import config
 from lib import state
@@ -33,22 +34,19 @@ def run(dest=None, *, days=None, user='', portfolio_select=None):
 	"""Post the buys and sells of the past `days`, in every portfolio or the one named: to the chat that asked (dest);
 	or, a scheduled run, to the job's chat (dest) those it has not told that chat of before. Raises
 	sharesight.PortfolioNotFound for a name that is none of them."""
-	interactive = delivery.interactive(dest)
+	chat, interactive = delivery.target(dest), delivery.interactive(dest)
 	if days is None:
 		days = config.settings.past_days
-	chats = delivery.targets(dest)
-	told = {chat.key: set() if interactive else set(state.load_for(chat.key, STATE_FILE, [])) for chat in chats}
-	trades = gather(days, portfolio_select, set.intersection(*told.values())) # every chat knows those: not fetched
-	for chat in chats:
-		new = [trade for trade in trades if trade.id not in told[chat.key]]
-		payload = report(chat.dialect, new, days, interactive)
-		if interactive and not payload: # no trades, or none of them a buy or a sell
-			when = formats.days_english(days, 'in the past ')
-			payload = [f"{user} No trades {when}."]
-		delivery.deliver(chat, delivery.Report(payload))
-		if new and not interactive: # recorded once the report is out
-			with state.edit_for(chat.key, STATE_FILE, []) as known:
-				known.extend(sorted({trade.id for trade in new}.difference(known)))
+	told = set() if interactive else set(state.load_for(chat.key, STATE_FILE, []))
+	new = gather(days, portfolio_select, told) # those the chat was told of before are left out
+	payload = report(chat.dialect, new, days, interactive)
+	if interactive and not payload: # no trades, or none of them a buy or a sell
+		when = formats.days_english(days, 'in the past ')
+		payload = [f"{user} No trades {when}."]
+	delivery.deliver(chat, delivery.Report(payload))
+	if new and not interactive: # recorded once the report is out
+		with state.edit_for(chat.key, STATE_FILE, []) as known:
+			known.extend(sorted({trade.id for trade in new}.difference(known)))
 
 
 def gather(days, portfolio_select, known):
@@ -101,9 +99,4 @@ def report(service, trades, days, interactive):
 
 ARGUMENTS = '' # what a scheduled run takes: none
 
-def job(argv):
-	"""A scheduled run's arguments: (label, run's keyword arguments); trades takes none, and an argument raises
-	ValueError."""
-	if argv:
-		raise ValueError('no arguments')
-	return 'trades', {}
+job = reports.no_arguments('trades')

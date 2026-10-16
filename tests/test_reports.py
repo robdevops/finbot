@@ -675,7 +675,7 @@ class PeriodButtons(FinbotCase):
 		edits, toasts = [], []
 		self.patch(telegram_common.TelegramBot, 'edit_chart', lambda dest, msg, img, caption, buttons=None:
 			edits.append((caption.split('\n')[0], telegram_common.TelegramBot.markup(buttons))))
-		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
+		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None, alert=False: toasts.append(text))
 		self.press_button(data)
 		return edits, toasts
 

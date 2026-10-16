@@ -52,11 +52,11 @@ def interactive(dest):
 	return dest is not None and not dest.scheduled
 
 
-def targets(dest):
+def target(dest):
 	"""Where a report goes: the chat that asked for it, or whose job it is (dest). Raises RuntimeError without one."""
 	if dest is None:
 		raise RuntimeError('nowhere to post: a report goes to the chat that asked for it, or whose job it is')
-	return [dest]
+	return dest
 
 
 def deliver(dest, report):

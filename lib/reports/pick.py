@@ -1,8 +1,6 @@
 """The pickers: what a chat gets when it types .pie, .treemap, .holdings, .history or .compare with nothing to say what
 it is about: buttons for the portfolios or tickers, one message edited as each is pressed (buttons.PickPress). An
 answer takes the message over and leaves the buttons under it, the item shown marked, so another can be picked."""
-import hashlib
-
 from lib import answer
 from lib import buttons
 from lib import config
@@ -41,10 +39,6 @@ def items(cmd, chat):
 	if not found:
 		raise answer.Answer("No tickers to pick from: .watchlist add SYMBOL adds one")
 	return found[:MOST_ITEMS]
-
-def checksum(found):
-	"""A short stand-in for a list of items, which tells any change of it."""
-	return hashlib.sha1('\n'.join(found).encode()).hexdigest()[:4]
 
 def pack(numbers):
 	"""The numbers of the tickers on show (compare's), as one number for a button's data: two hex digits to each, its
@@ -102,7 +96,7 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	page = min(max(page, 0), pages - 1)
 	ticked = [i for i in range(len(found)) if mask >> i & 1]
 	to_compare = cmd == 'c' and len(ticked) >= 2 and pack(ticked) != shown
-	crc = checksum(found)
+	crc = buttons.checksum(found)
 	def button(label, act, active=False, **changes):
 		"""A button of this screen, whatever it changes (group, period, shown or mask) in its data."""
 		now = {'group': group, 'period': period, 'shown': shown, 'mask': mask} | changes

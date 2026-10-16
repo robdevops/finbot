@@ -90,20 +90,16 @@ def fetch_new_episodes(feed_url, seen):
 def run(dest=None, *, feed_url):
 	"""Post to the job's chat (dest) the feed's newest episodes not posted to it before, then record every new one as
 	seen by it."""
-	seen_file = get_seen_filename(feed_url)
-	chats = delivery.targets(dest)
-	seen = {chat.key: set(state.load_for(chat.key, seen_file, [])) for chat in chats}
+	chat, seen_file = delivery.target(dest), get_seen_filename(feed_url)
 	try:
-		episodes = fetch_new_episodes(feed_url, set.intersection(*seen.values())) # every chat has seen those
+		new = fetch_new_episodes(feed_url, set(state.load_for(chat.key, seen_file, [])))
 	except Exception as e:
 		raise RuntimeError(f"fetching feed {feed_url}: {e}")
-	for chat in chats:
-		new = [episode for episode in episodes if episode['guid'] not in seen[chat.key]]
-		if not new:
-			continue
-		delivery.deliver(chat, delivery.Report(report(chat.dialect, new[:NEWEST])))
-		with state.edit_for(chat.key, seen_file, []) as recorded: # last: a failure above leaves them for next run
-			recorded[:] = sorted({episode['guid'] for episode in new}.union(recorded))
+	if not new:
+		return
+	delivery.deliver(chat, delivery.Report(report(chat.dialect, new[:NEWEST])))
+	with state.edit_for(chat.key, seen_file, []) as recorded: # last: a failure above leaves them for next run
+		recorded[:] = sorted({episode['guid'] for episode in new}.union(recorded))
 
 def report(service, episodes):
 	"""The episodes in one network's markup, each linked to its media, with its length and age."""

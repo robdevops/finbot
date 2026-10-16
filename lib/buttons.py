@@ -5,6 +5,7 @@ about (pick_button); and the job buttons of older .jobs lists, which still work.
 transport draws Button rows its own way."""
 import hashlib
 import typing
+import zlib
 
 from lib import answer
 from lib import state
@@ -71,6 +72,11 @@ MAX_DAYS = 3650 # what Max means for the Sharesight-based reports
 MAX_CALLBACK_BYTES = 64 # Telegram limit on callback_data
 REF_FILE = 'finbot_chart_buttons.json'
 REF_LIMIT = 500 # the stored argument lists kept: a button older than that says it has expired
+
+def checksum(items):
+	"""A short stand-in for a list of strings in a button's data (Telegram allows 64 bytes), which tells any change of
+	the list: a button drawn for another list (of a chat's jobs, a picker's items) acts on nothing."""
+	return format(zlib.crc32('\n'.join(items).encode()) & 0xffff, '04x')
 
 def period_for_days(days, default=None):
 	"""Button key for a day count, if it is one of the button periods; `default` when it is not (or days is None)."""

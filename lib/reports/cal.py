@@ -20,15 +20,14 @@ def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
 	"""Post the earnings or ex-dividend dates ahead (`event`) for the stocks a chat follows or one (Yahoo's symbol): to
 	the chat that asked or whose job it is (dest). The scheduled earnings report is pinned where
 	the network can; a reply is not, or the chat would collect pinned copies."""
-	interactive = delivery.interactive(dest)
+	chat, interactive = delivery.target(dest), delivery.interactive(dest)
 	if days is None:
 		days = config.settings.future_days
-	for chat in delivery.targets(dest):
-		events = gather(watchlist.covered(chat.key, specific_stock), days, specific_stock, event)
-		payload = report(chat.dialect, events, days, specific_stock, interactive, event)
-		answers = delivery.deliver(chat, delivery.Report(payload))
-		if event == 'earnings' and not specific_stock and not interactive and hasattr(chat, 'pin'):
-			chat.pin(answers) # the scheduled earnings report stays on top, where the network can pin
+	events = gather(watchlist.covered(chat.key, specific_stock), days, specific_stock, event)
+	payload = report(chat.dialect, events, days, specific_stock, interactive, event)
+	answers = delivery.deliver(chat, delivery.Report(payload))
+	if event == 'earnings' and not specific_stock and not interactive and hasattr(chat, 'pin'):
+		chat.pin(answers) # the scheduled earnings report stays on top, where the network can pin
 
 def gather(tickers, days, specific_stock, event):
 	"""The dates of `event` within `days` (any date for one stock), soonest first: [(when, flag, title, ticker)]. ETFs

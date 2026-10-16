@@ -1,9 +1,10 @@
 """Once, as an upgraded finbot starts. The jobs of the direct message chats finbot knows are switched off, as a direct
-message now starts with its default jobs off (dm_jobs_off, recorded in UPGRADES so that it runs at one start only).
-And what the bot kept for all chats at once becomes each old home chat's, the chats that the retired telegramChatID,
-slackChannelID and discordChannelID name (read from the environment for this alone): each becomes a chat finbot knows,
-with the default jobs (lib/catalog.py); the watchlist and the plans are copied to each; and so are the reports' records
-of what they told the chats (trades, ratings, record highs, podcast episodes), so that nothing old is told again.
+message now starts with its default jobs off (dm_jobs_off, recorded in UPGRADES so that it runs at one start only), and
+the chats of the old schedule file become chats finbot knows (old_schedule). And what the bot kept for all chats at once
+becomes each old home chat's, the chats that the retired telegramChatID, slackChannelID and discordChannelID name (read
+from the environment for this alone): each becomes a chat finbot knows, with the default jobs (lib/catalog.py); the
+watchlist and the plans are copied to each; and so are the reports' records of what they told the chats (trades,
+ratings, record highs, podcast episodes), so that nothing old is told again.
 
 This module goes once every install has started with it: it is its only user."""
 import copy
@@ -24,6 +25,7 @@ from lib.reports import milestone, podcasts, rating, trades
 # kept for all chats, each now one record per chat; and each podcast feed's seen file
 RECORDS = (watchlist.FILE, worker.PLANS, trades.STATE_FILE, rating.STATE_FILE, milestone.STATE_FILE)
 UPGRADES = 'finbot_upgrades.json' # {name: when}: the one-off upgrades done, each at one start only
+OLD_FILE = 'finbot_schedule.json' # each chat's cron jobs, from before the default jobs: read for its chats' keys alone
 # the home chats of older versions: (network, the retired finbot.env key of its chat, the key of its bot token)
 HOMES = (('telegram', 'telegramChatID', 'telegramBotToken'), ('slack', 'slackChannelID', 'slackBotToken'),
 	('discord', 'discordChannelID', 'discordBotToken'))
@@ -41,6 +43,7 @@ def run():
 	(a new install, or the retired keys deleted), there is nowhere to put it, so it waits."""
 	once('dm jobs off', dm_jobs_off)
 	once('dm flag', mark_dms)
+	once('old schedule', old_schedule)
 	homes = old_homes()
 	if not homes:
 		return
@@ -76,16 +79,12 @@ def once(name, upgrade):
 
 
 def dm_jobs_off():
-	"""Switch off every job of each direct message chat finbot knows, now that one starts with its default jobs off:
-	Telegram's and Slack's as their keys tell (jobs.is_dm), Discord's as Discord says. The chats of the old schedule
-	file (jobs.OLD_FILE) that are direct messages become known first, with their jobs off."""
+	"""Switch off every job of each direct message chat finbot knows, now that one starts with its default jobs off
+	(dm_keys). The chats of the old schedule file (OLD_FILE) that are direct messages become known first, with their
+	jobs off."""
 	chats = state.load(jobs.JOBS_FILE, {})
-	old = state.load(jobs.OLD_FILE, {}) if os.path.exists(state.path(jobs.OLD_FILE)) else {}
-	chats, old = (data if isinstance(data, dict) else {} for data in (chats, old))
-	keys = [key for key in dict.fromkeys([*chats, *old]) if isinstance(key, str)]
-	dms = [key for key in keys if jobs.is_dm(key)]
-	if config.env.discordBotToken:
-		dms += [key for key in keys if key.startswith('discord:') and discord_dm(key.partition(':')[2])]
+	chats, old = (data if isinstance(data, dict) else {} for data in (chats, old_schedule_file()))
+	dms = dm_keys(key for key in dict.fromkeys([*chats, *old]) if isinstance(key, str))
 	jobs.know([key for key in dms if key not in chats], dm=True)
 	with state.edit(jobs.JOBS_FILE, {}) as stored:
 		for key in dms:
@@ -97,17 +96,41 @@ def dm_jobs_off():
 
 
 def mark_dms():
-	"""Mark each direct message chat finbot knows as one ('dm' in its record), for the schedule's count of group chats
-	and DMs: Telegram's and Slack's as their keys tell (jobs.is_dm), Discord's as Discord says. Nothing is switched."""
+	"""Mark each direct message chat finbot knows as one ('dm' in its record, dm_keys), for the schedule's count of
+	group chats and DMs. Nothing is switched."""
 	chats = state.load(jobs.JOBS_FILE, {})
-	keys = [key for key in (chats if isinstance(chats, dict) else {}) if isinstance(key, str)]
-	dms = [key for key in keys if jobs.is_dm(key)]
-	if config.env.discordBotToken:
-		dms += [key for key in keys if key.startswith('discord:') and discord_dm(key.partition(':')[2])]
+	dms = dm_keys(key for key in (chats if isinstance(chats, dict) else {}) if isinstance(key, str))
 	with state.edit(jobs.JOBS_FILE, {}) as stored:
 		for key in dms:
 			if isinstance(stored.get(key), dict):
 				stored[key]['dm'] = True
+
+
+def old_schedule():
+	"""The chats of the old schedule file (OLD_FILE), each chat's cron jobs from before the default jobs, become chats
+	finbot knows, with the default jobs (its direct messages are known already, their jobs off: dm_jobs_off); their cron
+	jobs are not carried over."""
+	keys = [key for key in old_schedule_file() if isinstance(key, str) and ':' in key]
+	if keys:
+		added = jobs.know(keys)
+		log.info(f"schedule: {OLD_FILE} is read no more: each chat's jobs are in {jobs.JOBS_FILE}, its chats with the"
+			f" default jobs ({added} new); it can be deleted")
+
+
+def old_schedule_file():
+	"""What the old schedule file (OLD_FILE) holds, by chat key: {} where there is none."""
+	old = state.load(OLD_FILE, {})
+	return old if isinstance(old, dict) else {}
+
+
+def dm_keys(keys):
+	"""Those of these chats (by key) that are direct messages with the bot: Telegram's and Slack's as their keys tell
+	(jobs.is_dm), Discord's as Discord says."""
+	keys = list(keys)
+	dms = [key for key in keys if jobs.is_dm(key)]
+	if config.env.discordBotToken:
+		dms += [key for key in keys if key.startswith('discord:') and discord_dm(key.partition(':')[2])]
+	return dms
 
 
 def discord_dm(channel):

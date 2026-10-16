@@ -1,4 +1,5 @@
 """Record highs and lows (all-time) among the stocks followed (scheduled: milestone)."""
+from lib import reports
 from lib import state
 from lib import delivery
 from lib import formats
@@ -15,15 +16,14 @@ STATE_FILE = 'finbot_milestone.json' # each chat's {ticker: {'all_time_high': ..
 def run(dest=None):
 	"""Post the stocks a chat follows that set an all-time high or low, against its record, to the chat that asked or
 	whose job it is (dest); a scheduled run records the chat's new records."""
-	interactive = delivery.interactive(dest)
-	for chat in delivery.targets(dest):
-		tickers = watchlist.with_holdings(chat.key)
-		market_data = yahoo.fetch(tickers)
-		highs, lows, changed = compare(tickers, market_data, state.load_for(chat.key, STATE_FILE, {}))
-		delivery.deliver(chat, delivery.Report(report(chat.dialect, market_data, highs, lows)))
-		if changed and not interactive:
-			with state.edit_for(chat.key, STATE_FILE, {}) as recorded:
-				recorded.update(changed)
+	chat, interactive = delivery.target(dest), delivery.interactive(dest)
+	tickers = watchlist.with_holdings(chat.key)
+	market_data = yahoo.fetch(tickers)
+	highs, lows, changed = compare(tickers, market_data, state.load_for(chat.key, STATE_FILE, {}))
+	delivery.deliver(chat, delivery.Report(report(chat.dialect, market_data, highs, lows)))
+	if changed and not interactive:
+		with state.edit_for(chat.key, STATE_FILE, {}) as recorded:
+			recorded.update(changed)
 
 def compare(tickers, market_data, records):
 	"""(the tickers at a record high, those at a record low, {ticker: its records after this run}): each one's 52-week
@@ -61,9 +61,4 @@ def report(service, market_data, highs, lows):
 
 ARGUMENTS = '' # what a scheduled run takes: none
 
-def job(argv):
-	"""A scheduled run's arguments: (label, run's keyword arguments); milestone takes none, and an argument raises
-	ValueError."""
-	if argv:
-		raise ValueError('no arguments')
-	return 'milestone', {}
+job = reports.no_arguments('milestone')

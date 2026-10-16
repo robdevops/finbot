@@ -365,13 +365,13 @@ class DirectMessages(FinbotCase):
 	def test_the_direct_messages_jobs_are_switched_off_once(self):
 		"""As finbot first starts with this version, every job of each direct message chat it knows is switched off,
 		the default ones and those added: Telegram's and Slack's as their keys tell, Discord's as Discord says; and the
-		old schedule file's DMs become known, with their jobs off. Other chats are left as they are, and a job switched
-		on again afterwards stays on."""
+		old schedule file's chats become known, its DMs with their jobs off, once. Other chats are left as they are, and
+		a job switched on again afterwards stays on."""
 		trades = {'action': 'trades', 'args': [], 'schedule': {'days': 'weekdays', 'every': 20, 'zone': 'UTC'},
 			'on': True}
 		state.save(jobs.JOBS_FILE, {'telegram:5': {'jobs': [trades]}, 'telegram:-100': {'jobs': [trades]},
 			'slack:D1': {'off': ['trades']}, 'discord:7': {}, 'discord:8': {}})
-		state.save(jobs.OLD_FILE, {'telegram:6': [], 'discord:9': [], 'telegram:-6': []})
+		state.save(migrate.OLD_FILE, {'telegram:6': [], 'discord:9': [], 'telegram:-6': []})
 		self.env(discordBotToken='x')
 		asked = []
 		def call(method, path, **kwargs):
@@ -386,11 +386,12 @@ class DirectMessages(FinbotCase):
 		for key in ('slack:D1', 'discord:8', 'telegram:6', 'discord:9'):
 			self.assertEqual(stored[key], {'defaults': 'off', 'dm': True}, key)
 		self.assertEqual((stored['telegram:-100'], stored['discord:7']), ({'jobs': [trades]}, {}))
-		self.assertNotIn('telegram:-6', stored) # an old chat that is no DM is known at the scheduler's first load
+		self.assertEqual(stored['telegram:-6'], {}) # an old chat that is no DM is known too, its default jobs on
 		self.assertEqual(sorted(asked), ['/channels/7', '/channels/7', '/channels/8', '/channels/8', '/channels/9',
 			'/channels/9']) # once by each upgrade, at the one start
 		self.assertIn('every job switched off in 5 direct message chats', log.getvalue())
-		self.assertTrue({'dm jobs off', 'dm flag'} <= set(state.load(migrate.UPGRADES)))
+		self.assertIn('finbot_schedule.json is read no more', log.getvalue())
+		self.assertTrue({'dm jobs off', 'dm flag', 'old schedule'} <= set(state.load(migrate.UPGRADES)))
 		state.save(jobs.JOBS_FILE, {**stored, 'telegram:5': {}}) # switched on again
 		migrate.run()
 		self.assertEqual((state.load(jobs.JOBS_FILE)['telegram:5'], len(asked)), ({}, 6))
@@ -407,8 +408,8 @@ class DirectMessages(FinbotCase):
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			migrate.run()
 		self.assertIn('upgrade: dm jobs off failed, and is tried again at the next start', log.getvalue())
-		self.assertEqual((state.load(jobs.JOBS_FILE), state.load(migrate.UPGRADES)), ({'discord:8': {},
-			'telegram:5': {}}, None))
+		self.assertEqual((state.load(jobs.JOBS_FILE), set(state.load(migrate.UPGRADES))), ({'discord:8': {},
+			'telegram:5': {}}, {'old schedule'})) # the upgrades that ask Discord wait
 		def refused(method, path, **kwargs):
 			"""Discord refusing: the channel is gone."""
 			raise RuntimeError(f'Discord {method} {path}: 404 Unknown Channel (10003)')

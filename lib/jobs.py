@@ -1,7 +1,7 @@
 """The scheduled jobs. Each chat's, which its people manage with .jobs (lib/worker.py), each posting to that chat: the
 default jobs (lib/catalog.py), which every chat has, switched on until it switches them off, and those it added; both
-kept in JOBS_FILE by chat key, whose chats are those finbot knows (see). And the system jobs (SYSTEM), fixed here, which
-fill the cache and clear it out.
+kept in JOBS_FILE by chat key, whose chats are those finbot knows (see, know). And the system jobs (SYSTEM), fixed here,
+which fill the cache and clear it out.
 
 A job runs one action of ACTIONS, a fixed table of finbot's own report modules (message among them, which posts a
 text), with the arguments that action's parser (its job()) takes: never a command, a script or code. A stored job names
@@ -11,14 +11,12 @@ environment, caches and connections."""
 import dataclasses
 import datetime
 import heapq
-import hmac
 import json
 import math
-import os
 import threading
 import time
-import zlib
 
+from lib import buttons
 from lib import catalog
 from lib import config
 from lib import delivery
@@ -45,7 +43,6 @@ WARM = ('sharesight_warm', 'yahoo_warm') # the jobs that fill the cache, run at 
 # added, the default jobs it switched off and those it removed; a chat whose default jobs start off holds 'defaults':
 # 'off' and 'on' instead of 'off', the catalog keys switched on; a direct message holds 'dm': True
 JOBS_FILE = 'finbot_chat_jobs.json'
-OLD_FILE = 'finbot_schedule.json' # each chat's cron jobs, from before the catalog: read for its chats alone
 STATE_FILE = 'finbot_jobs.json' # each job's last run, by key: a restart neither repeats a run nor loses one
 MESSAGE_AT = 8 * 60 + 30 # a message's time of day where none is typed: 8:30am
 MAX_JOBS = 30 # the jobs a chat may add, at most
@@ -89,15 +86,10 @@ class Job:
 		return {'action': self.action, 'args': list(self.args), 'schedule': self.schedule.to_json(), 'on': self.on}
 
 
-def checksum(text):
-	"""A job's short stand-in in a button (Telegram allows 64 bytes of data): it tells a changed list."""
-	return format(zlib.crc32(text.encode()) & 0xffff, '04x')
-
-
 def list_checksum(jobs):
-	"""A chat's list's short stand-in in the .jobs menu's buttons: it tells any change of the list, so that a button
-	drawn for another list acts on nothing."""
-	return checksum('\n'.join(job.key for job in jobs))
+	"""A chat's list's short stand-in in the .jobs menu's buttons (buttons.checksum): a button drawn for another list
+	acts on nothing."""
+	return buttons.checksum(job.key for job in jobs)
 
 
 def run_in_process(label, module, kwargs, dest=None):
@@ -325,7 +317,6 @@ class Scheduler:
 		self.next_at = {} # key -> the next run after its base, once worked out (None: none, or off)
 		self.last = {}
 		self.busy = set() # the keys of the jobs running now, scheduled or by hand
-		self.adopted = False # whether the old OLD_FILE's chats were looked at, at the first load
 		self.lock = threading.Lock()
 
 	def load(self):
@@ -373,18 +364,7 @@ class Scheduler:
 			" system jobs")
 
 	def stored_chats(self):
-		"""The chats JOBS_FILE knows, each with its record. At the first load, those the old OLD_FILE knew join them
-		first, with the default jobs; the file is read for their keys alone, their cron jobs not carried over."""
-		if not self.adopted:
-			self.adopted = True
-			if os.path.exists(state.path(OLD_FILE)):
-				try:
-					old = state.load(OLD_FILE, {})
-					know(key for key in old if isinstance(key, str) and ':' in key)
-				except (OSError, ValueError, TypeError) as e:
-					log.warn(f'schedule: {OLD_FILE} left as it is, unreadable: {e}')
-				log.info(f"schedule: {OLD_FILE} is read no more: each chat's jobs are in {JOBS_FILE}, its chats with"
-					" the default jobs; it can be deleted")
+		"""The chats JOBS_FILE knows, each with its record."""
 		try:
 			chats = state.load(JOBS_FILE, {})
 		except (OSError, ValueError) as e:
@@ -511,7 +491,7 @@ class Scheduler:
 		"""The job a button stands for. Button data is untrusted input: the number must be plain digits within this
 		chat's list, and the checksum must match that very job, else ScheduleError."""
 		job = self.job(chat, number)
-		if not hmac.compare_digest(checksum(job.key), crc):
+		if buttons.checksum([job.key]) != crc:
 			raise ScheduleError('the jobs have changed')
 		return job
 

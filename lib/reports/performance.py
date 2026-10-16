@@ -27,13 +27,11 @@ def benchmark(ticker, market, text, past_days, service):
 	link = links.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
 	return f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}", percent
 
-def report(service, past_days, portfolio_select=None, performance=None):
+def report(service, past_days, portfolio_select=None):
 	"""(payload, chart) of the performance report for one service: each portfolio by name, in any case, then the
-	benchmarks. performance: gather()'s, fetched when not given."""
-	if performance is None:
-		performance = gather(past_days, portfolio_select)
+	benchmarks."""
 	rows = [] # (percent or None, line, chart label), one list for the caption and the chart, in the same order
-	for portfolio, percent in sorted(performance, key=lambda each: each[0].name.casefold()):
+	for portfolio, percent in sorted(gather(past_days, portfolio_select), key=lambda each: each[0].name.casefold()):
 		link = service.link(f"https://portfolio.sharesight.com/portfolios/{portfolio.id}", portfolio.name)
 		line = f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}"
 		rows.append((percent, line, portfolio.name))
@@ -50,15 +48,14 @@ def run(dest=None, *, past_days=None, user='', portfolio_select=None):
 	"""Post each portfolio's performance over past_days (the past_days setting when None), or the one named, beside
 	the benchmarks: to the chat that asked or whose job it is (dest), with its chart and period buttons where they can
 	go."""
+	chat = delivery.target(dest)
 	if past_days is None:
 		past_days = config.settings.past_days
-	performance = gather(past_days, portfolio_select)
-	for chat in delivery.targets(dest):
-		payload, graph = report(chat.dialect, past_days, portfolio_select, performance)
-		markup = None
-		if graph and chat.takes_buttons:
-			markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days))
-		delivery.deliver(chat, delivery.Report(payload, graph, markup))
+	payload, graph = report(chat.dialect, past_days, portfolio_select)
+	markup = None
+	if graph and chat.takes_buttons:
+		markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days))
+	delivery.deliver(chat, delivery.Report(payload, graph, markup))
 
 ARGUMENTS = '[DAYS]' # what a scheduled run takes
 

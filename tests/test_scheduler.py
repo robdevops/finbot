@@ -470,7 +470,7 @@ class ChatBase(SchedulerBase):
 		self.s = self.scheduler()
 		self.patch(jobs, 'current', self.s)
 		self.toasts, self.edits = [], []
-		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None: self.toasts.append(text))
+		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None, alert=False: self.toasts.append(text))
 		self.patch(telegram_common.TelegramBot, 'edit_text', lambda dest, mid, text, buttons=None:
 			self.edits.append((dest.where, mid, text, buttons)))
 		self.replies = []
@@ -858,9 +858,9 @@ class JobsMenu(ChatBase):
 		"""A job button of an older list ('j|' runs a job, 'e|' switches one) still works, by the job's own checksum;
 		a switch redraws the list."""
 		job = self.s.chat_jobs(CHAT)[2]
-		self.press(f'j|3|{jobs.checksum(job.key)}')
+		self.press(f'j|3|{buttons.checksum([job.key])}')
 		self.assertEqual((self.toasts, self.ran), (['Running…'], [('trades', {})]))
-		lines, rows, _ = self.press(f'e|3|{jobs.checksum(job.key)}')
+		lines, rows, _ = self.press(f'e|3|{buttons.checksum([job.key])}')
 		self.assertFalse(self.s.chat_jobs(CHAT)[2].on)
 		self.assertEqual((lines[0], rows[0]), ('<b>Jobs here</b>', ['Add', 'Delete']))
 		self.assertIn('3. ❌ trades · every 20 mins, weekdays UTC', lines)

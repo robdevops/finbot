@@ -171,24 +171,25 @@ def nothing(mode, threshold, user, ticker, in_session, days=None):
 	return f"{user}, no price movements meet threshold {threshold:g}%"
 
 def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user='', specific_stock=None):
-	"""Post the price report (report() has the modes) on the stocks each chat follows: to the chat that asked or whose
+	"""Post the price report (report() has the modes) on the stocks a chat follows: to the chat that asked or whose
 	job it is (dest), with its chart and period buttons where they can go."""
-	interactive = delivery.interactive(dest)
+	chat, interactive = delivery.target(dest), delivery.interactive(dest)
 	if threshold is None:
 		threshold = config.settings.price_percent
-	def markup(chat):
-		"""A chart's period buttons, where the chat takes buttons: the daily and N-day lists, but not the intraday
-		ones."""
-		if not chat.takes_buttons:
-			return None
-		if mode in ('interday', 'period'):
-			return buttons.keyboard('l', [f"{threshold:g}", str(top or 0)],
-				buttons.period_for_days(days, 'd' if not days else None))
-		return None
-	for chat in delivery.targets(dest):
-		found = moves(watchlist.covered(chat.key, specific_stock), mode, threshold, days, specific_stock, interactive)
-		payload, graph = report(chat.dialect, found, mode, threshold, days, top, user, specific_stock, interactive)
-		delivery.deliver(chat, delivery.Report(payload, graph, markup(chat) if graph else None))
+	found = moves(watchlist.covered(chat.key, specific_stock), mode, threshold, days, specific_stock, interactive)
+	payload, graph = report(chat.dialect, found, mode, threshold, days, top, user, specific_stock, interactive)
+	markup = None # the period buttons of the daily and N-day lists (not the intraday ones), where the chat takes them
+	if graph and chat.takes_buttons and mode in ('interday', 'period'):
+		markup = buttons.keyboard('l', *list_buttons(threshold, top, days))
+	delivery.deliver(chat, delivery.Report(payload, graph, markup))
+
+def list_buttons(threshold=None, top=None, days=None):
+	"""What the price list's period buttons carry, and the one marked: ([threshold, top], period), as charts.build
+	takes them for 'l'. The threshold is the price_percent setting where None, top '0' for no top list, and the period
+	1D (today's moves) where no days are given."""
+	if threshold is None:
+		threshold = config.settings.price_percent
+	return [f"{threshold:g}", str(top or 0)], buttons.period_for_days(days, None if days else 'd')
 
 ARGUMENTS = 'midsession|interday|premarket|close|DAYS' # what a scheduled run takes
 

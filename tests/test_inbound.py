@@ -175,7 +175,7 @@ class WsgiRejections(FinbotCase):
 		update is the acknowledgement."""
 		order = []
 		self.patch(telegram_common, 'answerCallbackQuery',
-			lambda cid, text=None: order.append(('acknowledged', cid, text)))
+			lambda cid, text=None, alert=False: order.append(('acknowledged', cid, text)))
 		self.patch(worker, 'process_callback', lambda press: order.append(('worker', press.service, press.data)))
 		update = {'update_id': 71, 'callback_query': {'id': 'q1', 'from': {'username': 'u'}, 'data': 'c|h|y|T1',
 			'message': {'message_id': 9, 'chat': {'id': 55}}}}

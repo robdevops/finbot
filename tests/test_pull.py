@@ -111,7 +111,7 @@ class TelegramPolling(FinbotCase):
 		same Press, and is acknowledged the same way."""
 		presses, toasts = [], []
 		self.patch(worker, 'process_callback', presses.append)
-		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
+		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None, alert=False: toasts.append(text))
 		body = json.dumps(callback_query(80)).encode()
 		with contextlib.redirect_stderr(io.StringIO()):
 			self.env(telegramOutgoingWebhook='https://example.com/telegram')

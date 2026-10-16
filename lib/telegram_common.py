@@ -117,10 +117,7 @@ class Telegram(inbound.Network):
 		"""A press: answerCallbackQuery, so that the client's spinner stops and a toast made from the button's data says
 		what is coming (buttons.toast: 'Loading 1Y…'). A failure is only logged. Nothing goes back with the update."""
 		if isinstance(event, inbound.Press):
-			if buttons.alert(event.data):
-				answerCallbackQuery(event.press_id, buttons.toast(event.data), alert=True)
-			else:
-				answerCallbackQuery(event.press_id, buttons.toast(event.data))
+			answerCallbackQuery(event.press_id, buttons.toast(event.data), alert=buttons.alert(event.data))
 		return None
 
 
