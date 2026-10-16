@@ -1,4 +1,5 @@
-"""Text for people: company names trimmed, numbers in units, dates and spans in words, signed percents, ordinals."""
+"""Text for people: company names trimmed, numbers in units, dates and spans in words, signed percents, ordinals, and a
+line of a message job's text in a network's markup."""
 import datetime
 import re
 import zoneinfo
@@ -191,6 +192,29 @@ def seconds_from_human(arg):
 def ordinal(num):
 	"""The ordinal suffix of a whole number: 'st' for 1, 'nd' for 22, 'th' for 11 and 13."""
 	return 'th' if num % 100 in (11, 12, 13) else {1: 'st', 2: 'nd', 3: 'rd'}.get(num % 10, 'th')
+
+
+LINK = re.compile(r'\[([^\]]+)\]\(([^)\s]+)\)') # [text](url), in a message job's text
+
+
+def markup(line, service):
+	"""A line of a message job's text in the network's markup: [text](url) is a link, a line wrapped in _underscores_
+	is in italics, and the rest is text, made safe to show."""
+	italic = len(line) > 1 and line.startswith('_') and line.endswith('_')
+	if italic:
+		line = line[1:-1]
+	text, start = '', 0
+	for link in LINK.finditer(line):
+		text += service.escape(line[start:link.start()]) + service.link(link.group(2), service.escape(link.group(1)))
+		start = link.end()
+	text += service.escape(line[start:])
+	return service.italic(text) if italic else text
+
+
+def plain(line):
+	"""A line of a message job's text as words alone: a link's text without its url, no underscores of italics."""
+	line = LINK.sub(lambda link: link.group(1), line)
+	return line[1:-1] if len(line) > 1 and line.startswith('_') and line.endswith('_') else line
 
 
 def zone():

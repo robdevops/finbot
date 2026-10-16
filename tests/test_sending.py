@@ -578,8 +578,9 @@ class EveryNetworkAndMode(FinbotCase):
 		"""A job in each chat for .jobs run to list, and what each command posts noted with its destination."""
 		super().setUp()
 		self.patch(discord_common.READER, 'bot_id', '99')
-		every = [{'when': '*/20 * * * Mon-Fri', 'reports': 'trades', 'zone': 'UTC', 'on': True}]
-		state.save(jobs.SCHEDULE_FILE, {f'{network}:{chat}': every for network, chats in self.CHATS.items()
+		every = {'jobs': [{'action': 'trades', 'args': [], 'schedule': {'days': 'weekdays', 'every': 20, 'zone': 'UTC'},
+			'on': True}]}
+		state.save(jobs.JOBS_FILE, {f'{network}:{chat}': every for network, chats in self.CHATS.items()
 			for chat in chats})
 		scheduler = jobs.Scheduler()
 		with contextlib.redirect_stderr(io.StringIO()):

@@ -2,6 +2,7 @@
 table also makes the .help text and the Telegram command keyboard, which is kept current in every DM."""
 import dataclasses
 import hashlib
+import hmac
 import json
 import math
 import re
@@ -43,15 +44,15 @@ class Request:
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
 def process_job_callback(press, pressed):
-	"""A job's button (an inbound.Press; pressed, what its data says): run the job now and say how it went, or switch
-	it on or off and redraw the list in place. A button from an older list does neither: the list is redrawn as it is
-	now."""
+	"""An older job button (an inbound.Press; pressed, what its data says): run the job now and say how it went, or
+	switch it on or off and redraw the list in place, as the menu's screen that does the same. A button from an older
+	list does neither: the screen is drawn as the list is now."""
 	service = dialects.of(press.service)
 	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
 	def redraw():
-		"""Put the chat's list, as it is now, in place of the pressed one, with the same kind of buttons."""
-		payload, markup = about.prepare_jobs_payload(service, chat.key, pressed.action, chat.takes_buttons)
-		chat.edit_text(press.message_id, '\n'.join(payload), markup or [])
+		"""Put the menu's screen that does the same, as the list is now, in place of the pressed one."""
+		lines, markup = about.jobs_screen(service, chat.key, 'on' if pressed.action == 'toggle' else 'run')
+		chat.edit_text(press.message_id, '\n'.join(lines), markup or [])
 	try:
 		if jobs.current is None:
 			raise jobs.ScheduleError('no schedule is running')
@@ -67,10 +68,70 @@ def process_job_callback(press, pressed):
 	except Exception as e:
 		delivery.report_error(e, chat, context='jobs')
 
+def process_menu_callback(press, pressed):
+	"""A press in the .jobs menu (an inbound.Press; pressed, the buttons.MenuPress its data says): a screen to show; or
+	first a job to switch, delete or run, as long as the list is the one the button was drawn for (its checksum), else
+	the screen is drawn as the list is now, saying so; or a step of Add, the last adding the job. The pressed message
+	then shows the screen; a run's outcome is a message of its own."""
+	service = dialects.of(press.service)
+	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
+	try:
+		lines, markup = menu_screen(service, chat, pressed)
+		chat.edit_text(press.message_id, '\n'.join(lines), markup or [])
+	except Exception as e:
+		delivery.report_error(e, chat, context='jobs')
+
+def menu_screen(service, chat, pressed):
+	"""The screen that a press in the .jobs menu shows, once what it asks for is done (see process_menu_callback)."""
+	scheduler, key, screen, args = jobs.current, chat.key, pressed.screen, pressed.args
+	if scheduler is None:
+		return ['No schedule is running'], None
+	if screen == 'next':
+		return about.next_screen(service, key)
+	if screen == 'add':
+		return add_step(service, chat, args)
+	page = int(args[0]) if args and args[0].isdigit() and len(args[0]) < 4 else 0
+	note = None
+	if len(args) == 2 and screen in ('on', 'del', 'run'):
+		own, number = scheduler.chat_jobs(key), args[1]
+		if not (hmac.compare_digest(jobs.list_checksum(own), pressed.checksum) and number.isdigit() and
+				1 <= int(number) <= len(own)):
+			note = 'The jobs have changed: here they are now'
+		else:
+			job = own[int(number) - 1]
+			try:
+				if screen == 'on':
+					scheduler.toggle(job)
+				elif screen == 'del':
+					scheduler.delete(job)
+					note = f'Deleted {number}. {service.escape(job.name)}'
+				else:
+					delivery.deliver(chat, delivery.Report([about.job_line(number, job, scheduler.run(job))]))
+			except jobs.ScheduleError as e:
+				note = service.escape(str(e))
+	return about.jobs_screen(service, key, screen, page, note)
+
+def add_step(service, chat, steps):
+	"""A step of Add pressed: the next choice's screen; once every choice is made, the job added, or why it is not."""
+	try:
+		lines, made = about.add_screen(service, chat.key, steps)
+	except ValueError: # data that is no step of Add: forged, or from an older finbot
+		return about.jobs_screen(service, chat.key, 'top', 0, 'That is no step of Add')
+	if lines is not None:
+		return lines, made
+	try:
+		number = jobs.current.add(chat.key, *made)
+	except jobs.ScheduleError as e:
+		return about.add_failed(service, chat.key, steps, str(e))
+	return about.added_screen(service, chat.key, number)
+
 def process_callback(press):
-	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): a job's (run it, or switch it),
-	or a chart's, whose message is rebuilt for the chosen period and edited in place. Data of neither is ignored."""
+	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): the .jobs menu's, an older job
+	button (run it, or switch it), or a chart's, whose message is rebuilt for the chosen period and edited in place.
+	Data of none of them is ignored."""
 	pressed = buttons.parse(press.data)
+	if isinstance(pressed, buttons.MenuPress):
+		return process_menu_callback(press, pressed)
 	if isinstance(pressed, buttons.JobPress):
 		return process_job_callback(press, pressed)
 	if not pressed:
@@ -99,6 +160,11 @@ def process_request(message):
 	request = Request(dialects.of(message.service), message.chat_id, message.user, message.user_name, message.bot_name,
 		message.message_id, message.interaction)
 	command, args = read(message.text, message.bot_name)
+	if command and jobs.current: # a chat finbot does not know yet starts with the default jobs
+		try:
+			jobs.current.see(request.dest.key)
+		except Exception as e:
+			log.warn('schedule: cannot take on', request.dest.key, delivery.error_line(e))
 	if command:
 		try:
 			request.dest.start_typing()
@@ -364,27 +430,36 @@ def on_who(request, args):
 	request.reply(holdings.prepare_who(request.service, re.split(r'[.:]', args.words[0].upper())[0]))
 
 def on_jobs(request, args):
-	""".jobs: this chat's jobs; .jobs run or toggle [NUMBER]: one run now or switched on or off (without a number, the
-	list with a button per job that does it); .jobs add [CRON_TZ=ZONE] TIME REPORT: one more (alone, the reports it can
-	run); .jobs del NUMBER: one fewer."""
+	""".jobs: this chat's jobs, the default ones and those added here, with the menu's buttons; .jobs next: the next
+	runs; .jobs system: the system's; .jobs run, toggle or del NUMBER: one run now, switched on or off, or deleted (one
+	added here), and without a number the list with a button per job that does it; .jobs add REPORT SCHEDULE, or .jobs
+	add message SCHEDULE "TEXT": one more (alone, the reports a job can run)."""
 	scheduler, chat, service = jobs.current, request.dest.key, request.service
+	tappable = request.dest.takes_buttons
 	if scheduler is None:
 		raise answer.Answer('No schedule is running')
 	try:
 		if args.keyword is None and not args.words:
-			request.reply(about.prepare_jobs_payload(service, chat)[0])
+			lines, markup = about.jobs_screen(service, chat, tappable=tappable)
+			request.reply(lines, buttons=markup)
+		elif args.keyword == 'next' and not args.words:
+			lines, markup = about.next_screen(service, chat)
+			request.reply(lines, buttons=markup if tappable else None)
+		elif args.keyword == 'system' and not args.words:
+			request.reply(about.prepare_system(service))
 		elif args.keyword == 'add':
-			first, line = (args.text.split(None, 1) + [''])[:2]
-			if first.lower() != 'add': # the job's line follows add
+			first, text = (args.text.split(None, 1) + [''])[:2]
+			if first.lower() != 'add': # the job follows add
 				raise Usage
-			if not line:
+			if not text.strip():
 				return request.reply(about.prepare_reports(service))
-			number = scheduler.add(chat, line)
+			number = scheduler.add(chat, *jobs.parse_add(text, formats.zone().key))
 			request.reply([about.job_entry(service, scheduler, number, scheduler.chat_jobs(chat)[number - 1]),
 				'Added: .jobs lists them all'])
-		elif args.keyword in ('run', 'toggle') and not args.words:
-			payload, markup = about.prepare_jobs_payload(service, chat, args.keyword, request.dest.takes_buttons)
-			request.reply(payload, buttons=markup)
+		elif args.keyword in ('run', 'toggle', 'del') and not args.words:
+			screen = {'run': 'run', 'toggle': 'on', 'del': 'del'}[args.keyword]
+			lines, markup = about.jobs_screen(service, chat, screen, tappable=tappable)
+			request.reply(lines, buttons=markup)
 		elif args.keyword in ('run', 'toggle', 'del') and len(args.words) == 1:
 			number = args.words[0]
 			job = scheduler.job(chat, number)
@@ -395,7 +470,7 @@ def on_jobs(request, args):
 				request.reply([about.job_entry(service, scheduler, number, scheduler.job(chat, number))])
 			else:
 				scheduler.delete(job)
-				request.reply([f"Deleted {number}. {job.line}"])
+				request.reply([f"Deleted {number}. {job.name} · {job.schedule.describe(formats.zone().key)}"])
 		else:
 			raise Usage
 	except jobs.ScheduleError as e: # a job that cannot be, or a number that is none: said, as an answer
@@ -433,8 +508,8 @@ NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # t
 CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'delete') # of the watchlist
 PLANS = 'finbot_plan.json' # each chat's plans, {user: plan}, as state.load_for keeps them
 BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .pie's
-JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'),
-	'del') # what .jobs does to a chat's jobs
+JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'add': 'add', 'next': 'next', 'system': 'system'} | dict.fromkeys((
+	'del', 'delete', 'rem', 'remove', 'rm'), 'del') # what .jobs does to a chat's jobs, and shows
 BUY_SELL = ('buy', 'sell', *(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')))
 PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL'), COMPANY) # any first word that is no
 # command's name but may be a ticker calls it too
@@ -470,8 +545,9 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True),
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True),
 	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES),
-	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [run|toggle] [NUMBER]',
-		'.jobs add [CRON_TZ=ZONE] TIME REPORT', '.jobs del NUMBER'), JOBS, keywords=JOB_CHANGES),
+	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [next|system]',
+		'.jobs run|toggle|del [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'), JOBS,
+		keywords=JOB_CHANGES),
 	PROFILE,
 ]
 
@@ -528,7 +604,9 @@ def slash_commands(aliases=True):
 		for name, (command, lines) in found.items()]
 
 PERIOD_WORDS = ('1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y') # suggested where a command takes a period
-JOB_WORDS = ('run', 'toggle', 'add', 'del') # what /jobs suggests first
+JOB_WORDS = ('add', 'run', 'toggle', 'del', 'next', 'system') # what /jobs suggests first
+SCHEDULE_WORDS = ('daily', 'weekdays', 'weekly', 'monthly', 'quarterly', 'bi-annual', 'annual', 'hourly', 'every', 'at',
+	'from', 'between', 'on') # what a schedule in English is made of, suggested after a report
 
 def completes(command):
 	"""Whether suggest has words to offer for a command's arguments: its keywords, periods, tickers, portfolios, or
@@ -581,30 +659,25 @@ def argument_words(command, chat, given):
 	return [(word, word) for word in dict.fromkeys(words)]
 
 def job_words(chat, words):
-	"""(word, shown) pairs for /jobs, for suggest, after the words given: first its subcommands; after run, toggle or
-	del, this chat's job numbers, each shown with its line; after add and a time, the reports, each shown with what it
-	takes; after a report's name, the words it takes."""
+	"""(word, shown) pairs for /jobs, for suggest, after the words given: first its subcommands; after run or toggle,
+	this chat's job numbers, each shown with its name (after del, those of the jobs added here); after add, the reports,
+	each shown with what it takes; after a report, the words it takes, then those of a schedule."""
 	if not words:
 		return [(word, word) for word in JOB_WORDS]
 	action = JOB_CHANGES.get(words[0].lower())
 	if action in ('run', 'toggle', 'del') and len(words) == 1:
 		own = jobs.current.chat_jobs(chat) if jobs.current else []
-		return [(str(number), f'{number}: {job.line}') for number, job in enumerate(own, 1)]
+		return [(str(number), f'{number}: {job.name}') for number, job in enumerate(own, 1)
+			if action != 'del' or not job.item]
 	if action != 'add':
 		return []
-	line = words[1:][1:] if words[1:2] and words[1].startswith('CRON_TZ=') else words[1:]
-	time = 1 if line and line[0].startswith('@') else 5
-	if len(line) < time:
+	if len(words) == 1:
+		return [(name, f'{name} {jobs.ACTIONS[name].ARGUMENTS}'.strip()) for name in jobs.chat_actions()]
+	module = jobs.ACTIONS.get(words[1].lower())
+	if module is None or words[1].lower() not in jobs.chat_actions():
 		return []
-	after = line[time:]
-	if not after or after[-1].endswith(';'): # a report's name is next
-		return [(name, f'{name} {module.ARGUMENTS}'.strip()) for name, module in sorted(jobs.SCRIPTS.items())
-			if name not in jobs.SYSTEM_SCRIPTS]
-	start = max(i for i in range(len(after)) if i == 0 or after[i - 1].endswith(';')) # the report being given
-	module = jobs.SCRIPTS.get(after[start].rstrip(';'))
-	if module is None or len(after) - start > 1 or after[start].endswith(';'):
-		return []
-	return [(word, word) for word in re.findall(r'[a-z][a-z-]*', module.ARGUMENTS)]
+	takes = re.findall(r'[a-z][a-z-]*', module.ARGUMENTS) if len(words) == 2 else []
+	return [(word, word) for word in dict.fromkeys(takes + list(SCHEDULE_WORDS))]
 
 def command_keyboard(per_row=3):
 	"""Persistent reply keyboard of the commands that have buttons (Telegram DMs), alphabetical, row by row; a press

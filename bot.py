@@ -304,7 +304,7 @@ if __name__ == '__main__':
 		log.warn('WARN config:', line)
 	if os.getuid() == 0:
 		log.warn("Running as superuser. This is not recommended.")
-	migrate.run() # once, on an upgrade: what was kept for all chats becomes the old home chats', schedule.cron among it
+	migrate.run() # once, on an upgrade: what was kept for all chats becomes the old home chats'
 	scheduler = jobs.Scheduler()
 	scheduler.load()
 	render.preload()

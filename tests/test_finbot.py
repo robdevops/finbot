@@ -3,6 +3,7 @@ import ast, contextlib, datetime, io, json, re, subprocess, tempfile, unittest, 
 from pathlib import Path
 from unittest import mock
 from tests.common import *
+from lib.reports import message
 
 
 class Plumbing(FinbotCase):
@@ -41,10 +42,10 @@ class Plumbing(FinbotCase):
 		tz = zoneinfo.ZoneInfo('Australia/Melbourne')
 		self.assertEqual(datetime.datetime(2022, 8, 18, tzinfo=tz).utcoffset(), datetime.timedelta(hours=10))
 
-	def test_reminder_runs(self):
-		"""The reminder report runs with no reminders on file."""
-		with mock.patch.object(config, 'data_json', lambda name, default=None: []):
-			reminder.run(scheduled())
+	def test_a_message_job_runs(self):
+		"""A message job posts its text to its chat."""
+		message.run(scheduled(), lines=['hello'])
+		self.assertEqual(self.sent, [('text', ['hello'])])
 
 	def test_bot_handler(self):
 		"""A sticker is answered 200, with nothing logged but the request's line (INFO); git_version matches what git

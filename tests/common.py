@@ -15,7 +15,7 @@ from lib import answer, buttons, cache, charts, config, delivery, dialects, form
 from lib import render, sharesight, shortman, state, transports, watchlist, worker, yahoo
 from lib import discord_common, slack_common, telegram_common # each network's reader and bot
 from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating
-from lib.reports import reminder, shorts, trades
+from lib.reports import shorts, trades
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),
 	(yahoo, 'price_history'), (yahoo, 'historic_high'),
@@ -26,8 +26,8 @@ REAL_DOUBLED = bot.doubled # FinbotCase takes every message, a repeat sent on pu
 
 
 def no_jobs(data):
-	"""No chat's jobs in a data dir, so that a bot started there runs no scheduled report (and migrates none)."""
-	Path(data, 'finbot_schedule.json').write_text('{}')
+	"""No chat known in a data dir, so that a bot started there runs no scheduled report."""
+	Path(data, 'finbot_chat_jobs.json').write_text('{}')
 
 
 def scheduled(key='telegram:1'):
@@ -273,5 +273,3 @@ class ProviderCase(FinbotCase):
 
 UTC = zoneinfo.ZoneInfo('UTC')
 
-
-DEFAULT_SCHEDULE = Path(ROOT, 'defaults', 'schedule.cron')

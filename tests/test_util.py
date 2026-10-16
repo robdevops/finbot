@@ -147,25 +147,44 @@ class Formatting(unittest.TestCase):
 
 	def test_button_data_reads_back(self):
 		"""A button's data says what was pressed: a period button of a known kind and period (as keyboard() makes
-		them), any .jobs button (pick checks it), and nothing for anything else."""
+		them), a .jobs menu's button of a known screen made of plain letters and digits, an older job button (pick
+		checks it), and nothing for anything else."""
 		self.assertEqual([buttons.parse(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
 			[buttons.ChartPress('l', key, '5,0') for key in 'dwmyx'])
-		self.assertEqual(buttons.parse(buttons.job_button(8, 'trades', 'abcd').data), buttons.JobPress('8', 'abcd'))
+		self.assertEqual(buttons.parse(buttons.menu_button('1 ✅ trades', 'on', [0, 1], 'abcd').data),
+			buttons.MenuPress('on', ('0', '1'), 'abcd'))
+		self.assertEqual(buttons.parse('m|add|abcd'), buttons.MenuPress('add', (), 'abcd'))
+		self.assertEqual(buttons.parse('j|8|abcd'), buttons.JobPress('8', 'abcd'))
 		self.assertEqual(buttons.parse('j|8'), buttons.JobPress('8', ''))
-		for data in ('c|h|d|T1', 'c|z|w|T1', 'c|h|w', 'x|h|w|T1', '', 'c'):
+		self.assertEqual(buttons.menu_button('x' * 50, 'top', [0], 'abcd').label, 'x' * 40)
+		for data in ('c|h|d|T1', 'c|z|w|T1', 'c|h|w', 'x|h|w|T1', '', 'c', 'm|zz|0|abcd', 'm|on', 'm|on|0|a b',
+				'm|on|٨|abcd', 'm|on|0|1|' + 'a' * 60):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
 
 	def test_a_press_is_told_what_is_coming_from_its_data_alone(self):
-		"""The toast a press gets as it arrives: the period a period button loads, 'Running…' for any .jobs button
-		(the worker checks it later), and none for data of neither."""
+		"""The toast a press gets as it arrives: the period a period button loads, 'Updating…' for the .jobs menu's,
+		'Running…' or 'Switching…' for an older job button (the worker checks them later), and none for other data."""
 		self.assertEqual([buttons.toast(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
 			['Loading 1D…', 'Loading 7D…', 'Loading 1M…', 'Loading 1Y…', 'Loading Max…'])
-		self.assertEqual(buttons.toast(buttons.job_button(8, 'trades', 'abcd').data), 'Running…')
+		self.assertEqual(buttons.toast('j|8|abcd'), 'Running…')
 		self.assertEqual(buttons.toast('j|99|0000'), 'Running…')
+		self.assertEqual(buttons.toast('e|99|0000'), 'Switching…')
+		self.assertEqual(buttons.toast('m|on|0|1|abcd'), 'Updating…')
 		for data in ('c|f|d|', 'c|zz|m|T1', '', 'x'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.toast(data))
+
+	def test_a_message_takes_links_and_italics_in_each_networks_markup(self):
+		"""In a message job's text, [text](url) is a link and a line in _underscores_ is in italics, an underscore in a
+		url included; the rest is text, escaped where the network needs it; plain() keeps the words alone."""
+		line = '_See [R&D notes](https://x.example/a_b) & more_'
+		self.assertEqual(formats.markup(line, TELEGRAM),
+			'<i>See <a href="https://x.example/a_b">R&amp;D notes</a> &amp; more</i>')
+		self.assertEqual(formats.markup(line, SLACK), '_See <https://x.example/a_b|R&amp;D notes> &amp; more_')
+		self.assertEqual(formats.markup(line, DISCORD), '_See [R&D notes](<https://x.example/a_b>) & more_')
+		self.assertEqual(formats.markup('a_b_c and _', TELEGRAM), 'a_b_c and _') # italic only when the whole line is
+		self.assertEqual(formats.plain(line), 'See R&D notes & more')
 
 	def test_strip_url(self):
 		"""A link's text is its address without the scheme or www."""
@@ -329,8 +348,7 @@ class Schedules(unittest.TestCase):
 		return datetime.datetime(*args, tzinfo=zoneinfo.ZoneInfo(zone))
 
 	def test_english_becomes_a_schedule(self):
-		"""Each form a chat may type becomes the schedule it says, in the zone it names, else the timezone
-		preference's."""
+		"""Each form a chat may type becomes the schedule it says, in the zone it names or the timezone preference's."""
 		for text, stored in (('daily', {'days': 'daily', 'at': '09:00'}), ('at 9am', {'days': 'daily', 'at': '09:00'}),
 				('weekdays at 4:30pm', {'days': 'weekdays', 'at': '16:30'}),
 				('weekly', {'days': ['sat'], 'at': '09:00'}),
@@ -367,8 +385,7 @@ class Schedules(unittest.TestCase):
 				self.assertEqual(when.parse(text, self.MEL).to_json(), {'zone': self.MEL, **stored})
 
 	def test_what_is_no_schedule_is_refused_with_examples(self):
-		"""Words it cannot read, times and dates that are none, and a repeat with a time of day are refused, with
-		examples."""
+		"""Unreadable words, times and dates that are none, and a repeat at a time of day are refused, with examples."""
 		for text in ('fortnightly', 'at 25:00', 'at 13pm', 'every 31 feb', 'every 20 mins at 9am',
 				'weekly from 9am to 5pm', 'daily at 9am Atlantis', '', 'every 0 mins', 'the 32nd of each month',
 				'monthly; rm -rf /'):

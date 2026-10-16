@@ -233,8 +233,7 @@ class Schedule:
 		return f"{head}, {tail}" if tail else head
 
 	def repeat(self, utc, gap=0):
-		"""A repeat's words, (how often, its window of hours or ''): ('hourly at :01', '10am–9pm'), the window moved by
-		gap minutes."""
+		"""A repeat's words, (how often, its window of hours or ''), the window moved by gap minutes."""
 		start, end = self.start or 0, self.end
 		if end is None and start < self.every: # where in each step it runs, not a window
 			return repeat_words(self.every, start, utc), ''
@@ -422,8 +421,7 @@ def repeat_days(days):
 
 
 def shifted(days, shift):
-	"""The days as a clock `shift` days ahead has them: 'weekdays' a day on is 'Tue–Sat'; '' where that says no more
-	(no shift, daily)."""
+	"""The days as a clock `shift` days ahead has them ('weekdays' a day on is 'Tue–Sat'); '' for daily or no shift."""
 	if not shift or days == 'daily':
 		return ''
 	if isinstance(days, dict):

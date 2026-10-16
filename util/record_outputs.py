@@ -24,11 +24,13 @@ COMMANDS = ['.help', '/start', '.hello', '.thanks', '.who T1', '.plan buy low', 
 	'.performance 7d', '.performance 1y', '.performance Nope', '.pie Rob', '.pie Rob sector', '.pie', '.compare T1 T2',
 	'.compare T1 T2 3m', '.compare T1', '.history T1', '.history', '.watchlist', '.watchlist add MSFT',
 	'.watchlist add MSFT', '.watchlist del MSFT', '.watchlist frob X', '.T1', '.jobs', '.jobs run', '.jobs toggle',
-	'.jobs add', '.jobs add 0 22 * * * shorts', '.jobs del 4', '.jobs run 1', 'hi @bot', 'noise']
+	'.jobs add', '.jobs add shorts daily at 22:00', '.jobs del 4', '.jobs run 1', '.jobs next', '.jobs system',
+	'hi @bot', 'noise']
 BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1',
-	'j|1|0000', 'e|1|0000']
-JOBS = ['*/20 * * * Mon-Fri trades', '29 21 * * Mon-Fri price interday', # each chat's, for .jobs
+	'j|1|0000', 'e|1|0000', 'm|on|0|0000', 'm|add|0000', 'm|add|5|w|0000', 'm|next|0000']
+JOBS = ['*/20 * * * Mon-Fri trades', '29 21 * * Mon-Fri price interday', # each chat's, for .jobs (as cron had them)
 	'28 21 * * Sat cal earnings; cal ex-dividend; price 7; performance 7; rating']
+ADDED = ['trades every 20 mins weekdays', 'price daily at 21:29', 'cal earnings every saturday at 21:28'] # since cron
 SCHEDULED = ['trades', 'price midsession', 'price interday', 'price premarket', 'price close', 'price 7',
 	'cal earnings', 'cal ex-dividend', 'performance 7', 'rating', 'shorts', 'milestone', 'reminder']
 TELEGRAM_API = 'https://api.telegram.org/botX/'
@@ -117,10 +119,14 @@ def record(output):
 			self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack') # Slack's buttons too
 			if 'discordBotToken' in {field.name for field in common.dataclasses.fields(common.config.env)}:
 				self.env(discordBotToken='discord-test')
-			if hasattr(jobs, 'SCHEDULE_FILE'): # each chat's jobs, since jobs per chat
+			chats = ('telegram:55', 'slack:C1', 'discord:77')
+			if hasattr(jobs, 'JOBS_FILE'): # the default jobs and those each chat added, since schedules of finbot's own
+				added = [jobs.make_job(*jobs.parse_add(text, 'UTC'), 'telegram:55').stored() for text in ADDED]
+				common.state.save(jobs.JOBS_FILE, {key: {'jobs': added} for key in chats})
+				schedule = jobs.Scheduler(clock=lambda: common.datetime.datetime(2026, 10, 15, tzinfo=common.UTC))
+			elif hasattr(jobs, 'SCHEDULE_FILE'): # each chat's jobs, since jobs per chat
 				entries = [{'when': job.when, 'reports': job.text, 'zone': 'UTC', 'on': True}
 					for job in map(jobs.parse_job, JOBS)]
-				chats = ('telegram:55', 'slack:C1', 'discord:77')
 				common.state.save(jobs.SCHEDULE_FILE, {key: entries for key in chats})
 				schedule = jobs.Scheduler()
 			else: # one schedule for all chats, the shipped one
@@ -164,7 +170,13 @@ def record(output):
 				keys = ('telegram:1', 'slack:C9', 'discord:78')
 				return lambda: [run(delivery.chat(key, scheduled=True), **kwargs) for key in keys]
 			for line in SCHEDULED:
-				if hasattr(jobs, 'parse_reports'):
+				if hasattr(jobs, 'ACTIONS'): # a job is an action and its arguments, since schedules of finbot's own
+					name, *arguments = line.split()
+					if name not in jobs.ACTIONS: # the reminder report, which message jobs replaced
+						continue
+					module = jobs.ACTIONS[name]
+					label, kwargs = module.job(arguments)
+				elif hasattr(jobs, 'parse_reports'):
 					label, module, kwargs = jobs.parse_reports(line)[0]
 				else: # a commit from before jobs per chat, whose reports were scripts
 					name, _, arguments = line.partition(' ')

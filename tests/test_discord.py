@@ -3,7 +3,7 @@ signatures, REST calls and their rate limits, messages with charts and buttons, 
 and the gateway."""
 import contextlib, io, json, sys, types, unittest
 from tests.common import *
-from lib import discord_websocket, jobs
+from lib import catalog, discord_websocket, jobs
 
 try:
 	from nacl.signing import SigningKey
@@ -384,32 +384,32 @@ class Suggestions(FinbotCase):
 		self.assertEqual(self.values('/plan buy '), [])
 
 	def test_the_jobs_subcommands_numbers_and_reports(self):
-		"""/jobs suggests its subcommands; after run, toggle or del this chat's job numbers, each shown with its line;
-		after add and a time (five fields, an @macro, a zone first), the reports a chat can schedule, each shown with
-		what it takes, and then what the report takes."""
+		"""/jobs suggests its subcommands; after run or toggle this chat's job numbers, each shown with its name (after
+		del, those of the jobs it added); after add, the reports a chat can schedule, each shown with what it takes;
+		then what the report takes, and the words of a schedule."""
 		self.patch(jobs, 'SYSTEM', ())
-		state.save(jobs.SCHEDULE_FILE, {'discord:77': [
-			{'when': '*/20 * * * Mon-Fri', 'reports': 'trades', 'zone': 'UTC', 'on': True},
-			{'when': '0 22 * * *', 'reports': 'shorts', 'zone': 'UTC', 'on': False}]})
+		self.patch(catalog, 'ITEMS', (catalog.Item('rating', 'rating', 'rating', (), catalog.at('daily')),))
+		state.save(jobs.JOBS_FILE, {'discord:77': {'jobs': [
+			{'action': 'trades', 'args': [], 'schedule': {'days': 'weekdays', 'every': 20, 'zone': 'UTC'}, 'on': True},
+			{'action': 'shorts', 'args': [], 'schedule': {'at': '22:00', 'zone': 'UTC'}, 'on': False}]}})
 		scheduler = jobs.Scheduler()
 		with contextlib.redirect_stderr(io.StringIO()):
 			scheduler.load()
 		self.patch(jobs, 'current', scheduler)
-		self.assertEqual(self.values('/jobs '), ['run', 'toggle', 'add', 'del'])
+		self.assertEqual(self.values('/jobs '), ['add', 'run', 'toggle', 'del', 'next', 'system'])
 		self.assertEqual(self.values('/job T'), ['toggle'])
-		self.assertEqual(worker.suggest('discord:77', '/jobs run '), [('run 1: */20 * * * Mon-Fri trades', 'run 1'),
-			('run 2: 0 22 * * * shorts', 'run 2')])
-		self.assertEqual(self.values('/jobs del 2'), ['del 2'])
+		self.assertEqual(worker.suggest('discord:77', '/jobs run '), [('run 1: rating', 'run 1'),
+			('run 2: trades', 'run 2'), ('run 3: shorts', 'run 3')])
+		self.assertEqual(self.values('/jobs del '), ['del 2', 'del 3'])
 		self.assertEqual(self.values('/jobs run ', chat='discord:88'), [])
-		self.assertEqual(self.values('/jobs add 0 22 * * '), [])
-		reports = worker.suggest('discord:77', '/jobs add 0 22 * * * ')
-		self.assertIn(('add 0 22 * * * price midsession|interday|premarket|close|DAYS', 'add 0 22 * * * price'),
-			reports)
-		self.assertFalse(any(name in value for _, value in reports for name in jobs.SYSTEM_SCRIPTS))
-		self.assertEqual(self.values('/jobs add CRON_TZ=America/New_York 15 13 * * Mon-Fri price m'),
-			['add CRON_TZ=America/New_York 15 13 * * Mon-Fri price midsession'])
-		self.assertEqual(self.values('/jobs add @daily cal earnings; s'), ['add @daily cal earnings; shorts'])
-		self.assertEqual(self.values('/jobs add 0 22 * * * trades '), [])
+		reports = worker.suggest('discord:77', '/jobs add ')
+		self.assertIn(('add price midsession|interday|premarket|close|DAYS', 'add price'), reports)
+		self.assertIn(('add message "TEXT"', 'add message'), reports)
+		self.assertFalse(any(name in value for _, value in reports for name in jobs.SYSTEM_ACTIONS))
+		self.assertEqual(self.values('/jobs add price m'), ['add price midsession', 'add price monthly'])
+		self.assertEqual(self.values('/jobs add price weekly a'), ['add price weekly annual', 'add price weekly at'])
+		self.assertEqual(self.values('/jobs add nothere '), [])
+		self.assertEqual(self.values('/jobs add yahoo_warm '), [])
 
 	def test_at_most_25_each_of_100_characters_and_a_failure_suggests_nothing(self):
 		"""Discord takes 25 suggestions at most, each up to 100 characters; a failure suggests nothing, and is
