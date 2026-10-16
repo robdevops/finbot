@@ -58,7 +58,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   (`Message`, `Press`, `Suggest`, `Response`; the `Network` and `Webhook` bases), `lib/pull.py` (the `Listener` base,
   which waits longer after each failure in a row: `backoff`), `lib/transports.py` (the `Transport` base, below).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
-  keywords)`, which also makes `.help`, the Telegram command keyboard, kept current in DMs, and `slash_commands()`, which
+  keywords, job)`, which also makes `.help`, the commands a job may run (`job_commands()`, each a `CommandJob`: every
+  one but those that change something, `job=False`, and those a report runs, `REPORTED`), the Telegram command keyboard, kept current in DMs, and `slash_commands()`, which
   every network gets (Telegram's menu, Slack's manifest from `util/slack_manifest.py`, Discord's registered commands);
   `suggest(chat, text)` completes a slash command's arguments as they are typed (Discord's autocomplete), from the
   cache alone. `read()` finds the
@@ -97,7 +98,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   deletes cache files by when they were written (`--before`/`--after TIME`, or `all`), never the state.
   `yahoo.symbol(typed)` is Yahoo's symbol for a ticker as written, tried on the local exchange (`exchange_suffix`)
   when Yahoo does not know it bare: every ticker a chat gives goes through it. `sharesight.portfolios(name=None)` gives
-  `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `trades(days)`.
+  `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `trades(days)`. Sharesight is
+  optional (`sharesight.configured()`): without its keys `tickers()` is empty, so reports cover the watchlist alone, and
+  `portfolios()` raises `NotSetUp`, an answer.
 - `lib/log.py`: the log, by level (`error warn info debug`), as the `log_level` preference lets in, and `cut()`, which
   keeps a line that can run long (a request's) within the `log_width` preference; bot.py's `WholeLines`
   writes each line whole, whichever threads log at once. `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
@@ -107,22 +110,24 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `with_holdings(chat)`, the stocks a report in that chat covers; a report takes the chat from its destination.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on
   each reload). `lib/jobs.py`: the scheduler: each chat's jobs, the default ones and those it added (`JOBS_FILE`, by
-  chat key: the defaults it switched off, the jobs it added; a direct message's defaults start off, `'defaults':
-  'off'` with those switched on; `see` makes a chat known at its first command, a DM as `inbound.Message.dm` or
-  `is_dm` says; `add`,
-  `delete`, `toggle`, `switch_all`, `run`, `upcoming`, which `.jobs` calls through `jobs.current`; `parse_add` reads `.jobs add`),
-  and the fixed `SYSTEM` jobs, its shared state under one lock. A job is an action of `ACTIONS` (the report modules,
-  `message` among them) with the arguments its `job()` takes, never a command; one stored that is anything else is
-  logged and left out. Each job runs in the bot's process, in a thread (`run_in_process`), reported once if still
+  chat key: the defaults it switched off and those it removed, `'deleted'`, the jobs it added; a direct message's
+  defaults start off, `'defaults': 'off'` with those switched on, and it is marked `'dm'`; `see` makes a chat known at
+  its first command, a DM as `inbound.Message.dm` or `is_dm` says; `add`, `delete`, `delete_all`, `switch`,
+  `toggle`, `switch_all`, `run`, `upcoming`, which `.jobs` calls through `jobs.current`; `parse_add` reads `.jobs add`),
+  and the fixed `SYSTEM` jobs, its shared state under one lock. A job is an action of `actions()`: a report module of
+  `ACTIONS` (`message` among them) or a command of `.help` (`command_actions()`), with the arguments its `job()` takes
+  as words, never a command line; one stored that is anything else is logged and left out. Each job runs in the bot's process, in a thread (`run_in_process`), reported once if still
   running after `JOB_TIMEOUT` and left to finish (every request goes through `net`, with its timeouts: a test checks);
   each job's next run is worked out once and again only after it runs, so a tick costs little. `lib/when.py`: a job's
   `Schedule` (days, a time or a repeat, or a span across days, in a zone): `parse()` of the English a chat types,
-  `describe()`, `next_after()` through daylight saving. `lib/catalog.py`: the default jobs (`ITEMS`), each with its
+  `describe()`, `next_after()` through daylight saving; `cycle()` the months of a quarterly or bi-annual one from its
+  start month. `lib/catalog.py`: the default jobs (`ITEMS`), each with its
   name and schedule; the period of performance and price follows how often it runs (`period_args`).
   `lib/migrate.py`: once, on an upgrade, the old home chats (the retired telegramChatID, slackChannelID and
   discordChannelID, which it alone reads, from the environment) become chats finbot knows, and the watchlist, the
   plans and the reports' shared records become theirs; one-off upgrades run at one start only (`once`, recorded in
-  `UPGRADES`): `dm_jobs_off` switched off the jobs of the DMs known before DMs started with them off.
+  `UPGRADES`): `dm_jobs_off` switched off the jobs of the DMs known before DMs started with them off, and `mark_dms`
+  marked them `'dm'`, for the log's count of group chats and DMs.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return
@@ -162,7 +167,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - A chart renderer in `lib/render.py` takes its `Chart` and is listed in `RENDERERS` by kind; it gets `@_drawn`, which
   draws one chart at a time (matplotlib's caches are shared by every thread).
 - A new command: a `Command` in `COMMANDS` (its names, and what its arguments may hold), whose usage, section and
-  buttons make its `.help` lines and keyboard buttons, and the command list of `doc/commands.md`.
+  buttons make its `.help` lines and keyboard buttons, and the command list of `doc/commands.md`. A job may run every
+  command of `.help`, so one that changes anything takes `job=False`.
 
 ## Saving tokens
 - Run the tests quietly: `.venv/bin/python -m unittest discover -s tests -b` prints only failures (about 0.4 KB when

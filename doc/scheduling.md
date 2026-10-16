@@ -9,55 +9,71 @@ chats of an earlier version's schedule and its home chats. A direct message is a
 channel on Slack, and on Discord a message from no server.
 
 ## The menu
-`/jobs` lists the chat's jobs, numbered, a page at a time: the default jobs, then those added here. Each line shows ✅
-(on) or ❌ (off), a `*` if the job has never run, its name with a `†` if it is a default job, and its schedule in
-words. The page ends with a key to the marks it shows:
+`/jobs` lists the chat's jobs, numbered, a page at a time. Each line shows ✅ (on) or ❌ (off), a `*` if the job has
+never run, its name and its schedule in words. Under the list, in italics, is how Add is typed:
 ```
-1. ✅ trades† · every 20 mins, Mon 9am – Sat 3pm Sydney
-3. ✅* price midsession US† · weekdays at 12:45pm New York (3:45am local, Tue–Sat)
+1. ✅ trades · every 20 mins, Mon 9am – Sat 3pm Sydney
+3. ✅* price midsession US · weekdays at 12:45pm New York (3:45am local, Tue–Sat)
 
-* not run yet, † default (no delete, only disable)
+* not run yet
+
+/jobs add REPORT SCHEDULE
+/jobs add message SCHEDULE "TEXT"
 ```
-Under it are buttons, each screen drawn in place of the last, with **Cancel** back to the list:
-* **Enable/disable**: a button per job, its number, switch and name (`3 ✅ price midsession US`); a press switches the
-  job on or off. **All on** switches every job of the chat on at once, or **All off**, shown when every job is on,
-  switches them all off.
-* **Delete**: a button per job added here. A default job has no button: switch it off instead.
-* **Add**: the report, by name, and how often, then, a screen each, the rest down to the minute:
-  * one-off: the date (the next 14 days), the hour, the minute;
-  * daily and weekdays: the hour, the minute;
-  * weekly: the day of the week, the hour, the minute;
-  * monthly, quarterly and bi-annual: the day of the month, the hour, the minute;
-  * annual: the month, the day, the hour, the minute;
-  * repeating: the interval, then every day or weekdays.
-
-  Each screen marks its default with `†` (`Sat†`, `09†`, `09:00†`) and says `† indicates default`. After the report's,
-  each screen also has **Back**, a step back (the hour's has only Back: Discord takes 25 buttons). A message's text
-  cannot come from a button, so its screen says how to type one.
+Under it are six buttons, two to a row. Each screen is drawn in place of the last, with **Cancel** back to the list:
+* **Add**: what the job runs, how often, then the rest down to the minute ([below](#add-step-by-step)).
+* **Remove**: a button per job, the default ones too. **Remove all** asks first ("Remove all 37 jobs here?"), then
+  removes every job. A default job that is removed comes back when the same job is added again.
+* **Enable**: a button per job that is off; **Enable all** switches every job on.
+* **Disable**: a button per job that is on; **Disable all** switches every job off.
 * **Run now**: a button per job; a press runs it now, as its schedule would, and says how it went.
-* **Upcoming**: the next runs, in time order.
+* **Upcoming...**: the next runs, in time order.
 
 A button drawn for a list that has since changed acts on nothing: the screen is drawn again as the list is now.
+
+### Add, step by step
+Each screen marks its default with `†` (`Sat†`, `09†`) and says _† indicates default_; after the first, **Back** takes a
+step back. Times are by the `timezone` preference's clock.
+
+First what the job runs: a report, or a command of `/help` ([below](#a-job-in-english)). A message's text, and a
+command's stock or portfolio, cannot come from a button, so their screen says how to type them. Then how often:
+
+| how often | then | added as, for example |
+|---|---|---|
+| one-off | the year (this one and the nine after), the month, the day (from today; tomorrow by default), the hour, the minute | once, 20 Mar 2027 at 8:00am |
+| hourly | every day or weekdays, the start hour, the start minute, the end time (a run after the start, or the end of the day) | hourly at :05, weekdays 10am–4pm |
+| daily | the hour, the minute | daily at 9:00am |
+| weekly | the day of the week, the hour, the minute | weekly, Saturdays at 9:00am |
+| monthly | the day of the month, the hour, the minute | monthly, the 1st at 9:00am |
+| quarterly | the start month (then every 3 months), the day of the month, the hour, the minute | quarterly, 15 Feb/May/Aug/Nov at 9:00am |
+| bi-annual | the start month (and 6 months later), the day of the month, the hour, the minute | bi-annual, 1 Mar and 1 Sep at 9:00am |
+| annual | the start month, the day of the month (those it has), the hour, the minute | annual, 31 Mar at 9:00am |
+| every... | 5, 10, 15, 20 or 30 mins, or 2, 3, 4, 6 or 12 hours, then as hourly; or weekday, then the hour and the minute | every 20 mins, weekdays 10:05am–4:05pm; weekdays at 9:00am |
+
+A span across days (`every 20 mins from mon 9am to sat 3pm`), or a window of hours across midnight, is typed.
 
 Or type:
 ```
 /jobs                      the chat's jobs, with the buttons above
 /jobs upcoming             the next 20 runs; a repeat's runs on one day are one entry
 /jobs system               the system jobs
-/jobs add                  the reports a job can run, what each takes, and examples
+/jobs add                  what a job can run, what each takes, and examples
 /jobs add price weekly
 /jobs add price close weekdays at 4:30pm New York
+/jobs add pe top weekly
+/jobs add compare AAPL MSFT 1y monthly
 /jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"
 /jobs run 2                runs job 2 now; /jobs run alone: the list with a button per job
-/jobs toggle 2             switches job 2 on or off
-/jobs del 36               deletes job 36, one added here
+/jobs enable 2             switches job 2 on; /jobs disable 2 off; /jobs toggle 2 the other way
+/jobs remove 36            removes job 36 (or /jobs del 36)
 ```
 
 ## A job in English
 A job is a report and what it takes, then when it runs:
 * **Days:** `daily`, `weekdays`, `weekends`, `weekly` (Saturdays), `every saturday` or `saturdays`, `tue-sat`, `monthly`
-  (the 1st), `first day of each month`, `on the 15th`, `quarterly` (1 Jan, Apr, Jul and Oct), `bi-annual` (1 Jan and 1
-  Jul), `annual` (1 Jan), `every 31 mar` (each year) or `on 28 oct 2026` (once).
+  (the 1st), `first day of each month`, `on the 15th`, `quarterly` (1 Jan, Apr, Jul and Oct; `quarterly from feb`: Feb,
+  May, Aug and Nov), `bi-annual` (1 Jan and 1 Jul; `bi-annual starting mar`: Mar and Sep), `annual` (1 Jan;
+  `annual from aug`), `every 31 mar` (each year) or `on 28 oct 2026` (once).
 * **Time:** `at 9`, `at 9am`, `at 9:30am` or `at 21:30`. Without one, 9am, or 8:30am for a message.
 * **Repeating:** `every 20 mins`, `hourly`, `hourly at :01`, `every 2 hours` or any other number, counted from
   midnight. It can take days, and a window of hours (`from 10am to 9pm`, `between 9am and 5pm`) or a span across days
@@ -75,6 +91,12 @@ A job is a report and what it takes, then when it runs:
 The reports are `trades`, `price midsession|interday|premarket|close|DAYS`, `cal earnings|ex-dividend`, `performance
 [DAYS]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `message "TEXT"`.
 
+A job can also run a command of `/help`, with what it takes, and posts what the command posts when typed in the chat:
+`pe [SYMBOL|top|bottom]`, `forward pe`, `peg`, `marketcap`, `beta`, `buy`, `sell` (`buy&sell` both), `history SYMBOL`,
+`compare SYMBOL SYMBOL…`, `stock SYMBOL`, and with Sharesight `holdings PORTFOLIO`, `pie PORTFOLIO` and `who SYMBOL`.
+The commands that change something (`watchlist`, `plan`, `jobs`) are no jobs, and price, performance, trades, shorts,
+earnings, dividends, session and premarket are run by their reports above.
+
 The period of `performance` and `price` follows how often the job runs: weekly covers 7 days, monthly 30, quarterly
 90, bi-annual 180 and annual 365, and a daily `price` is the day's moves. A number given (`price 30 weekly`) is used
 instead.
@@ -86,7 +108,7 @@ A **message** posts its text as it is:
 * A one-off message (`on 28 oct 2026`) is deleted after its time has passed, when the list is next shown.
 
 A job that is the same as a default job (the same report, days and times, in a zone with the same clock) switches that
-default job on instead of being added. A chat can add 30 jobs.
+default job on instead of being added, and brings it back where the chat removed it. A chat can add 30 jobs.
 
 ## The default jobs
 These are as a chat in Melbourne sees them in mid-October. The local times beside New York's, Hong Kong's and London's
@@ -135,18 +157,22 @@ move as either side's daylight saving changes.
   * mid-session about halfway through: 1:00pm Sydney for the ASX, 12:45pm New York for the NYSE;
   * the close 30 minutes after it: 4:30pm Sydney for the ASX, 4:30pm Hong Kong, 5:00pm London and 4:30pm New York.
 * **The messages marked (AU)** are default jobs only where the `country_code` preference is `AU`.
+* **trades and performance** are default jobs only where Sharesight is set up (see
+  [Configuration](configuration.md#sharesight)).
 * **A one-off leaves the list** once its date has passed.
 
 ## How jobs run
 * A job is kept by its chat's network and id, in `finbot_chat_jobs.json` in the data directory, so switching a network
-  between pull and HTTP mode keeps it. Only a chat's switches and the jobs it added are stored: the default jobs come
-  from finbot's code, so a change to them reaches every chat.
+  between pull and HTTP mode keeps it. Only a chat's switches, the default jobs it removed and the jobs it added are
+  stored: the default jobs come from finbot's code, so a change to them reaches every chat, and a new one arrives in
+  every chat.
 * Each chat keeps its own record of what a report has told it (trades, rating changes, record highs, podcast
   episodes), so the same report scheduled in two chats tells each of them once. A run from **Run now** or `/jobs run`
   is a scheduled run: it posts to the chat and updates the same record. A change counts at once, with no reload.
-* **A job can only run finbot's own reports.** It names an action from a fixed table in `lib/jobs.py` (a report, or
-  posting a message), with arguments that report's own parser has checked: never a command, a script or code. A stored
-  job naming anything else is logged and left out, never run.
+* **A job can only run finbot's own reports and commands.** It names a report from a fixed table in `lib/jobs.py` (or
+  posting a message), or a command of the table `/help` is made from (`lib/worker.py`) that changes nothing, with
+  arguments its parser has checked, kept as words: never a command line, a script or code. A stored job naming anything
+  else is logged and left out, never run.
 * **The system jobs**, fixed in `lib/jobs.py` and listed by `/jobs system`, keep the cache full and tidy:
   * `sharesight_warm` every 30 minutes and `yahoo_warm` every 8 hours (see [Caching](caching.md));
   * `cleanup 30` weekly, which deletes cache files older than 30 days.
@@ -169,5 +195,6 @@ move as either side's daylight saving changes.
 * The cron jobs in `finbot_schedule.json` are not carried over. Its chats start with the default jobs, and the file
   can be deleted.
 * At the first start of this version, every job of each direct message chat finbot knew was switched off, once
-  (Discord's direct messages as Discord says). It is recorded in `finbot_upgrades.json`, so it never happens again.
+  (Discord's direct messages as Discord says), and those chats are marked as direct messages, for the log's count of
+  group chats and DMs at each start. Each is recorded in `finbot_upgrades.json`, so it never happens again.
 * `reminder.json` is read no more: its reminders are default jobs now. Delete the data directory's copy.
