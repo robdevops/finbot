@@ -59,7 +59,8 @@ BOT = '@bot'
 
 def wsgi_environ(path, body, **headers):
 	"""A WSGI environ posting `body` (bytes) to `path`, with these headers (as HTTP_* keys)."""
-	return {'PATH_INFO': path, 'wsgi.input': io.BytesIO(body), 'CONTENT_LENGTH': str(len(body)), **headers}
+	return {'REQUEST_METHOD': 'POST', 'PATH_INFO': path, 'wsgi.input': io.BytesIO(body),
+		'CONTENT_LENGTH': str(len(body)), **headers}
 
 
 def skip_if_old_env(case):

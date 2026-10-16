@@ -104,7 +104,8 @@ def handle(environ, start_response):
 	def respond(response):
 		"""Answer the request: a status line and a body (logged at INFO, naming the network, not the path). Work that
 		must wait for the answer starts once the server has sent it."""
-		log.info(f"[http] request for {environ.get(ROUTED) or 'no network'} answered {response.status}")
+		network = environ.get(ROUTED) or 'no network'
+		log.info(f"{environ['REQUEST_METHOD']} from {network}: we answered {response.status}")
 		start_response(response.status, [('Content-type', 'application/json')])
 		return Sent([response.body], response.then) if response.then else [response.body]
 	def print_headers(say=log.info):

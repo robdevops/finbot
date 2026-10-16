@@ -58,7 +58,7 @@ class Plumbing(FinbotCase):
 			with contextlib.redirect_stderr(err):
 				out = bot.main(env, lambda *a, **k: None)
 			return out, err.getvalue()
-		self.assertEqual(post({'sticker': {'file_id': 'x'}}), ([b''], '[http] request for telegram answered 200 OK\n'))
+		self.assertEqual(post({'sticker': {'file_id': 'x'}}), ([b''], 'POST from telegram: we answered 200 OK\n'))
 		self.assertGreaterEqual(len(bot.git_version()), 7)
 		head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=bot.__file__.rsplit('/', 1)[0], capture_output=True,
 			text=True).stdout.strip()
