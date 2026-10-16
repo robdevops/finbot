@@ -399,7 +399,7 @@ class Suggestions(FinbotCase):
 		with contextlib.redirect_stderr(io.StringIO()):
 			scheduler.load()
 		self.patch(jobs, 'current', scheduler)
-		self.assertEqual(self.values('/jobs '), ['add', 'run', 'toggle', 'del', 'next', 'system'])
+		self.assertEqual(self.values('/jobs '), ['add', 'run', 'toggle', 'del', 'upcoming', 'system'])
 		self.assertEqual(self.values('/job T'), ['toggle'])
 		self.assertEqual(worker.suggest('discord:77', '/jobs run '), [('run 1: rating', 'run 1'),
 			('run 2: trades', 'run 2'), ('run 3: shorts', 'run 3')])

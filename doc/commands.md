@@ -40,7 +40,7 @@ Where:
 /help
 /history symbol
 /holdings portfolio
-/jobs [next|system]
+/jobs [upcoming|system]
 /jobs run|toggle|del [number]
 /jobs add report schedule
 /jobs add message schedule "text"

@@ -35,14 +35,14 @@ Under it are buttons, each screen drawn in place of the last, with **Cancel** ba
   each screen also has **Back**, a step back (the hour's has only Back: Discord takes 25 buttons). A message's text
   cannot come from a button, so its screen says how to type one.
 * **Run now**: a button per job; a press runs it now, as its schedule would, and says how it went.
-* **Next**: the next runs, in time order.
+* **Upcoming**: the next runs, in time order.
 
 A button drawn for a list that has since changed acts on nothing: the screen is drawn again as the list is now.
 
 Or type:
 ```
 /jobs                      the chat's jobs, with the buttons above
-/jobs next                 the next 20 runs; a repeat's runs on one day are one entry
+/jobs upcoming             the next 20 runs; a repeat's runs on one day are one entry
 /jobs system               the system jobs
 /jobs add                  the reports a job can run, what each takes, and examples
 /jobs add price weekly

@@ -12,7 +12,7 @@ from lib import when
 HEADINGS = {'top': 'Jobs here', 'on': 'Tap a job to switch it on or off', 'run': 'Tap a job to run it now',
 	'del': 'Tap a job added here to delete it (a default job is switched off instead)'}
 TYPED = ['.jobs run|toggle|del NUMBER: run one now, switch it on or off, delete one added here',
-	'.jobs add REPORT SCHEDULE: add one (.jobs add lists the reports)', '.jobs next: the next runs',
+	'.jobs add REPORT SCHEDULE: add one (.jobs add lists the reports)', '.jobs upcoming: the next runs',
 	'.jobs system: the system jobs'] # what a chat without buttons types instead
 TYPED_ACTIONS = {'on': 'toggle', 'del': 'del', 'run': 'run'}
 NOT_RUN, DEFAULT = '* not run yet', '† default (no delete, only disable)' # the key to a list's marks
@@ -95,7 +95,7 @@ def screen_buttons(screen, page, pages, shown, crc, every_on=False):
 	if screen == 'top':
 		rows = [[buttons.menu_button('Enable/disable', 'on', [0], crc), buttons.menu_button('Delete', 'del', [0], crc)],
 			[buttons.menu_button('Add', 'add', [], crc), buttons.menu_button('Run now', 'run', [0], crc),
-				buttons.menu_button('Next', 'next', [], crc)]]
+				buttons.menu_button('Upcoming', 'next', [], crc)]]
 		nav = []
 	else:
 		tapped = [buttons.menu_button(f"{number} {('✅ ' if job.on else '❌ ') if screen == 'on' else ''}{job.name}",
@@ -124,14 +124,14 @@ def job_line(number, job, outcome):
 	return f"{number}. {job.name}: {outcome}"
 
 def next_screen(service, chat, count=20):
-	"""`.jobs next`: a chat's next runs, in time order, at most count, each by the timezone preference's clock (and its
-	own zone's beside it, where that differs), with its number and name in .jobs; a repeat's runs on a day are one
-	entry, from its first to its last. Returns (lines, buttons): Cancel, back to the list."""
+	"""`.jobs upcoming`: a chat's next runs, in time order, at most count, each by the timezone preference's clock
+	(and its own zone's beside it, where that differs), with its number and name in .jobs; a repeat's runs on a day
+	are one entry, from its first to its last. Returns (lines, buttons): Cancel, back to the list."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
 	local = formats.zone()
-	lines = [service.bold('Next runs:')]
+	lines = [service.bold('Upcoming runs:')]
 	for first, last, job, number in scheduler.upcoming(chat, count):
 		said = moment_words(first, local, job.schedule.tz)
 		if job.schedule.every:

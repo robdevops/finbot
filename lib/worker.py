@@ -434,10 +434,10 @@ def on_who(request, args):
 	request.reply(holdings.prepare_who(request.service, re.split(r'[.:]', args.words[0].upper())[0]))
 
 def on_jobs(request, args):
-	""".jobs: this chat's jobs, the default ones and those added here, with the menu's buttons; .jobs next: the next
-	runs; .jobs system: the system's; .jobs run, toggle or del NUMBER: one run now, switched on or off, or deleted (one
-	added here), and without a number the list with a button per job that does it; .jobs add REPORT SCHEDULE, or .jobs
-	add message SCHEDULE "TEXT": one more (alone, the reports a job can run)."""
+	""".jobs: this chat's jobs, the default ones and those added here, with the menu's buttons; .jobs upcoming: the
+	next runs; .jobs system: the system's; .jobs run, toggle or del NUMBER: one run now, switched on or off, or deleted
+	(one added here), and without a number the list with a button per job that does it; .jobs add REPORT SCHEDULE, or
+	.jobs add message SCHEDULE "TEXT": one more (alone, the reports a job can run)."""
 	scheduler, chat, service = jobs.current, request.dest.key, request.service
 	tappable = request.dest.takes_buttons
 	if scheduler is None:
@@ -446,7 +446,7 @@ def on_jobs(request, args):
 		if args.keyword is None and not args.words:
 			lines, markup = about.jobs_screen(service, chat, tappable=tappable)
 			request.reply(lines, buttons=markup)
-		elif args.keyword == 'next' and not args.words:
+		elif args.keyword == 'upcoming' and not args.words:
 			lines, markup = about.next_screen(service, chat)
 			request.reply(lines, buttons=markup if tappable else None)
 		elif args.keyword == 'system' and not args.words:
@@ -512,8 +512,9 @@ NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # t
 CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'delete') # of the watchlist
 PLANS = 'finbot_plan.json' # each chat's plans, {user: plan}, as state.load_for keeps them
 BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .pie's
-JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'add': 'add', 'next': 'next', 'system': 'system'} | dict.fromkeys((
-	'del', 'delete', 'rem', 'remove', 'rm'), 'del') # what .jobs does to a chat's jobs, and shows
+# what .jobs does to a chat's jobs, and shows; next is what upcoming was called before
+JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'add': 'add', 'system': 'system'} | dict.fromkeys(('upcoming',
+	'next'), 'upcoming') | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'del')
 BUY_SELL = ('buy', 'sell', *(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')))
 PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL'), COMPANY) # any first word that is no
 # command's name but may be a ticker calls it too
@@ -549,7 +550,7 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True),
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True),
 	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES),
-	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [next|system]',
+	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [upcoming|system]',
 		'.jobs run|toggle|del [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'), JOBS,
 		keywords=JOB_CHANGES),
 	PROFILE,
@@ -608,7 +609,7 @@ def slash_commands(aliases=True):
 		for name, (command, lines) in found.items()]
 
 PERIOD_WORDS = ('1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y') # suggested where a command takes a period
-JOB_WORDS = ('add', 'run', 'toggle', 'del', 'next', 'system') # what /jobs suggests first
+JOB_WORDS = ('add', 'run', 'toggle', 'del', 'upcoming', 'system') # what /jobs suggests first
 SCHEDULE_WORDS = ('daily', 'weekdays', 'weekly', 'monthly', 'quarterly', 'bi-annual', 'annual', 'hourly', 'every', 'at',
 	'from', 'between', 'on') # what a schedule in English is made of, suggested after a report
 

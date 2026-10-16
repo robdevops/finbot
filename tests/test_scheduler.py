@@ -517,7 +517,7 @@ class JobsInChat(ChatBase):
 			'3. ✅* trades · every 20 mins, weekdays UTC', '4. ✅* shorts · daily at 10:00pm', '',
 			'* not run yet, † default (no delete, only disable)'])
 		self.assertEqual([[button.label for button in row] for row in self.replies[-1][2]],
-			[['Enable/disable', 'Delete'], ['Add', 'Run now', 'Next']])
+			[['Enable/disable', 'Delete'], ['Add', 'Run now', 'Upcoming']])
 		self.assertEqual(self.say('.jobs del 3'), ['Deleted 3. trades · every 20 mins, weekdays UTC'])
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [entry('shorts daily at 10pm',
 			zone='Australia/Melbourne')]})
@@ -640,10 +640,12 @@ class JobsInChat(ChatBase):
 		self.assertNotIn('soon', '\n'.join(self.say('.jobs')))
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [entry('trades every 20 mins weekdays')]})
 
-	def test_next_and_system(self):
-		""".jobs next lists the next runs in order, a repeat's runs on a day as one; .jobs system the system's."""
-		lines = self.say('.jobs next')
-		self.assertEqual(lines[:4], ['<b>Next runs:</b>',
+	def test_upcoming_and_system(self):
+		""".jobs upcoming (or next, as it was called) lists the next runs in order, a repeat's runs on a day as one;
+		.jobs system the system's."""
+		lines = self.say('.jobs upcoming')
+		self.assertEqual(self.say('.jobs next'), lines)
+		self.assertEqual(lines[:4], ['<b>Upcoming runs:</b>',
 			'Wed 14 Oct 8:20am (21:20 UTC) – 10:40am, every 20 mins · 3. trades',
 			'Wed 14 Oct 8:30am · 1. rating',
 			'Wed 14 Oct 11:00am (00:00 UTC) – Thu 15 Oct 10:40am, every 20 mins · 3. trades'])
@@ -753,11 +755,11 @@ class JobsMenu(ChatBase):
 		self.assertEqual(self.ran, [('trades', {})])
 		self.assertEqual(self.replies[-1][1], ['3. trades: done'])
 
-	def test_next_lists_the_next_runs_with_cancel(self):
-		"""Next lists the next runs, with Cancel back to the list."""
+	def test_upcoming_lists_the_next_runs_with_cancel(self):
+		"""Upcoming lists the next runs, with Cancel back to the list."""
 		lines, rows, data = self.press(f'm|next|{self.crc()}')
-		self.assertEqual((lines[:2], rows), (['<b>Next runs:</b>', 'Wed 14 Oct 8:20am (21:20 UTC) – 10:40am, every 20'
-			' mins · 3. trades'], [['Cancel']]))
+		self.assertEqual((lines[:2], rows), (['<b>Upcoming runs:</b>', 'Wed 14 Oct 8:20am (21:20 UTC) – 10:40am,'
+			' every 20 mins · 3. trades'], [['Cancel']]))
 		self.assertEqual(self.press(data['Cancel'])[0][0], '<b>Jobs here</b>')
 
 	def test_a_stale_or_forged_press_acts_on_nothing(self):

@@ -24,7 +24,7 @@ COMMANDS = ['.help', '/start', '.hello', '.thanks', '.who T1', '.plan buy low', 
 	'.performance 7d', '.performance 1y', '.performance Nope', '.pie Rob', '.pie Rob sector', '.pie', '.compare T1 T2',
 	'.compare T1 T2 3m', '.compare T1', '.history T1', '.history', '.watchlist', '.watchlist add MSFT',
 	'.watchlist add MSFT', '.watchlist del MSFT', '.watchlist frob X', '.T1', '.jobs', '.jobs run', '.jobs toggle',
-	'.jobs add', '.jobs add shorts daily at 22:00', '.jobs del 4', '.jobs run 1', '.jobs next', '.jobs system',
+	'.jobs add', '.jobs add shorts daily at 22:00', '.jobs del 4', '.jobs run 1', '.jobs upcoming', '.jobs system',
 	'hi @bot', 'noise']
 BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1',
 	'j|1|0000', 'e|1|0000', 'm|on|0|0000', 'm|add|0000', 'm|add|5|w|0000', 'm|next|0000']
