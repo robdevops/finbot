@@ -1,6 +1,7 @@
 """.shorts: the most shorted stocks followed, from Short Man (ASX) and Yahoo (scheduled: shorts)."""
 from lib import config
 from lib import delivery
+from lib import formats
 from lib import render
 from lib import watchlist
 from lib import yahoo
@@ -40,7 +41,7 @@ def report(service, tickers, market_data, threshold, specific_stock, interactive
 				url = 'https://www.shortman.com.au/stock?q=' + code
 			else:
 				url = 'https://finance.yahoo.com/quote/' + ticker + '/key-statistics?p=' + ticker
-			title = market_data[ticker]['profile_title']
+			title = formats.short_name(market_data[ticker]['profile_title'])
 			found.append((short_percent, f"🩳 {title} ({service.link(url, code)}) {round(short_percent)}%", code))
 	found.sort(key=lambda row: row[0], reverse=True) # largest first, as the chart has them
 	payload, graph = [line for _, line, _ in found], None

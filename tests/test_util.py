@@ -94,6 +94,30 @@ class Parsing(unittest.TestCase):
 			with self.subTest(title=title): # a suffix comes off the end only; no run of spaces is left behind
 				self.assertEqual(formats.transform_title(title), expected)
 
+	def test_a_name_in_a_list_is_cut_to_fit_a_phone(self):
+		"""A name over 30 characters is cut at a word, with an ellipsis (mid-word where a word break would cut it too
+		short); a shorter one stays whole."""
+		for name, shown in (('Global X Asia Semiconductor ETF', 'Global X Asia Semiconductor…'),
+				('Global X China EV ETF', 'Global X China EV ETF'), ('A' * 40, 'A' * 29 + '…'),
+				('Short Supercalifragilisticexpialidocious', 'Short Supercalifragilisticexp…')):
+			with self.subTest(name=name):
+				self.assertEqual(formats.short_name(name), shown)
+				self.assertLessEqual(len(formats.short_name(name)), formats.NAME_LIMIT)
+
+	def test_a_funds_name_loses_its_trusts(self):
+		"""A fund's name loses the trust's before it, a repeated brand or ETF, and OFC; a company's repeated word, or a
+		fund's own Trust, stays."""
+		for title, expected in (('Global X ETF Series OFC Global X China EV ETF', 'Global X China EV ETF'),
+				('iShares Trust iShares Core S&P 500 ETF', 'iShares Core S&P 500 ETF'),
+				('SPDR Series Trust SPDR S&P Biotech ETF', 'SPDR S&P Biotech ETF'),
+				('Betashares ETF Trust Global Cybersecurity ETF', 'Betashares Global Cybersecurity ETF'),
+				('Global X Uranium ETF ETF', 'Global X Uranium ETF'),
+				('VanEck Semiconductor ETF', 'VanEck Semiconductor ETF'),
+				('SPDR S&P 500 ETF Trust', 'SPDR S&P 500 ETF Trust'), ('Johnson & Johnson', 'Johnson & Johnson'),
+				('Johnson & Johnson Health', 'Johnson & Johnson Health')):
+			with self.subTest(title=title):
+				self.assertEqual(formats.transform_title(title), expected)
+
 
 class Formatting(unittest.TestCase):
 	def test_signed_percent(self):

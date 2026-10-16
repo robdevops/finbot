@@ -1,5 +1,6 @@
 """Analysts' consensus rating changes since the last scheduled run (rating); .buy and .sell are in rankings."""
 from lib import delivery
+from lib import formats
 from lib import state
 from lib import links
 from lib import watchlist
@@ -57,7 +58,7 @@ def report(service, changes, interactive):
 		ticker_link = links.finance_link(ticker, data['profile_exchange'], service, brief=False)
 		before, after = service.bold(f'{old_index} {old_action}'), service.bold(f'{index} {action}')
 		message = f"{before} to {after} ({analysts} analysts)"
-		payload.append(f"{emoji} {data['profile_title']} ({ticker_link}) changed from {message}")
+		payload.append(f"{emoji} {formats.short_name(data['profile_title'])} ({ticker_link}) changed from {message}")
 	payload.sort()
 	if payload:
 		payload.insert(0, service.bold('Consensus rating changes:'))

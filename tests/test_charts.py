@@ -85,11 +85,11 @@ EDGE_ROWS = {
 
 
 class ImageSanity(unittest.TestCase):
-	def check_image(self, buf, name, bg=BG, edge_clean=True):
-		"""Fail unless buf is a 1280x800 PNG that is not blank, starts with the background, and (edge_clean) draws
-		nothing on its edges, where clipped text or bars would show."""
+	def check_image(self, buf, name, bg=BG, edge_clean=True, size=(1280, 800)):
+		"""Fail unless buf is a PNG of this size (1280x800) that is not blank, starts with the background, and
+		(edge_clean) draws nothing on its edges, where clipped text or bars would show."""
 		image = decode(buf)
-		self.assertEqual(image.size, (1280, 800), name)
+		self.assertEqual(image.size, size, name)
 		pixels = np.asarray(image)
 		self.assertGreater(len({tuple(p) for p in pixels.reshape(-1, 3)[::97]}), 8, f'{name} looks blank')
 		self.assertGreater(pixels.std(), 5, f'{name} looks blank')
@@ -116,6 +116,11 @@ class ImageSanity(unittest.TestCase):
 			with self.subTest(rows=name):
 				self.check_image(bars(rows, 'Title', 'sub'), name)
 				self.check_image(uncached(render.Chart('bars', 'Title', rows=tuple(rows))), name + '/drawn')
+
+	def test_a_long_bar_chart_grows_taller_and_stays_sane(self):
+		"""Past 40 rows a bar chart's image grows taller, each row as tall as at 40, and draws as sanely."""
+		rows = [(f'T{i}', (i - 30) * 1.5) for i in range(60)]
+		self.check_image(bars(rows, 'Title', 'sub'), 'sixty rows', size=(1280, 1200))
 
 	def test_zoomed_axis(self):
 		"""A bar chart with a narrow x range (ratings, 1 to 5) draws sane images, wide labels and many rows included."""
@@ -291,11 +296,13 @@ class ReportChartInputs(FinbotCase):
 		self.assertTrue(captured, 'no chart was drawn')
 		return captured[0]
 
-	def test_over_forty_bars_keep_both_ends_with_a_gap(self):
-		"""A bar chart of over 40 rows keeps the first 20 and the last 20, a gap between them; the shorts pictogram,
-		over 24, the first and last 12, with the same gap (it used to drop the middle without a mark)."""
-		rows = render.trimmed(render.Chart('bars', 'T', rows=tuple((f'T{i}', i) for i in range(50)))).rows
-		self.assertEqual((len(rows), rows[20], rows[0][0], rows[-1][0]), (41, ('', None), 'T0', 'T49'))
+	def test_a_bar_chart_keeps_every_row_and_the_shorts_both_ends(self):
+		"""A bar chart keeps every row, however many: its image grows instead (the caption is cut, so the chart must
+		show them all); the shorts pictogram, a scene of a fixed size, keeps the first and last 12 of over 24, a gap
+		between."""
+		chart = render.Chart('bars', 'T', rows=tuple((f'T{i}', i) for i in range(50)))
+		self.assertEqual(render.trimmed(chart).rows, chart.rows)
+		self.assertEqual(decode(render.draw_bars(chart)).size, (1280, 1000))
 		rows = render.trimmed(render.Chart('shorts', rows=tuple((f'T{i}', 60 - i) for i in range(30)))).rows
 		self.assertEqual((len(rows), rows[12], rows[11][0], rows[13][0]), (25, ('', None), 'T11', 'T18'))
 		self.assertEqual(render.trimmed(render.Chart('pie', rows=(('a', 1.0),) * 50)).rows, (('a', 1.0),) * 50)

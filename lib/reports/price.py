@@ -127,7 +127,7 @@ def report(service, found, mode='interday', threshold=None, days=None, top=None,
 	or more in a mode of MODES ('period': over `days`), or the top and bottom `top`."""
 	if threshold is None:
 		threshold = config.prefs.price_percent
-	lines = [f"{formats.get_emoji(percent)} {quote['profile_title']} "
+	lines = [f"{formats.get_emoji(percent)} {formats.short_name(quote['profile_title'])} "
 		f"({links.finance_link(ticker, quote['profile_exchange'], service, days=days)}) "
 		f"{formats.signed_percent(round(percent))}" for ticker, percent, quote in found.rows]
 	if not lines:

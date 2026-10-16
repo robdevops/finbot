@@ -76,7 +76,7 @@ def report(service, events, days, specific_stock, interactive, event):
 	blocks = []
 	for date in sorted({when.date() for when, *_ in events}):
 		day = f"{date:%b %d} " if specific_stock else '' # one stock's events carry their date
-		lines = [f"{flag} {day}{title} ({links.yahoo_link(ticker, service)})"
+		lines = [f"{flag} {day}{formats.short_name(title)} ({links.yahoo_link(ticker, service)})"
 			for when, flag, title, ticker in events if when.date() == date]
 		blocks.append(lines if specific_stock else [service.bold(f"{date:%b %d}")] + lines)
 	payload = sum(blocks, []) if specific_stock else formats.sections(*blocks)

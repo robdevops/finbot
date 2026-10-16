@@ -76,12 +76,21 @@ def _drawn(draw):
 			return draw(*args, **kwargs)
 	return alone
 
-def _figure(facecolor):
-	"""A 1280x800 figure (Telegram's photo size, so it is never resampled) and its Agg canvas."""
+def _figure(facecolor, height=4.0):
+	"""A 1280x800 figure (Telegram's photo size, so it is never resampled), or one `height` inches tall (200 pixels to
+	the inch), and its Agg canvas."""
 	from matplotlib.figure import Figure
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
-	fig = Figure(figsize=(6.4, 4.0), dpi=200, facecolor=facecolor)
+	fig = Figure(figsize=(6.4, height), dpi=200, facecolor=facecolor)
 	return fig, FigureCanvasAgg(fig)
+
+def _from_top(y, fig):
+	"""A height in a 1280x800 figure, as a fraction of it, kept as far from the top in a taller figure."""
+	return y if fig.get_figheight() == 4.0 else 1 - (1 - y) * 4.0 / fig.get_figheight()
+
+def _from_bottom(y, fig):
+	"""A height in a 1280x800 figure, as a fraction of it, kept as far from the bottom in a taller figure."""
+	return y if fig.get_figheight() == 4.0 else y * 4.0 / fig.get_figheight()
 
 def _time_axes(fig, bg, width):
 	"""The axes of a chart over time, `width` of the figure wide: the line chart's, and the compare chart's, whose end
@@ -117,10 +126,11 @@ def _heading(fig, title, subtitle='', subtitle_color=None):
 	"""A chart's title at the top left, and its subtitle (if any) beneath, each shrunk to fit the width."""
 	_, ink, ink2, _ = PALETTE
 	room = 0.94 * fig.bbox.width
-	_shrink([fig.text(0.03, 0.957, title, color=ink, fontsize=13, fontweight='bold', ha='left', va='center')], room)
+	_shrink([fig.text(0.03, _from_top(0.957, fig), title, color=ink, fontsize=13, fontweight='bold', ha='left',
+		va='center')], room)
 	if subtitle:
-		_shrink([fig.text(0.03, 0.910, subtitle, color=subtitle_color or ink2, fontsize=8.5, ha='left', va='center')],
-			room)
+		_shrink([fig.text(0.03, _from_top(0.910, fig), subtitle, color=subtitle_color or ink2, fontsize=8.5, ha='left',
+			va='center')], room)
 
 def _dated(rows):
 	"""(date, close) rows, each date an ISO date or a datetime.date, as (the dates as datetime.date, the closes as a
@@ -239,21 +249,23 @@ def tinted(bg, color, amount=0.07):
 def draw_bars(chart):
 	"""Horizontal bars that mirror the caption list, first row on top, filling the whole 1280x800 canvas: blue for >= 0,
 	red below, each row's label at the bar's base and its value (as value_format prints it) at the tip. Rows of (label,
-	value); a (label, None) row is a gap. xlim zooms the value axis (bars then start at its left edge); session
-	'midsession' or 'premarket' washes the background green or yellow."""
+	value); a (label, None) row is a gap. Past ROWS rows the image grows taller, each row as tall as at ROWS, so that
+	every row is in it. xlim zooms the value axis (bars then start at its left edge); session 'midsession' or
+	'premarket' washes the background green or yellow."""
 	rows, subtitle, xlim, session = chart.rows, chart.subtitle, chart.xlim, chart.session
 	value_fmt = VALUE_FORMATS[chart.value_format]
 	bg, ink, ink2, _ = PALETTE
 	up, down = BAR_UP, DOWN
 	if session in SESSION_TINTS:
 		bg = tinted(bg, SESSION_TINTS[session])
-	fig, canvas = _figure(bg)
-	top_edge = 0.85 if subtitle else 0.89
+	n = len(rows)
+	fig, canvas = _figure(bg, 4.0 * max(1, n / ROWS))
+	top_edge = _from_top(0.85 if subtitle else 0.89, fig)
+	bottom_edge = _from_bottom(0.02, fig)
 	left = 0.14 if xlim else 0.04 # zoomed charts keep their labels outside the plot
-	ax = fig.add_axes([left, 0.02, 0.96 - left, top_edge - 0.02], facecolor=bg)
+	ax = fig.add_axes([left, bottom_edge, 0.96 - left, top_edge - bottom_edge], facecolor=bg)
 	real = [(y, label, v) for y, (label, v) in enumerate(rows) if v is not None]
 	values = [v for _, _, v in real]
-	n = len(rows)
 	ax.barh([y for y, _, _ in real], values, height=0.72, color=[up if v >= 0 else down for v in values], zorder=3)
 	base = max(xlim[0], 0) if xlim else 0
 	if not xlim:
@@ -270,7 +282,7 @@ def draw_bars(chart):
 	for side in ax.spines.values():
 		side.set_visible(False)
 	dpi = fig.dpi
-	axes_px = (top_edge - 0.02) * fig.get_figheight() * dpi
+	axes_px = (top_edge - bottom_edge) * fig.get_figheight() * dpi
 	bar_px = 0.72 * axes_px / n
 	longest = max([len(str(label)) for _, label, _ in real] + [3])
 	# text height follows the bar thickness
@@ -509,7 +521,8 @@ def _code_version():
 CODE_VERSION = _code_version()
 
 RENDERERS = {'bars': draw_bars, 'pie': draw_pie, 'shorts': draw_shorts, 'line': draw_line, 'compare': draw_compare}
-LIMITS = {'bars': 40, 'shorts': 24} # the rows a chart has room for
+ROWS = 40 # bars: the rows a 1280x800 image has room for; more make it taller (draw_bars)
+LIMITS = {'shorts': 24} # the rows a chart of a fixed size has room for
 
 def trimmed(chart):
 	"""The chart with no more rows than it has room for (LIMITS): over that, the first half and the last, a gap
