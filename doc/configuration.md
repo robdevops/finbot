@@ -71,7 +71,7 @@ A change takes effect on a reload. A true/false preference takes `true`/`false`,
 | `country_code` | `AU` | Regional: your country, for the default jobs' messages that are for one (`AU`: the tax year's reminders) |
 | `timezone` | `Australia/Melbourne` | Regional: your time zone, the clock of the times `/jobs` takes and shows, and a job's zone where it names none |
 | `cache` | `True` | Cache Yahoo and Sharesight responses |
-| `cache_seconds` | `43200` | Cache lifetime in seconds (12 hours) |
+| `cache_seconds` | `21600` | Cache lifetime in seconds (6 hours) |
 | `performance_cache_seconds` | `2400` | Cache lifetime of Sharesight performance reports in seconds: longer than the 30 minutes between `sharesight_warm` runs, so the holdings never run out |
 | `http_timeout` | `18` | Seconds to wait on outbound HTTP requests |
 | `log_level` | `INFO` | What the log shows: that level and those above it, syslog style. `ERROR`: what failed and was lost (a message not sent); `WARN`: what failed and was got over (a retry, a fallback, a request refused); `INFO`: what finbot does (each message sent, each job run, each request sent, each request refused); `DEBUG`: the routine of a button press too (the press, its acknowledgement, the message edited in place), each request answered with success, and each cache miss, hit and write. Replaces `debug` |

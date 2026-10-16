@@ -36,9 +36,9 @@ ACTIONS = {'cal': cal, 'message': message, 'milestone': milestone, 'performance'
 	'cleanup': cleanup, 'sharesight_warm': sharesight_warm, 'yahoo_warm': yahoo_warm}
 SYSTEM_ACTIONS = ('cleanup', 'sharesight_warm', 'yahoo_warm') # the system's alone: a chat cannot schedule these
 # the system jobs, in UTC: the Sharesight portfolios and holdings fetched afresh every 30 minutes (cached 40), the price
-# histories of the stocks followed every 8 hours (cached 12), so that no request waits on either; and cache files
+# histories of the stocks followed every 4 hours (cached 6), so that no request waits on either; and cache files
 # older than 30 days deleted weekly
-SYSTEM = (('sharesight_warm', (), {'every': 30, 'from': '00:14'}), ('yahoo_warm', (), {'every': 480, 'from': '00:07'}),
+SYSTEM = (('sharesight_warm', (), {'every': 30, 'from': '00:14'}), ('yahoo_warm', (), {'every': 240, 'from': '00:07'}),
 	('cleanup', ('30',), {'days': ['sat'], 'at': '18:51'}))
 WARM = ('sharesight_warm', 'yahoo_warm') # the jobs that fill the cache, run at once after a flush too
 # {chat key: {'jobs': [{action, args, schedule, on}], 'off': [catalog keys], 'deleted': [catalog keys]}}: the jobs it

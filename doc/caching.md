@@ -1,9 +1,9 @@
 # Caching
 
-Many objects are cached for 12 hours by default (`cache_seconds`). Cache is controlled by the settings below. Trades IDs are stored on disk, but trade queries generally don't result in a cache hit for functional reasons.
+Many objects are cached for 6 hours by default (`cache_seconds`). Cache is controlled by the settings below. Trades IDs are stored on disk, but trade queries generally don't result in a cache hit for functional reasons.
 ```
 cache=True
-cache_seconds=43200
+cache_seconds=21600
 performance_cache_seconds=2400
 ```
 
@@ -23,4 +23,4 @@ A time is a number and `s` (seconds), `h` (hours), `d` (days), `w` (weeks), `m` 
 
 Signalling the bot flushes every file too, and then runs both warm jobs (`sharesight_warm`, `yahoo_warm`) at once to fill the cache again: `sudo systemctl kill -s USR1 finbot`, or `sudo docker compose kill -s USR1 finbot`. The log says `cache: flushed N files`, then `cache: warm jobs done`.
 
-Two system jobs keep the caches full, each on a fixed interval shorter than the cache lifetime, so that chat requests do not wait on Sharesight or Yahoo (see [Scheduling](scheduling.md)): `sharesight_warm` fetches the Sharesight portfolio list and each portfolio's holdings report afresh every 30 minutes (`performance_cache_seconds`: 40 minutes), and `yahoo_warm` the price history of every stock followed every 8 hours (`cache_seconds`: 12 hours). Neither fetches anything with `cache=False`, and `sharesight_warm` nothing without Sharesight configured. A refresh that fails is logged, the previous cache keeps being served while fresh, and the next run tries again. A flush runs both at once (see above).
+Two system jobs keep the caches full, each on a fixed interval shorter than the cache lifetime, so that chat requests do not wait on Sharesight or Yahoo (see [Scheduling](scheduling.md)): `sharesight_warm` fetches the Sharesight portfolio list and each portfolio's holdings report afresh every 30 minutes (`performance_cache_seconds`: 40 minutes), and `yahoo_warm` the price history of every stock followed every 4 hours (`cache_seconds`: 6 hours). Neither fetches anything with `cache=False`, and `sharesight_warm` nothing without Sharesight configured. A refresh that fails is logged, the previous cache keeps being served while fresh, and the next run tries again. A flush runs both at once (see above).

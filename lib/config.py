@@ -292,7 +292,7 @@ class Prefs:
 	and read as its type says (preference_values). Read them as config.prefs.<name> when they are used, never into a
 	default or a module constant, so that a reload is seen."""
 	cache: bool = True
-	cache_seconds: int = 43200
+	cache_seconds: int = 21600
 	country_code: str = 'AU'
 	demote_leveraged: bool = True
 	demote_volatile: bool = True

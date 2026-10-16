@@ -174,7 +174,7 @@ move as either side's daylight saving changes.
   arguments its parser has checked, kept as words: never a command line, a script or code. A stored job naming anything
   else is logged and left out, never run.
 * **The system jobs**, fixed in `lib/jobs.py` and listed by `/jobs system`, keep the cache full and tidy:
-  * `sharesight_warm` every 30 minutes and `yahoo_warm` every 8 hours (see [Caching](caching.md));
+  * `sharesight_warm` every 30 minutes and `yahoo_warm` every 4 hours (see [Caching](caching.md));
   * `cleanup 30` weekly, which deletes cache files older than 30 days.
 
   A chat cannot add, switch or run them, and a failure of one goes to the log.

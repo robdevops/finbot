@@ -221,16 +221,16 @@ class WarmNow(FinbotCase):
 class SystemJobs(FinbotCase):
 	def test_the_system_jobs_are_fixed_and_no_chats(self):
 		"""The system jobs run on a schedule of their own, in UTC, the same for every install: each warm job within its
-		cache's lifetime (Sharesight's every 30 minutes, cached 40; Yahoo's every 8 hours, cached 12), and cleanup
+		cache's lifetime (Sharesight's every 30 minutes, cached 40; Yahoo's every 4 hours, cached 6), and cleanup
 		weekly. A chat can neither add one nor see it among its own jobs; .jobs system lists them."""
 		s = jobs.Scheduler()
 		with contextlib.redirect_stderr(io.StringIO()):
 			s.load()
 		self.assertEqual({job.label: job.schedule.describe('Australia/Melbourne') for job in s.system_jobs()},
-			{'sharesight_warm': 'every 30 mins from :14 UTC', 'yahoo_warm': 'every 8 hours at :07 UTC',
+			{'sharesight_warm': 'every 30 mins from :14 UTC', 'yahoo_warm': 'every 4 hours at :07 UTC',
 				'cleanup 30': 'weekly, Saturdays at 18:51 UTC'})
 		self.assertLess(30 * 60, config.prefs.performance_cache_seconds)
-		self.assertLess(8 * 3600, config.prefs.cache_seconds)
+		self.assertLess(4 * 3600, config.prefs.cache_seconds)
 		self.assertEqual(s.chat_jobs(''), s.system_jobs())
 		for name in jobs.SYSTEM_ACTIONS:
 			with self.subTest(name=name):
@@ -240,7 +240,7 @@ class SystemJobs(FinbotCase):
 					s.add(CHAT, name, [], when.parse('daily', 'UTC'))
 		self.patch(jobs, 'current', s)
 		self.assertEqual(about.prepare_system(TELEGRAM), ['<b>System jobs:</b>',
-			'sharesight_warm · every 30 mins from :14 UTC', 'yahoo_warm · every 8 hours at :07 UTC',
+			'sharesight_warm · every 30 mins from :14 UTC', 'yahoo_warm · every 4 hours at :07 UTC',
 			'cleanup 30 · weekly, Saturdays at 18:51 UTC'])
 
 
