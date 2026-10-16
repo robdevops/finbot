@@ -17,8 +17,9 @@ from lib import formats
 @dataclasses.dataclass(frozen=True)
 class Chart:
 	"""A chart not yet drawn, for draw(). kind 'bars': rows of (label, value), first on top, a (label, None) row a gap;
-	'pie': rows of (label, value); 'shorts': rows of (label, percent), and the threshold; 'line': rows of (date, close),
-	a price line, and the change it shows; 'compare': rows of (label, ((date, close), ...)), two to six price lines."""
+	'pie': rows of (label, value); 'treemap': rows of (group, ((label, value), ...)); 'shorts': rows of (label,
+	percent), and the threshold; 'line': rows of (date, close), a price line, and the change it shows; 'compare':
+	rows of (label, ((date, close), ...)), two to six price lines."""
 	kind: str
 	title: str = ''
 	subtitle: str = ''
@@ -510,6 +511,77 @@ def draw_pie(chart):
 	_heading(fig, chart.title, chart.subtitle)
 	return _png(fig, bg)
 
+def _worst(row, side):
+	"""The worst aspect ratio among tiles of areas `row` laid along a side of length `side`."""
+	total = sum(row)
+	return max(max(side * side * area / (total * total), total * total / (side * side * area)) for area in row)
+
+def _squarify(values, x, y, w, h):
+	"""Tiles (x, y, w, h) filling the box, one per value (largest first), areas in proportion and as square as
+	the squarified layout makes them."""
+	scale = w * h / sum(values)
+	areas = [value * scale for value in values]
+	tiles, i = [], 0
+	while i < len(areas):
+		side = min(w, h)
+		row, j = [areas[i]], i + 1
+		while j < len(areas) and _worst(row + [areas[j]], side) <= _worst(row, side):
+			row.append(areas[j])
+			j += 1
+		span = sum(row) / side
+		offset = 0.0
+		for area in row:
+			length = area / span
+			tiles.append((x, y + offset, span, length) if w >= h else (x + offset, y, length, span))
+			offset += length
+		if w >= h:
+			x, w = x + span, w - span
+		else:
+			y, h = y + span, h - span
+		i = j
+	return tiles
+
+def _mixed(color, other, share):
+	"""`color` (#rrggbb) with `share` of `other` mixed in."""
+	mixed = [round(int(color[i:i + 2], 16) * (1 - share) + int(other[i:i + 2], 16) * share) for i in (1, 3, 5)]
+	return '#%02x%02x%02x' % tuple(mixed)
+
+@_drawn
+def draw_treemap(chart):
+	"""Treemap of (group, ((label, value), ...)) rows, largest group first: a block a group, in a colour of its own
+	(the dark categorical slots in order, gray for 'Other') under its name, a tile a holding sized by value: a
+	1280x800 PNG."""
+	from matplotlib.patches import Rectangle
+	rows = chart.rows
+	bg, ink, ink2, _ = PALETTE
+	fig, _ = _figure(bg)
+	ax = fig.add_axes([0, 0, 1, 1], facecolor=bg)
+	ax.set_xlim(0, 1280)
+	ax.set_ylim(800, 0)
+	ax.axis('off')
+	total = sum(value for _, held in rows for _, value in held) or 1.0
+	box = _squarify([sum(value for _, value in held) for _, held in rows], 24, 92, 1232, 684)
+	char, n = 12.5, 0 # pixels a character of the 8pt tile text takes
+	for (label, held), (x, y, w, h) in zip(rows, box):
+		color = '#6b7280' if label == 'Other' else CATEGORIES[n % len(CATEGORIES)]
+		n += label != 'Other'
+		x, y, w, h = x + 1, y + 1, w - 2, h - 2
+		head = 22 if h > 60 and w > 3 * char else 0
+		if head:
+			room = int((w - 4) / char)
+			ax.text(x + 2, y + head / 2, label if len(label) <= room else label[:max(room - 1, 1)] + '…',
+				color=color, fontsize=8, fontweight='bold', ha='left', va='center', clip_on=True)
+		tiles = _squarify([value for _, value in held], x, y + head, w, h - head)
+		for k, ((name, value), (tx, ty, tw, th)) in enumerate(zip(held, tiles)):
+			ax.add_patch(Rectangle((tx + 1, ty + 1), tw - 2, th - 2, facecolor=_mixed(color, bg, k % 3 * 0.14),
+				edgecolor='none'))
+			if tw > len(name) * char + 8 and th > 34:
+				lines = name + ('\n%.1f%%' % (value / total * 100) if th > 64 and tw > 5 * char else '')
+				ax.text(tx + tw / 2, ty + th / 2, lines, color='#ffffff', fontsize=8, ha='center', va='center',
+					linespacing=1.3)
+	_heading(fig, chart.title, chart.subtitle)
+	return _png(fig, bg)
+
 def _code_version():
 	"""What else decides how a spec looks: this file and the matplotlib release."""
 	try:
@@ -520,7 +592,8 @@ def _code_version():
 
 CODE_VERSION = _code_version()
 
-RENDERERS = {'bars': draw_bars, 'pie': draw_pie, 'shorts': draw_shorts, 'line': draw_line, 'compare': draw_compare}
+RENDERERS = {'bars': draw_bars, 'pie': draw_pie, 'treemap': draw_treemap, 'shorts': draw_shorts, 'line': draw_line,
+	'compare': draw_compare}
 ROWS = 40 # bars: the rows a 1280x800 image has room for; more make it taller (draw_bars)
 LIMITS = {'shorts': 24} # the rows a chart of a fixed size has room for
 

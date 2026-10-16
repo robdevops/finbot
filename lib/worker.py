@@ -391,6 +391,13 @@ def on_pie(request, args):
 	payload, chart = holdings.prepare_pie(args.rest, args.keyword or 'industry', request.service)
 	request.reply(payload, chart)
 
+def on_treemap(request, args):
+	""".treemap PORTFOLIO [sector]: its holdings as tiles, grouped by industry or by sector."""
+	if not args.words:
+		raise Usage(portfolios())
+	payload, chart = holdings.prepare_treemap(args.rest, args.keyword or 'industry', request.service)
+	request.reply(payload, chart)
+
 def on_rating(request, args):
 	""".buy, .sell or both (.buy & sell, a keyboard button): the analysts' strongest buy or sell ratings, as asked."""
 	for action in dict.fromkeys(re.findall('buy|sell', f'{args.word} {args.text}'.lower())): # each once, as asked
@@ -539,6 +546,7 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('help', 'usage', 'start'), on_help, job=False), # /start is what Telegram sends when a chat opens
 	Command(('holdings', 'holding'), on_holdings, ('.holdings PORTFOLIO',), TRACKED),
 	Command(('pie',), on_pie, ('.pie PORTFOLIO [sector]',), TRACKED, keywords=BY),
+	Command(('treemap',), on_treemap, ('.treemap PORTFOLIO [sector]',), TRACKED, keywords=BY),
 	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
 		keywords=CHANGE, job=False),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),

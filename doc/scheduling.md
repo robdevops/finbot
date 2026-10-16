@@ -93,7 +93,7 @@ The reports are `trades`, `price midsession|interday|premarket|close|DAYS`, `cal
 
 A job can also run a command of `/help`, with what it takes, and posts what the command posts when typed in the chat:
 `pe [SYMBOL|top|bottom]`, `forward pe`, `peg`, `marketcap`, `beta`, `buy`, `sell` (`buy&sell` both), `history SYMBOL`,
-`compare SYMBOL SYMBOL…`, `stock SYMBOL`, and with Sharesight `holdings PORTFOLIO`, `pie PORTFOLIO` and `who SYMBOL`.
+`compare SYMBOL SYMBOL…`, `stock SYMBOL`, and with Sharesight `holdings PORTFOLIO`, `pie PORTFOLIO`, `treemap PORTFOLIO` and `who SYMBOL`.
 The commands that change something (`watchlist`, `plan`, `jobs`) are no jobs, and price, performance, trades, shorts,
 earnings, dividends, session and premarket are run by their reports above.
 

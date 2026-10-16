@@ -1,4 +1,4 @@
-"""What is held and followed: .holdings, .who, .pie and .watchlist."""
+"""What is held and followed: .holdings, .who, .pie, .treemap and .watchlist."""
 from lib import watchlist
 from lib import sharesight
 from lib import formats
@@ -32,20 +32,29 @@ def prepare_who(service, code):
 		blocks.append(found and [service.bold(f"{portfolio.name}:")] + found)
 	return formats.sections(*blocks) or [f'{code} not found in any portfolio']
 
-def prepare_pie(portfolio_name, by, service, max_slices=8):
-	"""Portfolio value by industry (or by='sector'): (payload, chart or None). Raises sharesight.PortfolioNotFound."""
-	portfolio, = sharesight.portfolios(portfolio_name)
-	name = portfolio.name
+def _groups(portfolio, by):
+	"""The holdings of a portfolio with a value, by industry (or by='sector'): {group: [(code, value), ...]}."""
 	key = 'sector_classification_name' if by == 'sector' else 'industry_classification_name'
-	totals = {}
+	groups = {}
 	for holding in portfolio.holdings().values():
 		try:
 			value = float(holding.get('value'))
 		except (TypeError, ValueError):
 			continue
 		if value > 0:
-			label = holding.get(key) or 'Unclassified'
-			totals[label] = totals.get(label, 0.0) + value
+			groups.setdefault(holding.get(key) or 'Unclassified', []).append((holding['code'], value))
+	return groups
+
+def _noun(by, count):
+	"""'3 industries', '1 sector'."""
+	singular, plural = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries')}[by]
+	return f"{count} {singular if count == 1 else plural}"
+
+def prepare_pie(portfolio_name, by, service, max_slices=8):
+	"""Portfolio value by industry (or by='sector'): (payload, chart or None). Raises sharesight.PortfolioNotFound."""
+	portfolio, = sharesight.portfolios(portfolio_name)
+	name = portfolio.name
+	totals = {label: sum(value for _, value in held) for label, held in _groups(portfolio, by).items()}
 	if not totals:
 		return [f"{name} has no holdings with a value"], None
 	rows = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
@@ -57,9 +66,29 @@ def prepare_pie(portfolio_name, by, service, max_slices=8):
 	title = f"{name} by {by}"
 	payload = [service.bold(title)]
 	payload += [f"{label}: {value / total * 100:.1f}%" for label, value in rows]
-	noun = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries')}[by]
-	subtitle = f"{len(totals)} {noun[0] if len(totals) == 1 else noun[1]}"
-	return payload, render.Chart('pie', title, subtitle, tuple(rows))
+	return payload, render.Chart('pie', title, _noun(by, len(totals)), tuple(rows))
+
+def prepare_treemap(portfolio_name, by, service, max_groups=8):
+	"""The holdings by industry (or by='sector') as tiles grouped by it: (payload, chart or None). Beyond `max_groups`
+	the smallest groups are one 'Other'. Raises sharesight.PortfolioNotFound."""
+	portfolio, = sharesight.portfolios(portfolio_name)
+	name = portfolio.name
+	groups = _groups(portfolio, by)
+	if not groups:
+		return [f"{name} has no holdings with a value"], None
+	rows = sorted(((label, sorted(held, key=lambda item: item[1], reverse=True)) for label, held in groups.items()),
+		key=lambda row: sum(value for _, value in row[1]), reverse=True)
+	if len(rows) > max_groups:
+		rest = sorted((item for _, held in rows[max_groups - 1:] for item in held), key=lambda item: item[1],
+			reverse=True)
+		rows = rows[:max_groups - 1] + [('Other', rest)]
+	total = sum(value for _, held in rows for _, value in held)
+	title = f"{name} treemap by {by}"
+	payload = [service.bold(title)]
+	payload += [f"{label}: {sum(value for _, value in held) / total * 100:.1f}%" for label, held in rows]
+	count = sum(len(held) for held in groups.values())
+	subtitle = f"{_noun(by, len(groups))}, {count} {'holding' if count == 1 else 'holdings'}"
+	return payload, render.Chart('treemap', title, subtitle, tuple((label, tuple(held)) for label, held in rows))
 
 def prepare_watchlist(service, chat, user, action=None, ticker=None):
 	"""The .watchlist reply in a chat (by its key): the companies it watches, or one line on adding ('add') or removing

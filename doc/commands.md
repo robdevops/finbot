@@ -55,6 +55,7 @@ Where:
 /session [percent|symbol]
 /shorts [percent|symbol]
 /trades [period] [portfolio]
+/treemap portfolio [sector]
 /watchlist [add|del symbol]
 /who symbol
 ```
@@ -71,6 +72,7 @@ The bot answers commands in every chat it is in. By default, it fetches its upda
 * Stock lookup (financials, company profile, price charts)
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
+* A pie or a treemap of a portfolio by industry or sector (`/pie portfolio [sector]`, `/treemap portfolio [sector]`): the treemap tiles each holding by value, grouped and coloured by industry (the default) or sector
 * Listing of holdings sorted by various attributes 
 * Running the other stock reports on demand
 

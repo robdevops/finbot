@@ -107,7 +107,7 @@ sharesight_code=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 sharesight_client_id=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 sharesight_client_secret=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 ```
-* Sharesight is optional. Without its keys, a chat's reports cover its watchlist alone, so add your holdings to it (`/watchlist add SYMBOL`); `/holdings`, `/trades`, `/performance`, `/who` and `/pie` say Sharesight is not set up, and the trades and performance jobs are not among the default jobs.
+* Sharesight is optional. Without its keys, a chat's reports cover its watchlist alone, so add your holdings to it (`/watchlist add SYMBOL`); `/holdings`, `/trades`, `/performance`, `/who`, `/pie` and `/treemap` say Sharesight is not set up, and the trades and performance jobs are not among the default jobs.
 
 ## Portfolios
 Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `exclude_portfolios` in the `preferences.conf`:

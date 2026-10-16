@@ -30,8 +30,8 @@ class Actions(unittest.TestCase):
 		self.assertFalse({'help', 'start', 'watchlist', 'wishlist', 'plan', 'jobs', 'cron', 'schedule', 'price',
 			'session', 'earnings', 'trades'} & set(commands))
 		self.assertEqual(jobs.chat_actions(), ['cal', 'message', 'milestone', 'performance', 'podcasts', 'price',
-			'rating', 'shorts', 'trades', 'holdings', 'pie', 'who', 'marketcap', 'beta', 'compare', 'history', 'buy',
-			'sell', 'pe', 'forward pe', 'peg', 'stock'])
+			'rating', 'shorts', 'trades', 'holdings', 'pie', 'treemap', 'who', 'marketcap', 'beta', 'compare',
+			'history', 'buy', 'sell', 'pe', 'forward pe', 'peg', 'stock'])
 
 	def test_a_command_of_help_as_a_job(self):
 		"""A job may run a command of .help by its name, the words it takes before the schedule; another of its names

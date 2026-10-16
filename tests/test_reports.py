@@ -115,7 +115,7 @@ class ReportFunctions(FinbotCase):
 
 	def test_a_portfolio_command_without_a_portfolio_lists_them(self):
 		""".holdings and .pie without a portfolio say how to ask, with the portfolios there are."""
-		for text in ('.holdings', '.pie'):
+		for text in ('.holdings', '.pie', '.treemap'):
 			with self.subTest(text=text):
 				self.assertIn('Portfolios: Rob', str(self.command(text)))
 
@@ -775,6 +775,58 @@ class PieCommand(FinbotCase):
 			self.assertEqual(self.sent[-1], ('text', ['x']))
 
 
+class TreemapCommand(FinbotCase):
+	def setUp(self):
+		"""A portfolio of five holdings across three industries, one unclassified and one worth nothing."""
+		super().setUp()
+		data = [('A', 'Semiconductors', 'Electronic Technology', 500),
+			('B', 'Semiconductors', 'Electronic Technology', 300), ('C', 'Biotechnology', 'Health Technology', 200),
+			('D', None, None, 100), ('E', 'Gold', 'Minerals', 0)]
+		held = {c + ':NASDAQ': {'code': c, 'market_code': 'NASDAQ', 'industry_classification_name': i,
+			'sector_classification_name': s, 'value': v} for c, i, s, v in data}
+		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: held)
+
+	def test_by_industry_default(self):
+		""".treemap PORTFOLIO charts by industry."""
+		sent = self.command('.treemap Rob')
+		self.assertEqual(sent[0][0], 'photo')
+		self.assertIn('Rob treemap by industry', sent[0][2])
+
+	def test_groups_and_holdings(self):
+		"""By sector: the groups largest first with their holdings, worthless ones left out, and the chart draws."""
+		payload, chart = holdings.prepare_treemap('rob', 'sector', TELEGRAM)
+		self.assertEqual([r[0] for r in chart.rows], ['Electronic Technology', 'Health Technology', 'Unclassified'])
+		self.assertEqual(chart.rows[0][1], (('A', 500.0), ('B', 300.0)))
+		self.assertIn('Electronic Technology: 72.7%', payload)
+		self.assertEqual(chart.subtitle, '3 sectors, 4 holdings')
+		self.assertTrue(render.draw_treemap(chart).read().startswith(b'\x89PNG'))
+		self.assertEqual(self.command('.treemap Rob sector')[0][0], 'photo')
+
+	def test_folds_into_other(self):
+		"""Over eight groups, the smallest are one Other, which keeps their holdings."""
+		held = {f'T{i}:X': {'code': f'T{i}', 'industry_classification_name': f'Ind {i}',
+			'value': 100 - i} for i in range(12)}
+		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: held)
+		payload, chart = holdings.prepare_treemap('Rob', 'industry', TELEGRAM)
+		self.assertEqual(len(chart.rows), 8)
+		self.assertEqual(chart.rows[-1][0], 'Other')
+		self.assertEqual(len(chart.rows[-1][1]), 5)
+		self.assertTrue(render.draw_treemap(chart).read().startswith(b'\x89PNG'))
+
+	def test_nothing_with_a_value(self):
+		"""A portfolio of worthless holdings answers in a line, with no chart."""
+		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: {'E:X': {'code': 'E', 'value': 0}})
+		self.assertEqual(holdings.prepare_treemap('Rob', 'industry', TELEGRAM),
+			(['Rob has no holdings with a value'], None))
+
+	def test_unknown_or_missing_portfolio_lists_known(self):
+		""".treemap with no portfolio, or an unknown one, lists the portfolios there are."""
+		self.assertEqual(self.command('.treemap'),
+			[('text', ['Usage: .treemap PORTFOLIO [sector]', 'Portfolios: Rob'])])
+		self.assertEqual(self.command('.treemap Nope'),
+			[('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
+
+
 class CommandJobs(FinbotCase):
 	"""A job that runs a command of .help posts in its chat what the command posts when typed there."""
 
@@ -808,7 +860,7 @@ class WithoutSharesight(FinbotCase):
 
 	def test_what_needs_sharesight_says_it_is_not_set_up(self):
 		""".holdings, .trades, .performance, .who and .pie say Sharesight is not set up, and where its keys go."""
-		for typed in ('.holdings Rob', '.holdings', '.trades', '.performance', '.who T1', '.pie Rob'):
+		for typed in ('.holdings Rob', '.holdings', '.trades', '.performance', '.who T1', '.pie Rob', '.treemap Rob'):
 			with self.subTest(typed=typed):
 				self.assertEqual(self.command(typed), [('text', ['Sharesight is not set up: its keys go in finbot.env'
 					' (doc/configuration.md)'])])

@@ -852,8 +852,8 @@ class JobsMenu(ChatBase):
 		self.assertEqual(lines, ['<b>Add a job: which report?</b>'])
 		self.assertEqual(rows, [['trades', 'price midsession', 'price premarket'], ['price close', 'price',
 			'performance'], ['cal earnings', 'cal ex-dividend', 'shorts'], ['rating', 'milestone', 'message'],
-			['holdings', 'pie', 'who'], ['marketcap', 'beta', 'compare'], ['history', 'buy & sell', 'pe'],
-			['forward pe', 'peg', 'stock'], ['Cancel']])
+			['holdings', 'pie', 'treemap'], ['who', 'marketcap', 'beta'], ['compare', 'history', 'buy & sell'],
+			['pe', 'forward pe', 'peg'], ['stock'], ['Cancel']])
 		self.assertEqual((data['price'], data['Cancel']), (f'm|add|5|{self.crc()}', f'm|top|0|{self.crc()}'))
 		lines, rows, data = self.press(data['price'])
 		self.assertEqual((lines, rows), (['<b>Add price: how often?</b>', '', '<i>† indicates default</i>'],
@@ -980,15 +980,15 @@ class JobsMenu(ChatBase):
 		first, second = (about.add_screen(DISCORD, CHAT, steps)[1] for steps in ([], ['p1']))
 		self.assertEqual(([len(row) for row in first], [button.label for button in first[-1]]), ([4, 4, 4, 4, 2],
 			['More ▶', 'Cancel']))
-		self.assertEqual([button.label for row in second for button in row], ['beta', 'compare', 'history',
-			'buy & sell', 'pe', 'forward pe', 'peg', 'stock', '◀', 'Cancel'])
+		self.assertEqual([button.label for row in second for button in row], ['marketcap', 'beta', 'compare',
+			'history', 'buy & sell', 'pe', 'forward pe', 'peg', 'stock', '◀', 'Cancel'])
 
 	def test_a_step_that_is_none_adds_nothing(self):
 		"""Data that is no step of Add (forged, or an older finbot's: the weekdays frequency, the next 14 days, every...
 		hourly) adds nothing and says so: a report, frequency, year, month or day not offered, a day gone by, 30 Feb, an
 		end not among the runs, a page where there is none."""
 		crc = self.crc()
-		for data in ('25', '5|x', '5|k', '5|o|261020', '5|r|60', '5|w|7|9', '5|d|24', '5|d|9|9', '5|d|9|0|0',
+		for data in ('26', '5|x', '5|k', '5|o|261020', '5|r|60', '5|w|7|9', '5|d|24', '5|d|9|9', '5|d|9|0|0',
 				'1|r|7', '5|o|2025', '5|o|2036', '5|o|2026|9', '5|o|2026|10|13', '5|o|2027|2|30', '5|a|2|30', '5|q|13',
 				'5|w|p1', '5|m|def', '5|h|d|10|5|600', '5|h|d|10|5|1000', '5|h|d|10|5|e|0'):
 			with self.subTest(data=data):

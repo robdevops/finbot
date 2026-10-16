@@ -69,6 +69,9 @@ CHARTS = {
 	'shorts': lambda: shorts([('GME', 47.3), ('AMC', 32.1), ('TSLA', 21.6), ('AAPL', 15.2)]),
 	'pie': lambda: render.draw_pie(render.Chart('pie', 'Rob by industry', '4 industries',
 		(('Software', 41.0), ('Banks', 23.5), ('Mining', 12.0), ('Other', 8.0)))),
+	'treemap': lambda: render.draw_treemap(render.Chart('treemap', 'Rob treemap by industry',
+		'3 industries, 9 holdings', (('Software', (('MSFT', 30.0), ('ADBE', 8.0), ('NOW', 3.0))),
+		('Banks', (('JPM', 14.0), ('WFC', 9.0), ('C', 5.0))), ('Mining', (('BHP', 8.0), ('RIO', 4.0), ('FMG', 2.0)))))),
 }
 # inputs that have broken chart code before or are likely to: sizes, signs, long names, zeros, a single row
 EDGE_ROWS = {
@@ -417,6 +420,25 @@ class GoldenImages(unittest.TestCase):
 	def test_compare_lines(self):
 		"""The compare chart matches its golden image."""
 		self.check('compare_lines')
+
+	def test_squarify_tiles_the_box_in_proportion(self):
+		"""The tiles of a squarified layout stay in the box, don't overlap, and have areas in proportion."""
+		values = [40.0, 25.0, 15.0, 10.0, 6.0, 3.0, 1.0]
+		tiles = render._squarify(values, 10, 20, 300, 200)
+		self.assertEqual(len(tiles), len(values))
+		for (x, y, w, h), value in zip(tiles, values):
+			self.assertAlmostEqual(w * h, value / sum(values) * 300 * 200, places=4)
+			self.assertGreaterEqual(x, 10 - 1e-9)
+			self.assertGreaterEqual(y, 20 - 1e-9)
+			self.assertLessEqual(x + w, 310 + 1e-9)
+			self.assertLessEqual(y + h, 220 + 1e-9)
+		for i, (x, y, w, h) in enumerate(tiles):
+			for x2, y2, w2, h2 in tiles[i + 1:]:
+				self.assertTrue(x + w <= x2 + 1e-9 or x2 + w2 <= x + 1e-9 or y + h <= y2 + 1e-9 or y2 + h2 <= y + 1e-9)
+
+	def test_treemap(self):
+		"""The treemap matches its golden image."""
+		self.check('treemap')
 
 	def test_pie(self):
 		"""The pie matches its golden image."""
