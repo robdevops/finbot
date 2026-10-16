@@ -1,6 +1,6 @@
 """What reaches the bot: webhook requests turned away or taken, Slack's events, presses, slash commands and signatures,
 the Slack app's manifest, and user text escaped where it arrives."""
-import contextlib, hashlib, hmac, io, json, re, time, unittest
+import contextlib, hashlib, hmac, io, json, re, time, types, unittest
 from urllib.parse import urlencode
 from tests.common import *
 from util import slack_manifest
@@ -185,6 +185,48 @@ class WsgiRejections(FinbotCase):
 		self.join_workers()
 		self.assertEqual(order, [('acknowledged', 'q1', 'Loading 1Y…'), ('worker', 'telegram', 'c|h|y|T1'),
 			('worker', 'slack', 'c|h|w|T1')])
+
+
+class DoubledMessages(FinbotCase):
+	"""The same message from the same person in the same chat within a second is taken once: Telegram's mobile app
+	can send a command twice (/start in a new chat), each its own update."""
+
+	def setUp(self):
+		"""The real check, and a clock of this test's own."""
+		super().setUp()
+		self.patch(bot, 'doubled', REAL_DOUBLED)
+		self.now = [1000.0]
+		self.patch(bot, 'time', types.SimpleNamespace(monotonic=lambda: self.now[0]))
+
+	def send(self, update_id, text='/start', user='rob', chat=55):
+		"""Take a Telegram message, as an update of this id arrives."""
+		with contextlib.redirect_stderr(io.StringIO()):
+			bot.take(telegram_common.READER, {'update_id': update_id, 'message': {'message_id': update_id,
+				'chat': {'id': chat}, 'from': {'first_name': 'Rob', 'username': user}, 'text': text}})
+		self.join_workers()
+
+	def test_a_message_sent_again_within_a_second_is_taken_once(self):
+		"""A second /start within a second is not run again; another person's, another chat's, another text, or one
+		over a second later is."""
+		self.send(1)
+		self.send(2)
+		self.assertEqual(len(self.workers), 1)
+		self.send(3, user='ann')
+		self.send(4, chat=66)
+		self.send(5, text='.help')
+		self.assertEqual(len(self.workers), 4)
+		self.now[0] += 1.5
+		self.send(6)
+		self.assertEqual(len(self.workers), 5)
+
+	def test_a_discord_slash_command_is_always_answered(self):
+		"""A slash command sent again at once still gets its answer: Discord shows an error for an interaction left
+		unanswered."""
+		command = {'type': 2, 'id': '1', 'token': 't', 'application_id': '9', 'channel_id': '77',
+			'member': {'user': {'id': '5', 'username': 'rob'}}, 'data': {'name': 'start'}}
+		with contextlib.redirect_stderr(io.StringIO()):
+			answers = [bot.take(discord_common.READER, dict(command, id=str(n))) for n in (1, 2)]
+		self.assertEqual([json.loads(answer.body) for answer in answers], [{'type': 5}, {'type': 5}])
 
 
 class SlackEvents(FinbotCase):

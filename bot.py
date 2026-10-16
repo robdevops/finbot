@@ -5,7 +5,7 @@ if __name__ == '__main__':
 	# ignored until startup is done (the reload handler is installed last): its default action kills the bot
 	signal.signal(signal.SIGHUP, signal.SIG_IGN)
 	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise the cache flush
-import collections, dataclasses, json, os, re, sys, threading, traceback
+import collections, dataclasses, json, os, re, sys, threading, time, traceback
 from pathlib import Path
 
 from lib import log
@@ -34,6 +34,8 @@ WEBHOOKS = (telegram_webhook.WEBHOOK, slack_webhook.WEBHOOK, discord_webhook.WEB
 LISTENERS = (telegram_longpolling.TelegramPoll, slack_websocket.SlackSocket, discord_websocket.DiscordGateway) # pull
 _updates_seen = collections.OrderedDict() # (service, update id) of the last updates taken, oldest first
 _updates_lock = threading.Lock() # updates arrive on several threads: a resent one may race its first copy
+DOUBLED = 1 # seconds in which the same message, from the same person in the same chat, is taken once
+_said = {} # (service, chat, user, text) of the messages taken in the last DOUBLED seconds: when
 
 def seen_before(service, update_id, keep=1000):
 	"""Whether this update was taken already: Telegram's update_id, Slack's event_id. Slack resends an event it got no
@@ -58,6 +60,20 @@ def listeners():
 	"""The listeners finbot.env asks for, each network's with its bot token and no webhook URL (Slack's also needs its
 	app-level token): finbot fetches the updates of those networks itself."""
 	return [kind() for kind in LISTENERS if kind.wanted()]
+
+def doubled(message):
+	"""Whether this message repeats one that the same person sent in the same chat in the last DOUBLED seconds:
+	Telegram's mobile app can send a command twice (/start in a new chat), each its own update, and one answer is
+	enough."""
+	key = (message.service, message.chat_id, message.user, message.text.strip())
+	now = time.monotonic()
+	with _updates_lock:
+		for old in [said for said, at in _said.items() if now - at > DOUBLED]:
+			del _said[old]
+		if key in _said:
+			return True
+		_said[key] = now
+	return False
 
 def main(environ, start_response):
 	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is reported as one
@@ -170,7 +186,8 @@ class Sent(list):
 
 def take(network, update):
 	"""An update from a network (an inbound.Network reads it), however it arrived: what it says goes to lib/worker in a
-	thread of its own (dispatch), unless it is a repeat. It is acknowledged first, the one place that does
+	thread of its own (dispatch), unless it is a repeat (the same update resent, or the same message sent again at once:
+	doubled). It is acknowledged first, the one place that does
 	(Network.acknowledge: Telegram's toast for a press). Returns the inbound.Response for the network; when the network
 	must have it before any reply (Discord's interactions), the work waits in its `then`, for whoever delivers it."""
 	event = network.parse(update)
@@ -180,6 +197,9 @@ def take(network, update):
 		return network.suggestions(worker.suggest(f'{event.service}:{event.chat_id}', event.text))
 	if seen_before(network.service, network.update_id(update)):
 		log.info(f"[{network.service}]: update {network.update_id(update)} seen already, not run again")
+		return inbound.OK
+	if isinstance(event, inbound.Message) and not event.interaction and doubled(event): # each interaction is answered
+		log.info(f"[{network.service}]: {event.user} sent {event.text!r} again within {DOUBLED} s, not run again")
 		return inbound.OK
 	answer = network.acknowledge(event)
 	if answer is not None:

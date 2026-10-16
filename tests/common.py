@@ -23,6 +23,7 @@ REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'f
 	(sharesight, '_portfolios'), (sharesight, '_trades'), (sharesight, '_performance'))}
 REAL_GET_HOLDINGS = watchlist.with_holdings
 REAL_DISPATCH = bot.dispatch # FinbotCase notes the worker thread of each update, so that a test can wait for it
+REAL_DOUBLED = bot.doubled # FinbotCase takes every message, a repeat sent on purpose too; DoubledMessages puts it back
 
 
 def no_jobs(data):
@@ -128,6 +129,8 @@ class FinbotCase(unittest.TestCase):
 		self.env(data_dir=tmp.name, cache_dir=tmp.name, telegramBotToken='X',
 			telegram_api='https://api.telegram.org/botX/')
 		self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
+		self.patch(bot, '_said', {}) # nor any message
+		self.patch(bot, 'doubled', lambda message: False) # a test may send the same message twice on purpose
 		self.workers = []
 		self.patch(bot, 'dispatch', lambda event: self.workers.append(REAL_DISPATCH(event)))
 		self.sent = []
