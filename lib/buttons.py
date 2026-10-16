@@ -38,7 +38,7 @@ class MenuPress(typing.NamedTuple):
 
 
 JOB_ACTIONS = {'j': 'run', 'e': 'toggle'} # an older job button's kind, its data's first letter, and what it does
-MENU_SCREENS = ('top', 'on', 'del', 'run', 'add', 'next') # the .jobs menu's screens (lib/reports/about.py)
+MENU_SCREENS = ('top', 'on', 'off', 'del', 'run', 'add', 'next') # the .jobs menu's screens (lib/reports/about.py)
 
 
 PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x': ('Max', None)}

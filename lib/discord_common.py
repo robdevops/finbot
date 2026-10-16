@@ -75,9 +75,17 @@ def command(name, description, arguments, completes=False):
 	"""A slash command as Discord takes it: a chat command usable in servers and in a DM with the bot, and the arguments
 	it takes, if any, as one optional text option that they describe; with completes, Discord asks finbot what to
 	suggest as they are typed (an autocomplete interaction)."""
-	option = {'type': 3, 'name': OPTION, 'description': arguments[:100], 'required': False, 'autocomplete': completes}
-	return {'name': name, 'type': 1, 'description': description[:100], 'contexts': [GUILD, BOT_DM],
+	option = {'type': 3, 'name': OPTION, 'description': fit(arguments), 'required': False, 'autocomplete': completes}
+	return {'name': name, 'type': 1, 'description': fit(description), 'contexts': [GUILD, BOT_DM],
 		'integration_types': [0], 'options': [option] if arguments else []}
+
+def fit(text, most=100):
+	"""A description within Discord's 100 characters: whole where it fits, else cut after the last of its usage lines
+	(joined by ' | ') that does."""
+	if len(text) <= most:
+		return text
+	cut = text.rfind(' | ', 0, most + 1)
+	return text[:cut] if cut > 0 else text[:most]
 
 
 def summary(commands):

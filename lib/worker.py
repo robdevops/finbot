@@ -51,7 +51,7 @@ def process_job_callback(press, pressed):
 	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
 	def redraw():
 		"""Put the menu's screen that does the same, as the list is now, in place of the pressed one."""
-		lines, markup = about.jobs_screen(service, chat.key, 'on' if pressed.action == 'toggle' else 'run')
+		lines, markup = about.jobs_screen(service, chat.key, 'top' if pressed.action == 'toggle' else 'run')
 		chat.edit_text(press.message_id, '\n'.join(lines), markup or [])
 	try:
 		if jobs.current is None:
@@ -92,23 +92,29 @@ def menu_screen(service, chat, pressed):
 		return add_step(service, chat, args)
 	page = int(args[0]) if args and args[0].isdigit() and len(args[0]) < 4 else 0
 	note = None
-	if len(args) == 2 and screen in ('on', 'del', 'run'):
+	if len(args) == 2 and screen in ('on', 'off', 'del', 'run'):
 		own, number = scheduler.chat_jobs(key), args[1]
-		every = screen == 'on' and number in ('allon', 'alloff') # All: every job switched on, or off
+		every = number == 'all' and screen != 'run' or number == 'allyes' and screen == 'del' # every job at once
 		if not (hmac.compare_digest(jobs.list_checksum(own), pressed.checksum) and (every or number.isdigit() and
 				1 <= int(number) <= len(own))):
 			note = 'The jobs have changed: here they are now'
+		elif number == 'all' and screen == 'del': # Remove all asks first
+			return about.remove_all_screen(service, key, page)
+		elif every and screen == 'del':
+			scheduler.delete_all(key)
+			return about.jobs_screen(service, key, 'top', 0, 'Every job here is removed')
 		elif every:
-			scheduler.switch_all(key, number == 'allon')
-			note = f"Every job is {number.removeprefix('all')} now"
+			scheduler.switch_all(key, screen == 'on')
+			note = f'Every job is {screen} now'
 		else:
 			job = own[int(number) - 1]
 			try:
-				if screen == 'on':
-					scheduler.toggle(job)
+				if screen in ('on', 'off'):
+					scheduler.switch(job, screen == 'on')
+					note = f"{'Enabled' if screen == 'on' else 'Disabled'} {number}. {service.escape(job.name)}"
 				elif screen == 'del':
 					scheduler.delete(job)
-					note = f'Deleted {number}. {service.escape(job.name)}'
+					note = f'Removed {number}. {service.escape(job.name)}'
 				else:
 					delivery.deliver(chat, delivery.Report([about.job_line(number, job, scheduler.run(job))]))
 			except jobs.ScheduleError as e:
@@ -434,10 +440,10 @@ def on_who(request, args):
 	request.reply(holdings.prepare_who(request.service, re.split(r'[.:]', args.words[0].upper())[0]))
 
 def on_jobs(request, args):
-	""".jobs: this chat's jobs, the default ones and those added here, with the menu's buttons; .jobs upcoming: the
-	next runs; .jobs system: the system's; .jobs run, toggle or del NUMBER: one run now, switched on or off, or deleted
-	(one added here), and without a number the list with a button per job that does it; .jobs add REPORT SCHEDULE, or
-	.jobs add message SCHEDULE "TEXT": one more (alone, the reports a job can run)."""
+	""".jobs: this chat's jobs, with the menu's buttons; .jobs upcoming: the next runs; .jobs system: the system's;
+	.jobs enable, disable, remove, run or toggle NUMBER: one switched on or off, removed, run now, or switched the
+	other way, and without a number the list with a button per job that does it; .jobs add REPORT SCHEDULE, or .jobs
+	add message SCHEDULE "TEXT": one more (alone, the reports a job can run)."""
 	scheduler, chat, service = jobs.current, request.dest.key, request.service
 	tappable = request.dest.takes_buttons
 	if scheduler is None:
@@ -460,21 +466,23 @@ def on_jobs(request, args):
 			number = scheduler.add(chat, *jobs.parse_add(text, formats.zone().key))
 			request.reply([about.job_entry(service, scheduler, number, scheduler.chat_jobs(chat)[number - 1]),
 				'Added: .jobs lists them all'])
-		elif args.keyword in ('run', 'toggle', 'del') and not args.words:
-			screen = {'run': 'run', 'toggle': 'on', 'del': 'del'}[args.keyword]
-			lines, markup = about.jobs_screen(service, chat, screen, tappable=tappable)
+		elif args.keyword in JOB_SCREENS and not args.words:
+			lines, markup = about.jobs_screen(service, chat, JOB_SCREENS[args.keyword], tappable=tappable)
 			request.reply(lines, buttons=markup)
-		elif args.keyword in ('run', 'toggle', 'del') and len(args.words) == 1:
+		elif args.keyword in JOB_SCREENS and len(args.words) == 1:
 			number = args.words[0]
 			job = scheduler.job(chat, number)
 			if args.keyword == 'run':
 				request.reply([about.job_line(number, job, scheduler.run(job))])
-			elif args.keyword == 'toggle':
-				scheduler.toggle(job)
-				request.reply([about.job_entry(service, scheduler, number, scheduler.job(chat, number))])
-			else:
+			elif args.keyword == 'del':
 				scheduler.delete(job)
-				request.reply([f"Deleted {number}. {job.name} · {job.schedule.describe(formats.zone().key)}"])
+				request.reply([f"Removed {number}. {job.name} · {job.schedule.describe(formats.zone().key)}"])
+			else:
+				if args.keyword == 'toggle':
+					scheduler.toggle(job)
+				else:
+					scheduler.switch(job, args.keyword == 'enable')
+				request.reply([about.job_entry(service, scheduler, number, scheduler.job(chat, number))])
 		else:
 			raise Usage
 	except jobs.ScheduleError as e: # a job that cannot be, or a number that is none: said, as an answer
@@ -513,8 +521,10 @@ CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm')
 PLANS = 'finbot_plan.json' # each chat's plans, {user: plan}, as state.load_for keeps them
 BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .pie's
 # what .jobs does to a chat's jobs, and shows; next is what upcoming was called before
-JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'add': 'add', 'system': 'system'} | dict.fromkeys(('upcoming',
-	'next'), 'upcoming') | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'del')
+JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'enable': 'enable', 'disable': 'disable', 'add': 'add',
+	'system': 'system'} | dict.fromkeys(('upcoming', 'next'), 'upcoming') | dict.fromkeys(('del', 'delete', 'rem',
+	'remove', 'rm'), 'del')
+JOB_SCREENS = {'enable': 'on', 'disable': 'off', 'del': 'del', 'run': 'run', 'toggle': 'top'} # each word's screen
 BUY_SELL = ('buy', 'sell', *(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')))
 PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL'), COMPANY) # any first word that is no
 # command's name but may be a ticker calls it too
@@ -551,8 +561,8 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True),
 	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES),
 	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [upcoming|system]',
-		'.jobs run|toggle|del [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'), JOBS,
-		keywords=JOB_CHANGES),
+		'.jobs enable|disable|remove|run [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'),
+		JOBS, keywords=JOB_CHANGES),
 	PROFILE,
 ]
 
@@ -605,11 +615,22 @@ def slash_commands(aliases=True):
 					if each and arguments not in found.setdefault(each, (command, []))[1]:
 						found[each][1].append(arguments)
 	return [Slash('help', 'every command, and what it takes', '') if name == 'help' else
-		Slash(name, f"{name} {' | '.join(lines)}".strip(), ' | '.join(lines), completes(command))
+		Slash(name, described(name, lines), ' | '.join(lines), completes(command))
 		for name, (command, lines) in found.items()]
 
+def described(name, lines, most=100):
+	"""A slash command's description: its name, then as many of its usage lines (the arguments of each, joined by
+	' | ') as fit in most characters, Discord's limit."""
+	text = name
+	for line in filter(None, lines):
+		longer = f"{text}{' ' if text == name else ' | '}{line}"
+		if len(longer) > most:
+			break
+		text = longer
+	return text
+
 PERIOD_WORDS = ('1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y') # suggested where a command takes a period
-JOB_WORDS = ('add', 'run', 'toggle', 'del', 'upcoming', 'system') # what /jobs suggests first
+JOB_WORDS = ('add', 'remove', 'enable', 'disable', 'run', 'upcoming', 'system') # what /jobs suggests first
 SCHEDULE_WORDS = ('daily', 'weekdays', 'weekly', 'monthly', 'quarterly', 'bi-annual', 'annual', 'hourly', 'every', 'at',
 	'from', 'between', 'on') # what a schedule in English is made of, suggested after a report
 
@@ -664,16 +685,17 @@ def argument_words(command, chat, given):
 	return [(word, word) for word in dict.fromkeys(words)]
 
 def job_words(chat, words):
-	"""(word, shown) pairs for /jobs, for suggest, after the words given: first its subcommands; after run or toggle,
-	this chat's job numbers, each shown with its name (after del, those of the jobs added here); after add, the reports,
-	each shown with what it takes; after a report, the words it takes, then those of a schedule."""
+	"""(word, shown) pairs for /jobs, for suggest, after the words given: first its subcommands; after remove, run or
+	toggle, this chat's job numbers, each shown with its name (after enable, those of the jobs off; after disable,
+	those on); after add, the reports, each shown with what it takes; after a report, the words it takes, then those
+	of a schedule."""
 	if not words:
 		return [(word, word) for word in JOB_WORDS]
 	action = JOB_CHANGES.get(words[0].lower())
-	if action in ('run', 'toggle', 'del') and len(words) == 1:
+	if action in JOB_SCREENS and len(words) == 1:
 		own = jobs.current.chat_jobs(chat) if jobs.current else []
 		return [(str(number), f'{number}: {job.name}') for number, job in enumerate(own, 1)
-			if action != 'del' or not job.item]
+			if {'enable': not job.on, 'disable': job.on}.get(action, True)]
 	if action != 'add':
 		return []
 	if len(words) == 1:

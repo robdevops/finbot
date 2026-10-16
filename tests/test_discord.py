@@ -387,9 +387,9 @@ class Suggestions(FinbotCase):
 		self.assertEqual(self.values('/plan buy '), [])
 
 	def test_the_jobs_subcommands_numbers_and_reports(self):
-		"""/jobs suggests its subcommands; after run or toggle this chat's job numbers, each shown with its name (after
-		del, those of the jobs it added); after add, the reports a chat can schedule, each shown with what it takes;
-		then what the report takes, and the words of a schedule."""
+		"""/jobs suggests its subcommands; after run or remove this chat's job numbers, each shown with its name (after
+		enable, those of the jobs that are off; after disable, those on); after add, the reports a chat can schedule,
+		each shown with what it takes; then what the report takes, and the words of a schedule."""
 		self.patch(jobs, 'SYSTEM', ())
 		self.patch(catalog, 'ITEMS', (catalog.Item('rating', 'rating', 'rating', (), catalog.at('daily')),))
 		state.save(jobs.JOBS_FILE, {'discord:77': {'jobs': [
@@ -399,11 +399,13 @@ class Suggestions(FinbotCase):
 		with contextlib.redirect_stderr(io.StringIO()):
 			scheduler.load()
 		self.patch(jobs, 'current', scheduler)
-		self.assertEqual(self.values('/jobs '), ['add', 'run', 'toggle', 'del', 'upcoming', 'system'])
-		self.assertEqual(self.values('/job T'), ['toggle'])
+		self.assertEqual(self.values('/jobs '), ['add', 'remove', 'enable', 'disable', 'run', 'upcoming', 'system'])
+		self.assertEqual(self.values('/job E'), ['enable'])
 		self.assertEqual(worker.suggest('discord:77', '/jobs run '), [('run 1: rating', 'run 1'),
 			('run 2: trades', 'run 2'), ('run 3: shorts', 'run 3')])
-		self.assertEqual(self.values('/jobs del '), ['del 2', 'del 3'])
+		self.assertEqual(self.values('/jobs remove '), ['remove 1', 'remove 2', 'remove 3'])
+		self.assertEqual(self.values('/jobs enable '), ['enable 3']) # shorts is off
+		self.assertEqual(self.values('/jobs disable '), ['disable 1', 'disable 2'])
 		self.assertEqual(self.values('/jobs run ', chat='discord:88'), [])
 		reports = worker.suggest('discord:77', '/jobs add ')
 		self.assertIn(('add price midsession|interday|premarket|close|DAYS', 'add price'), reports)

@@ -1,5 +1,5 @@
-"""What finbot can do: the .help text, and the .jobs menu: a chat's jobs a page at a time, with buttons that switch,
-delete or run one; the steps of Add; the next runs; the system jobs; and the reports a job can run."""
+"""What finbot can do: the .help text, and the .jobs menu: a chat's jobs a page at a time, with buttons that enable,
+disable, remove or run one; the steps of Add; the upcoming runs; the system jobs; and the reports a job can run."""
 import calendar
 import datetime
 
@@ -10,13 +10,16 @@ from lib import formats
 from lib import jobs
 from lib import when
 
-HEADINGS = {'top': 'Jobs here', 'on': 'Tap a job to switch it on or off', 'run': 'Tap a job to run it now',
-	'del': 'Tap a job added here to delete it (a default job is switched off instead)'}
-TYPED = ['.jobs run|toggle|del NUMBER: run one now, switch it on or off, delete one added here',
+HEADINGS = {'top': 'Jobs here', 'on': 'Tap a job to enable it', 'off': 'Tap a job to disable it',
+	'del': 'Tap a job to remove it', 'run': 'Tap a job to run it now'}
+NOTHING = {'on': 'Every job is on', 'off': 'Every job is off'} # what Enable and Disable say with nothing to switch
+EVERY = {'on': 'Enable all', 'off': 'Disable all', 'del': 'Remove all'} # each list screen's button for every job
+TYPED = ['.jobs enable|disable|remove|run NUMBER: switch one on or off, remove one, run one now',
 	'.jobs add REPORT SCHEDULE: add one (.jobs add lists the reports)', '.jobs upcoming: the next runs',
 	'.jobs system: the system jobs'] # what a chat without buttons types instead
-TYPED_ACTIONS = {'on': 'toggle', 'del': 'del', 'run': 'run'}
-NOT_RUN, DEFAULT = '* not run yet', '† default (no delete, only disable)' # the key to a list's marks
+TYPED_ACTIONS = {'on': 'enable', 'off': 'disable', 'del': 'remove', 'run': 'run'}
+ADD_TYPED = ['/jobs add REPORT SCHEDULE', '/jobs add message SCHEDULE "TEXT"'] # how Add is typed: under the list
+NOT_RUN = '* not run yet' # the key to a list's mark
 PAGE_ROOM = 500 # characters of a screen besides its jobs' lines: its headings, a note, the key to *
 JOB_ROW = 4 # job buttons in a row
 MOST_JOBS = {'discord': 16} # job buttons on a page: Discord takes five rows of five, one kept for the others; else 40
@@ -48,14 +51,14 @@ YEARS = 10 # the years a one-off may be in, this one first
 CROWDED = 20 # a screen of more choices takes them in rows of five, Back last: Discord takes 25 buttons
 
 def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
-	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered: the default ones (†), then those
-	added here, each ✅ (on) or ❌ (off), * where it has never run, its name and its schedule in words, by the timezone
-	preference's clock (lib/when.py), then the key to the marks shown. top has what can be done (Enable/disable,
-	Delete, Add, Run now, Next); on, del and run a button per job, which switches it (and All, every job), deletes it
-	(one added here: a default one has none) or runs it now. A page at a time, as many jobs as a message of the
-	network takes (◀ and More ▶ for the others), after a note of what the last press did. A one-off gone by is deleted
-	first. Returns (lines, buttons); where the chat takes no buttons (tappable false), the whole list and what to type
-	instead."""
+	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each ✅ (on) or ❌ (off), * where it
+	has never run, its name and its schedule in words, by the timezone preference's clock (lib/when.py), then the key
+	to the marks shown. top has what can be done (Add, Remove, Enable, Disable, Run now, Upcoming...) and how Add is
+	typed, in italics; on, off, del and run a button for each job the screen acts on (acts), which switches it on or
+	off, removes it or runs it now, and Enable all, Disable all or Remove all. A page at a time, as many jobs as a
+	message of the network takes (◀ and More ▶ for the others), after a note of what the last press did. A one-off
+	gone by is deleted first. Returns (lines, buttons); where the chat takes no buttons (tappable false), the whole
+	list and what to type instead."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
@@ -69,21 +72,23 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
 	shown = parts[page]
 	span = f' ({shown[0][0]}–{shown[-1][0]} of {len(own)})' if len(parts) > 1 else ''
 	lines = ([note, ''] if note else []) + [service.bold(HEADINGS[screen] + span)]
-	if screen == 'del' and all(job.item for job in own):
-		lines.append('None added here yet: Add makes one')
-	kind = None
-	for number, job, line in shown:
-		if kind != (job.item is not None): # a heading where the default jobs start, and those added here
-			kind = job.item is not None
-			lines += ['', service.bold('Default jobs:' if kind else 'Added here:')]
-		lines.append(line)
-	key = [text for text, marked in ((NOT_RUN, not all(scheduler.has_run(job) for _, job, _ in shown)),
-		(DEFAULT, any(job.item for _, job, _ in shown))) if marked]
-	if key:
-		lines += ['', ', '.join(key)]
+	if not own:
+		lines.append('No jobs here: Add makes one')
+	elif screen in NOTHING and not any(acts(screen, job) for job in own):
+		lines.append(NOTHING[screen])
+	if shown:
+		lines += ['', *(line for _, _, line in shown)]
+	if not all(scheduler.has_run(job) for _, job, _ in shown):
+		lines += ['', NOT_RUN]
 	if not tappable:
 		return lines + [''] + (TYPED if screen == 'top' else [f'Send .jobs {TYPED_ACTIONS[screen]} NUMBER']), None
-	return lines, screen_buttons(screen, page, len(parts), shown, jobs.list_checksum(own), all(job.on for job in own))
+	if screen == 'top':
+		lines += ['', *(service.italic(service.escape(line)) for line in ADD_TYPED)]
+	return lines, screen_buttons(screen, page, len(parts), shown, jobs.list_checksum(own), own)
+
+def acts(screen, job):
+	"""Whether a list screen acts on a job: Enable on one that is off, Disable on one that is on, the others on any."""
+	return {'on': not job.on, 'off': job.on}.get(screen, True)
 
 def paged(entries, service):
 	"""The jobs' entries (number, job, line) a page at a time: as many as fit a message of the network with room to
@@ -98,23 +103,22 @@ def paged(entries, service):
 		size += len(entry[2]) + 1
 	return parts
 
-def screen_buttons(screen, page, pages, shown, crc, every_on=False):
-	"""A list screen's buttons: top's, what can be done; on, del and run's, one for each job shown that the screen
-	acts on, '<number> <name>' (with its ✅ or ❌ to switch it), JOB_ROW to a row, then on's All, which switches every
-	job of the chat on (All off where every_on: off), and Cancel, back to the list; ◀ and More ▶ to the other pages."""
+def screen_buttons(screen, page, pages, shown, crc, own):
+	"""A list screen's buttons: top's, what can be done, two to a row; on, off, del and run's, one for each job shown
+	that the screen acts on (acts), '<number> <name>', JOB_ROW to a row, then Enable all, Disable all or Remove all
+	where it acts on any of the chat's jobs (own), and Cancel, back to the list; ◀ and More ▶ to the other pages."""
 	if screen == 'top':
-		rows = [[buttons.menu_button('Enable/disable', 'on', [0], crc), buttons.menu_button('Delete', 'del', [0], crc)],
-			[buttons.menu_button('Add', 'add', [], crc), buttons.menu_button('Run now', 'run', [0], crc),
-				buttons.menu_button('Upcoming', 'next', [], crc)]]
+		rows = [[buttons.menu_button(label, kind, args, crc) for label, kind, args in pair] for pair in (
+			(('Add', 'add', []), ('Remove', 'del', [0])), (('Enable', 'on', [0]), ('Disable', 'off', [0])),
+			(('Run now', 'run', [0]), ('Upcoming...', 'next', [])))]
 		nav = []
 	else:
-		tapped = [buttons.menu_button(f"{number} {('✅ ' if job.on else '❌ ') if screen == 'on' else ''}{job.name}",
-			screen, [page, number], crc) for number, job, _ in shown if screen != 'del' or not job.item]
+		tapped = [buttons.menu_button(f'{number} {job.name}', screen, [page, number], crc) for number, job, _ in shown
+			if acts(screen, job)]
 		rows = [tapped[i:i + JOB_ROW] for i in range(0, len(tapped), JOB_ROW)]
 		nav = [buttons.menu_button('Cancel', 'top', [0], crc)]
-		if screen == 'on':
-			nav.insert(0, buttons.menu_button('All off' if every_on else 'All on', 'on', [page, 'alloff' if every_on
-				else 'allon'], crc))
+		if screen in EVERY and any(acts(screen, job) for job in own):
+			nav.insert(0, buttons.menu_button(EVERY[screen], screen, [page, 'all'], crc))
 	if page > 0:
 		nav.append(buttons.menu_button('◀', screen, [page - 1], crc))
 	if page < pages - 1:
@@ -122,12 +126,20 @@ def screen_buttons(screen, page, pages, shown, crc, every_on=False):
 	return rows + ([nav] if nav else [])
 
 def job_entry(service, scheduler, number, job, running=(), local=None, now=None):
-	"""'5. ✅ price close AU† · weekdays at 4:30pm Sydney': a job in .jobs, with its number, whether it is on (and *
-	where it has never run), its name (and † for a default job), its schedule in words, and whether it is running."""
+	"""'5. ✅ price close AU · weekdays at 4:30pm Sydney': a job in .jobs, with its number, whether it is on (and *
+	where it has never run), its name, its schedule in words, and whether it is running."""
 	mark = ('✅' if job.on else '❌') + ('' if scheduler.has_run(job) else '*')
-	name = service.escape(job.name) + ('†' if job.item else '')
 	schedule = job.schedule.describe(local or formats.zone().key, now or scheduler.clock())
-	return f"{number}. {mark} {name} · {schedule}" + (' (running)' if job.key in running else '')
+	return f"{number}. {mark} {service.escape(job.name)} · {schedule}" + (' (running)' if job.key in running else '')
+
+def remove_all_screen(service, chat, page=0):
+	"""Remove all's question, for a chat (by its key): whether to remove every one of its jobs, the default ones too,
+	with Yes, remove all and Cancel."""
+	own = jobs.current.chat_jobs(chat)
+	crc = jobs.list_checksum(own)
+	return [service.bold(f"Remove all {len(own)} job{'' if len(own) == 1 else 's'} here?"), 'A default job removed'
+		' comes back only when the same job is added again'], [[buttons.menu_button('Yes, remove all', 'del', [page,
+		'allyes'], crc), buttons.menu_button('Cancel', 'top', [0], crc)]]
 
 def job_line(number, job, outcome):
 	"""'3. trades: done': a job's number in the .jobs list, its name, and how its run went."""

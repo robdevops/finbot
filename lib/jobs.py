@@ -40,8 +40,9 @@ SYSTEM_ACTIONS = ('cleanup', 'sharesight_warm', 'yahoo_warm') # the system's alo
 SYSTEM = (('sharesight_warm', (), {'every': 30, 'from': '00:14'}), ('yahoo_warm', (), {'every': 480, 'from': '00:07'}),
 	('cleanup', ('30',), {'days': ['sat'], 'at': '18:51'}))
 WARM = ('sharesight_warm', 'yahoo_warm') # the jobs that fill the cache, run at once after a flush too
-# {chat key: {'jobs': [{action, args, schedule, on}], 'off': [catalog keys]}}; a chat whose default jobs start off (a
-# direct message) holds 'defaults': 'off' and 'on' instead, the catalog keys switched on
+# {chat key: {'jobs': [{action, args, schedule, on}], 'off': [catalog keys], 'deleted': [catalog keys]}}: the jobs it
+# added, the default jobs it switched off and those it removed; a chat whose default jobs start off (a direct message)
+# holds 'defaults': 'off' and 'on' instead of 'off', the catalog keys switched on
 JOBS_FILE = 'finbot_chat_jobs.json'
 OLD_FILE = 'finbot_schedule.json' # each chat's cron jobs, from before the catalog: read for its chats alone
 STATE_FILE = 'finbot_jobs.json' # each job's last run, by key: a restart neither repeats a run nor loses one
@@ -200,12 +201,22 @@ def switch_item(record, key, on):
 	"""Switch a default job on or off in a chat's record: whether it is on now."""
 	starts_on = record.get('defaults') != 'off'
 	name = 'off' if starts_on else 'on' # the list of those switched from how they start
-	listed = [each for each in record.get(name, []) if each != key] + ([key] if on != starts_on else [])
+	keep(record, name, [each for each in record.get(name, []) if each != key] + ([key] if on != starts_on else []))
+	return on
+
+
+def removed(record):
+	"""The default jobs (by catalog key) that a chat's record says it removed."""
+	listed = record.get('deleted', [])
+	return [key for key in listed if isinstance(key, str)] if isinstance(listed, list) else []
+
+
+def keep(record, name, listed):
+	"""Set a list of a chat's record, or leave it out where it is empty."""
 	if listed:
 		record[name] = listed
 	else:
 		record.pop(name, None)
-	return on
 
 
 def switch_record(record, on):
@@ -307,8 +318,9 @@ class Scheduler:
 		chats = self.stored_chats()
 		items = catalog.items(config.prefs.country_code)
 		for chat, record in chats.items():
+			gone = set(removed(record))
 			jobs += [make_job(item.action, item.args, item.schedule, chat, item_on(record, item.key), item.key,
-				item.name) for item in items]
+				item.name) for item in items if item.key not in gone]
 			added = record.get('jobs', [])
 			keys = set()
 			for entry in added if isinstance(added, list) else []:
@@ -511,13 +523,18 @@ class Scheduler:
 
 	def add(self, chat, action, args, schedule):
 		"""Add a job to a chat, switched on: an action of ACTIONS, its arguments, a when.Schedule. One the catalog has
-		(catalog.matching) is that default job, switched on. Returns its number in .jobs. Raises ScheduleError for a job
-		that cannot be, a one-off gone by, one the chat has already, or one more than MAX_JOBS."""
+		(catalog.matching) is that default job, switched on, and back in the list where the chat removed it. Returns its
+		number in .jobs. Raises ScheduleError for a job that cannot be, a one-off gone by, one the chat has already, or
+		one more than MAX_JOBS."""
 		job = make_job(action, args, schedule, chat)
 		if schedule.frequency == 'once' and schedule.next_after(self.clock()) is None:
 			raise ScheduleError(f"{when.days_words(schedule.days)} has gone by: a one-off is for a time ahead")
 		if item := catalog.matching(job.action, job.args, schedule, config.prefs.country_code):
-			self.change(chat, lambda record: switch_item(record, item.key, True))
+			def restore(record):
+				"""Bring the default job back where the chat removed it, and switch it on."""
+				keep(record, 'deleted', [key for key in removed(record) if key != item.key])
+				switch_item(record, item.key, True)
+			self.change(chat, restore)
 			return self.number(chat, f'{chat}|{item.key}')
 		def append(record):
 			"""Append the job, unless the chat has it already, within MAX_JOBS."""
@@ -535,10 +552,37 @@ class Scheduler:
 		self.change(chat, lambda record: switch_record(record, on))
 
 	def delete(self, job):
-		"""Delete a job its chat added (from job() or pick()); a default one raises ScheduleError: switch it off."""
-		if job.item:
-			raise ScheduleError(f'{job.name} is a default job: switch it off instead (.jobs toggle)')
-		self.change(job.chat, lambda record: record['jobs'].pop(self.index(record, job)))
+		"""Remove a chat's job (from job() or pick()): one it added, or a default one, which stays out of its list
+		until the same job is added again."""
+		def remove(record):
+			"""Remove the job, as stored."""
+			if not job.item:
+				return record['jobs'].pop(self.index(record, job))
+			for name in ('off', 'on'):
+				keep(record, name, [key for key in record.get(name, []) if key != job.item])
+			record['deleted'] = list(dict.fromkeys([*removed(record), job.item]))
+		self.change(job.chat, remove)
+
+	def delete_all(self, chat):
+		"""Remove every job of a chat: those it added, and the default ones, which stay out of its list until the same
+		job is added again."""
+		def clear(record):
+			"""Remove every job, as stored."""
+			record['jobs'] = []
+			record.pop('off', None)
+			record.pop('on', None)
+			record['deleted'] = list(dict.fromkeys([*removed(record), *(item.key for item in catalog.ITEMS)]))
+		self.change(chat, clear)
+
+	def switch(self, job, on):
+		"""Switch a chat's job on, or off, whichever way it is now: whether it is on."""
+		def turn(record):
+			"""Set the job's switch, as stored."""
+			if job.item:
+				return switch_item(record, job.item, on)
+			record['jobs'][self.index(record, job)]['on'] = on
+			return on
+		return self.change(job.chat, turn)
 
 	def toggle(self, job):
 		"""Switch a chat's job on or off: whether it is on now."""
