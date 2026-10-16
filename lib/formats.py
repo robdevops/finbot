@@ -152,6 +152,14 @@ def days_from_human_days(arg):
 			pass
 	return int(arg.removesuffix('Y')) * 365
 
+def seconds_from_human(arg):
+	"""180s, 24h, or any period that days_from_human_days takes (7d, 2w, 3m, 1y, ytd, 7) -> seconds. Raises ValueError
+	for anything else."""
+	for suffix, seconds in (('s', 1), ('h', 3600)):
+		if arg.lower().endswith(suffix) and arg[:-1].isdigit():
+			return int(arg[:-1]) * seconds
+	return days_from_human_days(arg) * 86400
+
 def ordinal(num):
 	"""The ordinal suffix of a whole number: 'st' for 1, 'nd' for 22, 'th' for 11 and 13."""
 	return 'th' if num % 100 in (11, 12, 13) else {1: 'st', 2: 'nd', 3: 'rd'}.get(num % 10, 'th')

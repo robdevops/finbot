@@ -2,8 +2,9 @@ import os, subprocess, sys, tempfile, time
 from unittest import mock
 from pathlib import Path
 from lib import config
-from util import sync_defaults
-from tests.common import FinbotCase, ROOT, bare_environment
+import contextlib, io
+from util import flush, sync_defaults
+from tests.common import FinbotCase, ROOT, bare_environment, temp_dir
 
 REPO = Path(config.__file__).resolve().parent.parent
 
@@ -136,3 +137,64 @@ class DataDirTests(FinbotCase):
 			self.assertEqual(made.returncode, 0, made.stderr)
 			self.assertTrue((dest / 'preferences.conf').exists())
 			self.assertFalse(Path(tmp, 'never').exists())
+
+
+class Flush(FinbotCase):
+	"""util/flush.py: the cache files written before or after a time ago, or all of them; never the state."""
+
+	def setUp(self):
+		"""A data dir of this test's own: a state file, and cache files written 60 seconds, 400 seconds and 8 days ago,
+		with a file in the cache that is not finbot's."""
+		super().setUp()
+		self.data = Path(temp_dir(self))
+		self.cache = self.data / 'cache'
+		self.cache.mkdir()
+		(self.data / 'finbot_watchlist.json').write_text('{}')
+
+	def make(self):
+		"""The cache files, written that long ago."""
+		for name, ago in (('finbot_new.json', 60), ('finbot_old.json', 400), ('finbot_week.json', 8 * 86400),
+				('other.txt', 400)):
+			path = self.cache / name
+			path.write_text('{}')
+			os.utime(path, (time.time() - ago,) * 2)
+
+	def flush(self, *args):
+		"""Run the tool on this data dir: (its exit status, what it printed, the cache files left)."""
+		with contextlib.redirect_stdout(io.StringIO()) as out:
+			status = flush.main([*args, '--data-dir', str(self.data)])
+		return status, out.getvalue().strip(), sorted(path.name for path in self.cache.iterdir())
+
+	def test_before_after_or_all_and_never_the_state(self):
+		"""--before TIME deletes the cache files written more than TIME ago, --after TIME those written in the last
+		TIME, all every one of them; nothing but finbot's files in the cache, and nothing in the data dir."""
+		for args, left in ((['--before', '180s'], ['finbot_new.json', 'other.txt']),
+				(['--after', '24h'], ['finbot_week.json', 'other.txt']),
+				(['--after', '7d'], ['finbot_week.json', 'other.txt']), (['--after', '1y'], ['other.txt']),
+				(['all'], ['other.txt'])):
+			with self.subTest(args=args):
+				self.make()
+				status, said, files = self.flush(*args)
+				self.assertEqual((status, files), (0, left))
+				self.assertEqual(said, f"flushed {4 - len(left)} files from {self.cache}")
+				self.assertTrue((self.data / 'finbot_watchlist.json').exists())
+
+	def test_alone_it_shows_its_help_and_a_time_is_required(self):
+		"""On its own it prints its help, with the examples; a time it does not know, or two of --before, --after and
+		all, is refused."""
+		with contextlib.redirect_stdout(io.StringIO()) as out:
+			self.assertEqual(flush.main([]), 2)
+		for example in ('--before 180s', '--after 24h', '--after 7d', '--after 3m', '--after 1y', 'util/flush.py all'):
+			self.assertIn(example, out.getvalue())
+		for args in (['--after', '7x'], ['all', '--before', '1h'], ['--before', '1h', '--after', '2h'], ['some']):
+			with self.subTest(args=args), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+				flush.main(args)
+
+	def test_it_runs_on_its_own_and_creates_nothing(self):
+		"""As a script, it flushes the data dir it is given and creates no data dir of its own."""
+		self.make()
+		env = {**bare_environment(), 'DATA_DIR': str(self.data / 'never')}
+		run = subprocess.run([sys.executable, 'util/flush.py', 'all', '--data-dir', str(self.data)], cwd=ROOT, env=env,
+			capture_output=True, text=True, timeout=60)
+		self.assertEqual((run.returncode, run.stdout.strip()), (0, f'flushed 3 files from {self.cache}'), run.stderr)
+		self.assertFalse((self.data / 'never').exists())

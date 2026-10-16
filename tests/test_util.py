@@ -19,6 +19,17 @@ class Parsing(unittest.TestCase):
 			with self.subTest(arg=arg), self.assertRaises(ValueError):
 				formats.days_from_human_days(arg)
 
+	def test_seconds_from_human(self):
+		"""A time in seconds from 180s or 24h, or any period in days (7d, 2w, 3m, 1y, 7); anything else is a
+		ValueError."""
+		for arg, seconds in (('180s', 180), ('24H', 86400), ('7d', 7 * 86400), ('2w', 14 * 86400), ('3m', 90 * 86400),
+				('1y', 365 * 86400), ('7', 7 * 86400), ('0s', 0)):
+			with self.subTest(arg=arg):
+				self.assertEqual(formats.seconds_from_human(arg), seconds)
+		for arg in ('', 's', 'h5', '1.5h', '-5s', '5x', 'AAPL'):
+			with self.subTest(arg=arg), self.assertRaises(ValueError):
+				formats.seconds_from_human(arg)
+
 	def test_transform_to_yahoo(self):
 		"""Sharesight and Google tickers as Yahoo's: suffixes by market, none for US venues, a dash for class shares."""
 		for args, expected in ((('AAPL',), 'AAPL'), (('FANG', 'ASX'), 'FANG.AX'), (('ARM', 'NASDAQ'), 'ARM'),

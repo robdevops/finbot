@@ -1,7 +1,0 @@
-[Unit]
-Description=Flush finbot's cache (sudo systemctl start finbot-flush)
-
-[Service]
-Type=oneshot
-# finbot deletes its cache files on SIGUSR1, keeps its state, and fills the cache again with the warm jobs
-ExecStart=/bin/systemctl kill --signal=USR1 finbot.service

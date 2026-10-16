@@ -90,7 +90,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   goes by. `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`:
   every chart, `Chart` specs and `draw()`.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources. Yahoo's and Sharesight's answers
-  are cached in `DATA_DIR/cache` as sent, not parsed, so a parser fix needs no flush (`cache.cached`).
+  are cached in `DATA_DIR/cache` as sent, not parsed, so a parser fix needs no flush (`cache.cached`); `util/flush.py`
+  deletes cache files by when they were written (`--before`/`--after TIME`, or `all`), never the state.
   `yahoo.symbol(typed)` is Yahoo's symbol for a ticker as written, tried on the local exchange (`exchange_suffix`)
   when Yahoo does not know it bare: every ticker a chat gives goes through it. `sharesight.portfolios(name=None)` gives
   `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `trades(days)`.

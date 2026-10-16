@@ -73,6 +73,7 @@ file beside `compose.yaml`), and read it with `sudo docker compose logs -f`.
 ```
 sudo docker compose kill -s HUP finbot     # re-read preferences.conf
 sudo docker compose kill -s USR1 finbot    # flush the cache, and fill it again
+sudo docker compose exec finbot util/flush.py --after 24h    # flush the files of the last day (see caching.md)
 cd /opt/finbot && sudo git pull && sudo GIT_COMMIT=$(git rev-parse HEAD) docker compose up -d --build
 ```
 A change to `/opt/finbot.env` needs a restart: `sudo docker compose up -d`.

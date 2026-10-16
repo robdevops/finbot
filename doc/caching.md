@@ -11,16 +11,16 @@ performance_cache_seconds=2400
 
 Charts are cached by what they show (with `cache=True`): the same chart, for another chat, a later run or a period button, is drawn once, and a chart of new figures is a new chart, so a cached one is never stale. The weekly system job `cleanup` removes cache files after 30 days.
 
-To flush the cache, so that everything is fetched afresh, signal the running bot: it deletes its cache files (Yahoo and Sharesight
-answers, charts, the Yahoo cookie) and keeps its state (watchlist, jobs, seen trades, ratings), then runs both warm jobs
-(`sharesight_warm`, `yahoo_warm`) straight away to fill the cache again. There is no `systemctl flush`, since systemctl takes no custom verbs; any of these does it:
+To flush the cache, so that what it holds is fetched afresh, run `util/flush.py` with the files to delete, by when they were written. With no argument it prints its help:
 ```
-sudo systemctl kill -s USR1 finbot          # systemd
-sudo systemctl start finbot-flush           # the same, once finbot-flush.service is installed (see below)
-sudo docker compose kill -s USR1 finbot     # Docker
-kill -USR1 <pid of bot.py>                  # anything else
+util/flush.py --before 180s     # the files written more than 180 seconds ago
+util/flush.py --after 24h       # the files written in the last 24 hours
+util/flush.py --after 7d        # ... in the last 7 days (3m: 3 months, 1y: a year)
+util/flush.py all               # every file
+sudo docker compose exec finbot util/flush.py all    # in Docker
 ```
-The log says `cache: flushed N files`, then `cache: warm jobs done` once the cache is full again. To install the `finbot-flush` shortcut: `sudo cp -v finbot-flush.service /etc/systemd/system/ &&
-sudo systemctl daemon-reload`. `finbot.service` itself needs no change. With the bot stopped, deleting the files in `DATA_DIR/cache` does the same.
+A time is a number and `s` (seconds), `h` (hours), `d` (days), `w` (weeks), `m` (months) or `y` (years). It deletes only finbot's files in `DATA_DIR/cache` (Yahoo's and Sharesight's answers, the charts, the Yahoo cookie), never the state in `DATA_DIR` (the watchlists, jobs, plans, seen trades and ratings), and the bot can keep running: it fetches a file that is gone afresh. Run it as the user finbot runs as, or as root, with finbot's data dir: `DATA_DIR` as `finbot.env` sets it (`sudo DATA_DIR=/var/lib/finbot util/flush.py all`), `--data-dir /var/lib/finbot`, or else `var/` in the checkout.
+
+Signalling the bot flushes every file too, and then runs both warm jobs (`sharesight_warm`, `yahoo_warm`) at once to fill the cache again: `sudo systemctl kill -s USR1 finbot`, or `sudo docker compose kill -s USR1 finbot`. The log says `cache: flushed N files`, then `cache: warm jobs done`.
 
 Two system jobs keep the caches full, each on a fixed interval shorter than the cache lifetime, so that chat requests do not wait on Sharesight or Yahoo (see [Scheduling](scheduling.md)): `sharesight_warm` fetches the Sharesight portfolio list and each portfolio's holdings report afresh every 30 minutes (`performance_cache_seconds`: 40 minutes), and `yahoo_warm` the price history of every stock followed every 8 hours (`cache_seconds`: 12 hours). Neither fetches anything with `cache=False`, and `sharesight_warm` nothing without Sharesight configured. A refresh that fails is logged, the previous cache keeps being served while fresh, and the next run tries again. A flush runs both at once (see above).
