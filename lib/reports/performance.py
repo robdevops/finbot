@@ -49,8 +49,8 @@ def report(service, past_days, portfolio_select=None, performance=None):
 
 def run(dest=None, *, past_days=None, user='', portfolio_select=None):
 	"""Post each portfolio's performance over past_days (the past_days preference when None), or the one named, beside
-	the benchmarks: to the chat that asked or whose job it is (dest), else to the home chats, with its chart and period
-	buttons where they can go."""
+	the benchmarks: to the chat that asked or whose job it is (dest), with its chart and period buttons where they can
+	go."""
 	if past_days is None:
 		past_days = config.prefs.past_days
 	performance = gather(past_days, portfolio_select)

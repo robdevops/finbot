@@ -176,7 +176,7 @@ class ReportFunctions(FinbotCase):
 		self.prefs(demote_volatile=True)
 
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'market_cap': 5e8} for t in ts})
-		price.run()
+		price.run(scheduled())
 		self.assertEqual(len(calls), 1)
 		self.assertTrue(calls[0])
 
@@ -338,21 +338,21 @@ class ReportFunctions(FinbotCase):
 
 
 class ScheduledReports(FinbotCase):
-	"""The cron entry points (non-interactive: they post to the default channel)."""
+	"""The scheduled entry points (not interactive: they post to the job's chat)."""
 
 	def test_price(self):
 		"""The scheduled price report posts."""
-		price.run()
+		price.run(scheduled())
 		self.assertTrue(self.sent)
 
 	def test_performance(self):
 		"""The scheduled performance report posts."""
-		performance.run(past_days=7)
+		performance.run(scheduled(), past_days=7)
 		self.assertTrue(self.sent)
 
 	def test_shorts(self):
 		"""The scheduled shorts report posts."""
-		shorts.run()
+		shorts.run(scheduled())
 		self.assertTrue(self.sent)
 
 	def test_earnings_and_dividends(self):
@@ -360,7 +360,7 @@ class ScheduledReports(FinbotCase):
 		for kwargs in ({'event': 'earnings'}, {'event': 'ex-dividend'}):
 			with self.subTest(kwargs=kwargs):
 				self.sent.clear()
-				cal.run(**kwargs)
+				cal.run(scheduled(), **kwargs)
 				self.assertTrue(self.sent)
 
 	def test_only_the_scheduled_earnings_report_is_pinned(self):
@@ -370,13 +370,12 @@ class ScheduledReports(FinbotCase):
 		self.patch(telegram_common.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
 		self.command('.earnings')
 		self.assertEqual(pins, [])
-		self.env(telegramChatID='1')
-		cal.run(event='ex-dividend')
-		cal.run(event='earnings')
+		cal.run(scheduled(), event='ex-dividend')
+		cal.run(scheduled(), event='earnings')
 		self.assertEqual(pins, ['1'])
 
 	def test_a_chats_job_runs_its_report_as_scheduled_not_as_a_command(self):
-		"""A report a chat's job runs is a scheduled run, as the home chats' is: it says nothing when nothing passes,
+		"""A report a chat's job runs is a scheduled run: it says nothing when nothing passes,
 		where a command's reply says so, and the earnings report is pinned. price, shorts and cal took any chat they
 		were given for a command."""
 		pins = []
@@ -399,7 +398,7 @@ class ScheduledReports(FinbotCase):
 		undated = lambda t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')}
 		self.patch(yahoo, 'fetch', lambda ts: {t: undated(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1.XX' else {t: undated(t)})
-		cal.run(event='earnings')
+		cal.run(scheduled(), event='earnings')
 		self.assertIn('Co T2 ', str(self.sent))
 		self.assertNotIn('Co T1 ', str(self.sent))
 
@@ -418,7 +417,7 @@ class ScheduledReports(FinbotCase):
 					return {t: {**(market_entry(t) if own_date else undated(t)), 'profile_country': 'United Kingdom'}}
 				self.patch(yahoo, 'fetch_detail', details)
 				self.sent.clear()
-				cal.run(event='earnings')
+				cal.run(scheduled(), event='earnings')
 				self.assertEqual('Co T1 ' in str(self.sent), listed)
 				self.assertEqual([t for t in asked if '.' in t], []) # no T1.L
 
@@ -440,10 +439,10 @@ class ScheduledReports(FinbotCase):
 		fetched = []
 		self.patch(yahoo, 'fetch',
 			lambda tickers: fetched.append(set(tickers)) or {t: market_entry(t) for t in tickers})
-		trades.run()
+		trades.run(scheduled())
 		self.assertEqual(fetched, [{'T1'}])
 		fetched.clear()
-		trades.run() # the trade is known now: nothing to report and nothing to fetch
+		trades.run(scheduled()) # the trade is known now: nothing to report and nothing to fetch
 		self.assertEqual(fetched, [])
 
 	def test_a_scheduled_run_keeps_the_trades_another_run_recorded_meanwhile(self):
@@ -451,7 +450,7 @@ class ScheduledReports(FinbotCase):
 		meanwhile = lambda tickers: state.save(trades.STATE_FILE,
 			{'chats': {'telegram:1': [999]}}) or {t: market_entry(t) for t in tickers}
 		self.patch(yahoo, 'fetch', meanwhile) # called after the seen trades were read, before the new ones are recorded
-		trades.run()
+		trades.run(scheduled())
 		known = state.load_for('telegram:1', trades.STATE_FILE, [])
 		self.assertEqual((known[0], len(known)), (999, 2))
 
@@ -477,7 +476,7 @@ class ScheduledReports(FinbotCase):
 
 	def test_milestone(self):
 		"""The milestone report posts."""
-		milestone.run()
+		milestone.run(scheduled())
 		self.assertTrue(self.sent)
 
 	def test_milestone_records_a_ticker_only_with_its_new_values(self):
@@ -485,11 +484,11 @@ class ScheduledReports(FinbotCase):
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0)) # beyond the 52-week range (120/80): nothing new
 		self.patch(yahoo, 'fetch',
 			lambda ts: {t: {k: v for k, v in market_entry(t).items() if not k.startswith('fiftyTwoWeek')} for t in ts})
-		milestone.run()
+		milestone.run(scheduled())
 		self.assertFalse(state.load_for('telegram:1', milestone.STATE_FILE, {}))
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.sent.clear()
-		milestone.run()
+		milestone.run(scheduled())
 		self.assertNotIn('Record high', str(self.sent))
 		self.assertEqual(state.load_for('telegram:1', milestone.STATE_FILE, {})['T1'],
 			{'all_time_high': 150.0, 'all_time_low': 50.0})
@@ -499,7 +498,7 @@ class ScheduledReports(FinbotCase):
 		above its 10-year high but below its all-time one posted a false record."""
 		state.save(milestone.STATE_FILE, {'chats': {'telegram:1': {'T1': {'record_high': 110.0, 'record_low': 90.0}}}})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
-		milestone.run() # the 52-week range (120/80) was past the old record, but not the whole history's
+		milestone.run(scheduled()) # the 52-week range (120/80) was past the old record, but not the whole history's
 		self.assertNotIn('Co T1 ', str(self.sent))
 		self.assertEqual(state.load_for('telegram:1', milestone.STATE_FILE, {})['T1'],
 			{'all_time_high': 150.0, 'all_time_low': 50.0})
@@ -508,12 +507,12 @@ class ScheduledReports(FinbotCase):
 		"""A new 52-week high below the all-time high is no record. The record used to become the 52-week high after the
 		first run, so a stock far below its peak posted a record high each time it set a new 52-week one."""
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
-		milestone.run() # first sighting: the 52-week range (120/80) is inside the history (150/50)
+		milestone.run(scheduled()) # first sighting: the 52-week range (120/80) is inside the history (150/50)
 		for high, expected in ((130.0, False), (160.0, True), (155.0, False)):
 			with self.subTest(high=high):
 				self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'fiftyTwoWeekHigh': high} for t in ts})
 				self.sent.clear()
-				milestone.run()
+				milestone.run(scheduled())
 				self.assertEqual('Record high' in str(self.sent), expected)
 
 	def test_a_52_week_record_kept_before_is_replaced_by_the_history(self):
@@ -521,7 +520,7 @@ class ScheduledReports(FinbotCase):
 		state.save(milestone.STATE_FILE, {'chats': {'telegram:1': {f'T{i}': {'high': 110.0, 'low': 90.0}
 			for i in range(25)}}})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
-		milestone.run() # 120 beats the old 52-week record of 110, but not the history's 150
+		milestone.run(scheduled()) # 120 beats the old 52-week record of 110, but not the history's 150
 		self.assertNotIn('Record high', str(self.sent))
 
 	def test_rating(self):
@@ -532,13 +531,13 @@ class ScheduledReports(FinbotCase):
 	def test_rating_keeps_the_last_rating_of_a_ticker_missing_from_a_run(self):
 		"""A ticker missing from one run keeps its last rating, so its change is reported when it comes back; it used to
 		be dropped from the record."""
-		rating.run() # records every ticker's rating
+		rating.run(scheduled()) # records every ticker's rating
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1' else {t: market_entry(t)})
-		rating.run() # no T1 this time: its rating used to be dropped from the record
+		rating.run(scheduled()) # no T1 this time: its rating used to be dropped from the record
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | ({'recommend': 'sell',
 			'recommend_index': 4.5} if t == 'T1' else {})})
 		self.sent.clear()
-		rating.run()
+		rating.run(scheduled())
 		self.assertIn('Co T1 ', str(self.sent)) # so its change from buy to sell went unreported
 
 	def test_an_interactive_rating_records_nothing(self):
@@ -546,10 +545,10 @@ class ScheduledReports(FinbotCase):
 		rating.run(telegram_common.TelegramBot('5'))
 		self.assertIsNone(state.load(rating.STATE_FILE))
 
-	def test_scheduled_reports_reach_each_home_chat_with_its_own_token(self):
-		"""Scheduled reports reach Telegram's and Slack's home chats, each with its own bot's credentials: Slack's
+	def test_scheduled_reports_reach_each_jobs_chat_with_its_own_token(self):
+		"""Scheduled reports reach a Telegram and a Slack job's chat, each with its own bot's credentials: Slack's
 		request carries the Slack token and channel, and Telegram's chat id goes only to Telegram."""
-		self.env(slackBotToken='xoxb-test', slackChannelID='C9')
+		self.env(slackBotToken='xoxb-test')
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
 		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
@@ -566,14 +565,14 @@ class ScheduledReports(FinbotCase):
 			with self.subTest(report=report):
 				posts.clear()
 				with contextlib.redirect_stderr(io.StringIO()):
-					report()
+					report(scheduled())
+					report(scheduled('slack:C9'))
 				self.assertIn(('slack.com', 'Bearer xoxb-test', 'C9'), posts)
 				self.assertTrue(any(host == 'api.telegram.org' and chat == '1' for host, _, chat in posts))
 				self.assertFalse(any(host == 'slack.com' and chat == '1' for host, _, chat in posts))
 
 	def test_nowhere_to_post_is_an_error(self):
-		"""A scheduled report with nowhere to post is an error that says so."""
-		self.env(telegramChatID='')
+		"""A report run for no chat (there are no home chats) is an error that says so."""
 		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
 			price.run()
 
@@ -629,13 +628,12 @@ class PeriodButtons(FinbotCase):
 	def test_telegram_charts_have_buttons_in_both_modes(self):
 		"""A Telegram chart, a scheduled one included, has its period buttons whether Telegram posts their presses to
 		telegramOutgoingWebhook (http mode) or finbot fetches them (pull mode)."""
-		self.env(telegramChatID='1')
 		label, kwargs = price.job(['7']) # as scheduled: price.py 7
 		for hook in ('https://example.com/telegram', ''):
 			with self.subTest(telegramOutgoingWebhook=hook):
 				self.env(telegramOutgoingWebhook=hook)
 				self.markups.clear()
-				price.run(**kwargs)
+				price.run(scheduled(), **kwargs)
 				self.assertTrue(self.markups and self.markups[0])
 
 	def press(self, data):
@@ -727,13 +725,13 @@ class Podcasts(FinbotCase):
 					'<pubDate>Tue, 02 Jan 2024 00:00:00 GMT</pubDate>')
 				+ '</channel></rss>').encode()
 		self.patch(podcasts.net, 'get', lambda url, **k: mock.Mock(content=feed, raise_for_status=lambda: None))
-		podcasts.run(feed_url='https://example.com/feed')
+		podcasts.run(scheduled(), feed_url='https://example.com/feed')
 		self.assertEqual([line.split(' (')[0] for line in self.sent[0][1]],
 			['📣 Show: <a href="https://x/3.mp3">ep 3</a> 00:10',
 						 '📣 Show: <a href="https://x/1.mp3">ep 1</a> 00:10',
 						 '📣 Show: <a href="https://x/2.mp3">ep 2</a> 00:10'])
 		self.sent.clear()
-		podcasts.run(feed_url='https://example.com/feed')
+		podcasts.run(scheduled(), feed_url='https://example.com/feed')
 		self.assertEqual(self.sent, []) # all seen now
 
 

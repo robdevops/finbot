@@ -158,7 +158,7 @@ class SchedulerBase(FinbotCase):
 			self.patch(jobs.SCRIPTS[name], 'run', self.recorder(name))
 
 	def recorder(self, name):
-		"""A report's run() that notes the run, and the chat it would post to (its key; None for the home chats)."""
+		"""A report's run() that notes the run, and the chat it would post to (its key; None for a system job)."""
 		def run(dest=None, **kwargs):
 			"""Note the run and where it posts."""
 			self.ran.append((name, kwargs))

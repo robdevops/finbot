@@ -1,4 +1,4 @@
-"""Where a report goes and how: Report, the destinations (the chat that asked, or the default chats), deliver(), and the
+"""Where a report goes and how: Report, the destinations (the chat that asked, or whose job it is), deliver(), and the
 one-line error report. A destination is a transport: a network's bot (TelegramBot, SlackBot, DiscordBot)."""
 import dataclasses
 import html
@@ -47,31 +47,16 @@ def chat(key, scheduled=False):
 
 
 def interactive(dest):
-	"""Whether a report answers a command (dest, the chat that asked), not a scheduled run (dest a job's chat, or None
-	for the home chats): a scheduled run tells each chat only what it has not told it before."""
+	"""Whether a report answers a command (dest, the chat that asked), not a scheduled run (dest a job's chat): a
+	scheduled run tells each chat only what it has not told it before."""
 	return dest is not None and not dest.scheduled
 
 
-def default_chats():
-	"""Where a scheduled report goes: each network's home chat (telegramChatID, slackChannelID, discordChannelID), as
-	its bot. Raises RuntimeError when there is nowhere to post."""
-	env = config.env
-	chats = []
-	for chat, token, kind in ((env.telegramChatID, env.telegramBotToken, telegram_common.TelegramBot),
-			(env.slackChannelID, env.slackBotToken, slack_common.SlackBot),
-			(env.discordChannelID, env.discordBotToken, discord_common.DiscordBot)):
-		if chat and token:
-			chats.append(kind(chat))
-			chats[-1].scheduled = True
-	if not chats:
-		raise RuntimeError('nowhere to post: finbot.env sets no telegramChatID, slackChannelID or discordChannelID,'
-			' each with its bot token')
-	return chats
-
-
 def targets(dest):
-	"""Where a report goes: the chat that asked for it (dest), else the default chats."""
-	return [dest] if dest else default_chats()
+	"""Where a report goes: the chat that asked for it, or whose job it is (dest). Raises RuntimeError without one."""
+	if dest is None:
+		raise RuntimeError('nowhere to post: a report goes to the chat that asked for it, or whose job it is')
+	return [dest]
 
 
 def deliver(dest, report):
@@ -105,20 +90,21 @@ def error_line(e, context=None, limit=200):
 
 
 def report_error(e, dest=None, context=None):
-	"""Send a one-line error summary to dest, the chat that asked (its transport), else to every default chat. The line
-	is escaped for Telegram (sent as HTML, which refuses a stray < such as the one in <redacted>) and Slack (which asks
-	for the same escapes). Never raises: error reporting must not become a second failure."""
+	"""Log a one-line error summary, with its traceback, and send the line to dest, the chat that asked or whose job it
+	is (its transport); an error that belongs to no chat stays in the log. The line is escaped for Telegram (sent as
+	HTML, which refuses a stray < such as the one in <redacted>) and Slack (which asks for the same escapes). Never
+	raises: error reporting must not become a second failure."""
 	try:
 		line = error_line(e, context)
 		log.error(line)
 		if isinstance(e, BaseException):
 			trace = ''.join(traceback.format_exception(e))
 			log.error(net.redact(trace), end='') # a request's error carries its URL
-		for chat in targets(dest):
+		if dest is not None:
 			try:
-				chat.text([line if chat.dialect == 'discord' else html.escape(line, quote=False)])
+				dest.text([line if dest.dialect == 'discord' else html.escape(line, quote=False)])
 			except Exception as send_error:
-				log.error("Failed to report error to", chat.name, ":", send_error)
+				log.error("Failed to report error to", dest.name, ":", send_error)
 	except Exception as reporting_error:
 		log.error("Failed to report error:", reporting_error)
 

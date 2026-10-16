@@ -80,8 +80,8 @@ def checksum(text):
 
 
 def run_in_process(label, module, kwargs, dest=None):
-	"""Run a command here, in the calling thread: its report's run(**kwargs), posting to dest (a chat's job) or else to
-	the home chats."""
+	"""Run a command here, in the calling thread: its report's run(**kwargs), posting to dest (a chat's job; None for a
+	system job, which posts nothing)."""
 	if dest is None:
 		module.run(**kwargs)
 	else:
@@ -277,7 +277,7 @@ class Scheduler:
 
 	def execute(self, commands, chat=''):
 		"""Run commands one after another (a job's), in this thread, posting to the chat whose job it is (its key; ''
-		for a system job, whose failure goes to the home chats); a failure is reported. One already running for that
+		for a system job, whose failure goes to the log); a failure is reported. One already running for that
 		chat is skipped. One still running after JOB_TIMEOUT is reported as late, once, and runs on: a thread cannot be
 		stopped, but every request it makes has a timeout, so it ends; until then it stays marked running, and no
 		second copy starts. Returns 'done', 'failed' or 'already running'."""

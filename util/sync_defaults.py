@@ -33,7 +33,7 @@ def sync(apply=False, force=False, dest=None, create=False):
 			continue
 		if src.name in ('finbot.env', 'schedule.cron'):
 			# the startup file is not data: it holds credentials, lives wherever the launcher loads it from, and the bot
-			# never reads it; the old schedule is read only to give the home chats their jobs once (lib/migrate.py)
+			# never reads it; the old schedule is read only to give an upgrade's home chats their jobs (lib/migrate.py)
 			continue
 		name = src.name
 		target = dest_dir / name

@@ -85,12 +85,12 @@ class TelegramSending(FinbotCase):
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		for kind in (telegram_common.TelegramBot, slack_common.SlackBot, discord_common.DiscordBot):
 			self.patch(kind, 'post_text', lambda dest, text, buttons=None: sent.append((dest.name, text)))
-		self.env(telegramChatID='5', slackChannelID='C9', slackBotToken='xoxb-1', discordChannelID='77',
-			discordBotToken='x')
+		self.env(slackBotToken='xoxb-1', discordBotToken='x')
 
 		error = RuntimeError("404 for ZZ at https://x/?a=1&crumb=abc; '<' not supported between <urllib3.connection>")
 		with contextlib.redirect_stderr(io.StringIO()):
-			REAL_REPORT_ERROR(error, context='.compare <b>')
+			for key in ('telegram:5', 'slack:C9', 'discord:77'):
+				REAL_REPORT_ERROR(error, delivery.chat(key), context='.compare <b>')
 			REAL_REPORT_ERROR(error, telegram_common.TelegramBot('55'), context='.compare')
 		texts = dict(sent[:3])
 		self.assertIn('crumb=&lt;redacted&gt;', texts['telegram']) # Telegram's HTML parser rejects a bare <redacted>
@@ -142,15 +142,17 @@ class ChartDelivery(FinbotCase):
 			with self.subTest(kind=kind.__name__):
 				self.assertTrue(kind('1').takes_charts and kind('1').takes_buttons)
 
-	def test_scheduled_reports_go_to_each_networks_home_chat_as_its_bot(self):
-		"""Scheduled reports go to each network's home chat (telegramChatID, slackChannelID, discordChannelID), as its
-		bot: a chat without its bot token is left out."""
-		self.env(telegramChatID='1', slackChannelID='C9', slackBotToken='xoxb-test', discordChannelID='77',
-			discordBotToken='x')
-		self.assertEqual(list(map(repr, delivery.default_chats())), ['<TelegramBot 1>', '<SlackBot C9>',
-			'<DiscordBot 77>'])
-		self.env(slackBotToken='', telegramBotToken='')
-		self.assertEqual(list(map(repr, delivery.default_chats())), ['<DiscordBot 77>'])
+	def test_an_error_that_belongs_to_no_chat_goes_only_to_the_log(self):
+		"""There are no home chats: an error that belongs to no chat (a system job's, a webhook request's) is logged,
+		with nothing posted and no word of a failure to post it."""
+		text = mock.Mock()
+		self.patch(transports.Transport, 'text', text)
+		err = io.StringIO()
+		with contextlib.redirect_stderr(err):
+			REAL_REPORT_ERROR(ValueError('boom'), context='sharesight_warm')
+		self.assertIn('⚠️ sharesight_warm: ValueError: boom', err.getvalue())
+		self.assertNotIn('Failed', err.getvalue())
+		text.assert_not_called()
 
 	def test_slack_replies_upload_their_charts(self):
 		"""A Slack reply whose chart has no buttons uploads it in three steps (bot token), the report as its message,
@@ -199,18 +201,19 @@ class ChartDelivery(FinbotCase):
 					delivery.deliver(slack_common.SlackBot('C1'), delivery.Report(['*Heading*', 'line 2'], CHART))
 				self.assertEqual(self.sent, expect)
 
-	def test_scheduled_reports_carry_their_charts_to_every_home_chat(self):
-		"""A scheduled report's chart goes to each network's home chat, as its bot."""
-		self.env(slackBotToken='xoxb-test', slackChannelID='C9', discordBotToken='x', discordChannelID='77')
+	def test_scheduled_reports_carry_their_charts_on_every_network(self):
+		"""A scheduled report's chart goes to the job's chat on every network, as its bot."""
+		self.env(slackBotToken='xoxb-test', discordBotToken='x')
 		sent = []
 		self.patch(transports.Transport, 'chart', lambda dest, image, caption, buttons=None:
 			sent.append((dest.name, 'chart')) or {'ok': True})
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None:
 			sent.append((dest.name, 'text')) or [])
-		for report in (price.run, lambda: performance.run(past_days=7), shorts.run):
+		for report in (price.run, lambda dest: performance.run(dest, past_days=7), shorts.run):
 			with self.subTest(report=report):
 				sent.clear()
-				report()
+				for key in ('telegram:1', 'slack:C9', 'discord:77'):
+					report(scheduled(key))
 				self.assertEqual(sorted(set(sent)), [('discord', 'chart'), ('slack', 'chart'), ('telegram', 'chart')])
 
 	def test_the_graph_preference_off_sends_no_chart_anywhere(self):
@@ -258,12 +261,12 @@ class ChartDelivery(FinbotCase):
 
 
 class DiscordSending(FinbotCase):
-	"""Discord's home channel, as the bot: a scheduled report's chart attached, within Discord's 2,000 characters."""
+	"""A Discord job's channel, as the bot: a scheduled report's chart attached, within Discord's 2,000 characters."""
 
 	def setUp(self):
 		"""Discord as the only destination, sent through the real path, its calls recorded."""
 		super().setUp()
-		self.env(telegramChatID='', discordBotToken='x', discordChannelID='77')
+		self.env(discordBotToken='x')
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
 		self.calls = []
@@ -274,7 +277,7 @@ class DiscordSending(FinbotCase):
 		"""A scheduled Discord report has its chart attached and the report as its message, within 2,000 characters,
 		without previews or pings."""
 		with contextlib.redirect_stderr(io.StringIO()):
-			price.run()
+			price.run(scheduled('discord:77'))
 		(url, kwargs), = self.calls
 		self.assertEqual(url, 'https://discord.com/api/v10/channels/77/messages')
 		payload = json.loads(kwargs['data']['payload_json'])

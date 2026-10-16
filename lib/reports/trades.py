@@ -31,8 +31,8 @@ class Trade:
 
 def run(dest=None, *, days=None, user='', portfolio_select=None):
 	"""Post the buys and sells of the past `days`, in every portfolio or the one named: to the chat that asked (dest);
-	or, a scheduled run, to each of its chats (dest, a chat's job; else the home chats) those it has not told that chat
-	of before. Raises sharesight.PortfolioNotFound for a name that is none of them."""
+	or, a scheduled run, to the job's chat (dest) those it has not told that chat of before. Raises
+	sharesight.PortfolioNotFound for a name that is none of them."""
 	interactive = delivery.interactive(dest)
 	if days is None:
 		days = config.prefs.past_days

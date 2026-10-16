@@ -147,13 +147,22 @@ def record(output):
 				for data in BUTTONS:
 					label = f'button {data}' if service == 'telegram' else f'{service} button {data}'
 					step(label, pressing(service, 'cb', chat, message, data))
-			# the scheduled reports go to each network's home chat as its bot (a commit from before telegram_api had
-			# webhooks, the incoming ones among them, and one from before the Discord bot no discordChannelID)
+			# the scheduled reports go to a chat of each network as its bot: each job's chat, or before they retired,
+			# the home chats (a commit from before telegram_api had webhooks, the incoming ones among them, and one
+			# from before the Discord bot no discordChannelID)
 			fields = {field.name for field in common.dataclasses.fields(common.config.env)}
 			api = {'telegram_api': TELEGRAM_API} if 'telegram_api' in fields else {
 				'webhooks': {'telegram': TELEGRAM_API}}
+			homes = {'telegramChatID': '1', 'slackChannelID': 'C9'} if 'telegramChatID' in fields else {}
 			discord = {'discordChannelID': '78'} if 'discordChannelID' in fields else {}
-			self.env(telegramChatID='1', slackChannelID='C9', **api, **discord)
+			self.env(**homes, **api, **discord)
+			def scheduled(run, kwargs):
+				"""A scheduled run to a chat of each network: one run to the home chats, or else one run per chat."""
+				if homes:
+					return lambda: run(**kwargs)
+				from lib import delivery # a tree without home chats has it: an older one may not
+				keys = ('telegram:1', 'slack:C9', 'discord:78')
+				return lambda: [run(delivery.chat(key, scheduled=True), **kwargs) for key in keys]
 			for line in SCHEDULED:
 				if hasattr(jobs, 'parse_reports'):
 					label, module, kwargs = jobs.parse_reports(line)[0]
@@ -161,7 +170,7 @@ def record(output):
 					name, _, arguments = line.partition(' ')
 					label, module, kwargs = jobs.parse_command(f'{name}.py {arguments}'.strip())[0]
 				run = getattr(module, 'run', None) or module.lambda_handler # lambda_handler: a commit before run()
-				step(f'scheduled {line}', lambda: run(**kwargs))
+				step(f'scheduled {line}', scheduled(run, kwargs))
 			Path(output).write_text(json.dumps(steps, indent=1, sort_keys=True, default=str))
 
 	result = unittest.TextTestRunner(verbosity=0, stream=io.StringIO()).run(Record())

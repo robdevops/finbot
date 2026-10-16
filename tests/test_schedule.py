@@ -1,5 +1,5 @@
 """Jobs as .jobs add takes them (lib/jobs.py): their lines, and each report's job(argv); and the one-time migration
-(lib/migrate.py) of the old schedule.cron, and of the reports' records, to the home chats."""
+(lib/migrate.py) of the old schedule.cron, and of the reports' records, to an upgrade's home chats."""
 import contextlib, hashlib, io, os, unittest
 from pathlib import Path
 from unittest import mock
@@ -132,12 +132,16 @@ class JobArguments(unittest.TestCase):
 
 
 class Migration(FinbotCase):
-	"""As finbot first starts with jobs per chat, the home chats get what was kept for all chats, once."""
+	"""As an upgraded finbot first starts with jobs per chat, the home chats that the retired keys still name in its
+	environment get what was kept for all chats, once."""
 
 	def setUp(self):
-		"""Two home chats, Telegram's and Slack's; the old schedule ran in UTC."""
+		"""Two old home chats, Telegram's and Slack's, in the environment; the old schedule ran in UTC."""
 		super().setUp()
-		self.env(slackBotToken='xoxb-1', slackChannelID='C1')
+		self.env(slackBotToken='xoxb-1')
+		homes = mock.patch.dict(os.environ, {'telegramChatID': '1', 'slackChannelID': 'C1'})
+		homes.start()
+		self.addCleanup(homes.stop)
 		self.patch(migrate, 'local_zone', lambda: jobs.UTC)
 
 	def migrate(self):
@@ -202,10 +206,12 @@ class Migration(FinbotCase):
 		self.assertEqual(state.load(jobs.SCHEDULE_FILE), {})
 
 	def test_with_no_home_chat_it_waits(self):
-		"""With no home chat set there is nowhere to put the jobs and records, so the migration waits for one."""
-		self.env(telegramChatID='', slackChannelID='')
+		"""With no old home chat in the environment (a new install) there is nowhere to put the jobs and records, so
+		the migration waits for one; so it does for a chat without its bot token."""
 		state.save(trades.STATE_FILE, ['t1'])
-		self.assertEqual(self.migrate(), '')
+		with mock.patch.dict(os.environ, {'telegramChatID': '', 'slackChannelID': 'C1'}):
+			self.env(slackBotToken='')
+			self.assertEqual(self.migrate(), '')
 		self.assertFalse(os.path.exists(state.path(jobs.SCHEDULE_FILE)))
 		self.assertEqual(state.load(trades.STATE_FILE), ['t1'])
 

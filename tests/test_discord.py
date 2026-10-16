@@ -157,7 +157,7 @@ class Sending(FinbotCase):
 	def setUp(self):
 		"""The bot token set, and Discord's API answered from self.answers (else 200 and a message)."""
 		super().setUp()
-		self.env(discordBotToken='x', discordChannelID='77')
+		self.env(discordBotToken='x')
 		self.calls, self.answers = [], []
 		def request(method, url, **kwargs):
 			"""Note the call, and give the next answer."""
@@ -263,16 +263,11 @@ class Sending(FinbotCase):
 		self.assertIn('403 Missing Access (50001)', err.getvalue())
 		self.assertNotIn('s3cret-token', err.getvalue())
 
-	def test_scheduled_reports_go_to_the_channel_with_their_buttons(self):
-		"""With discordChannelID and the bot token, scheduled reports go to that channel as the bot, buttons and all;
-		without the token, nowhere on Discord."""
-		self.env(telegramChatID='')
-		chats = delivery.default_chats()
-		self.assertEqual([(type(chat).__name__, chat.where) for chat in chats], [('DiscordBot', '77')])
-		self.assertTrue(chats[0].takes_buttons and chats[0].takes_charts)
-		self.env(discordBotToken='')
-		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
-			delivery.default_chats()
+	def test_a_jobs_reports_go_to_its_channel_with_their_buttons(self):
+		"""A Discord channel's job posts there as the bot, charts and buttons and all."""
+		chat = delivery.chat('discord:77', scheduled=True)
+		self.assertEqual((type(chat).__name__, chat.where, chat.key), ('DiscordBot', '77', 'discord:77'))
+		self.assertTrue(chat.takes_buttons and chat.takes_charts and chat.scheduled)
 
 
 class Commands(FinbotCase):

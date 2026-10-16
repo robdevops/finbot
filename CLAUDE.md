@@ -67,15 +67,17 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   percent, a period and a keyword from either end, the words between; a handler raises `Usage` for arguments it cannot
   take, and gets a ticker with `ticker(args)`. `Request` (`request.reply(lines, chart, buttons)`); each command gets
   the typing notice while it works. `process_request(message)` and `process_callback(press)` take inbound's objects.
-- `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked,
-  the job's chat or else the home chats; `job(argv)`, its arguments' parser; and `ARGUMENTS`, what `.jobs add` lists):
+- `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
+  or the job's chat, and with no dest raises: there are no home chats; `job(argv)`, its arguments' parser; and
+  `ARGUMENTS`, what `.jobs add` lists):
   `price performance trades shorts cal rating milestone reminder podcasts cleanup sharesight_warm yahoo_warm`. trades,
   rating, milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`),
   added to only by a scheduled run (`delivery.interactive(dest)` is false).
   Chat-only (`prepare_*`): `about` (.help .jobs), `history` (.history .compare), `holdings` (.holdings .who .pie
   .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
-- `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, a chat by its key with
-  `chat(key)`, or each network's home chat as its bot), `deliver(dest, report)`, the one-line error report.
+- `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
+  `chat(key)`, as its network's bot), `deliver(dest, report)`, the one-line error report (to its chat; one that belongs
+  to no chat only logged).
   `lib/transports.py`: `Transport`, the base of each network's bot, every one taking charts and buttons: splitting,
   captions, charts, buttons, edits, and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the
   message), which `text()` and `chart()` stop before posting. `DiscordBot`: a slash command's first message replaces
@@ -106,8 +108,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `toggle`, `run`, which `.jobs` calls through `jobs.current`) and the fixed `SYSTEM` jobs, its shared state under one
   lock; each command runs in the bot's process, in a thread (`run_in_process`), reported once if still running after
   `JOB_TIMEOUT` and left to finish (every request goes through `net`, with its timeouts: a test checks).
-  `lib/migrate.py`: once, the old schedule.cron, the watchlist, the plans and the reports' shared records become the
-  home chats'.
+  `lib/migrate.py`: once, on an upgrade, the old schedule.cron, the watchlist, the plans and the reports' shared
+  records become the old home chats' (the retired telegramChatID, slackChannelID and discordChannelID, which it alone
+  reads, from the environment).
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return

@@ -8,8 +8,7 @@ from unittest import mock
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
-os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok',
-	telegramChatID='1')
+os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
 
 import bot
 from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, net
@@ -29,6 +28,11 @@ REAL_DOUBLED = bot.doubled # FinbotCase takes every message, a repeat sent on pu
 def no_jobs(data):
 	"""No chat's jobs in a data dir, so that a bot started there runs no scheduled report (and migrates none)."""
 	Path(data, 'finbot_schedule.json').write_text('{}')
+
+
+def scheduled(key='telegram:1'):
+	"""A chat as a scheduled run posts to it, the job's (Telegram's chat 1 unless another key is given)."""
+	return delivery.chat(key, scheduled=True)
 
 
 def bare_environment():

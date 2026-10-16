@@ -10,8 +10,8 @@ STATE_FILE = 'finbot_rating.json' # each chat's {ticker: [action, index]} as its
 
 def run(dest=None):
 	"""Post the analysts' consensus ratings of the stocks a chat follows that changed since its last scheduled run: to
-	the chat that asked (dest), against its record; or, a scheduled run, to each of its chats (dest, a chat's job; else
-	the home chats), recording for each the ratings it saw."""
+	the chat that asked (dest), against its record; or, a scheduled run, to the job's chat (dest), recording the
+	ratings it saw."""
 	interactive = delivery.interactive(dest)
 	for chat in delivery.targets(dest):
 		market_data, seen = gather(watchlist.with_holdings(chat.key))

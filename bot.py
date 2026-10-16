@@ -76,10 +76,10 @@ def doubled(message):
 	return False
 
 def main(environ, start_response):
-	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is reported as one
-	line to the default channel and answered 200, so the service does not retry it into the chat again. Before
-	authentication a failure is only logged: a stranger must not be able to post into the chats. Either names the
-	network, not the path: a webhook's path is a secret (telegramOutgoingWebhook, slackOutgoingWebhook)."""
+	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is logged as an
+	error report (report_error) and answered 200, so the service does not retry it into the chat again; before
+	authentication, as a failed request, with a 500. Either names the network, not the path: a webhook's path is a
+	secret (telegramOutgoingWebhook, slackOutgoingWebhook)."""
 	try:
 		return handle(environ, start_response)
 	except Exception as e:
@@ -304,7 +304,7 @@ if __name__ == '__main__':
 		log.warn('WARN config:', line)
 	if os.getuid() == 0:
 		log.warn("Running as superuser. This is not recommended.")
-	migrate.run() # once: what was kept for all chats becomes the home chats', schedule.cron among it
+	migrate.run() # once, on an upgrade: what was kept for all chats becomes the old home chats', schedule.cron among it
 	scheduler = jobs.Scheduler()
 	scheduler.load()
 	render.preload()

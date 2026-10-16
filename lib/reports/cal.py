@@ -18,7 +18,7 @@ EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'),
 
 def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
 	"""Post the earnings or ex-dividend dates ahead (`event`) for the stocks a chat follows or one (Yahoo's symbol): to
-	the chat that asked or whose job it is (dest), else to the home chats. The scheduled earnings report is pinned where
+	the chat that asked or whose job it is (dest). The scheduled earnings report is pinned where
 	the network can; a reply is not, or the chat would collect pinned copies."""
 	interactive = delivery.interactive(dest)
 	if days is None:

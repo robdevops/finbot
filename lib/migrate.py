@@ -1,8 +1,9 @@
-"""Once, as finbot starts: what the bot kept for all chats at once becomes each home chat's (telegramChatID,
-slackChannelID, discordChannelID). The old schedule.cron (the data dir's copy, else the shipped one) is copied to every
-home chat as its jobs, each in the zone it ran in, and is read no more; the watchlist and the plans are copied to each
-home chat; and so are the reports' records of what they told the chats (trades, ratings, record highs, podcast
-episodes), so that nothing old is told again.
+"""Once, as an upgraded finbot starts: what the bot kept for all chats at once becomes each old home chat's, the chats
+that the retired telegramChatID, slackChannelID and discordChannelID name (read from the environment for this alone).
+The old schedule.cron (the data dir's copy, else the shipped one) is copied to every home chat as its jobs, each in the
+zone it ran in, and is read no more; the watchlist and the plans are copied to each home chat; and so are the reports'
+records of what they told the chats (trades, ratings, record highs, podcast episodes), so that nothing old is told
+again.
 
 This module, and defaults/schedule.cron, go once every install has started with it: they are its only users."""
 import copy
@@ -16,7 +17,6 @@ from pathlib import Path
 
 from lib import log
 from lib import config
-from lib import delivery
 from lib import jobs
 from lib import state
 from lib import watchlist
@@ -28,14 +28,22 @@ RECORDS = (watchlist.FILE, worker.PLANS, trades.STATE_FILE, rating.STATE_FILE, m
 # what a shell reads as more than a word, outside quotes, in a pasted crontab line
 OPERATOR = re.compile(r'\d*>>?&?\d*|&>>?|;|&&|\|\|?|&|[<`$(){}]')
 REDIRECT = re.compile(r'\d*>>?&?\d*|&>>?') # > file, >> file, 2>&1, &> file
+# the home chats of older versions: (network, the retired finbot.env key of its chat, the key of its bot token)
+HOMES = (('telegram', 'telegramChatID', 'telegramBotToken'), ('slack', 'slackChannelID', 'slackBotToken'),
+	('discord', 'discordChannelID', 'discordBotToken'))
+
+
+def old_homes():
+	"""The keys of the chats that the retired home chat keys still name in the environment, each with its bot token."""
+	return [f'{network}:{os.environ[key]}' for network, key, token in HOMES
+		if os.environ.get(key) and getattr(config.env, token)]
 
 
 def run():
-	"""Make the home chats' own what was kept for all chats, where that has not been done yet. With no home chat set,
-	it all waits until there is one."""
-	try:
-		homes = [chat.key for chat in delivery.default_chats()]
-	except RuntimeError:
+	"""Make the old home chats' own what was kept for all chats, where that has not been done yet. Without any (a new
+	install, or the retired keys deleted), there is nowhere to put it, so it waits."""
+	homes = old_homes()
+	if not homes:
 		return
 	schedule(homes)
 	feeds = sorted(os.path.basename(path) for path in glob.glob(state.path(podcasts.SEEN_FILES)))

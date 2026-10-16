@@ -172,7 +172,7 @@ def nothing(mode, threshold, user, ticker, in_session, days=None):
 
 def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user='', specific_stock=None):
 	"""Post the price report (report() has the modes) on the stocks each chat follows: to the chat that asked or whose
-	job it is (dest), else to the home chats, with its chart and period buttons where they can go."""
+	job it is (dest), with its chart and period buttons where they can go."""
 	interactive = delivery.interactive(dest)
 	if threshold is None:
 		threshold = config.prefs.price_percent
