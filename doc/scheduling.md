@@ -18,12 +18,12 @@ words. The page ends with a key to the marks it shows:
 
 * not run yet, † default (no delete, only disable)
 ```
-Under it are buttons, each screen drawn in place of the last:
+Under it are buttons, each screen drawn in place of the last, with **Cancel** back to the list:
 * **Enable/disable**: a button per job, its number, switch and name (`3 ✅ price midsession US`); a press switches the
   job on or off. **All on** switches every job of the chat on at once, or **All off**, shown when every job is on,
   switches them all off.
 * **Delete**: a button per job added here. A default job has no button: switch it off instead.
-* **Add**: the report and how often, then, a screen each, the rest down to the minute:
+* **Add**: the report, by name, and how often, then, a screen each, the rest down to the minute:
   * one-off: the date (the next 14 days), the hour, the minute;
   * daily and weekdays: the hour, the minute;
   * weekly: the day of the week, the hour, the minute;
@@ -31,9 +31,9 @@ Under it are buttons, each screen drawn in place of the last:
   * annual: the month, the day, the hour, the minute;
   * repeating: the interval, then every day or weekdays.
 
-  Each screen marks its default with `†` (`Sat†`, `09†`, `09:00†`) and says `† indicates default`. **Back** takes a
-  step back, **Cancel** goes back to the list. A message's text cannot come from a button, so its screen says how to
-  type one.
+  Each screen marks its default with `†` (`Sat†`, `09†`, `09:00†`) and says `† indicates default`. After the report's,
+  each screen also has **Back**, a step back (the hour's has only Back: Discord takes 25 buttons). A message's text
+  cannot come from a button, so its screen says how to type one.
 * **Run now**: a button per job; a press runs it now, as its schedule would, and says how it went.
 * **Next**: the next runs, in time order.
 

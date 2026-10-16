@@ -91,7 +91,7 @@ def paged(entries, service):
 def screen_buttons(screen, page, pages, shown, crc, every_on=False):
 	"""A list screen's buttons: top's, what can be done; on, del and run's, one for each job shown that the screen
 	acts on, '<number> <name>' (with its ✅ or ❌ to switch it), JOB_ROW to a row, then on's All, which switches every
-	job of the chat on (All off where every_on: off), and Back; ◀ and More ▶ to the other pages."""
+	job of the chat on (All off where every_on: off), and Cancel, back to the list; ◀ and More ▶ to the other pages."""
 	if screen == 'top':
 		rows = [[buttons.menu_button('Enable/disable', 'on', [0], crc), buttons.menu_button('Delete', 'del', [0], crc)],
 			[buttons.menu_button('Add', 'add', [], crc), buttons.menu_button('Run now', 'run', [0], crc),
@@ -101,7 +101,7 @@ def screen_buttons(screen, page, pages, shown, crc, every_on=False):
 		tapped = [buttons.menu_button(f"{number} {('✅ ' if job.on else '❌ ') if screen == 'on' else ''}{job.name}",
 			screen, [page, number], crc) for number, job, _ in shown if screen != 'del' or not job.item]
 		rows = [tapped[i:i + JOB_ROW] for i in range(0, len(tapped), JOB_ROW)]
-		nav = [buttons.menu_button('Back', 'top', [0], crc)]
+		nav = [buttons.menu_button('Cancel', 'top', [0], crc)]
 		if screen == 'on':
 			nav.insert(0, buttons.menu_button('All off' if every_on else 'All on', 'on', [page, 'alloff' if every_on
 				else 'allon'], crc))
@@ -126,7 +126,7 @@ def job_line(number, job, outcome):
 def next_screen(service, chat, count=20):
 	"""`.jobs next`: a chat's next runs, in time order, at most count, each by the timezone preference's clock (and its
 	own zone's beside it, where that differs), with its number and name in .jobs; a repeat's runs on a day are one
-	entry, from its first to its last. Returns (lines, buttons): Back, to the list."""
+	entry, from its first to its last. Returns (lines, buttons): Cancel, back to the list."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
@@ -141,7 +141,7 @@ def next_screen(service, chat, count=20):
 		lines.append(f"{said} · {number}. {service.escape(job.name)}")
 	if len(lines) == 1:
 		lines.append('None: every job here is off')
-	return lines, [[buttons.menu_button('Back', 'top', [0], jobs.list_checksum(scheduler.chat_jobs(chat)))]]
+	return lines, [[buttons.menu_button('Cancel', 'top', [0], jobs.list_checksum(scheduler.chat_jobs(chat)))]]
 
 def clock_words(moment, zone):
 	"""A moment's time of day by a zone's clock: '8:30am', in 24 hours for UTC ('21:30')."""
@@ -161,15 +161,15 @@ def add_screen(service, chat, steps):
 	"""A step of Add, from the choices made so far (steps, from the button pressed: the report's number, how often, then
 	the LEVELS of that frequency in turn: a date, a day of the week or of the month, a month, the hour and the minute,
 	or a repeat's interval and its days): (lines, buttons) of the next choice, its default (USUAL) marked †, or (None,
-	(action, arguments, schedule)) once every choice is made, at a time by the timezone preference's clock. Back takes a
-	step back, Cancel goes back to the list. Raises ValueError for choices that are none (forged data)."""
+	(action, arguments, schedule)) once every choice is made, at a time by the timezone preference's clock. Cancel goes
+	back to the list, and Back, after the report, a step back. Raises ValueError for choices that are none (forged)."""
 	scheduler = jobs.current
 	crc, local = jobs.list_checksum(scheduler.chat_jobs(chat)), formats.zone()
 	tomorrow = scheduler.clock().astimezone(local).date() + datetime.timedelta(days=1)
 	steps, page = list(steps), 0
 	if steps and steps[-1] == MORE:
 		steps, page = steps[:-1], 1
-	back = buttons.menu_button('Back', *(('add', steps[:-1]) if steps else ('top', [])), crc)
+	back = buttons.menu_button('Back', 'add', steps[:-1], crc)
 	cancel = buttons.menu_button('Cancel', 'top', [0], crc)
 	def choices(heading, offered, row, lines=(), usual=None, nav=None):
 		"""A choice's screen: its heading and lines, and '† indicates default' where one is (usual: its data); its
@@ -179,9 +179,9 @@ def add_screen(service, chat, steps):
 		key = [] if usual is None else ['', '† indicates default']
 		return [service.bold(heading), *lines, *key], [tapped[i:i + row] for i in range(0, len(tapped), row)] + [
 			nav or [back, cancel]]
-	if not steps:
-		return choices('Add a job: which report?', [(f'{number} {label}', number) for number, (label, _, _) in
-			enumerate(REPORTS, 1)], 3, [f'{number}. {label}' for number, (label, _, _) in enumerate(REPORTS, 1)])
+	if not steps: # a button per report, by its name alone, and Cancel
+		return choices('Add a job: which report?', [(label, number) for number, (label, _, _) in enumerate(REPORTS, 1)],
+			3, nav=[cancel])
 	label, action, args = REPORTS[choice(steps[0], 1, len(REPORTS)) - 1]
 	if action == 'message':
 		return [service.bold('Add a message'), "A message's text is what you type:",
