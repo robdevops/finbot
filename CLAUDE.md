@@ -90,7 +90,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   press re-editing the answer from `shown` (an item's number plus one; compare's tickers, `pick.pack`), 32 items a page
   (`pick.layout`; fewer on Discord) turned by `<` `>` under the tickers menu, its list of items checked by checksum,
   `.compare`'s ticks a bit each in the data's mask, a seventh refused by an alert toast (`buttons.alert`); a pie or
-  treemap primes its other charts in a thread (`pick.prime`, started by `worker.prime_in_background`).
+  treemap primes its other charts in a thread (`pick.prime`, started by `worker.prime_in_background`); every chart
+  with period buttons primes its other periods (`charts.prime`, `worker.prime_periods` after `.compare`, `.price`,
+  `.performance`, `chart_reply` and the pickers; never for a scheduled run).
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), the `.jobs` menu's (`menu_button`, a
   `MenuPress`; older lists' `j|`/`e|` buttons still parse), what a pressed button's data asks for (`parse`), and the
   toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so

@@ -1175,3 +1175,50 @@ class Pickers(FinbotCase):
 			pick.prime(TELEGRAM, 'p', 's', ['Amy', 'Bob', 'Zed'], 0)
 		self.assertEqual(drawn, ['Amy by industry'])
 		self.assertIn('priming p Bob industry failed: boom', err.getvalue())
+
+	def test_compare_typed_with_tickers_has_the_tickers_button_too(self):
+		""".compare T1 T2 [period] answers with the period row and the tickers' menu under its chart, those typed ticked
+		and shown; tickers the chat does not offer, or a period no button has, leave the chart its period buttons."""
+		self.command('.compare T3 T1 1y')
+		self.assertEqual(self.labels(), [['7D', '1M', '● 1Y', 'Max'], ['Tickers (2) ▶']])
+		kind, lines, rows = self.tap('Tickers (2) ▶')
+		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')], ['✅ T1', '✅ T3'])
+		self.command('.compare T1 NOPE')
+		self.assertEqual(self.labels(), [['7D', '1M', '1Y', '● Max']])
+		self.command('.compare T1 T2 3m')
+		self.assertEqual(self.labels(), [['7D', '1M', '1Y', 'Max']])
+
+	def test_every_chart_with_a_period_row_primes_its_other_periods(self):
+		"""Once a chart with period buttons is out, its other periods are drawn in the background: .compare,
+		.performance, the price list and a picker's answer, but not where no chart goes."""
+		started = []
+		self.patch(charts, 'prime_in_background', lambda *args: started.append(args[:1] + args[1:2] + args[4:]))
+		self.command('.compare T1 T2')
+		self.command('.performance')
+		self.command('.price')
+		self.command('.price top')
+		self.command('.compare')
+		self.assertEqual(started, [('c', ['T1', 'T2'], 'x'), ('f', [''], 'm'), ('l', ['5', '0'], 'd'),
+			('l', ['0', '10'], 'd'), ('c', ['T0', 'T1'], 'w')])
+		started.clear()
+		self.prefs(graph=False)
+		self.command('.compare T1 T2')
+		self.assertEqual(started, [])
+
+	def test_priming_draws_each_other_period_and_survives_a_failure(self):
+		"""charts.prime draws the chart of each period button but the one shown, skipping one with nothing to draw,
+		and logs a failure."""
+		drawn = []
+		self.patch(render, 'draw', lambda chart: drawn.append(chart.kind))
+		built = []
+		def build(kind, args, service, chat, period=None, days=None):
+			"""Fail for 1M, answer nothing for 1Y, a chart for the rest."""
+			built.append(period)
+			if period == 'm':
+				raise RuntimeError('boom')
+			return 'caption', None if period == 'y' else render.Chart('bars', rows=(('a', 1.0),))
+		self.patch(charts, 'build', build)
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			charts.prime('h', ['T1'], TELEGRAM, 'telegram:55', 'x')
+		self.assertEqual((built, drawn), (['w', 'm', 'y'], ['bars']))
+		self.assertIn("priming h ['T1'] m failed: boom", err.getvalue())

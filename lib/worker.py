@@ -11,6 +11,7 @@ import threading
 import typing
 from lib import log
 from lib import answer
+from lib import config
 from lib import dialects
 from lib import state
 from lib import formats
@@ -170,7 +171,10 @@ def process_pick_callback(press, pressed):
 		names = pick.shown_names(cmd, found, shown)
 		lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, view, page, note)
 		if names:
-			return pick_answer(service, chat, press.message_id, cmd, group, period, names, rows, note)
+			pick_answer(service, chat, press.message_id, cmd, group, period, names, rows, note)
+			if cmd in 'yc' and (stale or kind in 'rgh') and pick.as_photo(chat, cmd): # a new ticker or set
+				charts.prime_in_background('c' if cmd == 'c' else 'h', names, service, chat.key, period)
+			return
 		show_pick(chat, press.message_id, cmd, lines, rows)
 	except answer.Answer as e:
 		delivery.deliver(chat, delivery.Report(e.lines))
@@ -397,6 +401,7 @@ def on_performance(request, args):
 	if days < 1: # 0d, or ytd on 1 January
 		raise answer.Answer("The period must cover a day or more, such as 7d, 3m or ytd")
 	performance.run(request.dest, past_days=days, user=request.user, portfolio_select=args.rest or None)
+	prime_periods(request, 'f', [args.rest or ''], buttons.period_for_days(days))
 
 def on_session(request, args):
 	""".session or .premarket (.postmarket) [percent|SYMBOL]: the moves mid-session, or pre-market (and post-market)."""
@@ -413,6 +418,9 @@ def on_price(request, args):
 	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
 	price.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,
 		days=args.days, top=top, user=request.user, specific_stock=symbol)
+	threshold = 0 if top else config.prefs.price_percent if args.percent is None else args.percent
+	prime_periods(request, 'l', [f"{threshold:g}", str(top or 0)], buttons.period_for_days(args.days, 'd'
+		if not args.days else None)) # the price list's period buttons (price.run's)
 
 def on_shorts(request, args):
 	""".shorts [percent|SYMBOL]: the most shorted stocks followed, or one stock's short interest."""
@@ -485,7 +493,26 @@ def on_compare(request, args):
 	tickers = list(dict.fromkeys(yahoo.symbols(args.words))) # each once, in the order asked
 	if len(tickers) < 2:
 		raise Usage
-	chart_reply(request, 'c', tickers, args.days)
+	if not compare_picker(request, tickers, args.days):
+		chart_reply(request, 'c', tickers, args.days)
+
+def compare_picker(request, tickers, days):
+	"""Compare of the tickers typed, with the picker's buttons under the chart (the period row and the tickers' menu),
+	where the chat has buttons and the tickers are among those it offers (held, else watched) and the period is one
+	of the buttons: True when it did; else False, and the chart has its period buttons alone."""
+	dest = request.dest
+	period = buttons.period_for_days(days, 'x' if days is None else None)
+	if not (dest.takes_buttons and delivery.interactive(dest)) or period is None:
+		return False
+	try:
+		found = pick.items(request.service, 'c', dest.key)
+	except answer.Answer:
+		return False
+	if not set(tickers) <= set(found):
+		return False
+	numbers = [i for i, name in enumerate(found) if name in tickers]
+	send_picker(request, 'c', found, '0', period, pick.pack(numbers), sum(1 << i for i in numbers))
+	return True
 
 def on_history(request, args):
 	""".history SYMBOL: the stock's change over every period, with its price chart, and period buttons where they go;
@@ -508,6 +535,12 @@ def picker(request, cmd, args):
 	period = buttons.period_for_days(args.days, 'w' if cmd == 'c' else 'x') if cmd in 'cy' else '0' # compare: 7D
 	found = pick.items(request.service, cmd, dest.key)
 	shown, mask = pick.default(cmd, found)
+	send_picker(request, cmd, found, group, period, shown, mask)
+
+def send_picker(request, cmd, found, group, period, shown, mask):
+	"""The first message of a picker of the items `found`: the answer for what `shown` says (or the picker alone, for
+	0), the buttons under it, and the answer's other charts drawn in the background to fill the cache."""
+	dest = request.dest
 	lines, rows = pick.screen(request.service, cmd, found, group, period, shown, mask, 'p')
 	if not shown:
 		return dest.text(lines, rows)
@@ -518,6 +551,8 @@ def picker(request, cmd, args):
 		dest.text(caption.split('\n'), rows) # no chart goes: the answer as text, its buttons kept
 	if cmd in 'pt' and chart and pick.as_photo(dest, cmd):
 		prime_in_background(request.service, cmd, group, found, 0)
+	elif cmd in 'yc' and chart:
+		prime_periods(request, 'c' if cmd == 'c' else 'h', pick.shown_names(cmd, found, shown), period)
 
 def prime_in_background(service, cmd, group, found, index):
 	"""Start drawing a picker's other charts, to fill the cache, in a thread of its own (see pick.prime)."""
@@ -531,6 +566,16 @@ def chart_reply(request, kind, args, days=None):
 	if chart and request.dest.takes_buttons:
 		markup = buttons.keyboard(kind, args, buttons.period_for_days(days) if days else 'x')
 	request.reply(caption.split('\n'), chart, markup)
+	if chart:
+		prime_periods(request, kind, args, buttons.period_for_days(days) if days else 'x')
+
+def prime_periods(request, kind, args, shown):
+	"""After a chart with period buttons is sent (kind, args and the period `shown`: charts.build), the other periods
+	are drawn in the background to fill the cache, where the chat can use them: a command asked for, with charts and
+	buttons."""
+	dest = request.dest
+	if dest.takes_buttons and dest.takes_charts and config.prefs.graph and delivery.interactive(dest):
+		charts.prime_in_background(kind, args, request.service, dest.key, shown)
 
 def on_plan(request, args):
 	""".plan [text]: record the sender's plan in this chat, and list everyone's here."""
