@@ -4,11 +4,11 @@ slash commands registered as finbot starts; the reader of its interactions and m
 that posts into its channels and DMs (DiscordBot)."""
 import json
 import re
-import sys
 import time
 
 import requests
 
+from lib import log
 from lib import config
 from lib import dialects
 from lib import inbound
@@ -51,7 +51,7 @@ def try_call(method, path, **kwargs):
 	try:
 		return call(method, path, **kwargs)
 	except Exception as e:
-		print(f"Discord {method} failed:", net.redact(e), file=sys.stderr)
+		log.warn(f"Discord {method} failed:", net.redact(e))
 
 
 def retry_after(response):
@@ -98,7 +98,7 @@ def register(commands):
 	path = f'/applications/{application}/commands'
 	if summary(call('GET', path) or []) != summary(wanted):
 		call('PUT', path, json=wanted)
-		print(f"discord: {len(wanted)} slash commands registered", file=sys.stderr)
+		log.info(f"discord: {len(wanted)} slash commands registered")
 	return str(call('GET', '/users/@me')['id'])
 
 
@@ -239,13 +239,13 @@ class DiscordBot(transports.Transport):
 			answer = call(method, path, **message_body(payload, image))
 		except requests.exceptions.ReadTimeout as e:
 			self.answered = True # it may have arrived
-			print("Discord post timed out, it may still arrive:", net.redact(e), file=sys.stderr)
+			log.warn("Discord post timed out, it may still arrive:", net.redact(e))
 			return transports.MAYBE_SENT if image is not None else None
 		except Exception as e:
-			print("Discord post to", self.where, "failed:", net.redact(e), file=sys.stderr)
+			log.error("Discord post to", self.where, "failed:", net.redact(e))
 			return None
 		self.answered = True
-		print("OK discord message to", self.where, file=sys.stderr)
+		log.info("OK discord message to", self.where)
 		return answer or {}
 
 	def message_path(self, message):

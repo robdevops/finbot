@@ -3,9 +3,9 @@ by a listener in a thread of its own (Telegram's long polling, Slack's Socket Mo
 telegram_longpolling, slack_websocket and discord_websocket), which hands each update to bot.take(network, update) as
 the webhook would, so that reading it, the repeat check and acknowledging a press are the same both ways. Each
 listener keeps going through failures, waiting longer after each one in a row (backoff)."""
-import sys
 import time
 
+from lib import log
 from lib import delivery
 from lib import net
 
@@ -31,7 +31,7 @@ class Listener:
 
 	def run(self, take):
 		"""Fetch and hand on updates for good, waiting as poll() says between rounds."""
-		print(f"{self.network.service}: {self.describe()}", file=sys.stderr)
+		log.info(f"{self.network.service}: {self.describe()}")
 		while True:
 			time.sleep(self.poll(take))
 
@@ -48,7 +48,7 @@ class Listener:
 		"""Note a failure in a row, log it, and return the wait before trying again."""
 		self.failures += 1
 		wait = backoff(self.failures)
-		print(f"{self.network.service}: {what} failed, trying again in {wait} s:", net.redact(e), file=sys.stderr)
+		log.warn(f"{self.network.service}: {what} failed, trying again in {wait} s:", net.redact(e))
 		return wait
 
 	def hand_on(self, take, update):

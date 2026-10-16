@@ -1,8 +1,8 @@
 """Slack's Socket Mode, its pull mode (no slackOutgoingWebhook): a WebSocket that the app-level token opens, whose
 envelopes carry what Slack would post to the Request URL, for the reader (slack_common.READER)."""
 import json
-import sys
 
+from lib import log
 from lib import config
 from lib import net
 from lib import pull
@@ -89,7 +89,7 @@ class SlackSocket(pull.Listener):
 			return self.failed('the socket', e)
 		finally:
 			connection.close()
-		print(f"slack: Slack is closing the socket ({reason}), opening another", file=sys.stderr)
+		log.info(f"slack: Slack is closing the socket ({reason}), opening another")
 		return 0
 
 	def listen(self, connection, take):

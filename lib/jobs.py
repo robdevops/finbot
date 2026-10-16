@@ -10,7 +10,6 @@ import hmac
 import math
 import re
 import shlex
-import sys
 import threading
 import time
 import zlib
@@ -19,6 +18,7 @@ from dataclasses import dataclass
 
 from croniter import croniter, CroniterBadDateError
 
+from lib import log
 from lib import config
 from lib import state
 from lib import delivery
@@ -98,7 +98,7 @@ def warm_now(scheduler=None):
 	schedule is not started twice; without one (a test, a tool), here, a failure reported in the chat as the scheduler
 	reports one."""
 	commands = parse_reports(WARM, system=True)
-	print('cache: filling it again:', ', '.join(label for label, _, _ in commands), file=sys.stderr)
+	log.info('cache: filling it again:', ', '.join(label for label, _, _ in commands))
 	if scheduler:
 		scheduler.execute(commands)
 	else:
@@ -107,7 +107,7 @@ def warm_now(scheduler=None):
 				run_in_process(label, module, kwargs)
 			except Exception as e:
 				delivery.report_error(e, context=label)
-	print('cache: warm jobs done', file=sys.stderr)
+	log.info('cache: warm jobs done')
 
 
 def parse_reports(text, system=False):
@@ -218,8 +218,8 @@ class Scheduler:
 		if problem:
 			delivery.report_error(ScheduleError(problem), context='schedule')
 		chats = len({job.chat for job in jobs if job.chat})
-		print(f"schedule: {len(jobs) - len(SYSTEM)} jobs of {chats} chat{'' if chats == 1 else 's'}, and"
-			f" {len(SYSTEM)} system jobs", file=sys.stderr)
+		log.info(f"schedule: {len(jobs) - len(SYSTEM)} jobs of {chats} chat{'' if chats == 1 else 's'}, and"
+			f" {len(SYSTEM)} system jobs")
 
 	def start_base(self, job, now):
 		"""Where to count from at start: a run missed in the catch-up window fires once; with no record, none is."""
@@ -264,7 +264,7 @@ class Scheduler:
 				try:
 					state.save(STATE_FILE, self.last)
 				except OSError as e:
-					print('schedule: cannot save', STATE_FILE, e, file=sys.stderr)
+					log.error('schedule: cannot save', STATE_FILE, e)
 		return fired
 
 	def claim(self, chat, label):
@@ -285,10 +285,10 @@ class Scheduler:
 		outcome = 'done'
 		for label, module, kwargs in commands:
 			if not self.claim(chat, label):
-				print(f'schedule: {label} is already running for {chat or "the system"}, skipping it', file=sys.stderr)
+				log.warn(f'schedule: {label} is already running for {chat or "the system"}, skipping it')
 				outcome = 'already running'
 				continue
-			print(f'schedule: running {label}' + (f' for {chat}' if chat else ''), file=sys.stderr)
+			log.info(f'schedule: running {label}' + (f' for {chat}' if chat else ''))
 			late = threading.Timer(JOB_TIMEOUT, delivery.report_error, args=(TimeoutError(f'still running after'
 				f' {JOB_TIMEOUT / 60:g} minutes, and left to finish'), dest), kwargs={'context': label})
 			late.daemon = True

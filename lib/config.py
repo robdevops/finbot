@@ -34,7 +34,9 @@ RETIRED = { # keys of either file that do nothing any more: accepted, so that th
 	'discord_webhook': 'the scheduled reports go to discordChannelID as the bot (discordBotToken); set those, and'
 		' delete the line',
 	'scheduler': 'the scheduler is always on, and a schedule without jobs runs nothing; delete the line',
+	'debug': 'log_level sets what the log shows (INFO by default; DEBUG adds cache hits); delete the line',
 }
+LOG_LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG') # log_level's values, the most severe first (lib/log.py)
 OLD_ENV = REPO_DIR / '.env' # the single config file of old versions, which python-dotenv loaded; nothing reads it now
 
 
@@ -198,6 +200,14 @@ class _Reader:
 		"""A number setting."""
 		return self.number(float, name, default)
 
+	def choice(self, name, default, choices):
+		"""One of choices, in any case; anything else is an error, giving default."""
+		value = str(self.value(name, default)).strip().upper()
+		if value in choices:
+			return value
+		self.errors.append(f"{name}={self.getenv(name, default)!r} is not one of {', '.join(choices)}")
+		return default
+
 	def words(self, name, default):
 		"""A list of words, separated by spaces: a tuple of them."""
 		value = self.value(name, default)
@@ -286,7 +296,6 @@ class Prefs:
 	cache: bool = True
 	cache_seconds: int = 43200
 	country_code: str = 'AU'
-	debug: bool = False
 	demote_leveraged: bool = True
 	demote_volatile: bool = True
 	exchange_suffix: str = 'AX' # Yahoo's suffix for the local exchange: a bare ticker Yahoo does not know gets it
@@ -298,6 +307,7 @@ class Prefs:
 	hyperlinkFooter: bool = True
 	hyperlinkProvider: str = 'google'
 	include_portfolios: tuple = () # portfolio ids
+	log_level: str = 'INFO' # what the log shows: one of LOG_LEVELS, and those more severe (lib/log.py)
 	min_analysts: int = 7 # .buy, .sell and .forward pe list only stocks this many analysts cover
 	past_days: int = 28
 	performance_cache_seconds: int = 2400 # Sharesight performance reports (40 minutes: sharesight_warm runs every 30)
@@ -318,7 +328,8 @@ def preference_values(getenv, source=None):
 	r = _Reader(getenv)
 	readers = {bool: r.bool, int: r.int, float: r.float, str: r.str, tuple: r.words,
 		'exchange_suffix': lambda name, default: r.blankable(name, default).removeprefix('.').upper(), # blank: none
-		'hyperlinkProvider': lambda name, default: r.str(name, default).lower()}
+		'hyperlinkProvider': lambda name, default: r.str(name, default).lower(),
+		'log_level': lambda name, default: r.choice(name, default, LOG_LEVELS)}
 	values = {field.name: readers.get(field.name, readers[field.type])(field.name, field.default)
 		for field in dataclasses.fields(Prefs) if field.compare}
 	r.check()

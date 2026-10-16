@@ -5,7 +5,7 @@ import hashlib
 import threading
 import typing
 import zoneinfo
-import sys
+from lib import log
 from lib import answer
 from lib import config
 from lib import cache
@@ -37,13 +37,13 @@ def credentials(renew=False):
 			try:
 				r = net.get(url, headers={**HEADERS, 'Cookie': cookie})
 			except Exception as e:
-				print("Yahoo crumb:", net.redact(e), file=sys.stderr)
+				log.warn("Yahoo crumb:", net.redact(e))
 				continue
 			if r.status_code == 200 and r.text.strip():
 				cache.write(CREDENTIALS, [cookie, r.text.strip()])
-				print("Got a new Yahoo cookie and crumb", file=sys.stderr)
+				log.info("Got a new Yahoo cookie and crumb")
 				return cookie, r.text.strip()
-			print(r.status_code, "from Yahoo for a crumb", file=sys.stderr)
+			log.warn(r.status_code, "from Yahoo for a crumb")
 		raise RuntimeError("Yahoo gave no crumb")
 
 def _hosts(path):
@@ -62,14 +62,14 @@ def _answer(query, what):
 				r = net.get(url, headers={**HEADERS, 'Cookie': cookie})
 			except Exception as e:
 				refusal = f"Yahoo unreachable for {what}: {net.redact(e)}"
-				print(refusal, file=sys.stderr)
+				log.warn(refusal)
 				continue
 			if r.status_code == 200:
 				return r.json()
 			if r.status_code == 404 and not_found(r):
 				return None
 			refusal = f"{r.status_code} error for {what} from Yahoo"
-			print(refusal + ':', r.text.strip()[:200], file=sys.stderr)
+			log.warn(refusal + ':', r.text.strip()[:200])
 		if not refusal.startswith('401 '): # only a refused crumb is worth a new one
 			break
 	raise RuntimeError(refusal)
@@ -143,13 +143,13 @@ def fetch(tickers):
 	"""v7 quotes for many tickers in one request: {ticker: {...}}. Cached for 5 minutes (DO NOT CACHE LONGER). A ticker
 	Yahoo gives no name or price for is left out. Raises RuntimeError when Yahoo cannot be reached."""
 	if not tickers:
-		print("no tickers provided to yahoo.fetch()", file=sys.stderr)
+		log.info("no tickers provided to yahoo.fetch()")
 		return {}
 	tickers = sorted(set(tickers)) # de-dupe
 	name = "finbot_yahoo_quote_" + hashlib.sha256("_".join(tickers).encode()).hexdigest() + '.json'
 	data = cache.cached(name, 300, lambda: _quote_answer(tickers))
 	if data is None:
-		print("Yahoo has no quotes for", ', '.join(tickers), file=sys.stderr)
+		log.warn("Yahoo has no quotes for", ', '.join(tickers))
 		return {} # callers iterate the result
 	now = datetime.datetime.now().timestamp()
 	yahoo_output = {}
@@ -226,12 +226,12 @@ def fetch_detail(ticker, seconds=None):
 	data = cache.cached("finbot_yahoo_detail_" + ticker + '.json', seconds, lambda: _detail_answer(ticker))
 	result = dig(data, 'quoteSummary', 'result', 0)
 	if result is None: # Yahoo answers 404 Not Found, or result=null, for a symbol it does not know
-		print(ticker, "is unknown to Yahoo", file=sys.stderr)
+		log.warn(ticker, "is unknown to Yahoo")
 		return {}
 	title = next((name for name in (dig(result, 'price', 'longName'),
 		dig(result, 'price', 'shortName')) if isinstance(name, str) and name), None)
 	if not title: # catches some delisted stocks like "DUB"
-		print(ticker, "has no name at Yahoo", file=sys.stderr)
+		log.warn(ticker, "has no name at Yahoo")
 		return {}
 	detail = {'profile_title': formats.transform_title(title)}
 	for key, path, *convert in DETAIL_FIELDS:
@@ -420,7 +420,7 @@ def fetch_details(tickers, strict=False):
 		if isinstance(detail, Exception):
 			if strict:
 				raise detail
-			print(ticker, detail, file=sys.stderr)
+			log.warn(ticker, detail)
 		else:
 			details |= detail
 	return details
@@ -452,7 +452,7 @@ def prefetch_history(tickers, workers=8, seconds=None):
 	failed = []
 	for ticker, result in zip(tickers, fetch_each(lambda t: fetch_chart_json(t, seconds=seconds), tickers, workers)):
 		if isinstance(result, Exception):
-			print("prefetch failed for", ticker, result, file=sys.stderr)
+			log.warn("prefetch failed for", ticker, result)
 			failed.append(ticker)
 	return failed
 

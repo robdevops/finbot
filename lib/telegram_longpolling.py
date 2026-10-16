@@ -37,7 +37,8 @@ class TelegramPoll(pull.Listener):
 		if self.offset is not None:
 			params['offset'] = self.offset
 		try:
-			updates = telegram_common.call('getUpdates', json=params, timeout=(net.CONNECT_TIMEOUT, self.READ_SECONDS))
+			updates = telegram_common.call('getUpdates', json=params, timeout=(net.CONNECT_TIMEOUT, self.READ_SECONDS),
+				logged=False) # asked again and again: the log would be nothing else
 		except Exception as e:
 			return self.failed('getUpdates', e)
 		self.failures = 0

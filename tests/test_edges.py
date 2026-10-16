@@ -3,6 +3,7 @@ kept out of logs, and the bot's signals."""
 import contextlib, io, os, re, signal, subprocess, sys, tempfile, threading, time, unittest
 from pathlib import Path
 from tests.common import *
+from lib import log
 
 
 COMMANDS = ('.price', '.price 7d', '.price top', '.session', '.premarket', '.performance 7d', '.shorts', '.peg', '.buy',
@@ -359,6 +360,68 @@ class WholeLogLines(unittest.TestCase):
 		stream.flush()
 		self.assertEqual(out.getvalue(), 'partial')
 		self.assertEqual(stream.getvalue(), 'partial') # the stream's own
+
+
+class LogLevels(FinbotCase):
+	"""log_level: each of syslog's levels lets in its own lines and those of the levels above it."""
+
+	def logged(self, level, run):
+		"""What run() logs with log_level at this level."""
+		self.prefs(log_level=level)
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			run()
+		return err.getvalue().splitlines()
+
+	def test_each_level_lets_in_its_own_lines_and_those_above_it(self):
+		"""An error always reaches the log; WARN adds the warnings, INFO what finbot does, DEBUG its detail."""
+		def each():
+			"""A line at each level."""
+			log.error('e')
+			log.warn('w')
+			log.info('i')
+			log.debug('d')
+		for level, shown in (('ERROR', 'e'), ('WARN', 'ew'), ('INFO', 'ewi'), ('DEBUG', 'ewid')):
+			with self.subTest(log_level=level):
+				self.assertEqual(self.logged(level, each), list(shown))
+
+	def test_a_cache_miss_is_info_and_a_hit_or_a_write_debug(self):
+		"""A cache miss, of a file not there or too old, is logged at INFO; a hit, and the write after a miss, at
+		DEBUG."""
+		def twice():
+			"""A miss and its write, then a hit, then a miss of a file too old."""
+			cache.cached('finbot_test.json', 60, lambda: {'a': 1})
+			cache.cached('finbot_test.json', 60, lambda: {'a': 1})
+			cache.cached('finbot_test.json', -1, lambda: {})
+		where = cache.path('finbot_test.json')
+		self.assertEqual(self.logged('INFO', twice), [f'cache miss: {where}', f'cache miss: {where}'])
+		os.remove(where)
+		lines = self.logged('DEBUG', twice)
+		kinds = [line.split(':')[0] for line in lines]
+		self.assertEqual(kinds, ['cache miss', 'cache write', 'cache hit', 'cache miss'])
+		self.assertRegex(lines[2], r'^cache hit: \S+finbot_test\.json TTL: \d+s$')
+
+
+class RequestLog(FinbotCase):
+	"""Each request that goes out (a cache miss, or a call that has no cache) is a line at INFO."""
+
+	def test_each_request_is_a_short_line_without_secrets(self):
+		"""A request logs its method and URL at INFO, without the scheme or a secret, cut to fit; Telegram's long
+		polling (logged=False) does not, and nothing does below INFO."""
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			net.get('https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1y&crumb=s3cret')
+			net.post('https://api.telegram.org/bot123:ABC-def/sendMessage', json={})
+			net.request('PATCH', 'https://discord.com/api/v10/channels/7/messages/9', json={})
+			net.post('https://api.telegram.org/bot123:ABC-def/getUpdates', json={}, logged=False)
+			net.get('https://example.com/' + 'x' * 200)
+		lines = err.getvalue().splitlines()
+		self.assertEqual(lines[:3], ['GET query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1y&crumb=<redacted>',
+			'POST api.telegram.org/bot<redacted>/sendMessage', 'PATCH discord.com/api/v10/channels/7/messages/9'])
+		self.assertEqual((len(lines), lines[3][:16], lines[3][-1], len(lines[3])),
+			(4, 'GET example.com/', '…', len('GET ') + net.SHOWN))
+		self.prefs(log_level='WARN')
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			net.get('https://example.com/')
+		self.assertEqual(err.getvalue(), '')
 
 
 class SharedSession(unittest.TestCase):

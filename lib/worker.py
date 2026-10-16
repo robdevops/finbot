@@ -5,8 +5,8 @@ import hashlib
 import json
 import math
 import re
-import sys
 import typing
+from lib import log
 from lib import answer
 from lib import dialects
 from lib import state
@@ -117,7 +117,7 @@ def process_request(message):
 		try:
 			ensure_keyboard(message.chat_id) # keep DM keyboards current after the reply
 		except Exception as e:
-			print("keyboard update failed:", e, file=sys.stderr)
+			log.warn("keyboard update failed:", e)
 
 @dataclasses.dataclass
 class Args:
@@ -559,7 +559,7 @@ def suggest(chat, text):
 			if word.lower().startswith(typing.lower())]
 		return [(shown, value) for shown, value in found if len(value) <= 100][:25]
 	except Exception as e:
-		print('suggest:', text, delivery.error_line(e), file=sys.stderr)
+		log.warn('suggest:', text, delivery.error_line(e))
 		return []
 
 def argument_words(command, chat, given):
@@ -644,4 +644,4 @@ def refresh_keyboards():
 			try:
 				push_keyboard(chat_id)
 			except Exception as e:
-				print("keyboard refresh failed for", chat_id, e, file=sys.stderr)
+				log.warn("keyboard refresh failed for", chat_id, e)

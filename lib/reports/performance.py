@@ -1,6 +1,6 @@
 """.performance: each portfolio's return over a period, beside two benchmarks (scheduled: performance [days])."""
-import sys
 
+from lib import log
 from lib import config
 from lib import sharesight
 from lib import delivery
@@ -22,7 +22,7 @@ def benchmark(ticker, market, text, past_days, service):
 	try:
 		percent = yahoo.price_history(ticker, days=past_days)[0][past_days]
 	except Exception as e: # the rest of the report still goes out
-		print(ticker, e, file=sys.stderr)
+		log.warn(ticker, e)
 		return f"⚠️ {text}: no price history", None
 	link = links.finance_link(ticker, market, service=service, days=past_days, brief=True, text=text)
 	return f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}", percent

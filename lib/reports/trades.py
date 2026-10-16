@@ -1,8 +1,8 @@
 """.trades: Sharesight buys and sells; a scheduled run reports only new ones (scheduled: trades)."""
 import dataclasses
 import datetime
-import sys
 
+from lib import log
 from lib import config
 from lib import state
 from lib import sharesight
@@ -60,10 +60,10 @@ def gather(days, portfolio_select, known):
 	if raw and config.prefs.trades_use_yahoo:
 		tickers = {markets.transform_to_yahoo(trade['symbol'], trade['market']) for trade in raw}
 		try:
-			print("Fetching tickers from Yahoo: ", tickers, file=sys.stderr)
+			log.info("Fetching tickers from Yahoo: ", tickers)
 			quotes = yahoo.fetch(tickers)
 		except Exception as e:
-			print("Warning: could not fetch Yahoo:", e, file=sys.stderr)
+			log.warn("Warning: could not fetch Yahoo:", e)
 	trades = []
 	for trade in raw:
 		market = trade['market']
@@ -75,7 +75,7 @@ def gather(days, portfolio_select, known):
 			try:
 				market = quotes[ticker]['profile_exchange']
 			except Exception as e:
-				print("Warning: could not get market for", ticker, "from Yahoo:", e, file=sys.stderr)
+				log.warn("Warning: could not get market for", ticker, "from Yahoo:", e)
 		trades.append(Trade(date=datetime.datetime.strptime(trade['transaction_date'], '%Y-%m-%d').date(),
 			id=int(trade['id']), portfolio=trade['portfolio'], bought=trade['transaction_type'] == 'BUY',
 			value=round(float(trade['price']) * float(trade['quantity'])),

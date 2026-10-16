@@ -45,9 +45,9 @@ class TelegramPolling(FinbotCase):
 		self.assertEqual(poll.poll(lambda network, update: taken.append((network, update))), 0)
 		self.assertEqual(taken, [(telegram_common.READER, message), (telegram_common.READER, callback_query(11))])
 		allowed = ['message', 'callback_query']
-		self.assertEqual(self.calls, [
-			('getUpdates', {'json': {'timeout': 50, 'allowed_updates': allowed}, 'timeout': (5, 65)}),
-			('getUpdates', {'json': {'timeout': 50, 'allowed_updates': allowed, 'offset': 12}, 'timeout': (5, 65)})])
+		asked = {'timeout': (5, 65), 'logged': False} # not logged: it is asked again and again
+		self.assertEqual(self.calls, [('getUpdates', {'json': {'timeout': 50, 'allowed_updates': allowed}, **asked}),
+			('getUpdates', {'json': {'timeout': 50, 'allowed_updates': allowed, 'offset': 12}, **asked})])
 
 	def test_failures_are_waited_out_longer_each_time_and_logged_without_the_token(self):
 		"""A failed getUpdates (a 409 when a webhook is set or another finbot polls, the network down) waits 5 seconds,

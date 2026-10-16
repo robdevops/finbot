@@ -1,5 +1,6 @@
 """Deletes old cache files (scheduled: cleanup [days]); with days=0 it is the cache flush."""
-import os, sys, time
+import os, time
+from lib import log
 from lib import config
 
 def run(*, days=30):
@@ -20,7 +21,7 @@ def run(*, days=30):
 				os.unlink(entry.path)
 				removed += 1
 			except OSError as e:
-				print("cleanup: can't remove", entry.path, e, file=sys.stderr)
+				log.warn("cleanup: can't remove", entry.path, e)
 	return removed
 
 ARGUMENTS = '[DAYS]' # what a scheduled run takes

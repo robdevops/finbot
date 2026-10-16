@@ -2,8 +2,8 @@
 premarket | close | <days>)."""
 import dataclasses
 import datetime
-import sys
 
+from lib import log
 from lib import config
 from lib import delivery
 from lib import formats
@@ -32,7 +32,7 @@ def gather(tickers, specific_stock=None, days=None):
 		except RuntimeError as e: # no history: the one stock asked about says so, a list leaves it out
 			if specific_stock:
 				raise
-			print(ticker, e, file=sys.stderr)
+			log.warn(ticker, e)
 			continue
 		market_data[ticker]['percent_change_period'] = changes[days]
 	return market_data

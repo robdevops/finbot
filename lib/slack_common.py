@@ -4,11 +4,11 @@ its channels (SlackBot), with the Block Kit of its messages."""
 import html
 import json
 import re
-import sys
 import time
 
 import requests
 
+from lib import log
 from lib import config
 from lib import dialects
 from lib import inbound
@@ -55,12 +55,12 @@ class Slack(inbound.Network):
 			return self.slash(update)
 		if kind == 'url_verification':
 			response = json.dumps({'challenge': update['challenge']})
-			print("replying with", response, file=sys.stderr)
+			log.info("replying with", response)
 			return inbound.Response(body=response.encode())
 		if kind == 'block_actions':
 			return self.press(update)
 		if kind != 'event_callback':
-			print(f"[slack]: unhandled 'type' {kind!r}", file=sys.stderr)
+			log.info(f"[slack]: unhandled 'type' {kind!r}")
 			return inbound.UNHANDLED
 		event = update['event']
 		bot_user = update['authorizations'][0]['user_id'] # QWERTY
@@ -68,7 +68,7 @@ class Slack(inbound.Network):
 				event['user'] == bot_user: # not by a person: answering a bot (this one's replies included) could loop
 			return inbound.OK
 		if event['type'] not in ('message', 'app_mention') or 'text' not in event:
-			print("[slack]: unhandled event callback type", event['type'], file=sys.stderr)
+			log.info("[slack]: unhandled event callback type", event['type'])
 			return inbound.UNHANDLED
 		user = '<@' + event['user'] + '>' # a mention: Slack shows the name
 		return inbound.Message(self.service, event['channel'], user, self.plain(event['text']), '@' + bot_user, user,
@@ -124,7 +124,7 @@ class SlackBot(transports.Transport):
 			self.working = True
 		except Exception as e:
 			self.working = False
-			print("Slack reactions.add failed:", net.redact(e), file=sys.stderr)
+			log.warn("Slack reactions.add failed:", net.redact(e))
 
 	def typing_done(self):
 		"""Take ⏳ off the message again; a failure is only logged."""
@@ -134,15 +134,14 @@ class SlackBot(transports.Transport):
 		try:
 			call('reactions.remove', channel=self.where, timestamp=self.message, name=self.WORKING)
 		except Exception as e:
-			print("Slack reactions.remove failed:", net.redact(e), file=sys.stderr)
+			log.warn("Slack reactions.remove failed:", net.redact(e))
 
 	def post_text(self, text, buttons=None):
 		"""chat.postMessage, without link previews, and with buttons (a Block Kit message) where they work. Slack's
 		answer, or None when it failed or refused (logged): Slack refuses with HTTP 200 and ok false (not_in_channel,
 		say), so a refusal is read from the answer."""
 		if not config.env.slackBotToken:
-			print(f"ERROR slack: a reply to channel {self.where} needs slackBotToken in finbot.env; not sent",
-				file=sys.stderr)
+			log.error(f"ERROR slack: a reply to channel {self.where} needs slackBotToken in finbot.env; not sent")
 			return None
 		blocks = {}
 		if buttons and not isinstance(buttons, dict) and self.takes_buttons:
@@ -151,9 +150,9 @@ class SlackBot(transports.Transport):
 			answer = call('chat.postMessage', channel=self.where, text=text, unfurl_links='false',
 				unfurl_media='false', **blocks)
 		except Exception as e:
-			print("Slack chat.postMessage to", self.where, "failed:", net.redact(e), file=sys.stderr)
+			log.error("Slack chat.postMessage to", self.where, "failed:", net.redact(e))
 			return None
-		print("OK slack message to", self.where, file=sys.stderr)
+		log.info("OK slack message to", self.where)
 		return answer
 
 	def post_chart(self, image, caption, buttons=None):
@@ -167,20 +166,19 @@ class SlackBot(transports.Transport):
 			try:
 				return self.post_blocks(data, caption, buttons)
 			except Exception as e:
-				print("Slack chart with buttons failed, uploading it without them:", net.redact(e), file=sys.stderr)
+				log.warn("Slack chart with buttons failed, uploading it without them:", net.redact(e))
 		try:
 			share = {'files': json.dumps([{'id': self.upload(data)}]), 'channel_id': self.where,
 				'initial_comment': caption}
 			try:
 				output = call('files.completeUploadExternal', **share)
 			except requests.exceptions.ReadTimeout as e:
-				print("Slack files.completeUploadExternal timed out, the chart may still arrive:", net.redact(e),
-					file=sys.stderr)
+				log.warn("Slack files.completeUploadExternal timed out, the chart may still arrive:", net.redact(e))
 				return transports.MAYBE_SENT
 		except Exception as e:
-			print("Slack chart upload failed:", net.redact(e), file=sys.stderr)
+			log.warn("Slack chart upload failed:", net.redact(e))
 			return None
-		print("OK slack chart upload to", self.where, file=sys.stderr)
+		log.info("OK slack chart upload to", self.where)
 		return output
 
 	def upload(self, data):
@@ -206,7 +204,7 @@ class SlackBot(transports.Transport):
 			answer = until_shown(lambda: call('chat.postMessage', channel=self.where,
 				text=caption[:SECTION_LIMIT], blocks=json.dumps(blocks), unfurl_links='false', unfurl_media='false'))
 		except requests.exceptions.ReadTimeout as e:
-			print("Slack chat.postMessage timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
+			log.warn("Slack chat.postMessage timed out, the chart may still arrive:", net.redact(e))
 			return transports.MAYBE_SENT
 		if answer.get('ts'):
 			self.delete(self.shows(answer['ts'], file_id, caption, buttons))
@@ -227,7 +225,7 @@ class SlackBot(transports.Transport):
 			call('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
 				blocks=json.dumps(chart_blocks(caption, buttons, file_id)))
 		except Exception as e:
-			print("Slack chat.update with an earlier upload failed, uploading anew:", net.redact(e), file=sys.stderr)
+			log.warn("Slack chat.update with an earlier upload failed, uploading anew:", net.redact(e))
 			return False
 		self.delete(self.shows(message, file_id))
 		return True
@@ -278,7 +276,7 @@ class SlackBot(transports.Transport):
 			try:
 				call('files.delete', file=file_id)
 			except Exception as e:
-				print("Slack files.delete failed:", net.redact(e), file=sys.stderr)
+				log.warn("Slack files.delete failed:", net.redact(e))
 
 	def edit_text(self, message, text, buttons=None):
 		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
@@ -288,7 +286,7 @@ class SlackBot(transports.Transport):
 		try:
 			call('chat.update', **data)
 		except Exception as e:
-			print("Slack chat.update failed:", net.redact(e), file=sys.stderr)
+			log.warn("Slack chat.update failed:", net.redact(e))
 
 
 SECTION_LIMIT = 3000 # characters of text in a Block Kit section
@@ -334,7 +332,7 @@ def until_shown(post, waits=(1, 2, 4)):
 		except RuntimeError as e:
 			if 'invalid_blocks' not in str(e):
 				raise
-			print(f"Slack cannot show the chart yet ({e}), trying again in {wait} s", file=sys.stderr)
+			log.info(f"Slack cannot show the chart yet ({e}), trying again in {wait} s")
 			time.sleep(wait)
 	return post()
 

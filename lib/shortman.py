@@ -1,4 +1,4 @@
-import sys
+from lib import log
 from lib import net
 
 def fetch(market_data):
@@ -7,10 +7,10 @@ def fetch(market_data):
 	try:
 		r = net.get(url)
 	except Exception as e:
-		print("Failure fetching", url, net.redact(e), file=sys.stderr)
+		log.warn("Failure fetching", url, net.redact(e))
 		return market_data # the ASX short interest is missing, the rest of the report is not
 	if r.status_code != 200:
-		print(r.status_code, "error communicating with", url, file=sys.stderr)
+		log.warn(r.status_code, "error communicating with", url)
 		return market_data
 	csv = r.content.decode('utf-8')
 	csv = csv.split('\r\n')

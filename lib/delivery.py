@@ -2,9 +2,9 @@
 one-line error report. A destination is a transport: a network's bot (TelegramBot, SlackBot, DiscordBot)."""
 import dataclasses
 import html
-import sys
 import traceback
 
+from lib import log
 from lib import config
 from lib import discord_common
 from lib import net
@@ -88,7 +88,7 @@ def deliver(dest, report):
 		return []
 	if answer:
 		return [answer]
-	print("chart not sent, sending the report as text", file=sys.stderr)
+	log.warn("chart not sent, sending the report as text")
 	return dest.text(caption.split('\n'))
 
 
@@ -110,15 +110,15 @@ def report_error(e, dest=None, context=None):
 	for the same escapes). Never raises: error reporting must not become a second failure."""
 	try:
 		line = error_line(e, context)
-		print(line, file=sys.stderr)
+		log.error(line)
 		if isinstance(e, BaseException):
 			trace = ''.join(traceback.format_exception(e))
-			print(net.redact(trace), end='', file=sys.stderr) # a request's error carries its URL
+			log.error(net.redact(trace), end='') # a request's error carries its URL
 		for chat in targets(dest):
 			try:
 				chat.text([line if chat.dialect == 'discord' else html.escape(line, quote=False)])
 			except Exception as send_error:
-				print("Failed to report error to", chat.name, ":", send_error, file=sys.stderr)
+				log.error("Failed to report error to", chat.name, ":", send_error)
 	except Exception as reporting_error:
-		print("Failed to report error:", reporting_error, file=sys.stderr)
+		log.error("Failed to report error:", reporting_error)
 

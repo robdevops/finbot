@@ -1,9 +1,9 @@
 """Telegram's webhook, its HTTP mode (telegramOutgoingWebhook set): Telegram posts each update to finbot's URL with
 the secret header that setWebhook gave it, for the reader (telegram_common.READER)."""
 import json
-import sys
 from urllib.parse import urlparse
 
+from lib import log
 from lib import config
 from lib import inbound
 from lib import telegram_common
@@ -12,7 +12,7 @@ from lib import telegram_common
 def setWebhook():
 	"""Have Telegram post messages and button presses to telegramOutgoingWebhook, signed with telegramOutgoingToken. The
 	log does not show the URL: its path is a secret."""
-	print("telegram: setting the webhook (telegramOutgoingWebhook)", file=sys.stderr)
+	log.info("telegram: setting the webhook (telegramOutgoingWebhook)")
 	params = {'url': config.env.telegramOutgoingWebhook, "allowed_updates": json.dumps(['message', 'callback_query']),
 		'secret_token': config.env.telegramOutgoingToken}
 	return telegram_common.call('setWebhook', params=params)

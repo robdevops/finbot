@@ -2,10 +2,10 @@
 as sent, and requests go one at a time."""
 import dataclasses
 import datetime
-import sys
 import threading
 import time
 
+from lib import log
 from lib import answer
 from lib import cache
 from lib import config
@@ -37,7 +37,7 @@ def _request(path, what, expect, **kwargs):
 		error = data.get('error') if isinstance(data, dict) else None
 		if not (error and 'parallel' in str(error).lower() and attempt < 4):
 			break
-		print("Sharesight busy:", error, "- retrying", file=sys.stderr)
+		log.warn("Sharesight busy:", error, "- retrying")
 		time.sleep(1 + attempt)
 	if error: # an OAuth error describes itself too
 		why = ': '.join(str(data[key]) for key in ('error', 'error_description') if data.get(key))

@@ -3,10 +3,10 @@ the Bot API calls, the reader of its updates (Telegram, READER), and the bot tha
 (TelegramBot)."""
 import html
 import json
-import sys
 
 import requests
 
+from lib import log
 from lib import buttons
 from lib import config
 from lib import dialects
@@ -32,12 +32,12 @@ def try_call(method, **kwargs):
 	try:
 		return call(method, **kwargs)
 	except Exception as e:
-		print(f"Telegram {method} failed:", net.redact(e), file=sys.stderr)
+		log.warn(f"Telegram {method} failed:", net.redact(e))
 
 
 def deleteWebhook():
 	"""Have Telegram stop posting updates. Those not delivered yet are kept, for the webhook set next or getUpdates."""
-	print("telegram: deleting the webhook", file=sys.stderr)
+	log.info("telegram: deleting the webhook")
 	return call('deleteWebhook', json={'drop_pending_updates': False})
 
 
@@ -52,7 +52,7 @@ def set_commands(commands):
 	works without the menu."""
 	wanted = [{'command': command.name, 'description': command.description[:256]} for command in commands]
 	if try_call('getMyCommands') != wanted and try_call('setMyCommands', json={'commands': wanted}) is not None:
-		print(f"telegram: {len(wanted)} commands in the menu", file=sys.stderr)
+		log.info(f"telegram: {len(wanted)} commands in the menu")
 
 
 def pinChatMessage(chat_id, message_id):
@@ -106,7 +106,7 @@ class Telegram(inbound.Network):
 		elif self.IGNORED & message.keys():
 			return inbound.OK
 		else:
-			print("[telegram]: unhandled: 'message' without 'text/photo'", file=sys.stderr)
+			log.info("[telegram]: unhandled: 'message' without 'text/photo'")
 			return inbound.UNHANDLED
 		return inbound.Message(self.service, chat_id, user, text, self.bot_name, user_name,
 			str(message.get('message_id', '')))
@@ -145,9 +145,9 @@ class TelegramBot(transports.Transport):
 		try:
 			message = call('sendMessage', json=payload)
 		except Exception as e:
-			print("Telegram sendMessage to", self.where, "failed:", net.redact(e), file=sys.stderr)
+			log.error("Telegram sendMessage to", self.where, "failed:", net.redact(e))
 			return None
-		print("OK telegram message to", self.where, file=sys.stderr)
+		log.info("OK telegram message to", self.where)
 		return message
 
 	def post_chart(self, image, caption, buttons=None):
@@ -159,12 +159,12 @@ class TelegramBot(transports.Transport):
 		try:
 			message = call('sendPhoto', data=data, files={'photo': ('image.png', image)})
 		except requests.exceptions.ReadTimeout as e:
-			print("Telegram sendPhoto timed out, the chart may still arrive:", net.redact(e), file=sys.stderr)
+			log.warn("Telegram sendPhoto timed out, the chart may still arrive:", net.redact(e))
 			return transports.MAYBE_SENT
 		except Exception as e:
-			print("Telegram sendPhoto to", self.where, "failed:", net.redact(e), file=sys.stderr)
+			log.warn("Telegram sendPhoto to", self.where, "failed:", net.redact(e))
 			return None
-		print("OK telegram chart to", self.where, file=sys.stderr)
+		log.info("OK telegram chart to", self.where)
 		return message
 
 	def edit_chart(self, message, image, caption, buttons=None):
@@ -184,7 +184,7 @@ class TelegramBot(transports.Transport):
 			if 'not modified' not in str(e):
 				raise
 		except Exception as e: # it may have arrived even so: no error line for something the chat may already show
-			print("Telegram editMessageMedia failed:", net.redact(e), file=sys.stderr)
+			log.warn("Telegram editMessageMedia failed:", net.redact(e))
 
 	def edit_text(self, message, text, buttons=None):
 		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
@@ -206,7 +206,7 @@ class TelegramBot(transports.Transport):
 			try:
 				sent.append((answer['chat']['id'], answer['message_id']))
 			except (KeyError, TypeError):
-				print("Unable to pin: unexpected response", file=sys.stderr)
+				log.warn("Unable to pin: unexpected response")
 		for chat, message in reversed(sent):
 			pinChatMessage(chat, message)
 

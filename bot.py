@@ -8,6 +8,7 @@ if __name__ == '__main__':
 import collections, dataclasses, json, os, re, sys, threading, traceback
 from pathlib import Path
 
+from lib import log
 from lib import config
 from lib import discord_common
 from lib import discord_webhook
@@ -71,8 +72,8 @@ def main(environ, start_response):
 			status = '200 OK'
 		else:
 			where = environ.get(ROUTED) or repr(environ.get('PATH_INFO'))
-			print(f"request to {where} failed:", delivery.error_line(e), file=sys.stderr)
-			print(net.redact(traceback.format_exc()), end='', file=sys.stderr)
+			log.error(f"request to {where} failed:", delivery.error_line(e))
+			log.error(net.redact(traceback.format_exc()), end='')
 			status = '500 Internal Server Error'
 		try:
 			start_response(status, [('Content-type', 'text/plain')], sys.exc_info())
@@ -85,43 +86,41 @@ def handle(environ, start_response):
 	comes from that network (before its body is read, when the proof is a header), read the update (CONTENT_LENGTH
 	bytes, up to MAX_BODY) and take it (take): the network gets its answer at once."""
 	def respond(response):
-		"""Answer the request: a status line and a body (logged with the debug preference, naming the network, not the
-		path). Work that must wait for the answer starts once the server has sent it."""
-		if config.prefs.debug:
-			print(f"[http] request for {environ.get(ROUTED) or 'no network'} answered {response.status}",
-				file=sys.stderr)
+		"""Answer the request: a status line and a body (logged at INFO, naming the network, not the path). Work that
+		must wait for the answer starts once the server has sent it."""
+		log.info(f"[http] request for {environ.get(ROUTED) or 'no network'} answered {response.status}")
 		start_response(response.status, [('Content-type', 'application/json')])
 		return Sent([response.body], response.then) if response.then else [response.body]
-	def print_headers():
-		"""Log the request headers, Telegram's secret header redacted."""
+	def print_headers(say=log.info):
+		"""Log the request headers (at INFO, or as say() logs), Telegram's secret header redacted."""
 		for name, value in sorted(environ.items()):
-			print((name, '<redacted>' if name == 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' else value), file=sys.stderr)
+			say((name, '<redacted>' if name == 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' else value))
 	if config.prefs.print_headers:
 		print_headers()
 	path = environ.get('PATH_INFO', '')
 	source = route(path)
 	if source is None:
-		print("Unknown URI", repr(path), file=sys.stderr)
+		log.warn("Unknown URI", repr(path))
 		return respond(inbound.NOT_FOUND)
 	environ[ROUTED] = source.service
 	if why := source.refuse_unread(environ): # strangers are turned away before their body is read
-		print_headers()
-		print("Fatal:", why, file=sys.stderr)
+		print_headers(log.warn)
+		log.warn("refused:", why)
 		return respond(inbound.FORBIDDEN)
 	length = environ.get('CONTENT_LENGTH') or '0'
 	if not length.isdigit() or int(length) > MAX_BODY:
-		print(f"[{source.service}]: a body of {length!r} bytes refused unread", file=sys.stderr)
+		log.warn(f"[{source.service}]: a body of {length!r} bytes refused unread")
 		return respond(inbound.TOO_LARGE if length.isdigit() else inbound.BAD_REQUEST)
 	body = environ['wsgi.input'].read(int(length)) # the body and no more: a server need not end the stream there
 	try:
 		update = source.decode(body)
 	except ValueError:
-		print(f"[{source.service}]: request body is not a JSON object", file=sys.stderr)
+		log.warn(f"[{source.service}]: request body is not a JSON object")
 		return respond(inbound.BAD_REQUEST)
 	if why := source.refuse(environ, body, update):
 		shown = {k: '<redacted>' if k == 'token' else v for k, v in update.items()} # Slack's verification token
-		print("warning:", why, file=sys.stderr)
-		print(f"[{source.service}]: refused update", json.dumps(shown, indent=4, default=str), file=sys.stderr)
+		log.warn("warning:", why)
+		log.warn(f"[{source.service}]: refused update", json.dumps(shown, indent=4, default=str))
 		return respond(source.REFUSED)
 	environ[AUTHENTICATED] = True
 	return respond(take(source.network, update))
@@ -180,7 +179,7 @@ def take(network, update):
 	if isinstance(event, inbound.Suggest): # answered here and at once, while the command is typed
 		return network.suggestions(worker.suggest(f'{event.service}:{event.chat_id}', event.text))
 	if seen_before(network.service, network.update_id(update)):
-		print(f"[{network.service}]: update {network.update_id(update)} seen already, not run again", file=sys.stderr)
+		log.info(f"[{network.service}]: update {network.update_id(update)} seen already, not run again")
 		return inbound.OK
 	answer = network.acknowledge(event)
 	if answer is not None:
@@ -191,11 +190,10 @@ def take(network, update):
 def dispatch(event):
 	"""Hand a message or a button press to lib/worker, in a thread of its own, which it returns."""
 	if isinstance(event, inbound.Press):
-		print(f"[{event.service.capitalize()} button]:", event.user, "chat", event.chat_id, event.data, file=sys.stderr)
+		log.info(f"[{event.service.capitalize()} button]:", event.user, "chat", event.chat_id, event.data)
 		target = worker.process_callback
 	else:
-		if config.prefs.debug:
-			print(f"[{event.service.capitalize()}]:", event.user, event.text, file=sys.stderr)
+		log.info(f"[{event.service.capitalize()}]:", event.user, event.text)
 		target = worker.process_request
 	thread = threading.Thread(target=target, args=(event,))
 	thread.start()
@@ -245,13 +243,12 @@ def reload_all(*args):
 	try:
 		changes = config.reload()
 		for change in changes:
-			print('config:', change, file=sys.stderr)
-		print(f"config: reloaded {config.preferences_path}, {len(changes)} change{'' if len(changes) == 1 else 's'}",
-			file=sys.stderr)
+			log.info('config:', change)
+		log.info(f"config: reloaded {config.preferences_path}, {len(changes)} change{'' if len(changes) == 1 else 's'}")
 	except config.ConfigError as e:
 		config.print_errors(e)
 	if note := config.template_note(config.preferences_path):
-		print('ERROR config:', note, file=sys.stderr)
+		log.warn('WARN config:', note)
 
 def flush_cache(*args):
 	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings,
@@ -259,10 +256,9 @@ def flush_cache(*args):
 	for them)."""
 	try:
 		removed = cleanup.run(days=0)
-		print(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}",
-			file=sys.stderr)
+		log.info(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}")
 	except Exception as e:
-		print('ERROR', delivery.error_line(e, 'cache flush'), file=sys.stderr)
+		log.error('ERROR', delivery.error_line(e, 'cache flush'))
 	jobs.start_thread(jobs.warm_now, scheduler)
 
 def http_server():
@@ -275,18 +271,18 @@ def http_server():
 
 if __name__ == '__main__':
 	sys.stderr = WholeLines(sys.stderr) # threads log at once: each line goes out whole
-	print(f'Starting finbot {git_version()}', file=sys.stderr)
+	log.info(f'Starting finbot {git_version()}')
 	try:
 		config.check_startup_environment()
 	except config.ConfigError as e:
 		config.print_errors(e)
 		sys.exit(1)
 	for line in config.startup_report():
-		print('config:', line, file=sys.stderr)
+		log.info('config:', line)
 	for line in config.startup_warnings():
-		print('ERROR config:', line, file=sys.stderr)
+		log.warn('WARN config:', line)
 	if os.getuid() == 0:
-		print("Running as superuser. This is not recommended.", file=sys.stderr)
+		log.warn("Running as superuser. This is not recommended.")
 	migrate.run() # once: what was kept for all chats becomes the home chats', schedule.cron among it
 	scheduler = jobs.Scheduler()
 	scheduler.load()
@@ -294,18 +290,18 @@ if __name__ == '__main__':
 	try:
 		server = http_server() # bound before Telegram is given the URL
 	except OSError as e:
-		print(e, file=sys.stderr)
+		log.error(e)
 		sys.exit(1)
 	if server:
-		print(f'Opening socket on http://{config.env.ip}:{server.effective_port}', file=sys.stderr)
+		log.info(f'Opening socket on http://{config.env.ip}:{server.effective_port}')
 	else:
-		print('No webhook is set: finbot takes no HTTP requests', file=sys.stderr)
+		log.info('No webhook is set: finbot takes no HTTP requests')
 	if config.env.telegramBotToken:
 		try: # here only, never on import: the webhook set (HTTP mode), or deleted for getUpdates (pull mode)
 			(telegram_webhook if config.env.telegramOutgoingWebhook else telegram_longpolling).register()
 			telegram_common.READER.bot_name = telegram_common.bot_name()
 		except Exception as e:
-			print('ERROR', delivery.error_line(e, 'telegram'), file=sys.stderr)
+			log.error('ERROR', delivery.error_line(e, 'telegram'))
 			sys.exit(1)
 		telegram_common.set_commands(worker.slash_commands(aliases=False)) # the menu; /profile and /job work typed
 		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
@@ -314,7 +310,7 @@ if __name__ == '__main__':
 		try:
 			discord_common.READER.bot_id = discord_common.register(worker.slash_commands())
 		except Exception as e:
-			print('ERROR', delivery.error_line(e, 'discord'), file=sys.stderr)
+			log.error('ERROR', delivery.error_line(e, 'discord'))
 			sys.exit(1)
 	jobs.current = scheduler # for the .jobs chat command
 	threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
@@ -323,7 +319,7 @@ if __name__ == '__main__':
 	# Startup is done. systemctl reload finbot: pick up an edited preferences.conf
 	signal.signal(signal.SIGHUP, in_thread(reload_all))
 	signal.signal(signal.SIGUSR1, in_thread(flush_cache)) # systemctl kill -s USR1 finbot: delete the cache
-	print('finbot is running: SIGHUP reloads, SIGUSR1 flushes the cache', file=sys.stderr)
+	log.info('finbot is running: SIGHUP reloads, SIGUSR1 flushes the cache')
 	if server:
 		server.run()
 	while True: # the threads do the work; this one waits for signals

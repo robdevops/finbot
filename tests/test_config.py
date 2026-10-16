@@ -134,6 +134,17 @@ class Parsing(unittest.TestCase):
 				self.assertEqual(values.exchange_suffix, suffix)
 		self.assertEqual(config.preference_values(config._getenv_for({})).exchange_suffix, 'AX') # unset: the default
 
+	def test_log_level_is_one_of_syslogs_levels_in_any_case(self):
+		"""log_level takes ERROR, WARN, INFO or DEBUG, in any case, INFO by default; anything else is a mistake that
+		names the levels."""
+		for given, level in (('warn', 'WARN'), ('Debug', 'DEBUG'), ('ERROR', 'ERROR'), ('', 'INFO')):
+			with self.subTest(log_level=given):
+				values = config.preference_values(config._getenv_for({'log_level': given}))
+				self.assertEqual(values.log_level, level)
+		with self.assertRaises(config.ConfigError) as caught:
+			config.preference_values(config._getenv_for({'log_level': 'loud'}))
+		self.assertEqual(caught.exception.errors, ["log_level='loud' is not one of ERROR, WARN, INFO, DEBUG"])
+
 	def test_a_retired_key_is_accepted_and_said_to_do_nothing(self):
 		"""A key finbot no longer reads (alliterate in preferences.conf, slack_webhook in finbot.env, say) does not stop
 		a start, as an unknown key would: it is ignored, and the log at start (and check_config) says what to do
@@ -229,9 +240,8 @@ class Reload(unittest.TestCase):
 	def test_a_change_is_seen_at_once(self):
 		"""A reload applies every change, says which, and swaps in a new object, so no request sees half a reload."""
 		self.write('future_days=45\nprice_percent=7\nshorts_percent=12\nexclude_portfolios=1156263\n'
-			'exchange_suffix=nz\nhyperlinkProvider=yahoo\n'
-			'hyperlinkFooter=false\ndebug=1\ngraph=0\ndemote_volatile=0\nvolatility_multiplier=3\npast_days=14\n'
-			'min_analysts=3\n')
+			'exchange_suffix=nz\nhyperlinkProvider=yahoo\nhyperlinkFooter=false\nlog_level=debug\ngraph=0\n'
+			'demote_volatile=0\nvolatility_multiplier=3\npast_days=14\nmin_analysts=3\n')
 		before = config.prefs
 		changes = config.reload()
 		self.assertEqual(len(changes), 13)
@@ -242,8 +252,8 @@ class Reload(unittest.TestCase):
 		prefs = config.prefs
 		self.assertEqual((prefs.exclude_portfolios, prefs.exchange_suffix, prefs.hyperlinkProvider,
 			prefs.hyperlinkFooter), (('1156263',), 'NZ', 'yahoo', False))
-		self.assertEqual((config.prefs.debug, config.prefs.graph, config.prefs.demote_volatile,
-			config.prefs.volatility_multiplier), (True, False, False, 3.0))
+		self.assertEqual((config.prefs.log_level, config.prefs.graph, config.prefs.demote_volatile,
+			config.prefs.volatility_multiplier), ('DEBUG', False, False, 3.0))
 		self.assertEqual(config.reload(), []) # nothing more to change
 
 	def test_a_value_removed_from_the_file_goes_back_to_its_default(self):
@@ -395,7 +405,7 @@ class Startup(unittest.TestCase):
 	def test_a_preference_in_the_environment_is_refused_by_the_bot(self):
 		"""A preference in the bot's environment (finbot.env) is refused, but a job process gets its preferences that
 		way, and startup keys belong there."""
-		with mock.patch.dict(os.environ, {'future_days': '30', 'debug': '1'}):
+		with mock.patch.dict(os.environ, {'future_days': '30', 'log_level': 'DEBUG'}):
 			with self.assertRaises(config.ConfigError) as caught:
 				config.check_startup_environment()
 		self.assertEqual(len(caught.exception.errors), 2)
@@ -502,8 +512,8 @@ class Startup(unittest.TestCase):
 		with mock.patch.dict(os.environ, {'port': '5000'}, clear=True):
 			self.assertEqual(config.startup_report()[0], 'startup environment (1 key set)')
 		conf = Path(common.temp_dir(self), 'preferences.conf')
-		conf.write_text('debug = true\n')
-		for source, count in (({'debug': 'true'}, '1 key'), ({'debug': 'true', 'graph': 'false'}, '2 keys')):
+		conf.write_text('graph = false\n')
+		for source, count in (({'graph': 'false'}, '1 key'), ({'log_level': 'DEBUG', 'graph': 'false'}, '2 keys')):
 			with self.subTest(source=source), mock.patch.object(config, 'preferences_path', str(conf)), \
 					mock.patch.object(config, 'prefs', dataclasses.replace(config.prefs, source=source)):
 				self.assertEqual(config.startup_report()[1], f'{conf} ({count} set; SIGHUP to reload)')
@@ -544,13 +554,13 @@ class SigHup(unittest.TestCase):
 		file.write_text('')
 		self.addCleanup(self.restore, file)
 		template = Path(common.temp_dir(self), 'template.conf')
-		template.write_text('#past_days=28\ndebug=True\n')
+		template.write_text('#past_days=28\nlog_level=DEBUG\n')
 		with mock.patch.object(config, 'preferences_path', str(file)), mock.patch.object(config, 'TEMPLATE', template):
 			with contextlib.redirect_stderr(io.StringIO()) as err:
 				bot.reload_all()
-		self.assertIn(f'ERROR config: defaults/preferences.conf sets debug, but finbot never reads it: edit {file}'
+		self.assertIn(f'WARN config: defaults/preferences.conf sets log_level, but finbot never reads it: edit {file}'
 			' instead', err.getvalue())
-		self.assertFalse(config.prefs.debug)
+		self.assertEqual(config.prefs.log_level, 'INFO')
 
 
 class Tools(unittest.TestCase):

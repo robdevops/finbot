@@ -94,7 +94,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `yahoo.symbol(typed)` is Yahoo's symbol for a ticker as written, tried on the local exchange (`exchange_suffix`)
   when Yahoo does not know it bare: every ticker a chat gives goes through it. `sharesight.portfolios(name=None)` gives
   `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `trades(days)`.
-- `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
+- `lib/log.py`: the log, by level (`error warn info debug`), as the `log_level` preference lets in; bot.py's `WholeLines`
+  writes each line whole, whichever threads log at once. `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save; a file of one record per chat with
   `state.load_for(chat, name, default)` and `state.edit_for`. A chat's key is its network and id (`Transport.key`,
   `telegram:-1001234`), the same in both modes. `lib/watchlist.py`: each chat's watchlist (`tickers(chat)`), and
@@ -117,7 +118,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   to each network `test_sending`; Telegram's webhook and command menu `test_telegram_api`; job lines, job arguments and
   the migration `test_schedule`; the scheduler and `.jobs` in a chat `test_scheduler`; config `test_config`; charts
   `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets, formats, links, buttons, cache and state files
-  `test_util`; data dir `test_datadir`; chunking, git_version, and the docstring, stdout, line-width and no-pandas
+  `test_util`; data dir `test_datadir`; log levels, request lines and whole lines `test_edges`; chunking, git_version, and the docstring, stdout, line-width and no-pandas
   checks `test_finbot`.
 
 ## Conventions
@@ -132,7 +133,11 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - Every function and method has a docstring, tests included (a test checks): one line where it fits, reworded rather
   than spilling a few words onto a second. Tabs everywhere (`.editorconfig`). Every line stays within 120 columns,
   tabs counting 4 (an edit quotes whole lines); a test checks all but README.md, CLAUDE.md and `doc/`.
-- Log with `print(..., file=sys.stderr)`. systemd discards stdout (`StandardOutput=null`), so the bot and its reports
+- Log with `lib/log.py`, at a level, with print()'s arguments: `log.error` (failed and lost: a message not sent),
+  `log.warn` (failed and got over: a retry, a fallback, a refused request), `log.info` (what finbot does: a message
+  sent, a job run, a cache miss; `net` logs each request it sends), `log.debug` (cache hits and writes). The
+  `log_level` preference sets what reaches the log; `lib/config.py` prints its own errors (it loads before
+  preferences exist). Everything goes to stderr: systemd discards stdout (`StandardOutput=null`), so the bot and its reports
   never print there (a test checks); only the util/ tools, run by hand, do.
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
   charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's).

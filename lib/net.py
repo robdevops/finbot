@@ -9,23 +9,34 @@ import re
 import requests
 
 from lib import config
+from lib import log
 
 session = requests.Session()
 # no domain may set or receive a cookie
 session.cookies.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
 CONNECT_TIMEOUT = 5 # seconds to wait for a host to answer the connection: one that is down costs this, not http_timeout
+SHOWN = 100 # characters of a request's URL in the log, at most
 
 def get(url, **kwargs):
-	"""requests.get through the shared session, which reuses connections; timed out as timeouts() says."""
-	return session.get(url, **timeouts(kwargs))
+	"""requests.get through the shared session, which reuses connections; timed out as timeouts() says; logged."""
+	return session.get(url, **timeouts(logged('GET', url, kwargs)))
 
 def post(url, **kwargs):
-	"""requests.post through the shared session, which reuses connections; timed out as timeouts() says."""
-	return session.post(url, **timeouts(kwargs))
+	"""requests.post through the shared session, which reuses connections; timed out as timeouts() says; logged."""
+	return session.post(url, **timeouts(logged('POST', url, kwargs)))
 
 def request(method, url, **kwargs):
-	"""A request of any method through the shared session, which reuses connections; timed out as timeouts() says."""
-	return session.request(method, url, **timeouts(kwargs))
+	"""A request of any method through the shared session, which reuses connections; timed out as timeouts() says;
+	logged."""
+	return session.request(method, url, **timeouts(logged(method, url, kwargs)))
+
+def logged(method, url, kwargs):
+	"""The request's arguments without `logged`; the request noted at INFO first, unless logged=False (Telegram's long
+	polling, asked again and again): its method and URL, without secrets or the scheme, cut to SHOWN characters."""
+	if kwargs.pop('logged', True):
+		shown = redact(url).split('://', 1)[-1]
+		log.info(method, shown if len(shown) <= SHOWN else shown[:SHOWN - 1] + '…')
+	return kwargs
 
 def timeouts(kwargs):
 	"""The request's arguments with a timeout, unless it has its own: CONNECT_TIMEOUT to connect, then http_timeout for

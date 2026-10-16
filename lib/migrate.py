@@ -11,10 +11,10 @@ import glob
 import os
 import re
 import shlex
-import sys
 import zoneinfo
 from pathlib import Path
 
+from lib import log
 from lib import config
 from lib import delivery
 from lib import jobs
@@ -63,14 +63,13 @@ def schedule(homes):
 		try:
 			job = jobs.parse_job(f"{'' if zone == 'UTC' else f'CRON_TZ={zone} '}{line} {reports}")
 		except jobs.ScheduleError as e:
-			print(f'schedule: {path} line {number} left out: {e}', file=sys.stderr)
+			log.warn(f'schedule: {path} line {number} left out: {e}')
 			continue
 		entries.append({'when': job.when, 'reports': job.text, 'zone': job.zone.key, 'on': True})
 	# written even when empty: the file being there says the migration is done
 	state.save(jobs.SCHEDULE_FILE, {key: copy.deepcopy(entries) for key in homes if entries})
-	print(f"schedule: the {len(entries)} jobs of {path} are now each home chat's ({', '.join(homes)});"
-		f" finbot reads that file no more: each chat's jobs are in {jobs.SCHEDULE_FILE}, changed with .jobs",
-		file=sys.stderr)
+	log.info(f"schedule: the {len(entries)} jobs of {path} are now each home chat's ({', '.join(homes)});"
+		f" finbot reads that file no more: each chat's jobs are in {jobs.SCHEDULE_FILE}, changed with .jobs")
 
 
 def record(name, homes):
@@ -78,12 +77,12 @@ def record(name, homes):
 	try:
 		data = state.load(name)
 	except (OSError, ValueError) as e:
-		print(f'state: {name} left as it is, unreadable: {e}', file=sys.stderr)
+		log.warn(f'state: {name} left as it is, unreadable: {e}')
 		return
 	if data is None or (isinstance(data, dict) and 'chats' in data):
 		return
 	state.save(name, {'chats': {key: copy.deepcopy(data) for key in homes}})
-	print(f"state: {name} is kept per chat now, its record copied to {', '.join(homes)}", file=sys.stderr)
+	log.info(f"state: {name} is kept per chat now, its record copied to {', '.join(homes)}")
 
 
 def local_zone():
@@ -127,7 +126,7 @@ def legacy_lines(text, path):
 			commands = [(os.path.basename(words[0]).removesuffix('.py'), words[1:])
 				for words in split_commands(tokenize(rest))]
 		except ValueError as e:
-			print(f'schedule: {path} line {number} left out: {e}', file=sys.stderr)
+			log.warn(f'schedule: {path} line {number} left out: {e}')
 			continue
 		yield number, when, zone, commands
 
