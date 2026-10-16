@@ -21,8 +21,7 @@ If you don't have Sharesight, you can still add your holdings manually via the w
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
 ## Quick start
-Run finbot with Docker or with Python. Both take the same keys, and both install every optional library, so each
-network works in either mode.
+Run finbot with Docker or with Python.
 
 ### With Docker
 On a Linux host with Docker:
