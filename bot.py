@@ -260,8 +260,8 @@ def in_thread(work):
 	return lambda *args: threading.Thread(target=run, daemon=True).start()
 
 def reload_all(*args):
-	"""SIGHUP: re-read preferences.conf; a bad one is reported and leaves the running config untouched. A key set in
-	defaults/preferences.conf, which is never read, is pointed at the file to set it in. (Each chat's jobs need no
+	"""SIGHUP: re-read settings.conf; a bad one is reported and leaves the running config untouched. A key set in
+	defaults/settings.conf, which is never read, is pointed at the file to set it in. (Each chat's jobs need no
 	reload: a change made with .jobs counts at once.)"""
 	try:
 		changes = config.reload()
@@ -339,7 +339,7 @@ if __name__ == '__main__':
 	threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	for listener in listeners(): # the networks without a webhook: finbot fetches their updates
 		threading.Thread(target=listener.run, args=(take,), daemon=True).start()
-	# Startup is done. systemctl reload finbot: pick up an edited preferences.conf
+	# Startup is done. systemctl reload finbot: pick up an edited settings.conf
 	signal.signal(signal.SIGHUP, in_thread(reload_all))
 	signal.signal(signal.SIGUSR1, in_thread(flush_cache)) # systemctl kill -s USR1 finbot: delete the cache
 	log.info('finbot is running: SIGHUP reloads, SIGUSR1 flushes the cache')

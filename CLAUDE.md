@@ -26,7 +26,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - Production runs the Debian system packages; `requirements.txt` is for pip/uv users and CI. The libraries in `requirements-optional.txt` are each imported only
   inside the code of the mode that needs it, never at module load (a test starts finbot with them all blocked).
 - A new preference goes in three places: a `Prefs` field with its default (`lib/config.py`; its type says how it is
-  read), `defaults/preferences.conf` (commented out at its default, `#key=value`: the template sets nothing, and finbot
+  read), `defaults/settings.conf` (commented out at its default, `#key=value`: the template sets nothing, and finbot
   never reads it), and the preferences table of `doc/configuration.md`. The tests catch a key
   missing from the template or a default that differs, but not the docs (no test may read README.md or `doc/*.md`: CI
   skips the tests for a change to the docs alone).
@@ -118,7 +118,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `state.load_for(chat, name, default)` and `state.edit_for`. A chat's key is its network and id (`Transport.key`,
   `telegram:-1001234`), the same in both modes. `lib/watchlist.py`: each chat's watchlist (`tickers(chat)`), and
   `with_holdings(chat)`, the stocks a report in that chat covers; a report takes the chat from its destination.
-- `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (preferences.conf, a new object on
+- `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.prefs` (settings.conf, a new object on
   each reload). `lib/jobs.py`: the scheduler: each chat's jobs, the default ones and those it added (`JOBS_FILE`, by
   chat key: the defaults it switched off and those it removed, `'deleted'`, the jobs it added; a direct message's
   defaults start off, `'defaults': 'off'` with those switched on, and it is marked `'dm'`; `see` makes a chat known at

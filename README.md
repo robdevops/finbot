@@ -62,7 +62,7 @@ jobs, which `/jobs` switches on and off, adds to and runs ([Scheduling](doc/sche
 ## Documentation
 * [Commands and reports](doc/commands.md), with screenshots
 * [Scheduling](doc/scheduling.md): each chat's jobs, and the reports they can run
-* [Configuration](doc/configuration.md): `finbot.env` and `preferences.conf`, the data directory, Sharesight
+* [Configuration](doc/configuration.md): `finbot.env` and `settings.conf`, the data directory, Sharesight
 * [Caching](doc/caching.md)
 * Installing: [Docker](doc/docker.md) · [Python, or a Debian host with systemd](doc/install.md)
 * Networks: [Telegram](doc/telegram.md) · [Slack](doc/slack.md) · [Discord](doc/discord.md)

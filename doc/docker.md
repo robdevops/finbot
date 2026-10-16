@@ -19,7 +19,7 @@ The configuration lives on the host, beside the checkout, so a rebuild or an upd
 |---|---|---|
 | `/opt/finbot` | the checkout, with `Dockerfile` and `compose.yaml` | the image's `/opt/finbot`, copied at build |
 | `/opt/finbot.env` | the startup file: the tokens, and the mode of each network | the environment, and `/run/finbot.env`, read-only, for the check |
-| `/opt/finbot-data` | `DATA_DIR`: `preferences.conf`, each chat's jobs and watchlist, the records, the cache | `/data` |
+| `/opt/finbot-data` | `DATA_DIR`: `settings.conf`, each chat's jobs and watchlist, the records, the cache | `/data` |
 
 `compose.yaml` finds the other two beside the checkout (`../finbot.env`, `../finbot-data`): clone it elsewhere and
 they move with it. The startup file stays out of the image because it holds the secrets, and the data dir because it
@@ -29,7 +29,7 @@ must outlast every container.
 
 Run it once, as root; it is safe to run again. It:
 1. runs `util/sync_defaults.py --create --apply --dest /opt/finbot-data`, which makes the data dir (mode 750) and copies
-   the shipped defaults into it: `preferences.conf` and the data files. It never replaces a file you
+   the shipped defaults into it: `settings.conf` and the data files. It never replaces a file you
    have changed. The script needs only the standard library, so any `python3` on the host runs it.
 2. gives the data dir to the container's user: `chown -R 10001:10001 /opt/finbot-data`.
 3. copies `defaults/finbot.env` to `/opt/finbot.env` if there is none, owned by `root:10001`, mode 640: root and the
@@ -55,7 +55,7 @@ cd /opt/finbot && sudo GIT_COMMIT=$(git rev-parse HEAD) docker compose up -d --b
 
 Each start of the container, in order:
 1. `util/sync_defaults.py --apply` copies into `/data` any default it lacks, such as a data file added by an update;
-2. `util/check_config.py /run/finbot.env` checks the startup file and `preferences.conf`. A mistake stops the start
+2. `util/check_config.py /run/finbot.env` checks the startup file and `settings.conf`. A mistake stops the start
    here, and the log says which key and why;
 3. the bot starts.
 
@@ -71,7 +71,7 @@ file beside `compose.yaml`), and read it with `sudo docker compose logs -f`.
 ## Reload, flush, update
 
 ```
-sudo docker compose kill -s HUP finbot     # re-read preferences.conf
+sudo docker compose kill -s HUP finbot     # re-read settings.conf
 sudo docker compose kill -s USR1 finbot    # flush the cache, and fill it again
 sudo docker compose exec finbot util/flush.py --after 24h    # flush the files of the last day (see caching.md)
 cd /opt/finbot && sudo git pull && sudo GIT_COMMIT=$(git rev-parse HEAD) docker compose up -d --build
@@ -118,7 +118,7 @@ then `util/docker_setup.sh` (it keeps your files) and start as above. The startu
 ## Troubleshooting
 
 * **The container stops at once and keeps restarting:** the log says why. `ERROR config: ... unknown key ...` is a
-  mistake in `/opt/finbot.env` or `preferences.conf`; fix it and `sudo docker compose up -d`.
+  mistake in `/opt/finbot.env` or `settings.conf`; fix it and `sudo docker compose up -d`.
 * **`PermissionError` on `/data`:** the data dir is not the container user's: `sudo chown -R 10001:10001
   /opt/finbot-data`.
 * **`/data does not exist: --create makes it`:** the data dir is not mounted: `compose.yaml` mounts

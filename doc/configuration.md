@@ -1,6 +1,6 @@
 # Configuration
 
-Configuration is split into two files -- finbot.env for startup environment variables, and preferences.conf for values that can be changed at runtime.
+Configuration is split into two files -- finbot.env for startup environment variables, and settings.conf for values that can be changed at runtime.
 
 Copy the shipped template:
 ```
@@ -40,13 +40,15 @@ of the chat network keys it needs.
 
 Retired keys do nothing, and only get a note at start (and from check_config) saying to delete the line: `telegramChatID`, `slackChannelID` and `discordChannelID` (there are no home chats: each chat has its own jobs, and an error that belongs to no chat goes to the log; an upgrade from before jobs per chat reads them once, as [Scheduling](scheduling.md) says), and `slack_webhook` and `discord_webhook`.
 
-## `preferences.conf` items
+## `settings.conf` items
 
-The preferences, read by the bot itself from `<DATA_DIR>/preferences.conf`; without that file, finbot runs on the built-in defaults below. `defaults/preferences.conf` is only its template: every key in it is commented out at its default, and finbot never reads it. To change a preference, copy the template into the data directory (this never overwrites a file there):
+This file was called `preferences.conf` before: on an upgrade the bot renames an old `<DATA_DIR>/preferences.conf` to `settings.conf` at start (it says so in the log), unless a `settings.conf` is there already.
+
+The preferences, read by the bot itself from `<DATA_DIR>/settings.conf`; without that file, finbot runs on the built-in defaults below. `defaults/settings.conf` is only its template: every key in it is commented out at its default, and finbot never reads it. To change a preference, copy the template into the data directory (this never overwrites a file there):
 ```
 util/sync_defaults.py [--dest DIR] --apply
 ```
-then remove the `#` before the key and edit its value. A key set in `defaults/preferences.conf` itself does nothing: the log at start (and check_config) says so, and where to set it instead.
+then remove the `#` before the key and edit its value. A key set in `defaults/settings.conf` itself does nothing: the log at start (and check_config) says so, and where to set it instead.
 
 A change takes effect on a reload. A true/false preference takes `true`/`false`, `yes`/`no`, `on`/`off` or `1`/`0`; anything else is a mistake, reported like any other. A blank value means the default.
 
@@ -80,16 +82,16 @@ A change takes effect on a reload. A true/false preference takes `true`/`false`,
 
 A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied. A key finbot no longer reads (`alliterate`, `chunk_maxlines`) is ignored, and the log at start says to delete it.
 
-edit `preferences.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
+edit `settings.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
 
-**Upgrading from one `.env`?** finbot no longer reads it, and refuses to start while a `.env` is in the checkout, so its settings cannot be silently ignored. Run `util/split_env.py` (or `util/split_env.py /path/to/old.env` for one elsewhere). It reads either format, the old dotenv one (`key = 'value' # comment`) or plain `KEY=value`, writes `finbot.env.new` and `preferences.conf.new` next to the old file, never overwriting, and lists any key it dropped or did not recognise. Put `finbot.env` where your launcher loads it and `preferences.conf` in the data directory, then delete the old file.
+**Upgrading from one `.env`?** finbot no longer reads it, and refuses to start while a `.env` is in the checkout, so its settings cannot be silently ignored. Run `util/split_env.py` (or `util/split_env.py /path/to/old.env` for one elsewhere). It reads either format, the old dotenv one (`key = 'value' # comment`) or plain `KEY=value`, writes `finbot.env.new` and `settings.conf.new` next to the old file, never overwriting, and lists any key it dropped or did not recognise. Put `finbot.env` where your launcher loads it and `settings.conf` in the data directory, then delete the old file.
 
 ## Data directory
 All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`); in Docker it is `/data`, the host's `/opt/finbot-data` (see [docker.md](docker.md)).
 Reference data (`finbot_adr.json`, `finbot_sws_*.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
 ```
 util/sync_defaults.py          # dry run
-util/sync_defaults.py --apply  # copy missing files (including a starter preferences.conf)
+util/sync_defaults.py --apply  # copy missing files (including a starter settings.conf)
 util/sync_defaults.py --force  # also replace changed files, keeping .bak copies
 util/sync_defaults.py --dest /srv/finbot --apply  # target another directory instead of the data directory
 util/sync_defaults.py --dest /srv/finbot --create --apply  # and make it (mode 750) if it does not exist yet
@@ -110,7 +112,7 @@ sharesight_client_secret=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e9981
 * Sharesight is optional. Without its keys, a chat's reports cover its watchlist alone, so add your holdings to it (`/watchlist add SYMBOL`); `/holdings`, `/trades`, `/performance`, `/who`, `/pie` and `/treemap` say Sharesight is not set up, and the trades and performance jobs are not among the default jobs.
 
 ## Portfolios
-Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `exclude_portfolios` in the `preferences.conf`:
+Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `exclude_portfolios` in the `settings.conf`:
 ```
 exclude_portfolios=100003 100004
 ```
@@ -121,7 +123,7 @@ include_portfolios=100001 100002
 ```
 
 ## Hyperlinks
-These `preferences.conf` options relate to hyperlinks:
+These `settings.conf` options relate to hyperlinks:
 
 * `hyperlink`, if set to `False`, disables all hyperlinks. Note: it can not disable syntax highlighting and false positives by chat clients that try to detect domains. Defaults to `True`.
 ```

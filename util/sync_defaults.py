@@ -43,7 +43,7 @@ def sync(apply=False, force=False, dest=None, create=False):
 			results.append((name, 'copied' if apply else 'would copy'))
 		elif filecmp.cmp(src, target, shallow=False):
 			results.append((name, 'skipped - destination identical'))
-		elif name == 'preferences.conf':
+		elif name == 'settings.conf':
 			results.append((name, 'skipped - destination differs')) # configured preferences are never replaced
 		elif force:
 			shutil.copy2(target, str(target) + '.bak')

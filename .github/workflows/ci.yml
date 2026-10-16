@@ -108,7 +108,7 @@ jobs:
             return 1
           }
           wait_for 'finbot is running'
-          test -f "$data/preferences.conf"
+          test -f "$data/settings.conf"
           docker kill -s HUP finbot
           wait_for 'config: reloaded'
           docker kill -s USR1 finbot

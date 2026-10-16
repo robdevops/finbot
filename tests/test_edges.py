@@ -582,7 +582,7 @@ class StartupSignals(unittest.TestCase):
 					break
 			self.assertIsNone(proc.poll(), ''.join(lines))
 			proc.send_signal(signal.SIGHUP)
-			for line in proc.stderr: # a reload now runs (there is no preferences.conf here, so it says so)
+			for line in proc.stderr: # a reload now runs (there is no settings.conf here, so it says so)
 				lines.append(line)
 				if 'reload requested' in line:
 					break
@@ -599,7 +599,7 @@ class StartupSignals(unittest.TestCase):
 			for name in cached: # the last: a write in flight
 				(cache / name).write_text('{}')
 			Path(data, 'finbot_watchlist.json').write_text('["T1"]') # state, not cache
-			Path(data, 'preferences.conf').write_text('cache=False\n') # the warm jobs a flush starts fetch nothing
+			Path(data, 'settings.conf').write_text('cache=False\n') # the warm jobs a flush starts fetch nothing
 			no_jobs(data)
 			env = bare_environment()
 			env.update(DATA_DIR=data, port='0')

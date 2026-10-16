@@ -71,7 +71,7 @@ Under systemd (below), `ExecStart=` runs the venv's Python: `/home/<you>/finbot/
 `finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy
 `finbot.service` to `/etc/systemd/system/`, edit it to set the `User`, `ExecStart` and the path of
 [`finbot.env`](configuration.md#finbotenv) (`EnvironmentFile=`, and the `ExecStartPre=` check), then enable and start
-it. `systemctl reload finbot` re-reads `preferences.conf` without a restart; a change to `finbot.env` needs
+it. `systemctl reload finbot` re-reads `settings.conf` without a restart; a change to `finbot.env` needs
 `systemctl restart finbot`:
 ```
 sudo cp -v ~/finbot/finbot.service /etc/systemd/system/

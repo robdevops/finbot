@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Lint finbot's two config files with the rules the bot applies, without starting it.
 
-  util/check_config.py /opt/finbot.env [/var/lib/finbot/preferences.conf]
+  util/check_config.py /opt/finbot.env [/var/lib/finbot/settings.conf]
 
 finbot.env (the startup file) is never read by the bot, so this is the only place its typos are caught: an unknown key,
-a preference key in it, a malformed line or a bad value. preferences.conf defaults to <DATA_DIR>/preferences.conf and is
+a preference key in it, a malformed line or a bad value. settings.conf defaults to <DATA_DIR>/settings.conf and is
 checked the way the bot checks it at start and on reload. Exits 1 and prints every problem if either file is wrong, so a
 launcher can refuse to start (see doc/install.md and doc/docker.md)."""
 
@@ -67,14 +67,14 @@ if __name__ == '__main__':
 	ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 	ap.add_argument('startup', help='the finbot.env to check (the startup file)')
 	ap.add_argument('preferences', nargs='?', default=config.preferences_path,
-		help='default: <DATA_DIR>/preferences.conf')
+		help='default: <DATA_DIR>/settings.conf')
 	args = ap.parse_args()
 	problems = check(args.startup, args.preferences)
 	for line in problems:
 		print('ERROR config:', line, file=sys.stderr)
 	if not problems:
 		print('config: ok', args.startup,
-			args.preferences if Path(args.preferences).is_file() else '(no preferences.conf, defaults)')
+			args.preferences if Path(args.preferences).is_file() else '(no settings.conf, defaults)')
 		for line in warnings(args.startup):
 			print('config: warning:', line)
 		for line in notes(args.preferences, args.startup):

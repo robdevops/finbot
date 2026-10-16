@@ -10,8 +10,8 @@ from pathlib import Path
 #   finbot.env       the startup file: DATA_DIR, ip, port, credentials and the mode of each network. Never read by the
 #                    bot: the launcher loads it into the environment (systemd EnvironmentFile=, docker --env-file,
 #                    init.d `set -a; . finbot.env`). A change needs a restart.
-#   preferences.conf how the bot behaves: <DATA_DIR>/preferences.conf, read by the bot itself at start and on every
-#                    reload (SIGHUP).
+#   settings.conf    how the bot behaves: <DATA_DIR>/settings.conf, read by the bot itself at start and on every
+#                    reload (SIGHUP). An older preferences.conf there is renamed to it at start.
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
@@ -22,7 +22,8 @@ STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'scheduler_catchup', 'sharesight_code'
 SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slackBotToken', 'slackAppToken',
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
 	'telegramOutgoingWebhook', 'discordBotToken', 'discordOutgoingWebhook') # never printed
-PREFERENCES_FILE = 'preferences.conf'
+PREFERENCES_FILE = 'settings.conf'
+OLD_PREFERENCES_FILE = 'preferences.conf' # what settings.conf was called: an upgrade renames it (adopt_old_file)
 TEMPLATE = REPO_DIR / 'defaults' / PREFERENCES_FILE # every key commented out at its default; finbot never reads it
 HOME_CHAT = ("each chat has its own jobs (/jobs), which post there as the bot, and an error that belongs to no chat"
 	' goes to the log; an upgrade from before jobs per chat reads it once more, to give that chat the old schedule,'
@@ -106,7 +107,7 @@ def read_text(path):
 
 
 def read_preferences(path):
-	"""{key: value} of a preferences.conf, None if there is none. Raises ConfigError for anything wrong with it."""
+	"""{key: value} of a settings.conf, None if there is none. Raises ConfigError for anything wrong with it."""
 	text = read_text(path)
 	if text is None:
 		return None
@@ -117,8 +118,22 @@ def read_preferences(path):
 	return values
 
 
+def adopt_old_file(data_dir):
+	"""An upgrade from when settings.conf was called preferences.conf: the old file in `data_dir` becomes
+	settings.conf, unless there is one already, so that no setting is lost in silence. Says so on stderr (the log is not
+	up yet); where the rename fails, the old file is left and a note says to rename it."""
+	old, new = Path(data_dir, OLD_PREFERENCES_FILE), Path(data_dir, PREFERENCES_FILE)
+	if not old.is_file() or new.exists():
+		return
+	try:
+		old.rename(new)
+		print(f'config: renamed {old} to {new}', file=sys.stderr)
+	except OSError as e:
+		print(f'WARN config: rename {old} to {new}: finbot no longer reads the old name ({e.strerror})',
+			file=sys.stderr)
+
 def template_keys():
-	"""The keys that defaults/preferences.conf sets: its lines that are not commented out, none as shipped. finbot never
+	"""The keys that defaults/settings.conf sets: its lines that are not commented out, none as shipped. finbot never
 	reads the template, so a key set there does nothing; an unreadable template sets nothing either."""
 	try:
 		text = read_text(TEMPLATE) or ''
@@ -129,7 +144,7 @@ def template_keys():
 
 
 def template_note(preferences_path):
-	"""What to tell whoever set keys in defaults/preferences.conf, which finbot never reads: to set them in
+	"""What to tell whoever set keys in defaults/settings.conf, which finbot never reads: to set them in
 	preferences_path instead, made first with util/sync_defaults.py when there is none. None when the template sets
 	nothing, as shipped."""
 	keys = template_keys()
@@ -137,7 +152,7 @@ def template_note(preferences_path):
 		return None
 	fix = (f'edit {preferences_path} instead' if os.path.isfile(preferences_path) else
 		f'run util/sync_defaults.py --apply, then edit {preferences_path}')
-	return f"defaults/preferences.conf sets {', '.join(keys)}, but finbot never reads it: {fix}"
+	return f"defaults/settings.conf sets {', '.join(keys)}, but finbot never reads it: {fix}"
 
 
 def read_startup_file(path):
@@ -226,7 +241,7 @@ class _Reader:
 @dataclasses.dataclass(frozen=True)
 class Env:
 	"""The startup settings: finbot.env, which the launcher loads into the environment; fixed for the process."""
-	data_dir: str # state: each chat's jobs, the watchlist, seen trades, ratings, preferences.conf
+	data_dir: str # state: each chat's jobs, the watchlist, seen trades, ratings, settings.conf
 	cache_dir: str # data_dir/cache
 	ip: str
 	port: int
@@ -247,7 +262,7 @@ class Env:
 
 	@property
 	def preferences_path(self):
-		"""Where preferences.conf is read from: the data dir."""
+		"""Where settings.conf is read from: the data dir."""
 		return self.data_dir + '/' + PREFERENCES_FILE
 
 
@@ -288,7 +303,7 @@ def startup_values(getenv):
 
 @dataclasses.dataclass(frozen=True)
 class Prefs:
-	"""The preferences: preferences.conf, which the bot reads at start and on every reload, each with its default here
+	"""The preferences: settings.conf, which the bot reads at start and on every reload, each with its default here
 	and read as its type says (preference_values). Read them as config.prefs.<name> when they are used, never into a
 	default or a module constant, so that a reload is seen."""
 	cache: bool = True
@@ -321,7 +336,7 @@ class Prefs:
 
 
 def preference_values(getenv, source=None):
-	"""The preferences (preferences.conf), computed from getenv(name, default): each read as its Prefs field's type
+	"""The preferences (settings.conf), computed from getenv(name, default): each read as its Prefs field's type
 	says (a tuple is a list of words), its default the field's. `source` is the file's own {key: value}. Raises
 	ConfigError listing every bad value."""
 	r = _Reader(getenv)
@@ -335,14 +350,14 @@ def preference_values(getenv, source=None):
 	return Prefs(**values, source=dict(source or {}))
 
 
-# preferences.conf's keys: what a reload can change
+# settings.conf's keys: what a reload can change
 PREFERENCE_KEYS = tuple(field.name for field in dataclasses.fields(Prefs) if field.compare)
 
 
 def _getenv_for(preferences):
-	"""getenv(name, default): preferences.conf first (preference keys only), then the process environment."""
+	"""getenv(name, default): settings.conf first (preference keys only), then the process environment."""
 	def getenv(name, default=None):
-		"""A preference from preferences.conf, else the process environment's value, else default."""
+		"""A preference from settings.conf, else the process environment's value, else default."""
 		if name in preferences:
 			return preferences[name]
 		return os.environ.get(name, default)
@@ -362,6 +377,7 @@ def _fail(e):
 
 try:
 	env = startup_values(os.environ.get)
+	adopt_old_file(env.data_dir)
 	preferences_path = env.preferences_path
 	_preferences = read_preferences(preferences_path) or {}
 	prefs = preference_values(_getenv_for(_preferences), _preferences)
@@ -404,7 +420,7 @@ def data_json(name, default=None):
 
 
 def reload():
-	"""Re-read preferences.conf and apply it: config.prefs is replaced in one assignment, so a request never sees half
+	"""Re-read settings.conf and apply it: config.prefs is replaced in one assignment, so a request never sees half
 	of a reload. All or nothing. Returns one line per change; raises ConfigError (nothing applied) if the file is
 	missing, unreadable or invalid."""
 	global prefs
@@ -419,7 +435,7 @@ def reload():
 
 
 def check_startup_environment():
-	"""For bot.py at start. Preferences must come from preferences.conf, not from the environment that finbot.env fills,
+	"""For bot.py at start. Preferences must come from settings.conf, not from the environment that finbot.env fills,
 	and a leftover .env from before the split stops the start: its settings would otherwise be silently ignored."""
 	problems = [f'{key} is a preference; move it from finbot.env to {PREFERENCES_FILE}'
 		for key in PREFERENCE_KEYS if key in os.environ]
@@ -430,7 +446,7 @@ def check_startup_environment():
 		problems.append(f'{OLD_ENV} is the old single config file, which finbot no longer reads; it will not start'
 			' while the file is there')
 		problems.append(f'split it with {REPO_DIR}/util/split_env.py, which writes finbot.env.new and'
-			f' preferences.conf.new beside it; put finbot.env where your launcher loads it and {PREFERENCES_FILE} in'
+			f' settings.conf.new beside it; put finbot.env where your launcher loads it and {PREFERENCES_FILE} in'
 			f' {env.data_dir}, then delete {OLD_ENV}')
 	if problems:
 		raise ConfigError(problems)
@@ -456,7 +472,7 @@ def retired_notes(values, file=PREFERENCES_FILE):
 
 def startup_warnings(settings=None):
 	"""Settings in finbot.env (an Env; the running one by default), and keys set in the template
-	defaults/preferences.conf, that do not stop the start but keep part of the bot from working, or do nothing, a line
+	defaults/settings.conf, that do not stop the start but keep part of the bot from working, or do nothing, a line
 	each."""
 	s = settings or env
 	warnings = []

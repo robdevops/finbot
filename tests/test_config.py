@@ -1,4 +1,4 @@
-"""The two config files: finbot.env (the startup file, which the launcher loads) and preferences.conf (reloadable)."""
+"""The two config files: finbot.env (the startup file, which the launcher loads) and settings.conf (reloadable)."""
 import ast, contextlib, dataclasses, io, os, re, shutil, subprocess, sys, types, unittest
 from pathlib import Path
 from unittest import mock
@@ -32,7 +32,7 @@ class Tables(unittest.TestCase):
 		self.assertEqual(read, set(config.STARTUP_KEYS))
 
 	def test_secrets_are_startup_keys(self):
-		"""Every secret is a startup key: preferences.conf holds none."""
+		"""Every secret is a startup key: settings.conf holds none."""
 		self.assertTrue(set(config.SECRET_KEYS) <= set(config.STARTUP_KEYS))
 		self.assertEqual(len(config.SECRET_KEYS), 13)
 
@@ -42,9 +42,9 @@ class Tables(unittest.TestCase):
 		self.assertEqual(fields(values), fields(config.Prefs()))
 
 	def test_templates_have_every_key_and_the_real_defaults(self):
-		"""defaults/preferences.conf lists every key, commented out at its built-in default, so that it sets none;
+		"""defaults/settings.conf lists every key, commented out at its built-in default, so that it sets none;
 		finbot.env lists every key; both are valid as shipped."""
-		template = REPO / 'defaults' / 'preferences.conf'
+		template = REPO / 'defaults' / 'settings.conf'
 		self.assertEqual(sorted(keys_in(template)), sorted(config.PREFERENCE_KEYS))
 		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'finbot.env')), sorted(config.STARTUP_KEYS))
 		self.assertEqual((config.read_preferences(template), config.template_keys()), ({}, [])) # it sets nothing
@@ -58,7 +58,7 @@ class Tables(unittest.TestCase):
 class Parsing(unittest.TestCase):
 	def parse(self, text):
 		"""(what read_preferences makes of text, the file it was written to)."""
-		path = Path(common.temp_dir(self), 'preferences.conf')
+		path = Path(common.temp_dir(self), 'settings.conf')
 		path.write_text(text)
 		return config.read_preferences(path), path
 
@@ -76,7 +76,7 @@ class Parsing(unittest.TestCase):
 			{'future_days': '30', 'hyperlinkProvider': 'google', 'exclude_portfolios': '1 2', 'country_code': ''})
 
 	def test_missing_file_is_none(self):
-		"""No preferences.conf is not an error: None."""
+		"""No settings.conf is not an error: None."""
 		self.assertIsNone(config.read_preferences(Path(common.temp_dir(self), 'nope')))
 
 	def test_unknown_key_gets_a_hint_and_a_line_number(self):
@@ -86,7 +86,7 @@ class Parsing(unittest.TestCase):
 		self.assertIn('line 2: unknown key futur_days (did you mean future_days?)', errors[0])
 
 	def test_a_startup_key_in_preferences_says_where_it_belongs(self):
-		"""A startup key in preferences.conf is sent to finbot.env, without printing its value."""
+		"""A startup key in settings.conf is sent to finbot.env, without printing its value."""
 		errors = self.errors('slackOutgoingWebhook=https://x\nip=0.0.0.0\nport=5\nscheduler_catchup=3\n')
 		self.assertEqual(len(errors), 4)
 		for line in errors:
@@ -146,14 +146,14 @@ class Parsing(unittest.TestCase):
 		self.assertEqual(caught.exception.errors, ["log_level='loud' is not one of ERROR, WARN, INFO, DEBUG"])
 
 	def test_a_retired_key_is_accepted_and_said_to_do_nothing(self):
-		"""A key finbot no longer reads (alliterate in preferences.conf, slack_webhook in finbot.env, say) does not stop
+		"""A key finbot no longer reads (alliterate in settings.conf, slack_webhook in finbot.env, say) does not stop
 		a start, as an unknown key would: it is ignored, and the log at start (and check_config) says what to do
 		instead."""
-		path = Path(common.temp_dir(self), 'preferences.conf')
+		path = Path(common.temp_dir(self), 'settings.conf')
 		path.write_text(''.join(f'{key}=True\n' for key in config.RETIRED) + 'future_days=45\n')
 		values = config.read_preferences(path)
 		self.assertEqual(config.preference_values(config._getenv_for(values)).future_days, 45)
-		notes = [f'{key} in preferences.conf does nothing any more: {instead}'
+		notes = [f'{key} in settings.conf does nothing any more: {instead}'
 			for key, instead in config.RETIRED.items()]
 		self.assertEqual(config.retired_notes(values), notes)
 		self.assertEqual(check_config.notes(path), config.retired_notes(values))
@@ -172,7 +172,7 @@ class Parsing(unittest.TestCase):
 
 	def test_unreadable_file_is_an_error_naming_it(self):
 		"""A preferences file that cannot be read is an error that names it."""
-		path = Path(common.temp_dir(self), 'preferences.conf')
+		path = Path(common.temp_dir(self), 'settings.conf')
 		path.mkdir() # reading a directory fails like a permission error would
 		with self.assertRaises(config.ConfigError) as caught:
 			config.read_preferences(path)
@@ -201,7 +201,7 @@ class Parsing(unittest.TestCase):
 		path.write_text('ip=1.2.3.4\nfuture_days=3\nslackBotTokn=x\nport=http\n')
 		problems = check_config.check(path, Path(common.temp_dir(self), 'none'))
 		self.assertEqual(len(problems), 2) # the two bad lines; the bad value is only found once the lines are valid
-		self.assertIn('future_days belongs in preferences.conf (it is reloadable)', problems[0])
+		self.assertIn('future_days belongs in settings.conf (it is reloadable)', problems[0])
 		self.assertIn('unknown key slackBotTokn (did you mean slackBotToken?)', problems[1])
 		path.write_text('port=http\n')
 		nowhere = Path(common.temp_dir(self), 'none')
@@ -223,8 +223,8 @@ class Parsing(unittest.TestCase):
 
 class Reload(unittest.TestCase):
 	def setUp(self):
-		"""An empty preferences.conf of this test's own, put back to the defaults afterwards."""
-		self.file = Path(common.temp_dir(self), 'preferences.conf')
+		"""An empty settings.conf of this test's own, put back to the defaults afterwards."""
+		self.file = Path(common.temp_dir(self), 'settings.conf')
 		self.file.write_text('')
 		patch = mock.patch.object(config, 'preferences_path', str(self.file))
 		patch.start()
@@ -342,25 +342,25 @@ class Reload(unittest.TestCase):
 
 class Startup(unittest.TestCase):
 	def run_config(self, code='from lib import config as c; print(c.prefs.future_days)', prefs=None, **env):
-		"""Run code in a new interpreter: own data dir, prefs as preferences.conf, no settings in the environment."""
+		"""Run code in a new interpreter: own data dir, prefs as settings.conf, no settings in the environment."""
 		data = common.temp_dir(self)
 		if prefs is not None:
-			Path(data, 'preferences.conf').write_text(prefs)
+			Path(data, 'settings.conf').write_text(prefs)
 		env = {**common.bare_environment(), 'DATA_DIR': data, **env}
 		return subprocess.run([sys.executable, '-c', code], cwd=REPO, env=env,
 			capture_output=True, text=True)
 
 	def test_no_preferences_file_is_fine(self):
-		"""finbot starts without a preferences.conf, on the defaults."""
+		"""finbot starts without a settings.conf, on the defaults."""
 		out = self.run_config()
 		self.assertEqual((out.returncode, out.stdout.split()[-1]), (0, '30'))
 
 	def test_a_preferences_file_is_read_at_start(self):
-		"""preferences.conf is read at start."""
+		"""settings.conf is read at start."""
 		self.assertEqual(self.run_config(prefs='future_days=45\n').stdout.split()[-1], '45')
 
 	def test_a_broken_preferences_file_refuses_to_start(self):
-		"""A bad value, unknown key, startup key or malformed line in preferences.conf stops the start, saying why."""
+		"""A bad value, unknown key, startup key or malformed line in settings.conf stops the start, saying why."""
 		for prefs, expect in (('future_days=abc\n', "future_days='abc' is not a whole number"),
 			('futur_days=1\n', 'unknown key futur_days'),
 				('slackBotToken=x\n', 'belongs in finbot.env'), ('what\n', 'expected KEY=value')):
@@ -370,30 +370,30 @@ class Startup(unittest.TestCase):
 			self.assertIn(expect, out.stderr)
 
 	def test_the_template_is_never_read_and_a_key_set_there_is_pointed_elsewhere(self):
-		"""defaults/preferences.conf is only a template: a key set there changes nothing, and the log at start says to
-		set it in the data dir's preferences.conf, or to make that file first with util/sync_defaults.py."""
+		"""defaults/settings.conf is only a template: a key set there changes nothing, and the log at start says to
+		set it in the data dir's settings.conf, or to make that file first with util/sync_defaults.py."""
 		tree = Path(common.temp_dir(self)) # config.py and a template of its own, which sets a key
 		(tree / 'lib').mkdir()
 		shutil.copy(REPO / 'lib' / 'config.py', tree / 'lib')
 		(tree / 'defaults').mkdir()
-		(tree / 'defaults' / 'preferences.conf').write_text('# a comment\n#past_days=28\nfuture_days=45\n')
+		(tree / 'defaults' / 'settings.conf').write_text('# a comment\n#past_days=28\nfuture_days=45\n')
 		code = 'from lib import config as c; print(c.prefs.future_days); print(*c.startup_warnings(), sep="\\n")'
 		for made in (False, True):
 			data = common.temp_dir(self)
 			if made:
-				Path(data, 'preferences.conf').write_text('#future_days=30\n')
+				Path(data, 'settings.conf').write_text('#future_days=30\n')
 			with self.subTest(preferences_conf=made):
 				out = subprocess.run([sys.executable, '-c', code], cwd=tree,
 					env={**common.bare_environment(), 'DATA_DIR': data}, capture_output=True, text=True)
-				conf = f'{data}/preferences.conf'
+				conf = f'{data}/settings.conf'
 				fix = f'edit {conf} instead' if made else f'run util/sync_defaults.py --apply, then edit {conf}'
 				self.assertEqual(out.stdout.split('\n')[:2], ['30',
-					f'defaults/preferences.conf sets future_days, but finbot never reads it: {fix}'], out.stderr)
+					f'defaults/settings.conf sets future_days, but finbot never reads it: {fix}'], out.stderr)
 
 	def test_an_unreadable_preferences_file_refuses_to_start(self):
-		"""A preferences.conf that cannot be read stops the start."""
+		"""A settings.conf that cannot be read stops the start."""
 		data = common.temp_dir(self)
-		Path(data, 'preferences.conf').mkdir()
+		Path(data, 'settings.conf').mkdir()
 		out = subprocess.run([sys.executable, '-c', 'from lib import config'], cwd=REPO,
 			env={**os.environ, 'DATA_DIR': data}, capture_output=True, text=True)
 		self.assertEqual(out.returncode, 1)
@@ -412,7 +412,7 @@ class Startup(unittest.TestCase):
 			with self.assertRaises(config.ConfigError) as caught:
 				config.check_startup_environment()
 		self.assertEqual(len(caught.exception.errors), 2)
-		self.assertIn('future_days is a preference; move it from finbot.env to preferences.conf',
+		self.assertIn('future_days is a preference; move it from finbot.env to settings.conf',
 			'\n'.join(caught.exception.errors))
 		with mock.patch.dict(os.environ, {'ip': '1.2.3.4', 'port': '80'}):
 			config.check_startup_environment() # startup keys are what the environment is for
@@ -434,7 +434,7 @@ class Startup(unittest.TestCase):
 				config.check_startup_environment()
 		self.assertEqual(len(caught.exception.errors), 2)
 		self.assertIn(f'{old} is the old single config file, which finbot no longer reads', caught.exception.errors[0])
-		self.assertIn('/util/split_env.py, which writes finbot.env.new and preferences.conf.new',
+		self.assertIn('/util/split_env.py, which writes finbot.env.new and settings.conf.new',
 			caught.exception.errors[1])
 
 	def test_the_telegram_api_is_the_bot_tokens(self):
@@ -511,14 +511,14 @@ class Startup(unittest.TestCase):
 		self.assertNotIn('slackOutgoingWebhook', ''.join(lines))
 		with mock.patch.dict(os.environ, {'port': '5000'}, clear=True):
 			self.assertEqual(config.startup_report()[0], 'startup environment (1 key set)')
-		conf = Path(common.temp_dir(self), 'preferences.conf')
+		conf = Path(common.temp_dir(self), 'settings.conf')
 		conf.write_text('graph = false\n')
 		for source, count in (({'graph': 'false'}, '1 key'), ({'log_level': 'DEBUG', 'graph': 'false'}, '2 keys')):
 			with self.subTest(source=source), mock.patch.object(config, 'preferences_path', str(conf)), \
 					mock.patch.object(config, 'prefs', dataclasses.replace(config.prefs, source=source)):
 				self.assertEqual(config.startup_report()[1], f'{conf} ({count} set; SIGHUP to reload)')
 		with mock.patch.object(config, 'preferences_path', str(conf.with_name('missing.conf'))):
-			self.assertEqual(config.startup_report()[1], f'no preferences.conf in {config.env.data_dir}, reload'
+			self.assertEqual(config.startup_report()[1], f'no settings.conf in {config.env.data_dir}, reload'
 				' unavailable')
 
 
@@ -532,7 +532,7 @@ class SigHup(unittest.TestCase):
 	def test_reload_all_reloads_preferences_and_keeps_them_on_an_error(self):
 		"""SIGHUP reloads preferences; on an error (logged) the running ones stay, and the bot survives it. The jobs
 		need no reload: a change made with .jobs counts at once."""
-		file = Path(common.temp_dir(self), 'preferences.conf')
+		file = Path(common.temp_dir(self), 'settings.conf')
 		file.write_text('future_days=45\n')
 		self.addCleanup(self.restore, file)
 		with mock.patch.object(config, 'preferences_path', str(file)):
@@ -548,9 +548,9 @@ class SigHup(unittest.TestCase):
 			self.assertEqual(config.prefs.future_days, 45)
 
 	def test_a_reload_points_a_key_set_in_the_template_at_the_file_to_set_it_in(self):
-		"""A key set in defaults/preferences.conf, which finbot never reads, is reported on a reload too, with the file
+		"""A key set in defaults/settings.conf, which finbot never reads, is reported on a reload too, with the file
 		to set it in."""
-		file = Path(common.temp_dir(self), 'preferences.conf')
+		file = Path(common.temp_dir(self), 'settings.conf')
 		file.write_text('')
 		self.addCleanup(self.restore, file)
 		template = Path(common.temp_dir(self), 'template.conf')
@@ -558,7 +558,7 @@ class SigHup(unittest.TestCase):
 		with mock.patch.object(config, 'preferences_path', str(file)), mock.patch.object(config, 'TEMPLATE', template):
 			with contextlib.redirect_stderr(io.StringIO()) as err:
 				bot.reload_all()
-		self.assertIn(f'WARN config: defaults/preferences.conf sets log_level, but finbot never reads it: edit {file}'
+		self.assertIn(f'WARN config: defaults/settings.conf sets log_level, but finbot never reads it: edit {file}'
 			' instead', err.getvalue())
 		self.assertEqual(config.prefs.log_level, 'INFO')
 
@@ -585,7 +585,7 @@ class Tools(unittest.TestCase):
 		self.assertEqual(notes, ['.env line 5: not KEY=value, left out'])
 
 	def test_split_env_writes_next_to_the_file_and_never_overwrites(self):
-		"""split_env writes finbot.env.new (mode 0600) and preferences.conf.new beside the file, refuses to overwrite
+		"""split_env writes finbot.env.new (mode 0600) and settings.conf.new beside the file, refuses to overwrite
 		them, and says so for a missing file."""
 		d = Path(common.temp_dir(self))
 		(d / 'old.env').write_text('port=80\nfuture_days=3\n')
@@ -593,7 +593,7 @@ class Tools(unittest.TestCase):
 			capture_output=True, text=True)
 		self.assertEqual(run().returncode, 0)
 		self.assertIn('port=80', (d / 'finbot.env.new').read_text())
-		self.assertIn('future_days=3', (d / 'preferences.conf.new').read_text())
+		self.assertIn('future_days=3', (d / 'settings.conf.new').read_text())
 		self.assertEqual(oct((d / 'finbot.env.new').stat().st_mode & 0o777), '0o600')
 		out = run()
 		self.assertNotEqual(out.returncode, 0)
@@ -620,3 +620,30 @@ class Tools(unittest.TestCase):
 
 if __name__ == '__main__':
 	unittest.main()
+
+
+class OldFileName(unittest.TestCase):
+	"""An upgrade from when settings.conf was called preferences.conf."""
+
+	def test_the_old_file_becomes_settings_conf(self):
+		"""preferences.conf in the data dir is renamed to settings.conf, its settings kept and the rename said on
+		stderr; a settings.conf already there is left alone, and the old file with it."""
+		data = Path(common.temp_dir(self))
+		(data / 'preferences.conf').write_text('future_days=45\n')
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			config.adopt_old_file(str(data))
+		self.assertEqual(((data / 'settings.conf').read_text(), (data / 'preferences.conf').exists()),
+			('future_days=45\n', False))
+		self.assertIn(f'config: renamed {data}/preferences.conf to {data}/settings.conf', err.getvalue())
+		(data / 'preferences.conf').write_text('future_days=99\n')
+		config.adopt_old_file(str(data))
+		self.assertEqual(((data / 'settings.conf').read_text(), (data / 'preferences.conf').exists()),
+			('future_days=45\n', True))
+
+	def test_nothing_to_rename(self):
+		"""No old file, or no data dir, is no error and says nothing."""
+		data = Path(common.temp_dir(self))
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			config.adopt_old_file(str(data))
+			config.adopt_old_file(str(data / 'missing'))
+		self.assertEqual((err.getvalue(), list(data.iterdir())), ('', []))
