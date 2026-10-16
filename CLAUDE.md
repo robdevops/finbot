@@ -68,8 +68,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   take, and gets a ticker with `ticker(args)`. `Request` (`request.reply(lines, chart, buttons)`); each command gets
   the typing notice while it works. `process_request(message)` and `process_callback(press)` take inbound's objects.
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
-  or the job's chat, and with no dest raises: there are no home chats; `job(argv)`, its arguments' parser; and
-  `ARGUMENTS`, what `.jobs add` lists):
+  or the job's chat, and with no dest raises: there are no home chats (`delivery.target`); `job(argv)`, its arguments'
+  parser (`reports.no_arguments(name)` for one that takes none); and `ARGUMENTS`, what `.jobs add` lists):
   `price performance trades shorts cal rating milestone message podcasts cleanup sharesight_warm yahoo_warm`. trades,
   rating, milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`),
   added to only by a scheduled run (`delivery.interactive(dest)` is false).
@@ -81,14 +81,16 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   logged). A caption is cut to fit as the network counts it (`Dialect.visible`: Telegram's in UTF-16 code units).
   `lib/transports.py`: `Transport`, the base of each network's bot, every one taking charts and buttons: splitting,
   captions, charts, buttons, edits, and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the
-  message), which `text()` and `chart()` stop before posting. `DiscordBot`: a slash command's first message replaces
-  its "thinking…" through its `interaction` (application id/token), and a pressed message is edited through the
-  press's.
+  message), which `text()` and `chart()` stop before posting; `edit_buttons` changes a message's buttons alone where
+  the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
+  its `interaction` (application id/token), and a pressed message is edited through the press's.
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.pie .treemap .holdings
   .history .compare` typed bare (`worker.picker`, `process_pick_callback`): the first answer at once (the first
   portfolio or ticker, the first two to compare; `.holdings` only its buttons), the buttons kept under it and every
-  press re-editing the answer from `shown` (an item's number plus one; compare's tickers, `pick.pack`), 32 items a page
-  (`pick.layout`; fewer on Discord) turned by `<` `>` under the tickers menu, its list of items checked by checksum,
+  press re-editing the answer from `shown` (an item's number plus one; compare's tickers, `pick.pack`), but a tick or
+  a page of tickers its buttons alone (`m`; `n` under a note, which the next press takes away), 32 items a page
+  (`pick.layout`; fewer on Discord) turned by `<` `>` under the tickers menu, its list of items checked by checksum
+  (`buttons.checksum`, as the `.jobs` menu's list is),
   `.compare`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert toast (`buttons.alert`); a pie or
   treemap primes its other charts in a thread (`pick.prime`, started by `worker.prime_in_background`); every chart
   with period buttons primes its other periods (`charts.prime`, `worker.prime_periods` after `.compare`, `.price`,
@@ -136,8 +138,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `lib/migrate.py`: once, on an upgrade, the old home chats (the retired telegramChatID, slackChannelID and
   discordChannelID, which it alone reads, from the environment) become chats finbot knows, and the watchlist, the
   plans and the reports' shared records become theirs; one-off upgrades run at one start only (`once`, recorded in
-  `UPGRADES`): `dm_jobs_off` switched off the jobs of the DMs known before DMs started with them off, and `mark_dms`
-  marked them `'dm'`, for the log's count of group chats and DMs.
+  `UPGRADES`): `dm_jobs_off` switched off the jobs of the DMs known before DMs started with them off, `mark_dms`
+  marked them `'dm'`, for the log's count of group chats and DMs, and `old_schedule` made the chats of the old cron
+  schedule file known.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return
