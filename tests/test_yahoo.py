@@ -1,6 +1,6 @@
 """Yahoo's quotes, details and charts: the real parsers on the answers saved under doc/, and failures.
 HTTP is mocked at lib.net, so the production parsing code runs unchanged."""
-import datetime, os, unittest
+import contextlib, datetime, io, os, unittest
 from tests.common import *
 
 
@@ -92,6 +92,19 @@ class YahooDetail(ProviderCase):
 				'calendarEvents', 'earnings'):
 			merged.update(sample('yahoo', f'sample_yahoo_v10_{module}.json')['quoteSummary']['result'][0])
 		return {'quoteSummary': {'result': [merged], 'error': None}}
+
+	def test_a_listing_guessed_at_that_yahoo_does_not_know_is_logged_at_debug(self):
+		"""A ticker Yahoo does not know is a warning; a listing guessed at (the calendar's home market listing of a US
+		one) only DEBUG, as its absence is no fault."""
+		cases = (('A.L', False, 'INFO', True), ('B.L', True, 'INFO', False), ('C.L', True, 'DEBUG', True))
+		self.http(yahoo, *[Resp({'quoteSummary': {'result': None, 'error': None}}) for _ in cases])
+		for ticker, guess, level, shown in cases:
+			with self.subTest(guess=guess, log_level=level):
+				self.prefs(log_level=level)
+				err = io.StringIO()
+				with contextlib.redirect_stderr(err):
+					self.assertEqual(yahoo.fetch_detail(ticker, guess=guess), {})
+				self.assertEqual(f'{ticker} is unknown to Yahoo' in err.getvalue(), shown)
 
 	def test_parses_real_quote_summary(self):
 		"""A real quoteSummary parses, the company's description included."""

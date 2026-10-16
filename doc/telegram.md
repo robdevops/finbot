@@ -10,18 +10,18 @@ Telegram:
 | | Pull mode (the default) | HTTP mode |
 |---|---|---|
 | How messages and button presses reach finbot | finbot asks Telegram for them (long polling) | Telegram posts them to your HTTPS server |
-| Public HTTPS server | Not needed | Needed: a domain name with a valid certificate, on port 443, 80, 88 or 8443 |
-| `finbot.env` keys | `telegramBotToken`, `telegramChatID` | Those two, plus `telegramOutgoingWebhook` and `telegramOutgoingToken` |
+| Listens on the internet | No: finbot only makes outgoing requests | Yes, behind your HTTPS server: a domain name with a valid certificate, on port 443, 80, 88 or 8443 |
+| `finbot.env` keys | `telegramBotToken` | `telegramBotToken`, `telegramOutgoingWebhook` and `telegramOutgoingToken` |
 
-Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price` or `.price`,
-`.history`, `.performance` and the rest, [the list](commands.md#supported-commands)), period buttons under charts and
-the buttons of `.jobs run` and `.jobs toggle`, "typing…" while a command works, and a keyboard of the common commands in
-a direct chat with the bot.
+Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price`, `/history`,
+`/performance` and the rest, [the list](commands.md#supported-commands), or as messages, `.price`), period buttons
+under charts and the buttons of the `/jobs` menu, "typing…" while a command works, and a keyboard of the
+common commands in a direct chat with the bot.
 
 As finbot starts, it sets the bot's command menu, which Telegram shows when `/` is typed: each command with its usage
-(`/forwardpe` for `.forward pe`, `/stock` for `.SYMBOL`). `/profile` and `/job`, the second names of `/stock` and
-`/jobs`, are left out of the menu, and work when typed, as every name of a command does. In a group, `/price@finbot_bot`
-is the same as `/price`.
+(`/price`, `/forwardpe`, `/stock` and the rest). `/profile` and `/job`, the second names of `/stock` and `/jobs`, are
+left out of the menu, and work when typed, as every name of a command does. In a group, `/price@finbot_bot` is the same
+as `/price`.
 
 `telegramOutgoingWebhook` chooses the mode: set, HTTP mode; empty, pull mode. A restart switches. As finbot starts in
 pull mode it deletes the webhook, and in HTTP mode it sets it; the updates sent meanwhile are kept by Telegram and
@@ -31,31 +31,19 @@ arrive after the switch.
 
 1. Create the bot: message [@BotFather](https://telegram.me/BotFather), send `/newbot` and answer its questions. It
    replies with the bot's token: put it in `finbot.env` as `telegramBotToken`.
-2. Add the bot to the group or channel the reports should go to. In a channel, make it an administrator, so that it can
-   post.
-3. Let the bot read the chat: make it an administrator of the group. A bot that is not an administrator sees only the
-   commands that start with `/`, and finbot's start with `.`. Alternatively, send BotFather `/setprivacy` and choose
-   `Disable`.
+2. Add the bot to the groups or channels it should work in, or message it directly. In a channel, make it an
+   administrator, so that it can post.
+3. Optionally, for commands as plain messages (`.price`) in a group: let the bot read the chat, by making it an
+   administrator of the group, or by sending BotFather `/setprivacy` and choosing `Disable`. Without that, the bot sees
+   only the commands that start with `/`, which is all that the slash commands need.
 4. Stop strangers adding your bot to their groups: send BotFather `/setjoingroups`, pick the bot and choose `Disable`.
    Do this after step 2, as it stops you adding the bot to groups too.
-5. Put the chat's id in `finbot.env` as `telegramChatID`.
-   * A group's id is negative. A channel's or a supergroup's is negative and 13 characters long: prepend `-100` if
-     yours is shorter.
-   * To find it, stop finbot first (`sudo systemctl stop finbot`): Telegram hands each update to one reader only. Send
-     `/start@<your bot's username>` in the chat, then open `https://api.telegram.org/bot<telegramBotToken>/getUpdates`
-     in a browser and look for `"chat":{"id":`. If the bot is in HTTP mode, getUpdates refuses while the webhook is
-     set: open `https://api.telegram.org/bot<telegramBotToken>/deleteWebhook` first (finbot sets it again as it
-     starts).
-   * A group's id changes when Telegram turns it into a supergroup, which some changes to its settings do. Update
-     `telegramChatID` then: finbot does not follow the change.
-6. Start finbot (`sudo systemctl restart finbot`). The log says `telegram: long polling for updates`. The first start
-   gives this chat, Telegram's home chat, the default jobs ([Scheduling](scheduling.md)), so the scheduled
-   reports arrive there; it gets the error reports too. Every chat manages its own jobs with `.jobs`.
-7. Send `.help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
+5. Start finbot (`sudo systemctl restart finbot`). The log says `telegram: long polling for updates`.
+6. Send `/help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
+   Each chat has the default scheduled jobs, which `/jobs` changes ([Scheduling](scheduling.md)).
 
 ```
 telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
-telegramChatID=-1001000000000
 ```
 
 ## HTTP mode
@@ -92,11 +80,10 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
    every update, and finbot turns away a request without it.
 4. Restart finbot. As it starts, it sets the webhook again, deleting it first, which also wakes up a stale connection.
    If Telegram refuses, finbot does not start, and the log says why.
-5. Send `.help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
+5. Send `/help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
 
 ```
 telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
-telegramChatID=-1001000000000
 telegramOutgoingWebhook=https://www.example.com:8443/telegram
 telegramOutgoingToken=a-long-random-password
 ```

@@ -74,6 +74,6 @@ class DiscordGateway(pull.Listener):
 	def answer(self, update, answer):
 		"""Post an interaction's answer to its callback, then start the work waiting on it, if any."""
 		path = f"/interactions/{update['id']}/{update['token']}/callback"
-		discord_common.call('POST', path, json=json.loads(answer.body))
+		discord_common.call('POST', path, json=json.loads(answer.body), logged='debug')
 		if answer.then:
 			answer.then()

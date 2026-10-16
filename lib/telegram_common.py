@@ -60,9 +60,11 @@ def pinChatMessage(chat_id, message_id):
 	try_call('pinChatMessage', json={'chat_id': chat_id, 'message_id': message_id, 'disable_notification': True})
 
 
-def answerCallbackQuery(callback_query_id, text=None):
-	"""Acknowledge a button press (the client's spinner stops), `text` as a toast. A failure is only logged."""
-	try_call('answerCallbackQuery', json={'callback_query_id': callback_query_id} | ({'text': text} if text else {}))
+def answerCallbackQuery(callback_query_id, text=None, alert=False):
+	"""Acknowledge a button press (the client's spinner stops), `text` as a toast, or with `alert` as an alert the
+	person dismisses. A failure is only logged."""
+	try_call('answerCallbackQuery', json={'callback_query_id': callback_query_id} | ({'text': text} if text else {}) |
+		({'show_alert': True} if alert else {}), logged='debug')
 
 
 class Telegram(inbound.Network):
@@ -106,7 +108,7 @@ class Telegram(inbound.Network):
 		elif self.IGNORED & message.keys():
 			return inbound.OK
 		else:
-			log.info("[telegram]: unhandled: 'message' without 'text/photo'")
+			log.info("Telegram unhandled: 'message' without 'text/photo'")
 			return inbound.UNHANDLED
 		return inbound.Message(self.service, chat_id, user, text, self.bot_name, user_name,
 			str(message.get('message_id', '')))
@@ -115,7 +117,10 @@ class Telegram(inbound.Network):
 		"""A press: answerCallbackQuery, so that the client's spinner stops and a toast made from the button's data says
 		what is coming (buttons.toast: 'Loading 1Y…'). A failure is only logged. Nothing goes back with the update."""
 		if isinstance(event, inbound.Press):
-			answerCallbackQuery(event.press_id, buttons.toast(event.data))
+			if buttons.alert(event.data):
+				answerCallbackQuery(event.press_id, buttons.toast(event.data), alert=True)
+			else:
+				answerCallbackQuery(event.press_id, buttons.toast(event.data))
 		return None
 
 
@@ -179,7 +184,7 @@ class TelegramBot(transports.Transport):
 		if hasattr(image, 'seek'):
 			image.seek(0)
 		try:
-			call('editMessageMedia', data=data, files={'photo': ('image.png', image)})
+			call('editMessageMedia', data=data, files={'photo': ('image.png', image)}, logged='debug')
 		except RuntimeError as e:
 			if 'not modified' not in str(e):
 				raise
@@ -192,7 +197,7 @@ class TelegramBot(transports.Transport):
 			'link_preview_options': self.NO_PREVIEWS}
 		if buttons is not None:
 			payload['reply_markup'] = self.markup(buttons)
-		try_call('editMessageText', json=payload)
+		try_call('editMessageText', json=payload, logged='debug')
 
 	def typing(self):
 		"""sendChatAction: "typing…" for a few seconds."""

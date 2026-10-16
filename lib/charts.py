@@ -1,10 +1,14 @@
 """A chart with period buttons, built by its kind's builder: the command's first view, and again for the period of a
 button pressed, so that both look alike. Each builder takes the network's dialect, the chat's key (a price list covers
 the stocks that chat follows), the period, its days, then what the buttons carry."""
+import threading
+
 from lib import answer
 from lib import buttons
 from lib import formats
 from lib import links
+from lib import log
+from lib import render
 from lib import watchlist
 from lib import yahoo
 from lib.reports import history, performance, price
@@ -57,3 +61,20 @@ def build(kind, args, service, chat, period=None, days=None):
 	if kind not in BUILDERS:
 		raise ValueError(f"unknown chart kind {kind}")
 	return BUILDERS[kind](service, chat, period, buttons.PERIODS[period][1] if period else days, *args)
+
+def prime(kind, args, service, chat, shown):
+	"""Draw, to fill the cache, the chart of each period button of a kind (but `shown`, the period already sent), as a
+	press would ask for it. A period with nothing to draw is skipped, and a failure is logged, never raised."""
+	for period in buttons.BUTTONS[kind]:
+		if period == shown:
+			continue
+		try:
+			_, chart = build(kind, args, service, chat, period=period)
+			if chart and chart.rows:
+				render.draw(chart)
+		except Exception as e:
+			log.warn("priming", kind, args, period, "failed:", e)
+
+def prime_in_background(kind, args, service, chat, shown):
+	"""Start drawing a chart's other periods, to fill the cache, in a thread of its own (see prime)."""
+	threading.Thread(target=prime, args=(kind, args, service, chat, shown), daemon=True).start()

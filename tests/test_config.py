@@ -87,7 +87,7 @@ class Parsing(unittest.TestCase):
 
 	def test_a_startup_key_in_preferences_says_where_it_belongs(self):
 		"""A startup key in preferences.conf is sent to finbot.env, without printing its value."""
-		errors = self.errors('slackOutgoingWebhook=https://x\nip=0.0.0.0\ntelegramChatID=5\nscheduler_catchup=3\n')
+		errors = self.errors('slackOutgoingWebhook=https://x\nip=0.0.0.0\nport=5\nscheduler_catchup=3\n')
 		self.assertEqual(len(errors), 4)
 		for line in errors:
 			self.assertIn('belongs in finbot.env (a change needs a restart)', line)
@@ -160,12 +160,15 @@ class Parsing(unittest.TestCase):
 		startup = Path(common.temp_dir(self), 'finbot.env')
 		startup.write_text('slack_webhook=https://hooks.slack.com/services/x\nport=80\n')
 		self.assertEqual(check_config.check(startup, path), [])
-		self.assertEqual(check_config.notes(path, startup)[0], 'slack_webhook in finbot.env does nothing any more:'
-			' the scheduled reports go to slackChannelID as the bot (slackBotToken); set those, and delete the line')
-		with mock.patch.dict(os.environ, {'discord_webhook': 'https://discord.com/api/webhooks/1/x'}):
+		self.assertEqual(check_config.notes(path, startup)[0], "slack_webhook in finbot.env does nothing any more:"
+			" each chat's jobs (/jobs) post there as the bot (slackBotToken); delete the line")
+		with mock.patch.dict(os.environ, {'discord_webhook': 'https://discord.com/api/webhooks/1/x',
+				'telegramChatID': '-1001'}):
 			report = config.startup_report()
-		self.assertIn('discord_webhook in finbot.env does nothing any more: the scheduled reports go to'
-			' discordChannelID as the bot (discordBotToken); set those, and delete the line', report)
+		self.assertIn("discord_webhook in finbot.env does nothing any more: each chat's jobs (/jobs) post there as"
+			' the bot (discordBotToken); delete the line', report)
+		self.assertIn('telegramChatID in finbot.env does nothing any more: each chat has its own jobs (/jobs)',
+			'\n'.join(report)) # there are no home chats
 
 	def test_unreadable_file_is_an_error_naming_it(self):
 		"""A preferences file that cannot be read is an error that names it."""
@@ -411,7 +414,7 @@ class Startup(unittest.TestCase):
 		self.assertEqual(len(caught.exception.errors), 2)
 		self.assertIn('future_days is a preference; move it from finbot.env to preferences.conf',
 			'\n'.join(caught.exception.errors))
-		with mock.patch.dict(os.environ, {'ip': '1.2.3.4', 'telegramChatID': '5'}):
+		with mock.patch.dict(os.environ, {'ip': '1.2.3.4', 'port': '80'}):
 			config.check_startup_environment() # startup keys are what the environment is for
 
 	def test_the_bot_refuses_to_start_with_a_preference_in_its_environment(self):
@@ -442,8 +445,8 @@ class Startup(unittest.TestCase):
 			self.assertEqual(values.telegram_api, api)
 
 	def test_settings_that_leave_part_of_the_bot_unable_to_work_are_warned_about(self):
-		"""A startup warning for Slack commands or slackChannelID without slackBotToken (no reply, no reports there),
-		and for an inbound webhook without its secret (every request would be refused)."""
+		"""A startup warning for Slack commands without slackBotToken (no reply), and for an inbound webhook without its
+		secret (every request would be refused)."""
 		hooks = dict(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok',
 			slackBotToken='xoxb-1', telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
 		deaf = ('slackBotToken is set but neither slackAppToken nor slackOutgoingWebhook is: finbot hears nothing from'
@@ -453,7 +456,6 @@ class Startup(unittest.TestCase):
 			' every Slack request will be refused')
 		telegram_refused = ('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update'
 			' will be refused')
-		no_bot = 'slackChannelID is set but slackBotToken is not: scheduled reports cannot go there as the bot'
 		unused = ('telegramOutgoingToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram updates'
 			' (pull mode), and the token is not used')
 		app_no_reply = 'slackAppToken is set but slackBotToken is not: Slack commands will get no reply'
@@ -464,7 +466,6 @@ class Startup(unittest.TestCase):
 		bad_secret = ("telegramOutgoingToken is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the"
 			" webhook's secret, so setting the webhook will fail")
 		cases = (({}, []), ({'slackBotToken': ''}, [no_reply]), ({'slackOutgoingToken': ''}, [slack_refused]),
-			({'slackChannelID': 'C9'}, []), ({'slackChannelID': 'C9', 'slackBotToken': ''}, [no_reply, no_bot]),
 			({'slackOutgoingToken': '', 'slackSigningSecret': 's'}, []),
 			({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, [unused]),
 			({'telegramOutgoingWebhook': '', 'telegramOutgoingToken': ''}, []),
@@ -481,18 +482,17 @@ class Startup(unittest.TestCase):
 				self.assertEqual(config.startup_warnings(), warnings)
 
 	def test_discord_settings_that_leave_part_of_it_unable_to_work_are_warned_about(self):
-		"""A startup warning for Discord's endpoint or channel without the bot token, the endpoint without the app's
-		public key (every interaction refused), and the key without the endpoint (the gateway is used)."""
+		"""A startup warning for Discord's endpoint without the bot token, the endpoint without the app's public key
+		(every interaction refused), and the key without the endpoint (the gateway is used)."""
 		key = 'ab' * 32
 		http = dict(discordBotToken='x', discordOutgoingWebhook='https://example.com/discord', discordPublicKey=key)
 		no_reply = 'discordOutgoingWebhook is set but discordBotToken is not: Discord commands will get no reply'
-		no_bot = 'discordChannelID is set but discordBotToken is not: scheduled reports cannot go there as the bot'
 		refused = ("discordOutgoingWebhook is set but discordPublicKey is not the app's public key (64 hex digits):"
 			' every Discord interaction will be refused')
 		unused = ('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway (pull'
 			' mode), and the key is not used')
-		cases = (({}, []), ({'discordBotToken': ''}, [no_reply]), ({'discordChannelID': '77'}, []),
-			({'discordChannelID': '77', 'discordBotToken': '', 'discordOutgoingWebhook': ''}, [no_bot, unused]),
+		cases = (({}, []), ({'discordBotToken': ''}, [no_reply]),
+			({'discordBotToken': '', 'discordOutgoingWebhook': ''}, [unused]),
 			({'discordPublicKey': 'not-hex'}, [refused]), ({'discordPublicKey': ''}, [refused]),
 			({'discordOutgoingWebhook': ''}, [unused]), ({'discordOutgoingWebhook': '', 'discordPublicKey': ''}, []))
 		for changes, warnings in cases:
@@ -572,7 +572,7 @@ class Tools(unittest.TestCase):
 		self.assertEqual(prefs, ['future_days=3', 'volatility_multiplier=2'])
 		self.assertEqual(len(notes), 5)
 		self.assertTrue(any('slackToken dropped' in n for n in notes) and any('unknown key bogus' in n for n in notes))
-		self.assertIn('line 10: slack_webhook dropped: the scheduled reports go to slackChannelID', notes[-1])
+		self.assertIn("line 10: slack_webhook dropped: each chat's jobs (/jobs) post there as the bot", notes[-1])
 
 	def test_split_env_reads_the_old_dotenv_format_too(self):
 		"""split_env reads the old dotenv format: quotes, export, comments after values and # inside URLs."""

@@ -53,8 +53,8 @@ class Listener:
 
 	def hand_on(self, take, update):
 		"""take(network, update), and its answer delivered where the network must have it: an interaction's, and one
-		that work waits on. A failure is reported as bot.main reports one of an authenticated request: the update came
-		from the network, so the default chats are told."""
+		that work waits on. A failure is reported as bot.main reports one of an authenticated request: it belongs to no
+		chat, so the log has it."""
 		try:
 			answer = take(self.network, update)
 			if getattr(answer, 'interaction', False) or getattr(answer, 'then', None):

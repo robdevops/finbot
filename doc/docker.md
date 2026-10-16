@@ -8,8 +8,8 @@ The configuration lives on the host, beside the checkout, so a rebuild or an upd
 
 1. `git clone https://github.com/robdevops/finbot /opt/finbot`
 2. `sudo /opt/finbot/util/docker_setup.sh`
-3. Set `telegramBotToken` and `telegramChatID` in `/opt/finbot.env` (or another network's keys: see the
-   [Telegram](telegram.md), [Slack](slack.md) and [Discord](discord.md) guides).
+3. Set `telegramBotToken` in `/opt/finbot.env` (or another network's keys: see the [Telegram](telegram.md),
+   [Slack](slack.md) and [Discord](discord.md) guides).
 4. `cd /opt/finbot && sudo docker compose up -d --build`
 5. `journalctl CONTAINER_NAME=finbot -f`
 
@@ -18,7 +18,7 @@ The configuration lives on the host, beside the checkout, so a rebuild or an upd
 | Path | What | In the container |
 |---|---|---|
 | `/opt/finbot` | the checkout, with `Dockerfile` and `compose.yaml` | the image's `/opt/finbot`, copied at build |
-| `/opt/finbot.env` | the startup file: tokens, chat ids, the mode of each network | the environment, and `/run/finbot.env`, read-only, for the check |
+| `/opt/finbot.env` | the startup file: the tokens, and the mode of each network | the environment, and `/run/finbot.env`, read-only, for the check |
 | `/opt/finbot-data` | `DATA_DIR`: `preferences.conf`, each chat's jobs and watchlist, the records, the cache | `/data` |
 
 `compose.yaml` finds the other two beside the checkout (`../finbot.env`, `../finbot-data`): clone it elsewhere and
@@ -29,7 +29,7 @@ must outlast every container.
 
 Run it once, as root; it is safe to run again. It:
 1. runs `util/sync_defaults.py --create --apply --dest /opt/finbot-data`, which makes the data dir (mode 750) and copies
-   the shipped defaults into it: `preferences.conf`, `reminder.json` and the data files. It never replaces a file you
+   the shipped defaults into it: `preferences.conf` and the data files. It never replaces a file you
    have changed. The script needs only the standard library, so any `python3` on the host runs it.
 2. gives the data dir to the container's user: `chown -R 10001:10001 /opt/finbot-data`.
 3. copies `defaults/finbot.env` to `/opt/finbot.env` if there is none, owned by `root:10001`, mode 640: root and the

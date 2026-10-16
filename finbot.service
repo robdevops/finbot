@@ -4,12 +4,11 @@ Description=Finbot interactive chat bot
 [Service]
 Type=simple
 User=CHANGEME
-# Or, instead of User=: DynamicUser=yes plus StateDirectory=finbot (state goes to /var/lib/finbot automatically)
+# Or instead of User=: DynamicUser=yes and StateDirectory=finbot (state in /var/lib/finbot)
 ExecStart=/home/CHANGEME/finbot/bot.py
 # systemctl reload finbot re-reads preferences.conf without a restart
 ExecReload=/bin/kill -HUP $MAINPID
-# Refuse to start on a mistake in finbot.env or preferences.conf (the bot never reads finbot.env itself, so this is
-# where its typos are caught). "+" runs it as root.
+# Refuse to start on a typo in finbot.env or preferences.conf ("+" runs the check as root)
 ExecStartPre=+/home/CHANGEME/finbot/util/check_config.py /opt/finbot.env
 Restart=on-failure
 RestartSec=30s
@@ -17,8 +16,7 @@ StandardOutput=null
 StandardError=journal
 SyslogIdentifier=finbot
 Environment=PYTHONUNBUFFERED=1
-# finbot.env is the startup file: systemd loads it (as root), the bot only inherits the values. chmod 600. A change
-# needs a restart.
+# finbot.env: loaded by systemd as root (chmod 600); a change needs a restart
 EnvironmentFile=/opt/finbot.env
 
 [Install]

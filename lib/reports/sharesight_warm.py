@@ -9,7 +9,7 @@ def run():
 	every 30 minutes, and a flush at once. Nothing without Sharesight configured, or with the cache preference off
 	(nothing would be kept). A failure is only logged: the caches it would have replaced are served while fresh, and
 	the next run tries again. Returns how many portfolios it refreshed."""
-	if not (config.prefs.cache and config.env.sharesight_auth.get('client_id')):
+	if not (config.prefs.cache and sharesight.configured()):
 		return 0
 	try:
 		return len(sharesight.warm())

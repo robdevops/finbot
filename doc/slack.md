@@ -1,9 +1,9 @@
 # Slack
 
 finbot reaches Slack through a Slack app of your own, whose bot posts each channel's scheduled reports there, charts
-and all, and answers commands: `/price`, `.price`, `@finbot price` and the rest
-([the list](commands.md#supported-commands)), with charts in its replies, ⏳ on a command's message while it works
-(Slack has no typing notice for bots), and period buttons under a chart that redraw it in place.
+and all, and answers commands: `/price` and the rest ([the list](commands.md#supported-commands)), or as messages,
+`@finbot price` (and `.price` in a direct message), with charts in its replies, ⏳ on a command's message while it
+works (Slack has no typing notice for bots), and period buttons under a chart that redraw it in place.
 
 ## The bot
 
@@ -14,7 +14,7 @@ The bot does the same either way. What differs is how it hears from Slack:
 | | Socket Mode (the default) | HTTP mode |
 |---|---|---|
 | How messages, slash commands and button presses reach finbot | Over a socket that finbot opens to Slack | Slack posts them to your HTTPS server |
-| Public HTTPS server | Not needed | Needed: a domain name with a valid certificate |
+| Listens on the internet | No: finbot opens the socket to Slack | Yes, behind your HTTPS server: a domain name with a valid certificate |
 | Python module | `websocket-client` (Debian: `python3-websocket`) | `waitress` (Debian: `python3-waitress`) |
 | `finbot.env` keys | `slackBotToken`, `slackAppToken` | `slackBotToken`, `slackOutgoingWebhook`, `slackSigningSecret` |
 
@@ -40,7 +40,6 @@ switch, change both (paste the manifest for the other mode, which sets the app's
 ```
 slackAppToken=xapp-your-app-level-token
 slackBotToken=xoxb-your-bot-token
-slackChannelID=C0123456789
 ```
 
 ### HTTP mode
@@ -89,7 +88,6 @@ with a valid certificate.
 slackOutgoingWebhook=https://www.example.com:8443/slack
 slackSigningSecret=0123456789abcdef0123456789abcdef
 slackBotToken=xoxb-your-bot-token
-slackChannelID=C0123456789
 ```
 
 ### Installing the app
@@ -99,20 +97,17 @@ slackChannelID=C0123456789
    startup and for each reply.
 2. Restart finbot, and invite the bot to the channel: `/invite @finbot`. In Socket Mode the log says
    `slack: Socket Mode (no slackOutgoingWebhook)`.
-3. Send `/help` or `@finbot help` in the channel (or `.help`, with `--every-message`), or a direct message to the bot
-   in its _Messages_ tab.
-4. Set `slackChannelID` to the channel's id (in Slack, click the channel's name: the _Channel ID_, which starts with
-   C, is at the bottom of _About_), and restart finbot. It is Slack's home chat: finbot's first start gives it the
-   default jobs ([Scheduling](scheduling.md)), and it gets the error reports. Every channel manages its own
-   jobs with `.jobs`.
+3. Send `/help` (or `@finbot help`) in the channel, or in a direct message to the bot in its _Messages_ tab, where
+   `.help` works too (and in the channels, with `--every-message`). Each channel has the default scheduled jobs,
+   which `/jobs` changes ([Scheduling](scheduling.md)).
 
 An app set up by hand before takes the manifest too: paste it into _Features > App Manifest_ and _Save Changes_;
 Slack shows what changes, and asks to reinstall the app when its scopes do.
 
 ### Slash commands
 
-Each command is a slash command too, with its usage as Slack's hint: `/price`, `/dividend` and `/earnings`, `/buy`
-and `/sell`, `/forwardpe` for `.forward pe`, `/stock` (or `/profile`) for `.SYMBOL`, `/jobs` (or `/job`), and the rest.
+Each command is a slash command, with its usage as Slack's hint: `/price`, `/dividend` and `/earnings`, `/buy` and
+`/sell`, `/forwardpe`, `/stock` (or `/profile`), `/jobs` (or `/job`), and the rest.
 Slack makes slash commands only from the app's settings, so they come in the manifest: when finbot's commands change,
 print it again and paste it into _App Manifest_.
 
@@ -126,7 +121,8 @@ its id) and the buttons. A press shows the chart for that period in the message 
 that period from the last 15 minutes, for this message or another, with the report that came with it, or else the chart
 drawn and uploaded anew (Slack cannot replace a file). An upload that no message shows is deleted once those 15 minutes
 are past, so the bot's files do not pile up. If Slack will not show a chart with its buttons, the chart is uploaded into
-the channel without them; if an upload fails (a missing scope, say), the report goes out as text. The log says why.
+the channel without them. If an upload fails, it is tried once more with the report's heading alone as its message, the
+report following as text; if that fails too (a missing scope, say), the report goes out as text alone. The log says why.
 
-`.jobs run` and `.jobs toggle` list the channel's jobs with a button for each, as on Telegram; a button from a list
-that has since changed puts the current list in its place.
+`/jobs` lists the channel's jobs with the menu's buttons, as on Telegram; a button from a list that has since changed
+puts the current list in its place.

@@ -1,13 +1,17 @@
 """Chat commands: a message is answered by the Command in COMMANDS whose name it starts with (read), or .SYMBOL. The
 table also makes the .help text and the Telegram command keyboard, which is kept current in every DM."""
 import dataclasses
+import functools
 import hashlib
+import hmac
 import json
 import math
 import re
+import threading
 import typing
 from lib import log
 from lib import answer
+from lib import config
 from lib import dialects
 from lib import state
 from lib import formats
@@ -15,7 +19,8 @@ from lib import delivery
 from lib import render
 from lib import buttons
 from lib import charts
-from lib.reports import about, cal, holdings, performance, price, profile, rankings, shorts, trades
+from lib import transports
+from lib.reports import about, cal, holdings, performance, pick, price, profile, rankings, shorts, trades
 from lib import sharesight
 from lib import telegram_common
 from lib import jobs
@@ -24,7 +29,8 @@ from lib import yahoo
 
 @dataclasses.dataclass
 class Request:
-	"""A message being answered: where it came from (service is its dialect) and who sent it."""
+	"""A message being answered: where it came from (service is its dialect) and who sent it; or a job running a
+	command (CommandJob), its chat's transport given as dest."""
 	service: str
 	chat_id: str
 	user: str # the sender's handle: whose watchlist add or plan it is
@@ -32,10 +38,12 @@ class Request:
 	bot_name: str
 	message_id: str = None # the message being answered
 	interaction: str = '' # what the network answers through, where it has one (Discord's slash command)
+	dest: object = None # the chat's transport, where it is given
 
 	def __post_init__(self):
-		"""The chat's transport, which also keeps the typing notice going."""
-		self.dest = delivery.reply_to(self.service, self.chat_id, self.message_id, self.interaction)
+		"""The chat's transport, which also keeps the typing notice going, unless one is given."""
+		if self.dest is None:
+			self.dest = delivery.reply_to(self.service, self.chat_id, self.message_id, self.interaction)
 
 	def reply(self, lines, chart=None, buttons=None):
 		"""Answer in the chat (see delivery.deliver): the lines, perhaps a chart (drawn, or a spec drawn only where it
@@ -43,15 +51,15 @@ class Request:
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
 def process_job_callback(press, pressed):
-	"""A job's button (an inbound.Press; pressed, what its data says): run the job now and say how it went, or switch
-	it on or off and redraw the list in place. A button from an older list does neither: the list is redrawn as it is
-	now."""
+	"""An older job button (an inbound.Press; pressed, what its data says): run the job now and say how it went, or
+	switch it on or off and redraw the list in place, as the menu's screen that does the same. A button from an older
+	list does neither: the screen is drawn as the list is now."""
 	service = dialects.of(press.service)
 	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
 	def redraw():
-		"""Put the chat's list, as it is now, in place of the pressed one, with the same kind of buttons."""
-		payload, markup = about.prepare_jobs_payload(service, chat.key, pressed.action, chat.takes_buttons)
-		chat.edit_text(press.message_id, '\n'.join(payload), markup or [])
+		"""Put the menu's screen that does the same, as the list is now, in place of the pressed one."""
+		lines, markup = about.jobs_screen(service, chat.key, 'top' if pressed.action == 'toggle' else 'run')
+		chat.edit_text(press.message_id, '\n'.join(lines), markup or [])
 	try:
 		if jobs.current is None:
 			raise jobs.ScheduleError('no schedule is running')
@@ -67,10 +75,151 @@ def process_job_callback(press, pressed):
 	except Exception as e:
 		delivery.report_error(e, chat, context='jobs')
 
+def process_menu_callback(press, pressed):
+	"""A press in the .jobs menu (an inbound.Press; pressed, the buttons.MenuPress its data says): a screen to show; or
+	first a job to switch, delete or run, as long as the list is the one the button was drawn for (its checksum), else
+	the screen is drawn as the list is now, saying so; or a step of Add, the last adding the job. The pressed message
+	then shows the screen; a run's outcome is a message of its own."""
+	service = dialects.of(press.service)
+	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
+	try:
+		lines, markup = menu_screen(service, chat, pressed)
+		chat.edit_text(press.message_id, '\n'.join(lines), markup or [])
+	except Exception as e:
+		delivery.report_error(e, chat, context='jobs')
+
+def menu_screen(service, chat, pressed):
+	"""The screen that a press in the .jobs menu shows, once what it asks for is done (see process_menu_callback)."""
+	scheduler, key, screen, args = jobs.current, chat.key, pressed.screen, pressed.args
+	if scheduler is None:
+		return ['No schedule is running'], None
+	if screen == 'next':
+		return about.next_screen(service, key)
+	if screen == 'add':
+		return add_step(service, chat, args)
+	page = int(args[0]) if args and args[0].isdigit() and len(args[0]) < 4 else 0
+	note = None
+	if len(args) == 2 and screen in ('on', 'off', 'del', 'run'):
+		own, number = scheduler.chat_jobs(key), args[1]
+		every = number == 'all' and screen != 'run' or number == 'allyes' and screen == 'del' # every job at once
+		if not (hmac.compare_digest(jobs.list_checksum(own), pressed.checksum) and (every or number.isdigit() and
+				1 <= int(number) <= len(own))):
+			note = 'The jobs have changed: here they are now'
+		elif number == 'all' and screen == 'del': # Delete all asks first
+			return about.delete_all_screen(service, key, page)
+		elif every and screen == 'del':
+			scheduler.delete_all(key)
+			return about.jobs_screen(service, key, 'top', 0, 'Every job here is deleted')
+		elif every:
+			scheduler.switch_all(key, screen == 'on')
+			note = f'Every job is {screen} now'
+		else:
+			job = own[int(number) - 1]
+			try:
+				if screen in ('on', 'off'):
+					scheduler.switch(job, screen == 'on')
+					note = f"{'Enabled' if screen == 'on' else 'Disabled'} {number}. {service.escape(job.name)}"
+				elif screen == 'del':
+					scheduler.delete(job)
+					note = f'Deleted {number}. {service.escape(job.name)}'
+				else:
+					delivery.deliver(chat, delivery.Report([about.job_line(number, job, scheduler.run(job))]))
+			except jobs.ScheduleError as e:
+				note = service.escape(str(e))
+	return about.jobs_screen(service, key, screen, page, note)
+
+def add_step(service, chat, steps):
+	"""A step of Add pressed: the next choice's screen; once every choice is made, the job added, or why it is not."""
+	try:
+		lines, made = about.add_screen(service, chat.key, steps)
+	except ValueError: # data that is no step of Add: forged, or from an older finbot
+		return about.jobs_screen(service, chat.key, 'top', 0, 'That is no step of Add')
+	if lines is not None:
+		return lines, made
+	try:
+		number = jobs.current.add(chat.key, *made)
+	except jobs.ScheduleError as e:
+		return about.add_failed(service, chat.key, steps, str(e))
+	return about.added_screen(service, chat.key, number)
+
+def show_pick(chat, message, cmd, lines, rows):
+	"""Put a picker's screen (lines and button rows) in place of the pressed message: a picker with no answer yet, which
+	is text."""
+	chat.edit_text(message, '\n'.join(lines), rows)
+
+def process_pick_callback(press, pressed):
+	"""A press in a picker (an inbound.Press; pressed, the buttons.PickPress its data says): the message shows the
+	answer for what it shows now (`shown`), or for the item or Compare pressed, with the screen the press asks for
+	under it. Buttons drawn for another list of items start the picker again at its first answer, saying so."""
+	service = dialects.of(press.service)
+	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
+	cmd, group, period, shown, mask = pressed.cmd, pressed.group, pressed.period, pressed.shown, pressed.mask
+	try:
+		found = pick.items(service, cmd, chat.key)
+		stale = pick.checksum(found) != pressed.checksum
+		kind, number = (pressed.act[0], int(pressed.act[1:])) if not stale else ('p', 0)
+		if stale:
+			shown, mask = pick.default(cmd, found)
+		per_page = pick.layout(service, cmd)[0]
+		view = 'm' if kind in 'mf' else 'p' # picking a ticker, or Compare, goes back to the top
+		page = number if kind in 'pmfg' else number // per_page if kind == 'r' else 0
+		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if kind == 'f' else None
+		if kind == 'r' and number < len(found):
+			shown = number + 1
+		elif kind in 'gh' and bin(mask).count('1') >= 2:
+			shown = pick.pack([i for i in range(len(found)) if mask >> i & 1])
+		names = pick.shown_names(cmd, found, shown)
+		lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, view, page, note)
+		if names:
+			pick_answer(service, chat, press.message_id, cmd, group, period, names, rows, note)
+			if cmd in 'yc' and (stale or kind in 'rgh') and pick.as_photo(chat, cmd): # a new ticker or set
+				charts.prime_in_background('c' if cmd == 'c' else 'h', names, service, chat.key, period)
+			return
+		show_pick(chat, press.message_id, cmd, lines, rows)
+	except answer.Answer as e:
+		delivery.deliver(chat, delivery.Report(e.lines))
+	except Exception as e:
+		delivery.report_error(e, chat, context='pick')
+
+def noun_is_ticker(cmd):
+	"""Whether a picker picks tickers (history, compare), not portfolios."""
+	return pick.noun(cmd) == 'ticker'
+
+def pick_content(service, chat, cmd, group, period, names):
+	"""A picker's answer for the portfolio (pie, treemap) or tickers (history, compare) `names`: (caption, chart or
+	None)."""
+	if cmd in 'pt':
+		prepare = holdings.prepare_pie if cmd == 'p' else holdings.prepare_treemap
+		lines, chart = prepare(names[0], 'sector' if group == 's' else 'industry', service)
+		return '\n'.join(lines), chart
+	return charts.build('c' if cmd == 'c' else 'h', names, service, chat.key, period=period if period != '0' else 'x')
+
+def pick_answer(service, chat, message, cmd, group, period, names, rows, note=None):
+	"""The pressed picker message turned into the answer of its command for the item (history, a portfolio's) or items
+	(compare), the picker's button rows left under it, after a note if there is one: a chart, or text (the holdings)."""
+	if cmd == 'h':
+		lines = holdings.prepare_holdings_payload(names[0], service) or [f"{names[0]} holds nothing"]
+		parts = transports.chunked(([note] if note else []) + lines, chat.dialect.text_limit)
+		chat.edit_text(message, '\n'.join(parts[0]), rows if len(parts) == 1 else [])
+		for i, part in enumerate(parts[1:], 1):
+			chat.text(part, rows if i == len(parts) - 1 else None)
+		return
+	caption, chart = pick_content(service, chat, cmd, group, period, names)
+	caption = f"{note}\n{caption}" if note else caption
+	if pick.as_photo(chat, cmd):
+		chat.edit_chart(message, render.draw(chart) if chart and chart.rows else render.blank(), caption, rows)
+	else:
+		chat.edit_text(message, caption, rows)
+
 def process_callback(press):
-	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): a job's (run it, or switch it),
-	or a chart's, whose message is rebuilt for the chosen period and edited in place. Data of neither is ignored."""
+	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): the .jobs menu's, an older job
+	button (run it, or switch it), or a chart's, whose message is rebuilt for the chosen period and edited in place.
+	Data of none of them is ignored."""
 	pressed = buttons.parse(press.data)
+	if isinstance(pressed, buttons.PickPress):
+		return process_pick_callback(press, pressed)
+	if isinstance(pressed, buttons.MenuPress):
+		return process_menu_callback(press, pressed)
 	if isinstance(pressed, buttons.JobPress):
 		return process_job_callback(press, pressed)
 	if not pressed:
@@ -99,6 +248,11 @@ def process_request(message):
 	request = Request(dialects.of(message.service), message.chat_id, message.user, message.user_name, message.bot_name,
 		message.message_id, message.interaction)
 	command, args = read(message.text, message.bot_name)
+	if command and jobs.current: # a chat finbot does not know yet starts with the default jobs (off in a DM)
+		try:
+			jobs.current.see(request.dest.key, message.dm)
+		except Exception as e:
+			log.warn('schedule: cannot take on', request.dest.key, delivery.error_line(e))
 	if command:
 		try:
 			request.dest.start_typing()
@@ -238,7 +392,7 @@ def on_help(request, args):
 
 def on_calendar(request, args):
 	""".earnings or .dividend [period|SYMBOL]: the coming earnings or ex-dividend dates."""
-	event = 'ex-dividend' if args.word.startswith('div') else 'earnings'
+	event = 'ex-dividend' if 'div' in args.word else 'earnings'
 	cal.run(request.dest, days=args.days, specific_stock=ticker(args), event=event)
 
 def on_performance(request, args):
@@ -247,6 +401,7 @@ def on_performance(request, args):
 	if days < 1: # 0d, or ytd on 1 January
 		raise answer.Answer("The period must cover a day or more, such as 7d, 3m or ytd")
 	performance.run(request.dest, past_days=days, user=request.user, portfolio_select=args.rest or None)
+	prime_periods(request, 'f', [args.rest or ''], buttons.period_for_days(days))
 
 def on_session(request, args):
 	""".session or .premarket (.postmarket) [percent|SYMBOL]: the moves mid-session, or pre-market (and post-market)."""
@@ -263,6 +418,9 @@ def on_price(request, args):
 	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
 	price.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,
 		days=args.days, top=top, user=request.user, specific_stock=symbol)
+	threshold = 0 if top else config.prefs.price_percent if args.percent is None else args.percent
+	prime_periods(request, 'l', [f"{threshold:g}", str(top or 0)], buttons.period_for_days(args.days, 'd'
+		if not args.days else None)) # the price list's period buttons (price.run's)
 
 def on_shorts(request, args):
 	""".shorts [percent|SYMBOL]: the most shorted stocks followed, or one stock's short interest."""
@@ -274,9 +432,9 @@ def on_trades(request, args):
 		portfolio_select=args.rest or None)
 
 def on_holdings(request, args):
-	""".holdings PORTFOLIO: what it holds."""
+	""".holdings PORTFOLIO: what it holds; with no portfolio, buttons for them."""
 	if not args.words:
-		raise Usage(portfolios())
+		return picker(request, 'h', args)
 	request.reply(holdings.prepare_holdings_payload(args.rest, request.service))
 
 def on_marketcap(request, args):
@@ -305,10 +463,18 @@ def on_beta(request, args):
 	request.reply(payload, chart)
 
 def on_pie(request, args):
-	""".pie PORTFOLIO [sector]: its value by industry, or by sector."""
+	""".pie PORTFOLIO [sector]: its value by industry, or by sector; with no portfolio, buttons for them."""
 	if not args.words:
-		raise Usage(portfolios())
+		return picker(request, 'p', args)
 	payload, chart = holdings.prepare_pie(args.rest, args.keyword or 'industry', request.service)
+	request.reply(payload, chart)
+
+def on_treemap(request, args):
+	""".treemap PORTFOLIO [sector]: its holdings as tiles, grouped by industry or by sector; with no portfolio, buttons
+	for them."""
+	if not args.words:
+		return picker(request, 't', args)
+	payload, chart = holdings.prepare_treemap(args.rest, args.keyword or 'industry', request.service)
 	request.reply(payload, chart)
 
 def on_rating(request, args):
@@ -318,19 +484,79 @@ def on_rating(request, args):
 		request.reply(payload, chart)
 
 def on_compare(request, args):
-	""".compare SYMBOL SYMBOL... [period]: their price changes on one chart, with period buttons where they work."""
+	""".compare SYMBOL SYMBOL... [period]: their price changes on one chart, with period buttons where they work; with
+	no symbols, buttons to pick them."""
+	if not args.words:
+		return picker(request, 'c', args)
 	if not 2 <= len(args.words) <= 6:
 		raise Usage
 	tickers = list(dict.fromkeys(yahoo.symbols(args.words))) # each once, in the order asked
 	if len(tickers) < 2:
 		raise Usage
-	chart_reply(request, 'c', tickers, args.days)
+	if not compare_picker(request, tickers, args.days):
+		chart_reply(request, 'c', tickers, args.days)
+
+def compare_picker(request, tickers, days):
+	"""Compare of the tickers typed, with the picker's buttons under the chart (the period row and the tickers' menu),
+	where the chat has buttons and the tickers are among those it offers (held, else watched) and the period is one
+	of the buttons: True when it did; else False, and the chart has its period buttons alone."""
+	dest = request.dest
+	period = buttons.period_for_days(days, 'x' if days is None else None)
+	if not (dest.takes_buttons and delivery.interactive(dest)) or period is None:
+		return False
+	try:
+		found = pick.items(request.service, 'c', dest.key)
+	except answer.Answer:
+		return False
+	if not set(tickers) <= set(found):
+		return False
+	numbers = [i for i, name in enumerate(found) if name in tickers]
+	send_picker(request, 'c', found, '0', period, pick.pack(numbers), sum(1 << i for i in numbers))
+	return True
 
 def on_history(request, args):
-	""".history SYMBOL: the stock's change over every period, with its price chart, and period buttons where they go."""
+	""".history SYMBOL: the stock's change over every period, with its price chart, and period buttons where they go;
+	with no symbol, buttons to pick one."""
+	if not args.words:
+		return picker(request, 'y', args)
 	if len(args.words) != 1:
 		raise Usage
 	chart_reply(request, 'h', [ticker(args)])
+
+def picker(request, cmd, args):
+	"""A command typed with nothing to say what it is about (cmd, a key of buttons.PICKERS): where there are buttons,
+	its answer for the first portfolio or ticker (the first two to compare), alphabetically, with the picker's buttons
+	under it, one message that a press then edits (holdings, which has no first answer, is the picker alone); a pie or
+	treemap's other charts are then drawn in the background to fill the cache. Else the command's usage."""
+	dest = request.dest
+	if not (dest.takes_buttons and delivery.interactive(dest)):
+		raise Usage(portfolios()) if pick.noun(cmd) == 'portfolio' else Usage
+	group = {'sector': 's', 'industry': 'i'}.get(args.keyword, '0')
+	period = buttons.period_for_days(args.days, 'w' if cmd == 'c' else 'x') if cmd in 'cy' else '0' # compare: 7D
+	found = pick.items(request.service, cmd, dest.key)
+	shown, mask = pick.default(cmd, found)
+	send_picker(request, cmd, found, group, period, shown, mask)
+
+def send_picker(request, cmd, found, group, period, shown, mask):
+	"""The first message of a picker of the items `found`: the answer for what `shown` says (or the picker alone, for
+	0), the buttons under it, and the answer's other charts drawn in the background to fill the cache."""
+	dest = request.dest
+	lines, rows = pick.screen(request.service, cmd, found, group, period, shown, mask, 'p')
+	if not shown:
+		return dest.text(lines, rows)
+	caption, chart = pick_content(request.service, dest, cmd, group, period, pick.shown_names(cmd, found, shown))
+	if pick.as_photo(dest, cmd):
+		request.reply(caption.split('\n'), chart, rows)
+	else:
+		dest.text(caption.split('\n'), rows) # no chart goes: the answer as text, its buttons kept
+	if cmd in 'pt' and chart and pick.as_photo(dest, cmd):
+		prime_in_background(request.service, cmd, group, found, 0)
+	elif cmd in 'yc' and chart:
+		prime_periods(request, 'c' if cmd == 'c' else 'h', pick.shown_names(cmd, found, shown), period)
+
+def prime_in_background(service, cmd, group, found, index):
+	"""Start drawing a picker's other charts, to fill the cache, in a thread of its own (see pick.prime)."""
+	threading.Thread(target=pick.prime, args=(service, cmd, group, found, index), daemon=True).start()
 
 def chart_reply(request, kind, args, days=None):
 	"""The first view of a chart with period buttons, built as a button press builds it (charts.build): its caption,
@@ -340,6 +566,16 @@ def chart_reply(request, kind, args, days=None):
 	if chart and request.dest.takes_buttons:
 		markup = buttons.keyboard(kind, args, buttons.period_for_days(days) if days else 'x')
 	request.reply(caption.split('\n'), chart, markup)
+	if chart:
+		prime_periods(request, kind, args, buttons.period_for_days(days) if days else 'x')
+
+def prime_periods(request, kind, args, shown):
+	"""After a chart with period buttons is sent (kind, args and the period `shown`: charts.build), the other periods
+	are drawn in the background to fill the cache, where the chat can use them: a command asked for, with charts and
+	buttons."""
+	dest = request.dest
+	if dest.takes_buttons and dest.takes_charts and config.prefs.graph and delivery.interactive(dest):
+		charts.prime_in_background(kind, args, request.service, dest.key, shown)
 
 def on_plan(request, args):
 	""".plan [text]: record the sender's plan in this chat, and list everyone's here."""
@@ -364,38 +600,49 @@ def on_who(request, args):
 	request.reply(holdings.prepare_who(request.service, re.split(r'[.:]', args.words[0].upper())[0]))
 
 def on_jobs(request, args):
-	""".jobs: this chat's jobs; .jobs run or toggle [NUMBER]: one run now or switched on or off (without a number, the
-	list with a button per job that does it); .jobs add [CRON_TZ=ZONE] TIME REPORT: one more (alone, the reports it can
-	run); .jobs del NUMBER: one fewer."""
+	""".jobs: this chat's jobs, with the menu's buttons; .jobs upcoming: the next runs; .jobs system: the system's;
+	.jobs enable, disable, delete, run or toggle NUMBER: one switched on or off, deleted, run now, or switched the
+	other way, and without a number the list with a button per job that does it; .jobs add REPORT SCHEDULE, or .jobs
+	add message SCHEDULE "TEXT": one more (alone, the reports a job can run)."""
 	scheduler, chat, service = jobs.current, request.dest.key, request.service
+	tappable = request.dest.takes_buttons
 	if scheduler is None:
 		raise answer.Answer('No schedule is running')
 	try:
 		if args.keyword is None and not args.words:
-			request.reply(about.prepare_jobs_payload(service, chat)[0])
+			lines, markup = about.jobs_screen(service, chat, tappable=tappable)
+			request.reply(lines, buttons=markup)
+		elif args.keyword == 'upcoming' and not args.words:
+			lines, markup = about.next_screen(service, chat)
+			request.reply(lines, buttons=markup if tappable else None)
+		elif args.keyword == 'system' and not args.words:
+			request.reply(about.prepare_system(service))
 		elif args.keyword == 'add':
-			first, line = (args.text.split(None, 1) + [''])[:2]
-			if first.lower() != 'add': # the job's line follows add
+			first, text = (args.text.split(None, 1) + [''])[:2]
+			if first.lower() != 'add': # the job follows add
 				raise Usage
-			if not line:
+			if not text.strip():
 				return request.reply(about.prepare_reports(service))
-			number = scheduler.add(chat, line)
+			number = scheduler.add(chat, *jobs.parse_add(text, formats.zone().key))
 			request.reply([about.job_entry(service, scheduler, number, scheduler.chat_jobs(chat)[number - 1]),
 				'Added: .jobs lists them all'])
-		elif args.keyword in ('run', 'toggle') and not args.words:
-			payload, markup = about.prepare_jobs_payload(service, chat, args.keyword, request.dest.takes_buttons)
-			request.reply(payload, buttons=markup)
-		elif args.keyword in ('run', 'toggle', 'del') and len(args.words) == 1:
+		elif args.keyword in JOB_SCREENS and not args.words:
+			lines, markup = about.jobs_screen(service, chat, JOB_SCREENS[args.keyword], tappable=tappable)
+			request.reply(lines, buttons=markup)
+		elif args.keyword in JOB_SCREENS and len(args.words) == 1:
 			number = args.words[0]
 			job = scheduler.job(chat, number)
 			if args.keyword == 'run':
 				request.reply([about.job_line(number, job, scheduler.run(job))])
-			elif args.keyword == 'toggle':
-				scheduler.toggle(job)
-				request.reply([about.job_entry(service, scheduler, number, scheduler.job(chat, number))])
-			else:
+			elif args.keyword == 'del':
 				scheduler.delete(job)
-				request.reply([f"Deleted {number}. {job.line}"])
+				request.reply([f"Deleted {number}. {job.name} · {job.schedule.describe(formats.zone().key)}"])
+			else:
+				if args.keyword == 'toggle':
+					scheduler.toggle(job)
+				else:
+					scheduler.switch(job, args.keyword == 'enable')
+				request.reply([about.job_entry(service, scheduler, number, scheduler.job(chat, number))])
 		else:
 			raise Usage
 	except jobs.ScheduleError as e: # a job that cannot be, or a number that is none: said, as an answer
@@ -424,6 +671,7 @@ class Command:
 	percent: bool = False
 	period: bool = False
 	keywords: dict = dataclasses.field(default_factory=dict)
+	job: bool = True # whether a job may run it (job_commands): not one that changes something
 
 SECTIONS = TRACKED, COMPANY, PRICE, RISK, TRADES, JOBS = ('Tracked securities', 'Company info', 'Price', 'Risk & Value',
 	'Trades', 'Scheduled jobs') # the headings of .help, in order
@@ -433,27 +681,32 @@ NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # t
 CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'delete') # of the watchlist
 PLANS = 'finbot_plan.json' # each chat's plans, {user: plan}, as state.load_for keeps them
 BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .pie's
-JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'),
-	'del') # what .jobs does to a chat's jobs
+# what .jobs does to a chat's jobs, and shows; next is what upcoming was called before
+JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'enable': 'enable', 'disable': 'disable', 'add': 'add',
+	'system': 'system'} | dict.fromkeys(('upcoming', 'next'), 'upcoming') | dict.fromkeys(('del', 'delete', 'rem',
+	'remove', 'rm'), 'del')
+JOB_SCREENS = {'enable': 'on', 'disable': 'off', 'del': 'del', 'run': 'run', 'toggle': 'top'} # each word's screen
 BUY_SELL = ('buy', 'sell', *(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')))
 PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL'), COMPANY) # any first word that is no
 # command's name but may be a ticker calls it too
 
 COMMANDS = [ # .help lists a section's commands in this order. The odd spellings (earrings, prince, hospital...) are
 	# kept on purpose.
-	Command(('help', 'usage', 'start'), on_help), # /start is what Telegram sends when a chat opens
+	Command(('help', 'usage', 'start'), on_help, job=False), # /start is what Telegram sends when a chat opens
 	Command(('holdings', 'holding'), on_holdings, ('.holdings PORTFOLIO',), TRACKED),
-	Command(('pie',), on_pie, ('.pie PORTFOLIO [sector]',), TRACKED, keywords=BY),
+	Command(('pie',), on_pie, ('.pie PORTFOLIO [sector]',), TRACKED, ('.pie',), keywords=BY),
+	Command(('treemap',), on_treemap, ('.treemap PORTFOLIO [sector]',), TRACKED, ('.treemap',), keywords=BY),
 	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
-		keywords=CHANGE),
+		keywords=CHANGE, job=False),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),
-	Command(('earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend'), on_calendar,
-		('.dividend [period|SYMBOL]', '.earnings [period|SYMBOL]'), COMPANY, ('.dividend', '.earnings'), period=True),
+	Command(('earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend', 'exdividend', 'ex-dividend'),
+		on_calendar, ('.dividend [period|SYMBOL]', '.earnings [period|SYMBOL]'), COMPANY, ('.earnings',),
+		period=True),
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
-		('.marketcap',), keywords=TOP),
-	Command(('beta',), on_beta, ('.beta',), PRICE, ('.beta',)),
-	Command(('compare',), on_compare, ('.compare SYMBOL SYMBOL [... up to 6] [period]',), PRICE, period=True,
-		keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
+		keywords=TOP),
+	Command(('beta',), on_beta, ('.beta',), PRICE),
+	Command(('compare',), on_compare, ('.compare SYMBOL SYMBOL [... up to 6] [period]',), PRICE, ('.compare',),
+		period=True, keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
 	Command(('history', 'hospital', 'visual', 'hosiery'), on_history, ('.history SYMBOL',), PRICE),
 	Command(('performance', 'performanc'), on_performance, ('.performance [period] [portfolio]',), PRICE,
 		('.performance',), period=True),
@@ -462,15 +715,16 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('session', 'premarket', 'postmarket', 'permarket'), on_session,
 		('.session [percent|SYMBOL]', '.premarket [percent|SYMBOL]'), PRICE, ('.session', '.premarket'), percent=True),
 	Command(BUY_SELL, on_rating, ('.buy', '.sell'), RISK, ('.buy & sell',)), # .buy & sell (or .buy sell): both
-	Command(('pe',), on_ratio('pe'), ('.pe [SYMBOL|top|bottom]',), RISK, ('.pe',), keywords=TOP),
+	Command(('pe',), on_ratio('pe'), ('.pe [SYMBOL|top|bottom]',), RISK, keywords=TOP),
 	Command(('forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'), ('.forward pe [SYMBOL|top|bottom|negative]',),
 		RISK, ('.forward pe',), keywords=NEGATIVE),
 	Command(('peg',), on_ratio('peg'), ('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',), keywords=NEGATIVE),
 	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True),
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True),
-	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES),
-	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [run|toggle] [NUMBER]',
-		'.jobs add [CRON_TZ=ZONE] TIME REPORT', '.jobs del NUMBER'), JOBS, keywords=JOB_CHANGES),
+	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES, job=False),
+	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [upcoming|system]',
+		'.jobs enable|disable|delete|run [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'),
+		JOBS, ('.schedule',), keywords=JOB_CHANGES, job=False),
 	PROFILE,
 ]
 
@@ -523,11 +777,82 @@ def slash_commands(aliases=True):
 					if each and arguments not in found.setdefault(each, (command, []))[1]:
 						found[each][1].append(arguments)
 	return [Slash('help', 'every command, and what it takes', '') if name == 'help' else
-		Slash(name, f"{name} {' | '.join(lines)}".strip(), ' | '.join(lines), completes(command))
+		Slash(name, described(name, lines), ' | '.join(lines), completes(command))
 		for name, (command, lines) in found.items()]
 
+def described(name, lines, most=100):
+	"""A slash command's description: its name, then as many of its usage lines (the arguments of each, joined by
+	' | ') as fit in most characters, Discord's limit."""
+	text = name
+	for line in filter(None, lines):
+		longer = f"{text}{' ' if text == name else ' | '}{line}"
+		if len(longer) > most:
+			break
+		text = longer
+	return text
+
+REPORTED = (on_price, on_performance, on_trades, on_shorts, on_calendar, on_session) # what a scheduled report runs
+
+@dataclasses.dataclass(frozen=True)
+class CommandJob:
+	"""A command of .help as a job's action (job_commands), standing in for a report module: ARGUMENTS is what it takes,
+	from its usage; job() reads a scheduled run's words; run() answers in the job's chat as the command would."""
+	command: Command
+	name: str # what the job calls it, its name in .help, but buy, sell or both: on_rating reads which from the name
+	ARGUMENTS: str = ''
+	listed: bool = True # whether .jobs add lists it: not a command's other names, nor its typos
+
+	@property
+	def needs(self):
+		"""How many words it needs, each SYMBOL or PORTFOLIO of its usage outside brackets: none comes from a button."""
+		return len(re.findall(r'\b[A-Z]{2,}\b', re.sub(r'\[[^\]]*\]', '', self.ARGUMENTS)))
+
+	def job(self, argv):
+		"""A scheduled run's arguments (words): (label, run's keyword arguments). Raises ValueError, with what it takes,
+		for words where its usage takes none, or fewer than it needs."""
+		args = read_args(self.command, self.name, ' '.join(argv))
+		if (argv and not self.ARGUMENTS) or len(args.words) < self.needs:
+			raise ValueError(self.ARGUMENTS or 'no arguments')
+		return ' '.join([self.name.replace('&', ' & '), *argv]), {'words': list(argv)}
+
+	def run(self, dest, *, words):
+		"""Answer in the job's chat (dest) as the command would to these words, typed there: its usage where it cannot
+		take them, an answer as an answer; any other failure is the job's to report."""
+		request = Request(dest.dialect, dest.where, '', '', '', dest=dest)
+		try:
+			self.command.handler(request, read_args(self.command, self.name, ' '.join(words)))
+		except Usage as e:
+			request.reply([f"Usage: {line}" for line in self.command.usage] + list(e.lines))
+		except answer.Answer as e:
+			request.reply(e.lines)
+
+@functools.cache
+def job_commands():
+	"""The commands of .help a job may run, by each name a job may call one by: a CommandJob each. Every one but those
+	that change something (job false) and those a scheduled report runs already (REPORTED): first each by its name in
+	.help, with what it takes; then its other names (typos too), each standing for the first, but buy and sell's."""
+	found = {}
+	for command in COMMANDS:
+		if not (command.job and command.usage) or command.handler in REPORTED:
+			continue
+		listed = []
+		for line in command.usage:
+			words = line.lstrip('.').split()
+			name = next((' '.join(words[:size]).lower() for size in (2, 1) if ' '.join(words[:size]).lower() in
+				command.names), None)
+			if name:
+				found[name] = CommandJob(command, name, ' '.join(words[len(name.split()):]))
+				listed.append(name)
+		first = found[listed[0]]
+		for name in command.names:
+			found.setdefault(name, dataclasses.replace(first, name=name if command.handler is on_rating else first.name,
+				listed=False))
+	return found
+
 PERIOD_WORDS = ('1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y') # suggested where a command takes a period
-JOB_WORDS = ('run', 'toggle', 'add', 'del') # what /jobs suggests first
+JOB_WORDS = ('add', 'delete', 'enable', 'disable', 'run', 'upcoming', 'system') # what /jobs suggests first
+SCHEDULE_WORDS = ('daily', 'weekdays', 'weekly', 'monthly', 'quarterly', 'bi-annual', 'annual', 'hourly', 'every', 'at',
+	'from', 'between', 'on') # what a schedule in English is made of, suggested after a report
 
 def completes(command):
 	"""Whether suggest has words to offer for a command's arguments: its keywords, periods, tickers, portfolios, or
@@ -580,30 +905,26 @@ def argument_words(command, chat, given):
 	return [(word, word) for word in dict.fromkeys(words)]
 
 def job_words(chat, words):
-	"""(word, shown) pairs for /jobs, for suggest, after the words given: first its subcommands; after run, toggle or
-	del, this chat's job numbers, each shown with its line; after add and a time, the reports, each shown with what it
-	takes; after a report's name, the words it takes."""
+	"""(word, shown) pairs for /jobs, for suggest, after the words given: first its subcommands; after delete, run or
+	toggle, this chat's job numbers, each shown with its name (after enable, those of the jobs off; after disable,
+	those on); after add, the reports, each shown with what it takes; after a report, the words it takes, then those
+	of a schedule."""
 	if not words:
 		return [(word, word) for word in JOB_WORDS]
 	action = JOB_CHANGES.get(words[0].lower())
-	if action in ('run', 'toggle', 'del') and len(words) == 1:
+	if action in JOB_SCREENS and len(words) == 1:
 		own = jobs.current.chat_jobs(chat) if jobs.current else []
-		return [(str(number), f'{number}: {job.line}') for number, job in enumerate(own, 1)]
+		return [(str(number), f'{number}: {job.name}') for number, job in enumerate(own, 1)
+			if {'enable': not job.on, 'disable': job.on}.get(action, True)]
 	if action != 'add':
 		return []
-	line = words[1:][1:] if words[1:2] and words[1].startswith('CRON_TZ=') else words[1:]
-	time = 1 if line and line[0].startswith('@') else 5
-	if len(line) < time:
+	if len(words) == 1:
+		return [(name, f'{name} {jobs.actions()[name].ARGUMENTS}'.strip()) for name in jobs.chat_actions()]
+	module = jobs.actions().get(words[1].lower())
+	if module is None or words[1].lower() not in jobs.chat_actions():
 		return []
-	after = line[time:]
-	if not after or after[-1].endswith(';'): # a report's name is next
-		return [(name, f'{name} {module.ARGUMENTS}'.strip()) for name, module in sorted(jobs.SCRIPTS.items())
-			if name not in jobs.SYSTEM_SCRIPTS]
-	start = max(i for i in range(len(after)) if i == 0 or after[i - 1].endswith(';')) # the report being given
-	module = jobs.SCRIPTS.get(after[start].rstrip(';'))
-	if module is None or len(after) - start > 1 or after[start].endswith(';'):
-		return []
-	return [(word, word) for word in re.findall(r'[a-z][a-z-]*', module.ARGUMENTS)]
+	takes = re.findall(r'[a-z][a-z-]*', module.ARGUMENTS) if len(words) == 2 else []
+	return [(word, word) for word in dict.fromkeys(takes + list(SCHEDULE_WORDS))]
 
 def command_keyboard(per_row=3):
 	"""Persistent reply keyboard of the commands that have buttons (Telegram DMs), alphabetical, row by row; a press

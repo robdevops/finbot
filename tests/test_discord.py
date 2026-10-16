@@ -3,7 +3,7 @@ signatures, REST calls and their rate limits, messages with charts and buttons, 
 and the gateway."""
 import contextlib, io, json, sys, types, unittest
 from tests.common import *
-from lib import discord_websocket, jobs
+from lib import catalog, discord_websocket, jobs
 
 try:
 	from nacl.signing import SigningKey
@@ -21,7 +21,8 @@ COMMAND = interaction(2, data={'name': 'price', 'options': [{'name': 'arguments'
 TYPING = interaction(4, id='902', data={'name': 'price', 'options': [{'name': 'arguments', 'type': 3, 'value': '5 7',
 	'focused': True}]}) # /price, its arguments being typed
 PRESS = interaction(3, id='901', data={'custom_id': 'c|h|y|T1', 'component_type': 2}, message={'id': '333'})
-MESSAGE = {'id': '700', 'channel_id': '77', 'author': {'id': '5', 'username': 'rob'}, 'content': '<@99> price 7d'}
+MESSAGE = {'id': '700', 'channel_id': '77', 'guild_id': '1', 'author': {'id': '5', 'username': 'rob'},
+	'content': '<@99> price 7d'} # in a server's channel
 
 
 class Now:
@@ -44,12 +45,12 @@ class Reading(FinbotCase):
 		self.patch(discord_common.READER, 'bot_id', '99')
 
 	def test_a_slash_command_is_the_message_it_stands_for(self):
-		"""/price with its arguments is the message '/price 5 7d', answered through its interaction; in a DM the person
-		is the interaction's user."""
-		expected = inbound.Message('discord', '77', '<@5>', '/price 5 7d', '@99', 'Rob', '', '42/tok')
+		"""/price with its arguments is the message '/price 5 7d', answered through its interaction; in a DM (no
+		member, no server) the person is the interaction's user, and the message says it is a DM."""
+		expected = inbound.Message('discord', '77', '<@5>', '/price 5 7d', '@99', 'Rob', '', '42/tok', dm=False)
 		self.assertEqual(discord_common.READER.parse(COMMAND), expected)
 		dm = {k: v for k, v in COMMAND.items() if k != 'member'} | {'user': {'id': '5', 'username': 'rob'}}
-		self.assertEqual(discord_common.READER.parse(dm), dataclasses.replace(expected, user_name='rob'))
+		self.assertEqual(discord_common.READER.parse(dm), dataclasses.replace(expected, user_name='rob', dm=True))
 		self.assertEqual(discord_common.READER.parse({**COMMAND, 'data': {'name': 'beta'}}).text, '/beta')
 
 	def test_a_press_is_a_press_of_its_message(self):
@@ -59,9 +60,11 @@ class Reading(FinbotCase):
 
 	def test_a_message_by_a_person_reads_with_its_mentions_as_slacks(self):
 		"""A gateway message's mentions read as @id, so that '@bot price 7d' calls .price; one by a bot or a webhook
-		(this bot's replies included) is not answered."""
+		(this bot's replies included) is not answered. One from no server is a DM."""
 		message = discord_common.READER.parse(MESSAGE)
-		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 price 7d', '@99', 'rob', '700'))
+		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 price 7d', '@99', 'rob', '700',
+			dm=False))
+		self.assertTrue(discord_common.READER.parse({k: v for k, v in MESSAGE.items() if k != 'guild_id'}).dm)
 		command, args = worker.read(message.text, message.bot_name)
 		self.assertEqual((command.names[0], args.days), ('price', 7))
 		for other in ({**MESSAGE, 'author': {'id': '99', 'bot': True}}, {**MESSAGE, 'webhook_id': '1'}):
@@ -157,7 +160,7 @@ class Sending(FinbotCase):
 	def setUp(self):
 		"""The bot token set, and Discord's API answered from self.answers (else 200 and a message)."""
 		super().setUp()
-		self.env(discordBotToken='x', discordChannelID='77')
+		self.env(discordBotToken='x')
 		self.calls, self.answers = [], []
 		def request(method, url, **kwargs):
 			"""Note the call, and give the next answer."""
@@ -169,7 +172,7 @@ class Sending(FinbotCase):
 
 	def test_a_message_has_no_previews_or_pings_and_its_buttons_in_rows_of_five(self):
 		"""A message suppresses link previews and pings nobody; its buttons go in rows of five, the one shown now
-		blurple, and past 25 they are left out."""
+		blurple, a row that fits stays a row, and past five rows they are left out."""
 		row = [buttons.Button(f'B{i}', f'c|h|w|{i}', active=i == 0) for i in range(12)]
 		with contextlib.redirect_stderr(io.StringIO()):
 			discord_common.DiscordBot('77').text(['hello'], [row[:7], row[7:]])
@@ -178,9 +181,11 @@ class Sending(FinbotCase):
 		payload = kwargs['json']
 		self.assertEqual((payload['content'], payload['flags'], payload['allowed_mentions']), ('hello', 4,
 			{'parse': []}))
-		self.assertEqual([len(r['components']) for r in payload['components']], [5, 5, 2])
+		self.assertEqual([len(r['components']) for r in payload['components']], [5, 2, 5])
 		self.assertEqual([b['style'] for b in payload['components'][0]['components']], [1, 2, 2, 2, 2])
 		self.assertEqual(len(discord_common.components([[buttons.Button('x', 'y')] * 30])), 5)
+		self.assertEqual([len(r['components']) for r in discord_common.components([[buttons.Button('x', 'y')] * 5,
+			[buttons.Button('x', 'y')] * 2])], [5, 2])
 
 	def test_a_chart_is_attached_to_its_report(self):
 		"""A chart goes as an attachment of the message that carries the report and the buttons."""
@@ -263,16 +268,11 @@ class Sending(FinbotCase):
 		self.assertIn('403 Missing Access (50001)', err.getvalue())
 		self.assertNotIn('s3cret-token', err.getvalue())
 
-	def test_scheduled_reports_go_to_the_channel_with_their_buttons(self):
-		"""With discordChannelID and the bot token, scheduled reports go to that channel as the bot, buttons and all;
-		without the token, nowhere on Discord."""
-		self.env(telegramChatID='')
-		chats = delivery.default_chats()
-		self.assertEqual([(type(chat).__name__, chat.where) for chat in chats], [('DiscordBot', '77')])
-		self.assertTrue(chats[0].takes_buttons and chats[0].takes_charts)
-		self.env(discordBotToken='')
-		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
-			delivery.default_chats()
+	def test_a_jobs_reports_go_to_its_channel_with_their_buttons(self):
+		"""A Discord channel's job posts there as the bot, charts and buttons and all."""
+		chat = delivery.chat('discord:77', scheduled=True)
+		self.assertEqual((type(chat).__name__, chat.where, chat.key), ('DiscordBot', '77', 'discord:77'))
+		self.assertTrue(chat.takes_buttons and chat.takes_charts and chat.scheduled)
 
 
 class Commands(FinbotCase):
@@ -389,32 +389,34 @@ class Suggestions(FinbotCase):
 		self.assertEqual(self.values('/plan buy '), [])
 
 	def test_the_jobs_subcommands_numbers_and_reports(self):
-		"""/jobs suggests its subcommands; after run, toggle or del this chat's job numbers, each shown with its line;
-		after add and a time (five fields, an @macro, a zone first), the reports a chat can schedule, each shown with
-		what it takes, and then what the report takes."""
+		"""/jobs suggests its subcommands; after run or remove this chat's job numbers, each shown with its name (after
+		enable, those of the jobs that are off; after disable, those on); after add, the reports a chat can schedule,
+		each shown with what it takes; then what the report takes, and the words of a schedule."""
 		self.patch(jobs, 'SYSTEM', ())
-		state.save(jobs.SCHEDULE_FILE, {'discord:77': [
-			{'when': '*/20 * * * Mon-Fri', 'reports': 'trades', 'zone': 'UTC', 'on': True},
-			{'when': '0 22 * * *', 'reports': 'shorts', 'zone': 'UTC', 'on': False}]})
+		self.patch(catalog, 'ITEMS', (catalog.Item('rating', 'rating', 'rating', (), catalog.at('daily')),))
+		state.save(jobs.JOBS_FILE, {'discord:77': {'jobs': [
+			{'action': 'trades', 'args': [], 'schedule': {'days': 'weekdays', 'every': 20, 'zone': 'UTC'}, 'on': True},
+			{'action': 'shorts', 'args': [], 'schedule': {'at': '22:00', 'zone': 'UTC'}, 'on': False}]}})
 		scheduler = jobs.Scheduler()
 		with contextlib.redirect_stderr(io.StringIO()):
 			scheduler.load()
 		self.patch(jobs, 'current', scheduler)
-		self.assertEqual(self.values('/jobs '), ['run', 'toggle', 'add', 'del'])
-		self.assertEqual(self.values('/job T'), ['toggle'])
-		self.assertEqual(worker.suggest('discord:77', '/jobs run '), [('run 1: */20 * * * Mon-Fri trades', 'run 1'),
-			('run 2: 0 22 * * * shorts', 'run 2')])
-		self.assertEqual(self.values('/jobs del 2'), ['del 2'])
+		self.assertEqual(self.values('/jobs '), ['add', 'delete', 'enable', 'disable', 'run', 'upcoming', 'system'])
+		self.assertEqual(self.values('/job E'), ['enable'])
+		self.assertEqual(worker.suggest('discord:77', '/jobs run '), [('run 1: rating', 'run 1'),
+			('run 2: trades', 'run 2'), ('run 3: shorts', 'run 3')])
+		self.assertEqual(self.values('/jobs remove '), ['remove 1', 'remove 2', 'remove 3'])
+		self.assertEqual(self.values('/jobs enable '), ['enable 3']) # shorts is off
+		self.assertEqual(self.values('/jobs disable '), ['disable 1', 'disable 2'])
 		self.assertEqual(self.values('/jobs run ', chat='discord:88'), [])
-		self.assertEqual(self.values('/jobs add 0 22 * * '), [])
-		reports = worker.suggest('discord:77', '/jobs add 0 22 * * * ')
-		self.assertIn(('add 0 22 * * * price midsession|interday|premarket|close|DAYS', 'add 0 22 * * * price'),
-			reports)
-		self.assertFalse(any(name in value for _, value in reports for name in jobs.SYSTEM_SCRIPTS))
-		self.assertEqual(self.values('/jobs add CRON_TZ=America/New_York 15 13 * * Mon-Fri price m'),
-			['add CRON_TZ=America/New_York 15 13 * * Mon-Fri price midsession'])
-		self.assertEqual(self.values('/jobs add @daily cal earnings; s'), ['add @daily cal earnings; shorts'])
-		self.assertEqual(self.values('/jobs add 0 22 * * * trades '), [])
+		reports = worker.suggest('discord:77', '/jobs add ')
+		self.assertIn(('add price midsession|interday|premarket|close|DAYS', 'add price'), reports)
+		self.assertIn(('add message "TEXT"', 'add message'), reports)
+		self.assertFalse(any(name in value for _, value in reports for name in jobs.SYSTEM_ACTIONS))
+		self.assertEqual(self.values('/jobs add price m'), ['add price midsession', 'add price monthly'])
+		self.assertEqual(self.values('/jobs add price weekly a'), ['add price weekly annual', 'add price weekly at'])
+		self.assertEqual(self.values('/jobs add nothere '), [])
+		self.assertEqual(self.values('/jobs add yahoo_warm '), [])
 
 	def test_at_most_25_each_of_100_characters_and_a_failure_suggests_nothing(self):
 		"""Discord takes 25 suggestions at most, each up to 100 characters; a failure suggests nothing, and is
@@ -498,7 +500,8 @@ class Gateway(FinbotCase):
 		self.assertTrue(client.debug and client.intents.message_content and client.closed)
 		self.assertFalse(self.library.VoiceClient.warn_nacl)
 		self.assertEqual(taken, ['<@99> price 7d', 2])
-		self.assertEqual(self.calls, [('POST', '/interactions/900/tok/callback', {'json': {'type': 5}})])
+		self.assertEqual(self.calls, [('POST', '/interactions/900/tok/callback', {'json': {'type': 5},
+			'logged': 'debug'})])
 		self.assertEqual(order, [('work', 1)])
 		self.assertIn('discord: the gateway failed, trying again in 5 s: Improper token', err.getvalue())
 
@@ -508,7 +511,8 @@ class Gateway(FinbotCase):
 		with contextlib.redirect_stderr(io.StringIO()):
 			discord_websocket.DiscordGateway().poll(bot.take)
 		self.assertEqual(self.calls, [('POST', '/interactions/902/tok/callback', {'json': {'type': 8, 'data': {
-			'choices': [{'name': '5 7d', 'value': '5 7d'}]}}})])
+			'choices': [{'name': '5 7d', 'value': '5 7d'}]}},
+			'logged': 'debug'})])
 
 	@unittest.skipUnless(SigningKey, 'PyNaCl is not installed')
 	def test_a_press_over_the_gateway_is_the_press_the_endpoint_gets(self):
@@ -531,7 +535,8 @@ class Gateway(FinbotCase):
 		self.join_workers()
 		self.assertEqual(len(presses), 2)
 		self.assertEqual(presses[0], presses[1])
-		self.assertEqual(self.calls[0][1:], ('/interactions/901/tok/callback', {'json': {'type': 6}}))
+		self.assertEqual(self.calls[0][1:], ('/interactions/901/tok/callback', {'json': {'type': 6},
+			'logged': 'debug'}))
 
 	def test_discord_is_listened_to_with_its_token_and_no_endpoint(self):
 		"""The gateway is used with the bot token and no discordOutgoingWebhook; with the URL (http mode), or without

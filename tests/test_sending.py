@@ -1,6 +1,6 @@
 """Posting to the networks against their answers and failures: Telegram, Slack (text, charts, Block Kit
 buttons) and Discord."""
-import contextlib, io, json, threading, unittest
+import contextlib, html.parser, io, json, threading, unittest
 from unittest import mock
 import requests
 from tests.common import *
@@ -85,12 +85,12 @@ class TelegramSending(FinbotCase):
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		for kind in (telegram_common.TelegramBot, slack_common.SlackBot, discord_common.DiscordBot):
 			self.patch(kind, 'post_text', lambda dest, text, buttons=None: sent.append((dest.name, text)))
-		self.env(telegramChatID='5', slackChannelID='C9', slackBotToken='xoxb-1', discordChannelID='77',
-			discordBotToken='x')
+		self.env(slackBotToken='xoxb-1', discordBotToken='x')
 
 		error = RuntimeError("404 for ZZ at https://x/?a=1&crumb=abc; '<' not supported between <urllib3.connection>")
 		with contextlib.redirect_stderr(io.StringIO()):
-			REAL_REPORT_ERROR(error, context='.compare <b>')
+			for key in ('telegram:5', 'slack:C9', 'discord:77'):
+				REAL_REPORT_ERROR(error, delivery.chat(key), context='.compare <b>')
 			REAL_REPORT_ERROR(error, telegram_common.TelegramBot('55'), context='.compare')
 		texts = dict(sent[:3])
 		self.assertIn('crumb=&lt;redacted&gt;', texts['telegram']) # Telegram's HTML parser rejects a bare <redacted>
@@ -142,15 +142,17 @@ class ChartDelivery(FinbotCase):
 			with self.subTest(kind=kind.__name__):
 				self.assertTrue(kind('1').takes_charts and kind('1').takes_buttons)
 
-	def test_scheduled_reports_go_to_each_networks_home_chat_as_its_bot(self):
-		"""Scheduled reports go to each network's home chat (telegramChatID, slackChannelID, discordChannelID), as its
-		bot: a chat without its bot token is left out."""
-		self.env(telegramChatID='1', slackChannelID='C9', slackBotToken='xoxb-test', discordChannelID='77',
-			discordBotToken='x')
-		self.assertEqual(list(map(repr, delivery.default_chats())), ['<TelegramBot 1>', '<SlackBot C9>',
-			'<DiscordBot 77>'])
-		self.env(slackBotToken='', telegramBotToken='')
-		self.assertEqual(list(map(repr, delivery.default_chats())), ['<DiscordBot 77>'])
+	def test_an_error_that_belongs_to_no_chat_goes_only_to_the_log(self):
+		"""There are no home chats: an error that belongs to no chat (a system job's, a webhook request's) is logged,
+		with nothing posted and no word of a failure to post it."""
+		text = mock.Mock()
+		self.patch(transports.Transport, 'text', text)
+		err = io.StringIO()
+		with contextlib.redirect_stderr(err):
+			REAL_REPORT_ERROR(ValueError('boom'), context='sharesight_warm')
+		self.assertIn('⚠️ sharesight_warm: ValueError: boom', err.getvalue())
+		self.assertNotIn('Failed', err.getvalue())
+		text.assert_not_called()
 
 	def test_slack_replies_upload_their_charts(self):
 		"""A Slack reply whose chart has no buttons uploads it in three steps (bot token), the report as its message,
@@ -179,7 +181,8 @@ class ChartDelivery(FinbotCase):
 				self.assertNotIn(share['data']['initial_comment'].split('\n'), [payload for _, payload in self.sent])
 
 	def test_a_slack_upload_that_fails_goes_out_as_text(self):
-		"""A Slack upload failing at any step goes as text, but not on a last-step timeout, when it may have arrived."""
+		"""A Slack upload failing at any step, then again with its heading alone, goes as text, but not on a last-step
+		timeout, when it may have arrived."""
 		self.env(slackBotToken='xoxb-test')
 		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
 
@@ -193,24 +196,26 @@ class ChartDelivery(FinbotCase):
 								 ([good[0], good[1], slow], []), # it may have been shared after all
 								 (good, [])):
 			with self.subTest(outcomes=outcomes):
-				self.slack_answers(*outcomes)
+				calls = self.slack_answers(*outcomes, *outcomes) # a refused chart is tried again, failing the same way
 				self.sent.clear()
 				with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
 					delivery.deliver(slack_common.SlackBot('C1'), delivery.Report(['*Heading*', 'line 2'], CHART))
 				self.assertEqual(self.sent, expect)
+				self.assertEqual(len(calls), len(outcomes) * (2 if expect else 1))
 
-	def test_scheduled_reports_carry_their_charts_to_every_home_chat(self):
-		"""A scheduled report's chart goes to each network's home chat, as its bot."""
-		self.env(slackBotToken='xoxb-test', slackChannelID='C9', discordBotToken='x', discordChannelID='77')
+	def test_scheduled_reports_carry_their_charts_on_every_network(self):
+		"""A scheduled report's chart goes to the job's chat on every network, as its bot."""
+		self.env(slackBotToken='xoxb-test', discordBotToken='x')
 		sent = []
 		self.patch(transports.Transport, 'chart', lambda dest, image, caption, buttons=None:
 			sent.append((dest.name, 'chart')) or {'ok': True})
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None:
 			sent.append((dest.name, 'text')) or [])
-		for report in (price.run, lambda: performance.run(past_days=7), shorts.run):
+		for report in (price.run, lambda dest: performance.run(dest, past_days=7), shorts.run):
 			with self.subTest(report=report):
 				sent.clear()
-				report()
+				for key in ('telegram:1', 'slack:C9', 'discord:77'):
+					report(scheduled(key))
 				self.assertEqual(sorted(set(sent)), [('discord', 'chart'), ('slack', 'chart'), ('telegram', 'chart')])
 
 	def test_the_graph_preference_off_sends_no_chart_anywhere(self):
@@ -256,14 +261,77 @@ class ChartDelivery(FinbotCase):
 					delivery.deliver(telegram_common.TelegramBot('5'), report)
 				self.assertEqual(self.sent, expect)
 
+	def telegram(self, refused):
+		"""net.post as Telegram, refusing each caption refused(caption) is true for: the captions sent, in turn."""
+		captions = []
+		def post(url, data, **kwargs):
+			"""Telegram's answer to sendPhoto: the message, or Bad Request."""
+			captions.append(data['caption'])
+			if refused(data['caption']):
+				return Resp({'ok': False, 'error_code': 400, 'description': 'Bad Request: caption refused'}, status=400)
+			return Resp({'ok': True, 'result': {'message_id': len(captions)}})
+		self.patch(net, 'post', post)
+		return captions
+
+	def test_a_caption_fits_as_telegram_counts_it(self):
+		"""A caption is cut to Telegram's 1,024 characters as it counts them: the text its HTML shows (no tags, an
+		entity one character), in UTF-16 code units, so each 🔼 counts 2. Counted by code points, a list of thirty
+		moves passed for 1,012 and was refused, and the chart went as text."""
+		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
+		class Shown(html.parser.HTMLParser):
+			"""The text an HTML caption shows, as Telegram parses it."""
+			def handle_data(self, data):
+				"""Keep the text between the tags, its entities read."""
+				self.text += data
+		def length(caption):
+			"""A caption's length as Telegram counts it: its text in UTF-16 code units."""
+			shown = Shown()
+			shown.text = ''
+			shown.feed(caption)
+			return sum(2 if ord(char) > 0xFFFF else 1 for char in shown.text)
+		self.assertEqual(length('<b>🔼 S&amp;P</b>'), TELEGRAM.visible('<b>🔼 S&amp;P</b>'))
+		self.assertEqual(TELEGRAM.visible('<b>🔼 S&amp;P</b> <a href="https://x.co/?a=1&amp;b=2">T1</a>'), 9)
+		lines = ['<b>Price alerts 3% (ASX, NASDAQ)</b>'] + [
+			f'{"🔼🔻"[i % 2]} Company Number {i:02d} Holdings Lt (<a href="https://finance.yahoo.com/quote/T{i}">T{i}'
+			f'</a>) {"+-"[i % 2]}{i % 9 + 3}%' for i in range(40)]
+		captions = self.telegram(lambda caption: length(caption) > 1024)
+		with contextlib.redirect_stderr(io.StringIO()):
+			delivery.deliver(telegram_common.TelegramBot('5'), delivery.Report(lines, CHART))
+		self.assertEqual(len(captions), 1) # accepted at once: nothing sent again, nothing as text
+		self.assertEqual(self.sent, [])
+		self.assertLessEqual(length(captions[0]), 1024)
+		self.assertGreater(length(captions[0]), 990) # as many whole lines as fit
+		self.assertTrue(captions[0].endswith(' more in the chart'), captions[0][-40:])
+
+	def test_a_chart_refused_with_its_caption_goes_again_with_its_heading(self):
+		"""A chart refused with its report as the caption goes again with the heading alone and its buttons, the
+		report following as text; refused again, or where the heading was the whole caption, the report goes as text."""
+		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
+		markup = [[buttons.Button('7D', 'l|3|0|w')]]
+		for refused, captions, sent in ((lambda caption: '\n' in caption, ['<b>Heading</b>\nline 2', '<b>Heading</b>'],
+				[('text', ['<b>Heading</b>', 'line 2'])]), (lambda caption: True, ['<b>Heading</b>\nline 2',
+				'<b>Heading</b>'], [('text', ['<b>Heading</b>', 'line 2'])])):
+			with self.subTest(captions=captions):
+				self.sent.clear()
+				asked = self.telegram(refused)
+				with contextlib.redirect_stderr(io.StringIO()):
+					delivery.deliver(telegram_common.TelegramBot('5'),
+						delivery.Report(['<b>Heading</b>', 'line 2'], CHART, markup))
+				self.assertEqual((asked, self.sent), (captions, sent))
+		asked = self.telegram(lambda caption: True)
+		self.sent.clear()
+		with contextlib.redirect_stderr(io.StringIO()):
+			delivery.deliver(telegram_common.TelegramBot('5'), delivery.Report(['<b>Heading</b>'], CHART))
+		self.assertEqual((asked, self.sent), (['<b>Heading</b>'], [('text', ['<b>Heading</b>'])]))
+
 
 class DiscordSending(FinbotCase):
-	"""Discord's home channel, as the bot: a scheduled report's chart attached, within Discord's 2,000 characters."""
+	"""A Discord job's channel, as the bot: a scheduled report's chart attached, within Discord's 2,000 characters."""
 
 	def setUp(self):
 		"""Discord as the only destination, sent through the real path, its calls recorded."""
 		super().setUp()
-		self.env(telegramChatID='', discordBotToken='x', discordChannelID='77')
+		self.env(discordBotToken='x')
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
 		self.calls = []
@@ -274,7 +342,7 @@ class DiscordSending(FinbotCase):
 		"""A scheduled Discord report has its chart attached and the report as its message, within 2,000 characters,
 		without previews or pings."""
 		with contextlib.redirect_stderr(io.StringIO()):
-			price.run()
+			price.run(scheduled('discord:77'))
 		(url, kwargs), = self.calls
 		self.assertEqual(url, 'https://discord.com/api/v10/channels/77/messages')
 		payload = json.loads(kwargs['data']['payload_json'])
@@ -538,6 +606,13 @@ class SlackButtons(FinbotCase):
 		self.assertTrue(all(len(block['text']['text']) <= 3000 for block in blocks[:3]))
 		self.assertEqual([block['type'] for block in slack_common.chart_blocks('', [], 'F1')], ['image'])
 
+	def test_a_chart_messages_buttons_keep_their_rows(self):
+		"""The buttons of a chart message are a block a row, as a picker lays them out: never one row of them all, past
+		the 25 elements a block takes."""
+		rows = [[buttons.Button(f'B{i}{j}', f'k{i}{j}') for j in range(4)] for i in range(8)]
+		blocks = slack_common.chart_blocks('x', rows, 'F1')
+		self.assertEqual([len(block.get('elements', [])) for block in blocks], [0, 0] + [4] * 8)
+
 	def test_a_chart_message_that_times_out_is_not_posted_again(self):
 		"""A chart with its buttons whose chat.postMessage times out may have arrived: no plain copy follows."""
 		record = net.post
@@ -575,8 +650,9 @@ class EveryNetworkAndMode(FinbotCase):
 		"""A job in each chat for .jobs run to list, and what each command posts noted with its destination."""
 		super().setUp()
 		self.patch(discord_common.READER, 'bot_id', '99')
-		every = [{'when': '*/20 * * * Mon-Fri', 'reports': 'trades', 'zone': 'UTC', 'on': True}]
-		state.save(jobs.SCHEDULE_FILE, {f'{network}:{chat}': every for network, chats in self.CHATS.items()
+		every = {'jobs': [{'action': 'trades', 'args': [], 'schedule': {'days': 'weekdays', 'every': 20, 'zone': 'UTC'},
+			'on': True}]}
+		state.save(jobs.JOBS_FILE, {f'{network}:{chat}': every for network, chats in self.CHATS.items()
 			for chat in chats})
 		scheduler = jobs.Scheduler()
 		with contextlib.redirect_stderr(io.StringIO()):

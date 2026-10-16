@@ -88,8 +88,8 @@ def fetch_new_episodes(feed_url, seen):
 	return episodes
 
 def run(dest=None, *, feed_url):
-	"""Post to each of the run's chats (dest, a chat's job; else the home chats) the feed's newest episodes not posted
-	to it before, then record every new one as seen by it."""
+	"""Post to the job's chat (dest) the feed's newest episodes not posted to it before, then record every new one as
+	seen by it."""
 	seen_file = get_seen_filename(feed_url)
 	chats = delivery.targets(dest)
 	seen = {chat.key: set(state.load_for(chat.key, seen_file, [])) for chat in chats}

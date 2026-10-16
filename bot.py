@@ -76,10 +76,10 @@ def doubled(message):
 	return False
 
 def main(environ, start_response):
-	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is reported as one
-	line to the default channel and answered 200, so the service does not retry it into the chat again. Before
-	authentication a failure is only logged: a stranger must not be able to post into the chats. Either names the
-	network, not the path: a webhook's path is a secret (telegramOutgoingWebhook, slackOutgoingWebhook)."""
+	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is logged as an
+	error report (report_error) and answered 200, so the service does not retry it into the chat again; before
+	authentication, as a failed request, with a 500. Either names the network, not the path: a webhook's path is a
+	secret (telegramOutgoingWebhook, slackOutgoingWebhook)."""
 	try:
 		return handle(environ, start_response)
 	except Exception as e:
@@ -102,10 +102,11 @@ def handle(environ, start_response):
 	comes from that network (before its body is read, when the proof is a header), read the update (CONTENT_LENGTH
 	bytes, up to MAX_BODY) and take it (take): the network gets its answer at once."""
 	def respond(response):
-		"""Answer the request: a status line and a body (logged at INFO, naming the network, not the path). Work that
-		must wait for the answer starts once the server has sent it."""
+		"""Answer the request: a status line and a body (logged, naming the network, not the path: at DEBUG when it is
+		a success, the routine; else at INFO). Work that must wait for the answer starts once the server has sent it."""
 		network = environ.get(ROUTED) or 'no network'
-		log.info(f"{environ['REQUEST_METHOD']} from {network}: we answered {response.status}")
+		(log.debug if response.status.startswith('2') else log.info)(
+			f"{environ['REQUEST_METHOD']} from {network}: we answered {response.status}")
 		start_response(response.status, [('Content-type', 'application/json')])
 		return Sent([response.body], response.then) if response.then else [response.body]
 	def print_headers(say=log.info):
@@ -126,18 +127,18 @@ def handle(environ, start_response):
 		return respond(inbound.FORBIDDEN)
 	length = environ.get('CONTENT_LENGTH') or '0'
 	if not length.isdigit() or int(length) > MAX_BODY:
-		log.warn(f"[{source.service}]: a body of {length!r} bytes refused unread")
+		log.warn(f"{source.service.capitalize()} a body of {length!r} bytes refused unread")
 		return respond(inbound.TOO_LARGE if length.isdigit() else inbound.BAD_REQUEST)
 	body = environ['wsgi.input'].read(int(length)) # the body and no more: a server need not end the stream there
 	try:
 		update = source.decode(body)
 	except ValueError:
-		log.warn(f"[{source.service}]: request body is not a JSON object")
+		log.warn(f"{source.service.capitalize()} request body is not a JSON object")
 		return respond(inbound.BAD_REQUEST)
 	if why := source.refuse(environ, body, update):
 		shown = {k: '<redacted>' if k == 'token' else v for k, v in update.items()} # Slack's verification token
 		log.warn("warning:", why)
-		log.warn(f"[{source.service}]: refused update", json.dumps(shown, indent=4, default=str))
+		log.warn(f"{source.service.capitalize()} refused update", json.dumps(shown, indent=4, default=str))
 		return respond(source.REFUSED)
 	environ[AUTHENTICATED] = True
 	return respond(take(source.network, update))
@@ -197,10 +198,11 @@ def take(network, update):
 	if isinstance(event, inbound.Suggest): # answered here and at once, while the command is typed
 		return network.suggestions(worker.suggest(f'{event.service}:{event.chat_id}', event.text))
 	if seen_before(network.service, network.update_id(update)):
-		log.info(f"[{network.service}]: update {network.update_id(update)} seen already, not run again")
+		log.info(f"{network.service.capitalize()} update {network.update_id(update)} seen already, not run again")
 		return inbound.OK
 	if isinstance(event, inbound.Message) and not event.interaction and doubled(event): # each interaction is answered
-		log.info(f"[{network.service}]: {event.user} sent {event.text!r} again within {DOUBLED} s, not run again")
+		log.info(log.cut(f"{network.service.capitalize()} {event.user} sent it again within {DOUBLED} s, not run "
+			"again: " + event.text))
 		return inbound.OK
 	answer = network.acknowledge(event)
 	if answer is not None:
@@ -211,10 +213,10 @@ def take(network, update):
 def dispatch(event):
 	"""Hand a message or a button press to lib/worker, in a thread of its own, which it returns."""
 	if isinstance(event, inbound.Press):
-		log.info(f"[{event.service.capitalize()} button]:", event.user, "chat", event.chat_id, event.data)
+		log.debug(f"{event.service.capitalize()} button", event.user, "chat", event.chat_id, event.data)
 		target = worker.process_callback
 	else:
-		log.info(f"[{event.service.capitalize()}]:", event.user, event.text)
+		log.info(log.cut(f"{event.service.capitalize()} {event.user} {event.text}"))
 		target = worker.process_request
 	thread = threading.Thread(target=target, args=(event,))
 	thread.start()
@@ -304,7 +306,7 @@ if __name__ == '__main__':
 		log.warn('WARN config:', line)
 	if os.getuid() == 0:
 		log.warn("Running as superuser. This is not recommended.")
-	migrate.run() # once: what was kept for all chats becomes the home chats', schedule.cron among it
+	migrate.run() # once, on an upgrade: what was kept for all chats becomes the old home chats'
 	scheduler = jobs.Scheduler()
 	scheduler.load()
 	render.preload()

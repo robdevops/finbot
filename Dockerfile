@@ -4,7 +4,7 @@
 FROM debian:trixie-slim
 
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends python3 python3-requests python3-croniter python3-dateutil \
+	&& apt-get install -y --no-install-recommends python3 python3-requests python3-dateutil \
 		python3-matplotlib python3-numpy python3-waitress python3-websocket python3-discord python3-nacl \
 		ca-certificates tzdata \
 	&& rm -rf /var/lib/apt/lists/*

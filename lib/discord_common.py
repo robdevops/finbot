@@ -75,9 +75,17 @@ def command(name, description, arguments, completes=False):
 	"""A slash command as Discord takes it: a chat command usable in servers and in a DM with the bot, and the arguments
 	it takes, if any, as one optional text option that they describe; with completes, Discord asks finbot what to
 	suggest as they are typed (an autocomplete interaction)."""
-	option = {'type': 3, 'name': OPTION, 'description': arguments[:100], 'required': False, 'autocomplete': completes}
-	return {'name': name, 'type': 1, 'description': description[:100], 'contexts': [GUILD, BOT_DM],
+	option = {'type': 3, 'name': OPTION, 'description': fit(arguments), 'required': False, 'autocomplete': completes}
+	return {'name': name, 'type': 1, 'description': fit(description), 'contexts': [GUILD, BOT_DM],
 		'integration_types': [0], 'options': [option] if arguments else []}
+
+def fit(text, most=100):
+	"""A description within Discord's 100 characters: whole where it fits, else cut after the last of its usage lines
+	(joined by ' | ') that does."""
+	if len(text) <= most:
+		return text
+	cut = text.rfind(' | ', 0, most + 1)
+	return text[:cut] if cut > 0 else text[:most]
 
 
 def summary(commands):
@@ -139,7 +147,7 @@ class Discord(inbound.Network):
 			given = ' '.join(str(option.get('value', '')) for option in data.get('options') or []).strip()
 			text = f"/{data['name']} {given}".strip()
 			return inbound.Message(self.service, channel, f"<@{person.get('id')}>", text, self.bot_name,
-				self.name(person), interaction=through)
+				self.name(person), interaction=through, dm=self.dm(update))
 		if kind == self.AUTOCOMPLETE and data.get('name'):
 			options = data.get('options') or []
 			typed = next((str(option.get('value', '')) for option in options if option.get('focused')), '')
@@ -158,7 +166,13 @@ class Discord(inbound.Network):
 			return inbound.OK
 		text = re.sub(r'<@!?(\d+)>', r'@\1', update['content'])
 		return inbound.Message(self.service, str(update.get('channel_id')), f"<@{author['id']}>", text, self.bot_name,
-			self.name(author), str(update.get('id', '')))
+			self.name(author), str(update.get('id', '')), dm=self.dm(update))
+
+	@staticmethod
+	def dm(update):
+		"""Whether an interaction or a message is in a direct message with the bot: it comes from no server (no
+		guild_id, no member)."""
+		return not (update.get('guild_id') or update.get('member'))
 
 	@staticmethod
 	def name(person):
@@ -261,25 +275,26 @@ class DiscordBot(transports.Transport):
 			image.seek(0)
 		payload = {'content': transports.fit_caption(caption, self.dialect),
 			'attachments': [{'id': 0, 'filename': 'chart.png'}], 'components': components(buttons or [])}
-		call('PATCH', self.message_path(message), **message_body(payload, image))
+		call('PATCH', self.message_path(message), **message_body(payload, image), logged='debug')
 
 	def edit_text(self, message, text, buttons=None):
 		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
 		payload = {'content': text}
 		if buttons is not None:
 			payload['components'] = components(buttons)
-		try_call('PATCH', self.message_path(message), json=payload)
+		try_call('PATCH', self.message_path(message), json=payload, logged='debug')
 
 
 DISCORD_ROW = 5 # buttons in a row of components, and rows in a message: Discord's limits
 
 
 def components(buttons):
-	"""Rows of buttons.Button as Discord's action rows: DISCORD_ROW buttons to a row and as many rows at most (the
-	buttons past that are left out), the one shown now blurple and the rest grey."""
-	flat = [button for row in buttons for button in row][:DISCORD_ROW * DISCORD_ROW]
+	"""Rows of buttons.Button as Discord's action rows: a row of at most DISCORD_ROW buttons (a longer one in rows of
+	that), and as many rows at most (the buttons past that are left out), the one shown now blurple and the rest
+	grey. A row of buttons that fits stays a row of its own, so a picker's period buttons keep theirs."""
+	rows = [row[i:i + DISCORD_ROW] for row in buttons for i in range(0, len(row), DISCORD_ROW)][:DISCORD_ROW]
 	return [{'type': 1, 'components': [{'type': 2, 'style': 1 if button.active else 2, 'label': button.label[:80],
-		'custom_id': button.data} for button in flat[i:i + DISCORD_ROW]]} for i in range(0, len(flat), DISCORD_ROW)]
+		'custom_id': button.data} for button in row]} for row in rows]
 
 
 def message_body(payload, image=None):

@@ -2,6 +2,7 @@
 import datetime, json, threading, unittest
 from pathlib import Path
 from tests.common import *
+from lib import when
 
 
 class Parsing(unittest.TestCase):
@@ -146,25 +147,59 @@ class Formatting(unittest.TestCase):
 
 	def test_button_data_reads_back(self):
 		"""A button's data says what was pressed: a period button of a known kind and period (as keyboard() makes
-		them), any .jobs button (pick checks it), and nothing for anything else."""
+		them), a .jobs menu's button of a known screen made of plain letters and digits, an older job button (pick
+		checks it), and nothing for anything else."""
 		self.assertEqual([buttons.parse(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
 			[buttons.ChartPress('l', key, '5,0') for key in 'dwmyx'])
-		self.assertEqual(buttons.parse(buttons.job_button(8, 'trades', 'abcd').data), buttons.JobPress('8', 'abcd'))
+		self.assertEqual(buttons.parse(buttons.menu_button('1 ✅ trades', 'on', [0, 1], 'abcd').data),
+			buttons.MenuPress('on', ('0', '1'), 'abcd'))
+		self.assertEqual(buttons.parse('m|add|abcd'), buttons.MenuPress('add', (), 'abcd'))
+		self.assertEqual(buttons.parse('j|8|abcd'), buttons.JobPress('8', 'abcd'))
 		self.assertEqual(buttons.parse('j|8'), buttons.JobPress('8', ''))
-		for data in ('c|h|d|T1', 'c|z|w|T1', 'c|h|w', 'x|h|w|T1', '', 'c'):
+		self.assertEqual(buttons.menu_button('x' * 50, 'top', [0], 'abcd').label, 'x' * 40)
+		for data in ('c|h|d|T1', 'c|z|w|T1', 'c|h|w', 'x|h|w|T1', '', 'c', 'm|zz|0|abcd', 'm|on', 'm|on|0|a b',
+				'm|on|٨|abcd', 'm|on|0|1|' + 'a' * 60):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
 
+	def test_a_pickers_data_reads_back_in_few_bytes(self):
+		"""A picker's button says what it asks for, with up to 32 ticked tickers in 64 bytes; data of no picker, with
+		an act or a command it has not, is nothing, and only a refused tick is an alert."""
+		press = buttons.PickPress('c', 's', 'x', 1, 2 ** 32 - 1, 'r31', 'a1b2')
+		button = buttons.pick_button('x' * 99, press)
+		self.assertEqual((buttons.parse(button.data), len(button.label), len(button.data)), (press, 40, 27))
+		for data in ('k|z|0|x|0|0|p0|a1b2', 'k|c|0|x|0|0|q0|a1b2', 'k|c|0|x|0|zz|p0|a1b2', 'k|c|0|q|0|0|p0|a1b2',
+				'k|c|0|x|0|0|p0', 'k|c|0|x|0|0|p0|a-b2', 'k|c|0|x|0|0|p|a1b2'):
+			with self.subTest(data=data):
+				self.assertIsNone(buttons.parse(data))
+		acts = ('p0', 'm1', 'r2', 'g0', 'h0', 'f0')
+		self.assertEqual([buttons.toast(f'k|c|0|x|0|3|{act}|a1b2') for act in acts],
+			['Updating…', 'Updating…', 'Loading…', 'Loading…', 'Loading…', buttons.TOO_MANY])
+		self.assertEqual([buttons.alert(f'k|c|0|x|0|3|{act}|a1b2') for act in ('m0', 'f0')], [False, True])
+
 	def test_a_press_is_told_what_is_coming_from_its_data_alone(self):
-		"""The toast a press gets as it arrives: the period a period button loads, 'Running…' for any .jobs button
-		(the worker checks it later), and none for data of neither."""
+		"""The toast a press gets as it arrives: the period a period button loads, 'Updating…' for the .jobs menu's,
+		'Running…' or 'Switching…' for an older job button (the worker checks them later), and none for other data."""
 		self.assertEqual([buttons.toast(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
 			['Loading 1D…', 'Loading 7D…', 'Loading 1M…', 'Loading 1Y…', 'Loading Max…'])
-		self.assertEqual(buttons.toast(buttons.job_button(8, 'trades', 'abcd').data), 'Running…')
+		self.assertEqual(buttons.toast('j|8|abcd'), 'Running…')
 		self.assertEqual(buttons.toast('j|99|0000'), 'Running…')
+		self.assertEqual(buttons.toast('e|99|0000'), 'Switching…')
+		self.assertEqual(buttons.toast('m|on|0|1|abcd'), 'Updating…')
 		for data in ('c|f|d|', 'c|zz|m|T1', '', 'x'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.toast(data))
+
+	def test_a_message_takes_links_and_italics_in_each_networks_markup(self):
+		"""In a message job's text, [text](url) is a link and a line in _underscores_ is in italics, an underscore in a
+		url included; the rest is text, escaped where the network needs it; plain() keeps the words alone."""
+		line = '_See [R&D notes](https://x.example/a_b) & more_'
+		self.assertEqual(formats.markup(line, TELEGRAM),
+			'<i>See <a href="https://x.example/a_b">R&amp;D notes</a> &amp; more</i>')
+		self.assertEqual(formats.markup(line, SLACK), '_See <https://x.example/a_b|R&amp;D notes> &amp; more_')
+		self.assertEqual(formats.markup(line, DISCORD), '_See [R&D notes](<https://x.example/a_b>) & more_')
+		self.assertEqual(formats.markup('a_b_c and _', TELEGRAM), 'a_b_c and _') # italic only when the whole line is
+		self.assertEqual(formats.plain(line), 'See R&D notes & more')
 
 	def test_strip_url(self):
 		"""A link's text is its address without the scheme or www."""
@@ -315,6 +350,213 @@ class StateFiles(FinbotCase):
 		self.assertEqual(watchlist.with_holdings('discord:7'), ['AAPL', 'GOOG'])
 		self.assertEqual(watchlist.all_watched(), ['MSFT', 'NVDA'])
 		self.assertEqual(watchlist.all_followed(), ['AAPL', 'GOOG', 'MSFT', 'NVDA'])
+
+
+class Schedules(unittest.TestCase):
+	"""lib/when.py: schedules read from English, said back in words, and their next runs, daylight saving included."""
+	MEL, SYD, NY = 'Australia/Melbourne', 'Australia/Sydney', 'America/New_York'
+	OCTOBER = datetime.datetime(2026, 10, 15, tzinfo=when.UTC) # Melbourne and Sydney on summer time, New York too
+	TRADES = {'span': ['mon 09:00', 'sat 15:00'], 'every': 20, 'zone': SYD}
+
+	def at(self, zone, *args):
+		"""A moment by a zone's clock: at(MEL, 2026, 10, 4, 3, 0)."""
+		return datetime.datetime(*args, tzinfo=zoneinfo.ZoneInfo(zone))
+
+	def test_english_becomes_a_schedule(self):
+		"""Each form a chat may type becomes the schedule it says, in the zone it names or the timezone preference's."""
+		for text, stored in (('daily', {'days': 'daily', 'at': '09:00'}), ('at 9am', {'days': 'daily', 'at': '09:00'}),
+				('weekdays at 4:30pm', {'days': 'weekdays', 'at': '16:30'}),
+				('weekly', {'days': ['sat'], 'at': '09:00'}),
+				('every saturday at 9am', {'days': ['sat'], 'at': '09:00'}),
+				('Saturdays at 21:30', {'days': ['sat'], 'at': '21:30'}),
+				('weekly on sunday at 8:30am', {'days': ['sun'], 'at': '08:30'}),
+				('tue-sat at 8:30am', {'days': ['tue', 'wed', 'thu', 'fri', 'sat'], 'at': '08:30'}),
+				('mon to fri at 9', {'days': ['mon', 'tue', 'wed', 'thu', 'fri'], 'at': '09:00'}),
+				('weekends at 10am', {'days': ['sat', 'sun'], 'at': '10:00'}),
+				('monthly', {'days': {'day': 1}, 'at': '09:00'}),
+				('first day of each month at 9am', {'days': {'day': 1}, 'at': '09:00'}),
+				('1st of the month', {'days': {'day': 1}, 'at': '09:00'}),
+				('monthly on the 2nd at 8:30am', {'days': {'day': 2}, 'at': '08:30'}),
+				('quarterly', {'days': {'day': 1, 'months': [1, 4, 7, 10]}, 'at': '09:00'}),
+				('quarterly on the 2nd', {'days': {'day': 2, 'months': [1, 4, 7, 10]}, 'at': '09:00'}),
+				('quarterly from feb on the 15th', {'days': {'day': 15, 'months': [2, 5, 8, 11]}, 'at': '09:00'}),
+				('bi-annual', {'days': {'day': 1, 'months': [1, 7]}, 'at': '09:00'}),
+				('half-yearly', {'days': {'day': 1, 'months': [1, 7]}, 'at': '09:00'}),
+				('bi-annual starting in march', {'days': {'day': 1, 'months': [3, 9]}, 'at': '09:00'}),
+				('annual from aug', {'days': {'day': 1, 'months': [8]}, 'at': '09:00'}),
+				('annual', {'days': {'day': 1, 'months': [1]}, 'at': '09:00'}),
+				('every 31 mar at 8:30am', {'days': {'day': 31, 'months': [3]}, 'at': '08:30'}),
+				('on 28 oct 2026', {'days': {'date': '2026-10-28'}, 'at': '09:00'}),
+				('every 20 mins', {'days': 'daily', 'every': 20}),
+				('every 45 minutes weekdays', {'days': 'weekdays', 'every': 45}),
+				('hourly', {'days': 'daily', 'every': 60}),
+				('every 2 hours between 9am and 5pm', {'days': 'daily', 'every': 120, 'from': '09:00', 'to': '17:00'}),
+				('hourly at :01 weekdays from 10am to 9pm',
+					{'days': 'weekdays', 'every': 60, 'from': '10:01', 'to': '21:01'}),
+				('every 20 mins from mon 9am to sat 3pm', {'span': ['mon 09:00', 'sat 15:00'], 'every': 20}),
+				('weekdays at 4:30pm New York', {'days': 'weekdays', 'at': '16:30', 'zone': self.NY}),
+				('daily at 9am EST', {'days': 'daily', 'at': '09:00', 'zone': self.NY}),
+				('daily at 9am america/new_york', {'days': 'daily', 'at': '09:00', 'zone': self.NY}),
+				('daily at 21:30 UTC', {'days': 'daily', 'at': '21:30', 'zone': 'UTC'}),
+				('saturdays at 9am hong kong', {'days': ['sat'], 'at': '09:00', 'zone': 'Asia/Hong_Kong'})):
+			with self.subTest(text=text):
+				self.assertEqual(when.parse(text, self.MEL).to_json(), {'zone': self.MEL, **stored})
+
+	def test_what_is_no_schedule_is_refused_with_examples(self):
+		"""Unreadable words, times and dates that are none, and a repeat at a time of day are refused, with examples."""
+		for text in ('fortnightly', 'at 25:00', 'at 13pm', 'every 31 feb', 'every 20 mins at 9am',
+				'weekly from 9am to 5pm', 'daily at 9am Atlantis', '', 'every 0 mins', 'the 32nd of each month',
+				'monthly; rm -rf /'):
+			with self.subTest(text=text):
+				with self.assertRaises(when.ScheduleError) as caught:
+					when.parse(text, self.MEL)
+				self.assertIn('For example: daily at 9am', str(caught.exception))
+
+	def test_a_schedule_says_itself_by_its_own_zones_clock(self):
+		"""In a Melbourne chat in mid-October: Melbourne's zone in plain local time, UTC in 24 hours, another zone by
+		its place, with the local time beside it only where the clocks differ, its days moved across midnight."""
+		syd, ny = self.SYD, self.NY
+		for stored, words in ((self.TRADES, 'every 20 mins, Mon 9am – Sat 3pm Sydney'),
+				({'days': 'weekdays', 'at': '13:00', 'zone': syd}, 'weekdays at 1:00pm Sydney'),
+				({'days': 'weekdays', 'at': '12:45', 'zone': ny},
+					'weekdays at 12:45pm New York (3:45am local, Tue–Sat)'),
+				({'days': 'weekdays', 'at': '07:15', 'zone': ny}, 'weekdays at 7:15am New York (10:15pm local)'),
+				({'days': 'weekdays', 'at': '16:30', 'zone': 'Asia/Hong_Kong'},
+					'weekdays at 4:30pm Hong Kong (7:30pm local)'),
+				({'days': 'weekdays', 'at': '17:00', 'zone': 'Europe/London'},
+					'weekdays at 5:00pm London (3:00am local, Tue–Sat)'),
+				({'days': ['tue', 'wed', 'thu', 'fri', 'sat'], 'at': '08:30', 'zone': syd}, 'Tue–Sat at 8:30am Sydney'),
+				({'days': 'weekdays', 'every': 60, 'from': '10:01', 'to': '21:01', 'zone': syd},
+					'hourly at :01, weekdays 10am–9pm Sydney'),
+				({'days': ['sun'], 'at': '08:30', 'zone': syd}, 'weekly, Sundays at 8:30am Sydney'),
+				({'days': {'day': 2}, 'at': '08:30', 'zone': syd}, 'monthly, the 2nd at 8:30am Sydney'),
+				({'days': {'day': 2, 'months': [1, 4, 7, 10]}, 'at': '08:30', 'zone': syd},
+					'quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney'),
+				({'days': {'day': 2, 'months': [1, 7]}, 'at': '08:30', 'zone': syd},
+					'bi-annual, 2 Jan and 2 Jul at 8:30am Sydney'),
+				({'days': {'day': 15, 'months': [2, 5, 8, 11]}, 'at': '09:00', 'zone': self.MEL},
+					'quarterly, 15 Feb/May/Aug/Nov at 9:00am'),
+				({'days': {'day': 1, 'months': [3, 9]}, 'at': '09:00', 'zone': self.MEL},
+					'bi-annual, 1 Mar and 1 Sep at 9:00am'),
+				({'days': {'day': 1, 'months': [1, 2]}, 'at': '09:00', 'zone': self.MEL},
+					'yearly, 1 Jan/Feb at 9:00am'),
+				({'days': {'day': 31, 'months': [3]}, 'at': '08:30', 'zone': syd}, 'annual, 31 Mar at 8:30am Sydney'),
+				({'days': {'date': '2026-10-28'}, 'at': '08:30', 'zone': syd}, 'once, 28 Oct 2026 at 8:30am Sydney'),
+				({'days': ['sat'], 'at': '09:00', 'zone': self.MEL}, 'weekly, Saturdays at 9:00am'),
+				({'days': 'daily', 'at': '21:30', 'zone': 'UTC'}, 'daily at 21:30 UTC'),
+				({'every': 30, 'from': '00:14', 'zone': 'UTC'}, 'every 30 mins from :14 UTC'),
+				({'every': 480, 'from': '00:07', 'zone': 'UTC'}, 'every 8 hours at :07 UTC'),
+				({'days': 'weekdays', 'every': 120, 'from': '09:00', 'to': '17:00', 'zone': self.MEL},
+					'every 2 hours, weekdays 9am–5pm')):
+			with self.subTest(words=words):
+				self.assertEqual(when.Schedule.from_json(stored).describe(self.MEL, self.OCTOBER), words)
+
+	def test_the_local_clock_beside_another_zones(self):
+		"""Seen from New York, or by a bot on UTC, a Sydney job shows the local times too: a span moved, the days
+		before, UTC in 24 hours."""
+		syd = self.SYD
+		for stored, local, words in ((self.TRADES, self.NY,
+					'every 20 mins, Mon 9am – Sat 3pm Sydney (Sun 6pm – Sat 12am local)'),
+				({'days': 'weekdays', 'at': '13:00', 'zone': syd}, self.NY,
+					'weekdays at 1:00pm Sydney (10:00pm local, Sun–Thu)'),
+				({'days': {'day': 2, 'months': [1]}, 'at': '08:30', 'zone': syd}, self.NY,
+					'annual, 2 Jan at 8:30am Sydney (4:30pm local, the day before)'),
+				({'days': 'weekdays', 'every': 60, 'from': '10:01', 'to': '21:01', 'zone': syd}, self.NY,
+					'hourly at :01, weekdays 10am–9pm Sydney (7pm–6am local)'),
+				({'days': 'weekdays', 'at': '13:00', 'zone': syd}, 'UTC', 'weekdays at 1:00pm Sydney (02:00 UTC)')):
+			with self.subTest(words=words):
+				self.assertEqual(when.Schedule.from_json(stored).describe(local, self.OCTOBER), words)
+
+	def test_the_next_run_of_each_kind(self):
+		"""next_after gives the first run after a moment, never at it: a week on, the next month with a 31st, 29
+		February years on, a one-off's date and then none, a repeat's next step, within its window or its span."""
+		mel, syd, trades = self.MEL, self.SYD, self.TRADES
+		window = {'days': 'weekdays', 'every': 60, 'from': '10:01', 'to': '21:01', 'zone': syd}
+		once = {'days': {'date': '2026-10-28'}, 'at': '08:30', 'zone': syd}
+		for stored, after, run in (({'at': '09:00', 'zone': mel}, (2026, 10, 15, 8), (2026, 10, 15, 9)),
+				({'at': '09:00', 'zone': mel}, (2026, 10, 15, 9), (2026, 10, 16, 9)),
+				({'days': ['sat'], 'at': '09:00', 'zone': mel}, (2026, 10, 17, 10), (2026, 10, 24, 9)),
+				({'days': 'weekdays', 'at': '09:00', 'zone': mel}, (2026, 10, 16, 10), (2026, 10, 19, 9)),
+				({'days': {'day': 31}, 'at': '09:00', 'zone': mel}, (2026, 4, 1), (2026, 5, 31, 9)),
+				({'days': {'day': 2, 'months': [1, 4, 7, 10]}, 'at': '08:30', 'zone': syd}, (2026, 10, 16),
+					(2027, 1, 2, 8, 30)),
+				({'days': {'day': 29, 'months': [2]}, 'at': '09:00', 'zone': mel}, (2026, 3, 1), (2028, 2, 29, 9)),
+				(once, (2026, 10, 20), (2026, 10, 28, 8, 30)), (once, (2026, 10, 28, 9), None),
+				({'every': 20, 'zone': mel}, (2026, 10, 15, 10, 5), (2026, 10, 15, 10, 20)),
+				({'every': 45, 'zone': mel}, (2026, 10, 15, 23, 20), (2026, 10, 16, 0, 0)),
+				(window, (2026, 10, 16, 21, 0), (2026, 10, 16, 21, 1)),
+				(window, (2026, 10, 16, 21, 30), (2026, 10, 19, 10, 1)),
+				(trades, (2026, 10, 17, 14, 50), (2026, 10, 17, 15)), (trades, (2026, 10, 17, 15), (2026, 10, 19, 9)),
+				(trades, (2026, 10, 14, 23, 50), (2026, 10, 15, 0)),
+				(trades, (2026, 10, 19, 8, 59), (2026, 10, 19, 9))):
+			schedule = when.Schedule.from_json(stored)
+			with self.subTest(stored=stored, after=after):
+				expected = run and datetime.datetime(*run, tzinfo=schedule.tz)
+				self.assertEqual(schedule.next_after(datetime.datetime(*after, tzinfo=schedule.tz)), expected)
+
+	def test_a_job_keeps_its_zones_clock_through_daylight_saving(self):
+		"""4:30pm New York is 4:30pm there on both sides of a change; a time the clocks skip runs at the first minute
+		after the gap, and a time they repeat runs once, the first time, as does each step of a repeat."""
+		close = when.Schedule.from_json({'days': 'weekdays', 'at': '16:30', 'zone': self.NY})
+		friday = close.next_after(self.at(self.NY, 2026, 3, 6, 12)) # New York's clocks go forward on 8 March
+		monday = close.next_after(friday)
+		self.assertEqual([(run.weekday(), run.hour, run.minute) for run in (friday.astimezone(close.tz),
+			monday.astimezone(close.tz))], [(4, 16, 30), (0, 16, 30)])
+		self.assertEqual([run.astimezone(when.UTC).hour for run in (friday, monday)], [21, 20])
+		self.assertEqual(when.Schedule.from_json({'at': '02:30', 'zone': self.NY}).next_after(
+			self.at(self.NY, 2026, 3, 7, 12)), datetime.datetime(2026, 3, 8, 7, 0, tzinfo=when.UTC)) # 3am EDT
+		night = when.Schedule.from_json({'at': '02:30', 'zone': self.MEL})
+		self.assertEqual(night.next_after(self.at(self.MEL, 2026, 10, 3, 12)), self.at(self.MEL, 2026, 10, 4, 3, 0))
+		first = night.next_after(self.at(self.MEL, 2026, 4, 4, 12)) # Melbourne repeats 2:00-2:59 on 5 April
+		self.assertEqual(first, datetime.datetime(2026, 4, 4, 15, 30, tzinfo=when.UTC))
+		self.assertEqual(night.next_after(first), self.at(self.MEL, 2026, 4, 6, 2, 30))
+		steps, seen = when.Schedule.from_json({'every': 20, 'zone': self.MEL}), []
+		moment = self.at(self.MEL, 2026, 4, 5, 1, 50)
+		for _ in range(5):
+			moment = steps.next_after(moment)
+			seen.append(f'{moment.astimezone(when.UTC):%H:%M}')
+		self.assertEqual(seen, ['15:00', '15:20', '15:40', '17:00', '17:20']) # 2:00-2:40 summer time, then 3am
+
+	def test_a_kept_schedule_reads_back_and_junk_is_refused(self):
+		"""to_json and from_json give the same schedule back; a kept schedule that is not one (an edited file) is a
+		ScheduleError, never another exception."""
+		for text in ('weekdays at 4:30pm New York', 'every 20 mins from mon 9am to sat 3pm', 'quarterly on the 2nd',
+				'on 28 oct 2026', 'hourly at :01 weekdays from 10am to 9pm', 'tue-sat at 8:30am'):
+			with self.subTest(text=text):
+				schedule = when.parse(text, self.MEL)
+				self.assertEqual(when.Schedule.from_json(json.loads(json.dumps(schedule.to_json()))), schedule)
+		for junk in ([], 'daily', {'days': 'sometimes', 'at': '09:00'}, {'days': ['mon'], 'at': '25:00'},
+				{'days': ['funday'], 'at': '09:00'}, {'at': '09:00', 'zone': '../../etc/passwd'},
+				{'at': '09:00', 'zone': 5},
+				{'span': ['mon 09:00'], 'every': 20}, {'every': True}, {'at': '09:00', 'every': 20},
+				{'days': {'day': 'x'}, 'at': '09:00'}, {'days': {'date': '2026-02-30'}, 'at': '09:00'},
+				{'days': [['mon']], 'at': '09:00'}, {'at': '9'}):
+			with self.subTest(junk=junk), self.assertRaises(when.ScheduleError):
+				when.Schedule.from_json(junk)
+
+	def test_how_often_in_a_word(self):
+		"""How often a schedule's days come round, in a word; None for several weekdays, and for a span."""
+		for text, word in (('daily', 'daily'), ('weekdays', 'weekdays'), ('every sunday', 'weekly'),
+				('monthly on the 2nd', 'monthly'), ('quarterly', 'quarterly'), ('bi-annual', 'bi-annual'),
+				('quarterly from dec', 'quarterly'), ('bi-annual from mar', 'bi-annual'),
+				('annual', 'annual'), ('every 31 mar', 'annual'), ('on 28 oct 2026', 'once'), ('tue-sat', None),
+				('every 20 mins from mon 9am to sat 3pm', None)):
+			with self.subTest(text=text):
+				self.assertEqual(when.parse(text, self.MEL).frequency, word)
+		self.assertIsNone(when.Schedule({'day': 1, 'months': (1, 2)}, at=540).frequency) # no cycle: yearly
+
+	def test_a_cycle_runs_from_its_start_month(self):
+		"""A quarterly or bi-annual cycle may start in any month: its months are the start and every 3 or 6 months on,
+		and its next run is the next of them."""
+		self.assertEqual([when.cycle(2, 4), when.cycle(12, 4), when.cycle(7, 2), when.cycle(3, 1)],
+			[(2, 5, 8, 11), (3, 6, 9, 12), (1, 7), (3,)])
+		self.assertEqual((when.cycle(1, 4), when.cycle(1, 2)), (when.QUARTERS, when.HALVES))
+		october = datetime.datetime(2026, 10, 14, tzinfo=zoneinfo.ZoneInfo(self.MEL))
+		for text, run in (('quarterly from feb on the 15th', '2026-11-15 09:00'),
+				('bi-annual from mar', '2027-03-01 09:00'), ('quarterly', '2027-01-01 09:00')):
+			with self.subTest(text=text):
+				found = when.parse(text, self.MEL).next_after(october).astimezone(zoneinfo.ZoneInfo(self.MEL))
+				self.assertEqual(found.strftime('%Y-%m-%d %H:%M'), run)
 
 
 if __name__ == '__main__':

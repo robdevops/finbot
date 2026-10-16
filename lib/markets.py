@@ -78,6 +78,49 @@ VENUES = { # the other names of an exchange -> its code in MARKETS: its Yahoo ti
 	'Shanghai': 'SHG', 'Shenzhen': 'SHE', 'Thailand': 'BKK', 'Jakarta': 'IDX', 'Kuala Lumpur': 'KLS',
 }
 
+YAHOO_COUNTRY = { # country -> the Yahoo suffix of its home market: the calendar's guess at a US listing's home one
+	'Argentina': 'BA',
+	'Austria': 'VI',
+	'Australia': 'AX',
+	'Belgium': 'BR',
+	'Brazil': 'SA',
+	'Canada': 'TO',
+	'Chile': 'SN',
+	'Colombia': 'CL',
+	'Czech Republic': 'PR',
+	'Denmark': 'CO',
+	'Estonia': 'TL',
+	'Finland': 'HE',
+	'France': 'PA',
+	'Germany': 'DE',
+	'Hungary': 'BD',
+	'Iceland': 'IC',
+	'India': 'NS',
+	'Indonesia': 'JK',
+	'Ireland': 'IR',
+	'Israel': 'TA',
+	'Italy': 'MI',
+	'Latvia': 'RG',
+	'Lithuania': 'VS',
+	'Mexico': 'MX',
+	'Netherlands': 'AS',
+	'New Zealand': 'NZ',
+	'Norway': 'OL',
+	'Portugal': 'LS',
+	'Qatar': 'QA',
+	'Saudi Arabia': 'SR',
+	'South Africa': 'JO',
+	'Spain': 'MC',
+	'Sweden': 'ST',
+	'Switzerland': 'SW',
+	'Thailand': 'BK',
+	'Turkey': 'IS',
+	'United Kingdom': 'L',
+	'Venezuela': 'CR'
+	# markets with numeric tickers purposefully omitted
+}
+
+
 def code(name):
 	"""MARKETS' code for an exchange by any name it goes by: Sharesight's code or Google's, the suffix of its Yahoo
 	tickers, or Yahoo's name for it (each Nasdaq tier has one: NasdaqGS); the name itself when unknown."""

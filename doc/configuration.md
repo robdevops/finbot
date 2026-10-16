@@ -12,7 +12,7 @@ sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finb
 * **systemd:** `EnvironmentFile=/opt/finbot.env` in `finbot.service`, plus `ExecStartPre=+.../util/check_config.py /opt/finbot.env` for pre-flight lint.
 * **Docker:** `compose.yaml` loads it, and checks it before the bot starts (see [docker.md](docker.md)). Write the values without quotes.
 * **init.d / shell:** `util/check_config.py /opt/finbot.env && set -a && . /opt/finbot.env && set +a && ./bot.py` (`set -a` is what exports the values to the bot).
-* **Scheduled jobs:** they are run by `bot.py` (see [Scheduling](scheduling.md)), so they run on the same settings. For a one-off run, send `.jobs run` in the chat.
+* **Scheduled jobs:** they are run by `bot.py` (see [Scheduling](scheduling.md)), so they run on the same settings. For a one-off run, send `/jobs run` in the chat.
 
 The startup keys, read by your launcher. A change needs a restart. Blank means unset. Each network's guide says which
 of the chat network keys it needs.
@@ -20,26 +20,25 @@ of the chat network keys it needs.
 | Key | Default | Description |
 |---|---|---|
 | `DATA_DIR` | `var/` in the checkout (`$STATE_DIRECTORY` under systemd `StateDirectory=`) | Where state and cache live |
-| `ip` | `127.0.0.1` | Address the bot listens on |
-| `port` | `5000` | Port the bot listens on |
+| `ip` | `127.0.0.1` | Address the bot listens on, in HTTP mode |
+| `port` | `5000` | Port the bot listens on, in HTTP mode |
 | `scheduler_catchup` | `5` | Minutes: a run missed while the bot was down still fires if it was due this recently |
-| `telegramChatID` | | Telegram's home chat, a group or channel id: finbot's first start gives it the default jobs, and error reports go there (see [Scheduling](scheduling.md)) |
 | `sharesight_code` | | Sharesight API access |
 | `sharesight_client_id` | | Sharesight API access |
 | `sharesight_client_secret` | | Sharesight API access |
 | `telegramBotToken` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `telegramOutgoingWebhook` is set) |
 | `slackBotToken` | | Slack bot token, for replies and chart uploads in Slack |
 | `slackAppToken` | | Slack app-level token (`xapp-`): commands over a socket finbot opens to Slack (Socket Mode), when `slackOutgoingWebhook` is empty |
-| `slackChannelID` | | Slack's home channel id, as `telegramChatID` (with `slackBotToken`) |
 | `telegramOutgoingWebhook` | | The URL Telegram posts its updates to (HTTP mode); empty, finbot fetches them (pull mode) |
 | `telegramOutgoingToken` | | Secret token Telegram must present (HTTP mode) |
 | `slackOutgoingWebhook` | | The URL Slack posts its events and button presses to (HTTP mode); empty, Socket Mode with `slackAppToken` |
 | `slackOutgoingToken` | | Token Slack must present (HTTP mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
 | `slackSigningSecret` | | Secret Slack signs each request with (HTTP mode) |
-| `discordBotToken` | | Discord bot token: replies, and commands over the gateway unless `discordOutgoingWebhook` is set |
-| `discordChannelID` | | Discord's home channel id, as `telegramChatID` (with `discordBotToken`) |
-| `discordOutgoingWebhook` | | The Interactions Endpoint URL Discord posts slash commands and button presses to (HTTP mode); empty, the gateway (pull mode) |
+| `discordBotToken` | | Discord bot token: replies, and commands over the gateway API unless `discordOutgoingWebhook` is set |
+| `discordOutgoingWebhook` | | The Interactions Endpoint URL Discord posts slash commands and button presses to (HTTP mode); empty, the gateway API (pull mode) |
 | `discordPublicKey` | | The app's public key, which checks the signature of each interaction (HTTP mode) |
+
+Retired keys do nothing, and only get a note at start (and from check_config) saying to delete the line: `telegramChatID`, `slackChannelID` and `discordChannelID` (there are no home chats: each chat has its own jobs, and an error that belongs to no chat goes to the log; an upgrade from before jobs per chat reads them once, as [Scheduling](scheduling.md) says), and `slack_webhook` and `discord_webhook`.
 
 ## `preferences.conf` items
 
@@ -57,7 +56,7 @@ A change takes effect on a reload. A true/false preference takes `true`/`false`,
 | `future_days` | `30` | How many days ahead the events calendar looks |
 | `price_percent` | `5` | Price alert threshold, percent |
 | `shorts_percent` | `15` | Short interest alert threshold, percent |
-| `min_analysts` | `7` | `.buy`, `.sell` and `.forward pe` list only stocks covered by at least this many analysts; with fewer, a consensus says little (thinly covered small caps are nearly all a perfect buy) |
+| `min_analysts` | `7` | `/buy`, `/sell` and `/forwardpe` list only stocks covered by at least this many analysts; with fewer, a consensus says little (thinly covered small caps are nearly all a perfect buy) |
 | `demote_volatile` | `True` | Volatile (small cap, high beta) stocks need a bigger move to alert |
 | `demote_leveraged` | `True` | Leveraged (2x, 3x) funds need a bigger move to alert |
 | `volatility_multiplier` | `2` | How much bigger a move volatile stocks need |
@@ -69,13 +68,14 @@ A change takes effect on a reload. A true/false preference takes `true`/`false`,
 | `hyperlinkFooter` | `True` | Add a website link footer to stock lookups |
 | `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` |
 | `exchange_suffix` | `AX` | Regional: Yahoo's suffix for your exchange (`AX` for the ASX, `NZ`, `L`, `TO` and so on). A bare symbol Yahoo does not know is tried again with it, in every command that takes a symbol (`BHP` becomes `BHP.AX`); empty, a symbol is taken as written |
-| `country_code` | `AU` | Regional: your country, for the reminder report |
-| `timezone` | `Australia/Melbourne` | Regional: your time zone, for the reminder report, and for each job's next run in `.jobs` (besides UTC) |
+| `country_code` | `AU` | Regional: your country, for the default jobs' messages that are for one (`AU`: the tax year's reminders) |
+| `timezone` | `Australia/Melbourne` | Regional: your time zone, the clock of the times `/jobs` takes and shows, and a job's zone where it names none |
 | `cache` | `True` | Cache Yahoo and Sharesight responses |
-| `cache_seconds` | `43200` | Cache lifetime in seconds (12 hours) |
+| `cache_seconds` | `21600` | Cache lifetime in seconds (6 hours) |
 | `performance_cache_seconds` | `2400` | Cache lifetime of Sharesight performance reports in seconds: longer than the 30 minutes between `sharesight_warm` runs, so the holdings never run out |
 | `http_timeout` | `18` | Seconds to wait on outbound HTTP requests |
-| `log_level` | `INFO` | What the log shows: that level and those above it, syslog style. `ERROR`: what failed and was lost (a message not sent); `WARN`: what failed and was got over (a retry, a fallback, a request refused); `INFO`: what finbot does (each message sent, each job run, each request sent and answered); `DEBUG`: each cache miss, hit and write too. Replaces `debug` |
+| `log_level` | `INFO` | What the log shows: that level and those above it, syslog style. `ERROR`: what failed and was lost (a message not sent); `WARN`: what failed and was got over (a retry, a fallback, a request refused); `INFO`: what finbot does (each message sent, each job run, each request sent, each request refused); `DEBUG`: the routine of a button press too (the press, its acknowledgement, the message edited in place), each request answered with success, and each cache miss, hit and write. Replaces `debug` |
+| `log_width` | `71` | The most characters of a log line that can run long: a longer one is cut there, ending in `…`. That is each request's line (its method and URL) and each chat message's (who sent what, in which network). A message of several lines is logged on one line, its line breaks spaces. `0`: no line is cut |
 | `print_headers` | `False` | Log inbound request headers |
 
 A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied. A key finbot no longer reads (`alliterate`, `chunk_maxlines`) is ignored, and the log at start says to delete it.
@@ -86,7 +86,7 @@ edit `preferences.conf`, then reload if running. The service log shows what chan
 
 ## Data directory
 All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`); in Docker it is `/data`, the host's `/opt/finbot-data` (see [docker.md](docker.md)).
-Reference data (`finbot_adr.json`, `finbot_sws_*.json`, `reminder.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
+Reference data (`finbot_adr.json`, `finbot_sws_*.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
 ```
 util/sync_defaults.py          # dry run
 util/sync_defaults.py --apply  # copy missing files (including a starter preferences.conf)
@@ -94,7 +94,7 @@ util/sync_defaults.py --force  # also replace changed files, keeping .bak copies
 util/sync_defaults.py --dest /srv/finbot --apply  # target another directory instead of the data directory
 util/sync_defaults.py --dest /srv/finbot --create --apply  # and make it (mode 750) if it does not exist yet
 ```
-`reminder.json` holds the reminders that the `reminder` report posts on their day. Each entry has a `month_day` (`06-30`) and a `message`, which is one line or a list of lines, and may name a `year` (`2026`) and a `gate_country` (posted only when `country_code` in `preferences.conf` matches; `{flag}` in its message becomes that country's flag). A message is text, with two kinds of markup that each network gets in its own form: `[text](https://example.com)` is a link, and a line wrapped in underscores, `_like this_`, is in italics. The Australian end of financial year checklist (23 June) is such an entry: if you keep your own `reminder.json` in the data directory, `util/sync_defaults.py` shows what it lacks.
+The reminders that `reminder.json` held are message jobs now, among the default jobs (see [Scheduling](scheduling.md#the-default-jobs)), and finbot reads that file no more: delete the data directory's copy. A chat adds its own with `/jobs add message SCHEDULE "TEXT"`.
 
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
 
@@ -107,6 +107,7 @@ sharesight_code=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 sharesight_client_id=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 sharesight_client_secret=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 ```
+* Sharesight is optional. Without its keys, a chat's reports cover its watchlist alone, so add your holdings to it (`/watchlist add SYMBOL`); `/holdings`, `/trades`, `/performance`, `/who`, `/pie` and `/treemap` say Sharesight is not set up, and the trades and performance jobs are not among the default jobs.
 
 ## Portfolios
 Portfolios are auto-discovered, including other people's portfolios which are shared to you. To exclude specific portfolios, add their IDs to `exclude_portfolios` in the `preferences.conf`:

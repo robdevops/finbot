@@ -57,8 +57,9 @@ class Telegram(Dialect):
 		return '<a href="' + url + '">' + text + '</a>'
 
 	def visible(self, text):
-		"""The length without the HTML tags, which Telegram does not count."""
-		return len(re.sub(r'<[^>]+>', '', text))
+		"""The length as Telegram counts it: the text the HTML shows (no tags, &amp; one character), in UTF-16 code
+		units, so an emoji such as 🔼 counts 2."""
+		return len(html.unescape(re.sub(r'<[^>]+>', '', text)).encode('utf-16-le')) // 2
 
 
 class Slack(Dialect):

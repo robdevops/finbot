@@ -4,7 +4,7 @@
   3. one golden image per chart type, compared with a tolerance. Refresh after an intended restyle with:
 		 UPDATE_GOLDEN=1 python -m unittest tests.test_charts
 """
-import datetime, os, subprocess, sys, tempfile, threading, unittest
+import datetime, os, re, subprocess, sys, tempfile, threading, unittest
 from unittest import mock
 import numpy as np
 from PIL import Image
@@ -69,6 +69,18 @@ CHARTS = {
 	'shorts': lambda: shorts([('GME', 47.3), ('AMC', 32.1), ('TSLA', 21.6), ('AAPL', 15.2)]),
 	'pie': lambda: render.draw_pie(render.Chart('pie', 'Rob by industry', '4 industries',
 		(('Software', 41.0), ('Banks', 23.5), ('Mining', 12.0), ('Other', 8.0)))),
+	'treemap': lambda: render.draw_treemap(render.Chart('treemap', 'SueSMSF treemap by industry',
+		'17 industries, 36 holdings', (
+		('Semiconductors', (('NVDA', 15.8), ('ASML', 6.4), ('AMD', 5.4), ('TSM', 4.5), ('SITM', 2.9), ('AIP', 1.9),
+			('AXE', 0.5))),
+		('Packaged Software', (('PLTR', 8.7), ('CRWD', 5.6), ('S', 3.4), ('YOU', 2.2), ('QSI', 1.0), ('WRK', 0.8),
+			('CLBT', 0.6), ('NXT', 0.3))),
+		('Investment Trusts/Mutual Funds', (('NVDL', 6.6), ('QLD', 3.9), ('VTS', 1.8), ('XLK', 1.0))),
+		('Engineering & Construction', (('GNP', 5.9),)), ('Services to the Health Industry', (('PME', 5.6),)),
+		('Precious Metals', (('FRS', 1.8), ('AIS', 1.6), ('GOLD', 0.3))),
+		('Internet Software/Services', (('GOOGL', 3.4),)),
+		('Other', (('SPCX', 1.4), ('ONDS', 1.4), ('WDC', 1.0), ('AIRJ', 0.9), ('MAD', 0.8), ('AMPX', 0.8),
+			('NET', 0.8), ('MAP', 0.5), ('RKLB', 0.5)))))),
 }
 # inputs that have broken chart code before or are likely to: sizes, signs, long names, zeros, a single row
 EDGE_ROWS = {
@@ -85,9 +97,9 @@ EDGE_ROWS = {
 
 
 class ImageSanity(unittest.TestCase):
-	def check_image(self, buf, name, bg=BG, edge_clean=True, size=(1280, 800)):
+	def check_image(self, buf, name, bg=BG, edge_clean=True, size=(1280, 800), edge=3):
 		"""Fail unless buf is a PNG of this size (1280x800) that is not blank, starts with the background, and
-		(edge_clean) draws nothing on its edges, where clipped text or bars would show."""
+		(edge_clean) draws nothing in `edge` pixels at its edges, where clipped text or bars would show."""
 		image = decode(buf)
 		self.assertEqual(image.size, size, name)
 		pixels = np.asarray(image)
@@ -97,9 +109,9 @@ class ImageSanity(unittest.TestCase):
 		self.assertIn(tuple(int(c) for c in pixels[0, 0]), allowed, name)
 		if not edge_clean: # the shorts beach draws its sea right to the edge
 			return
-		edge = np.concatenate([pixels[:3].reshape(-1, 3), pixels[-3:].reshape(-1, 3), pixels[:, :3].reshape(-1, 3),
-			pixels[:, -3:].reshape(-1, 3)])
-		self.assertTrue((edge == bg).all(), f'{name}: something is drawn on the image edge (clipped text or bars?)')
+		border = np.concatenate([pixels[:edge].reshape(-1, 3), pixels[-edge:].reshape(-1, 3),
+			pixels[:, :edge].reshape(-1, 3), pixels[:, -edge:].reshape(-1, 3)])
+		self.assertTrue((border == bg).all(), f'{name}: something is drawn on the image edge (clipped text or bars?)')
 
 	def test_each_chart_type(self):
 		"""Every chart type draws a sane image."""
@@ -107,6 +119,8 @@ class ImageSanity(unittest.TestCase):
 			with self.subTest(chart=name):
 				if name == 'shorts':
 					self.check_image(make(), name, bg=SHORTS_BG, edge_clean=False)
+				elif name == 'treemap':
+					self.check_image(make(), name, edge=2)
 				else:
 					self.check_image(make(), name)
 
@@ -338,11 +352,20 @@ class ReportChartInputs(FinbotCase):
 		chart = self.run_report(lambda: self.command('.price 7d'))
 		self.assertRegex(chart.title, r'\d{1,2} \w{3} - \d{1,2} \w{3} \d{4}') # 28 Sep - 5 Oct 2026
 
-	def test_performance_is_sorted_by_percent(self):
-		""".performance 7d: the chart is sorted best first."""
+	def test_performance_is_sorted_by_name(self):
+		""".performance 7d: the portfolios by name, in any case, whatever their gains, then the two benchmarks: the
+		list and the chart in the same order."""
+		self.patch(sharesight, '_portfolios', lambda seconds=None: [{'name': name, 'id': i} for i, name in
+			enumerate(('super', 'Rob', 'kids', 'Bonds'), 1)])
+		gains = {1: '9.5', 2: '-3.25', 3: '0.5', 4: '12'}
+		self.patch(sharesight, '_performance', lambda pid, days=None, seconds=None:
+			{'capital_gain_percent': gains[pid], 'holdings': []})
 		chart = self.run_report(lambda: self.command('.performance 7d'))
-		values = [v for _, v in chart.rows if v is not None]
-		self.assertEqual(values, sorted(values, reverse=True))
+		names = ['Bonds', 'kids', 'Rob', 'super', 'S&P 500', 'NASDAQ 100']
+		self.assertEqual([label for label, _ in chart.rows], names)
+		self.assertEqual([value for _, value in chart.rows][:4], [12.0, 0.5, -3.25, 9.5])
+		payload, _ = performance.report(TELEGRAM, 7)
+		self.assertEqual([re.search(r'>([^<]+)</a>', line).group(1) for line in payload[1:]], names)
 
 	def test_shorts_is_sorted_and_carries_the_threshold(self):
 		""".shorts: the pictogram gets the stocks over the threshold, most shorted first, and the threshold."""
@@ -409,6 +432,25 @@ class GoldenImages(unittest.TestCase):
 		"""The compare chart matches its golden image."""
 		self.check('compare_lines')
 
+	def test_squarify_tiles_the_box_in_proportion(self):
+		"""The tiles of a squarified layout stay in the box, don't overlap, and have areas in proportion."""
+		values = [40.0, 25.0, 15.0, 10.0, 6.0, 3.0, 1.0]
+		tiles = render._squarify(values, 10, 20, 300, 200)
+		self.assertEqual(len(tiles), len(values))
+		for (x, y, w, h), value in zip(tiles, values):
+			self.assertAlmostEqual(w * h, value / sum(values) * 300 * 200, places=4)
+			self.assertGreaterEqual(x, 10 - 1e-9)
+			self.assertGreaterEqual(y, 20 - 1e-9)
+			self.assertLessEqual(x + w, 310 + 1e-9)
+			self.assertLessEqual(y + h, 220 + 1e-9)
+		for i, (x, y, w, h) in enumerate(tiles):
+			for x2, y2, w2, h2 in tiles[i + 1:]:
+				self.assertTrue(x + w <= x2 + 1e-9 or x2 + w2 <= x + 1e-9 or y + h <= y2 + 1e-9 or y2 + h2 <= y + 1e-9)
+
+	def test_treemap(self):
+		"""The treemap matches its golden image."""
+		self.check('treemap')
+
 	def test_pie(self):
 		"""The pie matches its golden image."""
 		self.check('pie')
@@ -416,3 +458,9 @@ class GoldenImages(unittest.TestCase):
 
 if __name__ == '__main__':
 	unittest.main()
+
+
+class BlankImage(unittest.TestCase):
+	def test_the_picker_image_is_one_pixel(self):
+		"""The image of a picker's message is a 1x1 PNG, which the answer's chart replaces."""
+		self.assertEqual(decode(render.blank()).size, (1, 1))

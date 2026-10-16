@@ -21,6 +21,7 @@ class Message:
 	user_name: str # what to call them
 	message_id: str = '' # the message itself: Slack shows ⏳ on it while finbot works
 	interaction: str = '' # Discord's slash command: its application id and token, to answer through
+	dm: bool = None # whether the chat is a direct message with the bot; None where its key says (jobs.is_dm)
 
 
 @dataclasses.dataclass

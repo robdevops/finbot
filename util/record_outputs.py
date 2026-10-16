@@ -21,14 +21,18 @@ COMMANDS = ['.help', '/start', '.hello', '.thanks', '.who T1', '.plan buy low', 
 	'.earnings', '.earnings T1', '.dividend', '.dividend T1', '.trades', '.trades 30d', '.trades 7d Nope', '.price',
 	'.price 7d', '.price 3', '.price 3 7d', '.price top', '.price top 7d', '.price T1', '.price T1 7d', '.session',
 	'.session T1', '.premarket', '.postmarket', '.shorts', '.shorts 30', '.shorts T1', '.performance',
-	'.performance 7d', '.performance 1y', '.performance Nope', '.pie Rob', '.pie Rob sector', '.pie', '.compare T1 T2',
+	'.performance 7d', '.performance 1y', '.performance Nope', '.pie Rob', '.pie Rob sector', '.pie', '.treemap Rob',
+	'.treemap Rob sector', '.treemap', '.history', '.compare', '.holdings', '.compare T1 T2',
 	'.compare T1 T2 3m', '.compare T1', '.history T1', '.history', '.watchlist', '.watchlist add MSFT',
 	'.watchlist add MSFT', '.watchlist del MSFT', '.watchlist frob X', '.T1', '.jobs', '.jobs run', '.jobs toggle',
-	'.jobs add', '.jobs add 0 22 * * * shorts', '.jobs del 4', '.jobs run 1', 'hi @bot', 'noise']
+	'.jobs enable', '.jobs disable 1', '.jobs add', '.jobs add shorts daily at 22:00', '.jobs del 4', '.jobs run 1',
+	'.jobs upcoming', '.jobs system', 'hi @bot', 'noise']
 BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1',
-	'j|1|0000', 'e|1|0000']
-JOBS = ['*/20 * * * Mon-Fri trades', '29 21 * * Mon-Fri price interday', # each chat's, for .jobs
+	'j|1|0000', 'e|1|0000', 'm|on|0|0000', 'm|off|0|0000', 'm|del|0|0000', 'm|add|0000', 'm|add|5|w|0000',
+	'm|next|0000']
+JOBS = ['*/20 * * * Mon-Fri trades', '29 21 * * Mon-Fri price interday', # each chat's, for .jobs (as cron had them)
 	'28 21 * * Sat cal earnings; cal ex-dividend; price 7; performance 7; rating']
+ADDED = ['trades every 20 mins weekdays', 'price daily at 21:29', 'cal earnings every saturday at 21:28'] # since cron
 SCHEDULED = ['trades', 'price midsession', 'price interday', 'price premarket', 'price close', 'price 7',
 	'cal earnings', 'cal ex-dividend', 'performance 7', 'rating', 'shorts', 'milestone', 'reminder']
 TELEGRAM_API = 'https://api.telegram.org/botX/'
@@ -117,10 +121,14 @@ def record(output):
 			self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack') # Slack's buttons too
 			if 'discordBotToken' in {field.name for field in common.dataclasses.fields(common.config.env)}:
 				self.env(discordBotToken='discord-test')
-			if hasattr(jobs, 'SCHEDULE_FILE'): # each chat's jobs, since jobs per chat
+			chats = ('telegram:55', 'slack:C1', 'discord:77')
+			if hasattr(jobs, 'JOBS_FILE'): # the default jobs and those each chat added, since schedules of finbot's own
+				added = [jobs.make_job(*jobs.parse_add(text, 'UTC'), 'telegram:55').stored() for text in ADDED]
+				common.state.save(jobs.JOBS_FILE, {key: {'jobs': added} for key in chats})
+				schedule = jobs.Scheduler(clock=lambda: common.datetime.datetime(2026, 10, 15, tzinfo=common.UTC))
+			elif hasattr(jobs, 'SCHEDULE_FILE'): # each chat's jobs, since jobs per chat
 				entries = [{'when': job.when, 'reports': job.text, 'zone': 'UTC', 'on': True}
 					for job in map(jobs.parse_job, JOBS)]
-				chats = ('telegram:55', 'slack:C1', 'discord:77')
 				common.state.save(jobs.SCHEDULE_FILE, {key: entries for key in chats})
 				schedule = jobs.Scheduler()
 			else: # one schedule for all chats, the shipped one
@@ -147,21 +155,36 @@ def record(output):
 				for data in BUTTONS:
 					label = f'button {data}' if service == 'telegram' else f'{service} button {data}'
 					step(label, pressing(service, 'cb', chat, message, data))
-			# the scheduled reports go to each network's home chat as its bot (a commit from before telegram_api had
-			# webhooks, the incoming ones among them, and one from before the Discord bot no discordChannelID)
+			# the scheduled reports go to a chat of each network as its bot: each job's chat, or before they retired,
+			# the home chats (a commit from before telegram_api had webhooks, the incoming ones among them, and one
+			# from before the Discord bot no discordChannelID)
 			fields = {field.name for field in common.dataclasses.fields(common.config.env)}
 			api = {'telegram_api': TELEGRAM_API} if 'telegram_api' in fields else {
 				'webhooks': {'telegram': TELEGRAM_API}}
+			homes = {'telegramChatID': '1', 'slackChannelID': 'C9'} if 'telegramChatID' in fields else {}
 			discord = {'discordChannelID': '78'} if 'discordChannelID' in fields else {}
-			self.env(telegramChatID='1', slackChannelID='C9', **api, **discord)
+			self.env(**homes, **api, **discord)
+			def scheduled(run, kwargs):
+				"""A scheduled run to a chat of each network: one run to the home chats, or else one run per chat."""
+				if homes:
+					return lambda: run(**kwargs)
+				from lib import delivery # a tree without home chats has it: an older one may not
+				keys = ('telegram:1', 'slack:C9', 'discord:78')
+				return lambda: [run(delivery.chat(key, scheduled=True), **kwargs) for key in keys]
 			for line in SCHEDULED:
-				if hasattr(jobs, 'parse_reports'):
+				if hasattr(jobs, 'ACTIONS'): # a job is an action and its arguments, since schedules of finbot's own
+					name, *arguments = line.split()
+					if name not in jobs.ACTIONS: # the reminder report, which message jobs replaced
+						continue
+					module = jobs.ACTIONS[name]
+					label, kwargs = module.job(arguments)
+				elif hasattr(jobs, 'parse_reports'):
 					label, module, kwargs = jobs.parse_reports(line)[0]
 				else: # a commit from before jobs per chat, whose reports were scripts
 					name, _, arguments = line.partition(' ')
 					label, module, kwargs = jobs.parse_command(f'{name}.py {arguments}'.strip())[0]
 				run = getattr(module, 'run', None) or module.lambda_handler # lambda_handler: a commit before run()
-				step(f'scheduled {line}', lambda: run(**kwargs))
+				step(f'scheduled {line}', scheduled(run, kwargs))
 			Path(output).write_text(json.dumps(steps, indent=1, sort_keys=True, default=str))
 
 	result = unittest.TextTestRunner(verbosity=0, stream=io.StringIO()).run(Record())

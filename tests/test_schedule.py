@@ -1,77 +1,95 @@
-"""Jobs as .jobs add takes them (lib/jobs.py): their lines, and each report's job(argv); and the one-time migration
-(lib/migrate.py) of the old schedule.cron, and of the reports' records, to the home chats."""
-import contextlib, hashlib, io, os, unittest
+"""What a job may be (lib/jobs.py): an action of the fixed table, never a command, with the arguments its report's job()
+takes, as .jobs add reads them; the default jobs (lib/catalog.py) and the messages they post; and the one-time
+migration (lib/migrate.py) of the reports' records to an upgrade's home chats."""
+import contextlib, datetime, hashlib, io, os, re, unittest
 from pathlib import Path
 from unittest import mock
 from tests.common import *
-from lib import jobs, migrate, state, watchlist, worker
-from lib.reports import cal, cleanup, milestone, performance, podcasts, price, rating, trades
+from lib import catalog, discord_common, inbound, jobs, migrate, state, watchlist, when, worker
+from lib.reports import cal, cleanup, message, milestone, performance, podcasts, price, rating, trades
 
-LOCAL_ZONE = migrate.local_zone # the real one: the migration tests put UTC in its place
+MELBOURNE = 'Australia/Melbourne'
+OCTOBER = datetime.datetime(2026, 10, 15, tzinfo=when.UTC)
 
 
-class JobLines(unittest.TestCase):
-	def test_a_job_is_a_time_then_its_reports(self):
-		"""A job is five time fields, or an @macro, then one or more reports with their arguments, separated by ";";
-		it is on, in UTC, and its reports are kept as written."""
-		job = jobs.parse_job('28  21 * * Sat cal earnings; cal ex-dividend;price 7 ; performance 7; rating')
-		self.assertEqual((job.when, job.zone.key, job.on, job.chat), ('28 21 * * Sat', 'UTC', True, ''))
-		self.assertEqual([label for label, _, _ in job.commands],
-			['cal earnings', 'cal ex-dividend', 'price 7', 'performance 7', 'rating'])
-		self.assertEqual(job.text, 'cal earnings; cal ex-dividend;price 7 ; performance 7; rating')
-		self.assertEqual(job.line, '28 21 * * Sat ' + job.text)
-		self.assertEqual(jobs.parse_job('@daily reminder', 'telegram:1').when, '@daily')
+class Actions(unittest.TestCase):
+	def test_a_job_runs_only_a_report_or_a_command_of_finbots_own(self):
+		"""Each action a job may run is a report module of finbot's own, with its run and its parser, or a command of
+		.help that changes nothing, by one of its names; a chat may schedule all but the system's, the commands listed
+		by their names in .help."""
+		for name, module in jobs.ACTIONS.items():
+			with self.subTest(name=name):
+				self.assertEqual(module.__name__, f'lib.reports.{name}')
+				self.assertTrue(callable(module.run) and callable(module.job))
+		commands = jobs.command_actions()
+		for name, command in commands.items():
+			with self.subTest(name=name):
+				self.assertIn(command.command, worker.COMMANDS)
+				self.assertTrue(command.command.job and name in command.command.names)
+				self.assertNotIn(command.command.handler, worker.REPORTED)
+		self.assertFalse({'help', 'start', 'watchlist', 'wishlist', 'plan', 'jobs', 'cron', 'schedule', 'price',
+			'session', 'earnings', 'trades'} & set(commands))
+		self.assertEqual(jobs.chat_actions(), ['cal', 'message', 'milestone', 'performance', 'podcasts', 'price',
+			'rating', 'shorts', 'trades', 'holdings', 'pie', 'treemap', 'who', 'marketcap', 'beta', 'compare',
+			'history', 'buy', 'sell', 'pe', 'forward pe', 'peg', 'stock'])
 
-	def test_a_job_may_name_its_zone_first(self):
-		"""A job may name its zone, as crontab writes it, to follow that market's clocks; its line keeps it."""
-		job = jobs.parse_job('CRON_TZ=America/New_York 15 13 * * Mon-Fri price midsession')
-		self.assertEqual((job.zone.key, job.when, job.text),
-			('America/New_York', '15 13 * * Mon-Fri', 'price midsession'))
-		self.assertEqual(job.line, 'CRON_TZ=America/New_York 15 13 * * Mon-Fri price midsession')
-		for zone in ('Nowhere/Land', '', '../etc/passwd'):
-			with self.subTest(zone=zone), self.assertRaisesRegex(jobs.ScheduleError, 'no time zone'):
-				jobs.parse_job(f'CRON_TZ={zone} 0 1 * * * trades')
+	def test_a_command_of_help_as_a_job(self):
+		"""A job may run a command of .help by its name, the words it takes before the schedule; another of its names
+		(a typo too) stands for it, but buy and sell's, which say which; one that takes no words refuses them, and one
+		that needs a stock or a portfolio refuses none."""
+		weekly = when.parse('weekly', 'UTC')
+		for text, action, args in (('pe top weekly', 'pe', ['top']), ('forward pe weekly', 'forward pe', []),
+				('compare AAPL MSFT 1y weekly at 9am', 'compare', ['AAPL', 'MSFT', '1y']),
+				('buy&sell weekly', 'buy&sell', []), ('holdings Rob weekly', 'holdings', ['Rob'])):
+			with self.subTest(text=text):
+				self.assertEqual(jobs.parse_add(text, 'UTC')[:2], (action, args))
+		for text in ('beta x weekly', 'history weekly', 'compare AAPL weekly', 'holdings weekly'):
+			with self.subTest(text=text), self.assertRaises(jobs.ScheduleError):
+				jobs.parse_add(text, 'UTC')
+		for action, args, made, name in (('hospital', ['AAPL'], 'history', 'history AAPL'), ('fpe', [], 'forward pe',
+				'forward pe'), ('buy&sell', [], 'buy&sell', 'buy & sell'), ('sell', [], 'sell', 'sell')):
+			with self.subTest(action=action):
+				job = jobs.make_job(action, args, weekly, 'telegram:1')
+				self.assertEqual((job.action, job.name, job.kwargs), (made, name, {'words': args}))
 
-	def test_quoted_arguments_may_hold_anything(self):
-		"""An argument in quotes may hold anything, a ";" included; commands after a ";" outside quotes still split."""
-		url = 'https://example.com/feed?a=1&b=2;c>d $x |y'
-		for quoted in (f'"{url}"', f"'{url}'"):
-			job = jobs.parse_job(f'5 4 * * * podcasts {quoted}; shorts')
-			self.assertEqual([(label.split()[0], kwargs) for label, _, kwargs in job.commands],
-				[('podcasts', {'feed_url': url}), ('shorts', {})])
-		with self.assertRaisesRegex(jobs.ScheduleError, 'No closing quotation'):
-			jobs.parse_job('5 4 * * * podcasts "https://example.com')
+	def test_anything_else_is_refused(self):
+		"""A name that is no action (a shell command, a module's path, a builtin), a system job for a chat, arguments
+		that are not words or that its parser refuses: refused as a job is made and as .jobs add reads it."""
+		daily = when.parse('daily', 'UTC')
+		for action, args in (('os.system', ['ls']), ('price; rm -rf /', []), ('lib.reports.price', ['close']),
+				('__import__', ['os']), ('eval', ['1']), ('yahoo_warm', []), ('price', ['bogus']), ('trades', [7]),
+				(['trades'], []), ('price', 'close'), ('jobs', []), ('plan', ['x']), ('watchlist', ['add', 'X']),
+				('help', []), ('on_jobs', [])):
+			with self.subTest(action=action, args=args), self.assertRaises(jobs.ScheduleError):
+				jobs.make_job(action, args, daily, 'telegram:1')
+		for text in ('os.system daily', 'price; rm -rf / daily', '../../etc/passwd daily', 'trades daily; rm -rf /',
+				'message daily', 'trades.py daily', 'jobs add price daily daily', 'plan buy low daily',
+				'watchlist add X daily'):
+			with self.subTest(text=text), self.assertRaises(jobs.ScheduleError):
+				jobs.parse_add(text, 'UTC')
+		self.assertEqual(jobs.make_job('yahoo_warm', [], daily).label, 'yahoo_warm') # the system's own
 
-	def test_shell_syntax_is_only_words_that_no_report_takes(self):
-		"""Nothing runs a shell: pipes, redirects, $() and comments are mere words, which no report takes."""
-		for line in ('0 1 * * * trades | tee x', '0 1 * * * trades > /dev/null', '0 1 * * * trades $(date)',
-				'0 1 * * * trades && shorts', '0 1 * * * trades # a note'):
-			with self.subTest(line=line), self.assertRaisesRegex(jobs.ScheduleError, 'trades takes no arguments'):
-				jobs.parse_job(line)
-
-	def test_a_time_that_cannot_be_or_never_comes(self):
-		"""A time that cannot be (minute 61, month 13, @bogus) or never comes (30 February) is ImpossibleTime, and so is
-		@reboot; 29 February does come."""
-		for when, why in (('0 0 30 2 *', 'never comes'), ('0 9 31 4,6,9,11 *', 'never comes'),
-				('61 1 * * *', 'is no time'), ('0 0 * 13 *', 'is no time'), ('@bogus', 'is no time'),
-				('@reboot', 'the jobs start with the bot')):
-			with self.subTest(when=when), self.assertRaisesRegex(jobs.ImpossibleTime, why):
-				jobs.parse_job(f'{when} trades')
-		self.assertEqual(jobs.parse_job('0 0 29 2 * trades').when, '0 0 29 2 *')
-
-	def test_what_is_no_report(self):
-		"""A job runs reports by name: not a script's file, not a system job's (except as one), not a report that is
-		not there; with arguments it takes, and with at least one report."""
-		for line, why in (('0 1 * * * nothere', "no report 'nothere'"),
-				('0 1 * * * trades.py', "no report 'trades.py'"),
-				('0 1 * * * ./trades', "no report './trades'"), ('0 1 * * * yahoo_warm', "no report 'yahoo_warm'"),
-				('0 1 * * * cleanup 30', "no report 'cleanup'"), ('0 1 * * * trades; nothere', "no report 'nothere'"),
-				('0 1 * * * price soon', 'price takes midsession|interday|premarket|close|DAYS'),
-				('0 1 * * * ;', 'no report: send .jobs add'), ('0 1 * * *', 'a job is five time fields'),
-				('trades', 'a job is five time fields')):
-			with self.subTest(line=line), self.assertRaisesRegex(jobs.ScheduleError, why):
-				jobs.parse_job(line)
-		self.assertEqual(jobs.parse_job('51 18 * * Sat cleanup 30', system=True).commands[0][2], {'days': 30})
+	def test_what_jobs_add_reads(self):
+		""".jobs add takes a report, what it takes and a schedule, wherever both read; performance and price cover the
+		days between runs where they name no period; a message takes its schedule, then its text in double quotes."""
+		url = 'https://example.com/Feed.rss'
+		for text, action, args, stored in (('price weekly', 'price', ['7'], {'days': ['sat'], 'at': '09:00'}),
+				('price close weekdays at 4:30pm New York', 'price', ['close'],
+					{'days': 'weekdays', 'at': '16:30', 'zone': 'America/New_York'}),
+				('performance quarterly', 'performance', ['90'], {'days': {'day': 1, 'months': [1, 4, 7, 10]},
+					'at': '09:00'}),
+				('performance tue-sat at 8am', 'performance', [], {'days': ['tue', 'wed', 'thu', 'fri', 'sat'],
+					'at': '08:00'}),
+				('price every 20 mins weekdays', 'price', ['interday'], {'days': 'weekdays', 'every': 20}),
+				('cal ex-dividend every sunday', 'cal', ['ex-dividend'], {'days': ['sun'], 'at': '09:00'}),
+				(f'podcasts {url} hourly', 'podcasts', [url], {'days': 'daily', 'every': 60}),
+				('message every 31 mar "🥳 Happy EOFY"', 'message', ['🥳 Happy EOFY'],
+					{'days': {'day': 31, 'months': [3]}, 'at': '08:30'}),
+				('message on 28 oct 2026 at 9am "a "quoted" word\nand a line"', 'message',
+					['a "quoted" word', 'and a line'], {'days': {'date': '2026-10-28'}, 'at': '09:00'})):
+			with self.subTest(text=text):
+				got = jobs.parse_add(text, MELBOURNE)
+				self.assertEqual((got[0], got[1], got[2].to_json()), (action, args, {'zone': MELBOURNE, **stored}))
 
 
 class JobArguments(unittest.TestCase):
@@ -107,6 +125,13 @@ class JobArguments(unittest.TestCase):
 			with self.assertRaises(ValueError):
 				podcasts.job(bad)
 
+	def test_message(self):
+		"""message takes its text's lines, which may hold anything but must say something, 40 lines and 3000 at most."""
+		self.assertEqual(message.job(['a {0}', '', 'b']), ('message', {'lines': ['a {0}', '', 'b']}))
+		for bad in ([], [''], [' ', ''], ['x'] * 41, ['x' * 3001], [5]):
+			with self.subTest(bad=bad), self.assertRaises(ValueError):
+				message.job(bad)
+
 	def test_cleanup_arguments(self):
 		"""cleanup takes an optional number of days."""
 		self.assertEqual(cleanup.job([]), ('cleanup', {}))
@@ -117,10 +142,10 @@ class JobArguments(unittest.TestCase):
 
 	def test_plain_reports(self):
 		"""The other reports take no arguments, and say so: their ARGUMENTS, which .jobs add lists, are empty."""
-		for name, module in jobs.SCRIPTS.items():
+		for name, module in jobs.ACTIONS.items():
 			with self.subTest(name=name):
 				self.assertIsInstance(module.ARGUMENTS, str)
-				if name not in ('cal', 'cleanup', 'performance', 'podcasts', 'price'):
+				if name not in ('cal', 'cleanup', 'message', 'performance', 'podcasts', 'price'):
 					self.assertEqual((module.job([]), module.ARGUMENTS), ((name, {}), ''))
 					with self.assertRaisesRegex(ValueError, 'no arguments'):
 						module.job(['7'])
@@ -131,14 +156,126 @@ class JobArguments(unittest.TestCase):
 		self.assertEqual(sorted(path.name for path in Path(ROOT).glob('*.py')), ['bot.py'])
 
 
+class DefaultJobs(unittest.TestCase):
+	def test_every_default_job_can_be(self):
+		"""Each default job is an action a chat may schedule, with arguments its parser takes, on a schedule that runs;
+		its key is its own; its name says what it reports on, never when; performance and price over a period cover the
+		days between their runs."""
+		self.assertEqual(len(catalog.ITEMS), 35)
+		self.assertEqual(len({item.key for item in catalog.ITEMS}), 35)
+		start = datetime.datetime(2026, 1, 1, tzinfo=when.UTC)
+		for item in catalog.ITEMS:
+			with self.subTest(item=item.key):
+				jobs.make_job(item.action, item.args, item.schedule, 'telegram:1', item=item.key, name=item.name)
+				self.assertIn(item.action, jobs.chat_actions())
+				self.assertIsNotNone(item.schedule.next_after(start))
+				self.assertIsNone(re.search(r'\d(am|pm)|daily|weekly|monthly|quarterly|annual', item.name))
+				if item.action in catalog.PERIODIC and all(arg.isdigit() for arg in item.args):
+					self.assertEqual(list(item.args), catalog.period_args(item.action, item.schedule))
+
+	def test_without_sharesight_no_default_job_reports_on_it(self):
+		"""Without Sharesight, the default jobs leave out those that report on it: trades and performance."""
+		names = {item.name for item in catalog.items('AU', sharesight=False)}
+		self.assertFalse(names & {'trades', 'performance'})
+		self.assertTrue({'trades', 'performance', 'price'} <= {item.name for item in catalog.items('AU')})
+		self.assertIn('price', names)
+
+	def test_the_default_jobs_as_a_melbourne_chat_sees_them(self):
+		"""The default jobs by name, each with its schedule in words, as a chat in Melbourne sees them in mid-October:
+		each in its market's zone, the local time beside it where the clocks differ."""
+		described = [f'{item.name} · {item.schedule.describe(MELBOURNE, OCTOBER)}' for item in catalog.items('AU')]
+		self.assertEqual(described, ['trades · every 20 mins, Mon 9am – Sat 3pm Sydney',
+			'price midsession AU · weekdays at 1:00pm Sydney',
+			'price midsession US · weekdays at 12:45pm New York (3:45am local, Tue–Sat)',
+			'price premarket US · weekdays at 7:15am New York (10:15pm local)',
+			'price close AU · weekdays at 4:30pm Sydney',
+			'price close HK · weekdays at 4:30pm Hong Kong (7:30pm local)',
+			'price close UK · weekdays at 5:00pm London (3:00am local, Tue–Sat)',
+			'price close US · weekdays at 4:30pm New York (7:30am local, Tue–Sat)',
+			'rating · Tue–Sat at 8:30am Sydney', 'milestone · Tue–Sat at 8:30am Sydney',
+			'podcasts Money Cafe · hourly at :01, weekdays 10am–9pm Sydney',
+			'podcasts Stocktake · hourly at :01, weekdays 10am–9pm Sydney',
+			'cal earnings · weekly, Sundays at 8:30am Sydney', 'cal ex-dividend · weekly, Sundays at 8:30am Sydney',
+			'shorts · weekly, Sundays at 8:30am Sydney', 'performance · weekly, Sundays at 8:30am Sydney',
+			'price · weekly, Sundays at 8:30am Sydney', 'performance · monthly, the 2nd at 8:30am Sydney',
+			'price · monthly, the 2nd at 8:30am Sydney', 'performance · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney',
+			'price · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney',
+			'performance · bi-annual, 2 Jan and 2 Jul at 8:30am Sydney',
+			'price · bi-annual, 2 Jan and 2 Jul at 8:30am Sydney', 'performance · annual, 2 Jan at 8:30am Sydney',
+			'price · annual, 2 Jan at 8:30am Sydney',
+			'message: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 · annual, 31 Mar at 8:30am Sydney',
+			'message: SPCX IPO anniversary · annual, 12 Jun at 8:30am Sydney',
+			'message: 💸 Realise capital gains/losses by EOFY June 30 (AU) · annual, 23 Jun at 8:30am Sydney',
+			'message: 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 · annual, 30 Jun at 8:30am Sydney',
+			"message: ✍️ Submit 'Notice of Intent to Claim' for any post-tax … (AU) · annual, 7 Jul at 8:30am Sydney",
+			"message: finbot's birthday · annual, 18 Aug at 8:30am Sydney",
+			'message: 😓 Self-service individual tax returns are due Oct 31 (AU) · annual, 25 Oct at 8:30am Sydney',
+			'message: ubank draw 6/6 … (AU) · once, 28 Oct 2026 at 8:30am Sydney',
+			'message: 😰 Self-service individual tax returns are due today (AU) · annual, 31 Oct at 8:30am Sydney',
+			'message: SPCX 5th mensiversary. End of (statistically) most … · once, 12 Nov 2026 at 8:30am Sydney'])
+
+	def test_a_message_for_one_country_only_there_with_its_flag(self):
+		"""A message for one country is a default job only where it is the country_code preference, with its flag."""
+		au, nz = ({item.key for item in catalog.items(country)} for country in ('AU', 'NZ'))
+		self.assertEqual(sorted(au - nz), ['message-eofy-checklist', 'message-intent-to-claim', 'message-tax-due-soon',
+			'message-tax-due-today', 'message-ubank-draw-6'])
+		self.assertLess(nz, au)
+		checklist = next(item for item in catalog.ITEMS if item.key == 'message-eofy-checklist')
+		self.assertEqual(checklist.args[0], '💸 Realise capital gains/losses by EOFY June 30🇦🇺')
+		self.assertFalse(any('{flag}' in line for item in catalog.ITEMS for line in item.args))
+
+	def test_a_job_that_is_a_default_one(self):
+		"""A job is a default one where its action, arguments, days and times are, in a zone that keeps the same clock
+		(Melbourne's and Sydney's), and not in another (Brisbane's has no summer time)."""
+		def matching(text):
+			"""The default job that .jobs add's text is in Melbourne, or None."""
+			item = catalog.matching(*jobs.parse_add(text, MELBOURNE), 'AU')
+			return item and item.key
+		self.assertEqual(matching('trades every 20 mins from mon 9am to sat 3pm'), 'trades')
+		self.assertIsNone(matching('trades every 20 mins from mon 9am to sat 3pm Brisbane'))
+		self.assertIsNone(matching('trades every 20 mins weekdays'))
+		self.assertEqual(matching('price close weekdays at 4:30pm New York'), 'price-close-us')
+		self.assertEqual(matching('price every sunday at 8:30am'), 'price-weekly')
+
+
+class Messages(FinbotCase):
+	def test_the_end_of_financial_year_checklist(self):
+		"""On 23 June an Australian chat gets the EOFY checklist, its links and footnotes in its network's markup."""
+		checklist = next(item for item in catalog.ITEMS if item.key == 'message-eofy-checklist')
+		message.run(scheduled(), lines=list(checklist.args))
+		lines = self.sent[0][1]
+		self.assertEqual((len(lines), lines[0]), (12, '💸 Realise capital gains/losses by EOFY June 30🇦🇺'))
+		self.assertEqual(lines[8], '<i>* Organisation must be <a href="https://abr.business.gov.au/Tools/DgrListing">'
+			'DGR-registered</a></i>')
+
+	def test_the_birthday_counts_the_years(self):
+		"""finbot's birthday says how old it is that day, by the timezone preference's clock."""
+		birthday = next(item for item in catalog.ITEMS if item.key == 'message-birthday')
+		for today, said in ((datetime.date(2026, 8, 18), "It's my 4th birthday! 🥳"),
+				(datetime.date(2026, 8, 17), "It's my 3rd birthday! 🥳")):
+			with self.subTest(today=today):
+				self.sent.clear()
+				self.patch(message, 'today', lambda: today)
+				message.run(scheduled('slack:C9'), lines=list(birthday.args))
+				self.assertEqual(self.sent, [('text', [said])])
+
+	def test_a_message_is_data(self):
+		"""A message's text is posted as it is, made safe for its network, never formatted: braces stay braces."""
+		message.run(scheduled(), lines=['<b>{0} {years since x}</b> & {__class__}'])
+		self.assertEqual(self.sent, [('text', ['&lt;b&gt;{0} {years since x}&lt;/b&gt; &amp; {__class__}'])])
+
+
 class Migration(FinbotCase):
-	"""As finbot first starts with jobs per chat, the home chats get what was kept for all chats, once."""
+	"""As an upgraded finbot first starts with jobs per chat, the home chats that the retired keys still name in its
+	environment get what was kept for all chats, once."""
 
 	def setUp(self):
-		"""Two home chats, Telegram's and Slack's; the old schedule ran in UTC."""
+		"""Two old home chats, Telegram's and Slack's, in the environment."""
 		super().setUp()
-		self.env(slackBotToken='xoxb-1', slackChannelID='C1')
-		self.patch(migrate, 'local_zone', lambda: jobs.UTC)
+		self.env(slackBotToken='xoxb-1')
+		homes = mock.patch.dict(os.environ, {'telegramChatID': '1', 'slackChannelID': 'C1'})
+		homes.start()
+		self.addCleanup(homes.stop)
 
 	def migrate(self):
 		"""Run the migration, as finbot does as it starts: what it logs."""
@@ -146,67 +283,22 @@ class Migration(FinbotCase):
 			migrate.run()
 		return log.getvalue()
 
-	def test_the_old_schedule_becomes_each_home_chats_jobs_once(self):
-		"""Each home chat gets the old schedule's jobs (the data dir's copy), pasted crontab syntax read as cron read
-		it, each in the zone it ran in, without the system jobs; a line that cannot be a job is logged and left out.
-		Then the old file is read no more."""
-		url = 'https://example.com/feed?a=1&b=2'
-		Path(config.env.data_dir, 'schedule.cron').write_text('MAILTO=me\n'
-			'*/20 * * * Mon-Fri ~/finbot/trades.py > ~/finbot.trades 2>&1\n'
-			'28  21 * * Sat { ./cal.py earnings; ./price.py 7 ;} &> /dev/null # weekly\n'
-			'@daily /opt/finbot/reminder.py\n'
-			'CRON_TZ=Australia/Melbourne\n'
-			'14,44 * * * * sharesight_warm.py\n'
-			f'01 * * * * podcasts.py "{url}"; cleanup.py 30\n'
-			'0 1 * * * ls | wc -l\n'
-			'0 9 31 6 * price.py close\n'
-			'0 2 * * * bin/run trades.py\n')
-		log = self.migrate()
-		jobs_each = [{'when': '*/20 * * * Mon-Fri', 'reports': 'trades', 'zone': 'UTC', 'on': True},
-			{'when': '28 21 * * Sat', 'reports': 'cal earnings; price 7', 'zone': 'UTC', 'on': True},
-			{'when': '@daily', 'reports': 'reminder', 'zone': 'UTC', 'on': True},
-			{'when': '01 * * * *', 'reports': f"podcasts '{url}'", 'zone': 'Australia/Melbourne', 'on': True}]
-		self.assertEqual(state.load(jobs.SCHEDULE_FILE), {'telegram:1': jobs_each, 'slack:C1': jobs_each})
-		path = config.env.data_dir + '/schedule.cron'
-		self.assertEqual([line for line in log.splitlines() if 'left out' in line], [
-			f'schedule: {path} line 8 left out: only finbot scripts can be scheduled, not shell commands',
-			f"schedule: {path} line 9 left out: '0 9 31 6 *' never comes: no date matches it",
-			f"schedule: {path} line 10 left out: no report 'run': send .jobs add for the reports and what each takes"])
-		self.assertIn(f"schedule: the 4 jobs of {path} are now each home chat's (telegram:1, slack:C1)", log)
-		s = jobs.Scheduler()
-		with contextlib.redirect_stderr(io.StringIO()):
-			s.load()
-		self.assertEqual([job.line for job in s.chat_jobs('slack:C1')][-1], f"CRON_TZ=Australia/Melbourne 01 * * * *"
-			f" podcasts '{url}'")
-		Path(config.env.data_dir, 'schedule.cron').write_text('0 3 * * * shorts.py\n') # read no more
-		self.assertEqual(self.migrate(), '')
-		self.assertEqual(state.load(jobs.SCHEDULE_FILE), {'telegram:1': jobs_each, 'slack:C1': jobs_each})
-
-	def test_the_shipped_schedule_migrates_whole(self):
-		"""Without a copy in the data dir, the home chats get the shipped schedule's jobs, every line of it but the
-		system jobs', the weekly line's five reports among them."""
-		self.assertNotIn('left out', self.migrate())
-		entries = state.load(jobs.SCHEDULE_FILE)['telegram:1']
-		self.assertEqual(len(entries), 8)
-		self.assertIn({'when': '28 21 * * Sat', 'reports': 'cal earnings; cal ex-dividend; price 7; performance 7;'
-			' rating', 'zone': 'UTC', 'on': True}, entries)
-		self.assertFalse(any(name in entry['reports'] for entry in entries for name in jobs.SYSTEM_SCRIPTS))
-
-	def test_an_empty_schedule_migrates_to_no_jobs_and_is_done(self):
-		"""A schedule with no jobs gives the home chats none, and the migration is still done: it is not tried again."""
-		Path(config.env.data_dir, 'schedule.cron').write_text('# nothing\n14,44 * * * * sharesight_warm.py\n')
-		self.migrate()
-		self.assertEqual(state.load(jobs.SCHEDULE_FILE), {})
-		Path(config.env.data_dir, 'schedule.cron').write_text('0 3 * * * shorts.py\n')
-		self.assertEqual(self.migrate(), '')
-		self.assertEqual(state.load(jobs.SCHEDULE_FILE), {})
+	def test_each_home_chat_starts_with_the_default_jobs(self):
+		"""Each home chat becomes a chat finbot knows, with the default jobs switched on, unless it is known already."""
+		state.save(jobs.JOBS_FILE, {'slack:C1': {'off': ['trades']}})
+		self.assertIn('schedule: 1 old home chat start with the default jobs', self.migrate())
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'slack:C1': {'off': ['trades']},
+			'telegram:1': {'defaults': 'off', 'dm': True}}) # a person's id: a DM, whose default jobs start off
+		self.assertNotIn('schedule:', self.migrate())
 
 	def test_with_no_home_chat_it_waits(self):
-		"""With no home chat set there is nowhere to put the jobs and records, so the migration waits for one."""
-		self.env(telegramChatID='', slackChannelID='')
+		"""With no old home chat in the environment (a new install) there is nowhere to put the jobs and records, so
+		the migration waits for one; so it does for a chat without its bot token."""
 		state.save(trades.STATE_FILE, ['t1'])
-		self.assertEqual(self.migrate(), '')
-		self.assertFalse(os.path.exists(state.path(jobs.SCHEDULE_FILE)))
+		with mock.patch.dict(os.environ, {'telegramChatID': '', 'slackChannelID': 'C1'}):
+			self.env(slackBotToken='')
+			self.assertEqual(self.migrate(), '')
+		self.assertFalse(os.path.exists(state.path(jobs.JOBS_FILE)))
 		self.assertEqual(state.load(trades.STATE_FILE), ['t1'])
 
 	def test_the_watchlist_plans_and_records_become_each_home_chats_once(self):
@@ -231,16 +323,124 @@ class Migration(FinbotCase):
 		self.assertEqual(Path(state.path(rating.STATE_FILE)).read_text(), '{"NVDA": ["upgr')
 		self.assertIn(f'state: {rating.STATE_FILE} left as it is, unreadable', log)
 
-	def test_pasted_redirects_braces_and_paths_are_dropped(self):
-		"""Output redirects, braces, paths, a .py and trailing comments are dropped from an old line's command."""
-		for command in ('trades.py > /dev/null', 'trades.py >/dev/null 2>&1', 'trades.py &> /dev/null',
-				'trades.py >> ~/x 2>&1', '{ trades.py ;} > ~/x', '/opt/finbot/trades.py # note (x)', 'FOO=1 trades'):
-			with self.subTest(command=command):
-				lines = migrate.legacy_lines(f'0 1 * * * {command}\n', 'schedule.cron')
-				self.assertEqual([commands for _, _, _, commands in lines], [[('trades', [])]])
 
-	def test_the_local_zone_follows_tz(self):
-		"""The old schedule ran in the server's zone, which TZ sets: UTC by that name when it is UTC by another."""
-		for tz, zone in (('Australia/Melbourne', 'Australia/Melbourne'), ('Etc/UTC', 'UTC'), (':UTC', 'UTC')):
-			with self.subTest(tz=tz), mock.patch.dict(os.environ, {'TZ': tz}):
-				self.assertEqual(LOCAL_ZONE().key, zone)
+class DirectMessages(FinbotCase):
+	"""A direct message with the bot starts with its default jobs off; those of the DMs finbot knew already were
+	switched off once, as it started."""
+
+	def test_a_direct_message_starts_with_its_default_jobs_off(self):
+		"""A chat new to finbot starts with its default jobs on, a direct message with them off: Telegram's (a person's
+		id) and Slack's (D…) as their keys tell, Discord's as its updates say. One switched on there is on; All on makes
+		them all start on."""
+		jobs.know(['telegram:5', 'telegram:-100', 'slack:D1', 'slack:C1', 'discord:7'])
+		jobs.know(['discord:8'], dm=True)
+		dm = {'defaults': 'off', 'dm': True}
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'telegram:5': dm, 'telegram:-100': {}, 'slack:D1': dm,
+			'slack:C1': {}, 'discord:7': {}, 'discord:8': dm})
+		s = jobs.Scheduler(clock=lambda: OCTOBER)
+		with contextlib.redirect_stderr(io.StringIO()):
+			s.load()
+			self.assertFalse(any(job.on for job in s.chat_jobs('telegram:5')))
+			self.assertTrue(all(job.on for job in s.chat_jobs('telegram:-100')))
+			s.toggle(s.chat_jobs('telegram:5')[0])
+			self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {**dm, 'on': ['trades']})
+			self.assertEqual([job.on for job in s.chat_jobs('telegram:5')][:2], [True, False])
+			s.switch_all('telegram:5', True)
+		self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {'dm': True}) # still a DM
+
+	def test_a_chat_seen_says_whether_it_is_a_direct_message(self):
+		"""At a chat's first command it starts with its default jobs off where it is a direct message: Discord's update
+		says so, Telegram's chat id does."""
+		self.env(discordBotToken='x')
+		s = jobs.Scheduler(clock=lambda: OCTOBER)
+		with contextlib.redirect_stderr(io.StringIO()):
+			s.load()
+			self.patch(jobs, 'current', s)
+			for chat, dm in (('88', True), ('77', False)):
+				worker.process_request(inbound.Message('discord', chat, '<@5>', '.help', '@99', 'rob', dm=dm))
+			worker.process_request(inbound.Message('telegram', '5', '@u', '.help', BOT, 'U'))
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:88': {'defaults': 'off', 'dm': True}, 'discord:77': {},
+			'telegram:5': {'defaults': 'off', 'dm': True}})
+
+	def test_the_direct_messages_jobs_are_switched_off_once(self):
+		"""As finbot first starts with this version, every job of each direct message chat it knows is switched off,
+		the default ones and those added: Telegram's and Slack's as their keys tell, Discord's as Discord says; and the
+		old schedule file's DMs become known, with their jobs off. Other chats are left as they are, and a job switched
+		on again afterwards stays on."""
+		trades = {'action': 'trades', 'args': [], 'schedule': {'days': 'weekdays', 'every': 20, 'zone': 'UTC'},
+			'on': True}
+		state.save(jobs.JOBS_FILE, {'telegram:5': {'jobs': [trades]}, 'telegram:-100': {'jobs': [trades]},
+			'slack:D1': {'off': ['trades']}, 'discord:7': {}, 'discord:8': {}})
+		state.save(jobs.OLD_FILE, {'telegram:6': [], 'discord:9': [], 'telegram:-6': []})
+		self.env(discordBotToken='x')
+		asked = []
+		def call(method, path, **kwargs):
+			"""Discord's answer: channels 8 and 9 are direct messages."""
+			asked.append(path)
+			return {'type': 1 if path in ('/channels/8', '/channels/9') else 0}
+		self.patch(discord_common, 'call', call)
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			migrate.run()
+		stored = state.load(jobs.JOBS_FILE)
+		self.assertEqual(stored['telegram:5'], {'defaults': 'off', 'dm': True, 'jobs': [{**trades, 'on': False}]})
+		for key in ('slack:D1', 'discord:8', 'telegram:6', 'discord:9'):
+			self.assertEqual(stored[key], {'defaults': 'off', 'dm': True}, key)
+		self.assertEqual((stored['telegram:-100'], stored['discord:7']), ({'jobs': [trades]}, {}))
+		self.assertNotIn('telegram:-6', stored) # an old chat that is no DM is known at the scheduler's first load
+		self.assertEqual(sorted(asked), ['/channels/7', '/channels/7', '/channels/8', '/channels/8', '/channels/9',
+			'/channels/9']) # once by each upgrade, at the one start
+		self.assertIn('every job switched off in 5 direct message chats', log.getvalue())
+		self.assertTrue({'dm jobs off', 'dm flag'} <= set(state.load(migrate.UPGRADES)))
+		state.save(jobs.JOBS_FILE, {**stored, 'telegram:5': {}}) # switched on again
+		migrate.run()
+		self.assertEqual((state.load(jobs.JOBS_FILE)['telegram:5'], len(asked)), ({}, 6))
+
+	def test_it_waits_for_discord_and_a_channel_discord_will_not_name_is_no_dm(self):
+		"""If Discord cannot be reached, nothing is switched and the upgrade waits for the next start; a channel Discord
+		refuses to say anything of (the bot has left it) is no direct message."""
+		state.save(jobs.JOBS_FILE, {'discord:8': {}, 'telegram:5': {}})
+		self.env(discordBotToken='x')
+		def down(method, path, **kwargs):
+			"""Discord unreachable."""
+			raise ConnectionError('Discord unreachable')
+		self.patch(discord_common, 'call', down)
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			migrate.run()
+		self.assertIn('upgrade: dm jobs off failed, and is tried again at the next start', log.getvalue())
+		self.assertEqual((state.load(jobs.JOBS_FILE), state.load(migrate.UPGRADES)), ({'discord:8': {},
+			'telegram:5': {}}, None))
+		def refused(method, path, **kwargs):
+			"""Discord refusing: the channel is gone."""
+			raise RuntimeError(f'Discord {method} {path}: 404 Unknown Channel (10003)')
+		self.patch(discord_common, 'call', refused)
+		with contextlib.redirect_stderr(io.StringIO()):
+			migrate.run()
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:8': {}, 'telegram:5': {'defaults': 'off', 'dm': True}})
+
+	def test_the_direct_messages_known_are_marked_once(self):
+		"""Where the jobs of the DMs were switched off at an earlier start, the DMs finbot knows are marked as such
+		once, switching nothing: Telegram's and Slack's as their keys tell, Discord's as Discord says."""
+		state.save(migrate.UPGRADES, {'dm jobs off': '2026-10-16T00:00:00+00:00'})
+		state.save(jobs.JOBS_FILE, {'telegram:5': {'on': ['rating']}, 'telegram:-100': {}, 'slack:D1': {},
+			'discord:8': {}, 'discord:7': {}})
+		self.env(discordBotToken='x')
+		self.patch(discord_common, 'call', lambda method, path, **kwargs: {'type': 1 if path == '/channels/8' else 0})
+		with contextlib.redirect_stderr(io.StringIO()):
+			migrate.run()
+		self.assertEqual(state.load(jobs.JOBS_FILE), {'telegram:5': {'on': ['rating'], 'dm': True},
+			'telegram:-100': {}, 'slack:D1': {'dm': True}, 'discord:8': {'dm': True}, 'discord:7': {}})
+		self.assertIn('dm flag', state.load(migrate.UPGRADES))
+
+	def test_the_schedule_counts_group_chats_and_dms(self):
+		"""The schedule's line in the log at each load counts the chats' jobs, the group chats and the DMs apart (a
+		DM by its mark, or its key), and the system's jobs."""
+		self.patch(catalog, 'ITEMS', ())
+		self.patch(jobs, 'SYSTEM', ())
+		state.save(jobs.JOBS_FILE, {'telegram:-100': {}, 'discord:8': {'dm': True}, 'slack:C1': {}})
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			jobs.Scheduler(clock=lambda: OCTOBER).load()
+		self.assertIn('schedule: 0 jobs of 2 group chats and 1 DM, and 0 system jobs', log.getvalue())
+
+
+if __name__ == '__main__':
+	unittest.main()

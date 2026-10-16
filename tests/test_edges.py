@@ -133,7 +133,7 @@ class WatchlistActions(FinbotCase):
 class BadArguments(FinbotCase):
 	def test_compare_argument_errors_give_usage(self):
 		""".compare with too few or too many tickers, or one twice, gets its usage."""
-		for cmd in ('.compare', '.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7', '.compare T1 T1'):
+		for cmd in ('.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7', '.compare T1 T1'):
 			with self.subTest(cmd=cmd):
 				self.assertIn('Usage', str(self.command(cmd)))
 
@@ -152,9 +152,9 @@ class BadArguments(FinbotCase):
 		self.assertEqual((self.sent, self.errors), ([('text', ['no price history for T1'])], []))
 
 	def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
-		""".history with no ticker or an extra argument gets its usage, not the profile of a ticker called HISTORY."""
-		# not the profile of a ticker called HISTORY
-		self.assertEqual(self.command('.history'), [('text', ['Usage: .history SYMBOL'])])
+		""".history with an extra argument gets its usage, not the profile of a ticker called HISTORY; with no
+		ticker, the buttons for one."""
+		self.assertEqual(self.command('.history')[0][0], 'text') # the chart of the first ticker, as text here
 		self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history SYMBOL'])])
 
 
@@ -414,8 +414,8 @@ class RequestLog(FinbotCase):
 	"""Each request that goes out (a cache miss, or a call that has no cache) is a line at INFO."""
 
 	def test_each_request_is_a_short_line_without_secrets(self):
-		"""A request logs its method and URL at INFO, without the scheme or a secret, cut to 73 bytes (the ellipsis
-		takes 3); Telegram's long polling (logged=False) does not, and nothing does below INFO."""
+		"""A request logs its method and URL at INFO, without the scheme or a secret, cut to log_width characters (71,
+		the last an ellipsis); Telegram's long polling (logged=False) does not, and nothing does below INFO."""
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			net.get('https://query1.finance.yahoo.com/v7/finance/quote?crumb=s3cret')
 			net.post('https://api.telegram.org/bot123:ABC-def/sendMessage', json={})
@@ -427,11 +427,41 @@ class RequestLog(FinbotCase):
 		self.assertEqual(lines, ['GET query1.finance.yahoo.com/v7/finance/quote?crumb=<redacted>',
 			'POST api.telegram.org/bot<redacted>/sendMessage', 'PATCH discord.com/api/v10/channels/7/messages/9',
 			'GET query2.finance.yahoo.com/v10/finance/quoteSummary/ARM.L?modules=ca…'])
-		self.assertEqual(len(lines[3].encode()), 73)
+		self.assertEqual(len(lines[3]), 71)
 		self.prefs(log_level='WARN')
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			net.get('https://example.com/')
 		self.assertEqual(err.getvalue(), '')
+
+	def test_log_width_sets_where_a_long_line_is_cut(self):
+		"""The log_width preference is where a long line is cut, its last character an ellipsis; at 0 none is."""
+		whole = 'GET query2.finance.yahoo.com/v10/finance/quoteSummary/ARM.L?modules=calendarEvents' # 82 characters
+		for width, line in ((20, 'GET query2.finance.…'), (81, whole[:80] + '…'), (82, whole), (0, whole), (1, '…')):
+			with self.subTest(width=width):
+				self.prefs(log_width=width)
+				with contextlib.redirect_stderr(io.StringIO()) as err:
+					net.get('https://' + whole[4:])
+				self.assertEqual(err.getvalue().splitlines(), [line])
+
+	def test_a_chat_message_is_one_line_cut_to_log_width(self):
+		"""A chat message is logged on one line, its line breaks spaces, cut to log_width characters like a request's;
+		at 0 it is whole, still on one line. So is one not run again, sent twice within a second."""
+		self.patch(worker, 'process_request', lambda message: None)
+		self.patch(bot, 'doubled', REAL_DOUBLED)
+		text = '/jobs add message daily at 9am "Morning!\nThe ASX opens at 10am,\n\nso coffee first"'
+		def logged(update_id, chat=55):
+			"""What taking a Telegram message of that text in that chat logs."""
+			update = {'update_id': update_id, 'message': {'message_id': update_id, 'chat': {'id': chat},
+				'from': {'first_name': 'Rob', 'username': 'rob'}, 'text': text}}
+			with contextlib.redirect_stderr(io.StringIO()) as err:
+				bot.take(telegram_common.READER, update)
+				self.join_workers()
+			return err.getvalue().splitlines()
+		whole = 'Telegram @rob /jobs add message daily at 9am "Morning! The ASX opens at 10am, so coffee first"'
+		self.assertEqual(logged(1), [whole[:70] + '…'])
+		self.assertEqual(logged(2), ['Telegram @rob sent it again within 1 s, not run again: /jobs add messa…'])
+		self.prefs(log_width=0)
+		self.assertEqual(logged(3, chat=66), [whole]) # another chat's: taken
 
 
 class SharedSession(unittest.TestCase):

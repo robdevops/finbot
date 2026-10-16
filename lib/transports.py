@@ -19,7 +19,7 @@ class Transport:
 	takes_buttons = True # buttons under a message
 	shows_typing = True # a typing notice while a command works
 	TYPING = (0.5, 7, 10) # the notice: first after 0.5 s (a quick answer gets none), then every 7 s, 10 times at most
-	scheduled = False # posting a scheduled run's report (a chat's job, or the home chats), not a reply to a command
+	scheduled = False # posting a scheduled run's report (a chat's job), not a reply to a command
 	_notices = None # the thread sending the notices
 	_quiet = None # set to stop them
 
@@ -139,8 +139,8 @@ def chunked(lines, limit):
 
 
 def fit_caption(caption, dialect):
-	"""The caption cut to the dialect's caption limit (none for Slack), as the network counts it (Telegram leaves the
-	tags out): the whole lines that fit, and how many were left out."""
+	"""The caption cut to the dialect's caption limit (none for Slack), as the network counts it (Telegram: the text
+	its HTML shows, in UTF-16 code units): the whole lines that fit, and how many were left out."""
 	limit = dialect.caption_limit
 	if limit is None or dialect.visible(caption) <= limit:
 		return caption

@@ -31,8 +31,8 @@ class Trade:
 
 def run(dest=None, *, days=None, user='', portfolio_select=None):
 	"""Post the buys and sells of the past `days`, in every portfolio or the one named: to the chat that asked (dest);
-	or, a scheduled run, to each of its chats (dest, a chat's job; else the home chats) those it has not told that chat
-	of before. Raises sharesight.PortfolioNotFound for a name that is none of them."""
+	or, a scheduled run, to the job's chat (dest) those it has not told that chat of before. Raises
+	sharesight.PortfolioNotFound for a name that is none of them."""
 	interactive = delivery.interactive(dest)
 	if days is None:
 		days = config.prefs.past_days
@@ -60,7 +60,7 @@ def gather(days, portfolio_select, known):
 	if raw and config.prefs.trades_use_yahoo:
 		tickers = {markets.transform_to_yahoo(trade['symbol'], trade['market']) for trade in raw}
 		try:
-			log.info("Fetching tickers from Yahoo: ", tickers)
+			log.info("Fetching tickers from Yahoo:", ', '.join(sorted(tickers)))
 			quotes = yahoo.fetch(tickers)
 		except Exception as e:
 			log.warn("Warning: could not fetch Yahoo:", e)

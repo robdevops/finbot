@@ -8,15 +8,14 @@ from unittest import mock
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
-os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok',
-	telegramChatID='1')
+os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
 
 import bot
 from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, net
 from lib import render, sharesight, shortman, state, transports, watchlist, worker, yahoo
 from lib import discord_common, slack_common, telegram_common # each network's reader and bot
 from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating
-from lib.reports import reminder, shorts, trades
+from lib.reports import shorts, trades
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),
 	(yahoo, 'price_history'), (yahoo, 'historic_high'),
@@ -27,8 +26,13 @@ REAL_DOUBLED = bot.doubled # FinbotCase takes every message, a repeat sent on pu
 
 
 def no_jobs(data):
-	"""No chat's jobs in a data dir, so that a bot started there runs no scheduled report (and migrates none)."""
-	Path(data, 'finbot_schedule.json').write_text('{}')
+	"""No chat known in a data dir, so that a bot started there runs no scheduled report."""
+	Path(data, 'finbot_chat_jobs.json').write_text('{}')
+
+
+def scheduled(key='telegram:1'):
+	"""A chat as a scheduled run posts to it, the job's (Telegram's chat 1 unless another key is given)."""
+	return delivery.chat(key, scheduled=True)
 
 
 def bare_environment():
@@ -128,7 +132,8 @@ class FinbotCase(unittest.TestCase):
 		tmp = tempfile.TemporaryDirectory()
 		self.addCleanup(tmp.cleanup)
 		self.env(data_dir=tmp.name, cache_dir=tmp.name, telegramBotToken='X',
-			telegram_api='https://api.telegram.org/botX/')
+			telegram_api='https://api.telegram.org/botX/', sharesight_auth={**config.env.sharesight_auth,
+			'client_id': 'test'}) # Sharesight set up: its answers are the fixtures below
 		self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
 		self.patch(bot, '_said', {}) # nor any message
 		self.patch(bot, 'doubled', lambda message: False) # a test may send the same message twice on purpose
@@ -143,6 +148,8 @@ class FinbotCase(unittest.TestCase):
 			self.record_chart(dest, image, caption, markup))
 		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None: self.record_text(dest, lines))
 		self.patch(watchlist, 'with_holdings', lambda chat: TICKERS)
+		self.patch(worker, 'prime_in_background', lambda *args: None) # no thread draws charts behind a test
+		self.patch(charts, 'prime_in_background', lambda *args: None)
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
 		moved = {t: float(i * 4 - 40) for i, t in enumerate(TICKERS)} # each stock's move over any period
@@ -269,5 +276,3 @@ class ProviderCase(FinbotCase):
 
 UTC = zoneinfo.ZoneInfo('UTC')
 
-
-DEFAULT_SCHEDULE = Path(ROOT, 'defaults', 'schedule.cron')
