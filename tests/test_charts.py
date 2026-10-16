@@ -23,7 +23,7 @@ MIXED = [('AAA', 42), ('BBB', 17), ('CCC', 3), ('', None), ('DDD', -5), ('EEE', 
 
 def uncached(chart):
 	"""render.draw(chart) without the cache, for the tests that have no fixture's temporary cache dir."""
-	with mock.patch.object(config, 'prefs', dataclasses.replace(config.prefs, cache=False)):
+	with mock.patch.object(config, 'settings', dataclasses.replace(config.settings, cache=False)):
 		return render.draw(chart)
 
 

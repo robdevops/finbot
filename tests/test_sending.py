@@ -218,9 +218,9 @@ class ChartDelivery(FinbotCase):
 					report(scheduled(key))
 				self.assertEqual(sorted(set(sent)), [('discord', 'chart'), ('slack', 'chart'), ('telegram', 'chart')])
 
-	def test_the_graph_preference_off_sends_no_chart_anywhere(self):
+	def test_the_graph_setting_off_sends_no_chart_anywhere(self):
 		"""graph=False means no charts, as doc/configuration.md says; it held back only the price-line charts."""
-		self.prefs(graph=False)
+		self.settings(graph=False)
 
 		self.env(slackBotToken='xoxb-test')
 

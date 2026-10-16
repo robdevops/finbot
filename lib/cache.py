@@ -27,7 +27,7 @@ def age(name):
 def _fresh(name, seconds):
 	"""The cache file's path if written less than `seconds` ago (cache_seconds when None), else None."""
 	if seconds is None:
-		seconds = config.prefs.cache_seconds
+		seconds = config.settings.cache_seconds
 	where, written = path(name), age(name)
 	if written is None or written >= seconds:
 		log.debug("cache miss:", where)
@@ -68,12 +68,12 @@ def load(name):
 
 def cached(name, seconds, fetch):
 	"""fetch()'s answer (JSON), as sent: from the cache file `name` while it is under `seconds` old (cache_seconds when
-	None) and the cache preference is on, else fetched and written there unless empty. Answers are cached as sent, not
+	None) and the cache setting is on, else fetched and written there unless empty. Answers are cached as sent, not
 	parsed, so that a parser fix needs no flush."""
-	if config.prefs.cache and (data := read(name, seconds)):
+	if config.settings.cache and (data := read(name, seconds)):
 		return data
 	data = fetch()
-	if data and config.prefs.cache:
+	if data and config.settings.cache:
 		write(name, data)
 	return data
 

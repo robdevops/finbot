@@ -113,7 +113,7 @@ def handle(environ, start_response):
 		"""Log the request headers (at INFO, or as say() logs), Telegram's secret header redacted."""
 		for name, value in sorted(environ.items()):
 			say((name, '<redacted>' if name == 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' else value))
-	if config.prefs.print_headers:
+	if config.settings.print_headers:
 		print_headers()
 	path = environ.get('PATH_INFO', '')
 	source = route(path)
@@ -267,10 +267,10 @@ def reload_all(*args):
 		changes = config.reload()
 		for change in changes:
 			log.info('config:', change)
-		log.info(f"config: reloaded {config.preferences_path}, {len(changes)} change{'' if len(changes) == 1 else 's'}")
+		log.info(f"config: reloaded {config.settings_path}, {len(changes)} change{'' if len(changes) == 1 else 's'}")
 	except config.ConfigError as e:
 		config.print_errors(e)
-	if note := config.template_note(config.preferences_path):
+	if note := config.template_note(config.settings_path):
 		log.warn('WARN config:', note)
 
 def flush_cache(*args):

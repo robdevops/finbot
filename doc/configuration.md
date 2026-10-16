@@ -4,7 +4,7 @@ Configuration is split into two files -- finbot.env for startup environment vari
 
 Copy the shipped template:
 ```
-sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env
+sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo chown root:root /opt/finbot.env
 ```
 
 ## `finbot.env`
@@ -44,13 +44,13 @@ Retired keys do nothing, and only get a note at start (and from check_config) sa
 
 This file was called `preferences.conf` before: on an upgrade the bot renames an old `<DATA_DIR>/preferences.conf` to `settings.conf` at start (it says so in the log), unless a `settings.conf` is there already.
 
-The preferences, read by the bot itself from `<DATA_DIR>/settings.conf`; without that file, finbot runs on the built-in defaults below. `defaults/settings.conf` is only its template: every key in it is commented out at its default, and finbot never reads it. To change a preference, copy the template into the data directory (this never overwrites a file there):
+The settings, read by the bot itself from `<DATA_DIR>/settings.conf`; without that file, finbot runs on the built-in defaults below. `defaults/settings.conf` is only its template: every key in it is commented out at its default, and finbot never reads it. To change a setting, copy the template into the data directory (this never overwrites a file there):
 ```
 util/sync_defaults.py [--dest DIR] --apply
 ```
 then remove the `#` before the key and edit its value. A key set in `defaults/settings.conf` itself does nothing: the log at start (and check_config) says so, and where to set it instead.
 
-A change takes effect on a reload. A true/false preference takes `true`/`false`, `yes`/`no`, `on`/`off` or `1`/`0`; anything else is a mistake, reported like any other. A blank value means the default.
+A change takes effect on a reload. A true/false setting takes `true`/`false`, `yes`/`no`, `on`/`off` or `1`/`0`; anything else is a mistake, reported like any other. A blank value means the default.
 
 | Key | Default | Description |
 |---|---|---|

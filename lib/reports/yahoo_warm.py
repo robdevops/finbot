@@ -6,9 +6,9 @@ from lib import config, sharesight, watchlist, yahoo
 def run():
 	"""Fetch afresh the price history of every stock followed (every chat's watchlist, and the holdings where
 	Sharesight is configured), so each is cached for cache_seconds (6 hours by default) from now: the system job runs
-	this every 4 hours, before any runs out, and a flush at once. With the cache preference off nothing would be kept,
+	this every 4 hours, before any runs out, and a flush at once. With the cache setting off nothing would be kept,
 	so nothing is fetched. Returns how many it fetched."""
-	if not config.prefs.cache:
+	if not config.settings.cache:
 		return 0
 	tickers = watchlist.all_watched()
 	if sharesight.configured():

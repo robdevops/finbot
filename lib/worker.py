@@ -418,7 +418,7 @@ def on_price(request, args):
 	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
 	price.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,
 		days=args.days, top=top, user=request.user, specific_stock=symbol)
-	threshold = 0 if top else config.prefs.price_percent if args.percent is None else args.percent
+	threshold = 0 if top else config.settings.price_percent if args.percent is None else args.percent
 	prime_periods(request, 'l', [f"{threshold:g}", str(top or 0)], buttons.period_for_days(args.days, 'd'
 		if not args.days else None)) # the price list's period buttons (price.run's)
 
@@ -574,7 +574,7 @@ def prime_periods(request, kind, args, shown):
 	are drawn in the background to fill the cache, where the chat can use them: a command asked for, with charts and
 	buttons."""
 	dest = request.dest
-	if dest.takes_buttons and dest.takes_charts and config.prefs.graph and delivery.interactive(dest):
+	if dest.takes_buttons and dest.takes_charts and config.settings.graph and delivery.interactive(dest):
 		charts.prime_in_background(kind, args, request.service, dest.key, shown)
 
 def on_plan(request, args):

@@ -55,7 +55,7 @@ CROWDED = 20 # a screen of more choices takes them in rows of five, Back last: D
 
 def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
 	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each ✅ (on) or ❌ (off), * where it
-	has never run, its name and its schedule in words, by the timezone preference's clock (lib/when.py), then the key
+	has never run, its name and its schedule in words, by the timezone setting's clock (lib/when.py), then the key
 	to the marks shown. top has what can be done (Add, and where there is a job to act on, Delete, Enable, Disable, Run
 	now, Upcoming...) and how Add is typed, in italics; on, off, del and run a button for each job the screen acts on
 	(acts), which switches it on or off, deletes it or runs it now, and Enable all, Disable all or Delete all. A page at
@@ -154,7 +154,7 @@ def job_line(number, job, outcome):
 	return f"{number}. {job.name}: {outcome}"
 
 def next_screen(service, chat, count=20):
-	"""`.jobs upcoming`: a chat's next runs, in time order, at most count, each by the timezone preference's clock
+	"""`.jobs upcoming`: a chat's next runs, in time order, at most count, each by the timezone setting's clock
 	(and its own zone's beside it, where that differs), with its number and name in .jobs; a repeat's runs on a day
 	are one entry, from its first to its last. Returns (lines, buttons): Cancel, back to the list."""
 	scheduler = jobs.current
@@ -190,7 +190,7 @@ def moment_words(moment, local, zone=None):
 def add_screen(service, chat, steps):
 	"""A step of Add, from the choices made so far (steps, from the button pressed: the report's number, how often,
 	then the LEVELS of that frequency in turn): (lines, buttons) of the next choice, its default marked †, or (None,
-	(action, arguments, schedule)) once every choice is made, by the timezone preference's clock. Cancel goes back to
+	(action, arguments, schedule)) once every choice is made, by the timezone setting's clock. Cancel goes back to
 	the list, and Back, after the report, a step back. Raises ValueError for choices that are none (forged data, or an
 	older finbot's)."""
 	scheduler = jobs.current

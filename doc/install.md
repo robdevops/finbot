@@ -35,15 +35,15 @@ systemd, as below. To run it in a container instead, see [docker.md](docker.md).
    ```
 3. The startup file, from its template; then set each network's keys from its guide, and Sharesight's:
    ```
-   sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env
+   sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo chown root:root /opt/finbot.env
    sudoedit /opt/finbot.env
    ```
-4. Check it: `~/finbot/util/check_config.py /opt/finbot.env`
+4. Check it: `~/finbot/util/check_config.py /opt/finbot.env` (it also warns if the file is not `600 root:root`)
 5. Run it under systemd, below. The first start makes the data directory (`var/` in the checkout, or
    `/var/lib/finbot` with `DynamicUser=`); each chat then has the default scheduled jobs, which `/jobs` changes
    ([scheduling.md](scheduling.md)).
 
-[configuration.md](configuration.md) has every key and preference.
+[configuration.md](configuration.md) has every key and setting.
 
 ## Anywhere else: a Python venv
 On Linux, macOS or WSL, with git and Python 3.12 or later (on Debian and Ubuntu, also `python3-venv`):

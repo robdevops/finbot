@@ -31,7 +31,7 @@ def request(method, url, **kwargs):
 
 def logged(method, url, kwargs):
 	"""The request's arguments without `logged`; the request noted first, its method and URL without secrets or the
-	scheme, cut to the log_width preference (log.cut): at INFO; at DEBUG with logged='debug' (the routine of a press:
+	scheme, cut to the log_width setting (log.cut): at INFO; at DEBUG with logged='debug' (the routine of a press:
 	its acknowledgement, the message edited in place); not at all with logged=False (Telegram's long polling, asked
 	again and again)."""
 	shown = kwargs.pop('logged', True)
@@ -42,7 +42,7 @@ def logged(method, url, kwargs):
 def timeouts(kwargs):
 	"""The request's arguments with a timeout, unless it has its own: CONNECT_TIMEOUT to connect, then http_timeout for
 	the answer."""
-	return {'timeout': (CONNECT_TIMEOUT, config.prefs.http_timeout), **kwargs}
+	return {'timeout': (CONNECT_TIMEOUT, config.settings.http_timeout), **kwargs}
 
 def redact(text):
 	"""text (or an exception) without the secrets that request URLs, headers and error messages carry: Telegram and

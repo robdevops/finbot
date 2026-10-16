@@ -47,11 +47,11 @@ def report(service, past_days, portfolio_select=None, performance=None):
 	return payload, render.Chart('bars', "Performance", span, tuple(chart_rows), value_format='percent2')
 
 def run(dest=None, *, past_days=None, user='', portfolio_select=None):
-	"""Post each portfolio's performance over past_days (the past_days preference when None), or the one named, beside
+	"""Post each portfolio's performance over past_days (the past_days setting when None), or the one named, beside
 	the benchmarks: to the chat that asked or whose job it is (dest), with its chart and period buttons where they can
 	go."""
 	if past_days is None:
-		past_days = config.prefs.past_days
+		past_days = config.settings.past_days
 	performance = gather(past_days, portfolio_select)
 	for chat in delivery.targets(dest):
 		payload, graph = report(chat.dialect, past_days, portfolio_select, performance)

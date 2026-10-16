@@ -133,7 +133,7 @@ ITEMS = (
 
 
 def items(country, sharesight=True):
-	"""The default jobs where the country_code preference is country: every item but those for another country, and
+	"""The default jobs where the country_code setting is country: every item but those for another country, and
 	where Sharesight is not set up (sharesight false), those that report on it."""
 	return [item for item in ITEMS if item.country in (None, country) and (sharesight or item.action not in
 		SHARESIGHT)]

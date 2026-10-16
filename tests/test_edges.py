@@ -265,13 +265,13 @@ class CommandArguments(FinbotCase):
 		self.patch(yahoo, 'fetch', lambda ts: asked.append(sorted(ts)) or {t: market_entry(t) for t in ts if '.' in t})
 		self.assertEqual(yahoo.symbols(['BHP', 'BHP.L', 'cba', 'CBA:ASX']), ['BHP.AX', 'BHP.L', 'CBA.AX', 'CBA.AX'])
 		self.assertEqual(asked, [['BHP', 'CBA'], ['BHP.AX', 'CBA.AX']]) # two requests, however many tickers
-		self.prefs(exchange_suffix='NZ')
+		self.settings(exchange_suffix='NZ')
 		self.assertEqual(yahoo.symbol('BHP'), 'BHP.NZ')
-		self.prefs(exchange_suffix='')
+		self.settings(exchange_suffix='')
 		asked.clear()
 		self.assertEqual(yahoo.symbol('BHP'), 'BHP')
 		self.assertEqual(asked, []) # nothing to try, so Yahoo is not asked
-		self.prefs(exchange_suffix='AX')
+		self.settings(exchange_suffix='AX')
 		for message, shown in (('.price BHP', 'BHP.AX'), ('.history BHP', 'BHP.AX'), ('.earnings BHP', 'BHP.AX'),
 				('.shorts BHP', 'BHP'), ('.pe BHP', 'BHP'), ('.marketcap BHP', 'BHP.AX'), ('.BHP', 'BHP.AX')):
 			with self.subTest(message=message):
@@ -367,7 +367,7 @@ class LogLevels(FinbotCase):
 
 	def logged(self, level, run):
 		"""What run() logs with log_level at this level."""
-		self.prefs(log_level=level)
+		self.settings(log_level=level)
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			run()
 		return err.getvalue().splitlines()
@@ -428,17 +428,17 @@ class RequestLog(FinbotCase):
 			'POST api.telegram.org/bot<redacted>/sendMessage', 'PATCH discord.com/api/v10/channels/7/messages/9',
 			'GET query2.finance.yahoo.com/v10/finance/quoteSummary/ARM.L?modules=ca…'])
 		self.assertEqual(len(lines[3]), 71)
-		self.prefs(log_level='WARN')
+		self.settings(log_level='WARN')
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			net.get('https://example.com/')
 		self.assertEqual(err.getvalue(), '')
 
 	def test_log_width_sets_where_a_long_line_is_cut(self):
-		"""The log_width preference is where a long line is cut, its last character an ellipsis; at 0 none is."""
+		"""The log_width setting is where a long line is cut, its last character an ellipsis; at 0 none is."""
 		whole = 'GET query2.finance.yahoo.com/v10/finance/quoteSummary/ARM.L?modules=calendarEvents' # 82 characters
 		for width, line in ((20, 'GET query2.finance.…'), (81, whole[:80] + '…'), (82, whole), (0, whole), (1, '…')):
 			with self.subTest(width=width):
-				self.prefs(log_width=width)
+				self.settings(log_width=width)
 				with contextlib.redirect_stderr(io.StringIO()) as err:
 					net.get('https://' + whole[4:])
 				self.assertEqual(err.getvalue().splitlines(), [line])
@@ -460,7 +460,7 @@ class RequestLog(FinbotCase):
 		whole = 'Telegram @rob /jobs add message daily at 9am "Morning! The ASX opens at 10am, so coffee first"'
 		self.assertEqual(logged(1), [whole[:70] + '…'])
 		self.assertEqual(logged(2), ['Telegram @rob sent it again within 1 s, not run again: /jobs add messa…'])
-		self.prefs(log_width=0)
+		self.settings(log_width=0)
 		self.assertEqual(logged(3, chat=66), [whole]) # another chat's: taken
 
 

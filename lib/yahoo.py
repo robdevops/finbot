@@ -19,7 +19,7 @@ HEADERS = {'User-Agent': 'Mozilla/5.0'}
 CREDENTIALS = 'finbot_yahoo_credentials.json' # [cookie, crumb]: Yahoo issues the crumb for the cookie: they go together
 
 def credentials(renew=False):
-	"""(cookie, crumb) for Yahoo's API, from one cache file kept 14 days whatever the cache preference, and renewed
+	"""(cookie, crumb) for Yahoo's API, from one cache file kept 14 days whatever the cache setting, and renewed
 	together (renew=True: now, for a pair Yahoo refused). Raises RuntimeError when Yahoo gives no cookie or no crumb."""
 	with _auth:
 		if not renew and (cached := cache.read(CREDENTIALS, 14 * 86400)):
@@ -431,10 +431,10 @@ def fetch_details(tickers, strict=False):
 def symbols(typed):
 	"""Yahoo's symbols for tickers as written in a chat: BHP:ASX, BHP.ASX and bhp.ax give BHP.AX (see
 	markets.transform_to_yahoo). A bare symbol Yahoo does not know is tried again on the local exchange, with the
-	exchange_suffix preference (AX: BHP.AX), unless that is empty; a symbol Yahoo knows neither way stays as written.
+	exchange_suffix setting (AX: BHP.AX), unless that is empty; a symbol Yahoo knows neither way stays as written.
 	Two requests at most, however many tickers. Raises RuntimeError when Yahoo cannot be reached."""
 	tickers = [markets.transform_to_yahoo(ticker.upper()) for ticker in typed]
-	suffix = config.prefs.exchange_suffix
+	suffix = config.settings.exchange_suffix
 	bare = [ticker for ticker in tickers if '.' not in ticker]
 	if not (suffix and bare):
 		return tickers

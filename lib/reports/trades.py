@@ -35,7 +35,7 @@ def run(dest=None, *, days=None, user='', portfolio_select=None):
 	sharesight.PortfolioNotFound for a name that is none of them."""
 	interactive = delivery.interactive(dest)
 	if days is None:
-		days = config.prefs.past_days
+		days = config.settings.past_days
 	chats = delivery.targets(dest)
 	told = {chat.key: set() if interactive else set(state.load_for(chat.key, STATE_FILE, [])) for chat in chats}
 	trades = gather(days, portfolio_select, set.intersection(*told.values())) # every chat knows those: not fetched
@@ -57,7 +57,7 @@ def gather(days, portfolio_select, known):
 	raw = [trade for portfolio in sharesight.portfolios(portfolio_select) for trade in portfolio.trades(days)
 		if trade['transaction_type'] in {'BUY', 'SELL'} and int(trade['id']) not in known]
 	quotes = {}
-	if raw and config.prefs.trades_use_yahoo:
+	if raw and config.settings.trades_use_yahoo:
 		tickers = {markets.transform_to_yahoo(trade['symbol'], trade['market']) for trade in raw}
 		try:
 			log.info("Fetching tickers from Yahoo:", ', '.join(sorted(tickers)))
@@ -71,7 +71,7 @@ def gather(days, portfolio_select, known):
 		# the currency by Sharesight's market code, which the table knows, not Yahoo's name for the exchange (NasdaqGS)
 		currency = markets.currency_from_market(market) or quotes.get(ticker, {}).get('currency') or \
 			trade['brokerage_currency_code']
-		if config.prefs.trades_use_yahoo:
+		if config.settings.trades_use_yahoo:
 			try:
 				market = quotes[ticker]['profile_exchange']
 			except Exception as e:

@@ -44,8 +44,8 @@ def parse_line(line):
 
 
 def split(text, path='.env'):
-	"""(startup lines, preference lines, notes) for the lines of an old env file."""
-	startup, preferences, notes = [], [], []
+	"""(startup lines, setting lines, notes) for the lines of an old env file."""
+	startup, settings, notes = [], [], []
 	for number, raw in enumerate(text.splitlines(), 1):
 		parsed = parse_line(raw)
 		if parsed is None:
@@ -62,11 +62,11 @@ def split(text, path='.env'):
 			notes.append(f'{path} line {number}: {key} dropped: {config.RETIRED[key]}')
 		elif key in config.STARTUP_KEYS:
 			startup.append(f'{key}={value}')
-		elif key in config.PREFERENCE_KEYS:
-			preferences.append(f'{key}={value}')
+		elif key in config.SETTING_KEYS:
+			settings.append(f'{key}={value}')
 		else:
 			notes.append(f'{path} line {number}: unknown key {key}, left out')
-	return startup, preferences, notes
+	return startup, settings, notes
 
 
 if __name__ == '__main__':
@@ -77,12 +77,12 @@ if __name__ == '__main__':
 	src = Path(args.file)
 	if not src.is_file():
 		sys.exit(f'{src} does not exist: nothing to split')
-	startup, preferences, notes = split(src.read_text(), src)
+	startup, settings, notes = split(src.read_text(), src)
 	outputs = {
 		src.with_name('finbot.env.new'):
 			('# finbot.env: the startup file, loaded by your launcher; a change needs a restart.', startup, 0o600),
 		src.with_name('settings.conf.new'):
-			('# settings.conf: read by the bot; reload with systemctl reload finbot.', preferences, 0o644)}
+			('# settings.conf: read by the bot; reload with systemctl reload finbot.', settings, 0o644)}
 	if any(path.exists() for path in outputs):
 		sys.exit('refusing to overwrite: ' + ', '.join(str(p) for p in outputs if p.exists()))
 	for path, (header, lines, mode) in outputs.items():

@@ -33,7 +33,7 @@ A button drawn for a list that has since changed acts on nothing: the screen is 
 
 ### Add, step by step
 Each screen marks its default with `†` (`Sat†`, `09†`) and says _† indicates default_; after the first, **Back** takes a
-step back. Times are by the `timezone` preference's clock.
+step back. Times are by the `timezone` setting's clock.
 
 First what the job runs: a report, or a command of `/help` ([below](#a-job-in-english)). A message's text, and a
 command's stock or portfolio, cannot come from a button, so their screen says how to type them. Then how often:
@@ -79,7 +79,7 @@ A job is a report and what it takes, then when it runs:
   midnight. It can take days, and a window of hours (`from 10am to 9pm`, `between 9am and 5pm`) or a span across days
   (`from mon 9am to sat 3pm`).
 * **Zone, last:**
-  * Times are by the `timezone` preference's clock. A job keeps that zone, so it follows its daylight saving: 8am stays
+  * Times are by the `timezone` setting's clock. A job keeps that zone, so it follows its daylight saving: 8am stays
     8am.
   * Name `UTC` for a time that never moves.
   * Name another zone for its clock: an IANA name (`America/New_York`), a place (`New York`, `Hong Kong`), or a
@@ -156,7 +156,7 @@ move as either side's daylight saving changes.
   * pre-market US at 7:15am New York;
   * mid-session about halfway through: 1:00pm Sydney for the ASX, 12:45pm New York for the NYSE;
   * the close 30 minutes after it: 4:30pm Sydney for the ASX, 4:30pm Hong Kong, 5:00pm London and 4:30pm New York.
-* **The messages marked (AU)** are default jobs only where the `country_code` preference is `AU`.
+* **The messages marked (AU)** are default jobs only where the `country_code` setting is `AU`.
 * **trades and performance** are default jobs only where Sharesight is set up (see
   [Configuration](configuration.md#sharesight)).
 * **A one-off leaves the list** once its date has passed.

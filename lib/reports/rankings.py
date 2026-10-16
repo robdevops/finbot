@@ -45,7 +45,7 @@ def prepare_rating_payload(service, chat, action, length=15):
 	ratings, the one more analysts give first."""
 	found = [] # (rating, analysts, line, ticker)
 	for ticker, data in yahoo.fetch_details(watchlist.with_holdings(chat)).items():
-		if 'recommend' not in data or data['recommend_analysts'] < config.prefs.min_analysts:
+		if 'recommend' not in data or data['recommend_analysts'] < config.settings.min_analysts:
 			continue
 		recommend = data['recommend']
 		if (action == 'buy' and 'buy' in recommend) or (action == 'sell' and recommend in ('sell', 'underperform')):
@@ -55,8 +55,8 @@ def prepare_rating_payload(service, chat, action, length=15):
 	found = sorted(found, key=lambda row: (row[0] if action == 'buy' else -row[0], -row[1]))[:length]
 	payload = [line for _, _, line, _ in found]
 	if not payload:
-		return [f"No tracked stocks rated {action} by {config.prefs.min_analysts}+ analysts"], None
-	message = f"Top {length} analyst {action} ratings for tracked stocks ({config.prefs.min_analysts}+ analysts)"
+		return [f"No tracked stocks rated {action} by {config.settings.min_analysts}+ analysts"], None
+	message = f"Top {length} analyst {action} ratings for tracked stocks ({config.settings.min_analysts}+ analysts)"
 	shown = [(formats.short_ticker(ticker), rating) for rating, _, _, ticker in found]
 	low, high = min(r for _, r in shown), max(r for _, r in shown)
 	spread = (high - low) or 0.2
@@ -96,7 +96,7 @@ def ratio_list(service, chat, kind, mode='top', length=15):
 	covered = None # for a forward P/E list: the tickers enough analysts cover
 	if kind == 'forward pe':
 		covered = {ticker for ticker, detail in yahoo.fetch_details(market_data).items()
-			if detail.get('recommend_analysts', 0) >= config.prefs.min_analysts}
+			if detail.get('recommend_analysts', 0) >= config.settings.min_analysts}
 	rows = [] # (ratio, chart label, line), one sorted list for the caption and the chart
 	for ticker, data in market_data.items():
 		ratio = data.get(field)
@@ -110,9 +110,9 @@ def ratio_list(service, chat, kind, mode='top', length=15):
 	trail = f'negative {kind}' if mode == 'negative' else kind # what the heading calls the ratio
 	if not rows:
 		if covered is not None:
-			return [f"No tracked stocks with {config.prefs.min_analysts}+ analysts have a {trail} ratio"], None
+			return [f"No tracked stocks with {config.settings.min_analysts}+ analysts have a {trail} ratio"], None
 		return [f"{kind if mode == 'top' else f'{mode} {kind}'}: no data found"], None
-	coverage = f" ({config.prefs.min_analysts}+ analysts)" if covered is not None else ''
+	coverage = f" ({config.settings.min_analysts}+ analysts)" if covered is not None else ''
 	heading = f"{'Bottom' if mode == 'bottom' else 'Top'} {length} tracked stocks by {trail} ratio{coverage}"
 	bars = tuple((label, float(ratio)) for ratio, label, _ in rows)
 	chart = render.Chart('bars', heading, rows=bars, value_format='number')

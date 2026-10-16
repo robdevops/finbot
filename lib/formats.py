@@ -218,8 +218,8 @@ def plain(line):
 
 
 def zone():
-	"""The timezone preference as a zone: UTC where it names none."""
+	"""The timezone setting as a zone: UTC where it names none."""
 	try:
-		return zoneinfo.ZoneInfo(config.prefs.timezone)
+		return zoneinfo.ZoneInfo(config.settings.timezone)
 	except (ValueError, zoneinfo.ZoneInfoNotFoundError):
 		return zoneinfo.ZoneInfo('UTC')

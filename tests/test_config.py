@@ -11,9 +11,9 @@ from lib import cache, yahoo
 REPO = Path(config.__file__).resolve().parent.parent
 
 
-def fields(prefs):
-	"""A Prefs as {name: value}, without the file's own lines."""
-	return {name: getattr(prefs, name) for name in config.PREFERENCE_KEYS}
+def fields(settings):
+	"""A Settings as {name: value}, without the file's own lines."""
+	return {name: getattr(settings, name) for name in config.SETTING_KEYS}
 
 
 def keys_in(path):
@@ -23,9 +23,9 @@ def keys_in(path):
 
 class Tables(unittest.TestCase):
 	def test_the_two_key_sets_are_disjoint_and_cover_everything_config_reads(self):
-		"""Startup and preference keys do not overlap: config.py reads each startup key by name, and each preference
-		as a field of Prefs."""
-		self.assertEqual(set(config.STARTUP_KEYS) & set(config.PREFERENCE_KEYS), set())
+		"""Startup and setting keys do not overlap: config.py reads each startup key by name, and each setting
+		as a field of Settings."""
+		self.assertEqual(set(config.STARTUP_KEYS) & set(config.SETTING_KEYS), set())
 		source = (REPO / 'lib' / 'config.py').read_text()
 		read = set(re.findall(r"""(?:\br\.\w+|getenv)\(\s*['"]([A-Za-z_]+)['"]""", source))
 		read -= {'STATE_DIRECTORY'} # systemd's own variable, a source for DATA_DIR
@@ -36,34 +36,34 @@ class Tables(unittest.TestCase):
 		self.assertTrue(set(config.SECRET_KEYS) <= set(config.STARTUP_KEYS))
 		self.assertEqual(len(config.SECRET_KEYS), 13)
 
-	def test_unset_preferences_take_their_defaults(self):
-		"""An unset preference takes its field's default, as it is: reading tidies nothing away."""
-		values = config.preference_values(lambda name, default=None: default)
-		self.assertEqual(fields(values), fields(config.Prefs()))
+	def test_unset_settings_take_their_defaults(self):
+		"""An unset setting takes its field's default, as it is: reading tidies nothing away."""
+		values = config.setting_values(lambda name, default=None: default)
+		self.assertEqual(fields(values), fields(config.Settings()))
 
 	def test_templates_have_every_key_and_the_real_defaults(self):
 		"""defaults/settings.conf lists every key, commented out at its built-in default, so that it sets none;
 		finbot.env lists every key; both are valid as shipped."""
 		template = REPO / 'defaults' / 'settings.conf'
-		self.assertEqual(sorted(keys_in(template)), sorted(config.PREFERENCE_KEYS))
+		self.assertEqual(sorted(keys_in(template)), sorted(config.SETTING_KEYS))
 		self.assertEqual(sorted(keys_in(REPO / 'defaults' / 'finbot.env')), sorted(config.STARTUP_KEYS))
-		self.assertEqual((config.read_preferences(template), config.template_keys()), ({}, [])) # it sets nothing
+		self.assertEqual((config.read_settings(template), config.template_keys()), ({}, [])) # it sets nothing
 		shown = dict(re.findall(r'^#([A-Za-z_][A-Za-z0-9_]*)=(.*)$', template.read_text(), re.M)) # #key=value lines
-		self.assertEqual(sorted(shown), sorted(config.PREFERENCE_KEYS))
-		self.assertEqual(fields(config.preference_values(config._getenv_for(shown))), fields(config.Prefs()))
+		self.assertEqual(sorted(shown), sorted(config.SETTING_KEYS))
+		self.assertEqual(fields(config.setting_values(config._getenv_for(shown))), fields(config.Settings()))
 		startup = config.read_startup_file(REPO / 'defaults' / 'finbot.env')
 		config.startup_values(lambda name, default=None: startup.get(name, default)) # and is valid as it stands
 
 
 class Parsing(unittest.TestCase):
 	def parse(self, text):
-		"""(what read_preferences makes of text, the file it was written to)."""
+		"""(what read_settings makes of text, the file it was written to)."""
 		path = Path(common.temp_dir(self), 'settings.conf')
 		path.write_text(text)
-		return config.read_preferences(path), path
+		return config.read_settings(path), path
 
 	def errors(self, text):
-		"""The errors read_preferences raises for text."""
+		"""The errors read_settings raises for text."""
 		with self.assertRaises(config.ConfigError) as caught:
 			self.parse(text)
 		return caught.exception.errors
@@ -77,7 +77,7 @@ class Parsing(unittest.TestCase):
 
 	def test_missing_file_is_none(self):
 		"""No settings.conf is not an error: None."""
-		self.assertIsNone(config.read_preferences(Path(common.temp_dir(self), 'nope')))
+		self.assertIsNone(config.read_settings(Path(common.temp_dir(self), 'nope')))
 
 	def test_unknown_key_gets_a_hint_and_a_line_number(self):
 		"""An unknown key is reported with its line number and the key it was probably meant to be."""
@@ -85,7 +85,7 @@ class Parsing(unittest.TestCase):
 		self.assertEqual(len(errors), 1)
 		self.assertIn('line 2: unknown key futur_days (did you mean future_days?)', errors[0])
 
-	def test_a_startup_key_in_preferences_says_where_it_belongs(self):
+	def test_a_startup_key_in_settings_says_where_it_belongs(self):
 		"""A startup key in settings.conf is sent to finbot.env, without printing its value."""
 		errors = self.errors('slackOutgoingWebhook=https://x\nip=0.0.0.0\nport=5\nscheduler_catchup=3\n')
 		self.assertEqual(len(errors), 4)
@@ -108,9 +108,9 @@ class Parsing(unittest.TestCase):
 
 	def test_invalid_values_are_named(self):
 		"""A value of the wrong type is reported with its key and value."""
-		prefs = {'future_days': 'abc', 'price_percent': 'x'}
+		settings = {'future_days': 'abc', 'price_percent': 'x'}
 		with self.assertRaises(config.ConfigError) as caught:
-			config.preference_values(config._getenv_for(prefs))
+			config.setting_values(config._getenv_for(settings))
 		self.assertEqual(len(caught.exception.errors), 2)
 		self.assertIn("future_days='abc' is not a whole number", caught.exception.errors[0])
 
@@ -119,30 +119,30 @@ class Parsing(unittest.TestCase):
 		for word, value in (('True', True), ('yes', True), ('ON', True), ('1', True), ('false', False), ('No', False),
 				('off', False), ('0', False)):
 			with self.subTest(word=word):
-				self.assertIs(config.preference_values(config._getenv_for({'graph': word})).graph, value)
+				self.assertIs(config.setting_values(config._getenv_for({'graph': word})).graph, value)
 		with self.assertRaises(config.ConfigError) as caught: # it used to mean False without a word
-			config.preference_values(config._getenv_for({'graph': 'Ture'}))
+			config.setting_values(config._getenv_for({'graph': 'Ture'}))
 		self.assertIn("graph='Ture' is not true or false", caught.exception.errors[0])
 
 	def test_a_blank_value_means_the_default(self):
 		"""A key with a blank value takes its default, but for exchange_suffix, where blank means no suffix to try."""
-		values = config.preference_values(config._getenv_for({'cache': '', 'future_days': '', 'country_code': ''}))
+		values = config.setting_values(config._getenv_for({'cache': '', 'future_days': '', 'country_code': ''}))
 		self.assertEqual((values.cache, values.future_days, values.country_code), (True, 30, 'AU'))
 		for given, suffix in (('', ''), ('AX', 'AX'), ('.ax', 'AX'), (' NZ ', 'NZ')):
 			with self.subTest(given=given):
-				values = config.preference_values(config._getenv_for({'exchange_suffix': given}))
+				values = config.setting_values(config._getenv_for({'exchange_suffix': given}))
 				self.assertEqual(values.exchange_suffix, suffix)
-		self.assertEqual(config.preference_values(config._getenv_for({})).exchange_suffix, 'AX') # unset: the default
+		self.assertEqual(config.setting_values(config._getenv_for({})).exchange_suffix, 'AX') # unset: the default
 
 	def test_log_level_is_one_of_syslogs_levels_in_any_case(self):
 		"""log_level takes ERROR, WARN, INFO or DEBUG, in any case, INFO by default; anything else is a mistake that
 		names the levels."""
 		for given, level in (('warn', 'WARN'), ('Debug', 'DEBUG'), ('ERROR', 'ERROR'), ('', 'INFO')):
 			with self.subTest(log_level=given):
-				values = config.preference_values(config._getenv_for({'log_level': given}))
+				values = config.setting_values(config._getenv_for({'log_level': given}))
 				self.assertEqual(values.log_level, level)
 		with self.assertRaises(config.ConfigError) as caught:
-			config.preference_values(config._getenv_for({'log_level': 'loud'}))
+			config.setting_values(config._getenv_for({'log_level': 'loud'}))
 		self.assertEqual(caught.exception.errors, ["log_level='loud' is not one of ERROR, WARN, INFO, DEBUG"])
 
 	def test_a_retired_key_is_accepted_and_said_to_do_nothing(self):
@@ -151,8 +151,8 @@ class Parsing(unittest.TestCase):
 		instead."""
 		path = Path(common.temp_dir(self), 'settings.conf')
 		path.write_text(''.join(f'{key}=True\n' for key in config.RETIRED) + 'future_days=45\n')
-		values = config.read_preferences(path)
-		self.assertEqual(config.preference_values(config._getenv_for(values)).future_days, 45)
+		values = config.read_settings(path)
+		self.assertEqual(config.setting_values(config._getenv_for(values)).future_days, 45)
 		notes = [f'{key} in settings.conf does nothing any more: {instead}'
 			for key, instead in config.RETIRED.items()]
 		self.assertEqual(config.retired_notes(values), notes)
@@ -171,28 +171,28 @@ class Parsing(unittest.TestCase):
 			'\n'.join(report)) # there are no home chats
 
 	def test_unreadable_file_is_an_error_naming_it(self):
-		"""A preferences file that cannot be read is an error that names it."""
+		"""A settings file that cannot be read is an error that names it."""
 		path = Path(common.temp_dir(self), 'settings.conf')
 		path.mkdir() # reading a directory fails like a permission error would
 		with self.assertRaises(config.ConfigError) as caught:
-			config.read_preferences(path)
+			config.read_settings(path)
 		self.assertIn(f'cannot read {path}', caught.exception.errors[0])
 
 	def test_precedence_file_then_environment_then_default(self):
-		"""A preference comes from the file, else the environment, else its default."""
+		"""A setting comes from the file, else the environment, else its default."""
 		with mock.patch.dict(os.environ, {'future_days': '5', 'past_days': '4'}):
-			values = config.preference_values(config._getenv_for({'future_days': '30'}))
+			values = config.setting_values(config._getenv_for({'future_days': '30'}))
 		self.assertEqual((values.future_days, values.past_days, values.shorts_percent), (30, 4, 15))
 
 	def test_the_old_multiplier_name_is_gone_everywhere(self):
 		"""volatile_multiplier is no longer read, and in the environment it stops the start with the new name."""
 		with mock.patch.dict(os.environ, {'volatile_multiplier': '3'}):
 			# not read any more
-			self.assertEqual(config.preference_values(config._getenv_for({})).volatility_multiplier, 2.0)
+			self.assertEqual(config.setting_values(config._getenv_for({})).volatility_multiplier, 2.0)
 			with self.assertRaises(config.ConfigError) as caught:
 				config.check_startup_environment()
 		self.assertIn('volatile_multiplier was renamed to volatility_multiplier', caught.exception.errors[0])
-		values = config.preference_values(config._getenv_for({'volatility_multiplier': '4'}))
+		values = config.setting_values(config._getenv_for({'volatility_multiplier': '4'}))
 		self.assertEqual(values.volatility_multiplier, 4.0)
 
 	def test_startup_file_linting(self):
@@ -208,6 +208,22 @@ class Parsing(unittest.TestCase):
 		self.assertIn("port='http' is not a whole number", check_config.check(path, nowhere)[0])
 		path.write_text('port=80\n')
 		self.assertEqual(check_config.check(path, Path(common.temp_dir(self), 'none')), [])
+
+	def test_check_config_warns_when_finbot_env_is_not_600_root(self):
+		"""util/check_config.py warns, naming the fix, when finbot.env is not mode 600 owned by root:root, and says
+		nothing for one that is, or for a file it cannot stat."""
+		def stat_of(mode, uid=0, gid=0):
+			"""What os.stat says of a file with this mode, owner and group."""
+			return types.SimpleNamespace(st_mode=0o100000 | mode, st_uid=uid, st_gid=gid)
+		with mock.patch.object(check_config.os, 'stat', return_value=stat_of(0o600)):
+			self.assertEqual(check_config.permission_warnings('/opt/finbot.env'), [])
+		with mock.patch.object(check_config.os, 'stat', return_value=stat_of(0o644)):
+			warning, = check_config.permission_warnings('/opt/finbot.env')
+		self.assertIn('/opt/finbot.env is 644 root:root, not 600 root:root', warning)
+		self.assertIn('chmod 600 /opt/finbot.env && chown root:root /opt/finbot.env', warning)
+		with mock.patch.object(check_config.os, 'stat', return_value=stat_of(0o600, uid=54321, gid=54321)):
+			self.assertIn('600 54321:54321, not 600 root:root', check_config.permission_warnings('x')[0])
+		self.assertEqual(check_config.permission_warnings('/no/such/finbot.env'), [])
 
 	def test_check_config_gives_the_startup_warnings_of_a_valid_file(self):
 		"""check_config shows what bot.py would warn about at start for the file it checks: here a Telegram token for
@@ -226,7 +242,7 @@ class Reload(unittest.TestCase):
 		"""An empty settings.conf of this test's own, put back to the defaults afterwards."""
 		self.file = Path(common.temp_dir(self), 'settings.conf')
 		self.file.write_text('')
-		patch = mock.patch.object(config, 'preferences_path', str(self.file))
+		patch = mock.patch.object(config, 'settings_path', str(self.file))
 		patch.start()
 		self.addCleanup(patch.stop)
 		self.addCleanup(self.back_to_defaults)
@@ -237,7 +253,7 @@ class Reload(unittest.TestCase):
 		config.reload()
 
 	def write(self, text):
-		"""Write the preferences file."""
+		"""Write the settings file."""
 		self.file.write_text(text)
 
 	def test_a_change_is_seen_at_once(self):
@@ -245,18 +261,18 @@ class Reload(unittest.TestCase):
 		self.write('future_days=45\nprice_percent=7\nshorts_percent=12\nexclude_portfolios=1156263\n'
 			'exchange_suffix=nz\nhyperlinkProvider=yahoo\nhyperlinkFooter=false\nlog_level=debug\ngraph=0\n'
 			'demote_volatile=0\nvolatility_multiplier=3\npast_days=14\nmin_analysts=3\n')
-		before = config.prefs
+		before = config.settings
 		changes = config.reload()
 		self.assertEqual(len(changes), 13)
 		self.assertIn('future_days 30 -> 45', changes)
-		self.assertIsNot(config.prefs, before) # one new object: no request sees half a reload
-		self.assertEqual((config.prefs.future_days, config.prefs.past_days, config.prefs.price_percent,
-			config.prefs.min_analysts), (45, 14, 7.0, 3))
-		prefs = config.prefs
-		self.assertEqual((prefs.exclude_portfolios, prefs.exchange_suffix, prefs.hyperlinkProvider,
-			prefs.hyperlinkFooter), (('1156263',), 'NZ', 'yahoo', False))
-		self.assertEqual((config.prefs.log_level, config.prefs.graph, config.prefs.demote_volatile,
-			config.prefs.volatility_multiplier), ('DEBUG', False, False, 3.0))
+		self.assertIsNot(config.settings, before) # one new object: no request sees half a reload
+		self.assertEqual((config.settings.future_days, config.settings.past_days, config.settings.price_percent,
+			config.settings.min_analysts), (45, 14, 7.0, 3))
+		settings = config.settings
+		self.assertEqual((settings.exclude_portfolios, settings.exchange_suffix, settings.hyperlinkProvider,
+			settings.hyperlinkFooter), (('1156263',), 'NZ', 'yahoo', False))
+		self.assertEqual((config.settings.log_level, config.settings.graph, config.settings.demote_volatile,
+			config.settings.volatility_multiplier), ('DEBUG', False, False, 3.0))
 		self.assertEqual(config.reload(), []) # nothing more to change
 
 	def test_a_value_removed_from_the_file_goes_back_to_its_default(self):
@@ -265,9 +281,9 @@ class Reload(unittest.TestCase):
 		config.reload()
 		self.write('# empty\n')
 		self.assertEqual(config.reload(), ['future_days 45 -> 30'])
-		self.assertEqual(config.prefs.future_days, 30)
+		self.assertEqual(config.settings.future_days, 30)
 
-	def test_defaults_that_follow_a_preference_are_read_when_called(self):
+	def test_defaults_that_follow_a_setting_are_read_when_called(self):
 		"""A cache read without seconds follows cache_seconds as reloaded; an explicit value always wins."""
 		cache_file = Path(config.env.cache_dir, 'finbot_test_reload.json')
 		cache_file.write_text('{"a": 1}')
@@ -291,7 +307,7 @@ class Reload(unittest.TestCase):
 			self.write(text)
 			with self.assertRaises(config.ConfigError):
 				config.reload()
-			self.assertEqual(config.prefs.future_days, 45)
+			self.assertEqual(config.settings.future_days, 45)
 
 	def test_a_missing_file_is_an_error_and_keeps_the_running_values(self):
 		"""A reload with the file gone is an error and keeps the running values."""
@@ -301,15 +317,15 @@ class Reload(unittest.TestCase):
 		with self.assertRaises(config.ConfigError) as caught:
 			config.reload()
 		self.assertIn('does not exist; nothing reloaded', caught.exception.errors[0])
-		self.assertEqual(config.prefs.future_days, 45)
+		self.assertEqual(config.settings.future_days, 45)
 		self.file.write_text('')
 
-	def test_nothing_copies_the_config_or_freezes_a_preference(self):
-		"""Modules read config.prefs.<name> when they run, so that a reload is seen: no star import (which copied every
-		name into each module), and no function default or module constant computed from a preference."""
-		def reads_prefs(node):
-			"""Whether an expression reads config.prefs."""
-			return any(isinstance(n, ast.Attribute) and n.attr == 'prefs' and isinstance(n.value,
+	def test_nothing_copies_the_config_or_freezes_a_setting(self):
+		"""Modules read config.settings.<name> when they run, so that a reload is seen: no star import (which copied
+		every name into each module), and no function default or module constant computed from a setting."""
+		def reads_settings(node):
+			"""Whether an expression reads config.settings."""
+			return any(isinstance(n, ast.Attribute) and n.attr == 'settings' and isinstance(n.value,
 				ast.Name) and n.value.id == 'config' for n in ast.walk(node))
 		offenders = []
 		for path in sorted([*(REPO / 'lib').rglob('*.py'), *REPO.glob('*.py'), *(REPO / 'util').glob('*.py')]):
@@ -320,52 +336,52 @@ class Reload(unittest.TestCase):
 					offenders.append(f'{path.name}:{node.lineno} from lib.config import {names}')
 				if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
 					for default in [*node.args.defaults, *[d for d in node.args.kw_defaults if d]]:
-						if reads_prefs(default):
+						if reads_settings(default):
 							offenders.append(f'{path.name}:{node.lineno} default of {node.name}')
 			for node in tree.body:
-				if isinstance(node, ast.Assign) and reads_prefs(node.value):
+				if isinstance(node, ast.Assign) and reads_settings(node.value):
 					offenders.append(f'{path.name}:{node.lineno} module constant')
 		self.assertEqual(offenders, [])
 
-	def test_a_scheduled_job_runs_on_the_preferences_in_force_not_the_edited_file(self):
-		"""A scheduled job runs in the bot's process, on the preferences of the last reload: a file edited since, and
+	def test_a_scheduled_job_runs_on_the_settings_in_force_not_the_edited_file(self):
+		"""A scheduled job runs in the bot's process, on the settings of the last reload: a file edited since, and
 		not reloaded, is not read."""
 		from lib import jobs
 		seen = []
 		self.write('future_days=45\n')
 		config.reload()
 		self.write('future_days=99\n') # edited, no reload sent
-		module = types.SimpleNamespace(run=lambda: seen.append(config.prefs.future_days))
+		module = types.SimpleNamespace(run=lambda: seen.append(config.settings.future_days))
 		jobs.run_in_process('look.py', module, {})
 		self.assertEqual(seen, [45])
 
 
 class Startup(unittest.TestCase):
-	def run_config(self, code='from lib import config as c; print(c.prefs.future_days)', prefs=None, **env):
-		"""Run code in a new interpreter: own data dir, prefs as settings.conf, no settings in the environment."""
+	def run_config(self, code='from lib import config as c; print(c.settings.future_days)', settings=None, **env):
+		"""Run code in a new interpreter: own data dir, settings as settings.conf, no settings in the environment."""
 		data = common.temp_dir(self)
-		if prefs is not None:
-			Path(data, 'settings.conf').write_text(prefs)
+		if settings is not None:
+			Path(data, 'settings.conf').write_text(settings)
 		env = {**common.bare_environment(), 'DATA_DIR': data, **env}
 		return subprocess.run([sys.executable, '-c', code], cwd=REPO, env=env,
 			capture_output=True, text=True)
 
-	def test_no_preferences_file_is_fine(self):
+	def test_no_settings_file_is_fine(self):
 		"""finbot starts without a settings.conf, on the defaults."""
 		out = self.run_config()
 		self.assertEqual((out.returncode, out.stdout.split()[-1]), (0, '30'))
 
-	def test_a_preferences_file_is_read_at_start(self):
+	def test_a_settings_file_is_read_at_start(self):
 		"""settings.conf is read at start."""
-		self.assertEqual(self.run_config(prefs='future_days=45\n').stdout.split()[-1], '45')
+		self.assertEqual(self.run_config(settings='future_days=45\n').stdout.split()[-1], '45')
 
-	def test_a_broken_preferences_file_refuses_to_start(self):
+	def test_a_broken_settings_file_refuses_to_start(self):
 		"""A bad value, unknown key, startup key or malformed line in settings.conf stops the start, saying why."""
-		for prefs, expect in (('future_days=abc\n', "future_days='abc' is not a whole number"),
+		for settings, expect in (('future_days=abc\n', "future_days='abc' is not a whole number"),
 			('futur_days=1\n', 'unknown key futur_days'),
 				('slackBotToken=x\n', 'belongs in finbot.env'), ('what\n', 'expected KEY=value')):
-			out = self.run_config(prefs=prefs)
-			self.assertEqual(out.returncode, 1, prefs)
+			out = self.run_config(settings=settings)
+			self.assertEqual(out.returncode, 1, settings)
 			self.assertIn('ERROR config:', out.stderr)
 			self.assertIn(expect, out.stderr)
 
@@ -377,12 +393,12 @@ class Startup(unittest.TestCase):
 		shutil.copy(REPO / 'lib' / 'config.py', tree / 'lib')
 		(tree / 'defaults').mkdir()
 		(tree / 'defaults' / 'settings.conf').write_text('# a comment\n#past_days=28\nfuture_days=45\n')
-		code = 'from lib import config as c; print(c.prefs.future_days); print(*c.startup_warnings(), sep="\\n")'
+		code = 'from lib import config as c; print(c.settings.future_days); print(*c.startup_warnings(), sep="\\n")'
 		for made in (False, True):
 			data = common.temp_dir(self)
 			if made:
 				Path(data, 'settings.conf').write_text('#future_days=30\n')
-			with self.subTest(preferences_conf=made):
+			with self.subTest(settings_conf=made):
 				out = subprocess.run([sys.executable, '-c', code], cwd=tree,
 					env={**common.bare_environment(), 'DATA_DIR': data}, capture_output=True, text=True)
 				conf = f'{data}/settings.conf'
@@ -390,7 +406,7 @@ class Startup(unittest.TestCase):
 				self.assertEqual(out.stdout.split('\n')[:2], ['30',
 					f'defaults/settings.conf sets future_days, but finbot never reads it: {fix}'], out.stderr)
 
-	def test_an_unreadable_preferences_file_refuses_to_start(self):
+	def test_an_unreadable_settings_file_refuses_to_start(self):
 		"""A settings.conf that cannot be read stops the start."""
 		data = common.temp_dir(self)
 		Path(data, 'settings.conf').mkdir()
@@ -405,24 +421,24 @@ class Startup(unittest.TestCase):
 		self.assertEqual(out.returncode, 1)
 		self.assertIn("port='http' is not a whole number", out.stderr)
 
-	def test_a_preference_in_the_environment_is_refused_by_the_bot(self):
-		"""A preference in the bot's environment (finbot.env) is refused, but a job process gets its preferences that
+	def test_a_setting_in_the_environment_is_refused_by_the_bot(self):
+		"""A setting in the bot's environment (finbot.env) is refused, but a job process gets its settings that
 		way, and startup keys belong there."""
 		with mock.patch.dict(os.environ, {'future_days': '30', 'log_level': 'DEBUG'}):
 			with self.assertRaises(config.ConfigError) as caught:
 				config.check_startup_environment()
 		self.assertEqual(len(caught.exception.errors), 2)
-		self.assertIn('future_days is a preference; move it from finbot.env to settings.conf',
+		self.assertIn('future_days is a setting; move it from finbot.env to settings.conf',
 			'\n'.join(caught.exception.errors))
 		with mock.patch.dict(os.environ, {'ip': '1.2.3.4', 'port': '80'}):
 			config.check_startup_environment() # startup keys are what the environment is for
 
-	def test_the_bot_refuses_to_start_with_a_preference_in_its_environment(self):
-		"""bot.py exits 1 when finbot.env holds a preference."""
+	def test_the_bot_refuses_to_start_with_a_setting_in_its_environment(self):
+		"""bot.py exits 1 when finbot.env holds a setting."""
 		out = subprocess.run([sys.executable, 'bot.py'], cwd=REPO, capture_output=True, text=True, timeout=60,
 			env={**os.environ, 'DATA_DIR': common.temp_dir(self), 'future_days': '30'})
 		self.assertEqual(out.returncode, 1)
-		self.assertIn('future_days is a preference', out.stderr)
+		self.assertIn('future_days is a setting', out.stderr)
 
 	def test_a_leftover_env_in_the_checkout_refuses_to_start(self):
 		"""An old .env in the checkout stops the start, pointing to util/split_env.py."""
@@ -501,7 +517,7 @@ class Startup(unittest.TestCase):
 				self.assertEqual(config.startup_warnings(), warnings)
 
 	def test_startup_report_is_a_short_count_never_names_or_values(self):
-		"""The startup report counts the startup keys set and the preferences, and never names them or shows their
+		"""The startup report counts the startup keys set and the settings, and never names them or shows their
 		values."""
 		with mock.patch.dict(os.environ, {'slackOutgoingWebhook': 'https://secret.example/abc', 'port': '5000'},
 				clear=True):
@@ -514,28 +530,28 @@ class Startup(unittest.TestCase):
 		conf = Path(common.temp_dir(self), 'settings.conf')
 		conf.write_text('graph = false\n')
 		for source, count in (({'graph': 'false'}, '1 key'), ({'log_level': 'DEBUG', 'graph': 'false'}, '2 keys')):
-			with self.subTest(source=source), mock.patch.object(config, 'preferences_path', str(conf)), \
-					mock.patch.object(config, 'prefs', dataclasses.replace(config.prefs, source=source)):
+			with self.subTest(source=source), mock.patch.object(config, 'settings_path', str(conf)), \
+					mock.patch.object(config, 'settings', dataclasses.replace(config.settings, source=source)):
 				self.assertEqual(config.startup_report()[1], f'{conf} ({count} set; SIGHUP to reload)')
-		with mock.patch.object(config, 'preferences_path', str(conf.with_name('missing.conf'))):
+		with mock.patch.object(config, 'settings_path', str(conf.with_name('missing.conf'))):
 			self.assertEqual(config.startup_report()[1], f'no settings.conf in {config.env.data_dir}, reload'
 				' unavailable')
 
 
 class SigHup(unittest.TestCase):
 	def restore(self, file):
-		"""Empty the preferences file and reload: back to the defaults."""
-		with mock.patch.object(config, 'preferences_path', str(file)):
+		"""Empty the settings file and reload: back to the defaults."""
+		with mock.patch.object(config, 'settings_path', str(file)):
 			file.write_text('')
 			config.reload()
 
-	def test_reload_all_reloads_preferences_and_keeps_them_on_an_error(self):
-		"""SIGHUP reloads preferences; on an error (logged) the running ones stay, and the bot survives it. The jobs
+	def test_reload_all_reloads_settings_and_keeps_them_on_an_error(self):
+		"""SIGHUP reloads settings; on an error (logged) the running ones stay, and the bot survives it. The jobs
 		need no reload: a change made with .jobs counts at once."""
 		file = Path(common.temp_dir(self), 'settings.conf')
 		file.write_text('future_days=45\n')
 		self.addCleanup(self.restore, file)
-		with mock.patch.object(config, 'preferences_path', str(file)):
+		with mock.patch.object(config, 'settings_path', str(file)):
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
 				bot.reload_all()
@@ -545,7 +561,7 @@ class SigHup(unittest.TestCase):
 			with contextlib.redirect_stderr(err):
 				bot.reload_all()
 			self.assertIn('ERROR config:', err.getvalue())
-			self.assertEqual(config.prefs.future_days, 45)
+			self.assertEqual(config.settings.future_days, 45)
 
 	def test_a_reload_points_a_key_set_in_the_template_at_the_file_to_set_it_in(self):
 		"""A key set in defaults/settings.conf, which finbot never reads, is reported on a reload too, with the file
@@ -555,21 +571,22 @@ class SigHup(unittest.TestCase):
 		self.addCleanup(self.restore, file)
 		template = Path(common.temp_dir(self), 'template.conf')
 		template.write_text('#past_days=28\nlog_level=DEBUG\n')
-		with mock.patch.object(config, 'preferences_path', str(file)), mock.patch.object(config, 'TEMPLATE', template):
+		with mock.patch.object(config, 'settings_path', str(file)), mock.patch.object(config, 'TEMPLATE', template):
 			with contextlib.redirect_stderr(io.StringIO()) as err:
 				bot.reload_all()
 		self.assertIn(f'WARN config: defaults/settings.conf sets log_level, but finbot never reads it: edit {file}'
 			' instead', err.getvalue())
-		self.assertEqual(config.prefs.log_level, 'INFO')
+		self.assertEqual(config.settings.log_level, 'INFO')
 
 
 class Tools(unittest.TestCase):
 	def test_split_env(self):
-		"""split_env sorts an old .env into startup keys and prefs, renames volatile_multiplier, lists what it drops."""
-		startup, prefs, notes = split_env.split('slackBotToken=x\nfuture_days=3\nvolatile_multiplier=2\nslackToken=y\n'
-			'STATE_DIRECTORY=/a\nbogus=1\nnot a setting\n# c\nport=80\nslack_webhook=z\n')
+		"""split_env sorts an old .env into startup keys and settings, renames volatile_multiplier, lists what it
+		drops."""
+		startup, settings, notes = split_env.split('slackBotToken=x\nfuture_days=3\nvolatile_multiplier=2\n'
+			'slackToken=y\nSTATE_DIRECTORY=/a\nbogus=1\nnot a setting\n# c\nport=80\nslack_webhook=z\n')
 		self.assertEqual(startup, ['slackBotToken=x', 'port=80'])
-		self.assertEqual(prefs, ['future_days=3', 'volatility_multiplier=2'])
+		self.assertEqual(settings, ['future_days=3', 'volatility_multiplier=2'])
 		self.assertEqual(len(notes), 5)
 		self.assertTrue(any('slackToken dropped' in n for n in notes) and any('unknown key bogus' in n for n in notes))
 		self.assertIn("line 10: slack_webhook dropped: each chat's jobs (/jobs) post there as the bot", notes[-1])
@@ -578,10 +595,10 @@ class Tools(unittest.TestCase):
 		"""split_env reads the old dotenv format: quotes, export, comments after values and # inside URLs."""
 		old = ("# c\nfuture_days = '30' # note\nexport slackOutgoingWebhook = \"https://x/#frag\"\nport = 80 # note\n"
 			"bare\ndiscordOutgoingWebhook=http://y/#z\n\n")
-		startup, prefs, notes = split_env.split(old)
+		startup, settings, notes = split_env.split(old)
 		self.assertEqual(startup, ['slackOutgoingWebhook=https://x/#frag', 'port=80',
 			'discordOutgoingWebhook=http://y/#z'])
-		self.assertEqual(prefs, ['future_days=30'])
+		self.assertEqual(settings, ['future_days=30'])
 		self.assertEqual(notes, ['.env line 5: not KEY=value, left out'])
 
 	def test_split_env_writes_next_to_the_file_and_never_overwrites(self):

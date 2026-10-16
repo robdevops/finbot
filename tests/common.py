@@ -36,9 +36,9 @@ def scheduled(key='telegram:1'):
 
 
 def bare_environment():
-	"""os.environ without finbot's settings (the startup keys and the preferences): for a process that must start from
+	"""os.environ without finbot's settings (the startup keys and the settings): for a process that must start from
 	the defaults."""
-	settings = {*config.STARTUP_KEYS, *config.PREFERENCE_KEYS}
+	settings = {*config.STARTUP_KEYS, *config.SETTING_KEYS}
 	return {k: v for k, v in os.environ.items() if k not in settings}
 
 
@@ -119,9 +119,9 @@ class FinbotCase(unittest.TestCase):
 		"""Startup settings for this test: config.env with these fields changed."""
 		self.patch(config, 'env', dataclasses.replace(config.env, **changes))
 
-	def prefs(self, **changes):
-		"""Preferences for this test: config.prefs with these fields changed (what a reload would do)."""
-		self.patch(config, 'prefs', dataclasses.replace(config.prefs, **changes))
+	def settings(self, **changes):
+		"""Settings for this test: config.settings with these fields changed (what a reload would do)."""
+		self.patch(config, 'settings', dataclasses.replace(config.settings, **changes))
 
 	def setUp(self):
 		"""A fresh data dir and the offline fixtures: no request leaves the machine, and whatever the bot sends is

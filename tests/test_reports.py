@@ -19,7 +19,7 @@ class Commands(FinbotCase):
 
 	def test_exdividend_is_the_ex_dividend_report(self):
 		""".exdividend and .ex-dividend are .dividend: the ex-dividend dates, not a stock named EXDIVIDEND."""
-		self.prefs(graph=False)
+		self.settings(graph=False)
 		for text in ('.dividend', '.exdividend', '.ex-dividend'):
 			with self.subTest(text=text):
 				self.assertIn('Upcoming ex-dividends', str(self.command(text)))
@@ -33,7 +33,7 @@ class Commands(FinbotCase):
 		def t1(text):
 			"""T1's figure in what the command sends as text."""
 			return re.search(r'Co T1 \(.*?\) ([+-]\d+%)', str(self.command(text))).group(1)
-		self.prefs(graph=False) # the list as text: a chart's caption is recorded by its heading
+		self.settings(graph=False) # the list as text: a chart's caption is recorded by its heading
 		self.assertEqual((t1('.price 7d'), t1('.price T1 7d')), ('-36%', '-36%'))
 
 	def test_chart_commands(self):
@@ -165,11 +165,11 @@ class ReportFunctions(FinbotCase):
 		self.patch(yahoo, 'fetch',
 			lambda ts: {t: market_entry(t) | ({'regularMarketPrice': 1380.0} if t == 'KRW=X' else {'currency': 'KRW',
 			'market_cap': 1e11}) for t in ts})
-		self.prefs(demote_volatile=True)
+		self.settings(demote_volatile=True)
 
 		quote = price.gather(TICKERS)['T1']
 		self.assertAlmostEqual(quote['market_cap_usd'], 1e11 / 1380.0) # US$72M
-		self.assertEqual(price.trigger_bar('T1', quote, 5, {}), 5 * config.prefs.volatility_multiplier)
+		self.assertEqual(price.trigger_bar('T1', quote, 5, {}), 5 * config.settings.volatility_multiplier)
 
 	def test_a_short_top_list_repeats_none_of_its_best_as_the_worst(self):
 		"""With fewer than twice `top` stocks, the Bottom list leaves out those in the Top list (it repeated them), and
@@ -189,7 +189,7 @@ class ReportFunctions(FinbotCase):
 		self.patch(yahoo, 'fetch_details',
 			lambda tickers, strict=False: calls.append(sorted(tickers)) or {t: market_entry(t) for t in tickers})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: self.fail('a beta fetched on its own'))
-		self.prefs(demote_volatile=True)
+		self.settings(demote_volatile=True)
 
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'market_cap': 5e8} for t in ts})
 		price.run(scheduled())
@@ -213,7 +213,7 @@ class ReportFunctions(FinbotCase):
 		self.assertIn('forward pe ratio (7+ analysts)', heading)
 		self.assertEqual(listed('negative')[1], ['T3'])
 		self.assertIn('Co T2', rankings.ratio_line(TELEGRAM, 'T2', 'forward pe')) # one ticker asked for: shown
-		self.prefs(min_analysts=13) # the one setting moves .buy and .forward pe together
+		self.settings(min_analysts=13) # the one setting moves .buy and .forward pe together
 		self.assertEqual(listed()[0], 'No tracked stocks with 13+ analysts have a forward pe ratio')
 		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy')[0],
 			['No tracked stocks rated buy by 13+ analysts'])
@@ -776,9 +776,9 @@ class PieCommand(FinbotCase):
 		self.assertEqual(self.command('.pie')[0][0], 'photo') # the buttons of the portfolios
 		self.assertEqual(self.command('.pie Nope'), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
 
-	def test_with_the_graph_preference_off_a_chart_goes_as_text(self):
+	def test_with_the_graph_setting_off_a_chart_goes_as_text(self):
 		"""With graph off, a report's chart is left out and its lines go as text, on every network."""
-		self.prefs(graph=False)
+		self.settings(graph=False)
 		for service in (TELEGRAM, SLACK, DISCORD):
 			worker.Request(service, 'C1', '@u', 'U', BOT).reply(['x'], render.Chart('pie', 't', rows=(('a', 1.0),)))
 			self.assertEqual(self.sent[-1], ('text', ['x']))
@@ -1051,7 +1051,7 @@ class Pickers(FinbotCase):
 
 	def test_with_the_graph_off_the_picker_is_text_and_edits_as_text(self):
 		"""Where charts are not drawn, the answer and its buttons are a text message, edited as text."""
-		self.prefs(graph=False)
+		self.settings(graph=False)
 		self.portfolios('Amy', 'Zed')
 		self.command('.pie')
 		self.assertEqual(self.sent[-1][0], 'text')
@@ -1152,7 +1152,7 @@ class Pickers(FinbotCase):
 		for text in ('.pie', '.treemap sector', '.history', '.compare', '.holdings'):
 			self.command(text)
 		self.assertEqual([args[1:] for args in started], [('p', '0', ['Amy', 'Zed'], 0), ('t', 's', ['Amy', 'Zed'], 0)])
-		self.prefs(graph=False)
+		self.settings(graph=False)
 		self.command('.pie')
 		self.assertEqual(len(started), 2)
 
@@ -1203,7 +1203,7 @@ class Pickers(FinbotCase):
 		self.assertEqual(started, [('c', ['T1', 'T2'], 'x'), ('f', [''], 'm'), ('l', ['5', '0'], 'd'),
 			('l', ['0', '10'], 'd'), ('c', ['T0', 'T1'], 'w')])
 		started.clear()
-		self.prefs(graph=False)
+		self.settings(graph=False)
 		self.command('.compare T1 T2')
 		self.assertEqual(started, [])
 

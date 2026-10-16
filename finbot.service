@@ -16,7 +16,7 @@ StandardOutput=null
 StandardError=journal
 SyslogIdentifier=finbot
 Environment=PYTHONUNBUFFERED=1
-# finbot.env: loaded by systemd as root (chmod 600); a change needs a restart
+# finbot.env: loaded by systemd as root (600 root:root); a change needs a restart
 EnvironmentFile=/opt/finbot.env
 
 [Install]

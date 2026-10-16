@@ -22,9 +22,9 @@ STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'scheduler_catchup', 'sharesight_code'
 SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slackBotToken', 'slackAppToken',
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
 	'telegramOutgoingWebhook', 'discordBotToken', 'discordOutgoingWebhook') # never printed
-PREFERENCES_FILE = 'settings.conf'
-OLD_PREFERENCES_FILE = 'preferences.conf' # what settings.conf was called: an upgrade renames it (adopt_old_file)
-TEMPLATE = REPO_DIR / 'defaults' / PREFERENCES_FILE # every key commented out at its default; finbot never reads it
+SETTINGS_FILE = 'settings.conf'
+OLD_SETTINGS_FILE = 'preferences.conf' # what settings.conf was called: an upgrade renames it (adopt_old_file)
+TEMPLATE = REPO_DIR / 'defaults' / SETTINGS_FILE # every key commented out at its default; finbot never reads it
 HOME_CHAT = ("each chat has its own jobs (/jobs), which post there as the bot, and an error that belongs to no chat"
 	' goes to the log; an upgrade from before jobs per chat reads it once more, to give that chat the old schedule,'
 	' watchlist and plans (lib/migrate.py); delete the line after that start')
@@ -106,13 +106,13 @@ def read_text(path):
 		raise ConfigError(f'cannot read {path}: {getattr(e, "strerror", None) or e}')
 
 
-def read_preferences(path):
+def read_settings(path):
 	"""{key: value} of a settings.conf, None if there is none. Raises ConfigError for anything wrong with it."""
 	text = read_text(path)
 	if text is None:
 		return None
 	values, errors = parse_assignments(text, path, lambda key: None if key in RETIRED else
-		key_problem(key, PREFERENCE_KEYS, STARTUP_KEYS, 'finbot.env'))
+		key_problem(key, SETTING_KEYS, STARTUP_KEYS, 'finbot.env'))
 	if errors:
 		raise ConfigError(errors)
 	return values
@@ -122,7 +122,7 @@ def adopt_old_file(data_dir):
 	"""An upgrade from when settings.conf was called preferences.conf: the old file in `data_dir` becomes
 	settings.conf, unless there is one already, so that no setting is lost in silence. Says so on stderr (the log is not
 	up yet); where the rename fails, the old file is left and a note says to rename it."""
-	old, new = Path(data_dir, OLD_PREFERENCES_FILE), Path(data_dir, PREFERENCES_FILE)
+	old, new = Path(data_dir, OLD_SETTINGS_FILE), Path(data_dir, SETTINGS_FILE)
 	if not old.is_file() or new.exists():
 		return
 	try:
@@ -143,15 +143,15 @@ def template_keys():
 		if line.strip() and not line.lstrip().startswith('#')]
 
 
-def template_note(preferences_path):
+def template_note(settings_path):
 	"""What to tell whoever set keys in defaults/settings.conf, which finbot never reads: to set them in
-	preferences_path instead, made first with util/sync_defaults.py when there is none. None when the template sets
+	settings_path instead, made first with util/sync_defaults.py when there is none. None when the template sets
 	nothing, as shipped."""
 	keys = template_keys()
 	if not keys:
 		return None
-	fix = (f'edit {preferences_path} instead' if os.path.isfile(preferences_path) else
-		f'run util/sync_defaults.py --apply, then edit {preferences_path}')
+	fix = (f'edit {settings_path} instead' if os.path.isfile(settings_path) else
+		f'run util/sync_defaults.py --apply, then edit {settings_path}')
 	return f"defaults/settings.conf sets {', '.join(keys)}, but finbot never reads it: {fix}"
 
 
@@ -161,7 +161,7 @@ def read_startup_file(path):
 	if text is None:
 		raise ConfigError(f'{path} does not exist')
 	values, errors = parse_assignments(text, path, lambda key: None if key in RETIRED else
-		key_problem(key, STARTUP_KEYS, PREFERENCE_KEYS, PREFERENCES_FILE))
+		key_problem(key, STARTUP_KEYS, SETTING_KEYS, SETTINGS_FILE))
 	if errors:
 		raise ConfigError(errors)
 	return values
@@ -261,13 +261,13 @@ class Env:
 	telegram_api: str # the Bot API's base URL for telegramBotToken ('' without one): a method's name follows it
 
 	@property
-	def preferences_path(self):
+	def settings_path(self):
 		"""Where settings.conf is read from: the data dir."""
-		return self.data_dir + '/' + PREFERENCES_FILE
+		return self.data_dir + '/' + SETTINGS_FILE
 
 
 def startup_values(getenv):
-	"""The settings fixed when the bot starts (finbot.env), computed from getenv(name, default). Raises ConfigError."""
+	"""The startup settings (finbot.env), computed from getenv(name, default). Raises ConfigError."""
 	r = _Reader(getenv)
 	data_dir = getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or 'var'
 	data_dir = str(REPO_DIR / data_dir) # a relative one is in the checkout, wherever finbot starts
@@ -302,9 +302,9 @@ def startup_values(getenv):
 
 
 @dataclasses.dataclass(frozen=True)
-class Prefs:
-	"""The preferences: settings.conf, which the bot reads at start and on every reload, each with its default here
-	and read as its type says (preference_values). Read them as config.prefs.<name> when they are used, never into a
+class Settings:
+	"""The settings: settings.conf, which the bot reads at start and on every reload, each with its default here
+	and read as its type says (setting_values). Read them as config.settings.<name> when they are used, never into a
 	default or a module constant, so that a reload is seen."""
 	cache: bool = True
 	cache_seconds: int = 21600
@@ -335,8 +335,8 @@ class Prefs:
 	source: dict = dataclasses.field(default_factory=dict, compare=False, repr=False)
 
 
-def preference_values(getenv, source=None):
-	"""The preferences (settings.conf), computed from getenv(name, default): each read as its Prefs field's type
+def setting_values(getenv, source=None):
+	"""The settings (settings.conf), computed from getenv(name, default): each read as its Settings field's type
 	says (a tuple is a list of words), its default the field's. `source` is the file's own {key: value}. Raises
 	ConfigError listing every bad value."""
 	r = _Reader(getenv)
@@ -345,21 +345,21 @@ def preference_values(getenv, source=None):
 		'hyperlinkProvider': lambda name, default: r.str(name, default).lower(),
 		'log_level': lambda name, default: r.choice(name, default, LOG_LEVELS)}
 	values = {field.name: readers.get(field.name, readers[field.type])(field.name, field.default)
-		for field in dataclasses.fields(Prefs) if field.compare}
+		for field in dataclasses.fields(Settings) if field.compare}
 	r.check()
-	return Prefs(**values, source=dict(source or {}))
+	return Settings(**values, source=dict(source or {}))
 
 
 # settings.conf's keys: what a reload can change
-PREFERENCE_KEYS = tuple(field.name for field in dataclasses.fields(Prefs) if field.compare)
+SETTING_KEYS = tuple(field.name for field in dataclasses.fields(Settings) if field.compare)
 
 
-def _getenv_for(preferences):
-	"""getenv(name, default): settings.conf first (preference keys only), then the process environment."""
+def _getenv_for(settings):
+	"""getenv(name, default): settings.conf first (setting keys only), then the process environment."""
 	def getenv(name, default=None):
-		"""A preference from settings.conf, else the process environment's value, else default."""
-		if name in preferences:
-			return preferences[name]
+		"""A setting from settings.conf, else the process environment's value, else default."""
+		if name in settings:
+			return settings[name]
 		return os.environ.get(name, default)
 	return getenv
 
@@ -378,9 +378,9 @@ def _fail(e):
 try:
 	env = startup_values(os.environ.get)
 	adopt_old_file(env.data_dir)
-	preferences_path = env.preferences_path
-	_preferences = read_preferences(preferences_path) or {}
-	prefs = preference_values(_getenv_for(_preferences), _preferences)
+	settings_path = env.settings_path
+	_settings = read_settings(settings_path) or {}
+	settings = setting_values(_getenv_for(_settings), _settings)
 except ConfigError as e:
 	_fail(e)
 
@@ -420,33 +420,33 @@ def data_json(name, default=None):
 
 
 def reload():
-	"""Re-read settings.conf and apply it: config.prefs is replaced in one assignment, so a request never sees half
+	"""Re-read settings.conf and apply it: config.settings is replaced in one assignment, so a request never sees half
 	of a reload. All or nothing. Returns one line per change; raises ConfigError (nothing applied) if the file is
 	missing, unreadable or invalid."""
-	global prefs
-	new = read_preferences(preferences_path)
+	global settings
+	new = read_settings(settings_path)
 	if new is None:
-		raise ConfigError(f'reload requested but {preferences_path} does not exist; nothing reloaded')
-	values = preference_values(_getenv_for(new), new)
-	changes = [f"{name} {getattr(prefs, name)!r} -> {getattr(values, name)!r}" for name in PREFERENCE_KEYS
-		if getattr(prefs, name) != getattr(values, name)]
-	prefs = values
+		raise ConfigError(f'reload requested but {settings_path} does not exist; nothing reloaded')
+	values = setting_values(_getenv_for(new), new)
+	changes = [f"{name} {getattr(settings, name)!r} -> {getattr(values, name)!r}" for name in SETTING_KEYS
+		if getattr(settings, name) != getattr(values, name)]
+	settings = values
 	return changes
 
 
 def check_startup_environment():
-	"""For bot.py at start. Preferences must come from settings.conf, not from the environment that finbot.env fills,
+	"""For bot.py at start. Settings must come from settings.conf, not from the environment that finbot.env fills,
 	and a leftover .env from before the split stops the start: its settings would otherwise be silently ignored."""
-	problems = [f'{key} is a preference; move it from finbot.env to {PREFERENCES_FILE}'
-		for key in PREFERENCE_KEYS if key in os.environ]
-	if 'volatile_multiplier' in os.environ: # the old name, from before the split: it never worked as a preference
-		problems.append('volatile_multiplier was renamed to volatility_multiplier, a preference; move it from'
-			f' finbot.env to {PREFERENCES_FILE}')
+	problems = [f'{key} is a setting; move it from finbot.env to {SETTINGS_FILE}'
+		for key in SETTING_KEYS if key in os.environ]
+	if 'volatile_multiplier' in os.environ: # the old name, from before the split: it never worked as a setting
+		problems.append('volatile_multiplier was renamed to volatility_multiplier, a setting; move it from'
+			f' finbot.env to {SETTINGS_FILE}')
 	if OLD_ENV.exists():
 		problems.append(f'{OLD_ENV} is the old single config file, which finbot no longer reads; it will not start'
 			' while the file is there')
 		problems.append(f'split it with {REPO_DIR}/util/split_env.py, which writes finbot.env.new and'
-			f' settings.conf.new beside it; put finbot.env where your launcher loads it and {PREFERENCES_FILE} in'
+			f' settings.conf.new beside it; put finbot.env where your launcher loads it and {SETTINGS_FILE} in'
 			f' {env.data_dir}, then delete {OLD_ENV}')
 	if problems:
 		raise ConfigError(problems)
@@ -458,23 +458,23 @@ def startup_report():
 		"""'1 key', '2 keys'."""
 		return f"{count} key{'' if count == 1 else 's'}"
 	lines = [f'startup environment ({keys(sum(key in os.environ for key in STARTUP_KEYS))} set)']
-	if os.path.isfile(preferences_path):
-		lines.append(f'{preferences_path} ({keys(len(prefs.source))} set; SIGHUP to reload)')
+	if os.path.isfile(settings_path):
+		lines.append(f'{settings_path} ({keys(len(settings.source))} set; SIGHUP to reload)')
 	else:
-		lines.append(f'no {PREFERENCES_FILE} in {env.data_dir}, reload unavailable')
-	return lines + retired_notes(os.environ, 'finbot.env') + retired_notes(prefs.source)
+		lines.append(f'no {SETTINGS_FILE} in {env.data_dir}, reload unavailable')
+	return lines + retired_notes(os.environ, 'finbot.env') + retired_notes(settings.source)
 
 
-def retired_notes(values, file=PREFERENCES_FILE):
+def retired_notes(values, file=SETTINGS_FILE):
 	"""A line for each key of a file's {key: value} that does nothing any more, saying what to do instead."""
 	return [f'{key} in {file} does nothing any more: {instead}' for key, instead in RETIRED.items() if key in values]
 
 
-def startup_warnings(settings=None):
+def startup_warnings(startup=None):
 	"""Settings in finbot.env (an Env; the running one by default), and keys set in the template
 	defaults/settings.conf, that do not stop the start but keep part of the bot from working, or do nothing, a line
 	each."""
-	s = settings or env
+	s = startup or env
 	warnings = []
 	if s.slackBotToken and not (s.slackAppToken or s.slackOutgoingWebhook):
 		warnings.append('slackBotToken is set but neither slackAppToken nor slackOutgoingWebhook is: finbot hears'
@@ -508,6 +508,6 @@ def startup_warnings(settings=None):
 	if s.discordPublicKey and not s.discordOutgoingWebhook:
 		warnings.append('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway'
 			' (pull mode), and the key is not used')
-	if note := template_note(s.preferences_path):
+	if note := template_note(s.settings_path):
 		warnings.append(note)
 	return warnings

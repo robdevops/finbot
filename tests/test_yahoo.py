@@ -60,8 +60,8 @@ class YahooQuotes(ProviderCase):
 		self.assertEqual(yahoo.fetch(['AAPL'])['AAPL']['short_name'], 'Apple Inc.')
 
 	def test_with_the_cache_off_every_fetch_asks_yahoo(self):
-		"""With the cache preference off, every fetch asks Yahoo, and nothing is written to the cache."""
-		self.prefs(cache=False)
+		"""With the cache setting off, every fetch asks Yahoo, and nothing is written to the cache."""
+		self.settings(cache=False)
 		getter = self.http(yahoo, Resp(sample('yahoo', 'sample_yahoo_v7.json')))
 		yahoo.fetch(['AAPL'])
 		yahoo.fetch(['AAPL'])
@@ -100,7 +100,7 @@ class YahooDetail(ProviderCase):
 		self.http(yahoo, *[Resp({'quoteSummary': {'result': None, 'error': None}}) for _ in cases])
 		for ticker, guess, level, shown in cases:
 			with self.subTest(guess=guess, log_level=level):
-				self.prefs(log_level=level)
+				self.settings(log_level=level)
 				err = io.StringIO()
 				with contextlib.redirect_stderr(err):
 					self.assertEqual(yahoo.fetch_detail(ticker, guess=guess), {})
@@ -291,7 +291,7 @@ class YahooChart(ProviderCase):
 		self.patch(yahoo.net, 'get', get)
 		def slack(text):
 			"""Run a command on Slack, its report as text (no charts), and return the text."""
-			self.prefs(graph=False)
+			self.settings(graph=False)
 			self.sent.clear(); self.errors.clear()
 			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', text, BOT, 'U'))
 			self.assertEqual(self.errors, [], text)
@@ -317,9 +317,9 @@ class YahooChart(ProviderCase):
 		self.assertEqual(headers[0].get('Cookie'), 'A=B') # the crumb used to go without its cookie
 
 	def test_with_the_cache_off_no_chart_is_written(self):
-		"""With the cache preference off, a chart is drawn but not written to the cache."""
+		"""With the cache setting off, a chart is drawn but not written to the cache."""
 		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
-		self.prefs(cache=False)
+		self.settings(cache=False)
 		self.http(yahoo, Resp(self.chart([100.0] * 30 + [110.0])))
 		changes, line = yahoo.price_history('T1', 7)
 		self.assertTrue(render.draw(history.line_chart('T1', changes, line, 7)).read().startswith(b'\x89PNG'))
