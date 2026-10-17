@@ -103,9 +103,11 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	rows = []
 	if view == 'g': # the treemap's menu: a choice, or Back, goes to the first screen with the chart redone in place
 		chosen = group if group in holdings.GROUPS else 'i'
-		menu = [button(name.capitalize(), f"p{page}", key == chosen, group=key)
-			for key, name in holdings.GROUPS.items()]
-		return ['Group by'], chunks(menu, per_row) + [[button('◀ Back', f"p{page}")]]
+		menu = {name: button(name.capitalize(), f"p{page}", key == chosen, group=key)
+			for key, name in sorted(holdings.GROUPS.items(), key=lambda item: item[1])}
+		back = button('◀ Back', f"p{page}")
+		return ['Grouped by'], [[menu['country'], menu['currency'], menu['industry']],
+			[back, menu['market'], menu['sector']]]
 	if cmd == 'c' and view == 'p': # the periods, and + to the tickers
 		rows.append([button(buttons.PERIODS[key][0], 'p0', key == period, period=key) for key in buttons.BUTTONS['c']] +
 			[button('+', f"{step}0")])
@@ -115,7 +117,7 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	if noun(cmd) == 'portfolio':
 		rows += chunks([button(name, f"r{i}", shown == i + 1, shown=i + 1) for i, name in on_page], per_row)
 		if cmd == 't':
-			rows.append([button(f"Group by: {holdings.GROUPS.get(group, 'industry').capitalize()} ▾", f"g{page}")])
+			rows.append([button(f"Grouped by: {holdings.GROUPS.get(group, 'industry').capitalize()} ▾", f"g{page}")])
 	elif view == 'm':
 		full = len(ticked) >= buttons.MAX_PICKED
 		tickers = []

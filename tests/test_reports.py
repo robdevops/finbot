@@ -1017,47 +1017,49 @@ class Pickers(FinbotCase):
 
 	def test_a_portfolio_command_answers_with_the_first_portfolio(self):
 		""".treemap and .holdings answer with the first portfolio alphabetically at once, its button marked, the
-		Group by button after the portfolios."""
+		Grouped by button after the portfolios."""
 		self.patch(holdings, 'prepare_holdings_payload', lambda name, service: [f'<b>Holdings for {name} (25)</b>'])
 		self.portfolios('Zed', 'Amy')
 		self.command('.treemap')
 		self.assertEqual((self.sent[-1][0], self.sent[-1][2]), ('photo', '<b>Amy treemap by industry</b>'))
-		self.assertEqual(self.labels(), [['● Amy', 'Zed'], ['Group by: Industry ▾']])
+		self.assertEqual(self.labels(), [['● Amy', 'Zed'], ['Grouped by: Industry ▾']])
 		self.command('.treemap sector')
 		self.assertEqual((self.sent[-1][2], self.labels()), ('<b>Amy treemap by sector</b>',
-			[['● Amy', 'Zed'], ['Group by: Sector ▾']]))
+			[['● Amy', 'Zed'], ['Grouped by: Sector ▾']]))
 		self.command('.holdings')
 		self.assertEqual((self.sent[-1], self.labels()), (('text', ['<b>Holdings for Amy (25)</b>']),
 			[['● Amy', 'Zed']]))
 
 	def test_portfolios_come_four_to_a_row(self):
-		"""Portfolios are in rows of four before the Group by row."""
+		"""Portfolios are in rows of four before the Grouped by row."""
 		names = [f'P{i}' for i in range(6)]
 		self.portfolios(*names)
 		self.command('.treemap')
-		self.assertEqual(self.labels(), [['● P0', 'P1', 'P2', 'P3'], names[4:], ['Group by: Industry ▾']])
+		self.assertEqual(self.labels(), [['● P0', 'P1', 'P2', 'P3'], names[4:], ['Grouped by: Industry ▾']])
 
 	def test_the_group_menu_and_another_portfolio_redraw_the_answer(self):
-		"""The Group by button opens a menu of the five groupings, the one shown marked, and a choice (or Back) redoes
+		"""The Grouped by button opens a menu of the five groupings, the one shown marked, and a choice (or Back) redoes
 		the chart in place with the portfolio buttons; another portfolio's button does too."""
 		self.portfolios('Amy', 'Zed')
 		self.command('.treemap')
-		kind, lines, rows = self.tap('Group by: Industry ▾')
+		kind, lines, rows = self.tap('Grouped by: Industry ▾')
 		self.assertEqual((kind, self.labels(rows)), ('buttons',
-			[['Sector', '● Industry', 'Country', 'Currency'], ['Market'], ['◀ Back']]))
+			[['Country', 'Currency', '● Industry'], ['◀ Back', 'Market', 'Sector']]))
 		kind, lines, rows = self.tap('Sector')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by sector</b>',
-			[['● Amy', 'Zed'], ['Group by: Sector ▾']]))
+			[['● Amy', 'Zed'], ['Grouped by: Sector ▾']]))
 		self.assertEqual(self.toasts[-1], ('Updating…', False))
 		kind, lines, rows = self.tap('Zed')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Zed treemap by sector</b>',
-			[['Amy', '● Zed'], ['Group by: Sector ▾']]))
-		self.tap('Group by: Sector ▾')
+			[['Amy', '● Zed'], ['Grouped by: Sector ▾']]))
+		self.tap('Grouped by: Sector ▾')
 		kind, lines, rows = self.tap('Currency')
-		self.assertEqual((lines[0], self.labels(rows)[1]), ('<b>Zed treemap by currency</b>', ['Group by: Currency ▾']))
-		self.tap('Group by: Currency ▾')
+		self.assertEqual((lines[0], self.labels(rows)[1]),
+			('<b>Zed treemap by currency</b>', ['Grouped by: Currency ▾']))
+		self.tap('Grouped by: Currency ▾')
 		kind, lines, rows = self.tap('◀ Back')
-		self.assertEqual((lines[0], self.labels(rows)[1]), ('<b>Zed treemap by currency</b>', ['Group by: Currency ▾']))
+		self.assertEqual((lines[0], self.labels(rows)[1]),
+			('<b>Zed treemap by currency</b>', ['Grouped by: Currency ▾']))
 
 	def test_a_holdings_answer_keeps_its_buttons(self):
 		""".holdings: another portfolio's list as text in place of the first's, the portfolio buttons still under it."""
@@ -1112,7 +1114,7 @@ class Pickers(FinbotCase):
 		self.patch(holdings, 'prepare_treemap', lambda name, by, service: ([f'<b>{name} by {by}</b>'], None))
 		self.command('.treemap')
 		self.assertEqual((self.sent[-1][:2], self.labels()), (('photo', len(render.blank().read())),
-			[['● Amy', 'Zed'], ['Group by: Industry ▾']]))
+			[['● Amy', 'Zed'], ['Grouped by: Industry ▾']]))
 
 	def test_compare_ticks_up_to_eight_and_refuses_a_ninth(self):
 		""".compare: ticks toggle, a ninth is refused with an alert and a note."""
@@ -1243,10 +1245,10 @@ class Pickers(FinbotCase):
 		self.portfolios('Amy', 'Zed')
 		self.command('.treemap')
 		self.assertEqual(self.sent[-1][0], 'text')
-		self.assertEqual(self.labels(), [['● Amy', 'Zed'], ['Group by: Industry ▾']])
+		self.assertEqual(self.labels(), [['● Amy', 'Zed'], ['Grouped by: Industry ▾']])
 		kind, lines, rows = self.tap('Zed')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('text', '<b>Zed treemap by industry</b>',
-			[['Amy', '● Zed'], ['Group by: Industry ▾']]))
+			[['Amy', '● Zed'], ['Grouped by: Industry ▾']]))
 
 	def many(self, count=70):
 		"""Held tickers S00, S01..., enough to need pages."""
@@ -1297,18 +1299,18 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+']])
 
 	def test_portfolios_page_too(self):
-		"""Thirty-two portfolios to a page, in rows of four, then Group by, then the page buttons."""
+		"""Thirty-two portfolios to a page, in rows of four, then Grouped by, then the page buttons."""
 		names = [f'P{i:02d}' for i in range(40)]
 		self.portfolios(*names)
 		self.command('.treemap')
 		rows = self.labels()
 		self.assertEqual((len(rows), rows[7], rows[8], rows[9]), (10, ['P28', 'P29', 'P30', 'P31'],
-			['Group by: Industry ▾'], ['>']))
+			['Grouped by: Industry ▾'], ['>']))
 		kind, lines, rows = self.tap('>')
 		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['P32', 'P33', 'P34', 'P35'], ['<']))
 
 	def test_discord_pages_hold_five_rows(self):
-		"""Discord's five rows of five buttons hold 12 portfolios with Group by and the page buttons, or 20 tickers
+		"""Discord's five rows of five buttons hold 12 portfolios with Grouped by and the page buttons, or 20 tickers
 		with Back, the page buttons and OK."""
 		for cmd, items in (('t', 12), ('c', 20)):
 			with self.subTest(cmd=cmd):
