@@ -57,20 +57,21 @@ def view_file(view):
 	return f"finbot_telegram_view_{hashlib.sha1(view.encode()).hexdigest()[:20]}.json"
 
 
-def with_photo(method, photo, data, **kwargs):
+def with_photo(method, photo, data, quiet=False):
 	"""call() a method that sends a chart (its PNG bytes, photo), its form data(known): known the file id of the
 	chart's earlier upload where there is one (no bytes are sent: a period or portfolio shown again), else None and the
 	bytes uploaded, their file id kept for next time (with the cache setting on). An earlier file id that Telegram
-	refuses gives way to the upload."""
+	refuses gives way to the upload. Its request is logged at INFO, but by a file id at DEBUG where quiet (a press's
+	edit: only an upload is worth noting)."""
 	name = photo_file(photo)
 	if config.settings.cache and (known := cache.read(name, PHOTO_SECONDS)):
 		try:
-			return call(method, data=data(known), **kwargs)
+			return call(method, data=data(known), logged='debug' if quiet else True)
 		except RuntimeError as e:
 			if not REFUSED_PHOTO.search(str(e)):
 				raise
 			log.warn(f"Telegram {method} refused an earlier upload of the chart, uploading it again:", net.redact(e))
-	result = call(method, data=data(None), files={'photo': ('image.png', photo)}, **kwargs)
+	result = call(method, data=data(None), files={'photo': ('image.png', photo)})
 	sizes = result.get('photo') if isinstance(result, dict) else None
 	if sizes and config.settings.cache:
 		cache.write(name, sizes[-1]['file_id']) # the largest: the chart as it was sent
@@ -257,7 +258,7 @@ class TelegramBot(transports.Transport):
 		photo = image.read() if hasattr(image, 'read') else bytes(image)
 		try:
 			edited = with_photo('editMessageMedia', photo, lambda known: data | {'media': json.dumps({'type': 'photo',
-				'media': known or 'attach://photo', 'caption': caption, 'parse_mode': 'HTML'})}, logged='debug')
+				'media': known or 'attach://photo', 'caption': caption, 'parse_mode': 'HTML'})}, quiet=True)
 			self.note_view(buttons, edited, caption)
 		except RuntimeError as e:
 			if not unchanged(e):

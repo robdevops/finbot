@@ -150,6 +150,18 @@ class TelegramSending(FinbotCase):
 		self.assertEqual([(uploaded, data.get('photo')) for _, data, uploaded in sent], [(True, None), (False, 'P1'),
 			(True, None), (False, 'P2')])
 
+	def test_a_press_that_uploads_its_chart_logs_its_post_at_info(self):
+		"""A press's edit logs its POST line at INFO when it uploads the chart's image, and at DEBUG only when it sends
+		the file id of an earlier upload: the log tells which presses uploaded a chart."""
+		chat = telegram_common.TelegramBot('5')
+		cache.write(telegram_common.photo_file(b'known png'), 'P1')
+		for level, image, shown in (('INFO', b'new png', True), ('INFO', b'known png', False),
+				('DEBUG', b'known png', True)):
+			self.settings(log_level=level)
+			with self.subTest(level=level, image=image), contextlib.redirect_stderr(io.StringIO()) as log:
+				chat.edit_chart('8', io.BytesIO(image), 'caption')
+				self.assertEqual('POST api.telegram.org/botX/editMessageMedia\n' in log.getvalue(), shown)
+
 	def test_a_file_id_is_another_bots_after_the_token_changes_or_none_with_the_cache_off(self):
 		"""A file id is reused by the bot that uploaded it alone (a new token is another bot), and not at all with the
 		cache setting off."""

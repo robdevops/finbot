@@ -186,7 +186,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - Log with `lib/log.py`, at a level, with print()'s arguments: `log.error` (failed and lost: a message not sent),
   `log.warn` (failed and got over: a retry, a fallback, a refused request), `log.info` (what finbot does: a message
   sent, a job run; `net` logs each request it sends), `log.debug` (cache misses, hits and writes; the routine of a
-  press: the press, its acknowledgement and the edit in place, sent with `logged='debug'`, and a success answered to
+  press: the press, its acknowledgement and the edit in place, sent with `logged='debug'` (but its POST line at INFO
+  when it uploads a chart's image: Telegram's `with_photo`), and a success answered to
   a network). The
   `log_level` setting sets what reaches the log; `lib/config.py` prints its own errors (it loads before
   settings exist). Everything goes to stderr: systemd discards stdout (`StandardOutput=null`), so the bot and its reports
