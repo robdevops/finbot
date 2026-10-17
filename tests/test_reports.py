@@ -139,6 +139,17 @@ class ReportFunctions(FinbotCase):
 		payload, _ = performance.report(TELEGRAM, 7)
 		self.assertTrue(any('>Rob</a>' in line for line in payload), payload)
 
+	def test_a_holding_is_grouped_by_sector_industry_country_currency_or_market(self):
+		"""group_of: a holding's sector, industry, its market's country (flag and letters), currency or market; a
+		holding without one is Unclassified; .treemap takes each as a word, in the plural too."""
+		holding = {'market_code': 'ASX', 'currency_code': 'AUD', 'sector_classification_name': 'Energy',
+			'industry_classification_name': 'Oil'}
+		self.assertEqual([holdings.group_of(holding, by) for by in holdings.GROUPS.values()],
+			['Energy', 'Oil', '🇦🇺 AU', 'AUD', 'ASX'])
+		self.assertEqual({holdings.group_of({}, by) for by in holdings.GROUPS.values()}, {'Unclassified'})
+		self.assertEqual([self.command(f'.treemap Rob {word}')[0][2].split(' by ')[1] for word in
+			('countries', 'currency', 'markets')], ['country</b>', 'currency</b>', 'market</b>'])
+
 	def test_a_portfolio_command_without_a_portfolio_answers_for_the_first(self):
 		""".holdings and .treemap without a portfolio answer for the first one, typed or run by a job (as .jobs
 		Add adds them), with buttons for the portfolios there are; where there are no buttons, they name them."""
@@ -154,7 +165,8 @@ class ReportFunctions(FinbotCase):
 				self.assertEqual(self.sent, typed)
 				self.sent.clear()
 				worker.job_commands()[text[1:]].run(unbuttoned, words=[])
-				usage = f"Usage: {worker.slashed(text)} [PORTFOLIO]" + ('' if text == '.holdings' else ' [sector]')
+				by = '' if text == '.holdings' else ' [sector|industry|country|currency|market]'
+				usage = f"Usage: {worker.slashed(text)} [PORTFOLIO]" + by
 				self.assertEqual(self.sent, [('text', [usage, 'Portfolios: Rob'])])
 
 	def test_prepare_marketcap(self):
@@ -1008,10 +1020,10 @@ class Pickers(FinbotCase):
 		self.portfolios('Zed', 'Amy')
 		self.command('.treemap')
 		self.assertEqual((self.sent[-1][0], self.sent[-1][2]), ('photo', '<b>Amy treemap by industry</b>'))
-		self.assertEqual(self.labels(), [['● Amy', 'Zed'], ['Group by: Industry']])
+		self.assertEqual(self.labels(), [['● Amy', 'Zed'], ['Group by: Industry ▾']])
 		self.command('.treemap sector')
 		self.assertEqual((self.sent[-1][2], self.labels()), ('<b>Amy treemap by sector</b>',
-			[['● Amy', 'Zed'], ['Group by: Sector']]))
+			[['● Amy', 'Zed'], ['Group by: Sector ▾']]))
 		self.command('.holdings')
 		self.assertEqual((self.sent[-1], self.labels()), (('text', ['<b>Holdings for Amy (25)</b>']),
 			[['● Amy', 'Zed']]))
@@ -1021,21 +1033,29 @@ class Pickers(FinbotCase):
 		names = [f'P{i}' for i in range(6)]
 		self.portfolios(*names)
 		self.command('.treemap')
-		self.assertEqual(self.labels(), [['● P0', 'P1', 'P2', 'P3'], names[4:], ['Group by: Industry']])
+		self.assertEqual(self.labels(), [['● P0', 'P1', 'P2', 'P3'], names[4:], ['Group by: Industry ▾']])
 
-	def test_the_group_toggle_and_another_portfolio_redraw_the_answer(self):
-		"""The Group by button and another portfolio's button redo the chart in place, the buttons staying."""
+	def test_the_group_menu_and_another_portfolio_redraw_the_answer(self):
+		"""The Group by button opens a menu of the five groupings, the one shown marked, and a choice (or Back) redoes
+		the chart in place with the portfolio buttons; another portfolio's button does too."""
 		self.portfolios('Amy', 'Zed')
 		self.command('.treemap')
-		kind, lines, rows = self.tap('Group by: Industry')
+		kind, lines, rows = self.tap('Group by: Industry ▾')
+		self.assertEqual((kind, self.labels(rows)), ('buttons',
+			[['Sector', '● Industry', 'Country', 'Currency'], ['Market'], ['◀ Back']]))
+		kind, lines, rows = self.tap('Sector')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by sector</b>',
-			[['● Amy', 'Zed'], ['Group by: Sector']]))
+			[['● Amy', 'Zed'], ['Group by: Sector ▾']]))
 		self.assertEqual(self.toasts[-1], ('Updating…', False))
 		kind, lines, rows = self.tap('Zed')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Zed treemap by sector</b>',
-			[['Amy', '● Zed'], ['Group by: Sector']]))
-		kind, lines, rows = self.tap('Group by: Sector')
-		self.assertEqual((lines[0], self.labels(rows)[1]), ('<b>Zed treemap by industry</b>', ['Group by: Industry']))
+			[['Amy', '● Zed'], ['Group by: Sector ▾']]))
+		self.tap('Group by: Sector ▾')
+		kind, lines, rows = self.tap('Currency')
+		self.assertEqual((lines[0], self.labels(rows)[1]), ('<b>Zed treemap by currency</b>', ['Group by: Currency ▾']))
+		self.tap('Group by: Currency ▾')
+		kind, lines, rows = self.tap('◀ Back')
+		self.assertEqual((lines[0], self.labels(rows)[1]), ('<b>Zed treemap by currency</b>', ['Group by: Currency ▾']))
 
 	def test_a_holdings_answer_keeps_its_buttons(self):
 		""".holdings: another portfolio's list as text in place of the first's, the portfolio buttons still under it."""
@@ -1090,7 +1110,7 @@ class Pickers(FinbotCase):
 		self.patch(holdings, 'prepare_treemap', lambda name, by, service: ([f'<b>{name} by {by}</b>'], None))
 		self.command('.treemap')
 		self.assertEqual((self.sent[-1][:2], self.labels()), (('photo', len(render.blank().read())),
-			[['● Amy', 'Zed'], ['Group by: Industry']]))
+			[['● Amy', 'Zed'], ['Group by: Industry ▾']]))
 
 	def test_compare_ticks_up_to_eight_and_refuses_a_ninth(self):
 		""".compare: ticks toggle, a ninth is refused with an alert and a note."""
@@ -1221,10 +1241,10 @@ class Pickers(FinbotCase):
 		self.portfolios('Amy', 'Zed')
 		self.command('.treemap')
 		self.assertEqual(self.sent[-1][0], 'text')
-		self.assertEqual(self.labels(), [['● Amy', 'Zed'], ['Group by: Industry']])
+		self.assertEqual(self.labels(), [['● Amy', 'Zed'], ['Group by: Industry ▾']])
 		kind, lines, rows = self.tap('Zed')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('text', '<b>Zed treemap by industry</b>',
-			[['Amy', '● Zed'], ['Group by: Industry']]))
+			[['Amy', '● Zed'], ['Group by: Industry ▾']]))
 
 	def many(self, count=70):
 		"""Held tickers S00, S01..., enough to need pages."""
@@ -1281,7 +1301,7 @@ class Pickers(FinbotCase):
 		self.command('.treemap')
 		rows = self.labels()
 		self.assertEqual((len(rows), rows[7], rows[8], rows[9]), (10, ['P28', 'P29', 'P30', 'P31'],
-			['Group by: Industry'], ['>']))
+			['Group by: Industry ▾'], ['>']))
 		kind, lines, rows = self.tap('>')
 		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['P32', 'P33', 'P34', 'P35'], ['<']))
 
@@ -1324,15 +1344,16 @@ class Pickers(FinbotCase):
 		self.assertEqual(len(started), 1)
 
 	def test_priming_draws_the_other_grouping_then_the_other_portfolios(self):
-		"""pick.prime draws a treemap's shown portfolio's other grouping, then each other portfolio by industry and by
-		sector. An empty chart is skipped,
-		and a failure is logged and the rest still drawn."""
+		"""pick.prime draws a treemap's shown portfolio's other groupings, then each other portfolio in every one. An
+		empty chart is skipped, and a failure is logged and the rest still drawn."""
 		drawn = []
 		self.patch(render, 'draw', lambda chart: drawn.append(chart.title))
 		self.portfolios('Amy', 'Bob', 'Cat', 'Zed')
 		pick.prime(TELEGRAM, 't', '0', ['Amy', 'Bob', 'Zed'], 0)
-		self.assertEqual(drawn, ['Amy treemap by sector', 'Bob treemap by industry', 'Bob treemap by sector',
-			'Zed treemap by industry', 'Zed treemap by sector'])
+		each = lambda name, *groups: [f'{name} treemap by {group}' for group in groups]
+		every = ('sector', 'industry', 'country', 'currency', 'market')
+		self.assertEqual(drawn, each('Amy', 'sector', 'country', 'currency', 'market') + each('Bob', *every) +
+			each('Zed', *every))
 		drawn.clear()
 		real = holdings.prepare_treemap
 		def prepare(name, by, service):
@@ -1343,8 +1364,8 @@ class Pickers(FinbotCase):
 		self.patch(holdings, 'prepare_treemap', prepare)
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			pick.prime(TELEGRAM, 't', 's', ['Amy', 'Bob', 'Cat', 'Zed'], 0)
-		self.assertEqual(drawn, ['Amy treemap by industry', 'Cat treemap by industry', 'Cat treemap by sector'])
-		self.assertIn('priming t Bob industry failed: boom', err.getvalue())
+		self.assertEqual(drawn, each('Amy', 'industry', 'country', 'currency', 'market') + each('Cat', *every))
+		self.assertIn('priming t Bob sector failed: boom', err.getvalue())
 
 	def test_compare_typed_with_tickers_has_the_tickers_button_too(self):
 		""".compare T1 T2 [period] answers with the period row and the tickers' + under its chart, those typed ticked

@@ -234,8 +234,8 @@ def process_pick_callback(press, pressed):
 		if stale:
 			shown, mask = pick.default(cmd, found)
 		per_page = pick.layout(service, cmd)[0]
-		view = 'm' if kind in 'mnf' else 'p' # picking a ticker, or Compare, goes back to the top
-		page = number if kind in 'pmnf' else number // per_page if kind == 'r' else 0
+		view = 'm' if kind in 'mnf' else 'g' if kind == 'g' else 'p' # picking a ticker, or OK, goes back to the top
+		page = number if kind in 'pmnfg' else number // per_page if kind == 'r' else 0
 		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if kind == 'f' else None
 		if kind == 'r' and number < len(found):
 			shown = number + 1
@@ -244,7 +244,7 @@ def process_pick_callback(press, pressed):
 		names = pick.shown_names(cmd, found, shown)
 		lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, view, page, note)
 		if names:
-			if kind == 'm' and chat.edit_buttons(press.message_id, rows): # a tick, a page: the answer stays as it is
+			if kind in 'mg' and chat.edit_buttons(press.message_id, rows): # a tick, a page: the answer stays as it is
 				return
 			pick_answer(service, chat, press.message_id, cmd, group, period, names, rows, note)
 			if cmd == 'c' and (stale or kind == 'h'): # a new ticker or set
@@ -263,7 +263,7 @@ def pick_content(service, chat, cmd, group, period, names):
 	if cmd == 'h':
 		return '\n'.join(holdings.prepare_holdings_payload(names[0], service) or [f"{names[0]} holds nothing"]), None
 	if cmd in 'pt':
-		lines, chart = holdings.prepare_treemap(names[0], 'sector' if group == 's' else 'industry', service)
+		lines, chart = holdings.prepare_treemap(names[0], holdings.GROUPS.get(group, 'industry'), service)
 		return '\n'.join(lines), chart
 	return charts.build('c', names, service, chat.key, period=period if period != '0' else 'x')
 
@@ -600,8 +600,8 @@ def on_beta(request, args):
 	request.reply(payload, chart)
 
 def on_treemap(request, args):
-	""".treemap [PORTFOLIO] [sector]: its holdings as tiles, grouped by industry or by sector; with no portfolio, the
-	first one's, with buttons for them."""
+	""".treemap [PORTFOLIO] [sector|industry|country|currency|market]: its holdings as tiles, grouped by industry
+	unless told; with no portfolio, the first one's, with buttons for them and a menu of what to group by."""
 	if not args.words:
 		return picker(request, 't', args)
 	payload, chart = holdings.prepare_treemap(args.rest, args.keyword or 'industry', request.service)
@@ -659,7 +659,7 @@ def picker(request, cmd, args):
 	dest = request.dest
 	if not dest.takes_buttons:
 		raise Usage(portfolios()) if pick.noun(cmd) == 'portfolio' else Usage
-	group = {'sector': 's', 'industry': 'i'}.get(args.keyword, '0')
+	group = {name: key for key, name in holdings.GROUPS.items()}.get(args.keyword, '0')
 	first = 'w' if cmd == 'c' and args.keyword != 'max' else 'x' # compare starts on 7D, unless asked for max
 	period = buttons.period_for_days(args.days, first) if cmd == 'c' else '0'
 	found = pick.items(cmd, dest.key)
@@ -793,7 +793,7 @@ SECTIONS = TRACKED, COMPANY, PRICE, RISK, TRADES, JOBS = ('Tracked securities', 
 TOP = {'top': 'top', 'bottom': 'bottom'} # the ends of a ranked list
 NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # the ratios that can be negative
 CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'delete') # of the watchlist
-BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .treemap's
+BY = {word: name for name, words in holdings.NOUNS.items() for word in words} # .treemap's: sector, sectors, ...
 # what .jobs does to a chat's jobs, and shows; next is what upcoming was called before
 JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'enable': 'enable', 'disable': 'disable', 'add': 'add',
 	'system': 'system'} | dict.fromkeys(('upcoming', 'next'), 'upcoming') | dict.fromkeys(('del', 'delete', 'rem',
@@ -809,7 +809,8 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	# kept on purpose.
 	Command(('help', 'usage', 'start'), on_help, job=False), # /start is what Telegram sends when a chat opens
 	Command(('holdings', 'holding'), on_holdings, ('.holdings [PORTFOLIO]',), TRACKED),
-	Command(('treemap',), on_treemap, ('.treemap [PORTFOLIO] [sector]',), TRACKED, ('.treemap',), keywords=BY),
+	Command(('treemap',), on_treemap, ('.treemap [PORTFOLIO] [sector|industry|country|currency|market]',), TRACKED,
+		('.treemap',), keywords=BY),
 	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
 		keywords=CHANGE, job=False),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),
