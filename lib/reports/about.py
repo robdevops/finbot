@@ -61,8 +61,8 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, h
 	screen acts on (acts), which switches it on or off, deletes it or runs it now, and Enable all, Disable all or Delete
 	all. A page at a time, as many jobs as a message of the network takes (◀ and More ▶ for the others), after a note of
 	what the last press did. A one-off gone by is deleted first. Returns (lines, buttons); where the chat takes no
-	buttons (tappable false), the whole list and what to type instead. The job numbered `highlight` is in bold, on its
-	page."""
+	buttons (tappable false), the whole list and what to type instead. The job numbered `highlight` is in bold with a
+	👉 before it, on its page."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
@@ -72,7 +72,8 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, h
 	entries = [(number, job, job_entry(service, scheduler, number, job, running, local, now))
 		for number, job in enumerate(own, 1)]
 	if highlight:
-		entries = [(number, job, service.bold(line) if number == highlight else line) for number, job, line in entries]
+		entries = [(number, job, f'👉 {service.bold(line)}' if number == highlight else line)
+			for number, job, line in entries]
 	parts = paged(entries, service) if tappable else [entries]
 	if highlight:
 		page = next((i for i, part in enumerate(parts) if any(number == highlight for number, _, _ in part)), page)
@@ -429,8 +430,8 @@ def choice(text, low, high):
 	return int(text)
 
 def added_screen(service, chat, number, tappable=True):
-	"""What the last step of Add shows: the whole list, the job added in bold, with the buttons of the list (+ adds
-	another)."""
+	"""What the last step of Add shows: the whole list, the job added pointed to (👉) and in bold, with the buttons of
+	the list (+ adds another)."""
 	return jobs_screen(service, chat, 'top', 0, 'Added', tappable, number)
 
 def add_failed(service, chat, steps, why):

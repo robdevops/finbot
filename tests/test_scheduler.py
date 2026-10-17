@@ -146,8 +146,8 @@ FEW = (catalog.Item('rating', 'rating', 'rating', (), catalog.at(catalog.TUE_SAT
 
 
 def newest(lines):
-	"""The job just added, in bold in the list that shows it: its line, without the markup."""
-	return next(line for line in lines if re.match(r'<b>\d+\. ', line))[3:-4]
+	"""The job just added, pointed to (👉) and in bold in the list that shows it: its line, without the markup."""
+	return next(line for line in lines if re.match(r'👉 <b>\d+\. ', line))[5:-4]
 
 
 def entry(text, on=True, zone='UTC'):
