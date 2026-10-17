@@ -45,6 +45,8 @@ class Commands(FinbotCase):
 		self.assertEqual(both.count('Upcoming'), 2)
 		self.assertLess(both.index('Upcoming earnings'), both.index('Upcoming ex-dividends'))
 		self.assertEqual(both, str(self.command('.earnings') + self.command('.dividend')))
+		self.assertEqual(both, str(self.command('.earnings & dividend'))) # the keyboard's button
+		self.assertEqual(str(self.command('.earnings & dividend T1')), str(self.command('.earningsdividend T1')))
 
 	def test_a_period_list_and_one_stocks_view_give_the_same_figure(self):
 		"""Over a period, the list and one stock's view take a holding's figure from its Yahoo history, which its chart
@@ -85,8 +87,8 @@ class Commands(FinbotCase):
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in worker.command_keyboard()['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertEqual(buttons, ['.buy & sell', '.earningsdividend', '.forward pe', '.movers', '.peg', '.performance',
-			'.price', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])
+		self.assertEqual(buttons, ['.buy & sell', '.earnings & dividend', '.forward pe', '.movers', '.peg',
+			'.performance', '.price', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
 				with self.subTest(text=text):

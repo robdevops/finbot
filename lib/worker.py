@@ -512,11 +512,16 @@ def on_help(request, args):
 		mark_keyboard(request.chat_id) # this chat now has the current keyboard
 
 def on_calendar(request, args):
-	""".earningsdividend [period|SYMBOL]: the coming earnings dates, then the ex-dividend dates; typed .earnings or
-	.dividend, only those."""
-	both = args.word == 'earningsdividend'
+	""".earningsdividend or .earnings & dividend (the keyboard's) [period|SYMBOL]: the coming earnings dates, then
+	the ex-dividend dates; typed .earnings or .dividend, only those."""
+	words = args.words
+	both = args.word == 'earningsdividend' or (args.word == 'earnings' and words[:1] in (['&'], ['and']) and
+		words[1:2] in (['dividend'], ['dividends']))
+	if both and args.word == 'earnings':
+		words = words[2:]
+	symbol = yahoo.symbol(words[0]) if words else None
 	for event in (['earnings', 'ex-dividend'] if both else ['ex-dividend' if 'div' in args.word else 'earnings']):
-		cal.run(request.dest, days=args.days, specific_stock=ticker(args), event=event)
+		cal.run(request.dest, days=args.days, specific_stock=symbol, event=event)
 
 def on_performance(request, args):
 	""".performance [period] [portfolio]: each portfolio's return, over a month by default."""
@@ -801,7 +806,7 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 		keywords=CHANGE, job=False),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),
 	Command(('earningsdividend', 'earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend', 'exdividend',
-		'ex-dividend'), on_calendar, ('.earningsdividend [period|SYMBOL]',), COMPANY, ('.earningsdividend',),
+		'ex-dividend'), on_calendar, ('.earningsdividend [period|SYMBOL]',), COMPANY, ('.earnings & dividend',),
 		period=True),
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
 		keywords=TOP),
