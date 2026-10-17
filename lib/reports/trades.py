@@ -32,7 +32,8 @@ class Trade:
 
 def run(dest=None, *, days=None, user='', portfolio_select=None):
 	"""Post the buys and sells of the past `days`, in every portfolio or the one named: to the chat that asked (dest);
-	or, a scheduled run, to the job's chat (dest) those it has not told that chat of before. Raises
+	or, a scheduled run, to the job's chat (dest) those it has not told that chat of before; none said so only where
+	someone asked (delivery.asked). Raises
 	sharesight.PortfolioNotFound for a name that is none of them."""
 	chat, interactive = delivery.target(dest), delivery.interactive(dest)
 	if days is None:
@@ -40,9 +41,9 @@ def run(dest=None, *, days=None, user='', portfolio_select=None):
 	told = set() if interactive else set(state.load_for(chat.key, STATE_FILE, []))
 	new = gather(days, portfolio_select, told) # those the chat was told of before are left out
 	payload = report(chat.dialect, new, days, interactive)
-	if interactive and not payload: # no trades, or none of them a buy or a sell
+	if not payload and delivery.asked(dest): # no trades, a buy or a sell; on schedule, none it was not told of
 		when = formats.days_english(days, 'in the past ')
-		payload = [f"{user} No trades {when}."]
+		payload = [f"{user} No trades {when}." if interactive else f"No new trades {when}."]
 	delivery.deliver(chat, delivery.Report(payload))
 	if new and not interactive: # recorded once the report is out
 		with state.edit_for(chat.key, STATE_FILE, []) as known:

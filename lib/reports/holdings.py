@@ -1,4 +1,5 @@
 """What is held and followed: .holdings, .who, .pie, .treemap and .watchlist."""
+from lib import answer
 from lib import watchlist
 from lib import sharesight
 from lib import formats
@@ -24,13 +25,17 @@ def prepare_holdings_payload(portfolio_name, service):
 	return payload
 
 def prepare_who(service, code):
-	"""Which portfolios hold `code` (a ticker without its exchange), each holding linked to Sharesight."""
+	"""Which portfolios hold `code` (a ticker without its exchange), each holding linked to Sharesight. Raises
+	answer.Nothing for none."""
 	blocks = []
 	for portfolio in sharesight.portfolios():
 		found = [holding_line(holding, service, code)
 			for holding in portfolio.holdings().values() if holding['code'].upper() == code]
 		blocks.append(found and [service.bold(f"{portfolio.name}:")] + found)
-	return formats.sections(*blocks) or [f'{code} not found in any portfolio']
+	found = formats.sections(*blocks)
+	if not found:
+		raise answer.Nothing(f'{code} not found in any portfolio')
+	return found
 
 def _groups(portfolio, by):
 	"""The holdings of a portfolio with a value, by industry (or by='sector'): {group: [(code, value), ...]}."""

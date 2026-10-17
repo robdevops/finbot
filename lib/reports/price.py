@@ -122,16 +122,17 @@ def moves(tickers, mode='interday', threshold=None, days=None, specific_stock=No
 	return Moves(rows, exchanges, in_session, as_of)
 
 def report(service, found, mode='interday', threshold=None, days=None, top=None, user='', specific_stock=None,
-		interactive=False):
+		asked=False):
 	"""(payload, chart) of a price report in one network's markup, from moves()' Moves: the moves of `threshold` percent
-	or more in a mode of MODES ('period': over `days`), or the top and bottom `top`."""
+	or more in a mode of MODES ('period': over `days`), or the top and bottom `top`; where none is, a line saying so
+	where someone asked (asked), else nothing."""
 	if threshold is None:
 		threshold = config.settings.price_percent
 	lines = [f"{formats.get_emoji(percent)} {formats.short_name(quote['profile_title'])} "
 		f"({links.finance_link(ticker, quote['profile_exchange'], service, days=days)}) "
 		f"{formats.signed_percent(round(percent))}" for ticker, percent, quote in found.rows]
 	if not lines:
-		return [nothing(mode, threshold, user, specific_stock, found.in_session, days)] if interactive else [], None
+		return [nothing(mode, threshold, user, specific_stock, found.in_session, days)] if asked else [], None
 	if specific_stock:
 		return lines, None
 	label = lambda rows: [(formats.short_ticker(ticker), percent) for ticker, percent, _ in rows]
@@ -165,19 +166,22 @@ def nothing(mode, threshold, user, ticker, in_session, days=None):
 	if mode == 'premarket':
 		return f"No pre-market price movements meet threshold {threshold:g}%"
 	if mode == 'midsession' and not in_session:
-		return f"{user}, no tracked stocks are currently in session."
-	if mode == 'midsession':
-		return f"{user}, no in-session securities meet threshold {threshold:g}%"
-	return f"{user}, no price movements meet threshold {threshold:g}%"
+		said = "no tracked stocks are currently in session."
+	elif mode == 'midsession':
+		said = f"no in-session securities meet threshold {threshold:g}%"
+	else:
+		said = f"no price movements meet threshold {threshold:g}%"
+	return f"{user}, {said}" if user else said[0].upper() + said[1:] # a job run now has no one to name
 
 def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user='', specific_stock=None):
 	"""Post the price report (report() has the modes) on the stocks a chat follows: to the chat that asked or whose
-	job it is (dest), with its chart and period buttons where they can go."""
+	job it is (dest), with its chart and period buttons where they can go; none said so only where someone asked
+	(delivery.asked)."""
 	chat, interactive = delivery.target(dest), delivery.interactive(dest)
 	if threshold is None:
 		threshold = config.settings.price_percent
 	found = moves(watchlist.covered(chat.key, specific_stock), mode, threshold, days, specific_stock, interactive)
-	payload, graph = report(chat.dialect, found, mode, threshold, days, top, user, specific_stock, interactive)
+	payload, graph = report(chat.dialect, found, mode, threshold, days, top, user, specific_stock, delivery.asked(dest))
 	markup = None # the period buttons of the daily and N-day lists (not the intraday ones), where the chat takes them
 	if graph and chat.takes_buttons and mode in ('interday', 'period'):
 		markup = buttons.keyboard('l', *list_buttons(threshold, top, days))

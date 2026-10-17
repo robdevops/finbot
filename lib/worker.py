@@ -476,7 +476,12 @@ def on_treemap(request, args):
 def on_rating(request, args):
 	""".buy, .sell or both (.buy & sell, a keyboard button): the analysts' strongest buy or sell ratings, as asked."""
 	for action in dict.fromkeys(re.findall('buy|sell', f'{args.word} {args.text}'.lower())): # each once, as asked
-		payload, chart = rankings.prepare_rating_payload(request.service, request.dest.key, action, length=15)
+		try:
+			payload, chart = rankings.prepare_rating_payload(request.service, request.dest.key, action, length=15)
+		except answer.Nothing as e: # none rated so: said where someone asked, and the other list still goes
+			if delivery.asked(request.dest):
+				request.reply(e.lines)
+			continue
 		request.reply(payload, chart)
 
 def on_compare(request, args):
@@ -820,6 +825,9 @@ class CommandJob:
 			self.command.handler(request, read_args(self.command, self.name, ' '.join(words)))
 		except Usage as e:
 			request.reply([f"Usage: {line}" for line in self.command.usage] + list(e.lines))
+		except answer.Nothing as e: # nothing to show: said where someone asked for the run, not on schedule
+			if delivery.asked(dest):
+				request.reply(e.lines)
 		except answer.Answer as e:
 			request.reply(e.lines)
 

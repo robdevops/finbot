@@ -12,11 +12,11 @@ STATE_FILE = 'finbot_rating.json' # each chat's {ticker: [action, index]} as its
 def run(dest=None):
 	"""Post the analysts' consensus ratings of the stocks a chat follows that changed since its last scheduled run: to
 	the chat that asked (dest), against its record; or, a scheduled run, to the job's chat (dest), recording the
-	ratings it saw."""
+	ratings it saw. No change is said only where someone asked (delivery.asked)."""
 	chat, interactive = delivery.target(dest), delivery.interactive(dest)
 	market_data, seen = gather(watchlist.with_holdings(chat.key))
 	changes = changed(market_data, seen, state.load_for(chat.key, STATE_FILE, {}))
-	delivery.deliver(chat, delivery.Report(report(chat.dialect, changes, interactive)))
+	delivery.deliver(chat, delivery.Report(report(chat.dialect, changes, delivery.asked(dest))))
 	if seen and not interactive: # added to its record: a ticker missing from this run keeps its last rating
 		with state.edit_for(chat.key, STATE_FILE, {}) as ratings:
 			ratings.update(seen)
@@ -49,9 +49,9 @@ def changed(market_data, seen, old):
 				market_data[ticker]['recommend_analysts']))
 	return changes
 
-def report(service, changes, interactive):
+def report(service, changes, asked):
 	"""The rating changes in one network's markup, sorted: 📈 when the consensus improved (its index fell: 1 is a strong
-	buy), 📉 when it worsened."""
+	buy), 📉 when it worsened; where there is none, a line saying so where someone asked, else nothing."""
 	payload = []
 	for ticker, data, (old_action, old_index), (action, index), analysts in changes:
 		emoji = '📈' if old_index > index else '📉' if old_index < index else '▪️'
@@ -62,7 +62,7 @@ def report(service, changes, interactive):
 	payload.sort()
 	if payload:
 		payload.insert(0, service.bold('Consensus rating changes:'))
-	elif interactive:
+	elif asked:
 		payload = ["No rating changes found"]
 	return payload
 

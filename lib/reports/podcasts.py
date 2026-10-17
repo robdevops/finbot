@@ -89,13 +89,15 @@ def fetch_new_episodes(feed_url, seen):
 
 def run(dest=None, *, feed_url):
 	"""Post to the job's chat (dest) the feed's newest episodes not posted to it before, then record every new one as
-	seen by it."""
+	seen by it; none said so only where someone asked (delivery.asked: Run now)."""
 	chat, seen_file = delivery.target(dest), get_seen_filename(feed_url)
 	try:
 		new = fetch_new_episodes(feed_url, set(state.load_for(chat.key, seen_file, [])))
 	except Exception as e:
 		raise RuntimeError(f"fetching feed {feed_url}: {e}")
 	if not new:
+		if delivery.asked(dest):
+			delivery.deliver(chat, delivery.Report(["📣 No new episodes"]))
 		return
 	delivery.deliver(chat, delivery.Report(report(chat.dialect, new[:NEWEST])))
 	with state.edit_for(chat.key, seen_file, []) as recorded: # last: a failure above leaves them for next run

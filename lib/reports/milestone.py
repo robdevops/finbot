@@ -11,12 +11,16 @@ STATE_FILE = 'finbot_milestone.json' # each chat's {ticker: {'all_time_high': ..
 
 def run(dest=None):
 	"""Post the stocks a chat follows that set an all-time high or low, against its record, to the chat that asked or
-	whose job it is (dest); a scheduled run records the chat's new records."""
+	whose job it is (dest), none said so only where someone asked (delivery.asked); a scheduled run records the
+	chat's new records."""
 	chat, interactive = delivery.target(dest), delivery.interactive(dest)
 	tickers = watchlist.with_holdings(chat.key)
 	market_data = yahoo.fetch(tickers)
 	highs, lows, changed = compare(tickers, market_data, state.load_for(chat.key, STATE_FILE, {}))
-	delivery.deliver(chat, delivery.Report(report(chat.dialect, market_data, highs, lows)))
+	payload = report(chat.dialect, market_data, highs, lows)
+	if not payload and delivery.asked(dest):
+		payload = ["No new record highs or lows"]
+	delivery.deliver(chat, delivery.Report(payload))
 	if changed and not interactive:
 		with state.edit_for(chat.key, STATE_FILE, {}) as recorded:
 			recorded.update(changed)

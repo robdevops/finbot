@@ -75,7 +75,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   parser (`reports.no_arguments(name)` for one that takes none); and `ARGUMENTS`, what `.jobs add` lists):
   `price performance trades shorts cal rating milestone message podcasts cleanup sharesight_warm yahoo_warm`. trades,
   rating, milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`),
-  added to only by a scheduled run (`delivery.interactive(dest)` is false).
+  added to only by a scheduled run (`delivery.interactive(dest)` is false). A report with nothing to show says so
+  only where someone asked (`delivery.asked(dest)`: a command, a button, or Run now and `.jobs run`, whose destination
+  is scheduled but `asked`); on schedule it posts nothing.
   Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens: `jobs_screen`, `add_screen`, `next_screen`), `history` (.history .compare), `holdings` (.holdings .who .pie .treemap
   .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
@@ -160,7 +162,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `service.escape(text)`, stock links through `links.finance_link(symbol, exchange, service)`. Tests pass `TELEGRAM`,
   `SLACK`, `DISCORD`.
 - A command that cannot give what was asked (no such portfolio, no prices) raises `answer.Answer(*lines)`, which the
-  chat gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report.
+  chat gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report. What has
+  nothing to show and no destination to ask (the rankings, `.who`) raises `answer.Nothing`, an Answer that a job's
+  run on schedule never posts (`CommandJob.run`).
 - Every function and method has a docstring, tests included (a test checks): one line where it fits, reworded rather
   than spilling a few words onto a second. Tabs everywhere (`.editorconfig`). Every line stays within 120 columns,
   tabs counting 4 (an edit quotes whole lines); a test checks all but README.md, CLAUDE.md and `doc/`.

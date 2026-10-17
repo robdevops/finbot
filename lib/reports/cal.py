@@ -24,7 +24,7 @@ def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
 	if days is None:
 		days = config.settings.future_days
 	events = gather(watchlist.covered(chat.key, specific_stock), days, specific_stock, event)
-	payload = report(chat.dialect, events, days, specific_stock, interactive, event)
+	payload = report(chat.dialect, events, days, specific_stock, delivery.asked(dest), event)
 	answers = delivery.deliver(chat, delivery.Report(payload))
 	if event == 'earnings' and not specific_stock and not interactive and hasattr(chat, 'pin'):
 		chat.pin(answers) # the scheduled earnings report stays on top, where the network can pin
@@ -74,8 +74,9 @@ def primary_listing(ticker, data, field):
 		return other, details
 	return None, None
 
-def report(service, events, days, specific_stock, interactive, event):
-	"""The events in one network's markup, grouped by date under a heading (one stock's carry their dates instead)."""
+def report(service, events, days, specific_stock, asked, event):
+	"""The events in one network's markup, grouped by date under a heading (one stock's carry their dates instead);
+	where there is none, a line saying so where someone asked, else nothing."""
 	heading = EVENTS[event][1]
 	blocks = []
 	for date in sorted({when.date() for when, *_ in events}):
@@ -86,7 +87,7 @@ def report(service, events, days, specific_stock, interactive, event):
 	payload = sum(blocks, []) if specific_stock else formats.sections(*blocks)
 	if payload and not specific_stock:
 		payload = formats.sections([service.bold(f"{heading} {formats.days_english(days, 'for the next ')}:")], payload)
-	elif not payload and interactive:
+	elif not payload and asked:
 		ahead = formats.days_english(days, 'for the next ')
 		payload = [f"No events found for {specific_stock}" if specific_stock else f"No events found {ahead}"]
 	return payload

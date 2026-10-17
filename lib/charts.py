@@ -47,7 +47,7 @@ def price_list_chart(service, chat, period, days, threshold, top):
 	span = {'mode': 'interday'} if period == 'd' else {'mode': 'period', 'days': days or buttons.MAX_DAYS}
 	threshold, top = float(threshold), int(top) or None
 	found = price.moves(watchlist.with_holdings(chat), threshold=threshold, interactive=True, **span)
-	payload, chart = price.report(service, found, threshold=threshold, interactive=True, top=top, **span)
+	payload, chart = price.report(service, found, threshold=threshold, asked=True, top=top, **span)
 	if not chart:
 		raise answer.Answer(*(payload or ['no price data']))
 	return '\n'.join(payload), chart

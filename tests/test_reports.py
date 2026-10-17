@@ -161,8 +161,9 @@ class ReportFunctions(FinbotCase):
 		self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
 		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy')[0][0])
 		self.patch(watchlist, 'with_holdings', lambda chat: ['T7', 'T8'])
-		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy'),
-			(['No tracked stocks rated buy by 7+ analysts'], None))
+		with self.assertRaises(answer.Nothing) as none:
+			rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy')
+		self.assertEqual(none.exception.lines, ['No tracked stocks rated buy by 7+ analysts'])
 
 	def test_a_small_cap_quoted_in_won_needs_the_bigger_move_too(self):
 		"""demote_volatile compares market caps in US dollars: unconverted, a small cap in won was never small."""
@@ -181,7 +182,7 @@ class ReportFunctions(FinbotCase):
 		for count, bottom, bars in ((12, 2, 13), (8, 0, 8)):
 			with self.subTest(count=count):
 				found = price.moves(TICKERS[:count], 'period', 0, 90, interactive=True)
-				payload, chart = price.report(TELEGRAM, found, 'period', 0, 90, top=10, interactive=True)
+				payload, chart = price.report(TELEGRAM, found, 'period', 0, 90, top=10, asked=True)
 				shown = payload[payload.index('<b>Bottom 10</b>') + 1:] if bottom else []
 				self.assertEqual((len(shown), len(chart.rows)), (bottom, bars))
 				self.assertEqual(len(payload), 1 + min(count, 10) + (bottom and 2 + bottom))
@@ -218,9 +219,12 @@ class ReportFunctions(FinbotCase):
 		self.assertEqual(listed('negative')[1], ['T3'])
 		self.assertIn('Co T2', rankings.ratio_line(TELEGRAM, 'T2', 'forward pe')) # one ticker asked for: shown
 		self.settings(min_analysts=13) # the one setting moves .buy and .forward pe together
-		self.assertEqual(listed()[0], 'No tracked stocks with 13+ analysts have a forward pe ratio')
-		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy')[0],
-			['No tracked stocks rated buy by 13+ analysts'])
+		for none, said in ((listed, 'No tracked stocks with 13+ analysts have a forward pe ratio'),
+				(lambda: rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy'),
+				'No tracked stocks rated buy by 13+ analysts')):
+			with self.assertRaises(answer.Nothing) as nothing:
+				none()
+			self.assertEqual(nothing.exception.lines, [said])
 
 	def test_market_caps_compare_in_us_dollars(self):
 		"""Yahoo gives a market cap in the stock's own currency: unconverted, a won market cap topped every list."""
@@ -247,14 +251,16 @@ class ReportFunctions(FinbotCase):
 		self.assertNotIn('Co K1.KS', str(beta))
 
 	def test_prepare_value(self):
-		"""Each ratio report has its heading: top, bottom, and negative (with none found)."""
+		"""Each ratio report has its heading: top, bottom, and negative, where none found is nothing to show."""
 		for kind, mode, heading in (('pe', 'top', 'Top 5 tracked stocks by pe ratio'),
 				('forward pe', 'bottom', 'Bottom 5 tracked stocks by forward pe ratio'),
-				('peg', 'top', 'Top 5 tracked stocks by peg ratio'),
-				('peg', 'negative', 'negative peg: no data found')):
+				('peg', 'top', 'Top 5 tracked stocks by peg ratio')):
 			with self.subTest(kind=kind, mode=mode):
 				payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', kind, mode, length=5)
 				self.assertIn(heading, payload[0])
+		with self.assertRaises(answer.Nothing) as none:
+			rankings.ratio_list(TELEGRAM, 'telegram:55', 'peg', 'negative', length=5)
+		self.assertEqual(none.exception.lines, ['negative peg: no data found'])
 
 	def test_one_stocks_ratio_shows_what_yahoo_has(self):
 		""".pe of a loss-maker shows its forward P/E (it used to say nothing), .peg labels its figure, and a stock
@@ -277,8 +283,9 @@ class ReportFunctions(FinbotCase):
 		self.assertIn('Beta over 1.5', payload[0])
 		self.assertEqual(len(chart.rows), len(payload) - 1) # a bar per stock listed
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'beta': 1.0}})
-		self.assertEqual(rankings.prepare_beta_payload(TELEGRAM, 'telegram:55'),
-			(['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None))
+		with self.assertRaises(answer.Nothing) as none:
+			rankings.prepare_beta_payload(TELEGRAM, 'telegram:55')
+		self.assertEqual(none.exception.lines, ['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'])
 
 	def test_prepare_profile(self):
 		"""A company profile is built."""
@@ -410,6 +417,30 @@ class ScheduledReports(FinbotCase):
 				self.assertTrue(self.sent)
 		cal.run(job_chat, event='earnings')
 		self.assertEqual(pins, ['5'])
+
+	def test_a_report_run_now_says_when_it_has_nothing_to_show(self):
+		"""Run now asks for its run (delivery.asked): a report with nothing to show says so, where the same run on
+		schedule posts nothing."""
+		from lib.reports import podcasts
+		self.patch(trades, 'gather', lambda days, portfolio, known: [])
+		self.patch(rating, 'changed', lambda market_data, seen, old: [])
+		self.patch(milestone, 'compare', lambda tickers, market_data, records: ([], [], {}))
+		self.patch(cal, 'gather', lambda tickers, days, specific_stock, event: [])
+		self.patch(podcasts, 'fetch_new_episodes', lambda feed_url, seen: [])
+		past = formats.days_english(config.settings.past_days, 'in the past ')
+		ahead = formats.days_english(config.settings.future_days, 'for the next ')
+		runs = ((trades, {}, f'No new trades {past}.'), (rating, {}, 'No rating changes found'),
+			(milestone, {}, 'No new record highs or lows'), (cal, {'event': 'ex-dividend'}, f'No events found {ahead}'),
+			(podcasts, {'feed_url': 'https://example.com/feed'}, '📣 No new episodes'),
+			(shorts, {'threshold': 1000}, '🩳 No stocks shorted over 1000%. Try specifying a number.'),
+			(price, {'mode': 'premarket', 'threshold': 1000}, 'No pre-market price movements meet threshold 1000%'),
+			(price, {'mode': 'interday', 'threshold': 1000}, 'No price movements meet threshold 1000%'))
+		for module, kwargs, said in runs:
+			for asked, posted in ((False, []), (True, [('text', [said])])):
+				with self.subTest(report=module.__name__, asked=asked):
+					self.sent.clear()
+					module.run(delivery.chat('telegram:5', scheduled=True, asked=asked), **kwargs)
+					self.assertEqual(self.sent, posted)
 
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
 		"""T1 has no earnings date, even in its details, so its primary listing is looked up: Yahoo not knowing it
@@ -848,6 +879,24 @@ class TreemapCommand(FinbotCase):
 
 class CommandJobs(FinbotCase):
 	"""A job that runs a command of .help posts in its chat what the command posts when typed there."""
+
+	def test_a_command_job_with_nothing_to_show_says_so_only_when_asked(self):
+		"""A command with nothing to show (answer.Nothing) says so typed, and in a job run now (asked), but posts
+		nothing on schedule; .buy & sell posts the list there is, saying the other has none only where asked."""
+		def rated(service, chat, action, length=15):
+			"""Sell ratings, and no stock rated buy."""
+			if action == 'buy':
+				raise answer.Nothing('No tracked stocks rated buy')
+			return ['Sells'], None
+		self.patch(rankings, 'prepare_rating_payload', rated)
+		none, sells = ('text', ['No tracked stocks rated buy']), ('text', ['Sells'])
+		self.assertEqual(self.command('.buy & sell'), [none, sells])
+		for name, asked, posted in (('buy&sell', False, [sells]), ('buy&sell', True, [none, sells]), ('buy', False, []),
+				('buy', True, [none])):
+			with self.subTest(name=name, asked=asked):
+				self.sent.clear()
+				worker.job_commands()[name].run(delivery.chat('telegram:55', scheduled=True, asked=asked), words=[])
+				self.assertEqual(self.sent, posted)
 
 	def test_a_command_job_posts_what_the_typed_command_posts(self):
 		"""pe, beta, buy & sell, compare and history, run as a job's, post what each posts when typed in the chat, bare

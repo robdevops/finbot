@@ -174,6 +174,8 @@ move as either side's daylight saving changes.
 * Each chat keeps its own record of what a report has told it (trades, rating changes, record highs, podcast
   episodes), so the same report scheduled in two chats tells each of them once. A run from **Run now** or `/jobs run`
   is a scheduled run: it posts to the chat and updates the same record. A change counts at once, with no reload.
+* A report or command with nothing to show (no new trades, no stock past the threshold, no rating changes) posts
+  nothing on schedule. Asked for, it says so: a command, a keyboard button, **Run now** or `/jobs run`.
 * **A job can only run finbot's own reports and commands.** It names a report from a fixed table in `lib/jobs.py` (or
   posting a message), or a command of the table `/help` is made from (`lib/worker.py`) that changes nothing, with
   arguments its parser has checked, kept as words: never a command line, a script or code. A stored job naming anything

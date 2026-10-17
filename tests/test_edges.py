@@ -406,7 +406,10 @@ class LogLevels(FinbotCase):
 		wrong."""
 		self.patch(yahoo, 'fetch', lambda tickers: {'ETF1': {'profile_title': 'A Fund', 'profile_exchange': 'NYSE'}})
 		self.patch(yahoo, 'add_usd_market_caps', lambda quotes: quotes)
-		rank = lambda: rankings.marketcap_list(TELEGRAM, '55')
+		def rank():
+			"""Rank the one stock, which has no market cap: nothing to show."""
+			with self.assertRaises(answer.Nothing):
+				rankings.marketcap_list(TELEGRAM, '55')
 		self.assertEqual((self.logged('INFO', rank), self.logged('DEBUG', rank)), ([], ['ETF1 no market cap']))
 
 
