@@ -108,7 +108,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `worker.prime_periods` after `.price`, `.movers`, `.performance`, `chart_reply` and the pickers); neither for a
   scheduled run.
 - `.watchlist` typed bare has an Edit button (`worker.watchlist_screen`, `watchlist_press`: a `PickPress` of command `w`): its tickers
-  struck through as they are pressed, OK deleting them; the `.jobs` list strikes through the jobs that are off.
+  struck through as they are pressed, Delete deleting them; the `.jobs` list strikes through the jobs that are off.
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), the `.jobs` menu's (`menu_button`, a
   `MenuPress`), what a pressed button's data asks for (`parse`), and the
   toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so

@@ -1164,20 +1164,20 @@ class Pickers(FinbotCase):
 
 	def test_watchlist_edit_crosses_tickers_off_and_ok_deletes_them(self):
 		""".watchlist lists the watchlist with an Edit button, which offers a button for each ticker: pressing one
-		strikes it through in the list (and again undoes it); OK deletes the struck ones; Cancel goes back."""
+		strikes it through in the list (and again undoes it); Delete deletes the struck ones; Cancel goes back."""
 		self.patch(watchlist, 'with_holdings', REAL_GET_HOLDINGS)
 		for ticker in ('T3', 'T1', 'T2'):
 			watchlist.add('telegram:55', ticker)
 		self.command('.watchlist')
 		self.assertEqual(self.labels(), [['Edit']])
 		kind, lines, rows = self.tap('Edit')
-		self.assertEqual(self.labels(rows), [['T1', 'T2', 'T3'], ['OK', 'Cancel']])
+		self.assertEqual(self.labels(rows), [['T1', 'T2', 'T3'], ['Delete', 'Cancel']])
 		self.assertFalse(any(line.startswith('<s>') for line in lines))
 		kind, lines, rows = self.tap('T2')
-		self.assertEqual(self.labels(rows), [['T1', '❌ T2', 'T3'], ['OK', 'Cancel']])
+		self.assertEqual(self.labels(rows), [['T1', about.struck('T2'), 'T3'], ['Delete', 'Cancel']])
 		struck = [line for line in lines if line.startswith('<s>')]
 		self.assertEqual([('Co T2' in line, line.endswith('</s>')) for line in struck], [(True, True)])
-		kind, lines, rows = self.tap('❌ T2')
+		kind, lines, rows = self.tap(about.struck('T2'))
 		self.assertFalse(any(line.startswith('<s>') for line in lines))
 		self.tap('T1')
 		kind, lines, rows = self.tap('Cancel')
@@ -1185,9 +1185,29 @@ class Pickers(FinbotCase):
 		self.tap('Edit')
 		self.tap('T1')
 		self.tap('T3')
-		kind, lines, rows = self.tap('OK')
+		kind, lines, rows = self.tap('Delete')
 		self.assertEqual((self.labels(rows), lines[0], watchlist.tickers('telegram:55')),
 			([['Edit']], 'Deleted: T1, T3', ['T2']))
+
+	def test_watchlist_shows_its_edit_button_however_it_is_opened_and_none_when_empty(self):
+		"""The Edit button is under the watchlist after an add or a delete too, and an empty watchlist, however it
+		comes to be, has no buttons."""
+		self.patch(watchlist, 'with_holdings', REAL_GET_HOLDINGS)
+		empty = ['Watchlist is empty. Try ".watchlist add SYMBOL" to create it']
+		self.assertEqual(self.command('.watchlist'), [('text', empty)])
+		self.assertEqual(self.shown, [])
+		self.command('.watchlist add T1')
+		self.assertEqual(self.labels(), [['Edit']])
+		self.assertIn('Co T1', str(self.showing))
+		self.command('.watchlist add T2')
+		self.command('.watchlist del T2')
+		self.assertEqual(self.labels(), [['Edit']])
+		self.tap('Edit')
+		self.tap('T1')
+		kind, lines, rows = self.tap('Delete')
+		self.assertEqual((rows, watchlist.tickers('telegram:55')), ([], []))
+		self.command('.watchlist del T1')
+		self.assertEqual(self.shown, [])
 
 	def test_watchlist_buttons_of_another_list_start_again(self):
 		"""Buttons drawn for a watchlist that has changed since delete nothing: the list is drawn again, with a note."""
@@ -1198,7 +1218,7 @@ class Pickers(FinbotCase):
 		self.tap('Edit')
 		old = self.tap('T1')[2]
 		watchlist.add('telegram:55', 'T3')
-		kind, lines, rows = self.tap('OK', self.rows(old) if old and not isinstance(old[0][0], tuple) else old)
+		kind, lines, rows = self.tap('Delete', old)
 		self.assertEqual((lines[0], self.labels(rows), watchlist.tickers('telegram:55')),
 			('The list has changed: here it is now', [['Edit']], ['T1', 'T2', 'T3']))
 

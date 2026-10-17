@@ -439,12 +439,12 @@ def portfolios():
 	"""'Portfolios: A, B': the names a portfolio command takes."""
 	return 'Portfolios: ' + ', '.join(portfolio.name for portfolio in sharesight.portfolios())
 
-WATCHLIST_HINT = "Tap a ticker to cross it off, then OK to delete those."
+WATCHLIST_HINT = "Tap a ticker to cross it off, then Delete to delete those."
 
 def watchlist_screen(service, chat, mask, user='', page=0, note=None, editing=True):
 	"""(lines, button rows) of the watchlist: with Edit alone, or while editing, the tickers of `mask` (a bit for each,
-	in sorted order) struck through, a button for each (marked ❌) at a page, and OK, which deletes the marked, and
-	Cancel."""
+	in sorted order) struck through, a button for each (struck through when marked) at a page, and Delete, which
+	deletes the marked, and Cancel. An empty watchlist has no buttons."""
 	found = sorted(watchlist.tickers(chat))[:pick.MOST_ITEMS]
 	removing = [ticker for i, ticker in enumerate(found) if mask >> i & 1]
 	lines = holdings.prepare_watchlist(service, chat, user, removing=removing)
@@ -455,17 +455,19 @@ def watchlist_screen(service, chat, mask, user='', page=0, note=None, editing=Tr
 	def button(label, act, mask=mask):
 		"""A button of this screen: its label, and the press it makes."""
 		return buttons.pick_button(label, buttons.PickPress('w', '0', '0', 0, mask, act, crc))
+	if not found: # nothing to edit: the list alone, no buttons
+		return ([note] if note else []) + lines, []
 	if not editing:
 		return ([note] if note else []) + lines, [[button('Edit', 'e0', 0)]]
-	rows = pick.chunks([button(f"❌ {ticker}" if mask >> i & 1 else ticker, f"m{page}", mask ^ 1 << i)
+	rows = pick.chunks([button(about.struck(ticker) if mask >> i & 1 else ticker, f"m{page}", mask ^ 1 << i)
 		for i, ticker in pick.items_on(found, page, per_page)], per_row)
 	rows.append(([button('<', f"m{page - 1}")] if page else []) + ([button('>', f"m{page + 1}")] if page < pages - 1
-		else []) + [button('OK', 'h0'), button('Cancel', 'p0', 0)])
+		else []) + [button('Delete', 'h0'), button('Cancel', 'p0', 0)])
 	return ([note] if note else []) + lines + ['', WATCHLIST_HINT], rows
 
 def watchlist_press(service, chat, press, pressed):
-	"""A press under the watchlist: Edit offers its tickers; one marks or unmarks itself, struck through in the list; OK
-	deletes the marked; Cancel goes back. Buttons drawn for another watchlist start again, saying so."""
+	"""A press under the watchlist: Edit offers its tickers; one marks or unmarks itself, struck through in the list;
+	Delete deletes the marked; Cancel goes back. Buttons drawn for another watchlist start again, saying so."""
 	try:
 		found = sorted(watchlist.tickers(chat.key))[:pick.MOST_ITEMS]
 		stale = buttons.checksum(found) != pressed.checksum
@@ -487,14 +489,17 @@ def on_watchlist(request, args):
 	chat = request.dest.key
 	if args.keyword and len(args.words) == 1: # what is removed is what is watched: Yahoo may know it no longer
 		symbol = ticker(args) if args.keyword == 'add' else watchlist.watched(chat, args.words[0])
-		request.reply(holdings.prepare_watchlist(request.service, chat, request.user, args.keyword, symbol))
+		changed = holdings.prepare_watchlist(request.service, chat, request.user, args.keyword, symbol)
+		if request.dest.takes_buttons and watchlist.tickers(chat):
+			lines, rows = watchlist_screen(request.service, chat, 0, request.user, note=changed[0], editing=False)
+			request.reply(lines, None, rows)
+		else:
+			request.reply(changed)
 	elif args.keyword or args.words:
 		raise Usage
-	elif request.dest.takes_buttons and watchlist.tickers(chat):
-		lines, rows = watchlist_screen(request.service, chat, 0, request.user, editing=False)
-		request.reply(lines, None, rows)
 	else:
-		request.reply(holdings.prepare_watchlist(request.service, chat, request.user))
+		lines, rows = watchlist_screen(request.service, chat, 0, request.user, editing=False)
+		request.reply(lines, None, rows if request.dest.takes_buttons else None)
 
 def on_help(request, args):
 	""".help: every command (on Discord as its slash command, which works in both modes); in a Telegram DM the command
