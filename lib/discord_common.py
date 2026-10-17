@@ -210,16 +210,21 @@ class DiscordBot(transports.Transport):
 	ADMINISTRATOR = 0x8 # the permission that makes a role an administrator's
 
 	def is_administrator(self, who):
-		"""Whether this user owns the server this channel is in, or has a role with the Administrator permission; a
-		direct message has no server, and so no administrators."""
+		"""Whether this user owns the server this channel is in, or has a role with the Administrator permission; in a
+		direct message, whether so in any server the bot is in."""
 		guild = (call('GET', f'/channels/{self.where}') or {}).get('guild_id')
-		if not guild:
-			return False
+		if guild:
+			return self.administers_server(guild, who)
+		return any(self.administers_server(server['id'], who) for server in call('GET', '/users/@me/guilds') or ())
+
+	@staticmethod
+	def administers_server(guild, who):
+		"""Whether this user owns the server (guild id), or has a role in it with the Administrator permission."""
 		server = call('GET', f'/guilds/{guild}') or {}
 		if str(server.get('owner_id')) == who:
 			return True
 		roles = set((call('GET', f'/guilds/{guild}/members/{who}') or {}).get('roles') or ())
-		return any(int(role.get('permissions') or 0) & self.ADMINISTRATOR
+		return any(int(role.get('permissions') or 0) & DiscordBot.ADMINISTRATOR
 			for role in server.get('roles') or () if role.get('id') in roles or role.get('id') == guild)
 
 	def __init__(self, where, message=None, interaction='', pressed=False):

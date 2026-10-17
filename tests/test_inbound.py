@@ -341,8 +341,13 @@ class AdminOnly(FinbotCase):
 		self.assertEqual(asked[0], {'chat_id': '-100', 'user_id': '7'})
 		self.assertEqual(group('.jobs'), answered)
 		self.assertEqual(len(asked), 3) # Rob's second message is answered from what was asked
-		self.assertEqual(self.say('.jobs'), [[self.REFUSED]]) # chat 55 is a person's: no administrators
+		self.assertEqual(self.say('.jobs'), [[self.REFUSED]]) # chat 55 is a person's, and no group is known yet
 		self.assertEqual(len(asked), 3)
+		from lib import jobs
+		jobs.know(['telegram:-100', 'telegram:-200', 'slack:C1'])
+		transports._administers.clear() # the earlier answer for this chat is kept for minutes
+		self.assertEqual(self.say('.jobs'), answered) # Rob administers a group finbot knows: in a direct message too
+		self.assertEqual(self.say('.jobs', id=9), [[self.REFUSED]])
 		self.patch(telegram_common, 'call', lambda method, **kwargs: 1 / 0)
 		self.assertEqual(group('.jobs', id=10), [[self.REFUSED]])
 		self.settings(admins=('telegram:10',))
@@ -364,7 +369,7 @@ class AdminOnly(FinbotCase):
 
 	def test_a_discords_owner_and_administrator_roles_are_admins(self):
 		"""The owner of a Discord server, and anyone with a role that has the Administrator permission (the @everyone
-		role included), are admins in its channels; a direct message has no server."""
+		role included), are admins in its channels, and in a direct message if so in any server the bot is in."""
 		roles = [{'id': 'G', 'permissions': '1024'}, {'id': 'R1', 'permissions': '8'},
 			{'id': 'R2', 'permissions': '2048'}]
 		members = {'1': ['R1'], '2': ['R2'], '3': []}
@@ -372,12 +377,15 @@ class AdminOnly(FinbotCase):
 			"""The REST answers for a channel of server G, owned by 5; channel D is a direct message."""
 			if path == '/channels/D':
 				return {'id': 'D'}
+			if path == '/users/@me/guilds':
+				return [{'id': 'G'}]
 			return {'/channels/C': {'guild_id': 'G'}, '/guilds/G': {'owner_id': '5', 'roles': roles}}.get(path) or {
 				'roles': members[path.rsplit('/', 1)[1]]}
 		self.patch(discord_common, 'call', answer)
 		bot = discord_common.DiscordBot('C')
 		self.assertEqual([bot.administers((who,)) for who in ('1', '2', '3', '5')], [True, False, False, True])
-		self.assertFalse(discord_common.DiscordBot('D').administers(('5',)))
+		direct = discord_common.DiscordBot('D')
+		self.assertEqual([direct.administers((who,)) for who in ('1', '3', '5')], [True, False, True])
 		roles[0]['permissions'] = '8' # @everyone administers
 		transports._administers.clear()
 		self.assertTrue(bot.administers(('3',)))
