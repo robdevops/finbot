@@ -90,7 +90,7 @@ class WatchlistActions(FinbotCase):
 		self.assertEqual(watchlist.tickers('telegram:55'), ['MSFT'])
 		self.command('.watchlist rm MSFT')
 		self.assertEqual(watchlist.tickers('telegram:55'), [])
-		self.assertEqual(self.command('.watchlist frobnicate MSFT'), [('text', ['Usage: .watchlist [add|del SYMBOL]'])])
+		self.assertEqual(self.command('.watchlist frobnicate MSFT'), [('text', ['Usage: /watchlist [add|del SYMBOL]'])])
 
 	def test_a_bare_symbol_yahoo_does_not_know_is_tried_on_the_asx(self):
 		"""A symbol Yahoo does not know is added as its ASX listing, once, and removed by the same name; a ticker with a

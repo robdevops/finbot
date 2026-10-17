@@ -319,7 +319,7 @@ class Commands(FinbotCase):
 		""".stock SYMBOL and /profile SYMBOL are .SYMBOL; without a symbol, the usage."""
 		self.assertEqual(self.command('.stock T1'), self.command('.T1'))
 		self.assertEqual(self.command('/profile T1'), self.command('.T1'))
-		self.assertEqual(self.command('.stock'), [('text', ['Usage: .SYMBOL', 'Usage: .stock SYMBOL'])])
+		self.assertEqual(self.command('.stock'), [('text', ['Usage: /SYMBOL', 'Usage: /stock SYMBOL'])])
 
 	def test_a_command_with_words_to_suggest_asks_for_suggestions(self):
 		"""The arguments of a command with words to suggest ask Discord for suggestions as they are typed; none

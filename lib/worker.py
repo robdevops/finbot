@@ -332,7 +332,7 @@ def process_request(message):
 			request.dest.start_typing()
 			command.handler(request, args)
 		except Usage as e:
-			request.reply([f"Usage: {line}" for line in command.usage] + list(e.lines))
+			request.reply([f"Usage: {slashed(line)}" for line in command.usage] + list(e.lines))
 		except answer.Answer as e: # a portfolio the user got wrong, a ticker with no prices: an answer, not an error
 			request.reply(e.lines)
 		except Exception as e:
@@ -841,9 +841,14 @@ def help_sections(slash=False):
 	def shown(command, line):
 		"""The line, or its slash command."""
 		form = slash_form(command, line) if slash else None
-		return f'/{form[0]} {form[1]}'.strip() if form else line
+		return f'/{form[0]} {form[1]}'.strip() if form else slashed(line)
 	return [(section, list(dict.fromkeys(shown(command, line) for command in COMMANDS if command.section == section
 		for line in command.usage))) for section in SECTIONS]
+
+def slashed(line):
+	"""A usage line (.price [SYMBOL]) as it is shown: with the standard slash (/price [SYMBOL]); typed with the dot, a
+	command works as well."""
+	return '/' + line[1:] if line.startswith('.') else line
 
 SLASH_NAME = re.compile(r'[a-z0-9_]{1,32}') # what a slash command may be named, on every network
 
@@ -934,7 +939,7 @@ class CommandJob:
 		try:
 			self.command.handler(request, read_args(self.command, self.name, ' '.join(words)))
 		except Usage as e:
-			request.reply([f"Usage: {line}" for line in self.command.usage] + list(e.lines))
+			request.reply([f"Usage: {slashed(line)}" for line in self.command.usage] + list(e.lines))
 		except answer.Nothing as e: # nothing to show: said where someone asked for the run, not on schedule
 			if delivery.asked(dest):
 				request.reply(e.lines)

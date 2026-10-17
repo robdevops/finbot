@@ -28,8 +28,8 @@ class Commands(FinbotCase):
 				self.assertEqual(self.command(typed), self.command(same))
 		self.assertEqual(self.command('.movers session 7d')[0][1][0][:6], 'Usage:')
 		shown = [line for _, lines in worker.help_sections() for line in lines]
-		self.assertIn('.movers [percent|top|bottom|session|premarket] [period]', shown)
-		self.assertFalse([line for line in shown if line.startswith(('.session', '.premarket'))])
+		self.assertIn('/movers [percent|top|bottom|session|premarket] [period]', shown)
+		self.assertFalse([line for line in shown if line.startswith(('/session', '/premarket'))])
 
 	def test_exdividend_is_the_ex_dividend_report(self):
 		""".exdividend and .ex-dividend are .dividend: the ex-dividend dates, not a stock named EXDIVIDEND."""
@@ -128,7 +128,7 @@ class ReportFunctions(FinbotCase):
 		for command in worker.COMMANDS:
 			for line in command.usage:
 				with self.subTest(line=line):
-					self.assertIn(line, text)
+					self.assertIn(worker.slashed(line), text)
 					called = worker.read(line.replace('SYMBOL', 'T1'), BOT)[0]
 					self.assertIs(called, command)
 
@@ -154,7 +154,7 @@ class ReportFunctions(FinbotCase):
 				self.assertEqual(self.sent, typed)
 				self.sent.clear()
 				worker.job_commands()[text[1:]].run(unbuttoned, words=[])
-				usage = f"Usage: {text} [PORTFOLIO]" + ('' if text == '.holdings' else ' [sector]')
+				usage = f"Usage: {worker.slashed(text)} [PORTFOLIO]" + ('' if text == '.holdings' else ' [sector]')
 				self.assertEqual(self.sent, [('text', [usage, 'Portfolios: Rob'])])
 
 	def test_prepare_marketcap(self):
@@ -377,7 +377,7 @@ class ReportFunctions(FinbotCase):
 
 	def test_price_usage(self):
 		""".price with more than eight tickers gets its usage, from the command table, typed as .compare too."""
-		usage = ['Usage: .price [SYMBOL ... up to 8] [period]']
+		usage = ['Usage: /price [SYMBOL ... up to 8] [period]']
 		for name in ('.price', '.compare'):
 			with self.subTest(name=name):
 				self.assertEqual(self.command(name + ' T1 T2 T3 T4 T5 T6 T7 T8 T9'), [('text', usage)])
@@ -386,8 +386,8 @@ class ReportFunctions(FinbotCase):
 		""".compare, .history and .chart are .price by names .help and the slash commands leave out: one stock's line,
 		two or more rebased, and bare the first ticker's, with the buttons to pick others."""
 		shown = [line for _, lines in worker.help_sections() for line in lines]
-		self.assertIn('.price [SYMBOL ... up to 8] [period]', shown)
-		self.assertFalse([line for line in shown if line.startswith(('.compare', '.history', '.chart'))])
+		self.assertIn('/price [SYMBOL ... up to 8] [period]', shown)
+		self.assertFalse([line for line in shown if line.startswith(('/compare', '/history', '/chart'))])
 		self.assertFalse({'compare', 'history', 'chart'} & {slash.name for slash in worker.slash_commands()})
 		for typed in ('T1 7d', 'T1 T2', ''):
 			price = self.command(f'.price {typed}')
@@ -930,7 +930,7 @@ class CommandJobs(FinbotCase):
 				self.assertEqual(self.sent, posted)
 		self.sent.clear()
 		worker.job_commands()['price'].run(chat, words=[f'T{i}' for i in range(9)])
-		self.assertEqual(self.sent, [('text', ['Usage: .price [SYMBOL ... up to 8] [period]'])])
+		self.assertEqual(self.sent, [('text', ['Usage: /price [SYMBOL ... up to 8] [period]'])])
 
 
 class WithoutSharesight(FinbotCase):
