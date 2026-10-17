@@ -217,16 +217,16 @@ class DefaultJobs(unittest.TestCase):
 			'performance · bi-annual, 2 Jan and 2 Jul at 8:30am Sydney',
 			'movers · bi-annual, 2 Jan and 2 Jul at 8:30am Sydney', 'performance · annual, 2 Jan at 8:30am Sydney',
 			'movers · annual, 2 Jan at 8:30am Sydney',
-			'message: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 · annual, 31 Mar at 8:30am Sydney',
-			'message: SPCX IPO anniversary · annual, 12 Jun at 8:30am Sydney',
-			'message: 💸 Realise capital gains/losses by EOFY June 30 (AU) · annual, 23 Jun at 8:30am Sydney',
-			'message: 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 · annual, 30 Jun at 8:30am Sydney',
-			"message: ✍️ Submit 'Notice of Intent to Claim' for any post-tax … (AU) · annual, 7 Jul at 8:30am Sydney",
-			"message: finbot's birthday · annual, 18 Aug at 8:30am Sydney",
-			'message: 😓 Self-service individual tax returns are due Oct 31 (AU) · annual, 25 Oct at 8:30am Sydney',
-			'message: ubank draw 6/6 … (AU) · once, 28 Oct 2026 at 8:30am Sydney',
-			'message: 😰 Self-service individual tax returns are due today (AU) · annual, 31 Oct at 8:30am Sydney',
-			'message: SPCX 5th mensiversary. End of (statistically) most … · once, 12 Nov 2026 at 8:30am Sydney'])
+			'reminder: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 · annual, 31 Mar at 8:30am Sydney',
+			'reminder: SPCX IPO anniversary · annual, 12 Jun at 8:30am Sydney',
+			'reminder: 💸 Realise capital gains/losses by EOFY June 30 (AU) · annual, 23 Jun at 8:30am Sydney',
+			'reminder: 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 · annual, 30 Jun at 8:30am Sydney',
+			"reminder: ✍️ Submit 'Notice of Intent to Claim' for any post-tax … (AU) · annual, 7 Jul at 8:30am Sydney",
+			"reminder: finbot's birthday · annual, 18 Aug at 8:30am Sydney",
+			'reminder: 😓 Self-service individual tax returns are due Oct 31 (AU) · annual, 25 Oct at 8:30am Sydney',
+			'reminder: ubank draw 6/6 … (AU) · once, 28 Oct 2026 at 8:30am Sydney',
+			'reminder: 😰 Self-service individual tax returns are due today (AU) · annual, 31 Oct at 8:30am Sydney',
+			'reminder: SPCX 5th mensiversary. End of (statistically) most … · once, 12 Nov 2026 at 8:30am Sydney'])
 
 	def test_a_message_for_one_country_only_there_with_its_flag(self):
 		"""A message for one country is a default job only where it is the country_code setting, with its flag."""
@@ -303,7 +303,7 @@ class DirectMessages(FinbotCase):
 		self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {'dm': True}) # still a DM
 
 	def test_a_chat_seen_says_whether_it_is_a_direct_message(self):
-		"""At a chat's first command it starts with its default jobs off where it is a direct message: Discord's update
+		"""At a chat's first command it starts with its default jobs off where it is a direct reminder: Discord's update
 		says so, Telegram's chat id does."""
 		self.env(discordBotToken='x')
 		s = jobs.Scheduler(clock=lambda: OCTOBER)

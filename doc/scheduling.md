@@ -9,7 +9,7 @@ direct message with the bot, until the chat switches them. finbot knows a chat f
 channel on Slack, and on Discord a message from no server.
 
 ## The menu
-`/jobs` lists the chat's jobs, numbered, a page at a time. Each line shows ✅ (on) or the line struck through (off), a `*` if the job has
+`/jobs` lists the chat's jobs, numbered, a page at a time, the reports first, then the reminders, each under its own heading. Each line shows ✅ (on) or the line struck through (off), a `*` if the job has
 never run, its name and its schedule in words. Under the list, in italics, is how Add is typed:
 ```
 1. ✅ trades · every 20 mins, Mon 9am – Sat 3pm Sydney
@@ -18,7 +18,7 @@ never run, its name and its schedule in words. Under the list, in italics, is ho
 * not run yet
 
 /jobs add REPORT SCHEDULE
-/jobs add message SCHEDULE "TEXT"
+/jobs add reminder SCHEDULE "TEXT"
 ```
 Under it is one row of buttons, each there only where it has something to act on (**+** always; **Edit** and **Run** with any job, **Upcoming** with one that is on). Each screen is drawn in place of the last:
 * **+**: what the job runs, how often, then the rest down to the minute ([below](#add-step-by-step)).
@@ -36,8 +36,7 @@ A button drawn for a list that has since changed acts on nothing: the screen is 
 Each screen marks its default with `†` (`Sat†`, `09†`) and says _† indicates default_; after the first, **Back** takes a
 step back. Times are by the `timezone` setting's clock.
 
-First what the job runs: a report, or a command of `/help` ([below](#a-job-in-english)). A reminder's text (a
-`message` job), and the stock of `/who` and `/stock`, cannot come from a button, so their screen says how to type
+First what the job runs: a report, or a command of `/help` ([below](#a-job-in-english)). A reminder's text, and the stock of `/who` and `/stock`, cannot come from a button, so their screen says how to type
 them; `/treemap`, `/holdings` and `/price` run as typed bare. Then how often:
 
 | how often | then | added as, for example |
@@ -66,7 +65,7 @@ Or type:
 /jobs add movers close weekdays at 4:30pm New York
 /jobs add peg top weekly
 /jobs add price AAPL MSFT 1y monthly
-/jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"
+/jobs add reminder every 31 mar at 8:30am "🥳 Happy EOFY"
 /jobs run 2                runs job 2 now, saying so only if it failed; /jobs run alone: a button per job
 /jobs enable 2             switches job 2 on; /jobs disable 2 off; /jobs toggle 2 the other way
 /jobs delete 36            deletes job 36 (or /jobs remove 36, /jobs del 36)
@@ -78,7 +77,7 @@ A job is a report and what it takes, then when it runs:
   (the 1st), `first day of each month`, `on the 15th`, `quarterly` (1 Jan, Apr, Jul and Oct; `quarterly from feb`: Feb,
   May, Aug and Nov), `bi-annual` (1 Jan and 1 Jul; `bi-annual starting mar`: Mar and Sep), `annual` (1 Jan;
   `annual from aug`), `every 31 mar` (each year) or `on 28 oct 2026` (once).
-* **Time:** `at 9`, `at 9am`, `at 9:30am` or `at 21:30`. Without one, 9am, or 8:30am for a message.
+* **Time:** `at 9`, `at 9am`, `at 9:30am` or `at 21:30`. Without one, 9am, or 8:30am for a reminder.
 * **Repeating:** `every 20 mins`, `hourly`, `hourly at :01`, `every 2 hours` or any other number, counted from
   midnight. It can take days, and a window of hours (`from 10am to 9pm`, `between 9am and 5pm`) or a span across days
   (`from mon 9am to sat 3pm`).
@@ -93,7 +92,7 @@ A job is a report and what it takes, then when it runs:
     4:30pm New York (7:30am local, Tue–Sat)`.
 
 The reports are `trades`, `movers midsession|interday|premarket|close|DAYS`, `earnings`,
-`performance [DAYS]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `message "TEXT"`. A job a chat added
+`performance [DAYS]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `reminder "TEXT"` (`message` works too). A job a chat added
 as `price` before the movers report took its name runs as `movers`; `price` in a job added now is the line chart.
 
 A job can also run a command of `/help`, with what it takes, and posts what the command posts when typed in the chat:
@@ -108,11 +107,11 @@ The period of `performance` and `movers` follows how often the job runs: weekly 
 90, bi-annual 180 and annual 365, and a daily `movers` is the day's moves. A number given (`movers 30 weekly`) is used
 instead.
 
-A **message** posts its text as it is:
+A **reminder** posts its text as it is:
 * The text comes last, in double quotes (or curly quotes, as phones type them). It runs from the first quote to the
   last, so quotes inside it stay, and it may run over several lines.
 * `[text](url)` is a link, and a line wrapped in `_underscores_` is in italics.
-* A one-off message (`on 28 oct 2026`) is deleted after its time has passed, when the list is next shown.
+* A one-off reminder (`on 28 oct 2026`) is deleted after its time has passed, when the list is next shown.
 
 A job that is the same as a default job (the same report, days and times, in a zone with the same clock) switches that
 default job on instead of being added, and brings it back where the chat removed it. A chat can add 30 jobs.
@@ -147,16 +146,16 @@ move as either side's daylight saving changes.
 | 22 | movers | bi-annual, 2 Jan and 2 Jul at 8:30am Sydney |
 | 23 | performance | annual, 2 Jan at 8:30am Sydney |
 | 24 | movers | annual, 2 Jan at 8:30am Sydney |
-| 25 | message: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 | annual, 31 Mar at 8:30am Sydney |
-| 26 | message: SPCX IPO anniversary | annual, 12 Jun at 8:30am Sydney |
-| 27 | message: 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
-| 28 | message: 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
-| 29 | message: ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
-| 30 | message: finbot's birthday | annual, 18 Aug at 8:30am Sydney |
-| 31 | message: 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
-| 32 | message: ubank draw 6/6 … (AU) | once, 28 Oct 2026 at 8:30am Sydney |
-| 33 | message: 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
-| 34 | message: SPCX 5th mensiversary … | once, 12 Nov 2026 at 8:30am Sydney |
+| 25 | reminder: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 | annual, 31 Mar at 8:30am Sydney |
+| 26 | reminder: SPCX IPO anniversary | annual, 12 Jun at 8:30am Sydney |
+| 27 | reminder: 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
+| 28 | reminder: 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
+| 29 | reminder: ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
+| 30 | reminder: finbot's birthday | annual, 18 Aug at 8:30am Sydney |
+| 31 | reminder: 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
+| 32 | reminder: ubank draw 6/6 … (AU) | once, 28 Oct 2026 at 8:30am Sydney |
+| 33 | reminder: 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
+| 34 | reminder: SPCX 5th mensiversary … | once, 12 Nov 2026 at 8:30am Sydney |
 
 * **Market reports run in their market's zone**, so they keep to its session through its daylight saving:
   * pre-market US at 7:15am New York;

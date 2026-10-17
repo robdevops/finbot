@@ -39,7 +39,7 @@ Where:
 /jobs [upcoming|system]
 /jobs enable|disable|delete|run [number]
 /jobs add report schedule
-/jobs add message schedule "text"
+/jobs add reminder schedule "text"
 /marketcap [symbol|top|bottom]
 /movers [percent|top|bottom|session|premarket] [period]
 /pe [symbol|top|bottom|negative]

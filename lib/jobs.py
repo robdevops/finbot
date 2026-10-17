@@ -170,7 +170,7 @@ def make_job(action, args, schedule, chat='', on=True, item=None, name=None):
 
 def display_name(action, args, schedule, label):
 	"""What .jobs calls a job a chat added: performance or movers alone where the period follows how often it runs
-	(catalog.period_args), 'message: ' and its first line, else its parser's label ('earnings', 'movers 30')."""
+	(catalog.period_args), 'reminder: ' and its first line, else its parser's label ('earnings', 'movers 30')."""
 	if action == 'message':
 		return catalog.message_name(args)
 	if action in catalog.PERIODIC and list(args) == catalog.period_args(action, schedule):
@@ -279,16 +279,16 @@ def know(keys, dm=None):
 def parse_add(text, zone):
 	"""What .jobs add was given (its text after add) as (action, arguments, when.Schedule): a report, the arguments it
 	takes and a schedule in English, in zone unless it names one (the arguments end wherever both read), the period of
-	performance and movers following how often it runs where none is given; or message, a schedule, then the text in
-	double quotes (curly ones too), from the first quote to the last, so that quotes inside it stay, over several lines
-	if need be, at 8:30am where it says no time. Raises ScheduleError."""
+	performance and movers following how often it runs where none is given; or reminder (or message), a schedule,
+	then the text in double quotes (curly ones too), from the first quote to the last, so that quotes inside it stay,
+	over several lines if need be, at 8:30am where it says no time. Raises ScheduleError."""
 	name, rest = (text.strip().split(None, 1) + [''])[:2]
 	name = name.lower()
-	if name == 'message':
+	if name in ('message', 'reminder'):
 		start = min((rest.find(quote) for quote in QUOTES if quote in rest), default=-1)
 		end = max(rest.rfind(quote) for quote in QUOTES)
 		if start < 0 or end <= start:
-			raise ScheduleError('a message is a schedule, then its text in double quotes: .jobs add message every 31'
+			raise ScheduleError('a reminder is a schedule, then its text in double quotes: .jobs add reminder every 31'
 				' mar "🥳 Happy EOFY"')
 		return 'message', rest[start + 1:end].replace('\r', '').split('\n'), when.parse(rest[:start], zone, MESSAGE_AT)
 	known, words = actions(), text.split()
@@ -471,11 +471,12 @@ class Scheduler:
 			return {key for key in self.busy if key.partition('|')[0] in (chat, '')}
 
 	def chat_jobs(self, chat):
-		"""A chat's jobs, as .jobs numbers them from 1: the default ones, then those it added, but a one-off gone by."""
+		"""A chat's jobs, as .jobs numbers them from 1: the reports, then the reminders, each the default ones, then
+		those it added, but a one-off gone by."""
 		now = self.clock()
 		with self.lock:
 			jobs = [job for job in self.jobs if job.chat == chat]
-		return [job for job in jobs if not self.expired(job, now)]
+		return sorted((job for job in jobs if not self.expired(job, now)), key=lambda job: job.action == 'message')
 
 	def system_jobs(self):
 		"""The system jobs."""

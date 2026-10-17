@@ -529,10 +529,11 @@ class JobsInChat(ChatBase):
 		schedule in words, then how Add is typed, in italics, over the buttons; a job is removed, a default one too,
 		which stays out of the list."""
 		self.assertEqual(newest(self.say('.jobs add shorts daily at 10pm')), '4. ✅* shorts · daily at 10:00pm')
-		self.assertEqual(self.say('.jobs'), ['<b>Jobs here</b>', '', '1. ✅* rating · Tue–Sat at 8:30am Sydney',
+		self.assertEqual(self.say('.jobs'), ['<b>Jobs here</b>', '', '<b>Reports</b>',
+			'1. ✅* rating · Tue–Sat at 8:30am Sydney',
 			'2. ✅* movers close US · weekdays at 4:30pm New York (7:30am local, Tue–Sat)',
 			'3. ✅* trades · every 20 mins, weekdays UTC', '4. ✅* shorts · daily at 10:00pm', '', '* not run yet', '',
-			'<i>/jobs add REPORT SCHEDULE</i>', '<i>/jobs add message SCHEDULE "TEXT"</i>'])
+			'<i>/jobs add REPORT SCHEDULE</i>', '<i>/jobs add reminder SCHEDULE "TEXT"</i>'])
 		self.assertEqual([[button.label for button in row] for row in self.replies[-1][2]],
 			[['+', 'Edit', 'Run', 'Upcoming']])
 		self.assertEqual(self.say('.jobs del 3'), ['Deleted 3. trades · every 20 mins, weekdays UTC'])
@@ -543,6 +544,17 @@ class JobsInChat(ChatBase):
 		self.assertEqual([job.name for job in self.s.chat_jobs(CHAT)], ['movers close US', 'shorts'])
 		self.assertEqual(self.say('.job remove 2'), ['Deleted 2. shorts · daily at 10:00pm'])
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [], 'deleted': ['rating']})
+
+	def test_the_list_puts_reminders_in_a_section_after_the_reports(self):
+		"""A reminder added after a report is still listed after every report, under its own heading, numbered so."""
+		self.say('.jobs add reminder daily at 9am "first"')
+		self.say('.jobs add shorts daily at 10pm')
+		lines = self.say('.jobs')
+		self.assertEqual([line for line in lines if line.startswith('<b>')], ['<b>Jobs here</b>', '<b>Reports</b>',
+			'<b>Reminders</b>'])
+		at = lines.index('<b>Reminders</b>')
+		self.assertEqual(lines[at - 2:at + 2], ['4. ✅* shorts · daily at 10:00pm', '', '<b>Reminders</b>',
+			'5. ✅* reminder: first · daily at 9:00am'])
 
 	def test_a_command_of_help_as_a_job(self):
 		""".jobs add takes a command of .help, with its words; the job is listed by its name and words, and runs as the
@@ -585,14 +597,14 @@ class JobsInChat(ChatBase):
 		that quotes inside it stay; over several lines if need be; at 8:30am where it says no time. A job runs the
 		message action with its lines."""
 		added = self.say('.jobs add message every 31 mar "🥳 Happy "EOFY" everyone"')
-		self.assertEqual(newest(added), '4. ✅* message: 🥳 Happy "EOFY" everyone · annual, 31 Mar at 8:30am')
+		self.assertEqual(newest(added), '4. ✅* reminder: 🥳 Happy "EOFY" everyone · annual, 31 Mar at 8:30am')
 		self.say('.jobs add message on 28 oct 2026 at 9am “line one\nline [two](https://x.example)”')
 		stored = state.load(jobs.JOBS_FILE)[CHAT]['jobs']
 		self.assertEqual([job['args'] for job in stored[1:]], [['🥳 Happy "EOFY" everyone'],
 			['line one', 'line [two](https://x.example)']])
 		self.assertIsNone(self.say('.jobs run 5'))
 		self.assertEqual(self.ran, [('message', {'lines': ['line one', 'line [two](https://x.example)']})])
-		self.assertIn('a message is a schedule, then its text in double quotes',
+		self.assertIn('a reminder is a schedule, then its text in double quotes',
 			self.say('.jobs add message daily "no end')[0])
 
 	def test_add_alone_lists_the_reports_a_job_can_run(self):
@@ -600,7 +612,7 @@ class JobsInChat(ChatBase):
 		and examples."""
 		lines = self.say('.jobs add')
 		self.assertEqual(lines[0], '<b>What a job can run:</b>')
-		for line in ('message "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
+		for line in ('reminder "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
 				'movers midsession|interday|premarket|close|DAYS', 'trades', '.jobs add movers weekly', 'beta',
 				'peg [SYMBOL|top|bottom|negative]', 'price [SYMBOL ... up to 8] [period]', '.jobs add peg top weekly'):
 			self.assertIn(line, lines)
@@ -624,7 +636,7 @@ class JobsInChat(ChatBase):
 		"""A job's name and what was typed are text, not markup, wherever they are said back: a message job's run,
 		its deletion, and a report or number that is none."""
 		self.say('.jobs add message daily at 9am "R&D <b>soon</b>"')
-		name = 'message: R&amp;D &lt;b&gt;soon&lt;/b&gt;'
+		name = 'reminder: R&amp;D &lt;b&gt;soon&lt;/b&gt;'
 		self.s.claim(self.s.chat_jobs(CHAT)[3].key) # as if it were running: its run says so
 		self.assertEqual(self.say('.jobs run 4'), [f'4. {name}: already running'])
 		self.assertEqual(self.say('.jobs del 4'), [f'Deleted 4. {name} · daily at 9:00am'])
@@ -1031,7 +1043,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual(newest(self.press(data['08:00†'])[0]), '4. ✅* shorts · once, 20 Feb 2027 at 8:00am')
 		lines, rows, _ = self.press(f'm|add|11|{self.crc()}')
 		self.assertEqual(lines[:3], ['<b>Add a reminder</b>', "A reminder's text is what you type:",
-			'.jobs add message SCHEDULE "TEXT"'])
+			'.jobs add reminder SCHEDULE "TEXT"'])
 		self.assertEqual(rows, [['Back', 'Cancel']])
 
 	def test_the_commands_of_help_by_buttons(self):
@@ -1110,7 +1122,7 @@ class JobsMenu(ChatBase):
 			fits(service, *about.added_screen(service, CHAT, 1))
 			fits(service, *about.add_failed(service, CHAT, ['5', 'd', '9'], 'that job is here already'))
 		pages = len({about.jobs_screen(DISCORD, CHAT, 'on', page)[0][0] for page in range(6)})
-		self.assertEqual(pages, 4) # 64 jobs, 16 to a page on Discord
+		self.assertEqual(pages, 5) # 64 jobs, at most 16 to a page on Discord, fewer where their lines fill it
 		self.assertEqual(len({about.jobs_screen(TELEGRAM, CHAT, 'top', page)[0][0] for page in range(6)}), 2)
 
 class ReportImports(FinbotCase):
