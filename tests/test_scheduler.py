@@ -1,7 +1,7 @@
 """The scheduler (lib/jobs.py): each chat's jobs (the default ones and those it added) and the system jobs running on a
 fake clock, across the clocks' changes; .jobs in a chat, its menu of buttons and the steps of Add; each job run in the
 bot's process, past its deadline too."""
-import contextlib, datetime, io, os, subprocess, sys, tempfile, time, unittest
+import contextlib, datetime, io, os, re, subprocess, sys, tempfile, time, unittest
 import zoneinfo
 from pathlib import Path
 from unittest import mock
@@ -143,6 +143,11 @@ ITEMS = catalog.ITEMS # the default jobs: SchedulerBase takes them out, DefaultJ
 FEW = (catalog.Item('rating', 'rating', 'rating', (), catalog.at(catalog.TUE_SAT)), # two default jobs, for the menu
 	catalog.Item('price-close-us', 'movers close US', 'movers', ('close',), catalog.at('weekdays', '16:30',
 		catalog.NEW_YORK)))
+
+
+def newest(lines):
+	"""The job just added, in bold in the list that shows it: its line, without the markup."""
+	return next(line for line in lines if re.match(r'<b>\d+\. ', line))[3:-4]
 
 
 def entry(text, on=True, zone='UTC'):
@@ -523,8 +528,7 @@ class JobsInChat(ChatBase):
 		"""A job is added; the list shows each job with its number, its switch, * till it runs, its name and its
 		schedule in words, then how Add is typed, in italics, over the buttons; a job is removed, a default one too,
 		which stays out of the list."""
-		self.assertEqual(self.say('.jobs add shorts daily at 10pm'), ['4. ✅* shorts · daily at 10:00pm',
-			'Added: .jobs lists them all'])
+		self.assertEqual(newest(self.say('.jobs add shorts daily at 10pm')), '4. ✅* shorts · daily at 10:00pm')
 		self.assertEqual(self.say('.jobs'), ['<b>Jobs here</b>', '', '1. ✅* rating · Tue–Sat at 8:30am Sydney',
 			'2. ✅* movers close US · weekdays at 4:30pm New York (7:30am local, Tue–Sat)',
 			'3. ✅* trades · every 20 mins, weekdays UTC', '4. ✅* shorts · daily at 10:00pm', '', '* not run yet', '',
@@ -543,8 +547,7 @@ class JobsInChat(ChatBase):
 	def test_a_command_of_help_as_a_job(self):
 		""".jobs add takes a command of .help, with its words; the job is listed by its name and words, and runs as the
 		command does, posting what it posts; a command that changes something is no job."""
-		self.assertEqual(self.say('.jobs add pe top weekly'), ['4. ✅* pe top · weekly, Saturdays at 9:00am',
-			'Added: .jobs lists them all'])
+		self.assertEqual(newest(self.say('.jobs add pe top weekly')), '4. ✅* pe top · weekly, Saturdays at 9:00am')
 		self.sent.clear()
 		self.assertIsNone(self.say('.jobs run 4')) # what it posts shows it ran
 		self.assertTrue(self.sent or self.replies[:-1]) # what .pe top posts
@@ -573,7 +576,7 @@ class JobsInChat(ChatBase):
 				('trades every 20 mins weekdays from 10am to 4pm', 'trades · every 20 mins, weekdays 10am–4pm', [])):
 			with self.subTest(text=text):
 				added = self.say(f'.jobs add {text}')
-				self.assertEqual(added, [f'4. ✅* {line}', 'Added: .jobs lists them all'])
+				self.assertEqual(newest(added), f'4. ✅* {line}')
 				self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['jobs'][-1]['args'], args)
 				self.say('.jobs del 4')
 
@@ -581,8 +584,8 @@ class JobsInChat(ChatBase):
 		"""A message is a schedule, then its text in double quotes (curly ones too), from the first to the last, so
 		that quotes inside it stay; over several lines if need be; at 8:30am where it says no time. A job runs the
 		message action with its lines."""
-		self.assertEqual(self.say('.jobs add message every 31 mar "🥳 Happy "EOFY" everyone"'),
-			['4. ✅* message: 🥳 Happy "EOFY" everyone · annual, 31 Mar at 8:30am', 'Added: .jobs lists them all'])
+		added = self.say('.jobs add message every 31 mar "🥳 Happy "EOFY" everyone"')
+		self.assertEqual(newest(added), '4. ✅* message: 🥳 Happy "EOFY" everyone · annual, 31 Mar at 8:30am')
 		self.say('.jobs add message on 28 oct 2026 at 9am “line one\nline [two](https://x.example)”')
 		stored = state.load(jobs.JOBS_FILE)[CHAT]['jobs']
 		self.assertEqual([job['args'] for job in stored[1:]], [['🥳 Happy "EOFY" everyone'],
@@ -639,12 +642,13 @@ class JobsInChat(ChatBase):
 		"""A job typed as a default one is (in a zone that keeps its clock: Melbourne for Sydney) switches that one on,
 		and brings it back where it was removed; nothing more is stored."""
 		self.say('.jobs toggle 1')
-		self.assertEqual(self.say('.jobs add rating tue-sat at 8:30am'), ['1. ✅* rating · Tue–Sat at 8:30am Sydney',
-			'Added: .jobs lists them all'])
+		added = self.say('.jobs add rating tue-sat at 8:30am')
+		self.assertEqual(newest(added), '1. ✅* rating · Tue–Sat at 8:30am Sydney')
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [entry('trades every 20 mins weekdays')]})
 		self.say('.jobs remove 1')
 		self.assertEqual([job.name for job in self.s.chat_jobs(CHAT)], ['movers close US', 'trades'])
-		self.assertEqual(self.say('.jobs add rating tue-sat at 8:30am')[0], '1. ✅* rating · Tue–Sat at 8:30am Sydney')
+		added = self.say('.jobs add rating tue-sat at 8:30am')
+		self.assertEqual(newest(added), '1. ✅* rating · Tue–Sat at 8:30am Sydney')
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [entry('trades every 20 mins weekdays')]})
 
 	def test_run_a_job_now(self):
@@ -935,8 +939,9 @@ class JobsMenu(ChatBase):
 		lines, rows, data = self.press(data['14'])
 		self.assertEqual((rows[0], rows[-1]), (['14:00†', '14:05', '14:10', '14:15'], ['Back', 'Cancel']))
 		lines, rows, data = self.press(data['14:30'])
-		self.assertEqual(lines, ['Added: 4. ✅* movers · weekly, Fridays at 2:30pm'])
-		self.assertEqual((rows, data['Done']), ([['Add another', 'Done']], f'm|top|0|{self.crc()}')) # Done: the list
+		self.assertEqual(newest(lines), '4. ✅* movers · weekly, Fridays at 2:30pm')
+		self.assertEqual((lines[0], rows, data['+']), ('Added', [['+', 'Edit', 'Run', 'Upcoming']],
+			f'm|add|{self.crc()}')) # the whole list, the job added in bold, with the list's buttons
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['jobs'][-1], entry('movers every friday at 2:30pm',
 			zone='Australia/Melbourne'))
 		self.assertIn('that job is here already', self.say('.jobs add movers weekly on friday at 14:30')[0])
@@ -953,7 +958,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual(lines[0], '<b>Add performance, monthly, the 15th: at what hour?</b>')
 		lines, rows, data = self.press(data['09†'])
 		lines, rows, data = self.press(data['09:00†'])
-		self.assertEqual(lines, ['Added: 4. ✅* performance · monthly, the 15th at 9:00am'])
+		self.assertEqual(newest(lines), '4. ✅* performance · monthly, the 15th at 9:00am')
 		for frequency, start, said, added in (('quarterly', 'Feb', 'quarterly, Feb/May/Aug/Nov',
 				'quarterly, 15 Feb/May/Aug/Nov at 9:00am'), ('bi-annual', 'Mar', 'bi-annual, Mar and Sep',
 				'bi-annual, 15 Mar and 15 Sep at 9:00am'), ('annual', 'Apr', 'annual, in Apr',
@@ -968,7 +973,7 @@ class JobsMenu(ChatBase):
 				self.assertEqual(lines[0], f'<b>Add movers, {said}: on which day of the month?</b>')
 				for pressed in ('15', '09†', '09:00†'):
 					lines, rows, data = self.press(data[pressed])
-				self.assertTrue(lines[0].endswith(f'✅* movers · {added}'), lines)
+				self.assertTrue(newest(lines).endswith(f'✅* movers · {added}'), lines)
 		lines, rows, data = self.press(f'm|add|5|a|2|{self.crc()}')
 		self.assertEqual((lines[0], rows[-2]), ('<b>Add movers, annual, in Feb: on which day of the month?</b>',
 			['26', '27', '28', '29']))
@@ -984,7 +989,7 @@ class JobsMenu(ChatBase):
 		lines, rows, data = self.press(data['weekday†'])
 		self.assertEqual(lines[0], '<b>Add movers, weekdays: at what hour?</b>')
 		lines, rows, data = self.press(data['09†'])
-		self.assertEqual(self.press(data['09:00†'])[0], ['Added: 4. ✅* movers · weekdays at 9:00am'])
+		self.assertEqual(newest(self.press(data['09:00†'])[0]), '4. ✅* movers · weekdays at 9:00am')
 		lines, rows, data = self.press(f'm|add|9|h|{self.crc()}')
 		self.assertEqual((lines[0], rows[0]), ('<b>Add shorts, hourly: on which days?</b>', ['every day†', 'weekdays']))
 		lines, rows, data = self.press(data['weekdays'])
@@ -995,12 +1000,12 @@ class JobsMenu(ChatBase):
 		lines, rows, data = self.press(data[':05'])
 		self.assertEqual((lines[0], rows[0], rows[-2:]), ('<b>Add shorts, hourly at :05, weekdays from 10am: end'
 			' time?</b>', ['11:05', '12:05', '13:05', '14:05'], [['23:05', 'end of day†'], ['Back', 'Cancel']]))
-		self.assertEqual(self.press(data['16:05'])[0], ['Added: 5. ✅* shorts · hourly at :05, weekdays 10am–4pm'])
-		self.assertEqual(self.press(f'm|add|10|h|d|0|0|e|{self.crc()}')[0], ['Added: 6. ✅* rating · hourly'])
-		self.assertEqual(self.press(f'm|add|11|r|20|k|10|5|965|{self.crc()}')[0], ['Added: 7. ✅* milestone · every 20'
-			' mins, weekdays 10:05am–4:05pm'])
-		self.assertEqual(self.press(f'm|add|7|r|20|k|0|0|e|{self.crc()}')[0], ['Added: 8. ✅* cal earnings · every 20'
-			' mins, weekdays'])
+		self.assertEqual(newest(self.press(data['16:05'])[0]), '5. ✅* shorts · hourly at :05, weekdays 10am–4pm')
+		self.assertEqual(newest(self.press(f'm|add|10|h|d|0|0|e|{self.crc()}')[0]), '6. ✅* rating · hourly')
+		self.assertEqual(newest(self.press(f'm|add|11|r|20|k|10|5|965|{self.crc()}')[0]),
+			'7. ✅* milestone · every 20 mins, weekdays 10:05am–4:05pm')
+		self.assertEqual(newest(self.press(f'm|add|7|r|20|k|0|0|e|{self.crc()}')[0]),
+			'8. ✅* cal earnings · every 20 mins, weekdays')
 		screen = about.add_screen(DISCORD, CHAT, ['5', 'h', 'd', '0', '0'])
 		rows = [[button.label for button in row] for row in screen[1]]
 		self.assertEqual((len(rows), rows[-1]), (5, ['21:00', '22:00', '23:00', 'end of day†', 'Back'])) # 25 buttons
@@ -1024,7 +1029,7 @@ class JobsMenu(ChatBase):
 		lines, rows, data = self.press(data['20'])
 		self.assertEqual(lines[0], '<b>Add shorts, once, 20 Feb 2027: at what hour?</b>')
 		lines, rows, data = self.press(data['08'])
-		self.assertEqual(self.press(data['08:00†'])[0], ['Added: 4. ✅* shorts · once, 20 Feb 2027 at 8:00am'])
+		self.assertEqual(newest(self.press(data['08:00†'])[0]), '4. ✅* shorts · once, 20 Feb 2027 at 8:00am')
 		lines, rows, _ = self.press(f'm|add|12|{self.crc()}')
 		self.assertEqual(lines[:3], ['<b>Add a reminder</b>', "A reminder's text is what you type:",
 			'.jobs add message SCHEDULE "TEXT"'])
@@ -1037,12 +1042,12 @@ class JobsMenu(ChatBase):
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
 		for pressed in ('pe', 'weekly', 'Fri', '09†', '09:00†'):
 			lines, rows, data = self.press(data[pressed])
-		self.assertEqual(lines, ['Added: 4. ✅* pe · weekly, Fridays at 9:00am'])
+		self.assertEqual(newest(lines), '4. ✅* pe · weekly, Fridays at 9:00am')
 		self.assertEqual(self.s.chat_jobs(CHAT)[-1].action, 'pe')
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
 		for pressed in ('treemap', 'weekly', 'Fri', '09†', '09:00†'):
 			lines, rows, data = self.press(data[pressed])
-		self.assertEqual(lines, ['Added: 5. ✅* treemap · weekly, Fridays at 9:00am'])
+		self.assertEqual(newest(lines), '5. ✅* treemap · weekly, Fridays at 9:00am')
 		self.assertEqual((self.s.chat_jobs(CHAT)[-1].action, self.s.chat_jobs(CHAT)[-1].kwargs), ('treemap',
 			{'words': []}))
 		lines, rows, data = self.press(f'm|add|{self.crc()}')

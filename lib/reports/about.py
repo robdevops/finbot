@@ -53,7 +53,7 @@ MOST_REPORTS = {'discord': 16} # Add's reports on a page, four to a row: Discord
 YEARS = 10 # the years a one-off may be in, this one first
 CROWDED = 20 # a screen of more choices takes them in rows of five, Back last: Discord takes 25 buttons
 
-def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
+def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, highlight=None):
 	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each ✅ (on) or struck through (off),
 	* where it has never run, its name and its schedule in words, by the timezone setting's clock (lib/when.py), then
 	the key to the marks shown. top has what can be done in one row (+ to add, and where there is a job to act on, Edit,
@@ -61,7 +61,8 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
 	screen acts on (acts), which switches it on or off, deletes it or runs it now, and Enable all, Disable all or Delete
 	all. A page at a time, as many jobs as a message of the network takes (◀ and More ▶ for the others), after a note of
 	what the last press did. A one-off gone by is deleted first. Returns (lines, buttons); where the chat takes no
-	buttons (tappable false), the whole list and what to type instead."""
+	buttons (tappable false), the whole list and what to type instead. The job numbered `highlight` is in bold, on its
+	page."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
@@ -70,7 +71,11 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
 	running, local, now = scheduler.running(chat), formats.zone().key, scheduler.clock()
 	entries = [(number, job, job_entry(service, scheduler, number, job, running, local, now))
 		for number, job in enumerate(own, 1)]
+	if highlight:
+		entries = [(number, job, service.bold(line) if number == highlight else line) for number, job, line in entries]
 	parts = paged(entries, service) if tappable else [entries]
+	if highlight:
+		page = next((i for i, part in enumerate(parts) if any(number == highlight for number, _, _ in part)), page)
 	page = min(max(page, 0), len(parts) - 1)
 	shown = parts[page]
 	span = f' ({shown[0][0]}–{shown[-1][0]} of {len(own)})' if len(parts) > 1 else ''
@@ -423,13 +428,10 @@ def choice(text, low, high):
 		raise ValueError(f'no choice {text!r}')
 	return int(text)
 
-def added_screen(service, chat, number):
-	"""What the last step of Add shows: the job added, with its number in the list; Add another, and Done, which goes
-	back to the list."""
-	own = jobs.current.chat_jobs(chat)
-	crc = jobs.list_checksum(own)
-	return [f"Added: {job_entry(service, jobs.current, number, own[number - 1])}"], [[buttons.menu_button(
-		'Add another', 'add', [], crc), buttons.menu_button('Done', 'top', [0], crc)]]
+def added_screen(service, chat, number, tappable=True):
+	"""What the last step of Add shows: the whole list, the job added in bold, with the buttons of the list (+ adds
+	another)."""
+	return jobs_screen(service, chat, 'top', 0, 'Added', tappable, number)
 
 def add_failed(service, chat, steps, why):
 	"""What the last step of Add shows when the job cannot be added: why, with Back to the last choice and Cancel."""

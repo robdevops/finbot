@@ -53,7 +53,8 @@ them; `/pie`, `/treemap`, `/holdings` and `/price` run as typed bare. Then how o
 | every... | 5, 10, 15, 20 or 30 mins, or 2, 3, 4, 6 or 12 hours, then as hourly; or weekday, then the hour and the minute | every 20 mins, weekdays 10:05am–4:05pm; weekdays at 9:00am |
 
 A span across days (`every 20 mins from mon 9am to sat 3pm`), or a window of hours across midnight, is typed. The last
-screen says what was added, with **Add another** and **Done**, back to the list.
+screen is the whole list, headed "Added", the new job in bold, with the list's buttons (**+** adds another). A job added by
+`/jobs add` shows the same.
 
 Or type:
 ```

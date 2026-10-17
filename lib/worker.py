@@ -742,8 +742,8 @@ def on_jobs(request, args):
 			if not text.strip():
 				return request.reply(about.prepare_reports(service))
 			number = scheduler.add(chat, *jobs.parse_add(text, formats.zone().key))
-			request.reply([about.job_entry(service, scheduler, number, scheduler.chat_jobs(chat)[number - 1]),
-				'Added: .jobs lists them all'])
+			lines, markup = about.added_screen(service, chat, number, tappable)
+			request.reply(lines, buttons=markup)
 		elif args.keyword in JOB_SCREENS and not args.words:
 			lines, markup = about.jobs_screen(service, chat, JOB_SCREENS[args.keyword], tappable=tappable)
 			request.reply(lines, buttons=markup)
