@@ -140,12 +140,14 @@ class ReportFunctions(FinbotCase):
 		self.assertTrue(any('>Rob</a>' in line for line in payload), payload)
 
 	def test_a_holding_is_grouped_by_sector_industry_country_currency_or_market(self):
-		"""group_of: a holding's sector, industry, its market's country (flag and letters), currency or market; a
-		holding without one is Unclassified; .treemap takes each as a word, in the plural too."""
+		"""group_of: a holding's sector, industry, its market's country (its letters), currency or market; a
+		holding without one is Unclassified; .treemap takes each as a word, in the plural too; the caption's country
+		lines have the flag the chart's font cannot draw."""
+		self.assertEqual((holdings.flag('au'), holdings.flag('Other'), holdings.flag('')), ('🇦🇺 ', '', ''))
 		holding = {'market_code': 'ASX', 'currency_code': 'AUD', 'sector_classification_name': 'Energy',
 			'industry_classification_name': 'Oil'}
 		self.assertEqual([holdings.group_of(holding, by) for by in holdings.GROUPS.values()],
-			['Energy', 'Oil', '🇦🇺 AU', 'AUD', 'ASX'])
+			['Energy', 'Oil', 'AU', 'AUD', 'ASX'])
 		self.assertEqual({holdings.group_of({}, by) for by in holdings.GROUPS.values()}, {'Unclassified'})
 		self.assertEqual([self.command(f'.treemap Rob {word}')[0][2].split(' by ')[1] for word in
 			('countries', 'currency', 'markets')], ['country</b>', 'currency</b>', 'market</b>'])

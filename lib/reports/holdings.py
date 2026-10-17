@@ -44,13 +44,19 @@ NOUNS = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries')
 
 def group_of(holding, by):
 	"""The group a Sharesight holding is in by `by` (a value of GROUPS): its sector or industry, its market's country
-	(flag and letters), its currency or its market; 'Unclassified' where it has none."""
+	(its letters: the charts' font draws no flags), its currency or its market; 'Unclassified' where it has none."""
 	market = holding.get('market_code') or ''
-	country = f"{markets.flag_from_market(market)} {markets.exchange_human(market)}".strip() if market else ''
+	country = markets.exchange_human(market) if market else ''
 	label = {'sector': holding.get('sector_classification_name'),
 		'industry': holding.get('industry_classification_name'), 'country': country,
 		'currency': holding.get('currency_code'), 'market': market}[by]
 	return label or 'Unclassified'
+
+def flag(letters):
+	"""The flag of a country by its two letters ('AU'), with a space after it, where they are two; else nothing."""
+	if len(letters) != 2 or not letters.isalpha():
+		return ''
+	return ''.join(chr(ord('🇦') + ord(letter) - ord('A')) for letter in letters.upper()) + ' '
 
 def _groups(portfolio, by):
 	"""The holdings of a portfolio with a value, by `by` (a value of GROUPS): {group: [(code, value), ...]}."""
@@ -86,7 +92,8 @@ def prepare_treemap(portfolio_name, by, service, max_groups=8):
 	total = sum(value for _, held in rows for _, value in held)
 	title = f"{name} treemap by {by}"
 	payload = [service.bold(title)]
-	payload += [f"{label}: {sum(value for _, value in held) / total * 100:.1f}%" for label, held in rows]
+	payload += [f"{flag(label) if by == 'country' else ''}{label}: {sum(value for _, value in held) / total * 100:.1f}%"
+		for label, held in rows]
 	count = sum(len(held) for held in groups.values())
 	subtitle = f"{_noun(by, len(groups))}, {count} {'holding' if count == 1 else 'holdings'}"
 	return payload, render.Chart('treemap', title, subtitle, tuple((label, tuple(held)) for label, held in rows))
