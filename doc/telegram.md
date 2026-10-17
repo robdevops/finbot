@@ -19,7 +19,7 @@ under charts and the buttons of the `/jobs` menu, "typing…" while a command wo
 common commands in a direct chat with the bot.
 
 As finbot starts, it sets the bot's command menu, which Telegram shows when `/` is typed: each command with its usage
-(`/price`, `/forwardpe`, `/stock` and the rest). `/profile` and `/job`, the second names of `/stock` and `/jobs`, are
+(`/price`, `/pe`, `/stock` and the rest). `/profile` and `/job`, the second names of `/stock` and `/jobs`, are
 left out of the menu (as on Slack and Discord), and work when typed, as every name of a command does. In a group, `/price@finbot_bot` is the same
 as `/price`.
 

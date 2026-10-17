@@ -292,13 +292,13 @@ class Commands(FinbotCase):
 	"""The slash commands, one per .help line, from the command table, as every network registers them."""
 
 	def test_each_help_line_is_a_slash_command_that_reads_as_its_command(self):
-		"""Each .help line has a slash command, named as a slash command may be (.forward pe is /forwardpe), and
+		"""Each .help line has a slash command, named as a slash command may be (a multi-word name is joined), and
 		/help and /stock besides, and none for a command's other names (/profile, /job); each reads as its command, its
 		arguments where it takes any."""
 		commands = worker.slash_commands()
 		names = [name for name, _, _, _ in commands]
 		self.assertEqual(len(names), len(set(names)))
-		for expected in ('help', 'earningsdividend', 'buysell', 'forwardpe', 'stock',
+		for expected in ('help', 'earningsdividend', 'buysell', 'pe', 'stock',
 				'jobs', 'price', 'movers'):
 			self.assertIn(expected, names)
 		gone = {'profile', 'job', 'session', 'premarket', 'pie', 'plan', 'buy', 'sell', 'earnings', 'dividend'}
@@ -357,7 +357,7 @@ class Commands(FinbotCase):
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None: sent.append(lines) or [])
 		message = inbound.Message('discord', '77', '<@5>', '/help', '@99', 'Rob', '', '42/tok')
 		worker.process_request(message)
-		self.assertIn('/forwardpe [SYMBOL|top|bottom|negative]', sent[0])
+		self.assertIn('/pe [SYMBOL|top|bottom|negative]', sent[0])
 		self.assertIn('/stock SYMBOL', sent[0])
 		self.assertIn('.price, or <@99> price', sent[0])
 		self.env(discordOutgoingWebhook='https://example.com/discord')
@@ -400,7 +400,7 @@ class Suggestions(FinbotCase):
 		self.assertEqual(self.values('/movers 7d 1'), []) # a period given: none again
 		self.assertEqual(self.values('/price '), [*periods, 'BHP.AX', 'MSFT', 'NVDA'])
 		self.assertEqual(self.values('/price B'), ['BHP.AX'])
-		self.assertEqual(self.values('/forwardpe n'), ['negative', 'NVDA'])
+		self.assertEqual(self.values('/pe n'), ['negative', 'NVDA'])
 		self.assertEqual(self.values('/price MSFT n'), ['MSFT NVDA'])
 		self.assertEqual(self.values('/stock '), ['BHP.AX', 'MSFT', 'NVDA'])
 		self.assertEqual(self.values('/stock ', chat='discord:88'), ['BHP.AX', 'NVDA', 'TSLA'])

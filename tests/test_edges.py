@@ -218,7 +218,7 @@ class CommandArguments(FinbotCase):
 		"""A command is called by its whole name, in any case and from any of its prefixes; a word that only starts with
 		one is a ticker (.planet used to save the plan "et"), and the bot's name among the arguments is left out."""
 		for message, name in (('.MOVERS 7d', 'movers'), ('! movers', 'movers'), ('/movers@bot 7d', 'movers'),
-				('@bot movers', 'movers'), ('.forward PE top', 'forward pe'), ('.PE', 'pe'), ('.buy/sell', 'buysell'),
+				('@bot movers', 'movers'), ('.forward PE top', 'pe'), ('.PE', 'pe'), ('.buy/sell', 'buysell'),
 				('.movers @bot', 'movers'), ('.PRICE T1', 'price'), ('/price@bot T1', 'price'),
 				('.compare T1', 'price')):
 			with self.subTest(message=message):
@@ -265,7 +265,7 @@ class CommandArguments(FinbotCase):
 	def test_a_ratio_command_reads_its_ticker_as_the_other_commands_do(self):
 		""".pe t1 reads its ticker in any case, and a trailing space after top is fine."""
 		self.assertIn('Co T1 ', str(self.command('.pe t1')))
-		self.assertIn('Top 15 tracked stocks by pe ratio', str(self.command('.pe top '))) # trailing space and all
+		self.assertIn('Top 15 tracked stocks by forward pe ratio', str(self.command('.pe top '))) # trailing space
 
 	def test_the_greetings_are_gone(self):
 		"""hi @bot gets no answer, and .hello and .thanks are tickers like any word."""

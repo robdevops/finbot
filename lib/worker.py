@@ -575,10 +575,10 @@ def on_marketcap(request, args):
 			length=15))
 
 def on_ratio(kind):
-	"""The handler of .pe, .forward pe or .peg (kind: pe, forward pe or peg): the top (by default) or bottom 15 by the
+	"""The handler of .pe (the forward P/E) or .peg (kind: forward pe or peg): the top (by default) or bottom 15 by the
 	ratio and its chart, the negative ones (where there can be any), or one ticker's ratio."""
 	def handler(request, args):
-		""".pe, .forward pe or .peg [SYMBOL|top|bottom|negative]."""
+		""".pe or .peg [SYMBOL|top|bottom|negative]."""
 		if args.words:
 			request.reply([rankings.ratio_line(request.service, ticker(args), kind)])
 		else:
@@ -820,9 +820,8 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 		('.movers [percent|top|bottom|session|premarket] [period]',), PRICE, ('.movers',), percent=True, period=True,
 		keywords=TOP | {name: name for name in SESSIONS}),
 	Command(('buysell', *BUY_SELL), on_rating, ('.buysell',), RISK, ('.buy & sell',)), # .buy & sell, .buy sell: both
-	Command(('pe',), on_ratio('pe'), ('.pe [SYMBOL|top|bottom]',), RISK, keywords=TOP),
-	Command(('forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'), ('.forward pe [SYMBOL|top|bottom|negative]',),
-		RISK, ('.forward pe',), keywords=NEGATIVE),
+	Command(('pe', 'forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'),
+		('.pe [SYMBOL|top|bottom|negative]',), RISK, ('.pe',), keywords=NEGATIVE), # the forward P/E: it was .forward pe
 	Command(('peg',), on_ratio('peg'), ('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',), keywords=NEGATIVE),
 	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True),
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True),

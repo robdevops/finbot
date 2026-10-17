@@ -88,7 +88,7 @@ class Commands(FinbotCase):
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in worker.command_keyboard()['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertEqual(buttons, ['.buy & sell', '.earnings & dividend', '.forward pe', '.movers', '.peg',
+		self.assertEqual(buttons, ['.buy & sell', '.earnings & dividend', '.movers', '.pe', '.peg',
 			'.performance', '.price', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
@@ -277,8 +277,7 @@ class ReportFunctions(FinbotCase):
 
 	def test_prepare_value(self):
 		"""Each ratio report has its heading: top, bottom, and negative, where none found is nothing to show."""
-		for kind, mode, heading in (('pe', 'top', 'Top 5 tracked stocks by pe ratio'),
-				('forward pe', 'bottom', 'Bottom 5 tracked stocks by forward pe ratio'),
+		for kind, mode, heading in (('forward pe', 'bottom', 'Bottom 5 tracked stocks by forward pe ratio'),
 				('peg', 'top', 'Top 5 tracked stocks by peg ratio')):
 			with self.subTest(kind=kind, mode=mode):
 				payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', kind, mode, length=5)

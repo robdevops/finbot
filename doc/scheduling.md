@@ -97,7 +97,7 @@ The reports are `trades`, `movers midsession|interday|premarket|close|DAYS`, `ca
 as `price` before the movers report took its name runs as `movers`; `price` in a job added now is the line chart.
 
 A job can also run a command of `/help`, with what it takes, and posts what the command posts when typed in the chat:
-`pe [SYMBOL|top|bottom]`, `forward pe`, `peg`, `marketcap`, `beta`, `buysell` (the buys, then the sells),
+`pe [SYMBOL|top|bottom|negative]`, `peg`, `marketcap`, `beta`, `buysell` (the buys, then the sells),
 `price [SYMBOL…]`, `stock SYMBOL`, and with Sharesight `holdings [PORTFOLIO]`,
 `treemap [PORTFOLIO]` and `who SYMBOL`. Without the words in brackets, a job posts what the
 command typed bare posts: the first portfolio or ticker, with the buttons to pick another.
