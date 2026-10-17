@@ -34,12 +34,11 @@ Where:
 /beta
 /buy
 /sell
-/compare [symbol symbol...] [period]
+/compare [symbol...] [period]
 /dividend [period|symbol]
 /earnings [period|symbol]
 /forwardpe [symbol|top|bottom|negative]
 /help
-/history [symbol]
 /holdings [portfolio]
 /jobs [upcoming|system]
 /jobs enable|disable|delete|run [number]
@@ -74,7 +73,7 @@ The bot answers commands in every chat it is in. By default, it fetches its upda
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
 * A pie or a treemap of a portfolio by industry or sector (`/pie portfolio [sector]`, `/treemap portfolio [sector]`): the treemap tiles each holding by value, grouped and coloured by industry (the default) or sector
-* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/pie`, `/treemap`, `/holdings` (the first portfolio alphabetically; a pie or treemap by industry or by `sector`), `/history` (the first ticker) and `/compare` (the first two tickers, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Sector/Industry toggle after them; for tickers a period row and a menu button (`Tickers ▶`; `Select... (2)` for `/compare`, with the number ticked) (those held, else the chat's watchlist) with `<` `>` pages, up to 8 ticked to compare. Another portfolio or ticker, the toggle or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/pie` or `/treemap` draws its other charts in the background so the next press is quick. `/compare T1 T2 [period]` typed with tickers gets the same period row and `Select...` menu when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead), and a chat with no buttons gets the usage instead
+* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/pie`, `/treemap`, `/holdings` (the first portfolio alphabetically; a pie or treemap by industry or by `sector`) and `/compare` (the first ticker, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Sector/Industry toggle after them; for tickers the period row, ending in `▶` to the tickers (those held, else the chat's watchlist) with `<` `>` pages: up to 8 ticked, which Compare shows. With one ticker ticked, `▶` clears it, so that the first tick picks afresh. Another portfolio or ticker, the toggle or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/pie` or `/treemap` draws its other charts in the background so the next press is quick. `/compare T1 T2 [period]` typed with tickers gets the same period row and `▶` when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead), and a chat with no buttons gets the usage instead
 * Listing of holdings sorted by various attributes 
 * Running the other stock reports on demand
 
@@ -191,7 +190,8 @@ For interday, can also specify the time period. A bare number is the percent; a 
 /price [percent] [period]
 ```
 
-Or a specific stock. In this case, the output includes a graph.
+Or a specific stock: its change, over the period where one is given, as a line of text (`/compare symbol` draws its
+chart; `/price` draws bar charts alone).
 ```
 /price [symbol] [period]
 ```
@@ -275,15 +275,16 @@ Command:
 /peg [SYMBOL|top|bottom|negative]
 ```
 
-### History
-![Price history report in Slack](../img/finbot_history.png?raw=true "Price history report in Slack")
+### Compare
+![One stock's price line in Slack](../img/finbot_history.png?raw=true "One stock's price line in Slack")
 
-Shows the long term performance of a security.
-It creates a 5Y chart, and then lists performance for several periods (5Y 3Y 1Y 6M 3M 1M 1W 1D)
+One stock's price line over a period, green or red with its change and filled below, its high and low marked; or two
+to eight stocks' changes over the period, rebased on one chart. Max is a stock's whole history, and ten years for
+several. `/history` is another name for it.
 
 Command:
 ```
-/history [symbol]
+/compare [symbol...] [period]
 ```
 
 ### Buy

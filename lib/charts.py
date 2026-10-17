@@ -13,14 +13,8 @@ from lib import watchlist
 from lib import yahoo
 from lib.reports import history, performance, price
 
-def history_chart(service, chat, period, days, ticker):
-	""".history: the change over every period, the chosen one marked, and the line of that period (or of it all)."""
-	lines, chart = history.history_payload(ticker, service, days)
-	return '\n'.join(lines), chart
-
-def price_chart(service, chat, period, days, ticker):
-	""".price SYMBOL [period]: one stock's change over the period (all its history for Max), from Yahoo, and its
-	line."""
+def stock_chart(service, chat, period, days, ticker):
+	"""One stock's change over the period (all its history for Max), from Yahoo, and its line: a .compare of one."""
 	market_data = yahoo.fetch([ticker])
 	if ticker not in market_data:
 		raise answer.Answer(f"no data found for {ticker}")
@@ -32,7 +26,10 @@ def price_chart(service, chat, period, days, ticker):
 	return caption, chart
 
 def compare_chart(service, chat, period, days, *tickers):
-	""".compare: the stocks' changes over the period, rebased on one chart."""
+	""".compare (and .history): the stocks' changes over the period, rebased on one chart; one stock's line as its
+	price chart draws it, as .history's was: green or red with the change, filled below."""
+	if len(tickers) == 1:
+		return stock_chart(service, chat, period, days, tickers[0])
 	caption, chart = history.prepare_compare(service, list(tickers), days)
 	return '\n'.join(caption), chart
 
@@ -52,7 +49,7 @@ def price_list_chart(service, chat, period, days, threshold, top):
 		raise answer.Answer(*(payload or ['no price data']))
 	return '\n'.join(payload), chart
 
-BUILDERS = {'h': history_chart, 'p': price_chart, 'c': compare_chart, 'f': performance_chart, 'l': price_list_chart}
+BUILDERS = {'c': compare_chart, 'f': performance_chart, 'l': price_list_chart}
 
 def build(kind, args, service, chat, period=None, days=None):
 	"""(caption, chart spec or None) of a chart kind, in a chat (its key), from the arguments its buttons carry

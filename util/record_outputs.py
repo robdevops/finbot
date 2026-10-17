@@ -27,7 +27,7 @@ COMMANDS = ['.help', '/start', '.hello', '.thanks', '.who T1', '.plan buy low', 
 	'.watchlist add MSFT', '.watchlist del MSFT', '.watchlist frob X', '.T1', '.jobs', '.jobs run', '.jobs toggle',
 	'.jobs enable', '.jobs disable 1', '.jobs add', '.jobs add shorts daily at 22:00', '.jobs del 4', '.jobs run 1',
 	'.jobs upcoming', '.jobs system', 'hi @bot', 'noise']
-BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1',
+BUTTONS = ['c|c|m|T1', 'c|c|x|T1', 'c|c|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1',
 	'm|on|0|0000', 'm|off|0|0000', 'm|del|0|0000', 'm|add|0000', 'm|add|5|w|0000',
 	'm|next|0000']
 JOBS = ['*/20 * * * Mon-Fri trades', '29 21 * * Mon-Fri price interday', # each chat's, for .jobs (as cron had them)

@@ -51,13 +51,13 @@ class PickPress(typing.NamedTuple):
 MENU_SCREENS = ('top', 'on', 'off', 'del', 'run', 'add', 'next') # the .jobs menu's screens (lib/reports/about.py)
 
 
-PICKERS = {'p': 'pie', 't': 'treemap', 'h': 'holdings', 'y': 'history', 'c': 'compare'} # command key -> its name
+PICKERS = {'p': 'pie', 't': 'treemap', 'h': 'holdings', 'c': 'compare'} # command key -> its name
 MAX_PICKED = 8 # tickers .compare takes
 TOO_MANY = f"⚠️ Max {MAX_PICKED} tickers: untick one first"
 
 PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x': ('Max', None)}
-BUTTONS = {'h': 'wmyx', 'p': 'wmyx', 'c': 'wmyx', 'f': 'wmyx', 'l': 'dwmyx'} # chart kind -> its buttons, five at most
-# (Discord's limit for a row): h history, p a stock's price chart, c compare, f performance, l the price list
+BUTTONS = {'c': 'wmyx', 'f': 'wmyx', 'l': 'dwmyx'} # chart kind -> its buttons, five at most (Discord's limit for a
+# row): c compare (one stock's line too), f performance, l the price list
 MAX_DAYS = 3650 # what Max means for the Sharesight-based reports
 MAX_CALLBACK_BYTES = 64 # Telegram limit on callback_data
 REF_FILE = 'finbot_chart_buttons.json'

@@ -155,7 +155,7 @@ class Formatting(unittest.TestCase):
 			buttons.MenuPress('on', ('0', '1'), 'abcd'))
 		self.assertEqual(buttons.parse('m|add|abcd'), buttons.MenuPress('add', (), 'abcd'))
 		self.assertEqual(buttons.menu_button('x' * 50, 'top', [0], 'abcd').label, 'x' * 40)
-		for data in ('c|h|d|T1', 'c|z|w|T1', 'c|h|w', 'x|h|w|T1', '', 'c', 'm|zz|0|abcd', 'm|on', 'm|on|0|a b',
+		for data in ('c|c|d|T1', 'c|z|w|T1', 'c|c|w', 'x|h|w|T1', '', 'c', 'm|zz|0|abcd', 'm|on', 'm|on|0|a b',
 				'm|on|٨|abcd', 'm|on|0|1|' + 'a' * 60, 'j|8|abcd', 'e|8|abcd'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))

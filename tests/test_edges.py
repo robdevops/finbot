@@ -132,14 +132,15 @@ class WatchlistActions(FinbotCase):
 
 class BadArguments(FinbotCase):
 	def test_compare_argument_errors_give_usage(self):
-		""".compare with too few or too many tickers, or one twice, gets its usage."""
-		for cmd in ('.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7 T8 T9', '.compare T1 T1'):
+		""".compare with more than eight tickers gets its usage; one ticker, or one twice, is that stock's chart."""
+		self.assertIn('Usage', str(self.command('.compare T1 T2 T3 T4 T5 T6 T7 T8 T9')))
+		for cmd in ('.compare T1', '.compare T1 T1'):
 			with self.subTest(cmd=cmd):
-				self.assertIn('Usage', str(self.command(cmd)))
+				self.assertEqual(self.command(cmd)[0][0], 'photo')
 
 	def test_no_data_is_an_answer_not_an_error(self):
-		""".compare or .history of a ticker without prices, and a period button with nothing to draw, say so in a plain
-		reply: no error line."""
+		""".compare (or .history) of a ticker without prices, and a period button with nothing to draw, say so in a
+		plain reply: no error line."""
 		def no_history(t, *a, **k):
 			"""Fail like Yahoo for a ticker with no price history."""
 			raise yahoo.NoData(f'no price history for {t}')
@@ -148,14 +149,14 @@ class BadArguments(FinbotCase):
 		self.assertEqual(self.command('.compare T1 T2'), [('text', ['no price history for T1'])])
 		self.assertEqual(self.command('.history T1'), [('text', ['no price history for T1'])])
 		self.sent.clear()
-		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', 'c|h|m|T1'))
+		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', 'c|c|m|T1'))
 		self.assertEqual((self.sent, self.errors), ([('text', ['no price history for T1'])], []))
 
-	def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
-		""".history with an extra argument gets its usage, not the profile of a ticker called HISTORY; with no
-		ticker, the buttons for one."""
-		self.assertEqual(self.command('.history')[0][0], 'photo') # the first ticker's answer: blank, nothing to draw
-		self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history [SYMBOL]'])])
+	def test_history_is_compare(self):
+		""".history is .compare's other name: bare, the first ticker's chart and the buttons to pick others; with a
+		ticker and a period, that stock's chart over it, not the profile of a ticker called HISTORY."""
+		self.assertEqual(self.command('.history'), self.command('.compare'))
+		self.assertEqual(self.command('.history T1 1y'), self.command('.compare T1 1y'))
 
 
 class PortfolioNames(FinbotCase):
@@ -272,7 +273,7 @@ class CommandArguments(FinbotCase):
 		self.assertEqual(yahoo.symbol('BHP'), 'BHP')
 		self.assertEqual(asked, []) # nothing to try, so Yahoo is not asked
 		self.settings(exchange_suffix='AX')
-		for message, shown in (('.price BHP', 'BHP.AX'), ('.history BHP', 'BHP.AX'), ('.earnings BHP', 'BHP.AX'),
+		for message, shown in (('.price BHP', 'BHP.AX'), ('.compare BHP', 'BHP.AX'), ('.earnings BHP', 'BHP.AX'),
 				('.shorts BHP', 'BHP'), ('.pe BHP', 'BHP'), ('.marketcap BHP', 'BHP.AX'), ('.BHP', 'BHP.AX')):
 			with self.subTest(message=message):
 				self.assertIn('Co BHP.AX', str(self.command(message)))

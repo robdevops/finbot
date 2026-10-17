@@ -20,7 +20,7 @@ def interaction(kind, **fields):
 COMMAND = interaction(2, data={'name': 'price', 'options': [{'name': 'arguments', 'type': 3, 'value': '5 7d'}]})
 TYPING = interaction(4, id='902', data={'name': 'price', 'options': [{'name': 'arguments', 'type': 3, 'value': '5 7',
 	'focused': True}]}) # /price, its arguments being typed
-PRESS = interaction(3, id='901', data={'custom_id': 'c|h|y|T1', 'component_type': 2}, message={'id': '333'})
+PRESS = interaction(3, id='901', data={'custom_id': 'c|c|y|T1', 'component_type': 2}, message={'id': '333'})
 MESSAGE = {'id': '700', 'channel_id': '77', 'guild_id': '1', 'author': {'id': '5', 'username': 'rob'},
 	'content': '<@99> price 7d'} # in a server's channel
 
@@ -56,7 +56,7 @@ class Reading(FinbotCase):
 	def test_a_press_is_a_press_of_its_message(self):
 		"""A button pressed is a Press of its message, its custom_id the button's data."""
 		self.assertEqual(discord_common.READER.parse(PRESS),
-			inbound.Press('discord', '901', '77', '333', 'c|h|y|T1', '@rob', '42/tok'))
+			inbound.Press('discord', '901', '77', '333', 'c|c|y|T1', '@rob', '42/tok'))
 
 	def test_a_message_by_a_person_reads_with_its_mentions_as_slacks(self):
 		"""A gateway message's mentions read as @id, so that '@bot price 7d' calls .price; one by a bot or a webhook
@@ -173,7 +173,7 @@ class Sending(FinbotCase):
 	def test_a_message_has_no_previews_or_pings_and_its_buttons_in_rows_of_five(self):
 		"""A message suppresses link previews and pings nobody; its buttons go in rows of five, the one shown now
 		blurple, a row that fits stays a row, and past five rows they are left out."""
-		row = [buttons.Button(f'B{i}', f'c|h|w|{i}', active=i == 0) for i in range(12)]
+		row = [buttons.Button(f'B{i}', f'c|c|w|{i}', active=i == 0) for i in range(12)]
 		with contextlib.redirect_stderr(io.StringIO()):
 			discord_common.DiscordBot('77').text(['hello'], [row[:7], row[7:]])
 		method, path, kwargs = self.calls[0]
@@ -190,13 +190,13 @@ class Sending(FinbotCase):
 	def test_a_chart_is_attached_to_its_report(self):
 		"""A chart goes as an attachment of the message that carries the report and the buttons."""
 		with contextlib.redirect_stderr(io.StringIO()):
-			discord_common.DiscordBot('77').chart(io.BytesIO(b'png'), 'caption', [[buttons.Button('7D', 'c|h|w|T1')]])
+			discord_common.DiscordBot('77').chart(io.BytesIO(b'png'), 'caption', [[buttons.Button('7D', 'c|c|w|T1')]])
 		method, path, kwargs = self.calls[0]
 		payload = json.loads(kwargs['data']['payload_json'])
 		self.assertEqual((method, path, payload['content'], payload['attachments']), ('POST', '/channels/77/messages',
 			'caption', [{'id': 0, 'filename': 'chart.png'}]))
 		self.assertEqual(kwargs['files']['files[0]'], ('chart.png', b'png', 'image/png'))
-		self.assertEqual(payload['components'][0]['components'][0]['custom_id'], 'c|h|w|T1')
+		self.assertEqual(payload['components'][0]['components'][0]['custom_id'], 'c|c|w|T1')
 
 	def test_a_slash_commands_answer_replaces_its_thinking_and_the_rest_follow_up(self):
 		"""A slash command's first message replaces Discord's "thinking…", through its interaction, and the rest
@@ -222,7 +222,7 @@ class Sending(FinbotCase):
 		"""A press edits its message through its own interaction (a message that answered a slash command can be
 		edited only so); a new message about it goes into the channel."""
 		chat = discord_common.DiscordBot('77', interaction='42/tok', pressed=True)
-		chat.edit_chart('333', io.BytesIO(b'png'), 'caption', [[buttons.Button('1Y', 'c|h|y|T1', True)]])
+		chat.edit_chart('333', io.BytesIO(b'png'), 'caption', [[buttons.Button('1Y', 'c|c|y|T1', True)]])
 		chat.edit_text('333', 'list', [])
 		with contextlib.redirect_stderr(io.StringIO()):
 			chat.text(['Too few prices'])

@@ -359,9 +359,21 @@ class ReportFunctions(FinbotCase):
 		self.assertNotIn('sell high', str(self.command('.plan')))
 
 	def test_compare_usage(self):
-		""".compare with one ticker gets its usage, from the command table."""
-		usage = 'Usage: .compare [SYMBOL SYMBOL ... up to 8] [period]'
-		self.assertEqual(self.command('.compare T1'), [('text', [usage])])
+		""".compare with more than eight tickers gets its usage, from the command table."""
+		usage = 'Usage: .compare [SYMBOL ... up to 8] [period]'
+		self.assertEqual(self.command('.compare T1 T2 T3 T4 T5 T6 T7 T8 T9'), [('text', [usage])])
+
+	def test_one_stock_is_drawn_as_the_price_history_was(self):
+		""".compare of one stock is its price line, as .history's chart was: titled with its name, symbol and span,
+		its price and change beneath, red or green with the change; of two or more, the rebased lines, 'T1 vs T2'."""
+		closes = tuple((datetime.date(2026, 1, day), 100.0 - day) for day in range(1, 31))
+		self.patch(yahoo, 'price_history', lambda t, days=None, quote=None: ({days: -12.5},
+			yahoo.Line('Co ' + t, 'NasdaqGS', 'USD', 70.0, closes)))
+		_, one = charts.build('c', ['T1'], TELEGRAM, 'telegram:55', period='m')
+		_, two = charts.build('c', ['T1', 'T2'], TELEGRAM, 'telegram:55', period='m')
+		self.assertEqual((one.kind, one.title, one.subtitle, one.change), ('line', 'Co T1 (T1) 30 days',
+			'70.00 USD   ▼ 12.5%', -12.5))
+		self.assertEqual((two.kind, two.title), ('compare', 'T1 vs T2'))
 
 
 class ScheduledReports(FinbotCase):
@@ -725,7 +737,7 @@ class PeriodButtons(FinbotCase):
 	def test_a_period_with_too_few_prices_is_said_in_the_chat(self):
 		"""A period button whose span has too few prices for a line says so in the chat and leaves the chart as it is
 		(Telegram was sent an edit without its photo)."""
-		edits, toasts = self.press('c|h|w|T1') # the fixture's histories have no closes to draw
+		edits, toasts = self.press('c|c|w|T1') # the fixture's histories have no closes to draw
 		self.assertEqual((edits, toasts, self.errors), ([], ['Loading 7D…'], []))
 		self.assertEqual(self.sent, [('text', ['Too few prices to draw 7D'])])
 		self.sent.clear()
@@ -910,8 +922,8 @@ class CommandJobs(FinbotCase):
 				worker.job_commands()[name].run(chat, words=words)
 				self.assertEqual(self.sent, posted)
 		self.sent.clear()
-		worker.job_commands()['compare'].run(chat, words=['T1'])
-		self.assertEqual(self.sent, [('text', ['Usage: .compare [SYMBOL SYMBOL ... up to 8] [period]'])])
+		worker.job_commands()['compare'].run(chat, words=[f'T{i}' for i in range(9)])
+		self.assertEqual(self.sent, [('text', ['Usage: .compare [SYMBOL ... up to 8] [period]'])])
 
 
 class WithoutSharesight(FinbotCase):
@@ -1040,52 +1052,61 @@ class Pickers(FinbotCase):
 		self.assertEqual((kind, lines, self.labels(rows)), ('text', ['<b>Holdings for Rob (25)</b>', 'x'],
 			[['Amy', '● Rob']]))
 
-	def test_history_answers_with_the_first_ticker_and_picks_in_a_sub_menu(self):
-		""".history answers with the first ticker at once, a period row and a button for the tickers' screen under it;
-		that screen has the tickers held, the one shown marked, and Back; a ticker redoes the chart and goes back to the
-		top, a period redoes it too."""
-		self.command('.history')
-		self.assertEqual(self.labels(), [['7D', '1M', '1Y', '● Max'], ['Tickers ▶']])
-		kind, lines, rows = self.tap('Tickers ▶')
-		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['● T0', 'T1', 'T10', 'T11'], ['◀ Back']))
-		kind, lines, rows = self.tap('T3') # a ticker goes back to the top, with the period row
-		self.assertEqual(self.labels(rows), [['7D', '1M', '1Y', '● Max'], ['Tickers ▶']])
-		kind, lines, rows = self.tap('1Y')
-		self.assertEqual((self.toasts[-1], self.labels(rows)[0]), (('Updating…', False), ['7D', '1M', '● 1Y', 'Max']))
-		self.assertIn('● T3', [t for row in self.labels(self.tap('Tickers ▶')[2]) for t in row])
+	def test_compare_starts_on_the_first_ticker_alone(self):
+		""".compare (and .history) answers with the first ticker alone at once, on 7D, the periods and ▶ in one row; ▶
+		opens the tickers' screen with that lone tick cleared, so that the first tick is one picked; Compare shows those
+		ticked, one or more; ▶ keeps two or more ticks."""
+		self.command('.compare')
+		self.assertEqual(self.labels(), [['● 7D', '1M', '1Y', 'Max', '▶']])
+		self.assertTrue(any('Co T0' in line for line in self.showing))
+		kind, lines, rows = self.tap('▶')
+		self.assertEqual((kind, [t for row in self.labels(rows) for t in row if t.startswith('✅')]), ('buttons', []))
+		self.tap('T3')
+		kind, lines, rows = self.tap('Compare')
+		self.assertTrue(any('Co T3' in line for line in lines) and not any('Co T0' in line for line in lines))
+		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '▶']])
+		self.tap('▶') # T3 ticked alone: cleared again
+		self.tap('T1')
+		self.tap('T3')
+		kind, lines, rows = self.tap('Compare')
+		self.assertTrue(any('Co T1' in line for line in lines) and any('Co T3' in line for line in lines))
+		kind, lines, rows = self.tap('▶') # two ticked: kept
+		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')], ['✅ T1', '✅ T3'])
+		self.assertEqual(self.command('.history'), self.command('.compare'))
 
-	def test_compare_answers_with_the_first_two_tickers(self):
-		""".compare answers with the first two tickers at once, at the period typed, both ticked on the tickers screen;
-		ticking changes the buttons, not the chart, until Compare is pressed."""
+	def test_compare_ticks_change_the_buttons_until_compare_is_pressed(self):
+		""".compare answers at the period typed; ticking changes the buttons, not the chart, until Compare is pressed,
+		which shows those ticked and goes back to the period row."""
 		self.command('.compare 1y')
 		first = self.sent[-1][2]
-		self.assertEqual(self.labels(), [['7D', '1M', '● 1Y', 'Max'], ['Select... (2)']])
-		kind, lines, rows = self.tap('Select... (2)')
-		self.assertEqual(self.labels(rows)[0][:3], ['✅ T0', '✅ T1', 'T10'])
+		self.assertEqual(self.labels(), [['7D', '1M', '● 1Y', 'Max', '▶']])
+		self.tap('▶')
 		kind, lines, rows = self.tap('T10')
-		self.assertEqual((lines[0], self.labels(rows)[0][:3]), (first, ['✅ T0', '✅ T1', '✅ T10']))
-		self.assertFalse(any('Co T10' in line for line in lines)) # the chart is still of the first two
+		self.assertEqual((lines[0], self.labels(rows)[0][:3]), (first, ['T0', 'T1', '✅ T10']))
+		self.assertFalse(any('Co T10' in line for line in lines)) # the chart is still of the first
 		self.assertEqual(self.labels(rows)[-1], ['◀ Back', 'Compare'])
-		kind, lines, rows = self.tap('✅ T0')
+		self.tap('T0')
 		kind, lines, rows = self.tap('Compare')
-		self.assertTrue(any('Co T10' in line for line in lines) and not any('Co T0' in line for line in lines))
-		self.assertEqual((self.toasts[-1], self.labels(rows)), (('Loading…', False), [['7D', '1M', '● 1Y', 'Max'],
-			['Select... (2)']])) # back at the top, with the period row
+		self.assertTrue(any('Co T10' in line for line in lines) and any('Co T0' in line for line in lines))
+		self.assertEqual((self.toasts[-1], self.labels(rows)), (('Loading…', False),
+			[['7D', '1M', '● 1Y', 'Max', '▶']]))
 		self.command('.compare max') # as typed: not the 7D a bare .compare starts on
-		self.assertEqual(self.labels()[0], ['7D', '1M', '1Y', '● Max'])
+		self.assertEqual(self.labels()[0], ['7D', '1M', '1Y', '● Max', '▶'])
 
 	def test_an_answer_with_nothing_to_draw_is_a_photo_all_the_same(self):
-		"""A first answer with no chart (the fixture's histories have no closes to draw) goes as a blank photo, its
-		buttons under it, so that a press can turn it into a chart: a text message cannot become one."""
-		self.command('.history')
+		"""A first answer with no chart (a portfolio with nothing to draw) goes as a blank photo, its buttons under it,
+		so that a press can turn it into a chart: a text message cannot become one."""
+		self.portfolios('Amy', 'Zed')
+		self.patch(holdings, 'prepare_pie', lambda name, by, service: ([f'<b>{name} by {by}</b>'], None))
+		self.command('.pie')
 		self.assertEqual((self.sent[-1][:2], self.labels()), (('photo', len(render.blank().read())),
-			[['7D', '1M', '1Y', '● Max'], ['Tickers ▶']]))
+			[['● Amy', 'Zed']]))
 
 	def test_compare_ticks_up_to_eight_and_refuses_a_ninth(self):
 		""".compare: ticks toggle, a ninth is refused with an alert and a note."""
 		self.command('.compare')
-		self.tap('Select... (2)')
-		for ticker in ('T10', 'T11', 'T12', 'T13', 'T14', 'T15'):
+		self.tap('▶')
+		for ticker in ('T0', 'T1', 'T10', 'T11', 'T12', 'T13', 'T14', 'T15'):
 			kind, lines, rows = self.tap(ticker)
 		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')],
 			['✅ T0', '✅ T1', '✅ T10', '✅ T11', '✅ T12', '✅ T13', '✅ T14', '✅ T15'])
@@ -1098,22 +1119,22 @@ class Pickers(FinbotCase):
 		self.assertEqual(len([t for row in self.labels(rows) for t in row if t.startswith('✅')]), 7)
 
 	def test_a_tick_or_a_page_changes_the_buttons_alone(self):
-		"""Select..., a tick and a page of tickers change only the buttons, the chart left as it is (nothing drawn or
-		uploaded); under a note (a ninth tick refused), the next press draws the message whole, which takes the note
-		away; where the network cannot change buttons alone, the message is drawn whole."""
+		"""▶, a tick and a page of tickers change only the buttons, the chart left as it is (nothing drawn or uploaded);
+		under a note (a ninth tick refused), the next press draws the message whole, which takes the note away; where
+		the network cannot change buttons alone, the message is drawn whole."""
 		self.many()
 		self.command('.compare')
 		first = self.showing
-		for label in ('Select... (2)', 'S05', '>'):
+		for label in ('▶', 'S05', '>'):
 			kind, lines, rows = self.tap(label)
 			self.assertEqual((kind, lines), ('buttons', first), label)
-		for ticker in ('S40', 'S41', 'S42', 'S43', 'S44'): # eight ticked, with S00, S01 and S05
+		for ticker in ('S40', 'S41', 'S42', 'S43', 'S44', 'S45', 'S46'): # eight ticked, with S05
 			self.assertEqual(self.tap(ticker)[0], 'buttons')
-		kind, lines, rows = self.tap('S45') # refused, as the ninth: said in a note
+		kind, lines, rows = self.tap('S47') # refused, as the ninth: said in a note
 		self.assertEqual((kind, lines[0]), ('photo', buttons.TOO_MANY))
-		kind, lines, rows = self.tap('✅ S44')
+		kind, lines, rows = self.tap('✅ S46')
 		self.assertEqual((kind, lines), ('photo', first))
-		self.assertEqual(self.tap('S45')[0], 'buttons') # room again, and no note to take away
+		self.assertEqual(self.tap('S47')[0], 'buttons') # room again, and no note to take away
 		self.assertEqual(self.tap('<')[0], 'buttons')
 		self.patch(telegram_common.TelegramBot, 'edit_buttons', transports.Transport.edit_buttons) # none on Slack
 		self.assertEqual(self.tap('>')[0], 'photo')
@@ -1122,26 +1143,27 @@ class Pickers(FinbotCase):
 		"""A button drawn for other tickers than there are now starts the picker again, at its first answer, saying
 		so."""
 		self.command('.compare')
-		stale = self.shown[1][0][1] # Tickers ▶
+		stale = self.shown[0][-1][1] # ▶
 		self.patch(sharesight, 'tickers', lambda: ['A1', 'B1', 'C1'])
 		self.press_button(stale)
 		kind, lines, rows = self.edits[-1]
 		self.assertEqual(lines[0], 'The list has changed: here it is now')
-		self.assertEqual(self.labels(rows)[1], ['Select... (2)'])
+		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '▶']])
+		self.assertTrue(any('Co A1' in line for line in lines))
 
 	def test_without_holdings_the_watchlist_is_offered(self):
-		"""Tickers to pick are the holdings', else the chat's watchlist; none at all says how to add one."""
+		"""Tickers to pick are the holdings', else the chat's watchlist; none at all says how to add one, and one is
+		enough."""
 		self.patch(sharesight, 'tickers', lambda: [])
 		self.patch(watchlist, 'tickers', lambda chat: ['MSFT', 'AAPL'])
-		self.command('.history')
-		self.tap('Tickers ▶')
-		self.assertEqual([t for row in self.labels(self.edits[-1][2]) for t in row], ['● AAPL', 'MSFT', '◀ Back'])
+		self.command('.compare')
+		self.tap('▶')
+		self.assertEqual([t for row in self.labels(self.edits[-1][2]) for t in row], ['AAPL', 'MSFT', '◀ Back'])
 		self.patch(watchlist, 'tickers', lambda chat: [])
 		self.assertEqual(self.command('.compare'),
 			[('text', ['No tickers to pick from: .watchlist add SYMBOL adds one'])])
 		self.patch(watchlist, 'tickers', lambda chat: ['MSFT'])
-		self.assertEqual(self.command('.compare'),
-			[('text', ['Compare needs two tickers: .watchlist add SYMBOL adds one'])])
+		self.assertEqual(self.command('.compare')[0][0], 'photo')
 
 	def test_with_the_graph_off_the_picker_is_text_and_edits_as_text(self):
 		"""Where charts are not drawn, the answer and its buttons are a text message, edited as text."""
@@ -1162,8 +1184,8 @@ class Pickers(FinbotCase):
 		there is another page, Back always, and ticks lasting across pages."""
 		self.many()
 		self.command('.compare')
-		self.assertEqual(self.labels(), [['● 7D', '1M', '1Y', 'Max'], ['Select... (2)']]) # compare starts on 7D
-		kind, lines, rows = self.tap('Select... (2)')
+		self.assertEqual(self.labels(), [['● 7D', '1M', '1Y', 'Max', '▶']]) # compare starts on 7D
+		kind, lines, rows = self.tap('▶')
 		self.assertEqual((len(rows) - 1, [t for row in self.labels(rows)[:-1] for t in row][-1], self.labels(rows)[-1]),
 			(8, 'S31', ['◀ Back', '>']))
 		kind, lines, rows = self.tap('>')
@@ -1174,17 +1196,16 @@ class Pickers(FinbotCase):
 		self.assertEqual((self.labels(rows)[-1], [t for row in self.labels(rows)[:-1] for t in row][-1]),
 			(['◀ Back', '<', 'Compare'], 'S69'))
 		kind, lines, rows = self.tap('<')
-		kind, lines, rows = self.tap('<')
-		self.assertIn('✅ S00', [t for row in self.labels(rows) for t in row])
+		self.assertIn('✅ S40', [t for row in self.labels(rows) for t in row])
 		kind, lines, rows = self.tap('◀ Back')
-		self.assertEqual(self.labels(rows)[1], ['Select... (3)', 'Compare'])
+		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '▶'], ['Compare']])
 
 	def test_a_ninth_tick_is_refused_on_a_later_page(self):
 		"""The limit of eight counts every page's ticks, and the refusal stays on the page."""
 		self.many()
 		self.command('.compare')
-		self.tap('Select... (2)')
-		for ticker in ('S02', 'S03', 'S04', 'S05', 'S06', 'S07'):
+		self.tap('▶')
+		for ticker in ('S00', 'S01', 'S02', 'S03', 'S04', 'S05', 'S06', 'S07'):
 			self.tap(ticker)
 		self.tap('>')
 		kind, lines, rows = self.tap('S33')
@@ -1192,16 +1213,15 @@ class Pickers(FinbotCase):
 			buttons.TOO_MANY, ['S32', 'S33']))
 
 	def test_an_item_on_a_later_page_is_the_one_picked(self):
-		"""A ticker's button on page two picks that ticker, back at the top, where the menu opens on the first page."""
+		"""A ticker ticked on page two is the one Compare shows, back at the top."""
 		self.many()
-		self.command('.history')
-		self.tap('Tickers ▶')
+		self.command('.compare')
+		self.tap('▶')
 		self.tap('>')
-		kind, lines, rows = self.tap('S40')
-		self.assertEqual(self.labels(rows), [['7D', '1M', '1Y', '● Max'], ['Tickers ▶']])
-		self.tap('Tickers ▶')
-		kind, lines, rows = self.tap('>')
-		self.assertIn('● S40', [t for row in self.labels(rows) for t in row])
+		self.tap('S40')
+		kind, lines, rows = self.tap('Compare')
+		self.assertTrue(any('Co S40' in line for line in lines))
+		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '▶']])
 
 	def test_portfolios_page_too(self):
 		"""Thirty-two portfolios to a page, in rows of four, then Group by, then the page buttons."""
@@ -1217,11 +1237,11 @@ class Pickers(FinbotCase):
 	def test_discord_pages_hold_five_rows(self):
 		"""Discord's five rows of five buttons hold 12 portfolios with Group by and the page buttons, or 20 tickers
 		with Back, the page buttons and Compare."""
-		for cmd, items in (('t', 12), ('p', 12), ('c', 20), ('y', 20)):
+		for cmd, items in (('t', 12), ('p', 12), ('c', 20)):
 			with self.subTest(cmd=cmd):
 				names = [f'N{i:02d}' for i in range(60)]
 				rows = pick.screen(DISCORD, cmd, names, '0', '0', 0, 0b11 if cmd == 'c' else 0,
-					'm' if cmd in 'yc' else 'p', 1)[1]
+					'm' if cmd == 'c' else 'p', 1)[1]
 				self.assertLessEqual(len(rows), 5)
 				self.assertTrue(all(len(row) <= 5 for row in rows))
 				counted = sum(button.label.endswith(tuple('0123456789')) for row in rows for button in row)
@@ -1239,7 +1259,7 @@ class Pickers(FinbotCase):
 
 	def test_a_pie_or_treemap_primes_the_other_charts_in_the_background(self):
 		"""Once the first chart is out, a pie or treemap starts drawing the others in a thread (the first portfolio's
-		other grouping first); history, compare and holdings start none, nor does a job's run, nor a chat without
+		other grouping first); compare (.history) and holdings start none, nor does a job's run, nor a chat without
 		charts."""
 		started = []
 		self.patch(worker, 'prime_in_background', lambda *args: started.append(args))
@@ -1276,11 +1296,11 @@ class Pickers(FinbotCase):
 		self.assertIn('priming p Bob sector failed: boom', err.getvalue())
 
 	def test_compare_typed_with_tickers_has_the_tickers_button_too(self):
-		""".compare T1 T2 [period] answers with the period row and the tickers' menu under its chart, those typed ticked
+		""".compare T1 T2 [period] answers with the period row and the tickers' ▶ under its chart, those typed ticked
 		and shown; tickers the chat does not offer, or a period no button has, leave the chart its period buttons."""
 		self.command('.compare T3 T1 1y')
-		self.assertEqual(self.labels(), [['7D', '1M', '● 1Y', 'Max'], ['Select... (2)']])
-		kind, lines, rows = self.tap('Select... (2)')
+		self.assertEqual(self.labels(), [['7D', '1M', '● 1Y', 'Max', '▶']])
+		kind, lines, rows = self.tap('▶')
 		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')], ['✅ T1', '✅ T3'])
 		self.command('.compare T1 NOPE')
 		self.assertEqual(self.labels(), [['7D', '1M', '1Y', '● Max']])
@@ -1296,9 +1316,8 @@ class Pickers(FinbotCase):
 		self.command('.performance')
 		self.command('.price')
 		self.command('.price top')
-		self.command('.compare')
 		self.assertEqual(started, [('c', ['T1', 'T2'], 'x'), ('f', [''], 'm'), ('l', ['5', '0'], 'd'),
-			('l', ['0', '10'], 'd'), ('c', ['T0', 'T1'], 'w')])
+			('l', ['0', '10'], 'd')])
 		started.clear()
 		self.command('.price T1') # one stock's line, which has no chart
 		self.settings(graph=False)
@@ -1319,9 +1338,9 @@ class Pickers(FinbotCase):
 			return 'caption', None if period == 'y' else render.Chart('bars', rows=(('a', 1.0),))
 		self.patch(charts, 'build', build)
 		with contextlib.redirect_stderr(io.StringIO()) as err:
-			charts.prime('h', ['T1'], TELEGRAM, 'telegram:55', 'x')
+			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
 		self.assertEqual((built, drawn), (['w', 'm', 'y'], ['bars']))
-		self.assertIn("priming h ['T1'] m failed: boom", err.getvalue())
+		self.assertIn("priming c ['T1'] m failed: boom", err.getvalue())
 
 
 if __name__ == '__main__':

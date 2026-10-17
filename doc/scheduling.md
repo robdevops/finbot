@@ -38,7 +38,7 @@ step back. Times are by the `timezone` setting's clock.
 
 First what the job runs: a report, or a command of `/help` ([below](#a-job-in-english)). A reminder's text (a
 `message` job), and the stock of `/who` and `/stock`, cannot come from a button, so their screen says how to type
-them; `/pie`, `/treemap`, `/holdings`, `/history` and `/compare` run as typed bare. Then how often:
+them; `/pie`, `/treemap`, `/holdings` and `/compare` run as typed bare. Then how often:
 
 | how often | then | added as, for example |
 |---|---|---|
@@ -96,9 +96,9 @@ The reports are `trades`, `price midsession|interday|premarket|close|DAYS`, `cal
 
 A job can also run a command of `/help`, with what it takes, and posts what the command posts when typed in the chat:
 `pe [SYMBOL|top|bottom]`, `forward pe`, `peg`, `marketcap`, `beta`, `buy`, `sell` (`buy&sell` both),
-`history [SYMBOL]`, `compare [SYMBOL SYMBOL…]`, `stock SYMBOL`, and with Sharesight `holdings [PORTFOLIO]`,
+`compare [SYMBOL…]`, `stock SYMBOL`, and with Sharesight `holdings [PORTFOLIO]`,
 `pie [PORTFOLIO]`, `treemap [PORTFOLIO]` and `who SYMBOL`. Without the words in brackets, a job posts what the
-command typed bare posts: the first portfolio or ticker (the first two to compare), with the buttons to pick another.
+command typed bare posts: the first portfolio or ticker, with the buttons to pick another.
 The commands that change something (`watchlist`, `plan`, `jobs`) are no jobs, and price, performance, trades, shorts,
 earnings, dividends, session and premarket are run by their reports above.
 

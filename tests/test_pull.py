@@ -6,7 +6,7 @@ from tests.common import *
 from lib import pull, slack_websocket, telegram_longpolling
 
 
-def callback_query(update_id, data='c|h|y|T1'):
+def callback_query(update_id, data='c|c|y|T1'):
 	"""A Telegram update: a button pressed under message 9 in chat 55."""
 	return {'update_id': update_id, 'callback_query': {'id': f'q{update_id}', 'from': {'username': 'rob'},
 		'data': data, 'message': {'message_id': 9, 'chat': {'id': 55}}}}
@@ -129,7 +129,7 @@ class TelegramPolling(FinbotCase):
 
 SLACK_PRESS = {'type': 'block_actions', 'token': 'stok', 'trigger_id': 't1', 'user': {'id': 'U1', 'username': 'rob'},
 	'container': {'type': 'message', 'message_ts': '1.5', 'channel_id': 'C1'},
-	'actions': [{'action_id': 'c|h|w|T1', 'value': 'c|h|w|T1', 'type': 'button'}]} # a period button pressed
+	'actions': [{'action_id': 'c|c|w|T1', 'value': 'c|c|w|T1', 'type': 'button'}]} # a period button pressed
 SLACK_EVENT = {'type': 'event_callback', 'event_id': 'Ev1', 'authorizations': [{'user_id': 'UBOT'}],
 	'event': {'type': 'message', 'channel': 'C1', 'user': 'U1', 'text': '.price', 'ts': '1.2'}}
 

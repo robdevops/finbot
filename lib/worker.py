@@ -163,7 +163,7 @@ def process_pick_callback(press, pressed):
 		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if kind == 'f' else None
 		if kind == 'r' and number < len(found):
 			shown = number + 1
-		elif kind == 'h' and mask.bit_count() >= 2:
+		elif kind == 'h' and mask:
 			shown = pick.pack([i for i in range(len(found)) if mask >> i & 1])
 		names = pick.shown_names(cmd, found, shown)
 		lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, view, page, note)
@@ -171,8 +171,8 @@ def process_pick_callback(press, pressed):
 			if kind == 'm' and chat.edit_buttons(press.message_id, rows): # a tick, a page: the answer stays as it is
 				return
 			pick_answer(service, chat, press.message_id, cmd, group, period, names, rows, note)
-			if cmd in 'yc' and (stale or kind in 'rh'): # a new ticker or set
-				prime_periods(chat, 'c' if cmd == 'c' else 'h', names, period)
+			if cmd == 'c' and (stale or kind == 'h'): # a new ticker or set
+				prime_periods(chat, 'c', names, period)
 			return
 		chat.edit_text(press.message_id, '\n'.join(lines), rows) # the picker alone: no answer yet, so text
 	except answer.Answer as e:
@@ -182,19 +182,20 @@ def process_pick_callback(press, pressed):
 		delivery.report_error(e, chat, context='pick')
 
 def pick_content(service, chat, cmd, group, period, names):
-	"""A picker's answer for the portfolio (pie, treemap, holdings) or tickers (history, compare) `names`: (caption,
-	chart or None)."""
+	"""A picker's answer for the portfolio (pie, treemap, holdings) or tickers (compare) `names`: (caption, chart or
+	None)."""
 	if cmd == 'h':
 		return '\n'.join(holdings.prepare_holdings_payload(names[0], service) or [f"{names[0]} holds nothing"]), None
 	if cmd in 'pt':
 		prepare = holdings.prepare_pie if cmd == 'p' else holdings.prepare_treemap
 		lines, chart = prepare(names[0], 'sector' if group == 's' else 'industry', service)
 		return '\n'.join(lines), chart
-	return charts.build('c' if cmd == 'c' else 'h', names, service, chat.key, period=period if period != '0' else 'x')
+	return charts.build('c', names, service, chat.key, period=period if period != '0' else 'x')
 
 def pick_answer(service, chat, message, cmd, group, period, names, rows, note=None):
-	"""The pressed picker message turned into the answer of its command for the item (history, a portfolio's) or items
-	(compare), the picker's button rows left under it, after a note if there is one: a chart, or text (the holdings)."""
+	"""The pressed picker message turned into the answer of its command for the item (a portfolio's) or items
+	(compare's tickers), the picker's button rows left under it, after a note if there is one: a chart, or text (the
+	holdings)."""
 	if cmd == 'h':
 		lines = pick_content(service, chat, cmd, group, period, names)[0].split('\n')
 		parts = transports.chunked(([note] if note else []) + lines, chat.dialect.text_limit)
@@ -406,11 +407,9 @@ def on_session(request, args):
 
 def on_price(request, args):
 	""".price [percent|SYMBOL|top|bottom] [period]: a bare number is a percent, as on the other commands; a period has
-	its unit. One stock over a period is its chart, as its period buttons draw it, from the history that the lists
-	take their figures from too."""
+	its unit. A list is a bar chart; one stock's a line of text, over a period from the history that the lists take
+	their figures from too (.compare SYMBOL draws it)."""
 	symbol = None if args.keyword else ticker(args)
-	if symbol and args.days:
-		return chart_reply(request, 'p', [symbol], args.days)
 	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
 	price.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,
 		days=args.days, top=top, user=request.user, specific_stock=symbol)
@@ -485,15 +484,13 @@ def on_rating(request, args):
 		request.reply(payload, chart)
 
 def on_compare(request, args):
-	""".compare [SYMBOL SYMBOL...] [period]: their price changes on one chart, with period buttons where they work;
-	with no symbols, the first two's, with buttons to pick others."""
+	""".compare (or .history) [SYMBOL...] [period]: their price changes on one chart, with period buttons where they
+	work; one stock's alone; with no symbols, the first one's, with buttons to pick others."""
 	if not args.words:
 		return picker(request, 'c', args)
-	if not 2 <= len(args.words) <= buttons.MAX_PICKED:
+	if len(args.words) > buttons.MAX_PICKED:
 		raise Usage
 	tickers = list(dict.fromkeys(yahoo.symbols(args.words))) # each once, in the order asked
-	if len(tickers) < 2:
-		raise Usage
 	if not compare_picker(request, tickers, args.days):
 		chart_reply(request, 'c', tickers, args.days)
 
@@ -515,25 +512,16 @@ def compare_picker(request, tickers, days):
 	send_picker(request, 'c', found, '0', period, pick.pack(numbers), sum(1 << i for i in numbers))
 	return True
 
-def on_history(request, args):
-	""".history [SYMBOL]: the stock's change over every period, with its price chart, and period buttons where they
-	go; with no symbol, the first one's, with buttons to pick another."""
-	if not args.words:
-		return picker(request, 'y', args)
-	if len(args.words) != 1:
-		raise Usage
-	chart_reply(request, 'h', [ticker(args)])
-
 def picker(request, cmd, args):
 	"""A command typed with nothing to say what it is about (cmd, a key of buttons.PICKERS), or a job's run of it: where
-	there are buttons, its answer for the first portfolio or ticker (the first two to compare), alphabetically, with the
-	picker's buttons under it, one message that a press then edits (see send_picker). Else the command's usage."""
+	there are buttons, its answer for the first portfolio or ticker, alphabetically, with the picker's buttons under
+	it, one message that a press then edits (see send_picker). Else the command's usage."""
 	dest = request.dest
 	if not dest.takes_buttons:
 		raise Usage(portfolios()) if pick.noun(cmd) == 'portfolio' else Usage
 	group = {'sector': 's', 'industry': 'i'}.get(args.keyword, '0')
 	first = 'w' if cmd == 'c' and args.keyword != 'max' else 'x' # compare starts on 7D, unless asked for max
-	period = buttons.period_for_days(args.days, first) if cmd in 'cy' else '0'
+	period = buttons.period_for_days(args.days, first) if cmd == 'c' else '0'
 	found = pick.items(cmd, dest.key)
 	shown, mask = pick.default(cmd, found)
 	send_picker(request, cmd, found, group, period, shown, mask)
@@ -552,8 +540,8 @@ def send_picker(request, cmd, found, group, period, shown, mask):
 		dest.chart(render.blank(), caption, rows)
 	if cmd in 'pt' and pick.as_photo(dest, cmd) and delivery.interactive(dest):
 		prime_in_background(request.service, cmd, group, found, 0)
-	elif cmd in 'yc' and chart:
-		prime_periods(dest, 'c' if cmd == 'c' else 'h', pick.shown_names(cmd, found, shown), period)
+	elif cmd == 'c' and chart:
+		prime_periods(dest, 'c', pick.shown_names(cmd, found, shown), period)
 
 def prime_in_background(service, cmd, group, found, index):
 	"""Start drawing a picker's other charts, to fill the cache, in a thread of its own (see pick.prime)."""
@@ -707,9 +695,9 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
 		keywords=TOP),
 	Command(('beta',), on_beta, ('.beta',), PRICE),
-	Command(('compare',), on_compare, ('.compare [SYMBOL SYMBOL ... up to 8] [period]',), PRICE, ('.compare',),
-		period=True, keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
-	Command(('history', 'hospital', 'visual', 'hosiery'), on_history, ('.history [SYMBOL]',), PRICE),
+	Command(('compare', 'history', 'hospital', 'visual', 'hosiery'), on_compare, # history: once one stock's chart
+		('.compare [SYMBOL ... up to 8] [period]',), PRICE, ('.compare',), period=True,
+		keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
 	Command(('performance', 'performanc'), on_performance, ('.performance [period] [portfolio]',), PRICE,
 		('.performance',), period=True),
 	Command(('price', 'prices', 'prince', 'print', 'probe', 'piece', 'pierce', 'pence', 'prime'), on_price,

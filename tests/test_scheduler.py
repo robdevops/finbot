@@ -586,7 +586,7 @@ class JobsInChat(ChatBase):
 		self.assertEqual(lines[0], '<b>What a job can run:</b>')
 		for line in ('cal earnings|ex-dividend', 'message "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
 				'price midsession|interday|premarket|close|DAYS', 'trades', '.jobs add price weekly', 'beta',
-				'pe [SYMBOL|top|bottom]', 'compare [SYMBOL SYMBOL ... up to 8] [period]', '.jobs add pe top weekly'):
+				'pe [SYMBOL|top|bottom]', 'compare [SYMBOL ... up to 8] [period]', '.jobs add pe top weekly'):
 			self.assertIn(line, lines)
 		self.assertFalse(any(name in line for line in lines for name in jobs.SYSTEM_ACTIONS))
 
@@ -879,8 +879,8 @@ class JobsMenu(ChatBase):
 		self.assertEqual(lines, ['<b>Add a job: which report?</b>'])
 		self.assertEqual(rows, [['trades', 'price midsession', 'price premarket'], ['price close', 'price',
 			'performance'], ['cal earnings', 'cal ex-dividend', 'shorts'], ['rating', 'milestone', 'reminder'],
-			['holdings', 'pie', 'treemap'], ['who', 'marketcap', 'beta'], ['compare', 'history', 'buy & sell'],
-			['pe', 'forward pe', 'peg'], ['stock'], ['Cancel']])
+			['holdings', 'pie', 'treemap'], ['who', 'marketcap', 'beta'], ['compare', 'buy & sell', 'pe'],
+			['forward pe', 'peg', 'stock'], ['Cancel']])
 		self.assertEqual((data['price'], data['Cancel']), (f'm|add|5|{self.crc()}', f'm|top|0|{self.crc()}'))
 		lines, rows, data = self.press(data['price'])
 		self.assertEqual((lines, rows), (['<b>Add price: how often?</b>', '', '<i>† indicates default</i>'],
@@ -1016,7 +1016,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual(([len(row) for row in first], [button.label for button in first[-1]]), ([4, 4, 4, 4, 2],
 			['More ▶', 'Cancel']))
 		self.assertEqual([button.label for row in second for button in row], ['marketcap', 'beta', 'compare',
-			'history', 'buy & sell', 'pe', 'forward pe', 'peg', 'stock', '◀', 'Cancel'])
+			'buy & sell', 'pe', 'forward pe', 'peg', 'stock', '◀', 'Cancel'])
 
 	def test_a_step_that_is_none_adds_nothing(self):
 		"""Data that is no step of Add (forged, or an older finbot's: the weekdays frequency, the next 14 days, every...

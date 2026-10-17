@@ -8,7 +8,7 @@ from util import slack_manifest
 
 PRESS = {'type': 'block_actions', 'token': 'stok', 'trigger_id': 't1', 'user': {'id': 'U1', 'username': 'rob'},
 	'container': {'type': 'message', 'message_ts': '1.5', 'channel_id': 'C1'},
-	'actions': [{'action_id': 'c|h|w|T1', 'value': 'c|h|w|T1', 'type': 'button'}]} # a Slack period button pressed
+	'actions': [{'action_id': 'c|c|w|T1', 'value': 'c|c|w|T1', 'type': 'button'}]} # a Slack period button pressed
 
 
 class WsgiRejections(FinbotCase):
@@ -162,12 +162,12 @@ class WsgiRejections(FinbotCase):
 		secret = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
 		for sender, who in (({'username': 'rob', 'first_name': 'Rob'}, '@rob'), ({'first_name': 'Ann'}, 'Ann'),
 				({}, 'unknown')):
-			body = json.dumps({'callback_query': {'id': '1', 'from': sender, 'data': 'c|h|y|T1',
+			body = json.dumps({'callback_query': {'id': '1', 'from': sender, 'data': 'c|c|y|T1',
 				'message': {'message_id': 9, 'chat': {'id': 55}}}}).encode()
 			err = io.StringIO()
 			with contextlib.redirect_stderr(err):
 				bot.main(wsgi_environ('/telegram', body, **secret), lambda *a, **k: None)
-			self.assertIn(f'Telegram button {who} chat 55 c|h|y|T1', err.getvalue())
+			self.assertIn(f'Telegram button {who} chat 55 c|c|y|T1', err.getvalue())
 
 	def test_a_press_is_acknowledged_once_before_the_worker_gets_it(self):
 		"""bot.take acknowledges a press, the one place that does: Telegram's with the toast its data makes, before the
@@ -177,7 +177,7 @@ class WsgiRejections(FinbotCase):
 		self.patch(telegram_common, 'answerCallbackQuery',
 			lambda cid, text=None, alert=False: order.append(('acknowledged', cid, text)))
 		self.patch(worker, 'process_callback', lambda press: order.append(('worker', press.service, press.data)))
-		update = {'update_id': 71, 'callback_query': {'id': 'q1', 'from': {'username': 'u'}, 'data': 'c|h|y|T1',
+		update = {'update_id': 71, 'callback_query': {'id': 'q1', 'from': {'username': 'u'}, 'data': 'c|c|y|T1',
 			'message': {'message_id': 9, 'chat': {'id': 55}}}}
 		with contextlib.redirect_stderr(io.StringIO()):
 			for _ in range(2):
@@ -185,8 +185,8 @@ class WsgiRejections(FinbotCase):
 				self.join_workers()
 			self.assertEqual(bot.take(slack_common.READER, PRESS), inbound.OK)
 		self.join_workers()
-		self.assertEqual(order, [('acknowledged', 'q1', 'Loading 1Y…'), ('worker', 'telegram', 'c|h|y|T1'),
-			('worker', 'slack', 'c|h|w|T1')])
+		self.assertEqual(order, [('acknowledged', 'q1', 'Loading 1Y…'), ('worker', 'telegram', 'c|c|y|T1'),
+			('worker', 'slack', 'c|c|w|T1')])
 
 
 class DoubledMessages(FinbotCase):
@@ -313,7 +313,7 @@ class SlackEvents(FinbotCase):
 		presses = []
 		self.patch(worker, 'process_callback', presses.append)
 		self.assertEqual(self.press(PRESS), '200 OK')
-		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|h|w|T1', '@rob')])
+		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '@rob')])
 		self.assertEqual(self.press({**PRESS, 'token': 'wrong'}), '403 Forbidden')
 		self.assertEqual(self.press({**PRESS, 'container': {'type': 'view', 'view_id': 'V1'}}), '200 OK')
 		self.assertEqual(self.press({**PRESS, 'actions': []}), '200 OK')
@@ -408,7 +408,7 @@ class SlackSigning(FinbotCase):
 				bot.main(wsgi_environ('/slack', sent, **headers), lambda s, *a, **k: answers.append(s))
 			self.join_workers()
 			self.assertEqual(answers, [status])
-		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|h|w|T1', '@rob')])
+		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '@rob')])
 
 	def test_a_signed_request_is_answered_and_the_token_is_not_needed(self):
 		"""A request signed with the secret is answered, whatever token it carries."""

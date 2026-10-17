@@ -72,14 +72,15 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   the typing notice while it works. `process_request(message)` and `process_callback(press)` take inbound's objects.
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
   or the job's chat, and with no dest raises: there are no home chats (`delivery.target`); `job(argv)`, its arguments'
-  parser (`reports.no_arguments(name)` for one that takes none); and `ARGUMENTS`, what `.jobs add` lists):
-  `price performance trades shorts cal rating milestone message podcasts cleanup sharesight_warm yahoo_warm`. trades,
-  rating, milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`),
-  added to only by a scheduled run (`delivery.interactive(dest)` is false). A report with nothing to show says so
-  only where someone asked (`delivery.asked(dest)`: a command, a button, or Run now and `.jobs run`, whose destination
-  is scheduled but `asked`); on schedule it posts nothing.
-  Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens: `jobs_screen`, `add_screen`, `next_screen`), `history` (.history .compare), `holdings` (.holdings .who .pie .treemap
-  .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
+  parser (`reports.no_arguments(name)` for one that takes none); and `ARGUMENTS`, what `.jobs add` lists): `price
+  performance trades shorts cal rating milestone message podcasts cleanup sharesight_warm yahoo_warm`. trades, rating,
+  milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`), added to only
+  by a scheduled run (`delivery.interactive(dest)` is false). A report with nothing to show says so only where someone
+  asked (`delivery.asked(dest)`: a command, a button, or Run now and `.jobs run`, whose destination is scheduled but
+  `asked`); on schedule it posts nothing. Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens:
+  `jobs_screen`, `add_screen`, `next_screen`), `history` (.compare, also called .history: one stock's line, or two to
+  eight rebased), `holdings` (.holdings .who .pie .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe
+  .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
   `chat(key)`, as its network's bot), `deliver(dest, report)` (a chart refused goes again with its heading alone as the
   caption, the lines as text after it), the one-line error report (to its chat; one that belongs to no chat only
@@ -90,16 +91,17 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
   its `interaction` (application id/token), and a pressed message is edited through the press's.
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.pie .treemap .holdings
-  .history .compare` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
-  `process_pick_callback`): the first answer at once (the first portfolio or ticker, the first two to compare), the
-  buttons kept under it and every press re-editing the answer from `shown` (an item's number plus one; compare's
-  tickers, `pick.pack`), but a tick or a page of tickers its buttons alone (`m`; `n` under a note, which the next press
-  takes away), 32 items a page (`pick.layout`; fewer on Discord) turned by `<` `>` under the tickers menu, its list of
-  items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list is), `.compare`'s ticks (up to
-  `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert toast (`buttons.alert`); a pie or
-  treemap primes its other charts in a thread (`pick.prime`, started by `worker.prime_in_background`); every chart with
-  period buttons primes its other periods (`charts.prime`, `worker.prime_periods` after `.compare`, `.price`,
-  `.performance`, `chart_reply` and the pickers); neither for a scheduled run.
+  .compare` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
+  `process_pick_callback`): the first answer at once (the first portfolio or ticker; compare's `▶`, ending its period
+  row, opens the tickers, clearing a lone tick), the buttons kept under it and every press re-editing the answer from
+  `shown` (an item's number plus one; compare's tickers, `pick.pack`), but a tick or a page of tickers its buttons alone
+  (`m`; `n` under a note, which the next press takes away), 32 items a page (`pick.layout`; fewer on Discord) turned by
+  `<` `>` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
+  is), `.compare`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert
+  toast (`buttons.alert`); a pie or treemap primes its other charts in a thread (`pick.prime`, started by
+  `worker.prime_in_background`); every chart with period buttons primes its other periods (`charts.prime`,
+  `worker.prime_periods` after `.compare`, `.price`, `.performance`, `chart_reply` and the pickers); neither for a
+  scheduled run.
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), the `.jobs` menu's (`menu_button`, a
   `MenuPress`), what a pressed button's data asks for (`parse`), and the
   toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so
