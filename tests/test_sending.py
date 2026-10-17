@@ -71,6 +71,19 @@ class TelegramSending(FinbotCase):
 				self.assertEqual(chat.edit_buttons('8', []), shown)
 		self.assertFalse(slack_common.SlackBot('C1').edit_buttons('1.2', []))
 
+	def test_an_edit_that_changes_nothing_is_no_failure(self):
+		"""Telegram refuses an edit that changes nothing ("message is not modified": a button pressed again), which each
+		edit logs in a few words, never as a failure."""
+		refusal = Resp({'ok': False, 'description': 'Bad Request: message is not modified: specified new message content'
+			' and reply markup are exactly the same as a current content and reply markup of the message'}, 400)
+		self.patch(net, 'post', lambda url, **kwargs: refusal)
+		chat = telegram_common.TelegramBot('5')
+		for name, edit in (('text', lambda: chat.edit_text('8', 'text')), ('buttons', lambda: chat.edit_buttons('8', [])),
+				('chart', lambda: chat.edit_chart('8', io.BytesIO(b'png'), 'caption'))):
+			with self.subTest(edit=name), contextlib.redirect_stderr(io.StringIO()) as log:
+				edit()
+				self.assertEqual(log.getvalue(), 'Telegram duplicate button press ignored\n')
+
 	def test_typing_is_sent_again_before_it_lapses(self):
 		""""typing…" shows for 5 seconds at most (sendChatAction), so it is sent again sooner, and shows the whole time
 		a command works, for a minute at least."""

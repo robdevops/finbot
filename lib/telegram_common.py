@@ -35,6 +35,15 @@ def try_call(method, **kwargs):
 		log.warn(f"Telegram {method} failed:", net.redact(e))
 
 
+def unchanged(error):
+	"""Whether Telegram refused an edit for changing nothing ("message is not modified": a button pressed again, its
+	answer on show already), which is logged in a few words, as no failure."""
+	if 'message is not modified' not in str(error):
+		return False
+	log.info("Telegram duplicate button press ignored")
+	return True
+
+
 def deleteWebhook():
 	"""Have Telegram stop posting updates. Those not delivered yet are kept, for the webhook set next or getUpdates."""
 	log.info("telegram: deleting the webhook")
@@ -183,27 +192,32 @@ class TelegramBot(transports.Transport):
 		try:
 			call('editMessageMedia', data=data, files={'photo': ('image.png', image)}, logged='debug')
 		except RuntimeError as e:
-			if 'not modified' not in str(e):
+			if not unchanged(e):
 				raise
 		except Exception as e: # it may have arrived even so: no error line for something the chat may already show
 			log.warn("Telegram editMessageMedia failed:", net.redact(e))
 
 	def edit_text(self, message, text, buttons=None):
-		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
+		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged, an
+		edit that changes nothing (unchanged) as no failure."""
 		payload = {'chat_id': self.where, 'message_id': message, 'text': text, 'parse_mode': 'HTML',
 			'link_preview_options': self.NO_PREVIEWS}
 		if buttons is not None:
 			payload['reply_markup'] = self.markup(buttons)
-		try_call('editMessageText', json=payload, logged='debug')
+		try:
+			call('editMessageText', json=payload, logged='debug')
+		except Exception as e:
+			if not unchanged(e):
+				log.warn("Telegram editMessageText failed:", net.redact(e))
 
 	def edit_buttons(self, message, buttons):
 		"""editMessageReplyMarkup: the buttons under a message changed, its text or chart left as it is (no upload).
-		True when they show now, as they do when they were so already; a failure is logged, and False."""
+		True when they show now, as they do when they were so already (unchanged); a failure is logged, and False."""
 		try:
 			call('editMessageReplyMarkup', json={'chat_id': self.where, 'message_id': message,
 				'reply_markup': self.markup(buttons)}, logged='debug')
 		except Exception as e:
-			if 'not modified' in str(e):
+			if unchanged(e):
 				return True
 			log.warn("Telegram editMessageReplyMarkup failed:", net.redact(e))
 			return False
