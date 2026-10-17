@@ -53,7 +53,7 @@ def process_menu_callback(press, pressed):
 	"""A press in the .jobs menu (an inbound.Press; pressed, the buttons.MenuPress its data says): a screen to show; or
 	first a job to switch, delete or run, as long as the list is the one the button was drawn for (its checksum), else
 	the screen is drawn as the list is now, saying so; or a step of Add, the last adding the job. The pressed message
-	then shows the screen; a run's outcome is a message of its own."""
+	then shows the screen; a run's outcome is a message of its own, unless it is done (what the job posts shows it)."""
 	service = dialects.of(press.service)
 	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
 	try:
@@ -96,8 +96,8 @@ def menu_screen(service, chat, pressed):
 				elif screen == 'del':
 					scheduler.delete(job)
 					note = f'Deleted {number}. {service.escape(job.name)}'
-				else:
-					delivery.deliver(chat, delivery.Report([about.job_line(service, number, job, scheduler.run(job))]))
+				elif (outcome := scheduler.run(job)) != 'done': # a run that went well shows itself: what it posts
+					delivery.deliver(chat, delivery.Report([about.job_line(service, number, job, outcome)]))
 			except jobs.ScheduleError as e:
 				note = service.escape(str(e))
 	return about.jobs_screen(service, key, screen, page, note)

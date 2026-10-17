@@ -824,13 +824,16 @@ class JobsMenu(ChatBase):
 			'price-close-us'], 'jobs': []}))
 		self.assertEqual(self.press(f'm|del|0|{self.crc()}')[1], [['Cancel']])
 
-	def test_run_now_runs_the_job_and_says_how_it_went(self):
-		"""Run now lists the jobs with a button each; a press runs the job and says how it went."""
+	def test_run_now_runs_the_job_and_says_only_what_went_wrong(self):
+		"""Run now lists the jobs with a button each; a press runs the job, what it posts showing that it ran: no
+		message says it is done, but one says so when it did not run (running already)."""
 		_, _, data = self.press(f'm|run|0|{self.crc()}')
 		self.replies.clear()
 		self.press(data['3 trades'])
-		self.assertEqual(self.ran, [('trades', {})])
-		self.assertEqual(self.replies[-1][1], ['3. trades: done'])
+		self.assertEqual((self.ran, self.replies), ([('trades', {})], []))
+		self.assertTrue(self.s.claim(self.s.chat_jobs(CHAT)[2].key)) # as if it were running
+		self.press(data['3 trades'])
+		self.assertEqual((len(self.ran), self.replies), (1, [(CHAT, ['3. trades: already running'], None)]))
 
 	def test_upcoming_lists_the_next_runs_with_cancel(self):
 		"""Upcoming lists the next runs, with Cancel back to the list."""

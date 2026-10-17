@@ -25,7 +25,8 @@ Under it are up to six buttons, two to a row, each there only where it has somet
   deletes every job. A default job that is deleted comes back when the same job is added again.
 * **Enable**: a button per job that is off; **Enable all** switches every job on.
 * **Disable**: a button per job that is on; **Disable all** switches every job off.
-* **Run now**: a button per job; a press runs it now, as its schedule would, and says how it went.
+* **Run now**: a button per job; a press runs it now, as its schedule would. What the job posts shows it ran; a
+  message says so only when it failed, or was running already.
 * **Upcoming...**: the next runs, in time order.
 
 A button drawn for a list that has since changed acts on nothing: the screen is drawn again as the list is now.
