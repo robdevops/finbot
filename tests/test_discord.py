@@ -298,10 +298,10 @@ class Commands(FinbotCase):
 		commands = worker.slash_commands()
 		names = [name for name, _, _, _ in commands]
 		self.assertEqual(len(names), len(set(names)))
-		for expected in ('help', 'dividend', 'earnings', 'buy', 'sell', 'session', 'premarket', 'forwardpe', 'stock',
+		for expected in ('help', 'dividend', 'earnings', 'buy', 'sell', 'forwardpe', 'stock',
 				'jobs', 'price', 'movers'):
 			self.assertIn(expected, names)
-		self.assertFalse({'profile', 'job'} & set(names))
+		self.assertFalse({'profile', 'job', 'session', 'premarket'} & set(names))
 		for name, description, arguments, _ in commands:
 			with self.subTest(name=name):
 				self.assertRegex(name, r'^[a-z0-9_-]{1,32}$')
@@ -311,7 +311,7 @@ class Commands(FinbotCase):
 				self.assertEqual(command.handler, (worker.COMMANDS[0] if name == 'help' else command).handler)
 		arguments = dict((n, a) for n, _, a, _ in commands)
 		self.assertEqual([arguments[name] for name in ('price', 'movers', 'beta')],
-			['[SYMBOL ... up to 8] [period]', '[percent|top|bottom] [period]', ''])
+			['[SYMBOL ... up to 8] [period]', '[percent|top|bottom|session|premarket] [period]', ''])
 		self.assertNotIn('compare', arguments) # a name typed, as history is
 
 	def test_stock_and_profile_are_the_profile_command(self):

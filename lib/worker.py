@@ -525,15 +525,19 @@ def on_performance(request, args):
 	performance.run(request.dest, past_days=days, user=request.user, portfolio_select=args.rest or None)
 	prime_periods(request.dest, 'f', [args.rest or ''], buttons.period_for_days(days))
 
-def on_session(request, args):
-	""".session or .premarket (.postmarket) [percent|SYMBOL]: the moves mid-session, or pre-market (and post-market)."""
-	mode = 'midsession' if args.word == 'session' else 'premarket'
-	movers.run(request.dest, mode=mode, threshold=args.percent, user=request.user, specific_stock=ticker(args))
+# the modes of .movers session and premarket, which were commands of their own and still answer typed
+SESSIONS = {'session': 'midsession', 'premarket': 'premarket', 'postmarket': 'premarket', 'permarket': 'premarket'}
 
 def on_movers(request, args):
-	""".movers [percent|top|bottom] [period]: the stocks followed whose price moved past a percent (a bare number, as on
-	the other commands), today or over a period (a period has its unit), or the top and bottom ten: one change each, a
-	bar chart with period buttons. One stock's price over time is .price SYMBOL."""
+	""".movers [percent|top|bottom|session|premarket] [period]: the stocks followed whose price moved past a percent (a
+	bare number, as on the other commands), today or over a period (a period has its unit), or the top and bottom ten:
+	one change each, a bar chart with period buttons; with session or premarket, the moves mid-session or pre-market
+	(and post-market) of those, or of one SYMBOL, without. One stock's price over time is .price SYMBOL."""
+	if mode := SESSIONS.get(args.word) or SESSIONS.get(args.keyword):
+		if args.days:
+			raise Usage
+		return movers.run(request.dest, mode=mode, threshold=args.percent, user=request.user,
+			specific_stock=ticker(args))
 	if args.words:
 		raise Usage
 	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
@@ -832,10 +836,9 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 		keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
 	Command(('performance', 'performanc'), on_performance, ('.performance [period] [portfolio]',), PRICE,
 		('.performance',), period=True),
-	Command(('movers', 'mover', 'moves'), on_movers, ('.movers [percent|top|bottom] [period]',), PRICE, ('.movers',),
-		percent=True, period=True, keywords=TOP),
-	Command(('session', 'premarket', 'postmarket', 'permarket'), on_session,
-		('.session [percent|SYMBOL]', '.premarket [percent|SYMBOL]'), PRICE, ('.session', '.premarket'), percent=True),
+	Command(('movers', 'mover', 'moves', *SESSIONS), on_movers,
+		('.movers [percent|top|bottom|session|premarket] [period]',), PRICE, ('.movers',), percent=True, period=True,
+		keywords=TOP | {name: name for name in SESSIONS}),
 	Command(BUY_SELL, on_rating, ('.buy', '.sell'), RISK, ('.buy & sell',)), # .buy & sell (or .buy sell): both
 	Command(('pe',), on_ratio('pe'), ('.pe [SYMBOL|top|bottom]',), RISK, keywords=TOP),
 	Command(('forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'), ('.forward pe [SYMBOL|top|bottom|negative]',),
@@ -910,7 +913,7 @@ def described(name, lines, most=100):
 		text = longer
 	return text
 
-REPORTED = (on_movers, on_performance, on_trades, on_shorts, on_calendar, on_session) # what a scheduled report runs
+REPORTED = (on_movers, on_performance, on_trades, on_shorts, on_calendar) # what a scheduled report runs
 
 STORED = {'price': 'compare'} # a command whose jobs are stored under another name: .price's under compare, its
 # name until it took .price over (a stored price is the movers report's old name: jobs.RENAMED)

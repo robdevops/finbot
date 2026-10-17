@@ -44,15 +44,13 @@ Where:
 /jobs add report schedule
 /jobs add message schedule "text"
 /marketcap [symbol|top|bottom]
-/movers [percent|top|bottom] [period]
+/movers [percent|top|bottom|session|premarket] [period]
 /pe [symbol|top|bottom]
 /peg [symbol|top|bottom|negative]
 /performance [period] [portfolio]
 /pie [portfolio] [sector]
 /plan [your plan]
-/premarket [percent|symbol]
 /price [symbol...] [period]
-/session [percent|symbol]
 /shorts [percent|symbol]
 /trades [period] [portfolio]
 /treemap [portfolio] [sector]
@@ -170,14 +168,14 @@ When scheduled, the mode is its argument:
 * If `close` is passed, it reports daily change in stocks whose market closed in the past 3 hours.
 * If an integer [i] is passed, it reports current price against [i] days ago.
 
-Command (pre-market):
+Command (pre-market, with a symbol for one stock's):
 ```
-/premarket [percent]
+/movers premarket [percent|symbol]
 ```
 
-Command (mid-session):
+Command (mid-session, with a symbol for one stock's):
 ```
-/session [percent]
+/movers session [percent|symbol]
 ```
 
 Command (interday).
@@ -195,7 +193,7 @@ Or the ten best and the ten worst over the period, whatever their moves:
 /movers top|bottom [period]
 ```
 
-`/movers` was `/price` until `/price` became the price line chart (see [Price](#price)); `/price` with a percent, `top` or `bottom` and no symbol says so. One stock's move in session is `/session symbol` or `/premarket symbol`.
+`/movers` was `/price` until `/price` became the price line chart (see [Price](#price)); `/price` with a percent, `top` or `bottom` and no symbol says so. `/session` and `/premarket` were commands of their own: they are `/movers session` and `/movers premarket` now, and still answer when typed.
 
 ### Portfolio performance
 ![Screenshot of Portfolio performance notification on Slack](../img/performance.png?raw=true "Screenshot performance notification on Slack")

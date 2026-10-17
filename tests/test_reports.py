@@ -17,6 +17,19 @@ class Commands(FinbotCase):
 			with self.subTest(cmd=cmd):
 				self.assertTrue(self.command(cmd), f'{cmd} sent nothing')
 
+	def test_session_and_premarket_are_movers_by_other_names(self):
+		""".movers session and .movers premarket are what .session and .premarket were, which still answer typed: the
+		same report, a SYMBOL too; neither is in .help, the keyboard or the slash commands."""
+		self.settings(graph=False)
+		for typed, same in (('.session', '.movers session'), ('.premarket 2', '.movers premarket 2'),
+				('.premarket T1', '.movers premarket T1'), ('.postmarket', '.movers postmarket')):
+			with self.subTest(typed=typed):
+				self.assertEqual(self.command(typed), self.command(same))
+		self.assertEqual(self.command('.movers session 7d')[0][1][0][:6], 'Usage:')
+		shown = [line for _, lines in worker.help_sections() for line in lines]
+		self.assertIn('.movers [percent|top|bottom|session|premarket] [period]', shown)
+		self.assertFalse([line for line in shown if line.startswith(('.session', '.premarket'))])
+
 	def test_exdividend_is_the_ex_dividend_report(self):
 		""".exdividend and .ex-dividend are .dividend: the ex-dividend dates, not a stock named EXDIVIDEND."""
 		self.settings(graph=False)
@@ -64,7 +77,7 @@ class Commands(FinbotCase):
 		buttons = [button['text'] for row in worker.command_keyboard()['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
 		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.forward pe', '.movers', '.peg', '.performance', '.pie',
-			'.premarket', '.price', '.schedule', '.session', '.shorts', '.trades', '.treemap', '.watchlist'])
+			'.price', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
 				with self.subTest(text=text):
