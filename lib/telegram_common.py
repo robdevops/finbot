@@ -1,13 +1,16 @@
 """Telegram, whichever way its updates arrive (long polling, telegram_longpolling; or the webhook, telegram_webhook):
 the Bot API calls, the reader of its updates (Telegram, READER), and the bot that posts into its chats
 (TelegramBot)."""
+import hashlib
 import html
 import json
+import re
 
 import requests
 
 from lib import log
 from lib import buttons
+from lib import cache
 from lib import config
 from lib import dialects
 from lib import inbound
@@ -34,6 +37,37 @@ def try_call(method, **kwargs):
 		return call(method, **kwargs)
 	except Exception as e:
 		log.warn(f"Telegram {method} failed:", net.redact(e))
+
+
+PHOTO_SECONDS = 30 * 86400 # how long a chart's file id is reused: Telegram keeps a bot's files, cleanup the cache file
+# how Telegram refuses a file id it does not know (another bot's, say)
+REFUSED_PHOTO = re.compile(r'file identifier|file reference|file_id|MEDIA_EMPTY', re.I)
+
+
+def photo_file(photo):
+	"""The cache file that holds the file id of a chart (its PNG bytes) uploaded to Telegram: by the chart and the bot,
+	whose own uploads alone it shows by id."""
+	return f"finbot_telegram_photo_{hashlib.sha1(config.env.telegramBotToken.encode() + photo).hexdigest()[:20]}.json"
+
+
+def with_photo(method, photo, data, **kwargs):
+	"""call() a method that sends a chart (its PNG bytes, photo), its form data(known): known the file id of the
+	chart's earlier upload where there is one (no bytes are sent: a period or portfolio shown again), else None and the
+	bytes uploaded, their file id kept for next time (with the cache setting on). An earlier file id that Telegram
+	refuses gives way to the upload."""
+	name = photo_file(photo)
+	if config.settings.cache and (known := cache.read(name, PHOTO_SECONDS)):
+		try:
+			return call(method, data=data(known), **kwargs)
+		except RuntimeError as e:
+			if not REFUSED_PHOTO.search(str(e)):
+				raise
+			log.warn(f"Telegram {method} refused an earlier upload of the chart, uploading it again:", net.redact(e))
+	result = call(method, data=data(None), files={'photo': ('image.png', photo)}, **kwargs)
+	sizes = result.get('photo') if isinstance(result, dict) else None
+	if sizes and config.settings.cache:
+		cache.write(name, sizes[-1]['file_id']) # the largest: the chart as it was sent
+	return result
 
 
 def unchanged(error):
@@ -190,8 +224,9 @@ class TelegramBot(transports.Transport):
 		data = {'chat_id': self.where, 'caption': caption, 'parse_mode': 'HTML', 'disable_notification': True}
 		if buttons:
 			data['reply_markup'] = json.dumps(self.markup(buttons))
+		photo = image.read() if hasattr(image, 'read') else bytes(image)
 		try:
-			message = call('sendPhoto', data=data, files={'photo': ('image.png', image)})
+			message = with_photo('sendPhoto', photo, lambda known: data | ({'photo': known} if known else {}))
 		except requests.exceptions.ReadTimeout as e:
 			log.warn("Telegram sendPhoto timed out, the chart may still arrive:", net.redact(e))
 			return transports.MAYBE_SENT
@@ -202,18 +237,19 @@ class TelegramBot(transports.Transport):
 		return message
 
 	def edit_chart(self, message, image, caption, buttons=None):
-		"""Replace a chart message's image, caption and buttons in place. Raises RuntimeError when Telegram refuses,
-		unless the message is already so (pressing the active period again is harmless); a request that fails on the way
-		is only logged."""
-		media = {'type': 'photo', 'media': 'attach://photo', 'caption': transports.fit_caption(caption, self.dialect),
-			'parse_mode': 'HTML'}
-		data = {'chat_id': self.where, 'message_id': message, 'media': json.dumps(media)}
+		"""Replace a chart message's image, caption and buttons in place, the image by the file id of its earlier upload
+		where there is one (with_photo). Raises RuntimeError when Telegram refuses, unless the message is already so
+		(pressing the active period again is harmless); a request that fails on the way is only logged."""
+		caption = transports.fit_caption(caption, self.dialect)
+		data = {'chat_id': self.where, 'message_id': message}
 		if buttons:
 			data['reply_markup'] = json.dumps(self.markup(buttons))
 		if hasattr(image, 'seek'):
 			image.seek(0)
+		photo = image.read() if hasattr(image, 'read') else bytes(image)
 		try:
-			call('editMessageMedia', data=data, files={'photo': ('image.png', image)}, logged='debug')
+			with_photo('editMessageMedia', photo, lambda known: data | {'media': json.dumps({'type': 'photo',
+				'media': known or 'attach://photo', 'caption': caption, 'parse_mode': 'HTML'})}, logged='debug')
 		except RuntimeError as e:
 			if not unchanged(e):
 				raise

@@ -456,9 +456,13 @@ def symbol(typed):
 
 def prefetch_history(tickers, workers=8, seconds=None):
 	"""Warm the price-history cache for many tickers at once, so the per-ticker lookups that follow are cache hits: a
-	history is fetched unless its cache file is under `seconds` old (cache_seconds when None; 0 fetches each afresh).
-	Returns the tickers whose history could not be fetched, each logged."""
-	tickers = list(tickers)
+	history is fetched unless its cache file is under `seconds` old (cache_seconds when None; 0 fetches each afresh),
+	which its age tells (a fresh one is not read: a 10-year history takes 3 ms to decode). With the cache setting off
+	nothing would be kept, so nothing is fetched. Returns the tickers whose history could not be fetched (logged)."""
+	if not config.settings.cache:
+		return []
+	limit = config.settings.cache_seconds if seconds is None else seconds
+	tickers = [ticker for ticker in tickers if (age := cache.age(history_file(ticker))) is None or age >= limit]
 	failed = []
 	for ticker, result in zip(tickers, fetch_each(lambda t: fetch_chart_json(t, seconds=seconds), tickers, workers)):
 		if isinstance(result, Exception):
@@ -466,11 +470,14 @@ def prefetch_history(tickers, workers=8, seconds=None):
 			failed.append(ticker)
 	return failed
 
+def history_file(ticker, full=False):
+	"""The cache file of a ticker's daily chart, or of its entire history (full)."""
+	return "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
+
 def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
 	"""Yahoo's daily chart for the last `days`, or with full=True its entire history (cached separately). Raises NoData
 	for a symbol Yahoo does not know, RuntimeError when Yahoo cannot be reached or refuses."""
-	name = "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
-	return cache.cached(name, seconds, lambda: _chart_answer(ticker, days, full))
+	return cache.cached(history_file(ticker, full), seconds, lambda: _chart_answer(ticker, days, full))
 
 def _chart_answer(ticker, days, full):
 	"""The v8 chart answer: daily bars of the last `days`, or all with full=True. Raises as fetch_chart_json does."""

@@ -3,6 +3,8 @@ HTTP is mocked at lib.net, so the production parsing code runs unchanged."""
 import contextlib, datetime, io, os, unittest
 from tests.common import *
 
+PREFETCH_HISTORY = yahoo.prefetch_history # FinbotCase replaces it
+
 
 class YahooQuotes(ProviderCase):
 	def test_parses_real_v7_quote(self):
@@ -209,6 +211,20 @@ class YahooChart(ProviderCase):
 		self.http(yahoo, nothing)
 		with self.assertRaisesRegex(RuntimeError, 'no cookie'):
 			yahoo.credentials(renew=True)
+
+	def test_a_fresh_history_is_not_read_to_prefetch_it(self):
+		"""Prefetching tells a fresh history by its file's age: it is not read (a 10-year one takes 3 ms to decode), and
+		only the stale or missing are fetched; with the cache setting off nothing is, as nothing would be kept."""
+		self.patch(yahoo, 'prefetch_history', PREFETCH_HISTORY)
+		cache.write(yahoo.history_file('T1'), self.chart([1.0, 2.0]))
+		read, real_read = [], cache.read
+		self.patch(cache, 'read', lambda name, seconds=None: read.append(name) or real_read(name, seconds))
+		getter = self.http(yahoo, Resp(self.chart([3.0, 4.0])))
+		self.assertEqual(yahoo.prefetch_history(['T1', 'T2']), [])
+		self.assertEqual((read, len(getter.calls)), ([yahoo.history_file('T2')], 1)) # T2's, missing: fetched
+		self.assertEqual(real_read(yahoo.history_file('T2')), self.chart([3.0, 4.0]))
+		self.settings(cache=False)
+		self.assertEqual((yahoo.prefetch_history(['T3']), len(getter.calls)), ([], 1))
 
 	def test_fetch_chart_json_failures_raise(self):
 		"""A chart Yahoo will not give is a RuntimeError."""

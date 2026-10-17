@@ -85,7 +85,8 @@ class TelegramSending(FinbotCase):
 				self.settings(log_level=level)
 				with self.subTest(edit=name, level=level), contextlib.redirect_stderr(io.StringIO()) as log:
 					edit()
-					self.assertEqual(log.getvalue(), logged)
+					lines = log.getvalue().splitlines(keepends=True) # a chart's file id is looked up in the cache first
+					self.assertEqual(''.join(line for line in lines if not line.startswith('cache ')), logged)
 
 	def test_typing_is_sent_again_before_it_lapses(self):
 		""""typing…" shows for 5 seconds at most (sendChatAction), so it is sent again sooner, and shows the whole time
@@ -104,6 +105,61 @@ class TelegramSending(FinbotCase):
 		self.assertTrue(url.endswith('/sendPhoto'))
 		self.assertEqual(kwargs['data'], {'chat_id': '5', 'caption': 'caption', 'parse_mode': 'HTML',
 			'disable_notification': True})
+
+	def photos(self, refused=()):
+		"""net.post as Telegram, each upload answered with a new file id (P1, P2...), and each file id in `refused`
+		refused as Telegram refuses another bot's: the requests, as (method, data, whether bytes went)."""
+		sent, uploads = [], iter(f'P{n}' for n in range(1, 10))
+		def post(url, data=None, files=None, **kwargs):
+			"""Answer as Telegram does, the message with its photo's sizes, the largest last."""
+			sent.append((url.rsplit('/', 1)[1], data, files is not None))
+			given = data.get('photo') or json.loads(data.get('media', '{}')).get('media')
+			if given in refused:
+				return Resp({'ok': False, 'description': 'Bad Request: wrong file identifier/HTTP URL specified'}, 400)
+			photo = next(uploads) if files else 'unchanged'
+			return Resp({'ok': True, 'result': {'message_id': 8, 'photo': [{'file_id': photo + 's', 'width': 320},
+				{'file_id': photo, 'width': 1280}]}})
+		self.patch(net, 'post', post)
+		return sent
+
+	def test_a_chart_uploaded_once_is_shown_again_by_its_file_id(self):
+		"""A chart Telegram has (the same bytes, by this bot) goes by the file id of its largest size, in a new message
+		or a message edited for a period or portfolio pressed again: no bytes are sent. Another chart is uploaded."""
+		sent = self.photos()
+		chat = telegram_common.TelegramBot('5')
+		chat.post_chart(io.BytesIO(b'png one'), 'caption')
+		chat.post_chart(io.BytesIO(b'png one'), 'caption')
+		chat.edit_chart('8', io.BytesIO(b'png two'), 'another period')
+		chat.edit_chart('8', io.BytesIO(b'png one'), 'back to the first')
+		self.assertEqual([(method, uploaded) for method, _, uploaded in sent], [('sendPhoto', True),
+			('sendPhoto', False), ('editMessageMedia', True), ('editMessageMedia', False)])
+		self.assertEqual(sent[1][1]['photo'], 'P1')
+		self.assertEqual(json.loads(sent[2][1]['media'])['media'], 'attach://photo')
+		self.assertEqual(json.loads(sent[3][1]['media']), {'type': 'photo', 'caption': 'back to the first',
+			'parse_mode': 'HTML', 'media': 'P1'})
+
+	def test_a_file_id_telegram_refuses_gives_way_to_an_upload(self):
+		"""A file id Telegram will not take (another bot's, say) is followed by the upload, whose file id is kept."""
+		sent = self.photos(refused=('P1',))
+		chat = telegram_common.TelegramBot('5')
+		chat.post_chart(io.BytesIO(b'png'), 'caption')
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			chat.post_chart(io.BytesIO(b'png'), 'caption')
+		self.assertIn('refused an earlier upload of the chart', log.getvalue())
+		chat.post_chart(io.BytesIO(b'png'), 'caption')
+		self.assertEqual([(uploaded, data.get('photo')) for _, data, uploaded in sent], [(True, None), (False, 'P1'),
+			(True, None), (False, 'P2')])
+
+	def test_a_file_id_is_another_bots_after_the_token_changes_or_none_with_the_cache_off(self):
+		"""A file id is reused by the bot that uploaded it alone (a new token is another bot), and not at all with the
+		cache setting off."""
+		sent = self.photos()
+		telegram_common.TelegramBot('5').post_chart(io.BytesIO(b'png'), 'caption')
+		self.env(telegramBotToken='Y')
+		telegram_common.TelegramBot('5').post_chart(io.BytesIO(b'png'), 'caption')
+		self.settings(cache=False)
+		telegram_common.TelegramBot('5').post_chart(io.BytesIO(b'png'), 'caption')
+		self.assertEqual([uploaded for _, _, uploaded in sent], [True, True, True])
 
 	def test_error_line_redacts_secrets_and_truncates(self):
 		"""An error line has no token or crumb in it, and is cut to about 200 characters."""
@@ -587,6 +643,36 @@ class SlackButtons(FinbotCase):
 		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F3'})
 		deleted = [kwargs['data']['file'] for url, kwargs in self.posts if url.endswith('/files.delete')]
 		self.assertEqual((deleted, len(built), self.errors), (['F2'], 1, [])) # message 2.5 shows F1
+
+	def test_the_same_chart_is_shown_with_its_earlier_upload(self):
+		"""A chart uploaded in the last 15 minutes (the same PNG), such as a portfolio picked again, is shown with that
+		upload: nothing is uploaded, and Slack shows it at once. Past 15 minutes, it is uploaded anew."""
+		self.uploading()
+		chat = slack_common.SlackBot('C1')
+		for image in (b'one', b'two', b'one'):
+			chat.edit_chart('1.5', io.BytesIO(image), image.decode())
+		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
+			'chat.update'] * 2 + ['chat.update'])
+		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F1'})
+		self.assertEqual(self.blocks('chat.update')[0]['text']['text'], 'one')
+		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 15 minutes on
+			for upload in noted['uploads'].values():
+				upload[0] -= 15 * 60
+		chat.edit_chart('1.5', io.BytesIO(b'two'), 'two')
+		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F3'})
+		self.assertEqual(self.waits, []) # never a chart Slack could not show yet
+
+	def test_a_period_pressed_in_another_channel_is_its_own_chart(self):
+		"""A period's upload is shown again in the channel it was drawn for: another channel's movers list is of the
+		stocks that channel follows, so a press there builds its own."""
+		self.uploading()
+		self.patch(watchlist, 'with_holdings', lambda chat: TICKERS[:3] if chat == 'slack:C2' else TICKERS)
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U')) # 1D: F1
+		worker.process_callback(inbound.Press('slack', 't2', 'C2', '2.5', 'c|l|d|5,0')) # 1D in C2: its own, F2
+		self.assertEqual(self.errors, [])
+		self.assertEqual(self.calls()[-4:], ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
+			'chat.update'])
+		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F2'})
 
 	def test_an_upload_slack_will_not_show_again_is_uploaded_anew(self):
 		"""When Slack refuses to show an earlier upload again (a file deleted outside finbot, say), the period is
