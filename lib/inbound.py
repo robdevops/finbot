@@ -22,6 +22,7 @@ class Message:
 	message_id: str = '' # the message itself: Slack shows ⏳ on it while finbot works
 	interaction: str = '' # Discord's slash command: its application id and token, to answer through
 	dm: bool = None # whether the chat is a direct message with the bot; None where its key says (jobs.is_dm)
+	ids: tuple = () # what the admins setting may call the sender: the network's id for them, and a Telegram @username
 
 
 @dataclasses.dataclass
@@ -34,12 +35,13 @@ class Press:
 	data: str
 	user: str = '' # who pressed it, for the log
 	interaction: str = '' # Discord's press: its application id and token, to edit the message pressed through
+	ids: tuple = () # what the admins setting may call the presser (see Message.ids)
 
 
 @dataclasses.dataclass
 class Suggest:
 	"""A slash command's arguments as they are typed (Discord's autocomplete), to answer at once with what to suggest:
-	the message they make so far (/price 5 7), which the suggestions complete."""
+	the message they make so far (/movers 5 7), which the suggestions complete."""
 	service: str
 	chat_id: str
 	text: str
@@ -86,8 +88,9 @@ class Network:
 		"""What the update (a dict) says: a Message, a Press, or a Response to give straight back."""
 		raise NotImplementedError
 
-	def acknowledge(self, event):
-		"""Tell the network an update was taken (a Message or a Press), where it waits for that: None when the answer to
+	def acknowledge(self, event, toast=True):
+		"""Tell the network an update was taken (a Message or a Press; toast: true for a press's own toast, false for
+		none, a press dropped, or a text: an alert, a press refused), where it waits for that: None when the answer to
 		the update says nothing more, or the Response the network must have before any reply. Here None: taking the
 		update is the acknowledgement (Slack's is the 200, or the socket's ack)."""
 		return None

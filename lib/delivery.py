@@ -35,14 +35,15 @@ def reply_to(service, chat, message=None, interaction='', pressed=False):
 	return kind(chat, message, interaction, pressed) if kind else None
 
 
-def chat(key, scheduled=False):
+def chat(key, scheduled=False, asked=False):
 	"""The destination of a chat by its key ('telegram:-1001234', Transport.key), as its network's bot; scheduled: for a
-	scheduled run, whose reports keep their record of what they told it."""
+	scheduled run, whose reports keep their record of what they told it; asked: one that someone asked for (Run now,
+	.jobs run), which says when it has nothing to show."""
 	network, _, where = key.partition(':')
 	dest = reply_to(network, where)
 	if dest is None:
 		raise ValueError(f'no chat {key!r}: no such network')
-	dest.scheduled = scheduled
+	dest.scheduled, dest.asked = scheduled, asked
 	return dest
 
 
@@ -52,11 +53,17 @@ def interactive(dest):
 	return dest is not None and not dest.scheduled
 
 
-def targets(dest):
+def asked(dest):
+	"""Whether someone asked for what goes to dest, and is told when there is nothing to show (answer.Nothing): a
+	command (interactive) or a job run now; a run on schedule posts nothing then."""
+	return dest is not None and (not dest.scheduled or dest.asked)
+
+
+def target(dest):
 	"""Where a report goes: the chat that asked for it, or whose job it is (dest). Raises RuntimeError without one."""
 	if dest is None:
 		raise RuntimeError('nowhere to post: a report goes to the chat that asked for it, or whose job it is')
-	return [dest]
+	return dest
 
 
 def deliver(dest, report):

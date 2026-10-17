@@ -1,4 +1,4 @@
-""".price, .session, .premarket, .postmarket: price moves past a threshold (scheduled: price midsession | interday |
+""".movers, .session, .premarket, .postmarket: price moves past a threshold (scheduled: movers midsession | interday |
 premarket | close | <days>)."""
 import dataclasses
 import datetime
@@ -15,8 +15,8 @@ from lib import yahoo
 from lib import buttons
 from lib.reports import history
 
-def gather(tickers, specific_stock=None, days=None):
-	"""The market data of a price report on tickers (the stocks a chat follows, or the one asked about, Yahoo's
+def gather(tickers, days=None):
+	"""The market data of a movers report on tickers (the stocks a chat follows, or the one asked about, Yahoo's
 	symbol): Yahoo's quotes, and over `days` each one's change as percent_change_period, from its Yahoo history (the
 	change its chart shows), the histories fetched together up front."""
 	market_data = yahoo.fetch(tickers)
@@ -24,14 +24,11 @@ def gather(tickers, specific_stock=None, days=None):
 		yahoo.add_usd_market_caps(market_data)
 	if not days:
 		return market_data
-	if not specific_stock:
-		yahoo.prefetch_history(list(market_data))
+	yahoo.prefetch_history(list(market_data))
 	for ticker in list(market_data):
 		try:
 			changes, _ = history.price_line(ticker, days, market_data[ticker])
-		except RuntimeError as e: # no history: the one stock asked about says so, a list leaves it out
-			if specific_stock:
-				raise
+		except RuntimeError as e: # no history: left out of the list
 			log.warn(ticker, e)
 			continue
 		market_data[ticker]['percent_change_period'] = changes[days]
@@ -72,7 +69,7 @@ HEADINGS = { # the report's heading, by mode
 
 @dataclasses.dataclass
 class Moves:
-	"""What a price report shows, the same for every chat (moves() works it out once): the moves that pass, (ticker,
+	"""What a movers report shows, the same for every chat (moves() works it out once): the moves that pass, (ticker,
 	percent, quote) best first, the countries of their exchanges, whether a market of the stocks is in session, the date
 	of the freshest price."""
 	rows: list
@@ -98,12 +95,12 @@ def change(mode, quote, now, interactive):
 	return quote.get('percent_change_period')
 
 def moves(tickers, mode='interday', threshold=None, days=None, specific_stock=None, interactive=False):
-	"""The Moves of a price report on tickers (watchlist.covered: the stocks a chat follows, or the one asked about) in
+	"""The Moves of a movers report on tickers (watchlist.covered: the stocks a chat follows, or the one asked about) in
 	a mode of MODES ('period': over `days`): each whose move is `threshold` percent or more, or the one stock asked
 	about, whatever its move. A scheduled report keeps them only when one passes its trigger_bar."""
 	if threshold is None:
 		threshold = config.settings.price_percent
-	market_data = gather(tickers, specific_stock, days)
+	market_data = gather(tickers, days)
 	now = datetime.datetime.now()
 	rows, exchanges = [], set()
 	for ticker, quote in market_data.items():
@@ -122,16 +119,17 @@ def moves(tickers, mode='interday', threshold=None, days=None, specific_stock=No
 	return Moves(rows, exchanges, in_session, as_of)
 
 def report(service, found, mode='interday', threshold=None, days=None, top=None, user='', specific_stock=None,
-		interactive=False):
-	"""(payload, chart) of a price report in one network's markup, from moves()' Moves: the moves of `threshold` percent
-	or more in a mode of MODES ('period': over `days`), or the top and bottom `top`."""
+		asked=False):
+	"""(payload, chart) of a movers report in one network's markup, from moves()' Moves: the moves of `threshold`
+	percent or more in a mode of MODES ('period': over `days`), or the top and bottom `top`; where none is, a line
+	saying so where someone asked (asked), else nothing."""
 	if threshold is None:
 		threshold = config.settings.price_percent
 	lines = [f"{formats.get_emoji(percent)} {formats.short_name(quote['profile_title'])} "
 		f"({links.finance_link(ticker, quote['profile_exchange'], service, days=days)}) "
 		f"{formats.signed_percent(round(percent))}" for ticker, percent, quote in found.rows]
 	if not lines:
-		return [nothing(mode, threshold, user, specific_stock, found.in_session, days)] if interactive else [], None
+		return [nothing(mode, threshold, user, specific_stock, found.in_session)] if asked else [], None
 	if specific_stock:
 		return lines, None
 	label = lambda rows: [(formats.short_ticker(ticker), percent) for ticker, percent, _ in rows]
@@ -153,42 +151,45 @@ def report(service, found, mode='interday', threshold=None, days=None, top=None,
 		bars += [('', None)] + label(found.rows[i] for i in worst)
 	return payload, render.Chart('bars', f"Top & bottom {top}", subtitle, tuple(bars))
 
-def nothing(mode, threshold, user, ticker, in_session, days=None):
-	"""What a chat is told when nothing meets the threshold, or the one ticker asked for has no price in this mode."""
+def nothing(mode, threshold, user, ticker, in_session):
+	"""What a chat is told when nothing meets the threshold, or the one ticker asked for (.session, .premarket) has no
+	price in this mode."""
 	if ticker:
 		if mode == 'midsession':
 			return f"{ticker} not found or not in session"
-		if mode == 'period':
-			return f"No price change found for {ticker} over {formats.days_english(days)}"
 		kind = 'premarket' if mode == 'premarket' else 'interday'
 		return f"No {kind} price found for {ticker}"
 	if mode == 'premarket':
 		return f"No pre-market price movements meet threshold {threshold:g}%"
 	if mode == 'midsession' and not in_session:
-		return f"{user}, no tracked stocks are currently in session."
-	if mode == 'midsession':
-		return f"{user}, no in-session securities meet threshold {threshold:g}%"
-	return f"{user}, no price movements meet threshold {threshold:g}%"
+		said = "no tracked stocks are currently in session."
+	elif mode == 'midsession':
+		said = f"no in-session securities meet threshold {threshold:g}%"
+	else:
+		said = f"no price movements meet threshold {threshold:g}%"
+	return f"{user}, {said}" if user else said[0].upper() + said[1:] # a job run now has no one to name
 
 def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user='', specific_stock=None):
-	"""Post the price report (report() has the modes) on the stocks each chat follows: to the chat that asked or whose
-	job it is (dest), with its chart and period buttons where they can go."""
-	interactive = delivery.interactive(dest)
+	"""Post the movers report (report() has the modes) on the stocks a chat follows: to the chat that asked or whose
+	job it is (dest), with its chart and period buttons where they can go; none said so only where someone asked
+	(delivery.asked)."""
+	chat, interactive = delivery.target(dest), delivery.interactive(dest)
 	if threshold is None:
 		threshold = config.settings.price_percent
-	def markup(chat):
-		"""A chart's period buttons, where the chat takes buttons: the daily and N-day lists, but not the intraday
-		ones."""
-		if not chat.takes_buttons:
-			return None
-		if mode in ('interday', 'period'):
-			return buttons.keyboard('l', [f"{threshold:g}", str(top or 0)],
-				buttons.period_for_days(days, 'd' if not days else None))
-		return None
-	for chat in delivery.targets(dest):
-		found = moves(watchlist.covered(chat.key, specific_stock), mode, threshold, days, specific_stock, interactive)
-		payload, graph = report(chat.dialect, found, mode, threshold, days, top, user, specific_stock, interactive)
-		delivery.deliver(chat, delivery.Report(payload, graph, markup(chat) if graph else None))
+	found = moves(watchlist.covered(chat.key, specific_stock), mode, threshold, days, specific_stock, interactive)
+	payload, graph = report(chat.dialect, found, mode, threshold, days, top, user, specific_stock, delivery.asked(dest))
+	markup = None # the period buttons of the daily and N-day lists (not the intraday ones), where the chat takes them
+	if graph and chat.takes_buttons and mode in ('interday', 'period'):
+		markup = buttons.keyboard('l', *list_buttons(threshold, top, days))
+	delivery.deliver(chat, delivery.Report(payload, graph, markup))
+
+def list_buttons(threshold=None, top=None, days=None):
+	"""What the movers list's period buttons carry, and the one marked: ([threshold, top], period), as charts.build
+	takes them for 'l'. The threshold is the price_percent setting where None, top '0' for no top list, and the period
+	1D (today's moves) where no days are given."""
+	if threshold is None:
+		threshold = config.settings.price_percent
+	return [f"{threshold:g}", str(top or 0)], buttons.period_for_days(days, None if days else 'd')
 
 ARGUMENTS = 'midsession|interday|premarket|close|DAYS' # what a scheduled run takes
 
@@ -196,8 +197,8 @@ def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case ['midsession' | 'interday' | 'premarket' | 'close' as mode]:
-			return f'price {mode}', {'mode': mode}
+			return f'movers {mode}', {'mode': mode}
 		case [days] if days.isdigit():
-			return f'price {days}', {'mode': 'period', 'threshold': 0, 'days': int(days), 'top': 10}
+			return f'movers {days}', {'mode': 'period', 'threshold': 0, 'days': int(days), 'top': 10}
 		case _:
 			raise ValueError(ARGUMENTS)

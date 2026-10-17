@@ -1,7 +1,7 @@
 """The scheduled jobs. Each chat's, which its people manage with .jobs (lib/worker.py), each posting to that chat: the
 default jobs (lib/catalog.py), which every chat has, switched on until it switches them off, and those it added; both
-kept in JOBS_FILE by chat key, whose chats are those finbot knows (see). And the system jobs (SYSTEM), fixed here, which
-fill the cache and clear it out.
+kept in JOBS_FILE by chat key, whose chats are those finbot knows (see, know). And the system jobs (SYSTEM), fixed here,
+which fill the cache and clear it out.
 
 A job runs one action of ACTIONS, a fixed table of finbot's own report modules (message among them, which posts a
 text), with the arguments that action's parser (its job()) takes: never a command, a script or code. A stored job names
@@ -11,14 +11,12 @@ environment, caches and connections."""
 import dataclasses
 import datetime
 import heapq
-import hmac
 import json
 import math
-import os
 import threading
 import time
-import zlib
 
+from lib import buttons
 from lib import catalog
 from lib import config
 from lib import delivery
@@ -26,15 +24,17 @@ from lib import log
 from lib import sharesight
 from lib import state
 from lib import when
-from lib.reports import cal, cleanup, message, milestone, performance, podcasts, price, rating, shorts, trades
+from lib.reports import cal, cleanup, message, milestone, movers, performance, podcasts, rating, shorts, trades
 from lib.reports import sharesight_warm, yahoo_warm
 
 # what a job may run, by name: a report module of finbot's own, whose run() is called with what its job() made of the
 # job's arguments; nothing else is ever called, imported or evaluated
-ACTIONS = {'cal': cal, 'message': message, 'milestone': milestone, 'performance': performance, 'podcasts': podcasts,
-	'price': price, 'rating': rating, 'shorts': shorts, 'trades': trades,
+ACTIONS = {'cal': cal, 'message': message, 'milestone': milestone, 'movers': movers, 'performance': performance,
+	'podcasts': podcasts, 'rating': rating, 'shorts': shorts, 'trades': trades,
 	'cleanup': cleanup, 'sharesight_warm': sharesight_warm, 'yahoo_warm': yahoo_warm}
 SYSTEM_ACTIONS = ('cleanup', 'sharesight_warm', 'yahoo_warm') # the system's alone: a chat cannot schedule these
+RENAMED = {'price': 'movers'} # actions renamed: a job a chat added under the old name runs under the new (.price is
+# the line chart's name now, whose jobs are stored as compare's: worker.STORED)
 # the system jobs, in UTC: the Sharesight portfolios and holdings fetched afresh every 30 minutes (cached 40), the price
 # histories of the stocks followed every 4 hours (cached 6), so that no request waits on either; and cache files
 # older than 30 days deleted weekly
@@ -45,14 +45,12 @@ WARM = ('sharesight_warm', 'yahoo_warm') # the jobs that fill the cache, run at 
 # added, the default jobs it switched off and those it removed; a chat whose default jobs start off holds 'defaults':
 # 'off' and 'on' instead of 'off', the catalog keys switched on; a direct message holds 'dm': True
 JOBS_FILE = 'finbot_chat_jobs.json'
-OLD_FILE = 'finbot_schedule.json' # each chat's cron jobs, from before the catalog: read for its chats alone
 STATE_FILE = 'finbot_jobs.json' # each job's last run, by key: a restart neither repeats a run nor loses one
 MESSAGE_AT = 8 * 60 + 30 # a message's time of day where none is typed: 8:30am
 MAX_JOBS = 30 # the jobs a chat may add, at most
 JOB_TIMEOUT = 5 * 60 # seconds a job may run before it is reported as late, once (it runs on, see execute)
 MINUTE = datetime.timedelta(minutes=1)
 QUOTES = '"“”' # what opens and closes a message's text: phones type curly quotes
-UTC = when.UTC
 ScheduleError = when.ScheduleError
 current = None # the running Scheduler, set by bot.py; the chat commands use it
 
@@ -90,15 +88,10 @@ class Job:
 		return {'action': self.action, 'args': list(self.args), 'schedule': self.schedule.to_json(), 'on': self.on}
 
 
-def checksum(text):
-	"""A job's short stand-in in a button (Telegram allows 64 bytes of data): it tells a changed list."""
-	return format(zlib.crc32(text.encode()) & 0xffff, '04x')
-
-
 def list_checksum(jobs):
-	"""A chat's list's short stand-in in the .jobs menu's buttons: it tells any change of the list, so that a button
-	drawn for another list acts on nothing."""
-	return checksum('\n'.join(job.key for job in jobs))
+	"""A chat's list's short stand-in in the .jobs menu's buttons (buttons.checksum): a button drawn for another list
+	acts on nothing."""
+	return buttons.checksum(job.key for job in jobs)
 
 
 def run_in_process(label, module, kwargs, dest=None):
@@ -157,14 +150,14 @@ def chat_actions():
 
 def make_job(action, args, schedule, chat='', on=True, item=None, name=None):
 	"""A Job of an action (actions()) with the arguments its parser takes (words), on a when.Schedule: the system's
-	actions only for a system job (no chat); a command by the name a job calls it (its name in .help). Raises
-	ScheduleError, saying what is wrong."""
+	actions only for a system job (no chat); a command by the name it is stored under (CommandJob.key: its name in
+	.help, but compare for price). Raises ScheduleError, saying what is wrong."""
 	known = actions()
 	if not isinstance(action, str) or action not in known or (chat and action in SYSTEM_ACTIONS):
 		raise ScheduleError(f"no report {action!r}: send .jobs add for the reports")
 	if not isinstance(args, (list, tuple)) or not all(isinstance(arg, str) for arg in args):
 		raise ScheduleError(f'{action} takes words, not {args!r}')
-	action = getattr(known[action], 'name', action) # a command's other name (a typo too) stands for its first
+	action = getattr(known[action], 'key', action) # a command's other name (a typo too) stands for its first
 	try:
 		label, kwargs = known[action].job(list(args))
 	except ValueError as e:
@@ -176,8 +169,8 @@ def make_job(action, args, schedule, chat='', on=True, item=None, name=None):
 
 
 def display_name(action, args, schedule, label):
-	"""What .jobs calls a job a chat added: performance or price alone where the period follows how often it runs
-	(catalog.period_args), 'message: ' and its first line, else its parser's label ('cal earnings', 'price 30')."""
+	"""What .jobs calls a job a chat added: performance or movers alone where the period follows how often it runs
+	(catalog.period_args), 'message: ' and its first line, else its parser's label ('cal earnings', 'movers 30')."""
 	if action == 'message':
 		return catalog.message_name(args)
 	if action in catalog.PERIODIC and list(args) == catalog.period_args(action, schedule):
@@ -186,15 +179,18 @@ def display_name(action, args, schedule, label):
 
 
 def stored_job(chat, entry):
-	"""A job a chat added, as JOBS_FILE keeps it (Job.stored). Raises ScheduleError for one that cannot be: an action
-	that is none, arguments its parser refuses, a schedule that is none (an edited file, or an older one)."""
+	"""A job a chat added, as JOBS_FILE keeps it (Job.stored), an action renamed since by its new name (RENAMED).
+	Raises ScheduleError for one that cannot be: an action that is none, arguments its parser refuses, a schedule that
+	is none (an edited file, or an older one)."""
 	if not isinstance(entry, dict):
 		raise ScheduleError(f'no job: {entry!r}')
 	on = entry.get('on', True)
 	if not isinstance(on, bool):
 		raise ScheduleError(f'no switch: {on!r}')
 	schedule = when.Schedule.from_json(entry.get('schedule'))
-	return make_job(entry.get('action'), entry.get('args', []), schedule, chat, on)
+	action = entry.get('action')
+	return make_job(RENAMED.get(action, action) if isinstance(action, str) else action, entry.get('args', []),
+		schedule, chat, on)
 
 
 def entry_key(chat, entry):
@@ -274,7 +270,7 @@ def know(keys, dm=None):
 def parse_add(text, zone):
 	"""What .jobs add was given (its text after add) as (action, arguments, when.Schedule): a report, the arguments it
 	takes and a schedule in English, in zone unless it names one (the arguments end wherever both read), the period of
-	performance and price following how often it runs where none is given; or message, a schedule, then the text in
+	performance and movers following how often it runs where none is given; or message, a schedule, then the text in
 	double quotes (curly ones too), from the first quote to the last, so that quotes inside it stay, over several lines
 	if need be, at 8:30am where it says no time. Raises ScheduleError."""
 	name, rest = (text.strip().split(None, 1) + [''])[:2]
@@ -326,7 +322,6 @@ class Scheduler:
 		self.next_at = {} # key -> the next run after its base, once worked out (None: none, or off)
 		self.last = {}
 		self.busy = set() # the keys of the jobs running now, scheduled or by hand
-		self.adopted = False # whether the old OLD_FILE's chats were looked at, at the first load
 		self.lock = threading.Lock()
 
 	def load(self):
@@ -362,8 +357,7 @@ class Scheduler:
 			if isinstance(last, dict) and self.last != last: # a job gone: one added again later has not run
 				self.save_runs()
 			now = self.clock()
-			old = {job.key: self.base[job.key] for job in self.jobs if job.key in self.base}
-			self.base = {job.key: old.get(job.key) or self.start_base(job, now) for job in jobs}
+			self.base = {job.key: self.base.get(job.key) or self.start_base(job, now) for job in jobs}
 			self.next_at = {}
 			self.jobs, self.chats = jobs, set(chats)
 		if problem:
@@ -375,18 +369,7 @@ class Scheduler:
 			" system jobs")
 
 	def stored_chats(self):
-		"""The chats JOBS_FILE knows, each with its record. At the first load, those the old OLD_FILE knew join them
-		first, with the default jobs; the file is read for their keys alone, their cron jobs not carried over."""
-		if not self.adopted:
-			self.adopted = True
-			if os.path.exists(state.path(OLD_FILE)):
-				try:
-					old = state.load(OLD_FILE, {})
-					know(key for key in old if isinstance(key, str) and ':' in key)
-				except (OSError, ValueError, TypeError) as e:
-					log.warn(f'schedule: {OLD_FILE} left as it is, unreadable: {e}')
-				log.info(f"schedule: {OLD_FILE} is read no more: each chat's jobs are in {JOBS_FILE}, its chats with"
-					" the default jobs; it can be deleted")
+		"""The chats JOBS_FILE knows, each with its record."""
 		try:
 			chats = state.load(JOBS_FILE, {})
 		except (OSError, ValueError) as e:
@@ -447,12 +430,13 @@ class Scheduler:
 			self.busy.add(key)
 			return True
 
-	def execute(self, job):
+	def execute(self, job, asked=False):
 		"""Run a job now, in this thread, posting to its chat (a system job posts nothing, and its failure goes to the
-		log); a failure is reported. A job already running is skipped. One still running after JOB_TIMEOUT is reported
+		log); a failure is reported. Run now and .jobs run ask for theirs (asked: delivery.asked), so a report with
+		nothing to show says so. A job already running is skipped. One still running after JOB_TIMEOUT is reported
 		as late, once, and runs on: a thread cannot be stopped, but every request it makes has a timeout, so it ends;
 		until then it stays marked running, and no second copy starts. Returns 'done', 'failed' or 'already running'."""
-		dest = delivery.chat(job.chat, scheduled=True) if job.chat else None
+		dest = delivery.chat(job.chat, scheduled=True, asked=asked) if job.chat else None
 		if not self.claim(job.key):
 			log.warn(f'schedule: {job.label} is already running for {job.chat or "the system"}, skipping it')
 			return 'already running'
@@ -509,20 +493,13 @@ class Scheduler:
 		"""A chat's job's number in .jobs, by its key."""
 		return next(number for number, job in enumerate(self.chat_jobs(chat), 1) if job.key == key)
 
-	def pick(self, chat, number, crc):
-		"""The job a button stands for. Button data is untrusted input: the number must be plain digits within this
-		chat's list, and the checksum must match that very job, else ScheduleError."""
-		job = self.job(chat, number)
-		if not hmac.compare_digest(checksum(job.key), crc):
-			raise ScheduleError('the jobs have changed')
-		return job
-
 	def run(self, job):
-		"""Run a job now, as its schedule would, and note the run: its outcome (see execute)."""
+		"""Run a job now, as its schedule would, and note the run: its outcome (see execute). Someone asked for it, so
+		it says when it has nothing to show."""
 		with self.lock:
 			self.last[job.key] = self.clock().isoformat()
 			self.save_runs()
-		return self.execute(job)
+		return self.execute(job, asked=True)
 
 	def see(self, chat, dm=None):
 		"""A chat seen, at a command of its: one finbot does not know yet starts with the default jobs, switched on,
@@ -637,14 +614,6 @@ class Scheduler:
 		if gone:
 			self.change(chat, lambda record: record.update(jobs=[entry for entry in record['jobs']
 				if entry_key(chat, entry) not in gone]))
-
-	def next_run(self, job):
-		"""When a job runs next, or None when it is off (or a one-off gone by)."""
-		if not job.on:
-			return None
-		with self.lock:
-			base = self.base.get(job.key) or self.clock()
-		return job.schedule.next_after(max(base, self.clock()))
 
 	def upcoming(self, chat, count=20):
 		"""A chat's next runs, in time order, at most count: (first, last, job, number), first and last the same but for

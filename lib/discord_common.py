@@ -147,7 +147,7 @@ class Discord(inbound.Network):
 			given = ' '.join(str(option.get('value', '')) for option in data.get('options') or []).strip()
 			text = f"/{data['name']} {given}".strip()
 			return inbound.Message(self.service, channel, f"<@{person.get('id')}>", text, self.bot_name,
-				self.name(person), interaction=through, dm=self.dm(update))
+				self.name(person), interaction=through, dm=self.dm(update), ids=self.ids(person))
 		if kind == self.AUTOCOMPLETE and data.get('name'):
 			options = data.get('options') or []
 			typed = next((str(option.get('value', '')) for option in options if option.get('focused')), '')
@@ -155,7 +155,7 @@ class Discord(inbound.Network):
 		message = update.get('message') or {}
 		if kind == self.COMPONENT and data.get('custom_id') and message.get('id'):
 			return inbound.Press(self.service, str(update.get('id')), channel, str(message['id']), data['custom_id'],
-				'@' + str(person.get('username') or person.get('id') or 'unknown'), through)
+				'@' + str(person.get('username') or person.get('id') or 'unknown'), through, ids=self.ids(person))
 		return inbound.UNSUPPORTED
 
 	def message(self, update):
@@ -166,7 +166,12 @@ class Discord(inbound.Network):
 			return inbound.OK
 		text = re.sub(r'<@!?(\d+)>', r'@\1', update['content'])
 		return inbound.Message(self.service, str(update.get('channel_id')), f"<@{author['id']}>", text, self.bot_name,
-			self.name(author), str(update.get('id', '')), dm=self.dm(update))
+			self.name(author), str(update.get('id', '')), dm=self.dm(update), ids=self.ids(author))
+
+	@staticmethod
+	def ids(person):
+		"""What the admins setting may call a person: their user id."""
+		return tuple(filter(None, (str(person.get('id') or ''),)))
 
 	@staticmethod
 	def dm(update):
@@ -179,10 +184,10 @@ class Discord(inbound.Network):
 		"""What to call someone: their display name, else their username."""
 		return person.get('global_name') or person.get('username') or 'unknown'
 
-	def acknowledge(self, event):
+	def acknowledge(self, event, toast=True):
 		"""An interaction's answer, which Discord must have within 3 seconds and before any reply: "thinking…" for a
-		slash command, until the reply replaces it; nothing to see for a press, whose message is edited after. A
-		gateway message needs none."""
+		slash command, until the reply replaces it; nothing to see for a press (Discord has no toast), whose message is
+		edited after. A gateway message needs none."""
 		if not event.interaction:
 			return None
 		answer = self.THINKING if isinstance(event, inbound.Message) else self.LATER
@@ -283,6 +288,12 @@ class DiscordBot(transports.Transport):
 		if buttons is not None:
 			payload['components'] = components(buttons)
 		try_call('PATCH', self.message_path(message), json=payload, logged='debug')
+
+	def edit_buttons(self, message, buttons):
+		"""The buttons under a message changed, its text and chart left as they are (an edit that names neither keeps
+		them, with no upload): True when they show now; a failure is logged, and False."""
+		return try_call('PATCH', self.message_path(message), json={'components': components(buttons)},
+			logged='debug') is not None
 
 
 DISCORD_ROW = 5 # buttons in a row of components, and rows in a message: Discord's limits

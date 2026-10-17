@@ -13,7 +13,7 @@ from lib import sharesight
 from lib import when
 
 HEADINGS = {'top': 'Jobs here', 'on': 'Tap a job to enable it', 'off': 'Tap a job to disable it',
-	'del': 'Tap a job to delete it', 'run': 'Tap a job to run it now'}
+	'del': 'Tap a job to delete it', 'run': 'Tap a job to run it now', 'edit': 'Tap a job to enable or disable it'}
 NOTHING = {'on': 'Every job is on', 'off': 'Every job is off'} # what Enable and Disable say with nothing to switch
 EVERY = {'on': 'Enable all', 'off': 'Disable all', 'del': 'Delete all'} # each list screen's button for every job
 TYPED = ['.jobs enable|disable|delete|run NUMBER: switch one on or off, delete one, run one now',
@@ -25,12 +25,12 @@ NOT_RUN = '* not run yet' # the key to a list's mark
 PAGE_ROOM = 500 # characters of a screen besides its jobs' lines: its headings, a note, the key to *
 JOB_ROW = 4 # job buttons in a row
 MOST_JOBS = {'discord': 16} # job buttons on a page: Discord takes five rows of five, one kept for the others; else 40
-# Add's reports: (label, action, arguments; None where the period follows how often it runs, or a message's text)
-REPORTS = (('trades', 'trades', ()), ('price midsession', 'price', ('midsession',)),
-	('price premarket', 'price', ('premarket',)), ('price close', 'price', ('close',)), ('price', 'price', None),
+# Add's reports: (label, action, arguments; None where the period follows how often it runs, or a reminder's text)
+REPORTS = (('trades', 'trades', ()), ('movers midsession', 'movers', ('midsession',)),
+	('movers premarket', 'movers', ('premarket',)), ('movers close', 'movers', ('close',)), ('movers', 'movers', None),
 	('performance', 'performance', None), ('cal earnings', 'cal', ('earnings',)),
 	('cal ex-dividend', 'cal', ('ex-dividend',)), ('shorts', 'shorts', ()), ('rating', 'rating', ()),
-	('milestone', 'milestone', ()), ('message', 'message', None))
+	('milestone', 'milestone', ()), ('reminder', 'message', None))
 FREQUENCIES = (('o', 'one-off'), ('h', 'hourly'), ('d', 'daily'), ('w', 'weekly'), ('m', 'monthly'),
 	('q', 'quarterly'), ('b', 'bi-annual'), ('a', 'annual'), ('r', 'every...'))
 WEEKDAY = 'k' # every...'s weekday, among its intervals: a time each weekday
@@ -53,16 +53,16 @@ MOST_REPORTS = {'discord': 16} # Add's reports on a page, four to a row: Discord
 YEARS = 10 # the years a one-off may be in, this one first
 CROWDED = 20 # a screen of more choices takes them in rows of five, Back last: Discord takes 25 buttons
 
-def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
-	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each ✅ (on) or ❌ (off), * where it
-	has never run, its name and its schedule in words, by the timezone setting's clock (lib/when.py), then the key
-	to the marks shown. top has what can be done (Add, and where there is a job to act on, Delete, Enable, Disable, Run
-	now, Upcoming...) and how Add is typed, in italics; on, off, del and run a button for each job the screen acts on
-	(acts), which switches it on or off, deletes it or runs it now, and Enable all, Disable all or Delete all. A page at
-	a time, as many jobs as a message of the network takes (◀ and More ▶ for the others), after a note of what the last
-	press did. A one-off gone by is deleted first. Returns (lines, buttons); where the chat takes no buttons (tappable
-	false), the whole
-	list and what to type instead."""
+def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, highlight=None):
+	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each ✅ (on) or struck through (off),
+	* where it has never run, its name and its schedule in words, by the timezone setting's clock (lib/when.py), then
+	the key to the marks shown. top has what can be done in one row (+ to add, and where there is a job to act on, Edit,
+	Run, Upcoming) and how + is typed, in italics; edit, on, off, del and run a button for each job the
+	screen acts on (acts), which switches it on or off, deletes it or runs it now, and Enable all, Disable all or Delete
+	all. A page at a time, as many jobs as a message of the network takes (◀ and More ▶ for the others), after a note of
+	what the last press did. A one-off gone by is deleted first. Returns (lines, buttons); where the chat takes no
+	buttons (tappable false), the whole list and what to type instead. The job numbered `highlight` is in bold with a
+	👉 before it, on its page."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
@@ -71,13 +71,18 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
 	running, local, now = scheduler.running(chat), formats.zone().key, scheduler.clock()
 	entries = [(number, job, job_entry(service, scheduler, number, job, running, local, now))
 		for number, job in enumerate(own, 1)]
+	if highlight:
+		entries = [(number, job, f'👉 {service.bold(line)}' if number == highlight else line)
+			for number, job, line in entries]
 	parts = paged(entries, service) if tappable else [entries]
+	if highlight:
+		page = next((i for i, part in enumerate(parts) if any(number == highlight for number, _, _ in part)), page)
 	page = min(max(page, 0), len(parts) - 1)
 	shown = parts[page]
 	span = f' ({shown[0][0]}–{shown[-1][0]} of {len(own)})' if len(parts) > 1 else ''
 	lines = ([note, ''] if note else []) + [service.bold(HEADINGS[screen] + span)]
 	if not own:
-		lines.append('No jobs here: Add makes one')
+		lines.append('No jobs here: + adds one')
 	elif screen in NOTHING and not any(acts(screen, job) for job in own):
 		lines.append(NOTHING[screen])
 	if shown:
@@ -113,13 +118,18 @@ def screen_buttons(screen, page, pages, shown, crc, own):
 	that the screen acts on (acts), '<number> <name>', JOB_ROW to a row, then Enable all, Disable all or Delete all
 	where it acts on any of the chat's jobs (own), and Cancel, back to the list; ◀ and More ▶ to the other pages."""
 	if screen == 'top':
-		possible = [('Add', 'add', [])] + [(label, kind, args) for label, kind, args, there in (
-			('Delete', 'del', [0], bool(own)), ('Enable', 'on', [0], any(acts('on', job) for job in own)),
-			('Disable', 'off', [0], any(acts('off', job) for job in own)), ('Run now', 'run', [0], bool(own)),
-			('Upcoming...', 'next', [], any(job.on for job in own))) if there]
-		pairs = [possible[i:i + 2] for i in range(0, len(possible), 2)]
-		rows = [[buttons.menu_button(label, kind, args, crc) for label, kind, args in pair] for pair in pairs]
+		possible = [('+', 'add', [])] + [(label, kind, args) for label, kind, args, there in (
+			('Edit', 'edit', [0], bool(own)), ('Run', 'run', [0], bool(own)),
+			('Upcoming', 'next', [], any(job.on for job in own))) if there]
+		rows = [[buttons.menu_button(label, kind, args, crc) for label, kind, args in possible]]
 		nav = []
+	elif screen == 'edit':
+		tapped = [buttons.menu_button(f'{number} {job.name}' if job.on else struck(f'{number} {job.name}'), screen,
+			[page, number], crc) for number, job, _ in shown]
+		rows = [tapped[i:i + JOB_ROW] for i in range(0, len(tapped), JOB_ROW)]
+		nav = [buttons.menu_button('OK', 'top', [0], crc)]
+		if not all(job.on for job in own):
+			nav.append(buttons.menu_button('Delete disabled jobs', screen, [page, 'ask'], crc))
 	else:
 		tapped = [buttons.menu_button(f'{number} {job.name}', screen, [page, number], crc) for number, job, _ in shown
 			if acts(screen, job)]
@@ -133,12 +143,30 @@ def screen_buttons(screen, page, pages, shown, crc, own):
 		nav.append(buttons.menu_button('More ▶', screen, [page + 1], crc))
 	return rows + ([nav] if nav else [])
 
+def struck(text):
+	"""The text with a line through it, for a button's label, which has no markup."""
+	return ''.join(char + '\u0336' for char in text)
+
+def delete_disabled_screen(service, chat, page=0):
+	"""Delete disabled jobs' question, for a chat (by its key): whether to delete the jobs that are off, listed, with
+	Yes, delete them and Cancel, back to the editing."""
+	own = jobs.current.chat_jobs(chat)
+	off = [(number, job) for number, job in enumerate(own, 1) if not job.on]
+	crc = jobs.list_checksum(own)
+	return [service.bold(f"Delete the {len(off)} disabled job{'' if len(off) == 1 else 's'}?"), '',
+		*(f"{number}. {service.strike(service.escape(job.name))}" for number, job in off)], [[
+		buttons.menu_button('Yes, delete them', 'edit', [page, 'yes'], crc),
+		buttons.menu_button('Cancel', 'edit', [page], crc)]]
+
 def job_entry(service, scheduler, number, job, running=(), local=None, now=None):
-	"""'5. ✅ price close AU · weekdays at 4:30pm Sydney': a job in .jobs, with its number, whether it is on (and *
-	where it has never run), its name, its schedule in words, and whether it is running."""
-	mark = ('✅' if job.on else '❌') + ('' if scheduler.has_run(job) else '*')
+	"""'5. ✅ movers close AU · weekdays at 4:30pm Sydney': a job in .jobs, with its number, whether it is on (✅; one
+	that is off is struck through) and * where it has never run, its name, its schedule in words, and whether it is
+	running."""
+	never = '' if scheduler.has_run(job) else '*'
 	schedule = job.schedule.describe(local or formats.zone().key, now or scheduler.clock())
-	return f"{number}. {mark} {service.escape(job.name)} · {schedule}" + (' (running)' if job.key in running else '')
+	body = f"{service.escape(job.name)} · {schedule}"
+	shown = f"✅{never} {body}" if job.on else f"{never} {service.strike(body)}".lstrip()
+	return f"{number}. {shown}" + (' (running)' if job.key in running else '')
 
 def delete_all_screen(service, chat, page=0):
 	"""Delete all's question, for a chat (by its key): whether to delete every one of its jobs, the default ones too,
@@ -149,14 +177,14 @@ def delete_all_screen(service, chat, page=0):
 		' comes back only when the same job is added again'], [[buttons.menu_button('Yes, delete all', 'del', [page,
 		'allyes'], crc), buttons.menu_button('Cancel', 'top', [0], crc)]]
 
-def job_line(number, job, outcome):
+def job_line(service, number, job, outcome):
 	"""'3. trades: done': a job's number in the .jobs list, its name, and how its run went."""
-	return f"{number}. {job.name}: {outcome}"
+	return f"{number}. {service.escape(job.name)}: {outcome}"
 
 def next_screen(service, chat, count=20):
 	"""`.jobs upcoming`: a chat's next runs, in time order, at most count, each by the timezone setting's clock
 	(and its own zone's beside it, where that differs), with its number and name in .jobs; a repeat's runs on a day
-	are one entry, from its first to its last. Returns (lines, buttons): Cancel, back to the list."""
+	are one entry, from its first to its last. Returns (lines, buttons): Back, to the list."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
@@ -171,7 +199,7 @@ def next_screen(service, chat, count=20):
 		lines.append(f"{said} · {number}. {service.escape(job.name)}")
 	if len(lines) == 1:
 		lines.append('None: every job here is off')
-	return lines, [[buttons.menu_button('Cancel', 'top', [0], jobs.list_checksum(scheduler.chat_jobs(chat)))]]
+	return lines, [[buttons.menu_button('Back', 'top', [0], jobs.list_checksum(scheduler.chat_jobs(chat)))]]
 
 def clock_words(moment, zone):
 	"""A moment's time of day by a zone's clock: '8:30am', in 24 hours for UTC ('21:30')."""
@@ -229,7 +257,7 @@ def add_screen(service, chat, steps):
 			MOST_REPORTS else 3, nav=nav)
 	label, action, args = reports[choice(steps[0], 1, len(reports)) - 1]
 	if action == 'message':
-		return [service.bold('Add a message'), "A message's text is what you type:",
+		return [service.bold('Add a reminder'), "A reminder's text is what you type:",
 			'.jobs add message SCHEDULE "TEXT"', '', service.bold('For example:'),
 			'.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"',
 			'.jobs add message on 28 oct 2026 "ubank draw 6/6"'], [[back, cancel]]
@@ -395,19 +423,16 @@ def built(frequency, values, zone):
 	schedule.check()
 	return schedule
 
-def choice(text, low, high, among=None):
-	"""A choice's number from a button's data, from low to high (and among those offered, where given). Raises
-	ValueError for one that is none."""
-	if not (text.isascii() and text.isdigit() and low <= int(text) <= high and (among is None or int(text) in among)):
+def choice(text, low, high):
+	"""A choice's number from a button's data, from low to high. Raises ValueError for one that is none."""
+	if not (text.isascii() and text.isdigit() and low <= int(text) <= high):
 		raise ValueError(f'no choice {text!r}')
 	return int(text)
 
-def added_screen(service, chat, number):
-	"""What the last step of Add shows: the job added, with its number in the list, and buttons to it and to Add."""
-	own = jobs.current.chat_jobs(chat)
-	crc = jobs.list_checksum(own)
-	return [f"Added: {job_entry(service, jobs.current, number, own[number - 1])}"], [[buttons.menu_button('Jobs',
-		'top', [0], crc), buttons.menu_button('Add another', 'add', [], crc)]]
+def added_screen(service, chat, number, tappable=True):
+	"""What the last step of Add shows: the whole list, the job added pointed to (👉) and in bold, with the buttons of
+	the list (+ adds another)."""
+	return jobs_screen(service, chat, 'top', 0, 'Added', tappable, number)
 
 def add_failed(service, chat, steps, why):
 	"""What the last step of Add shows when the job cannot be added: why, with Back to the last choice and Cancel."""
@@ -429,12 +454,12 @@ def prepare_reports(service):
 	examples."""
 	known = jobs.actions()
 	return [service.bold('What a job can run:')] + [f"{name} {known[name].ARGUMENTS}".strip()
-		for name in jobs.chat_actions()] + ['', service.bold('For example:'), '.jobs add price weekly',
-		'.jobs add price close weekdays at 4:30pm New York', '.jobs add performance first day of each month at 9am',
-		'.jobs add trades every 20 mins weekdays from 10am to 4pm', '.jobs add pe top weekly',
-		'.jobs add compare AAPL MSFT 1y monthly', '.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"', '',
+		for name in jobs.chat_actions()] + ['', service.bold('For example:'), '.jobs add movers weekly',
+		'.jobs add movers close weekdays at 4:30pm New York', '.jobs add performance first day of each month at 9am',
+		'.jobs add trades every 20 mins weekdays from 10am to 4pm', '.jobs add peg top weekly',
+		'.jobs add price AAPL MSFT 1y monthly', '.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"', '',
 		f"Times are by {when.place(formats.zone().key)}'s clock unless one names a zone (UTC, New York, EST);"
-		" performance and price cover the days between runs"]
+		" performance and movers cover the days between runs"]
 
 def prepare_help(service, botName, sections):
 	"""The .help text: each section's command lines under its heading (worker.help_sections() has them), then the bot's

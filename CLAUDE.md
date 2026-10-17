@@ -19,8 +19,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 
 ## Facts
 - Python 3.13.5; tests are offline and need no network (`tests/`). CI runs them on the latest 3.x and 3.13.5, and
-  its `docker` job builds the image (`Dockerfile`, Debian's packages), imports every module in it and starts it as
-  `compose.yaml` does; all except for pull requests that change only README.md, CLAUDE.md, `doc/*.md` or `img/*.png`
+  its `docker` job builds the image (`Dockerfile`, Debian's packages), imports every module in it, draws a chart in
+  it and starts it as `compose.yaml` does; all except for pull requests that change only README.md, CLAUDE.md, `doc/*.md` or `img/*.png`
   (install, compile, tests and the build are skipped; the allowlist in `.github/workflows/ci.yml` must never include a
   path a test reads). This cloud environment cannot reach `deb.debian.org`, so only CI builds the image.
 - Production runs the Debian system packages; `requirements.txt` is for pip/uv users and CI. The libraries in `requirements-optional.txt` are each imported only
@@ -38,28 +38,35 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   record real requests.
 
 ## Code map (open the one file you need)
-- `bot.py`, which puts the networks together: the WSGI entry (`route()` by path to a network's `WEBHOOK`, verify,
-  parse, then a thread of `lib/worker.py` per message or button press), served by waitress only when some network's
-  webhook is set; the pull listeners that finbot.env asks for (`listeners()`), a thread each; each network registered
-  at start (Telegram's webhook set or deleted, and its menu; Discord's slash commands); plain threads, no gevent;
-  SIGHUP reload and SIGUSR1 cache flush, each in a thread. `bot.take(network, update)` takes an update however it
-  arrived, and is the one place a press is acknowledged (the worker never does). An answer the network must have
-  before any reply (Discord's deferred interaction) carries the work in its `then`: started once the HTTP answer is
-  sent (`bot.Sent`) or, over the gateway, posted to its callback.
+- `bot.py`, which puts the networks together: the WSGI entry (`route()` by path to a network's `WEBHOOK`, verify, parse,
+  then a thread of `lib/worker.py` per message or button press), served by waitress only when some network's webhook is
+  set; the pull listeners that finbot.env asks for (`listeners()`), a thread each; each network registered at start
+  (Telegram's webhook set or deleted, and its menu; Discord's slash commands); plain threads, no gevent; SIGHUP reload
+  and SIGUSR1 cache flush, each in a thread. `bot.take(network, update)` takes an update however it arrived, and is the
+  one place a press is acknowledged (the worker never does); the same button pressed again on the same message within a
+  minute is acknowledged without a toast and dropped (`worker.repeated`; a press that failed is forgotten,
+  `worker.forget`), and a press of a button of an `admin_only` command by someone the `admins` setting does not name is
+  refused with an alert (`worker.refused_press`; a message calling one gets a refusal in `process_request`; closed as
+  finbot ships: `.jobs`, and no admins; `inbound.Message.ids` is who a sender is, never their name). An answer the
+  network must have before any reply (Discord's deferred interaction) carries the work in its `then`: started once the
+  HTTP answer is sent (`bot.Sent`) or, over the gateway, posted to its callback.
 - Each network in three modules, flat in `lib/`. `<network>_common.py`, what both ways in share: the API calls (`call`,
   `try_call`; Discord's wait out its rate limits), the reader of its updates (`READER`: a `Message`, a `Press`, a
   `Suggest` or a `Response` given straight back; `acknowledge` where the network waits for that: Telegram's toast,
   Discord's interaction answer) and its bot (`TelegramBot`, `SlackBot`, `DiscordBot`). `<network>_webhook.py`, the HTTP
   mode: the path and how a request proves itself (`WEBHOOK`). The pull mode's persistent client, handing its updates
   to `bot.take`: `telegram_longpolling.py` (`TelegramPoll`: getUpdates), `slack_websocket.py` (`SlackSocket`: Socket
-  Mode, over websocket-client), `discord_websocket.py` (`DiscordGateway`: discord.py's raw events). Telegram's
+  Mode), `discord_websocket.py` (`DiscordGateway`: Hello, IDENTIFY or RESUME, the heartbeat and its ACK; a close code
+  that trying again cannot mend waits an hour, as 1000 identifies in a day get the token reset). Telegram's
   `register()`, in each mode's module, sets the webhook or deletes it; Discord's slash commands are registered at start
   in both modes (`discord_common.register`, from `worker.slash_commands()`). What no network owns: `lib/inbound.py`
   (`Message`, `Press`, `Suggest`, `Response`; the `Network` and `Webhook` bases), `lib/pull.py` (the `Listener` base,
-  which waits longer after each failure in a row: `backoff`), `lib/transports.py` (the `Transport` base, below).
+  which waits longer after each failure in a row: `backoff`; `WebSocket`, over websocket-client, for Slack and
+  Discord), `lib/transports.py` (the `Transport` base, below).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
   keywords, job)`, which also makes `.help`, the commands a job may run (`job_commands()`, each a `CommandJob`: every
-  one but those that change something, `job=False`, and those a report runs, `REPORTED`), the Telegram command keyboard, kept current in DMs, and `slash_commands()`, which
+  one but those that change something, `job=False`, and those a report runs, `REPORTED`; stored under its `key`,
+  `.price`'s as compare, `STORED`), the Telegram command keyboard, kept current in DMs, and `slash_commands()`, which
   every network gets (Telegram's menu, Slack's manifest from `util/slack_manifest.py`, Discord's registered commands);
   `suggest(chat, text)` completes a slash command's arguments as they are typed (Discord's autocomplete), from the
   cache alone. `read()` finds the
@@ -68,33 +75,42 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   take, and gets a ticker with `ticker(args)`. `Request` (`request.reply(lines, chart, buttons)`); each command gets
   the typing notice while it works. `process_request(message)` and `process_callback(press)` take inbound's objects.
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
-  or the job's chat, and with no dest raises: there are no home chats; `job(argv)`, its arguments' parser; and
-  `ARGUMENTS`, what `.jobs add` lists):
-  `price performance trades shorts cal rating milestone message podcasts cleanup sharesight_warm yahoo_warm`. trades,
-  rating, milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`),
-  added to only by a scheduled run (`delivery.interactive(dest)` is false).
-  Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens: `jobs_screen`, `add_screen`, `next_screen`), `history` (.history .compare), `holdings` (.holdings .who .pie .treemap
-  .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe .fpe .peg .beta .buy .sell).
+  or the job's chat, and with no dest raises: there are no home chats (`delivery.target`); `job(argv)`, its arguments'
+  parser (`reports.no_arguments(name)` for one that takes none); and `ARGUMENTS`, what `.jobs add` lists): `movers
+  performance trades shorts cal rating milestone message podcasts cleanup sharesight_warm yahoo_warm` (`jobs.RENAMED`:
+  a job stored under an old name runs under the new, as `price` does as `movers`). trades, rating,
+  milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`), added to only
+  by a scheduled run (`delivery.interactive(dest)` is false). A report with nothing to show says so only where someone
+  asked (`delivery.asked(dest)`: a command, a button, or Run now and `.jobs run`, whose destination is scheduled but
+  `asked`); on schedule it posts nothing. Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens:
+  `jobs_screen`, `add_screen`, `next_screen`), `history` (.price, also called .compare and .history: one stock's line, or
+  two to eight rebased), `holdings` (.holdings .who .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe
+  .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
   `chat(key)`, as its network's bot), `deliver(dest, report)` (a chart refused goes again with its heading alone as the
   caption, the lines as text after it), the one-line error report (to its chat; one that belongs to no chat only
   logged). A caption is cut to fit as the network counts it (`Dialect.visible`: Telegram's in UTF-16 code units).
   `lib/transports.py`: `Transport`, the base of each network's bot, every one taking charts and buttons: splitting,
   captions, charts, buttons, edits, and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the
-  message), which `text()` and `chart()` stop before posting. `DiscordBot`: a slash command's first message replaces
-  its "thinking…" through its `interaction` (application id/token), and a pressed message is edited through the
-  press's.
-- `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.pie .treemap .holdings
-  .history .compare` typed bare (`worker.picker`, `process_pick_callback`): the first answer at once (the first
-  portfolio or ticker, the first two to compare; `.holdings` only its buttons), the buttons kept under it and every
-  press re-editing the answer from `shown` (an item's number plus one; compare's tickers, `pick.pack`), 32 items a page
-  (`pick.layout`; fewer on Discord) turned by `<` `>` under the tickers menu, its list of items checked by checksum,
-  `.compare`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert toast (`buttons.alert`); a pie or
-  treemap primes its other charts in a thread (`pick.prime`, started by `worker.prime_in_background`); every chart
-  with period buttons primes its other periods (`charts.prime`, `worker.prime_periods` after `.compare`, `.price`,
-  `.performance`, `chart_reply` and the pickers; never for a scheduled run).
+  message), which `text()` and `chart()` stop before posting; `edit_buttons` changes a message's buttons alone where
+  the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
+  its `interaction` (application id/token), and a pressed message is edited through the press's.
+- `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.treemap .holdings
+  .price` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
+  `process_pick_callback`): the first answer at once (the first portfolio or ticker; price's `+`, ending its period
+  row, opens the ticker picker, and `OK` draws the ticks), the buttons kept under it and every press re-editing the answer from
+  `shown` (an item's number plus one; compare's tickers, `pick.pack`), but a tick or a page of tickers its buttons alone
+  (`m`; `n` under a note, which the next press takes away), 32 items a page (`pick.layout`; fewer on Discord) turned by
+  `<` `>` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
+  is), `.price`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert
+  toast (`buttons.alert`); a treemap primes its other charts in a thread (`pick.prime`, started by
+  `worker.prime_in_background`); every chart with period buttons primes its other periods (`charts.prime`,
+  `worker.prime_periods` after `.price`, `.movers`, `.performance`, `chart_reply` and the pickers); neither for a
+  scheduled run.
+- `.watchlist` typed bare has an Edit button (`worker.watchlist_screen`, `watchlist_press`: a `PickPress` of command `w`): its tickers
+  struck through as they are pressed, Delete deleting them; the `.jobs` list strikes through the jobs that are off.
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), the `.jobs` menu's (`menu_button`, a
-  `MenuPress`; older lists' `j|`/`e|` buttons still parse), what a pressed button's data asks for (`parse`), and the
+  `MenuPress`), what a pressed button's data asks for (`parse`), and the
   toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so
   it is unique in a message.
   `lib/charts.py`: a chart with period buttons, built by its kind's builder (`build`) for the command's first view
@@ -132,13 +148,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `Schedule` (days, a time or a repeat, or a span across days, in a zone): `parse()` of the English a chat types,
   `describe()`, `next_after()` through daylight saving; `cycle()` the months of a quarterly or bi-annual one from its
   start month. `lib/catalog.py`: the default jobs (`ITEMS`), each with its
-  name and schedule; the period of performance and price follows how often it runs (`period_args`).
-  `lib/migrate.py`: once, on an upgrade, the old home chats (the retired telegramChatID, slackChannelID and
-  discordChannelID, which it alone reads, from the environment) become chats finbot knows, and the watchlist, the
-  plans and the reports' shared records become theirs; one-off upgrades run at one start only (`once`, recorded in
-  `UPGRADES`): `dm_jobs_off` switched off the jobs of the DMs known before DMs started with them off, and `mark_dms`
-  marked them `'dm'`, for the log's count of group chats and DMs.
-- `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
+  name and schedule; the period of performance and movers follows how often it runs (`period_args`); an action renamed keeps
+  its items' keys (`OLD_NAMES`: `price-weekly`), which chats' records name.
+- `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.movers')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return
   them; `temp_dir(self)` is a directory removed after the test, `bare_environment()` the environment without finbot's
@@ -147,7 +159,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `test_edges`; webhook requests, Slack events, slash commands and signatures, and the Slack manifest `test_inbound`;
   the pull modes `test_pull`; the Discord bot `test_discord`; Yahoo `test_yahoo`; Sharesight `test_sharesight`; posting
   to each network `test_sending`; Telegram's webhook and command menu `test_telegram_api`; job actions and arguments,
-  the default jobs, the messages and the migration `test_schedule`; the scheduler, and `.jobs` and its menu in a chat
+  the default jobs, the messages and DMs' jobs `test_schedule`; the scheduler, and `.jobs` and its menu in a chat
   `test_scheduler`; config `test_config`; charts `test_charts` (refresh goldens with `UPDATE_GOLDEN=1`); markets,
   formats, links, buttons, schedules (`lib/when.py`), cache and state files `test_util`; data dir `test_datadir`; log levels, request lines and whole lines `test_edges`; chunking, git_version, and the docstring, stdout, line-width and no-pandas
   checks `test_finbot`.
@@ -160,7 +172,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `service.escape(text)`, stock links through `links.finance_link(symbol, exchange, service)`. Tests pass `TELEGRAM`,
   `SLACK`, `DISCORD`.
 - A command that cannot give what was asked (no such portfolio, no prices) raises `answer.Answer(*lines)`, which the
-  chat gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report.
+  chat gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report. What has
+  nothing to show and no destination to ask (the rankings, `.who`) raises `answer.Nothing`, an Answer that a job's
+  run on schedule never posts (`CommandJob.run`).
 - Every function and method has a docstring, tests included (a test checks): one line where it fits, reworded rather
   than spilling a few words onto a second. Tabs everywhere (`.editorconfig`). Every line stays within 120 columns,
   tabs counting 4 (an edit quotes whole lines); a test checks all but README.md, CLAUDE.md and `doc/`.
@@ -175,7 +189,11 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
   charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's).
 - A chart renderer in `lib/render.py` takes its `Chart` and is listed in `RENDERERS` by kind; it gets `@_drawn`, which
-  draws one chart at a time (matplotlib's caches are shared by every thread).
+  draws one chart at a time (Pillow's fonts are shared by every thread). A chart is drawn on a `_Canvas`: its shapes at
+  twice its size and reduced (at its own size, `scale=1`, where every edge is upright: bars, the treemap), then its
+  text at its own size, above every shape, in DejaVu Sans from the system's fonts, its sizes in points as matplotlib's
+  were; an opaque colour goes through the plain pen (blending is four times slower), and every chart is saved as a PNG
+  of 256 colours, each colour drawn in kept exact (`_exact`).
 - A new command: a `Command` in `COMMANDS` (its names, and what its arguments may hold), whose usage, section and
   buttons make its `.help` lines and keyboard buttons, and the command list of `doc/commands.md`. A job may run every
   command of `.help`, so one that changes anything takes `job=False`.

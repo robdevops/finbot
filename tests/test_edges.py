@@ -6,9 +6,9 @@ from tests.common import *
 from lib import log
 
 
-COMMANDS = ('.price', '.price 7d', '.price top', '.session', '.premarket', '.performance 7d', '.shorts', '.peg', '.buy',
-			'.sell', '.beta', '.pe', '.marketcap', '.earnings', '.dividend', '.trades', '.holdings', '.watchlist',
-			'.T1', '.history T1', '.compare T1 T2')
+COMMANDS = ('.movers', '.movers 7d', '.movers top', '.session', '.premarket', '.performance 7d', '.shorts', '.peg',
+			'.buysell', '.beta', '.marketcap', '.earningsdividend', '.trades', '.holdings',
+			'.watchlist', '.T1', '.price T1', '.compare T1 T2')
 
 
 class UpstreamEmpty(FinbotCase):
@@ -33,7 +33,7 @@ class UpstreamEmpty(FinbotCase):
 			raise RuntimeError('Yahoo API unavailable')
 		for name in ('fetch', 'fetch_detail', 'price_series'):
 			self.patch(yahoo, name, down)
-		for cmd in ('.price', '.peg', '.T1', '.compare T1 T2'):
+		for cmd in ('.movers', '.peg', '.T1', '.compare T1 T2'):
 			with self.subTest(cmd=cmd):
 				self.sent.clear(); self.errors.clear()
 				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT, 'U'))
@@ -53,7 +53,7 @@ class UpstreamEmpty(FinbotCase):
 
 	def test_the_typing_notice_stops_before_any_message_goes_out(self):
 		"""The typing notice stops before the first message of an answer goes out, for a command that replies, one that
-		posts its report itself (.price, .trades), and one that fails: a later notice would show "typing…" again."""
+		posts its report itself (.movers, .trades), and one that fails: a later notice would show "typing…" again."""
 		def down(*a, **k):
 			"""Fail like Sharesight when it errors."""
 			raise RuntimeError('Sharesight performance error: boom')
@@ -65,16 +65,16 @@ class UpstreamEmpty(FinbotCase):
 		self.patch(telegram_common.TelegramBot, 'post_text', lambda dest, *a, **k: typing.append(dest.is_typing()))
 		self.patch(telegram_common.TelegramBot, 'post_chart', lambda dest, *a, **k: typing.append(dest.is_typing()) or
 			{'ok': True})
-		for cmd in ('.help', '.price', '.trades 7d', '.performance 7d'):
+		for cmd in ('.help', '.movers', '.trades 7d', '.performance 7d'):
 			with self.subTest(cmd=cmd), contextlib.redirect_stderr(io.StringIO()):
 				typing.clear()
 				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT, 'U'))
 				self.assertEqual(typing, [False])
 
 	def test_no_holdings_and_empty_watchlist(self):
-		"""With nothing held and nothing watched, the watchlist, price and earnings commands still answer."""
+		"""With nothing held and nothing watched, the watchlist, movers and earnings commands still answer."""
 		self.patch(watchlist, 'with_holdings', lambda chat: [])
-		for cmd in ('.watchlist', '.price', '.earnings'):
+		for cmd in ('.watchlist', '.movers', '.earnings'):
 			with self.subTest(cmd=cmd):
 				self.command(cmd)
 
@@ -90,7 +90,7 @@ class WatchlistActions(FinbotCase):
 		self.assertEqual(watchlist.tickers('telegram:55'), ['MSFT'])
 		self.command('.watchlist rm MSFT')
 		self.assertEqual(watchlist.tickers('telegram:55'), [])
-		self.assertEqual(self.command('.watchlist frobnicate MSFT'), [('text', ['Usage: .watchlist [add|del SYMBOL]'])])
+		self.assertEqual(self.command('.watchlist frobnicate MSFT'), [('text', ['Usage: /watchlist [add|del SYMBOL]'])])
 
 	def test_a_bare_symbol_yahoo_does_not_know_is_tried_on_the_asx(self):
 		"""A symbol Yahoo does not know is added as its ASX listing, once, and removed by the same name; a ticker with a
@@ -132,14 +132,15 @@ class WatchlistActions(FinbotCase):
 
 class BadArguments(FinbotCase):
 	def test_compare_argument_errors_give_usage(self):
-		""".compare with too few or too many tickers, or one twice, gets its usage."""
-		for cmd in ('.compare T1', '.compare T1 T2 T3 T4 T5 T6 T7 T8 T9', '.compare T1 T1'):
+		""".compare with more than eight tickers gets its usage; one ticker, or one twice, is that stock's chart."""
+		self.assertIn('Usage', str(self.command('.compare T1 T2 T3 T4 T5 T6 T7 T8 T9')))
+		for cmd in ('.compare T1', '.compare T1 T1'):
 			with self.subTest(cmd=cmd):
-				self.assertIn('Usage', str(self.command(cmd)))
+				self.assertEqual(self.command(cmd)[0][0], 'photo')
 
 	def test_no_data_is_an_answer_not_an_error(self):
-		""".compare or .history of a ticker without prices, and a period button with nothing to draw, say so in a plain
-		reply: no error line."""
+		""".compare (or .history) of a ticker without prices, and a period button with nothing to draw, say so in a
+		plain reply: no error line."""
 		def no_history(t, *a, **k):
 			"""Fail like Yahoo for a ticker with no price history."""
 			raise yahoo.NoData(f'no price history for {t}')
@@ -148,20 +149,21 @@ class BadArguments(FinbotCase):
 		self.assertEqual(self.command('.compare T1 T2'), [('text', ['no price history for T1'])])
 		self.assertEqual(self.command('.history T1'), [('text', ['no price history for T1'])])
 		self.sent.clear()
-		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', 'c|h|m|T1'))
+		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', 'c|c|m|T1'))
 		self.assertEqual((self.sent, self.errors), ([('text', ['no price history for T1'])], []))
 
-	def test_history_without_a_ticker_or_with_extra_argument_gives_usage(self):
-		""".history with an extra argument gets its usage, not the profile of a ticker called HISTORY; with no
-		ticker, the buttons for one."""
-		self.assertEqual(self.command('.history')[0][0], 'text') # the chart of the first ticker, as text here
-		self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history SYMBOL'])])
+	def test_history_is_compare(self):
+		""".history is .compare's other name: bare, the first ticker's chart and the buttons to pick others; with a
+		ticker and a period, that stock's chart over it, not the profile of a ticker called HISTORY."""
+		self.assertEqual(self.command('.history'), self.command('.compare'))
+		self.assertEqual(self.command('.history T1 1y'), self.command('.compare T1 1y'))
 
 
 class PortfolioNames(FinbotCase):
 	def test_an_unknown_portfolio_gets_the_same_answer_everywhere(self):
-		"""An unknown portfolio gets one answer from .trades, .performance, .holdings and .pie: the ones there are."""
-		for cmd in ('.trades 7d Nope', '.performance Nope', '.holdings Nope', '.pie Nope'):
+		"""An unknown portfolio gets one answer from .trades, .performance, .holdings and .treemap: the ones there
+		are."""
+		for cmd in ('.trades 7d Nope', '.performance Nope', '.holdings Nope', '.treemap Nope'):
 			# it used to be a ValueError, "no Sharesight data found", or two wordings of this
 			with self.subTest(cmd=cmd):
 				self.assertEqual(self.command(cmd), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
@@ -173,11 +175,10 @@ class PortfolioNames(FinbotCase):
 		self.assertIn('Holdings for Rob (1)', str(self.command('.holdings rob')))
 
 	def test_commands_with_nothing_to_show_say_so(self):
-		"""A command with nothing to show says so, where it used to send nothing at all: .plan before anyone has saved
-		one, .performance over no days, a ratio of a ticker Yahoo does not know."""
+		"""A command with nothing to show says so, where it used to send nothing at all: .performance over no days, a
+		ratio of a ticker Yahoo does not know."""
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if not t.startswith('XYZ')})
-		for text, reply in (('.plan', 'No plans yet: .plan TEXT records yours'),
-				('.performance 0d', 'The period must cover a day or more, such as 7d, 3m or ytd'),
+		for text, reply in (('.performance 0d', 'The period must cover a day or more, such as 7d, 3m or ytd'),
 				('.pe XYZ', 'XYZ: no data found'), ('.peg XYZ', 'XYZ: no data found')):
 			with self.subTest(text=text):
 				self.assertEqual(self.command(text), [('text', [reply])])
@@ -216,42 +217,55 @@ class CommandArguments(FinbotCase):
 	def test_a_command_is_its_whole_name_in_any_case(self):
 		"""A command is called by its whole name, in any case and from any of its prefixes; a word that only starts with
 		one is a ticker (.planet used to save the plan "et"), and the bot's name among the arguments is left out."""
-		for message, name in (('.PRICE 7d', 'price'), ('! price', 'price'), ('/price@bot 7d', 'price'),
-				('@bot price', 'price'), ('.forward PE top', 'forward pe'), ('.buy/sell', 'buy'),
-				('.price @bot', 'price')):
+		for message, name in (('.MOVERS 7d', 'movers'), ('! movers', 'movers'), ('/movers@bot 7d', 'movers'),
+				('@bot movers', 'movers'), ('.forward PE top', 'pe'), ('.PE', 'pe'), ('.buy/sell', 'buysell'),
+				('.movers @bot', 'movers'), ('.PRICE T1', 'price'), ('/price@bot T1', 'price'),
+				('.compare T1', 'price')):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[0], (name,))
-		for message in ('.planet', '.shortman', '.pricey', '.stock T1', '/profile T1'):
+		for message in ('.planet', '.plan', '.shortman', '.pricey', '.stock T1', '/profile T1'):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[0], ('stock',), message) # .SYMBOL
-		self.assertEqual(self.args('.price @bot')[1].words, [])
-		for message in ('price 7d', '/price@otherbot', '...', '. ?'):
+		self.assertEqual(self.args('.movers @bot')[1].words, [])
+		for message in ('movers 7d', '/movers@otherbot', '...', '. ?'):
 			with self.subTest(message=message):
 				self.assertEqual(worker.read(message, BOT), (None, None))
 
 	def test_keywords_in_any_case(self):
-		"""A keyword is read in any case, from either end: .price TOP is the top list, not the ticker TOP."""
-		for message, keyword in (('.price TOP', 'top'), ('.price 7d Bottom', 'bottom'), ('.pie Rob Sectors', 'sector'),
-				('.fpe NEG', 'negative'), ('.watchlist ADD x', 'add'), ('.watchlist Remove x', 'delete')):
+		"""A keyword is read in any case, from either end: .movers TOP is the top list, not the ticker TOP."""
+		for message, keyword in (('.movers TOP', 'top'), ('.movers 7d Bottom', 'bottom'),
+				('.treemap Rob Sectors', 'sector'), ('.fpe NEG', 'negative'), ('.watchlist ADD x', 'add'),
+				('.watchlist Remove x', 'delete')):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[1].keyword, keyword)
-		self.assertIn('Top 10 performers', str(self.command('.price TOP 7d')))
+		self.assertIn('Top 10 performers', str(self.command('.movers TOP 7d')))
 
-	def test_a_bare_number_on_price_is_a_percent(self):
+	def test_a_bare_number_on_movers_is_a_percent(self):
 		"""As on .session, .premarket and .shorts, and as doc/commands.md has it; a period carries its unit."""
-		self.assertIn('3% at close', str(self.command('.price 3'))) # it used to be a 3-day report
-		self.assertIn('Price movement ≥ 3%', str(self.command('.price 3 7d'))) # the 3 used to be dropped
-		self.assertIn('Price movement ≥ 5%', str(self.command('.price 7d')))
+		self.assertIn('3% at close', str(self.command('.movers 3'))) # it used to be a 3-day report
+		self.assertIn('Price movement ≥ 3%', str(self.command('.movers 3 7d'))) # the 3 used to be dropped
+		self.assertIn('Price movement ≥ 5%', str(self.command('.movers 7d')))
+
+	def test_what_only_the_movers_list_takes_typed_to_price_gets_the_movers_to_type(self):
+		""".price was the movers list: a percent (a bare number too), top or bottom typed to it, and no ticker, gets the
+		.movers to type; a period alone, or with a ticker, is the line chart's, as is all .compare and .history take."""
+		for typed in ('5', '2.5%', 'top', 'Bottom 7d', '5 7d'):
+			with self.subTest(typed=typed):
+				self.assertEqual(self.command(f'.price {typed}'), [('text', [f'The movers list is .movers now: .movers '
+					f'{typed}'])])
+		for typed in ('.price 7d', '.price T1 5', '.prices T1', '.compare top', '.history 5', '.compare T1 top'):
+			with self.subTest(typed=typed):
+				self.assertNotIn('.movers now', str(self.command(typed)))
 
 	def test_top_is_gone(self):
-		""".top is a ticker now, like any word: the command is .price top."""
-		# .price top 7d is the command; .top is a ticker now, like any word
+		""".top is a ticker now, like any word: the command is .movers top."""
+		# .movers top 7d is the command; .top is a ticker now, like any word
 		self.assertIn('Co TOP', str(self.command('.top 7d')))
 
 	def test_a_ratio_command_reads_its_ticker_as_the_other_commands_do(self):
 		""".pe t1 reads its ticker in any case, and a trailing space after top is fine."""
 		self.assertIn('Co T1 ', str(self.command('.pe t1')))
-		self.assertIn('Top 15 tracked stocks by pe ratio', str(self.command('.pe top '))) # trailing space and all
+		self.assertIn('Top 15 tracked stocks by forward pe ratio', str(self.command('.pe top '))) # trailing space
 
 	def test_the_greetings_are_gone(self):
 		"""hi @bot gets no answer, and .hello and .thanks are tickers like any word."""
@@ -272,7 +286,7 @@ class CommandArguments(FinbotCase):
 		self.assertEqual(yahoo.symbol('BHP'), 'BHP')
 		self.assertEqual(asked, []) # nothing to try, so Yahoo is not asked
 		self.settings(exchange_suffix='AX')
-		for message, shown in (('.price BHP', 'BHP.AX'), ('.history BHP', 'BHP.AX'), ('.earnings BHP', 'BHP.AX'),
+		for message, shown in (('.price BHP', 'BHP.AX'), ('.compare BHP', 'BHP.AX'), ('.earnings BHP', 'BHP.AX'),
 				('.shorts BHP', 'BHP'), ('.pe BHP', 'BHP'), ('.marketcap BHP', 'BHP.AX'), ('.BHP', 'BHP.AX')):
 			with self.subTest(message=message):
 				self.assertIn('Co BHP.AX', str(self.command(message)))
@@ -406,7 +420,10 @@ class LogLevels(FinbotCase):
 		wrong."""
 		self.patch(yahoo, 'fetch', lambda tickers: {'ETF1': {'profile_title': 'A Fund', 'profile_exchange': 'NYSE'}})
 		self.patch(yahoo, 'add_usd_market_caps', lambda quotes: quotes)
-		rank = lambda: rankings.marketcap_list(TELEGRAM, '55')
+		def rank():
+			"""Rank the one stock, which has no market cap: nothing to show."""
+			with self.assertRaises(answer.Nothing):
+				rankings.marketcap_list(TELEGRAM, '55')
 		self.assertEqual((self.logged('INFO', rank), self.logged('DEBUG', rank)), ([], ['ETF1 no market cap']))
 
 
@@ -501,14 +518,14 @@ class CacheFlush(FinbotCase):
 		"""Once the cache is deleted, a flush starts the warm jobs, through the scheduler, in a thread of their own."""
 		started = []
 		self.patch(bot.jobs, 'start_thread', lambda target, *args: started.append((target, args)))
-		self.patch(bot, 'scheduler', 'the scheduler')
+		self.patch(bot.jobs, 'current', 'the scheduler')
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			bot.flush_cache()
 		self.assertIn('cache: flushed', log.getvalue())
 		self.assertEqual(started, [(bot.jobs.warm_now, ('the scheduler',))])
 
 
-OPTIONAL = ('waitress', 'websocket', 'discord', 'nacl') # each imported only by the mode that needs it
+OPTIONAL = ('waitress', 'websocket', 'nacl') # each imported only by the modes that need it
 
 
 class OptionalLibraries(unittest.TestCase):
@@ -540,7 +557,6 @@ class OptionalLibraries(unittest.TestCase):
 
 	def test_finbot_starts_without_them(self):
 		"""With no webhook set, bot.py starts with the optional libraries blocked: no HTTP server, so no waitress."""
-		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
 			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=self.blocked(data),
 				stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
@@ -560,7 +576,6 @@ class StartupSignals(unittest.TestCase):
 
 	def test_sighup_during_startup_is_ignored_and_works_afterwards(self):
 		"""A SIGHUP while bot.py starts is ignored, where its default action would kill it; once serving, it reloads."""
-		skip_if_old_env(self)
 		with tempfile.TemporaryDirectory() as data:
 			no_jobs(data)
 			env = bare_environment()
@@ -590,11 +605,11 @@ class StartupSignals(unittest.TestCase):
 			self.assertIn('reload requested but', ''.join(lines))
 
 	def test_usr1_flushes_the_cache_and_keeps_the_state(self):
-		"""SIGUSR1 is ignored in startup, then clears the cache but not writes in flight, matplotlib's or the state."""
-		skip_if_old_env(self)
+		"""SIGUSR1 is ignored in startup, then clears the cache but not writes in flight, anything else there or the
+		state."""
 		with tempfile.TemporaryDirectory() as data:
 			cache = Path(data, 'cache')
-			(cache / 'matplotlib').mkdir(parents=True)
+			(cache / 'other').mkdir(parents=True)
 			cached = ('finbot_yahoo_cookie.json', 'finbot_chart_0123456789abcdef0123.png', 'finbot_x.json.abc.tmp')
 			for name in cached: # the last: a write in flight
 				(cache / name).write_text('{}')
@@ -627,7 +642,7 @@ class StartupSignals(unittest.TestCase):
 					break
 			self.assertIn('cache: flushed 2 files', ''.join(lines))
 			self.assertIn('cache: filling it again: sharesight_warm, yahoo_warm', ''.join(lines))
-			self.assertEqual(sorted(os.listdir(cache)), ['finbot_x.json.abc.tmp', 'matplotlib'])
+			self.assertEqual(sorted(os.listdir(cache)), ['finbot_x.json.abc.tmp', 'other'])
 			self.assertTrue(Path(data, 'finbot_watchlist.json').exists())
 
 

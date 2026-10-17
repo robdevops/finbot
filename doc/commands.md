@@ -16,6 +16,7 @@ What finbot can do on each network. Telegram takes everything; the others take w
 | No link previews | ✓ | ✓ | ✓ |
 | Linked tickers | ✓ | ✓ | ✓ |
 | Charts updated in place by their buttons | ✓ | ✓ | ✓ |
+| A button pressed twice in a minute taken once | ✓ | ✓ | ✓ |
 
 Each network's guide sets up its bot and compares its two modes: [Telegram](telegram.md), [Slack](slack.md), [Discord](discord.md).
 
@@ -31,38 +32,30 @@ Where:
 ```
 /stock symbol
 /beta
-/buy
-/sell
-/compare symbol symbol [symbol...] [period]
-/dividend [period|symbol]
-/earnings [period|symbol]
-/forwardpe [symbol|top|bottom|negative]
+/buysell
+/earningsdividend [period|symbol]
 /help
-/history symbol
-/holdings portfolio
+/holdings [portfolio]
 /jobs [upcoming|system]
 /jobs enable|disable|delete|run [number]
 /jobs add report schedule
 /jobs add message schedule "text"
 /marketcap [symbol|top|bottom]
-/pe [symbol|top|bottom]
+/movers [percent|top|bottom|session|premarket] [period]
+/pe [symbol|top|bottom|negative]
 /peg [symbol|top|bottom|negative]
 /performance [period] [portfolio]
-/pie portfolio [sector]
-/plan [your plan]
-/premarket [percent|symbol]
-/price [percent|symbol|top|bottom] [period]
-/session [percent|symbol]
+/price [symbol...] [period]
 /shorts [percent|symbol]
 /trades [period] [portfolio]
-/treemap portfolio [sector]
+/treemap [portfolio] [sector]
 /watchlist [add|del symbol]
 /who symbol
 ```
 
-Each command is a slash command on every network, which completes its name as it is typed: Telegram's command menu, set as finbot starts; Slack's, from the app's manifest (`util/slack_manifest.py`, see the [Slack guide](slack.md#slash-commands)); Discord's, registered as finbot starts. `/profile` is a second name of `/stock`, and `/job` of `/jobs`. `/help` lists the commands in chat.
+Each command is a slash command on every network, which completes its name as it is typed: Telegram's command menu, set as finbot starts; Slack's, from the app's manifest (`util/slack_manifest.py`, see the [Slack guide](slack.md#slash-commands)); Discord's, registered as finbot starts. `/profile` is a second name of `/stock`, and `/job` of `/jobs`: no slash command of their own, they work when typed. `/help` lists the commands in chat.
 
-Every command also works as a plain message, which is quicker to type on a phone: a dot in place of the slash (`.price 7d`), or `!`, or the bot's name (`@botname price 7d`). As a message, `.forward pe` is `/forwardpe`, and a symbol alone is `/stock` (`.AAPL`, `@botname AAPL`). A message reaches the bot wherever it reads the chat: on Telegram, a direct chat, or a group where it is an administrator; on Slack, a direct message, a mention, or every message with `--every-message`; on Discord, in gateway API mode. A command is its whole name, in any case, and so are its keywords (`.price TOP`); any other first word is a symbol.
+Every command also works as a plain message, which is quicker to type on a phone: a dot in place of the slash (`.movers 7d`), or `!`, or the bot's name (`@botname movers 7d`). As a message, `.forward pe` is `/forwardpe`, and a symbol alone is `/stock` (`.AAPL`, `@botname AAPL`). A message reaches the bot wherever it reads the chat: on Telegram, a direct chat, or a group where it is an administrator; on Slack, a direct message, a mention, or every message with `--every-message`; on Discord, in gateway API mode. A command is its whole name, in any case, and so are its keywords (`.movers TOP`); any other first word is a symbol.
 
 Trade notifications are peformed by polling the Sharesight trades API on a schedule (see [Scheduling](scheduling.md)), and notifying each chat that schedules them of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 
@@ -72,8 +65,8 @@ The bot answers commands in every chat it is in. By default, it fetches its upda
 * Stock lookup (financials, company profile, price charts)
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
-* A pie or a treemap of a portfolio by industry or sector (`/pie portfolio [sector]`, `/treemap portfolio [sector]`): the treemap tiles each holding by value, grouped and coloured by industry (the default) or sector
-* Buttons to pick from where a command needs a portfolio or tickers and is typed without them: `/pie`, `/treemap` (the first portfolio alphabetically, by industry or by `sector`), `/history` (the first ticker) and `/compare` (the first two tickers, over 7D unless a period is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Sector/Industry toggle after them; for tickers a period row and a menu button (`Tickers ▶`; `Select... (2)` for `/compare`, with the number ticked) (those held, else the chat's watchlist) with `<` `>` pages, up to 8 ticked to compare. `/holdings` shows its portfolio buttons alone. Another portfolio or ticker, the toggle or a period redoes the chart in place, and a `/pie` or `/treemap` draws its other charts in the background so the next press is quick. `/compare T1 T2 [period]` typed with tickers gets the same period row and `Select...` menu when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job, or a chat with no buttons, gets the usage instead
+* A treemap of a portfolio by industry or sector (`/treemap portfolio [sector]`): the treemap tiles each holding by value, grouped and coloured by industry (the default) or sector
+* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/treemap`, `/holdings` (the first portfolio alphabetically; a treemap by industry or by `sector`) and `/price` (the first ticker, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Sector/Industry toggle after them; for tickers the period row, ending in `+` to the tickers (those held, else the chat's watchlist) with `<` `>` pages: up to 8 ticked, which OK draws. With one ticker ticked, `+` clears it, so that the first tick picks afresh. Another portfolio or ticker, the toggle or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/treemap` draws its other charts in the background so the next press is quick. `/price T1 T2 [period]` typed with tickers gets the same period row and `+` when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead), and a chat with no buttons gets the usage instead
 * Listing of holdings sorted by various attributes 
 * Running the other stock reports on demand
 
@@ -145,11 +138,13 @@ You can also specify a portfolio name to get trades for just that portfolio:
 /trades [period] [portfolio]
 ```
 
-### Price alerts
-![Price chart triggered from Slack](../img/finbot_price.png?raw=true "Price chart triggered from Slack")
-![Price alert triggered by Cron](../img/price.png?raw=true "Price alert triggered by Cron")
+The reply has period buttons (1D, 7D, 1M) that show the trades of that span in place, for the portfolio named if one was. A scheduled report has none.
 
-The `price` report sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 5% but you can change it by setting `price_percent` in the `settings.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
+### Movers
+![Movers chart triggered from Slack](../img/finbot_price.png?raw=true "Movers chart triggered from Slack")
+![Movers alert posted by a job](../img/price.png?raw=true "Movers alert posted by a job")
+
+The `movers` report sends premarket, midsession, and interday price movements if any holdings moved over a percentage threshold, as a bar chart: one bar per stock, its change over the period. This data is sourced from Yahoo! Finance and Sharesight. The default threshold is 5% but you can change it by setting `price_percent` in the `settings.conf`, or by providing a number as argument when triggered through the chat bot. Decimal fractions are accepted.
 
 If `demote_volatile` is `true`, stocks with a [market cap](https://www.investopedia.com/terms/m/marketcapitalization.asp) under US$150M, or a [beta](https://www.investopedia.com/terms/b/beta.asp) of > 1.5 and a market cap of under US$1B will have their alert threshold (`price_percent`) doubled. A market cap in another currency is converted at Yahoo's exchange rate.
 
@@ -159,9 +154,9 @@ price_percent=5
 demote_volatile=True
 ```
 
-Job (see [Scheduling](scheduling.md)), such as `/jobs add price close weekdays at 4:30pm New York`:
+Job (see [Scheduling](scheduling.md)), such as `/jobs add movers close weekdays at 4:30pm New York`:
 ```
-price premarket|midsession|interday|close|DAYS
+movers premarket|midsession|interday|close|DAYS
 ```
 When scheduled, the mode is its argument:
 * If `premarket` is passed, it only reports on pre/post market price movements.
@@ -170,30 +165,32 @@ When scheduled, the mode is its argument:
 * If `close` is passed, it reports daily change in stocks whose market closed in the past 3 hours.
 * If an integer [i] is passed, it reports current price against [i] days ago.
 
-Command (pre-market):
+Command (pre-market, with a symbol for one stock's):
 ```
-/premarket [percent]
+/movers premarket [percent|symbol]
 ```
 
-Command (mid-session):
+Command (mid-session, with a symbol for one stock's):
 ```
-/session [percent]
+/movers session [percent|symbol]
 ```
 
 Command (interday).
 ```
-/price [percent]
+/movers [percent]
 ```
 
-For interday, can also specify the time period. A bare number is the percent; a period carries its unit: `7d`, `2w`, `3m`, `1y` or `ytd`. For example, `/price 3 7d` lists the moves of 3% or more over the past week.
+For interday, can also specify the time period. A bare number is the percent; a period carries its unit: `7d`, `2w`, `3m`, `1y` or `ytd`. For example, `/movers 3 7d` lists the moves of 3% or more over the past week.
 ```
-/price [percent] [period]
+/movers [percent] [period]
 ```
 
-Or a specific stock. In this case, the output includes a graph.
+Or the ten best and the ten worst over the period, whatever their moves:
 ```
-/price [symbol] [period]
+/movers top|bottom [period]
 ```
+
+`/movers` was `/price` until `/price` became the price line chart (see [Price](#price)); `/price` with a percent, `top` or `bottom` and no symbol says so. `/session` and `/premarket` were commands of their own: they are `/movers session` and `/movers premarket` now, and still answer when typed.
 
 ### Portfolio performance
 ![Screenshot of Portfolio performance notification on Slack](../img/performance.png?raw=true "Screenshot performance notification on Slack")
@@ -237,15 +234,12 @@ Job (see [Scheduling](scheduling.md)), such as `/jobs add cal earnings every sun
 cal earnings|ex-dividend
 ```
 
-Command (earnings):
+Command (the coming earnings, then the ex-dividend dates; for a period, or one symbol):
 ```
-/earnings [period]
+/earningsdividend [period|symbol]
 ```
 
-Command (ex-dividend):
-```
-/dividend [period]
-```
+Typed, `.earnings` gives the earnings alone and `.dividend` the ex-dividend dates alone.
 
 ### Highly shorted stock warnings
 ![short warnings in Slack](../img/shorts.png?raw=true "Short warnings in Slack")
@@ -262,47 +256,38 @@ Command:
 /shorts [percent]
 ```
 
-### pe / forward pe / peg
+### pe / peg
 ![Forward PE report in Slack](../img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
-List securities by P/E ratio, forward P/E ratio, or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`).
+List securities by forward P/E ratio (`/pe`), or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`).
 
 Command:
 ```
-/pe [SYMBOL|top|bottom]
-/forwardpe [SYMBOL|top|bottom|negative]
+/pe [SYMBOL|top|bottom|negative]
 /peg [SYMBOL|top|bottom|negative]
 ```
 
-### History
-![Price history report in Slack](../img/finbot_history.png?raw=true "Price history report in Slack")
+### Price
+![One stock's price line in Slack](../img/finbot_history.png?raw=true "One stock's price line in Slack")
 
-Shows the long term performance of a security.
-It creates a 5Y chart, and then lists performance for several periods (5Y 3Y 1Y 6M 3M 1M 1W 1D)
+One stock's price line over a period, green or red with its change and filled below, its high and low marked; or two
+to eight stocks' changes over the period, rebased on one chart. Max is a stock's whole history, and ten years for
+several. Typed, `.compare` and `.history` are other names for it.
 
 Command:
 ```
-/history <symbol>
+/price [symbol...] [period]
 ```
 
-### Buy
+### Buy and sell
 ![Buy ratings in Slack](../img/finbot_buy.png?raw=true "Buy ratings in Slack")
-
-Show top recommended buys by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `settings.conf`)
-
-Command:
-```
-/buy
-```
-
-### Sell
 ![Rating report in Slack](../img/finbot_sell.png?raw=true "Rating report in Slack")
 
-Show top recommended sells by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts
+Show the top recommended buys, then the top recommended sells, by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `settings.conf`). Typed, `.buy` gives the buys alone and `.sell` the sells alone.
 
 Command:
 ```
-/sell
+/buysell
 ```
 
 ### Marketcap
@@ -329,9 +314,9 @@ rating
 
 Tracks additional securities which are not in your Sharesight holdings. Each chat has its own watchlist, which anyone in the chat can change: the reports in that chat, asked for or scheduled, include its watchlist's stocks as if they were holdings, and no other chat's. The Sharesight holdings are the same in every chat. `yahoo_warm` keeps every chat's watchlist warm in the cache.
 
-The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file. An upgrade from before watchlists per chat gives each old home chat the watchlist kept before, and the same goes for the plans that `/plan` records: each chat's `/plan` lists only the plans recorded in it.
+The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file.
 
-Command:
+Command (with an Edit button, where the chat has buttons: it offers each ticker, which a press strikes through, and Delete deletes the struck ones; none under an empty watchlist):
 ```
 /watchlist
 ```

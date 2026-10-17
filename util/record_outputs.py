@@ -15,26 +15,28 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-COMMANDS = ['.help', '/start', '.hello', '.thanks', '.who T1', '.plan buy low', '.plan', '.holdings', '.holdings Rob',
-	'.marketcap', '.marketcap bottom', '.marketcap T1', '.pe', '.pe bottom', '.pe T1', '.fpe', '.fpe bottom',
-	'.fpe negative', '.forward pe T1', '.peg', '.peg negative', '.peg T1', '.beta', '.buy', '.sell', '.buy & sell',
-	'.earnings', '.earnings T1', '.dividend', '.dividend T1', '.trades', '.trades 30d', '.trades 7d Nope', '.price',
-	'.price 7d', '.price 3', '.price 3 7d', '.price top', '.price top 7d', '.price T1', '.price T1 7d', '.session',
+COMMANDS = ['.help', '/start', '.hello', '.thanks', '.who T1', '.holdings', '.holdings Rob',
+	'.marketcap', '.marketcap bottom', '.marketcap T1', '.pe', '.pe bottom', '.pe T1',
+	'.pe negative', '.forward pe T1', '.peg', '.peg negative', '.peg T1', '.beta', '.buy', '.sell', '.buy & sell',
+	'.earnings', '.earnings T1', '.dividend', '.dividend T1', '.trades', '.trades 30d', '.trades 7d Nope', '.movers',
+	'.movers 7d', '.movers 3', '.movers 3 7d', '.movers top', '.movers top 7d', '.price', '.price top', '.price T1',
+	'.price T1 7d', '.session',
 	'.session T1', '.premarket', '.postmarket', '.shorts', '.shorts 30', '.shorts T1', '.performance',
-	'.performance 7d', '.performance 1y', '.performance Nope', '.pie Rob', '.pie Rob sector', '.pie', '.treemap Rob',
+	'.performance 7d', '.performance 1y', '.performance Nope', '.treemap Rob',
 	'.treemap Rob sector', '.treemap', '.history', '.compare', '.holdings', '.compare T1 T2',
 	'.compare T1 T2 3m', '.compare T1', '.history T1', '.history', '.watchlist', '.watchlist add MSFT',
 	'.watchlist add MSFT', '.watchlist del MSFT', '.watchlist frob X', '.T1', '.jobs', '.jobs run', '.jobs toggle',
 	'.jobs enable', '.jobs disable 1', '.jobs add', '.jobs add shorts daily at 22:00', '.jobs del 4', '.jobs run 1',
 	'.jobs upcoming', '.jobs system', 'hi @bot', 'noise']
-BUTTONS = ['c|h|m|T1', 'c|h|x|T1', 'c|p|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1',
-	'j|1|0000', 'e|1|0000', 'm|on|0|0000', 'm|off|0|0000', 'm|del|0|0000', 'm|add|0000', 'm|add|5|w|0000',
+BUTTONS = ['c|c|m|T1', 'c|c|x|T1', 'c|c|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3,0', 'c|l|m|0,10', 'c|zz|m|T1',
+	'm|on|0|0000', 'm|off|0|0000', 'm|del|0|0000', 'm|add|0000', 'm|add|5|w|0000',
 	'm|next|0000']
 JOBS = ['*/20 * * * Mon-Fri trades', '29 21 * * Mon-Fri price interday', # each chat's, for .jobs (as cron had them)
 	'28 21 * * Sat cal earnings; cal ex-dividend; price 7; performance 7; rating']
-ADDED = ['trades every 20 mins weekdays', 'price daily at 21:29', 'cal earnings every saturday at 21:28'] # since cron
-SCHEDULED = ['trades', 'price midsession', 'price interday', 'price premarket', 'price close', 'price 7',
+ADDED = ['trades every 20 mins weekdays', 'movers daily at 21:29', 'cal earnings every saturday at 21:28'] # since cron
+SCHEDULED = ['trades', 'movers midsession', 'movers interday', 'movers premarket', 'movers close', 'movers 7',
 	'cal earnings', 'cal ex-dividend', 'performance 7', 'rating', 'shorts', 'milestone', 'reminder']
+OLD_NAMES = {'movers': 'price'} # reports by the name a commit from before their rename has them
 TELEGRAM_API = 'https://api.telegram.org/botX/'
 ANSWER = {'ok': True, 'upload_url': 'https://files.slack.com/u', 'file_id': 'F1', 'id': '1'} # good enough for every API
 
@@ -48,6 +50,12 @@ def digest(value):
 	if isinstance(value, str):
 		value = value.encode()
 	return 'sha256:' + hashlib.sha256(value).hexdigest()[:16]
+
+
+def renamed(line, actions):
+	"""A job's line ('movers 7') with its report by its old name (OLD_NAMES) where the tree's actions lack the new."""
+	name, _, rest = line.partition(' ')
+	return ' '.join(filter(None, (OLD_NAMES[name], rest))) if name in OLD_NAMES and name not in actions else line
 
 
 def record(output):
@@ -123,7 +131,8 @@ def record(output):
 				self.env(discordBotToken='discord-test')
 			chats = ('telegram:55', 'slack:C1', 'discord:77')
 			if hasattr(jobs, 'JOBS_FILE'): # the default jobs and those each chat added, since schedules of finbot's own
-				added = [jobs.make_job(*jobs.parse_add(text, 'UTC'), 'telegram:55').stored() for text in ADDED]
+				added = [jobs.make_job(*jobs.parse_add(renamed(text, jobs.ACTIONS), 'UTC'), 'telegram:55').stored()
+					for text in ADDED]
 				common.state.save(jobs.JOBS_FILE, {key: {'jobs': added} for key in chats})
 				schedule = jobs.Scheduler(clock=lambda: common.datetime.datetime(2026, 10, 15, tzinfo=common.UTC))
 			elif hasattr(jobs, 'SCHEDULE_FILE'): # each chat's jobs, since jobs per chat
@@ -173,7 +182,7 @@ def record(output):
 				return lambda: [run(delivery.chat(key, scheduled=True), **kwargs) for key in keys]
 			for line in SCHEDULED:
 				if hasattr(jobs, 'ACTIONS'): # a job is an action and its arguments, since schedules of finbot's own
-					name, *arguments = line.split()
+					name, *arguments = renamed(line, jobs.ACTIONS).split()
 					if name not in jobs.ACTIONS: # the reminder report, which message jobs replaced
 						continue
 					module = jobs.ACTIONS[name]

@@ -16,8 +16,6 @@ WEEK = 7 * DAY_MINUTES
 DAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
 DAY_NAMES = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
 MONTHS = ('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec')
-QUARTERS = (1, 4, 7, 10) # quarterly and bi-annual where no start month is said: from January
-HALVES = (1, 7)
 DEFAULT_AT = 9 * 60 # a schedule's time of day where none is typed: 9am
 ZONE_WORDS = { # what people call a zone -> the zone, with its daylight saving: EST is New York's clock all year
 	'utc': 'UTC', 'gmt': 'Europe/London', 'bst': 'Europe/London', 'uk': 'Europe/London',

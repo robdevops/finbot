@@ -14,7 +14,7 @@ import bot
 from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, net
 from lib import render, sharesight, shortman, state, transports, watchlist, worker, yahoo
 from lib import discord_common, slack_common, telegram_common # each network's reader and bot
-from lib.reports import about, cal, history, holdings, milestone, performance, price, profile, rankings, rating
+from lib.reports import about, cal, history, holdings, milestone, movers, performance, profile, rankings, rating
 from lib.reports import shorts, trades
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),
@@ -23,6 +23,7 @@ REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'f
 REAL_GET_HOLDINGS = watchlist.with_holdings
 REAL_DISPATCH = bot.dispatch # FinbotCase notes the worker thread of each update, so that a test can wait for it
 REAL_DOUBLED = bot.doubled # FinbotCase takes every message, a repeat sent on purpose too; DoubledMessages puts it back
+REAL_REPEATED = worker.repeated # and every press, as RepeatedPresses does not
 
 
 def no_jobs(data):
@@ -65,12 +66,6 @@ def wsgi_environ(path, body, **headers):
 	"""A WSGI environ posting `body` (bytes) to `path`, with these headers (as HTTP_* keys)."""
 	return {'REQUEST_METHOD': 'POST', 'PATH_INFO': path, 'wsgi.input': io.BytesIO(body),
 		'CONTENT_LENGTH': str(len(body)), **headers}
-
-
-def skip_if_old_env(case):
-	"""Skip a test that starts bot.py while the checkout has a leftover .env (config.check_startup_environment)."""
-	if config.OLD_ENV.exists():
-		case.skipTest(f'bot.py will not start while {config.OLD_ENV} exists')
 
 
 STATES = ('REGULAR', 'PRE', 'POST', 'CLOSED')
@@ -137,6 +132,9 @@ class FinbotCase(unittest.TestCase):
 		self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
 		self.patch(bot, '_said', {}) # nor any message
 		self.patch(bot, 'doubled', lambda message: False) # a test may send the same message twice on purpose
+		self.patch(worker, 'repeated', lambda press: False) # or press the same button twice
+		self.settings(admin_only=()) # and use any command: AdminOnly closes the gate again
+		self.patch(worker, '_presses', collections.OrderedDict()) # each test starts with no press taken
 		self.workers = []
 		self.patch(bot, 'dispatch', lambda event: self.workers.append(REAL_DISPATCH(event)))
 		self.sent = []
@@ -162,8 +160,9 @@ class FinbotCase(unittest.TestCase):
 		closes = tuple((today - datetime.timedelta(days=399 - i), float(100 + i)) for i in range(400))
 		self.patch(yahoo, 'price_series', lambda t: ('Co ' + t, 'NASDAQ', closes))
 		self.patch(shortman, 'fetch', lambda md: md)
-		held = [{'id': i, 'instrument': {'code': t, 'market_code': 'NASDAQ'}, 'portfolio': {'name': 'Rob'},
-					 'capital_gain_percent': str(i * 4 - 40), 'value': '1000'} for i, t in enumerate(TICKERS)]
+		held = [{'id': i, 'instrument': {'code': t, 'market_code': 'NASDAQ', 'name': f'Co {t}'},
+					 'portfolio': {'name': 'Rob'}, 'capital_gain_percent': str(i * 4 - 40), 'value': '1000'}
+					 for i, t in enumerate(TICKERS)]
 		self.patch(sharesight, '_portfolios', lambda seconds=None: [{'name': 'Rob', 'id': 1}])
 		self.patch(sharesight, '_performance', lambda pid, days=None, seconds=None: {
 			'holdings': held, 'currency_gain_percent': '0', 'capital_gain_percent': '2.5', 'total_gain_percent': '0'})

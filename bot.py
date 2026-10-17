@@ -16,7 +16,6 @@ from lib import discord_websocket
 from lib import inbound
 from lib import worker
 from lib import jobs
-from lib import migrate
 from lib import net
 from lib import slack_webhook
 from lib import slack_websocket
@@ -188,10 +187,12 @@ class Sent(list):
 
 def take(network, update):
 	"""An update from a network (an inbound.Network reads it), however it arrived: what it says goes to lib/worker in a
-	thread of its own (dispatch), unless it is a repeat (the same update resent, or the same message sent again at once:
-	doubled). It is acknowledged first, the one place that does
-	(Network.acknowledge: Telegram's toast for a press). Returns the inbound.Response for the network; when the network
-	must have it before any reply (Discord's interactions), the work waits in its `then`, for whoever delivers it."""
+	thread of its own (dispatch), unless it is a repeat (the same update resent, the same message sent again at once:
+	doubled, or the same button pressed again: worker.repeated, acknowledged without a toast), or a press of a command
+	only the admins may use, by someone else (worker.refused_press: an alert says so). It is acknowledged
+	first, the one place that does (Network.acknowledge: Telegram's toast for a press). Returns the inbound.Response
+	for the network; when the network must have it before any reply (Discord's interactions), the work waits in its
+	`then`, for whoever delivers it."""
 	event = network.parse(update)
 	if isinstance(event, inbound.Response):
 		return event
@@ -204,6 +205,12 @@ def take(network, update):
 		log.info(log.cut(f"{network.service.capitalize()} {event.user} sent it again within {DOUBLED} s, not run "
 			"again: " + event.text))
 		return inbound.OK
+	if isinstance(event, inbound.Press) and (why := worker.refused_press(event)):
+		log.info(f"{network.service.capitalize()} {event.user} refused: a button of an admins' command")
+		return network.acknowledge(event, toast=why) or inbound.OK
+	if isinstance(event, inbound.Press) and worker.repeated(event):
+		log.info(f"{network.service.capitalize()} duplicate button press ignored")
+		return network.acknowledge(event, toast=False) or inbound.OK
 	answer = network.acknowledge(event)
 	if answer is not None:
 		return dataclasses.replace(answer, then=lambda: dispatch(event))
@@ -247,7 +254,6 @@ def git_version(checkout=None):
 	built = os.environ.get('FINBOT_COMMIT', '')
 	return built[:7] if re.fullmatch(r'[0-9a-f]{7,64}', built) else 'unknown'
 
-scheduler = None
 _signal_work = threading.Lock() # one signal's work at a time: a second reload waits for the first
 
 def in_thread(work):
@@ -282,7 +288,7 @@ def flush_cache(*args):
 		log.info(f"cache: flushed {removed} file{'' if removed == 1 else 's'} from {config.env.cache_dir}")
 	except Exception as e:
 		log.error('ERROR', delivery.error_line(e, 'cache flush'))
-	jobs.start_thread(jobs.warm_now, scheduler)
+	jobs.start_thread(jobs.warm_now, jobs.current)
 
 def http_server():
 	"""The HTTP server for the networks that post to finbot (those whose webhook is set), bound to ip and port, or None
@@ -306,9 +312,8 @@ if __name__ == '__main__':
 		log.warn('WARN config:', line)
 	if os.getuid() == 0:
 		log.warn("Running as superuser. This is not recommended.")
-	migrate.run() # once, on an upgrade: what was kept for all chats becomes the old home chats'
-	scheduler = jobs.Scheduler()
-	scheduler.load()
+	jobs.current = jobs.Scheduler() # the scheduled jobs, which the .jobs chat command lists and changes
+	jobs.current.load()
 	render.preload()
 	try:
 		server = http_server() # bound before Telegram is given the URL
@@ -326,7 +331,7 @@ if __name__ == '__main__':
 		except Exception as e:
 			log.error('ERROR', delivery.error_line(e, 'telegram'))
 			sys.exit(1)
-		telegram_common.set_commands(worker.slash_commands(aliases=False)) # the menu; /profile and /job work typed
+		telegram_common.set_commands(worker.slash_commands()) # the menu; /profile and /job work typed
 		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
 	if config.env.discordBotToken:
 		discord_common.version = git_version() # in each request's User-Agent, as Discord asks
@@ -335,8 +340,7 @@ if __name__ == '__main__':
 		except Exception as e:
 			log.error('ERROR', delivery.error_line(e, 'discord'))
 			sys.exit(1)
-	jobs.current = scheduler # for the .jobs chat command
-	threading.Thread(target=scheduler.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
+	threading.Thread(target=jobs.current.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	for listener in listeners(): # the networks without a webhook: finbot fetches their updates
 		threading.Thread(target=listener.run, args=(take,), daemon=True).start()
 	# Startup is done. systemctl reload finbot: pick up an edited settings.conf

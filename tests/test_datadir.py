@@ -44,28 +44,26 @@ class DataDirTests(FinbotCase):
 		self.assertEqual(out.split()[-2:], ['3.3', 'False'])
 
 	def test_state_directory_fallback(self):
-		"""Without DATA_DIR, STATE_DIRECTORY's first entry is the data dir; MPLCONFIGDIR is in the cache unless set."""
-		show = "from lib import config as c; print(c.env.data_dir, c.env.cache_dir, c.os.environ['MPLCONFIGDIR'])"
+		"""Without DATA_DIR, STATE_DIRECTORY's first entry is the data dir, with the cache in it."""
+		show = "from lib import config as c; print(c.env.data_dir, c.env.cache_dir)"
 		with tempfile.TemporaryDirectory() as d:
-			e = {k: v for k, v in os.environ.items() if k not in ('DATA_DIR', 'MPLCONFIGDIR')}
+			e = {k: v for k, v in os.environ.items() if k != 'DATA_DIR'}
 			def run(**env):
-				"""The data dir, cache dir and MPLCONFIGDIR a fresh interpreter ends up with, given `env`."""
+				"""The data dir and cache dir a fresh interpreter ends up with, given `env`."""
 				return subprocess.run([sys.executable, '-c', show], cwd=REPO, env=dict(e, **env), capture_output=True,
-					text=True, check=True).stdout.split()[-3:]
-			self.assertEqual(run(STATE_DIRECTORY=d + ':/x/y'), [d, d + '/cache', d + '/cache/matplotlib'])
+					text=True, check=True).stdout.split()[-2:]
+			self.assertEqual(run(STATE_DIRECTORY=d + ':/x/y'), [d, d + '/cache'])
 			self.assertEqual(run(STATE_DIRECTORY='/x/y', DATA_DIR=d)[0], d) # DATA_DIR wins
-			self.assertEqual(run(DATA_DIR=d, MPLCONFIGDIR='/custom')[2], '/custom') # explicit value kept
 
-	def test_render_import_sets_mplconfigdir_without_home(self):
-		"""Importing render puts MPLCONFIGDIR in the cache before matplotlib loads: charts work without a home dir."""
-		e = {k: v for k, v in os.environ.items() if k not in ('MPLCONFIGDIR', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME',
-			'HOME')}
-		# render loads matplotlib lazily
-		code = "import os; from lib import render; import matplotlib.dates; print(os.environ['MPLCONFIGDIR'])"
+	def test_charts_draw_without_a_home_directory(self):
+		"""A chart draws with no home directory and nothing writable but the data dir (systemd's DynamicUser, a
+		container): Pillow keeps nothing on disk, and the fonts are found by name in the system's folders."""
+		e = {k: v for k, v in os.environ.items() if k not in ('XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'HOME')}
+		code = "from lib import render; print(render.draw_bars(render.Chart('bars', rows=(('a', 1.0),))).read()[:4])"
 		with tempfile.TemporaryDirectory() as d:
 			out = subprocess.run([sys.executable, '-c', code], cwd=REPO, env=dict(e, DATA_DIR=d), capture_output=True,
 				text=True, check=True).stdout.strip()
-			self.assertEqual(out.split()[-1], d + '/cache/matplotlib')
+		self.assertEqual(out.split()[-1], repr(b'\x89PNG'))
 
 	def test_data_file_override_and_fallback(self):
 		"""A data file is the user's copy in the data dir when there is one, else the shipped default."""

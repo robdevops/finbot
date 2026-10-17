@@ -1,16 +1,17 @@
-"""Price history: .history (one stock over every period) and .compare (two to eight stocks, rebased)."""
+"""Price history: .price's two to eight stocks, rebased (.compare and .history are other names for it), and one stock's
+price line, which a .price of one stock draws, and whose change over a period the movers list takes."""
 import bisect
 import datetime
 from lib import answer
-from lib import buttons
 from lib import formats
 from lib import links
 from lib import render
 from lib import yahoo
 
 def prepare_compare(service, tickers, period_days=None):
-	"""(caption lines, chart spec): 2-6 tickers (Yahoo's symbols) as rebased % change over the last `period_days`, else
-	10 years (as Max is on every chart), from no earlier than the first date every one of them covers."""
+	"""(caption lines, chart spec): two to eight tickers (Yahoo's symbols) as rebased % change over the last
+	`period_days`, else 10 years (as Max is on every chart), from no earlier than the first date every one of them
+	covers, titled 'T1 vs T2', the best first."""
 	names, exchanges, closes = {}, {}, {}
 	for ticker, history in zip(tickers, yahoo.fetch_each(yahoo.price_series, tickers)): # downloaded at the same time
 		if isinstance(history, Exception):
@@ -44,27 +45,6 @@ def prepare_compare(service, tickers, period_days=None):
 		link = links.finance_link(t, exchanges[t], service, days=span_days, brief=False)
 		caption.append(f"{formats.get_emoji(pct)} {names[t]} ({link}): {formats.signed_percent(pct, 1)}")
 	return caption, chart
-
-def history_payload(ticker, service, days=None):
-	"""(lines, chart): .history's caption, the change over every period with the one of `days` marked, and the line
-	chart of those days, else of the whole history (None when it has too few prices). The name and exchange come from
-	the chart."""
-	highlight = buttons.PERIODS[buttons.period_for_days(days, 'x')][0]
-	quote = yahoo.fetch([ticker]).get(ticker) # today's price and change
-	table, line = yahoo.price_history(ticker, quote=quote)
-	chart = line_chart(ticker, table, line)
-	ticker_link = links.finance_link(ticker, line.exchange, service, days=1825, brief=False)
-	lines = [service.bold(f"{line.name} ({ticker_link}) performance history")]
-	for interval in ('Max', '10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '1D'):
-		if interval in table:
-			percent = table[interval]
-			label = service.bold(interval + ':')
-			if interval == highlight:
-				label = '● ' + label
-			lines.append(f"{formats.get_emoji(percent)} {label} {formats.signed_percent(percent)}")
-	if days:
-		_, chart = price_line(ticker, days, quote)
-	return lines, chart
 
 def line_chart(ticker, changes, line, days=None):
 	"""The line chart of a price_history (its changes and Line), titled with the company and the span; beneath, the

@@ -16,9 +16,9 @@ YEARS = re.compile(r'\{years since (\d{4})-(\d{2})-(\d{2})\}')
 def run(dest=None, *, lines):
 	"""Post the lines to the chat whose job it is (dest), each placeholder filled, by an explicit replace: the text is
 	data, never a format string."""
+	chat = delivery.target(dest)
 	filled = [YEARS.sub(lambda found: years_since(found, today()), line) for line in lines]
-	for chat in delivery.targets(dest):
-		delivery.deliver(chat, delivery.Report([formats.markup(line, chat.dialect) for line in filled]))
+	delivery.deliver(chat, delivery.Report([formats.markup(line, chat.dialect) for line in filled]))
 
 
 def today():

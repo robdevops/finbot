@@ -10,3 +10,9 @@ class Answer(Exception):
 		"""lines: the reply, a line each."""
 		self.lines = [str(line) for line in lines]
 		super().__init__(' '.join(self.lines))
+
+
+class Nothing(Answer):
+	"""Nothing to show (no stock rated buy, no portfolio holding it), from what has no destination to ask: its lines go
+	to a chat that asked (a command, a button, Run now or .jobs run: delivery.asked), and a job's run on schedule posts
+	nothing (worker.CommandJob). A report, which has its destination, asks delivery.asked itself."""

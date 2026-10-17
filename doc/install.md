@@ -14,19 +14,19 @@ systemd, as below. To run it in a container instead, see [docker.md](docker.md).
   Push mode subscribes the bot to push updates: each network posts its updates to the gateway, which passes them to
   the bot (each guide's _push mode_).
 * Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum), and these modules, pinned to versions with
-  3.13 support in `requirements.txt`: python-dateutil, requests, matplotlib and numpy.
-* For a network in push mode (its webhook URL set), also waitress; for Slack in Socket Mode, websocket-client; for
-  Discord's gateway API, discord.py, and for its push mode, PyNaCl. These are in `requirements-optional.txt`, each
-  imported only by the mode that needs it. Docker and a Python venv install them all, Docker in its image and a venv
+  3.13 support in `requirements.txt`: requests, and Pillow for the charts. The charts are drawn in DejaVu Sans, which
+  most Linux systems have (Debian: `fonts-dejavu-core`); without it, Pillow's own font stands in.
+* For a network in push mode (its webhook URL set), also waitress; for Slack's Socket Mode and Discord's gateway API,
+  websocket-client; for Discord's push mode, PyNaCl. These are in `requirements-optional.txt`, each imported only by
+  the modes that need it. Docker and a Python venv install them all, Docker in its image and a venv
   from that file, so every mode works without choosing; on a Debian host, install the packages of the modes you use.
 
 ## Debian
 1. The packages, and those of the modes you use:
    ```
-   sudo apt install git python3 python3-requests python3-dateutil python3-matplotlib python3-numpy
+   sudo apt install git python3 python3-requests python3-pil fonts-dejavu-core
    sudo apt install python3-waitress     # any network in push mode
-   sudo apt install python3-websocket    # Slack's Socket Mode
-   sudo apt install python3-discord      # Discord's gateway API
+   sudo apt install python3-websocket    # Slack's Socket Mode, Discord's gateway API
    sudo apt install python3-nacl         # Discord's push mode
    ```
 2. The code:

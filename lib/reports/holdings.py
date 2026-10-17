@@ -1,4 +1,5 @@
-"""What is held and followed: .holdings, .who, .pie, .treemap and .watchlist."""
+"""What is held and followed: .holdings, .who, .treemap and .watchlist."""
+from lib import answer
 from lib import watchlist
 from lib import sharesight
 from lib import formats
@@ -24,13 +25,17 @@ def prepare_holdings_payload(portfolio_name, service):
 	return payload
 
 def prepare_who(service, code):
-	"""Which portfolios hold `code` (a ticker without its exchange), each holding linked to Sharesight."""
+	"""Which portfolios hold `code` (a ticker without its exchange), each holding linked to Sharesight. Raises
+	answer.Nothing for none."""
 	blocks = []
 	for portfolio in sharesight.portfolios():
 		found = [holding_line(holding, service, code)
 			for holding in portfolio.holdings().values() if holding['code'].upper() == code]
 		blocks.append(found and [service.bold(f"{portfolio.name}:")] + found)
-	return formats.sections(*blocks) or [f'{code} not found in any portfolio']
+	found = formats.sections(*blocks)
+	if not found:
+		raise answer.Nothing(f'{code} not found in any portfolio')
+	return found
 
 def _groups(portfolio, by):
 	"""The holdings of a portfolio with a value, by industry (or by='sector'): {group: [(code, value), ...]}."""
@@ -49,24 +54,6 @@ def _noun(by, count):
 	"""'3 industries', '1 sector'."""
 	singular, plural = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries')}[by]
 	return f"{count} {singular if count == 1 else plural}"
-
-def prepare_pie(portfolio_name, by, service, max_slices=8):
-	"""Portfolio value by industry (or by='sector'): (payload, chart or None). Raises sharesight.PortfolioNotFound."""
-	portfolio, = sharesight.portfolios(portfolio_name)
-	name = portfolio.name
-	totals = {label: sum(value for _, value in held) for label, held in _groups(portfolio, by).items()}
-	if not totals:
-		return [f"{name} has no holdings with a value"], None
-	rows = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
-	if len(rows) > max_slices:
-		rest = sum(v for _, v in rows[max_slices - 1:])
-		rows = rows[:max_slices - 1]
-		rows.append(('Other', rest))
-	total = sum(v for _, v in rows)
-	title = f"{name} by {by}"
-	payload = [service.bold(title)]
-	payload += [f"{label}: {value / total * 100:.1f}%" for label, value in rows]
-	return payload, render.Chart('pie', title, _noun(by, len(totals)), tuple(rows))
 
 def prepare_treemap(portfolio_name, by, service, max_groups=8):
 	"""The holdings by industry (or by='sector') as tiles grouped by it: (payload, chart or None). Beyond `max_groups`
@@ -90,14 +77,15 @@ def prepare_treemap(portfolio_name, by, service, max_groups=8):
 	subtitle = f"{_noun(by, len(groups))}, {count} {'holding' if count == 1 else 'holdings'}"
 	return payload, render.Chart('treemap', title, subtitle, tuple((label, tuple(held)) for label, held in rows))
 
-def prepare_watchlist(service, chat, user, action=None, ticker=None):
-	"""The .watchlist reply in a chat (by its key): the companies it watches, or one line on adding ('add') or removing
-	('delete') a ticker (Yahoo's symbol, as yahoo.symbol gives it)."""
+def prepare_watchlist(service, chat, user, action=None, ticker=None, removing=()):
+	"""The .watchlist reply in a chat (by its key): the companies it watches, those of `removing` struck through, or one
+	line on adding ('add') or removing ('delete') a ticker (Yahoo's symbol, as yahoo.symbol gives it)."""
 	if action:
 		return [watchlist_change(service, chat, user, action, ticker)]
 	watched = watchlist.tickers(chat)
 	market_data = yahoo.fetch(watched) if watched else {}
-	lines = [links.stock_line(ticker, quote, service)
+	lines = [service.strike(links.stock_line(ticker, quote, service)) if ticker in removing else
+		links.stock_line(ticker, quote, service)
 		for ticker, quote in sorted(market_data.items(), key=lambda item: item[1]['profile_title'].lower())]
 	if not lines:
 		return ['Watchlist is empty. Try ".watchlist add SYMBOL" to create it']

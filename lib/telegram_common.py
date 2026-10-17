@@ -35,6 +35,15 @@ def try_call(method, **kwargs):
 		log.warn(f"Telegram {method} failed:", net.redact(e))
 
 
+def unchanged(error):
+	"""Whether Telegram refused an edit for changing nothing ("message is not modified": a press whose answer looks
+	as the message does already, such as Run now's list after a run), which is routine, logged at debug."""
+	if 'message is not modified' not in str(error):
+		return False
+	log.debug("Telegram message not edited: it shows that already")
+	return True
+
+
 def deleteWebhook():
 	"""Have Telegram stop posting updates. Those not delivered yet are kept, for the webhook set next or getUpdates."""
 	log.info("telegram: deleting the webhook")
@@ -81,7 +90,7 @@ class Telegram(inbound.Network):
 	def parse(self, update):
 		"""A message (its text, or a photo's caption) or a button press. A first name is escaped as it arrives:
 		replies are Telegram HTML, and a name is text, not markup."""
-		if 'callback_query' in update: # chart period and job buttons
+		if 'callback_query' in update: # a button of the bot's pressed
 			press = update['callback_query']
 			message = press.get('message')
 			if not message or not press.get('data'):
@@ -89,7 +98,7 @@ class Telegram(inbound.Network):
 			sender = press.get('from', {})
 			who = '@' + sender['username'] if 'username' in sender else sender.get('first_name', 'unknown')
 			return inbound.Press(self.service, press['id'], str(message['chat']['id']), str(message['message_id']),
-				press['data'], who)
+				press['data'], who, ids=self.ids(sender))
 		if 'message' not in update:
 			return inbound.UNSUPPORTED
 		message = update['message']
@@ -111,16 +120,23 @@ class Telegram(inbound.Network):
 			log.info("Telegram unhandled: 'message' without 'text/photo'")
 			return inbound.UNHANDLED
 		return inbound.Message(self.service, chat_id, user, text, self.bot_name, user_name,
-			str(message.get('message_id', '')))
+			str(message.get('message_id', '')), ids=self.ids(sender))
 
-	def acknowledge(self, event):
+	@staticmethod
+	def ids(sender):
+		"""What the admins setting may call a sender: its user id, and its @username where it has one (never its first
+		name, which anyone may take, and which a handle without a username is made of)."""
+		return tuple(filter(None, (str(sender.get('id') or ''), '@' + sender['username'] if sender.get('username')
+			else '')))
+
+	def acknowledge(self, event, toast=True):
 		"""A press: answerCallbackQuery, so that the client's spinner stops and a toast made from the button's data says
-		what is coming (buttons.toast: 'Loading 1Y…'). A failure is only logged. Nothing goes back with the update."""
-		if isinstance(event, inbound.Press):
-			if buttons.alert(event.data):
-				answerCallbackQuery(event.press_id, buttons.toast(event.data), alert=True)
-			else:
-				answerCallbackQuery(event.press_id, buttons.toast(event.data))
+		what is coming (buttons.toast: 'Loading 1Y…'); none for a press dropped (toast false), and for one refused
+		(toast a text) that text as an alert. A failure is only logged. Nothing goes back with the update."""
+		if isinstance(event, inbound.Press) and toast is True:
+			answerCallbackQuery(event.press_id, buttons.toast(event.data), alert=buttons.alert(event.data))
+		elif isinstance(event, inbound.Press):
+			answerCallbackQuery(event.press_id, toast or None, alert=bool(toast))
 		return None
 
 
@@ -186,18 +202,36 @@ class TelegramBot(transports.Transport):
 		try:
 			call('editMessageMedia', data=data, files={'photo': ('image.png', image)}, logged='debug')
 		except RuntimeError as e:
-			if 'not modified' not in str(e):
+			if not unchanged(e):
 				raise
 		except Exception as e: # it may have arrived even so: no error line for something the chat may already show
 			log.warn("Telegram editMessageMedia failed:", net.redact(e))
 
 	def edit_text(self, message, text, buttons=None):
-		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
+		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged, an
+		edit that changes nothing (unchanged) as no failure."""
 		payload = {'chat_id': self.where, 'message_id': message, 'text': text, 'parse_mode': 'HTML',
 			'link_preview_options': self.NO_PREVIEWS}
 		if buttons is not None:
 			payload['reply_markup'] = self.markup(buttons)
-		try_call('editMessageText', json=payload, logged='debug')
+		try:
+			call('editMessageText', json=payload, logged='debug')
+		except Exception as e:
+			if not unchanged(e):
+				log.warn("Telegram editMessageText failed:", net.redact(e))
+
+	def edit_buttons(self, message, buttons):
+		"""editMessageReplyMarkup: the buttons under a message changed, its text or chart left as it is (no upload).
+		True when they show now, as they do when they were so already (unchanged); a failure is logged, and False."""
+		try:
+			call('editMessageReplyMarkup', json={'chat_id': self.where, 'message_id': message,
+				'reply_markup': self.markup(buttons)}, logged='debug')
+		except Exception as e:
+			if unchanged(e):
+				return True
+			log.warn("Telegram editMessageReplyMarkup failed:", net.redact(e))
+			return False
+		return True
 
 	def typing(self):
 		"""sendChatAction: "typing…" for a few seconds."""

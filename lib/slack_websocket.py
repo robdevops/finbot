@@ -4,49 +4,8 @@ import json
 
 from lib import log
 from lib import config
-from lib import net
 from lib import pull
 from lib import slack_common
-
-
-class WebSocket:
-	"""A WebSocket connection, through websocket-client: imported here only, as Slack's pull mode is the one thing that
-	needs it (Debian's python3-websocket)."""
-
-	def __init__(self, url):
-		"""Connect to url, waiting net.CONNECT_TIMEOUT seconds at most for the server."""
-		import websocket
-		self.library = websocket
-		self.ws = websocket.create_connection(url, timeout=net.CONNECT_TIMEOUT)
-
-	def receive(self, timeout):
-		"""The next message's text; '' for a ping or a pong, which only say the line is alive; None when nothing came
-		within timeout seconds. Raises ConnectionError when the server closes the socket."""
-		self.ws.settimeout(timeout)
-		try:
-			opcode, data = self.ws.recv_data(control_frame=True)
-		except self.library.WebSocketTimeoutException:
-			return None
-		if opcode == self.library.ABNF.OPCODE_CLOSE:
-			raise ConnectionError('the server closed the socket')
-		if opcode == self.library.ABNF.OPCODE_TEXT:
-			return data.decode('utf-8') if isinstance(data, bytes) else data
-		return ''
-
-	def send(self, text):
-		"""Send a text message."""
-		self.ws.send(text)
-
-	def ping(self):
-		"""Send a ping, which the server answers with a pong."""
-		self.ws.ping()
-
-	def close(self):
-		"""Close the socket; a goodbye that fails is of no matter."""
-		try:
-			self.ws.close(timeout=1)
-		except Exception:
-			pass
 
 
 class SlackSocket(pull.Listener):
@@ -75,7 +34,7 @@ class SlackSocket(pull.Listener):
 
 	def connect(self, url):
 		"""A WebSocket connected to url."""
-		return WebSocket(url)
+		return pull.WebSocket(url)
 
 	def poll(self, take):
 		"""One socket, from opening it to Slack closing it: then another at once; after a failure, the back-off."""

@@ -1,4 +1,4 @@
-"""Ranked lists of the stocks followed (.marketcap, .pe, .forward pe and .peg, .beta, .buy and .sell), and one stock's
+"""Ranked lists of the stocks followed (.marketcap, .pe and .peg, .beta, .buy and .sell), and one stock's
 market cap or ratio."""
 from lib import log
 from lib import answer
@@ -33,7 +33,7 @@ def marketcap_list(service, chat, bottom=False, length=15):
 		cap = formats.human_units(data['market_cap_usd'])
 		caps.append((data['market_cap_usd'], f"{links.stock_line(ticker, data, service)} mkt cap: {cap}"))
 	if not caps:
-		return ['No market cap data found']
+		raise answer.Nothing('No market cap data found')
 	caps.sort(key=lambda cap: cap[0], reverse=not bottom)
 	heading = f"{'Bottom' if bottom else 'Top'} {length} tracked stocks by market cap (USD)"
 	return [service.bold(heading)] + [line for _, line in caps[:length]]
@@ -55,7 +55,7 @@ def prepare_rating_payload(service, chat, action, length=15):
 	found = sorted(found, key=lambda row: (row[0] if action == 'buy' else -row[0], -row[1]))[:length]
 	payload = [line for _, _, line, _ in found]
 	if not payload:
-		return [f"No tracked stocks rated {action} by {config.settings.min_analysts}+ analysts"], None
+		raise answer.Nothing(f"No tracked stocks rated {action} by {config.settings.min_analysts}+ analysts")
 	message = f"Top {length} analyst {action} ratings for tracked stocks ({config.settings.min_analysts}+ analysts)"
 	shown = [(formats.short_ticker(ticker), rating) for rating, _, _, ticker in found]
 	low, high = min(r for _, r in shown), max(r for _, r in shown)
@@ -65,10 +65,10 @@ def prepare_rating_payload(service, chat, action, length=15):
 		tuple(shown), value_format='number', xlim=(max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25)))
 	return [service.bold(message)] + payload, chart
 
-RATIOS = {'pe': 'price_to_earnings_trailing', 'forward pe': 'price_to_earnings_forward', 'peg': 'price_to_earnings_peg'}
+RATIOS = {'forward pe': 'price_to_earnings_forward', 'peg': 'price_to_earnings_peg'}
 
 def ratio_line(service, ticker, kind):
-	"""One stock's line for .pe, .forward pe or .peg SYMBOL (kind: pe, forward pe or peg): its P/E, trailing and
+	"""One stock's line for .pe (the forward P/E) or .peg SYMBOL (kind: forward pe or peg): its P/E, trailing and
 	forward where Yahoo has them, or its PEG. Raises answer.Answer when Yahoo knows neither the stock nor the ratio (a
 	loss-maker has no trailing P/E)."""
 	data = yahoo.fetch([ticker]).get(ticker)
@@ -86,7 +86,7 @@ def ratio_line(service, ticker, kind):
 	return f"{links.stock_line(ticker, data, service)} {figures}"
 
 def ratio_list(service, chat, kind, mode='top', length=15):
-	"""(payload, chart): the `length` stocks a chat follows (by its key) by a ratio (kind: pe, forward pe or peg),
+	"""(payload, chart): the `length` stocks a chat follows (by its key) by a ratio (kind: forward pe or peg),
 	lowest first (mode top), highest first (bottom), or the negative ones only, lowest first (negative). A forward P/E
 	is analysts' estimate, so its list takes only stocks that min_analysts or more analysts cover, as .buy does."""
 	field = RATIOS[kind]
@@ -110,8 +110,9 @@ def ratio_list(service, chat, kind, mode='top', length=15):
 	trail = f'negative {kind}' if mode == 'negative' else kind # what the heading calls the ratio
 	if not rows:
 		if covered is not None:
-			return [f"No tracked stocks with {config.settings.min_analysts}+ analysts have a {trail} ratio"], None
-		return [f"{kind if mode == 'top' else f'{mode} {kind}'}: no data found"], None
+			raise answer.Nothing(f"No tracked stocks with {config.settings.min_analysts}+ analysts have a {trail}"
+				" ratio")
+		raise answer.Nothing(f"{kind if mode == 'top' else f'{mode} {kind}'}: no data found")
 	coverage = f" ({config.settings.min_analysts}+ analysts)" if covered is not None else ''
 	heading = f"{'Bottom' if mode == 'bottom' else 'Top'} {length} tracked stocks by {trail} ratio{coverage}"
 	bars = tuple((label, float(ratio)) for ratio, label, _ in rows)
@@ -130,7 +131,7 @@ def prepare_beta_payload(service, chat):
 			line = f"{links.stock_line(ticker, data, service)} {beta} β"
 			found.append((beta, line, (formats.short_ticker(ticker), float(beta))))
 	if not found:
-		return ['No tracked stocks have a beta over 1.5 and mkt cap under US$2B'], None
+		raise answer.Nothing('No tracked stocks have a beta over 1.5 and mkt cap under US$2B')
 	found.sort(key=lambda row: row[0], reverse=True)
 	heading = 'Beta over 1.5 and mkt cap under US$2B'
 	chart = render.Chart('bars', heading, rows=tuple(row for _, _, row in found), value_format='number')

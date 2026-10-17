@@ -1,15 +1,12 @@
 """Charts, tested three ways that survive restyling:
   1. image sanity: a real 1280x800 PNG, drawn, with nothing touching the edges (no clipped text)
-  2. contracts: blue/red by sign, row order, titles and sort order, captured from what is handed to matplotlib
+  2. contracts: blue/red by sign, row order, titles and sort order, captured from what is drawn on the canvas
   3. one golden image per chart type, compared with a tolerance. Refresh after an intended restyle with:
 		 UPDATE_GOLDEN=1 python -m unittest tests.test_charts
 """
-import datetime, os, re, subprocess, sys, tempfile, threading, unittest
+import datetime, itertools, math, os, re, subprocess, sys, tempfile, threading, unittest
 from unittest import mock
-import numpy as np
-from PIL import Image
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
+from PIL import Image, ImageChops, ImageStat
 from tests.common import *
 
 GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'golden')
@@ -35,7 +32,7 @@ def decode(buf):
 
 def price_rows(days=120):
 	"""A made-up price history of `days` days, wavy and rising, as a line chart's (date, close) rows."""
-	return tuple((str(datetime.date(2026, 1, 1) + datetime.timedelta(days=i)), 100 + 12 * np.sin(i / 9) + i * 0.15)
+	return tuple((str(datetime.date(2026, 1, 1) + datetime.timedelta(days=i)), 100 + 12 * math.sin(i / 9) + i * 0.15)
 		for i in range(days))
 
 
@@ -47,13 +44,18 @@ def line(rows, title='Apple Inc (AAPL) 120 days', subtitle='164.12 USD   ▲ 6.9
 def compare_rows():
 	"""Three made-up price series over the same 120 days, as a compare chart's rows."""
 	days = [str(datetime.date(2026, 1, 1) + datetime.timedelta(days=i)) for i in range(120)]
-	return tuple((name, tuple(zip(days, 100 + np.cumsum(np.sin(np.arange(120) / k) + drift))))
-		for name, k, drift in (('AAA', 7, 0.2), ('BBB', 11, -0.1), ('CCC', 5, 0.05)))
+	return tuple((name, tuple(zip(days, (100 + total for total in itertools.accumulate(math.sin(i / k) + drift
+		for i in range(120)))))) for name, k, drift in (('AAA', 7, 0.2), ('BBB', 11, -0.1), ('CCC', 5, 0.05)))
 
 
 def bars(rows, title='T', subtitle='', **kwargs):
 	"""A bar chart of these rows, drawn."""
 	return render.draw_bars(render.Chart('bars', title, subtitle, tuple(rows), **kwargs))
+
+
+def colours(image):
+	"""How many pixels of each colour an image has: {(red, green, blue): count}."""
+	return {colour: count for count, colour in image.getcolors(image.width * image.height)}
 
 
 def shorts(rows, threshold=15):
@@ -67,8 +69,6 @@ CHARTS = {
 	'compare_lines': lambda: render.draw_compare(render.Chart('compare', 'Compare 120 days', 'subtitle here',
 		compare_rows())),
 	'shorts': lambda: shorts([('GME', 47.3), ('AMC', 32.1), ('TSLA', 21.6), ('AAPL', 15.2)]),
-	'pie': lambda: render.draw_pie(render.Chart('pie', 'Rob by industry', '4 industries',
-		(('Software', 41.0), ('Banks', 23.5), ('Mining', 12.0), ('Other', 8.0)))),
 	'treemap': lambda: render.draw_treemap(render.Chart('treemap', 'SueSMSF treemap by industry',
 		'17 industries, 36 holdings', (
 		('Semiconductors', (('NVDA', 15.8), ('ASML', 6.4), ('AMD', 5.4), ('TSM', 4.5), ('SITM', 2.9), ('AIP', 1.9),
@@ -102,16 +102,17 @@ class ImageSanity(unittest.TestCase):
 		(edge_clean) draws nothing in `edge` pixels at its edges, where clipped text or bars would show."""
 		image = decode(buf)
 		self.assertEqual(image.size, size, name)
-		pixels = np.asarray(image)
-		self.assertGreater(len({tuple(p) for p in pixels.reshape(-1, 3)[::97]}), 8, f'{name} looks blank')
-		self.assertGreater(pixels.std(), 5, f'{name} looks blank')
+		self.assertGreater(len(colours(image)), 8, f'{name} looks blank')
+		self.assertGreater(max(ImageStat.Stat(image).stddev), 5, f'{name} looks blank')
 		allowed = bg if isinstance(bg[0], tuple) else (bg,)
-		self.assertIn(tuple(int(c) for c in pixels[0, 0]), allowed, name)
+		self.assertIn(image.getpixel((0, 0)), allowed, name)
 		if not edge_clean: # the shorts beach draws its sea right to the edge
 			return
-		border = np.concatenate([pixels[:edge].reshape(-1, 3), pixels[-edge:].reshape(-1, 3),
-			pixels[:, :edge].reshape(-1, 3), pixels[:, -edge:].reshape(-1, 3)])
-		self.assertTrue((border == bg).all(), f'{name}: something is drawn on the image edge (clipped text or bars?)')
+		width, height = image.size
+		border = [image.crop(box) for box in ((0, 0, width, edge), (0, height - edge, width, height),
+			(0, 0, edge, height), (width - edge, 0, width, height))]
+		self.assertTrue(all(colours(strip) == {bg: strip.width * strip.height} for strip in border),
+			f'{name}: something is drawn on the image edge (clipped text or bars?)')
 
 	def test_each_chart_type(self):
 		"""Every chart type draws a sane image."""
@@ -180,8 +181,7 @@ class DrawingLock(unittest.TestCase):
 
 	def test_charts_asked_for_at_once_all_finish(self):
 		"""Six charts asked for from six threads at once all finish, whole."""
-		pie = lambda title: render.Chart('pie', title, rows=(('a', 1.0), ('b', 2.0)))
-		draws = [lambda i=i: render.draw_pie(pie(f't{i}')) for i in range(4)]
+		draws = [lambda i=i: bars((('a', 1.0), ('b', 2.0)), f't{i}') for i in range(4)]
 		draws += [lambda: bars(MIXED), lambda: uncached(render.Chart('bars', 'T', rows=tuple(MIXED)))]
 		images = {}
 		threads = [threading.Thread(target=lambda n=n, draw=draw: images.__setitem__(n, draw()))
@@ -198,55 +198,57 @@ class DrawingLock(unittest.TestCase):
 		inner = render._drawn(lambda: 'drawn')
 		self.assertEqual(render._drawn(inner)(), 'drawn')
 
+	def test_a_chart_hands_its_memory_back(self):
+		"""After each chart, drawn or failed, the memory it drew in goes back to the system (glibc's malloc_trim): the
+		bot stayed some 30 MB larger after its first charts."""
+		trimmed = []
+		with mock.patch.object(render, '_trim', lambda: trimmed.append):
+			render._drawn(lambda: None)()
+			with self.assertRaises(ZeroDivisionError):
+				render._drawn(lambda: 1 / 0)()
+		self.assertEqual(trimmed, [0, 0])
+		self.assertIn(render._trim()(0), (0, 1)) # glibc's, or the stand-in without it
+
 
 class Contracts(unittest.TestCase):
-	def capture_bars(self, rows, **kwargs):
-		"""The y positions, widths and colours draw_bars hands to matplotlib for these rows."""
-		calls = []
-		real = Axes.barh
-		def spy(ax, y, width, *a, **k):
-			"""Record a barh call, then draw it."""
-			calls.append({'y': list(y), 'width': list(width), 'color': list(k.get('color', []))})
-			return real(ax, y, width, *a, **k)
-		with mock.patch.object(Axes, 'barh', spy):
-			bars(rows, **kwargs)
-		return calls[0]
-
-	def capture_text(self, make):
-		"""Every text make() puts on the figure."""
-		texts = []
-		real = Figure.text
-		def spy(fig, x, y, s, *a, **k):
-			"""Record a text call, then draw it."""
-			texts.append(s)
-			return real(fig, x, y, s, *a, **k)
-		with mock.patch.object(Figure, 'text', spy):
+	def capture(self, method, make):
+		"""The arguments of each call make() makes to this method of the canvas, as it draws."""
+		calls, real = [], getattr(render._Canvas, method)
+		def spy(canvas, *args, **kwargs):
+			"""Record a call, then draw it."""
+			calls.append(args)
+			return real(canvas, *args, **kwargs)
+		with mock.patch.object(render._Canvas, method, spy):
 			make()
-		return texts
+		return calls
+
+	def capture_bars(self, rows, **kwargs):
+		"""The bars draw_bars draws for these rows, in the order drawn: (left, top, right, bottom, colour)."""
+		return [args[:5] for args in self.capture('rect', lambda: bars(rows, **kwargs))
+			if args[4] in (render.BAR_UP, render.DOWN)]
 
 	def test_bars_are_blue_when_positive_and_red_when_negative(self):
 		"""Gains (and zero) are blue, losses red."""
 		drawn = self.capture_bars([('A', 3), ('B', 0), ('C', -2)])
-		self.assertEqual(drawn['color'], ['#3987e5', '#3987e5', '#fb7185'])
+		self.assertEqual([bar[4] for bar in drawn], ['#3987e5', '#3987e5', '#fb7185'])
 
 	def test_first_row_is_on_top_and_spacers_are_skipped(self):
-		"""The first row is drawn at the top (the y axis is inverted), and a blank spacer row gets no bar."""
+		"""The first row is drawn at the top, a blank spacer row gets no bar, and each bar is as long as its value, from
+		the zero line, to its right for a gain and to its left for a loss."""
 		drawn = self.capture_bars(MIXED)
-		self.assertEqual(drawn['width'], [42, 17, 3, -5, -30])
-		self.assertEqual(drawn['y'], [0, 1, 2, 4, 5]) # row 3 is the blank spacer
-		calls = []
-		real = Axes.set_ylim
-		with mock.patch.object(Axes, 'set_ylim', lambda ax, *a, **k: (calls.append(a), real(ax, *a, **k))[1]):
-			bars(MIXED)
-		self.assertTrue(any(len(a) == 2 and a[0] > a[1] for a in calls),
-			'y axis must be inverted so row 0 is drawn first (top)')
+		tops = [top for _, top, _, _, _ in drawn]
+		self.assertGreater(tops[1], tops[0]) # down the image: the first row on top
+		self.assertEqual([round((top - tops[0]) / (tops[1] - tops[0]), 6) for top in tops], [0, 1, 2, 4, 5]) # 3: spacer
+		lengths = [right - left for left, _, right, _, _ in drawn]
+		self.assertEqual([round(length / lengths[0] * 42, 6) for length in lengths], [42, 17, 3, -5, -30])
+		self.assertEqual(len({left for left, _, _, _, _ in drawn}), 1) # every bar starts at the zero line
 
 	def test_pixels_follow_the_sign_of_the_data(self):
 		"""The drawn image is blue for gains and red for losses, in proportion to the rows."""
 		def count(rows):
 			"""(blue pixels, red pixels) in the bar chart of rows."""
-			pixels = np.asarray(decode(bars(rows))).reshape(-1, 3)
-			return (pixels == BLUE).all(axis=1).sum(), (pixels == RED).all(axis=1).sum()
+			counts = colours(decode(bars(rows)))
+			return counts.get(BLUE, 0), counts.get(RED, 0)
 		blue, red = count([('A', 5), ('B', 3)])
 		self.assertGreater(blue, 1000); self.assertEqual(red, 0)
 		blue, red = count([('A', -5), ('B', -3)])
@@ -256,7 +258,7 @@ class Contracts(unittest.TestCase):
 
 	def test_session_tints_the_background(self):
 		"""Mid-session tints the background faint green, pre-market faint yellow; close and the default stay plain."""
-		corner = lambda session: tuple(np.asarray(decode(bars(MIXED, session=session)))[2, 2][:3])
+		corner = lambda session: decode(bars(MIXED, session=session)).getpixel((2, 2))
 		plain, close, mid, pre = corner(None), corner('close'), corner('midsession'), corner('premarket')
 		self.assertEqual(plain, (0x14, 0x18, 0x1f))
 		self.assertEqual(close, plain) # at close stays untinted
@@ -267,33 +269,28 @@ class Contracts(unittest.TestCase):
 
 	def test_longer_bar_is_drawn_longer(self):
 		"""A bar four times as long is drawn over twice as long."""
-		pixels = np.asarray(decode(bars([('A', 40), ('B', 10)])))
-		blue_rows = np.where((pixels == BLUE).all(axis=2).any(axis=1))[0]
-		top_band, bottom_band = pixels[blue_rows[0]], pixels[blue_rows[-1]]
-		self.assertGreater((top_band == BLUE).all(axis=1).sum(), 2 * (bottom_band == BLUE).all(axis=1).sum())
+		image = decode(bars([('A', 40), ('B', 10)]))
+		blue = [count for count in (colours(image.crop((0, y, image.width, y + 1))).get(BLUE, 0)
+			for y in range(image.height)) if count]
+		self.assertGreater(blue[0], 2 * blue[-1]) # the first row's band, and the last's
 
 	def test_titles_are_drawn(self):
 		"""The title and subtitle appear on the bar chart, and on the price line, which works out no change itself."""
-		texts = self.capture_text(lambda: bars(MIXED, 'My Title', 'My subtitle'))
+		texts = [args[2] for args in self.capture('text', lambda: bars(MIXED, 'My Title', 'My subtitle'))]
 		self.assertIn('My Title', texts)
 		self.assertIn('My subtitle', texts)
-		texts = self.capture_text(lambda: render.draw_line(line(price_rows())))
-		self.assertEqual(texts, ['Apple Inc (AAPL) 120 days', '164.12 USD   ▲ 6.96%'])
+		texts = [args[2] for args in self.capture('text', lambda: render.draw_line(line(price_rows())))]
+		self.assertIn('Apple Inc (AAPL) 120 days', texts)
+		self.assertEqual([text for text in texts if '%' in text], ['164.12 USD   ▲ 6.96%'])
 
 	def test_price_line_colour_follows_the_change_it_shows(self):
 		"""The price line and its subtitle are green for the change it shows rising, red falling, grey for none: the
 		change the caption gives, not one worked out from the first and last closes."""
 		def line_colour(change):
 			"""The colour of the subtitle of a falling price line that shows this change."""
-			texts = []
-			real = Figure.text
-			def spy(fig, x, y, s, *a, **k):
-				"""Record a text and its colour, then draw it."""
-				texts.append((s, k.get('color')))
-				return real(fig, x, y, s, *a, **k)
-			with mock.patch.object(Figure, 'text', spy):
-				render.draw_line(line(price_rows()[::-1], subtitle='sub', change=change))
-			return dict(texts)['sub']
+			drawn = self.capture('text', lambda: render.draw_line(line(price_rows()[::-1], subtitle='sub',
+				change=change)))
+			return {args[2]: args[4] for args in drawn}['sub']
 		self.assertEqual(line_colour(6.96), '#34d399') # up: green
 		self.assertEqual(line_colour(-3), '#fb7185') # down: red
 		self.assertEqual(line_colour(0), '#9aa4b2') # flat
@@ -319,20 +316,20 @@ class ReportChartInputs(FinbotCase):
 		self.assertEqual(decode(render.draw_bars(chart)).size, (1280, 1000))
 		rows = render.trimmed(render.Chart('shorts', rows=tuple((f'T{i}', 60 - i) for i in range(30)))).rows
 		self.assertEqual((len(rows), rows[12], rows[11][0], rows[13][0]), (25, ('', None), 'T11', 'T18'))
-		self.assertEqual(render.trimmed(render.Chart('pie', rows=(('a', 1.0),) * 50)).rows, (('a', 1.0),) * 50)
 
 	def test_a_chart_is_drawn_once(self):
 		"""The same spec, for another chat or a later run, is read back from the cache, not drawn again."""
-		calls, real = [], render.RENDERERS['pie']
-		self.patch(render, 'RENDERERS', {**render.RENDERERS, 'pie': lambda chart: calls.append(chart) or real(chart)})
-		chart = render.Chart('pie', 'T', rows=(('a', 1.0), ('b', 2.0)))
+		calls, real = [], render.RENDERERS['treemap']
+		draw = lambda chart: calls.append(chart) or real(chart)
+		self.patch(render, 'RENDERERS', {**render.RENDERERS, 'treemap': draw})
+		chart = render.Chart('treemap', f'T {time.time()}', rows=(('G', (('a', 1.0), ('b', 2.0))),))
 		first, second = render.draw(chart).read(), render.draw(chart).read()
 		self.assertEqual((len(calls), first[:4]), (1, b'\x89PNG'))
 		self.assertEqual(first, second)
 
-	def test_price_top_lists_best_first_then_worst(self):
-		""".price top: the ten best, best first, a spacer, then the ten worst, worst first, as in the caption."""
-		chart = self.run_report(lambda: self.command('.price top 7d'))
+	def test_movers_top_lists_best_first_then_worst(self):
+		""".movers top: the ten best, best first, a spacer, then the ten worst, worst first, as in the caption."""
+		chart = self.run_report(lambda: self.command('.movers top 7d'))
 		values = [v for _, v in chart.rows if v is not None]
 		top, bottom = values[:10], values[10:]
 		self.assertEqual(top, sorted(top, reverse=True))
@@ -340,16 +337,16 @@ class ReportChartInputs(FinbotCase):
 		self.assertGreater(min(top), max(bottom))
 		self.assertIn(None, [v for _, v in chart.rows]) # spacer between the two lists
 
-	def test_price_threshold_chart_is_sorted_and_titled_with_the_threshold(self):
-		""".price 5%: the chart is sorted best first and its title names the threshold."""
-		chart = self.run_report(lambda: self.command('.price 5%'))
+	def test_movers_threshold_chart_is_sorted_and_titled_with_the_threshold(self):
+		""".movers 5%: the chart is sorted best first and its title names the threshold."""
+		chart = self.run_report(lambda: self.command('.movers 5%'))
 		values = [v for _, v in chart.rows if v is not None]
 		self.assertEqual(values, sorted(values, reverse=True))
 		self.assertIn('5', chart.title)
 
-	def test_price_over_a_period_has_a_dated_title(self):
-		""".price 7d: the chart's title gives the dates covered."""
-		chart = self.run_report(lambda: self.command('.price 7d'))
+	def test_movers_over_a_period_has_a_dated_title(self):
+		""".movers 7d: the chart's title gives the dates covered."""
+		chart = self.run_report(lambda: self.command('.movers 7d'))
 		self.assertRegex(chart.title, r'\d{1,2} \w{3} - \d{1,2} \w{3} \d{4}') # 28 Sep - 5 Oct 2026
 
 	def test_performance_is_sorted_by_name(self):
@@ -376,15 +373,16 @@ class ReportChartInputs(FinbotCase):
 
 
 class WithoutPandas(unittest.TestCase):
-	def test_every_chart_draws_with_pandas_blocked(self):
-		"""Every kind of chart draws in a process that cannot import pandas: the line charts' dates are plain dates and
-		their closes numpy arrays, which matplotlib takes as they are."""
+	def test_every_chart_draws_with_pandas_numpy_and_matplotlib_blocked(self):
+		"""Every kind of chart draws in a process that can import none of pandas, numpy and matplotlib: Pillow draws
+		them, from plain dates and floats."""
 		code = ('import sys\nfrom tests import test_charts\nfor draw in test_charts.CHARTS.values(): draw()\n'
 			'print(sorted(test_charts.CHARTS))')
 		with tempfile.TemporaryDirectory() as data:
 			stubs = Path(data, 'stubs')
 			stubs.mkdir()
-			(stubs / 'pandas.py').write_text('raise ImportError("blocked by the test")\n')
+			for name in ('pandas', 'numpy', 'matplotlib'):
+				(stubs / f'{name}.py').write_text('raise ImportError("blocked by the test")\n')
 			env = bare_environment()
 			env.update(DATA_DIR=data, PYTHONPATH=str(stubs))
 			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, env=env, capture_output=True, text=True,
@@ -392,9 +390,10 @@ class WithoutPandas(unittest.TestCase):
 		self.assertEqual(out.stdout.strip().splitlines()[-1:], [str(sorted(CHARTS))], out.stderr)
 
 
+@unittest.skipUnless(render._font_file(False), "DejaVu Sans, which the golden images are drawn in, is not installed")
 class GoldenImages(unittest.TestCase):
 	"""One reference image per chart type. Tolerant on purpose: compares 160x100 thumbnails, so font anti-aliasing and
-	minor matplotlib differences pass, while changed colours, layout, bar sizes or missing text do not."""
+	minor Pillow or FreeType differences pass, while changed colours, layout, bar sizes or missing text do not."""
 	TOLERANCE = 2.0 # mean absolute difference, in 0-255 grey levels, of the 160x100 thumbnails
 
 	@staticmethod
@@ -412,7 +411,7 @@ class GoldenImages(unittest.TestCase):
 			if not os.environ.get('UPDATE_GOLDEN'):
 				self.fail(f'{name}: no golden image existed, so one was written to {path}. Review it and commit it.')
 			return
-		diff = np.abs(np.asarray(thumb, dtype=float) - np.asarray(Image.open(path).convert('RGB'), dtype=float)).mean()
+		diff = sum(ImageStat.Stat(ImageChops.difference(thumb, Image.open(path).convert('RGB'))).mean) / 3
 		self.assertLess(diff, self.TOLERANCE, f'{name} no longer matches tests/golden/{name}.png (diff {diff:.2f}). '
 						f'If the change is intended, run: UPDATE_GOLDEN=1 python -m unittest tests.test_charts')
 
@@ -451,16 +450,14 @@ class GoldenImages(unittest.TestCase):
 		"""The treemap matches its golden image."""
 		self.check('treemap')
 
-	def test_pie(self):
-		"""The pie matches its golden image."""
-		self.check('pie')
+
+class BlankImage(unittest.TestCase):
+	def test_the_picker_image_is_one_pixel(self):
+		"""The image of a picker's answer without a chart is a 1x1 PNG, drawn holding the drawing lock as every chart
+		is (render._drawn): a press draws it while charts are drawn in the background."""
+		self.assertEqual(decode(render.blank()).size, (1, 1))
+		self.assertTrue(hasattr(render.blank, '__wrapped__'), 'render.blank draws without the lock')
 
 
 if __name__ == '__main__':
 	unittest.main()
-
-
-class BlankImage(unittest.TestCase):
-	def test_the_picker_image_is_one_pixel(self):
-		"""The image of a picker's message is a 1x1 PNG, which the answer's chart replaces."""
-		self.assertEqual(decode(render.blank()).size, (1, 1))

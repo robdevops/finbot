@@ -20,6 +20,7 @@ class Transport:
 	shows_typing = True # a typing notice while a command works
 	TYPING = (0.5, 7, 10) # the notice: first after 0.5 s (a quick answer gets none), then every 7 s, 10 times at most
 	scheduled = False # posting a scheduled run's report (a chat's job), not a reply to a command
+	asked = False # a scheduled run that someone asked for (Run now, .jobs run): delivery.asked
 	_notices = None # the thread sending the notices
 	_quiet = None # set to stop them
 
@@ -118,6 +119,11 @@ class Transport:
 	def reshow(self, message, buttons):
 		"""Show a chart message's period (the button marked) again as it was posted lately, where the network keeps
 		that: True when it did. Here never: each period is drawn and sent anew."""
+		return False
+
+	def edit_buttons(self, message, buttons):
+		"""Change only the buttons under a message, its text or chart left as it is, where the network can: True when
+		they show now. Here never: the message is edited whole."""
 		return False
 
 

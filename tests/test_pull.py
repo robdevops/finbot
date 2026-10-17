@@ -6,7 +6,7 @@ from tests.common import *
 from lib import pull, slack_websocket, telegram_longpolling
 
 
-def callback_query(update_id, data='c|h|y|T1'):
+def callback_query(update_id, data='c|c|y|T1'):
 	"""A Telegram update: a button pressed under message 9 in chat 55."""
 	return {'update_id': update_id, 'callback_query': {'id': f'q{update_id}', 'from': {'username': 'rob'},
 		'data': data, 'message': {'message_id': 9, 'chat': {'id': 55}}}}
@@ -111,7 +111,7 @@ class TelegramPolling(FinbotCase):
 		same Press, and is acknowledged the same way."""
 		presses, toasts = [], []
 		self.patch(worker, 'process_callback', presses.append)
-		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None: toasts.append(text))
+		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None, alert=False: toasts.append(text))
 		body = json.dumps(callback_query(80)).encode()
 		with contextlib.redirect_stderr(io.StringIO()):
 			self.env(telegramOutgoingWebhook='https://example.com/telegram')
@@ -129,7 +129,7 @@ class TelegramPolling(FinbotCase):
 
 SLACK_PRESS = {'type': 'block_actions', 'token': 'stok', 'trigger_id': 't1', 'user': {'id': 'U1', 'username': 'rob'},
 	'container': {'type': 'message', 'message_ts': '1.5', 'channel_id': 'C1'},
-	'actions': [{'action_id': 'c|h|w|T1', 'value': 'c|h|w|T1', 'type': 'button'}]} # a period button pressed
+	'actions': [{'action_id': 'c|c|w|T1', 'value': 'c|c|w|T1', 'type': 'button'}]} # a period button pressed
 SLACK_EVENT = {'type': 'event_callback', 'event_id': 'Ev1', 'authorizations': [{'user_id': 'UBOT'}],
 	'event': {'type': 'message', 'channel': 'C1', 'user': 'U1', 'text': '.price', 'ts': '1.2'}}
 
@@ -252,15 +252,17 @@ class SlackSocketMode(FinbotCase):
 			self.socket({'type': 'hello'}, {'envelope_id': 'e1', 'type': 'slash_commands', 'payload': slash},
 				{'type': 'disconnect', 'reason': 'warning'}).poll(bot.take)
 		self.join_workers()
-		self.assertEqual(messages, [inbound.Message('slack', 'C1', '<@U1>', '/forwardpe top', '', '<@U1>')] * 2)
+		self.assertEqual(messages, [inbound.Message('slack', 'C1', '<@U1>', '/forwardpe top', '', '<@U1>',
+			ids=('U1',))] * 2)
 		self.assertIn(('ack', 'e1'), self.log)
 
-	def test_the_websocket_is_imported_only_to_connect_and_read_as_slack_needs(self):
+	def test_the_websocket_is_imported_only_to_connect_and_read_as_slack_and_discord_need(self):
 		"""websocket-client is imported when a socket is opened, not before; its frames read as text, '' for a pong,
-		None for a timeout, and a close raises ConnectionError."""
+		None for a timeout, and a close raises pull.Closed, a ConnectionError, with the close code and reason (Discord
+		tells by them what went wrong); a socket closes with the code it is given."""
 		class Timeout(Exception):
 			"""websocket-client's timeout."""
-		frames = [(1, b'{"type": "hello"}'), (10, b''), Timeout(), (8, b'')]
+		frames = [(1, b'{"type": "hello"}'), (10, b''), Timeout(), (8, b'\x0f\xa4Authentication failed.'), (8, b'')]
 		class WS:
 			"""A websocket-client connection that gives the frames."""
 			def settimeout(self, timeout):
@@ -272,13 +274,24 @@ class SlackSocketMode(FinbotCase):
 				if isinstance(frame, Exception):
 					raise frame
 				return frame
-		stub = types.SimpleNamespace(create_connection=lambda url, timeout: WS(), WebSocketTimeoutException=Timeout,
+			def close(self, status, timeout):
+				"""Note the close code."""
+				self.closed = status
+		ws = WS()
+		stub = types.SimpleNamespace(create_connection=lambda url, timeout: ws, WebSocketTimeoutException=Timeout,
 			ABNF=types.SimpleNamespace(OPCODE_TEXT=1, OPCODE_CLOSE=8))
 		self.patch(sys, 'modules', {**sys.modules, 'websocket': stub})
-		socket = slack_websocket.WebSocket('wss://example.com/link')
+		socket = pull.WebSocket('wss://example.com/link')
 		self.assertEqual([socket.receive(30) for _ in range(3)], ['{"type": "hello"}', '', None])
-		with self.assertRaises(ConnectionError):
+		with self.assertRaises(pull.Closed) as closed:
 			socket.receive(30)
+		self.assertEqual((closed.exception.code, closed.exception.reason, str(closed.exception)),
+			(4004, 'Authentication failed.', 'the server closed the socket (4004: Authentication failed.)'))
+		with self.assertRaises(ConnectionError) as closed:
+			socket.receive(30)
+		self.assertEqual((closed.exception.code, str(closed.exception)), (None, 'the server closed the socket'))
+		socket.close(4000)
+		self.assertEqual(ws.closed, 4000)
 
 	def test_slack_is_listened_to_with_both_tokens_and_no_webhook(self):
 		"""The socket is opened with the bot and app-level tokens and no slackOutgoingWebhook; with the URL (http mode),

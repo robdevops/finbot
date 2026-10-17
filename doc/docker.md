@@ -100,7 +100,7 @@ and put your reverse proxy in front of it, as each network's guide describes for
 | `cap_drop: [ALL]` | no Linux capabilities: the bot binds no port below 1024 and changes no owner |
 | `security_opt: no-new-privileges:true` | nothing in the container can gain privileges, setuid binaries included |
 | `pids_limit: 256` | a runaway can start only so many threads |
-| `mem_limit: 400m`, `memswap_limit: 400m` | 400 MB, with no swap on top: the bot starts at about 80 MB and reaches about 100 MB drawing charts |
+| `mem_limit: 400m`, `memswap_limit: 400m` | 400 MB, with no swap on top: the bot starts at about 40 MB and stays under 50 MB drawing charts |
 | `init: true` | a minimal init as process 1, which passes `SIGHUP` and `SIGUSR1` on to the bot and reaps children |
 | no `ports` | nothing listens on the host unless you publish a port |
 

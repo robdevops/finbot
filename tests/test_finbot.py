@@ -94,14 +94,14 @@ class Conventions(unittest.TestCase):
 		self.assertGreater(len(files), 60)
 		self.assertEqual(long, [])
 
-	def test_nothing_imports_pandas(self):
-		"""finbot has no use for pandas, which took 0.8 s and 37 MB to load for three small jobs on dated closes: no
-		module imports it, not even inside a function."""
+	def test_nothing_imports_pandas_numpy_or_matplotlib(self):
+		"""finbot has no use for pandas, which took 0.8 s and 37 MB to load for three small jobs on dated closes, nor
+		for numpy and matplotlib, now that Pillow draws the charts: no module imports them, not even in a function."""
 		files = [*Path(ROOT).glob('*.py'), *Path(ROOT, 'lib').rglob('*.py'), *Path(ROOT, 'util').glob('*.py'),
 			*Path(ROOT, 'tests').glob('*.py')]
 		found = [f'{path.relative_to(ROOT)}:{number}' for path in files
 			for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1)
-			if re.match(r'\s*(import|from) pandas\b', line)]
+			if re.match(r'\s*(import|from) (pandas|numpy|matplotlib)\b', line)]
 		self.assertGreater(len(files), 60)
 		self.assertEqual(found, [])
 
@@ -114,6 +114,17 @@ class Conventions(unittest.TestCase):
 						not any(keyword.arg == 'file' for keyword in node.keywords):
 					offenders.append(f'{path.name}:{node.lineno}')
 		self.assertEqual(offenders, [])
+
+	def test_a_test_module_ends_with_its_main_guard(self):
+		"""Nothing follows a test module's `if __name__ == '__main__'`: run as a script, the module would stop there,
+		and the tests after it would not run."""
+		late = []
+		for path in sorted(Path(ROOT, 'tests').glob('test_*.py')):
+			body = ast.parse(path.read_text()).body
+			guards = [i for i, node in enumerate(body) if isinstance(node, ast.If) and
+				'__main__' in ast.unparse(node.test)]
+			late += [f'{path.name}:{node.lineno}' for node in body[guards[0] + 1:]] if guards else []
+		self.assertEqual(late, [])
 
 
 class Timeouts(unittest.TestCase):
