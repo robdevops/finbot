@@ -298,10 +298,10 @@ class Commands(FinbotCase):
 		commands = worker.slash_commands()
 		names = [name for name, _, _, _ in commands]
 		self.assertEqual(len(names), len(set(names)))
-		for expected in ('help', 'earningsdividend', 'buysell', 'pe', 'stock',
+		for expected in ('help', 'earnings', 'buysell', 'pe', 'stock',
 				'jobs', 'price', 'movers'):
 			self.assertIn(expected, names)
-		gone = {'profile', 'job', 'session', 'premarket', 'pie', 'plan', 'buy', 'sell', 'earnings', 'dividend'}
+		gone = {'profile', 'job', 'session', 'premarket', 'pie', 'plan', 'buy', 'sell', 'dividend'}
 		self.assertFalse(gone & set(names))
 		for name, description, arguments, _ in commands:
 			with self.subTest(name=name):
@@ -424,10 +424,10 @@ class Suggestions(FinbotCase):
 		self.assertEqual(self.values('/jobs '), ['add', 'delete', 'enable', 'disable', 'run', 'upcoming', 'system'])
 		self.assertEqual(self.values('/job E'), ['enable'])
 		self.assertEqual(worker.suggest('discord:77', '/jobs run '), [('run 1: rating', 'run 1'),
-			('run 2: trades', 'run 2'), ('run 3: shorts', 'run 3')])
+			('run 2: shorts', 'run 2'), ('run 3: trades', 'run 3')])
 		self.assertEqual(self.values('/jobs remove '), ['remove 1', 'remove 2', 'remove 3'])
-		self.assertEqual(self.values('/jobs enable '), ['enable 3']) # shorts is off
-		self.assertEqual(self.values('/jobs disable '), ['disable 1', 'disable 2'])
+		self.assertEqual(self.values('/jobs enable '), ['enable 2']) # shorts is off
+		self.assertEqual(self.values('/jobs disable '), ['disable 1', 'disable 3'])
 		self.assertEqual(self.values('/jobs run ', chat='discord:88'), [])
 		reports = worker.suggest('discord:77', '/jobs add ')
 		self.assertIn(('add movers midsession|interday|premarket|close|DAYS', 'add movers'), reports)

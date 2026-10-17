@@ -5,7 +5,7 @@ import contextlib, datetime, hashlib, io, re, unittest
 from pathlib import Path
 from tests.common import *
 from lib import catalog, inbound, jobs, state, when, worker
-from lib.reports import cal, cleanup, message, movers, performance, podcasts
+from lib.reports import cleanup, earnings, message, movers, performance, podcasts
 
 MELBOURNE = 'Australia/Melbourne'
 OCTOBER = datetime.datetime(2026, 10, 15, tzinfo=when.UTC)
@@ -28,7 +28,7 @@ class Actions(unittest.TestCase):
 				self.assertNotIn(command.command.handler, worker.REPORTED)
 		self.assertFalse({'help', 'start', 'watchlist', 'wishlist', 'plan', 'jobs', 'cron', 'schedule', 'movers',
 			'session', 'earnings', 'trades'} & set(commands))
-		self.assertEqual(jobs.chat_actions(), ['cal', 'message', 'milestone', 'movers', 'performance', 'podcasts',
+		self.assertEqual(jobs.chat_actions(), ['earnings', 'message', 'milestone', 'movers', 'performance', 'podcasts',
 			'rating', 'shorts', 'trades', 'holdings', 'treemap', 'who', 'marketcap', 'beta', 'price',
 			'buysell', 'pe', 'peg', 'stock'])
 
@@ -86,7 +86,7 @@ class Actions(unittest.TestCase):
 				('performance tue-sat at 8am', 'performance', [], {'days': ['tue', 'wed', 'thu', 'fri', 'sat'],
 					'at': '08:00'}),
 				('movers every 20 mins weekdays', 'movers', ['interday'], {'days': 'weekdays', 'every': 20}),
-				('cal ex-dividend every sunday', 'cal', ['ex-dividend'], {'days': ['sun'], 'at': '09:00'}),
+				('earnings every sunday', 'earnings', [], {'days': ['sun'], 'at': '09:00'}),
 				(f'podcasts {url} hourly', 'podcasts', [url], {'days': 'daily', 'every': 60}),
 				('message every 31 mar "🥳 Happy EOFY"', 'message', ['🥳 Happy EOFY'],
 					{'days': {'day': 31, 'months': [3]}, 'at': '08:30'}),
@@ -109,13 +109,22 @@ class JobArguments(unittest.TestCase):
 			with self.assertRaisesRegex(ValueError, movers.ARGUMENTS.replace('|', r'\|')):
 				movers.job(bad)
 
+	def test_the_old_cal_jobs_are_the_earnings_job(self):
+		"""A job stored as cal earnings or cal ex-dividend runs as earnings, and a default job's old keys in a chat's
+		record stand for the one earnings."""
+		schedule = {'days': ['sun'], 'at': '09:00', 'zone': 'UTC'}
+		for args in (['earnings'], ['ex-dividend']):
+			job = jobs.stored_job('telegram:5', {'action': 'cal', 'args': args, 'schedule': schedule})
+			self.assertEqual((job.action, job.args, job.name), ('earnings', (), 'earnings'))
+		self.assertFalse(jobs.item_on({'off': ['cal-ex-dividend']}, 'earnings'))
+		self.assertTrue(jobs.item_on({'off': ['cal-ex-dividend']}, 'shorts'))
+		self.assertEqual(jobs.removed({'deleted': ['cal-earnings', 'shorts']}), ['earnings', 'shorts'])
+
 	def test_cal_and_performance(self):
-		"""cal takes earnings or ex-dividend; performance an optional number of days."""
-		self.assertEqual(cal.job(['earnings']), ('cal earnings', {'event': 'earnings'}))
-		self.assertEqual(cal.job(['ex-dividend']), ('cal ex-dividend', {'event': 'ex-dividend'}))
+		"""earnings takes none; performance an optional number of days."""
 		self.assertEqual(performance.job([]), ('performance', {}))
 		self.assertEqual(performance.job(['7']), ('performance 7', {'past_days': 7}))
-		for bad, module in ((['x'], cal), ([], cal), (['x'], performance)):
+		for bad, module in ((['x'], earnings), (['x'], performance)):
 			with self.assertRaises(ValueError):
 				module.job(bad)
 
@@ -150,7 +159,7 @@ class JobArguments(unittest.TestCase):
 		for name, module in jobs.ACTIONS.items():
 			with self.subTest(name=name):
 				self.assertIsInstance(module.ARGUMENTS, str)
-				if name not in ('cal', 'cleanup', 'message', 'performance', 'podcasts', 'movers'):
+				if name not in ('cleanup', 'message', 'performance', 'podcasts', 'movers'):
 					self.assertEqual((module.job([]), module.ARGUMENTS), ((name, {}), ''))
 					with self.assertRaisesRegex(ValueError, 'no arguments'):
 						module.job(['7'])
@@ -166,8 +175,8 @@ class DefaultJobs(unittest.TestCase):
 		"""Each default job is an action a chat may schedule, with arguments its parser takes, on a schedule that runs;
 		its key is its own; its name says what it reports on, never when; performance and movers over a period cover the
 		days between their runs."""
-		self.assertEqual(len(catalog.ITEMS), 35)
-		self.assertEqual(len({item.key for item in catalog.ITEMS}), 35)
+		self.assertEqual(len(catalog.ITEMS), 34)
+		self.assertEqual(len({item.key for item in catalog.ITEMS}), 34)
 		start = datetime.datetime(2026, 1, 1, tzinfo=when.UTC)
 		for item in catalog.ITEMS:
 			with self.subTest(item=item.key):
@@ -189,35 +198,35 @@ class DefaultJobs(unittest.TestCase):
 		"""The default jobs by name, each with its schedule in words, as a chat in Melbourne sees them in mid-October:
 		each in its market's zone, the local time beside it where the clocks differ."""
 		described = [f'{item.name} · {item.schedule.describe(MELBOURNE, OCTOBER)}' for item in catalog.items('AU')]
-		self.assertEqual(described, ['trades · every 20 mins, Mon 9am – Sat 3pm Sydney',
-			'movers midsession AU · weekdays at 1:00pm Sydney',
+		self.assertEqual(described, ['trades · every 20 mins, Mon 9am – Sat 3pm',
+			'movers midsession AU · weekdays at 1:00pm',
 			'movers midsession US · weekdays at 12:45pm New York (3:45am local, Tue–Sat)',
 			'movers premarket US · weekdays at 7:15am New York (10:15pm local)',
-			'movers close AU · weekdays at 4:30pm Sydney',
+			'movers close AU · weekdays at 4:30pm',
 			'movers close HK · weekdays at 4:30pm Hong Kong (7:30pm local)',
 			'movers close UK · weekdays at 5:00pm London (3:00am local, Tue–Sat)',
 			'movers close US · weekdays at 4:30pm New York (7:30am local, Tue–Sat)',
-			'rating · Tue–Sat at 8:30am Sydney', 'milestone · Tue–Sat at 8:30am Sydney',
-			'podcasts Money Cafe · hourly at :01, weekdays 10am–9pm Sydney',
-			'podcasts Stocktake · hourly at :01, weekdays 10am–9pm Sydney',
-			'cal earnings · weekly, Sundays at 8:30am Sydney', 'cal ex-dividend · weekly, Sundays at 8:30am Sydney',
-			'shorts · weekly, Sundays at 8:30am Sydney', 'performance · weekly, Sundays at 8:30am Sydney',
-			'movers · weekly, Sundays at 8:30am Sydney', 'performance · monthly, the 2nd at 8:30am Sydney',
-			'movers · monthly, the 2nd at 8:30am Sydney', 'performance · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney',
-			'movers · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney',
-			'performance · bi-annual, 2 Jan and 2 Jul at 8:30am Sydney',
-			'movers · bi-annual, 2 Jan and 2 Jul at 8:30am Sydney', 'performance · annual, 2 Jan at 8:30am Sydney',
-			'movers · annual, 2 Jan at 8:30am Sydney',
-			'message: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 · annual, 31 Mar at 8:30am Sydney',
-			'message: SPCX IPO anniversary · annual, 12 Jun at 8:30am Sydney',
-			'message: 💸 Realise capital gains/losses by EOFY June 30 (AU) · annual, 23 Jun at 8:30am Sydney',
-			'message: 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 · annual, 30 Jun at 8:30am Sydney',
-			"message: ✍️ Submit 'Notice of Intent to Claim' for any post-tax … (AU) · annual, 7 Jul at 8:30am Sydney",
-			"message: finbot's birthday · annual, 18 Aug at 8:30am Sydney",
-			'message: 😓 Self-service individual tax returns are due Oct 31 (AU) · annual, 25 Oct at 8:30am Sydney',
-			'message: ubank draw 6/6 … (AU) · once, 28 Oct 2026 at 8:30am Sydney',
-			'message: 😰 Self-service individual tax returns are due today (AU) · annual, 31 Oct at 8:30am Sydney',
-			'message: SPCX 5th mensiversary. End of (statistically) most … · once, 12 Nov 2026 at 8:30am Sydney'])
+			'rating · Tue–Sat at 8:30am', 'milestone · Tue–Sat at 8:30am',
+			'podcasts Money Cafe · hourly at :01, weekdays 10am–9pm',
+			'podcasts Stocktake · hourly at :01, weekdays 10am–9pm',
+			'earnings · weekly, Sundays at 8:30am',
+			'shorts · weekly, Sundays at 8:30am', 'performance · weekly, Sundays at 8:30am',
+			'movers · weekly, Sundays at 8:30am', 'performance · monthly, the 2nd at 8:30am',
+			'movers · monthly, the 2nd at 8:30am', 'performance · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am',
+			'movers · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am',
+			'performance · bi-annual, 2 Jan and 2 Jul at 8:30am',
+			'movers · bi-annual, 2 Jan and 2 Jul at 8:30am', 'performance · annual, 2 Jan at 8:30am',
+			'movers · annual, 2 Jan at 8:30am',
+			'🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 · annual, 31 Mar at 8:30am',
+			'SPCX IPO anniversary · annual, 12 Jun at 8:30am',
+			'💸 Realise capital gains/losses by EOFY June 30 (AU) · annual, 23 Jun at 8:30am',
+			'🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 · annual, 30 Jun at 8:30am',
+			"✍️ Submit 'Notice of Intent to Claim' for any post-tax … (AU) · annual, 7 Jul at 8:30am",
+			"finbot's birthday · annual, 18 Aug at 8:30am",
+			'😓 Self-service individual tax returns are due Oct 31 (AU) · annual, 25 Oct at 8:30am',
+			'ubank draw 6/6 … (AU) · once, 28 Oct 2026 at 8:30am',
+			'😰 Self-service individual tax returns are due today (AU) · annual, 31 Oct at 8:30am',
+			'SPCX 5th mensiversary. End of (statistically) most … · once, 12 Nov 2026 at 8:30am'])
 
 	def test_a_message_for_one_country_only_there_with_its_flag(self):
 		"""A message for one country is a default job only where it is the country_code setting, with its flag."""
@@ -231,7 +240,7 @@ class DefaultJobs(unittest.TestCase):
 
 	def test_a_job_that_is_a_default_one(self):
 		"""A job is a default one where its action, arguments, days and times are, in a zone that keeps the same clock
-		(Melbourne's and Sydney's), and not in another (Brisbane's has no summer time)."""
+		(Melbourne's and's), and not in another (Brisbane's has no summer time)."""
 		def matching(text):
 			"""The default job that .jobs add's text is in Melbourne, or None."""
 			item = catalog.matching(*jobs.parse_add(text, MELBOURNE), 'AU')
@@ -294,7 +303,7 @@ class DirectMessages(FinbotCase):
 		self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {'dm': True}) # still a DM
 
 	def test_a_chat_seen_says_whether_it_is_a_direct_message(self):
-		"""At a chat's first command it starts with its default jobs off where it is a direct message: Discord's update
+		"""At a chat's first command it starts with its default jobs off where it is a direct Discord's update
 		says so, Telegram's chat id does."""
 		self.env(discordBotToken='x')
 		s = jobs.Scheduler(clock=lambda: OCTOBER)

@@ -21,7 +21,7 @@ from lib import render
 from lib import buttons
 from lib import charts
 from lib import transports
-from lib.reports import about, cal, holdings, movers, performance, pick, profile, rankings, shorts, trades
+from lib.reports import about, earnings, holdings, movers, performance, pick, profile, rankings, shorts, trades
 from lib import sharesight
 from lib import telegram_common
 from lib import jobs
@@ -98,17 +98,22 @@ def press_command(data):
 	return next((command for command in COMMANDS if name in command.names), None)
 
 PRESSED = 60 # seconds in which the same button pressed again on the same message is taken once
+FLIPPED = 2 # seconds, for a button that flips a job on or off (the same one flips it back): only a double tap
 _presses = collections.OrderedDict() # (service, chat, message) -> (data, when) of the last press taken there
 _presses_lock = threading.Lock() # presses arrive on several threads
 
 def repeated(press, keep=1000):
 	"""Whether a press repeats the last one taken on the same message, within PRESSED seconds of it: the same button
 	pressed again, whose answer the message shows (or is on its way), or whose job (Run now) has run; bot.take drops
-	it. Another button pressed between them, or the first press failing (forget), makes it a press of its own."""
+	it. Another button pressed between them, or the first press failing (forget), makes it a press of its own. The
+	same button of a job's switch (the .jobs menu's Edit, Enable, Disable) is a repeat for FLIPPED seconds only: pressed
+	later, it flips the job back."""
 	key, now = (press.service, press.chat_id, press.message_id), time.monotonic()
+	pressed = buttons.parse(press.data)
+	within = FLIPPED if isinstance(pressed, buttons.MenuPress) and pressed.screen in ('edit', 'on', 'off') else PRESSED
 	with _presses_lock:
 		last = _presses.pop(key, None)
-		again = last is not None and last[0] == press.data and now - last[1] <= PRESSED
+		again = last is not None and last[0] == press.data and now - last[1] <= within
 		_presses[key] = last if again else (press.data, now)
 		if len(_presses) > keep:
 			_presses.popitem(last=False)
@@ -210,7 +215,7 @@ def add_step(service, chat, steps):
 	except ValueError: # data that is no step of Add: forged, or from an older finbot
 		return about.jobs_screen(service, chat.key, 'top', 0, 'That is no step of Add')
 	if lines is not None:
-		return lines, made
+		return about.listed_with(service, chat.key, lines), made
 	try:
 		number = jobs.current.add(chat.key, *made)
 	except jobs.ScheduleError as e:
@@ -520,16 +525,14 @@ def on_help(request, args):
 		mark_keyboard(request.chat_id) # this chat now has the current keyboard
 
 def on_calendar(request, args):
-	""".earningsdividend or .earnings & dividend (the keyboard's) [period|SYMBOL]: the coming earnings dates, then
-	the ex-dividend dates; typed .earnings or .dividend, only those."""
+	""".earnings [period|SYMBOL] (also .earningsdividend, and .earnings & dividend, once the keyboard's): the coming
+	earnings and ex-dividend dates in one list by date; typed .dividend, only the ex-dividend ones."""
 	words = args.words
-	both = args.word == 'earningsdividend' or (args.word == 'earnings' and words[:1] in (['&'], ['and']) and
-		words[1:2] in (['dividend'], ['dividends']))
-	if both and args.word == 'earnings':
+	if args.word == 'earnings' and words[:1] in (['&'], ['and']) and words[1:2] in (['dividend'], ['dividends']):
 		words = words[2:]
 	symbol = yahoo.symbol(words[0]) if words else None
-	for event in (['earnings', 'ex-dividend'] if both else ['ex-dividend' if 'div' in args.word else 'earnings']):
-		cal.run(request.dest, days=args.days, specific_stock=symbol, event=event)
+	event = 'ex-dividend' if 'div' in args.word and args.word != 'earningsdividend' else 'both'
+	earnings.run(request.dest, days=args.days, specific_stock=symbol, event=event)
 
 def on_performance(request, args):
 	""".performance [period] [portfolio]: each portfolio's return, over a month by default."""
@@ -608,15 +611,12 @@ def on_treemap(request, args):
 	request.reply(payload, chart)
 
 def on_rating(request, args):
-	""".buy, .sell or both (.buy & sell, a keyboard button): the analysts' strongest buy or sell ratings, as asked."""
-	for action in dict.fromkeys(re.findall('buy|sell', f'{args.word} {args.text}'.lower())): # each once, as asked
-		try:
-			payload, chart = rankings.prepare_rating_payload(request.service, request.dest.key, action, length=15)
-		except answer.Nothing as e: # none rated so: said where someone asked, and the other list still goes
-			if delivery.asked(request.dest):
-				request.reply(e.lines)
-			continue
-		request.reply(payload, chart)
+	""".buy, .sell or both (.buy & sell, a keyboard button): the analysts' strongest buy or sell ratings, as asked,
+	in one message."""
+	actions = list(dict.fromkeys(re.findall('buy|sell', f'{args.word} {args.text}'.lower()))) # each once, as asked
+	payload, chart = rankings.prepare_rating_payload(request.service, request.dest.key, actions,
+		length=10 if len(actions) > 1 else 15, asked=delivery.asked(request.dest))
+	request.reply(payload, chart)
 
 def on_compare(request, args):
 	""".price (or .compare, .history) [SYMBOL...] [period]: their price changes on one chart, with period buttons where
@@ -814,9 +814,8 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
 		keywords=CHANGE, job=False),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),
-	Command(('earningsdividend', 'earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend', 'exdividend',
-		'ex-dividend'), on_calendar, ('.earningsdividend [period|SYMBOL]',), COMPANY, ('.earnings & dividend',),
-		period=True),
+	Command(('earnings', 'earningsdividend', 'earning', 'earrings', 'earring', 'dividends', 'dividend', 'exdividend',
+		'ex-dividend'), on_calendar, ('.earnings [period|SYMBOL]',), COMPANY, ('.earnings',), period=True),
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
 		keywords=TOP),
 	Command(('beta',), on_beta, ('.beta',), PRICE),

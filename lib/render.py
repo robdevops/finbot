@@ -30,6 +30,7 @@ class Chart:
 	value_format: str = 'percent' # bars: how a value prints, a key of VALUE_FORMATS
 	xlim: tuple = None # bars: the value axis, zoomed
 	session: str = None # bars: 'midsession' or 'premarket' tints the background
+	red_rows: tuple = () # bars: the indices of rows drawn in red though they are not below zero (the sells)
 	threshold: float = None # shorts: the outrageous line
 	change: float = None # line: the change shown, whose sign colours the line and its subtitle
 
@@ -475,8 +476,8 @@ def draw_bars(chart):
 	"""Horizontal bars that mirror the caption list, first row on top, filling the whole 1280x800 canvas: blue for >= 0,
 	red below, each row's label at the bar's base and its value (as value_format prints it) at the tip. Rows of (label,
 	value); a (label, None) row is a gap. Past ROWS rows the image grows taller, each row as tall as at ROWS, so that
-	every row is in it. xlim zooms the value axis (bars then start at its left edge); session 'midsession' or
-	'premarket' washes the background green or yellow."""
+	every row is in it. red_rows are drawn red too. xlim zooms the value axis (bars then start at its left edge);
+	session 'midsession' or 'premarket' washes the background green or yellow."""
 	rows, subtitle, xlim, session = chart.rows, chart.subtitle, chart.xlim, chart.session
 	value_fmt = VALUE_FORMATS[chart.value_format]
 	bg, ink, ink2, _ = PALETTE
@@ -526,7 +527,8 @@ def draw_bars(chart):
 	axes = _Axes((left, top_edge, right, bottom_edge), (lo, hi), (n - 0.4, -0.6)) # first row on top
 	clipped = lambda v: axes.x(min(max(v, lo), hi)) # a zoomed axis cuts the bars at its edge
 	for y, _, v in real:
-		canvas.rect(clipped(0), axes.y(y - 0.36), clipped(v), axes.y(y + 0.36), BAR_UP if v >= 0 else DOWN)
+		canvas.rect(clipped(0), axes.y(y - 0.36), clipped(v), axes.y(y + 0.36),
+			BAR_UP if v >= 0 and y not in chart.red_rows else DOWN)
 	if not xlim:
 		canvas.line([(axes.x(0), top_edge), (axes.x(0), bottom_edge)], ink2, 1.0, rounded=False)
 	# each row's label sits beside the bar's base (left of the zero line for rising bars, right of it for falling ones),

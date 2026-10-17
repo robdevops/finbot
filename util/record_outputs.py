@@ -32,10 +32,10 @@ BUTTONS = ['c|c|m|T1', 'c|c|x|T1', 'c|c|w|T1', 'c|c|y|T1,T2', 'c|f|y|', 'c|l|d|3
 	'm|on|0|0000', 'm|off|0|0000', 'm|del|0|0000', 'm|add|0000', 'm|add|5|w|0000',
 	'm|next|0000']
 JOBS = ['*/20 * * * Mon-Fri trades', '29 21 * * Mon-Fri price interday', # each chat's, for .jobs (as cron had them)
-	'28 21 * * Sat cal earnings; cal ex-dividend; price 7; performance 7; rating']
-ADDED = ['trades every 20 mins weekdays', 'movers daily at 21:29', 'cal earnings every saturday at 21:28'] # since cron
+	'28 21 * * Sat earnings; price 7; performance 7; rating']
+ADDED = ['trades every 20 mins weekdays', 'movers daily at 21:29', 'earnings every saturday at 21:28'] # since cron
 SCHEDULED = ['trades', 'movers midsession', 'movers interday', 'movers premarket', 'movers close', 'movers 7',
-	'cal earnings', 'cal ex-dividend', 'performance 7', 'rating', 'shorts', 'milestone', 'reminder']
+	'earnings', 'performance 7', 'rating', 'shorts', 'milestone', 'reminder']
 OLD_NAMES = {'movers': 'price'} # reports by the name a commit from before their rename has them
 TELEGRAM_API = 'https://api.telegram.org/botX/'
 ANSWER = {'ok': True, 'upload_url': 'https://files.slack.com/u', 'file_id': 'F1', 'id': '1'} # good enough for every API

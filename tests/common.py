@@ -14,7 +14,7 @@ import bot
 from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, net
 from lib import render, sharesight, shortman, state, transports, watchlist, worker, yahoo
 from lib import discord_common, slack_common, telegram_common # each network's reader and bot
-from lib.reports import about, cal, history, holdings, milestone, movers, performance, profile, rankings, rating
+from lib.reports import about, earnings, history, holdings, milestone, movers, performance, profile, rankings, rating
 from lib.reports import shorts, trades
 
 REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'fetch_detail'), (yahoo, 'price_series'),

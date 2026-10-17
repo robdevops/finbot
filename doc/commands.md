@@ -33,13 +33,13 @@ Where:
 /stock symbol
 /beta
 /buysell
-/earningsdividend [period|symbol]
+/earnings [period|symbol]
 /help
 /holdings [portfolio]
 /jobs [upcoming|system]
 /jobs enable|disable|delete|run [number]
 /jobs add report schedule
-/jobs add message schedule "text"
+/jobs add reminder schedule "text"
 /marketcap [symbol|top|bottom]
 /movers [percent|top|bottom|session|premarket] [period]
 /pe [symbol|top|bottom|negative]
@@ -220,7 +220,7 @@ As a command, it also takes a portfolio:
 ### Events calendar
 ![earnings message in Slack](../img/earnings.png?raw=true "Earnings message in Slack")
 
-The `cal` report sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the `settings.conf` for a scheduled run, or can be specified as an argument when triggered through the chat bot.
+The `earnings` report sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the `settings.conf` for a scheduled run, or can be specified as an argument when triggered through the chat bot.
 
 **Finance Explainer:** When a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 
@@ -229,17 +229,17 @@ The `cal` report sends upcoming earnings and ex-dividend date alerts. The data i
 future_days=30
 ```
 
-Job (see [Scheduling](scheduling.md)), such as `/jobs add cal earnings every sunday at 8:30am`:
+Job (see [Scheduling](scheduling.md)), such as `/jobs add earnings every sunday at 8:30am`:
 ```
-cal earnings|ex-dividend
-```
-
-Command (the coming earnings, then the ex-dividend dates; for a period, or one symbol):
-```
-/earningsdividend [period|symbol]
+earnings
 ```
 
-Typed, `.earnings` gives the earnings alone and `.dividend` the ex-dividend dates alone.
+Command (the coming earnings and ex-dividend dates in one message, in date order under shared date headings, each line naming its event; for a period, or one symbol):
+```
+/earnings [period|symbol]
+```
+
+Typed, `.dividend` gives the ex-dividend dates alone.
 
 ### Highly shorted stock warnings
 ![short warnings in Slack](../img/shorts.png?raw=true "Short warnings in Slack")
@@ -283,7 +283,7 @@ Command:
 ![Buy ratings in Slack](../img/finbot_buy.png?raw=true "Buy ratings in Slack")
 ![Rating report in Slack](../img/finbot_sell.png?raw=true "Rating report in Slack")
 
-Show the top recommended buys, then the top recommended sells, by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `settings.conf`). Typed, `.buy` gives the buys alone and `.sell` the sells alone.
+Show the top recommended buys and sells, by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `settings.conf`), in one message with one bar chart, the sells in red. Typed, `.buy` gives the buys alone and `.sell` the sells alone.
 
 Command:
 ```

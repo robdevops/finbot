@@ -20,7 +20,7 @@ TYPED = ['.jobs enable|disable|delete|run NUMBER: switch one on or off, delete o
 	'.jobs add REPORT SCHEDULE: add one (.jobs add lists the reports)', '.jobs upcoming: the next runs',
 	'.jobs system: the system jobs'] # what a chat without buttons types instead
 TYPED_ACTIONS = {'on': 'enable', 'off': 'disable', 'del': 'delete', 'run': 'run'}
-ADD_TYPED = ['/jobs add REPORT SCHEDULE', '/jobs add message SCHEDULE "TEXT"'] # how Add is typed: under the list
+ADD_TYPED = ['/jobs add REPORT SCHEDULE', '/jobs add reminder SCHEDULE "TEXT"'] # how Add is typed: under the list
 NOT_RUN = '* not run yet' # the key to a list's mark
 PAGE_ROOM = 500 # characters of a screen besides its jobs' lines: its headings, a note, the key to *
 JOB_ROW = 4 # job buttons in a row
@@ -28,8 +28,8 @@ MOST_JOBS = {'discord': 16} # job buttons on a page: Discord takes five rows of 
 # Add's reports: (label, action, arguments; None where the period follows how often it runs, or a reminder's text)
 REPORTS = (('trades', 'trades', ()), ('movers midsession', 'movers', ('midsession',)),
 	('movers premarket', 'movers', ('premarket',)), ('movers close', 'movers', ('close',)), ('movers', 'movers', None),
-	('performance', 'performance', None), ('cal earnings', 'cal', ('earnings',)),
-	('cal ex-dividend', 'cal', ('ex-dividend',)), ('shorts', 'shorts', ()), ('rating', 'rating', ()),
+	('performance', 'performance', None), ('earnings', 'earnings', ()),
+	('shorts', 'shorts', ()), ('rating', 'rating', ()),
 	('milestone', 'milestone', ()), ('reminder', 'message', None))
 FREQUENCIES = (('o', 'one-off'), ('h', 'hourly'), ('d', 'daily'), ('w', 'weekly'), ('m', 'monthly'),
 	('q', 'quarterly'), ('b', 'bi-annual'), ('a', 'annual'), ('r', 'every...'))
@@ -86,7 +86,7 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, h
 	elif screen in NOTHING and not any(acts(screen, job) for job in own):
 		lines.append(NOTHING[screen])
 	if shown:
-		lines += ['', *(line for _, _, line in shown)]
+		lines += grouped(service, shown)
 	if not all(scheduler.has_run(job) for _, job, _ in shown):
 		lines += ['', NOT_RUN]
 	if not tappable:
@@ -94,6 +94,39 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, h
 	if screen == 'top':
 		lines += ['', *(service.italic(service.escape(line)) for line in ADD_TYPED)]
 	return lines, screen_buttons(screen, page, len(parts), shown, jobs.list_checksum(own), own)
+
+def grouped(service, shown):
+	"""The entries (number, job, line) as lines: the jobs of each report, or the reminders, under a heading of their
+	own, a blank line before each heading."""
+	lines, section = [], None
+	for _, job, line in shown:
+		kind = 'Reminders' if job.action == 'message' else job.action.capitalize()
+		if kind != section:
+			lines += ['', service.bold(kind)]
+			section = kind
+		lines.append(line)
+	return lines
+
+def listed_with(service, chat, lines):
+	"""A screen's lines (an Add step's) with the chat's job list under them, to show it while a job is added: as many
+	jobs as fit a message of the network with the screen, then how many more there are."""
+	scheduler = jobs.current
+	if scheduler is None:
+		return lines
+	own = scheduler.chat_jobs(chat)
+	running, local, now = scheduler.running(chat), formats.zone().key, scheduler.clock()
+	room = service.text_limit - len('\n'.join(lines)) - PAGE_ROOM // 2
+	shown, size = [], 0
+	for number, job in enumerate(own, 1):
+		line = job_entry(service, scheduler, number, job, running, local, now)
+		size += len(line) + 1
+		if size > room or len(shown) == MOST_JOBS.get(service, 40):
+			break
+		shown.append((number, job, line))
+	if not shown:
+		return lines
+	more = [f'…and {len(own) - len(shown)} more'] if len(shown) < len(own) else []
+	return [*lines, '', service.bold('Jobs'), *grouped(service, shown)[1:], *more]
 
 def acts(screen, job):
 	"""Whether a list screen acts on a job: Enable on one that is off, Disable on one that is on, the others on any."""
@@ -258,9 +291,9 @@ def add_screen(service, chat, steps):
 	label, action, args = reports[choice(steps[0], 1, len(reports)) - 1]
 	if action == 'message':
 		return [service.bold('Add a reminder'), "A reminder's text is what you type:",
-			'.jobs add message SCHEDULE "TEXT"', '', service.bold('For example:'),
-			'.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"',
-			'.jobs add message on 28 oct 2026 "ubank draw 6/6"'], [[back, cancel]]
+			'.jobs add reminder SCHEDULE "TEXT"', '', service.bold('For example:'),
+			'.jobs add reminder every 31 mar at 8:30am "🥳 Happy EOFY"',
+			'.jobs add reminder on 28 oct 2026 "ubank draw 6/6"'], [[back, cancel]]
 	command = jobs.command_actions().get(action)
 	if command and command.needs: # what it is about, a stock or a portfolio, comes from typing, not a button
 		return [service.bold(f'Add {label}'), f'What {label} is about is typed:',
@@ -453,11 +486,12 @@ def prepare_reports(service):
 	"""`.jobs add` alone: what a job can run (the reports, then the commands of .help), each with what it takes, and
 	examples."""
 	known = jobs.actions()
-	return [service.bold('What a job can run:')] + [f"{name} {known[name].ARGUMENTS}".strip()
-		for name in jobs.chat_actions()] + ['', service.bold('For example:'), '.jobs add movers weekly',
+	return [service.bold('What a job can run:')] + [f"{'reminder' if name == 'message' else name} "
+		f"{known[name].ARGUMENTS}".strip() for name in jobs.chat_actions()] + ['', service.bold('For example:'),
+		'.jobs add movers weekly',
 		'.jobs add movers close weekdays at 4:30pm New York', '.jobs add performance first day of each month at 9am',
 		'.jobs add trades every 20 mins weekdays from 10am to 4pm', '.jobs add peg top weekly',
-		'.jobs add price AAPL MSFT 1y monthly', '.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"', '',
+		'.jobs add price AAPL MSFT 1y monthly', '.jobs add reminder every 31 mar at 8:30am "🥳 Happy EOFY"', '',
 		f"Times are by {when.place(formats.zone().key)}'s clock unless one names a zone (UTC, New York, EST);"
 		" performance and movers cover the days between runs"]
 

@@ -210,13 +210,18 @@ class Schedule:
 		return month_kind(days['months'])
 
 	def describe(self, local, now=None):
-		"""The schedule in words, by its own zone's clock: plain where that is local (the zone's name), in 24 hours with
-		"UTC" after it where it is UTC, else with the zone's place after it and, where the local clock differs at the
-		next run after now, its times in parentheses: "weekdays at 12:45pm New York (3:45am local, Tue–Sat)"."""
+		"""The schedule in words, by its own zone's clock: plain where that is local (the zone's name, or a zone whose
+		clock reads the same at the next run after now: Sydney for Melbourne), in 24 hours with "UTC" after it where it
+		is UTC, else with the zone's place after it and, where the local clock differs at that run, its times in
+		parentheses: "weekdays at 12:45pm New York (3:45am local, Tue–Sat)"."""
 		if self.zone == local:
 			return self.words(False)
 		if self.zone == 'UTC':
 			return self.words(True) + ' UTC'
+		run = self.next_after(now or datetime.datetime.now(UTC))
+		same = run and run.astimezone(self.tz).utcoffset() == run.astimezone(zoneinfo.ZoneInfo(local)).utcoffset()
+		if same:
+			return self.words(False)
 		return f"{self.words(False)} {place(self.zone)}{self.aside(local, now)}"
 
 	def words(self, utc):

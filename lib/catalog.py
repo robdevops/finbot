@@ -71,11 +71,11 @@ def message(key, date, lines, country=None, name=None):
 
 
 def message_name(lines, country=None, size=56):
-	"""What .jobs calls a message job: 'message: ', its first line's words cut to fit, and the country it is for."""
+	"""What .jobs calls a reminder: its first line's words cut to fit, and the country it is for."""
 	first = next((formats.plain(line).replace('{flag}', '').strip() for line in lines if line.strip()), '')
 	if len(first) > size:
 		first = first[:size].rsplit(' ', 1)[0] + ' …'
-	return f"message: {first}" + (f' ({country})' if country else '')
+	return first + (f' ({country})' if country else '')
 
 
 EOFY_CHECKLIST = (
@@ -110,8 +110,7 @@ ITEMS = (
 	*(Item(f"podcasts-{name.lower().replace(' ', '-')}", f'podcasts {name}', 'podcasts', (feed,),
 		when.Schedule.from_json({'days': 'weekdays', 'every': 60, 'from': '10:01', 'to': '21:01', 'zone': SYDNEY}))
 		for name, feed in (('Money Cafe', MONEY_CAFE), ('Stocktake', STOCKTAKE))),
-	Item('cal-earnings', 'cal earnings', 'cal', ('earnings',), at(['sun'])),
-	Item('cal-ex-dividend', 'cal ex-dividend', 'cal', ('ex-dividend',), at(['sun'])),
+	Item('earnings', 'earnings', 'earnings', (), at(['sun'])),
 	Item('shorts', 'shorts', 'shorts', (), at(['sun'])),
 	*periodic('weekly', ['sun']),
 	*periodic('monthly', {'day': 2}),
@@ -125,7 +124,7 @@ ITEMS = (
 	message('message-intent-to-claim', '07-07', ["✍️ Submit 'Notice of Intent to Claim' for any post-tax Super"
 		" contributions. The fund must acknowledge them before you lodge your tax return{flag}"], 'AU'),
 	message('message-birthday', '08-18', ["It's my {years since 2022-08-18} birthday! 🥳"],
-		name="message: finbot's birthday"),
+		name="finbot's birthday"),
 	message('message-tax-due-soon', '10-25', ['😓 Self-service individual tax returns are due Oct 31{flag}'], 'AU'),
 	message('message-ubank-draw-6', '2026-10-28', ['ubank draw 6/6 https://www.ubank.com.au/campaigns/doubleyourpay'
 		' → Winners'], 'AU'),
