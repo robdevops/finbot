@@ -98,7 +98,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
   its `interaction` (application id/token), and a pressed message is edited through the press's. A chart the network
   has already (the same PNG) goes by its id, not uploaded again: Telegram's file id (`telegram_common.with_photo`, a
-  cache file by chart and bot), Slack's upload of the last 15 minutes (`SlackBot.showing`; `reshow`, by chat and
+  cache file by chart and bot), Slack's upload of the last 30 minutes (`SlackBot.showing`; `reshow`, by chat and
   period, skips even the drawing).
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.treemap .holdings
   .price` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,

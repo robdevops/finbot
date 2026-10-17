@@ -620,10 +620,10 @@ class SlackButtons(FinbotCase):
 			return answer
 		self.patch(net, 'post', post)
 
-	def test_a_period_shown_again_within_15_minutes_shows_its_upload_again(self):
-		"""A press for a period whose chart was uploaded in the last 15 minutes, for this message or another, shows
+	def test_a_period_shown_again_within_30_minutes_shows_its_upload_again(self):
+		"""A press for a period whose chart was uploaded in the last 30 minutes, for this message or another, shows
 		that upload again with the report it came with: nothing is built or uploaded. Past that, the period is built and
-		uploaded anew, and the uploads no message shows are deleted, never one a message shows."""
+		uploaded anew, and the uploads no message shows are deleted a minute later, never one a message shows."""
 		self.uploading()
 		built = []
 		build = charts.build
@@ -636,17 +636,19 @@ class SlackButtons(FinbotCase):
 		blocks = self.blocks('chat.update')
 		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
 		self.assertTrue(blocks[0]['text']['text'].startswith('*≥ 5% at close'))
-		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 16 minutes on
+		self.assertEqual(slack_common.SLACK_REUSE_SECONDS, 30 * 60)
+		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 31 minutes on
 			for upload in noted['uploads'].values():
-				upload[0] -= 16 * 60 + 1
+				upload[0] -= 31 * 60 + 1
 		worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|d|5,0')) # 1D again: F3
 		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F3'})
 		deleted = [kwargs['data']['file'] for url, kwargs in self.posts if url.endswith('/files.delete')]
 		self.assertEqual((deleted, len(built), self.errors), (['F2'], 1, [])) # message 2.5 shows F1
 
 	def test_the_same_chart_is_shown_with_its_earlier_upload(self):
-		"""A chart uploaded in the last 15 minutes (the same PNG), such as a portfolio picked again, is shown with that
-		upload: nothing is uploaded, and Slack shows it at once. Past 15 minutes, it is uploaded anew."""
+		"""A chart uploaded in the last 30 minutes (the same PNG), such as a portfolio picked again, is shown with that
+		upload, which counts as new again: nothing is uploaded, and Slack shows it at once. Past 30 minutes, it is
+		uploaded anew."""
 		self.uploading()
 		chat = slack_common.SlackBot('C1')
 		for image in (b'one', b'two', b'one'):
@@ -655,9 +657,14 @@ class SlackButtons(FinbotCase):
 			'chat.update'] * 2 + ['chat.update'])
 		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F1'})
 		self.assertEqual(self.blocks('chat.update')[0]['text']['text'], 'one')
-		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 15 minutes on
+		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 29 minutes on: still shown again
 			for upload in noted['uploads'].values():
-				upload[0] -= 15 * 60
+				upload[0] -= 29 * 60
+		chat.edit_chart('1.5', io.BytesIO(b'two'), 'two')
+		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F2'})
+		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 30 minutes after it was shown again
+			for upload in noted['uploads'].values():
+				upload[0] -= 30 * 60
 		chat.edit_chart('1.5', io.BytesIO(b'two'), 'two')
 		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F3'})
 		self.assertEqual(self.waits, []) # never a chart Slack could not show yet

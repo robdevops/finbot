@@ -20,7 +20,7 @@ from lib import transports
 
 SLACK_CHARTS = 'finbot_slack_charts.json' # Slack's chart messages: the file each shows, and the charts uploaded
 SLACK_CHARTS_KEPT = 500 # chart messages noted, newest last: an older one shows its file for good
-SLACK_REUSE_SECONDS = 15 * 60 # a period pressed (or the same chart drawn) within this long of its upload shows it again
+SLACK_REUSE_SECONDS = 30 * 60 # a period pressed (or the same chart drawn) within this long of its upload shows it again
 
 
 def call(method, as_app=False, logged=True, **data):
