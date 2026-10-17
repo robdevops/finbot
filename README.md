@@ -1,6 +1,6 @@
 # finbot
 
-finbot is a chat bot for Telegram, Slack and Discord that follows your [Sharesight](https://www.sharesight.com/au/)
+finbot is a chat bot that follows your [Sharesight](https://www.sharesight.com/au/)
 portfolios and each chat's watchlist with Yahoo Finance data. It posts trades, price moves, earnings and ex-dividend
 dates, analyst rating changes and more on a schedule, and answers commands with reports and charts.
 
@@ -13,16 +13,11 @@ If you don't have Sharesight, you can still add your holdings manually via the w
 * Alerts of daily price movements past a threshold, earnings and ex-dividend dates, analyst rating changes, short
   interest, record highs
 * Stock lookup and comparisons, rankings by P/E, PEG, market cap or analyst rating
-* Slash commands (`/price`), completed as they are typed where the network allows, or messages (`.price`), quicker to
-  type on a phone
-* Each chat's own scheduled jobs and watchlist, managed in the chat (`/jobs`, `/watchlist`)
-* Docker or a Debian host
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
 ## Quick start
-Run finbot with Docker or with Python. Both take the same keys, and both install every optional library, so each
-network works in either mode.
+Run finbot with Docker or with Python.
 
 ### With Docker
 On a Linux host with Docker:
