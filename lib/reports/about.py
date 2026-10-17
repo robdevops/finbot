@@ -178,7 +178,7 @@ def job_line(service, number, job, outcome):
 def next_screen(service, chat, count=20):
 	"""`.jobs upcoming`: a chat's next runs, in time order, at most count, each by the timezone setting's clock
 	(and its own zone's beside it, where that differs), with its number and name in .jobs; a repeat's runs on a day
-	are one entry, from its first to its last. Returns (lines, buttons): Cancel, back to the list."""
+	are one entry, from its first to its last. Returns (lines, buttons): Back, to the list."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
@@ -193,7 +193,7 @@ def next_screen(service, chat, count=20):
 		lines.append(f"{said} · {number}. {service.escape(job.name)}")
 	if len(lines) == 1:
 		lines.append('None: every job here is off')
-	return lines, [[buttons.menu_button('Cancel', 'top', [0], jobs.list_checksum(scheduler.chat_jobs(chat)))]]
+	return lines, [[buttons.menu_button('Back', 'top', [0], jobs.list_checksum(scheduler.chat_jobs(chat)))]]
 
 def clock_words(moment, zone):
 	"""A moment's time of day by a zone's clock: '8:30am', in 24 hours for UTC ('21:30')."""

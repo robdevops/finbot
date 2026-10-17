@@ -888,8 +888,8 @@ class JobsMenu(ChatBase):
 		"""Upcoming lists the next runs, with Cancel back to the list."""
 		lines, rows, data = self.press(f'm|next|{self.crc()}')
 		self.assertEqual((lines[:2], rows), (['<b>Upcoming runs:</b>', 'Wed 14 Oct 8:20am (21:20 UTC) – 10:40am,'
-			' every 20 mins · 3. trades'], [['Cancel']]))
-		self.assertEqual(self.press(data['Cancel'])[0][0], '<b>Jobs here</b>')
+			' every 20 mins · 3. trades'], [['Back']]))
+		self.assertEqual(self.press(data['Back'])[0][0], '<b>Jobs here</b>')
 
 	def test_a_stale_or_forged_press_acts_on_nothing(self):
 		"""A press drawn for another list (its checksum), for a number that is none, or of no screen at all (a job
