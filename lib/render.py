@@ -100,9 +100,9 @@ def _sized(pixels, bold):
 	path = _font_file(bold)
 	return ImageFont.truetype(path, pixels) if path else ImageFont.load_default(pixels)
 
-def _font(size, bold=False):
-	"""The font `size` points high, as the image is drawn (S times larger)."""
-	return _sized(round(size * PT * S, 1), bold)
+def _font(size, bold=False, scale=1):
+	"""The font `size` points high, for an image `scale` times larger than the chart."""
+	return _sized(round(size * PT * scale, 1), bold)
 
 def _rgb(color):
 	"""A colour (#rrggbb) as (red, green, blue)."""
@@ -119,19 +119,35 @@ def _bezier(p0, p1, p2, p3, steps=16):
 
 
 class _Canvas:
-	"""An image to draw a chart on, in its own pixels (y down): drawn S times larger, and reduced as it is saved."""
+	"""An image to draw a chart on, in its own pixels (y down): its shapes drawn S times larger and reduced as it is
+	saved; its text then, at its own size (FreeType smooths text by itself, in half the time), above every shape."""
 
 	def __init__(self, width, height, color, mode='RGB'):
 		"""A canvas `width` by `height` pixels, filled with `color`."""
 		from PIL import Image, ImageDraw
 		self.width, self.height = width, height
 		self.image = Image.new(mode, (round(width * S), round(height * S)), color)
-		self.pen = ImageDraw.Draw(self.image, 'RGBA') # on an RGB image, a colour with alpha blends into it
+		self.pen = ImageDraw.Draw(self.image) # a colour as it is: four times as fast as blending it
+		self.blend = ImageDraw.Draw(self.image, 'RGBA') if mode == 'RGB' else self.pen # a colour with alpha blends in
+		self.writing = [] # the lines of text, drawn as it is saved: (x, baseline, line, size, colour, bold, italic)
 
-	def png(self):
-		"""The image at its own size, as PNG bytes, rewound (or an upload sends nothing)."""
+	def png(self, palette=False):
+		"""The image at its own size, its text on it, as PNG bytes, rewound (or an upload sends nothing). With
+		`palette`, a PNG of 256 colours, which takes half the time and a third the bytes, but may move a colour a shade:
+		for a picture whose colours need not be exact."""
+		from PIL import Image, ImageDraw
+		image = self.image.reduce(S)
+		pen = ImageDraw.Draw(image)
+		for x, baseline, line, size, color, bold, italic in self.writing:
+			if italic:
+				_slanted(image, x, baseline, line, size, color)
+			else: # Pillow's own font has no bold: a stroke thickens it
+				pen.text((x, baseline), line, fill=color, font=_font(size, bold), anchor='ls',
+					stroke_width=1 if bold and not _font_file(True) else 0, stroke_fill=color)
+		if palette:
+			image = image.quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
 		buf = io.BytesIO()
-		self.image.reduce(S).save(buf, format='png')
+		image.save(buf, format='png')
 		buf.seek(0)
 		return buf
 
@@ -145,9 +161,10 @@ class _Canvas:
 				self.pen.ellipse((x - w / 2, y - w / 2, x + w / 2, y + w / 2), fill=color)
 
 	def polygon(self, points, fill, outline=None, width=0):
-		"""A polygon in `fill` (a colour, or (red, green, blue, alpha)), its outline `width` points wide, round at its
-		corners and centred on its edges."""
-		self.pen.polygon([(x * S, y * S) for x, y in points], fill=fill)
+		"""A polygon in `fill` (a colour, or (red, green, blue, alpha), which blends in), its outline `width` points
+		wide, round at its corners and centred on its edges."""
+		pen = self.blend if isinstance(fill, tuple) and len(fill) == 4 else self.pen
+		pen.polygon([(x * S, y * S) for x, y in points], fill=fill)
 		if outline:
 			self.line([*points, points[0]], outline, width)
 
@@ -194,7 +211,7 @@ class _Canvas:
 
 	def measure(self, text, size, bold=False):
 		"""How wide text `size` points high is, in pixels."""
-		return _font(size, bold).getlength(text) / S
+		return _font(size, bold).getlength(text)
 
 	def fit(self, size, texts, room, bold=False):
 		"""The size, in points, that makes the widest of the texts at most `room` pixels wide: `size` if they fit."""
@@ -203,11 +220,11 @@ class _Canvas:
 
 	def text(self, x, y, text, size, color, ha='left', va='center', bold=False, italic=False):
 		"""Text `size` points high at (x, y), placed as matplotlib places it (ha: left, center or right; va: top,
-		center, center_baseline, baseline or bottom), its lines 1.3 lines apart. Returns the x of its right end."""
+		center, center_baseline, baseline or bottom), its lines 1.3 lines apart, and drawn as the canvas is saved,
+		above every shape. Returns the x of its right end."""
 		em = size * PT
 		if em * S < 1:
 			return x
-		font = _font(size, bold)
 		lines = text.split('\n')
 		pitch = 1.3 * (ASCENT + DESCENT) * em
 		below = (len(lines) - 1) * pitch # from the first line's baseline to the last's
@@ -215,28 +232,27 @@ class _Canvas:
 			'center_baseline': y + ASCENT * em / 2, 'baseline': y, 'bottom': y - DESCENT * em - below}[va]
 		right = x
 		for i, line in enumerate(lines):
-			width = font.getlength(line) / S
+			width = self.measure(line, size, bold)
 			left = {'left': x, 'center': x - width / 2, 'right': x - width}[ha]
-			if italic:
-				self._slanted(left, baseline + i * pitch, line, font, color)
-			else: # Pillow's own font has no bold: a stroke thickens it
-				stroke = 1 if bold and not _font_file(True) else 0
-				self.pen.text((left * S, (baseline + i * pitch) * S), line, fill=color, font=font, anchor='ls',
-					stroke_width=stroke, stroke_fill=color)
+			self.writing.append((left, baseline + i * pitch, line, size, color, bold, italic))
 			right = max(right, left + width)
 		return right
 
-	def _slanted(self, x, baseline, text, font, color):
-		"""Text drawn upright on a mask, sheared about its baseline as an oblique is, then painted through it."""
-		from PIL import Image, ImageDraw
-		left, top, right, bottom = font.getbbox(text, anchor='ls')
-		lean = math.ceil(SLANT * max(-top, bottom)) # how far the shear moves its top right, its bottom left
-		mask = Image.new('L', (math.ceil(right - left) + 2 * lean + 2, math.ceil(bottom - top) + 2))
-		ox, oy = lean - left + 1, 1 - top # the start of its baseline, in the mask
-		ImageDraw.Draw(mask).text((ox, oy), text, fill=255, font=font, anchor='ls')
-		mask = mask.transform(mask.size, Image.Transform.AFFINE, (1, SLANT, -SLANT * oy, 0, 1, 0),
-			Image.Resampling.BILINEAR)
-		self.image.paste(color, (round(x * S - ox), round(baseline * S - oy)), mask)
+
+def _slanted(image, x, baseline, text, size, color):
+	"""Italic text on an image, its baseline from (x, baseline): drawn upright on a mask S times larger, sheared about
+	its baseline as an oblique face slants, reduced, and painted through."""
+	from PIL import Image, ImageDraw
+	font = _font(size, scale=S)
+	left, top, right, bottom = font.getbbox(text, anchor='ls')
+	lean = math.ceil(SLANT * max(-top, bottom)) # how far the shear moves its top right, its bottom left
+	whole = lambda v: S * math.ceil(v / S) # a length in the mask that is whole pixels once reduced
+	ox, oy = whole(lean - left + 1), whole(1 - top) # the start of its baseline, in the mask
+	mask = Image.new('L', (whole(ox + right + lean + 1), whole(oy + bottom + 1)))
+	ImageDraw.Draw(mask).text((ox, oy), text, fill=255, font=font, anchor='ls')
+	mask = mask.transform(mask.size, Image.Transform.AFFINE, (1, SLANT, -SLANT * oy, 0, 1, 0),
+		Image.Resampling.BILINEAR).reduce(S)
+	image.paste(color, (round(x - ox / S), round(baseline - oy / S)), mask)
 
 
 class _Axes:
@@ -578,12 +594,16 @@ def draw_shorts(chart, step=5):
 	for cx in range(0, W + 36, 36):
 		canvas.circle(cx, 748, 19, foam)
 
+	stamps = {}
 	for i, (label, value) in enumerate(rows):
 		if value is None: # the gap between the most shorted and the least
 			continue
 		cy = top + (i + 0.5) * row_h
 		whole, frac = divmod(value / step, 1)
-		stamp, m = pair(icon_w * 0.92, icon_h, colors[i % len(colors)], lw)
+		color = colors[i % len(colors)]
+		if color not in stamps: # each colour's pair drawn once, every row's the same size
+			stamps[color] = pair(icon_w * 0.92, icon_h, color, lw)
+		stamp, m = stamps[color]
 		for k in range(int(whole) + (1 if frac > 0.02 else 0)):
 			cut = m + icon_w * 0.92 * frac if k == int(whole) else None
 			canvas.paste(stamp, x0 + k * icon_w - m, cy - icon_h / 2 - m, cut)
@@ -610,7 +630,7 @@ def draw_shorts(chart, step=5):
 		canvas.text(x, cy, verdict, canvas.fit(size * 0.62, [verdict], W - 16 - x), ink, italic=True)
 	canvas.text(W / 2, 784, 'past fashion not indicative of future fashion', 8, 'white', ha='center', italic=True)
 	canvas.text(line_x, top - 18, f"{threshold:g}% outrageous line", 7.5, ink, ha='center', va='bottom', bold=True)
-	return canvas.png()
+	return canvas.png(palette=True) # a cartoon: its colours need not be exact
 
 @_drawn
 def draw_pie(chart):

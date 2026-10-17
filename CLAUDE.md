@@ -174,8 +174,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
   charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's).
 - A chart renderer in `lib/render.py` takes its `Chart` and is listed in `RENDERERS` by kind; it gets `@_drawn`, which
-  draws one chart at a time (Pillow's fonts are shared by every thread). A chart is drawn on a `_Canvas` at twice its
-  size and reduced, in DejaVu Sans from the system's fonts, its sizes in points as matplotlib's were.
+  draws one chart at a time (Pillow's fonts are shared by every thread). A chart is drawn on a `_Canvas`: its shapes at
+  twice its size and reduced, then its text at its own size, above every shape, in DejaVu Sans from the system's fonts,
+  its sizes in points as matplotlib's were; an opaque colour goes through the plain pen (blending is four times
+  slower), and the shorts cartoon is saved as a PNG of 256 colours (`png(palette=True)`).
 - A new command: a `Command` in `COMMANDS` (its names, and what its arguments may hold), whose usage, section and
   buttons make its `.help` lines and keyboard buttons, and the command list of `doc/commands.md`. A job may run every
   command of `.help`, so one that changes anything takes `job=False`.

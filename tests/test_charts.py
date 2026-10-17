@@ -99,15 +99,17 @@ EDGE_ROWS = {
 
 
 class ImageSanity(unittest.TestCase):
-	def check_image(self, buf, name, bg=BG, edge_clean=True, size=(1280, 800), edge=3):
-		"""Fail unless buf is a PNG of this size (1280x800) that is not blank, starts with the background, and
-		(edge_clean) draws nothing in `edge` pixels at its edges, where clipped text or bars would show."""
+	def check_image(self, buf, name, bg=BG, edge_clean=True, size=(1280, 800), edge=3, shade=0):
+		"""Fail unless buf is a PNG of this size (1280x800) that is not blank, starts with the background (within
+		`shade` of it: a palette PNG may move a colour that much), and (edge_clean) draws nothing in `edge` pixels at
+		its edges, where clipped text or bars would show."""
 		image = decode(buf)
 		self.assertEqual(image.size, size, name)
 		self.assertGreater(len(colours(image)), 8, f'{name} looks blank')
 		self.assertGreater(max(ImageStat.Stat(image).stddev), 5, f'{name} looks blank')
-		allowed = bg if isinstance(bg[0], tuple) else (bg,)
-		self.assertIn(image.getpixel((0, 0)), allowed, name)
+		allowed, corner = bg if isinstance(bg[0], tuple) else (bg,), image.getpixel((0, 0))
+		self.assertTrue(any(max(abs(a - b) for a, b in zip(corner, colour)) <= shade for colour in allowed),
+			f'{name} starts with {corner}, not the background')
 		if not edge_clean: # the shorts beach draws its sea right to the edge
 			return
 		width, height = image.size
@@ -121,7 +123,7 @@ class ImageSanity(unittest.TestCase):
 		for name, make in CHARTS.items():
 			with self.subTest(chart=name):
 				if name == 'shorts':
-					self.check_image(make(), name, bg=SHORTS_BG, edge_clean=False)
+					self.check_image(make(), name, bg=SHORTS_BG, edge_clean=False, shade=2)
 				elif name == 'treemap':
 					self.check_image(make(), name, edge=2)
 				else:
@@ -150,9 +152,9 @@ class ImageSanity(unittest.TestCase):
 		for n in (1, 5, 45):
 			rows = [(f'T{i}', 60.0 - i) for i in range(n)]
 			self.check_image(uncached(render.Chart('shorts', rows=tuple(rows), threshold=15)), f'shorts {n} rows',
-				bg=SHORTS_BG, edge_clean=False)
+				bg=SHORTS_BG, edge_clean=False, shade=2)
 		self.check_image(shorts([('A VERY LONG LABEL', 15.0), ('B', 0.4)]), 'shorts long label and tiny value',
-			bg=SHORTS_BG, edge_clean=False)
+			bg=SHORTS_BG, edge_clean=False, shade=2)
 		tiers = [(0, 'board shorts'), (4.9, 'board shorts'), (5, 'cargo shorts'), (10, 'boxers'), (15, 'gym shorts'),
 			(20, 'cutoffs'),
 				 (30, 'short shorts'), (40, 'daisy dukes'), (50, 'hot pants'), (60, 'speedos'),
