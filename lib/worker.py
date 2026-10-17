@@ -51,7 +51,8 @@ class Request:
 		can go) and buttons."""
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
-CHART_COMMANDS = {'c': 'price', 'f': 'performance', 'l': 'movers'} # a chart's kind -> the command it answers
+# a chart's kind -> the command it answers
+CHART_COMMANDS = {'c': 'price', 'f': 'performance', 'l': 'movers', 'r': 'trades'}
 
 def admin(service, ids):
 	"""Whether the sender of a message or a press (the ids its network gives: inbound.Message.ids) is one of the admins
@@ -295,6 +296,9 @@ def process_callback(press):
 	try:
 		args = buttons.resolve(pressed.ref)
 		markup = buttons.keyboard(pressed.kind, args, pressed.period)
+		if pressed.kind in charts.TEXT: # a text answer: its lines for that period, in place
+			caption, _ = charts.build(pressed.kind, args, service, chat.key, period=pressed.period)
+			return chat.edit_text(press.message_id, caption, markup)
 		if chat.reshow(press.message_id, markup): # that period as posted lately, where the network keeps it (Slack)
 			return
 		caption, chart = charts.build(pressed.kind, args, service, chat.key, period=pressed.period)

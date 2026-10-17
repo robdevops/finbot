@@ -11,7 +11,7 @@ from lib import log
 from lib import render
 from lib import watchlist
 from lib import yahoo
-from lib.reports import history, movers, performance
+from lib.reports import history, movers, performance, trades
 
 def stock_chart(service, chat, period, days, ticker):
 	"""One stock's change over the period (all its history for Max), from Yahoo, and its line: a .price of one."""
@@ -49,7 +49,13 @@ def movers_list_chart(service, chat, period, days, threshold, top):
 		raise answer.Answer(*(payload or ['no price data']))
 	return '\n'.join(payload), chart
 
-BUILDERS = {'c': compare_chart, 'f': performance_chart, 'l': movers_list_chart}
+def trades_list(service, chat, period, days, portfolio):
+	""".trades: the buys and sells of the past `days`, in every portfolio or the one named ('' for all); text, with no
+	chart."""
+	return '\n'.join(trades.listing(service, days or buttons.MAX_DAYS, portfolio or None)), None
+
+TEXT = 'r' # the kinds whose answer is text alone: the period buttons edit the message's text
+BUILDERS = {'c': compare_chart, 'f': performance_chart, 'l': movers_list_chart, 'r': trades_list}
 
 def build(kind, args, service, chat, period=None, days=None):
 	"""(caption, chart spec or None) of a chart kind, in a chat (its key), from the arguments its buttons carry

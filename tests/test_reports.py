@@ -712,6 +712,30 @@ class PeriodButtons(FinbotCase):
 		self.assertEqual(self.buttons('.movers top'), ['● 1D', '7D', '1M', '1Y', 'Max'])
 		self.assertEqual(self.buttons('.movers 1m'), ['1D', '7D', '● 1M', '1Y', 'Max'])
 
+	def test_trades_has_period_buttons_and_a_press_shows_the_trades_of_that_span_in_place(self):
+		""".trades offers 1D to Max, 1D marked by default and a period moving the marker; a press edits the text in
+		place, for the one portfolio named too; a trades report posted on schedule has none."""
+		shown = []
+		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None: shown.append(
+			telegram_common.TelegramBot.markup(markup) if markup else None) or self.record_text(dest, lines))
+		def labels(typed):
+			"""The period buttons the command's text came with: (labels, the first one's data)."""
+			shown.clear()
+			self.command(typed)
+			row = shown[0]['inline_keyboard'][0]
+			return [b['text'] for b in row], row[0]['callback_data']
+		self.assertEqual(labels('.trades'), (['● 1D', '7D', '1M', '1Y', 'Max'], 'c|r|d|'))
+		self.assertEqual(labels('.trades 7d')[0], ['1D', '● 7D', '1M', '1Y', 'Max'])
+		self.assertEqual(labels('.trades 7d Rob'), (['1D', '● 7D', '1M', '1Y', 'Max'], 'c|r|d|Rob'))
+		edits = []
+		self.patch(telegram_common.TelegramBot, 'edit_text', lambda dest, msg, text, buttons=None: edits.append(
+			(text, [b['text'] for b in telegram_common.TelegramBot.markup(buttons)['inline_keyboard'][0]])))
+		self.press_button('c|r|m|Rob')
+		self.assertEqual((len(edits), edits[0][1], self.errors), (1, ['1D', '7D', '● 1M', '1Y', 'Max'], []))
+		shown.clear()
+		trades.run(delivery.chat('telegram:55', scheduled=True))
+		self.assertEqual(shown, [None])
+
 	def test_a_chart_has_five_buttons_at_most(self):
 		"""No chart offers more than five buttons, Discord's limit for a row, and a period no button has (3m) marks
 		none of them."""

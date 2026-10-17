@@ -2,6 +2,7 @@
 import dataclasses
 import datetime
 
+from lib import buttons
 from lib import reports
 from lib import log
 from lib import config
@@ -44,10 +45,20 @@ def run(dest=None, *, days=None, user='', portfolio_select=None):
 	if not payload and delivery.asked(dest): # no trades, a buy or a sell; on schedule, none it was not told of
 		when = formats.days_english(days, 'in the past ')
 		payload = [f"{user} No trades {when}." if interactive else f"No new trades {when}."]
-	delivery.deliver(chat, delivery.Report(payload))
+	markup = None # a chat that asks gets the period buttons, which show the trades of another span in place
+	if interactive and chat.takes_buttons:
+		markup = buttons.keyboard('r', [portfolio_select or ''], buttons.period_for_days(days))
+	delivery.deliver(chat, delivery.Report(payload, None, markup))
 	if new and not interactive: # recorded once the report is out
 		with state.edit_for(chat.key, STATE_FILE, []) as known:
 			known.extend(sorted({trade.id for trade in new}.difference(known)))
+
+
+def listing(service, days, portfolio_select=None):
+	"""The lines a chat asking for the trades of the past `days` gets, as run() posts them, for a period button's press:
+	the buys and sells, or a line saying there are none."""
+	payload = report(service, gather(days, portfolio_select, set()), days, True)
+	return payload or [f"No trades {formats.days_english(days, 'in the past ')}."]
 
 
 def gather(days, portfolio_select, known):
