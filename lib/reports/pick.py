@@ -1,4 +1,4 @@
-"""The pickers: what a chat gets when it types .pie, .treemap, .holdings or .price (.compare) with nothing to say
+"""The pickers: what a chat gets when it types .treemap, .holdings or .price (.compare) with nothing to say
 what it is about, or a job runs one so: the answer for the first portfolio or ticker, with buttons for the portfolios
 or tickers under it, one message edited as each is pressed (buttons.PickPress). Each answer takes the message over and
 leaves the buttons under it, the item shown marked, so another can be picked. The ticker picker is .price's: its
@@ -13,7 +13,7 @@ from lib import watchlist
 from lib.reports import holdings
 
 MOST_ITEMS = 100 # items offered, paged: what the mask of ticks in a button's data has room for
-CHARTS = 'ptc' # the pickers whose answer is a chart
+CHARTS = 'tc' # the pickers whose answer is a chart
 
 def as_photo(chat, cmd):
 	"""Whether a picker's message is a picture with the answer as its caption (the answer's chart, or render.blank where
@@ -54,7 +54,7 @@ def unpack(shown):
 	return [int(text[i:i + 2], 16) - 1 for i in range(0, len(text), 2)]
 
 def default(cmd, found):
-	"""What a picker answers at first, as (shown, mask): the first portfolio (pie, treemap, holdings), or the first
+	"""What a picker answers at first, as (shown, mask): the first portfolio (treemap, holdings), or the first
 	ticker (compare), ticked, alphabetically."""
 	if cmd == 'c':
 		return pack([0]), 0b1
@@ -67,19 +67,14 @@ def shown_names(cmd, found, shown):
 	return [found[shown - 1]] if 0 < shown <= len(found) else []
 
 def prime(service, cmd, group, found, index):
-	"""Draw, to fill the cache, the charts a button of a pie or treemap picker would ask for: a treemap's other grouping
-	of the portfolio shown (found[index]) first, then every other portfolio in both; a pie's every other portfolio in
-	its grouping (it has no Group by button). A failure is logged, never raised."""
-	prepare = holdings.prepare_pie if cmd == 'p' else holdings.prepare_treemap
+	"""Draw, to fill the cache, the charts a button of a treemap picker would ask for: the other grouping of the
+	portfolio shown (found[index]) first, then every other portfolio in both. A failure is logged, never raised."""
 	by = 'sector' if group == 's' else 'industry'
-	if cmd == 't':
-		wanted = [(found[index], 'industry' if by == 'sector' else 'sector')] + [(name, each) for name in found
-			if name != found[index] for each in ('industry', 'sector')]
-	else:
-		wanted = [(name, by) for name in found if name != found[index]]
+	wanted = [(found[index], 'industry' if by == 'sector' else 'sector')] + [(name, each) for name in found
+		if name != found[index] for each in ('industry', 'sector')]
 	for name, by in wanted:
 		try:
-			_, chart = prepare(name, by, service)
+			_, chart = holdings.prepare_treemap(name, by, service)
 			if chart and chart.rows:
 				render.draw(chart)
 		except Exception as e:

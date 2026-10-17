@@ -10,8 +10,8 @@ from lib.reports import pick
 class Commands(FinbotCase):
 	def test_text_commands(self):
 		"""Every text command answers."""
-		for cmd in ('.help', '/start', '.who', '.plan', '.holdings', '.marketcap',
-					'.pe', '.fpe', '.peg', '.beta', '.buy', '.sell', '.earnings', '.dividend',
+		for cmd in ('.help', '/start', '.who', '.holdings', '.marketcap',
+					'.fpe', '.peg', '.beta', '.buy', '.sell', '.buysell', '.earnings', '.dividend', '.earningsdividend',
 					'.earnings T1', '.dividend T1', '.trades', '.trades 30d', '.price T1', '.session T1',
 					'.premarket T1', '.shorts T1', '.watchlist', '.T1'):
 			with self.subTest(cmd=cmd):
@@ -36,6 +36,15 @@ class Commands(FinbotCase):
 		for text in ('.dividend', '.exdividend', '.ex-dividend'):
 			with self.subTest(text=text):
 				self.assertIn('Upcoming ex-dividends', str(self.command(text)))
+
+	def test_earningsdividend_is_the_earnings_then_the_ex_dividend_report(self):
+		""".earningsdividend posts the upcoming earnings, then the ex-dividends; .earnings and .dividend, typed, each
+		the one."""
+		self.settings(graph=False)
+		both = str(self.command('.earningsdividend'))
+		self.assertEqual(both.count('Upcoming'), 2)
+		self.assertLess(both.index('Upcoming earnings'), both.index('Upcoming ex-dividends'))
+		self.assertEqual(both, str(self.command('.earnings') + self.command('.dividend')))
 
 	def test_a_period_list_and_one_stocks_view_give_the_same_figure(self):
 		"""Over a period, the list and one stock's view take a holding's figure from its Yahoo history, which its chart
@@ -62,7 +71,7 @@ class Commands(FinbotCase):
 
 	def test_one_button_asks_for_both_ratings_reports(self):
 		""".buy & sell (and its spellings) sends both ratings reports, in the order asked, each once."""
-		for text in ('.buy & sell', '.buy sell', '.buy/sell', '.buy and sell'):
+		for text in ('.buysell', '.buy & sell', '.buy sell', '.buy/sell', '.buy and sell'):
 			with self.subTest(text=text):
 				captions = [caption for kind, _, caption in self.command(text) if kind == 'photo']
 				self.assertEqual(len(captions), 2, captions)
@@ -76,7 +85,7 @@ class Commands(FinbotCase):
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in worker.command_keyboard()['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.forward pe', '.movers', '.peg', '.performance', '.pie',
+		self.assertEqual(buttons, ['.buy & sell', '.earningsdividend', '.forward pe', '.movers', '.peg', '.performance',
 			'.price', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
@@ -128,11 +137,11 @@ class ReportFunctions(FinbotCase):
 		self.assertTrue(any('>Rob</a>' in line for line in payload), payload)
 
 	def test_a_portfolio_command_without_a_portfolio_answers_for_the_first(self):
-		""".holdings, .pie and .treemap without a portfolio answer for the first one, typed or run by a job (as .jobs
+		""".holdings and .treemap without a portfolio answer for the first one, typed or run by a job (as .jobs
 		Add adds them), with buttons for the portfolios there are; where there are no buttons, they name them."""
 		job, unbuttoned = delivery.chat('telegram:55', scheduled=True), delivery.chat('telegram:55', scheduled=True)
 		unbuttoned.takes_buttons = False
-		for text in ('.holdings', '.pie', '.treemap'):
+		for text in ('.holdings', '.treemap'):
 			with self.subTest(text=text):
 				self.sent.clear()
 				typed = self.command(text)
@@ -265,8 +274,7 @@ class ReportFunctions(FinbotCase):
 
 	def test_prepare_value(self):
 		"""Each ratio report has its heading: top, bottom, and negative, where none found is nothing to show."""
-		for kind, mode, heading in (('pe', 'top', 'Top 5 tracked stocks by pe ratio'),
-				('forward pe', 'bottom', 'Bottom 5 tracked stocks by forward pe ratio'),
+		for kind, mode, heading in (('forward pe', 'bottom', 'Bottom 5 tracked stocks by forward pe ratio'),
 				('peg', 'top', 'Top 5 tracked stocks by peg ratio')):
 			with self.subTest(kind=kind, mode=mode):
 				payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', kind, mode, length=5)
@@ -276,19 +284,19 @@ class ReportFunctions(FinbotCase):
 		self.assertEqual(none.exception.lines, ['negative peg: no data found'])
 
 	def test_one_stocks_ratio_shows_what_yahoo_has(self):
-		""".pe of a loss-maker shows its forward P/E (it used to say nothing), .peg labels its figure, and a stock
+		""".fpe of a loss-maker shows its forward P/E (it used to say nothing), .peg labels its figure, and a stock
 		without the ratio asked for, or one Yahoo does not know, is said to have none."""
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_trailing': None} for t in ts
 			if not t.startswith('NONE')})
-		self.assertEqual(self.command('.pe T1')[0][1][0].split(') ')[1], 'PE: forward 9')
+		self.assertEqual(self.command('.fpe T1')[0][1][0].split(') ')[1], 'PE: forward 9')
 		self.assertEqual(self.command('.peg T1')[0][1][0].split(') ')[1], 'PEG: 1.2')
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'price_to_earnings_peg': None}})
 		self.assertEqual(self.command('.peg T1'), [('text', ['T1: no peg ratio found'])])
-		self.assertEqual(self.command('.pe NONE.L'), [('text', ['NONE.L: no data found'])])
+		self.assertEqual(self.command('.fpe NONE.L'), [('text', ['NONE.L: no data found'])])
 
-	def test_pe_sends_its_chart_as_forward_pe_and_peg_do(self):
-		""".pe builds a chart, and now sends it."""
-		self.assertEqual([kind for kind, *_ in self.command('.pe')], ['photo'])
+	def test_fpe_sends_its_chart_as_peg_does(self):
+		""".fpe builds a chart, and sends it."""
+		self.assertEqual([kind for kind, *_ in self.command('.fpe')], ['photo'])
 
 	def test_prepare_beta(self):
 		"""The beta report charts a bar per stock listed, and says so when none qualify."""
@@ -362,14 +370,6 @@ class ReportFunctions(FinbotCase):
 		fetched.clear()
 		shorts.run(delivery.chat('telegram:56', scheduled=True))
 		self.assertEqual(fetched[0], ['T1', 'T3'])
-
-	def test_plans_are_kept_per_chat(self):
-		""".plan records the sender's plan in this chat, and lists this chat's plans, not another chat's."""
-		self.command('.plan buy low')
-		self.assertIn('buy low', str(self.command('.plan')))
-		self.assertEqual(self.command('.plan', chat='56'), [('text', ['No plans yet: .plan TEXT records yours'])])
-		self.assertNotIn('buy low', str(self.command('.plan sell high', chat='56')))
-		self.assertNotIn('sell high', str(self.command('.plan')))
 
 	def test_price_usage(self):
 		""".price with more than eight tickers gets its usage, from the command table, typed as .compare too."""
@@ -816,56 +816,6 @@ class Podcasts(FinbotCase):
 		self.assertEqual(self.sent, []) # all seen now
 
 
-class PieCommand(FinbotCase):
-	def setUp(self):
-		"""A portfolio of five holdings across three industries, one unclassified and one worth nothing."""
-		super().setUp()
-		def holdings(portfolio):
-			"""The five holdings, whatever the portfolio."""
-			data = [('A', 'Semiconductors', 'Electronic Technology', 500),
-				('B', 'Semiconductors', 'Electronic Technology', 300),
-					('C', 'Biotechnology', 'Health Technology', 200), ('D', None, None, 100),
-					('E', 'Gold', 'Minerals', 0)]
-			return {c + ':NASDAQ': {'code': c, 'market_code': 'NASDAQ', 'industry_classification_name': i,
-									'sector_classification_name': s, 'value': v} for c, i, s, v in data}
-		self.patch(sharesight.Portfolio, 'holdings', holdings)
-
-	def test_by_industry_default(self):
-		""".pie PORTFOLIO charts by industry."""
-		sent = self.command('.pie Rob')
-		self.assertEqual(sent[0][0], 'photo')
-		self.assertIn('Rob by industry', sent[0][2])
-
-	def test_by_sector_and_payload(self):
-		""".pie by sector: the slices in order, the unclassified ones together, worthless holdings left out."""
-		payload, chart = holdings.prepare_pie('rob', 'sector', TELEGRAM)
-		self.assertEqual([r[0] for r in chart.rows], ['Electronic Technology', 'Health Technology', 'Unclassified'])
-		self.assertIn('Electronic Technology: 72.7%', payload) # 800 of 1100; zero-value Gold is left out
-		self.assertEqual(self.command('.pie Rob sector')[0][0], 'photo')
-
-	def test_folds_into_other_and_renders(self):
-		"""Over eight slices, the smallest fold into Other, and the chart draws."""
-		held = {f'T{i}:X': {'code': f'T{i}', 'industry_classification_name': f'Ind {i}',
-			'value': 100 - i} for i in range(12)}
-		self.patch(sharesight.Portfolio, 'holdings', lambda portfolio: held)
-		payload, chart = holdings.prepare_pie('Rob', 'industry', TELEGRAM)
-		self.assertEqual(len(chart.rows), 8)
-		self.assertEqual(chart.rows[-1][0], 'Other')
-		self.assertTrue(render.draw_pie(chart).read().startswith(b'\x89PNG'))
-
-	def test_unknown_or_missing_portfolio_lists_known(self):
-		""".pie with no portfolio, or an unknown one, lists the portfolios there are."""
-		self.assertEqual(self.command('.pie')[0][0], 'photo') # the buttons of the portfolios
-		self.assertEqual(self.command('.pie Nope'), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
-
-	def test_with_the_graph_setting_off_a_chart_goes_as_text(self):
-		"""With graph off, a report's chart is left out and its lines go as text, on every network."""
-		self.settings(graph=False)
-		for service in (TELEGRAM, SLACK, DISCORD):
-			worker.Request(service, 'C1', '@u', 'U', BOT).reply(['x'], render.Chart('pie', 't', rows=(('a', 1.0),)))
-			self.assertEqual(self.sent[-1], ('text', ['x']))
-
-
 class TreemapCommand(FinbotCase):
 	def setUp(self):
 		"""A portfolio of five holdings across three industries, one unclassified and one worth nothing."""
@@ -939,10 +889,10 @@ class CommandJobs(FinbotCase):
 				self.assertEqual(self.sent, posted)
 
 	def test_a_command_job_posts_what_the_typed_command_posts(self):
-		"""pe, beta, buy & sell, price, compare and history, run as a job's, post what each posts when typed in the
+		"""peg, beta, buy & sell, price, compare and history, run as a job's, post what each posts when typed in the
 		chat, bare too (the first ticker); one that cannot take its words posts its usage."""
 		chat = delivery.chat('telegram:55', scheduled=True)
-		for name, words, typed in (('pe', [], '.pe'), ('beta', [], '.beta'), ('buy&sell', [], '.buy & sell'),
+		for name, words, typed in (('peg', [], '.peg'), ('beta', [], '.beta'), ('buy&sell', [], '.buy & sell'),
 				('compare', ['T1', 'T2'], '.compare T1 T2'), ('compare', [], '.compare'), ('price', [], '.price'),
 				('history', [], '.history')):
 			with self.subTest(name=name, words=words):
@@ -970,8 +920,8 @@ class WithoutSharesight(FinbotCase):
 		self.assertEqual((watchlist._followed(['T9', 'T1']), sharesight.tickers()), (['T1', 'T9'], []))
 
 	def test_what_needs_sharesight_says_it_is_not_set_up(self):
-		""".holdings, .trades, .performance, .who and .pie say Sharesight is not set up, and where its keys go."""
-		for typed in ('.holdings Rob', '.holdings', '.trades', '.performance', '.who T1', '.pie Rob', '.treemap Rob'):
+		""".holdings, .trades, .performance, .who and .treemap say Sharesight is not set up, and where its keys go."""
+		for typed in ('.holdings Rob', '.holdings', '.trades', '.performance', '.who T1', '.treemap Rob'):
 			with self.subTest(typed=typed):
 				self.assertEqual(self.command(typed), [('text', ['Sharesight is not set up: its keys go in finbot.env'
 					' (doc/configuration.md)'])])
@@ -1036,13 +986,13 @@ class Pickers(FinbotCase):
 		self.patch(sharesight, '_portfolios', lambda seconds=None: [{'name': n, 'id': i} for i, n in enumerate(names)])
 
 	def test_a_portfolio_command_answers_with_the_first_portfolio(self):
-		""".pie, .treemap and .holdings answer with the first portfolio alphabetically at once, its button marked, the
+		""".treemap and .holdings answer with the first portfolio alphabetically at once, its button marked, the
 		Group by button after the portfolios."""
 		self.patch(holdings, 'prepare_holdings_payload', lambda name, service: [f'<b>Holdings for {name} (25)</b>'])
 		self.portfolios('Zed', 'Amy')
-		self.command('.pie')
-		self.assertEqual((self.sent[-1][0], self.sent[-1][2]), ('photo', '<b>Amy by industry</b>'))
-		self.assertEqual(self.labels(), [['● Amy', 'Zed']])
+		self.command('.treemap')
+		self.assertEqual((self.sent[-1][0], self.sent[-1][2]), ('photo', '<b>Amy treemap by industry</b>'))
+		self.assertEqual(self.labels(), [['● Amy', 'Zed'], ['Group by: Industry']])
 		self.command('.treemap sector')
 		self.assertEqual((self.sent[-1][2], self.labels()), ('<b>Amy treemap by sector</b>',
 			[['● Amy', 'Zed'], ['Group by: Sector']]))
@@ -1121,10 +1071,10 @@ class Pickers(FinbotCase):
 		"""A first answer with no chart (a portfolio with nothing to draw) goes as a blank photo, its buttons under it,
 		so that a press can turn it into a chart: a text message cannot become one."""
 		self.portfolios('Amy', 'Zed')
-		self.patch(holdings, 'prepare_pie', lambda name, by, service: ([f'<b>{name} by {by}</b>'], None))
-		self.command('.pie')
+		self.patch(holdings, 'prepare_treemap', lambda name, by, service: ([f'<b>{name} by {by}</b>'], None))
+		self.command('.treemap')
 		self.assertEqual((self.sent[-1][:2], self.labels()), (('photo', len(render.blank().read())),
-			[['● Amy', 'Zed']]))
+			[['● Amy', 'Zed'], ['Group by: Industry']]))
 
 	def test_compare_ticks_up_to_eight_and_refuses_a_ninth(self):
 		""".compare: ticks toggle, a ninth is refused with an alert and a note."""
@@ -1253,11 +1203,12 @@ class Pickers(FinbotCase):
 		"""Where charts are not drawn, the answer and its buttons are a text message, edited as text."""
 		self.settings(graph=False)
 		self.portfolios('Amy', 'Zed')
-		self.command('.pie')
+		self.command('.treemap')
 		self.assertEqual(self.sent[-1][0], 'text')
-		self.assertEqual(self.labels(), [['● Amy', 'Zed']])
+		self.assertEqual(self.labels(), [['● Amy', 'Zed'], ['Group by: Industry']])
 		kind, lines, rows = self.tap('Zed')
-		self.assertEqual((kind, lines[0], self.labels(rows)), ('text', '<b>Zed by industry</b>', [['Amy', '● Zed']]))
+		self.assertEqual((kind, lines[0], self.labels(rows)), ('text', '<b>Zed treemap by industry</b>',
+			[['Amy', '● Zed'], ['Group by: Industry']]))
 
 	def many(self, count=70):
 		"""Held tickers S00, S01..., enough to need pages."""
@@ -1321,7 +1272,7 @@ class Pickers(FinbotCase):
 	def test_discord_pages_hold_five_rows(self):
 		"""Discord's five rows of five buttons hold 12 portfolios with Group by and the page buttons, or 20 tickers
 		with Back, the page buttons and OK."""
-		for cmd, items in (('t', 12), ('p', 12), ('c', 20)):
+		for cmd, items in (('t', 12), ('c', 20)):
 			with self.subTest(cmd=cmd):
 				names = [f'N{i:02d}' for i in range(60)]
 				rows = pick.screen(DISCORD, cmd, names, '0', '0', 0, 0b11 if cmd == 'c' else 0,
@@ -1348,17 +1299,17 @@ class Pickers(FinbotCase):
 		started = []
 		self.patch(worker, 'prime_in_background', lambda *args: started.append(args))
 		self.portfolios('Amy', 'Zed')
-		for text in ('.pie', '.treemap sector', '.history', '.compare', '.holdings'):
+		for text in ('.treemap sector', '.history', '.compare', '.holdings'):
 			self.command(text)
-		self.assertEqual([args[1:] for args in started], [('p', '0', ['Amy', 'Zed'], 0), ('t', 's', ['Amy', 'Zed'], 0)])
+		self.assertEqual([args[1:] for args in started], [('t', 's', ['Amy', 'Zed'], 0)])
 		worker.job_commands()['treemap'].run(delivery.chat('telegram:55', scheduled=True), words=[])
 		self.settings(graph=False)
-		self.command('.pie')
-		self.assertEqual(len(started), 2)
+		self.command('.treemap')
+		self.assertEqual(len(started), 1)
 
 	def test_priming_draws_the_other_grouping_then_the_other_portfolios(self):
 		"""pick.prime draws a treemap's shown portfolio's other grouping, then each other portfolio by industry and by
-		sector; a pie's other portfolios in its own grouping alone, which no button changes. An empty chart is skipped,
+		sector. An empty chart is skipped,
 		and a failure is logged and the rest still drawn."""
 		drawn = []
 		self.patch(render, 'draw', lambda chart: drawn.append(chart.title))
@@ -1367,17 +1318,17 @@ class Pickers(FinbotCase):
 		self.assertEqual(drawn, ['Amy treemap by sector', 'Bob treemap by industry', 'Bob treemap by sector',
 			'Zed treemap by industry', 'Zed treemap by sector'])
 		drawn.clear()
-		real = holdings.prepare_pie
+		real = holdings.prepare_treemap
 		def prepare(name, by, service):
 			"""Fail for Bob, answer nothing for Zed, as usual for the rest."""
 			if name == 'Bob':
 				raise RuntimeError('boom')
 			return real(name, by, service) if name != 'Zed' else (['x'], None)
-		self.patch(holdings, 'prepare_pie', prepare)
+		self.patch(holdings, 'prepare_treemap', prepare)
 		with contextlib.redirect_stderr(io.StringIO()) as err:
-			pick.prime(TELEGRAM, 'p', 's', ['Amy', 'Bob', 'Cat', 'Zed'], 0)
-		self.assertEqual(drawn, ['Cat by sector'])
-		self.assertIn('priming p Bob sector failed: boom', err.getvalue())
+			pick.prime(TELEGRAM, 't', 's', ['Amy', 'Bob', 'Cat', 'Zed'], 0)
+		self.assertEqual(drawn, ['Amy treemap by industry', 'Cat treemap by industry', 'Cat treemap by sector'])
+		self.assertIn('priming t Bob industry failed: boom', err.getvalue())
 
 	def test_compare_typed_with_tickers_has_the_tickers_button_too(self):
 		""".compare T1 T2 [period] answers with the period row and the tickers' + under its chart, those typed ticked

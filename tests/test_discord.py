@@ -298,10 +298,11 @@ class Commands(FinbotCase):
 		commands = worker.slash_commands()
 		names = [name for name, _, _, _ in commands]
 		self.assertEqual(len(names), len(set(names)))
-		for expected in ('help', 'dividend', 'earnings', 'buy', 'sell', 'forwardpe', 'stock',
+		for expected in ('help', 'earningsdividend', 'buysell', 'forwardpe', 'stock',
 				'jobs', 'price', 'movers'):
 			self.assertIn(expected, names)
-		self.assertFalse({'profile', 'job', 'session', 'premarket'} & set(names))
+		gone = {'profile', 'job', 'session', 'premarket', 'pe', 'pie', 'plan', 'buy', 'sell', 'earnings', 'dividend'}
+		self.assertFalse(gone & set(names))
 		for name, description, arguments, _ in commands:
 			with self.subTest(name=name):
 				self.assertRegex(name, r'^[a-z0-9_-]{1,32}$')
@@ -321,12 +322,12 @@ class Commands(FinbotCase):
 		self.assertEqual(self.command('.stock'), [('text', ['Usage: .SYMBOL', 'Usage: .stock SYMBOL'])])
 
 	def test_a_command_with_words_to_suggest_asks_for_suggestions(self):
-		"""The arguments of a command with words to suggest ask Discord for suggestions as they are typed; /plan's,
-		free text, do not, and a command without arguments has none."""
+		"""The arguments of a command with words to suggest ask Discord for suggestions as they are typed; none
+		of the free-text ones, and a command without arguments has none."""
 		commands = (discord_common.command(*each) for each in worker.slash_commands())
 		registered = {entry['name']: entry for entry in commands}
 		for name, completes in (('price', True), ('movers', True), ('stock', True), ('jobs', True),
-				('performance', True), ('pie', True), ('plan', False)):
+				('performance', True), ('treemap', True)):
 			with self.subTest(name=name):
 				self.assertEqual(registered[name]['options'][0]['autocomplete'], completes)
 		self.assertEqual(registered['beta']['options'], [])
@@ -404,8 +405,7 @@ class Suggestions(FinbotCase):
 		self.assertEqual(self.values('/stock '), ['BHP.AX', 'MSFT', 'NVDA'])
 		self.assertEqual(self.values('/stock ', chat='discord:88'), ['BHP.AX', 'NVDA', 'TSLA'])
 		self.assertEqual(self.values('/performance 7d '), ['7d Rob', '7d Jo Smith'])
-		self.assertEqual(self.values('/pie '), ['sector', 'Rob', 'Jo Smith'])
-		self.assertEqual(self.values('/plan buy '), [])
+		self.assertEqual(self.values('/treemap '), ['sector', 'Rob', 'Jo Smith'])
 
 	def test_the_jobs_subcommands_numbers_and_reports(self):
 		"""/jobs suggests its subcommands; after run or remove this chat's job numbers, each shown with its name (after

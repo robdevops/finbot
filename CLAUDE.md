@@ -84,7 +84,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   asked (`delivery.asked(dest)`: a command, a button, or Run now and `.jobs run`, whose destination is scheduled but
   `asked`); on schedule it posts nothing. Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens:
   `jobs_screen`, `add_screen`, `next_screen`), `history` (.price, also called .compare and .history: one stock's line, or
-  two to eight rebased), `holdings` (.holdings .who .pie .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe
+  two to eight rebased), `holdings` (.holdings .who .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap
   .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
   `chat(key)`, as its network's bot), `deliver(dest, report)` (a chart refused goes again with its heading alone as the
@@ -95,7 +95,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   message), which `text()` and `chart()` stop before posting; `edit_buttons` changes a message's buttons alone where
   the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
   its `interaction` (application id/token), and a pressed message is edited through the press's.
-- `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.pie .treemap .holdings
+- `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.treemap .holdings
   .price` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
   `process_pick_callback`): the first answer at once (the first portfolio or ticker; price's `+`, ending its period
   row, opens the ticker picker, and `OK` draws the ticks), the buttons kept under it and every press re-editing the answer from
@@ -103,7 +103,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   (`m`; `n` under a note, which the next press takes away), 32 items a page (`pick.layout`; fewer on Discord) turned by
   `<` `>` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
   is), `.price`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert
-  toast (`buttons.alert`); a pie or treemap primes its other charts in a thread (`pick.prime`, started by
+  toast (`buttons.alert`); a treemap primes its other charts in a thread (`pick.prime`, started by
   `worker.prime_in_background`); every chart with period buttons primes its other periods (`charts.prime`,
   `worker.prime_periods` after `.price`, `.movers`, `.performance`, `chart_reply` and the pickers); neither for a
   scheduled run.

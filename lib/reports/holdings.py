@@ -1,4 +1,4 @@
-"""What is held and followed: .holdings, .who, .pie, .treemap and .watchlist."""
+"""What is held and followed: .holdings, .who, .treemap and .watchlist."""
 from lib import answer
 from lib import watchlist
 from lib import sharesight
@@ -54,24 +54,6 @@ def _noun(by, count):
 	"""'3 industries', '1 sector'."""
 	singular, plural = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries')}[by]
 	return f"{count} {singular if count == 1 else plural}"
-
-def prepare_pie(portfolio_name, by, service, max_slices=8):
-	"""Portfolio value by industry (or by='sector'): (payload, chart or None). Raises sharesight.PortfolioNotFound."""
-	portfolio, = sharesight.portfolios(portfolio_name)
-	name = portfolio.name
-	totals = {label: sum(value for _, value in held) for label, held in _groups(portfolio, by).items()}
-	if not totals:
-		return [f"{name} has no holdings with a value"], None
-	rows = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
-	if len(rows) > max_slices:
-		rest = sum(v for _, v in rows[max_slices - 1:])
-		rows = rows[:max_slices - 1]
-		rows.append(('Other', rest))
-	total = sum(v for _, v in rows)
-	title = f"{name} by {by}"
-	payload = [service.bold(title)]
-	payload += [f"{label}: {value / total * 100:.1f}%" for label, value in rows]
-	return payload, render.Chart('pie', title, _noun(by, len(totals)), tuple(rows))
 
 def prepare_treemap(portfolio_name, by, service, max_groups=8):
 	"""The holdings by industry (or by='sector') as tiles grouped by it: (payload, chart or None). Beyond `max_groups`

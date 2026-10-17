@@ -69,8 +69,6 @@ CHARTS = {
 	'compare_lines': lambda: render.draw_compare(render.Chart('compare', 'Compare 120 days', 'subtitle here',
 		compare_rows())),
 	'shorts': lambda: shorts([('GME', 47.3), ('AMC', 32.1), ('TSLA', 21.6), ('AAPL', 15.2)]),
-	'pie': lambda: render.draw_pie(render.Chart('pie', 'Rob by industry', '4 industries',
-		(('Software', 41.0), ('Banks', 23.5), ('Mining', 12.0), ('Other', 8.0)))),
 	'treemap': lambda: render.draw_treemap(render.Chart('treemap', 'SueSMSF treemap by industry',
 		'17 industries, 36 holdings', (
 		('Semiconductors', (('NVDA', 15.8), ('ASML', 6.4), ('AMD', 5.4), ('TSM', 4.5), ('SITM', 2.9), ('AIP', 1.9),
@@ -183,8 +181,7 @@ class DrawingLock(unittest.TestCase):
 
 	def test_charts_asked_for_at_once_all_finish(self):
 		"""Six charts asked for from six threads at once all finish, whole."""
-		pie = lambda title: render.Chart('pie', title, rows=(('a', 1.0), ('b', 2.0)))
-		draws = [lambda i=i: render.draw_pie(pie(f't{i}')) for i in range(4)]
+		draws = [lambda i=i: bars((('a', 1.0), ('b', 2.0)), f't{i}') for i in range(4)]
 		draws += [lambda: bars(MIXED), lambda: uncached(render.Chart('bars', 'T', rows=tuple(MIXED)))]
 		images = {}
 		threads = [threading.Thread(target=lambda n=n, draw=draw: images.__setitem__(n, draw()))
@@ -319,13 +316,13 @@ class ReportChartInputs(FinbotCase):
 		self.assertEqual(decode(render.draw_bars(chart)).size, (1280, 1000))
 		rows = render.trimmed(render.Chart('shorts', rows=tuple((f'T{i}', 60 - i) for i in range(30)))).rows
 		self.assertEqual((len(rows), rows[12], rows[11][0], rows[13][0]), (25, ('', None), 'T11', 'T18'))
-		self.assertEqual(render.trimmed(render.Chart('pie', rows=(('a', 1.0),) * 50)).rows, (('a', 1.0),) * 50)
 
 	def test_a_chart_is_drawn_once(self):
 		"""The same spec, for another chat or a later run, is read back from the cache, not drawn again."""
-		calls, real = [], render.RENDERERS['pie']
-		self.patch(render, 'RENDERERS', {**render.RENDERERS, 'pie': lambda chart: calls.append(chart) or real(chart)})
-		chart = render.Chart('pie', 'T', rows=(('a', 1.0), ('b', 2.0)))
+		calls, real = [], render.RENDERERS['treemap']
+		draw = lambda chart: calls.append(chart) or real(chart)
+		self.patch(render, 'RENDERERS', {**render.RENDERERS, 'treemap': draw})
+		chart = render.Chart('treemap', f'T {time.time()}', rows=(('G', (('a', 1.0), ('b', 2.0))),))
 		first, second = render.draw(chart).read(), render.draw(chart).read()
 		self.assertEqual((len(calls), first[:4]), (1, b'\x89PNG'))
 		self.assertEqual(first, second)
@@ -452,10 +449,6 @@ class GoldenImages(unittest.TestCase):
 	def test_treemap(self):
 		"""The treemap matches its golden image."""
 		self.check('treemap')
-
-	def test_pie(self):
-		"""The pie matches its golden image."""
-		self.check('pie')
 
 
 class BlankImage(unittest.TestCase):

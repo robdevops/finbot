@@ -33,7 +33,7 @@ class MenuPress(typing.NamedTuple):
 
 class PickPress(typing.NamedTuple):
 	"""A press in a picker (lib/reports/pick.py): the command it picks for (a key of PICKERS), how it groups (a
-	treemap's or pie's: i industry, s sector, 0 neither), the period (a key of PERIODS, or 0), what the message shows
+	treemap's: i industry, s sector, 0 neither), the period (a key of PERIODS, or 0), what the message shows
 	(shown: 0 nothing yet, an item's number plus one, or the ticked tickers packed), the items ticked (a bit of the mask
 	each), what the press asks for (act: a letter and a number: p the first screen, e a watchlist's editing screen and m
 	the tickers' screen, each at a page, n as m under a message showing a note, which it takes away; f a tick refused,
@@ -53,7 +53,7 @@ MENU_SCREENS = ('top', 'on', 'off', 'del', 'run', 'add', 'next', 'edit')
 # the .jobs menu's screens (lib/reports/about.py)
 
 
-PICKERS = {'p': 'pie', 't': 'treemap', 'h': 'holdings', 'c': 'price', 'w': 'watchlist'} # command key -> its name
+PICKERS = {'t': 'treemap', 'h': 'holdings', 'c': 'price', 'w': 'watchlist'} # command key -> its name
 MAX_PICKED = 8 # tickers .price takes
 TOO_MANY = f"⚠️ Max {MAX_PICKED} tickers: untick one first"
 

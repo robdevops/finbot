@@ -253,13 +253,12 @@ def process_pick_callback(press, pressed):
 		delivery.report_error(e, chat, context='pick')
 
 def pick_content(service, chat, cmd, group, period, names):
-	"""A picker's answer for the portfolio (pie, treemap, holdings) or tickers (compare) `names`: (caption, chart or
+	"""A picker's answer for the portfolio (treemap, holdings) or tickers (compare) `names`: (caption, chart or
 	None)."""
 	if cmd == 'h':
 		return '\n'.join(holdings.prepare_holdings_payload(names[0], service) or [f"{names[0]} holds nothing"]), None
 	if cmd in 'pt':
-		prepare = holdings.prepare_pie if cmd == 'p' else holdings.prepare_treemap
-		lines, chart = prepare(names[0], 'sector' if group == 's' else 'industry', service)
+		lines, chart = holdings.prepare_treemap(names[0], 'sector' if group == 's' else 'industry', service)
 		return '\n'.join(lines), chart
 	return charts.build('c', names, service, chat.key, period=period if period != '0' else 'x')
 
@@ -513,9 +512,11 @@ def on_help(request, args):
 		mark_keyboard(request.chat_id) # this chat now has the current keyboard
 
 def on_calendar(request, args):
-	""".earnings or .dividend [period|SYMBOL]: the coming earnings or ex-dividend dates."""
-	event = 'ex-dividend' if 'div' in args.word else 'earnings'
-	cal.run(request.dest, days=args.days, specific_stock=ticker(args), event=event)
+	""".earningsdividend [period|SYMBOL]: the coming earnings dates, then the ex-dividend dates; typed .earnings or
+	.dividend, only those."""
+	both = args.word == 'earningsdividend'
+	for event in (['earnings', 'ex-dividend'] if both else ['ex-dividend' if 'div' in args.word else 'earnings']):
+		cal.run(request.dest, days=args.days, specific_stock=ticker(args), event=event)
 
 def on_performance(request, args):
 	""".performance [period] [portfolio]: each portfolio's return, over a month by default."""
@@ -569,10 +570,10 @@ def on_marketcap(request, args):
 			length=15))
 
 def on_ratio(kind):
-	"""The handler of .pe, .forward pe or .peg (kind: pe, forward pe or peg): the top (by default) or bottom 15 by the
+	"""The handler of .forward pe or .peg (kind: forward pe or peg): the top (by default) or bottom 15 by the
 	ratio and its chart, the negative ones (where there can be any), or one ticker's ratio."""
 	def handler(request, args):
-		""".pe, .forward pe or .peg [SYMBOL|top|bottom|negative]."""
+		""".forward pe or .peg [SYMBOL|top|bottom|negative]."""
 		if args.words:
 			request.reply([rankings.ratio_line(request.service, ticker(args), kind)])
 		else:
@@ -583,14 +584,6 @@ def on_ratio(kind):
 def on_beta(request, args):
 	""".beta: the volatile small caps among the stocks followed."""
 	payload, chart = rankings.prepare_beta_payload(request.service, request.dest.key)
-	request.reply(payload, chart)
-
-def on_pie(request, args):
-	""".pie [PORTFOLIO] [sector]: its value by industry, or by sector; with no portfolio, the first one's, with
-	buttons for them."""
-	if not args.words:
-		return picker(request, 'p', args)
-	payload, chart = holdings.prepare_pie(args.rest, args.keyword or 'industry', request.service)
 	request.reply(payload, chart)
 
 def on_treemap(request, args):
@@ -699,22 +692,6 @@ def prime_periods(dest, kind, args, shown):
 	if dest.takes_buttons and dest.takes_charts and config.settings.graph and delivery.interactive(dest):
 		charts.prime_in_background(kind, args, dest.dialect, dest.key, shown)
 
-def on_plan(request, args):
-	""".plan [text]: record the sender's plan in this chat, and list everyone's here."""
-	if args.text and not args.text.startswith('@'):
-		with state.edit_for(request.dest.key, PLANS, {}) as plans:
-			plans[request.user] = args.text
-	plan = state.load_for(request.dest.key, PLANS, {})
-	if not plan:
-		raise answer.Answer("No plans yet: .plan TEXT records yours")
-	def who(user):
-		"""A sender as shown: on Slack a mention (<@U123>), which is markup to keep; elsewhere the handle as text."""
-		user = user.removeprefix('@')
-		return user if request.service == 'slack' else request.service.escape(user)
-	service = request.service
-	request.reply(formats.sections(*([f"{service.bold(who(k))}: {service.italic(service.escape(v))}"]
-		for k, v in plan.items())))
-
 def on_who(request, args):
 	""".who SYMBOL: the portfolios that hold it."""
 	if not args.words:
@@ -803,8 +780,7 @@ SECTIONS = TRACKED, COMPANY, PRICE, RISK, TRADES, JOBS = ('Tracked securities', 
 TOP = {'top': 'top', 'bottom': 'bottom'} # the ends of a ranked list
 NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # the ratios that can be negative
 CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'delete') # of the watchlist
-PLANS = 'finbot_plan.json' # each chat's plans, {user: plan}, as state.load_for keeps them
-BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .pie's
+BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .treemap's
 # what .jobs does to a chat's jobs, and shows; next is what upcoming was called before
 JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'enable': 'enable', 'disable': 'disable', 'add': 'add',
 	'system': 'system'} | dict.fromkeys(('upcoming', 'next'), 'upcoming') | dict.fromkeys(('del', 'delete', 'rem',
@@ -820,13 +796,12 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	# kept on purpose.
 	Command(('help', 'usage', 'start'), on_help, job=False), # /start is what Telegram sends when a chat opens
 	Command(('holdings', 'holding'), on_holdings, ('.holdings [PORTFOLIO]',), TRACKED),
-	Command(('pie',), on_pie, ('.pie [PORTFOLIO] [sector]',), TRACKED, ('.pie',), keywords=BY),
 	Command(('treemap',), on_treemap, ('.treemap [PORTFOLIO] [sector]',), TRACKED, ('.treemap',), keywords=BY),
 	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
 		keywords=CHANGE, job=False),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),
-	Command(('earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend', 'exdividend', 'ex-dividend'),
-		on_calendar, ('.dividend [period|SYMBOL]', '.earnings [period|SYMBOL]'), COMPANY, ('.earnings',),
+	Command(('earningsdividend', 'earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend', 'exdividend',
+		'ex-dividend'), on_calendar, ('.earningsdividend [period|SYMBOL]',), COMPANY, ('.earningsdividend',),
 		period=True),
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
 		keywords=TOP),
@@ -839,14 +814,12 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('movers', 'mover', 'moves', *SESSIONS), on_movers,
 		('.movers [percent|top|bottom|session|premarket] [period]',), PRICE, ('.movers',), percent=True, period=True,
 		keywords=TOP | {name: name for name in SESSIONS}),
-	Command(BUY_SELL, on_rating, ('.buy', '.sell'), RISK, ('.buy & sell',)), # .buy & sell (or .buy sell): both
-	Command(('pe',), on_ratio('pe'), ('.pe [SYMBOL|top|bottom]',), RISK, keywords=TOP),
+	Command(('buysell', *BUY_SELL), on_rating, ('.buysell',), RISK, ('.buy & sell',)), # .buy & sell, .buy sell: both
 	Command(('forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'), ('.forward pe [SYMBOL|top|bottom|negative]',),
 		RISK, ('.forward pe',), keywords=NEGATIVE),
 	Command(('peg',), on_ratio('peg'), ('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',), keywords=NEGATIVE),
 	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True),
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True),
-	Command(('plan',), on_plan, ('.plan [your plan]',), TRADES, job=False),
 	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [upcoming|system]',
 		'.jobs enable|disable|delete|run [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'),
 		JOBS, ('.schedule',), keywords=JOB_CHANGES, job=False),
@@ -974,7 +947,7 @@ def job_commands():
 			words = line.lstrip('.').split()
 			name = next((' '.join(words[:size]).lower() for size in (2, 1) if ' '.join(words[:size]).lower() in
 				command.names), None)
-			if name and (not listed or command.handler is on_rating): # a job each command, but buy and sell
+			if name and not listed: # a job each command
 				found[name] = CommandJob(command, name, ' '.join(words[len(name.split()):]))
 				listed.append(name)
 		first = found[listed[0]]

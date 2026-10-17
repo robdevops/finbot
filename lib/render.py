@@ -20,7 +20,7 @@ from lib import log
 @dataclasses.dataclass(frozen=True)
 class Chart:
 	"""A chart not yet drawn, for draw(). kind 'bars': rows of (label, value), first on top, a (label, None) row a gap;
-	'pie': rows of (label, value); 'treemap': rows of (group, ((label, value), ...)); 'shorts': rows of (label,
+	'treemap': rows of (group, ((label, value), ...)); 'shorts': rows of (label,
 	percent), and the threshold; 'line': rows of (date, close), a price line, and the change it shows; 'compare':
 	rows of (label, ((date, close), ...)), two to eight price lines."""
 	kind: str
@@ -664,45 +664,6 @@ def draw_shorts(chart, step=5):
 	canvas.text(line_x, top - 18, f"{threshold:g}% outrageous line", 7.5, ink, ha='center', va='bottom', bold=True)
 	return canvas.png()
 
-@_drawn
-def draw_pie(chart):
-	"""Pie of (label, value) rows, largest first, with a legend of name and share. At most 8 named slices (the dark
-	categorical slots, in fixed order); a slice labelled 'Other' is gray: a 1280x800 PNG."""
-	rows = chart.rows
-	bg, ink, ink2, _ = PALETTE
-	slots = CATEGORIES
-	other = '#6b7280'
-	total = sum(v for _, v in rows) or 1.0
-	colors, n = [], 0
-	for label, _ in rows:
-		if label == 'Other':
-			colors.append(other)
-		else:
-			colors.append(slots[n % len(slots)])
-			n += 1
-	canvas = _Canvas(W, H, bg)
-	cx, cy, r = 0.02 * W + 304, 424, 304 / 1.03 # a square 608 pixels wide, the pie filling it all but a 3% margin
-	start, edges = -90.0, [] # from twelve o'clock, clockwise
-	for (_, value), color in zip(rows, colors):
-		canvas.slice(cx, cy, r, start, start + value / total * 360, color)
-		edges.append(math.radians(start))
-		start += value / total * 360
-	for angle in edges: # a 2pt gap in the surface colour between slices, and round the rim
-		canvas.line([(cx, cy), (cx + r * math.cos(angle), cy + r * math.sin(angle))], bg, 2)
-	canvas.ring(cx, cy, r, bg, 1)
-	step = min(0.1, 0.74 / max(len(rows), 1))
-	y = 0.5 + step * (len(rows) - 1) / 2 - 0.03 # legend block centred on the pie
-	names = [label if len(label) <= 28 else label[:27] + '…' for label, _ in rows]
-	size = canvas.fit(13.5, names, 0.32 * W) # no name runs into its share
-	for name, (_, value), color in zip(names, rows, colors):
-		py = (1 - y) * H
-		canvas.rect(0.52 * W, py - 0.021 * H, 0.546 * W, py + 0.021 * H, color)
-		canvas.text(0.56 * W, py, name, size, ink)
-		canvas.text(0.985 * W, py, f"{value / total * 100:.1f}%", 13.5, ink2, ha='right')
-		y -= step
-	_heading(canvas, chart.title, chart.subtitle)
-	return canvas.png()
-
 def _worst(row, side):
 	"""The worst aspect ratio among tiles of areas `row` laid along a side of length `side`."""
 	total = sum(row)
@@ -780,7 +741,7 @@ def _code_version():
 	drawn_by = f'{PIL.__version__} {_font_file(False)} {_font_file(True)}'
 	return hashlib.sha1(Path(__file__).read_bytes() + drawn_by.encode()).hexdigest()[:8]
 
-RENDERERS = {'bars': draw_bars, 'pie': draw_pie, 'treemap': draw_treemap, 'shorts': draw_shorts, 'line': draw_line,
+RENDERERS = {'bars': draw_bars, 'treemap': draw_treemap, 'shorts': draw_shorts, 'line': draw_line,
 	'compare': draw_compare}
 ROWS = 40 # bars: the rows a 1280x800 image has room for; more make it taller (draw_bars)
 LIMITS = {'shorts': 24} # the rows a chart of a fixed size has room for

@@ -38,7 +38,7 @@ step back. Times are by the `timezone` setting's clock.
 
 First what the job runs: a report, or a command of `/help` ([below](#a-job-in-english)). A reminder's text (a
 `message` job), and the stock of `/who` and `/stock`, cannot come from a button, so their screen says how to type
-them; `/pie`, `/treemap`, `/holdings` and `/price` run as typed bare. Then how often:
+them; `/treemap`, `/holdings` and `/price` run as typed bare. Then how often:
 
 | how often | then | added as, for example |
 |---|---|---|
@@ -64,7 +64,7 @@ Or type:
 /jobs add                  what a job can run, what each takes, and examples
 /jobs add movers weekly
 /jobs add movers close weekdays at 4:30pm New York
-/jobs add pe top weekly
+/jobs add peg top weekly
 /jobs add price AAPL MSFT 1y monthly
 /jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"
 /jobs run 2                runs job 2 now, saying so only if it failed; /jobs run alone: a button per job
@@ -97,9 +97,9 @@ The reports are `trades`, `movers midsession|interday|premarket|close|DAYS`, `ca
 as `price` before the movers report took its name runs as `movers`; `price` in a job added now is the line chart.
 
 A job can also run a command of `/help`, with what it takes, and posts what the command posts when typed in the chat:
-`pe [SYMBOL|top|bottom]`, `forward pe`, `peg`, `marketcap`, `beta`, `buy`, `sell` (`buy&sell` both),
+`forward pe`, `peg [SYMBOL|top|bottom|negative]`, `marketcap`, `beta`, `buysell` (the buys, then the sells),
 `price [SYMBOL…]`, `stock SYMBOL`, and with Sharesight `holdings [PORTFOLIO]`,
-`pie [PORTFOLIO]`, `treemap [PORTFOLIO]` and `who SYMBOL`. Without the words in brackets, a job posts what the
+`treemap [PORTFOLIO]` and `who SYMBOL`. Without the words in brackets, a job posts what the
 command typed bare posts: the first portfolio or ticker, with the buttons to pick another.
 The commands that change something (`watchlist`, `plan`, `jobs`) are no jobs, and movers, performance, trades, shorts,
 earnings, dividends, session and premarket are run by their reports above.

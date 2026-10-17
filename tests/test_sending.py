@@ -193,7 +193,7 @@ class ChartDelivery(FinbotCase):
 		with no text copy (a chart with buttons goes in a Block Kit message: SlackButtons)."""
 		self.env(slackBotToken='xoxb-test')
 
-		for cmd, heading in (('.beta', '*Beta over 1.5'), ('.pie Rob', '*')):
+		for cmd, heading in (('.beta', '*Beta over 1.5'), ('.peg', '*')):
 			with self.subTest(cmd=cmd):
 				calls = self.slack_answers(*self.upload_steps())
 				self.sent.clear(); self.errors.clear()

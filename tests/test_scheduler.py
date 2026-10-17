@@ -547,10 +547,10 @@ class JobsInChat(ChatBase):
 	def test_a_command_of_help_as_a_job(self):
 		""".jobs add takes a command of .help, with its words; the job is listed by its name and words, and runs as the
 		command does, posting what it posts; a command that changes something is no job."""
-		self.assertEqual(newest(self.say('.jobs add pe top weekly')), '4. ✅* pe top · weekly, Saturdays at 9:00am')
+		self.assertEqual(newest(self.say('.jobs add peg top weekly')), '4. ✅* peg top · weekly, Saturdays at 9:00am')
 		self.sent.clear()
 		self.assertIsNone(self.say('.jobs run 4')) # what it posts shows it ran
-		self.assertTrue(self.sent or self.replies[:-1]) # what .pe top posts
+		self.assertTrue(self.sent or self.replies[:-1]) # what .peg top posts
 		self.assertIn("no report 'plan'", self.say('.jobs add plan buy low weekly')[0])
 
 	def test_without_sharesight_no_job_reports_on_it(self):
@@ -602,7 +602,7 @@ class JobsInChat(ChatBase):
 		self.assertEqual(lines[0], '<b>What a job can run:</b>')
 		for line in ('cal earnings|ex-dividend', 'message "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
 				'movers midsession|interday|premarket|close|DAYS', 'trades', '.jobs add movers weekly', 'beta',
-				'pe [SYMBOL|top|bottom]', 'price [SYMBOL ... up to 8] [period]', '.jobs add pe top weekly'):
+				'peg [SYMBOL|top|bottom|negative]', 'price [SYMBOL ... up to 8] [period]', '.jobs add peg top weekly'):
 			self.assertIn(line, lines)
 		self.assertFalse(any(name in line for line in lines for name in jobs.SYSTEM_ACTIONS))
 
@@ -921,8 +921,8 @@ class JobsMenu(ChatBase):
 		self.assertEqual(lines, ['<b>Add a job: which report?</b>'])
 		self.assertEqual(rows, [['trades', 'movers midsession', 'movers premarket'], ['movers close', 'movers',
 			'performance'], ['cal earnings', 'cal ex-dividend', 'shorts'], ['rating', 'milestone', 'reminder'],
-			['holdings', 'pie', 'treemap'], ['who', 'marketcap', 'beta'], ['price', 'buy & sell', 'pe'],
-			['forward pe', 'peg', 'stock'], ['Cancel']])
+			['holdings', 'treemap', 'who'], ['marketcap', 'beta', 'price'], ['buysell', 'forward pe', 'peg'],
+			['stock'], ['Cancel']])
 		self.assertEqual((data['movers'], data['Cancel']), (f'm|add|5|{self.crc()}', f'm|top|0|{self.crc()}'))
 		lines, rows, data = self.press(data['movers'])
 		self.assertEqual((lines, rows), (['<b>Add movers: how often?</b>', '', '<i>† indicates default</i>'],
@@ -1040,10 +1040,10 @@ class JobsMenu(ChatBase):
 		one whose usage brackets its stock or portfolio (a picker's, run bare as typed: the first one's answer); one
 		that needs a stock says how to type it. On Discord the list comes on two pages."""
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
-		for pressed in ('pe', 'weekly', 'Fri', '09†', '09:00†'):
+		for pressed in ('peg', 'weekly', 'Fri', '09†', '09:00†'):
 			lines, rows, data = self.press(data[pressed])
-		self.assertEqual(newest(lines), '4. ✅* pe · weekly, Fridays at 9:00am')
-		self.assertEqual(self.s.chat_jobs(CHAT)[-1].action, 'pe')
+		self.assertEqual(newest(lines), '4. ✅* peg · weekly, Fridays at 9:00am')
+		self.assertEqual(self.s.chat_jobs(CHAT)[-1].action, 'peg')
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
 		for pressed in ('treemap', 'weekly', 'Fri', '09†', '09:00†'):
 			lines, rows, data = self.press(data[pressed])
@@ -1058,8 +1058,8 @@ class JobsMenu(ChatBase):
 		first, second = (about.add_screen(DISCORD, CHAT, steps)[1] for steps in ([], ['p1']))
 		self.assertEqual(([len(row) for row in first], [button.label for button in first[-1]]), ([4, 4, 4, 4, 2],
 			['More ▶', 'Cancel']))
-		self.assertEqual([button.label for row in second for button in row], ['marketcap', 'beta', 'price',
-			'buy & sell', 'pe', 'forward pe', 'peg', 'stock', '◀', 'Cancel'])
+		self.assertEqual([button.label for row in second for button in row], ['beta', 'price',
+			'buysell', 'forward pe', 'peg', 'stock', '◀', 'Cancel'])
 
 	def test_a_step_that_is_none_adds_nothing(self):
 		"""Data that is no step of Add (forged, or an older finbot's: the weekdays frequency, the next 14 days, every...

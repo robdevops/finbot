@@ -59,7 +59,7 @@ class DataDirTests(FinbotCase):
 		"""A chart draws with no home directory and nothing writable but the data dir (systemd's DynamicUser, a
 		container): Pillow keeps nothing on disk, and the fonts are found by name in the system's folders."""
 		e = {k: v for k, v in os.environ.items() if k not in ('XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'HOME')}
-		code = "from lib import render; print(render.draw_pie(render.Chart('pie', rows=(('a', 1.0),))).read()[:4])"
+		code = "from lib import render; print(render.draw_bars(render.Chart('bars', rows=(('a', 1.0),))).read()[:4])"
 		with tempfile.TemporaryDirectory() as d:
 			out = subprocess.run([sys.executable, '-c', code], cwd=REPO, env=dict(e, DATA_DIR=d), capture_output=True,
 				text=True, check=True).stdout.strip()

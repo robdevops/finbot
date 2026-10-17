@@ -7,7 +7,7 @@ from lib import log
 
 
 COMMANDS = ('.movers', '.movers 7d', '.movers top', '.session', '.premarket', '.performance 7d', '.shorts', '.peg',
-			'.buy', '.sell', '.beta', '.pe', '.marketcap', '.earnings', '.dividend', '.trades', '.holdings',
+			'.buysell', '.beta', '.marketcap', '.earningsdividend', '.trades', '.holdings',
 			'.watchlist', '.T1', '.price T1', '.compare T1 T2')
 
 
@@ -161,8 +161,9 @@ class BadArguments(FinbotCase):
 
 class PortfolioNames(FinbotCase):
 	def test_an_unknown_portfolio_gets_the_same_answer_everywhere(self):
-		"""An unknown portfolio gets one answer from .trades, .performance, .holdings and .pie: the ones there are."""
-		for cmd in ('.trades 7d Nope', '.performance Nope', '.holdings Nope', '.pie Nope'):
+		"""An unknown portfolio gets one answer from .trades, .performance, .holdings and .treemap: the ones there
+		are."""
+		for cmd in ('.trades 7d Nope', '.performance Nope', '.holdings Nope', '.treemap Nope'):
 			# it used to be a ValueError, "no Sharesight data found", or two wordings of this
 			with self.subTest(cmd=cmd):
 				self.assertEqual(self.command(cmd), [('text', ['Nope portfolio not found. I only know about:', 'Rob'])])
@@ -174,12 +175,11 @@ class PortfolioNames(FinbotCase):
 		self.assertIn('Holdings for Rob (1)', str(self.command('.holdings rob')))
 
 	def test_commands_with_nothing_to_show_say_so(self):
-		"""A command with nothing to show says so, where it used to send nothing at all: .plan before anyone has saved
-		one, .performance over no days, a ratio of a ticker Yahoo does not know."""
+		"""A command with nothing to show says so, where it used to send nothing at all: .performance over no days, a
+		ratio of a ticker Yahoo does not know."""
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts if not t.startswith('XYZ')})
-		for text, reply in (('.plan', 'No plans yet: .plan TEXT records yours'),
-				('.performance 0d', 'The period must cover a day or more, such as 7d, 3m or ytd'),
-				('.pe XYZ', 'XYZ: no data found'), ('.peg XYZ', 'XYZ: no data found')):
+		for text, reply in (('.performance 0d', 'The period must cover a day or more, such as 7d, 3m or ytd'),
+				('.fpe XYZ', 'XYZ: no data found'), ('.peg XYZ', 'XYZ: no data found')):
 			with self.subTest(text=text):
 				self.assertEqual(self.command(text), [('text', [reply])])
 
@@ -218,12 +218,12 @@ class CommandArguments(FinbotCase):
 		"""A command is called by its whole name, in any case and from any of its prefixes; a word that only starts with
 		one is a ticker (.planet used to save the plan "et"), and the bot's name among the arguments is left out."""
 		for message, name in (('.MOVERS 7d', 'movers'), ('! movers', 'movers'), ('/movers@bot 7d', 'movers'),
-				('@bot movers', 'movers'), ('.forward PE top', 'forward pe'), ('.buy/sell', 'buy'),
+				('@bot movers', 'movers'), ('.forward PE top', 'forward pe'), ('.buy/sell', 'buysell'),
 				('.movers @bot', 'movers'), ('.PRICE T1', 'price'), ('/price@bot T1', 'price'),
 				('.compare T1', 'price')):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[0], (name,))
-		for message in ('.planet', '.shortman', '.pricey', '.stock T1', '/profile T1'):
+		for message in ('.planet', '.plan', '.pe', '.shortman', '.pricey', '.stock T1', '/profile T1'):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[0], ('stock',), message) # .SYMBOL
 		self.assertEqual(self.args('.movers @bot')[1].words, [])
@@ -234,7 +234,7 @@ class CommandArguments(FinbotCase):
 	def test_keywords_in_any_case(self):
 		"""A keyword is read in any case, from either end: .movers TOP is the top list, not the ticker TOP."""
 		for message, keyword in (('.movers TOP', 'top'), ('.movers 7d Bottom', 'bottom'),
-				('.pie Rob Sectors', 'sector'), ('.fpe NEG', 'negative'), ('.watchlist ADD x', 'add'),
+				('.treemap Rob Sectors', 'sector'), ('.fpe NEG', 'negative'), ('.watchlist ADD x', 'add'),
 				('.watchlist Remove x', 'delete')):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[1].keyword, keyword)
@@ -263,9 +263,9 @@ class CommandArguments(FinbotCase):
 		self.assertIn('Co TOP', str(self.command('.top 7d')))
 
 	def test_a_ratio_command_reads_its_ticker_as_the_other_commands_do(self):
-		""".pe t1 reads its ticker in any case, and a trailing space after top is fine."""
-		self.assertIn('Co T1 ', str(self.command('.pe t1')))
-		self.assertIn('Top 15 tracked stocks by pe ratio', str(self.command('.pe top '))) # trailing space and all
+		""".fpe t1 reads its ticker in any case, and a trailing space after top is fine."""
+		self.assertIn('Co T1 ', str(self.command('.fpe t1')))
+		self.assertIn('Top 15 tracked stocks by forward pe ratio', str(self.command('.fpe top '))) # trailing space
 
 	def test_the_greetings_are_gone(self):
 		"""hi @bot gets no answer, and .hello and .thanks are tickers like any word."""
@@ -287,7 +287,7 @@ class CommandArguments(FinbotCase):
 		self.assertEqual(asked, []) # nothing to try, so Yahoo is not asked
 		self.settings(exchange_suffix='AX')
 		for message, shown in (('.price BHP', 'BHP.AX'), ('.compare BHP', 'BHP.AX'), ('.earnings BHP', 'BHP.AX'),
-				('.shorts BHP', 'BHP'), ('.pe BHP', 'BHP'), ('.marketcap BHP', 'BHP.AX'), ('.BHP', 'BHP.AX')):
+				('.shorts BHP', 'BHP'), ('.peg BHP', 'BHP'), ('.marketcap BHP', 'BHP.AX'), ('.BHP', 'BHP.AX')):
 			with self.subTest(message=message):
 				self.assertIn('Co BHP.AX', str(self.command(message)))
 

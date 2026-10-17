@@ -3,7 +3,7 @@ milestone, performance, podcasts, price, rating, shorts, trades, and sharesight_
 cache), each with job(argv), which parses a job's arguments, and run(dest=None, **kwargs), which runs it, to the chat
 that asked or whose job it is (dest); the scheduler runs them in the bot's process, and `.jobs run` runs one now. And
 the chat-only reports: about (.help, .jobs), history (.compare, .history its other name), holdings (.holdings, .who,
-.pie, .treemap, .watchlist), profile (.SYMBOL) and rankings (.marketcap, .pe and the rest)."""
+.treemap, .watchlist), profile (.SYMBOL) and rankings (.marketcap, .peg and the rest)."""
 
 
 def no_arguments(name):

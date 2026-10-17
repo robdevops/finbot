@@ -32,10 +32,8 @@ Where:
 ```
 /stock symbol
 /beta
-/buy
-/sell
-/dividend [period|symbol]
-/earnings [period|symbol]
+/buysell
+/earningsdividend [period|symbol]
 /forwardpe [symbol|top|bottom|negative]
 /help
 /holdings [portfolio]
@@ -45,11 +43,8 @@ Where:
 /jobs add message schedule "text"
 /marketcap [symbol|top|bottom]
 /movers [percent|top|bottom|session|premarket] [period]
-/pe [symbol|top|bottom]
 /peg [symbol|top|bottom|negative]
 /performance [period] [portfolio]
-/pie [portfolio] [sector]
-/plan [your plan]
 /price [symbol...] [period]
 /shorts [percent|symbol]
 /trades [period] [portfolio]
@@ -70,8 +65,8 @@ The bot answers commands in every chat it is in. By default, it fetches its upda
 * Stock lookup (financials, company profile, price charts)
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
-* A pie or a treemap of a portfolio by industry or sector (`/pie portfolio [sector]`, `/treemap portfolio [sector]`): the treemap tiles each holding by value, grouped and coloured by industry (the default) or sector
-* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/pie`, `/treemap`, `/holdings` (the first portfolio alphabetically; a pie or treemap by industry or by `sector`) and `/price` (the first ticker, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Sector/Industry toggle after them; for tickers the period row, ending in `+` to the tickers (those held, else the chat's watchlist) with `<` `>` pages: up to 8 ticked, which OK draws. With one ticker ticked, `+` clears it, so that the first tick picks afresh. Another portfolio or ticker, the toggle or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/pie` or `/treemap` draws its other charts in the background so the next press is quick. `/price T1 T2 [period]` typed with tickers gets the same period row and `+` when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead), and a chat with no buttons gets the usage instead
+* A treemap of a portfolio by industry or sector (`/treemap portfolio [sector]`): the treemap tiles each holding by value, grouped and coloured by industry (the default) or sector
+* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/treemap`, `/holdings` (the first portfolio alphabetically; a treemap by industry or by `sector`) and `/price` (the first ticker, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Sector/Industry toggle after them; for tickers the period row, ending in `+` to the tickers (those held, else the chat's watchlist) with `<` `>` pages: up to 8 ticked, which OK draws. With one ticker ticked, `+` clears it, so that the first tick picks afresh. Another portfolio or ticker, the toggle or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/treemap` draws its other charts in the background so the next press is quick. `/price T1 T2 [period]` typed with tickers gets the same period row and `+` when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead), and a chat with no buttons gets the usage instead
 * Listing of holdings sorted by various attributes 
 * Running the other stock reports on demand
 
@@ -237,15 +232,12 @@ Job (see [Scheduling](scheduling.md)), such as `/jobs add cal earnings every sun
 cal earnings|ex-dividend
 ```
 
-Command (earnings):
+Command (the coming earnings, then the ex-dividend dates; for a period, or one symbol):
 ```
-/earnings [period]
+/earningsdividend [period|symbol]
 ```
 
-Command (ex-dividend):
-```
-/dividend [period]
-```
+Typed, `.earnings` gives the earnings alone and `.dividend` the ex-dividend dates alone.
 
 ### Highly shorted stock warnings
 ![short warnings in Slack](../img/shorts.png?raw=true "Short warnings in Slack")
@@ -262,14 +254,13 @@ Command:
 /shorts [percent]
 ```
 
-### pe / forward pe / peg
+### forward pe / peg
 ![Forward PE report in Slack](../img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
-List securities by P/E ratio, forward P/E ratio, or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`).
+List securities by forward P/E ratio, or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`).
 
 Command:
 ```
-/pe [SYMBOL|top|bottom]
 /forwardpe [SYMBOL|top|bottom|negative]
 /peg [SYMBOL|top|bottom|negative]
 ```
@@ -286,24 +277,15 @@ Command:
 /price [symbol...] [period]
 ```
 
-### Buy
+### Buy and sell
 ![Buy ratings in Slack](../img/finbot_buy.png?raw=true "Buy ratings in Slack")
-
-Show top recommended buys by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `settings.conf`)
-
-Command:
-```
-/buy
-```
-
-### Sell
 ![Rating report in Slack](../img/finbot_sell.png?raw=true "Rating report in Slack")
 
-Show top recommended sells by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts
+Show the top recommended buys, then the top recommended sells, by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `settings.conf`). Typed, `.buy` gives the buys alone and `.sell` the sells alone.
 
 Command:
 ```
-/sell
+/buysell
 ```
 
 ### Marketcap
@@ -330,7 +312,7 @@ rating
 
 Tracks additional securities which are not in your Sharesight holdings. Each chat has its own watchlist, which anyone in the chat can change: the reports in that chat, asked for or scheduled, include its watchlist's stocks as if they were holdings, and no other chat's. The Sharesight holdings are the same in every chat. `yahoo_warm` keeps every chat's watchlist warm in the cache.
 
-The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file. The plans that `/plan` records are kept by chat too: each chat's `/plan` lists only the plans recorded in it.
+The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file.
 
 Command (with an Edit button, where the chat has buttons: it offers each ticker, which a press strikes through, and Delete deletes the struck ones; none under an empty watchlist):
 ```

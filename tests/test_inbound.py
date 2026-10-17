@@ -415,7 +415,7 @@ class SlackEvents(FinbotCase):
 		escapes become characters again: .buy &amp; sell runs both reports."""
 		for text, expected in (('.compare <http://BHP.AX|BHP.AX> <http://CBA.AX|CBA.AX>', '.compare BHP.AX CBA.AX'),
 				('.price <https://example.com>', '.price https://example.com'), ('.buy &amp; sell', '.buy & sell'),
-				('.plan buy &lt;BHP&gt;', '.plan buy <BHP>')):
+				('.watchlist add &lt;BHP&gt;', '.watchlist add <BHP>')):
 			with self.subTest(text=text):
 				self.assertEqual(self.event(user='U1', text=text), '200 OK')
 				self.assertEqual(self.requests[-1].text, expected)
@@ -590,20 +590,7 @@ class SlackManifest(unittest.TestCase):
 
 
 class UserTextIsEscaped(FinbotCase):
-	"""Replies go out as Telegram HTML: text a user wrote is shown, never read as markup. One stray < in a .plan entry
-	made Telegram refuse that reply and every .plan reply after it."""
-
-	def test_a_plan_is_shown_as_text(self):
-		"""A .plan entry is shown as text on Telegram and on Slack, escaped once, and a Slack mention stays markup."""
-		reply = self.command('.plan buy <cheap> & hold')[0][1]
-		self.assertIn('<i>buy &lt;cheap&gt; &amp; hold</i>', reply[0])
-		self.assertEqual(self.command('.plan')[0][1], reply) # and the same way again
-		self.sent.clear()
-		# inbound has unescaped Slack's text
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.plan sell <dear> & run', BOT, 'U'))
-		text = '\n'.join(self.sent[0][1])
-		self.assertIn('*<@U1>*', text) # a Slack mention stays markup
-		self.assertIn('_sell &lt;dear&gt; &amp; run_', text) # escaped once, not twice
+	"""Replies go out as Telegram HTML: text a user wrote is shown, never read as markup."""
 
 	def test_a_telegram_name_is_escaped_where_it_arrives(self):
 		"""A Telegram first name is escaped as the update arrives, in the handle and the name."""

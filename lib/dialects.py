@@ -36,7 +36,7 @@ class Dialect(str):
 		return self._link(url, text) if config.settings.hyperlink else text
 
 	def escape(self, text):
-		"""Text a user wrote (a .plan entry, a name) made safe to show: Telegram's HTML and Slack's markup both take
+		"""Text a user wrote (a name) made safe to show: Telegram's HTML and Slack's markup both take
 		&amp; &lt; &gt;. It is unescaped first because it may arrive escaped already (inbound escapes Telegram names as
 		they arrive): escaping twice would show &amp;amp;."""
 		return html.escape(html.unescape(str(text)), quote=False)
