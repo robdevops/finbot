@@ -1,5 +1,6 @@
 """What is held and followed: .holdings, .who, .treemap and .watchlist."""
 from lib import answer
+from lib import buttons
 from lib import watchlist
 from lib import sharesight
 from lib import formats
@@ -37,9 +38,28 @@ def prepare_who(service, code):
 		raise answer.Nothing(f'{code} not found in any portfolio')
 	return found
 
+GROUPS = buttons.GROUPS
+NOUNS = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries'),
+	'country': ('country', 'countries'), 'currency': ('currency', 'currencies'), 'market': ('market', 'markets')}
+
+def group_of(holding, by):
+	"""The group a Sharesight holding is in by `by` (a value of GROUPS): its sector or industry, its market's country
+	(its letters: the charts' font draws no flags), its currency or its market; 'Unclassified' where it has none."""
+	market = holding.get('market_code') or ''
+	country = markets.exchange_human(market) if market else ''
+	label = {'sector': holding.get('sector_classification_name'),
+		'industry': holding.get('industry_classification_name'), 'country': country,
+		'currency': holding.get('currency_code'), 'market': market}[by]
+	return label or 'Unclassified'
+
+def flag(letters):
+	"""The flag of a country by its two letters ('AU'), with a space after it, where they are two; else nothing."""
+	if len(letters) != 2 or not letters.isalpha():
+		return ''
+	return ''.join(chr(ord('🇦') + ord(letter) - ord('A')) for letter in letters.upper()) + ' '
+
 def _groups(portfolio, by):
-	"""The holdings of a portfolio with a value, by industry (or by='sector'): {group: [(code, value), ...]}."""
-	key = 'sector_classification_name' if by == 'sector' else 'industry_classification_name'
+	"""The holdings of a portfolio with a value, by `by` (a value of GROUPS): {group: [(code, value), ...]}."""
 	groups = {}
 	for holding in portfolio.holdings().values():
 		try:
@@ -47,16 +67,16 @@ def _groups(portfolio, by):
 		except (TypeError, ValueError):
 			continue
 		if value > 0:
-			groups.setdefault(holding.get(key) or 'Unclassified', []).append((holding['code'], value))
+			groups.setdefault(group_of(holding, by), []).append((holding['code'], value))
 	return groups
 
 def _noun(by, count):
 	"""'3 industries', '1 sector'."""
-	singular, plural = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries')}[by]
+	singular, plural = NOUNS[by]
 	return f"{count} {singular if count == 1 else plural}"
 
 def prepare_treemap(portfolio_name, by, service, max_groups=8):
-	"""The holdings by industry (or by='sector') as tiles grouped by it: (payload, chart or None). Beyond `max_groups`
+	"""The holdings as tiles grouped by `by` (a value of GROUPS): (payload, chart or None). Beyond `max_groups`
 	the smallest groups are one 'Other'. Raises sharesight.PortfolioNotFound."""
 	portfolio, = sharesight.portfolios(portfolio_name)
 	name = portfolio.name
@@ -72,7 +92,8 @@ def prepare_treemap(portfolio_name, by, service, max_groups=8):
 	total = sum(value for _, held in rows for _, value in held)
 	title = f"{name} treemap by {by}"
 	payload = [service.bold(title)]
-	payload += [f"{label}: {sum(value for _, value in held) / total * 100:.1f}%" for label, held in rows]
+	payload += [f"{flag(label) if by == 'country' else ''}{label}: {sum(value for _, value in held) / total * 100:.1f}%"
+		for label, held in rows]
 	count = sum(len(held) for held in groups.values())
 	subtitle = f"{_noun(by, len(groups))}, {count} {'holding' if count == 1 else 'holdings'}"
 	return payload, render.Chart('treemap', title, subtitle, tuple((label, tuple(held)) for label, held in rows))

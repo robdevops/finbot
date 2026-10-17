@@ -166,8 +166,8 @@ class Formatting(unittest.TestCase):
 		press = buttons.PickPress('c', 's', 'x', 1, 2 ** 32 - 1, 'r31', 'a1b2')
 		button = buttons.pick_button('x' * 99, press)
 		self.assertEqual((buttons.parse(button.data), len(button.label), len(button.data)), (press, 40, 27))
-		for data in ('k|z|0|x|0|0|p0|a1b2', 'k|c|0|x|0|0|q0|a1b2', 'k|c|0|x|0|zz|p0|a1b2', 'k|c|0|q|0|0|p0|a1b2',
-				'k|c|0|x|0|0|p0', 'k|c|0|x|0|0|p0|a-b2', 'k|c|0|x|0|0|p|a1b2', 'k|c|0|x|0|3|g0|a1b2'):
+		for data in ('k|z|0|x|0|0|p0|a1b2', 'k|c|0|x|0|0|z0|a1b2', 'k|c|0|x|0|zz|p0|a1b2', 'k|c|0|q|0|0|p0|a1b2',
+				'k|c|0|x|0|0|p0', 'k|c|0|x|0|0|p0|a-b2', 'k|c|0|x|0|0|p|a1b2', 'k|c|0|x|0|3|z0|a1b2'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
 		acts = ('p0', 'm1', 'n1', 'r2', 'h0', 'f0')

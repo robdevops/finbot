@@ -67,11 +67,11 @@ def shown_names(cmd, found, shown):
 	return [found[shown - 1]] if 0 < shown <= len(found) else []
 
 def prime(service, cmd, group, found, index):
-	"""Draw, to fill the cache, the charts a button of a treemap picker would ask for: the other grouping of the
-	portfolio shown (found[index]) first, then every other portfolio in both. A failure is logged, never raised."""
-	by = 'sector' if group == 's' else 'industry'
-	wanted = [(found[index], 'industry' if by == 'sector' else 'sector')] + [(name, each) for name in found
-		if name != found[index] for each in ('industry', 'sector')]
+	"""Draw, to fill the cache, the charts a button of a treemap picker would ask for: the other groupings of the
+	portfolio shown (found[index]) first, then every other portfolio in all. A failure is logged, never raised."""
+	by = holdings.GROUPS.get(group, 'industry')
+	wanted = [(found[index], each) for each in holdings.GROUPS.values() if each != by] + [(name, each)
+		for name in found if name != found[index] for each in holdings.GROUPS.values()]
 	for name, by in wanted:
 		try:
 			_, chart = holdings.prepare_treemap(name, by, service)
@@ -82,11 +82,12 @@ def prime(service, cmd, group, found, index):
 
 def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=None):
 	"""A picker's screen, as (lines, rows): `view` 'p', the first (the portfolios; for tickers the period and the way
-	to the tickers), or 'm', the tickers'; `page` of the items; `shown` what the message answers now (an item's number
-	plus one, or compare's tickers, see pack; 0 for nothing yet, as an older finbot's holdings began); `mask` has a bit
-	for each ticked ticker. The lines, what to pick, show only where there is no answer yet: an answer's caption shows
-	instead. Where the message shows a note, the tickers' screen's presses are n, not m: the next one draws the message
-	whole again, which takes the note away (an m press changes only the buttons)."""
+	to the tickers), 'm', the tickers', or 'g', a treemap's menu of what to group by; `page` of the items; `shown`
+	what the message answers now (an item's number plus one, or compare's tickers, see pack; 0 for nothing yet, as an
+	older finbot's holdings began); `mask` has a bit for each ticked ticker. The lines, what to pick, show only where
+	there is no answer yet: an answer's caption shows instead. Where the message shows a note, the tickers' screen's
+	presses are n, not m: the next one draws the message whole again, which takes the note away (an m press changes
+	only the buttons)."""
 	per_page, per_row = layout(service, cmd)
 	pages = -(-len(found) // per_page)
 	page = min(max(page, 0), pages - 1)
@@ -100,6 +101,13 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		return buttons.pick_button(label, buttons.PickPress(cmd, now['group'], now['period'], now['shown'],
 			now['mask'], act, crc), active)
 	rows = []
+	if view == 'g': # the treemap's menu: a choice redoes the chart and stays; Back
+		chosen = group if group in holdings.GROUPS else 'i'
+		menu = {name: button(name.capitalize(), f"q{page}", key == chosen, group=key)
+			for key, name in sorted(holdings.GROUPS.items(), key=lambda item: item[1])}
+		back = button('◀ Back', f"p{page}")
+		return ['Grouped by'], [[menu['country'], menu['currency'], menu['industry']],
+			[back, menu['market'], menu['sector']]]
 	if cmd == 'c' and view == 'p': # the periods, and + to the tickers
 		rows.append([button(buttons.PERIODS[key][0], 'p0', key == period, period=key) for key in buttons.BUTTONS['c']] +
 			[button('+', f"{step}0")])
@@ -109,8 +117,7 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	if noun(cmd) == 'portfolio':
 		rows += chunks([button(name, f"r{i}", shown == i + 1, shown=i + 1) for i, name in on_page], per_row)
 		if cmd == 't':
-			rows.append([button(f"Group by: {'Sector' if group == 's' else 'Industry'}", f"p{page}",
-				group='i' if group == 's' else 's')])
+			rows.append([button(f"Grouped by: {holdings.GROUPS.get(group, 'industry').capitalize()} ▾", f"g{page}")])
 	elif view == 'm':
 		full = len(ticked) >= buttons.MAX_PICKED
 		tickers = []

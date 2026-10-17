@@ -54,12 +54,15 @@ class Request:
 # a chart's kind -> the command it answers
 CHART_COMMANDS = {'c': 'price', 'f': 'performance', 'l': 'movers', 'r': 'trades'}
 
-def admin(service, ids):
+def admin(service, ids, chat_id=None):
 	"""Whether the sender of a message or a press (the ids its network gives: inbound.Message.ids) is one of the admins
 	setting's: telegram:@username or the user id, slack:U0123ABCD, discord:1234... (with the <> and @ a log shows,
-	in any case, or without)."""
+	in any case, or without); or, in the chat they are in (chat_id), one its network makes an administrator of it (a
+	Telegram group's, a Discord server's, a Slack workspace's: Transport.administers)."""
 	admins = {plain_id(who) for who in config.settings.admins}
-	return any(plain_id(f'{service}:{who}') in admins for who in ids)
+	if any(plain_id(f'{service}:{who}') in admins for who in ids):
+		return True
+	return bool(chat_id) and delivery.chat(f'{service}:{chat_id}').administers(ids)
 
 def plain_id(who):
 	"""network:id without the <@ > or @ a log shows it with, in lower case: telegram:@Rob is telegram:rob."""
@@ -69,16 +72,17 @@ def admin_only(command):
 	"""Whether only the admins may use a command: the admin_only setting names it, by any of its names."""
 	return bool({name.lstrip('./').lower() for name in config.settings.admin_only} & set(command.names))
 
-def refused(service, ids, command):
-	"""Why the sender (its network's ids for it) may not use a command, or None where it may: one only the admins may
-	use (admin_only), the sender not one of them (admins). Closed by default: .jobs, and no admins."""
-	if command and admin_only(command) and not admin(service, ids):
+def refused(service, ids, command, chat_id=None):
+	"""Why the sender (its network's ids for it) may not use a command in a chat, or None where it may: one only the
+	admins may use (admin_only), the sender not one of them (see admin). Closed by default: .jobs, and no admins
+	but a chat's own."""
+	if command and admin_only(command) and not admin(service, ids, chat_id):
 		return f"⛔ Only finbot's admins may use .{command.names[0]}"
 	return None
 
 def refused_press(press):
 	"""Why a press's sender may not use the command its button belongs to (see refused), or None."""
-	return refused(press.service, press.ids, press_command(press.data))
+	return refused(press.service, press.ids, press_command(press.data), press.chat_id)
 
 def press_command(data):
 	"""The command whose button a press's data is: the .jobs menu's, a picker's or a chart's; None for none."""
@@ -230,8 +234,8 @@ def process_pick_callback(press, pressed):
 		if stale:
 			shown, mask = pick.default(cmd, found)
 		per_page = pick.layout(service, cmd)[0]
-		view = 'm' if kind in 'mnf' else 'p' # picking a ticker, or Compare, goes back to the top
-		page = number if kind in 'pmnf' else number // per_page if kind == 'r' else 0
+		view = 'm' if kind in 'mnf' else 'g' if kind in 'gq' else 'p' # picking a ticker, or OK, goes back to the top
+		page = number if kind in 'pmnfgq' else number // per_page if kind == 'r' else 0
 		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if kind == 'f' else None
 		if kind == 'r' and number < len(found):
 			shown = number + 1
@@ -240,7 +244,7 @@ def process_pick_callback(press, pressed):
 		names = pick.shown_names(cmd, found, shown)
 		lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, view, page, note)
 		if names:
-			if kind == 'm' and chat.edit_buttons(press.message_id, rows): # a tick, a page: the answer stays as it is
+			if kind in 'mg' and chat.edit_buttons(press.message_id, rows): # a tick, a page: the answer stays as it is
 				return
 			pick_answer(service, chat, press.message_id, cmd, group, period, names, rows, note)
 			if cmd == 'c' and (stale or kind == 'h'): # a new ticker or set
@@ -259,7 +263,7 @@ def pick_content(service, chat, cmd, group, period, names):
 	if cmd == 'h':
 		return '\n'.join(holdings.prepare_holdings_payload(names[0], service) or [f"{names[0]} holds nothing"]), None
 	if cmd in 'pt':
-		lines, chart = holdings.prepare_treemap(names[0], 'sector' if group == 's' else 'industry', service)
+		lines, chart = holdings.prepare_treemap(names[0], holdings.GROUPS.get(group, 'industry'), service)
 		return '\n'.join(lines), chart
 	return charts.build('c', names, service, chat.key, period=period if period != '0' else 'x')
 
@@ -319,7 +323,7 @@ def process_request(message):
 	request = Request(dialects.of(message.service), message.chat_id, message.user, message.user_name, message.bot_name,
 		message.message_id, message.interaction)
 	command, args = read(message.text, message.bot_name)
-	if why := refused(message.service, message.ids, command):
+	if why := refused(message.service, message.ids, command, message.chat_id):
 		log.info(log.cut(f"{message.service.capitalize()} {message.user} refused: {message.text}"))
 		return request.reply([why])
 	if command and jobs.current: # a chat finbot does not know yet starts with the default jobs (off in a DM)
@@ -596,8 +600,8 @@ def on_beta(request, args):
 	request.reply(payload, chart)
 
 def on_treemap(request, args):
-	""".treemap [PORTFOLIO] [sector]: its holdings as tiles, grouped by industry or by sector; with no portfolio, the
-	first one's, with buttons for them."""
+	""".treemap [PORTFOLIO] [sector|industry|country|currency|market]: its holdings as tiles, grouped by industry
+	unless told; with no portfolio, the first one's, with buttons for them and a menu of what to group by."""
 	if not args.words:
 		return picker(request, 't', args)
 	payload, chart = holdings.prepare_treemap(args.rest, args.keyword or 'industry', request.service)
@@ -655,7 +659,7 @@ def picker(request, cmd, args):
 	dest = request.dest
 	if not dest.takes_buttons:
 		raise Usage(portfolios()) if pick.noun(cmd) == 'portfolio' else Usage
-	group = {'sector': 's', 'industry': 'i'}.get(args.keyword, '0')
+	group = {name: key for key, name in holdings.GROUPS.items()}.get(args.keyword, '0')
 	first = 'w' if cmd == 'c' and args.keyword != 'max' else 'x' # compare starts on 7D, unless asked for max
 	period = buttons.period_for_days(args.days, first) if cmd == 'c' else '0'
 	found = pick.items(cmd, dest.key)
@@ -789,7 +793,7 @@ SECTIONS = TRACKED, COMPANY, PRICE, RISK, TRADES, JOBS = ('Tracked securities', 
 TOP = {'top': 'top', 'bottom': 'bottom'} # the ends of a ranked list
 NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # the ratios that can be negative
 CHANGE = {'add': 'add'} | dict.fromkeys(('del', 'delete', 'rem', 'remove', 'rm'), 'delete') # of the watchlist
-BY = dict.fromkeys(('sector', 'sectors'), 'sector') | dict.fromkeys(('industry', 'industries'), 'industry') # .treemap's
+BY = {word: name for name, words in holdings.NOUNS.items() for word in words} # .treemap's: sector, sectors, ...
 # what .jobs does to a chat's jobs, and shows; next is what upcoming was called before
 JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'enable': 'enable', 'disable': 'disable', 'add': 'add',
 	'system': 'system'} | dict.fromkeys(('upcoming', 'next'), 'upcoming') | dict.fromkeys(('del', 'delete', 'rem',
@@ -805,7 +809,8 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	# kept on purpose.
 	Command(('help', 'usage', 'start'), on_help, job=False), # /start is what Telegram sends when a chat opens
 	Command(('holdings', 'holding'), on_holdings, ('.holdings [PORTFOLIO]',), TRACKED),
-	Command(('treemap',), on_treemap, ('.treemap [PORTFOLIO] [sector]',), TRACKED, ('.treemap',), keywords=BY),
+	Command(('treemap',), on_treemap, ('.treemap [PORTFOLIO] [sector|industry|country|currency|market]',), TRACKED,
+		('.treemap',), keywords=BY),
 	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
 		keywords=CHANGE, job=False),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),

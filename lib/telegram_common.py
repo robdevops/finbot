@@ -12,6 +12,7 @@ from lib import config
 from lib import dialects
 from lib import inbound
 from lib import net
+from lib import state
 from lib import transports
 
 
@@ -146,6 +147,18 @@ class TelegramBot(transports.Transport):
 	dialect = dialects.TELEGRAM
 	TYPING = (0.5, 4, 18) # "typing…" shows for 5 s at most (sendChatAction), so it is sent again every 4 s
 	NO_PREVIEWS = {'is_disabled': True} # link_preview_options, which replaced disable_web_page_preview (Bot API 7.0)
+
+	def is_administrator(self, who):
+		"""Whether getChatMember says this user id is the creator or an administrator of the group; in a direct
+		message, of any group finbot knows. A username (@name) cannot be asked."""
+		if not who.isdigit():
+			return False
+		if not self.where.startswith('-'):
+			from lib import jobs # only here: a direct message asks about each group finbot has seen
+			return any(TelegramBot(group).administers((who,)) for group in
+				(key.partition(':')[2] for key in state.load(jobs.JOBS_FILE, {}) if key.startswith('telegram:-')))
+		return call('getChatMember', json={'chat_id': self.where, 'user_id': who}).get('status') in (
+			'creator', 'administrator')
 
 	@staticmethod
 	def markup(buttons):

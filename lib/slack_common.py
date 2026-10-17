@@ -111,6 +111,12 @@ class SlackBot(transports.Transport):
 	WORKING = 'hourglass_flowing_sand' # ⏳: Slack has no typing notice for bots, so a reaction on the message stands in
 	working = None # True while ⏳ is on the message, False when putting it there failed
 
+	def is_administrator(self, who):
+		"""Whether users.info says this user is an owner or an admin of the workspace (Slack's channels have no
+		administrators of their own; the bot needs the users:read scope)."""
+		person = call('users.info', user=who).get('user') or {}
+		return bool(person.get('is_admin') or person.get('is_owner') or person.get('is_primary_owner'))
+
 	@property
 	def shows_typing(self):
 		"""⏳ on the message being answered: a scheduled report answers none."""

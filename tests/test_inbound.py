@@ -285,6 +285,7 @@ class AdminOnly(FinbotCase):
 		super().setUp()
 		self.settings(admin_only=config.Settings.admin_only, admins=config.Settings.admins)
 		self.taken, self.toasts, self.update = [], [], 0
+		transports._administers.clear()
 		self.patch(worker, 'process_callback', lambda press: self.taken.append(press.data))
 		self.patch(telegram_common, 'answerCallbackQuery',
 			lambda cid, text=None, alert=False: self.toasts.append((text, alert)))
@@ -321,6 +322,73 @@ class AdminOnly(FinbotCase):
 		self.assertEqual(self.say('.jobs', first_name='rob_llama'), [[self.REFUSED]])
 		self.assertEqual(self.say('.jobs', first_name='@rob_llama'), [[self.REFUSED]])
 		self.assertTrue(worker.admin('slack', ('U0ABC',)) and not worker.admin('discord', ('U0ABC',)))
+
+	def test_a_telegram_groups_administrators_are_admins_there(self):
+		"""The creator and the administrators of a group are admins in it, asked of getChatMember once in a while; a
+		member is not, nor anyone in a direct message, nor where the question fails; the admins setting is as it was."""
+		asked = []
+		def member(method, **kwargs):
+			"""getChatMember: Rob (7) administers the group, Ann (8) created it, anyone else is a member."""
+			asked.append(kwargs['json'])
+			return {'status': {'7': 'administrator', '8': 'creator'}.get(kwargs['json']['user_id'], 'member')}
+		self.patch(telegram_common, 'call', member)
+		group = lambda text, **sender: self.take({'message': {'message_id': self.update, 'chat': {'id': -100},
+			'text': text}}, {'first_name': 'X', 'id': 7} | sender)
+		answered = [['No schedule is running']]
+		self.assertEqual(group('.jobs'), answered)
+		self.assertEqual(group('.jobs', id=8), answered)
+		self.assertEqual(group('.jobs', id=9), [[self.REFUSED]])
+		self.assertEqual(asked[0], {'chat_id': '-100', 'user_id': '7'})
+		self.assertEqual(group('.jobs'), answered)
+		self.assertEqual(len(asked), 3) # Rob's second message is answered from what was asked
+		self.assertEqual(self.say('.jobs'), [[self.REFUSED]]) # chat 55 is a person's, and no group is known yet
+		self.assertEqual(len(asked), 3)
+		from lib import jobs
+		jobs.know(['telegram:-100', 'telegram:-200', 'slack:C1'])
+		transports._administers.clear() # the earlier answer for this chat is kept for minutes
+		self.assertEqual(self.say('.jobs'), answered) # Rob administers a group finbot knows: in a direct message too
+		self.assertEqual(self.say('.jobs', id=9), [[self.REFUSED]])
+		self.patch(telegram_common, 'call', lambda method, **kwargs: 1 / 0)
+		self.assertEqual(group('.jobs', id=10), [[self.REFUSED]])
+		self.settings(admins=('telegram:10',))
+		self.assertEqual(group('.jobs', id=10), answered)
+
+	def test_a_telegram_username_is_not_asked_about(self):
+		"""Only a numeric user id can be asked of getChatMember: a @username is no one's proof."""
+		bot = telegram_common.TelegramBot('-100')
+		self.patch(telegram_common, 'call', lambda method, **kwargs: {'status': 'creator'})
+		self.assertFalse(bot.administers(('@rob',)))
+		self.assertTrue(bot.administers(('@rob', '7')))
+
+	def test_a_slack_workspaces_owners_and_admins_are_admins(self):
+		"""users.info says a Slack user is an admin, an owner or the primary owner of the workspace: an admin."""
+		users = {'U1': {'is_admin': True}, 'U2': {'is_owner': True}, 'U3': {'is_primary_owner': True}, 'U4': {}}
+		self.patch(slack_common, 'call', lambda method, **kwargs: {'ok': True, 'user': users[kwargs['user']]})
+		bot = slack_common.SlackBot('C1')
+		self.assertEqual([bot.administers((who,)) for who in users], [True, True, True, False])
+
+	def test_a_discords_owner_and_administrator_roles_are_admins(self):
+		"""The owner of a Discord server, and anyone with a role that has the Administrator permission (the @everyone
+		role included), are admins in its channels, and in a direct message if so in any server the bot is in."""
+		roles = [{'id': 'G', 'permissions': '1024'}, {'id': 'R1', 'permissions': '8'},
+			{'id': 'R2', 'permissions': '2048'}]
+		members = {'1': ['R1'], '2': ['R2'], '3': []}
+		def answer(method, path, **kwargs):
+			"""The REST answers for a channel of server G, owned by 5; channel D is a direct message."""
+			if path == '/channels/D':
+				return {'id': 'D'}
+			if path == '/users/@me/guilds':
+				return [{'id': 'G'}]
+			return {'/channels/C': {'guild_id': 'G'}, '/guilds/G': {'owner_id': '5', 'roles': roles}}.get(path) or {
+				'roles': members[path.rsplit('/', 1)[1]]}
+		self.patch(discord_common, 'call', answer)
+		bot = discord_common.DiscordBot('C')
+		self.assertEqual([bot.administers((who,)) for who in ('1', '2', '3', '5')], [True, False, False, True])
+		direct = discord_common.DiscordBot('D')
+		self.assertEqual([direct.administers((who,)) for who in ('1', '3', '5')], [True, False, True])
+		roles[0]['permissions'] = '8' # @everyone administers
+		transports._administers.clear()
+		self.assertTrue(bot.administers(('3',)))
 
 	def test_the_setting_names_any_command(self):
 		"""admin_only names any command, by any of its names, with or without its . or /."""
@@ -557,7 +625,7 @@ class SlackManifest(unittest.TestCase):
 			self.assertTrue(manifest['settings']['interactivity']['is_enabled'])
 			self.assertEqual(manifest['settings']['event_subscriptions']['bot_events'], ['app_mention', 'message.im'])
 			self.assertEqual(manifest['oauth_config']['scopes']['bot'], ['app_mentions:read', 'chat:write', 'commands',
-				'files:read', 'files:write', 'im:history', 'reactions:write'])
+				'files:read', 'files:write', 'im:history', 'reactions:write', 'users:read'])
 
 	def test_every_message_and_the_slash_commands(self):
 		"""With every_message the bot hears every message in its channels (not only mentions, which it would then

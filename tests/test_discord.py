@@ -405,7 +405,8 @@ class Suggestions(FinbotCase):
 		self.assertEqual(self.values('/stock '), ['BHP.AX', 'MSFT', 'NVDA'])
 		self.assertEqual(self.values('/stock ', chat='discord:88'), ['BHP.AX', 'NVDA', 'TSLA'])
 		self.assertEqual(self.values('/performance 7d '), ['7d Rob', '7d Jo Smith'])
-		self.assertEqual(self.values('/treemap '), ['sector', 'Rob', 'Jo Smith'])
+		self.assertEqual(self.values('/treemap '),
+			['sector', 'industry', 'country', 'currency', 'market', 'Rob', 'Jo Smith'])
 
 	def test_the_jobs_subcommands_numbers_and_reports(self):
 		"""/jobs suggests its subcommands; after run or remove this chat's job numbers, each shown with its name (after
