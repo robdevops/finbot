@@ -508,7 +508,7 @@ class CacheFlush(FinbotCase):
 		self.assertEqual(started, [(bot.jobs.warm_now, ('the scheduler',))])
 
 
-OPTIONAL = ('waitress', 'websocket', 'discord', 'nacl') # each imported only by the mode that needs it
+OPTIONAL = ('waitress', 'websocket', 'nacl') # each imported only by the modes that need it
 
 
 class OptionalLibraries(unittest.TestCase):

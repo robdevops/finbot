@@ -91,7 +91,7 @@ jobs:
           for package in (lib, lib.reports):
               for module in pkgutil.iter_modules(package.__path__, package.__name__ + '.'):
                   importlib.import_module(module.name)
-          import discord, nacl, waitress, websocket
+          import nacl, waitress, websocket
           from lib import render
           assert render._font_file(False) and render._font_file(True), 'no DejaVu Sans in the image'
           assert render.draw_pie(render.Chart('pie', rows=(('a', 1.0),))).read(4) == b'\x89PNG'

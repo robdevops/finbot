@@ -13,7 +13,7 @@ The bot does the same either way. What differs is how it hears from Discord:
 | How commands and button presses reach finbot | Over Discord's gateway API, a connection finbot keeps open to Discord | Discord posts them to your HTTPS server |
 | Listens on the internet | No: finbot opens the connection to Discord | Yes, behind your HTTPS server: a domain name with a valid certificate |
 | Commands | Slash commands (`/price`), and messages (`.price`, `@finbot price`) | Slash commands (`/price`): Discord posts no messages |
-| Python modules | `discord.py` (Debian: `python3-discord`) | `PyNaCl` and `waitress` (Debian: `python3-nacl`, `python3-waitress`) |
+| Python modules | `websocket-client` (Debian: `python3-websocket`) | `PyNaCl` and `waitress` (Debian: `python3-nacl`, `python3-waitress`) |
 | `finbot.env` keys | `discordBotToken` | `discordBotToken`, `discordOutgoingWebhook` and `discordPublicKey` |
 
 In both: the scheduled reports with their charts; period buttons under charts and the buttons of the `/jobs` menu,
@@ -37,8 +37,8 @@ empty, so change both, and restart finbot, to switch.
 3. Under _OAuth2 > URL Generator_, tick the scopes `bot` and `applications.commands`, then the bot permissions _View
    Channels_, _Send Messages_, _Attach Files_ and _Read Message History_. Open the URL it makes, and add the bot to your
    server.
-4. Install discord.py: `sudo apt install python3-discord` (or `pip install discord.py`; Docker and the Python quick
-   start have it).
+4. Install the WebSocket module: `sudo apt install python3-websocket` (or `pip install websocket-client`; Docker and
+   the Python quick start have it).
 5. Restart finbot (`sudo systemctl restart finbot`). As it starts, it registers the slash commands, which can take a
    few minutes to show in Discord the first time, and the log says `discord: gateway (no discordOutgoingWebhook)`.
 6. Send `/help` (or `.help`) in the channel, or in a direct message to the bot. Each channel has the default scheduled

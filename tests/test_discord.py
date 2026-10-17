@@ -1,9 +1,9 @@
 """The Discord bot: interactions and messages read as the other networks' updates, the interactions endpoint and its
 signatures, REST calls and their rate limits, messages with charts and buttons, slash commands from the command table,
-and the gateway."""
+and the gateway over a WebSocket."""
 import contextlib, io, json, sys, types, unittest
 from tests.common import *
-from lib import catalog, discord_websocket, jobs
+from lib import catalog, discord_websocket, jobs, pull
 
 try:
 	from nacl.signing import SigningKey
@@ -443,57 +443,76 @@ class Suggestions(FinbotCase):
 		self.assertIn('suggest: /price ', log.getvalue())
 
 
-class FakeClient:
-	"""discord.py's Client, enough for the gateway listener: its handlers get the raw messages of the test."""
-	raw = []
+class FakeGatewaySocket:
+	"""A gateway connection that gives the messages it was made with (a dict as its JSON, None as a wait that is over,
+	an exception raised), notes the waits it is given, what is sent and its close code."""
 
-	def __init__(self, intents, enable_debug_events=False):
-		"""Note how it was made."""
-		self.intents, self.debug, self.handlers = intents, enable_debug_events, {}
-		FakeClient.made = self
+	def __init__(self, messages, log):
+		"""messages: what receive() gives in turn; log: a list to note what is sent in."""
+		self.messages, self.log, self.waits = list(messages), log, []
 
-	def event(self, handler):
-		"""Register a handler by its name."""
-		self.handlers[handler.__name__] = handler
-		return handler
+	def receive(self, timeout):
+		"""The next message; when there are none left, the socket fails."""
+		self.waits.append(timeout)
+		if not self.messages:
+			raise ConnectionError('the test socket has no more')
+		message = self.messages.pop(0)
+		if isinstance(message, Exception):
+			raise message
+		return json.dumps(message) if isinstance(message, dict) else message
 
-	async def __aenter__(self):
-		"""Enter."""
-		return self
+	def send(self, text):
+		"""Note what is sent."""
+		self.log.append(('send', json.loads(text)))
 
-	async def __aexit__(self, *exc):
-		"""Leave: closed."""
-		self.closed = True
+	def close(self, code=1000):
+		"""Note the close code."""
+		self.log.append(('close', code))
 
-	async def start(self, token):
-		"""Connect: ready, then the raw messages, then fail as Discord does on a refused token."""
-		self.token = token
-		await self.handlers['on_ready']()
-		for message in self.raw:
-			await self.handlers['on_socket_raw_receive'](json.dumps(message))
-		raise RuntimeError('Improper token has been passed.')
+
+HELLO = {'op': 10, 'd': {'heartbeat_interval': 41250}}
+READY = {'op': 0, 't': 'READY', 's': 1, 'd': {'session_id': 'S1', 'resume_gateway_url': 'wss://resume.example.com'}}
+IDENTIFY = {'op': 2, 'd': {'token': 'x', 'intents': 1 << 9 | 1 << 12 | 1 << 15,
+	'properties': {'os': sys.platform, 'browser': 'finbot', 'device': 'finbot'}}}
 
 
 class Gateway(FinbotCase):
-	"""The gateway through discord.py: its raw events taken as the endpoint's, an interaction answered over REST."""
+	"""The gateway over a WebSocket: Hello, IDENTIFY or RESUME, the heartbeat and its ACK, the events finbot takes read
+	as the endpoint's, an interaction answered over REST, and what each way a connection ends leads to."""
 
 	def setUp(self):
-		"""Discord in pull mode, with discord.py replaced by the fake client, and threads that run at once."""
+		"""Discord in pull mode, its REST calls noted (GET /gateway/bot answers a URL), threads that run at once, and no
+		jitter: the first heartbeat comes half an interval in."""
 		super().setUp()
 		self.env(discordBotToken='x', discordOutgoingWebhook='')
-		intents = types.SimpleNamespace(message_content=False)
-		library = types.SimpleNamespace(Client=FakeClient, VoiceClient=types.SimpleNamespace(warn_nacl=True),
-			Intents=types.SimpleNamespace(default=lambda: intents))
-		self.library = library
-		self.patch(sys, 'modules', {**sys.modules, 'discord': library})
 		self.patch(discord_websocket, 'threading', types.SimpleNamespace(Thread=Now)) # the listener's threads only
-		self.calls = []
-		self.patch(discord_common, 'call', lambda method, path, **kwargs: self.calls.append((method, path, kwargs)))
+		self.patch(discord_websocket.random, 'random', lambda: 0.5)
+		self.patch(discord_websocket.random, 'uniform', lambda a, b: 3.0)
+		self.calls, self.log, self.sockets = [], [], []
+		def call(method, path, **kwargs):
+			"""Note a REST call; the gateway's URL for GET /gateway/bot."""
+			self.calls.append((method, path, kwargs))
+			if path == '/gateway/bot':
+				return {'url': 'wss://gateway.discord.gg', 'session_start_limit': {'remaining': 999,
+					'reset_after': 3600000}}
+		self.patch(discord_common, 'call', call)
 
-	def test_messages_and_interactions_are_taken_and_an_interaction_answered_first(self):
-		"""The client asks for the message intents and raw events; MESSAGE_CREATE and INTERACTION_CREATE go to take, the
-		rest is the client's; an interaction's answer goes to its callback before its work starts; a client that stops
-		waits the back-off."""
+	def gateway(self, *connections):
+		"""A DiscordGateway whose connections, one a poll, give these lists of messages in turn."""
+		listener = discord_websocket.DiscordGateway()
+		def connect(url):
+			"""The next connection, its URL noted."""
+			self.log.append(('connect', url))
+			self.sockets.append(FakeGatewaySocket(connections[len(self.sockets)], self.log))
+			return self.sockets[-1]
+		self.patch(listener, 'connect', connect)
+		return listener
+
+	def test_identified_beating_and_taking_messages_and_interactions(self):
+		"""Hello's heartbeat interval sets the beat (the first after a random part of it); IDENTIFY gives the token and
+		intents; READY's session is kept and ends the failures in a row; MESSAGE_CREATE and INTERACTION_CREATE go to
+		take, an interaction's answer to its callback before its work starts, and the rest stays out; each beat sends
+		the last sequence number; a reconnect asked for (op 7) closes the socket, keeping the session, for at once."""
 		taken, order = [], []
 		def take(network, update):
 			"""Note the update; answer an interaction as the reader would, its work noted when started."""
@@ -501,30 +520,98 @@ class Gateway(FinbotCase):
 			if 'token' in update:
 				return inbound.Response(body=b'{"type": 5}', then=lambda: order.append(('work', len(self.calls))))
 			return inbound.OK
-		FakeClient.raw = [{'op': 11}, {'op': 0, 't': 'READY', 'd': {}},
-			{'op': 0, 't': 'MESSAGE_CREATE', 'd': MESSAGE}, {'op': 0, 't': 'INTERACTION_CREATE', 'd': COMMAND}]
-		listener = discord_websocket.DiscordGateway()
+		listener = self.gateway([HELLO, READY, {'op': 0, 't': 'GUILD_CREATE', 's': 2, 'd': {}},
+			{'op': 0, 't': 'MESSAGE_CREATE', 's': 3, 'd': MESSAGE}, None, {'op': 11},
+			{'op': 0, 't': 'INTERACTION_CREATE', 's': 4, 'd': COMMAND}, {'op': 1}, {'op': 7}])
 		listener.failures = 3
-		err = io.StringIO()
-		with contextlib.redirect_stderr(err):
-			self.assertEqual(listener.poll(take), 5) # ready reset the failures; then the refused token
-		client = FakeClient.made
-		self.assertTrue(client.debug and client.intents.message_content and client.closed)
-		self.assertFalse(self.library.VoiceClient.warn_nacl)
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual(listener.poll(take), 0)
+		self.assertEqual(self.log, [('connect', 'wss://gateway.discord.gg/?v=10&encoding=json'), ('send', IDENTIFY),
+			('send', {'op': 1, 'd': 3}), ('send', {'op': 1, 'd': 4}), ('close', 4000)])
+		waits = [round(wait, 2) for wait in self.sockets[0].waits]
+		self.assertEqual(waits[:3] + waits[5:6], [30, 20.62, 20.62, 41.25]) # Hello, half an interval, a whole one
+		self.assertEqual((listener.failures, listener.session, listener.sequence), (0, ('S1',
+			'wss://resume.example.com'), 4))
 		self.assertEqual(taken, ['<@99> price 7d', 2])
-		self.assertEqual(self.calls, [('POST', '/interactions/900/tok/callback', {'json': {'type': 5},
+		self.assertEqual(self.calls[1:], [('POST', '/interactions/900/tok/callback', {'json': {'type': 5},
 			'logged': 'debug'})])
-		self.assertEqual(order, [('work', 1)])
-		self.assertIn('discord: the gateway failed, trying again in 5 s: Improper token', err.getvalue())
+		self.assertEqual(order, [('work', 2)])
+		self.assertIn('discord: Discord asks for a reconnect, resuming', err.getvalue())
+
+	def test_a_session_is_resumed_from_the_last_event(self):
+		"""After a reconnect, or a connection lost, the next connection goes to the URL READY gave and RESUMEs the
+		session from the last sequence number, so that Discord sends what was missed; RESUMED ends the failures."""
+		listener = self.gateway([HELLO, READY, {'op': 0, 't': 'MESSAGE_CREATE', 's': 7, 'd': MESSAGE},
+			ConnectionError('reset by peer')], [HELLO, {'op': 0, 't': 'RESUMED', 's': 8, 'd': None}, {'op': 7}])
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual([listener.poll(lambda *a: inbound.OK), listener.failures], [5, 1])
+			self.assertEqual([listener.poll(lambda *a: inbound.OK), listener.failures], [0, 0])
+		self.assertEqual(self.log[3:5], [('connect', 'wss://resume.example.com/?v=10&encoding=json'),
+			('send', {'op': 6, 'd': {'token': 'x', 'session_id': 'S1', 'seq': 7}})])
+		self.assertEqual([path for _, path, _ in self.calls], ['/gateway/bot']) # once: the resume needs no URL
+		self.assertIn('discord: the gateway failed, trying again in 5 s: reset by peer', err.getvalue())
+
+	def test_a_missed_ack_or_a_silent_start_is_a_dead_connection(self):
+		"""A beat with no ACK before the next is a dead connection: closed with 4000, keeping the session to resume,
+		and the back-off; no Hello in HELLO_SECONDS is one too."""
+		listener = self.gateway([HELLO, READY, None, None], [None])
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual(listener.poll(lambda *a: inbound.OK), 5)
+			self.assertEqual(listener.poll(lambda *a: inbound.OK), 10)
+		self.assertEqual([entry for entry in self.log if entry[0] == 'close'], [('close', 4000)] * 2)
+		self.assertEqual(listener.session[0], 'S1')
+		self.assertIn('Discord did not acknowledge the last heartbeat', err.getvalue())
+		self.assertIn('no Hello from Discord in 30 s', err.getvalue())
+
+	def test_a_session_that_cannot_go_on_starts_another(self):
+		"""Op 9 saying the session cannot be resumed drops it, and the next connection, a moment later as Discord asks,
+		identifies afresh; one saying it can keeps it; close codes 4007 and 4009 drop it too."""
+		listener = self.gateway([HELLO, READY, {'op': 9, 'd': True}], [HELLO, {'op': 9, 'd': False}],
+			[HELLO, READY, pull.Closed(4009, 'Session timed out')], [HELLO, READY, {'op': 7}])
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual(listener.poll(lambda *a: inbound.OK), 3.0)
+			self.assertEqual(listener.session[0], 'S1') # resumable: kept
+			self.assertEqual(listener.poll(lambda *a: inbound.OK), 3.0)
+			self.assertEqual((listener.session, listener.sequence), (None, None))
+			self.assertEqual(listener.poll(lambda *a: inbound.OK), 5)
+			self.assertIsNone(listener.session)
+			listener.poll(lambda *a: inbound.OK)
+		sent = [entry[1]['op'] for entry in self.log if entry[0] == 'send']
+		self.assertEqual(sent, [2, 6, 2, 2]) # identify, resume, then a new session each time
+		self.assertIn('discord: Discord ended the session, starting another', err.getvalue())
+
+	def test_a_refusal_waits_an_hour_and_says_what_to_mend(self):
+		"""A close code that trying again cannot mend (the token refused, the Message Content intent not allowed) is
+		an error in the log and an hour's wait, not the back-off: identifying 1000 times a day gets the token reset."""
+		listener = self.gateway([HELLO, pull.Closed(4014, 'Disallowed intent(s).')], [HELLO, pull.Closed(4004)])
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual([listener.poll(lambda *a: inbound.OK) for _ in range(2)], [3600, 3600])
+		self.assertIn('discord: the gateway refused finbot (4014: the Message Content intent is not allowed:'
+			' switch it on in the Developer Portal, under Bot), trying again in an hour', err.getvalue())
+		self.assertIn('(4004: the bot token was refused)', err.getvalue())
+
+	def test_no_session_starts_while_discord_allows_few_more_today(self):
+		"""With few sessions left today (GET /gateway/bot's session_start_limit), a new one waits for them to be given
+		back, rather than run them out; a REST failure is the back-off."""
+		listener = self.gateway()
+		self.patch(discord_common, 'call', lambda method, path, **kwargs: {'url': 'wss://gateway.discord.gg',
+			'session_start_limit': {'remaining': 4, 'reset_after': 7200000}})
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual(listener.poll(lambda *a: inbound.OK), 7200)
+		self.assertIn('discord: Discord allows 4 more sessions today: waiting 120 minutes', err.getvalue())
+		self.patch(discord_common, 'call', mock.Mock(side_effect=RuntimeError('Discord GET /gateway/bot: 401')))
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual(listener.poll(lambda *a: inbound.OK), 5)
+		self.assertIn('discord: connecting to the gateway failed, trying again in 5 s: Discord GET /gateway/bot: 401',
+			err.getvalue())
 
 	def test_arguments_being_typed_over_the_gateway_get_their_suggestions_through_the_callback(self):
 		"""Over the gateway, the suggestions for what is being typed go to the interaction's callback."""
-		FakeClient.raw = [{'op': 0, 't': 'INTERACTION_CREATE', 'd': TYPING}]
+		listener = self.gateway([HELLO, READY, {'op': 0, 't': 'INTERACTION_CREATE', 's': 2, 'd': TYPING}, {'op': 7}])
 		with contextlib.redirect_stderr(io.StringIO()):
-			discord_websocket.DiscordGateway().poll(bot.take)
-		self.assertEqual(self.calls, [('POST', '/interactions/902/tok/callback', {'json': {'type': 8, 'data': {
-			'choices': [{'name': '5 7d', 'value': '5 7d'}]}},
-			'logged': 'debug'})])
+			listener.poll(bot.take)
+		self.assertEqual(self.calls[1:], [('POST', '/interactions/902/tok/callback', {'json': {'type': 8, 'data': {
+			'choices': [{'name': '5 7d', 'value': '5 7d'}]}}, 'logged': 'debug'})])
 
 	@unittest.skipUnless(SigningKey, 'PyNaCl is not installed')
 	def test_a_press_over_the_gateway_is_the_press_the_endpoint_gets(self):
@@ -542,12 +629,12 @@ class Gateway(FinbotCase):
 			self.join_workers()
 			self.patch(bot, '_updates_seen', collections.OrderedDict()) # a restart in the other mode
 			self.env(discordOutgoingWebhook='')
-			FakeClient.raw = [{'op': 0, 't': 'INTERACTION_CREATE', 'd': PRESS}]
-			discord_websocket.DiscordGateway().poll(bot.take)
+			pressed = {'op': 0, 't': 'INTERACTION_CREATE', 's': 2, 'd': PRESS}
+			self.gateway([HELLO, READY, pressed, {'op': 7}]).poll(bot.take)
 		self.join_workers()
 		self.assertEqual(len(presses), 2)
 		self.assertEqual(presses[0], presses[1])
-		self.assertEqual(self.calls[0][1:], ('/interactions/901/tok/callback', {'json': {'type': 6},
+		self.assertEqual(self.calls[1][1:], ('/interactions/901/tok/callback', {'json': {'type': 6},
 			'logged': 'debug'}))
 
 	def test_discord_is_listened_to_with_its_token_and_no_endpoint(self):

@@ -5,7 +5,7 @@ FROM debian:trixie-slim
 
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends python3 python3-requests python3-pil fonts-dejavu-core \
-		python3-waitress python3-websocket python3-discord python3-nacl ca-certificates tzdata \
+		python3-waitress python3-websocket python3-nacl ca-certificates tzdata \
 	&& rm -rf /var/lib/apt/lists/*
 
 # the bot's user: no home, no shell; the code stays root's, so the bot cannot change it

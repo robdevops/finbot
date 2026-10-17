@@ -52,11 +52,13 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   Discord's interaction answer) and its bot (`TelegramBot`, `SlackBot`, `DiscordBot`). `<network>_webhook.py`, the HTTP
   mode: the path and how a request proves itself (`WEBHOOK`). The pull mode's persistent client, handing its updates
   to `bot.take`: `telegram_longpolling.py` (`TelegramPoll`: getUpdates), `slack_websocket.py` (`SlackSocket`: Socket
-  Mode, over websocket-client), `discord_websocket.py` (`DiscordGateway`: discord.py's raw events). Telegram's
+  Mode), `discord_websocket.py` (`DiscordGateway`: Hello, IDENTIFY or RESUME, the heartbeat and its ACK; a close code
+  that trying again cannot mend waits an hour, as 1000 identifies in a day get the token reset). Telegram's
   `register()`, in each mode's module, sets the webhook or deletes it; Discord's slash commands are registered at start
   in both modes (`discord_common.register`, from `worker.slash_commands()`). What no network owns: `lib/inbound.py`
   (`Message`, `Press`, `Suggest`, `Response`; the `Network` and `Webhook` bases), `lib/pull.py` (the `Listener` base,
-  which waits longer after each failure in a row: `backoff`), `lib/transports.py` (the `Transport` base, below).
+  which waits longer after each failure in a row: `backoff`; `WebSocket`, over websocket-client, for Slack and
+  Discord), `lib/transports.py` (the `Transport` base, below).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
   keywords, job)`, which also makes `.help`, the commands a job may run (`job_commands()`, each a `CommandJob`: every
   one but those that change something, `job=False`, and those a report runs, `REPORTED`), the Telegram command keyboard, kept current in DMs, and `slash_commands()`, which
