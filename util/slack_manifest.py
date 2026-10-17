@@ -22,7 +22,8 @@ if __name__ == '__main__':
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from lib import worker
 
-SCOPES = ('chat:write', 'commands', 'files:read', 'files:write', 'reactions:write') # replies, slash commands, charts, ⏳
+SCOPES = ('chat:write', 'commands', 'files:read', 'files:write', 'reactions:write', 'users:read')
+# replies, slash commands, charts, ⏳, who the workspace's admins are
 EVENT_SCOPES = {'app_mention': 'app_mentions:read', 'message.channels': 'channels:history',
 	'message.groups': 'groups:history', 'message.im': 'im:history'} # what each event needs
 

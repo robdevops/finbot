@@ -54,12 +54,15 @@ class Request:
 # a chart's kind -> the command it answers
 CHART_COMMANDS = {'c': 'price', 'f': 'performance', 'l': 'movers', 'r': 'trades'}
 
-def admin(service, ids):
+def admin(service, ids, chat_id=None):
 	"""Whether the sender of a message or a press (the ids its network gives: inbound.Message.ids) is one of the admins
 	setting's: telegram:@username or the user id, slack:U0123ABCD, discord:1234... (with the <> and @ a log shows,
-	in any case, or without)."""
+	in any case, or without); or, in the chat they are in (chat_id), one its network makes an administrator of it (a
+	Telegram group's, a Discord server's, a Slack workspace's: Transport.administers)."""
 	admins = {plain_id(who) for who in config.settings.admins}
-	return any(plain_id(f'{service}:{who}') in admins for who in ids)
+	if any(plain_id(f'{service}:{who}') in admins for who in ids):
+		return True
+	return bool(chat_id) and delivery.chat(f'{service}:{chat_id}').administers(ids)
 
 def plain_id(who):
 	"""network:id without the <@ > or @ a log shows it with, in lower case: telegram:@Rob is telegram:rob."""
@@ -69,16 +72,17 @@ def admin_only(command):
 	"""Whether only the admins may use a command: the admin_only setting names it, by any of its names."""
 	return bool({name.lstrip('./').lower() for name in config.settings.admin_only} & set(command.names))
 
-def refused(service, ids, command):
-	"""Why the sender (its network's ids for it) may not use a command, or None where it may: one only the admins may
-	use (admin_only), the sender not one of them (admins). Closed by default: .jobs, and no admins."""
-	if command and admin_only(command) and not admin(service, ids):
+def refused(service, ids, command, chat_id=None):
+	"""Why the sender (its network's ids for it) may not use a command in a chat, or None where it may: one only the
+	admins may use (admin_only), the sender not one of them (see admin). Closed by default: .jobs, and no admins
+	but a chat's own."""
+	if command and admin_only(command) and not admin(service, ids, chat_id):
 		return f"⛔ Only finbot's admins may use .{command.names[0]}"
 	return None
 
 def refused_press(press):
 	"""Why a press's sender may not use the command its button belongs to (see refused), or None."""
-	return refused(press.service, press.ids, press_command(press.data))
+	return refused(press.service, press.ids, press_command(press.data), press.chat_id)
 
 def press_command(data):
 	"""The command whose button a press's data is: the .jobs menu's, a picker's or a chart's; None for none."""
@@ -319,7 +323,7 @@ def process_request(message):
 	request = Request(dialects.of(message.service), message.chat_id, message.user, message.user_name, message.bot_name,
 		message.message_id, message.interaction)
 	command, args = read(message.text, message.bot_name)
-	if why := refused(message.service, message.ids, command):
+	if why := refused(message.service, message.ids, command, message.chat_id):
 		log.info(log.cut(f"{message.service.capitalize()} {message.user} refused: {message.text}"))
 		return request.reply([why])
 	if command and jobs.current: # a chat finbot does not know yet starts with the default jobs (off in a DM)

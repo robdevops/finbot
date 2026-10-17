@@ -6,7 +6,11 @@ whichever way its network's updates arrive, their presses reach finbot."""
 import threading
 import time
 
+from lib import log
 
+
+ADMINS_FOR = 300 # seconds a network's answer about who administers a chat is kept
+_administers = {} # (chat key, sender id) -> (when asked, whether they administer the chat)
 MAYBE_SENT = object() # a read timeout on the request that posts a chart: it may have arrived, so no text copy follows
 
 
@@ -42,6 +46,31 @@ class Transport:
 		"""The chat's key, the same whichever way its network's updates arrive: 'telegram:-1001234'. A chat's jobs, its
 		watchlist and what its reports have told it are kept under it."""
 		return f'{self.name}:{self.where}'
+
+	def administers(self, ids):
+		"""Whether the network makes any of these ids (inbound.Message.ids) an administrator of this chat: asked of the
+		network (is_administrator) and kept ADMINS_FOR seconds; a failure is logged and means no. A direct message has
+		no administrators."""
+		for who in ids:
+			asked, answer = _administers.get((self.key, who), (0, False))
+			if time.time() - asked < ADMINS_FOR:
+				if answer:
+					return True
+				continue
+			try:
+				answer = bool(self.is_administrator(who))
+			except Exception as e:
+				log.warn(f"{self.name.capitalize()} cannot tell whether {who} administers {self.where}:", e)
+				return False
+			_administers[self.key, who] = (time.time(), answer)
+			if answer:
+				return True
+		return False
+
+	def is_administrator(self, who):
+		"""Whether the network says this sender id administers the chat (asked of the network; raises on a failure).
+		No chat has administrators unless the network's bot says so."""
+		return False
 
 	def start_typing(self):
 		"""Show the typing notice while a command works, where the network has one (TYPING says when), until the first

@@ -147,6 +147,14 @@ class TelegramBot(transports.Transport):
 	TYPING = (0.5, 4, 18) # "typing…" shows for 5 s at most (sendChatAction), so it is sent again every 4 s
 	NO_PREVIEWS = {'is_disabled': True} # link_preview_options, which replaced disable_web_page_preview (Bot API 7.0)
 
+	def is_administrator(self, who):
+		"""Whether getChatMember says this user id is the creator or an administrator of the group; a username
+		(@name) cannot be asked, and a direct message (a chat id that is no group's) has none."""
+		if not who.isdigit() or not self.where.startswith('-'):
+			return False
+		return call('getChatMember', json={'chat_id': self.where, 'user_id': who}).get('status') in (
+			'creator', 'administrator')
+
 	@staticmethod
 	def markup(buttons):
 		"""Rows of buttons.Button as Telegram's inline keyboard ('● ' marks the active one); a markup of Telegram's own
