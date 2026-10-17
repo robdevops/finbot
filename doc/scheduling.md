@@ -20,16 +20,15 @@ never run, its name and its schedule in words. Under the list, in italics, is ho
 /jobs add REPORT SCHEDULE
 /jobs add message SCHEDULE "TEXT"
 ```
-Under it are up to six buttons, two to a row, each there only where it has something to act on (Add always; Delete and Run now with any job, Enable with a job that is off, Disable and Upcoming... with one that is on). Each screen is drawn in place of the last, with **Cancel** back to the list:
-* **Add**: what the job runs, how often, then the rest down to the minute ([below](#add-step-by-step)).
-* **Delete**: a button per job, the default ones too. **Delete all** asks first ("Delete all 37 jobs here?"), then
-  deletes every job. A default job that is deleted comes back when the same job is added again.
-* **Enable**: a button per job that is off; **Enable all** switches every job on.
-* **Disable**: a button per job that is on; **Disable all** switches every job off.
-* **Run now**: a button per job; a press runs it now, as its schedule would. What the job posts shows it ran; a
+Under it is one row of buttons, each there only where it has something to act on (**+** always; **Edit** and **Run** with any job, **Upcoming** with one that is on). Each screen is drawn in place of the last:
+* **+**: what the job runs, how often, then the rest down to the minute ([below](#add-step-by-step)).
+* **Edit**: the list with a button per job, the default ones too; a press switches that job on or off at once, and a job that is off is struck through, its button too. **OK** goes back to the list. **Delete disabled jobs**, there while any job is off, asks first ("Delete the 3 disabled jobs?"), then deletes them. A default job that is deleted comes back when the same job is added again.
+* **Run**: a button per job; a press runs it now, as its schedule would. What the job posts shows it ran; a
   message says so only when it failed, or was running already. The same button pressed again within a minute does
   nothing more, as with every button.
-* **Upcoming...**: the next runs, in time order.
+* **Upcoming**: the next runs, in time order.
+
+The typed `/jobs enable`, `disable` and `delete` alone still list the jobs with a button for each, as before.
 
 A button drawn for a list that has since changed acts on nothing: the screen is drawn again as the list is now.
 

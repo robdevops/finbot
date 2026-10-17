@@ -141,6 +141,8 @@ def menu_screen(service, chat, pressed):
 		return add_step(service, chat, args)
 	page = int(args[0]) if args and args[0].isdigit() and len(args[0]) < 4 else 0
 	note = None
+	if screen == 'edit' and len(args) == 2:
+		return edit_step(service, key, scheduler, pressed, page)
 	if len(args) == 2 and screen in ('on', 'off', 'del', 'run'):
 		own, number = scheduler.chat_jobs(key), args[1]
 		every = number == 'all' and screen != 'run' or number == 'allyes' and screen == 'del' # every job at once
@@ -169,6 +171,32 @@ def menu_screen(service, chat, pressed):
 			except jobs.ScheduleError as e:
 				note = service.escape(str(e))
 	return about.jobs_screen(service, key, screen, page, note)
+
+def edit_step(service, chat, scheduler, pressed, page):
+	"""A press of the .jobs editing screen: a job switched on or off, the jobs that are off asked about (ask) or deleted
+	(yes), as long as the list is the one the button was drawn for (its checksum), else the screen is drawn as the list
+	is now, saying so."""
+	own, what = scheduler.chat_jobs(chat), pressed.args[1]
+	if jobs.list_checksum(own) != pressed.checksum:
+		return about.jobs_screen(service, chat, 'edit', page, 'The jobs have changed: here they are now')
+	note = None
+	if what == 'ask' and not all(job.on for job in own):
+		return about.delete_disabled_screen(service, chat, page)
+	if what == 'yes':
+		gone = [job for job in own if not job.on]
+		for job in gone:
+			scheduler.delete(job)
+		s = '' if len(gone) == 1 else 's'
+		return about.jobs_screen(service, chat, 'top', 0, f"Deleted {len(gone)} disabled job{s}")
+	if what.isdigit() and 1 <= int(what) <= len(own):
+		job = own[int(what) - 1]
+		try:
+			enabling = not job.on
+			scheduler.switch(job, enabling)
+			note = f"{'Enabled' if enabling else 'Disabled'} {what}. {service.escape(job.name)}"
+		except jobs.ScheduleError as e:
+			note = service.escape(str(e))
+	return about.jobs_screen(service, chat, 'edit', page, note)
 
 def add_step(service, chat, steps):
 	"""A step of Add pressed: the next choice's screen; once every choice is made, the job added, or why it is not."""

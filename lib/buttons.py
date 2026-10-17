@@ -49,7 +49,8 @@ class PickPress(typing.NamedTuple):
 	checksum: str
 
 
-MENU_SCREENS = ('top', 'on', 'off', 'del', 'run', 'add', 'next') # the .jobs menu's screens (lib/reports/about.py)
+MENU_SCREENS = ('top', 'on', 'off', 'del', 'run', 'add', 'next', 'edit')
+# the .jobs menu's screens (lib/reports/about.py)
 
 
 PICKERS = {'p': 'pie', 't': 'treemap', 'h': 'holdings', 'c': 'price', 'w': 'watchlist'} # command key -> its name
