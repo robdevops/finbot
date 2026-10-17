@@ -293,13 +293,15 @@ class Commands(FinbotCase):
 
 	def test_each_help_line_is_a_slash_command_that_reads_as_its_command(self):
 		"""Each .help line has a slash command, named as a slash command may be (.forward pe is /forwardpe), and
-		/help, /stock and /profile besides; each reads as its command, its arguments where it takes any."""
+		/help and /stock besides, and none for a command's other names (/profile, /job); each reads as its command, its
+		arguments where it takes any."""
 		commands = worker.slash_commands()
 		names = [name for name, _, _, _ in commands]
 		self.assertEqual(len(names), len(set(names)))
 		for expected in ('help', 'dividend', 'earnings', 'buy', 'sell', 'session', 'premarket', 'forwardpe', 'stock',
-				'profile', 'jobs', 'price', 'movers'):
+				'jobs', 'price', 'movers'):
 			self.assertIn(expected, names)
+		self.assertFalse({'profile', 'job'} & set(names))
 		for name, description, arguments, _ in commands:
 			with self.subTest(name=name):
 				self.assertRegex(name, r'^[a-z0-9_-]{1,32}$')

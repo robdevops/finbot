@@ -102,8 +102,8 @@ class TelegramWebhook(FinbotCase):
 			return list(menu)
 		self.patch(telegram_common, 'call', call)
 		with contextlib.redirect_stderr(io.StringIO()) as log:
-			telegram_common.set_commands(worker.slash_commands(aliases=False))
-			telegram_common.set_commands(worker.slash_commands(aliases=False))
+			telegram_common.set_commands(worker.slash_commands())
+			telegram_common.set_commands(worker.slash_commands())
 		self.assertEqual(calls, ['getMyCommands', 'setMyCommands', 'getMyCommands'])
 		self.assertIn(f'telegram: {len(menu)} commands in the menu', log.getvalue())
 		names = [entry['command'] for entry in menu]
@@ -112,7 +112,7 @@ class TelegramWebhook(FinbotCase):
 		self.assertTrue(all(re.fullmatch(r'[a-z0-9_]{1,32}', name) for name in names))
 		self.patch(telegram_common, 'call', mock.Mock(side_effect=RuntimeError('Telegram getMyCommands: Unauthorized')))
 		with contextlib.redirect_stderr(io.StringIO()) as log:
-			telegram_common.set_commands(worker.slash_commands(aliases=False))
+			telegram_common.set_commands(worker.slash_commands())
 		self.assertIn('Telegram setMyCommands failed: Telegram getMyCommands: Unauthorized', log.getvalue())
 
 	def test_the_bot_will_not_start_unregistered_and_never_logs_the_token(self):

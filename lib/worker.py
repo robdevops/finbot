@@ -861,8 +861,6 @@ def help_sections(slash=False):
 		for line in command.usage))) for section in SECTIONS]
 
 SLASH_NAME = re.compile(r'[a-z0-9_]{1,32}') # what a slash command may be named, on every network
-SLASH_ALIASES = {'stock': 'profile', 'jobs': 'job'} # slash commands with a second name, which the networks that list
-# every slash command list too (Discord, Slack); typed, the second name works on Telegram too, as every name does
 
 def slash_form(command, line):
 	"""The slash command of one of a command's .help lines, (name, the arguments it shows): named by the command's name
@@ -886,18 +884,17 @@ class Slash(typing.NamedTuple):
 	arguments: str
 	completes: bool = False
 
-def slash_commands(aliases=True):
+def slash_commands():
 	"""The slash commands to register (Slash), from the .help lines (slash_form), and /help; the arguments of a
-	command's several lines joined by " | ". With aliases, the second names of SLASH_ALIASES too, each after its
-	first."""
+	command's several lines joined by " | ". A command's other names (/profile, /job) are no slash commands: typed,
+	they work as every name does."""
 	found = {'help': (None, [])} # name -> (its command, the arguments of its lines)
 	for command in COMMANDS:
 		for line in command.usage:
 			if form := slash_form(command, line):
 				name, arguments = form
-				for each in (name, SLASH_ALIASES.get(name) if aliases else None):
-					if each and arguments not in found.setdefault(each, (command, []))[1]:
-						found[each][1].append(arguments)
+				if arguments not in found.setdefault(name, (command, []))[1]:
+					found[name][1].append(arguments)
 	return [Slash('help', 'every command, and what it takes', '') if name == 'help' else
 		Slash(name, described(name, lines), ' | '.join(lines), completes(command))
 		for name, (command, lines) in found.items()]

@@ -570,7 +570,8 @@ class SlackManifest(unittest.TestCase):
 		self.assertNotIn('app_mentions:read', manifest['oauth_config']['scopes']['bot'])
 		commands = manifest['features']['slash_commands']
 		self.assertEqual([c['command'] for c in commands], ['/' + command.name for command in worker.slash_commands()])
-		self.assertTrue({'/profile', '/job', '/forwardpe'} <= {c['command'] for c in commands})
+		names = {c['command'] for c in commands}
+		self.assertTrue({'/stock', '/jobs', '/forwardpe'} <= names and not {'/profile', '/job'} & names)
 		for command in commands:
 			with self.subTest(command=command['command']):
 				self.assertRegex(command['command'], r'^/[a-z0-9_]{1,31}$')

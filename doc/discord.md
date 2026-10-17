@@ -92,7 +92,7 @@ discordPublicKey=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde
 ## Slash commands
 
 finbot registers a slash command for each line of `/help`, as it starts, and again only when the list has changed:
-`/price`, `/dividend` and `/earnings`, `/buy` and `/sell`, `/forwardpe`, `/stock` (or `/profile`), `/jobs` (or `/job`),
+`/price`, `/dividend` and `/earnings`, `/buy` and `/sell`, `/forwardpe`, `/stock`, `/jobs`,
 and the rest. Each takes its arguments, if any, as one text option, as a message would: `/movers` with `5 7d` is
 the message `.movers 5 7d`. They work in the server's channels and in a direct message with the bot.
 
