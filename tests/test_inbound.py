@@ -274,6 +274,19 @@ class RepeatedPresses(FinbotCase):
 		self.assertEqual(self.taken[-1:], [('10', run)])
 		self.assertEqual(len(self.taken), 6)
 
+	def test_a_job_switch_pressed_again_after_a_moment_flips_it_back(self):
+		"""The same Edit, Enable or Disable button of a job is a double tap for FLIPPED seconds only; after that it is
+		a press of its own."""
+		for data in ('m|edit|0|3|ab12', 'm|off|0|3|ab12'):
+			with self.subTest(data=data):
+				self.taken.clear()
+				self.press(data)
+				self.now[0] += worker.FLIPPED / 2
+				self.assertEqual(self.press(data), ['Telegram duplicate button press ignored'])
+				self.now[0] += worker.FLIPPED
+				self.press(data)
+				self.assertEqual(self.taken, [('9', data), ('9', data)])
+
 
 class AdminOnly(FinbotCase):
 	"""The commands of admin_only (.jobs, as finbot ships) are the admins' alone (admins: no one, as it ships): someone

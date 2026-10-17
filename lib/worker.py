@@ -98,17 +98,22 @@ def press_command(data):
 	return next((command for command in COMMANDS if name in command.names), None)
 
 PRESSED = 60 # seconds in which the same button pressed again on the same message is taken once
+FLIPPED = 2 # seconds, for a button that flips a job on or off (the same one flips it back): only a double tap
 _presses = collections.OrderedDict() # (service, chat, message) -> (data, when) of the last press taken there
 _presses_lock = threading.Lock() # presses arrive on several threads
 
 def repeated(press, keep=1000):
 	"""Whether a press repeats the last one taken on the same message, within PRESSED seconds of it: the same button
 	pressed again, whose answer the message shows (or is on its way), or whose job (Run now) has run; bot.take drops
-	it. Another button pressed between them, or the first press failing (forget), makes it a press of its own."""
+	it. Another button pressed between them, or the first press failing (forget), makes it a press of its own. The
+	same button of a job's switch (the .jobs menu's Edit, Enable, Disable) is a repeat for FLIPPED seconds only: pressed
+	later, it flips the job back."""
 	key, now = (press.service, press.chat_id, press.message_id), time.monotonic()
+	pressed = buttons.parse(press.data)
+	within = FLIPPED if isinstance(pressed, buttons.MenuPress) and pressed.screen in ('edit', 'on', 'off') else PRESSED
 	with _presses_lock:
 		last = _presses.pop(key, None)
-		again = last is not None and last[0] == press.data and now - last[1] <= PRESSED
+		again = last is not None and last[0] == press.data and now - last[1] <= within
 		_presses[key] = last if again else (press.data, now)
 		if len(_presses) > keep:
 			_presses.popitem(last=False)
