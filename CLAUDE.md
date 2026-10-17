@@ -98,7 +98,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.pie .treemap .holdings
   .price` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
   `process_pick_callback`): the first answer at once (the first portfolio or ticker; price's `+`, ending its period
-  row, opens the ticker picker, and `Show` draws the ticks), the buttons kept under it and every press re-editing the answer from
+  row, opens the ticker picker, and `OK` draws the ticks), the buttons kept under it and every press re-editing the answer from
   `shown` (an item's number plus one; compare's tickers, `pick.pack`), but a tick or a page of tickers its buttons alone
   (`m`; `n` under a note, which the next press takes away), 32 items a page (`pick.layout`; fewer on Discord) turned by
   `<` `>` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list

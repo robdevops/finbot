@@ -1070,7 +1070,7 @@ class Pickers(FinbotCase):
 
 	def test_compare_starts_on_the_first_ticker_alone(self):
 		""".compare (and .history) answers with the first ticker alone at once, on 7D, the periods and + in one row; +
-		opens the tickers' screen with the ticks as they are (the first ticker's); Show draws those ticked."""
+		opens the tickers' screen with the ticks as they are (the first ticker's); OK draws those ticked."""
 		self.command('.compare')
 		self.assertEqual(self.labels(), [['● 7D', '1M', '1Y', 'Max', '+']])
 		self.assertTrue(any('Co T0' in line for line in self.showing))
@@ -1079,7 +1079,7 @@ class Pickers(FinbotCase):
 		self.assertEqual((kind, ticks), ('buttons', ['✅ T0'])) # the first ticker, as shown, stays ticked
 		self.tap('✅ T0') # unticked
 		self.tap('T3')
-		kind, lines, rows = self.tap('Show')
+		kind, lines, rows = self.tap('OK')
 		self.assertTrue(any('Co T3' in line for line in lines) and not any('Co T0' in line for line in lines))
 		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+']])
 		kind, lines, rows = self.tap('+') # T3 stays ticked
@@ -1087,7 +1087,7 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.command('.history'), self.command('.compare'))
 
 	def test_compare_ticks_change_the_buttons_until_show_is_pressed(self):
-		""".compare answers at the period typed; ticking changes the buttons, not the chart, until Show is pressed,
+		""".compare answers at the period typed; ticking changes the buttons, not the chart, until OK is pressed,
 		which shows those ticked and goes back to the period row."""
 		self.command('.compare 1y')
 		first = self.sent[-1][2]
@@ -1096,8 +1096,8 @@ class Pickers(FinbotCase):
 		kind, lines, rows = self.tap('T10')
 		self.assertEqual((lines[0], self.labels(rows)[0][:3]), (first, ['✅ T0', 'T1', '✅ T10']))
 		self.assertFalse(any('Co T10' in line for line in lines)) # the chart is still of the first
-		self.assertEqual(self.labels(rows)[-1], ['◀ Back', 'Show'])
-		kind, lines, rows = self.tap('Show')
+		self.assertEqual(self.labels(rows)[-1], ['◀ Back', 'OK'])
+		kind, lines, rows = self.tap('OK')
 		self.assertTrue(any('Co T10' in line for line in lines) and any('Co T0' in line for line in lines))
 		self.assertEqual((self.toasts[-1], self.labels(rows)), (('Loading…', False),
 			[['7D', '1M', '● 1Y', 'Max', '+']]))
@@ -1265,11 +1265,11 @@ class Pickers(FinbotCase):
 		kind, lines, rows = self.tap('S40')
 		kind, lines, rows = self.tap('>')
 		self.assertEqual((self.labels(rows)[-1], [t for row in self.labels(rows)[:-1] for t in row][-1]),
-			(['◀ Back', '<', 'Show'], 'S69'))
+			(['◀ Back', '<', 'OK'], 'S69'))
 		kind, lines, rows = self.tap('<')
 		self.assertIn('✅ S40', [t for row in self.labels(rows) for t in row])
 		kind, lines, rows = self.tap('◀ Back')
-		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+'], ['Show']])
+		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+'], ['OK']])
 
 	def test_a_ninth_tick_is_refused_on_a_later_page(self):
 		"""The limit of eight counts every page's ticks, and the refusal stays on the page."""
@@ -1284,13 +1284,13 @@ class Pickers(FinbotCase):
 			buttons.TOO_MANY, ['S32', 'S33']))
 
 	def test_an_item_on_a_later_page_is_the_one_picked(self):
-		"""A ticker ticked on page two is the one Show draws, back at the top."""
+		"""A ticker ticked on page two is the one OK draws, back at the top."""
 		self.many()
 		self.command('.compare')
 		self.tap('+')
 		self.tap('>')
 		self.tap('S40')
-		kind, lines, rows = self.tap('Show')
+		kind, lines, rows = self.tap('OK')
 		self.assertTrue(any('Co S40' in line for line in lines))
 		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+']])
 
@@ -1307,7 +1307,7 @@ class Pickers(FinbotCase):
 
 	def test_discord_pages_hold_five_rows(self):
 		"""Discord's five rows of five buttons hold 12 portfolios with Group by and the page buttons, or 20 tickers
-		with Back, the page buttons and Show."""
+		with Back, the page buttons and OK."""
 		for cmd, items in (('t', 12), ('p', 12), ('c', 20)):
 			with self.subTest(cmd=cmd):
 				names = [f'N{i:02d}' for i in range(60)]

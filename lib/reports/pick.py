@@ -109,7 +109,7 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		rows.append([button(buttons.PERIODS[key][0], 'p0', key == period, period=key) for key in buttons.BUTTONS['c']] +
 			[button('+', f"{step}0")])
 		if to_compare:
-			rows.append([button('Show', 'h0')])
+			rows.append([button('OK', 'h0')])
 	on_page = items_on(found, page, per_page)
 	if noun(cmd) == 'portfolio':
 		rows += chunks([button(name, f"r{i}", shown == i + 1, shown=i + 1) for i, name in on_page], per_row)
@@ -132,7 +132,7 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		nav += ([button('<', f"{act}{page - 1}")] if page else []) + (
 			[button('>', f"{act}{page + 1}")] if page < pages - 1 else [])
 	if view == 'm' and to_compare:
-		nav.append(button('Show', 'h0'))
+		nav.append(button('OK', 'h0'))
 	if nav:
 		rows.append(nav)
 	if noun(cmd) == 'portfolio':

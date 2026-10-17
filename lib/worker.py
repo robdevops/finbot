@@ -214,7 +214,7 @@ def add_step(service, chat, steps):
 
 def process_pick_callback(press, pressed):
 	"""A press in a picker (an inbound.Press; pressed, the buttons.PickPress its data says): the message shows the
-	answer for what it shows now (`shown`), or for the item or Show pressed, with the screen the press asks for
+	answer for what it shows now (`shown`), or for the item or OK pressed, with the screen the press asks for
 	under it; a tick or a page of tickers changes only the buttons, where the network can (Transport.edit_buttons).
 	Buttons drawn for another list of items start the picker again at its first answer, saying so."""
 	service = dialects.of(press.service)
