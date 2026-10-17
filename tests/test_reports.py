@@ -1038,8 +1038,8 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(), [['● P0', 'P1', 'P2', 'P3'], names[4:], ['Grouped by: Industry ▾']])
 
 	def test_the_group_menu_and_another_portfolio_redraw_the_answer(self):
-		"""The Grouped by button opens a menu of the five groupings, the one shown marked, and a choice (or Back) redoes
-		the chart in place with the portfolio buttons; another portfolio's button does too."""
+		"""The Grouped by button opens a menu of the five groupings, the one shown marked; a choice redoes the chart in
+		place and keeps the menu, Back returns to the portfolio buttons; another portfolio's button redoes it too."""
 		self.portfolios('Amy', 'Zed')
 		self.command('.treemap')
 		kind, lines, rows = self.tap('Grouped by: Industry ▾')
@@ -1047,19 +1047,17 @@ class Pickers(FinbotCase):
 			[['Country', 'Currency', '● Industry'], ['◀ Back', 'Market', 'Sector']]))
 		kind, lines, rows = self.tap('Sector')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by sector</b>',
-			[['● Amy', 'Zed'], ['Grouped by: Sector ▾']]))
+			[['Country', 'Currency', 'Industry'], ['◀ Back', 'Market', '● Sector']])) # the menu stays
 		self.assertEqual(self.toasts[-1], ('Updating…', False))
-		kind, lines, rows = self.tap('Zed')
-		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Zed treemap by sector</b>',
-			[['Amy', '● Zed'], ['Grouped by: Sector ▾']]))
-		self.tap('Grouped by: Sector ▾')
 		kind, lines, rows = self.tap('Currency')
-		self.assertEqual((lines[0], self.labels(rows)[1]),
-			('<b>Zed treemap by currency</b>', ['Grouped by: Currency ▾']))
-		self.tap('Grouped by: Currency ▾')
+		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by currency</b>',
+			[['Country', '● Currency', 'Industry'], ['◀ Back', 'Market', 'Sector']]))
 		kind, lines, rows = self.tap('◀ Back')
-		self.assertEqual((lines[0], self.labels(rows)[1]),
-			('<b>Zed treemap by currency</b>', ['Grouped by: Currency ▾']))
+		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by currency</b>',
+			[['● Amy', 'Zed'], ['Grouped by: Currency ▾']]))
+		kind, lines, rows = self.tap('Zed')
+		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Zed treemap by currency</b>',
+			[['Amy', '● Zed'], ['Grouped by: Currency ▾']]))
 
 	def test_a_holdings_answer_keeps_its_buttons(self):
 		""".holdings: another portfolio's list as text in place of the first's, the portfolio buttons still under it."""

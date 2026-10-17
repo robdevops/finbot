@@ -36,7 +36,8 @@ class PickPress(typing.NamedTuple):
 	treemap's: a key of GROUPS, or 0 for neither), the period (a key of PERIODS, or 0), what the message shows
 	(shown: 0 nothing yet, an item's number plus one, or the ticked tickers packed), the items ticked (a bit of the mask
 	each), what the press asks for (act: a letter and a number: p the first screen, e a watchlist's editing screen, g a
-	treemap's menu of groupings and m the tickers' screen, each at a page, n as m under a message showing a note, which
+	treemap's menu of groupings (q a grouping chosen in it, shown with the menu kept) and m the tickers' screen, each
+	at a page, n as m under a message showing a note, which
 	it takes away; f a tick refused, as too many, the tickers' screen at a page; r an item's number, to run it and show
 	the first screen; h the ticked ones, to run them and show the first screen) and the checksum of the list of items
 	it was drawn for, stale once that changes."""
@@ -128,7 +129,7 @@ def parse(data):
 		parts = rest.split('|')
 		if (len(parts) == 7 and parts[0] in PICKERS and parts[1] in ('0', *GROUPS) and (parts[2] in PERIODS or
 				parts[2] == '0') and len(parts[3]) <= 2 * MAX_PICKED and len(parts[4]) <= 25 and
-				parts[5][:1] in 'pmnfrheg' and
+				parts[5][:1] in 'pmnfrhegq' and
 				parts[5][1:].isdigit() and all(part.isascii() and part.isalnum() for part in parts) and
 				len(data.encode()) <= MAX_CALLBACK_BYTES):
 			try:

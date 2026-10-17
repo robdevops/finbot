@@ -101,9 +101,9 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		return buttons.pick_button(label, buttons.PickPress(cmd, now['group'], now['period'], now['shown'],
 			now['mask'], act, crc), active)
 	rows = []
-	if view == 'g': # the treemap's menu: a choice, or Back, goes to the first screen with the chart redone in place
+	if view == 'g': # the treemap's menu: a choice redoes the chart and stays; Back
 		chosen = group if group in holdings.GROUPS else 'i'
-		menu = {name: button(name.capitalize(), f"p{page}", key == chosen, group=key)
+		menu = {name: button(name.capitalize(), f"q{page}", key == chosen, group=key)
 			for key, name in sorted(holdings.GROUPS.items(), key=lambda item: item[1])}
 		back = button('◀ Back', f"p{page}")
 		return ['Grouped by'], [[menu['country'], menu['currency'], menu['industry']],

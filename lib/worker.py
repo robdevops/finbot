@@ -234,8 +234,8 @@ def process_pick_callback(press, pressed):
 		if stale:
 			shown, mask = pick.default(cmd, found)
 		per_page = pick.layout(service, cmd)[0]
-		view = 'm' if kind in 'mnf' else 'g' if kind == 'g' else 'p' # picking a ticker, or OK, goes back to the top
-		page = number if kind in 'pmnfg' else number // per_page if kind == 'r' else 0
+		view = 'm' if kind in 'mnf' else 'g' if kind in 'gq' else 'p' # picking a ticker, or OK, goes back to the top
+		page = number if kind in 'pmnfgq' else number // per_page if kind == 'r' else 0
 		note = 'The list has changed: here it is now' if stale else buttons.TOO_MANY if kind == 'f' else None
 		if kind == 'r' and number < len(found):
 			shown = number + 1
