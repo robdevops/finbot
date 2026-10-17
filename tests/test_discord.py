@@ -301,7 +301,7 @@ class Commands(FinbotCase):
 		for expected in ('help', 'earningsdividend', 'buysell', 'forwardpe', 'stock',
 				'jobs', 'price', 'movers'):
 			self.assertIn(expected, names)
-		gone = {'profile', 'job', 'session', 'premarket', 'pe', 'pie', 'plan', 'buy', 'sell', 'earnings', 'dividend'}
+		gone = {'profile', 'job', 'session', 'premarket', 'pie', 'plan', 'buy', 'sell', 'earnings', 'dividend'}
 		self.assertFalse(gone & set(names))
 		for name, description, arguments, _ in commands:
 			with self.subTest(name=name):

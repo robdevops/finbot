@@ -921,8 +921,8 @@ class JobsMenu(ChatBase):
 		self.assertEqual(lines, ['<b>Add a job: which report?</b>'])
 		self.assertEqual(rows, [['trades', 'movers midsession', 'movers premarket'], ['movers close', 'movers',
 			'performance'], ['cal earnings', 'cal ex-dividend', 'shorts'], ['rating', 'milestone', 'reminder'],
-			['holdings', 'treemap', 'who'], ['marketcap', 'beta', 'price'], ['buysell', 'forward pe', 'peg'],
-			['stock'], ['Cancel']])
+			['holdings', 'treemap', 'who'], ['marketcap', 'beta', 'price'], ['buysell', 'pe', 'forward pe'],
+			['peg', 'stock'], ['Cancel']])
 		self.assertEqual((data['movers'], data['Cancel']), (f'm|add|5|{self.crc()}', f'm|top|0|{self.crc()}'))
 		lines, rows, data = self.press(data['movers'])
 		self.assertEqual((lines, rows), (['<b>Add movers: how often?</b>', '', '<i>† indicates default</i>'],
@@ -1059,7 +1059,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual(([len(row) for row in first], [button.label for button in first[-1]]), ([4, 4, 4, 4, 2],
 			['More ▶', 'Cancel']))
 		self.assertEqual([button.label for row in second for button in row], ['beta', 'price',
-			'buysell', 'forward pe', 'peg', 'stock', '◀', 'Cancel'])
+			'buysell', 'pe', 'forward pe', 'peg', 'stock', '◀', 'Cancel'])
 
 	def test_a_step_that_is_none_adds_nothing(self):
 		"""Data that is no step of Add (forged, or an older finbot's: the weekdays frequency, the next 14 days, every...

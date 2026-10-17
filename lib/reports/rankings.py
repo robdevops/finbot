@@ -1,4 +1,4 @@
-"""Ranked lists of the stocks followed (.marketcap, .forward pe and .peg, .beta, .buy and .sell), and one stock's
+"""Ranked lists of the stocks followed (.marketcap, .pe, .forward pe and .peg, .beta, .buy and .sell), and one stock's
 market cap or ratio."""
 from lib import log
 from lib import answer
@@ -65,10 +65,10 @@ def prepare_rating_payload(service, chat, action, length=15):
 		tuple(shown), value_format='number', xlim=(max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25)))
 	return [service.bold(message)] + payload, chart
 
-RATIOS = {'forward pe': 'price_to_earnings_forward', 'peg': 'price_to_earnings_peg'}
+RATIOS = {'pe': 'price_to_earnings_trailing', 'forward pe': 'price_to_earnings_forward', 'peg': 'price_to_earnings_peg'}
 
 def ratio_line(service, ticker, kind):
-	"""One stock's line for .forward pe or .peg SYMBOL (kind: forward pe or peg): its P/E, trailing and
+	"""One stock's line for .pe, .forward pe or .peg SYMBOL (kind: pe, forward pe or peg): its P/E, trailing and
 	forward where Yahoo has them, or its PEG. Raises answer.Answer when Yahoo knows neither the stock nor the ratio (a
 	loss-maker has no trailing P/E)."""
 	data = yahoo.fetch([ticker]).get(ticker)
@@ -86,7 +86,7 @@ def ratio_line(service, ticker, kind):
 	return f"{links.stock_line(ticker, data, service)} {figures}"
 
 def ratio_list(service, chat, kind, mode='top', length=15):
-	"""(payload, chart): the `length` stocks a chat follows (by its key) by a ratio (kind: forward pe or peg),
+	"""(payload, chart): the `length` stocks a chat follows (by its key) by a ratio (kind: pe, forward pe or peg),
 	lowest first (mode top), highest first (bottom), or the negative ones only, lowest first (negative). A forward P/E
 	is analysts' estimate, so its list takes only stocks that min_analysts or more analysts cover, as .buy does."""
 	field = RATIOS[kind]

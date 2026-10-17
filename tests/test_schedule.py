@@ -30,14 +30,14 @@ class Actions(unittest.TestCase):
 			'session', 'earnings', 'trades'} & set(commands))
 		self.assertEqual(jobs.chat_actions(), ['cal', 'message', 'milestone', 'movers', 'performance', 'podcasts',
 			'rating', 'shorts', 'trades', 'holdings', 'treemap', 'who', 'marketcap', 'beta', 'price',
-			'buysell', 'forward pe', 'peg', 'stock'])
+			'buysell', 'pe', 'forward pe', 'peg', 'stock'])
 
 	def test_a_command_of_help_as_a_job(self):
 		"""A job may run a command of .help by its name, the words it takes before the schedule; another of its names
 		(a typo too) stands for it, but buy and sell's, which say which; one that takes no words refuses them, one
 		that needs a stock refuses none, and one whose usage brackets its stock or portfolio (a picker's) runs bare."""
 		weekly = when.parse('weekly', 'UTC')
-		for text, action, args in (('peg negative weekly', 'peg', ['negative']),
+		for text, action, args in (('pe top weekly', 'pe', ['top']), ('peg negative weekly', 'peg', ['negative']),
 				('forward pe weekly', 'forward pe', []),
 				('compare AAPL MSFT 1y weekly at 9am', 'compare', ['AAPL', 'MSFT', '1y']),
 				('buy&sell weekly', 'buy&sell', []), ('holdings Rob weekly', 'holdings', ['Rob']),
@@ -62,7 +62,7 @@ class Actions(unittest.TestCase):
 		daily = when.parse('daily', 'UTC')
 		for action, args in (('os.system', ['ls']), ('price; rm -rf /', []), ('lib.reports.price', ['close']),
 				('__import__', ['os']), ('eval', ['1']), ('yahoo_warm', []), ('movers', ['bogus']), ('trades', [7]),
-				(['trades'], []), ('movers', 'close'), ('jobs', []), ('plan', ['x']), ('pe', []),
+				(['trades'], []), ('movers', 'close'), ('jobs', []), ('plan', ['x']),
 				('watchlist', ['add', 'X']),
 				('help', []), ('on_jobs', [])):
 			with self.subTest(action=action, args=args), self.assertRaises(jobs.ScheduleError):

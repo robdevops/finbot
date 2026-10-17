@@ -43,6 +43,7 @@ Where:
 /jobs add message schedule "text"
 /marketcap [symbol|top|bottom]
 /movers [percent|top|bottom|session|premarket] [period]
+/pe [symbol|top|bottom]
 /peg [symbol|top|bottom|negative]
 /performance [period] [portfolio]
 /price [symbol...] [period]
@@ -254,13 +255,14 @@ Command:
 /shorts [percent]
 ```
 
-### forward pe / peg
+### pe / forward pe / peg
 ![Forward PE report in Slack](../img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
-List securities by forward P/E ratio, or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`).
+List securities by P/E ratio, forward P/E ratio, or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`).
 
 Command:
 ```
+/pe [SYMBOL|top|bottom]
 /forwardpe [SYMBOL|top|bottom|negative]
 /peg [SYMBOL|top|bottom|negative]
 ```

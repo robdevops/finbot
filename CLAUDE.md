@@ -84,7 +84,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   asked (`delivery.asked(dest)`: a command, a button, or Run now and `.jobs run`, whose destination is scheduled but
   `asked`); on schedule it posts nothing. Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens:
   `jobs_screen`, `add_screen`, `next_screen`), `history` (.price, also called .compare and .history: one stock's line, or
-  two to eight rebased), `holdings` (.holdings .who .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap
+  two to eight rebased), `holdings` (.holdings .who .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe
   .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
   `chat(key)`, as its network's bot), `deliver(dest, report)` (a chart refused goes again with its heading alone as the

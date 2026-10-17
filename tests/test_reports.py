@@ -11,7 +11,8 @@ class Commands(FinbotCase):
 	def test_text_commands(self):
 		"""Every text command answers."""
 		for cmd in ('.help', '/start', '.who', '.holdings', '.marketcap',
-					'.fpe', '.peg', '.beta', '.buy', '.sell', '.buysell', '.earnings', '.dividend', '.earningsdividend',
+					'.pe', '.fpe', '.peg', '.beta', '.buy', '.sell', '.buysell', '.earnings', '.dividend',
+					'.earningsdividend',
 					'.earnings T1', '.dividend T1', '.trades', '.trades 30d', '.price T1', '.session T1',
 					'.premarket T1', '.shorts T1', '.watchlist', '.T1'):
 			with self.subTest(cmd=cmd):
@@ -276,7 +277,8 @@ class ReportFunctions(FinbotCase):
 
 	def test_prepare_value(self):
 		"""Each ratio report has its heading: top, bottom, and negative, where none found is nothing to show."""
-		for kind, mode, heading in (('forward pe', 'bottom', 'Bottom 5 tracked stocks by forward pe ratio'),
+		for kind, mode, heading in (('pe', 'top', 'Top 5 tracked stocks by pe ratio'),
+				('forward pe', 'bottom', 'Bottom 5 tracked stocks by forward pe ratio'),
 				('peg', 'top', 'Top 5 tracked stocks by peg ratio')):
 			with self.subTest(kind=kind, mode=mode):
 				payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', kind, mode, length=5)
@@ -286,19 +288,20 @@ class ReportFunctions(FinbotCase):
 		self.assertEqual(none.exception.lines, ['negative peg: no data found'])
 
 	def test_one_stocks_ratio_shows_what_yahoo_has(self):
-		""".fpe of a loss-maker shows its forward P/E (it used to say nothing), .peg labels its figure, and a stock
+		""".pe of a loss-maker shows its forward P/E (it used to say nothing), .peg labels its figure, and a stock
 		without the ratio asked for, or one Yahoo does not know, is said to have none."""
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_trailing': None} for t in ts
 			if not t.startswith('NONE')})
-		self.assertEqual(self.command('.fpe T1')[0][1][0].split(') ')[1], 'PE: forward 9')
+		self.assertEqual(self.command('.pe T1')[0][1][0].split(') ')[1], 'PE: forward 9')
 		self.assertEqual(self.command('.peg T1')[0][1][0].split(') ')[1], 'PEG: 1.2')
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'price_to_earnings_peg': None}})
 		self.assertEqual(self.command('.peg T1'), [('text', ['T1: no peg ratio found'])])
-		self.assertEqual(self.command('.fpe NONE.L'), [('text', ['NONE.L: no data found'])])
+		self.assertEqual(self.command('.pe NONE.L'), [('text', ['NONE.L: no data found'])])
 
-	def test_fpe_sends_its_chart_as_peg_does(self):
-		""".fpe builds a chart, and sends it."""
-		self.assertEqual([kind for kind, *_ in self.command('.fpe')], ['photo'])
+	def test_pe_sends_its_chart_as_forward_pe_and_peg_do(self):
+		""".pe and .fpe build a chart, and send it."""
+		for typed in ('.pe', '.fpe'):
+			self.assertEqual([kind for kind, *_ in self.command(typed)], ['photo'])
 
 	def test_prepare_beta(self):
 		"""The beta report charts a bar per stock listed, and says so when none qualify."""
