@@ -170,7 +170,7 @@ def make_job(action, args, schedule, chat='', on=True, item=None, name=None):
 
 def display_name(action, args, schedule, label):
 	"""What .jobs calls a job a chat added: performance or movers alone where the period follows how often it runs
-	(catalog.period_args), 'reminder: ' and its first line, else its parser's label ('earnings', 'movers 30')."""
+	(catalog.period_args), its first line, else its parser's label ('earnings', 'movers 30')."""
 	if action == 'message':
 		return catalog.message_name(args)
 	if action in catalog.PERIODIC and list(args) == catalog.period_args(action, schedule):
@@ -471,12 +471,17 @@ class Scheduler:
 			return {key for key in self.busy if key.partition('|')[0] in (chat, '')}
 
 	def chat_jobs(self, chat):
-		"""A chat's jobs, as .jobs numbers them from 1: the reports, then the reminders, each the default ones, then
-		those it added, but a one-off gone by."""
+		"""A chat's jobs, as .jobs numbers them from 1: those of each action together (the default ones, then those it
+		added), the actions in the order of the default jobs, the commands of .help after them, the reminders last;
+		but a one-off gone by."""
 		now = self.clock()
 		with self.lock:
 			jobs = [job for job in self.jobs if job.chat == chat]
-		return sorted((job for job in jobs if not self.expired(job, now)), key=lambda job: job.action == 'message')
+		order = {}
+		for item in catalog.ITEMS:
+			order.setdefault(item.action, len(order))
+		return sorted((job for job in jobs if not self.expired(job, now)),
+			key=lambda job: (job.action == 'message', order.get(job.action, len(order)), job.action))
 
 	def system_jobs(self):
 		"""The system jobs."""

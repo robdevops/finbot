@@ -9,7 +9,7 @@ direct message with the bot, until the chat switches them. finbot knows a chat f
 channel on Slack, and on Discord a message from no server.
 
 ## The menu
-`/jobs` lists the chat's jobs, numbered, a page at a time, the reports first, then the reminders, each under its own heading. Each line shows ✅ (on) or the line struck through (off), a `*` if the job has
+`/jobs` lists the chat's jobs, numbered, a page at a time, the jobs of each report together under a heading with its name (Movers, Shorts, ...), the reminders last under theirs. Each line shows ✅ (on) or the line struck through (off), a `*` if the job has
 never run, its name and its schedule in words. Under the list, in italics, is how Add is typed:
 ```
 1. ✅ trades · every 20 mins, Mon 9am – Sat 3pm Sydney
@@ -146,16 +146,16 @@ move as either side's daylight saving changes.
 | 22 | movers | bi-annual, 2 Jan and 2 Jul at 8:30am Sydney |
 | 23 | performance | annual, 2 Jan at 8:30am Sydney |
 | 24 | movers | annual, 2 Jan at 8:30am Sydney |
-| 25 | reminder: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 | annual, 31 Mar at 8:30am Sydney |
-| 26 | reminder: SPCX IPO anniversary | annual, 12 Jun at 8:30am Sydney |
-| 27 | reminder: 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
-| 28 | reminder: 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
-| 29 | reminder: ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
-| 30 | reminder: finbot's birthday | annual, 18 Aug at 8:30am Sydney |
-| 31 | reminder: 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
-| 32 | reminder: ubank draw 6/6 … (AU) | once, 28 Oct 2026 at 8:30am Sydney |
-| 33 | reminder: 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
-| 34 | reminder: SPCX 5th mensiversary … | once, 12 Nov 2026 at 8:30am Sydney |
+| 25 | 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 | annual, 31 Mar at 8:30am Sydney |
+| 26 | SPCX IPO anniversary | annual, 12 Jun at 8:30am Sydney |
+| 27 | 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
+| 28 | 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
+| 29 | ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
+| 30 | finbot's birthday | annual, 18 Aug at 8:30am Sydney |
+| 31 | 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
+| 32 | ubank draw 6/6 … (AU) | once, 28 Oct 2026 at 8:30am Sydney |
+| 33 | 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
+| 34 | SPCX 5th mensiversary … | once, 12 Nov 2026 at 8:30am Sydney |
 
 * **Market reports run in their market's zone**, so they keep to its session through its daylight saving:
   * pre-market US at 7:15am New York;

@@ -71,11 +71,11 @@ def message(key, date, lines, country=None, name=None):
 
 
 def message_name(lines, country=None, size=56):
-	"""What .jobs calls a message job: 'reminder: ', its first line's words cut to fit, and the country it is for."""
+	"""What .jobs calls a reminder: its first line's words cut to fit, and the country it is for."""
 	first = next((formats.plain(line).replace('{flag}', '').strip() for line in lines if line.strip()), '')
 	if len(first) > size:
 		first = first[:size].rsplit(' ', 1)[0] + ' …'
-	return f"reminder: {first}" + (f' ({country})' if country else '')
+	return first + (f' ({country})' if country else '')
 
 
 EOFY_CHECKLIST = (
@@ -124,7 +124,7 @@ ITEMS = (
 	message('message-intent-to-claim', '07-07', ["✍️ Submit 'Notice of Intent to Claim' for any post-tax Super"
 		" contributions. The fund must acknowledge them before you lodge your tax return{flag}"], 'AU'),
 	message('message-birthday', '08-18', ["It's my {years since 2022-08-18} birthday! 🥳"],
-		name="reminder: finbot's birthday"),
+		name="finbot's birthday"),
 	message('message-tax-due-soon', '10-25', ['😓 Self-service individual tax returns are due Oct 31{flag}'], 'AU'),
 	message('message-ubank-draw-6', '2026-10-28', ['ubank draw 6/6 https://www.ubank.com.au/campaigns/doubleyourpay'
 		' → Winners'], 'AU'),

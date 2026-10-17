@@ -198,35 +198,35 @@ class DefaultJobs(unittest.TestCase):
 		"""The default jobs by name, each with its schedule in words, as a chat in Melbourne sees them in mid-October:
 		each in its market's zone, the local time beside it where the clocks differ."""
 		described = [f'{item.name} · {item.schedule.describe(MELBOURNE, OCTOBER)}' for item in catalog.items('AU')]
-		self.assertEqual(described, ['trades · every 20 mins, Mon 9am – Sat 3pm Sydney',
-			'movers midsession AU · weekdays at 1:00pm Sydney',
+		self.assertEqual(described, ['trades · every 20 mins, Mon 9am – Sat 3pm',
+			'movers midsession AU · weekdays at 1:00pm',
 			'movers midsession US · weekdays at 12:45pm New York (3:45am local, Tue–Sat)',
 			'movers premarket US · weekdays at 7:15am New York (10:15pm local)',
-			'movers close AU · weekdays at 4:30pm Sydney',
+			'movers close AU · weekdays at 4:30pm',
 			'movers close HK · weekdays at 4:30pm Hong Kong (7:30pm local)',
 			'movers close UK · weekdays at 5:00pm London (3:00am local, Tue–Sat)',
 			'movers close US · weekdays at 4:30pm New York (7:30am local, Tue–Sat)',
-			'rating · Tue–Sat at 8:30am Sydney', 'milestone · Tue–Sat at 8:30am Sydney',
-			'podcasts Money Cafe · hourly at :01, weekdays 10am–9pm Sydney',
-			'podcasts Stocktake · hourly at :01, weekdays 10am–9pm Sydney',
-			'earnings · weekly, Sundays at 8:30am Sydney',
-			'shorts · weekly, Sundays at 8:30am Sydney', 'performance · weekly, Sundays at 8:30am Sydney',
-			'movers · weekly, Sundays at 8:30am Sydney', 'performance · monthly, the 2nd at 8:30am Sydney',
-			'movers · monthly, the 2nd at 8:30am Sydney', 'performance · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney',
-			'movers · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney',
-			'performance · bi-annual, 2 Jan and 2 Jul at 8:30am Sydney',
-			'movers · bi-annual, 2 Jan and 2 Jul at 8:30am Sydney', 'performance · annual, 2 Jan at 8:30am Sydney',
-			'movers · annual, 2 Jan at 8:30am Sydney',
-			'reminder: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 · annual, 31 Mar at 8:30am Sydney',
-			'reminder: SPCX IPO anniversary · annual, 12 Jun at 8:30am Sydney',
-			'reminder: 💸 Realise capital gains/losses by EOFY June 30 (AU) · annual, 23 Jun at 8:30am Sydney',
-			'reminder: 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 · annual, 30 Jun at 8:30am Sydney',
-			"reminder: ✍️ Submit 'Notice of Intent to Claim' for any post-tax … (AU) · annual, 7 Jul at 8:30am Sydney",
-			"reminder: finbot's birthday · annual, 18 Aug at 8:30am Sydney",
-			'reminder: 😓 Self-service individual tax returns are due Oct 31 (AU) · annual, 25 Oct at 8:30am Sydney',
-			'reminder: ubank draw 6/6 … (AU) · once, 28 Oct 2026 at 8:30am Sydney',
-			'reminder: 😰 Self-service individual tax returns are due today (AU) · annual, 31 Oct at 8:30am Sydney',
-			'reminder: SPCX 5th mensiversary. End of (statistically) most … · once, 12 Nov 2026 at 8:30am Sydney'])
+			'rating · Tue–Sat at 8:30am', 'milestone · Tue–Sat at 8:30am',
+			'podcasts Money Cafe · hourly at :01, weekdays 10am–9pm',
+			'podcasts Stocktake · hourly at :01, weekdays 10am–9pm',
+			'earnings · weekly, Sundays at 8:30am',
+			'shorts · weekly, Sundays at 8:30am', 'performance · weekly, Sundays at 8:30am',
+			'movers · weekly, Sundays at 8:30am', 'performance · monthly, the 2nd at 8:30am',
+			'movers · monthly, the 2nd at 8:30am', 'performance · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am',
+			'movers · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am',
+			'performance · bi-annual, 2 Jan and 2 Jul at 8:30am',
+			'movers · bi-annual, 2 Jan and 2 Jul at 8:30am', 'performance · annual, 2 Jan at 8:30am',
+			'movers · annual, 2 Jan at 8:30am',
+			'🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 · annual, 31 Mar at 8:30am',
+			'SPCX IPO anniversary · annual, 12 Jun at 8:30am',
+			'💸 Realise capital gains/losses by EOFY June 30 (AU) · annual, 23 Jun at 8:30am',
+			'🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 · annual, 30 Jun at 8:30am',
+			"✍️ Submit 'Notice of Intent to Claim' for any post-tax … (AU) · annual, 7 Jul at 8:30am",
+			"finbot's birthday · annual, 18 Aug at 8:30am",
+			'😓 Self-service individual tax returns are due Oct 31 (AU) · annual, 25 Oct at 8:30am',
+			'ubank draw 6/6 … (AU) · once, 28 Oct 2026 at 8:30am',
+			'😰 Self-service individual tax returns are due today (AU) · annual, 31 Oct at 8:30am',
+			'SPCX 5th mensiversary. End of (statistically) most … · once, 12 Nov 2026 at 8:30am'])
 
 	def test_a_message_for_one_country_only_there_with_its_flag(self):
 		"""A message for one country is a default job only where it is the country_code setting, with its flag."""
@@ -240,7 +240,7 @@ class DefaultJobs(unittest.TestCase):
 
 	def test_a_job_that_is_a_default_one(self):
 		"""A job is a default one where its action, arguments, days and times are, in a zone that keeps the same clock
-		(Melbourne's and Sydney's), and not in another (Brisbane's has no summer time)."""
+		(Melbourne's and's), and not in another (Brisbane's has no summer time)."""
 		def matching(text):
 			"""The default job that .jobs add's text is in Melbourne, or None."""
 			item = catalog.matching(*jobs.parse_add(text, MELBOURNE), 'AU')
@@ -303,7 +303,7 @@ class DirectMessages(FinbotCase):
 		self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {'dm': True}) # still a DM
 
 	def test_a_chat_seen_says_whether_it_is_a_direct_message(self):
-		"""At a chat's first command it starts with its default jobs off where it is a direct reminder: Discord's update
+		"""At a chat's first command it starts with its default jobs off where it is a direct Discord's update
 		says so, Telegram's chat id does."""
 		self.env(discordBotToken='x')
 		s = jobs.Scheduler(clock=lambda: OCTOBER)

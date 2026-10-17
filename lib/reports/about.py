@@ -87,8 +87,8 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, h
 		lines.append(NOTHING[screen])
 	if shown:
 		section = None
-		for _, job, line in shown: # the reports, then the reminders, each under its heading
-			kind = 'Reminders' if job.action == 'message' else 'Reports'
+		for _, job, line in shown: # the jobs of each report, or the reminders, under a heading
+			kind = 'Reminders' if job.action == 'message' else job.action.capitalize()
 			if kind != section:
 				lines += ['', service.bold(kind)]
 				section = kind
