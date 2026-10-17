@@ -145,6 +145,12 @@ class Transport:
 	def typing_done(self):
 		"""Take the typing notice off, where it lasts until taken off (Slack's ⏳)."""
 
+	def view(self, buttons):
+		"""What a chart message shows, for reshow: its chat and the period its buttons mark (a movers list is of the
+		stocks its chat follows); None when no period button is marked."""
+		period = marked(buttons)
+		return f'{self.where} {period}' if period and period.startswith('c|') else None
+
 	def reshow(self, message, buttons):
 		"""Show a chart message's period (the button marked) again as it was posted lately, where the network keeps
 		that: True when it did. Here never: each period is drawn and sent anew."""
@@ -154,6 +160,14 @@ class Transport:
 		"""Change only the buttons under a message, its text or chart left as it is, where the network can: True when
 		they show now. Here never: the message is edited whole."""
 		return False
+
+
+def marked(buttons):
+	"""The data of the button marked as shown now, which names a chart message's period (None when none is, or the
+	buttons are a keyboard of the network's own)."""
+	if isinstance(buttons, dict):
+		return None
+	return next((button.data for row in buttons or [] for button in row if button.active), None)
 
 
 def chunked(lines, limit):

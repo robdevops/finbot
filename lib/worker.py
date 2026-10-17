@@ -308,7 +308,7 @@ def process_callback(press):
 		if pressed.kind in charts.TEXT: # a text answer: its lines for that period, in place
 			caption, _ = charts.build(pressed.kind, args, service, chat.key, period=pressed.period)
 			return chat.edit_text(press.message_id, caption, markup)
-		if chat.reshow(press.message_id, markup): # that period as posted lately, where the network keeps it (Slack)
+		if chat.reshow(press.message_id, markup): # that period as posted lately (Slack, Telegram): nothing built
 			return
 		caption, chart = charts.build(pressed.kind, args, service, chat.key, period=pressed.period)
 		if not (chart and chart.rows): # too few prices in that period to draw a line

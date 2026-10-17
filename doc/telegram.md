@@ -20,7 +20,8 @@ common commands in a direct chat with the bot.
 
 A chart is uploaded once: Telegram gives it a file id, which finbot keeps (in `DATA_DIR/cache`, 30 days) and sends the
 next time the same chart goes out, instead of the image. A period or portfolio pressed again, or the same scheduled chart
-for several chats, then shows without an upload.
+for several chats, then shows without an upload. A period pressed again within 30 minutes of being shown in the chat
+shows that chart again with the report it came with: nothing is fetched or drawn either.
 
 As finbot starts, it sets the bot's command menu, which Telegram shows when `/` is typed: each command with its usage
 (`/price`, `/pe`, `/stock` and the rest). `/profile` and `/job`, the second names of `/stock` and `/jobs`, are

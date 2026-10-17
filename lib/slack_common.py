@@ -246,12 +246,6 @@ class SlackBot(transports.Transport):
 			self.delete(self.shows(answer['ts'], file_id, caption, buttons, digest))
 		return answer
 
-	def view(self, buttons):
-		"""What a chart message shows, for reshow: its chat and the period its buttons mark (a movers list is of the
-		stocks its chat follows); None when no button is marked."""
-		period = marked(buttons)
-		return f'{self.where} {period}' if period else None
-
 	def reshow(self, message, buttons):
 		"""Show a chart message's period again from its upload of under SLACK_REUSE_SECONDS ago (for this message or
 		another in its chat), with the report it came with: nothing is drawn or uploaded. True when it did; False when
@@ -360,11 +354,6 @@ def chart_blocks(caption, buttons, file_id):
 	them to a block."""
 	return section_blocks(caption) + [{'type': 'image', 'slack_file': {'id': file_id}, 'alt_text': 'chart'}] + \
 		[actions_block(row) for row in buttons if row]
-
-
-def marked(buttons):
-	"""The data of the button marked as shown now, which names a chart message's period (None when none is)."""
-	return next((button.data for row in buttons or [] for button in row if button.active), None)
 
 
 def text_blocks(text, buttons):

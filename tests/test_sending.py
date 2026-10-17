@@ -545,6 +545,81 @@ class SlackSending(FinbotCase):
 		self.assertEqual(self.posts, [])
 
 
+class TelegramCharts(FinbotCase):
+	"""A Telegram chart and its period buttons through the real send path: what each press sends, and what it builds."""
+
+	def setUp(self):
+		"""The real sending, Telegram answering each photo with its file id (P1, P2... for each upload, else the file id
+		sent), and each chart built counted."""
+		super().setUp()
+		self.patch(transports.Transport, 'text', REAL_TEXT)
+		self.patch(transports.Transport, 'chart', REAL_CHART)
+		self.requests, self.refused, uploads = [], set(), iter(f'P{n}' for n in range(1, 10))
+		def post(url, data=None, files=None, **kwargs):
+			"""Answer as Telegram does: the message, with its photo's sizes, the largest last; a file id in refused
+			is refused, as another bot's is."""
+			data = data or {}
+			media = json.loads(data.get('media', '{}'))
+			given = data.get('photo') or media.get('media')
+			self.requests.append((url.rsplit('/', 1)[1], given, files is not None, data.get('caption') or
+				media.get('caption')))
+			if given in self.refused:
+				return Resp({'ok': False, 'description': 'Bad Request: wrong file identifier/HTTP URL specified'}, 400)
+			photo = next(uploads) if files else given
+			return Resp({'ok': True, 'result': {'message_id': 9, 'chat': {'id': 55},
+				'photo': [{'file_id': f'{photo}-small'}, {'file_id': photo}]}})
+		self.patch(net, 'post', post)
+		self.built = []
+		build = charts.build
+		self.patch(charts, 'build', lambda *args, **kwargs: self.built.append(args[1]) or build(*args, **kwargs))
+
+	def press(self, data, chat='55', message='9'):
+		"""Press a chart's button, as its update arrives."""
+		worker.process_callback(inbound.Press('telegram', 'cb', chat, message, data))
+		self.assertEqual(self.errors, [])
+
+	def age_views(self, seconds):
+		"""Make what each chat's chart messages showed for each period `seconds` older."""
+		for name in os.listdir(config.env.cache_dir):
+			if name.startswith('finbot_telegram_view_'):
+				path = os.path.join(config.env.cache_dir, name)
+				os.utime(path, (os.path.getmtime(path) - seconds,) * 2)
+
+	def test_a_period_pressed_again_within_30_minutes_shows_its_upload_again(self):
+		"""A press for a period shown in this chat in the last 30 minutes (in this message or another) shows that
+		upload again by its file id, with the report it came with: nothing is built, drawn or uploaded. Another chat
+		builds its own; past 30 minutes the period is built again, its chart (the same) sent by its file id."""
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.movers', BOT, 'U')) # 1D: P1
+		caption = next(caption for method, _, _, caption in self.requests if method == 'sendPhoto')
+		self.press('c|l|w|5,0') # 7D: built, uploaded as P2
+		self.assertEqual(self.built, [['5', '0']])
+		self.assertEqual(self.requests[-1][:3], ('editMessageMedia', 'attach://photo', True))
+		self.press('c|l|d|5,0', message='10') # 1D in another message: P1 shown again, with its report
+		self.assertEqual((len(self.built), self.requests[-1]), (1, ('editMessageMedia', 'P1', False, caption)))
+		self.press('c|l|d|5,0', chat='56') # another chat: built for it
+		self.assertEqual(len(self.built), 2)
+		self.age_views(30 * 60)
+		self.press('c|l|w|5,0') # 7D again, 30 minutes on: built, the same chart sent by its file id
+		self.assertEqual((len(self.built), self.requests[-1][:3]), (3, ('editMessageMedia', 'P2', False)))
+
+	def test_an_earlier_upload_telegram_refuses_is_drawn_anew(self):
+		"""A period's earlier upload that Telegram will not show again is built, drawn and uploaded anew."""
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.movers', BOT, 'U')) # 1D: P1
+		self.refused.add('P1')
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.press('c|l|d|5,0')
+		self.assertEqual((len(self.built), self.requests[-1][:3]), (1, ('editMessageMedia', 'attach://photo', True)))
+
+	def test_with_the_cache_off_each_press_builds_its_period(self):
+		"""With the cache setting off, nothing is noted to show again: each press builds and uploads its period."""
+		self.settings(cache=False)
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.movers', BOT, 'U'))
+		self.press('c|l|w|5,0')
+		self.press('c|l|d|5,0')
+		uploads = [uploaded for _, _, uploaded, _ in self.requests if uploaded]
+		self.assertEqual((len(self.built), uploads), (2, [True] * 3))
+
+
 class SlackButtons(FinbotCase):
 	"""A chart's period buttons on Slack: a Block Kit message (the report, the chart uploaded into no channel, the
 	buttons) that a press redraws in place, in either mode."""
