@@ -1,7 +1,7 @@
 """Charts drawn as PNGs with Pillow, one at a time (_drawn). A report describes its chart as a Chart, which draw()
-draws only for a chat that takes charts, and once: the image is cached by the spec's hash. A chart is drawn at S times
-its size and reduced, which smooths its edges (_Canvas); its coordinates are pixels of the 1280x800 image (y down), and
-its text and line sizes are points at 200 dpi, as on the 6.4 by 4 inch page it once was."""
+draws only for a chat that takes charts, and once: the image is cached by the spec's hash. A chart with curves or
+slants is drawn at S times its size and reduced, which smooths their edges (_Canvas); its coordinates are pixels of the
+1280x800 image (y down), and its text and line sizes are points at 200 dpi, as on the 6.4 by 4 inch page it once was."""
 import dataclasses
 import datetime
 import functools
@@ -45,7 +45,8 @@ UP, DOWN, FLAT = '#34d399', '#fb7185', PALETTE[2] # a rise, a fall, neither: a p
 BAR_UP = CATEGORIES[0] # bars rise in blue; they fall in DOWN
 
 W, H = 1280, 800 # Telegram's photo size, so a chart is never resampled
-S = 2 # a chart is drawn at S times its size, then reduced: Pillow draws shapes without anti-aliasing
+S = 2 # a chart with curves is drawn at S times its size, then reduced: Pillow draws shapes without anti-aliasing
+SNAP = 6 # how far a palette PNG's entry may be from a colour drawn in, and be moved onto it (_exact)
 PT = 200 / 72 # pixels to a point
 FONTS = ('DejaVuSans.ttf', 'DejaVuSans-Bold.ttf') # the system's DejaVu Sans, matplotlib's font: charts look as they did
 ASCENT, DESCENT = 0.76, 0.21 # its tallest letters and descenders, in ems: a line of text sits as matplotlib set it
@@ -119,24 +120,26 @@ def _bezier(p0, p1, p2, p3, steps=16):
 
 
 class _Canvas:
-	"""An image to draw a chart on, in its own pixels (y down): its shapes drawn S times larger and reduced as it is
-	saved; its text then, at its own size (FreeType smooths text by itself, in half the time), above every shape."""
+	"""An image to draw a chart on, in its own pixels (y down): its shapes drawn `scale` times larger and reduced as it
+	is saved (S for curves and slants; 1 where every edge is upright, which leaves nothing to smooth); its text then, at
+	its own size (FreeType smooths text by itself, in half the time), above every shape."""
 
-	def __init__(self, width, height, color, mode='RGB'):
+	def __init__(self, width, height, color, mode='RGB', scale=S):
 		"""A canvas `width` by `height` pixels, filled with `color`."""
 		from PIL import Image, ImageDraw
-		self.width, self.height = width, height
-		self.image = Image.new(mode, (round(width * S), round(height * S)), color)
+		self.width, self.height, self.scale = width, height, scale
+		self.image = Image.new(mode, (round(width * scale), round(height * scale)), color)
 		self.pen = ImageDraw.Draw(self.image) # a colour as it is: four times as fast as blending it
 		self.blend = ImageDraw.Draw(self.image, 'RGBA') if mode == 'RGB' else self.pen # a colour with alpha blends in
 		self.writing = [] # the lines of text, drawn as it is saved: (x, baseline, line, size, colour, bold, italic)
+		self.colours = {color} # every colour drawn in, which the PNG keeps exact
 
-	def png(self, palette=False):
-		"""The image at its own size, its text on it, as PNG bytes, rewound (or an upload sends nothing). With
-		`palette`, a PNG of 256 colours, which takes half the time and a third the bytes, but may move a colour a shade:
-		for a picture whose colours need not be exact."""
+	def png(self):
+		"""The image at its own size, its text on it, as a PNG of 256 colours, rewound (or an upload sends nothing):
+		every colour drawn in exact, and the blends at edges and in text each the nearest of the rest; a third the bytes
+		of a PNG of every colour, made in half the time."""
 		from PIL import Image, ImageDraw
-		image = self.image.reduce(S)
+		image = self.image.reduce(self.scale) if self.scale > 1 else self.image
 		pen = ImageDraw.Draw(image)
 		for x, baseline, line, size, color, bold, italic in self.writing:
 			if italic:
@@ -144,18 +147,20 @@ class _Canvas:
 			else: # Pillow's own font has no bold: a stroke thickens it
 				pen.text((x, baseline), line, fill=color, font=_font(size, bold), anchor='ls',
 					stroke_width=1 if bold and not _font_file(True) else 0, stroke_fill=color)
-		if palette:
-			image = image.quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+		image = _exact(image.quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE), self.colours)
 		buf = io.BytesIO()
 		image.save(buf, format='png')
 		buf.seek(0)
 		return buf
 
 	def line(self, points, color, width, rounded=True):
-		"""A line through the points, `width` points wide, round at its joints and, `rounded`, at its ends."""
-		points = [(x * S, y * S) for x, y in points]
-		w = width * PT * S
-		self.pen.line(points, fill=color, width=max(1, round(w)), joint='curve' if len(points) > 2 else None)
+		"""A line through the points, `width` points wide, round at its joints and, `rounded`, at its ends. A joint is a
+		disc as wide as the line, which a long history's thousands of segments, each shorter than that, do without."""
+		self.colours.add(color)
+		points = [(x * self.scale, y * self.scale) for x, y in points]
+		w = width * PT * self.scale
+		bends = len(points) > 2 and sum(map(math.dist, points, points[1:])) > w * (len(points) - 1)
+		self.pen.line(points, fill=color, width=max(1, round(w)), joint='curve' if bends else None)
 		if rounded:
 			for x, y in (points[0], points[-1]):
 				self.pen.ellipse((x - w / 2, y - w / 2, x + w / 2, y + w / 2), fill=color)
@@ -164,14 +169,16 @@ class _Canvas:
 		"""A polygon in `fill` (a colour, or (red, green, blue, alpha), which blends in), its outline `width` points
 		wide, round at its corners and centred on its edges."""
 		pen = self.blend if isinstance(fill, tuple) and len(fill) == 4 else self.pen
-		pen.polygon([(x * S, y * S) for x, y in points], fill=fill)
+		self.colours.add(fill)
+		pen.polygon([(x * self.scale, y * self.scale) for x, y in points], fill=fill)
 		if outline:
 			self.line([*points, points[0]], outline, width)
 
 	def rect(self, x0, y0, x1, y1, fill, outline=None, width=0):
 		"""A rectangle with corners (x0, y0) and (x1, y1), its outline `width` points wide, centred on its edges."""
 		(x0, x1), (y0, y1) = sorted((x0, x1)), sorted((y0, y1))
-		left, top, right, bottom = (round(v * S) for v in (x0, y0, x1, y1))
+		self.colours.add(fill)
+		left, top, right, bottom = (round(v * self.scale) for v in (x0, y0, x1, y1))
 		if right > left and bottom > top:
 			self.pen.rectangle((left, top, right - 1, bottom - 1), fill=fill)
 		if outline:
@@ -182,7 +189,9 @@ class _Canvas:
 
 	def ellipse(self, x, y, rx, ry, fill):
 		"""An ellipse about (x, y), rx and ry its half widths across and down."""
-		self.pen.ellipse(((x - rx) * S, (y - ry) * S, (x + rx) * S, (y + ry) * S), fill=fill)
+		self.colours.add(fill)
+		s = self.scale
+		self.pen.ellipse(((x - rx) * s, (y - ry) * s, (x + rx) * s, (y + ry) * s), fill=fill)
 
 	def circle(self, x, y, r, fill):
 		"""A disc of radius r about (x, y)."""
@@ -195,19 +204,25 @@ class _Canvas:
 
 	def slice(self, x, y, r, start, end, fill):
 		"""A slice of the disc of radius r about (x, y), from `start` to `end` degrees past three o'clock."""
-		self.pen.pieslice(((x - r) * S, (y - r) * S, (x + r) * S, (y + r) * S), start, end, fill=fill)
+		self.colours.add(fill)
+		s = self.scale
+		self.pen.pieslice(((x - r) * s, (y - r) * s, (x + r) * s, (y + r) * s), start, end, fill=fill)
 
 	def ring(self, x, y, r, color, width):
 		"""The inside rim of the disc of radius r about (x, y), `width` points wide."""
-		self.pen.ellipse(((x - r) * S, (y - r) * S, (x + r) * S, (y + r) * S), outline=color,
-			width=max(1, round(width * PT * S)))
+		self.colours.add(color)
+		s = self.scale
+		self.pen.ellipse(((x - r) * s, (y - r) * s, (x + r) * s, (y + r) * s), outline=color,
+			width=max(1, round(width * PT * s)))
 
 	def paste(self, other, x, y, width=None):
-		"""Another canvas's image, its top left at (x, y), cut to `width` pixels from its left where given."""
+		"""Another canvas's image (drawn at the same scale), its top left at (x, y), cut to `width` pixels from its left
+		where given."""
+		self.colours |= other.colours
 		image = other.image
 		if width is not None:
-			image = image.crop((0, 0, max(1, round(width * S)), image.height))
-		self.image.paste(image, (round(x * S), round(y * S)), image)
+			image = image.crop((0, 0, max(1, round(width * self.scale)), image.height))
+		self.image.paste(image, (round(x * self.scale), round(y * self.scale)), image)
 
 	def measure(self, text, size, bold=False):
 		"""How wide text `size` points high is, in pixels."""
@@ -223,8 +238,9 @@ class _Canvas:
 		center, center_baseline, baseline or bottom), its lines 1.3 lines apart, and drawn as the canvas is saved,
 		above every shape. Returns the x of its right end."""
 		em = size * PT
-		if em * S < 1:
+		if em < 0.5: # too small to read, or to make a font of
 			return x
+		self.colours.add(color)
 		lines = text.split('\n')
 		pitch = 1.3 * (ASCENT + DESCENT) * em
 		below = (len(lines) - 1) * pitch # from the first line's baseline to the last's
@@ -238,6 +254,22 @@ class _Canvas:
 			right = max(right, left + width)
 		return right
 
+
+def _exact(image, colours):
+	"""A palette image with the entry nearest each colour drawn in (a colour with alpha blends, so it is none) moved
+	onto that colour, where it is within SNAP: an entry is the average of the colours it stands for, which moves a
+	chart's background, bars and ink a shade or two. The nearest are found by mapping a strip of the colours."""
+	from PIL import Image, ImageColor
+	exact = sorted({ImageColor.getrgb(c)[:3] if isinstance(c, str) else c for c in colours
+		if isinstance(c, str) or len(c) == 3})
+	strip = Image.new('RGB', (len(exact), 1))
+	strip.putdata(exact)
+	palette = image.getpalette()
+	for colour, i in zip(exact, strip.quantize(palette=image, dither=Image.Dither.NONE).tobytes()):
+		if max(abs(a - b) for a, b in zip(palette[3 * i:3 * i + 3], colour)) <= SNAP:
+			palette[3 * i:3 * i + 3] = colour
+	image.putpalette(palette)
+	return image
 
 def _slanted(image, x, baseline, text, size, color):
 	"""Italic text on an image, its baseline from (x, baseline): drawn upright on a mask S times larger, sheared about
@@ -451,7 +483,7 @@ def draw_bars(chart):
 	if session in SESSION_TINTS:
 		bg = _mixed(bg, SESSION_TINTS[session], 0.07)
 	n = len(rows)
-	canvas = _Canvas(W, H * max(1, n / ROWS), bg)
+	canvas = _Canvas(W, H * max(1, n / ROWS), bg, scale=1) # upright edges alone: nothing to smooth
 	top_edge = _plot_top(subtitle) # as far from the top in a taller image
 	bottom_edge = canvas.height - 0.02 * H
 	left, right = (0.14 if xlim else 0.04) * W, 0.96 * W # zoomed charts keep their labels outside the plot
@@ -630,7 +662,7 @@ def draw_shorts(chart, step=5):
 		canvas.text(x, cy, verdict, canvas.fit(size * 0.62, [verdict], W - 16 - x), ink, italic=True)
 	canvas.text(W / 2, 784, 'past fashion not indicative of future fashion', 8, 'white', ha='center', italic=True)
 	canvas.text(line_x, top - 18, f"{threshold:g}% outrageous line", 7.5, ink, ha='center', va='bottom', bold=True)
-	return canvas.png(palette=True) # a cartoon: its colours need not be exact
+	return canvas.png()
 
 @_drawn
 def draw_pie(chart):
@@ -708,7 +740,7 @@ def draw_treemap(chart):
 	1280x800 PNG."""
 	rows = chart.rows
 	bg = PALETTE[0]
-	canvas = _Canvas(W, H, bg)
+	canvas = _Canvas(W, H, bg, scale=1) # upright edges alone: nothing to smooth
 	total = sum(value for _, held in rows for _, value in held) or 1.0
 	top = _plot_top(chart.subtitle) # below the heading, as the other charts are
 	box = _squarify([sum(value for _, value in held) for _, held in rows], 0, top, W, H - top) # 2px edges, with gaps
