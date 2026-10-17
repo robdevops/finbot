@@ -5,6 +5,7 @@ import hashlib
 import html
 import json
 import re
+import threading
 
 import requests
 
@@ -189,6 +190,16 @@ class TelegramBot(transports.Transport):
 	dialect = dialects.TELEGRAM
 	TYPING = (0.5, 4, 18) # "typing…" shows for 5 s at most (sendChatAction), so it is sent again every 4 s
 	NO_PREVIEWS = {'is_disabled': True} # link_preview_options, which replaced disable_web_page_preview (Bot API 7.0)
+	preload_lock = threading.Lock()
+
+	def wants(self, photo):
+		"""Whether preloading a chart (its PNG bytes) would spare a press its upload: Telegram has not it (no file id
+		kept), with the cache setting on."""
+		return bool(config.settings.cache and not cache.read(photo_file(photo), PHOTO_SECONDS))
+
+	def send_ahead(self, photo):
+		"""Send a chart to this chat silently, with no caption, for its file id (with_photo keeps it)."""
+		with_photo('sendPhoto', photo, lambda known: {'chat_id': self.where, 'disable_notification': True})
 
 	def is_administrator(self, who):
 		"""Whether getChatMember says this user id is the creator or an administrator of the group; in a direct

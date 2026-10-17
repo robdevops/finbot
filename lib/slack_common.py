@@ -5,6 +5,7 @@ import hashlib
 import html
 import json
 import re
+import threading
 import time
 
 import requests
@@ -111,6 +112,21 @@ class SlackBot(transports.Transport):
 	dialect = dialects.SLACK
 	WORKING = 'hourglass_flowing_sand' # ⏳: Slack has no typing notice for bots, so a reaction on the message stands in
 	working = None # True while ⏳ is on the message, False when putting it there failed
+	preload_lock = threading.Lock()
+
+	def wants(self, photo):
+		"""Whether preloading a chart (its PNG bytes) would spare a press its upload: no upload of it in the last
+		SLACK_REUSE_SECONDS (earlier_upload)."""
+		return self.earlier_upload(digest_of(photo)) is None
+
+	def send_ahead(self, photo):
+		"""Upload a chart into this channel, noted as shown by no message: a press within SLACK_REUSE_SECONDS shows it
+		(earlier_upload), and shows deletes it a minute after unless a message comes to show it."""
+		file_id = self.upload(photo)
+		call('files.completeUploadExternal', files=json.dumps([{'id': file_id, 'title': 'chart'}]),
+			channel_id=self.where)
+		with state.edit(SLACK_CHARTS, {}) as noted:
+			kept(noted)['uploads'][file_id] = [time.time(), None, '', digest_of(photo)]
 
 	def is_administrator(self, who):
 		"""Whether users.info says this user is an owner or an admin of the workspace (Slack's channels have no
@@ -219,7 +235,7 @@ class SlackBot(transports.Transport):
 		chart where there is one (nothing is uploaded: a period or portfolio shown again), else, or when Slack will not
 		show that one (a file deleted outside finbot), a new upload, tried again while Slack cannot show it yet
 		(until_shown). (post's answer, the file's id, the chart's digest)."""
-		digest = hashlib.sha1(data).hexdigest()[:20]
+		digest = digest_of(data)
 		if earlier := self.earlier_upload(digest):
 			try:
 				return post(earlier), earlier, digest
@@ -292,10 +308,7 @@ class SlackBot(transports.Transport):
 		to show it)."""
 		now = time.time()
 		with state.edit(SLACK_CHARTS, {}) as noted:
-			if set(noted) != {'shown', 'uploads'}: # new, or the {'channel ts': file} of before, whose files stay
-				noted.clear()
-				noted.update(shown={}, uploads={})
-			shown, uploads = noted['shown'], noted['uploads'] # 'channel ts': file; file: [time, view, report, digest]
+			shown, uploads = kept(noted)['shown'], noted['uploads'] # see kept
 			if caption is not None:
 				uploads[file_id] = [now, self.view(buttons), caption] + ([digest] if digest else [])
 			key = f'{self.where} {message}'
@@ -331,6 +344,20 @@ class SlackBot(transports.Transport):
 			call('chat.update', logged='debug', **data)
 		except Exception as e:
 			log.warn("Slack chat.update failed:", net.redact(e))
+
+
+def digest_of(data):
+	"""A chart's PNG bytes as a short digest, which tells the same chart again (earlier_upload)."""
+	return hashlib.sha1(data).hexdigest()[:20]
+
+
+def kept(noted):
+	"""SLACK_CHARTS's record as shows keeps it, {'shown': {'channel ts': file}, 'uploads': {file: [time, view, report,
+	digest]}}: started anew where it is new, or the {'channel ts': file} of before, whose files stay."""
+	if set(noted) != {'shown', 'uploads'}:
+		noted.clear()
+		noted.update(shown={}, uploads={})
+	return noted
 
 
 SECTION_LIMIT = 3000 # characters of text in a Block Kit section

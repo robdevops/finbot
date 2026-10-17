@@ -5,6 +5,7 @@ import threading
 
 from lib import answer
 from lib import buttons
+from lib import delivery
 from lib import formats
 from lib import links
 from lib import log
@@ -67,14 +68,18 @@ def build(kind, args, service, chat, period=None, days=None):
 
 def prime(kind, args, service, chat, shown):
 	"""Draw, to fill the cache, the chart of each period button of a kind (but `shown`, the period already sent), as a
-	press would ask for it. A period with nothing to draw is skipped, and a failure is logged, never raised."""
+	press would ask for it, each uploaded ahead to the network's preload chat where a setting names one
+	(delivery.preload; one failing stops those uploads). A period with nothing to draw is skipped, and a failure is
+	logged, never raised."""
+	preloading = True
 	for period in buttons.BUTTONS[kind]:
 		if period == shown:
 			continue
 		try:
 			_, chart = build(kind, args, service, chat, period=period)
 			if chart and chart.rows:
-				render.draw(chart)
+				image = render.draw(chart)
+				preloading = preloading and delivery.preload(service, image)
 		except Exception as e:
 			log.warn("priming", kind, args, period, "failed:", e)
 

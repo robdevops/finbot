@@ -1,6 +1,6 @@
 """Posting to the networks against their answers and failures: Telegram, Slack (text, charts, Block Kit
 buttons) and Discord."""
-import contextlib, html.parser, io, json, threading, unittest
+import contextlib, html.parser, io, json, threading, types, unittest
 from unittest import mock
 import requests
 from tests.common import *
@@ -161,6 +161,56 @@ class TelegramSending(FinbotCase):
 			with self.subTest(level=level, image=image), contextlib.redirect_stderr(io.StringIO()) as log:
 				chat.edit_chart('8', io.BytesIO(image), 'caption')
 				self.assertEqual('POST api.telegram.org/botX/editMessageMedia\n' in log.getvalue(), shown)
+
+	def preloading(self):
+		"""A clock of this test's own for the preloads' gap (its last preload long gone), each wait noted: the waits."""
+		self.now, waits = [1000.0], []
+		self.patch(transports, 'time', types.SimpleNamespace(monotonic=lambda: self.now[0], sleep=waits.append))
+		self.patch(telegram_common.TelegramBot, 'preloaded_at', 0.0)
+		self.patch(slack_common.SlackBot, 'preloaded_at', 0.0)
+		return waits
+
+	def test_a_chart_preloaded_goes_to_the_preload_chat_and_keeps_its_file_id(self):
+		"""Preloading uploads a chart Telegram has not to the preload chat, silently and with no caption, and keeps its
+		file id: a press's edit of that chart in another chat then sends the id. A chart Telegram has is not sent again,
+		the next preload waits out the gap, and with the cache setting off nothing is sent."""
+		sent, waits = self.photos(), self.preloading()
+		chat = telegram_common.TelegramBot('-100777')
+		self.assertTrue(chat.preload(b'one'))
+		self.assertTrue(chat.preload(b'one')) # Telegram has it now
+		self.now[0] += 1
+		self.assertTrue(chat.preload(b'two'))
+		telegram_common.TelegramBot('5').edit_chart('8', io.BytesIO(b'one'), 'pressed')
+		self.assertEqual([(method, data['chat_id'], uploaded) for method, data, uploaded in sent], [('sendPhoto',
+			'-100777', True), ('sendPhoto', '-100777', True), ('editMessageMedia', '5', False)])
+		self.assertEqual(sent[0][1], {'chat_id': '-100777', 'disable_notification': True})
+		self.assertEqual(waits, [0.0, transports.PRELOAD_GAP - 1])
+		self.settings(cache=False)
+		self.assertTrue(chat.preload(b'three'))
+		self.assertEqual(len(sent), 3)
+
+	def test_a_preload_telegram_refuses_is_logged_and_stops(self):
+		"""A preload that fails (the bot not in the chat, say) is a warning, and False: priming stops preloading."""
+		self.preloading()
+		refusal = Resp({'ok': False, 'description': 'Bad Request: chat not found'}, 400)
+		self.patch(net, 'post', lambda url, **kwargs: refusal)
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			self.assertFalse(telegram_common.TelegramBot('-100777').preload(b'png'))
+		self.assertIn('Telegram preload to -100777 failed: Telegram sendPhoto: Bad Request: chat not found',
+			log.getvalue())
+
+	def test_a_chart_goes_to_its_networks_preload_chat_where_a_setting_names_one(self):
+		"""delivery.preload hands a chart drawn ahead to the preload chat its network's setting names, as that
+		network's bot; with no chat named, on Discord, or with no image, it does nothing."""
+		taken = []
+		for kind in (telegram_common.TelegramBot, slack_common.SlackBot):
+			self.patch(kind, 'preload', lambda chat, photo: taken.append((chat.key, photo)) or True)
+		self.assertTrue(delivery.preload(TELEGRAM, io.BytesIO(b'png')))
+		self.settings(telegram_preload_chat='-100777', slack_preload_chat='C9')
+		for service in (TELEGRAM, SLACK, DISCORD):
+			self.assertTrue(delivery.preload(service, io.BytesIO(b'png')))
+		self.assertTrue(delivery.preload(TELEGRAM, None))
+		self.assertEqual(taken, [('telegram:-100777', b'png'), ('slack:C9', b'png')])
 
 	def test_a_file_id_is_another_bots_after_the_token_changes_or_none_with_the_cache_off(self):
 		"""A file id is reused by the bot that uploaded it alone (a new token is another bot), and not at all with the
@@ -767,6 +817,29 @@ class SlackButtons(FinbotCase):
 		self.assertEqual(self.calls()[-4:], ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.update'])
 		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F2'})
+
+	def test_a_chart_preloaded_into_the_preload_channel_is_shown_without_an_upload(self):
+		"""Preloading uploads a chart into the preload channel; a press's edit of that chart in another channel within
+		30 minutes shows that upload, uploading nothing. A preloaded file no message shows is deleted 31 minutes on,
+		as every such upload is."""
+		self.uploading()
+		self.patch(transports, 'time', types.SimpleNamespace(monotonic=lambda: 1000.0, sleep=lambda seconds: None))
+		self.patch(slack_common.SlackBot, 'preloaded_at', 0.0)
+		preload = slack_common.SlackBot('C9')
+		self.assertTrue(preload.preload(b'one'))
+		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal'])
+		self.assertEqual(self.posts[-1][1]['data']['channel_id'], 'C9')
+		self.assertTrue(preload.preload(b'one')) # uploaded already: nothing more
+		slack_common.SlackBot('C1').edit_chart('1.5', io.BytesIO(b'one'), 'one')
+		self.assertEqual(self.calls()[3:], ['chat.update'])
+		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F1'})
+		self.assertTrue(preload.preload(b'two')) # F2, which no message shows
+		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 31 minutes on
+			for upload in noted['uploads'].values():
+				upload[0] -= 31 * 60 + 1
+		slack_common.SlackBot('C1').edit_chart('1.5', io.BytesIO(b'three'), 'three')
+		deleted = [kwargs['data']['file'] for url, kwargs in self.posts if url.endswith('/files.delete')]
+		self.assertIn('F2', deleted)
 
 	def test_an_upload_slack_will_not_show_again_is_uploaded_anew(self):
 		"""When Slack refuses to show an earlier upload again (a file deleted outside finbot, say), the period is

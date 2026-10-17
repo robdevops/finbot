@@ -127,3 +127,13 @@ report following as text; if that fails too (a missing scope, say), the report g
 
 `/jobs` lists the channel's jobs with the menu's buttons, as on Telegram; a button from a list that has since changed
 puts the current list in its place.
+
+### Preloading charts
+
+As a chart with period or portfolio buttons goes out, finbot draws its other periods and portfolios in the
+background. With `slack_preload_chat` set to a private channel's id (`C0123ABCD`: the channel's details show it at the
+bottom; `/invite @finbot` there), it also uploads each one into that channel, so that a press within 30 minutes shows
+it without an upload (and without waiting for Slack to be able to show a new file). An upload no message shows is
+deleted once those 30 minutes are past, as every one is. Every chart finbot preloads goes there, whichever channel it
+was drawn for, so keep the channel private. Preloads go one at a time, 3 seconds apart; one that fails is a warning in
+the log.

@@ -1439,6 +1439,22 @@ class Pickers(FinbotCase):
 		self.assertEqual((built, drawn), (['w', 'm', 'y'], ['bars']))
 		self.assertIn("priming c ['T1'] m failed: boom", err.getvalue())
 
+	def test_priming_hands_each_chart_drawn_to_preload_till_one_fails(self):
+		"""Each chart priming draws goes to delivery.preload, for the network's preload chat (a period's, a portfolio's,
+		in the order they are drawn); after one fails, the rest are drawn and not handed on."""
+		drawn, handed = [], []
+		self.patch(render, 'draw', lambda chart: drawn.append(chart.title) or chart.title) # the image: its title
+		self.patch(delivery, 'preload', lambda service, image: handed.append((service, image)) or len(handed) < 2)
+		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
+			render.Chart('bars', period, rows=(('a', 1.0),))))
+		charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
+		self.assertEqual((drawn, handed), (['w', 'm', 'y'], [(TELEGRAM, 'w'), (TELEGRAM, 'm')]))
+		drawn.clear(), handed.clear()
+		self.portfolios('Amy', 'Bob')
+		pick.prime(SLACK, 't', '0', ['Amy', 'Bob'], 0)
+		self.assertEqual(len(drawn), 9)
+		self.assertEqual(handed, [(SLACK, 'Amy treemap by sector'), (SLACK, 'Amy treemap by country')])
+
 
 if __name__ == '__main__':
 	unittest.main()
