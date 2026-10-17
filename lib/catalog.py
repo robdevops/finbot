@@ -110,8 +110,7 @@ ITEMS = (
 	*(Item(f"podcasts-{name.lower().replace(' ', '-')}", f'podcasts {name}', 'podcasts', (feed,),
 		when.Schedule.from_json({'days': 'weekdays', 'every': 60, 'from': '10:01', 'to': '21:01', 'zone': SYDNEY}))
 		for name, feed in (('Money Cafe', MONEY_CAFE), ('Stocktake', STOCKTAKE))),
-	Item('cal-earnings', 'cal earnings', 'cal', ('earnings',), at(['sun'])),
-	Item('cal-ex-dividend', 'cal ex-dividend', 'cal', ('ex-dividend',), at(['sun'])),
+	Item('earnings', 'earnings', 'earnings', (), at(['sun'])),
 	Item('shorts', 'shorts', 'shorts', (), at(['sun'])),
 	*periodic('weekly', ['sun']),
 	*periodic('monthly', {'day': 2}),

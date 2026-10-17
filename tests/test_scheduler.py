@@ -168,7 +168,7 @@ class SchedulerBase(FinbotCase):
 		self.store(CHAT, 'trades every 20 mins weekdays')
 		self.clock = Clock(at(13, 21, 3))
 		self.ran, self.dests = [], []
-		for name in ('cal', 'message', 'performance', 'movers', 'rating', 'shorts', 'trades'):
+		for name in ('earnings', 'message', 'performance', 'movers', 'rating', 'shorts', 'trades'):
 			self.patch(jobs.ACTIONS[name], 'run', self.recorder(name))
 
 	def recorder(self, name):
@@ -572,7 +572,7 @@ class JobsInChat(ChatBase):
 				('movers 30 weekly', 'movers 30 · weekly, Saturdays at 9:00am', ['30']),
 				('movers midsession weekdays at 12:45pm New York',
 					'movers midsession · weekdays at 12:45pm New York (3:45am local, Tue–Sat)', ['midsession']),
-				('cal earnings every sunday at 8:30am', 'cal earnings · weekly, Sundays at 8:30am', ['earnings']),
+				('earnings every sunday at 8:30am', 'earnings · weekly, Sundays at 8:30am', []),
 				('trades every 20 mins weekdays from 10am to 4pm', 'trades · every 20 mins, weekdays 10am–4pm', [])):
 			with self.subTest(text=text):
 				added = self.say(f'.jobs add {text}')
@@ -600,7 +600,7 @@ class JobsInChat(ChatBase):
 		and examples."""
 		lines = self.say('.jobs add')
 		self.assertEqual(lines[0], '<b>What a job can run:</b>')
-		for line in ('cal earnings|ex-dividend', 'message "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
+		for line in ('message "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
 				'movers midsession|interday|premarket|close|DAYS', 'trades', '.jobs add movers weekly', 'beta',
 				'peg [SYMBOL|top|bottom|negative]', 'price [SYMBOL ... up to 8] [period]', '.jobs add peg top weekly'):
 			self.assertIn(line, lines)
@@ -920,9 +920,8 @@ class JobsMenu(ChatBase):
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
 		self.assertEqual(lines, ['<b>Add a job: which report?</b>'])
 		self.assertEqual(rows, [['trades', 'movers midsession', 'movers premarket'], ['movers close', 'movers',
-			'performance'], ['cal earnings', 'cal ex-dividend', 'shorts'], ['rating', 'milestone', 'reminder'],
-			['holdings', 'treemap', 'who'], ['marketcap', 'beta', 'price'], ['buysell', 'pe', 'peg'],
-			['stock'], ['Cancel']])
+			'performance'], ['earnings', 'shorts', 'rating'], ['milestone', 'reminder', 'holdings'],
+			['treemap', 'who', 'marketcap'], ['beta', 'price', 'buysell'], ['pe', 'peg', 'stock'], ['Cancel']])
 		self.assertEqual((data['movers'], data['Cancel']), (f'm|add|5|{self.crc()}', f'm|top|0|{self.crc()}'))
 		lines, rows, data = self.press(data['movers'])
 		self.assertEqual((lines, rows), (['<b>Add movers: how often?</b>', '', '<i>† indicates default</i>'],
@@ -990,7 +989,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual(lines[0], '<b>Add movers, weekdays: at what hour?</b>')
 		lines, rows, data = self.press(data['09†'])
 		self.assertEqual(newest(self.press(data['09:00†'])[0]), '4. ✅* movers · weekdays at 9:00am')
-		lines, rows, data = self.press(f'm|add|9|h|{self.crc()}')
+		lines, rows, data = self.press(f'm|add|8|h|{self.crc()}')
 		self.assertEqual((lines[0], rows[0]), ('<b>Add shorts, hourly: on which days?</b>', ['every day†', 'weekdays']))
 		lines, rows, data = self.press(data['weekdays'])
 		self.assertEqual(lines[:2], ['<b>Add shorts, hourly, weekdays: start hour?</b>', "By Melbourne's clock"])
@@ -1001,11 +1000,11 @@ class JobsMenu(ChatBase):
 		self.assertEqual((lines[0], rows[0], rows[-2:]), ('<b>Add shorts, hourly at :05, weekdays from 10am: end'
 			' time?</b>', ['11:05', '12:05', '13:05', '14:05'], [['23:05', 'end of day†'], ['Back', 'Cancel']]))
 		self.assertEqual(newest(self.press(data['16:05'])[0]), '5. ✅* shorts · hourly at :05, weekdays 10am–4pm')
-		self.assertEqual(newest(self.press(f'm|add|10|h|d|0|0|e|{self.crc()}')[0]), '6. ✅* rating · hourly')
-		self.assertEqual(newest(self.press(f'm|add|11|r|20|k|10|5|965|{self.crc()}')[0]),
+		self.assertEqual(newest(self.press(f'm|add|9|h|d|0|0|e|{self.crc()}')[0]), '6. ✅* rating · hourly')
+		self.assertEqual(newest(self.press(f'm|add|10|r|20|k|10|5|965|{self.crc()}')[0]),
 			'7. ✅* milestone · every 20 mins, weekdays 10:05am–4:05pm')
 		self.assertEqual(newest(self.press(f'm|add|7|r|20|k|0|0|e|{self.crc()}')[0]),
-			'8. ✅* cal earnings · every 20 mins, weekdays')
+			'8. ✅* earnings · every 20 mins, weekdays')
 		screen = about.add_screen(DISCORD, CHAT, ['5', 'h', 'd', '0', '0'])
 		rows = [[button.label for button in row] for row in screen[1]]
 		self.assertEqual((len(rows), rows[-1]), (5, ['21:00', '22:00', '23:00', 'end of day†', 'Back'])) # 25 buttons
@@ -1013,7 +1012,7 @@ class JobsMenu(ChatBase):
 	def test_a_one_off_by_year_month_day_hour_and_minute(self):
 		"""A one-off takes its year (this one and the nine after it), month, day, hour and minute, never one gone by,
 		tomorrow its default day; a reminder's text cannot come from a button, so its screen says how to type one."""
-		lines, rows, data = self.press(f'm|add|9|o|{self.crc()}')
+		lines, rows, data = self.press(f'm|add|8|o|{self.crc()}')
 		self.assertEqual((lines[0], rows[:2]), ('<b>Add shorts, once: in which year?</b>', [['2026†', '2027', '2028',
 			'2029', '2030'], ['2031', '2032', '2033', '2034', '2035']]))
 		lines, rows, data = self.press(data['2026†'])
@@ -1022,7 +1021,7 @@ class JobsMenu(ChatBase):
 		lines, rows, data = self.press(data['Oct†'])
 		self.assertEqual((lines[0], rows[0], rows[-2]), ('<b>Add shorts, once, Oct 2026: on which day?</b>', ['14',
 			'15†', '16', '17', '18'], ['29', '30', '31']))
-		lines, rows, data = self.press(f'm|add|9|o|2027|{self.crc()}')
+		lines, rows, data = self.press(f'm|add|8|o|2027|{self.crc()}')
 		self.assertEqual(rows[0], ['Jan†', 'Feb', 'Mar', 'Apr'])
 		lines, rows, data = self.press(data['Feb'])
 		self.assertEqual((rows[0][0], rows[-2]), ('1†', ['26', '27', '28']))
@@ -1030,7 +1029,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual(lines[0], '<b>Add shorts, once, 20 Feb 2027: at what hour?</b>')
 		lines, rows, data = self.press(data['08'])
 		self.assertEqual(newest(self.press(data['08:00†'])[0]), '4. ✅* shorts · once, 20 Feb 2027 at 8:00am')
-		lines, rows, _ = self.press(f'm|add|12|{self.crc()}')
+		lines, rows, _ = self.press(f'm|add|11|{self.crc()}')
 		self.assertEqual(lines[:3], ['<b>Add a reminder</b>', "A reminder's text is what you type:",
 			'.jobs add message SCHEDULE "TEXT"'])
 		self.assertEqual(rows, [['Back', 'Cancel']])
@@ -1058,7 +1057,7 @@ class JobsMenu(ChatBase):
 		first, second = (about.add_screen(DISCORD, CHAT, steps)[1] for steps in ([], ['p1']))
 		self.assertEqual(([len(row) for row in first], [button.label for button in first[-1]]), ([4, 4, 4, 4, 2],
 			['More ▶', 'Cancel']))
-		self.assertEqual([button.label for row in second for button in row], ['beta', 'price',
+		self.assertEqual([button.label for row in second for button in row], ['price',
 			'buysell', 'pe', 'peg', 'stock', '◀', 'Cancel'])
 
 	def test_a_step_that_is_none_adds_nothing(self):
@@ -1111,7 +1110,7 @@ class JobsMenu(ChatBase):
 			fits(service, *about.added_screen(service, CHAT, 1))
 			fits(service, *about.add_failed(service, CHAT, ['5', 'd', '9'], 'that job is here already'))
 		pages = len({about.jobs_screen(DISCORD, CHAT, 'on', page)[0][0] for page in range(6)})
-		self.assertEqual(pages, 5) # 65 jobs, 16 to a page on Discord
+		self.assertEqual(pages, 4) # 64 jobs, 16 to a page on Discord
 		self.assertEqual(len({about.jobs_screen(TELEGRAM, CHAT, 'top', page)[0][0] for page in range(6)}), 2)
 
 class ReportImports(FinbotCase):
@@ -1120,7 +1119,7 @@ class ReportImports(FinbotCase):
 	def test_a_report_loads_neither_pillow_nor_the_scheduler(self):
 		"""A report imports only its own module: movers once pulled in every report, through charts and jobs, and the
 		chart code until a chart is drawn."""
-		code = ('import sys; from lib.reports import movers, performance, trades, shorts, cal; '
+		code = ('import sys; from lib.reports import movers, performance, trades, shorts, earnings; '
 			'print(sorted(m for m in ("lib.jobs", "PIL") if m in sys.modules))')
 		with tempfile.TemporaryDirectory() as data:
 			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True,

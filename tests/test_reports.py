@@ -464,21 +464,21 @@ class ScheduledReports(FinbotCase):
 
 	def test_earnings_and_dividends(self):
 		"""The scheduled earnings and ex-dividend reports post."""
-		for kwargs in ({'event': 'earnings'}, {'event': 'ex-dividend'}):
+		for kwargs in ({}, {'event': 'earnings'}, {'event': 'ex-dividend'}):
 			with self.subTest(kwargs=kwargs):
 				self.sent.clear()
-				cal.run(scheduled(), **kwargs)
+				earnings.run(scheduled(), **kwargs)
 				self.assertTrue(self.sent)
 
 	def test_only_the_scheduled_earnings_report_is_pinned(self):
 		"""The scheduled earnings report is pinned on Telegram; a reply to .earnings is not, or the chat would collect
-		pinned copies, and neither is the ex-dividend report."""
+		pinned copies, and neither is a scheduled ex-dividend-only run."""
 		pins = []
 		self.patch(telegram_common.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
 		self.command('.earnings')
 		self.assertEqual(pins, [])
-		cal.run(scheduled(), event='ex-dividend')
-		cal.run(scheduled(), event='earnings')
+		earnings.run(scheduled(), event='ex-dividend')
+		earnings.run(scheduled())
 		self.assertEqual(pins, ['1'])
 
 	def test_a_chats_job_runs_its_report_as_scheduled_not_as_a_command(self):
@@ -495,7 +495,7 @@ class ScheduledReports(FinbotCase):
 				self.assertEqual(self.sent, [])
 				module.run(telegram_common.TelegramBot('5'), **kwargs) # a command's reply says that nothing passed
 				self.assertTrue(self.sent)
-		cal.run(job_chat, event='earnings')
+		earnings.run(job_chat)
 		self.assertEqual(pins, ['5'])
 
 	def test_a_report_run_now_says_when_it_has_nothing_to_show(self):
@@ -505,12 +505,12 @@ class ScheduledReports(FinbotCase):
 		self.patch(trades, 'gather', lambda days, portfolio, known: [])
 		self.patch(rating, 'changed', lambda market_data, seen, old: [])
 		self.patch(milestone, 'compare', lambda tickers, market_data, records: ([], [], {}))
-		self.patch(cal, 'gather', lambda tickers, days, specific_stock, event: [])
+		self.patch(earnings, 'gather', lambda tickers, days, specific_stock, event: [])
 		self.patch(podcasts, 'fetch_new_episodes', lambda feed_url, seen: [])
 		past = formats.days_english(config.settings.past_days, 'in the past ')
 		ahead = formats.days_english(config.settings.future_days, 'for the next ')
 		runs = ((trades, {}, f'No new trades {past}.'), (rating, {}, 'No rating changes found'),
-			(milestone, {}, 'No new record highs or lows'), (cal, {'event': 'ex-dividend'}, f'No events found {ahead}'),
+			(milestone, {}, 'No new record highs or lows'), (earnings, {}, f'No events found {ahead}'),
 			(podcasts, {'feed_url': 'https://example.com/feed'}, '📣 No new episodes'),
 			(shorts, {'threshold': 1000}, '🩳 No stocks shorted over 1000%. Try specifying a number.'),
 			(movers, {'mode': 'premarket', 'threshold': 1000}, 'No pre-market price movements meet threshold 1000%'),
@@ -525,11 +525,11 @@ class ScheduledReports(FinbotCase):
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
 		"""T1 has no earnings date, even in its details, so its primary listing is looked up: Yahoo not knowing it
 		crashed the report."""
-		self.patch(cal, 'primary_listings', lambda: {'T1': 'T1.XX'})
+		self.patch(earnings, 'primary_listings', lambda: {'T1': 'T1.XX'})
 		undated = lambda t: {k: v for k, v in market_entry(t).items() if not (t == 'T1' and k == 'earnings_date')}
 		self.patch(yahoo, 'fetch', lambda ts: {t: undated(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1.XX' else {t: undated(t)})
-		cal.run(scheduled(), event='earnings')
+		earnings.run(scheduled(), event='earnings')
 		self.assertIn('Co T2 ', str(self.sent))
 		self.assertNotIn('Co T1 ', str(self.sent))
 
@@ -551,7 +551,7 @@ class ScheduledReports(FinbotCase):
 					return {t: {**(market_entry(t) if own_date else undated(t)), 'profile_country': 'United Kingdom'}}
 				self.patch(yahoo, 'fetch_detail', details)
 				self.sent.clear()
-				cal.run(scheduled(), event='earnings')
+				earnings.run(scheduled(), event='earnings')
 				self.assertEqual('Co T1 ' in str(self.sent), listed)
 				self.assertEqual([(t, guess) for t, guess in asked if '.' in t], guessed)
 

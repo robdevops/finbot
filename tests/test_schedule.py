@@ -5,7 +5,7 @@ import contextlib, datetime, hashlib, io, re, unittest
 from pathlib import Path
 from tests.common import *
 from lib import catalog, inbound, jobs, state, when, worker
-from lib.reports import cal, cleanup, message, movers, performance, podcasts
+from lib.reports import cleanup, earnings, message, movers, performance, podcasts
 
 MELBOURNE = 'Australia/Melbourne'
 OCTOBER = datetime.datetime(2026, 10, 15, tzinfo=when.UTC)
@@ -28,7 +28,7 @@ class Actions(unittest.TestCase):
 				self.assertNotIn(command.command.handler, worker.REPORTED)
 		self.assertFalse({'help', 'start', 'watchlist', 'wishlist', 'plan', 'jobs', 'cron', 'schedule', 'movers',
 			'session', 'earnings', 'trades'} & set(commands))
-		self.assertEqual(jobs.chat_actions(), ['cal', 'message', 'milestone', 'movers', 'performance', 'podcasts',
+		self.assertEqual(jobs.chat_actions(), ['earnings', 'message', 'milestone', 'movers', 'performance', 'podcasts',
 			'rating', 'shorts', 'trades', 'holdings', 'treemap', 'who', 'marketcap', 'beta', 'price',
 			'buysell', 'pe', 'peg', 'stock'])
 
@@ -86,7 +86,7 @@ class Actions(unittest.TestCase):
 				('performance tue-sat at 8am', 'performance', [], {'days': ['tue', 'wed', 'thu', 'fri', 'sat'],
 					'at': '08:00'}),
 				('movers every 20 mins weekdays', 'movers', ['interday'], {'days': 'weekdays', 'every': 20}),
-				('cal ex-dividend every sunday', 'cal', ['ex-dividend'], {'days': ['sun'], 'at': '09:00'}),
+				('earnings every sunday', 'earnings', [], {'days': ['sun'], 'at': '09:00'}),
 				(f'podcasts {url} hourly', 'podcasts', [url], {'days': 'daily', 'every': 60}),
 				('message every 31 mar "🥳 Happy EOFY"', 'message', ['🥳 Happy EOFY'],
 					{'days': {'day': 31, 'months': [3]}, 'at': '08:30'}),
@@ -109,13 +109,22 @@ class JobArguments(unittest.TestCase):
 			with self.assertRaisesRegex(ValueError, movers.ARGUMENTS.replace('|', r'\|')):
 				movers.job(bad)
 
+	def test_the_old_cal_jobs_are_the_earnings_job(self):
+		"""A job stored as cal earnings or cal ex-dividend runs as earnings, and a default job's old keys in a chat's
+		record stand for the one earnings."""
+		schedule = {'days': ['sun'], 'at': '09:00', 'zone': 'UTC'}
+		for args in (['earnings'], ['ex-dividend']):
+			job = jobs.stored_job('telegram:5', {'action': 'cal', 'args': args, 'schedule': schedule})
+			self.assertEqual((job.action, job.args, job.name), ('earnings', (), 'earnings'))
+		self.assertFalse(jobs.item_on({'off': ['cal-ex-dividend']}, 'earnings'))
+		self.assertTrue(jobs.item_on({'off': ['cal-ex-dividend']}, 'shorts'))
+		self.assertEqual(jobs.removed({'deleted': ['cal-earnings', 'shorts']}), ['earnings', 'shorts'])
+
 	def test_cal_and_performance(self):
-		"""cal takes earnings or ex-dividend; performance an optional number of days."""
-		self.assertEqual(cal.job(['earnings']), ('cal earnings', {'event': 'earnings'}))
-		self.assertEqual(cal.job(['ex-dividend']), ('cal ex-dividend', {'event': 'ex-dividend'}))
+		"""earnings takes none; performance an optional number of days."""
 		self.assertEqual(performance.job([]), ('performance', {}))
 		self.assertEqual(performance.job(['7']), ('performance 7', {'past_days': 7}))
-		for bad, module in ((['x'], cal), ([], cal), (['x'], performance)):
+		for bad, module in ((['x'], earnings), (['x'], performance)):
 			with self.assertRaises(ValueError):
 				module.job(bad)
 
@@ -150,7 +159,7 @@ class JobArguments(unittest.TestCase):
 		for name, module in jobs.ACTIONS.items():
 			with self.subTest(name=name):
 				self.assertIsInstance(module.ARGUMENTS, str)
-				if name not in ('cal', 'cleanup', 'message', 'performance', 'podcasts', 'movers'):
+				if name not in ('cleanup', 'message', 'performance', 'podcasts', 'movers'):
 					self.assertEqual((module.job([]), module.ARGUMENTS), ((name, {}), ''))
 					with self.assertRaisesRegex(ValueError, 'no arguments'):
 						module.job(['7'])
@@ -166,8 +175,8 @@ class DefaultJobs(unittest.TestCase):
 		"""Each default job is an action a chat may schedule, with arguments its parser takes, on a schedule that runs;
 		its key is its own; its name says what it reports on, never when; performance and movers over a period cover the
 		days between their runs."""
-		self.assertEqual(len(catalog.ITEMS), 35)
-		self.assertEqual(len({item.key for item in catalog.ITEMS}), 35)
+		self.assertEqual(len(catalog.ITEMS), 34)
+		self.assertEqual(len({item.key for item in catalog.ITEMS}), 34)
 		start = datetime.datetime(2026, 1, 1, tzinfo=when.UTC)
 		for item in catalog.ITEMS:
 			with self.subTest(item=item.key):
@@ -200,7 +209,7 @@ class DefaultJobs(unittest.TestCase):
 			'rating · Tue–Sat at 8:30am Sydney', 'milestone · Tue–Sat at 8:30am Sydney',
 			'podcasts Money Cafe · hourly at :01, weekdays 10am–9pm Sydney',
 			'podcasts Stocktake · hourly at :01, weekdays 10am–9pm Sydney',
-			'cal earnings · weekly, Sundays at 8:30am Sydney', 'cal ex-dividend · weekly, Sundays at 8:30am Sydney',
+			'earnings · weekly, Sundays at 8:30am Sydney',
 			'shorts · weekly, Sundays at 8:30am Sydney', 'performance · weekly, Sundays at 8:30am Sydney',
 			'movers · weekly, Sundays at 8:30am Sydney', 'performance · monthly, the 2nd at 8:30am Sydney',
 			'movers · monthly, the 2nd at 8:30am Sydney', 'performance · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney',

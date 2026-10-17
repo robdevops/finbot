@@ -92,7 +92,7 @@ A job is a report and what it takes, then when it runs:
   * `/jobs` shows a job by its own zone's clock, with the local time beside it where the clocks differ: `weekdays at
     4:30pm New York (7:30am local, Tue–Sat)`.
 
-The reports are `trades`, `movers midsession|interday|premarket|close|DAYS`, `cal earnings|ex-dividend`,
+The reports are `trades`, `movers midsession|interday|premarket|close|DAYS`, `earnings`,
 `performance [DAYS]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `message "TEXT"`. A job a chat added
 as `price` before the movers report took its name runs as `movers`; `price` in a job added now is the line chart.
 
@@ -135,29 +135,28 @@ move as either side's daylight saving changes.
 | 10 | milestone | Tue–Sat at 8:30am Sydney |
 | 11 | podcasts Money Cafe | hourly at :01, weekdays 10am–9pm Sydney |
 | 12 | podcasts Stocktake | hourly at :01, weekdays 10am–9pm Sydney |
-| 13 | cal earnings | weekly, Sundays at 8:30am Sydney |
-| 14 | cal ex-dividend | weekly, Sundays at 8:30am Sydney |
-| 15 | shorts | weekly, Sundays at 8:30am Sydney |
-| 16 | performance | weekly, Sundays at 8:30am Sydney |
-| 17 | movers | weekly, Sundays at 8:30am Sydney |
-| 18 | performance | monthly, the 2nd at 8:30am Sydney |
-| 19 | movers | monthly, the 2nd at 8:30am Sydney |
-| 20 | performance | quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney |
-| 21 | movers | quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney |
-| 22 | performance | bi-annual, 2 Jan and 2 Jul at 8:30am Sydney |
-| 23 | movers | bi-annual, 2 Jan and 2 Jul at 8:30am Sydney |
-| 24 | performance | annual, 2 Jan at 8:30am Sydney |
-| 25 | movers | annual, 2 Jan at 8:30am Sydney |
-| 26 | message: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 | annual, 31 Mar at 8:30am Sydney |
-| 27 | message: SPCX IPO anniversary | annual, 12 Jun at 8:30am Sydney |
-| 28 | message: 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
-| 29 | message: 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
-| 30 | message: ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
-| 31 | message: finbot's birthday | annual, 18 Aug at 8:30am Sydney |
-| 32 | message: 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
-| 33 | message: ubank draw 6/6 … (AU) | once, 28 Oct 2026 at 8:30am Sydney |
-| 34 | message: 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
-| 35 | message: SPCX 5th mensiversary … | once, 12 Nov 2026 at 8:30am Sydney |
+| 13 | earnings | weekly, Sundays at 8:30am Sydney |
+| 14 | shorts | weekly, Sundays at 8:30am Sydney |
+| 15 | performance | weekly, Sundays at 8:30am Sydney |
+| 16 | movers | weekly, Sundays at 8:30am Sydney |
+| 17 | performance | monthly, the 2nd at 8:30am Sydney |
+| 18 | movers | monthly, the 2nd at 8:30am Sydney |
+| 19 | performance | quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney |
+| 20 | movers | quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney |
+| 21 | performance | bi-annual, 2 Jan and 2 Jul at 8:30am Sydney |
+| 22 | movers | bi-annual, 2 Jan and 2 Jul at 8:30am Sydney |
+| 23 | performance | annual, 2 Jan at 8:30am Sydney |
+| 24 | movers | annual, 2 Jan at 8:30am Sydney |
+| 25 | message: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 | annual, 31 Mar at 8:30am Sydney |
+| 26 | message: SPCX IPO anniversary | annual, 12 Jun at 8:30am Sydney |
+| 27 | message: 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
+| 28 | message: 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
+| 29 | message: ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
+| 30 | message: finbot's birthday | annual, 18 Aug at 8:30am Sydney |
+| 31 | message: 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
+| 32 | message: ubank draw 6/6 … (AU) | once, 28 Oct 2026 at 8:30am Sydney |
+| 33 | message: 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
+| 34 | message: SPCX 5th mensiversary … | once, 12 Nov 2026 at 8:30am Sydney |
 
 * **Market reports run in their market's zone**, so they keep to its session through its daylight saving:
   * pre-market US at 7:15am New York;

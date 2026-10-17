@@ -28,8 +28,8 @@ MOST_JOBS = {'discord': 16} # job buttons on a page: Discord takes five rows of 
 # Add's reports: (label, action, arguments; None where the period follows how often it runs, or a reminder's text)
 REPORTS = (('trades', 'trades', ()), ('movers midsession', 'movers', ('midsession',)),
 	('movers premarket', 'movers', ('premarket',)), ('movers close', 'movers', ('close',)), ('movers', 'movers', None),
-	('performance', 'performance', None), ('cal earnings', 'cal', ('earnings',)),
-	('cal ex-dividend', 'cal', ('ex-dividend',)), ('shorts', 'shorts', ()), ('rating', 'rating', ()),
+	('performance', 'performance', None), ('earnings', 'earnings', ()),
+	('shorts', 'shorts', ()), ('rating', 'rating', ()),
 	('milestone', 'milestone', ()), ('reminder', 'message', None))
 FREQUENCIES = (('o', 'one-off'), ('h', 'hourly'), ('d', 'daily'), ('w', 'weekly'), ('m', 'monthly'),
 	('q', 'quarterly'), ('b', 'bi-annual'), ('a', 'annual'), ('r', 'every...'))

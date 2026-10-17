@@ -1,4 +1,4 @@
-""".earnings and .dividend: upcoming earnings and ex-dividend dates (scheduled: cal earnings | ex-dividend)."""
+""".earnings and .dividend: upcoming earnings and ex-dividend dates (scheduled: earnings)."""
 import datetime
 
 from lib import config
@@ -7,6 +7,7 @@ from lib import links
 from lib import markets
 from lib import watchlist
 from lib import delivery
+from lib import reports
 from lib import yahoo
 
 def primary_listings():
@@ -16,11 +17,11 @@ def primary_listings():
 EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'),
 	'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
 
-def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
-	"""Post the earnings or ex-dividend dates ahead (`event`; 'both' for one chronological list of both, each line
-	named for its event) for the stocks a chat follows or one (Yahoo's symbol): to the chat that asked or whose job it
-	is (dest). The scheduled earnings report is pinned where the network can; a reply is not, or the chat would
-	collect pinned copies."""
+def run(dest=None, *, days=None, specific_stock=None, event='both'):
+	"""Post the earnings or ex-dividend dates ahead (`event`: both by default, in one chronological list with each
+	line named for its event) for the stocks a chat follows or one (Yahoo's symbol): to the chat that asked or whose
+	job it is (dest). The scheduled report is pinned where the network can; a reply is not, or the chat would collect
+	pinned copies."""
 	chat, interactive = delivery.target(dest), delivery.interactive(dest)
 	if days is None:
 		days = config.settings.future_days
@@ -32,8 +33,8 @@ def run(dest=None, *, days=None, specific_stock=None, event='earnings'):
 		events = gather(tickers, days, specific_stock, event)
 	payload = report(chat.dialect, events, days, specific_stock, delivery.asked(dest), event)
 	answers = delivery.deliver(chat, delivery.Report(payload))
-	if event == 'earnings' and not specific_stock and not interactive and hasattr(chat, 'pin'):
-		chat.pin(answers) # the scheduled earnings report stays on top, where the network can pin
+	if event == 'both' and not specific_stock and not interactive and hasattr(chat, 'pin'):
+		chat.pin(answers) # the scheduled report stays on top, where the network can pin
 
 def gather(tickers, days, specific_stock, event):
 	"""The dates of `event` within `days` (any date for one stock), soonest first: [(when, flag, title, ticker)]. ETFs
@@ -99,12 +100,6 @@ def report(service, events, days, specific_stock, asked, event):
 		payload = [f"No events found for {specific_stock}" if specific_stock else f"No events found {ahead}"]
 	return payload
 
-ARGUMENTS = 'earnings|ex-dividend' # what a scheduled run takes
+ARGUMENTS = '' # what a scheduled run takes: nothing
 
-def job(argv):
-	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
-	match argv:
-		case ['earnings' | 'ex-dividend' as event]:
-			return f'cal {event}', {'event': event}
-		case _:
-			raise ValueError(ARGUMENTS)
+job = reports.no_arguments('earnings')

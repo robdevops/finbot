@@ -24,17 +24,17 @@ from lib import log
 from lib import sharesight
 from lib import state
 from lib import when
-from lib.reports import cal, cleanup, message, milestone, movers, performance, podcasts, rating, shorts, trades
+from lib.reports import cleanup, earnings, message, milestone, movers, performance, podcasts, rating, shorts, trades
 from lib.reports import sharesight_warm, yahoo_warm
 
 # what a job may run, by name: a report module of finbot's own, whose run() is called with what its job() made of the
 # job's arguments; nothing else is ever called, imported or evaluated
-ACTIONS = {'cal': cal, 'message': message, 'milestone': milestone, 'movers': movers, 'performance': performance,
-	'podcasts': podcasts, 'rating': rating, 'shorts': shorts, 'trades': trades,
+ACTIONS = {'earnings': earnings, 'message': message, 'milestone': milestone, 'movers': movers,
+	'performance': performance, 'podcasts': podcasts, 'rating': rating, 'shorts': shorts, 'trades': trades,
 	'cleanup': cleanup, 'sharesight_warm': sharesight_warm, 'yahoo_warm': yahoo_warm}
 SYSTEM_ACTIONS = ('cleanup', 'sharesight_warm', 'yahoo_warm') # the system's alone: a chat cannot schedule these
-RENAMED = {'price': 'movers'} # actions renamed: a job a chat added under the old name runs under the new (.price is
-# the line chart's name now, whose jobs are stored as compare's: worker.STORED)
+RENAMED = {'price': 'movers', 'cal': 'earnings'} # actions renamed: a job a chat added under the old name runs under
+# the new (.price is the line chart's name now, whose jobs are stored as compare's: worker.STORED)
 # the system jobs, in UTC: the Sharesight portfolios and holdings fetched afresh every 30 minutes (cached 40), the price
 # histories of the stocks followed every 4 hours (cached 6), so that no request waits on either; and cache files
 # older than 30 days deleted weekly
@@ -170,7 +170,7 @@ def make_job(action, args, schedule, chat='', on=True, item=None, name=None):
 
 def display_name(action, args, schedule, label):
 	"""What .jobs calls a job a chat added: performance or movers alone where the period follows how often it runs
-	(catalog.period_args), 'message: ' and its first line, else its parser's label ('cal earnings', 'movers 30')."""
+	(catalog.period_args), 'message: ' and its first line, else its parser's label ('earnings', 'movers 30')."""
 	if action == 'message':
 		return catalog.message_name(args)
 	if action in catalog.PERIODIC and list(args) == catalog.period_args(action, schedule):
@@ -188,9 +188,10 @@ def stored_job(chat, entry):
 	if not isinstance(on, bool):
 		raise ScheduleError(f'no switch: {on!r}')
 	schedule = when.Schedule.from_json(entry.get('schedule'))
-	action = entry.get('action')
-	return make_job(RENAMED.get(action, action) if isinstance(action, str) else action, entry.get('args', []),
-		schedule, chat, on)
+	action, args = entry.get('action'), entry.get('args', [])
+	if action == 'cal' and args in (['earnings'], ['ex-dividend']):
+		args = [] # cal earnings and cal ex-dividend are one job now, earnings
+	return make_job(RENAMED.get(action, action) if isinstance(action, str) else action, args, schedule, chat, on)
 
 
 def entry_key(chat, entry):
@@ -201,13 +202,20 @@ def entry_key(chat, entry):
 		return None
 
 
+OLD_KEYS = {'cal-earnings': 'earnings', 'cal-ex-dividend': 'earnings'} # default jobs merged; records may name them
+
+def current_keys(listed):
+	"""A record's list of catalog keys, a default job's old key (OLD_KEYS) by its new."""
+	return [OLD_KEYS.get(key, key) for key in listed] if isinstance(listed, list) else listed
+
+
 def item_on(record, key):
 	"""Whether a default job (by its catalog key) is on in a chat's record: unless it is switched off, or, where the
 	default jobs start off (a direct message), where it is switched on."""
 	if record.get('defaults') == 'off':
-		listed = record.get('on', [])
+		listed = current_keys(record.get('on', []))
 		return isinstance(listed, list) and key in listed
-	listed = record.get('off', [])
+	listed = current_keys(record.get('off', []))
 	return not (isinstance(listed, list) and key in listed)
 
 
@@ -215,13 +223,14 @@ def switch_item(record, key, on):
 	"""Switch a default job on or off in a chat's record: whether it is on now."""
 	starts_on = record.get('defaults') != 'off'
 	name = 'off' if starts_on else 'on' # the list of those switched from how they start
-	keep(record, name, [each for each in record.get(name, []) if each != key] + ([key] if on != starts_on else []))
+	others = [each for each in current_keys(record.get(name, [])) if each != key]
+	keep(record, name, others + ([key] if on != starts_on else []))
 	return on
 
 
 def removed(record):
 	"""The default jobs (by catalog key) that a chat's record says it removed."""
-	listed = record.get('deleted', [])
+	listed = current_keys(record.get('deleted', []))
 	return [key for key in listed if isinstance(key, str)] if isinstance(listed, list) else []
 
 
@@ -561,7 +570,7 @@ class Scheduler:
 			if not job.item:
 				return record['jobs'].pop(self.index(record, job))
 			for name in ('off', 'on'):
-				keep(record, name, [key for key in record.get(name, []) if key != job.item])
+				keep(record, name, [key for key in current_keys(record.get(name, [])) if key != job.item])
 			record['deleted'] = list(dict.fromkeys([*removed(record), job.item]))
 		self.change(job.chat, remove)
 

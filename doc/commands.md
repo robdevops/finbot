@@ -220,7 +220,7 @@ As a command, it also takes a portfolio:
 ### Events calendar
 ![earnings message in Slack](../img/earnings.png?raw=true "Earnings message in Slack")
 
-The `cal` report sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the `settings.conf` for a scheduled run, or can be specified as an argument when triggered through the chat bot.
+The `earnings` report sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the `settings.conf` for a scheduled run, or can be specified as an argument when triggered through the chat bot.
 
 **Finance Explainer:** When a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 
@@ -229,9 +229,9 @@ The `cal` report sends upcoming earnings and ex-dividend date alerts. The data i
 future_days=30
 ```
 
-Job (see [Scheduling](scheduling.md)), such as `/jobs add cal earnings every sunday at 8:30am`:
+Job (see [Scheduling](scheduling.md)), such as `/jobs add earnings every sunday at 8:30am`:
 ```
-cal earnings|ex-dividend
+earnings
 ```
 
 Command (the coming earnings and ex-dividend dates in one message, in date order under shared date headings, each line naming its event; for a period, or one symbol):

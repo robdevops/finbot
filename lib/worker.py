@@ -21,7 +21,7 @@ from lib import render
 from lib import buttons
 from lib import charts
 from lib import transports
-from lib.reports import about, cal, holdings, movers, performance, pick, profile, rankings, shorts, trades
+from lib.reports import about, earnings, holdings, movers, performance, pick, profile, rankings, shorts, trades
 from lib import sharesight
 from lib import telegram_common
 from lib import jobs
@@ -527,7 +527,7 @@ def on_calendar(request, args):
 		words = words[2:]
 	symbol = yahoo.symbol(words[0]) if words else None
 	event = 'ex-dividend' if 'div' in args.word and args.word != 'earningsdividend' else 'both'
-	cal.run(request.dest, days=args.days, specific_stock=symbol, event=event)
+	earnings.run(request.dest, days=args.days, specific_stock=symbol, event=event)
 
 def on_performance(request, args):
 	""".performance [period] [portfolio]: each portfolio's return, over a month by default."""

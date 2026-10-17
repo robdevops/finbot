@@ -78,8 +78,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
   or the job's chat, and with no dest raises: there are no home chats (`delivery.target`); `job(argv)`, its arguments'
   parser (`reports.no_arguments(name)` for one that takes none); and `ARGUMENTS`, what `.jobs add` lists): `movers
-  performance trades shorts cal rating milestone message podcasts cleanup sharesight_warm yahoo_warm` (`jobs.RENAMED`:
-  a job stored under an old name runs under the new, as `price` does as `movers`). trades, rating,
+  performance trades shorts earnings rating milestone message podcasts cleanup sharesight_warm yahoo_warm` (`jobs.RENAMED`:
+  a job stored under an old name runs under the new, as `price` does as `movers`, and `cal` with its earnings or
+  ex-dividend argument as `earnings`, which posts both; `jobs.OLD_KEYS` for a default job's old keys in a chat's record). trades, rating,
   milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`), added to only
   by a scheduled run (`delivery.interactive(dest)` is false). A report with nothing to show says so only where someone
   asked (`delivery.asked(dest)`: a command, a button, or Run now and `.jobs run`, whose destination is scheduled but
