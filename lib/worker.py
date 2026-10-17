@@ -329,7 +329,7 @@ def process_request(message):
 		message.message_id, message.interaction)
 	command, args = read(message.text, message.bot_name)
 	if why := refused(message.service, message.ids, command, message.chat_id):
-		log.info(log.cut(f"{message.service.capitalize()} {message.user} refused: {message.text}"))
+		log.info(log.cut(f"{message.service.capitalize()} {message.chat_id} {message.user} refused: {message.text}"))
 		return request.reply([why])
 	if command and jobs.current: # a chat finbot does not know yet starts with the default jobs (off in a DM)
 		try:

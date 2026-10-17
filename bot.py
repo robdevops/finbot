@@ -202,11 +202,11 @@ def take(network, update):
 		log.info(f"{network.service.capitalize()} update {network.update_id(update)} seen already, not run again")
 		return inbound.OK
 	if isinstance(event, inbound.Message) and not event.interaction and doubled(event): # each interaction is answered
-		log.info(log.cut(f"{network.service.capitalize()} {event.user} sent it again within {DOUBLED} s, not run "
-			"again: " + event.text))
+		who = f"{network.service.capitalize()} {event.chat_id} {event.user}"
+		log.info(log.cut(f"{who} sent it again within {DOUBLED} s, not run again: {event.text}"))
 		return inbound.OK
 	if isinstance(event, inbound.Press) and (why := worker.refused_press(event)):
-		log.info(f"{network.service.capitalize()} {event.user} refused: a button of an admins' command")
+		log.info(f"{network.service.capitalize()} {event.chat_id} {event.user} refused: a button of an admins' command")
 		return network.acknowledge(event, toast=why) or inbound.OK
 	if isinstance(event, inbound.Press) and worker.repeated(event):
 		log.info(f"{network.service.capitalize()} duplicate button press ignored")
@@ -223,7 +223,7 @@ def dispatch(event):
 		log.debug(f"{event.service.capitalize()} button", event.user, "chat", event.chat_id, event.data)
 		target = worker.process_callback
 	else:
-		log.info(log.cut(f"{event.service.capitalize()} {event.user} {event.text}"))
+		log.info(log.cut(f"{event.service.capitalize()} {event.chat_id} {event.user} {event.text}"))
 		target = worker.process_request
 	thread = threading.Thread(target=target, args=(event,))
 	thread.start()
