@@ -864,7 +864,7 @@ class JobsMenu(ChatBase):
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
 		self.assertEqual(lines, ['<b>Add a job: which report?</b>'])
 		self.assertEqual(rows, [['trades', 'price midsession', 'price premarket'], ['price close', 'price',
-			'performance'], ['cal earnings', 'cal ex-dividend', 'shorts'], ['rating', 'milestone', 'message'],
+			'performance'], ['cal earnings', 'cal ex-dividend', 'shorts'], ['rating', 'milestone', 'reminder'],
 			['holdings', 'pie', 'treemap'], ['who', 'marketcap', 'beta'], ['compare', 'history', 'buy & sell'],
 			['pe', 'forward pe', 'peg'], ['stock'], ['Cancel']])
 		self.assertEqual((data['price'], data['Cancel']), (f'm|add|5|{self.crc()}', f'm|top|0|{self.crc()}'))
@@ -955,7 +955,7 @@ class JobsMenu(ChatBase):
 
 	def test_a_one_off_by_year_month_day_hour_and_minute(self):
 		"""A one-off takes its year (this one and the nine after it), month, day, hour and minute, never one gone by,
-		tomorrow its default day; a message's text cannot come from a button, so its screen says how to type one."""
+		tomorrow its default day; a reminder's text cannot come from a button, so its screen says how to type one."""
 		lines, rows, data = self.press(f'm|add|9|o|{self.crc()}')
 		self.assertEqual((lines[0], rows[:2]), ('<b>Add shorts, once: in which year?</b>', [['2026†', '2027', '2028',
 			'2029', '2030'], ['2031', '2032', '2033', '2034', '2035']]))
@@ -974,7 +974,8 @@ class JobsMenu(ChatBase):
 		lines, rows, data = self.press(data['08'])
 		self.assertEqual(self.press(data['08:00†'])[0], ['Added: 4. ✅* shorts · once, 20 Feb 2027 at 8:00am'])
 		lines, rows, _ = self.press(f'm|add|12|{self.crc()}')
-		self.assertIn('.jobs add message SCHEDULE "TEXT"', lines)
+		self.assertEqual(lines[:3], ['<b>Add a reminder</b>', "A reminder's text is what you type:",
+			'.jobs add message SCHEDULE "TEXT"'])
 		self.assertEqual(rows, [['Back', 'Cancel']])
 
 	def test_the_commands_of_help_by_buttons(self):

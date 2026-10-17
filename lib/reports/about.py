@@ -25,12 +25,12 @@ NOT_RUN = '* not run yet' # the key to a list's mark
 PAGE_ROOM = 500 # characters of a screen besides its jobs' lines: its headings, a note, the key to *
 JOB_ROW = 4 # job buttons in a row
 MOST_JOBS = {'discord': 16} # job buttons on a page: Discord takes five rows of five, one kept for the others; else 40
-# Add's reports: (label, action, arguments; None where the period follows how often it runs, or a message's text)
+# Add's reports: (label, action, arguments; None where the period follows how often it runs, or a reminder's text)
 REPORTS = (('trades', 'trades', ()), ('price midsession', 'price', ('midsession',)),
 	('price premarket', 'price', ('premarket',)), ('price close', 'price', ('close',)), ('price', 'price', None),
 	('performance', 'performance', None), ('cal earnings', 'cal', ('earnings',)),
 	('cal ex-dividend', 'cal', ('ex-dividend',)), ('shorts', 'shorts', ()), ('rating', 'rating', ()),
-	('milestone', 'milestone', ()), ('message', 'message', None))
+	('milestone', 'milestone', ()), ('reminder', 'message', None))
 FREQUENCIES = (('o', 'one-off'), ('h', 'hourly'), ('d', 'daily'), ('w', 'weekly'), ('m', 'monthly'),
 	('q', 'quarterly'), ('b', 'bi-annual'), ('a', 'annual'), ('r', 'every...'))
 WEEKDAY = 'k' # every...'s weekday, among its intervals: a time each weekday
@@ -228,7 +228,7 @@ def add_screen(service, chat, steps):
 			MOST_REPORTS else 3, nav=nav)
 	label, action, args = reports[choice(steps[0], 1, len(reports)) - 1]
 	if action == 'message':
-		return [service.bold('Add a message'), "A message's text is what you type:",
+		return [service.bold('Add a reminder'), "A reminder's text is what you type:",
 			'.jobs add message SCHEDULE "TEXT"', '', service.bold('For example:'),
 			'.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"',
 			'.jobs add message on 28 oct 2026 "ubank draw 6/6"'], [[back, cancel]]

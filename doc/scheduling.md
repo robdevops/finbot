@@ -34,9 +34,9 @@ A button drawn for a list that has since changed acts on nothing: the screen is 
 Each screen marks its default with `†` (`Sat†`, `09†`) and says _† indicates default_; after the first, **Back** takes a
 step back. Times are by the `timezone` setting's clock.
 
-First what the job runs: a report, or a command of `/help` ([below](#a-job-in-english)). A message's text, and the
-stock of `/who` and `/stock`, cannot come from a button, so their screen says how to type them; `/pie`, `/treemap`,
-`/holdings`, `/history` and `/compare` run as typed bare. Then how often:
+First what the job runs: a report, or a command of `/help` ([below](#a-job-in-english)). A reminder's text (a
+`message` job), and the stock of `/who` and `/stock`, cannot come from a button, so their screen says how to type
+them; `/pie`, `/treemap`, `/holdings`, `/history` and `/compare` run as typed bare. Then how often:
 
 | how often | then | added as, for example |
 |---|---|---|
