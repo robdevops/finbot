@@ -82,7 +82,9 @@ jobs:
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
       - if: steps.changes.outputs.docs_only != 'true'
         name: Build the image
-        run: docker build --build-arg GIT_COMMIT="$GITHUB_SHA" -t finbot .
+        run: |
+          docker build --build-arg GIT_COMMIT="$GITHUB_SHA" -t finbot .
+          docker image ls finbot --format 'The image is {{.Size}}'
       - if: steps.changes.outputs.docs_only != 'true'
         name: Every module imports in the image, the optional libraries too, a chart draws, and the log names the commit
         run: |
