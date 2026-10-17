@@ -319,17 +319,17 @@ def _time_axes(canvas, right, first, last, ylim, label):
 			ha='center', va='top')
 	return axes
 
-def _heading(canvas, title, subtitle='', subtitle_color=None, inline=False):
-	"""A chart's title at the top left, and its subtitle (if any) beneath, or with `inline` to the right of it, each
-	shrunk to fit the width."""
+def _heading(canvas, title, subtitle='', subtitle_color=None):
+	"""A chart's title at the top left, and its subtitle (if any) beneath, each shrunk to fit the width."""
 	_, ink, ink2, _ = PALETTE
 	room = 0.94 * canvas.width
-	right = canvas.text(0.03 * W, 0.043 * H, title, canvas.fit(13, [title], room, bold=True), ink, bold=True)
-	if subtitle and inline:
-		x = right + 0.015 * W
-		canvas.text(x, 0.043 * H, subtitle, canvas.fit(8.5, [subtitle], 0.97 * W - x), subtitle_color or ink2)
-	elif subtitle:
+	canvas.text(0.03 * W, 0.043 * H, title, canvas.fit(13, [title], room, bold=True), ink, bold=True)
+	if subtitle:
 		canvas.text(0.03 * W, 0.09 * H, subtitle, canvas.fit(8.5, [subtitle], room), subtitle_color or ink2)
+
+def _plot_top(subtitle):
+	"""Where a chart's plot starts, in pixels from the top: below its subtitle, or its title where it has none."""
+	return (0.15 if subtitle else 0.11) * H
 
 def _dated(rows):
 	"""(date, close) rows, each date an ISO date or a datetime.date, as (the days as ordinals, the closes as floats)."""
@@ -436,7 +436,7 @@ def draw_bars(chart):
 		bg = _mixed(bg, SESSION_TINTS[session], 0.07)
 	n = len(rows)
 	canvas = _Canvas(W, H * max(1, n / ROWS), bg)
-	top_edge = H - (0.85 if subtitle else 0.89) * H # as far from the top in a taller image
+	top_edge = _plot_top(subtitle) # as far from the top in a taller image
 	bottom_edge = canvas.height - 0.02 * H
 	left, right = (0.14 if xlim else 0.04) * W, 0.96 * W # zoomed charts keep their labels outside the plot
 	real = [(y, label, v) for y, (label, v) in enumerate(rows) if v is not None]
@@ -690,7 +690,8 @@ def draw_treemap(chart):
 	bg = PALETTE[0]
 	canvas = _Canvas(W, H, bg)
 	total = sum(value for _, held in rows for _, value in held) or 1.0
-	box = _squarify([sum(value for _, value in held) for _, held in rows], 0, 58, 1280, 742) # 2px edges, with the gaps
+	top = _plot_top(chart.subtitle) # below the heading, as the other charts are
+	box = _squarify([sum(value for _, value in held) for _, held in rows], 0, top, W, H - top) # 2px edges, with gaps
 	char, n = 14, 0 # pixels a character of the 8pt tile text takes, at most
 	for (label, held), (x, y, w, h) in zip(rows, box):
 		color = '#6b7280' if label == 'Other' else CATEGORIES[n % len(CATEGORIES)]
@@ -709,7 +710,7 @@ def draw_treemap(chart):
 			if tw > len(name) * char + 8 and th > 34:
 				lines = name + ('\n%.1f%%' % (value / total * 100) if th > 64 and tw > 5 * char else '')
 				canvas.text(tx + tw / 2, ty + th / 2, lines, 8, '#ffffff', ha='center')
-	_heading(canvas, chart.title, chart.subtitle, inline=True)
+	_heading(canvas, chart.title, chart.subtitle)
 	return canvas.png()
 
 @_drawn
