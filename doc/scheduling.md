@@ -1,7 +1,8 @@
 # Scheduling
 
-Each chat has its own jobs: reports and messages that run on a schedule and post to that chat. Anyone in the chat
-manages them there, with `/jobs` (or `/job`; as a message, also `.cron`, `.crons` or `.schedule`).
+Each chat has its own jobs: reports and messages that run on a schedule and post to that chat. finbot's admins
+(the `admins` setting: [configuration](configuration.md); `/jobs` is one of the `admin_only` commands) manage them
+there, with `/jobs` (or `/job`; as a message, also `.cron`, `.crons` or `.schedule`).
 
 Every chat starts with the [default jobs](#the-default-jobs): switched on in a group or a channel, and switched off in a
 direct message with the bot, until the chat switches them. finbot knows a chat from its first command. A direct message is a person's chat on Telegram, a `D…`

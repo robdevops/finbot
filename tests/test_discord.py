@@ -47,7 +47,8 @@ class Reading(FinbotCase):
 	def test_a_slash_command_is_the_message_it_stands_for(self):
 		"""/price with its arguments is the message '/price 5 7d', answered through its interaction; in a DM (no
 		member, no server) the person is the interaction's user, and the message says it is a DM."""
-		expected = inbound.Message('discord', '77', '<@5>', '/price 5 7d', '@99', 'Rob', '', '42/tok', dm=False)
+		expected = inbound.Message('discord', '77', '<@5>', '/price 5 7d', '@99', 'Rob', '', '42/tok', dm=False,
+			ids=('5',))
 		self.assertEqual(discord_common.READER.parse(COMMAND), expected)
 		dm = {k: v for k, v in COMMAND.items() if k != 'member'} | {'user': {'id': '5', 'username': 'rob'}}
 		self.assertEqual(discord_common.READER.parse(dm), dataclasses.replace(expected, user_name='rob', dm=True))
@@ -56,14 +57,14 @@ class Reading(FinbotCase):
 	def test_a_press_is_a_press_of_its_message(self):
 		"""A button pressed is a Press of its message, its custom_id the button's data."""
 		self.assertEqual(discord_common.READER.parse(PRESS),
-			inbound.Press('discord', '901', '77', '333', 'c|c|y|T1', '@rob', '42/tok'))
+			inbound.Press('discord', '901', '77', '333', 'c|c|y|T1', '@rob', '42/tok', ids=('5',)))
 
 	def test_a_message_by_a_person_reads_with_its_mentions_as_slacks(self):
 		"""A gateway message's mentions read as @id, so that '@bot price 7d' calls .price; one by a bot or a webhook
 		(this bot's replies included) is not answered. One from no server is a DM."""
 		message = discord_common.READER.parse(MESSAGE)
 		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 price 7d', '@99', 'rob', '700',
-			dm=False))
+			dm=False, ids=('5',)))
 		self.assertTrue(discord_common.READER.parse({k: v for k, v in MESSAGE.items() if k != 'guild_id'}).dm)
 		command, args = worker.read(message.text, message.bot_name)
 		self.assertEqual((command.names[0], args.days), ('price', 7))

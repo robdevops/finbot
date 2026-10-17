@@ -98,7 +98,7 @@ class Telegram(inbound.Network):
 			sender = press.get('from', {})
 			who = '@' + sender['username'] if 'username' in sender else sender.get('first_name', 'unknown')
 			return inbound.Press(self.service, press['id'], str(message['chat']['id']), str(message['message_id']),
-				press['data'], who)
+				press['data'], who, ids=self.ids(sender))
 		if 'message' not in update:
 			return inbound.UNSUPPORTED
 		message = update['message']
@@ -120,16 +120,23 @@ class Telegram(inbound.Network):
 			log.info("Telegram unhandled: 'message' without 'text/photo'")
 			return inbound.UNHANDLED
 		return inbound.Message(self.service, chat_id, user, text, self.bot_name, user_name,
-			str(message.get('message_id', '')))
+			str(message.get('message_id', '')), ids=self.ids(sender))
+
+	@staticmethod
+	def ids(sender):
+		"""What the admins setting may call a sender: its user id, and its @username where it has one (never its first
+		name, which anyone may take, and which a handle without a username is made of)."""
+		return tuple(filter(None, (str(sender.get('id') or ''), '@' + sender['username'] if sender.get('username')
+			else '')))
 
 	def acknowledge(self, event, toast=True):
 		"""A press: answerCallbackQuery, so that the client's spinner stops and a toast made from the button's data says
-		what is coming (buttons.toast: 'Loading 1Y…'), but for a press dropped (toast false). A failure is only
-		logged. Nothing goes back with the update."""
-		if isinstance(event, inbound.Press) and toast:
+		what is coming (buttons.toast: 'Loading 1Y…'); none for a press dropped (toast false), and for one refused
+		(toast a text) that text as an alert. A failure is only logged. Nothing goes back with the update."""
+		if isinstance(event, inbound.Press) and toast is True:
 			answerCallbackQuery(event.press_id, buttons.toast(event.data), alert=buttons.alert(event.data))
 		elif isinstance(event, inbound.Press):
-			answerCallbackQuery(event.press_id)
+			answerCallbackQuery(event.press_id, toast or None, alert=bool(toast))
 		return None
 
 

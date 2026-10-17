@@ -133,6 +133,7 @@ class FinbotCase(unittest.TestCase):
 		self.patch(bot, '_said', {}) # nor any message
 		self.patch(bot, 'doubled', lambda message: False) # a test may send the same message twice on purpose
 		self.patch(worker, 'repeated', lambda press: False) # or press the same button twice
+		self.settings(admin_only=()) # and use any command: AdminOnly closes the gate again
 		self.patch(worker, '_presses', collections.OrderedDict()) # each test starts with no press taken
 		self.workers = []
 		self.patch(bot, 'dispatch', lambda event: self.workers.append(REAL_DISPATCH(event)))

@@ -147,7 +147,7 @@ class Discord(inbound.Network):
 			given = ' '.join(str(option.get('value', '')) for option in data.get('options') or []).strip()
 			text = f"/{data['name']} {given}".strip()
 			return inbound.Message(self.service, channel, f"<@{person.get('id')}>", text, self.bot_name,
-				self.name(person), interaction=through, dm=self.dm(update))
+				self.name(person), interaction=through, dm=self.dm(update), ids=self.ids(person))
 		if kind == self.AUTOCOMPLETE and data.get('name'):
 			options = data.get('options') or []
 			typed = next((str(option.get('value', '')) for option in options if option.get('focused')), '')
@@ -155,7 +155,7 @@ class Discord(inbound.Network):
 		message = update.get('message') or {}
 		if kind == self.COMPONENT and data.get('custom_id') and message.get('id'):
 			return inbound.Press(self.service, str(update.get('id')), channel, str(message['id']), data['custom_id'],
-				'@' + str(person.get('username') or person.get('id') or 'unknown'), through)
+				'@' + str(person.get('username') or person.get('id') or 'unknown'), through, ids=self.ids(person))
 		return inbound.UNSUPPORTED
 
 	def message(self, update):
@@ -166,7 +166,12 @@ class Discord(inbound.Network):
 			return inbound.OK
 		text = re.sub(r'<@!?(\d+)>', r'@\1', update['content'])
 		return inbound.Message(self.service, str(update.get('channel_id')), f"<@{author['id']}>", text, self.bot_name,
-			self.name(author), str(update.get('id', '')), dm=self.dm(update))
+			self.name(author), str(update.get('id', '')), dm=self.dm(update), ids=self.ids(author))
+
+	@staticmethod
+	def ids(person):
+		"""What the admins setting may call a person: their user id."""
+		return tuple(filter(None, (str(person.get('id') or ''),)))
 
 	@staticmethod
 	def dm(update):

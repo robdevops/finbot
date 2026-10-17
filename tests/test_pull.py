@@ -252,7 +252,8 @@ class SlackSocketMode(FinbotCase):
 			self.socket({'type': 'hello'}, {'envelope_id': 'e1', 'type': 'slash_commands', 'payload': slash},
 				{'type': 'disconnect', 'reason': 'warning'}).poll(bot.take)
 		self.join_workers()
-		self.assertEqual(messages, [inbound.Message('slack', 'C1', '<@U1>', '/forwardpe top', '', '<@U1>')] * 2)
+		self.assertEqual(messages, [inbound.Message('slack', 'C1', '<@U1>', '/forwardpe top', '', '<@U1>',
+			ids=('U1',))] * 2)
 		self.assertIn(('ack', 'e1'), self.log)
 
 	def test_the_websocket_is_imported_only_to_connect_and_read_as_slack_and_discord_need(self):

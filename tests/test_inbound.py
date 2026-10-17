@@ -275,6 +275,73 @@ class RepeatedPresses(FinbotCase):
 		self.assertEqual(len(self.taken), 6)
 
 
+class AdminOnly(FinbotCase):
+	"""The commands of admin_only (.jobs, as finbot ships) are the admins' alone (admins: no one, as it ships): someone
+	else's gets a refusal, and their press of one of those commands' buttons an alert, neither of them run."""
+	REFUSED = "⛔ Only finbot's admins may use .jobs"
+
+	def setUp(self):
+		"""The gate as finbot ships it; each press taken and each toast noted."""
+		super().setUp()
+		self.settings(admin_only=config.Settings.admin_only, admins=config.Settings.admins)
+		self.taken, self.toasts, self.update = [], [], 0
+		self.patch(worker, 'process_callback', lambda press: self.taken.append(press.data))
+		self.patch(telegram_common, 'answerCallbackQuery',
+			lambda cid, text=None, alert=False: self.toasts.append((text, alert)))
+
+	def take(self, update, sender):
+		"""Take a Telegram update of this kind (message or callback_query), from this sender (its 'from'): the lines of
+		each message sent back."""
+		self.update += 1
+		self.sent.clear()
+		with contextlib.redirect_stderr(io.StringIO()):
+			bot.take(telegram_common.READER, {'update_id': self.update, **{kind: body | {'from': sender}
+				for kind, body in update.items()}})
+			self.join_workers()
+		return [lines for _, lines in self.sent]
+
+	def say(self, text, **sender):
+		"""What a Telegram message of this text, from a sender called Rob (and the rest of `sender`), gets back."""
+		message = {'message_id': self.update, 'chat': {'id': 55}, 'text': text}
+		return self.take({'message': message}, {'first_name': 'Rob', 'id': 7} | sender)
+
+	def test_closed_as_it_ships(self):
+		""".jobs is refused to anyone, as no one is an admin; a command not in admin_only is answered."""
+		self.assertEqual(self.say('.jobs', username='rob'), [[self.REFUSED]])
+		self.assertEqual(self.say('.schedule'), [[self.REFUSED]]) # by any of its names
+		self.assertNotIn([self.REFUSED], self.say('.help'))
+
+	def test_an_admin_is_named_by_id_or_telegram_username(self):
+		"""An admin is named by network and id, or a Telegram @username, as the log shows them, in any case; a first
+		name, which anyone may take (and a handle without a username is made of), never counts."""
+		self.settings(admins=('telegram:@Rob_Llama', 'telegram:123', 'slack:<@U0ABC>'))
+		answered = [['No schedule is running']] # .jobs, let through: no scheduler runs in a test
+		self.assertEqual(self.say('.jobs', username='rob_llama'), answered)
+		self.assertEqual(self.say('.jobs', id=123), answered)
+		self.assertEqual(self.say('.jobs', first_name='rob_llama'), [[self.REFUSED]])
+		self.assertEqual(self.say('.jobs', first_name='@rob_llama'), [[self.REFUSED]])
+		self.assertTrue(worker.admin('slack', ('U0ABC',)) and not worker.admin('discord', ('U0ABC',)))
+
+	def test_the_setting_names_any_command(self):
+		"""admin_only names any command, by any of its names, with or without its . or /."""
+		self.settings(admin_only=('/watchlist',))
+		self.assertEqual(self.say('.wishlist add T1'), [["⛔ Only finbot's admins may use .watchlist"]])
+		self.assertEqual(self.say('.jobs'), [['No schedule is running']])
+
+	def test_a_button_of_an_admins_command_is_theirs_alone(self):
+		"""A press of a button of a command only the admins may use (the .jobs menu's) is refused to anyone else with an
+		alert, and not run; an admin's is taken, with its own toast; a button of another command is anyone's."""
+		press = lambda data, **sender: self.take({'callback_query': {'id': 'q', 'data': data,
+			'message': {'message_id': 9, 'chat': {'id': 55}}}}, {'first_name': 'Rob', 'id': 7} | sender)
+		press('m|top|0|ab12')
+		self.assertEqual((self.taken, self.toasts), ([], [(self.REFUSED, True)]))
+		press('c|c|y|T1')
+		self.settings(admins=('telegram:7',))
+		press('m|top|0|ab12')
+		self.assertEqual((self.taken, self.toasts[1:]), (['c|c|y|T1', 'm|top|0|ab12'], [('Loading 1Y…', False),
+			('Updating…', False)]))
+
+
 class SlackEvents(FinbotCase):
 	"""Slack sends every message in a subscribed channel, the bot's own posts included."""
 
@@ -313,7 +380,7 @@ class SlackEvents(FinbotCase):
 		presses = []
 		self.patch(worker, 'process_callback', presses.append)
 		self.assertEqual(self.press(PRESS), '200 OK')
-		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '@rob')])
+		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '@rob', ids=('U1',))])
 		self.assertEqual(self.press({**PRESS, 'token': 'wrong'}), '403 Forbidden')
 		self.assertEqual(self.press({**PRESS, 'container': {'type': 'view', 'view_id': 'V1'}}), '200 OK')
 		self.assertEqual(self.press({**PRESS, 'actions': []}), '200 OK')
@@ -408,7 +475,7 @@ class SlackSigning(FinbotCase):
 				bot.main(wsgi_environ('/slack', sent, **headers), lambda s, *a, **k: answers.append(s))
 			self.join_workers()
 			self.assertEqual(answers, [status])
-		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '@rob')])
+		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '@rob', ids=('U1',))])
 
 	def test_a_signed_request_is_answered_and_the_token_is_not_needed(self):
 		"""A request signed with the secret is answered, whatever token it carries."""
@@ -457,8 +524,8 @@ class SlackSlashCommands(FinbotCase):
 		the reply goes to; Slack gets an empty 200 at once. There is no message of it, so no ⏳."""
 		self.assertEqual(self.post(SLASH), ('200 OK', b''))
 		self.assertEqual(self.post({**SLASH, 'channel_id': 'D1', 'command': '/job', 'text': ''}), ('200 OK', b''))
-		self.assertEqual(self.requests, [inbound.Message('slack', 'C1', '<@U1>', '/price 5 & 7d', '', '<@U1>'),
-			inbound.Message('slack', 'D1', '<@U1>', '/job', '', '<@U1>')])
+		self.assertEqual(self.requests, [inbound.Message('slack', 'C1', '<@U1>', '/price 5 & 7d', '', '<@U1>',
+			ids=('U1',)), inbound.Message('slack', 'D1', '<@U1>', '/job', '', '<@U1>', ids=('U1',))])
 		self.assertEqual([worker.read(r.text, r.bot_name)[0].names[0] for r in self.requests], ['price', 'jobs'])
 		self.assertFalse(delivery.reply_to('slack', 'C1', self.requests[0].message_id).shows_typing)
 

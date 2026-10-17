@@ -188,7 +188,8 @@ class Sent(list):
 def take(network, update):
 	"""An update from a network (an inbound.Network reads it), however it arrived: what it says goes to lib/worker in a
 	thread of its own (dispatch), unless it is a repeat (the same update resent, the same message sent again at once:
-	doubled, or the same button pressed again: worker.repeated, acknowledged without a toast). It is acknowledged
+	doubled, or the same button pressed again: worker.repeated, acknowledged without a toast), or a press of a command
+	only the admins may use, by someone else (worker.refused_press: an alert says so). It is acknowledged
 	first, the one place that does (Network.acknowledge: Telegram's toast for a press). Returns the inbound.Response
 	for the network; when the network must have it before any reply (Discord's interactions), the work waits in its
 	`then`, for whoever delivers it."""
@@ -204,6 +205,9 @@ def take(network, update):
 		log.info(log.cut(f"{network.service.capitalize()} {event.user} sent it again within {DOUBLED} s, not run "
 			"again: " + event.text))
 		return inbound.OK
+	if isinstance(event, inbound.Press) and (why := worker.refused_press(event)):
+		log.info(f"{network.service.capitalize()} {event.user} refused: a button of an admins' command")
+		return network.acknowledge(event, toast=why) or inbound.OK
 	if isinstance(event, inbound.Press) and worker.repeated(event):
 		log.info(f"{network.service.capitalize()} duplicate button press ignored")
 		return network.acknowledge(event, toast=False) or inbound.OK

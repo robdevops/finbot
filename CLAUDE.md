@@ -45,8 +45,11 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   and SIGUSR1 cache flush, each in a thread. `bot.take(network, update)` takes an update however it arrived, and is the
   one place a press is acknowledged (the worker never does); the same button pressed again on the same message within a
   minute is acknowledged without a toast and dropped (`worker.repeated`; a press that failed is forgotten,
-  `worker.forget`). An answer the network must have before any reply (Discord's deferred interaction) carries the work
-  in its `then`: started once the HTTP answer is sent (`bot.Sent`) or, over the gateway, posted to its callback.
+  `worker.forget`), and a press of a button of an `admin_only` command by someone the `admins` setting does not name is
+  refused with an alert (`worker.refused_press`; a message calling one gets a refusal in `process_request`; closed as
+  finbot ships: `.jobs`, and no admins; `inbound.Message.ids` is who a sender is, never their name). An answer the
+  network must have before any reply (Discord's deferred interaction) carries the work in its `then`: started once the
+  HTTP answer is sent (`bot.Sent`) or, over the gateway, posted to its callback.
 - Each network in three modules, flat in `lib/`. `<network>_common.py`, what both ways in share: the API calls (`call`,
   `try_call`; Discord's wait out its rate limits), the reader of its updates (`READER`: a `Message`, a `Press`, a
   `Suggest` or a `Response` given straight back; `acknowledge` where the network waits for that: Telegram's toast,

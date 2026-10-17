@@ -73,14 +73,15 @@ class Slack(inbound.Network):
 			return inbound.UNHANDLED
 		user = '<@' + event['user'] + '>' # a mention: Slack shows the name
 		return inbound.Message(self.service, event['channel'], user, self.plain(event['text']), '@' + bot_user, user,
-			event.get('ts', ''))
+			event.get('ts', ''), ids=(event['user'],))
 
 	def slash(self, update):
 		"""A slash command (/price with 5 7d), as the message that says the same (/price 5 7d), in the channel or DM it
 		was sent in. There is no message of it, for ⏳ to show on."""
 		user = '<@' + str(update.get('user_id') or 'unknown') + '>'
 		text = self.plain(f"{update['command']} {update.get('text') or ''}".strip())
-		return inbound.Message(self.service, str(update.get('channel_id') or ''), user, text, '', user)
+		return inbound.Message(self.service, str(update.get('channel_id') or ''), user, text, '', user,
+			ids=tuple(filter(None, (str(update.get('user_id') or ''),))))
 
 	@staticmethod
 	def plain(text):
@@ -100,7 +101,7 @@ class Slack(inbound.Network):
 		user = update.get('user') or {}
 		who = '@' + str(user.get('username') or user.get('id') or 'unknown')
 		return inbound.Press(self.service, update.get('trigger_id', ''), container.get('channel_id', ''),
-			container['message_ts'], value, who)
+			container['message_ts'], value, who, ids=tuple(filter(None, (str(user.get('id') or ''),))))
 
 
 class SlackBot(transports.Transport):

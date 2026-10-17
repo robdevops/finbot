@@ -287,6 +287,8 @@ class Settings:
 	"""The settings: settings.conf, which the bot reads at start and on every reload, each with its default here
 	and read as its type says (setting_values). Read them as config.settings.<name> when they are used, never into a
 	default or a module constant, so that a reload is seen."""
+	admin_only: tuple = ('jobs',) # commands only the admins may use: closed by default, as no one is an admin
+	admins: tuple = () # network:id each: telegram:@username (or the user id), slack:U0123ABCD, discord:1234...
 	cache: bool = True
 	cache_seconds: int = 21600
 	country_code: str = 'AU'
