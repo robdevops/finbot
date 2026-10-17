@@ -1,7 +1,8 @@
 """The pickers: what a chat gets when it types .pie, .treemap, .holdings or .price (.compare) with nothing to say
 what it is about, or a job runs one so: the answer for the first portfolio or ticker, with buttons for the portfolios
 or tickers under it, one message edited as each is pressed (buttons.PickPress). Each answer takes the message over and
-leaves the buttons under it, the item shown marked, so another can be picked."""
+leaves the buttons under it, the item shown marked, so another can be picked. The ticker picker is .price's: its
+period row ends in +, which opens the tickers to tick."""
 from lib import answer
 from lib import buttons
 from lib import config
@@ -104,9 +105,9 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		return buttons.pick_button(label, buttons.PickPress(cmd, now['group'], now['period'], now['shown'],
 			now['mask'], act, crc), active)
 	rows = []
-	if cmd == 'c' and view == 'p': # the periods, and + to the tickers, which clears a lone tick: picking starts afresh
+	if cmd == 'c' and view == 'p': # the periods, and + to the tickers
 		rows.append([button(buttons.PERIODS[key][0], 'p0', key == period, period=key) for key in buttons.BUTTONS['c']] +
-			[button('+', f"{step}0", mask=0 if len(ticked) == 1 else mask)])
+			[button('+', f"{step}0")])
 		if to_compare:
 			rows.append([button('Show', 'h0')])
 	on_page = items_on(found, page, per_page)
@@ -136,10 +137,8 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		rows.append(nav)
 	if noun(cmd) == 'portfolio':
 		heading = f"{service.bold(buttons.PICKERS[cmd].capitalize())}: pick a portfolio"
-	else: # how many more may be ticked, counting down
-		left = buttons.MAX_PICKED - len(ticked)
-		heading = (f"{buttons.MAX_PICKED} picked, the most" if left <= 0 else f"Pick up to {left} more" if ticked else
-			f"Pick up to {left} tickers")
+	else:
+		heading = f"Pick up to {buttons.MAX_PICKED} tickers"
 	return ([note] if note else []) + [heading + (f" (page {page + 1} of {pages})" if pages > 1 else '')], rows
 
 def items_on(found, page, per_page):

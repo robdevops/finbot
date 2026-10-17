@@ -378,14 +378,6 @@ class ReportFunctions(FinbotCase):
 				with self.subTest(typed=typed, name=name):
 					self.assertEqual(self.command(f'{name} {typed}'), price)
 
-	def test_the_ticker_list_counts_down_what_may_still_be_ticked(self):
-		"""The tickers' heading, where the message has no chart yet, counts down from eight as tickers are ticked."""
-		found = [f'T{i}' for i in range(10)]
-		for ticked, heading in ((0, 'Pick up to 8 tickers'), (3, 'Pick up to 5 more'), (8, '8 picked, the most')):
-			with self.subTest(ticked=ticked):
-				lines, _ = pick.screen(TELEGRAM, 'c', found, '0', 'w', pick.pack([0]), (1 << ticked) - 1, 'm')
-				self.assertEqual(lines, [heading])
-
 	def test_one_stock_is_drawn_as_the_price_history_was(self):
 		""".compare of one stock is its price line, as .history's chart was: titled with its name, symbol and span,
 		its price and change beneath, red or green with the change; of two or more, the rebased lines, 'T1 vs T2'."""
@@ -1078,24 +1070,20 @@ class Pickers(FinbotCase):
 
 	def test_compare_starts_on_the_first_ticker_alone(self):
 		""".compare (and .history) answers with the first ticker alone at once, on 7D, the periods and + in one row; +
-		opens the tickers' screen with that lone tick cleared, so that the first tick is one picked; Show draws those
-		ticked, one or more; + keeps two or more ticks."""
+		opens the tickers' screen with the ticks as they are (the first ticker's); Show draws those ticked."""
 		self.command('.compare')
 		self.assertEqual(self.labels(), [['● 7D', '1M', '1Y', 'Max', '+']])
 		self.assertTrue(any('Co T0' in line for line in self.showing))
 		kind, lines, rows = self.tap('+')
-		self.assertEqual((kind, [t for row in self.labels(rows) for t in row if t.startswith('✅')]), ('buttons', []))
+		ticks = [t for row in self.labels(rows) for t in row if t.startswith('✅')]
+		self.assertEqual((kind, ticks), ('buttons', ['✅ T0'])) # the first ticker, as shown, stays ticked
+		self.tap('✅ T0') # unticked
 		self.tap('T3')
 		kind, lines, rows = self.tap('Show')
 		self.assertTrue(any('Co T3' in line for line in lines) and not any('Co T0' in line for line in lines))
 		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+']])
-		self.tap('+') # T3 ticked alone: cleared again
-		self.tap('T1')
-		self.tap('T3')
-		kind, lines, rows = self.tap('Show')
-		self.assertTrue(any('Co T1' in line for line in lines) and any('Co T3' in line for line in lines))
-		kind, lines, rows = self.tap('+') # two ticked: kept
-		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')], ['✅ T1', '✅ T3'])
+		kind, lines, rows = self.tap('+') # T3 stays ticked
+		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')], ['✅ T3'])
 		self.assertEqual(self.command('.history'), self.command('.compare'))
 
 	def test_compare_ticks_change_the_buttons_until_show_is_pressed(self):
@@ -1106,10 +1094,9 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(), [['7D', '1M', '● 1Y', 'Max', '+']])
 		self.tap('+')
 		kind, lines, rows = self.tap('T10')
-		self.assertEqual((lines[0], self.labels(rows)[0][:3]), (first, ['T0', 'T1', '✅ T10']))
+		self.assertEqual((lines[0], self.labels(rows)[0][:3]), (first, ['✅ T0', 'T1', '✅ T10']))
 		self.assertFalse(any('Co T10' in line for line in lines)) # the chart is still of the first
 		self.assertEqual(self.labels(rows)[-1], ['◀ Back', 'Show'])
-		self.tap('T0')
 		kind, lines, rows = self.tap('Show')
 		self.assertTrue(any('Co T10' in line for line in lines) and any('Co T0' in line for line in lines))
 		self.assertEqual((self.toasts[-1], self.labels(rows)), (('Loading…', False),
@@ -1130,7 +1117,7 @@ class Pickers(FinbotCase):
 		""".compare: ticks toggle, a ninth is refused with an alert and a note."""
 		self.command('.compare')
 		self.tap('+')
-		for ticker in ('T0', 'T1', 'T10', 'T11', 'T12', 'T13', 'T14', 'T15'):
+		for ticker in ('T1', 'T10', 'T11', 'T12', 'T13', 'T14', 'T15'): # with T0, the first, ticked already
 			kind, lines, rows = self.tap(ticker)
 		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')],
 			['✅ T0', '✅ T1', '✅ T10', '✅ T11', '✅ T12', '✅ T13', '✅ T14', '✅ T15'])
@@ -1152,13 +1139,13 @@ class Pickers(FinbotCase):
 		for label in ('+', 'S05', '>'):
 			kind, lines, rows = self.tap(label)
 			self.assertEqual((kind, lines), ('buttons', first), label)
-		for ticker in ('S40', 'S41', 'S42', 'S43', 'S44', 'S45', 'S46'): # eight ticked, with S05
+		for ticker in ('S40', 'S41', 'S42', 'S43', 'S44', 'S45'): # eight ticked, with S00 and S05
 			self.assertEqual(self.tap(ticker)[0], 'buttons')
-		kind, lines, rows = self.tap('S47') # refused, as the ninth: said in a note
+		kind, lines, rows = self.tap('S46') # refused, as the ninth: said in a note
 		self.assertEqual((kind, lines[0]), ('photo', buttons.TOO_MANY))
-		kind, lines, rows = self.tap('✅ S46')
+		kind, lines, rows = self.tap('✅ S45')
 		self.assertEqual((kind, lines), ('photo', first))
-		self.assertEqual(self.tap('S47')[0], 'buttons') # room again, and no note to take away
+		self.assertEqual(self.tap('S46')[0], 'buttons') # room again, and no note to take away
 		self.assertEqual(self.tap('<')[0], 'buttons')
 		self.patch(telegram_common.TelegramBot, 'edit_buttons', transports.Transport.edit_buttons) # none on Slack
 		self.assertEqual(self.tap('>')[0], 'photo')
@@ -1182,7 +1169,7 @@ class Pickers(FinbotCase):
 		self.patch(watchlist, 'tickers', lambda chat: ['MSFT', 'AAPL'])
 		self.command('.compare')
 		self.tap('+')
-		self.assertEqual([t for row in self.labels(self.edits[-1][2]) for t in row], ['AAPL', 'MSFT', '◀ Back'])
+		self.assertEqual([t for row in self.labels(self.edits[-1][2]) for t in row], ['✅ AAPL', 'MSFT', '◀ Back'])
 		self.patch(watchlist, 'tickers', lambda chat: [])
 		self.assertEqual(self.command('.compare'),
 			[('text', ['No tickers to pick from: .watchlist add SYMBOL adds one'])])
@@ -1229,7 +1216,7 @@ class Pickers(FinbotCase):
 		self.many()
 		self.command('.compare')
 		self.tap('+')
-		for ticker in ('S00', 'S01', 'S02', 'S03', 'S04', 'S05', 'S06', 'S07'):
+		for ticker in ('S01', 'S02', 'S03', 'S04', 'S05', 'S06', 'S07'): # with S00, the first, ticked already
 			self.tap(ticker)
 		self.tap('>')
 		kind, lines, rows = self.tap('S33')

@@ -544,7 +544,7 @@ def on_compare(request, args):
 		chart_reply(request, 'c', tickers, args.days)
 
 def compare_picker(request, tickers, days):
-	""".price of the tickers typed, with the picker's buttons under the chart (the period row and the tickers' menu),
+	""".price of the tickers typed, with the picker's buttons under the chart (the period row and the ticker picker),
 	where the chat has buttons and the tickers are among those it offers (held, else watched) and the period is one
 	of the buttons: True when it did; else False, and the chart has its period buttons alone."""
 	dest = request.dest
