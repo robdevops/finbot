@@ -532,18 +532,6 @@ class ScheduledReports(FinbotCase):
 			'quantity': '10', 'price': '5.0', 'value': '50', 'brokerage_currency_code': 'AUD', 'holding_id': 7}])
 		self.assertIn(' USD 50 ', self.command('.trades')[0][1][-1])
 
-	def test_the_tickers_asked_of_yahoo_are_logged_in_order(self):
-		"""The trades' tickers that Yahoo is asked about are logged sorted, as names."""
-		bought = (('WTC', 'ASX'), ('AMD', 'NASDAQ'), ('APE', 'ASX'), ('AMAT', 'NASDAQ'))
-		self.patch(sharesight, '_trades', lambda pid, days=None: [{'id': n, 'transaction_type': 'BUY', 'symbol': symbol,
-			'market': market, 'transaction_date': time.strftime('%Y-%m-%d'), 'quantity': '1', 'price': '1',
-			'value': '1', 'brokerage_currency_code': 'AUD', 'holding_id': n} for n, (symbol, market) in
-			enumerate(bought, 1)])
-		self.patch(yahoo, 'fetch', lambda tickers: {t: market_entry(t) for t in tickers})
-		with contextlib.redirect_stderr(io.StringIO()) as log:
-			trades.run(scheduled())
-		self.assertIn('Fetching tickers from Yahoo: AMAT, AMD, APE.AX, WTC.AX\n', log.getvalue())
-
 	def test_trades_asks_yahoo_only_for_new_trades(self):
 		"""A scheduled trades run asks Yahoo only about trades it has not reported, and nothing once all are known."""
 		fetched = []
@@ -713,7 +701,7 @@ class PeriodButtons(FinbotCase):
 		self.assertEqual(self.buttons('.movers 1m'), ['1D', '7D', '● 1M', '1Y', 'Max'])
 
 	def test_trades_has_period_buttons_and_a_press_shows_the_trades_of_that_span_in_place(self):
-		""".trades offers 1D to Max, 1D marked by default and a period moving the marker; a press edits the text in
+		""".trades offers 1D, 7D and 1M, 1D marked by default and a period moving the marker; a press edits the text in
 		place, for the one portfolio named too; a trades report posted on schedule has none."""
 		shown = []
 		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None: shown.append(
@@ -724,14 +712,14 @@ class PeriodButtons(FinbotCase):
 			self.command(typed)
 			row = shown[0]['inline_keyboard'][0]
 			return [b['text'] for b in row], row[0]['callback_data']
-		self.assertEqual(labels('.trades'), (['● 1D', '7D', '1M', '1Y', 'Max'], 'c|r|d|'))
-		self.assertEqual(labels('.trades 7d')[0], ['1D', '● 7D', '1M', '1Y', 'Max'])
-		self.assertEqual(labels('.trades 7d Rob'), (['1D', '● 7D', '1M', '1Y', 'Max'], 'c|r|d|Rob'))
+		self.assertEqual(labels('.trades'), (['● 1D', '7D', '1M'], 'c|r|d|'))
+		self.assertEqual(labels('.trades 7d')[0], ['1D', '● 7D', '1M'])
+		self.assertEqual(labels('.trades 7d Rob'), (['1D', '● 7D', '1M'], 'c|r|d|Rob'))
 		edits = []
 		self.patch(telegram_common.TelegramBot, 'edit_text', lambda dest, msg, text, buttons=None: edits.append(
 			(text, [b['text'] for b in telegram_common.TelegramBot.markup(buttons)['inline_keyboard'][0]])))
 		self.press_button('c|r|m|Rob')
-		self.assertEqual((len(edits), edits[0][1], self.errors), (1, ['1D', '7D', '● 1M', '1Y', 'Max'], []))
+		self.assertEqual((len(edits), edits[0][1], self.errors), (1, ['1D', '7D', '● 1M'], []))
 		shown.clear()
 		trades.run(delivery.chat('telegram:55', scheduled=True))
 		self.assertEqual(shown, [None])

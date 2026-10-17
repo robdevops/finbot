@@ -60,7 +60,7 @@ TOO_MANY = f"⚠️ Max {MAX_PICKED} tickers: untick one first"
 PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x': ('Max', None)}
 # chart kind -> its buttons, five at most (Discord's limit for a row): c price (one stock's line too), f performance,
 # l the movers list, r the trades
-BUTTONS = {'c': 'wmyx', 'f': 'wmyx', 'l': 'dwmyx', 'r': 'dwmyx'}
+BUTTONS = {'c': 'wmyx', 'f': 'wmyx', 'l': 'dwmyx', 'r': 'dwm'}
 MAX_DAYS = 3650 # what Max means for the Sharesight-based reports
 MAX_CALLBACK_BYTES = 64 # Telegram limit on callback_data
 REF_FILE = 'finbot_chart_buttons.json'

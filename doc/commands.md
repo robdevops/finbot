@@ -138,7 +138,7 @@ You can also specify a portfolio name to get trades for just that portfolio:
 /trades [period] [portfolio]
 ```
 
-The reply has period buttons (1D, 7D, 1M, 1Y, Max) that show the trades of that span in place, for the portfolio named if one was. A scheduled report has none.
+The reply has period buttons (1D, 7D, 1M) that show the trades of that span in place, for the portfolio named if one was. A scheduled report has none.
 
 ### Movers
 ![Movers chart triggered from Slack](../img/finbot_price.png?raw=true "Movers chart triggered from Slack")
