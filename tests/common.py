@@ -23,6 +23,7 @@ REAL = {(m.__name__, n): getattr(m, n) for m, n in ((yahoo, 'fetch'), (yahoo, 'f
 REAL_GET_HOLDINGS = watchlist.with_holdings
 REAL_DISPATCH = bot.dispatch # FinbotCase notes the worker thread of each update, so that a test can wait for it
 REAL_DOUBLED = bot.doubled # FinbotCase takes every message, a repeat sent on purpose too; DoubledMessages puts it back
+REAL_REPEATED = worker.repeated # and every press, as RepeatedPresses does not
 
 
 def no_jobs(data):
@@ -131,6 +132,8 @@ class FinbotCase(unittest.TestCase):
 		self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
 		self.patch(bot, '_said', {}) # nor any message
 		self.patch(bot, 'doubled', lambda message: False) # a test may send the same message twice on purpose
+		self.patch(worker, 'repeated', lambda press: False) # or press the same button twice
+		self.patch(worker, '_presses', collections.OrderedDict()) # each test starts with no press taken
 		self.workers = []
 		self.patch(bot, 'dispatch', lambda event: self.workers.append(REAL_DISPATCH(event)))
 		self.sent = []

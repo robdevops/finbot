@@ -26,7 +26,8 @@ Under it are up to six buttons, two to a row, each there only where it has somet
 * **Enable**: a button per job that is off; **Enable all** switches every job on.
 * **Disable**: a button per job that is on; **Disable all** switches every job off.
 * **Run now**: a button per job; a press runs it now, as its schedule would. What the job posts shows it ran; a
-  message says so only when it failed, or was running already.
+  message says so only when it failed, or was running already. The same button pressed again within a minute does
+  nothing more, as with every button.
 * **Upcoming...**: the next runs, in time order.
 
 A button drawn for a list that has since changed acts on nothing: the screen is drawn again as the list is now.
@@ -65,7 +66,7 @@ Or type:
 /jobs add pe top weekly
 /jobs add compare AAPL MSFT 1y monthly
 /jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"
-/jobs run 2                runs job 2 now; /jobs run alone: the list with a button per job
+/jobs run 2                runs job 2 now, saying so only if it failed; /jobs run alone: a button per job
 /jobs enable 2             switches job 2 on; /jobs disable 2 off; /jobs toggle 2 the other way
 /jobs delete 36            deletes job 36 (or /jobs remove 36, /jobs del 36)
 ```

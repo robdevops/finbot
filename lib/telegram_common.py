@@ -36,11 +36,11 @@ def try_call(method, **kwargs):
 
 
 def unchanged(error):
-	"""Whether Telegram refused an edit for changing nothing ("message is not modified": a button pressed again, its
-	answer on show already), which is logged in a few words, as no failure."""
+	"""Whether Telegram refused an edit for changing nothing ("message is not modified": a press whose answer looks
+	as the message does already, such as Run now's list after a run), which is routine, logged at debug."""
 	if 'message is not modified' not in str(error):
 		return False
-	log.info("Telegram duplicate button press ignored")
+	log.debug("Telegram message not edited: it shows that already")
 	return True
 
 
@@ -122,11 +122,14 @@ class Telegram(inbound.Network):
 		return inbound.Message(self.service, chat_id, user, text, self.bot_name, user_name,
 			str(message.get('message_id', '')))
 
-	def acknowledge(self, event):
+	def acknowledge(self, event, toast=True):
 		"""A press: answerCallbackQuery, so that the client's spinner stops and a toast made from the button's data says
-		what is coming (buttons.toast: 'Loading 1Y…'). A failure is only logged. Nothing goes back with the update."""
-		if isinstance(event, inbound.Press):
+		what is coming (buttons.toast: 'Loading 1Y…'), but for a press dropped (toast false). A failure is only
+		logged. Nothing goes back with the update."""
+		if isinstance(event, inbound.Press) and toast:
 			answerCallbackQuery(event.press_id, buttons.toast(event.data), alert=buttons.alert(event.data))
+		elif isinstance(event, inbound.Press):
+			answerCallbackQuery(event.press_id)
 		return None
 
 

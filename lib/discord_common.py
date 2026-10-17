@@ -179,10 +179,10 @@ class Discord(inbound.Network):
 		"""What to call someone: their display name, else their username."""
 		return person.get('global_name') or person.get('username') or 'unknown'
 
-	def acknowledge(self, event):
+	def acknowledge(self, event, toast=True):
 		"""An interaction's answer, which Discord must have within 3 seconds and before any reply: "thinking…" for a
-		slash command, until the reply replaces it; nothing to see for a press, whose message is edited after. A
-		gateway message needs none."""
+		slash command, until the reply replaces it; nothing to see for a press (Discord has no toast), whose message is
+		edited after. A gateway message needs none."""
 		if not event.interaction:
 			return None
 		answer = self.THINKING if isinstance(event, inbound.Message) else self.LATER

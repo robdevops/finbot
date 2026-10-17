@@ -231,6 +231,50 @@ class DoubledMessages(FinbotCase):
 		self.assertEqual([json.loads(answer.body) for answer in answers], [{'type': 5}, {'type': 5}])
 
 
+class RepeatedPresses(FinbotCase):
+	"""The same button pressed again on the same message within a minute is dropped: its answer is on show (or on its
+	way), or its job has run (Run now)."""
+
+	def setUp(self):
+		"""The real check, a clock of this test's own, each press taken and each acknowledgement's toast noted."""
+		super().setUp()
+		self.patch(worker, 'repeated', REAL_REPEATED)
+		self.now = [1000.0]
+		self.patch(worker, 'time', types.SimpleNamespace(monotonic=lambda: self.now[0]))
+		self.taken, self.toasts = [], []
+		self.patch(worker, 'process_callback', lambda press: self.taken.append((press.message_id, press.data)))
+		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None, alert=False: self.toasts.append(text))
+
+	def press(self, data, message_id=9):
+		"""Press a button under the bot's message in chat 55, as the update arrives: the lines logged."""
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			bot.take(telegram_common.READER, {'callback_query': {'id': 'cb', 'from': {'username': 'u'}, 'data': data,
+				'message': {'message_id': message_id, 'chat': {'id': 55}}}})
+			self.join_workers()
+		return err.getvalue().splitlines()
+
+	def test_the_same_button_pressed_again_within_a_minute_is_dropped(self):
+		"""Pressed again on the same message within PRESSED seconds, a button is acknowledged without a toast and not
+		taken, which is logged; one pressed after another button, another message's, one PRESSED seconds after the
+		press taken, or one after that press failed (forget), is taken."""
+		run, top = 'm|run|0|3|ab12', 'm|top|0|ab12'
+		self.assertEqual(self.press(run), [])
+		self.assertEqual(self.press(run), ['Telegram duplicate button press ignored'])
+		self.assertEqual((self.taken, self.toasts), ([('9', run)], ['Updating…', None]))
+		self.press(top)
+		self.press(run)
+		self.press(run, message_id=10)
+		self.now[0] += worker.PRESSED / 2
+		self.press(run, message_id=10)
+		self.now[0] += worker.PRESSED / 2 + 1
+		self.press(run, message_id=10)
+		self.assertEqual(self.taken[1:], [('9', top), ('9', run), ('10', run), ('10', run)])
+		worker.forget(inbound.Press('telegram', 'cb', '55', '10', run))
+		self.press(run, message_id=10)
+		self.assertEqual(self.taken[-1:], [('10', run)])
+		self.assertEqual(len(self.taken), 6)
+
+
 class SlackEvents(FinbotCase):
 	"""Slack sends every message in a subscribed channel, the bot's own posts included."""
 

@@ -16,6 +16,7 @@ What finbot can do on each network. Telegram takes everything; the others take w
 | No link previews | ✓ | ✓ | ✓ |
 | Linked tickers | ✓ | ✓ | ✓ |
 | Charts updated in place by their buttons | ✓ | ✓ | ✓ |
+| A button pressed twice in a minute taken once | ✓ | ✓ | ✓ |
 
 Each network's guide sets up its bot and compares its two modes: [Telegram](telegram.md), [Slack](slack.md), [Discord](discord.md).
 

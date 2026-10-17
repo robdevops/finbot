@@ -1,5 +1,6 @@
 """Chat commands: a message is answered by the Command in COMMANDS whose name it starts with (read), or .SYMBOL. The
 table also makes the .help text and the Telegram command keyboard, which is kept current in every DM."""
+import collections
 import dataclasses
 import functools
 import hashlib
@@ -7,6 +8,7 @@ import json
 import math
 import re
 import threading
+import time
 import typing
 from lib import log
 from lib import answer
@@ -49,6 +51,30 @@ class Request:
 		can go) and buttons."""
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
+PRESSED = 60 # seconds in which the same button pressed again on the same message is taken once
+_presses = collections.OrderedDict() # (service, chat, message) -> (data, when) of the last press taken there
+_presses_lock = threading.Lock() # presses arrive on several threads
+
+def repeated(press, keep=1000):
+	"""Whether a press repeats the last one taken on the same message, within PRESSED seconds of it: the same button
+	pressed again, whose answer the message shows (or is on its way), or whose job (Run now) has run; bot.take drops
+	it. Another button pressed between them, or the first press failing (forget), makes it a press of its own."""
+	key, now = (press.service, press.chat_id, press.message_id), time.monotonic()
+	with _presses_lock:
+		last = _presses.pop(key, None)
+		again = last is not None and last[0] == press.data and now - last[1] <= PRESSED
+		_presses[key] = last if again else (press.data, now)
+		if len(_presses) > keep:
+			_presses.popitem(last=False)
+	return again
+
+def forget(press):
+	"""Forget a press that failed, so that the same button pressed again tries again (see repeated)."""
+	key = (press.service, press.chat_id, press.message_id)
+	with _presses_lock:
+		if _presses.get(key, (None,))[0] == press.data:
+			del _presses[key]
+
 def process_menu_callback(press, pressed):
 	"""A press in the .jobs menu (an inbound.Press; pressed, the buttons.MenuPress its data says): a screen to show; or
 	first a job to switch, delete or run, as long as the list is the one the button was drawn for (its checksum), else
@@ -60,6 +86,7 @@ def process_menu_callback(press, pressed):
 		lines, markup = menu_screen(service, chat, pressed)
 		chat.edit_text(press.message_id, '\n'.join(lines), markup or [])
 	except Exception as e:
+		forget(press)
 		delivery.report_error(e, chat, context='jobs')
 
 def menu_screen(service, chat, pressed):
@@ -151,6 +178,7 @@ def process_pick_callback(press, pressed):
 	except answer.Answer as e:
 		delivery.deliver(chat, delivery.Report(e.lines))
 	except Exception as e:
+		forget(press)
 		delivery.report_error(e, chat, context='pick')
 
 def pick_content(service, chat, cmd, group, period, names):
@@ -205,6 +233,7 @@ def process_callback(press):
 	except answer.Answer as e: # nothing to draw for that period: said in the chat, as a command would
 		delivery.deliver(chat, delivery.Report(e.lines))
 	except Exception as e:
+		forget(press)
 		delivery.report_error(e, chat, context='chart')
 
 def process_request(message):
@@ -599,7 +628,8 @@ def on_jobs(request, args):
 			number = args.words[0]
 			job = scheduler.job(chat, number)
 			if args.keyword == 'run':
-				request.reply([about.job_line(service, number, job, scheduler.run(job))])
+				if (outcome := scheduler.run(job)) != 'done': # a run that went well shows itself: what it posts
+					request.reply([about.job_line(service, number, job, outcome)])
 			elif args.keyword == 'del':
 				scheduler.delete(job)
 				request.reply([f"Deleted {number}. {service.escape(job.name)} · "

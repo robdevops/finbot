@@ -533,7 +533,7 @@ class JobsInChat(ChatBase):
 		self.assertEqual(self.say('.jobs add pe top weekly'), ['4. ✅* pe top · weekly, Saturdays at 9:00am',
 			'Added: .jobs lists them all'])
 		self.sent.clear()
-		self.assertEqual(self.say('.jobs run 4'), ['4. pe top: done'])
+		self.assertIsNone(self.say('.jobs run 4')) # what it posts shows it ran
 		self.assertTrue(self.sent or self.replies[:-1]) # what .pe top posts
 		self.assertIn("no report 'plan'", self.say('.jobs add plan buy low weekly')[0])
 
@@ -574,7 +574,7 @@ class JobsInChat(ChatBase):
 		stored = state.load(jobs.JOBS_FILE)[CHAT]['jobs']
 		self.assertEqual([job['args'] for job in stored[1:]], [['🥳 Happy "EOFY" everyone'],
 			['line one', 'line [two](https://x.example)']])
-		self.assertEqual(self.say('.jobs run 5'), ['5. message: line one: done'])
+		self.assertIsNone(self.say('.jobs run 5'))
 		self.assertEqual(self.ran, [('message', {'lines': ['line one', 'line [two](https://x.example)']})])
 		self.assertIn('a message is a schedule, then its text in double quotes',
 			self.say('.jobs add message daily "no end')[0])
@@ -609,7 +609,8 @@ class JobsInChat(ChatBase):
 		its deletion, and a report or number that is none."""
 		self.say('.jobs add message daily at 9am "R&D <b>soon</b>"')
 		name = 'message: R&amp;D &lt;b&gt;soon&lt;/b&gt;'
-		self.assertEqual(self.say('.jobs run 4'), [f'4. {name}: done'])
+		self.s.claim(self.s.chat_jobs(CHAT)[3].key) # as if it were running: its run says so
+		self.assertEqual(self.say('.jobs run 4'), [f'4. {name}: already running'])
 		self.assertEqual(self.say('.jobs del 4'), [f'Deleted 4. {name} · daily at 9:00am'])
 		self.assertEqual(self.say('.jobs add <x> daily'), ["no report '&lt;x&gt;': send .jobs add for the reports"])
 		self.assertEqual(self.say('.jobs run <b>'), ['no job &lt;b&gt;: send .jobs for the list'])
@@ -634,12 +635,12 @@ class JobsInChat(ChatBase):
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [entry('trades every 20 mins weekdays')]})
 
 	def test_run_a_job_now(self):
-		""".jobs run N runs job N now, posting to this chat, and says how it went; a number that is none says so;
-		another chat's numbers are its own."""
-		self.assertEqual(self.say('.jobs run 3'), ['3. trades: done'])
+		""".jobs run N runs job N now, posting to this chat, what it posts showing that it ran (no line says it is
+		done); a number that is none says so; another chat's numbers are its own."""
+		self.assertIsNone(self.say('.jobs run 3'))
 		self.assertEqual((self.ran, self.dests), ([('trades', {})], [CHAT]))
 		self.assertEqual(self.say('.jobs run 9'), ['no job 9: send .jobs for the list'])
-		self.assertEqual(self.say('.jobs run 1', chat='56'), ['1. rating: done']) # a chat seen first has the defaults
+		self.assertIsNone(self.say('.jobs run 1', chat='56')) # a chat seen first has the defaults
 		self.assertEqual(self.dests, [CHAT, 'telegram:56'])
 
 	def test_enable_and_disable_a_job(self):

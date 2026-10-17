@@ -38,14 +38,15 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   record real requests.
 
 ## Code map (open the one file you need)
-- `bot.py`, which puts the networks together: the WSGI entry (`route()` by path to a network's `WEBHOOK`, verify,
-  parse, then a thread of `lib/worker.py` per message or button press), served by waitress only when some network's
-  webhook is set; the pull listeners that finbot.env asks for (`listeners()`), a thread each; each network registered
-  at start (Telegram's webhook set or deleted, and its menu; Discord's slash commands); plain threads, no gevent;
-  SIGHUP reload and SIGUSR1 cache flush, each in a thread. `bot.take(network, update)` takes an update however it
-  arrived, and is the one place a press is acknowledged (the worker never does). An answer the network must have
-  before any reply (Discord's deferred interaction) carries the work in its `then`: started once the HTTP answer is
-  sent (`bot.Sent`) or, over the gateway, posted to its callback.
+- `bot.py`, which puts the networks together: the WSGI entry (`route()` by path to a network's `WEBHOOK`, verify, parse,
+  then a thread of `lib/worker.py` per message or button press), served by waitress only when some network's webhook is
+  set; the pull listeners that finbot.env asks for (`listeners()`), a thread each; each network registered at start
+  (Telegram's webhook set or deleted, and its menu; Discord's slash commands); plain threads, no gevent; SIGHUP reload
+  and SIGUSR1 cache flush, each in a thread. `bot.take(network, update)` takes an update however it arrived, and is the
+  one place a press is acknowledged (the worker never does); the same button pressed again on the same message within a
+  minute is acknowledged without a toast and dropped (`worker.repeated`; a press that failed is forgotten,
+  `worker.forget`). An answer the network must have before any reply (Discord's deferred interaction) carries the work
+  in its `then`: started once the HTTP answer is sent (`bot.Sent`) or, over the gateway, posted to its callback.
 - Each network in three modules, flat in `lib/`. `<network>_common.py`, what both ways in share: the API calls (`call`,
   `try_call`; Discord's wait out its rate limits), the reader of its updates (`READER`: a `Message`, a `Press`, a
   `Suggest` or a `Response` given straight back; `acknowledge` where the network waits for that: Telegram's toast,

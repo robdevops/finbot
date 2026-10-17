@@ -86,10 +86,11 @@ class Network:
 		"""What the update (a dict) says: a Message, a Press, or a Response to give straight back."""
 		raise NotImplementedError
 
-	def acknowledge(self, event):
-		"""Tell the network an update was taken (a Message or a Press), where it waits for that: None when the answer to
-		the update says nothing more, or the Response the network must have before any reply. Here None: taking the
-		update is the acknowledgement (Slack's is the 200, or the socket's ack)."""
+	def acknowledge(self, event, toast=True):
+		"""Tell the network an update was taken (a Message or a Press; toast false: a press dropped, which shows
+		nothing), where it waits for that: None when the answer to the update says nothing more, or the Response the
+		network must have before any reply. Here None: taking the update is the acknowledgement (Slack's is the 200,
+		or the socket's ack)."""
 		return None
 
 

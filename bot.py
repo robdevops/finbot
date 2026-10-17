@@ -187,10 +187,11 @@ class Sent(list):
 
 def take(network, update):
 	"""An update from a network (an inbound.Network reads it), however it arrived: what it says goes to lib/worker in a
-	thread of its own (dispatch), unless it is a repeat (the same update resent, or the same message sent again at once:
-	doubled). It is acknowledged first, the one place that does
-	(Network.acknowledge: Telegram's toast for a press). Returns the inbound.Response for the network; when the network
-	must have it before any reply (Discord's interactions), the work waits in its `then`, for whoever delivers it."""
+	thread of its own (dispatch), unless it is a repeat (the same update resent, the same message sent again at once:
+	doubled, or the same button pressed again: worker.repeated, acknowledged without a toast). It is acknowledged
+	first, the one place that does (Network.acknowledge: Telegram's toast for a press). Returns the inbound.Response
+	for the network; when the network must have it before any reply (Discord's interactions), the work waits in its
+	`then`, for whoever delivers it."""
 	event = network.parse(update)
 	if isinstance(event, inbound.Response):
 		return event
@@ -203,6 +204,9 @@ def take(network, update):
 		log.info(log.cut(f"{network.service.capitalize()} {event.user} sent it again within {DOUBLED} s, not run "
 			"again: " + event.text))
 		return inbound.OK
+	if isinstance(event, inbound.Press) and worker.repeated(event):
+		log.info(f"{network.service.capitalize()} duplicate button press ignored")
+		return network.acknowledge(event, toast=False) or inbound.OK
 	answer = network.acknowledge(event)
 	if answer is not None:
 		return dataclasses.replace(answer, then=lambda: dispatch(event))
