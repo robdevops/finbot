@@ -215,7 +215,7 @@ def add_step(service, chat, steps):
 	except ValueError: # data that is no step of Add: forged, or from an older finbot
 		return about.jobs_screen(service, chat.key, 'top', 0, 'That is no step of Add')
 	if lines is not None:
-		return lines, made
+		return about.listed_with(service, chat.key, lines), made
 	try:
 		number = jobs.current.add(chat.key, *made)
 	except jobs.ScheduleError as e:

@@ -932,13 +932,13 @@ class JobsMenu(ChatBase):
 		back to the list, and after the report Back a step back; its last step adds the job and says so, the same job
 		as typed."""
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
-		self.assertEqual(lines, ['<b>Add a job: which report?</b>'])
+		self.assertEqual(lines[:3], ['<b>Add a job: which report?</b>', '', '<b>Jobs</b>']) # the list stays in view
 		self.assertEqual(rows, [['trades', 'movers midsession', 'movers premarket'], ['movers close', 'movers',
 			'performance'], ['earnings', 'shorts', 'rating'], ['milestone', 'reminder', 'holdings'],
 			['treemap', 'who', 'marketcap'], ['beta', 'price', 'buysell'], ['pe', 'peg', 'stock'], ['Cancel']])
 		self.assertEqual((data['movers'], data['Cancel']), (f'm|add|5|{self.crc()}', f'm|top|0|{self.crc()}'))
 		lines, rows, data = self.press(data['movers'])
-		self.assertEqual((lines, rows), (['<b>Add movers: how often?</b>', '', '<i>† indicates default</i>'],
+		self.assertEqual((lines[:3], rows), (['<b>Add movers: how often?</b>', '', '<i>† indicates default</i>'],
 			[['one-off', 'hourly', 'daily†'], ['weekly', 'monthly', 'quarterly'], ['bi-annual', 'annual', 'every...'],
 			['Back', 'Cancel']]))
 		lines, rows, data = self.press(data['weekly'])
@@ -1065,7 +1065,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual((made.action, made.kwargs), ('treemap', {'words': []}))
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
 		lines, rows, _ = self.press(data['who'])
-		self.assertEqual((lines, rows), (['<b>Add who</b>', 'What who is about is typed:',
+		self.assertEqual((lines[:6], rows), (['<b>Add who</b>', 'What who is about is typed:',
 			'.jobs add who SYMBOL SCHEDULE', '', '<b>For example:</b>', '.jobs add who AAPL weekly'],
 			[['Back', 'Cancel']]))
 		first, second = (about.add_screen(DISCORD, CHAT, steps)[1] for steps in ([], ['p1']))
@@ -1118,7 +1118,8 @@ class JobsMenu(ChatBase):
 				if steps[-1:] == ['p1'] and service != DISCORD: # Telegram and Slack take every day on one page
 					continue
 				with self.subTest(service=service, steps=steps):
-					fits(service, *about.add_screen(service, CHAT, steps))
+					lines, markup = about.add_screen(service, CHAT, steps)
+					fits(service, about.listed_with(service, CHAT, lines), markup)
 			fits(service, *about.next_screen(service, CHAT))
 			fits(service, *about.delete_all_screen(service, CHAT))
 			fits(service, *about.added_screen(service, CHAT, 1))

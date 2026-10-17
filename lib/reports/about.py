@@ -86,13 +86,7 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, h
 	elif screen in NOTHING and not any(acts(screen, job) for job in own):
 		lines.append(NOTHING[screen])
 	if shown:
-		section = None
-		for _, job, line in shown: # the jobs of each report, or the reminders, under a heading
-			kind = 'Reminders' if job.action == 'message' else job.action.capitalize()
-			if kind != section:
-				lines += ['', service.bold(kind)]
-				section = kind
-			lines.append(line)
+		lines += grouped(service, shown)
 	if not all(scheduler.has_run(job) for _, job, _ in shown):
 		lines += ['', NOT_RUN]
 	if not tappable:
@@ -100,6 +94,39 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, h
 	if screen == 'top':
 		lines += ['', *(service.italic(service.escape(line)) for line in ADD_TYPED)]
 	return lines, screen_buttons(screen, page, len(parts), shown, jobs.list_checksum(own), own)
+
+def grouped(service, shown):
+	"""The entries (number, job, line) as lines: the jobs of each report, or the reminders, under a heading of their
+	own, a blank line before each heading."""
+	lines, section = [], None
+	for _, job, line in shown:
+		kind = 'Reminders' if job.action == 'message' else job.action.capitalize()
+		if kind != section:
+			lines += ['', service.bold(kind)]
+			section = kind
+		lines.append(line)
+	return lines
+
+def listed_with(service, chat, lines):
+	"""A screen's lines (an Add step's) with the chat's job list under them, to show it while a job is added: as many
+	jobs as fit a message of the network with the screen, then how many more there are."""
+	scheduler = jobs.current
+	if scheduler is None:
+		return lines
+	own = scheduler.chat_jobs(chat)
+	running, local, now = scheduler.running(chat), formats.zone().key, scheduler.clock()
+	room = service.text_limit - len('\n'.join(lines)) - PAGE_ROOM // 2
+	shown, size = [], 0
+	for number, job in enumerate(own, 1):
+		line = job_entry(service, scheduler, number, job, running, local, now)
+		size += len(line) + 1
+		if size > room or len(shown) == MOST_JOBS.get(service, 40):
+			break
+		shown.append((number, job, line))
+	if not shown:
+		return lines
+	more = [f'…and {len(own) - len(shown)} more'] if len(shown) < len(own) else []
+	return [*lines, '', service.bold('Jobs'), *grouped(service, shown)[1:], *more]
 
 def acts(screen, job):
 	"""Whether a list screen acts on a job: Enable on one that is off, Disable on one that is on, the others on any."""
