@@ -588,10 +588,11 @@ class StartupSignals(unittest.TestCase):
 			self.assertIn('reload requested but', ''.join(lines))
 
 	def test_usr1_flushes_the_cache_and_keeps_the_state(self):
-		"""SIGUSR1 is ignored in startup, then clears the cache but not writes in flight, matplotlib's or the state."""
+		"""SIGUSR1 is ignored in startup, then clears the cache but not writes in flight, anything else there or the
+		state."""
 		with tempfile.TemporaryDirectory() as data:
 			cache = Path(data, 'cache')
-			(cache / 'matplotlib').mkdir(parents=True)
+			(cache / 'other').mkdir(parents=True)
 			cached = ('finbot_yahoo_cookie.json', 'finbot_chart_0123456789abcdef0123.png', 'finbot_x.json.abc.tmp')
 			for name in cached: # the last: a write in flight
 				(cache / name).write_text('{}')
@@ -624,7 +625,7 @@ class StartupSignals(unittest.TestCase):
 					break
 			self.assertIn('cache: flushed 2 files', ''.join(lines))
 			self.assertIn('cache: filling it again: sharesight_warm, yahoo_warm', ''.join(lines))
-			self.assertEqual(sorted(os.listdir(cache)), ['finbot_x.json.abc.tmp', 'matplotlib'])
+			self.assertEqual(sorted(os.listdir(cache)), ['finbot_x.json.abc.tmp', 'other'])
 			self.assertTrue(Path(data, 'finbot_watchlist.json').exists())
 
 

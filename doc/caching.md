@@ -9,7 +9,7 @@ performance_cache_seconds=2400
 
 `performance_cache_seconds` (default 40 minutes) is the cache lifetime of Sharesight performance reports.
 
-Charts are cached by what they show (with `cache=True`): the same chart, for another chat, a later run or a period button, is drawn once, and a chart of new figures is a new chart, so a cached one is never stale. The weekly system job `cleanup` removes cache files after 30 days.
+Charts are cached by what they show (with `cache=True`): the same chart, for another chat, a later run or a period button, is drawn once, and a chart of new figures is a new chart, so a cached one is never stale. The weekly system job `cleanup` removes cache files after 30 days. The charts were drawn with matplotlib before 17 Oct 2026, and an install from then may delete the `matplotlib` folder it left in `DATA_DIR/cache`.
 
 To flush the cache, so that what it holds is fetched afresh, run `util/flush.py` with the files to delete, by when they were written. With no argument it prints its help:
 ```

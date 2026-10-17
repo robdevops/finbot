@@ -1,6 +1,6 @@
+import calendar
 import concurrent.futures
 import datetime
-from dateutil.relativedelta import relativedelta
 import hashlib
 import threading
 import typing
@@ -318,6 +318,12 @@ def bars(chart_json):
 
 INTERVALS = ('10Y', '5Y', '3Y', '1Y', 'YTD', '6M', '3M', '1M', '7D', '5D', '1D') # price_history's standard periods
 
+def months_before(day, months):
+	"""The same day of the month `months` months before, or the last day of that month where it is shorter: a month
+	before 31 March is 28 or 29 February."""
+	year, month = divmod(day.year * 12 + day.month - 1 - months, 12)
+	return day.replace(year=year, month=month + 1, day=min(day.day, calendar.monthrange(year, month + 1)[1]))
+
 def price_history(ticker, days=None, quote=None):
 	"""({period: percent change}, its Line): the change over `days`, else over each standard period (and 'Max', from the
 	first close, when one goes back further than the history), and the closes behind it, for a chart. The change is to
@@ -357,8 +363,9 @@ def price_history(ticker, days=None, quote=None):
 			elif period == '5D': # the open of that day, to align with Google Finance
 				past = next((first for day, first, _ in reversed(daily) if day <= week_ago and first is not None), None)
 			else: # 10Y to 1M, 7D: the last close on or before the day that long ago
-				unit = {'Y': 'years', 'M': 'months', 'D': 'days'}[period[-1]]
-				cutoff = today - relativedelta(**{unit: int(period[:-1])}) # once: relativedelta is slow
+				count = int(period[:-1])
+				cutoff = today - datetime.timedelta(days=count) if period[-1] == 'D' else \
+					months_before(today, count * (12 if period[-1] == 'Y' else 1))
 				past = next((last for day, last in reversed(closes) if day <= cutoff), None)
 			if past is None: # the history does not go back that far
 				changes['Max'] = round(change(closes[0][1]))

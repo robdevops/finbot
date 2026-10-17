@@ -1,5 +1,3 @@
 # Targets Python 3.13.5 (see .python-version). Lower bounds are the first releases with 3.13 support.
-matplotlib>=3.9.2,<4
-numpy>=2.1.0,<3
-python-dateutil>=2.9.0
+pillow>=11.0.0 # the charts, drawn in DejaVu Sans from the system's fonts (Debian: fonts-dejavu-core)
 requests>=2.32.3

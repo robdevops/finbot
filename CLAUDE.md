@@ -19,8 +19,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 
 ## Facts
 - Python 3.13.5; tests are offline and need no network (`tests/`). CI runs them on the latest 3.x and 3.13.5, and
-  its `docker` job builds the image (`Dockerfile`, Debian's packages), imports every module in it and starts it as
-  `compose.yaml` does; all except for pull requests that change only README.md, CLAUDE.md, `doc/*.md` or `img/*.png`
+  its `docker` job builds the image (`Dockerfile`, Debian's packages), imports every module in it, draws a chart in
+  it and starts it as `compose.yaml` does; all except for pull requests that change only README.md, CLAUDE.md, `doc/*.md` or `img/*.png`
   (install, compile, tests and the build are skipped; the allowlist in `.github/workflows/ci.yml` must never include a
   path a test reads). This cloud environment cannot reach `deb.debian.org`, so only CI builds the image.
 - Production runs the Debian system packages; `requirements.txt` is for pip/uv users and CI. The libraries in `requirements-optional.txt` are each imported only
@@ -172,7 +172,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
   charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's).
 - A chart renderer in `lib/render.py` takes its `Chart` and is listed in `RENDERERS` by kind; it gets `@_drawn`, which
-  draws one chart at a time (matplotlib's caches are shared by every thread).
+  draws one chart at a time (Pillow's fonts are shared by every thread). A chart is drawn on a `_Canvas` at twice its
+  size and reduced, in DejaVu Sans from the system's fonts, its sizes in points as matplotlib's were.
 - A new command: a `Command` in `COMMANDS` (its names, and what its arguments may hold), whose usage, section and
   buttons make its `.help` lines and keyboard buttons, and the command list of `doc/commands.md`. A job may run every
   command of `.help`, so one that changes anything takes `job=False`.

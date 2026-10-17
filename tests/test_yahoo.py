@@ -242,6 +242,20 @@ class YahooChart(ProviderCase):
 		table, line = yahoo.price_history('T1', quote={'regularMarketPrice': 125.0, 'percent_change': 7.4})
 		self.assertEqual((table['1D'], line.price), (7, 125.0))
 
+	def test_the_periods_count_back_by_the_calendar(self):
+		"""A period of months or years counts back to the same day of the month, or to the last day of a shorter
+		month; 1M and 1Y go back exactly that far in the chart."""
+		months_before, day = yahoo.months_before, datetime.date
+		cases = (((2026, 3, 31), 1, (2026, 2, 28)), ((2024, 3, 31), 1, (2024, 2, 29)),
+			((2026, 1, 15), 1, (2025, 12, 15)), ((2026, 10, 17), 120, (2016, 10, 17)),
+			((2024, 2, 29), 12, (2023, 2, 28)))
+		self.assertEqual([months_before(day(*start), months) for start, months, _ in cases],
+			[day(*end) for _, _, end in cases])
+		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
+		self.http(yahoo, Resp(self.chart([50.0] + [100.0] * 400)))
+		table, _ = yahoo.price_history('T1')
+		self.assertEqual((table['1M'], table['1Y'], table['Max']), (0, 0, 100))
+
 	def test_a_record_is_from_the_whole_history(self):
 		"""historic_high reads the whole history (the chart from period1=0), its first day aside: records seeded
 		from 10 years were no all-time records."""

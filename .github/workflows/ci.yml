@@ -46,6 +46,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - if: steps.changes.outputs.docs_only != 'true'
+        name: The charts' font
+        # the golden images are drawn in DejaVu Sans, as the image and a Debian host draw them
+        run: |
+          test -f /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf \
+            || { sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-dejavu-core; }
+      - if: steps.changes.outputs.docs_only != 'true'
         run: |
           pip install -r requirements.txt -r requirements-optional.txt
           python -m compileall -q *.py lib util
@@ -78,7 +84,7 @@ jobs:
         name: Build the image
         run: docker build --build-arg GIT_COMMIT="$GITHUB_SHA" -t finbot .
       - if: steps.changes.outputs.docs_only != 'true'
-        name: Every module imports in the image, the optional libraries too, and the log names the commit
+        name: Every module imports in the image, the optional libraries too, a chart draws, and the log names the commit
         run: |
           docker run --rm -i --read-only --tmpfs /tmp -e DATA_DIR=/tmp/data finbot python3 - <<'EOF'
           import importlib, os, pkgutil, bot, lib, lib.reports
@@ -86,8 +92,11 @@ jobs:
               for module in pkgutil.iter_modules(package.__path__, package.__name__ + '.'):
                   importlib.import_module(module.name)
           import discord, nacl, waitress, websocket
+          from lib import render
+          assert render._font_file(False) and render._font_file(True), 'no DejaVu Sans in the image'
+          assert render.draw_pie(render.Chart('pie', rows=(('a', 1.0),))).read(4) == b'\x89PNG'
           assert bot.git_version() == os.environ['FINBOT_COMMIT'][:7], bot.git_version()
-          print('every module imports; finbot', bot.git_version())
+          print('every module imports, a chart draws; finbot', bot.git_version())
           EOF
       - if: steps.changes.outputs.docs_only != 'true'
         name: The container starts as compose starts it, copies the defaults, reloads and flushes

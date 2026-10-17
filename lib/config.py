@@ -373,9 +373,6 @@ for _dir in (env.data_dir, env.cache_dir):
 	except OSError as e: # e.g. read-only filesystem (Lambda)
 		print("config: can't create", _dir, e, file=sys.stderr)
 
-# matplotlib needs a writable config/cache dir; without a home directory (systemd DynamicUser, containers) it fails
-os.environ.setdefault('MPLCONFIGDIR', os.path.abspath(env.cache_dir + '/matplotlib'))
-
 def data_file(name):
 	"""Where a data file is read from: the user's copy in the data dir if any, else the default shipped in defaults/."""
 	user = env.data_dir + '/' + name
