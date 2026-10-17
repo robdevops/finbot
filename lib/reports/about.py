@@ -54,14 +54,14 @@ YEARS = 10 # the years a one-off may be in, this one first
 CROWDED = 20 # a screen of more choices takes them in rows of five, Back last: Discord takes 25 buttons
 
 def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True):
-	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each ✅ (on) or ❌ (off), * where it
-	has never run, its name and its schedule in words, by the timezone setting's clock (lib/when.py), then the key
-	to the marks shown. top has what can be done (Add, and where there is a job to act on, Delete, Enable, Disable, Run
-	now, Upcoming...) and how Add is typed, in italics; on, off, del and run a button for each job the screen acts on
-	(acts), which switches it on or off, deletes it or runs it now, and Enable all, Disable all or Delete all. A page at
-	a time, as many jobs as a message of the network takes (◀ and More ▶ for the others), after a note of what the last
-	press did. A one-off gone by is deleted first. Returns (lines, buttons); where the chat takes no buttons (tappable
-	false), the whole list and what to type instead."""
+	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each ✅ (on) or struck through (off),
+	* where it has never run, its name and its schedule in words, by the timezone setting's clock (lib/when.py), then
+	the key to the marks shown. top has what can be done (Add, and where there is a job to act on, Delete, Enable,
+	Disable, Run now, Upcoming...) and how Add is typed, in italics; on, off, del and run a button for each job the
+	screen acts on (acts), which switches it on or off, deletes it or runs it now, and Enable all, Disable all or Delete
+	all. A page at a time, as many jobs as a message of the network takes (◀ and More ▶ for the others), after a note of
+	what the last press did. A one-off gone by is deleted first. Returns (lines, buttons); where the chat takes no
+	buttons (tappable false), the whole list and what to type instead."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
@@ -133,11 +133,14 @@ def screen_buttons(screen, page, pages, shown, crc, own):
 	return rows + ([nav] if nav else [])
 
 def job_entry(service, scheduler, number, job, running=(), local=None, now=None):
-	"""'5. ✅ movers close AU · weekdays at 4:30pm Sydney': a job in .jobs, with its number, whether it is on (and *
-	where it has never run), its name, its schedule in words, and whether it is running."""
-	mark = ('✅' if job.on else '❌') + ('' if scheduler.has_run(job) else '*')
+	"""'5. ✅ movers close AU · weekdays at 4:30pm Sydney': a job in .jobs, with its number, whether it is on (✅; one
+	that is off is struck through) and * where it has never run, its name, its schedule in words, and whether it is
+	running."""
+	never = '' if scheduler.has_run(job) else '*'
 	schedule = job.schedule.describe(local or formats.zone().key, now or scheduler.clock())
-	return f"{number}. {mark} {service.escape(job.name)} · {schedule}" + (' (running)' if job.key in running else '')
+	body = f"{service.escape(job.name)} · {schedule}"
+	shown = f"✅{never} {body}" if job.on else f"{never} {service.strike(body)}".lstrip()
+	return f"{number}. {shown}" + (' (running)' if job.key in running else '')
 
 def delete_all_screen(service, chat, page=0):
 	"""Delete all's question, for a chat (by its key): whether to delete every one of its jobs, the default ones too,

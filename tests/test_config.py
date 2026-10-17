@@ -135,6 +135,13 @@ class Parsing(unittest.TestCase):
 				self.assertEqual(values.exchange_suffix, suffix)
 		self.assertEqual(config.setting_values(config._getenv_for({})).exchange_suffix, 'AX') # unset: the default
 
+	def test_a_blank_admin_only_restricts_no_command(self):
+		"""admin_only blank is none, so that every command is open to all; unset keeps jobs restricted."""
+		for given, expected in (({}, ('jobs',)), ({'admin_only': ''}, ()), ({'admin_only': ' '}, ()),
+				({'admin_only': 'jobs plan'}, ('jobs', 'plan'))):
+			with self.subTest(given=given):
+				self.assertEqual(config.setting_values(config._getenv_for(given)).admin_only, expected)
+
 	def test_log_level_is_one_of_syslogs_levels_in_any_case(self):
 		"""log_level takes ERROR, WARN, INFO or DEBUG, in any case, INFO by default; anything else is a mistake that
 		names the levels."""

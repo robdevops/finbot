@@ -9,7 +9,7 @@ direct message with the bot, until the chat switches them. finbot knows a chat f
 channel on Slack, and on Discord a message from no server.
 
 ## The menu
-`/jobs` lists the chat's jobs, numbered, a page at a time. Each line shows ✅ (on) or ❌ (off), a `*` if the job has
+`/jobs` lists the chat's jobs, numbered, a page at a time. Each line shows ✅ (on) or the line struck through (off), a `*` if the job has
 never run, its name and its schedule in words. Under the list, in italics, is how Add is typed:
 ```
 1. ✅ trades · every 20 mins, Mon 9am – Sat 3pm Sydney

@@ -52,7 +52,7 @@ A change takes effect on a reload. A true/false setting takes `true`/`false`, `y
 
 | Key | Default | Description |
 |---|---|---|
-| `admin_only` | `jobs` | The commands only the admins may use, by name, space separated (`jobs watchlist`). Closed by default: `/jobs` is one, and no one is an admin until `admins` names them. Someone else gets a refusal, and a press of one of those commands' buttons is refused with an alert |
+| `admin_only` | `jobs` | The commands only the admins may use, by name, space separated (`jobs watchlist`). Closed by default: `/jobs` is one, and no one is an admin until `admins` names them. Blank (`admin_only=`) restricts no command. Someone else gets a refusal, and a press of one of those commands' buttons is refused with an alert |
 | `admins` | | Who the admins are, space separated, each the network and the sender's id as the log shows them: `telegram:@username` (or the numeric user id; never a first name, which anyone may take), `slack:U0123ABCD` (`<@U0123ABCD>` in the log), `discord:123456789012345678` |
 | `past_days` | `28` | How many days back reports look |
 | `future_days` | `30` | How many days ahead the events calendar looks |

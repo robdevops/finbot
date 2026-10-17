@@ -95,14 +95,15 @@ def prepare_treemap(portfolio_name, by, service, max_groups=8):
 	subtitle = f"{_noun(by, len(groups))}, {count} {'holding' if count == 1 else 'holdings'}"
 	return payload, render.Chart('treemap', title, subtitle, tuple((label, tuple(held)) for label, held in rows))
 
-def prepare_watchlist(service, chat, user, action=None, ticker=None):
-	"""The .watchlist reply in a chat (by its key): the companies it watches, or one line on adding ('add') or removing
-	('delete') a ticker (Yahoo's symbol, as yahoo.symbol gives it)."""
+def prepare_watchlist(service, chat, user, action=None, ticker=None, removing=()):
+	"""The .watchlist reply in a chat (by its key): the companies it watches, those of `removing` struck through, or one
+	line on adding ('add') or removing ('delete') a ticker (Yahoo's symbol, as yahoo.symbol gives it)."""
 	if action:
 		return [watchlist_change(service, chat, user, action, ticker)]
 	watched = watchlist.tickers(chat)
 	market_data = yahoo.fetch(watched) if watched else {}
-	lines = [links.stock_line(ticker, quote, service)
+	lines = [service.strike(links.stock_line(ticker, quote, service)) if ticker in removing else
+		links.stock_line(ticker, quote, service)
 		for ticker, quote in sorted(market_data.items(), key=lambda item: item[1]['profile_title'].lower())]
 	if not lines:
 		return ['Watchlist is empty. Try ".watchlist add SYMBOL" to create it']

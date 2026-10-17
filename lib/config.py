@@ -213,6 +213,11 @@ class _Reader:
 		value = self.value(name, default)
 		return tuple(value.split()) if isinstance(value, str) else tuple(value)
 
+	def blankable_words(self, name, default):
+		"""A list of words where a blank value means none (an empty tuple), not the default: unset keeps the default."""
+		value = self.getenv(name, None)
+		return default if value is None else tuple(str(value).split())
+
 	def check(self):
 		"""Raise ConfigError with every problem found so far."""
 		if self.errors:
@@ -324,6 +329,7 @@ def setting_values(getenv, source=None):
 	ConfigError listing every bad value."""
 	r = _Reader(getenv)
 	readers = {bool: r.bool, int: r.int, float: r.float, str: r.str, tuple: r.words,
+		'admin_only': r.blankable_words,
 		'exchange_suffix': lambda name, default: r.blankable(name, default).removeprefix('.').upper(), # blank: none
 		'hyperlinkProvider': lambda name, default: r.str(name, default).lower(),
 		'log_level': lambda name, default: r.choice(name, default, LOG_LEVELS)}

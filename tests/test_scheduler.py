@@ -669,10 +669,10 @@ class JobsInChat(ChatBase):
 	def test_enable_and_disable_a_job(self):
 		""".jobs disable N switches job N off and .jobs enable N on, whichever way it was; .jobs enable alone lists the
 		jobs with a button for each one that is off."""
-		for typed, line in (('.jobs disable 3', '3. ❌* trades'), ('.jobs disable 3', '3. ❌* trades'),
-				('.jobs enable 3', '3. ✅* trades')):
+		off, on = '3. * <s>trades · every 20 mins, weekdays UTC</s>', '3. ✅* trades · every 20 mins, weekdays UTC'
+		for typed, line in (('.jobs disable 3', off), ('.jobs disable 3', off), ('.jobs enable 3', on)):
 			with self.subTest(typed=typed):
-				self.assertEqual(self.say(typed), [f'{line} · every 20 mins, weekdays UTC'])
+				self.assertEqual(self.say(typed), [line])
 		self.say('.jobs disable 1')
 		self.assertEqual(self.say('.jobs enable')[0], '<b>Tap a job to enable it</b>')
 		self.assertEqual([[button.label for button in row] for row in self.replies[-1][2]],
@@ -680,7 +680,7 @@ class JobsInChat(ChatBase):
 
 	def test_toggle_a_job_off_and_on(self):
 		""".jobs toggle N switches job N off (it no longer fires) and on again."""
-		self.assertEqual(self.say('.jobs toggle 3'), ['3. ❌* trades · every 20 mins, weekdays UTC'])
+		self.assertEqual(self.say('.jobs toggle 3'), ['3. * <s>trades · every 20 mins, weekdays UTC</s>'])
 		self.clock.now = at(13, 21, 20)
 		self.assertEqual(self.s.due(self.clock.now), [])
 		self.assertEqual(self.say('.jobs toggle 3'), ['3. ✅* trades · every 20 mins, weekdays UTC'])
@@ -778,7 +778,7 @@ class JobsMenu(ChatBase):
 			'3 trades'], ['Disable all', 'Cancel']]))
 		lines, rows, data = self.press(data['1 rating'])
 		self.assertEqual(lines[:2], ['Disabled 1. rating', ''])
-		self.assertIn('1. ❌* rating · Tue–Sat at 8:30am Sydney', lines)
+		self.assertIn('1. * <s>rating · Tue–Sat at 8:30am Sydney</s>', lines)
 		self.assertEqual(rows[0], ['2 movers close US', '3 trades'])
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['off'], ['rating'])
 		self.assertEqual(self.press(data['2 movers close US'])[0][0], 'Disabled 2. movers close US')

@@ -1162,6 +1162,46 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+']])
 		self.assertTrue(any('Co A1' in line for line in lines))
 
+	def test_watchlist_edit_crosses_tickers_off_and_ok_deletes_them(self):
+		""".watchlist lists the watchlist with an Edit button, which offers a button for each ticker: pressing one
+		strikes it through in the list (and again undoes it); OK deletes the struck ones; Cancel goes back."""
+		self.patch(watchlist, 'with_holdings', REAL_GET_HOLDINGS)
+		for ticker in ('T3', 'T1', 'T2'):
+			watchlist.add('telegram:55', ticker)
+		self.command('.watchlist')
+		self.assertEqual(self.labels(), [['Edit']])
+		kind, lines, rows = self.tap('Edit')
+		self.assertEqual(self.labels(rows), [['T1', 'T2', 'T3'], ['OK', 'Cancel']])
+		self.assertFalse(any(line.startswith('<s>') for line in lines))
+		kind, lines, rows = self.tap('T2')
+		self.assertEqual(self.labels(rows), [['T1', '❌ T2', 'T3'], ['OK', 'Cancel']])
+		struck = [line for line in lines if line.startswith('<s>')]
+		self.assertEqual([('Co T2' in line, line.endswith('</s>')) for line in struck], [(True, True)])
+		kind, lines, rows = self.tap('❌ T2')
+		self.assertFalse(any(line.startswith('<s>') for line in lines))
+		self.tap('T1')
+		kind, lines, rows = self.tap('Cancel')
+		self.assertEqual((self.labels(rows), watchlist.tickers('telegram:55')), ([['Edit']], ['T3', 'T1', 'T2']))
+		self.tap('Edit')
+		self.tap('T1')
+		self.tap('T3')
+		kind, lines, rows = self.tap('OK')
+		self.assertEqual((self.labels(rows), lines[0], watchlist.tickers('telegram:55')),
+			([['Edit']], 'Deleted: T1, T3', ['T2']))
+
+	def test_watchlist_buttons_of_another_list_start_again(self):
+		"""Buttons drawn for a watchlist that has changed since delete nothing: the list is drawn again, with a note."""
+		self.patch(watchlist, 'with_holdings', REAL_GET_HOLDINGS)
+		for ticker in ('T1', 'T2'):
+			watchlist.add('telegram:55', ticker)
+		self.command('.watchlist')
+		self.tap('Edit')
+		old = self.tap('T1')[2]
+		watchlist.add('telegram:55', 'T3')
+		kind, lines, rows = self.tap('OK', self.rows(old) if old and not isinstance(old[0][0], tuple) else old)
+		self.assertEqual((lines[0], self.labels(rows), watchlist.tickers('telegram:55')),
+			('The list has changed: here it is now', [['Edit']], ['T1', 'T2', 'T3']))
+
 	def test_without_holdings_the_watchlist_is_offered(self):
 		"""Tickers to pick are the holdings', else the chat's watchlist; none at all says how to add one, and one is
 		enough."""
