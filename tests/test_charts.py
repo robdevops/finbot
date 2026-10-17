@@ -143,6 +143,13 @@ class ImageSanity(unittest.TestCase):
 		self.check_image(bars([('WWWWWWWW', 1.2), ('MMM', 3.4)], 'Ratings', xlim=(0.9, 4.0)), 'zoomed wide labels')
 		self.check_image(bars([(f'T{i}', 1 + i / 10) for i in range(15)], 'Ratings', xlim=(0.9, 3.0)), 'zoomed 15 rows')
 
+	def test_red_rows_draw_in_red(self):
+		"""Positive bars in red_rows are drawn in the falling colour, the others in blue."""
+		rows = [('AAA', 1.2), ('', None), ('BBB', 4.4)]
+		plain = bars(rows, 'Ratings', xlim=(0.9, 4.6)).getvalue()
+		red = bars(rows, 'Ratings', xlim=(0.9, 4.6), red_rows=(2,)).getvalue()
+		self.assertNotEqual(plain, red)
+
 	def test_shorts_chart_sizes_and_verdicts(self):
 		"""The shorts pictogram draws 1 to 45 rows and a long label; each tier of short interest gets its verdict."""
 		for n in (1, 5, 45):

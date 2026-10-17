@@ -298,10 +298,10 @@ class Commands(FinbotCase):
 		commands = worker.slash_commands()
 		names = [name for name, _, _, _ in commands]
 		self.assertEqual(len(names), len(set(names)))
-		for expected in ('help', 'earningsdividend', 'buysell', 'pe', 'stock',
+		for expected in ('help', 'earnings', 'buysell', 'pe', 'stock',
 				'jobs', 'price', 'movers'):
 			self.assertIn(expected, names)
-		gone = {'profile', 'job', 'session', 'premarket', 'pie', 'plan', 'buy', 'sell', 'earnings', 'dividend'}
+		gone = {'profile', 'job', 'session', 'premarket', 'pie', 'plan', 'buy', 'sell', 'dividend'}
 		self.assertFalse(gone & set(names))
 		for name, description, arguments, _ in commands:
 			with self.subTest(name=name):

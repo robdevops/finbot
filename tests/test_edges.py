@@ -7,7 +7,7 @@ from lib import log
 
 
 COMMANDS = ('.movers', '.movers 7d', '.movers top', '.session', '.premarket', '.performance 7d', '.shorts', '.peg',
-			'.buysell', '.beta', '.marketcap', '.earningsdividend', '.trades', '.holdings',
+			'.buysell', '.beta', '.marketcap', '.earnings', '.trades', '.holdings',
 			'.watchlist', '.T1', '.price T1', '.compare T1 T2')
 
 

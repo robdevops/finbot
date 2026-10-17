@@ -33,7 +33,7 @@ Where:
 /stock symbol
 /beta
 /buysell
-/earningsdividend [period|symbol]
+/earnings [period|symbol]
 /help
 /holdings [portfolio]
 /jobs [upcoming|system]
@@ -234,12 +234,12 @@ Job (see [Scheduling](scheduling.md)), such as `/jobs add cal earnings every sun
 cal earnings|ex-dividend
 ```
 
-Command (the coming earnings, then the ex-dividend dates; for a period, or one symbol):
+Command (the coming earnings and ex-dividend dates in one message, in date order under shared date headings, each line naming its event; for a period, or one symbol):
 ```
-/earningsdividend [period|symbol]
+/earnings [period|symbol]
 ```
 
-Typed, `.earnings` gives the earnings alone and `.dividend` the ex-dividend dates alone.
+Typed, `.dividend` gives the ex-dividend dates alone.
 
 ### Highly shorted stock warnings
 ![short warnings in Slack](../img/shorts.png?raw=true "Short warnings in Slack")
@@ -283,7 +283,7 @@ Command:
 ![Buy ratings in Slack](../img/finbot_buy.png?raw=true "Buy ratings in Slack")
 ![Rating report in Slack](../img/finbot_sell.png?raw=true "Rating report in Slack")
 
-Show the top recommended buys, then the top recommended sells, by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `settings.conf`). Typed, `.buy` gives the buys alone and `.sell` the sells alone.
+Show the top recommended buys and sells, by Yahoo Finance analysts rating, among stocks rated by at least `min_analysts` analysts (7 by default; see `settings.conf`), in one message with one bar chart, the sells in red. Typed, `.buy` gives the buys alone and `.sell` the sells alone.
 
 Command:
 ```

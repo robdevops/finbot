@@ -38,16 +38,22 @@ class Commands(FinbotCase):
 			with self.subTest(text=text):
 				self.assertIn('Upcoming ex-dividends', str(self.command(text)))
 
-	def test_earningsdividend_is_the_earnings_then_the_ex_dividend_report(self):
-		""".earningsdividend posts the upcoming earnings, then the ex-dividends; .earnings and .dividend, typed, each
-		the one."""
+	def test_earnings_is_one_list_of_both_events_by_date(self):
+		""".earnings (also .earningsdividend, and the keyboard's old .earnings & dividend) posts one message: earnings
+		and ex-dividends under shared date headings, each line named for its event; .dividend is the ex-dividends."""
 		self.settings(graph=False)
-		both = str(self.command('.earningsdividend'))
-		self.assertEqual(both.count('Upcoming'), 2)
-		self.assertLess(both.index('Upcoming earnings'), both.index('Upcoming ex-dividends'))
-		self.assertEqual(both, str(self.command('.earnings') + self.command('.dividend')))
-		self.assertEqual(both, str(self.command('.earnings & dividend'))) # the keyboard's button
-		self.assertEqual(str(self.command('.earnings & dividend T1')), str(self.command('.earningsdividend T1')))
+		both = self.command('.earnings')
+		self.assertEqual(len(both), 1)
+		text = str(both)
+		self.assertEqual(text.count('Upcoming'), 1)
+		self.assertIn('Upcoming earnings and ex-dividends', text)
+		self.assertEqual(text.count('Oct 20'), 1) # a date heading shared by both kinds
+		self.assertIn('T1</a>) - earnings', text)
+		self.assertIn('T1</a>) - ex-dividend', text)
+		for typed in ('.earningsdividend', '.earnings & dividend'):
+			self.assertEqual(text, str(self.command(typed)))
+		self.assertEqual(str(self.command('.earnings & dividend T1')), str(self.command('.earnings T1')))
+		self.assertNotIn(' - earnings', str(self.command('.dividend')))
 
 	def test_a_period_list_and_one_stocks_view_give_the_same_figure(self):
 		"""Over a period, the list and one stock's view take a holding's figure from its Yahoo history, which its chart
@@ -73,22 +79,38 @@ class Commands(FinbotCase):
 				self.assertTrue(any(kind == 'photo' for kind, *_ in out), f'{cmd} sent no chart: {out}')
 
 	def test_one_button_asks_for_both_ratings_reports(self):
-		""".buy & sell (and its spellings) sends both ratings reports, in the order asked, each once."""
-		for text in ('.buysell', '.buy & sell', '.buy sell', '.buy/sell', '.buy and sell'):
+		""".buy & sell (and its spellings) sends one message, with each report once."""
+		for text in ('.buysell', '.buy & sell', '.buy sell', '.buy/sell', '.buy and sell', '.sell & buy', '.buy & buy'):
 			with self.subTest(text=text):
-				captions = [caption for kind, _, caption in self.command(text) if kind == 'photo']
-				self.assertEqual(len(captions), 2, captions)
-				self.assertIn('analyst buy ratings', captions[0])
-				self.assertIn('analyst sell ratings', captions[1])
-		self.assertIn('analyst sell ratings', str(self.command('.sell & buy')[0])) # in the order asked
-		self.assertEqual(len(self.command('.buy & buy')), 1) # each report once
+				self.assertEqual(len(self.command(text)), 1)
+
+	def test_buy_and_sell_share_one_chart_with_the_sells_red(self):
+		"""Both lists in order asked: one chart, a gap between them, the sell rows' indices in red_rows; one list alone
+		has none."""
+		ratings = {'T1': ('buy', 1.5, 7), 'T2': ('strong_buy', 1.2, 12), 'T4': ('sell', 4.2, 7),
+			'T5': ('underperform', 4.6, 10)}
+		self.patch(watchlist, 'with_holdings', lambda chat: list(ratings))
+		self.patch(yahoo, 'fetch_detail',
+			lambda t, *a, **k: {t: market_entry(t) | dict(zip(('recommend', 'recommend_index', 'recommend_analysts'),
+			ratings[t]))})
+		payload, chart = rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy', 'sell'], length=10)
+		self.assertEqual([label for label, _ in chart.rows], ['T2', 'T1', '', 'T5', 'T4'])
+		self.assertEqual(chart.red_rows, (3, 4))
+		self.assertIn('buy and sell ratings', chart.title)
+		self.assertEqual(sum(line.startswith('<b>Top') for line in payload), 2)
+		self.assertEqual(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['sell'])[1].red_rows, (0, 1))
+		self.patch(watchlist, 'with_holdings', lambda chat: ['T4', 'T5'])
+		payload, chart = rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy', 'sell'])
+		self.assertIn('No tracked stocks rated buy by 7+ analysts', payload)
+		payload, _ = rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy', 'sell'], asked=False)
+		self.assertNotIn('No tracked stocks rated buy by 7+ analysts', payload)
 
 	def test_the_keyboard_is_alphabetical_and_every_button_is_its_command(self):
 		"""The command keyboard is alphabetical, .schedule (the jobs) in place of .beta, and each button runs the
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in worker.command_keyboard()['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertEqual(buttons, ['.buy & sell', '.earnings & dividend', '.movers', '.pe', '.peg',
+		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.movers', '.pe', '.peg',
 			'.performance', '.price', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
@@ -178,7 +200,7 @@ class ReportFunctions(FinbotCase):
 	def test_prepare_rating(self):
 		"""The buy and sell lists are built."""
 		for action in ('buy', 'sell'):
-			self.assertTrue(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', action, length=5)[0])
+			self.assertTrue(rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', [action], length=5)[0])
 
 	def test_ratings_list_the_strongest_first(self):
 		"""1 is a strong buy and 5 a strong sell: .sell used to list the mildest sells first. On equal ratings, more
@@ -194,14 +216,14 @@ class ReportFunctions(FinbotCase):
 			ratings[t]))})
 		def order(action):
 			"""(the tickers listed, the tickers charted) of a ratings report, in order."""
-			payload, chart = rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', action)
+			payload, chart = rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', [action])
 			return [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], [label for label, _ in chart.rows]
 		self.assertEqual(order('buy'), (['T2', 'T3', 'T1'], ['T2', 'T3', 'T1']))
 		self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
-		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy')[0][0])
+		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy'])[0][0])
 		self.patch(watchlist, 'with_holdings', lambda chat: ['T7', 'T8'])
 		with self.assertRaises(answer.Nothing) as none:
-			rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy')
+			rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy'])
 		self.assertEqual(none.exception.lines, ['No tracked stocks rated buy by 7+ analysts'])
 
 	def test_a_small_cap_quoted_in_won_needs_the_bigger_move_too(self):
@@ -259,7 +281,7 @@ class ReportFunctions(FinbotCase):
 		self.assertIn('Co T2', rankings.ratio_line(TELEGRAM, 'T2', 'forward pe')) # one ticker asked for: shown
 		self.settings(min_analysts=13) # the one setting moves .buy and .forward pe together
 		for none, said in ((listed, 'No tracked stocks with 13+ analysts have a forward pe ratio'),
-				(lambda: rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', 'buy'),
+				(lambda: rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy']),
 				'No tracked stocks rated buy by 13+ analysts')):
 			with self.assertRaises(answer.Nothing) as nothing:
 				none()
@@ -903,15 +925,16 @@ class CommandJobs(FinbotCase):
 	def test_a_command_job_with_nothing_to_show_says_so_only_when_asked(self):
 		"""A command with nothing to show (answer.Nothing) says so typed, and in a job run now (asked), but posts
 		nothing on schedule; .buy & sell posts the list there is, saying the other has none only where asked."""
-		def rated(service, chat, action, length=15):
+		def rated(service, chat, actions, length=15, asked=True):
 			"""Sell ratings, and no stock rated buy."""
-			if action == 'buy':
+			if actions == ['buy']:
 				raise answer.Nothing('No tracked stocks rated buy')
-			return ['Sells'], None
+			return ['Sells'] + ([] if len(actions) == 1 or not asked else ['No tracked stocks rated buy']), None
 		self.patch(rankings, 'prepare_rating_payload', rated)
 		none, sells = ('text', ['No tracked stocks rated buy']), ('text', ['Sells'])
-		self.assertEqual(self.command('.buy & sell'), [none, sells])
-		for name, asked, posted in (('buy&sell', False, [sells]), ('buy&sell', True, [none, sells]), ('buy', False, []),
+		both = ('text', ['Sells', 'No tracked stocks rated buy'])
+		self.assertEqual(self.command('.buy & sell'), [both])
+		for name, asked, posted in (('buy&sell', False, [sells]), ('buy&sell', True, [both]), ('buy', False, []),
 				('buy', True, [none])):
 			with self.subTest(name=name, asked=asked):
 				self.sent.clear()

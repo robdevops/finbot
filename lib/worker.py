@@ -520,16 +520,14 @@ def on_help(request, args):
 		mark_keyboard(request.chat_id) # this chat now has the current keyboard
 
 def on_calendar(request, args):
-	""".earningsdividend or .earnings & dividend (the keyboard's) [period|SYMBOL]: the coming earnings dates, then
-	the ex-dividend dates; typed .earnings or .dividend, only those."""
+	""".earnings [period|SYMBOL] (also .earningsdividend, and .earnings & dividend, once the keyboard's): the coming
+	earnings and ex-dividend dates in one list by date; typed .dividend, only the ex-dividend ones."""
 	words = args.words
-	both = args.word == 'earningsdividend' or (args.word == 'earnings' and words[:1] in (['&'], ['and']) and
-		words[1:2] in (['dividend'], ['dividends']))
-	if both and args.word == 'earnings':
+	if args.word == 'earnings' and words[:1] in (['&'], ['and']) and words[1:2] in (['dividend'], ['dividends']):
 		words = words[2:]
 	symbol = yahoo.symbol(words[0]) if words else None
-	for event in (['earnings', 'ex-dividend'] if both else ['ex-dividend' if 'div' in args.word else 'earnings']):
-		cal.run(request.dest, days=args.days, specific_stock=symbol, event=event)
+	event = 'ex-dividend' if 'div' in args.word and args.word != 'earningsdividend' else 'both'
+	cal.run(request.dest, days=args.days, specific_stock=symbol, event=event)
 
 def on_performance(request, args):
 	""".performance [period] [portfolio]: each portfolio's return, over a month by default."""
@@ -608,15 +606,12 @@ def on_treemap(request, args):
 	request.reply(payload, chart)
 
 def on_rating(request, args):
-	""".buy, .sell or both (.buy & sell, a keyboard button): the analysts' strongest buy or sell ratings, as asked."""
-	for action in dict.fromkeys(re.findall('buy|sell', f'{args.word} {args.text}'.lower())): # each once, as asked
-		try:
-			payload, chart = rankings.prepare_rating_payload(request.service, request.dest.key, action, length=15)
-		except answer.Nothing as e: # none rated so: said where someone asked, and the other list still goes
-			if delivery.asked(request.dest):
-				request.reply(e.lines)
-			continue
-		request.reply(payload, chart)
+	""".buy, .sell or both (.buy & sell, a keyboard button): the analysts' strongest buy or sell ratings, as asked,
+	in one message."""
+	actions = list(dict.fromkeys(re.findall('buy|sell', f'{args.word} {args.text}'.lower()))) # each once, as asked
+	payload, chart = rankings.prepare_rating_payload(request.service, request.dest.key, actions,
+		length=10 if len(actions) > 1 else 15, asked=delivery.asked(request.dest))
+	request.reply(payload, chart)
 
 def on_compare(request, args):
 	""".price (or .compare, .history) [SYMBOL...] [period]: their price changes on one chart, with period buttons where
@@ -814,9 +809,8 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
 		keywords=CHANGE, job=False),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),
-	Command(('earningsdividend', 'earnings', 'earning', 'earrings', 'earring', 'dividends', 'dividend', 'exdividend',
-		'ex-dividend'), on_calendar, ('.earningsdividend [period|SYMBOL]',), COMPANY, ('.earnings & dividend',),
-		period=True),
+	Command(('earnings', 'earningsdividend', 'earning', 'earrings', 'earring', 'dividends', 'dividend', 'exdividend',
+		'ex-dividend'), on_calendar, ('.earnings [period|SYMBOL]',), COMPANY, ('.earnings',), period=True),
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
 		keywords=TOP),
 	Command(('beta',), on_beta, ('.beta',), PRICE),

@@ -38,32 +38,57 @@ def marketcap_list(service, chat, bottom=False, length=15):
 	heading = f"{'Bottom' if bottom else 'Top'} {length} tracked stocks by market cap (USD)"
 	return [service.bold(heading)] + [line for _, line in caps[:length]]
 
-def prepare_rating_payload(service, chat, action, length=15):
-	"""(payload, chart) of the `length` stocks a chat follows (by its key) rated `action` ('buy' or 'sell') by
-	min_analysts or more analysts (fewer, and the consensus says little: ASX small caps covered by two to six brokers
-	are nearly all a perfect 1.0 buy), the strongest rating first (1 is a strong buy, 5 a strong sell); on equal
-	ratings, the one more analysts give first."""
+def rated(details, action, length):
+	"""[(rating, analysts, line, ticker)] of the `length` stocks (Yahoo's details by ticker) rated `action` ('buy' or
+	'sell') by min_analysts or more analysts (fewer, and the consensus says little: ASX small caps covered by two to six
+	brokers are nearly all a perfect 1.0 buy), the strongest rating first (1 is a strong buy, 5 a strong sell); on
+	equal ratings, the one more analysts give first."""
 	found = [] # (rating, analysts, line, ticker)
-	for ticker, data in yahoo.fetch_details(watchlist.with_holdings(chat)).items():
+	for ticker, data in details.items():
 		if 'recommend' not in data or data['recommend_analysts'] < config.settings.min_analysts:
 			continue
 		recommend = data['recommend']
 		if (action == 'buy' and 'buy' in recommend) or (action == 'sell' and recommend in ('sell', 'underperform')):
 			rating, analysts = round(data['recommend_index'], 2), data['recommend_analysts']
-			line = f"{links.stock_line(ticker, data, service)} {rating} ({analysts} analysts)"
-			found.append((rating, analysts, line, ticker))
-	found = sorted(found, key=lambda row: (row[0] if action == 'buy' else -row[0], -row[1]))[:length]
-	payload = [line for _, _, line, _ in found]
-	if not payload:
-		raise answer.Nothing(f"No tracked stocks rated {action} by {config.settings.min_analysts}+ analysts")
-	message = f"Top {length} analyst {action} ratings for tracked stocks ({config.settings.min_analysts}+ analysts)"
-	shown = [(formats.short_ticker(ticker), rating) for rating, _, _, ticker in found]
-	low, high = min(r for _, r in shown), max(r for _, r in shown)
+			found.append((rating, analysts, (ticker, data, rating, analysts), ticker))
+	return sorted(found, key=lambda row: (row[0] if action == 'buy' else -row[0], -row[1]))[:length]
+
+def prepare_rating_payload(service, chat, actions, length=15, asked=True):
+	"""(payload, chart) of the `length` stocks a chat follows (by its key) rated each of `actions` ('buy' and 'sell',
+	in the order asked): one list each, and one bar chart with the sells in red. A list with no stocks says so, where
+	someone asked; none at all raises answer.Nothing."""
+	details = yahoo.fetch_details(watchlist.with_holdings(chat))
+	blocks, notes, rows, red, shown = [], [], [], [], []
+	for action in actions:
+		found = rated(details, action, length)
+		if not found:
+			notes.append(f"No tracked stocks rated {action} by {config.settings.min_analysts}+ analysts")
+			continue
+		heading = f"Top {length} analyst {action} ratings for tracked stocks "\
+			f"({config.settings.min_analysts}+ analysts)"
+		blocks.append([service.bold(heading)] + [
+			f"{links.stock_line(ticker, data, service)} {rating} ({analysts} analysts)"
+			for _, _, (ticker, data, rating, analysts), _ in found])
+		if rows:
+			rows.append(('', None)) # a gap between the lists
+		if action == 'sell':
+			red += range(len(rows), len(rows) + len(found))
+		rows += [(formats.short_ticker(ticker), rating) for rating, _, _, ticker in found]
+		shown += [rating for rating, *_ in found]
+		title = heading
+	if not blocks:
+		raise answer.Nothing(*notes)
+	if len(blocks) > 1:
+		title = f"Top {length} analyst buy and sell ratings for tracked stocks "\
+			f"({config.settings.min_analysts}+ analysts)"
+	payload = formats.sections(*blocks, notes if asked else [])
+	low, high = min(shown), max(shown)
 	spread = (high - low) or 0.2
 	# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
-	chart = render.Chart('bars', message, 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
-		tuple(shown), value_format='number', xlim=(max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25)))
-	return [service.bold(message)] + payload, chart
+	chart = render.Chart('bars', title, 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
+		tuple(rows), value_format='number', xlim=(max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25)),
+		red_rows=tuple(red))
+	return payload, chart
 
 RATIOS = {'forward pe': 'price_to_earnings_forward', 'peg': 'price_to_earnings_peg'}
 
