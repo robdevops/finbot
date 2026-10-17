@@ -1,5 +1,5 @@
-"""Price history: .compare's two to eight stocks, rebased (.history is another name for it), and one stock's price
-line, which a .compare of one stock draws, and whose change over a period .price takes."""
+"""Price history: .compare's two to eight stocks, rebased (.price and .history are other names for it), and one stock's
+price line, which a .compare of one stock draws, and whose change over a period the movers list takes."""
 import bisect
 import datetime
 from lib import answer

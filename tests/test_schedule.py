@@ -5,7 +5,7 @@ import contextlib, datetime, hashlib, io, re, unittest
 from pathlib import Path
 from tests.common import *
 from lib import catalog, inbound, jobs, state, when, worker
-from lib.reports import cal, cleanup, message, performance, podcasts, price
+from lib.reports import cal, cleanup, message, movers, performance, podcasts
 
 MELBOURNE = 'Australia/Melbourne'
 OCTOBER = datetime.datetime(2026, 10, 15, tzinfo=when.UTC)
@@ -26,9 +26,9 @@ class Actions(unittest.TestCase):
 				self.assertIn(command.command, worker.COMMANDS)
 				self.assertTrue(command.command.job and name in command.command.names)
 				self.assertNotIn(command.command.handler, worker.REPORTED)
-		self.assertFalse({'help', 'start', 'watchlist', 'wishlist', 'plan', 'jobs', 'cron', 'schedule', 'price',
+		self.assertFalse({'help', 'start', 'watchlist', 'wishlist', 'plan', 'jobs', 'cron', 'schedule', 'movers',
 			'session', 'earnings', 'trades'} & set(commands))
-		self.assertEqual(jobs.chat_actions(), ['cal', 'message', 'milestone', 'performance', 'podcasts', 'price',
+		self.assertEqual(jobs.chat_actions(), ['cal', 'message', 'milestone', 'movers', 'performance', 'podcasts',
 			'rating', 'shorts', 'trades', 'holdings', 'pie', 'treemap', 'who', 'marketcap', 'beta', 'compare',
 			'buy', 'sell', 'pe', 'forward pe', 'peg', 'stock'])
 
@@ -41,14 +41,16 @@ class Actions(unittest.TestCase):
 				('compare AAPL MSFT 1y weekly at 9am', 'compare', ['AAPL', 'MSFT', '1y']),
 				('buy&sell weekly', 'buy&sell', []), ('holdings Rob weekly', 'holdings', ['Rob']),
 				('holdings weekly', 'holdings', []), ('treemap sector weekly', 'treemap', ['sector']),
-				('history weekly', 'history', []), ('compare weekly', 'compare', [])):
+				('history weekly', 'history', []), ('compare weekly', 'compare', []), ('price weekly', 'price', []),
+				('price AAPL weekly', 'price', ['AAPL'])):
 			with self.subTest(text=text):
 				self.assertEqual(jobs.parse_add(text, 'UTC')[:2], (action, args))
 		for text in ('beta x weekly', 'who weekly', 'stock weekly'):
 			with self.subTest(text=text), self.assertRaises(jobs.ScheduleError):
 				jobs.parse_add(text, 'UTC')
 		for action, args, made, name in (('hospital', ['AAPL'], 'compare', 'compare AAPL'), ('fpe', [], 'forward pe',
-				'forward pe'), ('buy&sell', [], 'buy&sell', 'buy & sell'), ('sell', [], 'sell', 'sell')):
+				'forward pe'), ('buy&sell', [], 'buy&sell', 'buy & sell'), ('sell', [], 'sell', 'sell'),
+				('price', ['AAPL'], 'compare', 'compare AAPL')):
 			with self.subTest(action=action):
 				job = jobs.make_job(action, args, weekly, 'telegram:1')
 				self.assertEqual((job.action, job.name, job.kwargs), (made, name, {'words': args}))
@@ -58,8 +60,8 @@ class Actions(unittest.TestCase):
 		that are not words or that its parser refuses: refused as a job is made and as .jobs add reads it."""
 		daily = when.parse('daily', 'UTC')
 		for action, args in (('os.system', ['ls']), ('price; rm -rf /', []), ('lib.reports.price', ['close']),
-				('__import__', ['os']), ('eval', ['1']), ('yahoo_warm', []), ('price', ['bogus']), ('trades', [7]),
-				(['trades'], []), ('price', 'close'), ('jobs', []), ('plan', ['x']), ('watchlist', ['add', 'X']),
+				('__import__', ['os']), ('eval', ['1']), ('yahoo_warm', []), ('movers', ['bogus']), ('trades', [7]),
+				(['trades'], []), ('movers', 'close'), ('jobs', []), ('plan', ['x']), ('watchlist', ['add', 'X']),
 				('help', []), ('on_jobs', [])):
 			with self.subTest(action=action, args=args), self.assertRaises(jobs.ScheduleError):
 				jobs.make_job(action, args, daily, 'telegram:1')
@@ -71,17 +73,17 @@ class Actions(unittest.TestCase):
 		self.assertEqual(jobs.make_job('yahoo_warm', [], daily).label, 'yahoo_warm') # the system's own
 
 	def test_what_jobs_add_reads(self):
-		""".jobs add takes a report, what it takes and a schedule, wherever both read; performance and price cover the
+		""".jobs add takes a report, what it takes and a schedule, wherever both read; performance and movers cover the
 		days between runs where they name no period; a message takes its schedule, then its text in double quotes."""
 		url = 'https://example.com/Feed.rss'
-		for text, action, args, stored in (('price weekly', 'price', ['7'], {'days': ['sat'], 'at': '09:00'}),
-				('price close weekdays at 4:30pm New York', 'price', ['close'],
+		for text, action, args, stored in (('movers weekly', 'movers', ['7'], {'days': ['sat'], 'at': '09:00'}),
+				('movers close weekdays at 4:30pm New York', 'movers', ['close'],
 					{'days': 'weekdays', 'at': '16:30', 'zone': 'America/New_York'}),
 				('performance quarterly', 'performance', ['90'], {'days': {'day': 1, 'months': [1, 4, 7, 10]},
 					'at': '09:00'}),
 				('performance tue-sat at 8am', 'performance', [], {'days': ['tue', 'wed', 'thu', 'fri', 'sat'],
 					'at': '08:00'}),
-				('price every 20 mins weekdays', 'price', ['interday'], {'days': 'weekdays', 'every': 20}),
+				('movers every 20 mins weekdays', 'movers', ['interday'], {'days': 'weekdays', 'every': 20}),
 				('cal ex-dividend every sunday', 'cal', ['ex-dividend'], {'days': ['sun'], 'at': '09:00'}),
 				(f'podcasts {url} hourly', 'podcasts', [url], {'days': 'daily', 'every': 60}),
 				('message every 31 mar "🥳 Happy EOFY"', 'message', ['🥳 Happy EOFY'],
@@ -94,16 +96,16 @@ class Actions(unittest.TestCase):
 
 
 class JobArguments(unittest.TestCase):
-	def test_price(self):
-		"""price takes one mode or a number of days (the top and bottom ten over it); anything else is its usage."""
-		self.assertEqual(price.job(['midsession']), ('price midsession', {'mode': 'midsession'}))
-		self.assertEqual(price.job(['premarket'])[1], {'mode': 'premarket'})
-		self.assertEqual(price.job(['interday'])[1], {'mode': 'interday'})
-		self.assertEqual(price.job(['close'])[1], {'mode': 'close'})
-		self.assertEqual(price.job(['28']), ('price 28', {'mode': 'period', 'threshold': 0, 'days': 28, 'top': 10}))
+	def test_movers(self):
+		"""movers takes one mode or a number of days (the top and bottom ten over it); anything else is its usage."""
+		self.assertEqual(movers.job(['midsession']), ('movers midsession', {'mode': 'midsession'}))
+		self.assertEqual(movers.job(['premarket'])[1], {'mode': 'premarket'})
+		self.assertEqual(movers.job(['interday'])[1], {'mode': 'interday'})
+		self.assertEqual(movers.job(['close'])[1], {'mode': 'close'})
+		self.assertEqual(movers.job(['28']), ('movers 28', {'mode': 'period', 'threshold': 0, 'days': 28, 'top': 10}))
 		for bad in ([], ['soon'], ['7', '8']):
-			with self.assertRaisesRegex(ValueError, price.ARGUMENTS.replace('|', r'\|')):
-				price.job(bad)
+			with self.assertRaisesRegex(ValueError, movers.ARGUMENTS.replace('|', r'\|')):
+				movers.job(bad)
 
 	def test_cal_and_performance(self):
 		"""cal takes earnings or ex-dividend; performance an optional number of days."""
@@ -146,7 +148,7 @@ class JobArguments(unittest.TestCase):
 		for name, module in jobs.ACTIONS.items():
 			with self.subTest(name=name):
 				self.assertIsInstance(module.ARGUMENTS, str)
-				if name not in ('cal', 'cleanup', 'message', 'performance', 'podcasts', 'price'):
+				if name not in ('cal', 'cleanup', 'message', 'performance', 'podcasts', 'movers'):
 					self.assertEqual((module.job([]), module.ARGUMENTS), ((name, {}), ''))
 					with self.assertRaisesRegex(ValueError, 'no arguments'):
 						module.job(['7'])
@@ -160,7 +162,7 @@ class JobArguments(unittest.TestCase):
 class DefaultJobs(unittest.TestCase):
 	def test_every_default_job_can_be(self):
 		"""Each default job is an action a chat may schedule, with arguments its parser takes, on a schedule that runs;
-		its key is its own; its name says what it reports on, never when; performance and price over a period cover the
+		its key is its own; its name says what it reports on, never when; performance and movers over a period cover the
 		days between their runs."""
 		self.assertEqual(len(catalog.ITEMS), 35)
 		self.assertEqual(len({item.key for item in catalog.ITEMS}), 35)
@@ -178,32 +180,32 @@ class DefaultJobs(unittest.TestCase):
 		"""Without Sharesight, the default jobs leave out those that report on it: trades and performance."""
 		names = {item.name for item in catalog.items('AU', sharesight=False)}
 		self.assertFalse(names & {'trades', 'performance'})
-		self.assertTrue({'trades', 'performance', 'price'} <= {item.name for item in catalog.items('AU')})
-		self.assertIn('price', names)
+		self.assertTrue({'trades', 'performance', 'movers'} <= {item.name for item in catalog.items('AU')})
+		self.assertIn('movers', names)
 
 	def test_the_default_jobs_as_a_melbourne_chat_sees_them(self):
 		"""The default jobs by name, each with its schedule in words, as a chat in Melbourne sees them in mid-October:
 		each in its market's zone, the local time beside it where the clocks differ."""
 		described = [f'{item.name} · {item.schedule.describe(MELBOURNE, OCTOBER)}' for item in catalog.items('AU')]
 		self.assertEqual(described, ['trades · every 20 mins, Mon 9am – Sat 3pm Sydney',
-			'price midsession AU · weekdays at 1:00pm Sydney',
-			'price midsession US · weekdays at 12:45pm New York (3:45am local, Tue–Sat)',
-			'price premarket US · weekdays at 7:15am New York (10:15pm local)',
-			'price close AU · weekdays at 4:30pm Sydney',
-			'price close HK · weekdays at 4:30pm Hong Kong (7:30pm local)',
-			'price close UK · weekdays at 5:00pm London (3:00am local, Tue–Sat)',
-			'price close US · weekdays at 4:30pm New York (7:30am local, Tue–Sat)',
+			'movers midsession AU · weekdays at 1:00pm Sydney',
+			'movers midsession US · weekdays at 12:45pm New York (3:45am local, Tue–Sat)',
+			'movers premarket US · weekdays at 7:15am New York (10:15pm local)',
+			'movers close AU · weekdays at 4:30pm Sydney',
+			'movers close HK · weekdays at 4:30pm Hong Kong (7:30pm local)',
+			'movers close UK · weekdays at 5:00pm London (3:00am local, Tue–Sat)',
+			'movers close US · weekdays at 4:30pm New York (7:30am local, Tue–Sat)',
 			'rating · Tue–Sat at 8:30am Sydney', 'milestone · Tue–Sat at 8:30am Sydney',
 			'podcasts Money Cafe · hourly at :01, weekdays 10am–9pm Sydney',
 			'podcasts Stocktake · hourly at :01, weekdays 10am–9pm Sydney',
 			'cal earnings · weekly, Sundays at 8:30am Sydney', 'cal ex-dividend · weekly, Sundays at 8:30am Sydney',
 			'shorts · weekly, Sundays at 8:30am Sydney', 'performance · weekly, Sundays at 8:30am Sydney',
-			'price · weekly, Sundays at 8:30am Sydney', 'performance · monthly, the 2nd at 8:30am Sydney',
-			'price · monthly, the 2nd at 8:30am Sydney', 'performance · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney',
-			'price · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney',
+			'movers · weekly, Sundays at 8:30am Sydney', 'performance · monthly, the 2nd at 8:30am Sydney',
+			'movers · monthly, the 2nd at 8:30am Sydney', 'performance · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney',
+			'movers · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney',
 			'performance · bi-annual, 2 Jan and 2 Jul at 8:30am Sydney',
-			'price · bi-annual, 2 Jan and 2 Jul at 8:30am Sydney', 'performance · annual, 2 Jan at 8:30am Sydney',
-			'price · annual, 2 Jan at 8:30am Sydney',
+			'movers · bi-annual, 2 Jan and 2 Jul at 8:30am Sydney', 'performance · annual, 2 Jan at 8:30am Sydney',
+			'movers · annual, 2 Jan at 8:30am Sydney',
 			'message: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 · annual, 31 Mar at 8:30am Sydney',
 			'message: SPCX IPO anniversary · annual, 12 Jun at 8:30am Sydney',
 			'message: 💸 Realise capital gains/losses by EOFY June 30 (AU) · annual, 23 Jun at 8:30am Sydney',
@@ -235,8 +237,8 @@ class DefaultJobs(unittest.TestCase):
 		self.assertEqual(matching('trades every 20 mins from mon 9am to sat 3pm'), 'trades')
 		self.assertIsNone(matching('trades every 20 mins from mon 9am to sat 3pm Brisbane'))
 		self.assertIsNone(matching('trades every 20 mins weekdays'))
-		self.assertEqual(matching('price close weekdays at 4:30pm New York'), 'price-close-us')
-		self.assertEqual(matching('price every sunday at 8:30am'), 'price-weekly')
+		self.assertEqual(matching('movers close weekdays at 4:30pm New York'), 'price-close-us')
+		self.assertEqual(matching('movers every sunday at 8:30am'), 'price-weekly')
 
 
 class Messages(FinbotCase):

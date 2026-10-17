@@ -93,8 +93,8 @@ discordPublicKey=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde
 
 finbot registers a slash command for each line of `/help`, as it starts, and again only when the list has changed:
 `/price`, `/dividend` and `/earnings`, `/buy` and `/sell`, `/forwardpe`, `/stock` (or `/profile`), `/jobs` (or `/job`),
-and the rest. Each takes its arguments, if any, as one text option, as a message would: `/price` with `5 7d` is the
-message `.price 5 7d`. They work in the server's channels and in a direct message with the bot.
+and the rest. Each takes its arguments, if any, as one text option, as a message would: `/movers` with `5 7d` is
+the message `.movers 5 7d`. They work in the server's channels and in a direct message with the bot.
 
 While the arguments are typed, Discord shows finbot's suggestions, in both modes, for the word being typed:
 * the command's keywords (`top`, `bottom`, `negative`, `sector`, `add`, `del`) and periods (`7d`, `3m`, `ytd`), until

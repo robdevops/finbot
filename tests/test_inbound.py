@@ -493,7 +493,7 @@ class SlackSigning(FinbotCase):
 
 
 SLASH = {'token': 'stok', 'team_id': 'T1', 'channel_id': 'C1', 'channel_name': 'stocks', 'user_id': 'U1',
-	'user_name': 'rob', 'command': '/price', 'text': '5 &amp; 7d', 'response_url': 'https://hooks.slack.com/r/1',
+	'user_name': 'rob', 'command': '/movers', 'text': '5 &amp; 7d', 'response_url': 'https://hooks.slack.com/r/1',
 	'trigger_id': 't9', 'api_app_id': 'A1'} # a Slack slash command, as its form's fields or a socket's payload
 
 
@@ -520,13 +520,13 @@ class SlackSlashCommands(FinbotCase):
 		return status[-1], answer
 
 	def test_a_slash_command_is_the_message_that_says_the_same(self):
-		"""/price with 5 &amp; 7d is the message /price 5 & 7d, from <@U1>, in the channel or DM it was sent in, which
+		"""/movers with 5 &amp; 7d is the message /movers 5 & 7d, from <@U1>, in the channel or DM it was sent in, which
 		the reply goes to; Slack gets an empty 200 at once. There is no message of it, so no ⏳."""
 		self.assertEqual(self.post(SLASH), ('200 OK', b''))
 		self.assertEqual(self.post({**SLASH, 'channel_id': 'D1', 'command': '/job', 'text': ''}), ('200 OK', b''))
-		self.assertEqual(self.requests, [inbound.Message('slack', 'C1', '<@U1>', '/price 5 & 7d', '', '<@U1>',
+		self.assertEqual(self.requests, [inbound.Message('slack', 'C1', '<@U1>', '/movers 5 & 7d', '', '<@U1>',
 			ids=('U1',)), inbound.Message('slack', 'D1', '<@U1>', '/job', '', '<@U1>', ids=('U1',))])
-		self.assertEqual([worker.read(r.text, r.bot_name)[0].names[0] for r in self.requests], ['price', 'jobs'])
+		self.assertEqual([worker.read(r.text, r.bot_name)[0].names[0] for r in self.requests], ['movers', 'jobs'])
 		self.assertFalse(delivery.reply_to('slack', 'C1', self.requests[0].message_id).shows_typing)
 
 	def test_a_slash_command_unsigned_or_altered_is_refused(self):

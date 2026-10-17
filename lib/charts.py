@@ -1,6 +1,6 @@
 """A chart with period buttons, built by its kind's builder: the command's first view, and again for the period of a
-button pressed, so that both look alike. Each builder takes the network's dialect, the chat's key (a price list covers
-the stocks that chat follows), the period, its days, then what the buttons carry."""
+button pressed, so that both look alike. Each builder takes the network's dialect, the chat's key (the movers list
+covers the stocks that chat follows), the period, its days, then what the buttons carry."""
 import threading
 
 from lib import answer
@@ -11,7 +11,7 @@ from lib import log
 from lib import render
 from lib import watchlist
 from lib import yahoo
-from lib.reports import history, performance, price
+from lib.reports import history, movers, performance
 
 def stock_chart(service, chat, period, days, ticker):
 	"""One stock's change over the period (all its history for Max), from Yahoo, and its line: a .compare of one."""
@@ -26,8 +26,8 @@ def stock_chart(service, chat, period, days, ticker):
 	return caption, chart
 
 def compare_chart(service, chat, period, days, *tickers):
-	""".compare (and .history): the stocks' changes over the period, rebased on one chart; one stock's line as its
-	price chart draws it, as .history's was: green or red with the change, filled below."""
+	""".compare (and .price, .history): the stocks' changes over the period, rebased on one chart; one stock's line as
+	stock_chart draws it, as .history's was: green or red with the change, filled below."""
 	if len(tickers) == 1:
 		return stock_chart(service, chat, period, days, tickers[0])
 	caption, chart = history.prepare_compare(service, list(tickers), days)
@@ -38,18 +38,18 @@ def performance_chart(service, chat, period, days, portfolio):
 	payload, chart = performance.report(service, days or buttons.MAX_DAYS, portfolio or None)
 	return '\n'.join(payload), chart
 
-def price_list_chart(service, chat, period, days, threshold, top):
-	""".price: the moves past `threshold` among the stocks the chat follows, or the top and bottom `top` ('0': not a
+def movers_list_chart(service, chat, period, days, threshold, top):
+	""".movers: the moves past `threshold` among the stocks the chat follows, or the top and bottom `top` ('0': not a
 	top list), over the period; period 'd' is today's moves, the command's default view, not a lookback of one day."""
 	span = {'mode': 'interday'} if period == 'd' else {'mode': 'period', 'days': days or buttons.MAX_DAYS}
 	threshold, top = float(threshold), int(top) or None
-	found = price.moves(watchlist.with_holdings(chat), threshold=threshold, interactive=True, **span)
-	payload, chart = price.report(service, found, threshold=threshold, asked=True, top=top, **span)
+	found = movers.moves(watchlist.with_holdings(chat), threshold=threshold, interactive=True, **span)
+	payload, chart = movers.report(service, found, threshold=threshold, asked=True, top=top, **span)
 	if not chart:
 		raise answer.Answer(*(payload or ['no price data']))
 	return '\n'.join(payload), chart
 
-BUILDERS = {'c': compare_chart, 'f': performance_chart, 'l': price_list_chart}
+BUILDERS = {'c': compare_chart, 'f': performance_chart, 'l': movers_list_chart}
 
 def build(kind, args, service, chat, period=None, days=None):
 	"""(caption, chart spec or None) of a chart kind, in a chat (its key), from the arguments its buttons carry

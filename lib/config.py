@@ -308,7 +308,7 @@ class Settings:
 	min_analysts: int = 7 # .buy, .sell and .forward pe list only stocks this many analysts cover
 	past_days: int = 28
 	performance_cache_seconds: int = 2400 # Sharesight performance reports (40 minutes: sharesight_warm runs every 30)
-	price_percent: float = 5.0
+	price_percent: float = 5.0 # the movers' threshold (.movers, .session), named when they were .price
 	print_headers: bool = False
 	shorts_percent: int = 15
 	timezone: str = 'Australia/Melbourne'

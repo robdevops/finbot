@@ -56,7 +56,7 @@ A change takes effect on a reload. A true/false setting takes `true`/`false`, `y
 | `admins` | | Who the admins are, space separated, each the network and the sender's id as the log shows them: `telegram:@username` (or the numeric user id; never a first name, which anyone may take), `slack:U0123ABCD` (`<@U0123ABCD>` in the log), `discord:123456789012345678` |
 | `past_days` | `28` | How many days back reports look |
 | `future_days` | `30` | How many days ahead the events calendar looks |
-| `price_percent` | `5` | Price alert threshold, percent |
+| `price_percent` | `5` | Movers threshold, percent: the moves `/movers`, `/session` and their jobs list |
 | `shorts_percent` | `15` | Short interest alert threshold, percent |
 | `min_analysts` | `7` | `/buy`, `/sell` and `/forwardpe` list only stocks covered by at least this many analysts; with fewer, a consensus says little (thinly covered small caps are nearly all a perfect buy) |
 | `demote_volatile` | `True` | Volatile (small cap, high beta) stocks need a bigger move to alert |

@@ -245,7 +245,7 @@ class ChartDelivery(FinbotCase):
 			sent.append((dest.name, 'chart')) or {'ok': True})
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None:
 			sent.append((dest.name, 'text')) or [])
-		for report in (price.run, lambda dest: performance.run(dest, past_days=7), shorts.run):
+		for report in (movers.run, lambda dest: performance.run(dest, past_days=7), shorts.run):
 			with self.subTest(report=report):
 				sent.clear()
 				for key in ('telegram:1', 'slack:C9', 'discord:77'):
@@ -261,8 +261,8 @@ class ChartDelivery(FinbotCase):
 		posts = []
 		self.patch(net, 'post', lambda url, **k: posts.append(url) or Resp({'ok': True, 'result': True}))
 		for service, chat in (('telegram', '55'), ('slack', 'C1')):
-			for cmd in ('.price', '.price top', '.performance 7d', '.shorts', '.buy', '.peg', '.beta', '.compare T1 T2',
-					'.pie Rob'):
+			for cmd in ('.movers', '.movers top', '.performance 7d', '.shorts', '.buy', '.peg', '.beta',
+					'.compare T1 T2', '.pie Rob'):
 				with self.subTest(service=service, cmd=cmd):
 					self.sent.clear(); self.errors.clear()
 					worker.process_request(inbound.Message(service, chat, '@u', cmd, BOT, 'U'))
@@ -376,7 +376,7 @@ class DiscordSending(FinbotCase):
 		"""A scheduled Discord report has its chart attached and the report as its message, within 2,000 characters,
 		without previews or pings."""
 		with contextlib.redirect_stderr(io.StringIO()):
-			price.run(scheduled('discord:77'))
+			movers.run(scheduled('discord:77'))
 		(url, kwargs), = self.calls
 		self.assertEqual(url, 'https://discord.com/api/v10/channels/77/messages')
 		payload = json.loads(kwargs['data']['payload_json'])
@@ -438,7 +438,7 @@ class SlackSending(FinbotCase):
 
 		err = io.StringIO()
 		with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
-			for cmd in ('.help', '.price', '.compare T1 T2'):
+			for cmd in ('.help', '.movers', '.compare T1 T2'):
 				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT, 'U'))
 		self.assertEqual((self.posts, self.errors), ([], []))
 		refusal = 'ERROR slack: a reply to channel C1 needs slackBotToken in finbot.env; not sent'
@@ -525,7 +525,7 @@ class SlackButtons(FinbotCase):
 	def test_a_chart_reply_carries_its_period_buttons(self):
 		"""A chart reply is a Block Kit message: the report, the chart (uploaded into no channel, shown by its id) and
 		the period buttons, the one shown marked; nothing goes as text."""
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U'))
 		self.assertEqual(self.errors, [])
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.postMessage'])
@@ -572,7 +572,7 @@ class SlackButtons(FinbotCase):
 		built = []
 		build = charts.build
 		self.patch(charts, 'build', lambda *args, **kwargs: built.append(args) or build(*args, **kwargs))
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U')) # 1D: F1, in message 1.5
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U')) # 1D: F1, in message 1.5
 		worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|w|5,0')) # 7D: F2
 		del self.posts[:], built[:]
 		worker.process_callback(inbound.Press('slack', 't2', 'C1', '2.5', 'c|l|d|5,0')) # 1D in another message: F1
@@ -592,7 +592,7 @@ class SlackButtons(FinbotCase):
 		"""When Slack refuses to show an earlier upload again (a file deleted outside finbot, say), the period is
 		built and uploaded anew."""
 		self.uploading()
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U')) # 1D: F1
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U')) # 1D: F1
 		self.refusals['chat.update'] = ['invalid_blocks']
 		with contextlib.redirect_stderr(io.StringIO()):
 			worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|d|5,0'))
@@ -610,7 +610,7 @@ class SlackButtons(FinbotCase):
 	def test_a_chart_not_ready_to_show_is_shown_a_moment_later(self):
 		"""Slack refusing the blocks of a chart just uploaded (invalid_blocks) is asked again after a wait."""
 		self.refusals['chat.postMessage'] = ['invalid_blocks']
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U'))
 		self.assertEqual((self.calls()[-2:], self.waits), (['chat.postMessage', 'chat.postMessage'], [1]))
 		self.assertEqual((self.sent, self.errors), ([], []))
 
@@ -618,7 +618,7 @@ class SlackButtons(FinbotCase):
 		"""When Slack will not show the chart with its buttons, the chart is uploaded into the channel without them."""
 		self.refusals['chat.postMessage'] = ['invalid_blocks'] * 4
 		with contextlib.redirect_stderr(io.StringIO()):
-			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
+			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U'))
 		self.assertEqual(self.calls()[-3:], ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal'])
 		self.assertEqual(self.posts[-1][1]['data']['channel_id'], 'C1')
 		self.assertEqual((self.waits, self.sent, self.errors), ([1, 2, 4], [], []))
@@ -627,7 +627,7 @@ class SlackButtons(FinbotCase):
 		"""In Socket Mode (no slackOutgoingWebhook) a press reaches finbot over the socket, so a chart has its buttons
 		as in http mode."""
 		self.env(slackOutgoingWebhook='', slackAppToken='xapp-1')
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U'))
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.postMessage'])
 		self.assertEqual(self.blocks('chat.postMessage')[-1]['type'], 'actions')
@@ -658,7 +658,7 @@ class SlackButtons(FinbotCase):
 			return record(url, **kwargs)
 		self.patch(net, 'post', post)
 		with contextlib.redirect_stderr(io.StringIO()):
-			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.price', BOT, 'U'))
+			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U'))
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.postMessage'])
 		self.assertEqual(self.errors, [])
@@ -728,7 +728,7 @@ class EveryNetworkAndMode(FinbotCase):
 					self.posted.clear(); self.typing.clear()
 					answers = []
 					with contextlib.redirect_stderr(io.StringIO()):
-						for text in ('.price', '.jobs run'):
+						for text in ('.movers', '.jobs run'):
 							answer = bot.take(READERS[network], self.update(network, mode, chat, text))
 							answers.append(answer)
 							if answer.then:

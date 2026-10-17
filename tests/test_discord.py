@@ -17,12 +17,12 @@ def interaction(kind, **fields):
 		'member': {'user': {'id': '5', 'username': 'rob', 'global_name': 'Rob'}}, **fields}
 
 
-COMMAND = interaction(2, data={'name': 'price', 'options': [{'name': 'arguments', 'type': 3, 'value': '5 7d'}]})
-TYPING = interaction(4, id='902', data={'name': 'price', 'options': [{'name': 'arguments', 'type': 3, 'value': '5 7',
-	'focused': True}]}) # /price, its arguments being typed
+COMMAND = interaction(2, data={'name': 'movers', 'options': [{'name': 'arguments', 'type': 3, 'value': '5 7d'}]})
+TYPING = interaction(4, id='902', data={'name': 'movers', 'options': [{'name': 'arguments', 'type': 3, 'value': '5 7',
+	'focused': True}]}) # /movers, its arguments being typed
 PRESS = interaction(3, id='901', data={'custom_id': 'c|c|y|T1', 'component_type': 2}, message={'id': '333'})
 MESSAGE = {'id': '700', 'channel_id': '77', 'guild_id': '1', 'author': {'id': '5', 'username': 'rob'},
-	'content': '<@99> price 7d'} # in a server's channel
+	'content': '<@99> movers 7d'} # in a server's channel
 
 
 class Now:
@@ -45,9 +45,9 @@ class Reading(FinbotCase):
 		self.patch(discord_common.READER, 'bot_id', '99')
 
 	def test_a_slash_command_is_the_message_it_stands_for(self):
-		"""/price with its arguments is the message '/price 5 7d', answered through its interaction; in a DM (no
+		"""/movers with its arguments is the message '/movers 5 7d', answered through its interaction; in a DM (no
 		member, no server) the person is the interaction's user, and the message says it is a DM."""
-		expected = inbound.Message('discord', '77', '<@5>', '/price 5 7d', '@99', 'Rob', '', '42/tok', dm=False,
+		expected = inbound.Message('discord', '77', '<@5>', '/movers 5 7d', '@99', 'Rob', '', '42/tok', dm=False,
 			ids=('5',))
 		self.assertEqual(discord_common.READER.parse(COMMAND), expected)
 		dm = {k: v for k, v in COMMAND.items() if k != 'member'} | {'user': {'id': '5', 'username': 'rob'}}
@@ -60,14 +60,14 @@ class Reading(FinbotCase):
 			inbound.Press('discord', '901', '77', '333', 'c|c|y|T1', '@rob', '42/tok', ids=('5',)))
 
 	def test_a_message_by_a_person_reads_with_its_mentions_as_slacks(self):
-		"""A gateway message's mentions read as @id, so that '@bot price 7d' calls .price; one by a bot or a webhook
+		"""A gateway message's mentions read as @id, so that '@bot movers 7d' calls .movers; one by a bot or a webhook
 		(this bot's replies included) is not answered. One from no server is a DM."""
 		message = discord_common.READER.parse(MESSAGE)
-		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 price 7d', '@99', 'rob', '700',
+		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 movers 7d', '@99', 'rob', '700',
 			dm=False, ids=('5',)))
 		self.assertTrue(discord_common.READER.parse({k: v for k, v in MESSAGE.items() if k != 'guild_id'}).dm)
 		command, args = worker.read(message.text, message.bot_name)
-		self.assertEqual((command.names[0], args.days), ('price', 7))
+		self.assertEqual((command.names[0], args.days), ('movers', 7))
 		for other in ({**MESSAGE, 'author': {'id': '99', 'bot': True}}, {**MESSAGE, 'webhook_id': '1'}):
 			self.assertIs(discord_common.READER.parse(other), inbound.OK)
 
@@ -91,7 +91,7 @@ class Reading(FinbotCase):
 		self.assertIs(bot.take(discord_common.READER, MESSAGE), inbound.OK)
 		self.join_workers()
 		self.assertEqual([event.text if isinstance(event, inbound.Message) else event.data for event in taken],
-			['/price 5 7d', '@99 price 7d'])
+			['/movers 5 7d', '@99 movers 7d'])
 
 
 @unittest.skipUnless(SigningKey, 'PyNaCl is not installed')
@@ -151,7 +151,7 @@ class Endpoint(FinbotCase):
 		self.assertEqual(self.taken, [])
 		out.close()
 		self.join_workers()
-		self.assertEqual([message.text for message in self.taken], ['/price 5 7d'])
+		self.assertEqual([message.text for message in self.taken], ['/movers 5 7d'])
 		self.assertEqual(json.loads(self.post(PRESS)[1]), {'type': 6})
 
 
@@ -298,7 +298,7 @@ class Commands(FinbotCase):
 		names = [name for name, _, _, _ in commands]
 		self.assertEqual(len(names), len(set(names)))
 		for expected in ('help', 'dividend', 'earnings', 'buy', 'sell', 'session', 'premarket', 'forwardpe', 'stock',
-				'profile', 'jobs'):
+				'profile', 'jobs', 'compare', 'price', 'movers'):
 			self.assertIn(expected, names)
 		for name, description, arguments, _ in commands:
 			with self.subTest(name=name):
@@ -307,8 +307,9 @@ class Commands(FinbotCase):
 				command, args = worker.read(f'/{name} {arguments}'.strip(), BOT)
 				self.assertIsNotNone(command)
 				self.assertEqual(command.handler, (worker.COMMANDS[0] if name == 'help' else command).handler)
-		self.assertEqual(dict((n, a) for n, _, a, _ in commands)['price'], '[percent|SYMBOL|top|bottom] [period]')
-		self.assertEqual(dict((n, a) for n, _, a, _ in commands)['beta'], '')
+		arguments = dict((n, a) for n, _, a, _ in commands)
+		self.assertEqual([arguments[name] for name in ('compare', 'price', 'movers', 'beta')],
+			['[SYMBOL ... up to 8] [period]', '[SYMBOL] [period]', '[percent|top|bottom] [period]', ''])
 
 	def test_stock_and_profile_are_the_profile_command(self):
 		""".stock SYMBOL and /profile SYMBOL are .SYMBOL; without a symbol, the usage."""
@@ -321,8 +322,8 @@ class Commands(FinbotCase):
 		free text, do not, and a command without arguments has none."""
 		commands = (discord_common.command(*each) for each in worker.slash_commands())
 		registered = {entry['name']: entry for entry in commands}
-		for name, completes in (('price', True), ('stock', True), ('jobs', True), ('performance', True),
-				('pie', True), ('plan', False)):
+		for name, completes in (('price', True), ('movers', True), ('stock', True), ('jobs', True),
+				('performance', True), ('pie', True), ('plan', False)):
 			with self.subTest(name=name):
 				self.assertEqual(registered[name]['options'][0]['autocomplete'], completes)
 		self.assertEqual(registered['beta']['options'], [])
@@ -388,11 +389,13 @@ class Suggestions(FinbotCase):
 		"""A command suggests its keywords and periods until it has one, its portfolios, and tickers: the chat's
 		watchlist (not another chat's) and the holdings; the word being typed matches in any case."""
 		periods = ['1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y']
-		self.assertEqual(self.values('/price '), ['top', 'bottom', *periods, 'BHP.AX', 'MSFT', 'NVDA'])
-		self.assertEqual(self.values('/price 5 7'), ['5 7d'])
-		self.assertEqual(self.values('/price B'), ['bottom', 'BHP.AX'])
-		self.assertEqual(self.values('/price 7d t'), ['7d top'])
-		self.assertEqual(self.values('/price 7d 1'), []) # a period given: none again
+		self.assertEqual(self.values('/movers '), ['top', 'bottom', *periods])
+		self.assertEqual(self.values('/movers 5 7'), ['5 7d'])
+		self.assertEqual(self.values('/movers B'), ['bottom'])
+		self.assertEqual(self.values('/movers 7d t'), ['7d top'])
+		self.assertEqual(self.values('/movers 7d 1'), []) # a period given: none again
+		self.assertEqual(self.values('/price '), [*periods, 'BHP.AX', 'MSFT', 'NVDA'])
+		self.assertEqual(self.values('/price B'), ['BHP.AX'])
 		self.assertEqual(self.values('/forwardpe n'), ['negative', 'NVDA'])
 		self.assertEqual(self.values('/compare MSFT n'), ['MSFT NVDA'])
 		self.assertEqual(self.values('/stock '), ['BHP.AX', 'MSFT', 'NVDA'])
@@ -423,11 +426,11 @@ class Suggestions(FinbotCase):
 		self.assertEqual(self.values('/jobs disable '), ['disable 1', 'disable 2'])
 		self.assertEqual(self.values('/jobs run ', chat='discord:88'), [])
 		reports = worker.suggest('discord:77', '/jobs add ')
-		self.assertIn(('add price midsession|interday|premarket|close|DAYS', 'add price'), reports)
+		self.assertIn(('add movers midsession|interday|premarket|close|DAYS', 'add movers'), reports)
 		self.assertIn(('add message "TEXT"', 'add message'), reports)
 		self.assertFalse(any(name in value for _, value in reports for name in jobs.SYSTEM_ACTIONS))
-		self.assertEqual(self.values('/jobs add price m'), ['add price midsession', 'add price monthly'])
-		self.assertEqual(self.values('/jobs add price weekly a'), ['add price weekly annual', 'add price weekly at'])
+		self.assertEqual(self.values('/jobs add movers m'), ['add movers midsession', 'add movers monthly'])
+		self.assertEqual(self.values('/jobs add movers weekly a'), ['add movers weekly annual', 'add movers weekly at'])
 		self.assertEqual(self.values('/jobs add nothere '), [])
 		self.assertEqual(self.values('/jobs add yahoo_warm '), [])
 
@@ -533,7 +536,7 @@ class Gateway(FinbotCase):
 		self.assertEqual(waits[:3] + waits[5:6], [30, 20.62, 20.62, 41.25]) # Hello, half an interval, a whole one
 		self.assertEqual((listener.failures, listener.session, listener.sequence), (0, ('S1',
 			'wss://resume.example.com'), 4))
-		self.assertEqual(taken, ['<@99> price 7d', 2])
+		self.assertEqual(taken, ['<@99> movers 7d', 2])
 		self.assertEqual(self.calls[1:], [('POST', '/interactions/900/tok/callback', {'json': {'type': 5},
 			'logged': 'debug'})])
 		self.assertEqual(order, [('work', 2)])

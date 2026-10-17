@@ -34,13 +34,13 @@ class Commands(FinbotCase):
 			"""T1's figure in what the command sends as text."""
 			return re.search(r'Co T1 \(.*?\) ([+-]\d+%)', str(self.command(text))).group(1)
 		self.settings(graph=False) # the list as text: a chart's caption is recorded by its heading
-		self.assertEqual((t1('.price 7d'), t1('.price T1 7d')), ('-36%', '-36%'))
+		self.assertEqual((t1('.movers 7d'), t1('.price T1 7d')), ('-36%', '-36%'))
 
 	def test_chart_commands(self):
 		"""Every chart command answers with a chart."""
-		for cmd in ('.price', '.price 7d', '.price top', '.price bottom', '.session', '.premarket', '.postmarket',
+		for cmd in ('.movers', '.movers 7d', '.movers top', '.movers bottom', '.session', '.premarket', '.postmarket',
 					'.performance', '.performance 7d', '.performance 1y', '.shorts', '.peg', '.buy', '.sell', '.beta',
-					'.price top 7d',
+					'.movers top 7d',
 					'.forward pe', '.fpe bottom'):
 			with self.subTest(cmd=cmd):
 				out = self.command(cmd)
@@ -63,8 +63,9 @@ class Commands(FinbotCase):
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in worker.command_keyboard()['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertEqual(buttons, ['.buy & sell', '.compare', '.earnings', '.forward pe', '.peg', '.performance',
-			'.pie', '.premarket', '.price', '.schedule', '.session', '.shorts', '.trades', '.treemap', '.watchlist'])
+		self.assertEqual(buttons, ['.buy & sell', '.compare', '.earnings', '.forward pe', '.movers', '.peg',
+			'.performance', '.pie', '.premarket', '.schedule', '.session', '.shorts', '.trades', '.treemap',
+			'.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
 				with self.subTest(text=text):
@@ -172,17 +173,17 @@ class ReportFunctions(FinbotCase):
 			'market_cap': 1e11}) for t in ts})
 		self.settings(demote_volatile=True)
 
-		quote = price.gather(TICKERS)['T1']
+		quote = movers.gather(TICKERS)['T1']
 		self.assertAlmostEqual(quote['market_cap_usd'], 1e11 / 1380.0) # US$72M
-		self.assertEqual(price.trigger_bar('T1', quote, 5, {}), 5 * config.settings.volatility_multiplier)
+		self.assertEqual(movers.trigger_bar('T1', quote, 5, {}), 5 * config.settings.volatility_multiplier)
 
 	def test_a_short_top_list_repeats_none_of_its_best_as_the_worst(self):
 		"""With fewer than twice `top` stocks, the Bottom list leaves out those in the Top list (it repeated them), and
 		with none left there is no Bottom list and no gap in the chart; the subtitle says "over the past 3 months"."""
 		for count, bottom, bars in ((12, 2, 13), (8, 0, 8)):
 			with self.subTest(count=count):
-				found = price.moves(TICKERS[:count], 'period', 0, 90, interactive=True)
-				payload, chart = price.report(TELEGRAM, found, 'period', 0, 90, top=10, asked=True)
+				found = movers.moves(TICKERS[:count], 'period', 0, 90, interactive=True)
+				payload, chart = movers.report(TELEGRAM, found, 'period', 0, 90, top=10, asked=True)
 				shown = payload[payload.index('<b>Bottom 10</b>') + 1:] if bottom else []
 				self.assertEqual((len(shown), len(chart.rows)), (bottom, bars))
 				self.assertEqual(len(payload), 1 + min(count, 10) + (bottom and 2 + bottom))
@@ -197,7 +198,7 @@ class ReportFunctions(FinbotCase):
 		self.settings(demote_volatile=True)
 
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'market_cap': 5e8} for t in ts})
-		price.run(scheduled())
+		movers.run(scheduled())
 		self.assertEqual(len(calls), 1)
 		self.assertTrue(calls[0])
 
@@ -341,7 +342,7 @@ class ReportFunctions(FinbotCase):
 		for chat, followed in (('55', ['T1', 'T2']), ('56', ['T1', 'T3'])):
 			with self.subTest(chat=chat):
 				fetched.clear()
-				self.command('.price', chat=chat)
+				self.command('.movers', chat=chat)
 				self.assertEqual(fetched[0], followed)
 				fetched.clear()
 				self.command('.marketcap', chat=chat)
@@ -360,8 +361,19 @@ class ReportFunctions(FinbotCase):
 
 	def test_compare_usage(self):
 		""".compare with more than eight tickers gets its usage, from the command table."""
-		usage = 'Usage: .compare [SYMBOL ... up to 8] [period]'
-		self.assertEqual(self.command('.compare T1 T2 T3 T4 T5 T6 T7 T8 T9'), [('text', [usage])])
+		usage = ['Usage: .compare [SYMBOL ... up to 8] [period]', 'Usage: .price [SYMBOL] [period]']
+		for name in ('.compare', '.price'):
+			with self.subTest(name=name):
+				self.assertEqual(self.command(name + ' T1 T2 T3 T4 T5 T6 T7 T8 T9'), [('text', usage)])
+
+	def test_price_history_and_chart_are_compare(self):
+		""".price, .history and .chart are .compare by other names: one stock's line, two or more rebased, and bare the
+		first ticker's, with the buttons to pick others."""
+		for typed in ('T1 7d', 'T1 T2', ''):
+			compare = self.command(f'.compare {typed}')
+			for name in ('.price', '.history', '.chart'):
+				with self.subTest(typed=typed, name=name):
+					self.assertEqual(self.command(f'{name} {typed}'), compare)
 
 	def test_one_stock_is_drawn_as_the_price_history_was(self):
 		""".compare of one stock is its price line, as .history's chart was: titled with its name, symbol and span,
@@ -379,9 +391,9 @@ class ReportFunctions(FinbotCase):
 class ScheduledReports(FinbotCase):
 	"""The scheduled entry points (not interactive: they post to the job's chat)."""
 
-	def test_price(self):
-		"""The scheduled price report posts."""
-		price.run(scheduled())
+	def test_movers(self):
+		"""The scheduled movers report posts."""
+		movers.run(scheduled())
 		self.assertTrue(self.sent)
 
 	def test_performance(self):
@@ -420,7 +432,7 @@ class ScheduledReports(FinbotCase):
 		pins = []
 		self.patch(telegram_common.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
 		job_chat = delivery.chat('telegram:5', scheduled=True)
-		for module, kwargs in ((price, {'mode': 'premarket', 'threshold': 1000}), (shorts, {'threshold': 1000})):
+		for module, kwargs in ((movers, {'mode': 'premarket', 'threshold': 1000}), (shorts, {'threshold': 1000})):
 			with self.subTest(report=module.__name__):
 				self.sent.clear()
 				module.run(job_chat, **kwargs)
@@ -445,8 +457,8 @@ class ScheduledReports(FinbotCase):
 			(milestone, {}, 'No new record highs or lows'), (cal, {'event': 'ex-dividend'}, f'No events found {ahead}'),
 			(podcasts, {'feed_url': 'https://example.com/feed'}, '📣 No new episodes'),
 			(shorts, {'threshold': 1000}, '🩳 No stocks shorted over 1000%. Try specifying a number.'),
-			(price, {'mode': 'premarket', 'threshold': 1000}, 'No pre-market price movements meet threshold 1000%'),
-			(price, {'mode': 'interday', 'threshold': 1000}, 'No price movements meet threshold 1000%'))
+			(movers, {'mode': 'premarket', 'threshold': 1000}, 'No pre-market price movements meet threshold 1000%'),
+			(movers, {'mode': 'interday', 'threshold': 1000}, 'No price movements meet threshold 1000%'))
 		for module, kwargs, said in runs:
 			for asked, posted in ((False, []), (True, [('text', [said])])):
 				with self.subTest(report=module.__name__, asked=asked):
@@ -639,7 +651,7 @@ class ScheduledReports(FinbotCase):
 			return mock.Mock(status_code=200, text='OK', json=lambda: {'ok': True, 'upload_url': 'https://files.x/u',
 				'file_id': 'F1', 'ts': '1.5', 'result': {'message_id': 1, 'chat': {'id': 1}}})
 		self.patch(net, 'post', post)
-		for report in (price.run, shorts.run, milestone.run):
+		for report in (movers.run, shorts.run, milestone.run):
 			with self.subTest(report=report):
 				posts.clear()
 				with contextlib.redirect_stderr(io.StringIO()):
@@ -652,7 +664,7 @@ class ScheduledReports(FinbotCase):
 	def test_nowhere_to_post_is_an_error(self):
 		"""A report run for no chat (there are no home chats) is an error that says so."""
 		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
-			price.run()
+			movers.run()
 
 
 class PeriodButtons(FinbotCase):
@@ -674,11 +686,11 @@ class PeriodButtons(FinbotCase):
 		self.assertEqual(self.buttons('.performance 7d'), ['● 7D', '1M', '1Y', 'Max'])
 		self.assertEqual(self.buttons('.performance 1y'), ['7D', '1M', '● 1Y', 'Max'])
 
-	def test_price_list_has_a_1d_button_marked_by_default(self):
-		"""The price list offers 1D, marked by default, and a period moves the marker."""
-		self.assertEqual(self.buttons('.price'), ['● 1D', '7D', '1M', '1Y', 'Max'])
-		self.assertEqual(self.buttons('.price top'), ['● 1D', '7D', '1M', '1Y', 'Max'])
-		self.assertEqual(self.buttons('.price 1m'), ['1D', '7D', '● 1M', '1Y', 'Max'])
+	def test_movers_list_has_a_1d_button_marked_by_default(self):
+		"""The movers list offers 1D, marked by default, and a period moves the marker."""
+		self.assertEqual(self.buttons('.movers'), ['● 1D', '7D', '1M', '1Y', 'Max'])
+		self.assertEqual(self.buttons('.movers top'), ['● 1D', '7D', '1M', '1Y', 'Max'])
+		self.assertEqual(self.buttons('.movers 1m'), ['1D', '7D', '● 1M', '1Y', 'Max'])
 
 	def test_a_chart_has_five_buttons_at_most(self):
 		"""No chart offers more than five buttons, Discord's limit for a row, and a period no button has (3m) marks
@@ -687,7 +699,7 @@ class PeriodButtons(FinbotCase):
 		self.assertEqual(self.buttons('.performance 3m'), ['7D', '1M', '1Y', 'Max'])
 
 	def test_other_charts_do_not_offer_1d(self):
-		"""Only the price list offers 1D."""
+		"""Only the movers list offers 1D."""
 		for command in ('.performance', '.compare T1 T2'):
 			with self.subTest(command=command):
 				self.assertNotIn('1D', [b.lstrip('● ') for b in self.buttons(command)])
@@ -709,12 +721,12 @@ class PeriodButtons(FinbotCase):
 	def test_telegram_charts_have_buttons_in_both_modes(self):
 		"""A Telegram chart, a scheduled one included, has its period buttons whether Telegram posts their presses to
 		telegramOutgoingWebhook (http mode) or finbot fetches them (pull mode)."""
-		label, kwargs = price.job(['7']) # as scheduled: price.py 7
+		label, kwargs = movers.job(['7']) # as scheduled: price.py 7
 		for hook in ('https://example.com/telegram', ''):
 			with self.subTest(telegramOutgoingWebhook=hook):
 				self.env(telegramOutgoingWebhook=hook)
 				self.markups.clear()
-				price.run(scheduled(), **kwargs)
+				movers.run(scheduled(), **kwargs)
 				self.assertTrue(self.markups and self.markups[0])
 
 	def press(self, data):
@@ -911,11 +923,12 @@ class CommandJobs(FinbotCase):
 				self.assertEqual(self.sent, posted)
 
 	def test_a_command_job_posts_what_the_typed_command_posts(self):
-		"""pe, beta, buy & sell, compare and history, run as a job's, post what each posts when typed in the chat, bare
-		too (the first ticker, the first two to compare); one that cannot take its words posts its usage."""
+		"""pe, beta, buy & sell, compare, price and history, run as a job's, post what each posts when typed in the
+		chat, bare too (the first ticker); one that cannot take its words posts its usage, each of its lines."""
 		chat = delivery.chat('telegram:55', scheduled=True)
 		for name, words, typed in (('pe', [], '.pe'), ('beta', [], '.beta'), ('buy&sell', [], '.buy & sell'),
-				('compare', ['T1', 'T2'], '.compare T1 T2'), ('compare', [], '.compare'), ('history', [], '.history')):
+				('compare', ['T1', 'T2'], '.compare T1 T2'), ('compare', [], '.compare'), ('price', [], '.price'),
+				('history', [], '.history')):
 			with self.subTest(name=name, words=words):
 				posted = self.command(typed)
 				self.sent.clear()
@@ -923,7 +936,8 @@ class CommandJobs(FinbotCase):
 				self.assertEqual(self.sent, posted)
 		self.sent.clear()
 		worker.job_commands()['compare'].run(chat, words=[f'T{i}' for i in range(9)])
-		self.assertEqual(self.sent, [('text', ['Usage: .compare [SYMBOL ... up to 8] [period]'])])
+		self.assertEqual(self.sent, [('text', ['Usage: .compare [SYMBOL ... up to 8] [period]',
+			'Usage: .price [SYMBOL] [period]'])])
 
 
 class WithoutSharesight(FinbotCase):
@@ -1309,17 +1323,17 @@ class Pickers(FinbotCase):
 
 	def test_every_chart_with_a_period_row_primes_its_other_periods(self):
 		"""Once a chart with period buttons is out, its other periods are drawn in the background: .compare,
-		.performance, the price list and a picker's answer, but not where no chart goes."""
+		.performance, the movers list and a picker's answer, but not where no chart goes."""
 		started = []
 		self.patch(charts, 'prime_in_background', lambda *args: started.append(args[:1] + args[1:2] + args[4:]))
 		self.command('.compare T1 T2')
 		self.command('.performance')
-		self.command('.price')
-		self.command('.price top')
+		self.command('.movers')
+		self.command('.movers top')
 		self.assertEqual(started, [('c', ['T1', 'T2'], 'x'), ('f', [''], 'm'), ('l', ['5', '0'], 'd'),
 			('l', ['0', '10'], 'd')])
 		started.clear()
-		self.command('.price T1') # one stock's line, which has no chart
+		self.command('.price T1') # one stock's line, which has no chart here
 		self.settings(graph=False)
 		self.command('.compare T1 T2')
 		self.assertEqual(started, [])

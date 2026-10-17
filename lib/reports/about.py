@@ -26,8 +26,8 @@ PAGE_ROOM = 500 # characters of a screen besides its jobs' lines: its headings, 
 JOB_ROW = 4 # job buttons in a row
 MOST_JOBS = {'discord': 16} # job buttons on a page: Discord takes five rows of five, one kept for the others; else 40
 # Add's reports: (label, action, arguments; None where the period follows how often it runs, or a reminder's text)
-REPORTS = (('trades', 'trades', ()), ('price midsession', 'price', ('midsession',)),
-	('price premarket', 'price', ('premarket',)), ('price close', 'price', ('close',)), ('price', 'price', None),
+REPORTS = (('trades', 'trades', ()), ('movers midsession', 'movers', ('midsession',)),
+	('movers premarket', 'movers', ('premarket',)), ('movers close', 'movers', ('close',)), ('movers', 'movers', None),
 	('performance', 'performance', None), ('cal earnings', 'cal', ('earnings',)),
 	('cal ex-dividend', 'cal', ('ex-dividend',)), ('shorts', 'shorts', ()), ('rating', 'rating', ()),
 	('milestone', 'milestone', ()), ('reminder', 'message', None))
@@ -133,7 +133,7 @@ def screen_buttons(screen, page, pages, shown, crc, own):
 	return rows + ([nav] if nav else [])
 
 def job_entry(service, scheduler, number, job, running=(), local=None, now=None):
-	"""'5. ✅ price close AU · weekdays at 4:30pm Sydney': a job in .jobs, with its number, whether it is on (and *
+	"""'5. ✅ movers close AU · weekdays at 4:30pm Sydney': a job in .jobs, with its number, whether it is on (and *
 	where it has never run), its name, its schedule in words, and whether it is running."""
 	mark = ('✅' if job.on else '❌') + ('' if scheduler.has_run(job) else '*')
 	schedule = job.schedule.describe(local or formats.zone().key, now or scheduler.clock())
@@ -428,12 +428,12 @@ def prepare_reports(service):
 	examples."""
 	known = jobs.actions()
 	return [service.bold('What a job can run:')] + [f"{name} {known[name].ARGUMENTS}".strip()
-		for name in jobs.chat_actions()] + ['', service.bold('For example:'), '.jobs add price weekly',
-		'.jobs add price close weekdays at 4:30pm New York', '.jobs add performance first day of each month at 9am',
+		for name in jobs.chat_actions()] + ['', service.bold('For example:'), '.jobs add movers weekly',
+		'.jobs add movers close weekdays at 4:30pm New York', '.jobs add performance first day of each month at 9am',
 		'.jobs add trades every 20 mins weekdays from 10am to 4pm', '.jobs add pe top weekly',
 		'.jobs add compare AAPL MSFT 1y monthly', '.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"', '',
 		f"Times are by {when.place(formats.zone().key)}'s clock unless one names a zone (UTC, New York, EST);"
-		" performance and price cover the days between runs"]
+		" performance and movers cover the days between runs"]
 
 def prepare_help(service, botName, sections):
 	"""The .help text: each section's command lines under its heading (worker.help_sections() has them), then the bot's

@@ -1,5 +1,5 @@
 """The default jobs: every chat has them, each switched on until the chat switches it off (.jobs). An item's name says
-what it reports on, never when: its schedule (lib/when.py) says that. For performance and price the period follows how
+what it reports on, never when: its schedule (lib/when.py) says that. For performance and movers the period follows how
 often the item runs (period_args): quarterly, 90 days. The market reports run in their market's zone, so that they keep
 to its session through its daylight saving: pre-market at 7:15am New York, mid-session about halfway through, the close
 30 minutes after it. The messages are the reminders that reminder.json held, each at 8:30am Sydney on its date."""
@@ -15,7 +15,7 @@ MORNING = '08:30' # by Sydney's clock: the weekly and longer reports, and the me
 TUE_SAT = ['tue', 'wed', 'thu', 'fri', 'sat'] # the mornings after a US session
 FLAGS = {'AU': '🇦🇺'} # what {flag} becomes in a message for one country
 SHARESIGHT = ('trades', 'performance', 'holdings', 'pie', 'treemap', 'who') # the actions that report on Sharesight
-PERIODIC = ('performance', 'price') # the reports whose period follows how often they run
+PERIODIC = ('performance', 'movers') # the reports whose period follows how often they run
 PERIOD_DAYS = {'daily': 1, 'weekdays': 1, 'weekly': 7, 'monthly': 30, 'quarterly': 90, 'bi-annual': 180, 'annual': 365}
 MONEY_CAFE = ('https://www.omnycontent.com/d/playlist/b034de0e-930d-434b-9822-a7140060b2c0/'
 	'95d715e5-10a7-4e54-b114-a9b4001be172/c47481a8-e548-4c2b-8592-ad48003dc9c2/podcast.rss')
@@ -36,11 +36,11 @@ class Item:
 
 
 def period_args(action, schedule):
-	"""The arguments of performance or price that make its period follow how often the schedule runs: over the days
-	between runs (weekly, 7); for price daily, on weekdays or on other days, the day's moves (interday), and for
+	"""The arguments of performance or movers that make its period follow how often the schedule runs: over the days
+	between runs (weekly, 7); for movers daily, on weekdays or on other days, the day's moves (interday), and for
 	performance on other days its usual period; [] for any other action."""
 	days = PERIOD_DAYS.get(schedule.frequency)
-	if action == 'price':
+	if action == 'movers':
 		return ['interday'] if days in (None, 1) else [str(days)]
 	if action == 'performance':
 		return [] if days is None else [str(days)]
@@ -52,11 +52,14 @@ def at(days, time=MORNING, zone=SYDNEY):
 	return when.Schedule.from_json({'days': days, 'at': time, 'zone': zone})
 
 
+OLD_NAMES = {'movers': 'price'} # an action renamed keeps its default jobs' keys, which chats' records name
+
 def periodic(frequency, days):
-	"""The performance and price items that run at a frequency, each over the days between its runs."""
+	"""The performance and movers items that run at a frequency, each over the days between its runs, keyed by the
+	action's old name where it had one (price-weekly)."""
 	schedule = at(days)
-	return tuple(Item(f'{action}-{frequency}', action, action, tuple(period_args(action, schedule)), schedule)
-		for action in PERIODIC)
+	return tuple(Item(f'{OLD_NAMES.get(action, action)}-{frequency}', action, action,
+		tuple(period_args(action, schedule)), schedule) for action in PERIODIC)
 
 
 def message(key, date, lines, country=None, name=None):
@@ -95,13 +98,13 @@ EOFY_CHECKLIST = (
 ITEMS = (
 	Item('trades', 'trades', 'trades', (),
 		when.Schedule.from_json({'span': ['mon 09:00', 'sat 15:00'], 'every': 20, 'zone': SYDNEY})),
-	Item('price-midsession-au', 'price midsession AU', 'price', ('midsession',), at('weekdays', '13:00')),
-	Item('price-midsession-us', 'price midsession US', 'price', ('midsession',), at('weekdays', '12:45', NEW_YORK)),
-	Item('price-premarket-us', 'price premarket US', 'price', ('premarket',), at('weekdays', '07:15', NEW_YORK)),
-	Item('price-close-au', 'price close AU', 'price', ('close',), at('weekdays', '16:30')),
-	Item('price-close-hk', 'price close HK', 'price', ('close',), at('weekdays', '16:30', HONG_KONG)),
-	Item('price-close-uk', 'price close UK', 'price', ('close',), at('weekdays', '17:00', LONDON)),
-	Item('price-close-us', 'price close US', 'price', ('close',), at('weekdays', '16:30', NEW_YORK)),
+	Item('price-midsession-au', 'movers midsession AU', 'movers', ('midsession',), at('weekdays', '13:00')),
+	Item('price-midsession-us', 'movers midsession US', 'movers', ('midsession',), at('weekdays', '12:45', NEW_YORK)),
+	Item('price-premarket-us', 'movers premarket US', 'movers', ('premarket',), at('weekdays', '07:15', NEW_YORK)),
+	Item('price-close-au', 'movers close AU', 'movers', ('close',), at('weekdays', '16:30')),
+	Item('price-close-hk', 'movers close HK', 'movers', ('close',), at('weekdays', '16:30', HONG_KONG)),
+	Item('price-close-uk', 'movers close UK', 'movers', ('close',), at('weekdays', '17:00', LONDON)),
+	Item('price-close-us', 'movers close US', 'movers', ('close',), at('weekdays', '16:30', NEW_YORK)),
 	Item('rating', 'rating', 'rating', (), at(TUE_SAT)),
 	Item('milestone', 'milestone', 'milestone', (), at(TUE_SAT)),
 	*(Item(f"podcasts-{name.lower().replace(' ', '-')}", f'podcasts {name}', 'podcasts', (feed,),

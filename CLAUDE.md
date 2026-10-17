@@ -75,14 +75,15 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   the typing notice while it works. `process_request(message)` and `process_callback(press)` take inbound's objects.
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
   or the job's chat, and with no dest raises: there are no home chats (`delivery.target`); `job(argv)`, its arguments'
-  parser (`reports.no_arguments(name)` for one that takes none); and `ARGUMENTS`, what `.jobs add` lists): `price
-  performance trades shorts cal rating milestone message podcasts cleanup sharesight_warm yahoo_warm`. trades, rating,
+  parser (`reports.no_arguments(name)` for one that takes none); and `ARGUMENTS`, what `.jobs add` lists): `movers
+  performance trades shorts cal rating milestone message podcasts cleanup sharesight_warm yahoo_warm` (`jobs.RENAMED`:
+  a job stored under an old name runs under the new, as `price` does as `movers`). trades, rating,
   milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`), added to only
   by a scheduled run (`delivery.interactive(dest)` is false). A report with nothing to show says so only where someone
   asked (`delivery.asked(dest)`: a command, a button, or Run now and `.jobs run`, whose destination is scheduled but
   `asked`); on schedule it posts nothing. Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens:
-  `jobs_screen`, `add_screen`, `next_screen`), `history` (.compare, also called .history: one stock's line, or two to
-  eight rebased), `holdings` (.holdings .who .pie .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe
+  `jobs_screen`, `add_screen`, `next_screen`), `history` (.compare, also called .price and .history: one stock's line, or
+  two to eight rebased), `holdings` (.holdings .who .pie .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe
   .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
   `chat(key)`, as its network's bot), `deliver(dest, report)` (a chart refused goes again with its heading alone as the
@@ -103,7 +104,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   is), `.compare`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert
   toast (`buttons.alert`); a pie or treemap primes its other charts in a thread (`pick.prime`, started by
   `worker.prime_in_background`); every chart with period buttons primes its other periods (`charts.prime`,
-  `worker.prime_periods` after `.compare`, `.price`, `.performance`, `chart_reply` and the pickers); neither for a
+  `worker.prime_periods` after `.compare`, `.movers`, `.performance`, `chart_reply` and the pickers); neither for a
   scheduled run.
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), the `.jobs` menu's (`menu_button`, a
   `MenuPress`), what a pressed button's data asks for (`parse`), and the
@@ -144,8 +145,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `Schedule` (days, a time or a repeat, or a span across days, in a zone): `parse()` of the English a chat types,
   `describe()`, `next_after()` through daylight saving; `cycle()` the months of a quarterly or bi-annual one from its
   start month. `lib/catalog.py`: the default jobs (`ITEMS`), each with its
-  name and schedule; the period of performance and price follows how often it runs (`period_args`).
-- `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.price')` returns what was sent:
+  name and schedule; the period of performance and movers follows how often it runs (`period_args`); an action renamed keeps
+  its items' keys (`OLD_NAMES`: `price-weekly`), which chats' records name.
+- `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.movers')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return
   them; `temp_dir(self)` is a directory removed after the test, `bare_environment()` the environment without finbot's

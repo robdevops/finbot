@@ -13,7 +13,7 @@ channel on Slack, and on Discord a message from no server.
 never run, its name and its schedule in words. Under the list, in italics, is how Add is typed:
 ```
 1. ✅ trades · every 20 mins, Mon 9am – Sat 3pm Sydney
-3. ✅* price midsession US · weekdays at 12:45pm New York (3:45am local, Tue–Sat)
+3. ✅* movers midsession US · weekdays at 12:45pm New York (3:45am local, Tue–Sat)
 
 * not run yet
 
@@ -62,8 +62,8 @@ Or type:
 /jobs upcoming             the next 20 runs; a repeat's runs on one day are one entry
 /jobs system               the system jobs
 /jobs add                  what a job can run, what each takes, and examples
-/jobs add price weekly
-/jobs add price close weekdays at 4:30pm New York
+/jobs add movers weekly
+/jobs add movers close weekdays at 4:30pm New York
 /jobs add pe top weekly
 /jobs add compare AAPL MSFT 1y monthly
 /jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"
@@ -92,19 +92,20 @@ A job is a report and what it takes, then when it runs:
   * `/jobs` shows a job by its own zone's clock, with the local time beside it where the clocks differ: `weekdays at
     4:30pm New York (7:30am local, Tue–Sat)`.
 
-The reports are `trades`, `price midsession|interday|premarket|close|DAYS`, `cal earnings|ex-dividend`, `performance
-[DAYS]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `message "TEXT"`.
+The reports are `trades`, `movers midsession|interday|premarket|close|DAYS`, `cal earnings|ex-dividend`,
+`performance [DAYS]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `message "TEXT"`. A job a chat added
+as `price` before the movers report took its name runs as `movers`; `price` in a job added now is `compare`.
 
 A job can also run a command of `/help`, with what it takes, and posts what the command posts when typed in the chat:
 `pe [SYMBOL|top|bottom]`, `forward pe`, `peg`, `marketcap`, `beta`, `buy`, `sell` (`buy&sell` both),
-`compare [SYMBOL…]`, `stock SYMBOL`, and with Sharesight `holdings [PORTFOLIO]`,
+`compare [SYMBOL…]` (or `price`), `stock SYMBOL`, and with Sharesight `holdings [PORTFOLIO]`,
 `pie [PORTFOLIO]`, `treemap [PORTFOLIO]` and `who SYMBOL`. Without the words in brackets, a job posts what the
 command typed bare posts: the first portfolio or ticker, with the buttons to pick another.
-The commands that change something (`watchlist`, `plan`, `jobs`) are no jobs, and price, performance, trades, shorts,
+The commands that change something (`watchlist`, `plan`, `jobs`) are no jobs, and movers, performance, trades, shorts,
 earnings, dividends, session and premarket are run by their reports above.
 
-The period of `performance` and `price` follows how often the job runs: weekly covers 7 days, monthly 30, quarterly
-90, bi-annual 180 and annual 365, and a daily `price` is the day's moves. A number given (`price 30 weekly`) is used
+The period of `performance` and `movers` follows how often the job runs: weekly covers 7 days, monthly 30, quarterly
+90, bi-annual 180 and annual 365, and a daily `movers` is the day's moves. A number given (`movers 30 weekly`) is used
 instead.
 
 A **message** posts its text as it is:
@@ -123,13 +124,13 @@ move as either side's daylight saving changes.
 | # | job | when |
 |---|---|---|
 | 1 | trades | every 20 mins, Mon 9am – Sat 3pm Sydney |
-| 2 | price midsession AU | weekdays at 1:00pm Sydney |
-| 3 | price midsession US | weekdays at 12:45pm New York (3:45am local, Tue–Sat) |
-| 4 | price premarket US | weekdays at 7:15am New York (10:15pm local) |
-| 5 | price close AU | weekdays at 4:30pm Sydney |
-| 6 | price close HK | weekdays at 4:30pm Hong Kong (7:30pm local) |
-| 7 | price close UK | weekdays at 5:00pm London (3:00am local, Tue–Sat) |
-| 8 | price close US | weekdays at 4:30pm New York (7:30am local, Tue–Sat) |
+| 2 | movers midsession AU | weekdays at 1:00pm Sydney |
+| 3 | movers midsession US | weekdays at 12:45pm New York (3:45am local, Tue–Sat) |
+| 4 | movers premarket US | weekdays at 7:15am New York (10:15pm local) |
+| 5 | movers close AU | weekdays at 4:30pm Sydney |
+| 6 | movers close HK | weekdays at 4:30pm Hong Kong (7:30pm local) |
+| 7 | movers close UK | weekdays at 5:00pm London (3:00am local, Tue–Sat) |
+| 8 | movers close US | weekdays at 4:30pm New York (7:30am local, Tue–Sat) |
 | 9 | rating | Tue–Sat at 8:30am Sydney |
 | 10 | milestone | Tue–Sat at 8:30am Sydney |
 | 11 | podcasts Money Cafe | hourly at :01, weekdays 10am–9pm Sydney |
@@ -138,15 +139,15 @@ move as either side's daylight saving changes.
 | 14 | cal ex-dividend | weekly, Sundays at 8:30am Sydney |
 | 15 | shorts | weekly, Sundays at 8:30am Sydney |
 | 16 | performance | weekly, Sundays at 8:30am Sydney |
-| 17 | price | weekly, Sundays at 8:30am Sydney |
+| 17 | movers | weekly, Sundays at 8:30am Sydney |
 | 18 | performance | monthly, the 2nd at 8:30am Sydney |
-| 19 | price | monthly, the 2nd at 8:30am Sydney |
+| 19 | movers | monthly, the 2nd at 8:30am Sydney |
 | 20 | performance | quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney |
-| 21 | price | quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney |
+| 21 | movers | quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney |
 | 22 | performance | bi-annual, 2 Jan and 2 Jul at 8:30am Sydney |
-| 23 | price | bi-annual, 2 Jan and 2 Jul at 8:30am Sydney |
+| 23 | movers | bi-annual, 2 Jan and 2 Jul at 8:30am Sydney |
 | 24 | performance | annual, 2 Jan at 8:30am Sydney |
-| 25 | price | annual, 2 Jan at 8:30am Sydney |
+| 25 | movers | annual, 2 Jan at 8:30am Sydney |
 | 26 | message: 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 | annual, 31 Mar at 8:30am Sydney |
 | 27 | message: SPCX IPO anniversary | annual, 12 Jun at 8:30am Sydney |
 | 28 | message: 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |

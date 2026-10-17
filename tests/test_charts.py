@@ -330,9 +330,9 @@ class ReportChartInputs(FinbotCase):
 		self.assertEqual((len(calls), first[:4]), (1, b'\x89PNG'))
 		self.assertEqual(first, second)
 
-	def test_price_top_lists_best_first_then_worst(self):
-		""".price top: the ten best, best first, a spacer, then the ten worst, worst first, as in the caption."""
-		chart = self.run_report(lambda: self.command('.price top 7d'))
+	def test_movers_top_lists_best_first_then_worst(self):
+		""".movers top: the ten best, best first, a spacer, then the ten worst, worst first, as in the caption."""
+		chart = self.run_report(lambda: self.command('.movers top 7d'))
 		values = [v for _, v in chart.rows if v is not None]
 		top, bottom = values[:10], values[10:]
 		self.assertEqual(top, sorted(top, reverse=True))
@@ -340,16 +340,16 @@ class ReportChartInputs(FinbotCase):
 		self.assertGreater(min(top), max(bottom))
 		self.assertIn(None, [v for _, v in chart.rows]) # spacer between the two lists
 
-	def test_price_threshold_chart_is_sorted_and_titled_with_the_threshold(self):
-		""".price 5%: the chart is sorted best first and its title names the threshold."""
-		chart = self.run_report(lambda: self.command('.price 5%'))
+	def test_movers_threshold_chart_is_sorted_and_titled_with_the_threshold(self):
+		""".movers 5%: the chart is sorted best first and its title names the threshold."""
+		chart = self.run_report(lambda: self.command('.movers 5%'))
 		values = [v for _, v in chart.rows if v is not None]
 		self.assertEqual(values, sorted(values, reverse=True))
 		self.assertIn('5', chart.title)
 
-	def test_price_over_a_period_has_a_dated_title(self):
-		""".price 7d: the chart's title gives the dates covered."""
-		chart = self.run_report(lambda: self.command('.price 7d'))
+	def test_movers_over_a_period_has_a_dated_title(self):
+		""".movers 7d: the chart's title gives the dates covered."""
+		chart = self.run_report(lambda: self.command('.movers 7d'))
 		self.assertRegex(chart.title, r'\d{1,2} \w{3} - \d{1,2} \w{3} \d{4}') # 28 Sep - 5 Oct 2026
 
 	def test_performance_is_sorted_by_name(self):

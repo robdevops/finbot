@@ -41,7 +41,7 @@ class Press:
 @dataclasses.dataclass
 class Suggest:
 	"""A slash command's arguments as they are typed (Discord's autocomplete), to answer at once with what to suggest:
-	the message they make so far (/price 5 7), which the suggestions complete."""
+	the message they make so far (/movers 5 7), which the suggestions complete."""
 	service: str
 	chat_id: str
 	text: str

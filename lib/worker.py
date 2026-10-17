@@ -21,7 +21,7 @@ from lib import render
 from lib import buttons
 from lib import charts
 from lib import transports
-from lib.reports import about, cal, holdings, performance, pick, price, profile, rankings, shorts, trades
+from lib.reports import about, cal, holdings, movers, performance, pick, profile, rankings, shorts, trades
 from lib import sharesight
 from lib import telegram_common
 from lib import jobs
@@ -51,7 +51,7 @@ class Request:
 		can go) and buttons."""
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
-CHART_COMMANDS = {'c': 'compare', 'f': 'performance', 'l': 'price'} # a chart's kind -> the command it answers
+CHART_COMMANDS = {'c': 'compare', 'f': 'performance', 'l': 'movers'} # a chart's kind -> the command it answers
 
 def admin(service, ids):
 	"""Whether the sender of a message or a press (the ids its network gives: inbound.Message.ids) is one of the admins
@@ -447,18 +447,18 @@ def on_performance(request, args):
 def on_session(request, args):
 	""".session or .premarket (.postmarket) [percent|SYMBOL]: the moves mid-session, or pre-market (and post-market)."""
 	mode = 'midsession' if args.word == 'session' else 'premarket'
-	price.run(request.dest, mode=mode, threshold=args.percent, user=request.user, specific_stock=ticker(args))
+	movers.run(request.dest, mode=mode, threshold=args.percent, user=request.user, specific_stock=ticker(args))
 
-def on_price(request, args):
-	""".price [percent|SYMBOL|top|bottom] [period]: a bare number is a percent, as on the other commands; a period has
-	its unit. A list is a bar chart; one stock's a line of text, over a period from the history that the lists take
-	their figures from too (.compare SYMBOL draws it)."""
-	symbol = None if args.keyword else ticker(args)
+def on_movers(request, args):
+	""".movers [percent|top|bottom] [period]: the stocks followed whose price moved past a percent (a bare number, as on
+	the other commands), today or over a period (a period has its unit), or the top and bottom ten: one change each, a
+	bar chart with period buttons. One stock's price over time is .price SYMBOL."""
+	if args.words:
+		raise Usage
 	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
-	price.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,
-		days=args.days, top=top, user=request.user, specific_stock=symbol)
-	if symbol is None: # the list's chart and period buttons; one stock's line has neither
-		prime_periods(request.dest, 'l', *price.list_buttons(0 if top else args.percent, top, args.days))
+	movers.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,
+		days=args.days, top=top, user=request.user)
+	prime_periods(request.dest, 'l', *movers.list_buttons(0 if top else args.percent, top, args.days))
 
 def on_shorts(request, args):
 	""".shorts [percent|SYMBOL]: the most shorted stocks followed, or one stock's short interest."""
@@ -528,8 +528,13 @@ def on_rating(request, args):
 		request.reply(payload, chart)
 
 def on_compare(request, args):
-	""".compare (or .history) [SYMBOL...] [period]: their price changes on one chart, with period buttons where they
-	work; one stock's alone; with no symbols, the first one's, with buttons to pick others."""
+	""".compare (or .price, .history) [SYMBOL...] [period]: their price changes on one chart, with period buttons where
+	they work; one stock's alone; with no symbols, the first one's, with buttons to pick others. What only the movers
+	list takes (a percent, top or bottom, and no ticker), typed to .price, which it was, gets the .movers to type."""
+	if args.word in PRICE_NAMES:
+		_, listed = read('.movers ' + args.text, '')
+		if not listed.words and (listed.percent is not None or listed.keyword):
+			raise answer.Answer(f"The movers list is .movers now: .movers {args.text}")
 	if not args.words:
 		return picker(request, 'c', args)
 	if len(args.words) > buttons.MAX_PICKED:
@@ -721,6 +726,8 @@ JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'enable': 'enable', 'disable': 
 	'remove', 'rm'), 'del')
 JOB_SCREENS = {'enable': 'on', 'disable': 'off', 'del': 'del', 'run': 'run', 'toggle': 'top'} # each word's screen
 BUY_SELL = ('buy', 'sell', *(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')))
+PRICE_NAMES = ('price', 'prices', 'prince', 'print', 'probe', 'piece', 'pierce', 'pence', 'prime') # .price, typos and
+# all: the movers list's names until they became .compare's (on_compare)
 PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL'), COMPANY) # any first word that is no
 # command's name but may be a ticker calls it too
 
@@ -739,13 +746,13 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
 		keywords=TOP),
 	Command(('beta',), on_beta, ('.beta',), PRICE),
-	Command(('compare', 'history', 'hospital', 'visual', 'hosiery'), on_compare, # history: once one stock's chart
-		('.compare [SYMBOL ... up to 8] [period]',), PRICE, ('.compare',), period=True,
+	Command(('compare', *PRICE_NAMES, 'history', 'hospital', 'visual', 'hosiery', 'chart'), on_compare,
+		('.compare [SYMBOL ... up to 8] [period]', '.price [SYMBOL] [period]'), PRICE, ('.compare',), period=True,
 		keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
 	Command(('performance', 'performanc'), on_performance, ('.performance [period] [portfolio]',), PRICE,
 		('.performance',), period=True),
-	Command(('price', 'prices', 'prince', 'print', 'probe', 'piece', 'pierce', 'pence', 'prime'), on_price,
-		('.price [percent|SYMBOL|top|bottom] [period]',), PRICE, ('.price',), percent=True, period=True, keywords=TOP),
+	Command(('movers', 'mover', 'moves'), on_movers, ('.movers [percent|top|bottom] [period]',), PRICE, ('.movers',),
+		percent=True, period=True, keywords=TOP),
 	Command(('session', 'premarket', 'postmarket', 'permarket'), on_session,
 		('.session [percent|SYMBOL]', '.premarket [percent|SYMBOL]'), PRICE, ('.session', '.premarket'), percent=True),
 	Command(BUY_SELL, on_rating, ('.buy', '.sell'), RISK, ('.buy & sell',)), # .buy & sell (or .buy sell): both
@@ -825,7 +832,7 @@ def described(name, lines, most=100):
 		text = longer
 	return text
 
-REPORTED = (on_price, on_performance, on_trades, on_shorts, on_calendar, on_session) # what a scheduled report runs
+REPORTED = (on_movers, on_performance, on_trades, on_shorts, on_calendar, on_session) # what a scheduled report runs
 
 @dataclasses.dataclass(frozen=True)
 class CommandJob:
@@ -866,8 +873,9 @@ class CommandJob:
 @functools.cache
 def job_commands():
 	"""The commands of .help a job may run, by each name a job may call one by: a CommandJob each. Every one but those
-	that change something (job false) and those a scheduled report runs already (REPORTED): first each by its name in
-	.help, with what it takes; then its other names (typos too), each standing for the first, but buy and sell's."""
+	that change something (job false) and those a scheduled report runs already (REPORTED): first each by the name of
+	its first line in .help (buy's and sell's each), with what it takes; then its other names, its other lines' and
+	its typos, each standing for the first, but buy and sell's (.price stands for compare)."""
 	found = {}
 	for command in COMMANDS:
 		if not (command.job and command.usage) or command.handler in REPORTED:
@@ -877,7 +885,7 @@ def job_commands():
 			words = line.lstrip('.').split()
 			name = next((' '.join(words[:size]).lower() for size in (2, 1) if ' '.join(words[:size]).lower() in
 				command.names), None)
-			if name:
+			if name and (not listed or command.handler is on_rating): # a job each command, but buy and sell
 				found[name] = CommandJob(command, name, ' '.join(words[len(name.split()):]))
 				listed.append(name)
 		first = found[listed[0]]
@@ -900,11 +908,11 @@ def completes(command):
 
 def suggest(chat, text):
 	"""What to suggest while a slash command's arguments are typed (Discord's autocomplete), from the message they make
-	so far (text: /price 5 7) in a chat (its key): up to 25 (name shown, value) pairs, each value the arguments with the
-	word being typed completed. The words come from the command's entry in the table: its keywords, periods, portfolios
-	and tickers (the chat's watchlist and the holdings, as cached, never a request: suggestions must come at once); for
-	/jobs, its subcommands, this chat's job numbers and the reports. Never raises: the failure is logged instead, and
-	nothing suggested."""
+	so far (text: /movers 5 7) in a chat (its key): up to 25 (name shown, value) pairs, each value the arguments with
+	the word being typed completed. The words come from the command's entry in the table: its keywords, periods,
+	portfolios and tickers (the chat's watchlist and the holdings, as cached, never a request: suggestions must come at
+	once); for /jobs, its subcommands, this chat's job numbers and the reports. Never raises: the failure is logged
+	instead, and nothing suggested."""
 	try:
 		command, _ = read(text, '')
 		if command is None:

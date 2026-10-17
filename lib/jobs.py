@@ -24,15 +24,17 @@ from lib import log
 from lib import sharesight
 from lib import state
 from lib import when
-from lib.reports import cal, cleanup, message, milestone, performance, podcasts, price, rating, shorts, trades
+from lib.reports import cal, cleanup, message, milestone, movers, performance, podcasts, rating, shorts, trades
 from lib.reports import sharesight_warm, yahoo_warm
 
 # what a job may run, by name: a report module of finbot's own, whose run() is called with what its job() made of the
 # job's arguments; nothing else is ever called, imported or evaluated
-ACTIONS = {'cal': cal, 'message': message, 'milestone': milestone, 'performance': performance, 'podcasts': podcasts,
-	'price': price, 'rating': rating, 'shorts': shorts, 'trades': trades,
+ACTIONS = {'cal': cal, 'message': message, 'milestone': milestone, 'movers': movers, 'performance': performance,
+	'podcasts': podcasts, 'rating': rating, 'shorts': shorts, 'trades': trades,
 	'cleanup': cleanup, 'sharesight_warm': sharesight_warm, 'yahoo_warm': yahoo_warm}
 SYSTEM_ACTIONS = ('cleanup', 'sharesight_warm', 'yahoo_warm') # the system's alone: a chat cannot schedule these
+RENAMED = {'price': 'movers'} # actions renamed: a job a chat added under the old name runs under the new (.price is
+# the line chart's name now, and a command job is stored under its first name, compare)
 # the system jobs, in UTC: the Sharesight portfolios and holdings fetched afresh every 30 minutes (cached 40), the price
 # histories of the stocks followed every 4 hours (cached 6), so that no request waits on either; and cache files
 # older than 30 days deleted weekly
@@ -167,8 +169,8 @@ def make_job(action, args, schedule, chat='', on=True, item=None, name=None):
 
 
 def display_name(action, args, schedule, label):
-	"""What .jobs calls a job a chat added: performance or price alone where the period follows how often it runs
-	(catalog.period_args), 'message: ' and its first line, else its parser's label ('cal earnings', 'price 30')."""
+	"""What .jobs calls a job a chat added: performance or movers alone where the period follows how often it runs
+	(catalog.period_args), 'message: ' and its first line, else its parser's label ('cal earnings', 'movers 30')."""
 	if action == 'message':
 		return catalog.message_name(args)
 	if action in catalog.PERIODIC and list(args) == catalog.period_args(action, schedule):
@@ -177,15 +179,18 @@ def display_name(action, args, schedule, label):
 
 
 def stored_job(chat, entry):
-	"""A job a chat added, as JOBS_FILE keeps it (Job.stored). Raises ScheduleError for one that cannot be: an action
-	that is none, arguments its parser refuses, a schedule that is none (an edited file, or an older one)."""
+	"""A job a chat added, as JOBS_FILE keeps it (Job.stored), an action renamed since by its new name (RENAMED).
+	Raises ScheduleError for one that cannot be: an action that is none, arguments its parser refuses, a schedule that
+	is none (an edited file, or an older one)."""
 	if not isinstance(entry, dict):
 		raise ScheduleError(f'no job: {entry!r}')
 	on = entry.get('on', True)
 	if not isinstance(on, bool):
 		raise ScheduleError(f'no switch: {on!r}')
 	schedule = when.Schedule.from_json(entry.get('schedule'))
-	return make_job(entry.get('action'), entry.get('args', []), schedule, chat, on)
+	action = entry.get('action')
+	return make_job(RENAMED.get(action, action) if isinstance(action, str) else action, entry.get('args', []),
+		schedule, chat, on)
 
 
 def entry_key(chat, entry):
@@ -265,7 +270,7 @@ def know(keys, dm=None):
 def parse_add(text, zone):
 	"""What .jobs add was given (its text after add) as (action, arguments, when.Schedule): a report, the arguments it
 	takes and a schedule in English, in zone unless it names one (the arguments end wherever both read), the period of
-	performance and price following how often it runs where none is given; or message, a schedule, then the text in
+	performance and movers following how often it runs where none is given; or message, a schedule, then the text in
 	double quotes (curly ones too), from the first quote to the last, so that quotes inside it stay, over several lines
 	if need be, at 8:30am where it says no time. Raises ScheduleError."""
 	name, rest = (text.strip().split(None, 1) + [''])[:2]

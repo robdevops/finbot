@@ -57,7 +57,7 @@ TOO_MANY = f"⚠️ Max {MAX_PICKED} tickers: untick one first"
 
 PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x': ('Max', None)}
 BUTTONS = {'c': 'wmyx', 'f': 'wmyx', 'l': 'dwmyx'} # chart kind -> its buttons, five at most (Discord's limit for a
-# row): c compare (one stock's line too), f performance, l the price list
+# row): c compare (one stock's line too), f performance, l the movers list
 MAX_DAYS = 3650 # what Max means for the Sharesight-based reports
 MAX_CALLBACK_BYTES = 64 # Telegram limit on callback_data
 REF_FILE = 'finbot_chart_buttons.json'
@@ -100,7 +100,7 @@ def resolve(ref):
 
 def keyboard(kind, args, active=None):
 	"""A chart's period buttons, one row, the active period marked. args: what the kind's builder takes
-	(charts.BUILDERS): a ticker, tickers, a portfolio, or a price list's threshold and top, as strings."""
+	(charts.BUILDERS): a ticker, tickers, a portfolio, or the movers list's threshold and top, as strings."""
 	ref = _ref(args)
 	return [[Button(PERIODS[key][0], f"c|{kind}|{key}|{ref}", key == active) for key in BUTTONS[kind]]]
 

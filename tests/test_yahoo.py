@@ -289,7 +289,7 @@ class YahooChart(ProviderCase):
 					yahoo.price_history('AAPL', 7)
 
 	def test_one_failed_ticker_does_not_take_the_report_down(self):
-		"""One ticker without a chart is left out of a price list, a benchmark without one is said to have none, and
+		"""One ticker without a chart is left out of the movers list, a benchmark without one is said to have none, and
 		only a report on that one ticker fails, in one line."""
 		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
 		quotes = lambda ts: {t: market_entry(t) | {'regularMarketPrice': 110.0} for t in ts} # charts over HTTP
@@ -310,9 +310,9 @@ class YahooChart(ProviderCase):
 			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', text, BOT, 'U'))
 			self.assertEqual(self.errors, [], text)
 			return '\n'.join(map(str, self.sent[-1][1]))
-		price_list = slack('.price 7d') # T3 is left out, the rest are listed
-		self.assertNotIn('Co T3 (', price_list)
-		self.assertIn('Co T4 (', price_list)
+		movers = slack('.movers 7d') # T3 is left out, the rest are listed
+		self.assertNotIn('Co T3 (', movers)
+		self.assertIn('Co T4 (', movers)
 		report = slack('.performance 7d') # the S&P 500 benchmark has no history
 		self.assertIn('⚠️ S&P 500: no price history', report)
 		self.assertIn('NASDAQ 100', report)

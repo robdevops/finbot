@@ -6,9 +6,9 @@ from tests.common import *
 from lib import log
 
 
-COMMANDS = ('.price', '.price 7d', '.price top', '.session', '.premarket', '.performance 7d', '.shorts', '.peg', '.buy',
-			'.sell', '.beta', '.pe', '.marketcap', '.earnings', '.dividend', '.trades', '.holdings', '.watchlist',
-			'.T1', '.history T1', '.compare T1 T2')
+COMMANDS = ('.movers', '.movers 7d', '.movers top', '.session', '.premarket', '.performance 7d', '.shorts', '.peg',
+			'.buy', '.sell', '.beta', '.pe', '.marketcap', '.earnings', '.dividend', '.trades', '.holdings',
+			'.watchlist', '.T1', '.price T1', '.compare T1 T2')
 
 
 class UpstreamEmpty(FinbotCase):
@@ -33,7 +33,7 @@ class UpstreamEmpty(FinbotCase):
 			raise RuntimeError('Yahoo API unavailable')
 		for name in ('fetch', 'fetch_detail', 'price_series'):
 			self.patch(yahoo, name, down)
-		for cmd in ('.price', '.peg', '.T1', '.compare T1 T2'):
+		for cmd in ('.movers', '.peg', '.T1', '.compare T1 T2'):
 			with self.subTest(cmd=cmd):
 				self.sent.clear(); self.errors.clear()
 				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT, 'U'))
@@ -53,7 +53,7 @@ class UpstreamEmpty(FinbotCase):
 
 	def test_the_typing_notice_stops_before_any_message_goes_out(self):
 		"""The typing notice stops before the first message of an answer goes out, for a command that replies, one that
-		posts its report itself (.price, .trades), and one that fails: a later notice would show "typing…" again."""
+		posts its report itself (.movers, .trades), and one that fails: a later notice would show "typing…" again."""
 		def down(*a, **k):
 			"""Fail like Sharesight when it errors."""
 			raise RuntimeError('Sharesight performance error: boom')
@@ -65,16 +65,16 @@ class UpstreamEmpty(FinbotCase):
 		self.patch(telegram_common.TelegramBot, 'post_text', lambda dest, *a, **k: typing.append(dest.is_typing()))
 		self.patch(telegram_common.TelegramBot, 'post_chart', lambda dest, *a, **k: typing.append(dest.is_typing()) or
 			{'ok': True})
-		for cmd in ('.help', '.price', '.trades 7d', '.performance 7d'):
+		for cmd in ('.help', '.movers', '.trades 7d', '.performance 7d'):
 			with self.subTest(cmd=cmd), contextlib.redirect_stderr(io.StringIO()):
 				typing.clear()
 				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT, 'U'))
 				self.assertEqual(typing, [False])
 
 	def test_no_holdings_and_empty_watchlist(self):
-		"""With nothing held and nothing watched, the watchlist, price and earnings commands still answer."""
+		"""With nothing held and nothing watched, the watchlist, movers and earnings commands still answer."""
 		self.patch(watchlist, 'with_holdings', lambda chat: [])
-		for cmd in ('.watchlist', '.price', '.earnings'):
+		for cmd in ('.watchlist', '.movers', '.earnings'):
 			with self.subTest(cmd=cmd):
 				self.command(cmd)
 
@@ -217,36 +217,48 @@ class CommandArguments(FinbotCase):
 	def test_a_command_is_its_whole_name_in_any_case(self):
 		"""A command is called by its whole name, in any case and from any of its prefixes; a word that only starts with
 		one is a ticker (.planet used to save the plan "et"), and the bot's name among the arguments is left out."""
-		for message, name in (('.PRICE 7d', 'price'), ('! price', 'price'), ('/price@bot 7d', 'price'),
-				('@bot price', 'price'), ('.forward PE top', 'forward pe'), ('.buy/sell', 'buy'),
-				('.price @bot', 'price')):
+		for message, name in (('.MOVERS 7d', 'movers'), ('! movers', 'movers'), ('/movers@bot 7d', 'movers'),
+				('@bot movers', 'movers'), ('.forward PE top', 'forward pe'), ('.buy/sell', 'buy'),
+				('.movers @bot', 'movers'), ('.PRICE T1', 'compare'), ('/price@bot T1', 'compare')):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[0], (name,))
 		for message in ('.planet', '.shortman', '.pricey', '.stock T1', '/profile T1'):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[0], ('stock',), message) # .SYMBOL
-		self.assertEqual(self.args('.price @bot')[1].words, [])
-		for message in ('price 7d', '/price@otherbot', '...', '. ?'):
+		self.assertEqual(self.args('.movers @bot')[1].words, [])
+		for message in ('movers 7d', '/movers@otherbot', '...', '. ?'):
 			with self.subTest(message=message):
 				self.assertEqual(worker.read(message, BOT), (None, None))
 
 	def test_keywords_in_any_case(self):
-		"""A keyword is read in any case, from either end: .price TOP is the top list, not the ticker TOP."""
-		for message, keyword in (('.price TOP', 'top'), ('.price 7d Bottom', 'bottom'), ('.pie Rob Sectors', 'sector'),
-				('.fpe NEG', 'negative'), ('.watchlist ADD x', 'add'), ('.watchlist Remove x', 'delete')):
+		"""A keyword is read in any case, from either end: .movers TOP is the top list, not the ticker TOP."""
+		for message, keyword in (('.movers TOP', 'top'), ('.movers 7d Bottom', 'bottom'),
+				('.pie Rob Sectors', 'sector'), ('.fpe NEG', 'negative'), ('.watchlist ADD x', 'add'),
+				('.watchlist Remove x', 'delete')):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[1].keyword, keyword)
-		self.assertIn('Top 10 performers', str(self.command('.price TOP 7d')))
+		self.assertIn('Top 10 performers', str(self.command('.movers TOP 7d')))
 
-	def test_a_bare_number_on_price_is_a_percent(self):
+	def test_a_bare_number_on_movers_is_a_percent(self):
 		"""As on .session, .premarket and .shorts, and as doc/commands.md has it; a period carries its unit."""
-		self.assertIn('3% at close', str(self.command('.price 3'))) # it used to be a 3-day report
-		self.assertIn('Price movement ≥ 3%', str(self.command('.price 3 7d'))) # the 3 used to be dropped
-		self.assertIn('Price movement ≥ 5%', str(self.command('.price 7d')))
+		self.assertIn('3% at close', str(self.command('.movers 3'))) # it used to be a 3-day report
+		self.assertIn('Price movement ≥ 3%', str(self.command('.movers 3 7d'))) # the 3 used to be dropped
+		self.assertIn('Price movement ≥ 5%', str(self.command('.movers 7d')))
+
+	def test_what_only_the_movers_list_takes_typed_to_price_gets_the_movers_to_type(self):
+		""".price was the movers list: a percent (a bare number too), top or bottom typed to it, and no ticker, gets the
+		.movers to type; a period alone, or with a ticker, is the line chart's, as is all .compare and .history take."""
+		for typed in ('5', '2.5%', 'top', 'Bottom 7d', '5 7d'):
+			with self.subTest(typed=typed):
+				self.assertEqual(self.command(f'.price {typed}'), [('text', [f'The movers list is .movers now: .movers '
+					f'{typed}'])])
+		for typed in ('.price 7d', '.price T1 5', '.prices T1', '.compare top', '.history 5', '.compare T1 top'):
+			with self.subTest(typed=typed):
+				self.assertNotIn('.movers now', str(self.command(typed)))
 
 	def test_top_is_gone(self):
-		""".top is a ticker now, like any word: the command is .price top."""
-		# .price top 7d is the command; .top is a ticker now, like any word
+		""".top is a ticker now, like any word: the command is .movers top."""
+		# .movers top 7d is the command; .top is a ticker now, like any word
 		self.assertIn('Co TOP', str(self.command('.top 7d')))
 
 	def test_a_ratio_command_reads_its_ticker_as_the_other_commands_do(self):
