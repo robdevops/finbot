@@ -431,7 +431,7 @@ def prepare_reports(service):
 		for name in jobs.chat_actions()] + ['', service.bold('For example:'), '.jobs add movers weekly',
 		'.jobs add movers close weekdays at 4:30pm New York', '.jobs add performance first day of each month at 9am',
 		'.jobs add trades every 20 mins weekdays from 10am to 4pm', '.jobs add pe top weekly',
-		'.jobs add compare AAPL MSFT 1y monthly', '.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"', '',
+		'.jobs add price AAPL MSFT 1y monthly', '.jobs add message every 31 mar at 8:30am "🥳 Happy EOFY"', '',
 		f"Times are by {when.place(formats.zone().key)}'s clock unless one names a zone (UTC, New York, EST);"
 		" performance and movers cover the days between runs"]
 

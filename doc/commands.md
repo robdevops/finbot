@@ -34,7 +34,6 @@ Where:
 /beta
 /buy
 /sell
-/compare [symbol...] [period]
 /dividend [period|symbol]
 /earnings [period|symbol]
 /forwardpe [symbol|top|bottom|negative]
@@ -52,7 +51,7 @@ Where:
 /pie [portfolio] [sector]
 /plan [your plan]
 /premarket [percent|symbol]
-/price [symbol] [period]
+/price [symbol...] [period]
 /session [percent|symbol]
 /shorts [percent|symbol]
 /trades [period] [portfolio]
@@ -74,7 +73,7 @@ The bot answers commands in every chat it is in. By default, it fetches its upda
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
 * A pie or a treemap of a portfolio by industry or sector (`/pie portfolio [sector]`, `/treemap portfolio [sector]`): the treemap tiles each holding by value, grouped and coloured by industry (the default) or sector
-* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/pie`, `/treemap`, `/holdings` (the first portfolio alphabetically; a pie or treemap by industry or by `sector`) and `/compare` or `/price` (the first ticker, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Sector/Industry toggle after them; for tickers the period row, ending in `▶` to the tickers (those held, else the chat's watchlist) with `<` `>` pages: up to 8 ticked, which Compare shows. With one ticker ticked, `▶` clears it, so that the first tick picks afresh. Another portfolio or ticker, the toggle or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/pie` or `/treemap` draws its other charts in the background so the next press is quick. `/compare T1 T2 [period]` typed with tickers gets the same period row and `▶` when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead), and a chat with no buttons gets the usage instead
+* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/pie`, `/treemap`, `/holdings` (the first portfolio alphabetically; a pie or treemap by industry or by `sector`) and `/price` (the first ticker, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Sector/Industry toggle after them; for tickers the period row, ending in `+` to the tickers (those held, else the chat's watchlist) with `<` `>` pages: up to 8 ticked, which Show draws. With one ticker ticked, `+` clears it, so that the first tick picks afresh. Another portfolio or ticker, the toggle or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/pie` or `/treemap` draws its other charts in the background so the next press is quick. `/price T1 T2 [period]` typed with tickers gets the same period row and `+` when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead), and a chat with no buttons gets the usage instead
 * Listing of holdings sorted by various attributes 
 * Running the other stock reports on demand
 
@@ -196,7 +195,7 @@ Or the ten best and the ten worst over the period, whatever their moves:
 /movers top|bottom [period]
 ```
 
-`/movers` was `/price` until `/price` became one stock's price line (see [Compare](#compare)); `/price` with a percent, `top` or `bottom` and no symbol says so. One stock's move in session is `/session symbol` or `/premarket symbol`.
+`/movers` was `/price` until `/price` became the price line chart (see [Price](#price)); `/price` with a percent, `top` or `bottom` and no symbol says so. One stock's move in session is `/session symbol` or `/premarket symbol`.
 
 ### Portfolio performance
 ![Screenshot of Portfolio performance notification on Slack](../img/performance.png?raw=true "Screenshot performance notification on Slack")
@@ -277,17 +276,16 @@ Command:
 /peg [SYMBOL|top|bottom|negative]
 ```
 
-### Compare
+### Price
 ![One stock's price line in Slack](../img/finbot_history.png?raw=true "One stock's price line in Slack")
 
 One stock's price line over a period, green or red with its change and filled below, its high and low marked; or two
 to eight stocks' changes over the period, rebased on one chart. Max is a stock's whole history, and ten years for
-several. `/price` is the same command, for one stock, and `/history` another name for it.
+several. Typed, `.compare` and `.history` are other names for it.
 
 Command:
 ```
-/compare [symbol...] [period]
-/price [symbol] [period]
+/price [symbol...] [period]
 ```
 
 ### Buy

@@ -14,7 +14,7 @@ from lib import yahoo
 from lib.reports import history, movers, performance
 
 def stock_chart(service, chat, period, days, ticker):
-	"""One stock's change over the period (all its history for Max), from Yahoo, and its line: a .compare of one."""
+	"""One stock's change over the period (all its history for Max), from Yahoo, and its line: a .price of one."""
 	market_data = yahoo.fetch([ticker])
 	if ticker not in market_data:
 		raise answer.Answer(f"no data found for {ticker}")
@@ -26,7 +26,7 @@ def stock_chart(service, chat, period, days, ticker):
 	return caption, chart
 
 def compare_chart(service, chat, period, days, *tickers):
-	""".compare (and .price, .history): the stocks' changes over the period, rebased on one chart; one stock's line as
+	""".price (and .compare, .history): the stocks' changes over the period, rebased on one chart; one stock's line as
 	stock_chart draws it, as .history's was: green or red with the change, filled below."""
 	if len(tickers) == 1:
 		return stock_chart(service, chat, period, days, tickers[0])

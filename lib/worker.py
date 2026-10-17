@@ -51,7 +51,7 @@ class Request:
 		can go) and buttons."""
 		return delivery.deliver(self.dest, delivery.Report(lines, chart, buttons))
 
-CHART_COMMANDS = {'c': 'compare', 'f': 'performance', 'l': 'movers'} # a chart's kind -> the command it answers
+CHART_COMMANDS = {'c': 'price', 'f': 'performance', 'l': 'movers'} # a chart's kind -> the command it answers
 
 def admin(service, ids):
 	"""Whether the sender of a message or a press (the ids its network gives: inbound.Message.ids) is one of the admins
@@ -186,7 +186,7 @@ def add_step(service, chat, steps):
 
 def process_pick_callback(press, pressed):
 	"""A press in a picker (an inbound.Press; pressed, the buttons.PickPress its data says): the message shows the
-	answer for what it shows now (`shown`), or for the item or Compare pressed, with the screen the press asks for
+	answer for what it shows now (`shown`), or for the item or Show pressed, with the screen the press asks for
 	under it; a tick or a page of tickers changes only the buttons, where the network can (Transport.edit_buttons).
 	Buttons drawn for another list of items start the picker again at its first answer, saying so."""
 	service = dialects.of(press.service)
@@ -528,7 +528,7 @@ def on_rating(request, args):
 		request.reply(payload, chart)
 
 def on_compare(request, args):
-	""".compare (or .price, .history) [SYMBOL...] [period]: their price changes on one chart, with period buttons where
+	""".price (or .compare, .history) [SYMBOL...] [period]: their price changes on one chart, with period buttons where
 	they work; one stock's alone; with no symbols, the first one's, with buttons to pick others. What only the movers
 	list takes (a percent, top or bottom, and no ticker), typed to .price, which it was, gets the .movers to type."""
 	if args.word in PRICE_NAMES:
@@ -544,7 +544,7 @@ def on_compare(request, args):
 		chart_reply(request, 'c', tickers, args.days)
 
 def compare_picker(request, tickers, days):
-	"""Compare of the tickers typed, with the picker's buttons under the chart (the period row and the tickers' menu),
+	""".price of the tickers typed, with the picker's buttons under the chart (the period row and the tickers' menu),
 	where the chat has buttons and the tickers are among those it offers (held, else watched) and the period is one
 	of the buttons: True when it did; else False, and the chart has its period buttons alone."""
 	dest = request.dest
@@ -727,7 +727,7 @@ JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'enable': 'enable', 'disable': 
 JOB_SCREENS = {'enable': 'on', 'disable': 'off', 'del': 'del', 'run': 'run', 'toggle': 'top'} # each word's screen
 BUY_SELL = ('buy', 'sell', *(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')))
 PRICE_NAMES = ('price', 'prices', 'prince', 'print', 'probe', 'piece', 'pierce', 'pence', 'prime') # .price, typos and
-# all: the movers list's names until they became .compare's (on_compare)
+# all: the movers list's names until they became the line chart's (on_compare)
 PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL'), COMPANY) # any first word that is no
 # command's name but may be a ticker calls it too
 
@@ -746,8 +746,8 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
 		keywords=TOP),
 	Command(('beta',), on_beta, ('.beta',), PRICE),
-	Command(('compare', *PRICE_NAMES, 'history', 'hospital', 'visual', 'hosiery', 'chart'), on_compare,
-		('.compare [SYMBOL ... up to 8] [period]', '.price [SYMBOL] [period]'), PRICE, ('.compare',), period=True,
+	Command((*PRICE_NAMES, 'compare', 'history', 'hospital', 'visual', 'hosiery', 'chart'), on_compare,
+		('.price [SYMBOL ... up to 8] [period]',), PRICE, ('.price',), period=True,
 		keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
 	Command(('performance', 'performanc'), on_performance, ('.performance [period] [portfolio]',), PRICE,
 		('.performance',), period=True),
@@ -834,6 +834,9 @@ def described(name, lines, most=100):
 
 REPORTED = (on_movers, on_performance, on_trades, on_shorts, on_calendar, on_session) # what a scheduled report runs
 
+STORED = {'price': 'compare'} # a command whose jobs are stored under another name: .price's under compare, its
+# name until it took .price over (a stored price is the movers report's old name: jobs.RENAMED)
+
 @dataclasses.dataclass(frozen=True)
 class CommandJob:
 	"""A command of .help as a job's action (job_commands), standing in for a report module: ARGUMENTS is what it takes,
@@ -842,6 +845,11 @@ class CommandJob:
 	name: str # what the job calls it, its name in .help, but buy, sell or both: on_rating reads which from the name
 	ARGUMENTS: str = ''
 	listed: bool = True # whether .jobs add lists it: not a command's other names, nor its typos
+
+	@property
+	def key(self):
+		"""What a job of it is stored under (Job.action): its name, or the earlier one STORED keeps."""
+		return STORED.get(self.name, self.name)
 
 	@property
 	def needs(self):
@@ -875,7 +883,7 @@ def job_commands():
 	"""The commands of .help a job may run, by each name a job may call one by: a CommandJob each. Every one but those
 	that change something (job false) and those a scheduled report runs already (REPORTED): first each by the name of
 	its first line in .help (buy's and sell's each), with what it takes; then its other names, its other lines' and
-	its typos, each standing for the first, but buy and sell's (.price stands for compare)."""
+	its typos, each standing for the first, but buy and sell's (.compare stands for price)."""
 	found = {}
 	for command in COMMANDS:
 		if not (command.job and command.usage) or command.handler in REPORTED:

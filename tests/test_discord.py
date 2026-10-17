@@ -298,7 +298,7 @@ class Commands(FinbotCase):
 		names = [name for name, _, _, _ in commands]
 		self.assertEqual(len(names), len(set(names)))
 		for expected in ('help', 'dividend', 'earnings', 'buy', 'sell', 'session', 'premarket', 'forwardpe', 'stock',
-				'profile', 'jobs', 'compare', 'price', 'movers'):
+				'profile', 'jobs', 'price', 'movers'):
 			self.assertIn(expected, names)
 		for name, description, arguments, _ in commands:
 			with self.subTest(name=name):
@@ -308,8 +308,9 @@ class Commands(FinbotCase):
 				self.assertIsNotNone(command)
 				self.assertEqual(command.handler, (worker.COMMANDS[0] if name == 'help' else command).handler)
 		arguments = dict((n, a) for n, _, a, _ in commands)
-		self.assertEqual([arguments[name] for name in ('compare', 'price', 'movers', 'beta')],
-			['[SYMBOL ... up to 8] [period]', '[SYMBOL] [period]', '[percent|top|bottom] [period]', ''])
+		self.assertEqual([arguments[name] for name in ('price', 'movers', 'beta')],
+			['[SYMBOL ... up to 8] [period]', '[percent|top|bottom] [period]', ''])
+		self.assertNotIn('compare', arguments) # a name typed, as history is
 
 	def test_stock_and_profile_are_the_profile_command(self):
 		""".stock SYMBOL and /profile SYMBOL are .SYMBOL; without a symbol, the usage."""
@@ -397,7 +398,7 @@ class Suggestions(FinbotCase):
 		self.assertEqual(self.values('/price '), [*periods, 'BHP.AX', 'MSFT', 'NVDA'])
 		self.assertEqual(self.values('/price B'), ['BHP.AX'])
 		self.assertEqual(self.values('/forwardpe n'), ['negative', 'NVDA'])
-		self.assertEqual(self.values('/compare MSFT n'), ['MSFT NVDA'])
+		self.assertEqual(self.values('/price MSFT n'), ['MSFT NVDA'])
 		self.assertEqual(self.values('/stock '), ['BHP.AX', 'MSFT', 'NVDA'])
 		self.assertEqual(self.values('/stock ', chat='discord:88'), ['BHP.AX', 'NVDA', 'TSLA'])
 		self.assertEqual(self.values('/performance 7d '), ['7d Rob', '7d Jo Smith'])
@@ -440,7 +441,7 @@ class Suggestions(FinbotCase):
 		for ticker in TICKERS:
 			watchlist.add('discord:77', ticker)
 		self.assertEqual(len(self.values('/price ')), 25)
-		self.assertEqual(self.values('/compare ' + 'LONGTICKER ' * 9), [])
+		self.assertEqual(self.values('/price ' + 'LONGTICKER ' * 9), [])
 		self.patch(worker, 'argument_words', mock.Mock(side_effect=RuntimeError('broken')))
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			self.assertEqual(self.values('/price '), [])

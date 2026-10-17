@@ -219,7 +219,8 @@ class CommandArguments(FinbotCase):
 		one is a ticker (.planet used to save the plan "et"), and the bot's name among the arguments is left out."""
 		for message, name in (('.MOVERS 7d', 'movers'), ('! movers', 'movers'), ('/movers@bot 7d', 'movers'),
 				('@bot movers', 'movers'), ('.forward PE top', 'forward pe'), ('.buy/sell', 'buy'),
-				('.movers @bot', 'movers'), ('.PRICE T1', 'compare'), ('/price@bot T1', 'compare')):
+				('.movers @bot', 'movers'), ('.PRICE T1', 'price'), ('/price@bot T1', 'price'),
+				('.compare T1', 'price')):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[0], (name,))
 		for message in ('.planet', '.shortman', '.pricey', '.stock T1', '/profile T1'):

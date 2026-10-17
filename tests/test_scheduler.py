@@ -599,7 +599,7 @@ class JobsInChat(ChatBase):
 		self.assertEqual(lines[0], '<b>What a job can run:</b>')
 		for line in ('cal earnings|ex-dividend', 'message "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
 				'movers midsession|interday|premarket|close|DAYS', 'trades', '.jobs add movers weekly', 'beta',
-				'pe [SYMBOL|top|bottom]', 'compare [SYMBOL ... up to 8] [period]', '.jobs add pe top weekly'):
+				'pe [SYMBOL|top|bottom]', 'price [SYMBOL ... up to 8] [period]', '.jobs add pe top weekly'):
 			self.assertIn(line, lines)
 		self.assertFalse(any(name in line for line in lines for name in jobs.SYSTEM_ACTIONS))
 
@@ -892,7 +892,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual(lines, ['<b>Add a job: which report?</b>'])
 		self.assertEqual(rows, [['trades', 'movers midsession', 'movers premarket'], ['movers close', 'movers',
 			'performance'], ['cal earnings', 'cal ex-dividend', 'shorts'], ['rating', 'milestone', 'reminder'],
-			['holdings', 'pie', 'treemap'], ['who', 'marketcap', 'beta'], ['compare', 'buy & sell', 'pe'],
+			['holdings', 'pie', 'treemap'], ['who', 'marketcap', 'beta'], ['price', 'buy & sell', 'pe'],
 			['forward pe', 'peg', 'stock'], ['Cancel']])
 		self.assertEqual((data['movers'], data['Cancel']), (f'm|add|5|{self.crc()}', f'm|top|0|{self.crc()}'))
 		lines, rows, data = self.press(data['movers'])
@@ -1028,7 +1028,7 @@ class JobsMenu(ChatBase):
 		first, second = (about.add_screen(DISCORD, CHAT, steps)[1] for steps in ([], ['p1']))
 		self.assertEqual(([len(row) for row in first], [button.label for button in first[-1]]), ([4, 4, 4, 4, 2],
 			['More ▶', 'Cancel']))
-		self.assertEqual([button.label for row in second for button in row], ['marketcap', 'beta', 'compare',
+		self.assertEqual([button.label for row in second for button in row], ['marketcap', 'beta', 'price',
 			'buy & sell', 'pe', 'forward pe', 'peg', 'stock', '◀', 'Cancel'])
 
 	def test_a_step_that_is_none_adds_nothing(self):

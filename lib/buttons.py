@@ -51,8 +51,8 @@ class PickPress(typing.NamedTuple):
 MENU_SCREENS = ('top', 'on', 'off', 'del', 'run', 'add', 'next') # the .jobs menu's screens (lib/reports/about.py)
 
 
-PICKERS = {'p': 'pie', 't': 'treemap', 'h': 'holdings', 'c': 'compare'} # command key -> its name
-MAX_PICKED = 8 # tickers .compare takes
+PICKERS = {'p': 'pie', 't': 'treemap', 'h': 'holdings', 'c': 'price'} # command key -> its name
+MAX_PICKED = 8 # tickers .price takes
 TOO_MANY = f"⚠️ Max {MAX_PICKED} tickers: untick one first"
 
 PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x': ('Max', None)}

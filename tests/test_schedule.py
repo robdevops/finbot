@@ -29,7 +29,7 @@ class Actions(unittest.TestCase):
 		self.assertFalse({'help', 'start', 'watchlist', 'wishlist', 'plan', 'jobs', 'cron', 'schedule', 'movers',
 			'session', 'earnings', 'trades'} & set(commands))
 		self.assertEqual(jobs.chat_actions(), ['cal', 'message', 'milestone', 'movers', 'performance', 'podcasts',
-			'rating', 'shorts', 'trades', 'holdings', 'pie', 'treemap', 'who', 'marketcap', 'beta', 'compare',
+			'rating', 'shorts', 'trades', 'holdings', 'pie', 'treemap', 'who', 'marketcap', 'beta', 'price',
 			'buy', 'sell', 'pe', 'forward pe', 'peg', 'stock'])
 
 	def test_a_command_of_help_as_a_job(self):
@@ -48,9 +48,9 @@ class Actions(unittest.TestCase):
 		for text in ('beta x weekly', 'who weekly', 'stock weekly'):
 			with self.subTest(text=text), self.assertRaises(jobs.ScheduleError):
 				jobs.parse_add(text, 'UTC')
-		for action, args, made, name in (('hospital', ['AAPL'], 'compare', 'compare AAPL'), ('fpe', [], 'forward pe',
+		for action, args, made, name in (('hospital', ['AAPL'], 'compare', 'price AAPL'), ('fpe', [], 'forward pe',
 				'forward pe'), ('buy&sell', [], 'buy&sell', 'buy & sell'), ('sell', [], 'sell', 'sell'),
-				('price', ['AAPL'], 'compare', 'compare AAPL')):
+				('price', ['AAPL'], 'compare', 'price AAPL')):
 			with self.subTest(action=action):
 				job = jobs.make_job(action, args, weekly, 'telegram:1')
 				self.assertEqual((job.action, job.name, job.kwargs), (made, name, {'words': args}))

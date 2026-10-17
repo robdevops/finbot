@@ -34,7 +34,7 @@ ACTIONS = {'cal': cal, 'message': message, 'milestone': milestone, 'movers': mov
 	'cleanup': cleanup, 'sharesight_warm': sharesight_warm, 'yahoo_warm': yahoo_warm}
 SYSTEM_ACTIONS = ('cleanup', 'sharesight_warm', 'yahoo_warm') # the system's alone: a chat cannot schedule these
 RENAMED = {'price': 'movers'} # actions renamed: a job a chat added under the old name runs under the new (.price is
-# the line chart's name now, and a command job is stored under its first name, compare)
+# the line chart's name now, whose jobs are stored as compare's: worker.STORED)
 # the system jobs, in UTC: the Sharesight portfolios and holdings fetched afresh every 30 minutes (cached 40), the price
 # histories of the stocks followed every 4 hours (cached 6), so that no request waits on either; and cache files
 # older than 30 days deleted weekly
@@ -150,14 +150,14 @@ def chat_actions():
 
 def make_job(action, args, schedule, chat='', on=True, item=None, name=None):
 	"""A Job of an action (actions()) with the arguments its parser takes (words), on a when.Schedule: the system's
-	actions only for a system job (no chat); a command by the name a job calls it (its name in .help). Raises
-	ScheduleError, saying what is wrong."""
+	actions only for a system job (no chat); a command by the name it is stored under (CommandJob.key: its name in
+	.help, but compare for price). Raises ScheduleError, saying what is wrong."""
 	known = actions()
 	if not isinstance(action, str) or action not in known or (chat and action in SYSTEM_ACTIONS):
 		raise ScheduleError(f"no report {action!r}: send .jobs add for the reports")
 	if not isinstance(args, (list, tuple)) or not all(isinstance(arg, str) for arg in args):
 		raise ScheduleError(f'{action} takes words, not {args!r}')
-	action = getattr(known[action], 'name', action) # a command's other name (a typo too) stands for its first
+	action = getattr(known[action], 'key', action) # a command's other name (a typo too) stands for its first
 	try:
 		label, kwargs = known[action].job(list(args))
 	except ValueError as e:

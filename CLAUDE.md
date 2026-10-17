@@ -65,7 +65,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   Discord), `lib/transports.py` (the `Transport` base, below).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
   keywords, job)`, which also makes `.help`, the commands a job may run (`job_commands()`, each a `CommandJob`: every
-  one but those that change something, `job=False`, and those a report runs, `REPORTED`), the Telegram command keyboard, kept current in DMs, and `slash_commands()`, which
+  one but those that change something, `job=False`, and those a report runs, `REPORTED`; stored under its `key`,
+  `.price`'s as compare, `STORED`), the Telegram command keyboard, kept current in DMs, and `slash_commands()`, which
   every network gets (Telegram's menu, Slack's manifest from `util/slack_manifest.py`, Discord's registered commands);
   `suggest(chat, text)` completes a slash command's arguments as they are typed (Discord's autocomplete), from the
   cache alone. `read()` finds the
@@ -82,7 +83,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   by a scheduled run (`delivery.interactive(dest)` is false). A report with nothing to show says so only where someone
   asked (`delivery.asked(dest)`: a command, a button, or Run now and `.jobs run`, whose destination is scheduled but
   `asked`); on schedule it posts nothing. Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens:
-  `jobs_screen`, `add_screen`, `next_screen`), `history` (.compare, also called .price and .history: one stock's line, or
+  `jobs_screen`, `add_screen`, `next_screen`), `history` (.price, also called .compare and .history: one stock's line, or
   two to eight rebased), `holdings` (.holdings .who .pie .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe
   .fpe .peg .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
@@ -95,16 +96,16 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
   its `interaction` (application id/token), and a pressed message is edited through the press's.
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.pie .treemap .holdings
-  .compare` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
-  `process_pick_callback`): the first answer at once (the first portfolio or ticker; compare's `▶`, ending its period
-  row, opens the tickers, clearing a lone tick), the buttons kept under it and every press re-editing the answer from
+  .price` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
+  `process_pick_callback`): the first answer at once (the first portfolio or ticker; price's `+`, ending its period
+  row, opens the tickers, clearing a lone tick, and `Show` draws the ticks), the buttons kept under it and every press re-editing the answer from
   `shown` (an item's number plus one; compare's tickers, `pick.pack`), but a tick or a page of tickers its buttons alone
   (`m`; `n` under a note, which the next press takes away), 32 items a page (`pick.layout`; fewer on Discord) turned by
   `<` `>` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
-  is), `.compare`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert
+  is), `.price`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert
   toast (`buttons.alert`); a pie or treemap primes its other charts in a thread (`pick.prime`, started by
   `worker.prime_in_background`); every chart with period buttons primes its other periods (`charts.prime`,
-  `worker.prime_periods` after `.compare`, `.movers`, `.performance`, `chart_reply` and the pickers); neither for a
+  `worker.prime_periods` after `.price`, `.movers`, `.performance`, `chart_reply` and the pickers); neither for a
   scheduled run.
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), the `.jobs` menu's (`menu_button`, a
   `MenuPress`), what a pressed button's data asks for (`parse`), and the
