@@ -316,6 +316,9 @@ class Settings:
 	price_percent: float = 5.0 # the movers' threshold (.movers, .session), named when they were .price
 	print_headers: bool = False
 	shorts_percent: int = 15
+	slack_preload_chat: str = '' # a private channel's id (C0123ABCD): a chart's other periods and portfolios are
+	# uploaded there as the chart goes out, so that a press shows them without an upload; empty: off
+	telegram_preload_chat: str = '' # the same for Telegram: a private channel's or group's id (-1001234567890)
 	timezone: str = 'Australia/Melbourne'
 	trades_use_yahoo: bool = True # set False if Yahoo breaks
 	volatility_multiplier: float = 2.0

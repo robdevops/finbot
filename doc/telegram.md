@@ -18,6 +18,11 @@ Everything else is the same in both: the scheduled reports with their charts, th
 under charts and the buttons of the `/jobs` menu, "typing…" while a command works, and a keyboard of the
 common commands in a direct chat with the bot.
 
+A chart is uploaded once: Telegram gives it a file id, which finbot keeps (in `DATA_DIR/cache`, 30 days) and sends the
+next time the same chart goes out, instead of the image. A period or portfolio pressed again, or the same scheduled chart
+for several chats, then shows without an upload. A period pressed again within 30 minutes of being shown in the chat
+shows that chart again with the report it came with: nothing is fetched or drawn either.
+
 As finbot starts, it sets the bot's command menu, which Telegram shows when `/` is typed: each command with its usage
 (`/price`, `/pe`, `/stock` and the rest). `/profile` and `/job`, the second names of `/stock` and `/jobs`, are
 left out of the menu (as on Slack and Discord), and work when typed, as every name of a command does. In a group, `/price@finbot_bot` is the same
@@ -87,3 +92,21 @@ telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
 telegramOutgoingWebhook=https://www.example.com:8443/telegram
 telegramOutgoingToken=a-long-random-password
 ```
+
+## Preloading charts
+
+A press on a chart's period or portfolio buttons shows the new chart at once when Telegram has it (a file id finbot
+kept), and otherwise uploads it first. finbot can upload those charts before anyone presses: as a chart with period or
+portfolio buttons goes out, it draws the chart's other periods and portfolios in the background, and with
+`telegram_preload_chat` set it also sends each one to a private chat of yours, keeping its file id.
+
+1. Make a private channel and add the bot as an administrator that may post, or a private group with the bot in it.
+2. Find its id: send `/help` in the group, and the log line shows it (`Telegram -1001234567890 @you /help`). A
+   channel's id starts with `-100`: Telegram Web (`web.telegram.org/a/`) shows it at the end of the address while the
+   channel is open.
+3. Set `telegram_preload_chat=-1001234567890` in `settings.conf` and reload.
+
+The posts are silent, with no caption, and stay. Every chart finbot preloads goes there, whichever chat it was drawn
+for, so keep the chat private. Preloads go one at a time, 3 seconds apart (Telegram takes about 20 messages a minute in
+a group or channel). One that fails is a warning in the log, and that chart's others are not preloaded; the next
+chart that goes out tries again.

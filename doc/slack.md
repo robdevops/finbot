@@ -118,11 +118,22 @@ on.
 A chart is uploaded with Slack's file upload API (`files.getUploadURLExternal`, then `files.completeUploadExternal`).
 With its period buttons, it goes in a message of blocks: the report, the chart (uploaded into no channel, and shown by
 its id) and the buttons. A press shows the chart for that period in the message in place of the last one: the upload of
-that period from the last 15 minutes, for this message or another, with the report that came with it, or else the chart
-drawn and uploaded anew (Slack cannot replace a file). An upload that no message shows is deleted once those 15 minutes
+that period from the last 30 minutes, for this message or another in the channel, with the report that came with it; or
+else the chart drawn, shown with an upload of the same chart from the last 30 minutes (a portfolio picked again, say)
+or else uploaded anew (Slack cannot replace a file). An upload that no message shows is deleted once those 30 minutes
 are past, so the bot's files do not pile up. If Slack will not show a chart with its buttons, the chart is uploaded into
 the channel without them. If an upload fails, it is tried once more with the report's heading alone as its message, the
 report following as text; if that fails too (a missing scope, say), the report goes out as text alone. The log says why.
 
 `/jobs` lists the channel's jobs with the menu's buttons, as on Telegram; a button from a list that has since changed
 puts the current list in its place.
+
+### Preloading charts
+
+As a chart with period or portfolio buttons goes out, finbot draws its other periods and portfolios in the
+background. With `slack_preload_chat` set to a private channel's id (`C0123ABCD`: the channel's details show it at the
+bottom; `/invite @finbot` there), it also uploads each one into that channel, so that a press within 30 minutes shows
+it without an upload (and without waiting for Slack to be able to show a new file). An upload no message shows is
+deleted once those 30 minutes are past, as every one is. Every chart finbot preloads goes there, whichever channel it
+was drawn for, so keep the channel private. Preloads go one at a time, 3 seconds apart; one that fails is a warning in
+the log.

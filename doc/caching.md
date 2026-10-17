@@ -11,6 +11,8 @@ performance_cache_seconds=2400
 
 Charts are cached by what they show (with `cache=True`): the same chart, for another chat, a later run or a period button, is drawn once, and a chart of new figures is a new chart, so a cached one is never stale. The weekly system job `cleanup` removes cache files after 30 days. The charts were drawn with matplotlib before 17 Oct 2026, and an install from then may delete the `matplotlib` folder it left in `DATA_DIR/cache`.
 
+A chart is uploaded once where the network lets finbot show it again by its id: on Telegram the file id of each chart sent is kept 30 days (`finbot_telegram_photo_*` files, by chart and bot), and on Slack an upload is shown again for 30 minutes (see [Slack](slack.md)). A period or portfolio pressed again then shows without an upload; a period pressed again within 30 minutes of being shown in the chat, on Telegram (`finbot_telegram_view_*` files) and Slack, is not even built or drawn: the chart shown then comes back with its report. With `telegram_preload_chat` or `slack_preload_chat` set, the other periods and portfolios of a chart that goes out are uploaded to that private chat ahead of any press (see [Telegram](telegram.md#preloading-charts)). A file id Telegram no longer takes gives way to an upload; with `cache=False` every chart is uploaded.
+
 To flush the cache, so that what it holds is fetched afresh, run `util/flush.py` with the files to delete, by when they were written. With no argument it prints its help:
 ```
 util/flush.py --before 180s     # the files written more than 180 seconds ago

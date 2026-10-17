@@ -1,13 +1,17 @@
 """Telegram, whichever way its updates arrive (long polling, telegram_longpolling; or the webhook, telegram_webhook):
 the Bot API calls, the reader of its updates (Telegram, READER), and the bot that posts into its chats
 (TelegramBot)."""
+import hashlib
 import html
 import json
+import re
+import threading
 
 import requests
 
 from lib import log
 from lib import buttons
+from lib import cache
 from lib import config
 from lib import dialects
 from lib import inbound
@@ -34,6 +38,45 @@ def try_call(method, **kwargs):
 		return call(method, **kwargs)
 	except Exception as e:
 		log.warn(f"Telegram {method} failed:", net.redact(e))
+
+
+PHOTO_SECONDS = 30 * 86400 # how long a chart's file id is reused: Telegram keeps a bot's files, cleanup the cache file
+TELEGRAM_REUSE_SECONDS = 30 * 60 # a period pressed within this long of its upload in a chat shows that upload again
+# how Telegram refuses a file id it does not know (another bot's, say)
+REFUSED_PHOTO = re.compile(r'file identifier|file reference|file_id|MEDIA_EMPTY', re.I)
+
+
+def photo_file(photo):
+	"""The cache file that holds the file id of a chart (its PNG bytes) uploaded to Telegram: by the chart and the bot,
+	whose own uploads alone it shows by id."""
+	return f"finbot_telegram_photo_{hashlib.sha1(config.env.telegramBotToken.encode() + photo).hexdigest()[:20]}.json"
+
+
+def view_file(view):
+	"""The cache file of the chart a chat's chart messages showed last for a period (a view: Transport.view): its file
+	id and the report that came with it."""
+	return f"finbot_telegram_view_{hashlib.sha1(view.encode()).hexdigest()[:20]}.json"
+
+
+def with_photo(method, photo, data, quiet=False):
+	"""call() a method that sends a chart (its PNG bytes, photo), its form data(known): known the file id of the
+	chart's earlier upload where there is one (no bytes are sent: a period or portfolio shown again), else None and the
+	bytes uploaded, their file id kept for next time (with the cache setting on). An earlier file id that Telegram
+	refuses gives way to the upload. Its request is logged at INFO, but by a file id at DEBUG where quiet (a press's
+	edit: only an upload is worth noting)."""
+	name = photo_file(photo)
+	if config.settings.cache and (known := cache.read(name, PHOTO_SECONDS)):
+		try:
+			return call(method, data=data(known), logged='debug' if quiet else True)
+		except RuntimeError as e:
+			if not REFUSED_PHOTO.search(str(e)):
+				raise
+			log.warn(f"Telegram {method} refused an earlier upload of the chart, uploading it again:", net.redact(e))
+	result = call(method, data=data(None), files={'photo': ('image.png', photo)})
+	sizes = result.get('photo') if isinstance(result, dict) else None
+	if sizes and config.settings.cache:
+		cache.write(name, sizes[-1]['file_id']) # the largest: the chart as it was sent
+	return result
 
 
 def unchanged(error):
@@ -147,6 +190,16 @@ class TelegramBot(transports.Transport):
 	dialect = dialects.TELEGRAM
 	TYPING = (0.5, 4, 18) # "typing…" shows for 5 s at most (sendChatAction), so it is sent again every 4 s
 	NO_PREVIEWS = {'is_disabled': True} # link_preview_options, which replaced disable_web_page_preview (Bot API 7.0)
+	preload_lock = threading.Lock()
+
+	def wants(self, photo):
+		"""Whether preloading a chart (its PNG bytes) would spare a press its upload: Telegram has not it (no file id
+		kept), with the cache setting on."""
+		return bool(config.settings.cache and not cache.read(photo_file(photo), PHOTO_SECONDS))
+
+	def send_ahead(self, photo):
+		"""Send a chart to this chat silently, with no caption, for its file id (with_photo keeps it)."""
+		with_photo('sendPhoto', photo, lambda known: {'chat_id': self.where, 'disable_notification': True})
 
 	def is_administrator(self, who):
 		"""Whether getChatMember says this user id is the creator or an administrator of the group; in a direct
@@ -190,8 +243,9 @@ class TelegramBot(transports.Transport):
 		data = {'chat_id': self.where, 'caption': caption, 'parse_mode': 'HTML', 'disable_notification': True}
 		if buttons:
 			data['reply_markup'] = json.dumps(self.markup(buttons))
+		photo = image.read() if hasattr(image, 'read') else bytes(image)
 		try:
-			message = call('sendPhoto', data=data, files={'photo': ('image.png', image)})
+			message = with_photo('sendPhoto', photo, lambda known: data | ({'photo': known} if known else {}))
 		except requests.exceptions.ReadTimeout as e:
 			log.warn("Telegram sendPhoto timed out, the chart may still arrive:", net.redact(e))
 			return transports.MAYBE_SENT
@@ -199,26 +253,59 @@ class TelegramBot(transports.Transport):
 			log.warn("Telegram sendPhoto to", self.where, "failed:", net.redact(e))
 			return None
 		log.info("OK telegram chart to", self.where)
+		self.note_view(buttons, message, caption)
 		return message
 
 	def edit_chart(self, message, image, caption, buttons=None):
-		"""Replace a chart message's image, caption and buttons in place. Raises RuntimeError when Telegram refuses,
-		unless the message is already so (pressing the active period again is harmless); a request that fails on the way
-		is only logged."""
-		media = {'type': 'photo', 'media': 'attach://photo', 'caption': transports.fit_caption(caption, self.dialect),
-			'parse_mode': 'HTML'}
-		data = {'chat_id': self.where, 'message_id': message, 'media': json.dumps(media)}
+		"""Replace a chart message's image, caption and buttons in place, the image by the file id of its earlier upload
+		where there is one (with_photo). Raises RuntimeError when Telegram refuses, unless the message is already so
+		(pressing the active period again is harmless); a request that fails on the way is only logged."""
+		caption = transports.fit_caption(caption, self.dialect)
+		data = {'chat_id': self.where, 'message_id': message}
 		if buttons:
 			data['reply_markup'] = json.dumps(self.markup(buttons))
 		if hasattr(image, 'seek'):
 			image.seek(0)
+		photo = image.read() if hasattr(image, 'read') else bytes(image)
 		try:
-			call('editMessageMedia', data=data, files={'photo': ('image.png', image)}, logged='debug')
+			edited = with_photo('editMessageMedia', photo, lambda known: data | {'media': json.dumps({'type': 'photo',
+				'media': known or 'attach://photo', 'caption': caption, 'parse_mode': 'HTML'})}, quiet=True)
+			self.note_view(buttons, edited, caption)
 		except RuntimeError as e:
 			if not unchanged(e):
 				raise
 		except Exception as e: # it may have arrived even so: no error line for something the chat may already show
 			log.warn("Telegram editMessageMedia failed:", net.redact(e))
+
+	def note_view(self, buttons, message, caption):
+		"""Note the chart a message shows now (Telegram's answer, message: its photo's file id) for the period its
+		buttons mark, with its caption, for the period pressed again in this chat to show it (reshow; cache setting
+		on)."""
+		view = self.view(buttons)
+		sizes = message.get('photo') if isinstance(message, dict) else None
+		if view and sizes and config.settings.cache:
+			cache.write(view_file(view), [sizes[-1]['file_id'], caption])
+
+	def reshow(self, message, buttons):
+		"""Show a chart message's period again from its upload of under TELEGRAM_REUSE_SECONDS ago in this chat (for
+		this message or another), by its file id, with the report it came with: nothing is built, drawn or uploaded.
+		True when it did, or the message shows it already; False when there is no such upload (or the cache setting is
+		off), or Telegram refuses it."""
+		view = self.view(buttons)
+		earlier = cache.read(view_file(view), TELEGRAM_REUSE_SECONDS) if view and config.settings.cache else None
+		if not earlier:
+			return False
+		file_id, caption = earlier
+		data = {'chat_id': self.where, 'message_id': message, 'reply_markup': json.dumps(self.markup(buttons)),
+			'media': json.dumps({'type': 'photo', 'media': file_id, 'caption': caption, 'parse_mode': 'HTML'})}
+		try:
+			call('editMessageMedia', data=data, logged='debug')
+		except Exception as e:
+			if unchanged(e):
+				return True
+			log.warn("Telegram editMessageMedia with an earlier upload failed, drawing the chart anew:", net.redact(e))
+			return False
+		return True
 
 	def edit_text(self, message, text, buttons=None):
 		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged, an

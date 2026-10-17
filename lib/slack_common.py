@@ -1,9 +1,11 @@
 """Slack, whichever way its updates arrive (Socket Mode, slack_websocket; or the Request URL, slack_webhook): the Web
 API calls, the reader of its events, button presses and slash commands (Slack, READER), and the bot that posts into
 its channels (SlackBot), with the Block Kit of its messages."""
+import hashlib
 import html
 import json
 import re
+import threading
 import time
 
 import requests
@@ -19,7 +21,7 @@ from lib import transports
 
 SLACK_CHARTS = 'finbot_slack_charts.json' # Slack's chart messages: the file each shows, and the charts uploaded
 SLACK_CHARTS_KEPT = 500 # chart messages noted, newest last: an older one shows its file for good
-SLACK_REUSE_SECONDS = 15 * 60 # a period pressed within this long of its chart's upload shows that upload again
+SLACK_REUSE_SECONDS = 30 * 60 # a period pressed (or the same chart drawn) within this long of its upload shows it again
 
 
 def call(method, as_app=False, logged=True, **data):
@@ -110,6 +112,21 @@ class SlackBot(transports.Transport):
 	dialect = dialects.SLACK
 	WORKING = 'hourglass_flowing_sand' # ⏳: Slack has no typing notice for bots, so a reaction on the message stands in
 	working = None # True while ⏳ is on the message, False when putting it there failed
+	preload_lock = threading.Lock()
+
+	def wants(self, photo):
+		"""Whether preloading a chart (its PNG bytes) would spare a press its upload: no upload of it in the last
+		SLACK_REUSE_SECONDS (earlier_upload)."""
+		return self.earlier_upload(digest_of(photo)) is None
+
+	def send_ahead(self, photo):
+		"""Upload a chart into this channel, noted as shown by no message: a press within SLACK_REUSE_SECONDS shows it
+		(earlier_upload), and shows deletes it a minute after unless a message comes to show it."""
+		file_id = self.upload(photo)
+		call('files.completeUploadExternal', files=json.dumps([{'id': file_id, 'title': 'chart'}]),
+			channel_id=self.where)
+		with state.edit(SLACK_CHARTS, {}) as noted:
+			kept(noted)['uploads'][file_id] = [time.time(), None, '', digest_of(photo)]
 
 	def is_administrator(self, who):
 		"""Whether users.info says this user is an owner or an admin of the workspace (Slack's channels have no
@@ -203,29 +220,56 @@ class SlackBot(transports.Transport):
 		call('files.completeUploadExternal', files=json.dumps([{'id': file_id, 'title': 'chart'}]))
 		return file_id
 
-	def post_blocks(self, data, caption, buttons):
-		"""The chart in a Block Kit message, the report above it and the period buttons under it. Slack's answer, or
-		MAYBE_SENT when posting the message timed out (it may have arrived); raises RuntimeError when Slack refuses."""
+	def earlier_upload(self, digest):
+		"""The file of the chart whose PNG has this digest, uploaded (or shown as the same chart) under
+		SLACK_REUSE_SECONDS ago: Slack shows it at once, and it is kept a minute past that (see shows). None when there
+		is none."""
+		now = time.time()
+		uploads = state.load(SLACK_CHARTS, {}).get('uploads', {})
+		found = [(upload[0], file_id) for file_id, upload in uploads.items()
+			if upload[3:4] == [digest] and now - upload[0] < SLACK_REUSE_SECONDS]
+		return max(found)[1] if found else None
+
+	def showing(self, data, post):
+		"""post(file id) of the message that shows a chart (its PNG bytes, data): with an earlier upload of the same
+		chart where there is one (nothing is uploaded: a period or portfolio shown again), else, or when Slack will not
+		show that one (a file deleted outside finbot), a new upload, tried again while Slack cannot show it yet
+		(until_shown). (post's answer, the file's id, the chart's digest)."""
+		digest = digest_of(data)
+		if earlier := self.earlier_upload(digest):
+			try:
+				return post(earlier), earlier, digest
+			except RuntimeError as e:
+				if 'invalid_blocks' not in str(e):
+					raise
+				log.warn("Slack will not show an earlier upload of the chart, uploading it anew:", net.redact(e))
+				self.forget(earlier)
 		file_id = self.unshared(data)
-		blocks = chart_blocks(caption, buttons, file_id)
+		return until_shown(lambda: post(file_id)), file_id, digest
+
+	def post_blocks(self, data, caption, buttons):
+		"""The chart in a Block Kit message, the report above it and the period buttons under it, the chart an earlier
+		upload where there is one (showing). Slack's answer, or MAYBE_SENT when posting the message timed out (it may
+		have arrived); raises RuntimeError when Slack refuses."""
 		try:
-			answer = until_shown(lambda: call('chat.postMessage', channel=self.where,
-				text=caption[:SECTION_LIMIT], blocks=json.dumps(blocks), unfurl_links='false', unfurl_media='false'))
+			answer, file_id, digest = self.showing(data, lambda file_id: call('chat.postMessage', channel=self.where,
+				text=caption[:SECTION_LIMIT], blocks=json.dumps(chart_blocks(caption, buttons, file_id)),
+				unfurl_links='false', unfurl_media='false'))
 		except requests.exceptions.ReadTimeout as e:
 			log.warn("Slack chat.postMessage timed out, the chart may still arrive:", net.redact(e))
 			return transports.MAYBE_SENT
 		if answer.get('ts'):
-			self.delete(self.shows(answer['ts'], file_id, caption, buttons))
+			self.delete(self.shows(answer['ts'], file_id, caption, buttons, digest))
 		return answer
 
 	def reshow(self, message, buttons):
 		"""Show a chart message's period again from its upload of under SLACK_REUSE_SECONDS ago (for this message or
-		another), with the report it came with: nothing is drawn or uploaded. True when it did; False when there is no
-		such upload, or Slack refuses it (a file deleted outside finbot, say)."""
-		view, now = marked(buttons), time.time()
+		another in its chat), with the report it came with: nothing is drawn or uploaded. True when it did; False when
+		there is no such upload, or Slack refuses it (a file deleted outside finbot, say: then it is forgotten)."""
+		view, now = self.view(buttons), time.time()
 		uploads = state.load(SLACK_CHARTS, {}).get('uploads', {})
-		recent = [(at, file_id, caption) for file_id, (at, shows, caption) in uploads.items()
-			if view and shows == view and now - at < SLACK_REUSE_SECONDS]
+		recent = [(upload[0], file_id, upload[2]) for file_id, upload in uploads.items()
+			if view and upload[1] == view and now - upload[0] < SLACK_REUSE_SECONDS]
 		if not recent:
 			return False
 		_, file_id, caption = max(recent)
@@ -234,47 +278,52 @@ class SlackBot(transports.Transport):
 				blocks=json.dumps(chart_blocks(caption, buttons, file_id)), logged='debug')
 		except Exception as e:
 			log.warn("Slack chat.update with an earlier upload failed, uploading anew:", net.redact(e))
+			if 'invalid_blocks' in str(e):
+				self.forget(file_id)
 			return False
 		self.delete(self.shows(message, file_id))
 		return True
 
+	def forget(self, file_id):
+		"""Show an upload no more: Slack will not show it (a file deleted outside finbot, say)."""
+		with state.edit(SLACK_CHARTS, {}) as noted:
+			noted.get('uploads', {}).pop(file_id, None)
+
 	def edit_chart(self, message, image, caption, buttons=None):
-		"""Show another period in a chart message: the new chart uploaded (a file cannot be replaced) and shown in its
-		image block, with its caption and buttons. A press for that period within SLACK_REUSE_SECONDS shows this upload
-		again (reshow). Raises RuntimeError when Slack refuses the update."""
+		"""Show another period (or portfolio) in a chart message, in its image block with its caption and buttons: an
+		earlier upload of the same chart, else the new chart uploaded (a file cannot be replaced; see showing). A press
+		for that period within SLACK_REUSE_SECONDS shows this upload again (reshow). Raises RuntimeError when Slack
+		refuses the update."""
 		if hasattr(image, 'seek'):
 			image.seek(0)
-		file_id = self.unshared(image.read() if hasattr(image, 'read') else bytes(image))
-		blocks = chart_blocks(caption, buttons or [], file_id)
-		until_shown(lambda: call('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
-			blocks=json.dumps(blocks), logged='debug'))
-		self.delete(self.shows(message, file_id, caption, buttons))
+		_, file_id, digest = self.showing(image.read() if hasattr(image, 'read') else bytes(image),
+			lambda file_id: call('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
+			blocks=json.dumps(chart_blocks(caption, buttons or [], file_id)), logged='debug'))
+		self.delete(self.shows(message, file_id, caption, buttons, digest))
 
-	def shows(self, message, file_id, caption=None, buttons=None):
-		"""Note that a chart message shows this file now; given its report, that the file was uploaded now for the
-		period its buttons mark (see reshow). The uploads to delete: those no message shows, a minute past their reuse
-		(a press reusing one has that minute to show it)."""
+	def shows(self, message, file_id, caption=None, buttons=None, digest=None):
+		"""Note that a chart message shows this file now; given its report, that the file was uploaded (or found to be
+		the chart drawn, whose PNG has this digest) now for the view its buttons mark (see reshow and earlier_upload).
+		The uploads to delete: those no message shows, a minute past their reuse (a press reusing one has that minute
+		to show it)."""
 		now = time.time()
 		with state.edit(SLACK_CHARTS, {}) as noted:
-			if set(noted) != {'shown', 'uploads'}: # new, or the {'channel ts': file} of before, whose files stay
-				noted.clear()
-				noted.update(shown={}, uploads={})
-			shown, uploads = noted['shown'], noted['uploads'] # 'channel ts': file; file: [time, period, report]
+			shown, uploads = kept(noted)['shown'], noted['uploads'] # see kept
 			if caption is not None:
-				uploads[file_id] = [now, marked(buttons), caption]
+				uploads[file_id] = [now, self.view(buttons), caption] + ([digest] if digest else [])
 			key = f'{self.where} {message}'
 			shown.pop(key, None)
 			shown[key] = file_id
 			for old in list(shown)[:-SLACK_CHARTS_KEPT]: # its message may show the file for good
 				uploads.pop(shown.pop(old), None)
 			showing = set(shown.values())
-			gone = [old for old, (at, _, _) in uploads.items()
-				if old not in showing and now - at > SLACK_REUSE_SECONDS + 60]
+			gone = [old for old, upload in uploads.items()
+				if old not in showing and now - upload[0] > SLACK_REUSE_SECONDS + 60]
 			for old in gone:
 				del uploads[old]
 			for upload in uploads.values(): # past reuse, a file shown is kept only to be deleted later
 				if now - upload[0] >= SLACK_REUSE_SECONDS:
-					upload[1:] = [None, None]
+					upload[1:] = [None, None] # its view, report and digest
 		return gone
 
 	def delete(self, files):
@@ -295,6 +344,20 @@ class SlackBot(transports.Transport):
 			call('chat.update', logged='debug', **data)
 		except Exception as e:
 			log.warn("Slack chat.update failed:", net.redact(e))
+
+
+def digest_of(data):
+	"""A chart's PNG bytes as a short digest, which tells the same chart again (earlier_upload)."""
+	return hashlib.sha1(data).hexdigest()[:20]
+
+
+def kept(noted):
+	"""SLACK_CHARTS's record as shows keeps it, {'shown': {'channel ts': file}, 'uploads': {file: [time, view, report,
+	digest]}}: started anew where it is new, or the {'channel ts': file} of before, whose files stay."""
+	if set(noted) != {'shown', 'uploads'}:
+		noted.clear()
+		noted.update(shown={}, uploads={})
+	return noted
 
 
 SECTION_LIMIT = 3000 # characters of text in a Block Kit section
@@ -318,11 +381,6 @@ def chart_blocks(caption, buttons, file_id):
 	them to a block."""
 	return section_blocks(caption) + [{'type': 'image', 'slack_file': {'id': file_id}, 'alt_text': 'chart'}] + \
 		[actions_block(row) for row in buttons if row]
-
-
-def marked(buttons):
-	"""The data of the button marked as shown now, which names a chart message's period (None when none is)."""
-	return next((button.data for row in buttons or [] for button in row if button.active), None)
 
 
 def text_blocks(text, buttons):

@@ -25,6 +25,8 @@ class Report:
 
 REPLIES = {'telegram': telegram_common.TelegramBot, 'slack': slack_common.SlackBot,
 	'discord': discord_common.DiscordBot}
+PRELOAD_CHATS = {'telegram': 'telegram_preload_chat', 'slack': 'slack_preload_chat'} # the setting that names each
+# network's preload chat, where a chart's other periods and portfolios go ahead of a press
 
 
 def reply_to(service, chat, message=None, interaction='', pressed=False):
@@ -45,6 +47,17 @@ def chat(key, scheduled=False, asked=False):
 		raise ValueError(f'no chat {key!r}: no such network')
 	dest.scheduled, dest.asked = scheduled, asked
 	return dest
+
+
+def preload(service, image):
+	"""Upload a chart drawn ahead of a press that may ask for it (another period or portfolio of a chart that went out)
+	to its network's preload chat, where a setting names one, so that the press shows it without an upload
+	(Transport.preload). False when that failed (logged): the caller stops preloading."""
+	setting = PRELOAD_CHATS.get(service)
+	where = setting and getattr(config.settings, setting)
+	if not where or image is None:
+		return True
+	return reply_to(service, where).preload(image.getvalue())
 
 
 def interactive(dest):

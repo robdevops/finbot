@@ -461,8 +461,8 @@ class RequestLog(FinbotCase):
 				self.assertEqual(err.getvalue().splitlines(), [line])
 
 	def test_a_chat_message_is_one_line_cut_to_log_width(self):
-		"""A chat message is logged on one line, its line breaks spaces, cut to log_width characters like a request's;
-		at 0 it is whole, still on one line. So is one not run again, sent twice within a second."""
+		"""A chat message is logged on one line with its chat's id, its line breaks spaces, cut to log_width characters
+		like a request's; at 0 it is whole, still on one line. So is one not run again, sent twice within a second."""
 		self.patch(worker, 'process_request', lambda message: None)
 		self.patch(bot, 'doubled', REAL_DOUBLED)
 		text = '/jobs add message daily at 9am "Morning!\nThe ASX opens at 10am,\n\nso coffee first"'
@@ -474,11 +474,11 @@ class RequestLog(FinbotCase):
 				bot.take(telegram_common.READER, update)
 				self.join_workers()
 			return err.getvalue().splitlines()
-		whole = 'Telegram @rob /jobs add message daily at 9am "Morning! The ASX opens at 10am, so coffee first"'
+		whole = 'Telegram 55 @rob /jobs add message daily at 9am "Morning! The ASX opens at 10am, so coffee first"'
 		self.assertEqual(logged(1), [whole[:70] + '…'])
-		self.assertEqual(logged(2), ['Telegram @rob sent it again within 1 s, not run again: /jobs add messa…'])
+		self.assertEqual(logged(2), ['Telegram 55 @rob sent it again within 1 s, not run again: /jobs add me…'])
 		self.settings(log_width=0)
-		self.assertEqual(logged(3, chat=66), [whole]) # another chat's: taken
+		self.assertEqual(logged(3, chat=66), [whole.replace(' 55 ', ' 66 ')]) # another chat's: taken
 
 
 class SharedSession(unittest.TestCase):

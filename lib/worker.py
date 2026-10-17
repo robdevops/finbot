@@ -308,7 +308,7 @@ def process_callback(press):
 		if pressed.kind in charts.TEXT: # a text answer: its lines for that period, in place
 			caption, _ = charts.build(pressed.kind, args, service, chat.key, period=pressed.period)
 			return chat.edit_text(press.message_id, caption, markup)
-		if chat.reshow(press.message_id, markup): # that period as posted lately, where the network keeps it (Slack)
+		if chat.reshow(press.message_id, markup): # that period as posted lately (Slack, Telegram): nothing built
 			return
 		caption, chart = charts.build(pressed.kind, args, service, chat.key, period=pressed.period)
 		if not (chart and chart.rows): # too few prices in that period to draw a line
@@ -329,7 +329,7 @@ def process_request(message):
 		message.message_id, message.interaction)
 	command, args = read(message.text, message.bot_name)
 	if why := refused(message.service, message.ids, command, message.chat_id):
-		log.info(log.cut(f"{message.service.capitalize()} {message.user} refused: {message.text}"))
+		log.info(log.cut(f"{message.service.capitalize()} {message.chat_id} {message.user} refused: {message.text}"))
 		return request.reply([why])
 	if command and jobs.current: # a chat finbot does not know yet starts with the default jobs (off in a DM)
 		try:

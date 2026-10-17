@@ -96,7 +96,12 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   captions, charts, buttons, edits, and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the
   message), which `text()` and `chart()` stop before posting; `edit_buttons` changes a message's buttons alone where
   the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
-  its `interaction` (application id/token), and a pressed message is edited through the press's.
+  its `interaction` (application id/token), and a pressed message is edited through the press's. A chart the network
+  has already (the same PNG) goes by its id, not uploaded again: Telegram's file id (`telegram_common.with_photo`, a
+  cache file by chart and bot), Slack's upload of the last 30 minutes (`SlackBot.showing`); a period pressed again
+  within 30 minutes of being shown in the chat is not even built (`reshow`, by chat and period: Telegram, Slack). The
+  other periods and portfolios that priming draws go ahead to a private chat where `telegram_preload_chat` or
+  `slack_preload_chat` names one (`delivery.preload`, `Transport.preload`: one at a time, `PRELOAD_GAP` apart).
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.treemap .holdings
   .price` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
   `process_pick_callback`): the first answer at once (the first portfolio or ticker; price's `+`, ending its period
@@ -183,7 +188,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - Log with `lib/log.py`, at a level, with print()'s arguments: `log.error` (failed and lost: a message not sent),
   `log.warn` (failed and got over: a retry, a fallback, a refused request), `log.info` (what finbot does: a message
   sent, a job run; `net` logs each request it sends), `log.debug` (cache misses, hits and writes; the routine of a
-  press: the press, its acknowledgement and the edit in place, sent with `logged='debug'`, and a success answered to
+  press: the press, its acknowledgement and the edit in place, sent with `logged='debug'` (but its POST line at INFO
+  when it uploads a chart's image: Telegram's `with_photo`), and a success answered to
   a network). The
   `log_level` setting sets what reaches the log; `lib/config.py` prints its own errors (it loads before
   settings exist). Everything goes to stderr: systemd discards stdout (`StandardOutput=null`), so the bot and its reports
