@@ -154,8 +154,10 @@ def process_pick_callback(press, pressed):
 		delivery.report_error(e, chat, context='pick')
 
 def pick_content(service, chat, cmd, group, period, names):
-	"""A picker's answer for the portfolio (pie, treemap) or tickers (history, compare) `names`: (caption, chart or
-	None)."""
+	"""A picker's answer for the portfolio (pie, treemap, holdings) or tickers (history, compare) `names`: (caption,
+	chart or None)."""
+	if cmd == 'h':
+		return '\n'.join(holdings.prepare_holdings_payload(names[0], service) or [f"{names[0]} holds nothing"]), None
 	if cmd in 'pt':
 		prepare = holdings.prepare_pie if cmd == 'p' else holdings.prepare_treemap
 		lines, chart = prepare(names[0], 'sector' if group == 's' else 'industry', service)
@@ -166,7 +168,7 @@ def pick_answer(service, chat, message, cmd, group, period, names, rows, note=No
 	"""The pressed picker message turned into the answer of its command for the item (history, a portfolio's) or items
 	(compare), the picker's button rows left under it, after a note if there is one: a chart, or text (the holdings)."""
 	if cmd == 'h':
-		lines = holdings.prepare_holdings_payload(names[0], service) or [f"{names[0]} holds nothing"]
+		lines = pick_content(service, chat, cmd, group, period, names)[0].split('\n')
 		parts = transports.chunked(([note] if note else []) + lines, chat.dialect.text_limit)
 		chat.edit_text(message, '\n'.join(parts[0]), rows if len(parts) == 1 else [])
 		for i, part in enumerate(parts[1:], 1):
@@ -396,7 +398,7 @@ def on_trades(request, args):
 		portfolio_select=args.rest or None)
 
 def on_holdings(request, args):
-	""".holdings PORTFOLIO: what it holds; with no portfolio, buttons for them."""
+	""".holdings [PORTFOLIO]: what it holds; with no portfolio, the first one's, with buttons for them."""
 	if not args.words:
 		return picker(request, 'h', args)
 	request.reply(holdings.prepare_holdings_payload(args.rest, request.service))
@@ -427,15 +429,16 @@ def on_beta(request, args):
 	request.reply(payload, chart)
 
 def on_pie(request, args):
-	""".pie PORTFOLIO [sector]: its value by industry, or by sector; with no portfolio, buttons for them."""
+	""".pie [PORTFOLIO] [sector]: its value by industry, or by sector; with no portfolio, the first one's, with
+	buttons for them."""
 	if not args.words:
 		return picker(request, 'p', args)
 	payload, chart = holdings.prepare_pie(args.rest, args.keyword or 'industry', request.service)
 	request.reply(payload, chart)
 
 def on_treemap(request, args):
-	""".treemap PORTFOLIO [sector]: its holdings as tiles, grouped by industry or by sector; with no portfolio, buttons
-	for them."""
+	""".treemap [PORTFOLIO] [sector]: its holdings as tiles, grouped by industry or by sector; with no portfolio, the
+	first one's, with buttons for them."""
 	if not args.words:
 		return picker(request, 't', args)
 	payload, chart = holdings.prepare_treemap(args.rest, args.keyword or 'industry', request.service)
@@ -448,8 +451,8 @@ def on_rating(request, args):
 		request.reply(payload, chart)
 
 def on_compare(request, args):
-	""".compare SYMBOL SYMBOL... [period]: their price changes on one chart, with period buttons where they work; with
-	no symbols, buttons to pick them."""
+	""".compare [SYMBOL SYMBOL...] [period]: their price changes on one chart, with period buttons where they work;
+	with no symbols, the first two's, with buttons to pick others."""
 	if not args.words:
 		return picker(request, 'c', args)
 	if not 2 <= len(args.words) <= buttons.MAX_PICKED:
@@ -466,7 +469,7 @@ def compare_picker(request, tickers, days):
 	of the buttons: True when it did; else False, and the chart has its period buttons alone."""
 	dest = request.dest
 	period = buttons.period_for_days(days, 'x' if days is None else None)
-	if not (dest.takes_buttons and delivery.interactive(dest)) or period is None:
+	if not dest.takes_buttons or period is None:
 		return False
 	try:
 		found = pick.items('c', dest.key)
@@ -479,8 +482,8 @@ def compare_picker(request, tickers, days):
 	return True
 
 def on_history(request, args):
-	""".history SYMBOL: the stock's change over every period, with its price chart, and period buttons where they go;
-	with no symbol, buttons to pick one."""
+	""".history [SYMBOL]: the stock's change over every period, with its price chart, and period buttons where they
+	go; with no symbol, the first one's, with buttons to pick another."""
 	if not args.words:
 		return picker(request, 'y', args)
 	if len(args.words) != 1:
@@ -488,12 +491,11 @@ def on_history(request, args):
 	chart_reply(request, 'h', [ticker(args)])
 
 def picker(request, cmd, args):
-	"""A command typed with nothing to say what it is about (cmd, a key of buttons.PICKERS): where there are buttons,
-	its answer for the first portfolio or ticker (the first two to compare), alphabetically, with the picker's buttons
-	under it, one message that a press then edits (holdings, which has no first answer, is the picker alone); a pie or
-	treemap's other charts are then drawn in the background to fill the cache. Else the command's usage."""
+	"""A command typed with nothing to say what it is about (cmd, a key of buttons.PICKERS), or a job's run of it: where
+	there are buttons, its answer for the first portfolio or ticker (the first two to compare), alphabetically, with the
+	picker's buttons under it, one message that a press then edits (see send_picker). Else the command's usage."""
 	dest = request.dest
-	if not (dest.takes_buttons and delivery.interactive(dest)):
+	if not dest.takes_buttons:
 		raise Usage(portfolios()) if pick.noun(cmd) == 'portfolio' else Usage
 	group = {'sector': 's', 'industry': 'i'}.get(args.keyword, '0')
 	first = 'w' if cmd == 'c' and args.keyword != 'max' else 'x' # compare starts on 7D, unless asked for max
@@ -503,20 +505,18 @@ def picker(request, cmd, args):
 	send_picker(request, cmd, found, group, period, shown, mask)
 
 def send_picker(request, cmd, found, group, period, shown, mask):
-	"""The first message of a picker of the items `found`: the answer for what `shown` says (or the picker alone, for
-	0), the buttons under it, and the answer's other charts drawn in the background to fill the cache."""
+	"""The first message of a picker of the items `found`: the answer for what `shown` says, the buttons under it, and
+	for a command asked for (not a job's run), the answer's other charts drawn in the background to fill the cache."""
 	dest = request.dest
-	lines, rows = pick.screen(request.service, cmd, found, group, period, shown, mask, 'p')
-	if not shown:
-		return dest.text(lines, rows)
+	_, rows = pick.screen(request.service, cmd, found, group, period, shown, mask, 'p')
 	caption, chart = pick_content(request.service, dest, cmd, group, period, pick.shown_names(cmd, found, shown))
 	if not pick.as_photo(dest, cmd):
-		dest.text(caption.split('\n'), rows) # no chart goes: the answer as text, its buttons kept
+		dest.text(caption.split('\n'), rows) # no chart goes (the holdings, the graph off): the answer as text
 	elif chart and chart.rows:
 		request.reply(caption.split('\n'), chart, rows)
 	else: # nothing to draw (no holdings, too few prices): a photo all the same, which a press can turn into a chart
 		dest.chart(render.blank(), caption, rows)
-	if cmd in 'pt' and pick.as_photo(dest, cmd):
+	if cmd in 'pt' and pick.as_photo(dest, cmd) and delivery.interactive(dest):
 		prime_in_background(request.service, cmd, group, found, 0)
 	elif cmd in 'yc' and chart:
 		prime_periods(dest, 'c' if cmd == 'c' else 'h', pick.shown_names(cmd, found, shown), period)
@@ -660,9 +660,9 @@ PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL')
 COMMANDS = [ # .help lists a section's commands in this order. The odd spellings (earrings, prince, hospital...) are
 	# kept on purpose.
 	Command(('help', 'usage', 'start'), on_help, job=False), # /start is what Telegram sends when a chat opens
-	Command(('holdings', 'holding'), on_holdings, ('.holdings PORTFOLIO',), TRACKED),
-	Command(('pie',), on_pie, ('.pie PORTFOLIO [sector]',), TRACKED, ('.pie',), keywords=BY),
-	Command(('treemap',), on_treemap, ('.treemap PORTFOLIO [sector]',), TRACKED, ('.treemap',), keywords=BY),
+	Command(('holdings', 'holding'), on_holdings, ('.holdings [PORTFOLIO]',), TRACKED),
+	Command(('pie',), on_pie, ('.pie [PORTFOLIO] [sector]',), TRACKED, ('.pie',), keywords=BY),
+	Command(('treemap',), on_treemap, ('.treemap [PORTFOLIO] [sector]',), TRACKED, ('.treemap',), keywords=BY),
 	Command(('watchlist', 'wishlist'), on_watchlist, ('.watchlist [add|del SYMBOL]',), TRACKED, ('.watchlist',),
 		keywords=CHANGE, job=False),
 	Command(('who',), on_who, ('.who SYMBOL',), TRACKED),
@@ -672,9 +672,9 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('marketcap', 'maletas', 'marketer'), on_marketcap, ('.marketcap [SYMBOL|top|bottom]',), COMPANY,
 		keywords=TOP),
 	Command(('beta',), on_beta, ('.beta',), PRICE),
-	Command(('compare',), on_compare, ('.compare SYMBOL SYMBOL [... up to 8] [period]',), PRICE, ('.compare',),
+	Command(('compare',), on_compare, ('.compare [SYMBOL SYMBOL ... up to 8] [period]',), PRICE, ('.compare',),
 		period=True, keywords={'max': 'max', 'all': 'max'}), # max: as the default, 10 years
-	Command(('history', 'hospital', 'visual', 'hosiery'), on_history, ('.history SYMBOL',), PRICE),
+	Command(('history', 'hospital', 'visual', 'hosiery'), on_history, ('.history [SYMBOL]',), PRICE),
 	Command(('performance', 'performanc'), on_performance, ('.performance [period] [portfolio]',), PRICE,
 		('.performance',), period=True),
 	Command(('price', 'prices', 'prince', 'print', 'probe', 'piece', 'pierce', 'pence', 'prime'), on_price,

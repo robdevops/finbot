@@ -87,16 +87,16 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
   its `interaction` (application id/token), and a pressed message is edited through the press's.
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.pie .treemap .holdings
-  .history .compare` typed bare (`worker.picker`, `process_pick_callback`): the first answer at once (the first
-  portfolio or ticker, the first two to compare; `.holdings` only its buttons), the buttons kept under it and every
-  press re-editing the answer from `shown` (an item's number plus one; compare's tickers, `pick.pack`), but a tick or
-  a page of tickers its buttons alone (`m`; `n` under a note, which the next press takes away), 32 items a page
-  (`pick.layout`; fewer on Discord) turned by `<` `>` under the tickers menu, its list of items checked by checksum
-  (`buttons.checksum`, as the `.jobs` menu's list is),
-  `.compare`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert toast (`buttons.alert`); a pie or
-  treemap primes its other charts in a thread (`pick.prime`, started by `worker.prime_in_background`); every chart
-  with period buttons primes its other periods (`charts.prime`, `worker.prime_periods` after `.compare`, `.price`,
-  `.performance`, `chart_reply` and the pickers; never for a scheduled run).
+  .history .compare` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
+  `process_pick_callback`): the first answer at once (the first portfolio or ticker, the first two to compare), the
+  buttons kept under it and every press re-editing the answer from `shown` (an item's number plus one; compare's
+  tickers, `pick.pack`), but a tick or a page of tickers its buttons alone (`m`; `n` under a note, which the next press
+  takes away), 32 items a page (`pick.layout`; fewer on Discord) turned by `<` `>` under the tickers menu, its list of
+  items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list is), `.compare`'s ticks (up to
+  `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert toast (`buttons.alert`); a pie or
+  treemap primes its other charts in a thread (`pick.prime`, started by `worker.prime_in_background`); every chart with
+  period buttons primes its other periods (`charts.prime`, `worker.prime_periods` after `.compare`, `.price`,
+  `.performance`, `chart_reply` and the pickers); neither for a scheduled run.
 - `lib/buttons.py`: `Button`, a chart's period buttons (`keyboard`), the `.jobs` menu's (`menu_button`, a
   `MenuPress`), what a pressed button's data asks for (`parse`), and the
   toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so

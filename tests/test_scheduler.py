@@ -586,7 +586,7 @@ class JobsInChat(ChatBase):
 		self.assertEqual(lines[0], '<b>What a job can run:</b>')
 		for line in ('cal earnings|ex-dividend', 'message "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
 				'price midsession|interday|premarket|close|DAYS', 'trades', '.jobs add price weekly', 'beta',
-				'pe [SYMBOL|top|bottom]', 'compare SYMBOL SYMBOL [... up to 8] [period]', '.jobs add pe top weekly'):
+				'pe [SYMBOL|top|bottom]', 'compare [SYMBOL SYMBOL ... up to 8] [period]', '.jobs add pe top weekly'):
 			self.assertIn(line, lines)
 		self.assertFalse(any(name in line for line in lines for name in jobs.SYSTEM_ACTIONS))
 
@@ -884,7 +884,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual((rows[0], rows[-1]), (['14:00†', '14:05', '14:10', '14:15'], ['Back', 'Cancel']))
 		lines, rows, data = self.press(data['14:30'])
 		self.assertEqual(lines, ['Added: 4. ✅* price · weekly, Fridays at 2:30pm'])
-		self.assertEqual(rows, [['Jobs', 'Add another']])
+		self.assertEqual((rows, data['Done']), ([['Add another', 'Done']], f'm|top|0|{self.crc()}')) # Done: the list
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['jobs'][-1], entry('price every friday at 2:30pm',
 			zone='Australia/Melbourne'))
 		self.assertIn('that job is here already', self.say('.jobs add price weekly on friday at 14:30')[0])
@@ -978,17 +978,24 @@ class JobsMenu(ChatBase):
 		self.assertEqual(rows, [['Back', 'Cancel']])
 
 	def test_the_commands_of_help_by_buttons(self):
-		"""Add offers the commands of .help after the reports: one that takes no stock adds as a report does; one that
-		needs a stock or a portfolio says how to type it. On Discord the list comes on two pages."""
+		"""Add offers the commands of .help after the reports: one that takes no stock adds as a report does, as does
+		one whose usage brackets its stock or portfolio (a picker's, run bare as typed: the first one's answer); one
+		that needs a stock says how to type it. On Discord the list comes on two pages."""
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
 		for pressed in ('pe', 'weekly', 'Fri', '09†', '09:00†'):
 			lines, rows, data = self.press(data[pressed])
 		self.assertEqual(lines, ['Added: 4. ✅* pe · weekly, Fridays at 9:00am'])
 		self.assertEqual(self.s.chat_jobs(CHAT)[-1].action, 'pe')
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
-		lines, rows, _ = self.press(data['history'])
-		self.assertEqual((lines, rows), (['<b>Add history</b>', 'What history is about is typed:',
-			'.jobs add history SYMBOL SCHEDULE', '', '<b>For example:</b>', '.jobs add history AAPL weekly'],
+		for pressed in ('treemap', 'weekly', 'Fri', '09†', '09:00†'):
+			lines, rows, data = self.press(data[pressed])
+		self.assertEqual(lines, ['Added: 5. ✅* treemap · weekly, Fridays at 9:00am'])
+		self.assertEqual((self.s.chat_jobs(CHAT)[-1].action, self.s.chat_jobs(CHAT)[-1].kwargs), ('treemap',
+			{'words': []}))
+		lines, rows, data = self.press(f'm|add|{self.crc()}')
+		lines, rows, _ = self.press(data['who'])
+		self.assertEqual((lines, rows), (['<b>Add who</b>', 'What who is about is typed:',
+			'.jobs add who SYMBOL SCHEDULE', '', '<b>For example:</b>', '.jobs add who AAPL weekly'],
 			[['Back', 'Cancel']]))
 		first, second = (about.add_screen(DISCORD, CHAT, steps)[1] for steps in ([], ['p1']))
 		self.assertEqual(([len(row) for row in first], [button.label for button in first[-1]]), ([4, 4, 4, 4, 2],

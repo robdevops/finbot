@@ -1,6 +1,7 @@
 """The pickers: what a chat gets when it types .pie, .treemap, .holdings, .history or .compare with nothing to say what
-it is about: buttons for the portfolios or tickers, one message edited as each is pressed (buttons.PickPress). An
-answer takes the message over and leaves the buttons under it, the item shown marked, so another can be picked."""
+it is about, or a job runs one so: the answer for the first portfolio or ticker (the first two to compare), with
+buttons for the portfolios or tickers under it, one message edited as each is pressed (buttons.PickPress). Each answer
+takes the message over and leaves the buttons under it, the item shown marked, so another can be picked."""
 from lib import answer
 from lib import buttons
 from lib import config
@@ -52,14 +53,14 @@ def unpack(shown):
 	return [int(text[i:i + 2], 16) - 1 for i in range(0, len(text), 2)]
 
 def default(cmd, found):
-	"""What a picker answers at first, as (shown, mask): the first portfolio (pie, treemap) or ticker (history), or the
-	first two tickers (compare), alphabetically; (0, 0) for nothing yet (holdings). Raises answer.Answer where compare
-	has fewer than two tickers."""
+	"""What a picker answers at first, as (shown, mask): the first portfolio (pie, treemap, holdings) or ticker
+	(history), or the first two tickers (compare), alphabetically. Raises answer.Answer where compare has fewer than two
+	tickers."""
 	if cmd == 'c':
 		if len(found) < 2:
 			raise answer.Answer("Compare needs two tickers: .watchlist add SYMBOL adds one")
 		return pack([0, 1]), 0b11
-	return (0, 0) if cmd == 'h' else (1, 0)
+	return 1, 0
 
 def shown_names(cmd, found, shown):
 	"""The items a picker's message shows now (shown, as a PickPress has it): none when it shows nothing yet."""
@@ -89,10 +90,10 @@ def prime(service, cmd, group, found, index):
 def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=None):
 	"""A picker's screen, as (lines, rows): `view` 'p', the first (the portfolios; for tickers the period and the way
 	to the tickers), or 'm', the tickers'; `page` of the items; `shown` what the message answers now (an item's number
-	plus one, or compare's tickers, see pack; 0 for nothing yet); `mask` has a bit for each ticked ticker. The lines,
-	what to pick, show only where there is no answer yet (holdings): an answer's caption shows instead. Where the
-	message shows a note, the tickers' screen's presses are n, not m: the next one draws the message whole again, which
-	takes the note away (an m press changes only the buttons)."""
+	plus one, or compare's tickers, see pack; 0 for nothing yet, as an older finbot's holdings began); `mask` has a bit
+	for each ticked ticker. The lines, what to pick, show only where there is no answer yet: an answer's caption shows
+	instead. Where the message shows a note, the tickers' screen's presses are n, not m: the next one draws the message
+	whole again, which takes the note away (an m press changes only the buttons)."""
 	per_page, per_row = layout(service, cmd)
 	pages = -(-len(found) // per_page)
 	page = min(max(page, 0), pages - 1)

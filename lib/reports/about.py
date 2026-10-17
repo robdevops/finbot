@@ -401,11 +401,12 @@ def choice(text, low, high):
 	return int(text)
 
 def added_screen(service, chat, number):
-	"""What the last step of Add shows: the job added, with its number in the list, and buttons to it and to Add."""
+	"""What the last step of Add shows: the job added, with its number in the list; Add another, and Done, which goes
+	back to the list."""
 	own = jobs.current.chat_jobs(chat)
 	crc = jobs.list_checksum(own)
-	return [f"Added: {job_entry(service, jobs.current, number, own[number - 1])}"], [[buttons.menu_button('Jobs',
-		'top', [0], crc), buttons.menu_button('Add another', 'add', [], crc)]]
+	return [f"Added: {job_entry(service, jobs.current, number, own[number - 1])}"], [[buttons.menu_button(
+		'Add another', 'add', [], crc), buttons.menu_button('Done', 'top', [0], crc)]]
 
 def add_failed(service, chat, steps, why):
 	"""What the last step of Add shows when the job cannot be added: why, with Back to the last choice and Cancel."""

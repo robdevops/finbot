@@ -34,8 +34,9 @@ A button drawn for a list that has since changed acts on nothing: the screen is 
 Each screen marks its default with `†` (`Sat†`, `09†`) and says _† indicates default_; after the first, **Back** takes a
 step back. Times are by the `timezone` setting's clock.
 
-First what the job runs: a report, or a command of `/help` ([below](#a-job-in-english)). A message's text, and a
-command's stock or portfolio, cannot come from a button, so their screen says how to type them. Then how often:
+First what the job runs: a report, or a command of `/help` ([below](#a-job-in-english)). A message's text, and the
+stock of `/who` and `/stock`, cannot come from a button, so their screen says how to type them; `/pie`, `/treemap`,
+`/holdings`, `/history` and `/compare` run as typed bare. Then how often:
 
 | how often | then | added as, for example |
 |---|---|---|
@@ -49,7 +50,8 @@ command's stock or portfolio, cannot come from a button, so their screen says ho
 | annual | the start month, the day of the month (those it has), the hour, the minute | annual, 31 Mar at 9:00am |
 | every... | 5, 10, 15, 20 or 30 mins, or 2, 3, 4, 6 or 12 hours, then as hourly; or weekday, then the hour and the minute | every 20 mins, weekdays 10:05am–4:05pm; weekdays at 9:00am |
 
-A span across days (`every 20 mins from mon 9am to sat 3pm`), or a window of hours across midnight, is typed.
+A span across days (`every 20 mins from mon 9am to sat 3pm`), or a window of hours across midnight, is typed. The last
+screen says what was added, with **Add another** and **Done**, back to the list.
 
 Or type:
 ```
@@ -91,8 +93,10 @@ The reports are `trades`, `price midsession|interday|premarket|close|DAYS`, `cal
 [DAYS]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `message "TEXT"`.
 
 A job can also run a command of `/help`, with what it takes, and posts what the command posts when typed in the chat:
-`pe [SYMBOL|top|bottom]`, `forward pe`, `peg`, `marketcap`, `beta`, `buy`, `sell` (`buy&sell` both), `history SYMBOL`,
-`compare SYMBOL SYMBOL…`, `stock SYMBOL`, and with Sharesight `holdings PORTFOLIO`, `pie PORTFOLIO`, `treemap PORTFOLIO` and `who SYMBOL`.
+`pe [SYMBOL|top|bottom]`, `forward pe`, `peg`, `marketcap`, `beta`, `buy`, `sell` (`buy&sell` both),
+`history [SYMBOL]`, `compare [SYMBOL SYMBOL…]`, `stock SYMBOL`, and with Sharesight `holdings [PORTFOLIO]`,
+`pie [PORTFOLIO]`, `treemap [PORTFOLIO]` and `who SYMBOL`. Without the words in brackets, a job posts what the
+command typed bare posts: the first portfolio or ticker (the first two to compare), with the buttons to pick another.
 The commands that change something (`watchlist`, `plan`, `jobs`) are no jobs, and price, performance, trades, shorts,
 earnings, dividends, session and premarket are run by their reports above.
 

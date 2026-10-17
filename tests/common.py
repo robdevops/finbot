@@ -156,8 +156,9 @@ class FinbotCase(unittest.TestCase):
 		closes = tuple((today - datetime.timedelta(days=399 - i), float(100 + i)) for i in range(400))
 		self.patch(yahoo, 'price_series', lambda t: ('Co ' + t, 'NASDAQ', closes))
 		self.patch(shortman, 'fetch', lambda md: md)
-		held = [{'id': i, 'instrument': {'code': t, 'market_code': 'NASDAQ'}, 'portfolio': {'name': 'Rob'},
-					 'capital_gain_percent': str(i * 4 - 40), 'value': '1000'} for i, t in enumerate(TICKERS)]
+		held = [{'id': i, 'instrument': {'code': t, 'market_code': 'NASDAQ', 'name': f'Co {t}'},
+					 'portfolio': {'name': 'Rob'}, 'capital_gain_percent': str(i * 4 - 40), 'value': '1000'}
+					 for i, t in enumerate(TICKERS)]
 		self.patch(sharesight, '_portfolios', lambda seconds=None: [{'name': 'Rob', 'id': 1}])
 		self.patch(sharesight, '_performance', lambda pid, days=None, seconds=None: {
 			'holdings': held, 'currency_gain_percent': '0', 'capital_gain_percent': '2.5', 'total_gain_percent': '0'})

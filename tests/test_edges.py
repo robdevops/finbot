@@ -155,7 +155,7 @@ class BadArguments(FinbotCase):
 		""".history with an extra argument gets its usage, not the profile of a ticker called HISTORY; with no
 		ticker, the buttons for one."""
 		self.assertEqual(self.command('.history')[0][0], 'photo') # the first ticker's answer: blank, nothing to draw
-		self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history SYMBOL'])])
+		self.assertEqual(self.command('.history T1 1y'), [('text', ['Usage: .history [SYMBOL]'])])
 
 
 class PortfolioNames(FinbotCase):

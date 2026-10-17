@@ -33,13 +33,13 @@ Where:
 /beta
 /buy
 /sell
-/compare symbol symbol [symbol...] [period]
+/compare [symbol symbol...] [period]
 /dividend [period|symbol]
 /earnings [period|symbol]
 /forwardpe [symbol|top|bottom|negative]
 /help
-/history symbol
-/holdings portfolio
+/history [symbol]
+/holdings [portfolio]
 /jobs [upcoming|system]
 /jobs enable|disable|delete|run [number]
 /jobs add report schedule
@@ -48,14 +48,14 @@ Where:
 /pe [symbol|top|bottom]
 /peg [symbol|top|bottom|negative]
 /performance [period] [portfolio]
-/pie portfolio [sector]
+/pie [portfolio] [sector]
 /plan [your plan]
 /premarket [percent|symbol]
 /price [percent|symbol|top|bottom] [period]
 /session [percent|symbol]
 /shorts [percent|symbol]
 /trades [period] [portfolio]
-/treemap portfolio [sector]
+/treemap [portfolio] [sector]
 /watchlist [add|del symbol]
 /who symbol
 ```
@@ -73,7 +73,7 @@ The bot answers commands in every chat it is in. By default, it fetches its upda
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
 * A pie or a treemap of a portfolio by industry or sector (`/pie portfolio [sector]`, `/treemap portfolio [sector]`): the treemap tiles each holding by value, grouped and coloured by industry (the default) or sector
-* Buttons to pick from where a command needs a portfolio or tickers and is typed without them: `/pie`, `/treemap` (the first portfolio alphabetically, by industry or by `sector`), `/history` (the first ticker) and `/compare` (the first two tickers, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Sector/Industry toggle after them; for tickers a period row and a menu button (`Tickers ▶`; `Select... (2)` for `/compare`, with the number ticked) (those held, else the chat's watchlist) with `<` `>` pages, up to 8 ticked to compare. `/holdings` shows its portfolio buttons alone. Another portfolio or ticker, the toggle or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/pie` or `/treemap` draws its other charts in the background so the next press is quick. `/compare T1 T2 [period]` typed with tickers gets the same period row and `Select...` menu when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job, or a chat with no buttons, gets the usage instead
+* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/pie`, `/treemap`, `/holdings` (the first portfolio alphabetically; a pie or treemap by industry or by `sector`), `/history` (the first ticker) and `/compare` (the first two tickers, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Sector/Industry toggle after them; for tickers a period row and a menu button (`Tickers ▶`; `Select... (2)` for `/compare`, with the number ticked) (those held, else the chat's watchlist) with `<` `>` pages, up to 8 ticked to compare. Another portfolio or ticker, the toggle or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/pie` or `/treemap` draws its other charts in the background so the next press is quick. `/compare T1 T2 [period]` typed with tickers gets the same period row and `Select...` menu when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead), and a chat with no buttons gets the usage instead
 * Listing of holdings sorted by various attributes 
 * Running the other stock reports on demand
 
@@ -282,7 +282,7 @@ It creates a 5Y chart, and then lists performance for several periods (5Y 3Y 1Y 
 
 Command:
 ```
-/history <symbol>
+/history [symbol]
 ```
 
 ### Buy

@@ -114,18 +114,22 @@ class ReportFunctions(FinbotCase):
 		payload, _ = performance.report(TELEGRAM, 7)
 		self.assertTrue(any('>Rob</a>' in line for line in payload), payload)
 
-	def test_a_portfolio_command_without_a_portfolio_lists_them(self):
-		""".holdings, .pie and .treemap without a portfolio give buttons for the portfolios there are, and name them
-		where there are no buttons (a job's)."""
-		chat = delivery.chat('telegram:55', scheduled=True)
+	def test_a_portfolio_command_without_a_portfolio_answers_for_the_first(self):
+		""".holdings, .pie and .treemap without a portfolio answer for the first one, typed or run by a job (as .jobs
+		Add adds them), with buttons for the portfolios there are; where there are no buttons, they name them."""
+		job, unbuttoned = delivery.chat('telegram:55', scheduled=True), delivery.chat('telegram:55', scheduled=True)
+		unbuttoned.takes_buttons = False
 		for text in ('.holdings', '.pie', '.treemap'):
 			with self.subTest(text=text):
 				self.sent.clear()
-				self.command(text)
-				self.assertEqual(self.sent[0][0], 'text' if text == '.holdings' else 'photo')
+				typed = self.command(text)
+				self.assertEqual(typed[0][0], 'text' if text == '.holdings' else 'photo')
 				self.sent.clear()
-				worker.job_commands()[text[1:]].run(chat, words=[])
-				usage = f"Usage: {text} PORTFOLIO" + ('' if text == '.holdings' else ' [sector]')
+				worker.job_commands()[text[1:]].run(job, words=[])
+				self.assertEqual(self.sent, typed)
+				self.sent.clear()
+				worker.job_commands()[text[1:]].run(unbuttoned, words=[])
+				usage = f"Usage: {text} [PORTFOLIO]" + ('' if text == '.holdings' else ' [sector]')
 				self.assertEqual(self.sent, [('text', [usage, 'Portfolios: Rob'])])
 
 	def test_prepare_marketcap(self):
@@ -349,7 +353,7 @@ class ReportFunctions(FinbotCase):
 
 	def test_compare_usage(self):
 		""".compare with one ticker gets its usage, from the command table."""
-		usage = 'Usage: .compare SYMBOL SYMBOL [... up to 8] [period]'
+		usage = 'Usage: .compare [SYMBOL SYMBOL ... up to 8] [period]'
 		self.assertEqual(self.command('.compare T1'), [('text', [usage])])
 
 
@@ -846,19 +850,19 @@ class CommandJobs(FinbotCase):
 	"""A job that runs a command of .help posts in its chat what the command posts when typed there."""
 
 	def test_a_command_job_posts_what_the_typed_command_posts(self):
-		"""pe, beta, buy & sell and compare, run as a job's, post what each posts when typed in the chat; one that
-		cannot take its words posts its usage."""
+		"""pe, beta, buy & sell, compare and history, run as a job's, post what each posts when typed in the chat, bare
+		too (the first ticker, the first two to compare); one that cannot take its words posts its usage."""
 		chat = delivery.chat('telegram:55', scheduled=True)
 		for name, words, typed in (('pe', [], '.pe'), ('beta', [], '.beta'), ('buy&sell', [], '.buy & sell'),
-				('compare', ['T1', 'T2'], '.compare T1 T2')):
-			with self.subTest(name=name):
+				('compare', ['T1', 'T2'], '.compare T1 T2'), ('compare', [], '.compare'), ('history', [], '.history')):
+			with self.subTest(name=name, words=words):
 				posted = self.command(typed)
 				self.sent.clear()
 				worker.job_commands()[name].run(chat, words=words)
 				self.assertEqual(self.sent, posted)
 		self.sent.clear()
-		worker.job_commands()['history'].run(chat, words=[])
-		self.assertEqual(self.sent, [('text', ['Usage: .history SYMBOL'])]) # a job has no buttons to pick with
+		worker.job_commands()['compare'].run(chat, words=['T1'])
+		self.assertEqual(self.sent, [('text', ['Usage: .compare [SYMBOL SYMBOL ... up to 8] [period]'])])
 
 
 class WithoutSharesight(FinbotCase):
@@ -942,8 +946,9 @@ class Pickers(FinbotCase):
 		self.patch(sharesight, '_portfolios', lambda seconds=None: [{'name': n, 'id': i} for i, n in enumerate(names)])
 
 	def test_a_portfolio_command_answers_with_the_first_portfolio(self):
-		""".pie and .treemap answer with the first portfolio alphabetically at once, its button marked, the Group by
-		button after the portfolios; .holdings has no first answer, only its buttons."""
+		""".pie, .treemap and .holdings answer with the first portfolio alphabetically at once, its button marked, the
+		Group by button after the portfolios."""
+		self.patch(holdings, 'prepare_holdings_payload', lambda name, service: [f'<b>Holdings for {name} (25)</b>'])
 		self.portfolios('Zed', 'Amy')
 		self.command('.pie')
 		self.assertEqual((self.sent[-1][0], self.sent[-1][2]), ('photo', '<b>Amy by industry</b>'))
@@ -952,8 +957,8 @@ class Pickers(FinbotCase):
 		self.assertEqual((self.sent[-1][2], self.labels()), ('<b>Amy treemap by sector</b>',
 			[['● Amy', 'Zed'], ['Group by: Sector']]))
 		self.command('.holdings')
-		self.assertEqual((self.sent[-1], self.labels()), (('text', ['<b>Holdings</b>: pick a portfolio']),
-			[['Amy', 'Zed']]))
+		self.assertEqual((self.sent[-1], self.labels()), (('text', ['<b>Holdings for Amy (25)</b>']),
+			[['● Amy', 'Zed']]))
 
 	def test_portfolios_come_four_to_a_row(self):
 		"""Portfolios are in rows of four before the Group by row."""
@@ -977,12 +982,14 @@ class Pickers(FinbotCase):
 		self.assertEqual((lines[0], self.labels(rows)[1]), ('<b>Zed treemap by industry</b>', ['Group by: Industry']))
 
 	def test_a_holdings_answer_keeps_its_buttons(self):
-		""".holdings: the list as text, the portfolio buttons still under it."""
+		""".holdings: another portfolio's list as text in place of the first's, the portfolio buttons still under it."""
 		self.patch(holdings, 'prepare_holdings_payload', lambda name, service:
 			[f'<b>Holdings for {name} (25)</b>', 'x'])
+		self.portfolios('Amy', 'Rob')
 		self.command('.holdings')
 		kind, lines, rows = self.tap('Rob')
-		self.assertEqual((kind, lines, self.labels(rows)), ('text', ['<b>Holdings for Rob (25)</b>', 'x'], [['● Rob']]))
+		self.assertEqual((kind, lines, self.labels(rows)), ('text', ['<b>Holdings for Rob (25)</b>', 'x'],
+			[['Amy', '● Rob']]))
 
 	def test_history_answers_with_the_first_ticker_and_picks_in_a_sub_menu(self):
 		""".history answers with the first ticker at once, a period row and a button for the tickers' screen under it;
@@ -1183,13 +1190,15 @@ class Pickers(FinbotCase):
 
 	def test_a_pie_or_treemap_primes_the_other_charts_in_the_background(self):
 		"""Once the first chart is out, a pie or treemap starts drawing the others in a thread (the first portfolio's
-		other grouping first); history, compare and holdings start none, nor does a chat without charts."""
+		other grouping first); history, compare and holdings start none, nor does a job's run, nor a chat without
+		charts."""
 		started = []
 		self.patch(worker, 'prime_in_background', lambda *args: started.append(args))
 		self.portfolios('Amy', 'Zed')
 		for text in ('.pie', '.treemap sector', '.history', '.compare', '.holdings'):
 			self.command(text)
 		self.assertEqual([args[1:] for args in started], [('p', '0', ['Amy', 'Zed'], 0), ('t', 's', ['Amy', 'Zed'], 0)])
+		worker.job_commands()['treemap'].run(delivery.chat('telegram:55', scheduled=True), words=[])
 		self.settings(graph=False)
 		self.command('.pie')
 		self.assertEqual(len(started), 2)
