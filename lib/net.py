@@ -69,6 +69,14 @@ def redact(text):
 	text = re.sub(r'(?i)(bearer\s+)[\w.~+/=-]+', r'\1<redacted>', text)
 	return re.sub(r'(?i)(token|crumb|auth\w*|key|secret)=[^&\s\'"]+', r'\1=<redacted>', text)
 
+def twice(send):
+	"""send(), sent once more at once where its connection fails (requests.RequestException): a host closes a
+	connection left idle, which fails the first request on it. For a question only: a post could arrive twice."""
+	try:
+		return send()
+	except requests.RequestException:
+		return send()
+
 def patiently(send):
 	"""send(), tried once more after the wait that a rate limit asks for (RateLimited; RATE_LIMIT_WAIT at most)."""
 	try:

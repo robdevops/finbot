@@ -52,7 +52,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   or a button of an `admin_only` command by someone the `admins` setting does not name (`worker.refused_press`; a
   message calling one gets a refusal in `process_request`; closed as
   finbot ships: `.jobs`; the `admins` setting, or the chat's own administrators, asked of the network by
-  `Transport.administers` and kept five minutes; `inbound.Message.ids` is who a sender is, never their name). An answer the
+  `Transport.administers` and kept five minutes, asked once more where its connection fails (`net.twice`), a failure
+  never kept as a no: the last answer stands; a Telegram DM by the groups' own answers; `inbound.Message.ids` is who a
+  sender is, never their name). An answer the
   network must have before any reply (Discord's deferred interaction) carries the work in its `then`: started once the
   HTTP answer is sent (`bot.Sent`) or, over the gateway, posted to its callback.
 - Each network in three modules, flat in `lib/`. `<network>_common.py`, what both ways in share: the API calls (`call`,

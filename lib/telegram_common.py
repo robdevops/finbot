@@ -245,17 +245,20 @@ class TelegramBot(transports.Transport):
 		"""Send a chart to this chat silently, with no caption, for its file id (with_photo keeps it)."""
 		with_photo('sendPhoto', photo, lambda known: {'chat_id': self.where, 'disable_notification': True})
 
+	def administers(self, ids):
+		"""As Transport's in a group; in a direct message, whether so in any group finbot knows (the schedule's chats),
+		by each group's own answers, so that a group that could not be asked is asked again at the next message."""
+		if not self.dm:
+			return super().administers(ids)
+		from lib import jobs # only here: a direct message asks about each group finbot has seen
+		groups = [TelegramBot(where) for network, where in map(transports.split_key, jobs.current.chats if
+			jobs.current else ()) if network == self.name]
+		return any(group.administers(ids) for group in groups if not group.dm)
+
 	def is_administrator(self, who):
-		"""Whether getChatMember says this user id is the creator or an administrator of the group; in a direct
-		message, of any group finbot knows (the schedule's chats). A username (@name) cannot be asked."""
-		if not who.isdigit():
-			return False
-		if self.dm:
-			from lib import jobs # only here: a direct message asks about each group finbot has seen
-			chats = [TelegramBot(where) for network, where in map(transports.split_key, jobs.current.chats if
-				jobs.current else ()) if network == self.name]
-			return any(chat.administers((who,)) for chat in chats if not chat.dm)
-		return call('getChatMember', json={'chat_id': self.where, 'user_id': who}).get('status') in (
+		"""Whether getChatMember says this user id is the creator or an administrator of the group. A username (@name)
+		cannot be asked."""
+		return who.isdigit() and call('getChatMember', json={'chat_id': self.where, 'user_id': who}).get('status') in (
 			'creator', 'administrator')
 
 	@staticmethod

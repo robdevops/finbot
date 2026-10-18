@@ -12,9 +12,9 @@ from lib import log
 from lib import net
 
 
-ADMINS_FOR = 300 # seconds a network's answer about who administers a chat is kept
+ADMINS_FOR = 300 # seconds a network's answer about who administers a chat counts, before it is asked again
 PRELOAD_PARALLEL = 2 # uploads to a network's preload chat in flight at once: each waits on the network's answer
-_administers = {} # (chat key, sender id) -> (when asked, whether they administer the chat), for ADMINS_FOR
+_administers = {} # (chat key, sender id) -> (when the network answered, whether they administer the chat)
 _administers_lock = threading.Lock() # presses and messages are taken on threads of their own
 MAYBE_SENT = object() # a read timeout on the request that posts a chart: it may have arrived, so no text copy follows
 
@@ -84,25 +84,19 @@ class Transport:
 
 	def administers(self, ids):
 		"""Whether the network makes any of these ids (inbound.Message.ids) an administrator of this chat: asked of the
-		network (is_administrator) and kept ADMINS_FOR seconds; a failure is logged and means no. A direct message has
-		no administrators."""
+		network (is_administrator) once in ADMINS_FOR seconds, and once more at once where the connection fails
+		(net.twice). A question that fails (logged) is never kept as an answer: the network's last answer stands, else
+		no, and the next message asks again."""
 		for who in ids:
 			with _administers_lock:
-				asked, answer = _administers.get((self.key, who), (0, False))
-			if time.time() - asked < ADMINS_FOR:
-				if answer:
-					return True
-				continue
-			try:
-				answer = bool(self.is_administrator(who))
-			except Exception as e:
-				log.warn(f"{self.name.capitalize()} cannot tell whether {who} administers {self.where}:", e)
-				return False
-			now = time.time()
-			with _administers_lock: # an answer past ADMINS_FOR is asked again, so it goes
-				for old in [old for old, (when, _) in _administers.items() if now - when >= ADMINS_FOR]:
-					del _administers[old]
-				_administers[self.key, who] = (now, answer)
+				answered, answer = _administers.get((self.key, who), (0, False))
+			if time.time() - answered >= ADMINS_FOR:
+				try:
+					answer = bool(net.twice(lambda: self.is_administrator(who)))
+					with _administers_lock:
+						_administers[self.key, who] = (time.time(), answer)
+				except Exception as e:
+					log.warn(f"{self.name.capitalize()} cannot tell whether {who} administers {self.where}:", e)
 			if answer:
 				return True
 		return False

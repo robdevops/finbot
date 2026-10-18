@@ -1182,9 +1182,9 @@ class Chats(FinbotCase):
 		self.assertEqual([jobs.is_dm(key) for key in ('telegram:55', 'slack:C1', 'discord:77', 'nowhere:1')],
 			[True, False, None, None])
 
-	def test_what_a_network_says_of_administrators_is_kept_a_while_then_forgotten(self):
-		"""What a network said about who administers a chat is kept ADMINS_FOR seconds, so it is asked once in that
-		time; an answer older than that goes when the next is noted, so that they do not pile up."""
+	def test_what_a_network_says_of_administrators_counts_a_while(self):
+		"""What a network said about who administers a chat counts ADMINS_FOR seconds, so it is asked once in that
+		time, and again after it."""
 		asked = []
 		self.patch(telegram_common.TelegramBot, 'is_administrator', lambda chat, who: asked.append(who) or True)
 		self.addCleanup(transports._administers.clear)
@@ -1192,9 +1192,42 @@ class Chats(FinbotCase):
 		chat = telegram_common.TelegramBot('-100')
 		self.assertTrue(chat.administers(('7',)) and chat.administers(('7',)))
 		self.assertEqual(asked, ['7'])
-		transports._administers['telegram:-200', '8'] = (time.time() - transports.ADMINS_FOR, True) # long ago
-		self.assertTrue(chat.administers(('9',)))
-		self.assertEqual(set(transports._administers), {('telegram:-100', '7'), ('telegram:-100', '9')})
+		transports._administers['telegram:-100', '7'] = (time.time() - transports.ADMINS_FOR, True) # long ago
+		self.assertTrue(chat.administers(('7',)))
+		self.assertEqual(asked, ['7', '7'])
+
+	def test_a_question_about_administrators_that_fails_is_never_kept_as_an_answer(self):
+		"""A question about who administers a chat whose connection fails is asked once more at once (a host closes a
+		connection left idle); failing again, or refused, the network's last answer stands, else no, and the next
+		message asks again: in a group, and in a direct message, which asks the groups finbot knows."""
+		asked, outcomes = [], []
+		def ask(chat, who):
+			"""The next outcome, an answer or a failure, of a question asked of the network."""
+			asked.append((chat.where, who))
+			outcome = outcomes.pop(0)
+			if isinstance(outcome, Exception):
+				raise outcome
+			return outcome
+		self.patch(telegram_common.TelegramBot, 'is_administrator', ask)
+		self.addCleanup(transports._administers.clear)
+		transports._administers.clear()
+		group, closed = telegram_common.TelegramBot('-100'), requests.ConnectionError('closed')
+		outcomes[:] = [closed, True]
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertTrue(group.administers(('7',))) # asked again at once
+			transports._administers['telegram:-100', '7'] = (time.time() - transports.ADMINS_FOR, True) # long ago
+			outcomes[:] = [closed, closed, False]
+			self.assertTrue(group.administers(('7',))) # what the network said last stands
+			self.assertFalse(group.administers(('7',))) # and the next message asks again
+			outcomes[:] = [RuntimeError('Forbidden'), True]
+			self.assertFalse(group.administers(('9',))) # a refusal is not asked again, and no answer is no
+			self.assertTrue(group.administers(('9',)))
+			self.patch(jobs, 'current', types.SimpleNamespace(chats={'telegram:-100', 'telegram:55'}))
+			outcomes[:] = [closed, closed, True]
+			self.assertFalse(telegram_common.TelegramBot('55').administers(('8',)))
+			self.assertTrue(telegram_common.TelegramBot('55').administers(('8',))) # the group asked again
+		self.assertEqual((len(asked), outcomes), (10, []))
+		self.assertIn('Telegram cannot tell whether 7 administers -100: closed', err.getvalue())
 
 	def test_a_chart_the_network_answers_without_a_body_was_sent(self):
 		"""A chart whose post the network answers without a body (Discord's empty answer) was sent: its report does
