@@ -16,10 +16,6 @@ from pathlib import Path
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
-STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'scheduler_catchup', 'sharesight_client_id', 'sharesight_client_secret',
-	'slackBotToken', 'slackAppToken', 'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret',
-	'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook', 'discordBotToken', 'discordOutgoingWebhook',
-	'discordPublicKey')
 SETTINGS_FILE = 'settings.conf'
 TEMPLATE = REPO_DIR / 'defaults' / SETTINGS_FILE # every key commented out at its default; finbot never reads it
 HOME_CHAT = ("each chat has its own jobs (/jobs), which post there as the bot, and an error that belongs to no chat"
@@ -100,27 +96,31 @@ def read_text(path):
 		raise ConfigError(f'cannot read {path}: {getattr(e, "strerror", None) or e}')
 
 
-def read_settings(path):
-	"""{key: value} of a settings.conf, None if there is none. Raises ConfigError for anything wrong with it."""
+def read_assignments(path, keys, other_keys, other_file):
+	"""{key: value} of a config file of KEY=value lines, each key one of `keys` or RETIRED (one of `other_keys` is said
+	to belong in other_file), or None where there is no such file. Raises ConfigError for anything wrong with it."""
 	text = read_text(path)
 	if text is None:
 		return None
 	values, errors = parse_assignments(text, path, lambda key: None if key in RETIRED else
-		key_problem(key, SETTING_KEYS, STARTUP_KEYS, 'finbot.env'))
+		key_problem(key, keys, other_keys, other_file))
 	if errors:
 		raise ConfigError(errors)
 	return values
+
+
+def read_settings(path):
+	"""{key: value} of a settings.conf, None if there is none. Raises ConfigError for anything wrong with it."""
+	return read_assignments(path, SETTING_KEYS, STARTUP_KEYS, 'finbot.env')
 
 
 def template_keys():
 	"""The keys that defaults/settings.conf sets: its lines that are not commented out, none as shipped. finbot never
 	reads the template, so a key set there does nothing; an unreadable template sets nothing either."""
 	try:
-		text = read_text(TEMPLATE) or ''
+		return list(parse_assignments(read_text(TEMPLATE) or '', TEMPLATE, lambda key: None)[0])
 	except ConfigError:
 		return []
-	return [line.partition('=')[0].strip() for line in text.splitlines()
-		if line.strip() and not line.lstrip().startswith('#')]
 
 
 def template_note(settings_path):
@@ -137,13 +137,9 @@ def template_note(settings_path):
 
 def read_startup_file(path):
 	"""{key: value} of a finbot.env, for checking it offline (the bot never reads this file). Raises ConfigError."""
-	text = read_text(path)
-	if text is None:
+	values = read_assignments(path, STARTUP_KEYS, SETTING_KEYS, SETTINGS_FILE)
+	if values is None:
 		raise ConfigError(f'{path} does not exist')
-	values, errors = parse_assignments(text, path, lambda key: None if key in RETIRED else
-		key_problem(key, STARTUP_KEYS, SETTING_KEYS, SETTINGS_FILE))
-	if errors:
-		raise ConfigError(errors)
 	return values
 
 
@@ -236,26 +232,28 @@ class _Reader:
 
 @dataclasses.dataclass(frozen=True)
 class Env:
-	"""The startup settings: finbot.env, which the launcher loads into the environment; fixed for the process."""
-	data_dir: str # state: each chat's jobs, the watchlist, seen trades, ratings, settings.conf
-	cache_dir: str # data_dir/cache
-	ip: str
-	port: int
-	scheduler_catchup: int # minutes: a run missed while the bot was down still fires if it was due this recently
-	telegramBotToken: str # '' when unset, like the rest below
-	telegramOutgoingWebhook: str
-	telegramOutgoingToken: str
-	slackBotToken: str
-	slackAppToken: str # xapp-: Socket Mode, Slack's pull mode (without slackOutgoingWebhook)
-	slackOutgoingWebhook: str
-	slackOutgoingToken: str
-	slackSigningSecret: str
-	discordBotToken: str
-	discordOutgoingWebhook: str # the interactions endpoint URL (http mode); unset, finbot keeps to the gateway
-	discordPublicKey: str # the app's key, which checks the signature of each interaction posted to the endpoint
-	sharesight_client_id: str # '' without Sharesight: a chat's reports then cover its watchlist alone
-	sharesight_client_secret: str
-	telegram_api: str # the Bot API's base URL for telegramBotToken ('' without one): a method's name follows it
+	"""The startup settings: finbot.env, which the launcher loads into the environment; fixed for the process. Each key
+	is a field with its default, read as its type says (startup_values), but those worked out from them (DERIVED)."""
+	ip: str = '127.0.0.1'
+	port: int = 5000
+	scheduler_catchup: int = 5 # minutes: a run missed while the bot was down still fires if it was due this recently
+	sharesight_client_id: str = '' # '' without Sharesight: a chat's reports then cover its watchlist alone
+	sharesight_client_secret: str = ''
+	slackBotToken: str = '' # '' when unset, like the rest below
+	slackAppToken: str = '' # xapp-: Socket Mode, Slack's pull mode (without slackOutgoingWebhook)
+	slackOutgoingToken: str = ''
+	slackOutgoingWebhook: str = ''
+	slackSigningSecret: str = ''
+	telegramBotToken: str = ''
+	telegramOutgoingToken: str = ''
+	telegramOutgoingWebhook: str = ''
+	discordBotToken: str = ''
+	discordOutgoingWebhook: str = '' # the interactions endpoint URL (http mode); unset, finbot keeps to the gateway
+	discordPublicKey: str = '' # the app's key, which checks the signature of each interaction posted to the endpoint
+	data_dir: str = str(REPO_DIR / 'var') # DATA_DIR, else systemd's STATE_DIRECTORY: each chat's jobs, the watchlist,
+	# seen trades, ratings, settings.conf; a relative one is in the checkout, wherever finbot starts
+	cache_dir: str = str(REPO_DIR / 'var' / 'cache') # data_dir/cache
+	telegram_api: str = '' # the Bot API's base URL for telegramBotToken ('' without one): a method's name follows it
 
 	@property
 	def settings_path(self):
@@ -263,34 +261,22 @@ class Env:
 		return self.data_dir + '/' + SETTINGS_FILE
 
 
+DERIVED = ('data_dir', 'cache_dir', 'telegram_api') # Env's fields worked out from its keys, not keys of their own
+STARTUP_KEYS = ('DATA_DIR', *(field.name for field in dataclasses.fields(Env) if field.name not in DERIVED))
+
+
 def startup_values(getenv):
-	"""The startup settings (finbot.env), computed from getenv(name, default). Raises ConfigError."""
+	"""The startup settings (finbot.env), computed from getenv(name, default): each key read as its Env field's type
+	says, its default the field's where it is unset; then those worked out from them. Raises ConfigError."""
 	r = _Reader(getenv)
-	data_dir = getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or 'var'
-	data_dir = str(REPO_DIR / data_dir) # a relative one is in the checkout, wherever finbot starts
-	token = (getenv('telegramBotToken') or '').rstrip('/')
-	env = Env(
-		data_dir=data_dir,
-		cache_dir=data_dir + '/cache',
-		ip=r.str('ip', '127.0.0.1'),
-		port=r.int('port', 5000),
-		scheduler_catchup=r.int('scheduler_catchup', 5),
-		telegramBotToken=r.str('telegramBotToken', ''),
-		telegramOutgoingWebhook=r.str('telegramOutgoingWebhook', ''),
-		telegramOutgoingToken=r.str('telegramOutgoingToken', ''),
-		slackBotToken=r.str('slackBotToken', ''),
-		slackAppToken=r.str('slackAppToken', ''),
-		slackOutgoingWebhook=r.str('slackOutgoingWebhook', ''),
-		slackOutgoingToken=r.str('slackOutgoingToken', ''),
-		slackSigningSecret=r.str('slackSigningSecret', ''),
-		discordBotToken=r.str('discordBotToken', ''),
-		discordOutgoingWebhook=r.str('discordOutgoingWebhook', ''),
-		discordPublicKey=r.str('discordPublicKey', ''),
-		sharesight_client_id=r.str('sharesight_client_id', ''),
-		sharesight_client_secret=r.str('sharesight_client_secret', ''),
-		telegram_api=f'https://api.telegram.org/bot{token}/' if token else '')
+	readers = {int: r.int, str: r.str}
+	keys = {field.name: readers[field.type](field.name, field.default) for field in dataclasses.fields(Env)
+		if field.name not in DERIVED}
 	r.check()
-	return env
+	data_dir = str(REPO_DIR / (getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or 'var'))
+	token = keys['telegramBotToken'].rstrip('/')
+	return Env(**keys, data_dir=data_dir, cache_dir=data_dir + '/cache',
+		telegram_api=f'https://api.telegram.org/bot{token}/' if token else '')
 
 
 @dataclasses.dataclass(frozen=True)

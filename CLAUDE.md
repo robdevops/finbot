@@ -29,7 +29,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   read), `defaults/settings.conf` (commented out at its default, `#key=value`: the template sets nothing, and finbot
   never reads it), and the settings table of `doc/configuration.md`. The tests catch a key
   missing from the template or a default that differs, but not the docs (no test may read README.md or `doc/*.md`: CI
-  skips the tests for a change to the docs alone).
+  skips the tests for a change to the docs alone). A new startup key is likewise an `Env` field with its default
+  (`STARTUP_KEYS` comes from them), a line of `defaults/finbot.env`, and a row of the keys table.
 - If Yahoo and Sharesight are unreachable (the cloud environment's network policy can block them), check behaviour
   against the offline fixtures in `tests/common.py`.
 - For a refactor, `util/record_outputs.py` (or `--against COMMIT`) records what every command, button and scheduled
@@ -179,8 +180,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `state.load_for(chat, name, default)` and `state.edit_for`. A chat's key is its network and id (`Transport.key`,
   `transports.chat_key`: `telegram:-1001234`), the same in both modes. `lib/watchlist.py`: each chat's watchlist (`tickers(chat)`), and
   `with_holdings(chat)`, the stocks a report in that chat covers; a report takes the chat from its destination.
-- `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.settings` (settings.conf, a new object on
-  each reload). `lib/jobs.py`: the scheduler: each chat's jobs, the default ones and those it added (`JOBS_FILE`, by
+- `lib/config.py`: `config.env` (finbot.env, fixed at start: `Env`) and `config.settings` (settings.conf, a new object
+  on each reload: `Settings`), each key a field read as its type says; both files and the template are read by one
+  KEY=value parser (`read_assignments`, `parse_assignments`). `lib/jobs.py`: the scheduler: each chat's jobs, the default ones and those it added (`JOBS_FILE`, by
   chat key: the defaults it switched off and those it removed, `'deleted'`, the jobs it added; a direct message's
   defaults start off, `'defaults': 'off'` with those switched on, and it is marked `'dm'`; `see` makes a chat known at
   its first command, a DM as `inbound.Message.dm` or `is_dm` says; `add`, `delete`, `toggle` (on, off, or flipped),

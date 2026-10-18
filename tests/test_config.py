@@ -22,14 +22,17 @@ def keys_in(path):
 
 
 class Tables(unittest.TestCase):
-	def test_the_two_key_sets_are_disjoint_and_cover_everything_config_reads(self):
-		"""Startup and setting keys do not overlap: config.py reads each startup key by name, and each setting
-		as a field of Settings."""
+	def test_the_two_key_sets_are_disjoint_and_each_startup_key_is_read(self):
+		"""Startup and setting keys do not overlap, and each startup key is read into Env as its field's type says (the
+		data dir from DATA_DIR): a key is a field, so none can be listed and never read."""
 		self.assertEqual(set(config.STARTUP_KEYS) & set(config.SETTING_KEYS), set())
-		source = (REPO / 'lib' / 'config.py').read_text()
-		read = set(re.findall(r"""(?:\br\.\w+|getenv)\(\s*['"]([A-Za-z_]+)['"]""", source))
-		read -= {'STATE_DIRECTORY'} # systemd's own variable, a source for DATA_DIR
-		self.assertEqual(read, set(config.STARTUP_KEYS))
+		given = {key: '7' if key in ('port', 'scheduler_catchup') else f'{key}-value' for key in config.STARTUP_KEYS}
+		env = config.startup_values(lambda name, default=None: given.get(name, default))
+		self.assertEqual({key: getattr(env, key) for key in config.STARTUP_KEYS if key != 'DATA_DIR'},
+			{key: 7 if value == '7' else value for key, value in given.items() if key != 'DATA_DIR'})
+		self.assertEqual((env.data_dir, env.cache_dir), (str(REPO / 'DATA_DIR-value'),
+			str(REPO / 'DATA_DIR-value' / 'cache')))
+		self.assertEqual(env.telegram_api, 'https://api.telegram.org/bottelegramBotToken-value/')
 
 	def test_unset_settings_take_their_defaults(self):
 		"""An unset setting takes its field's default, as it is: reading tidies nothing away."""
