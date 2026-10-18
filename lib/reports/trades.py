@@ -99,7 +99,7 @@ def report(service, trades, days, interactive):
 	def line(trade):
 		"""One trade: who, bought or sold (linked to Sharesight), how much, and the stock."""
 		action, emoji = ('bought', '💸') if trade.bought else ('sold', '🤑')
-		url = f"https://portfolio.sharesight.com/holdings/{trade.holding_id}/dashboard/transactions"
+		url = links.holding_url(trade.holding_id, 'transactions')
 		return ' '.join([emoji, trade.portfolio, service.link(url, action), trade.currency, f'{trade.value}',
 			links.finance_link(trade.symbol, trade.market, service), markets.flag_from_market(trade.market)])
 	dates = sorted({trade.date for trade in trades})

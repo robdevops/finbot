@@ -3,6 +3,7 @@ from lib import answer
 from lib import config
 from lib import delivery
 from lib import formats
+from lib import links
 from lib import render
 from lib import watchlist
 from lib import yahoo
@@ -37,7 +38,7 @@ def report(service, tickers, market_data, threshold, specific_stock):
 		if short_percent > threshold or specific_stock:
 			code = ticker.split('.')[0]
 			if ticker.endswith('.AX'):
-				url = 'https://www.shortman.com.au/stock?q=' + code
+				url = links.shortman_url(code)
 			else:
 				url = 'https://finance.yahoo.com/quote/' + ticker + '/key-statistics?p=' + ticker
 			title = formats.short_name(market_data[ticker]['profile_title'])

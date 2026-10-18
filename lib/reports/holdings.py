@@ -11,8 +11,7 @@ from lib import yahoo
 
 def holding_line(holding, service, text=None):
 	"""'🇦🇺 Title (CODE)' for a Sharesight holding, CODE (or `text`) linking to the holding on Sharesight."""
-	link = service.link(f"https://portfolio.sharesight.com/holdings/{holding['holding_id']}/dashboard",
-		holding['code'] if text is None else text)
+	link = service.link(links.holding_url(holding['holding_id']), holding['code'] if text is None else text)
 	name = formats.short_name(formats.transform_title(holding['name']))
 	return f"{markets.flag_from_market(holding['market_code'])} {name} ({link})"
 
@@ -58,12 +57,6 @@ def group_of(holding, by):
 		'currency': holding.get('currency_code'), 'market': market}[by]
 	return label or 'Unclassified'
 
-def flag(letters):
-	"""The flag of a country by its two letters ('AU'), with a space after it, where they are two; else nothing."""
-	if len(letters) != 2 or not letters.isalpha():
-		return ''
-	return ''.join(chr(ord('🇦') + ord(letter) - ord('A')) for letter in letters.upper()) + ' '
-
 def _groups(portfolio, by):
 	"""The holdings of a portfolio with a value, by `by` (a value of GROUPS): {group: [(code, value), ...]}."""
 	groups = {}
@@ -98,8 +91,8 @@ def prepare_treemap(portfolio_name, by, service, max_groups=8):
 	total = sum(value for _, held in rows for _, value in held)
 	title = f"{name} treemap by {by}"
 	payload = [service.bold(title)]
-	payload += [f"{flag(label) if by == 'country' else ''}{label}: {sum(value for _, value in held) / total * 100:.1f}%"
-		for label, held in rows]
+	shown = lambda label: f"{markets.flag(label)} {label}".lstrip() if by == 'country' else label # a country's flag
+	payload += [f"{shown(label)}: {sum(value for _, value in held) / total * 100:.1f}%" for label, held in rows]
 	count = sum(len(held) for held in groups.values())
 	subtitle = f"{_noun(by, len(groups))}, {count} {'holding' if count == 1 else 'holdings'}"
 	return payload, render.Chart('treemap', title, subtitle, tuple((label, tuple(held)) for label, held in rows))

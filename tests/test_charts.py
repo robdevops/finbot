@@ -334,6 +334,30 @@ class ReportChartInputs(FinbotCase):
 		self.assertEqual((len(calls), first[:4]), (1, b'\x89PNG'))
 		self.assertEqual(first, second)
 
+	def test_a_drawn_chart_is_kept_until_cleanup(self):
+		"""A chart drawn is read back however long ago it was drawn (a spec's image never goes stale): it was drawn
+		again once older than cache_seconds."""
+		calls, real = [], render.RENDERERS['treemap']
+		self.patch(render, 'RENDERERS', {**render.RENDERERS, 'treemap': lambda chart: calls.append(chart) or
+			real(chart)})
+		chart = render.Chart('treemap', f'T {time.time()}', rows=(('G', (('a', 1.0), ('b', 2.0))),))
+		render.draw(chart)
+		[drawn] = Path(config.env.cache_dir).glob('finbot_chart_*.png')
+		old = time.time() - config.settings.cache_seconds - 86400
+		os.utime(drawn, (old, old))
+		render.draw(chart)
+		self.assertEqual(len(calls), 1)
+
+	def test_a_label_too_wide_is_cut_short_to_fit(self):
+		"""A treemap's group name too wide for its block is cut short with an ellipsis, measured as it is drawn; where
+		not even a letter fits, there is none (_Canvas.fitted)."""
+		canvas = render._Canvas(10, 10, '#000000')
+		wide = canvas.measure('Packaged Software', 8, bold=True)
+		self.assertEqual(canvas.fitted('Packaged Software', 8, wide, bold=True), 'Packaged Software')
+		cut = canvas.fitted('Packaged Software', 8, wide / 2, bold=True)
+		self.assertTrue(cut.endswith('…') and canvas.measure(cut, 8, bold=True) <= wide / 2, cut)
+		self.assertIsNone(canvas.fitted('Packaged Software', 8, 5, bold=True))
+
 	def test_movers_top_lists_best_first_then_worst(self):
 		""".movers top: the ten best, best first, a spacer, then the ten worst, worst first, as in the caption."""
 		chart = self.run_report(lambda: self.command('.movers top 7d'))

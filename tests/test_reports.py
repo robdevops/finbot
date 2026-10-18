@@ -172,7 +172,7 @@ class ReportFunctions(FinbotCase):
 		"""group_of: a holding's sector, industry, its market's country (its letters), currency or market; a
 		holding without one is Unclassified; .treemap takes each as a word, in the plural too; the caption's country
 		lines have the flag the chart's font cannot draw."""
-		self.assertEqual((holdings.flag('au'), holdings.flag('Other'), holdings.flag('')), ('🇦🇺 ', '', ''))
+		self.assertEqual((markets.flag('au'), markets.flag('Other'), markets.flag('')), ('🇦🇺', '', ''))
 		holding = {'market_code': 'ASX', 'currency_code': 'AUD', 'sector_classification_name': 'Energy',
 			'industry_classification_name': 'Oil'}
 		self.assertEqual([holdings.group_of(holding, by) for by in holdings.GROUPS.values()],

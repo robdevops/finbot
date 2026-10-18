@@ -33,7 +33,7 @@ def report(service, past_days, portfolio_select=None):
 	benchmarks."""
 	rows = [] # (percent or None, line, chart label), one list for the caption and the chart, in the same order
 	for portfolio, percent in sorted(gather(past_days, portfolio_select), key=lambda each: each[0].name.casefold()):
-		link = service.link(f"https://portfolio.sharesight.com/portfolios/{portfolio.id}", portfolio.name)
+		link = service.link(links.portfolio_url(portfolio.id), portfolio.name)
 		line = f"{formats.get_emoji(percent)} {link} {formats.signed_percent(percent, 2)}"
 		rows.append((percent, line, portfolio.name))
 	for ticker, market, text in BENCHMARKS:

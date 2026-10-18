@@ -131,6 +131,13 @@ def code(name):
 	return 'NASDAQ' if name.startswith('Nasdaq') else 'NYSE' if name.startswith('NYSE') else name
 
 
+def flag(letters):
+	"""The flag of a country by its two letters ('AU'); '' where they are not two letters."""
+	if len(letters) != 2 or not letters.isalpha():
+		return ''
+	return ''.join(chr(ord('🇦') + ord(letter) - ord('A')) for letter in letters.upper())
+
+
 def flag_from_market(name):
 	"""The flag of an exchange by any name it goes by (see code), '' when unknown."""
 	market = MARKETS.get(code(name))

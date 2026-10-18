@@ -156,9 +156,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   command's first view (`worker.chart_reply`) and for each press, its period when none is typed `buttons.DEFAULT_PERIOD`.
 - `lib/dialects.py`: each network's markup and what a message holds: its text, a chart's caption, its rows of buttons
   (`button_rows`, from which the menus and pickers size their pages: `room()`). `lib/markets.py`: one table by market code (flag,
-  currency, Yahoo suffix, Google code; Sharesight's codes, so TSE is Toronto), and `code(name)` for any name an exchange
-  goes by. `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`:
-  every chart, `Chart` specs and `draw()`.
+  currency, Yahoo suffix, Google code; Sharesight's codes, so TSE is Toronto), `code(name)` for any name an exchange
+  goes by, and `flag(letters)` a country's. `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`:
+  stock links, and every other site's page a report links to (Sharesight's portfolios and holdings, Short Man's).
+  `lib/render.py`: every chart, `Chart` specs and `draw()`.
 - `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, each request through `net.answer`
   (an outage, `requests.RequestException` alone, a redacted RuntimeError; a 429 with Retry-After waited out once) and
   `net.json_answer` (a body that is not JSON, a RuntimeError). Yahoo's, Sharesight's and Short Man's answers
@@ -238,13 +239,15 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   settings exist). Everything goes to stderr: systemd discards stdout (`StandardOutput=null`), so the bot and its reports
   never print there (a test checks); only the util/ tools, run by hand, do.
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
-  charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's).
+  charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's), kept until
+  cleanup: a spec's image never goes stale.
 - A chart renderer in `lib/render.py` takes its `Chart` and is listed in `RENDERERS` by kind; it gets `@_drawn`, which
   draws one chart at a time (Pillow's fonts are shared by every thread). A chart is drawn on a `_Canvas`: its shapes at
   twice its size and reduced (at its own size, `scale=1`, where every edge is upright: bars, the treemap), then its
   text at its own size, above every shape, in DejaVu Sans from the system's fonts, its sizes in points as matplotlib's
-  were; an opaque colour goes through the plain pen (blending is four times slower), and every chart is saved as a PNG
-  of 256 colours, each colour drawn in kept exact (`_exact`).
+  were, its widths measured as drawn (`measure`; `fitted` cuts a label short, `fit` shrinks it); an opaque colour goes
+  through the plain pen (blending is four times slower), and every chart is saved as a PNG of 256 colours, each colour
+  drawn in kept exact (`_exact`).
 - A new command: a `Command` in `COMMANDS` (its names, and what its arguments may hold), whose usage, section and
   buttons make its `.help` lines and keyboard buttons, and the command list of `doc/commands.md`. A job may run every
   command of `.help`, so one that changes anything takes `job=False`.

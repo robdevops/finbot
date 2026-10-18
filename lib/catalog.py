@@ -9,13 +9,13 @@ import re
 
 from lib import config
 from lib import formats
+from lib import markets
 from lib import when
 from lib.reports import message
 
 SYDNEY, NEW_YORK, HONG_KONG, LONDON = 'Australia/Sydney', 'America/New_York', 'Asia/Hong_Kong', 'Europe/London'
 MORNING = '08:30' # by Sydney's clock: the weekly and longer reports, and the reminders
 TUE_SAT = ['tue', 'wed', 'thu', 'fri', 'sat'] # the mornings after a US session
-FLAGS = {'AU': '🇦🇺'} # what {flag} becomes in a reminder for one country
 REMINDERS = 'finbot_reminders.json' # the reminders: DATA_DIR's copy, else the one shipped in defaults/ (data_file)
 SHARESIGHT = ('trades', 'performance', 'holdings', 'treemap', 'who') # the actions that report on Sharesight
 PERIODIC = ('performance', 'movers') # the reports whose period follows how often they run
@@ -68,8 +68,8 @@ def periodic(frequency, days):
 def reminder(entry):
 	"""A reminder's item (a message job), from an entry of REMINDERS: its key, its date ('MM-DD' each year, 'YYYY-MM-DD'
 	once; at 8:30am Sydney) and its lines (as a message job takes them); where it is for one country, that country,
-	whose flag {flag} becomes; and the name .jobs shows, where it is not its first line. Raises ValueError, saying why,
-	for an entry that cannot be one."""
+	whose flag {flag} becomes (markets.flag); and the name .jobs shows, where it is not its first line. Raises
+	ValueError, saying why, for an entry that cannot be one."""
 	fields = ('key', 'date', 'lines', 'country', 'name')
 	if not isinstance(entry, dict) or set(entry) - set(fields):
 		raise ValueError(f'a reminder holds {", ".join(fields)}, and nothing else')
@@ -86,7 +86,7 @@ def reminder(entry):
 	if schedule.next_after(datetime.datetime(2000, 1, 1, tzinfo=when.UTC)) is None:
 		raise ValueError(f'{key}: there is no {date}')
 	return Item(key, name or message_name(lines, country), 'message',
-		tuple(line.replace('{flag}', FLAGS.get(country, '')) for line in lines), schedule, country)
+		tuple(line.replace('{flag}', markets.flag(country or '')) for line in lines), schedule, country)
 
 
 _reminders = None # the reminders' items, as last read well (read_reminders)
