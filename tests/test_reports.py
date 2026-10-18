@@ -1222,12 +1222,12 @@ class Pickers(FinbotCase):
 		made = lambda label, act, **changes: (label, act, changes)
 		found = ['A', 'B', 'C', 'D']
 		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm'),
-			[('a', 'm0', {'mask': 0b100, 'tone': ''}), ('B', 'm0', {'mask': 0b111, 'tone': ''}),
+			[('a', 'm0', {'mask': 0b100, 'tone': ''}), ('B', 'm0', {'mask': 0b111}),
 			('c', 'm0', {'mask': 0b001, 'tone': ''})])
-		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, str.lower, 'n', tones=('on', 'off')),
-			[('D', 'n1', {'mask': 0b1101, 'tone': 'on'})])
-		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm', full=True, tones=('', 'on')),
-			[('a', 'm0', {'mask': 0b100, 'tone': 'on'}), ('B', 'f0', {'tone': ''}),
+		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, str.lower, 'n', ticked_tone='off'),
+			[('D', 'n1', {'mask': 0b1101})])
+		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm', full=True, ticked_tone='on'),
+			[('a', 'm0', {'mask': 0b100, 'tone': 'on'}), ('B', 'f0', {}),
 			('c', 'm0', {'mask': 0b001, 'tone': 'on'})])
 		self.assertEqual([pick.page_buttons(page, 3, 'm', made) for page in range(3)],
 			[[('>', 'm1', {})], [('<', 'm0', {}), ('>', 'm2', {})], [('<', 'm1', {})]])
@@ -1245,10 +1245,10 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(rows), [['T1', 'T2', 'T3'], ['Delete', 'Cancel']])
 		self.assertFalse(any(line.startswith('<s>') for line in lines))
 		kind, lines, rows = self.tap('T2')
-		self.assertEqual(self.labels(rows), [['T1', about.struck('T2'), 'T3'], ['Delete', 'Cancel']])
+		self.assertEqual(self.labels(rows), [['T1', buttons.struck('T2'), 'T3'], ['Delete', 'Cancel']])
 		struck = [line for line in lines if line.startswith('<s>')]
 		self.assertEqual([('Co T2' in line, line.endswith('</s>')) for line in struck], [(True, True)])
-		kind, lines, rows = self.tap(about.struck('T2'))
+		kind, lines, rows = self.tap(buttons.struck('T2'))
 		self.assertFalse(any(line.startswith('<s>') for line in lines))
 		self.tap('T1')
 		kind, lines, rows = self.tap('Cancel')
@@ -1550,7 +1550,7 @@ class Pickers(FinbotCase):
 			watchlist.add('telegram:55', ticker)
 		lines, rows = worker.watchlist_screen(TELEGRAM, 'telegram:55', 0b010)
 		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows],
-			[[('T1', ''), (about.struck('T2'), 'off'), ('T3', '')], [('Delete', ''), ('Cancel', '')]])
+			[[('T1', ''), (buttons.struck('T2'), 'off'), ('T3', '')], [('Delete', ''), ('Cancel', '')]])
 		self.assertEqual([button.tone for row in worker.watchlist_screen(TELEGRAM, 'telegram:55', 0, editing=False)[1]
 			for button in row], [''])
 		lines, rows = pick.screen(TELEGRAM, 'c', ['A1', 'B1', 'C1'], '0', 'w', pick.pack([1]), 0b010, 'm')

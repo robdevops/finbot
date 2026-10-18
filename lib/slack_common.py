@@ -378,9 +378,8 @@ def section_blocks(text):
 def button_style(button):
 	"""The Block Kit style of a button: danger (red) for a toggle that is off, primary (green) for one that is on or
 	the one shown now; none for the rest."""
-	if button.tone == buttons.OFF:
-		return {'style': 'danger'}
-	return {'style': 'primary'} if button.active or button.tone == buttons.ON else {}
+	style = {buttons.OFF: 'danger', buttons.ON: 'primary', buttons.ACTIVE: 'primary'}.get(buttons.look(button))
+	return {'style': style} if style else {}
 
 
 def actions_block(row):

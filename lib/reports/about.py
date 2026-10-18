@@ -11,6 +11,7 @@ from lib import formats
 from lib import jobs
 from lib import sharesight
 from lib import when
+from lib.reports import pick
 
 HEADINGS = {'top': 'Jobs here', 'on': 'Tap a job to enable it', 'off': 'Tap a job to disable it',
 	'del': 'Tap a job to delete it', 'run': 'Tap a job to run it now', 'edit': 'Tap a job to enable or disable it'}
@@ -158,16 +159,16 @@ def screen_buttons(screen, page, pages, shown, crc, own):
 		rows = [[buttons.menu_button(label, kind, args, crc) for label, kind, args in possible]]
 		nav = []
 	elif screen == 'edit':
-		tapped = [buttons.menu_button(f'{number} {job.name}' if job.on else struck(f'{number} {job.name}'), screen,
-			[page, number], crc, tone(job)) for number, job, _ in shown]
-		rows = [tapped[i:i + JOB_ROW] for i in range(0, len(tapped), JOB_ROW)]
+		tapped = [buttons.menu_button(label if job.on else buttons.struck(label), screen, [page, number], crc,
+			buttons.tone(job.on)) for number, job, _ in shown if (label := f'{number} {job.name}')]
+		rows = pick.chunks(tapped, JOB_ROW)
 		nav = [buttons.menu_button('OK', 'top', [0], crc)]
 		if not all(job.on for job in own):
 			nav.append(buttons.menu_button('Delete disabled jobs', screen, [page, 'ask'], crc))
 	else:
 		tapped = [buttons.menu_button(f'{number} {job.name}', screen, [page, number], crc,
-			tone(job) if screen in ('on', 'off') else '') for number, job, _ in shown if acts(screen, job)]
-		rows = [tapped[i:i + JOB_ROW] for i in range(0, len(tapped), JOB_ROW)]
+			buttons.tone(job.on) if screen in ('on', 'off') else '') for number, job, _ in shown if acts(screen, job)]
+		rows = pick.chunks(tapped, JOB_ROW)
 		nav = [buttons.menu_button('Cancel', 'top', [0], crc)]
 		if screen in EVERY and any(acts(screen, job) for job in own):
 			nav.insert(0, buttons.menu_button(EVERY[screen], screen, [page, 'all'], crc))
@@ -176,14 +177,6 @@ def screen_buttons(screen, page, pages, shown, crc, own):
 	if page < pages - 1:
 		nav.append(buttons.menu_button('More ▶', screen, [page + 1], crc))
 	return rows + ([nav] if nav else [])
-
-def tone(job):
-	"""A job's toggle button tone: plain when it is on, red when it is off."""
-	return '' if job.on else buttons.OFF
-
-def struck(text):
-	"""The text with a line through it, for a button's label, which has no markup."""
-	return ''.join(char + '\u0336' for char in text)
 
 def delete_disabled_screen(service, chat, page=0):
 	"""Delete disabled jobs' question, for a chat (by its key): whether to delete the jobs that are off, listed, with

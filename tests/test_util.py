@@ -145,6 +145,16 @@ class Formatting(unittest.TestCase):
 		with self.assertRaises(TypeError):
 			formats.date_range_english(None, end) # callers must pass a period
 
+
+	def test_a_buttons_look_is_its_tone_else_active_and_a_toggle_is_red_only_when_off(self):
+		"""buttons.look is a toggle's tone, else ACTIVE for the button shown now, else nothing; buttons.tone is plain
+		for a toggle that is on and OFF for one that is off; buttons.struck draws a line through a label."""
+		look = lambda **kwargs: buttons.look(buttons.Button('x', 'y', **kwargs))
+		self.assertEqual([look(), look(active=True), look(tone=buttons.ON), look(active=True, tone=buttons.OFF)],
+			['', buttons.ACTIVE, buttons.ON, buttons.OFF])
+		self.assertEqual([buttons.tone(True), buttons.tone(False)], ['', buttons.OFF])
+		self.assertEqual(buttons.struck('ab'), 'a\u0336b\u0336')
+
 	def test_button_data_reads_back(self):
 		"""A button's data says what was pressed: a period button of a known kind and period (as keyboard() makes
 		them), a .jobs menu's button of a known screen made of plain letters and digits, and nothing for anything else:

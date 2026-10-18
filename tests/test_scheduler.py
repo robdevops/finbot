@@ -836,7 +836,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual((lines[0], rows), ('<b>Tap a job to enable or disable it</b>', [['1 rating',
 			'2 movers close US', '3 trades'], ['OK']]))
 		lines, rows, data = self.press(data['1 rating'])
-		off = about.struck('1 rating')
+		off = buttons.struck('1 rating')
 		self.assertEqual((lines[0], rows), ('Disabled 1. rating', [[off, '2 movers close US', '3 trades'],
 			['OK', 'Delete disabled jobs']]))
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['off'], ['rating'])
