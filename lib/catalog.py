@@ -2,21 +2,17 @@
 what it reports on, never when: its schedule (lib/when.py) says that. For performance and movers the period follows how
 often the item runs (period_args): quarterly, 90 days. The market reports run in their market's zone, so that they keep
 to its session through its daylight saving: pre-market at 7:15am New York, mid-session about halfway through, the close
-30 minutes after it. The reminders come from a data file (REMINDERS), each at 8:30am Sydney on its date."""
+30 minutes after it. The reminders (message jobs) run at 8:30am Sydney on their dates, some only where the country_code
+setting is their country; a chat adds its own with .jobs add reminder."""
 import dataclasses
-import datetime
-import re
 
-from lib import config
 from lib import formats
 from lib import markets
 from lib import when
-from lib.reports import message
 
 SYDNEY, NEW_YORK, HONG_KONG, LONDON = 'Australia/Sydney', 'America/New_York', 'Asia/Hong_Kong', 'Europe/London'
 MORNING = '08:30' # by Sydney's clock: the weekly and longer reports, and the reminders
 TUE_SAT = ['tue', 'wed', 'thu', 'fri', 'sat'] # the mornings after a US session
-REMINDERS = 'finbot_reminders.json' # the reminders: DATA_DIR's copy, else the one shipped in defaults/ (data_file)
 SHARESIGHT = ('trades', 'performance', 'holdings', 'treemap', 'who') # the actions that report on Sharesight
 PERIODIC = ('performance', 'movers') # the reports whose period follows how often they run
 PERIOD_DAYS = {'daily': 1, 'weekdays': 1, 'weekly': 7, 'monthly': 30, 'quarterly': 90, 'bi-annual': 180, 'annual': 365}
@@ -65,59 +61,12 @@ def periodic(frequency, days):
 		tuple(period_args(action, schedule)), schedule) for action in PERIODIC)
 
 
-def reminder(entry):
-	"""A reminder's item (a message job), from an entry of REMINDERS: its key, its date ('MM-DD' each year, 'YYYY-MM-DD'
-	once; at 8:30am Sydney) and its lines (as a message job takes them); where it is for one country, that country,
-	whose flag {flag} becomes (markets.flag); and the name .jobs shows, where it is not its first line. Raises
-	ValueError, saying why, for an entry that cannot be one."""
-	fields = ('key', 'date', 'lines', 'country', 'name')
-	if not isinstance(entry, dict) or set(entry) - set(fields):
-		raise ValueError(f'a reminder holds {", ".join(fields)}, and nothing else')
-	key, date, lines, country, name = (entry.get(field) for field in fields)
-	if not (isinstance(key, str) and key and all(isinstance(value, (str, type(None))) for value in (country, name))):
-		raise ValueError('its key, and any country or name, are text')
-	if not (isinstance(date, str) and re.fullmatch(r'(\d{4}-)?\d\d-\d\d', date)):
-		raise ValueError(f'{key}: its date is MM-DD (each year) or YYYY-MM-DD (once), not {date!r}')
-	try:
-		message.job(lines if isinstance(lines, list) else [])
-		schedule = at({'date': date} if len(date) == 10 else {'day': int(date[3:]), 'months': [int(date[:2])]})
-	except ValueError as e:
-		raise ValueError(f'{key}: {e}') from None
-	if schedule.next_after(datetime.datetime(2000, 1, 1, tzinfo=when.UTC)) is None:
-		raise ValueError(f'{key}: there is no {date}')
+def message(key, date, lines, country=None, name=None):
+	"""A reminder (a message job) at 8:30am Sydney on its date ('MM-DD') each year; where it is for one country, with
+	that country's flag for {flag} (markets.flag); named after its first line unless it has a name."""
 	return Item(key, name or message_name(lines, country), 'message',
-		tuple(line.replace('{flag}', markets.flag(country or '')) for line in lines), schedule, country)
-
-
-_reminders = None # the reminders' items, as last read well (read_reminders)
-
-def read_reminders():
-	"""Read the reminders afresh (REMINDERS: DATA_DIR's copy, else the shipped one), each entry a reminder(), for
-	items(): at start, and on a reload (SIGHUP). Raises config.ConfigError naming the file and the entry for one that
-	does not read, and then the reminders read before stay."""
-	global _reminders
-	path = config.data_file(REMINDERS)
-	try:
-		entries = config.data_json(REMINDERS, [])
-		if not isinstance(entries, list):
-			raise ValueError('it is a list of reminders')
-		found = []
-		for number, entry in enumerate(entries, 1):
-			try:
-				found.append(reminder(entry))
-			except ValueError as e:
-				raise ValueError(f'reminder {number}: {e}') from None
-		if len({item.key for item in found} | {item.key for item in ITEMS}) < len(found) + len(ITEMS):
-			raise ValueError("a key that is another reminder's, or another default job's")
-	except (OSError, ValueError) as e: # one that does not parse: a JSONDecodeError
-		raise config.ConfigError(f'{path}: {e}')
-	_reminders = tuple(found)
-	return _reminders
-
-
-def reminders():
-	"""The reminders' items, as last read (read_reminders), and read now where they have not been."""
-	return read_reminders() if _reminders is None else _reminders
+		tuple(line.replace('{flag}', markets.flag(country or '')) for line in lines),
+		at({'day': int(date[3:]), 'months': [int(date[:2])]}), country)
 
 
 def message_name(lines, country=None, size=56):
@@ -127,6 +76,23 @@ def message_name(lines, country=None, size=56):
 		first = first[:size].rsplit(' ', 1)[0] + ' …'
 	return first + (f' ({country})' if country else '')
 
+
+EOFY_CHECKLIST = (
+	"💸 Realise capital gains/losses by EOFY June 30{flag}",
+	"",
+	"💰 Finalise any deductables by EOF June 30: {flag}",
+	"• donations*",
+	"• Super contributions†",
+	"• work expenses‡",
+	"• investment subscriptions§",
+	"",
+	"_* Organisation must be [DGR-registered](https://abr.business.gov.au/Tools/DgrListing)_",
+	"_† Allow transfer time for Super, as contributions can only be deducted for the year they're received. Stake"
+	" users: see [note about XX PCC in transaction description](https://hellostake.com/au/support/stake-super/"
+	"employer-and-personal-contributions/33442327233305#h_01JQAPN9A6ZM41NZKP6XZWN1KP)_",
+	"_‡ See [eligible work expenses](https://www.ato.gov.au/individuals-and-families/"
+	"income-deductions-offsets-and-records/deductions-you-can-claim)_",
+	"_§ Must relate directly to specific trades and gains/income (e.g. not general finance news)_")
 
 ITEMS = (
 	Item('trades', 'trades', 'trades', (),
@@ -150,14 +116,22 @@ ITEMS = (
 	*periodic('quarterly', {'day': 2, 'months': [1, 4, 7, 10]}),
 	*periodic('bi-annual', {'day': 2, 'months': [1, 7]}),
 	*periodic('annual', {'day': 2, 'months': [1]}),
+	message('message-eofy-world', '03-31', ['🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦']),
+	message('message-eofy-checklist', '06-23', EOFY_CHECKLIST, 'AU'),
+	message('message-eofy-au', '06-30', ['🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰']),
+	message('message-intent-to-claim', '07-07', ["✍️ Submit 'Notice of Intent to Claim' for any post-tax Super"
+		" contributions. The fund must acknowledge them before you lodge your tax return{flag}"], 'AU'),
+	message('message-birthday', '08-18', ["It's my {years since 2022-08-18} birthday! 🥳"], name="finbot's birthday"),
+	message('message-tax-due-soon', '10-25', ['😓 Self-service individual tax returns are due Oct 31{flag}'], 'AU'),
+	message('message-tax-due-today', '10-31', ['😰 Self-service individual tax returns are due today{flag}'], 'AU'),
 )
 
 
 def items(country, sharesight=True):
-	"""The default jobs where the country_code setting is country, the reports' (ITEMS), then the reminders: every item
-	but those for another country, and where Sharesight is not set up (sharesight false), those that report on it."""
-	return [item for item in (*ITEMS, *reminders()) if item.country in (None, country) and (sharesight or
-		item.action not in SHARESIGHT)]
+	"""The default jobs where the country_code setting is country: every item but those for another country, and
+	where Sharesight is not set up (sharesight false), those that report on it."""
+	return [item for item in ITEMS if item.country in (None, country) and (sharesight or item.action not in
+		SHARESIGHT)]
 
 
 def matching(action, args, schedule, country):

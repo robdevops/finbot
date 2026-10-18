@@ -165,7 +165,6 @@ class SchedulerBase(FinbotCase):
 		super().setUp()
 		self.patch(jobs, 'SYSTEM', ())
 		self.patch(catalog, 'ITEMS', ())
-		self.patch(catalog, '_reminders', ()) # no reminder either
 		self.store(CHAT, 'trades every 20 mins weekdays')
 		self.clock = Clock(at(13, 21, 3))
 		self.ran, self.dests = [], []
@@ -201,7 +200,6 @@ class LoadsTakeTurns(SchedulerBase):
 		"""A job switched off while another load is reading the jobs (an older list) is off once both are done: the
 		second load waits for the first, so the first cannot swap its older list in after it."""
 		self.patch(catalog, 'ITEMS', FEW)
-		self.patch(catalog, '_reminders', ()) # no reminder either
 		s = self.scheduler()
 		read = s.stored_chats
 		reading, release = threading.Event(), threading.Event()
@@ -531,7 +529,6 @@ class ChatBase(SchedulerBase):
 		"""Chat telegram:55 with the trades job it added, the scheduler running, and what is posted noted."""
 		super().setUp()
 		self.patch(catalog, 'ITEMS', FEW)
-		self.patch(catalog, '_reminders', ()) # no reminder either
 		self.s = self.scheduler()
 		self.patch(jobs, 'current', self.s)
 		self.toasts, self.edits = [], []
@@ -1104,7 +1101,6 @@ class JobsMenu(ChatBase):
 			self.assertEqual(len(data), len(set(data)), data)
 			self.assertTrue(all(len(each.encode()) <= buttons.MAX_CALLBACK_BYTES for each in data))
 		self.patch(catalog, 'ITEMS', ITEMS)
-		self.patch(catalog, '_reminders', None) # and the reminders, read from the file
 		for minute in range(29):
 			self.s.add(CHAT, 'message', [f'reminder number {minute} ' * 4], when.parse(f'daily at 1:{minute:02d}',
 				'UTC'))

@@ -449,15 +449,6 @@ class Startup(unittest.TestCase):
 		self.assertEqual(out.returncode, 1)
 		self.assertIn('future_days is a setting', out.stderr)
 
-	def test_the_bot_refuses_to_start_with_a_reminders_file_that_does_not_read(self):
-		"""bot.py exits 1 when the data dir's reminders file has an entry that cannot be a reminder, naming the file."""
-		data = common.temp_dir(self)
-		Path(data, 'finbot_reminders.json').write_text('[{"key": "x", "date": "13-01", "lines": ["hi"]}]')
-		out = subprocess.run([sys.executable, 'bot.py'], cwd=REPO, capture_output=True, text=True, timeout=60,
-			env={**os.environ, 'DATA_DIR': data})
-		self.assertEqual(out.returncode, 1)
-		self.assertIn(f'ERROR config: {data}/finbot_reminders.json: reminder 1: x: ', out.stderr)
-
 	def test_the_telegram_api_is_the_bot_tokens(self):
 		"""Telegram's Bot API base is made from the bot token (a trailing slash dropped), and is empty without one."""
 		for token, api in (('123:abc', 'https://api.telegram.org/bot123:abc/'), ('123:abc/',
@@ -551,8 +542,8 @@ class SigHup(unittest.TestCase):
 			config.reload()
 
 	def test_reload_all_reloads_settings_and_keeps_them_on_an_error(self):
-		"""SIGHUP reloads settings, then the jobs, which they make (country_code, the reminders); on an error (logged)
-		the running settings stay, and the bot survives it."""
+		"""SIGHUP reloads settings, then the jobs, which follow their country_code; on an error (logged) the running
+		settings stay, and the bot survives it."""
 		file = Path(common.temp_dir(self), 'settings.conf')
 		file.write_text('future_days=45\n')
 		self.addCleanup(self.restore, file)

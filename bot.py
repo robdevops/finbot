@@ -9,7 +9,6 @@ import dataclasses, json, os, sys, threading, traceback
 
 from lib import log
 from lib import buttons
-from lib import catalog
 from lib import config
 from lib import discord_common
 from lib import discord_webhook
@@ -231,9 +230,9 @@ def in_thread(work):
 	return lambda *args: threading.Thread(target=run, daemon=True).start()
 
 def reload_all():
-	"""SIGHUP: re-read settings.conf and the reminders (catalog.read_reminders), then load the jobs again, which they
-	make (a chat's own changes count at once); a bad file is reported and leaves what was read before running. A key
-	set in defaults/settings.conf, which is never read, is pointed at the file to set it in."""
+	"""SIGHUP: re-read settings.conf, then load the jobs again, as the default jobs follow its country_code (a chat's
+	own changes count at once); a bad file is reported and leaves the running config untouched. A key set in
+	defaults/settings.conf, which is never read, is pointed at the file to set it in."""
 	try:
 		changes = config.reload()
 		for change in changes:
@@ -243,10 +242,6 @@ def reload_all():
 		config.print_errors(e)
 	if note := config.template_note(config.settings_path):
 		log.warn('WARN config:', note)
-	try:
-		log.info(f"config: {len(catalog.read_reminders())} reminders from {config.data_file(catalog.REMINDERS)}")
-	except config.ConfigError as e:
-		config.print_errors(e)
 	jobs.current.load()
 
 def flush_cache():
@@ -273,7 +268,6 @@ if __name__ == '__main__':
 	log.info(f'Starting finbot {config.git_version()}')
 	try:
 		config.check_startup_environment()
-		catalog.read_reminders()
 	except config.ConfigError as e:
 		config.print_errors(e)
 		sys.exit(1)

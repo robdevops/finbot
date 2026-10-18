@@ -111,7 +111,8 @@ instead.
 A **reminder** posts its text as it is:
 * The text comes last, in double quotes (or curly quotes, as phones type them). It runs from the first quote to the
   last, so quotes inside it stay, and it may run over several lines.
-* `[text](url)` is a link, and a line wrapped in `_underscores_` is in italics.
+* `[text](url)` is a link, a line wrapped in `_underscores_` is in italics, and `{years since YYYY-MM-DD}` becomes the
+  years since then (`4th`), for an anniversary.
 * A one-off reminder (`on 28 oct 2026`) is deleted after its time has passed, when the list is next shown.
 
 A job that is the same as a default job (the same report, days and times, in a zone with the same clock) switches that
@@ -159,33 +160,10 @@ move as either side's daylight saving changes.
   * pre-market US at 7:15am New York;
   * mid-session about halfway through: 1:00pm Sydney for the ASX, 12:45pm New York for the NYSE;
   * the close 30 minutes after it: 4:30pm Sydney for the ASX, 4:30pm Hong Kong, 5:00pm London and 4:30pm New York.
-* **The reminders (from 25 on)** come from `finbot_reminders.json`: the copy shipped in `defaults/`, unless the data
-  directory has one, which takes its place whole (see below). Those marked (AU) are default jobs only where the
-  `country_code` setting is `AU`.
+* **The reminders (from 25 on)** marked (AU) are default jobs only where the `country_code` setting is `AU`. A chat
+  adds its own with `/jobs add reminder` ([A job in English](#a-job-in-english)).
 * **trades and performance** are default jobs only where Sharesight is set up (see
   [Configuration](configuration.md#sharesight)).
-* **A one-off leaves the list** once its date has passed.
-
-### Your own reminders
-Copy `defaults/finbot_reminders.json` to the data directory and edit it there: each entry is a reminder at 8:30am
-Sydney, every chat's default job (switched off where a chat switches it off, as any default job is).
-```json
-[
-	{"key": "message-eofy-au", "date": "06-30", "lines": ["🥳 Happy EOFY 🇦🇺"]},
-	{"key": "message-draw", "date": "2026-10-28", "country": "AU", "name": "Draw day", "lines": ["Draw day{flag}"]}
-]
-```
-* `key` names the reminder in each chat's record of its switches: keep a reminder's key, or the chats' choices about
-  it are lost.
-* `date` is `MM-DD` for every year, or `YYYY-MM-DD` for once.
-* `lines` is its text, a line each, as a reminder typed with `/jobs add reminder` takes it: `[text](url)` is a link, a
-  line in `_underscores_` is in italics, and `{years since YYYY-MM-DD}` becomes the years since then (`4th`).
-* `country` (optional) makes it a default job only where `country_code` is that country, and `{flag}` its flag.
-* `name` (optional) is what `/jobs` calls it; else its first line.
-
-A file that does not read, or an entry that cannot be a reminder (no key, a date that is none, no lines), stops the
-start, the log naming the file and the entry. `systemctl reload finbot` (SIGHUP) reads the file again and loads the
-jobs again; a bad file then is logged, and the reminders read before stay.
 
 ## How jobs run
 * A job is kept by its chat's network and id, in `finbot_chat_jobs.json` in the data directory, so switching a network
