@@ -98,9 +98,10 @@ def press_command(data):
 PRESSED = 60 # seconds in which the same button pressed again on the same message is taken once
 FLIPPED = 2 # seconds, for a button that flips a job on or off (the same one flips it back): only a double tap
 _presses = collections.OrderedDict() # (service, chat, message) -> (data, when) of the last press taken there
+KEPT = 1000 # messages whose last press is remembered, the oldest forgotten first
 _presses_lock = threading.Lock() # presses arrive on several threads
 
-def repeated(press, keep=1000):
+def repeated(press):
 	"""Whether a press repeats the last one taken on the same message, within PRESSED seconds of it: the same button
 	pressed again, whose answer the message shows (or is on its way), or whose job (Run now) has run; bot.take drops
 	it. Another button pressed between them, or the first press failing (forget), makes it a press of its own. The
@@ -113,7 +114,7 @@ def repeated(press, keep=1000):
 		last = _presses.pop(key, None)
 		again = last is not None and last[0] == press.data and now - last[1] <= within
 		_presses[key] = last if again else (press.data, now)
-		if len(_presses) > keep:
+		if len(_presses) > KEPT:
 			_presses.popitem(last=False)
 	return again
 
@@ -316,8 +317,8 @@ def process_request(message):
 		try:
 			request.dest.start_typing()
 			command.handler(request, args)
-		except Usage as e:
-			request.reply([f"Usage: {slashed(line)}" for line in command.usage] + list(e.lines))
+		except Usage:
+			request.reply([f"Usage: {slashed(line)}" for line in command.usage])
 		except answer.Answer as e: # a portfolio the user got wrong, a ticker with no prices: an answer, not an error
 			request.reply(e.lines)
 		except Exception as e:
@@ -335,7 +336,7 @@ def process_request(message):
 @dataclasses.dataclass
 class Args:
 	"""What a command was given (read_args): its name as written, a percent and a period where it takes them, one of its
-	keywords, and the words left between, which say what it is about: tickers, a portfolio's name, a plan."""
+	keywords, and the words left between, which say what it is about: tickers or a portfolio's name."""
 	word: str
 	text: str = '' # the arguments as written
 	percent: float = None
@@ -349,11 +350,7 @@ class Args:
 		return ' '.join(self.words)
 
 class Usage(Exception):
-	"""Raised by a handler for arguments it cannot take: the chat gets the command's usage, then these lines."""
-	def __init__(self, *lines):
-		"""lines: more to say after the usage, such as the portfolios there are."""
-		super().__init__('usage')
-		self.lines = lines
+	"""Raised by a handler for arguments it cannot take: the chat gets the command's usage."""
 
 TICKER = re.compile(r'[\w^][\w.:\-^=]*') # a word that may be a ticker: .SYMBOL's
 
@@ -509,7 +506,7 @@ def on_performance(request, args):
 	days = buttons.PERIODS['m'][1] if args.days is None else args.days # the default view is the 1M button
 	if days < 1: # 0d, or ytd on 1 January
 		raise answer.Answer("The period must cover a day or more, such as 7d, 3m or ytd")
-	performance.run(request.dest, past_days=days, user=request.user, portfolio_select=args.rest or None)
+	performance.run(request.dest, past_days=days, portfolio_select=args.rest or None)
 	prime_periods(request.dest, 'f', [args.rest or ''], buttons.period_for_days(days))
 
 # the modes of .movers session and premarket, which were commands of their own and still answer typed
@@ -765,7 +762,7 @@ JOB_CHANGES = {'run': 'run', 'toggle': 'toggle', 'enable': 'enable', 'disable': 
 	'system': 'system'} | dict.fromkeys(('upcoming', 'next'), 'upcoming') | dict.fromkeys(('del', 'delete', 'rem',
 	'remove', 'rm'), 'del')
 JOB_SCREENS = {'enable': 'edit', 'disable': 'edit', 'del': 'edit', 'run': 'run', 'toggle': 'top'} # each word's screen
-BUY_SELL = ('buy', 'sell', *(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')))
+BUY_SELL = (*(a + sep + b for a, b in (('buy', 'sell'), ('sell', 'buy')) for sep in ('', '&', '/', '+')), 'buy', 'sell')
 PRICE_NAMES = ('price', 'prices', 'prince', 'print', 'probe', 'piece', 'pierce', 'pence', 'prime') # .price, typos and
 # all: the movers list's names until they became the line chart's (on_compare)
 PROFILE = Command(('stock', 'profile'), on_profile, ('.SYMBOL', '.stock SYMBOL'), COMPANY) # any first word that is no
@@ -793,7 +790,7 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 	Command(('movers', 'mover', 'moves', *SESSIONS), on_movers,
 		('.movers [percent|top|bottom|session|premarket] [period]',), PRICE, ('.movers',), percent=True, period=True,
 		keywords=TOP | {name: name for name in SESSIONS}),
-	Command(('buysell', *BUY_SELL), on_rating, ('.buysell',), RISK, ('.buy & sell',)), # .buy & sell, .buy sell: both
+	Command(BUY_SELL, on_rating, ('.buysell',), RISK, ('.buy & sell',)), # .buy & sell, .buy sell: both
 	Command(('pe', 'forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'),
 		('.pe [SYMBOL|top|bottom|negative]',), RISK, ('.pe',), keywords=NEGATIVE), # the forward P/E: it was .forward pe
 	Command(('peg',), on_ratio('peg'), ('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',), keywords=NEGATIVE),
@@ -908,8 +905,8 @@ class CommandJob:
 		request = Request(dest.dialect, dest.where, '', '', dest=dest)
 		try:
 			self.command.handler(request, read_args(self.command, self.name, ' '.join(words)))
-		except Usage as e:
-			request.reply([f"Usage: {slashed(line)}" for line in self.command.usage] + list(e.lines))
+		except Usage:
+			request.reply([f"Usage: {slashed(line)}" for line in self.command.usage])
 		except answer.Nothing as e: # nothing to show: said where someone asked for the run, not on schedule
 			if delivery.asked(dest):
 				request.reply(e.lines)
@@ -919,22 +916,19 @@ class CommandJob:
 @functools.cache
 def job_commands():
 	"""The commands of .help a job may run, by each name a job may call one by: a CommandJob each. Every one but those
-	that change something (job false) and those a scheduled report runs already (REPORTED): first each by the name of
-	its first line in .help (buy's and sell's each), with what it takes; then its other names, its other lines' and
+	that change something (job false) and those a scheduled report runs already (REPORTED): first each by the name its
+	first line in .help that has one gives it (.stock's, not .SYMBOL's), with what it takes; then its other names and
 	its typos, each standing for the first, but buy and sell's (.compare stands for price)."""
 	found = {}
 	for command in COMMANDS:
 		if not (command.job and command.usage) or command.handler in REPORTED:
 			continue
-		listed = []
 		for line in command.usage:
 			words = line.lstrip('.').split()
-			name = next((' '.join(words[:size]).lower() for size in (2, 1) if ' '.join(words[:size]).lower() in
-				command.names), None)
-			if name and not listed: # a job each command
-				found[name] = CommandJob(command, name, ' '.join(words[len(name.split()):]))
-				listed.append(name)
-		first = found[listed[0]]
+			if name := next((' '.join(words[:size]).lower() for size in (2, 1) if ' '.join(words[:size]).lower() in
+				command.names), None):
+				first = found[name] = CommandJob(command, name, ' '.join(words[len(name.split()):]))
+				break
 		for name in command.names:
 			found.setdefault(name, dataclasses.replace(first, name=name if command.handler is on_rating else first.name,
 				listed=False))

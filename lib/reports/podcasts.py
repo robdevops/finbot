@@ -14,8 +14,6 @@ NAMESPACES = {
 }
 NEWEST = 5 # episodes posted per run at most: the other new ones (on a first run, say) are only recorded as seen
 
-SEEN_FILES = 'finbot_podcast_seen_*.json' # each feed's, as get_seen_filename names them
-
 def get_seen_filename(url):
 	"""The state file, in the data directory, of the episodes of this feed already seen (by each chat)."""
 	return f"finbot_podcast_seen_{hashlib.md5(url.encode()).hexdigest()}.json"

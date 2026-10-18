@@ -669,9 +669,9 @@ class ScheduledReports(FinbotCase):
 		self.assertNotIn('Record high', str(self.sent))
 
 	def test_rating(self):
-		""".rating run from a chat posts."""
-		rating.run(telegram_common.TelegramBot('5'))
-		self.assertTrue(self.sent)
+		"""The rating report run now posts, if only to say that no rating changed."""
+		rating.run(delivery.chat('telegram:1', scheduled=True, asked=True))
+		self.assertEqual(self.sent, [('text', ['No rating changes found'])])
 
 	def test_rating_keeps_the_last_rating_of_a_ticker_missing_from_a_run(self):
 		"""A ticker missing from one run keeps its last rating, so its change is reported when it comes back; it used to
@@ -684,11 +684,6 @@ class ScheduledReports(FinbotCase):
 		self.sent.clear()
 		rating.run(scheduled())
 		self.assertIn('Co T1 ', str(self.sent)) # so its change from buy to sell went unreported
-
-	def test_an_interactive_rating_records_nothing(self):
-		"""A rating report asked for in a chat leaves the record for the scheduled runs alone."""
-		rating.run(telegram_common.TelegramBot('5'))
-		self.assertIsNone(state.load(rating.STATE_FILE))
 
 	def test_scheduled_reports_reach_each_jobs_chat_with_its_own_token(self):
 		"""Scheduled reports reach a Telegram and a Slack job's chat, each with its own bot's credentials: Slack's

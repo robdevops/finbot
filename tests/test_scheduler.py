@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 from tests.common import *
 from lib import catalog, jobs, when
-from lib.reports import cleanup, message, movers, podcasts, sharesight_warm, yahoo_warm
+from lib.reports import cleanup, sharesight_warm, yahoo_warm
 from tests import test_sending
 
 PREFETCH_HISTORY = yahoo.prefetch_history # FinbotCase replaces it; the warm job's test puts it back
@@ -72,7 +72,7 @@ class YahooWarmJob(FinbotCase):
 		super().setUp()
 		self.patch(yahoo, 'prefetch_history', PREFETCH_HISTORY)
 		self.env(sharesight_auth={'client_id': 'id'})
-		def answer(ticker, days, full):
+		def answer(ticker, full):
 			"""A history that names its ticker; none for T2."""
 			if ticker == 'T2':
 				raise RuntimeError('Yahoo unreachable')
@@ -232,8 +232,8 @@ class WarmNow(FinbotCase):
 	def test_the_warm_jobs_run_through_the_scheduler(self):
 		"""warm_now runs both warm jobs through the scheduler, which does not start one that is running already."""
 		warmed = []
-		self.patch(sharesight_warm, 'run', lambda: warmed.append('sharesight'))
-		self.patch(yahoo_warm, 'run', lambda: warmed.append('yahoo'))
+		self.patch(sharesight_warm, 'run', lambda dest: warmed.append('sharesight'))
+		self.patch(yahoo_warm, 'run', lambda dest: warmed.append('yahoo'))
 		s = jobs.Scheduler(clock=Clock(at(13, 21, 3)))
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			s.load()
@@ -242,20 +242,6 @@ class WarmNow(FinbotCase):
 			jobs.warm_now(s)
 		self.assertEqual(warmed, ['sharesight', 'yahoo', 'sharesight'])
 		self.assertIn('cache: filling it again: sharesight_warm, yahoo_warm', log.getvalue())
-
-	def test_without_a_scheduler_each_runs_here(self):
-		"""Without a scheduler (a test, a tool), each warm job runs here, one after the other, a failure reported."""
-		started = []
-		def run(label, module, kwargs, dest=None):
-			"""Note the run; the first one fails."""
-			started.append(label)
-			if label == 'sharesight_warm':
-				raise RuntimeError('Sharesight unreachable')
-		self.patch(jobs, 'run_in_process', run)
-		with contextlib.redirect_stderr(io.StringIO()):
-			jobs.warm_now()
-		self.assertEqual(started, ['sharesight_warm', 'yahoo_warm'])
-		self.assertEqual(self.errors, ['⚠️ sharesight_warm: RuntimeError: Sharesight unreachable'])
 
 
 class SystemJobs(FinbotCase):

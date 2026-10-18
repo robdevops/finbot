@@ -195,7 +195,7 @@ class SlackBot(transports.Transport):
 		needs the files:write and files:read scopes). With period buttons, where they work, it goes in a Block Kit
 		message instead (post_blocks), or without them if that fails. Slack's answer, MAYBE_SENT, or None if a step
 		failed."""
-		data = image.read() if hasattr(image, 'read') else bytes(image)
+		data = image.getvalue()
 		if buttons and not isinstance(buttons, dict):
 			try:
 				return self.post_blocks(data, caption, buttons)
@@ -307,9 +307,7 @@ class SlackBot(transports.Transport):
 		earlier upload of the same chart, else the new chart uploaded (a file cannot be replaced; see showing). A press
 		for that period within SLACK_REUSE_SECONDS shows this upload again (reshow). Raises RuntimeError when Slack
 		refuses the update."""
-		if hasattr(image, 'seek'):
-			image.seek(0)
-		_, file_id, digest = self.showing(image.read() if hasattr(image, 'read') else bytes(image),
+		_, file_id, digest = self.showing(image.getvalue(),
 			lambda file_id: call('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
 			blocks=json.dumps(chart_blocks(caption, buttons or [], file_id)), logged='debug'))
 		self.delete(self.shows(message, file_id, caption, buttons, digest))

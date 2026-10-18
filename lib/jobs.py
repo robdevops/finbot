@@ -94,15 +94,6 @@ def list_checksum(jobs):
 	return buttons.checksum(job.key for job in jobs)
 
 
-def run_in_process(label, module, kwargs, dest=None):
-	"""Run a job here, in the calling thread: its report's run(**kwargs), posting to dest (a chat's job; None for a
-	system job, which posts nothing)."""
-	if dest is None:
-		module.run(**kwargs)
-	else:
-		module.run(dest, **kwargs)
-
-
 def start_thread(target, *args):
 	"""Run target(*args) in a daemon thread of its own."""
 	threading.Thread(target=target, args=args, daemon=True).start()
@@ -113,19 +104,13 @@ def system_jobs():
 	return [make_job(action, args, when.Schedule.from_json({**times, 'zone': 'UTC'})) for action, args, times in SYSTEM]
 
 
-def warm_now(scheduler=None):
-	"""Run the warm jobs (WARM) now, one after the other: through the scheduler, so that one running on its schedule
-	is not started twice; without one (a test, a tool), here, a failure reported as the scheduler reports it."""
+def warm_now(scheduler):
+	"""Run the warm jobs (WARM) now, one after the other, through the scheduler, so that one running on its schedule
+	is not started twice."""
 	warm = [job for job in system_jobs() if job.action in WARM]
 	log.info('cache: filling it again:', ', '.join(job.label for job in warm))
 	for job in warm:
-		if scheduler:
-			scheduler.execute(job)
-			continue
-		try:
-			run_in_process(job.label, job.module, job.kwargs)
-		except Exception as e:
-			delivery.report_error(e, context=job.label)
+		scheduler.execute(job)
 	log.info('cache: warm jobs done')
 
 
@@ -300,18 +285,17 @@ def parse_add(text, zone):
 
 
 class Scheduler:
-	"""Runs the jobs: each chat's, from JOBS_FILE and the catalog, and the system jobs. clock, sleep, spawn and runner
-	can be replaced, which the tests do. Its lock covers what the loop, a change from chat and the runs share: the
+	"""Runs the jobs: each chat's, from JOBS_FILE and the catalog, and the system jobs. clock, sleep and spawn can be
+	replaced, which the tests do. Its lock covers what the loop, a change from chat and the runs share: the
 	jobs, their bases and next runs, the record of runs and what is running."""
 
-	def __init__(self, catchup=None, clock=None, sleep=None, spawn=None, runner=None):
+	def __init__(self, catchup=None, clock=None, sleep=None, spawn=None):
 		"""catchup is how late, in minutes, a missed run may still start (the scheduler_catchup setting when None);
-		clock, sleep, spawn and runner stand in for the real ones in tests."""
+		clock, sleep and spawn stand in for the real ones in tests."""
 		self.catchup = datetime.timedelta(minutes=config.env.scheduler_catchup if catchup is None else catchup)
 		self.clock = clock or (lambda: datetime.datetime.now(datetime.timezone.utc))
 		self.sleep = sleep or time.sleep
 		self.spawn = spawn or start_thread
-		self.runner = runner or run_in_process # (label, module, kwargs, dest): runs the job
 		self.jobs = []
 		self.chats = set() # the chats JOBS_FILE knows
 		self.base = {} # key -> the time after which the next run is due
@@ -449,9 +433,9 @@ class Scheduler:
 		late.daemon = True
 		late.start()
 		try:
-			self.runner(job.label, job.module, job.kwargs, dest)
+			job.module.run(dest, **job.kwargs)
 			return 'done'
-		except (Exception, SystemExit) as e:
+		except (Exception, SystemExit) as e: # a library's sys.exit would end the thread unreported
 			delivery.report_error(e, dest, context=job.label)
 			return 'failed'
 		finally:

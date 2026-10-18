@@ -256,9 +256,9 @@ class TelegramBot(transports.Transport):
 		data = {'chat_id': self.where, 'caption': caption, 'parse_mode': 'HTML', 'disable_notification': True}
 		if buttons:
 			data['reply_markup'] = json.dumps(self.markup(buttons))
-		photo = image.read() if hasattr(image, 'read') else bytes(image)
 		try:
-			message = with_photo('sendPhoto', photo, lambda known: data | ({'photo': known} if known else {}))
+			message = with_photo('sendPhoto', image.getvalue(),
+				lambda known: data | ({'photo': known} if known else {}))
 		except requests.exceptions.ReadTimeout as e:
 			log.warn("Telegram sendPhoto timed out, the chart may still arrive:", net.redact(e))
 			return transports.MAYBE_SENT
@@ -277,12 +277,10 @@ class TelegramBot(transports.Transport):
 		data = {'chat_id': self.where, 'message_id': message}
 		if buttons:
 			data['reply_markup'] = json.dumps(self.markup(buttons))
-		if hasattr(image, 'seek'):
-			image.seek(0)
-		photo = image.read() if hasattr(image, 'read') else bytes(image)
 		try:
-			edited = with_photo('editMessageMedia', photo, lambda known: data | {'media': json.dumps({'type': 'photo',
-				'media': known or 'attach://photo', 'caption': caption, 'parse_mode': 'HTML'})}, quiet=True)
+			edited = with_photo('editMessageMedia', image.getvalue(), lambda known: data | {'media': json.dumps({
+				'type': 'photo', 'media': known or 'attach://photo', 'caption': caption, 'parse_mode': 'HTML'})},
+				quiet=True)
 			self.note_view(buttons, edited, caption)
 		except RuntimeError as e:
 			if not unchanged(e):

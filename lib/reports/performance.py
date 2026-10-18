@@ -44,7 +44,7 @@ def report(service, past_days, portfolio_select=None):
 	span = f"% change {'' if period == 'today' else 'over '}{period}"
 	return payload, render.Chart('bars', "Performance", span, tuple(chart_rows), value_format='percent2')
 
-def run(dest=None, *, past_days=None, user='', portfolio_select=None):
+def run(dest=None, *, past_days=None, portfolio_select=None):
 	"""Post each portfolio's performance over past_days (the past_days setting when None), or the one named, beside
 	the benchmarks: to the chat that asked or whose job it is (dest), with its chart and period buttons where they can
 	go."""
@@ -52,9 +52,7 @@ def run(dest=None, *, past_days=None, user='', portfolio_select=None):
 	if past_days is None:
 		past_days = config.settings.past_days
 	payload, graph = report(chat.dialect, past_days, portfolio_select)
-	markup = None
-	if graph:
-		markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days))
+	markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days))
 	delivery.deliver(chat, delivery.Report(payload, graph, markup))
 
 ARGUMENTS = '[DAYS]' # what a scheduled run takes

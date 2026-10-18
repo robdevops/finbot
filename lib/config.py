@@ -20,9 +20,6 @@ STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'scheduler_catchup', 'sharesight_clien
 	'slackBotToken', 'slackAppToken', 'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret',
 	'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook', 'discordBotToken', 'discordOutgoingWebhook',
 	'discordPublicKey')
-SECRET_KEYS = ('sharesight_client_id', 'sharesight_client_secret', 'slackBotToken', 'slackAppToken',
-	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
-	'telegramOutgoingWebhook', 'discordBotToken', 'discordOutgoingWebhook') # never printed
 SETTINGS_FILE = 'settings.conf'
 TEMPLATE = REPO_DIR / 'defaults' / SETTINGS_FILE # every key commented out at its default; finbot never reads it
 HOME_CHAT = ("each chat has its own jobs (/jobs), which post there as the bot, and an error that belongs to no chat"
@@ -335,15 +332,12 @@ class Settings:
 	timezone: str = 'Australia/Melbourne'
 	trades_use_yahoo: bool = True # set False if Yahoo breaks
 	volatility_multiplier: float = 2.0
-	# the file's own lines, for job processes
-	source: dict = dataclasses.field(default_factory=dict, compare=False, repr=False)
 
 
-def setting_values(getenv, source=None):
-	"""The settings (settings.conf), computed from getenv(name, default): each read as its Settings field's type
-	says (a tuple is a list of words), its default the field's. `source` is the file's own {key: value}. Raises
-	ConfigError listing every bad value."""
-	r = _Reader(getenv)
+def setting_values(values):
+	"""The settings, from settings.conf's {key: value}: each read as its Settings field's type says (a tuple is a list
+	of words), its default the field's where the file has none. Raises ConfigError listing every bad value."""
+	r = _Reader(values.get)
 	readers = {bool: r.bool, int: r.int, float: r.float, str: r.str, tuple: r.words,
 		'admin_only': r.blankable_words,
 		'exchange_suffix': lambda name, default: r.blankable(name, default).removeprefix('.').upper(), # blank: none
@@ -351,24 +345,14 @@ def setting_values(getenv, source=None):
 		'hyperlinkProvider': lambda name, default: r.choice(name, default, ('google', 'yahoo')),
 		'log_level': lambda name, default: r.choice(name, default, LOG_LEVELS),
 		'timezone': r.zone}
-	values = {field.name: readers.get(field.name, readers[field.type])(field.name, field.default)
-		for field in dataclasses.fields(Settings) if field.compare}
+	read = {field.name: readers.get(field.name, readers[field.type])(field.name, field.default)
+		for field in dataclasses.fields(Settings)}
 	r.check()
-	return Settings(**values, source=dict(source or {}))
+	return Settings(**read)
 
 
 # settings.conf's keys: what a reload can change
-SETTING_KEYS = tuple(field.name for field in dataclasses.fields(Settings) if field.compare)
-
-
-def _getenv_for(settings):
-	"""getenv(name, default): settings.conf first (setting keys only), then the process environment."""
-	def getenv(name, default=None):
-		"""A setting from settings.conf, else the process environment's value, else default."""
-		if name in settings:
-			return settings[name]
-		return os.environ.get(name, default)
-	return getenv
+SETTING_KEYS = tuple(field.name for field in dataclasses.fields(Settings))
 
 
 def print_errors(e):
@@ -385,8 +369,8 @@ def _fail(e):
 try:
 	env = startup_values(os.environ.get)
 	settings_path = env.settings_path
-	_settings = read_settings(settings_path) or {}
-	settings = setting_values(_getenv_for(_settings), _settings)
+	_settings = read_settings(settings_path) or {} # the file's own {key: value}, as the last load or reload read it
+	settings = setting_values(_settings)
 except ConfigError as e:
 	_fail(e)
 
@@ -426,14 +410,14 @@ def reload():
 	"""Re-read settings.conf and apply it: config.settings is replaced in one assignment, so a request never sees half
 	of a reload. All or nothing. Returns one line per change; raises ConfigError (nothing applied) if the file is
 	missing, unreadable or invalid."""
-	global settings
+	global settings, _settings
 	new = read_settings(settings_path)
 	if new is None:
 		raise ConfigError(f'reload requested but {settings_path} does not exist; nothing reloaded')
-	values = setting_values(_getenv_for(new), new)
+	values = setting_values(new)
 	changes = [f"{name} {getattr(settings, name)!r} -> {getattr(values, name)!r}" for name in SETTING_KEYS
 		if getattr(settings, name) != getattr(values, name)]
-	settings = values
+	settings, _settings = values, new
 	return changes
 
 
@@ -452,10 +436,10 @@ def startup_report():
 		return f"{count} key{'' if count == 1 else 's'}"
 	lines = [f'startup environment ({keys(sum(key in os.environ for key in STARTUP_KEYS))} set)']
 	if os.path.isfile(settings_path):
-		lines.append(f'{settings_path} ({keys(len(settings.source))} set; SIGHUP to reload)')
+		lines.append(f'{settings_path} ({keys(len(_settings))} set; SIGHUP to reload)')
 	else:
 		lines.append(f'no {SETTINGS_FILE} in {env.data_dir}, reload unavailable')
-	return lines + retired_notes(os.environ, 'finbot.env') + retired_notes(settings.source)
+	return lines + retired_notes(os.environ, 'finbot.env') + retired_notes(_settings)
 
 
 def retired_notes(values, file=SETTINGS_FILE):

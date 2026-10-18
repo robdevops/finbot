@@ -203,19 +203,6 @@ class _Canvas:
 		self.circle(x, y, (radius + width / 2) * PT, edge)
 		self.circle(x, y, (radius - width / 2) * PT, color)
 
-	def slice(self, x, y, r, start, end, fill):
-		"""A slice of the disc of radius r about (x, y), from `start` to `end` degrees past three o'clock."""
-		self.colours.add(fill)
-		s = self.scale
-		self.pen.pieslice(((x - r) * s, (y - r) * s, (x + r) * s, (y + r) * s), start, end, fill=fill)
-
-	def ring(self, x, y, r, color, width):
-		"""The inside rim of the disc of radius r about (x, y), `width` points wide."""
-		self.colours.add(color)
-		s = self.scale
-		self.pen.ellipse(((x - r) * s, (y - r) * s, (x + r) * s, (y + r) * s), outline=color,
-			width=max(1, round(width * PT * s)))
-
 	def paste(self, other, x, y, width=None):
 		"""Another canvas's image (drawn at the same scale), its top left at (x, y), cut to `width` pixels from its left
 		where given."""

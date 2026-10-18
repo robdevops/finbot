@@ -124,7 +124,6 @@ def _convert(convert, value):
 # out
 QUOTE_FIELDS = (
 	('percent_change', 'regularMarketChangePercent', _round2),
-	('dividend', 'trailingAnnualDividendRate', lambda v: round(float(v), 1)),
 	('percent_change_premarket', 'preMarketChangePercent', _round2),
 	('percent_change_postmarket', 'postMarketChangePercent', _round2),
 	('market_cap', 'marketCap', lambda v: round(float(v))),
@@ -160,7 +159,7 @@ def fetch(tickers):
 			continue
 		quote = {'profile_title': formats.transform_title(title), 'ticker': item['symbol'],
 			'regularMarketPrice': item['regularMarketPrice'],
-			'currency': item.get('currency'), 'percent_change': 0.0, 'dividend': 0.0}
+			'currency': item.get('currency'), 'percent_change': 0.0}
 		for key, field, convert in QUOTE_FIELDS:
 			if (value := _convert(convert, item.get(field))) is not None:
 				quote[key] = value
@@ -480,15 +479,17 @@ def history_file(ticker, full=False):
 	"""The cache file of a ticker's daily chart, or of its entire history (full)."""
 	return "finbot_yahoo_history_" + ticker + ("_max" if full else "") + ".json"
 
-def fetch_chart_json(ticker, days=3665, seconds=None, full=False):
-	"""Yahoo's daily chart for the last `days`, or with full=True its entire history (cached separately). Raises NoData
-	for a symbol Yahoo does not know, RuntimeError when Yahoo cannot be reached or refuses."""
-	return cache.cached(history_file(ticker, full), seconds, lambda: _chart_answer(ticker, days, full))
+CHART_DAYS = 3665 # days of daily bars in a chart: ten years (Max) and a fortnight before, for a bar to start from
 
-def _chart_answer(ticker, days, full):
-	"""The v8 chart answer: daily bars of the last `days`, or all with full=True. Raises as fetch_chart_json does."""
+def fetch_chart_json(ticker, seconds=None, full=False):
+	"""Yahoo's daily chart for the last CHART_DAYS, or with full=True its entire history (cached separately). Raises
+	NoData for a symbol Yahoo does not know, RuntimeError when Yahoo cannot be reached or refuses."""
+	return cache.cached(history_file(ticker, full), seconds, lambda: _chart_answer(ticker, full))
+
+def _chart_answer(ticker, full):
+	"""The v8 chart answer: the daily bars of CHART_DAYS, or all with full=True. Raises as fetch_chart_json does."""
 	now = datetime.datetime.now()
-	start = 0 if full else int((now - datetime.timedelta(days=days)).timestamp())
+	start = 0 if full else int((now - datetime.timedelta(days=CHART_DAYS)).timestamp())
 	data = _answer(f'/v8/finance/chart/{ticker}?period1={start}&period2={int(now.timestamp())}&interval=1d', ticker)
 	if data is None:
 		raise NoData(f"no price history for {ticker}")

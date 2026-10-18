@@ -31,14 +31,9 @@ class Tables(unittest.TestCase):
 		read -= {'STATE_DIRECTORY'} # systemd's own variable, a source for DATA_DIR
 		self.assertEqual(read, set(config.STARTUP_KEYS))
 
-	def test_secrets_are_startup_keys(self):
-		"""Every secret is a startup key: settings.conf holds none."""
-		self.assertTrue(set(config.SECRET_KEYS) <= set(config.STARTUP_KEYS))
-		self.assertEqual(len(config.SECRET_KEYS), 12)
-
 	def test_unset_settings_take_their_defaults(self):
 		"""An unset setting takes its field's default, as it is: reading tidies nothing away."""
-		values = config.setting_values(lambda name, default=None: default)
+		values = config.setting_values({})
 		self.assertEqual(fields(values), fields(config.Settings()))
 
 	def test_templates_have_every_key_and_the_real_defaults(self):
@@ -50,7 +45,7 @@ class Tables(unittest.TestCase):
 		self.assertEqual((config.read_settings(template), config.template_keys()), ({}, [])) # it sets nothing
 		shown = dict(re.findall(r'^#([A-Za-z_][A-Za-z0-9_]*)=(.*)$', template.read_text(), re.M)) # #key=value lines
 		self.assertEqual(sorted(shown), sorted(config.SETTING_KEYS))
-		self.assertEqual(fields(config.setting_values(config._getenv_for(shown))), fields(config.Settings()))
+		self.assertEqual(fields(config.setting_values(shown)), fields(config.Settings()))
 		startup = config.read_startup_file(REPO / 'defaults' / 'finbot.env')
 		config.startup_values(lambda name, default=None: startup.get(name, default)) # and is valid as it stands
 
@@ -111,7 +106,7 @@ class Parsing(unittest.TestCase):
 		"""A value of the wrong type is reported with its key and value."""
 		settings = {'future_days': 'abc', 'price_percent': 'x'}
 		with self.assertRaises(config.ConfigError) as caught:
-			config.setting_values(config._getenv_for(settings))
+			config.setting_values(settings)
 		self.assertEqual(len(caught.exception.errors), 2)
 		self.assertIn("future_days='abc' is not a whole number", caught.exception.errors[0])
 
@@ -120,48 +115,48 @@ class Parsing(unittest.TestCase):
 		for word, value in (('True', True), ('yes', True), ('ON', True), ('1', True), ('false', False), ('No', False),
 				('off', False), ('0', False)):
 			with self.subTest(word=word):
-				self.assertIs(config.setting_values(config._getenv_for({'graph': word})).graph, value)
+				self.assertIs(config.setting_values({'graph': word}).graph, value)
 		with self.assertRaises(config.ConfigError) as caught: # it used to mean False without a word
-			config.setting_values(config._getenv_for({'graph': 'Ture'}))
+			config.setting_values({'graph': 'Ture'})
 		self.assertIn("graph='Ture' is not true or false", caught.exception.errors[0])
 
 	def test_a_blank_value_means_the_default(self):
 		"""A key with a blank value takes its default, but for exchange_suffix, where blank means no suffix to try."""
-		values = config.setting_values(config._getenv_for({'cache': '', 'future_days': '', 'country_code': ''}))
+		values = config.setting_values({'cache': '', 'future_days': '', 'country_code': ''})
 		self.assertEqual((values.cache, values.future_days, values.country_code), (True, 30, 'AU'))
 		for given, suffix in (('', ''), ('AX', 'AX'), ('.ax', 'AX'), (' NZ ', 'NZ')):
 			with self.subTest(given=given):
-				values = config.setting_values(config._getenv_for({'exchange_suffix': given}))
+				values = config.setting_values({'exchange_suffix': given})
 				self.assertEqual(values.exchange_suffix, suffix)
-		self.assertEqual(config.setting_values(config._getenv_for({})).exchange_suffix, 'AX') # unset: the default
+		self.assertEqual(config.setting_values({}).exchange_suffix, 'AX') # unset: the default
 
 	def test_a_blank_admin_only_restricts_no_command(self):
 		"""admin_only blank is none, so that every command is open to all; unset keeps jobs restricted."""
 		for given, expected in (({}, ('jobs',)), ({'admin_only': ''}, ()), ({'admin_only': ' '}, ()),
 				({'admin_only': 'jobs plan'}, ('jobs', 'plan'))):
 			with self.subTest(given=given):
-				self.assertEqual(config.setting_values(config._getenv_for(given)).admin_only, expected)
+				self.assertEqual(config.setting_values(given).admin_only, expected)
 
 	def test_log_level_is_one_of_syslogs_levels_in_any_case(self):
 		"""log_level takes ERROR, WARN, INFO or DEBUG, in any case, INFO by default; anything else is a mistake that
 		names the levels."""
 		for given, level in (('warn', 'WARN'), ('Debug', 'DEBUG'), ('ERROR', 'ERROR'), ('', 'INFO')):
 			with self.subTest(log_level=given):
-				values = config.setting_values(config._getenv_for({'log_level': given}))
+				values = config.setting_values({'log_level': given})
 				self.assertEqual(values.log_level, level)
 		with self.assertRaises(config.ConfigError) as caught:
-			config.setting_values(config._getenv_for({'log_level': 'loud'}))
+			config.setting_values({'log_level': 'loud'})
 		self.assertEqual(caught.exception.errors, ["log_level='loud' is not one of ERROR, WARN, INFO, DEBUG"])
 
 	def test_a_zone_a_provider_and_a_country_are_read_as_finbot_uses_them(self):
 		"""timezone must name a zone and hyperlinkProvider google or yahoo (in any case), else each is a mistake that
 		names the key, as a zone read wrong would store new jobs in UTC; country_code is read in any case."""
-		values = config.setting_values(config._getenv_for({'timezone': 'Asia/Tokyo', 'hyperlinkProvider': 'Yahoo',
-			'country_code': 'au'}))
+		values = config.setting_values({'timezone': 'Asia/Tokyo', 'hyperlinkProvider': 'Yahoo',
+			'country_code': 'au'})
 		self.assertEqual((values.timezone, values.hyperlinkProvider, values.country_code),
 			('Asia/Tokyo', 'yahoo', 'AU'))
 		with self.assertRaises(config.ConfigError) as caught:
-			config.setting_values(config._getenv_for({'timezone': 'Melbourne', 'hyperlinkProvider': 'bing'}))
+			config.setting_values({'timezone': 'Melbourne', 'hyperlinkProvider': 'bing'})
 		self.assertEqual(caught.exception.errors, ["hyperlinkProvider='bing' is not one of google, yahoo",
 			"timezone='Melbourne' is not a time zone such as Australia/Sydney or UTC"])
 
@@ -172,7 +167,7 @@ class Parsing(unittest.TestCase):
 		path = Path(common.temp_dir(self), 'settings.conf')
 		path.write_text(''.join(f'{key}=True\n' for key in config.RETIRED) + 'future_days=45\n')
 		values = config.read_settings(path)
-		self.assertEqual(config.setting_values(config._getenv_for(values)).future_days, 45)
+		self.assertEqual(config.setting_values(values).future_days, 45)
 		notes = [f'{key} in settings.conf does nothing any more: {instead}'
 			for key, instead in config.RETIRED.items()]
 		self.assertEqual(config.retired_notes(values), notes)
@@ -198,11 +193,12 @@ class Parsing(unittest.TestCase):
 			config.read_settings(path)
 		self.assertIn(f'cannot read {path}', caught.exception.errors[0])
 
-	def test_precedence_file_then_environment_then_default(self):
-		"""A setting comes from the file, else the environment, else its default."""
+	def test_a_setting_comes_from_the_file_else_its_default(self):
+		"""A setting comes from settings.conf, else its default; never from the environment, where bot.py refuses one
+		(check_startup_environment)."""
 		with mock.patch.dict(os.environ, {'future_days': '5', 'past_days': '4'}):
-			values = config.setting_values(config._getenv_for({'future_days': '30'}))
-		self.assertEqual((values.future_days, values.past_days, values.shorts_percent), (30, 4, 15))
+			values = config.setting_values({'future_days': '30'})
+		self.assertEqual((values.future_days, values.past_days, values.shorts_percent), (30, 28, 15))
 
 	def test_startup_file_linting(self):
 		"""util/check_config.py reports bad lines in finbot.env first, then bad values, and nothing for a good file."""
@@ -355,13 +351,15 @@ class Reload(unittest.TestCase):
 	def test_a_scheduled_job_runs_on_the_settings_in_force_not_the_edited_file(self):
 		"""A scheduled job runs in the bot's process, on the settings of the last reload: a file edited since, and
 		not reloaded, is not read."""
-		from lib import jobs
+		from lib import jobs, when
 		seen = []
 		self.write('future_days=45\n')
 		config.reload()
 		self.write('future_days=99\n') # edited, no reload sent
-		module = types.SimpleNamespace(run=lambda: seen.append(config.settings.future_days))
-		jobs.run_in_process('look.py', module, {})
+		job = jobs.make_job('shorts', [], when.parse('daily', 'UTC'), 'telegram:5')
+		with contextlib.redirect_stderr(io.StringIO()), mock.patch.object(jobs.ACTIONS['shorts'], 'run',
+				lambda dest, **kwargs: seen.append(config.settings.future_days)):
+			jobs.Scheduler().execute(job)
 		self.assertEqual(seen, [45])
 
 
@@ -431,8 +429,7 @@ class Startup(unittest.TestCase):
 		self.assertIn("port='http' is not a whole number", out.stderr)
 
 	def test_a_setting_in_the_environment_is_refused_by_the_bot(self):
-		"""A setting in the bot's environment (finbot.env) is refused, but a job process gets its settings that
-		way, and startup keys belong there."""
+		"""A setting in the bot's environment (finbot.env) is refused; startup keys belong there."""
 		with mock.patch.dict(os.environ, {'future_days': '30', 'log_level': 'DEBUG'}):
 			with self.assertRaises(config.ConfigError) as caught:
 				config.check_startup_environment()
@@ -527,7 +524,7 @@ class Startup(unittest.TestCase):
 		conf.write_text('graph = false\n')
 		for source, count in (({'graph': 'false'}, '1 key'), ({'log_level': 'DEBUG', 'graph': 'false'}, '2 keys')):
 			with self.subTest(source=source), mock.patch.object(config, 'settings_path', str(conf)), \
-					mock.patch.object(config, 'settings', dataclasses.replace(config.settings, source=source)):
+					mock.patch.object(config, '_settings', source):
 				self.assertEqual(config.startup_report()[1], f'{conf} ({count} set; SIGHUP to reload)')
 		with mock.patch.object(config, 'settings_path', str(conf.with_name('missing.conf'))):
 			self.assertEqual(config.startup_report()[1], f'no settings.conf in {config.env.data_dir}, reload'

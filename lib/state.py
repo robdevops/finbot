@@ -1,5 +1,5 @@
-"""State files in DATA_DIR: what must last from one run to the next (each chat's jobs, the watchlist, plans, seen
-trades, ratings, record highs, the schedule's last runs, chart button refs, keyboard versions, seen podcast episodes).
+"""State files in DATA_DIR: what must last from one run to the next (each chat's jobs, the watchlist, seen trades,
+ratings, record highs, the schedule's last runs, chart button refs, keyboard versions, seen podcast episodes).
 Written whole or not at all, and flushed. A report's record of what it told each chat is a file of its own, holding one
 record per chat ({'chats': {chat key: record}}): see load_for and edit_for."""
 import contextlib

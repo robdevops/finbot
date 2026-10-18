@@ -55,8 +55,6 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, highlight=None):
 	for the others), after a note of what the last press did. A one-off gone by is deleted first. Returns (lines,
 	buttons). The job numbered `highlight` is in bold with a 👉 before it, on its page."""
 	scheduler = jobs.current
-	if scheduler is None:
-		return ['No schedule is running'], None
 	scheduler.prune(chat)
 	own = scheduler.chat_jobs(chat)
 	running, local, now = scheduler.running(chat), formats.zone().key, scheduler.clock()
@@ -98,8 +96,6 @@ def listed_with(service, chat, lines):
 	"""A screen's lines (an Add step's) with the chat's job list under them, to show it while a job is added: as many
 	jobs as fit a message of the network with the screen, then how many more there are."""
 	scheduler = jobs.current
-	if scheduler is None:
-		return lines
 	own = scheduler.chat_jobs(chat)
 	running, local, now = scheduler.running(chat), formats.zone().key, scheduler.clock()
 	room = service.text_limit - len('\n'.join(lines)) - PAGE_ROOM // 2
@@ -179,8 +175,6 @@ def next_screen(service, chat, count=20):
 	(and its own zone's beside it, where that differs), with its number and name in .jobs; a repeat's runs on a day
 	are one entry, from its first to its last. Returns (lines, buttons): Back, to the list."""
 	scheduler = jobs.current
-	if scheduler is None:
-		return ['No schedule is running'], None
 	local = formats.zone()
 	lines = [service.bold('Upcoming runs:')]
 	for first, last, job, number in scheduler.upcoming(chat, count):
@@ -295,15 +289,10 @@ def add_screen(service, chat, steps):
 	return choices(f'Add {label}, {said}: {question}', offer, row, lines, usual)
 
 def add_reports():
-	"""What Add offers a job to run: the reports (REPORTS), then the commands of .help a job may run, in its order (buy
-	and sell as one), each (label, action, arguments; None where the period follows how often it runs). Each one's
-	place in this list is its button's data, whichever are offered."""
-	commands = []
-	for name, command in jobs.command_actions().items():
-		if command.listed and name != 'sell':
-			name = 'buy&sell' if name == 'buy' else name
-			commands.append((name.replace('&', ' & '), name, ()))
-	return REPORTS + tuple(commands)
+	"""What Add offers a job to run: the reports (REPORTS), then the commands of .help a job may run, in its order, each
+	(label, action, arguments; None where the period follows how often it runs). Each one's place in this list is its
+	button's data, whichever are offered."""
+	return REPORTS + tuple((name, name, ()) for name, command in jobs.command_actions().items() if command.listed)
 
 def example(arguments):
 	"""What a command's arguments may be, for an example: its words outside brackets, each SYMBOL a ticker in turn and
@@ -432,8 +421,6 @@ def add_failed(service, chat, steps, why):
 def prepare_system(service):
 	"""`.jobs system`: the system jobs, which fill the cache and clear it out, each with its schedule in words."""
 	scheduler = jobs.current
-	if scheduler is None:
-		return ['No schedule is running']
 	running, local, now = scheduler.running(''), formats.zone().key, scheduler.clock()
 	return [service.bold('System jobs:')] + [f"{job.name} · {job.schedule.describe(local, now)}" +
 		(' (running)' if job.key in running else '') for job in scheduler.system_jobs()]

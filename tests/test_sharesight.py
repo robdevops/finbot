@@ -1,6 +1,6 @@
 """Sharesight's portfolios, holdings, gains and trades on the answers saved under doc/, its failures,
 and the cache warmer."""
-import contextlib, datetime, unittest
+import contextlib, unittest
 from tests.common import *
 
 

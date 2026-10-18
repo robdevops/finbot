@@ -4,9 +4,9 @@ import os, time
 from lib import log
 from lib import config
 
-def run(*, days=30):
+def run(dest=None, *, days=30):
 	"""Delete the cache files (finbot_*) that were last written more than `days` days ago (days=0: all of them, a
-	flush); see remove."""
+	flush); see remove. A system job: it posts nothing (dest)."""
 	return remove(before=time.time() - days * 86400)
 
 def remove(before=None, after=None, directory=None):

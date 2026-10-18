@@ -7,17 +7,16 @@ from lib import links
 from lib import watchlist
 from lib import yahoo
 
-STATE_FILE = 'finbot_rating.json' # each chat's {ticker: [action, index]} as its last scheduled run saw them
+STATE_FILE = 'finbot_rating.json' # each chat's {ticker: [action, index]} as its last run saw them
 
 def run(dest=None):
-	"""Post the analysts' consensus ratings of the stocks a chat follows that changed since its last scheduled run: to
-	the chat that asked (dest), against its record; or, a scheduled run, to the job's chat (dest), recording the
-	ratings it saw. No change is said only where someone asked (delivery.asked)."""
-	chat, interactive = delivery.target(dest), delivery.interactive(dest)
+	"""Post the analysts' consensus ratings of the stocks a chat follows that changed since its last run, to the job's
+	chat (dest), and record the ratings it saw. No change is said only where someone asked (delivery.asked)."""
+	chat = delivery.target(dest)
 	market_data, seen = gather(watchlist.with_holdings(chat.key))
 	changes = changed(market_data, seen, state.load_for(chat.key, STATE_FILE, {}))
 	delivery.deliver(chat, delivery.Report(report(chat.dialect, changes, delivery.asked(dest))))
-	if seen and not interactive: # added to its record: a ticker missing from this run keeps its last rating
+	if seen: # added to its record: a ticker missing from this run keeps its last rating
 		with state.edit_for(chat.key, STATE_FILE, {}) as ratings:
 			ratings.update(seen)
 

@@ -266,7 +266,7 @@ def in_thread(work):
 			work()
 	return lambda *args: threading.Thread(target=run, daemon=True).start()
 
-def reload_all(*args):
+def reload_all():
 	"""SIGHUP: re-read settings.conf; a bad one is reported and leaves the running config untouched. A key set in
 	defaults/settings.conf, which is never read, is pointed at the file to set it in. (Each chat's jobs need no
 	reload: a change made with .jobs counts at once.)"""
@@ -280,7 +280,7 @@ def reload_all(*args):
 	if note := config.template_note(config.settings_path):
 		log.warn('WARN config:', note)
 
-def flush_cache(*args):
+def flush_cache():
 	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings,
 	schedule), then fill it again straight away with the warm jobs, in a thread of their own (a reload need not wait
 	for them)."""

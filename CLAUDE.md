@@ -161,7 +161,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `toggle`, `run`, `upcoming`, which `.jobs` calls through `jobs.current`; `parse_add` reads `.jobs add`),
   and the fixed `SYSTEM` jobs, its shared state under one lock. A job is an action of `actions()`: a report module of
   `ACTIONS` (`message` among them) or a command of `.help` (`command_actions()`), with the arguments its `job()` takes
-  as words, never a command line; one stored that is anything else is logged and left out. Each job runs in the bot's process, in a thread (`run_in_process`), reported once if still
+  as words, never a command line; one stored that is anything else is logged and left out. Each job runs in the bot's process, in a thread (`Scheduler.execute`), reported once if still
   running after `JOB_TIMEOUT` and left to finish (every request goes through `net`, with its timeouts: a test checks);
   each job's next run is worked out once and again only after it runs, so a tick costs little. `lib/when.py`: a job's
   `Schedule` (days, a time or a repeat, or a span across days, in a zone): `parse()` of the English a chat types,

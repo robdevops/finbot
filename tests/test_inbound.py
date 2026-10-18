@@ -1,6 +1,6 @@
 """What reaches the bot: webhook requests turned away or taken, Slack's events, presses, slash commands and signatures,
 the Slack app's manifest, and user text escaped where it arrives."""
-import contextlib, hashlib, hmac, io, json, re, time, types, unittest
+import contextlib, hashlib, hmac, io, json, time, types, unittest
 from urllib.parse import urlencode
 from tests.common import *
 from util import slack_manifest

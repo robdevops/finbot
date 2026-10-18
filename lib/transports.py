@@ -133,8 +133,6 @@ class Transport:
 		"""Post a chart, the caption under it cut to fit, the typing notice stopped first: the network's answer,
 		MAYBE_SENT, or None if it failed."""
 		self.stop_typing()
-		if hasattr(image, 'seek'):
-			image.seek(0)
 		return self.post_chart(image, fit_caption(caption, self.dialect), buttons)
 
 	def post_text(self, text, buttons=None):

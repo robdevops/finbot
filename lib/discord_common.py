@@ -297,8 +297,6 @@ class DiscordBot(transports.Transport):
 
 	def edit_chart(self, message, image, caption, buttons=None):
 		"""Replace a chart message's image, caption and buttons in place. Raises RuntimeError when Discord refuses."""
-		if hasattr(image, 'seek'):
-			image.seek(0)
 		payload = {'content': transports.fit_caption(caption, self.dialect),
 			'attachments': [{'id': 0, 'filename': 'chart.png'}], 'components': components(buttons or [])}
 		call('PATCH', self.message_path(message), **message_body(payload, image), logged='debug')
@@ -338,12 +336,12 @@ def button_style(button):
 
 
 def message_body(payload, image=None):
-	"""A Discord message's request arguments: its JSON; with a chart, a form of the JSON and the PNG (bytes, so that a
-	rate-limited call can send it again)."""
+	"""A Discord message's request arguments: its JSON; with a chart (a file object), a form of the JSON and the PNG
+	(bytes, so that a rate-limited call can send it again)."""
 	if image is None:
 		return {'json': payload}
-	data = image.read() if hasattr(image, 'read') else bytes(image)
-	return {'data': {'payload_json': json.dumps(payload)}, 'files': {'files[0]': ('chart.png', data, 'image/png')}}
+	return {'data': {'payload_json': json.dumps(payload)},
+		'files': {'files[0]': ('chart.png', image.getvalue(), 'image/png')}}
 
 
 READER = Discord()
