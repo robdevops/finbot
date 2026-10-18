@@ -143,10 +143,11 @@ def largest():
 
 
 def note_cached():
-	"""Note, for largest(), the holdings reports the cache already holds (whatever their age), as a start does: a warm
-	job fetches a report afresh only on its schedule, so until then a restart would leave nothing noted. Asks no one
-	but Yahoo, for a rate (cached); nothing without Sharesight or the cache setting."""
-	if not (configured() and config.settings.cache):
+	"""Note, for largest(), the holdings reports the cache already holds (whatever their age), as a start does when
+	nothing is noted yet (the file survives a restart, so a start with it changes nothing): a warm job fetches a report
+	afresh only on its schedule. Asks no one but Yahoo, for a rate (cached); nothing without Sharesight or the cache
+	setting."""
+	if not (configured() and config.settings.cache) or cache.load(LARGEST):
 		return
 	for portfolio in _chosen((cache.load(PORTFOLIOS_CACHE) or {}).get('portfolios') or []):
 		if report := (cache.load(performance_cache_file(portfolio.id, 0)) or {}).get('report'):

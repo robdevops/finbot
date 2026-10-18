@@ -148,6 +148,17 @@ class SharesightLargest(ProviderCase):
 			top['instrument']['market_code']))
 		self.assertEqual(set(cache.load(sharesight.LARGEST)['portfolios']), {'684141'})
 
+	def test_a_start_leaves_what_an_earlier_run_noted(self):
+		"""The file survives a restart: with it there, note_cached changes nothing (the warm job keeps it current)."""
+		sharesight._note_values(1, self.report('USD', KEPT=5.0))
+		cache.write(sharesight.PORTFOLIOS_CACHE, sample('sharesight', 'finbot_sharesight_portfolios.json'))
+		cache.write(sharesight.performance_cache_file(684141, 0), sample('sharesight',
+			'finbot_sharesight_performance_684141_0.json'))
+		before = cache.load(sharesight.LARGEST)
+		sharesight.note_cached()
+		self.assertEqual(cache.load(sharesight.LARGEST), before)
+		self.assertEqual(sharesight.largest(), 'KEPT')
+
 	def test_a_start_notes_nothing_without_sharesight_or_a_cache(self):
 		"""note_cached does nothing with the cache setting off, Sharesight not set up, or nothing cached."""
 		sharesight.note_cached() # nothing cached
