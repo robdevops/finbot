@@ -74,8 +74,8 @@ def timed(function, *args, **kwargs):
 	return result, time.monotonic() - began
 
 def primed(what, built, drew):
-	"""Log how long one chart of a priming took: built (its data) and drew."""
-	log.info(f"priming {what}: built {built:.1f} s, drew {drew:.2f} s")
+	"""Log, at debug, how long one chart of a priming took: built (its data) and drew."""
+	log.debug(f"priming {what}: built {built:.1f} s, drew {drew:.2f} s")
 
 def prime(kind, args, service, chat, shown):
 	"""Draw, to fill the cache, the chart of each period button of a kind (but `shown`, the period already sent), as a

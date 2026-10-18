@@ -193,7 +193,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   tabs counting 4 (an edit quotes whole lines); a test checks all but README.md, CLAUDE.md and `doc/`.
 - Log with `lib/log.py`, at a level, with print()'s arguments: `log.error` (failed and lost: a message not sent),
   `log.warn` (failed and got over: a retry, a fallback, a refused request), `log.info` (what finbot does: a message
-  sent, a job run, a priming's times per chart; `net` logs each request it sends), `log.debug` (cache misses, hits and writes; the routine of a
+  sent, a job run; `net` logs each request it sends), `log.debug` (cache misses, hits and writes; a priming's times per chart; the routine of a
   press: the press, its acknowledgement and the edit in place, sent with `logged='debug'` (but its POST line at INFO
   when it uploads a chart's image: Telegram's `with_photo`), and a success answered to
   a network). The

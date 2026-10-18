@@ -1519,14 +1519,19 @@ class Pickers(FinbotCase):
 			(9, 1, SLACK, ['Amy treemap by sector', 'Amy treemap by country'], True))
 
 	def test_priming_logs_how_long_each_chart_took_to_build_and_draw(self):
-		"""Each chart a priming draws leaves one INFO line with the seconds its data and its drawing took, for finding
-		which stage sets the pace."""
+		"""Each chart a priming draws leaves one DEBUG line with the seconds its data and its drawing took, for finding
+		which stage sets the pace; at the default level, none."""
 		ticks = iter(x / 10 for x in range(1000))
 		self.preloaders()
 		self.patch(charts, 'time', types.SimpleNamespace(monotonic=lambda: next(ticks)))
 		self.patch(render, 'draw', lambda chart: chart.title)
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
 			render.Chart('bars', period, rows=(('a', 1.0),))))
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
+		self.assertNotIn('priming', log.getvalue())
+		self.settings(log_level='DEBUG')
+		ticks = iter(x / 10 for x in range(1000))
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
 		lines = [line for line in log.getvalue().split('\n') if line.startswith('priming')]
