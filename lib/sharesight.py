@@ -142,6 +142,17 @@ def largest():
 		log.warn("Sharesight: cannot read the biggest holding:", e)
 
 
+def note_cached():
+	"""Note, for largest(), the holdings reports the cache already holds (whatever their age), as a start does: a warm
+	job fetches a report afresh only on its schedule, so until then a restart would leave nothing noted. Asks no one
+	but Yahoo, for a rate (cached); nothing without Sharesight or the cache setting."""
+	if not (configured() and config.settings.cache):
+		return
+	for portfolio in _chosen((cache.load(PORTFOLIOS_CACHE) or {}).get('portfolios') or []):
+		if report := (cache.load(performance_cache_file(portfolio.id, 0)) or {}).get('report'):
+			_note_values(portfolio.id, report)
+
+
 def _trades(portfolio_id, days=None):
 	"""Sharesight's trades in a portfolio over the past `days` (past_days when None), from the cache while under 5
 	minutes old."""

@@ -135,6 +135,33 @@ class SharesightLargest(ProviderCase):
 		return {'currency': {'code': currency}, 'holdings': [
 			{'value': value, 'instrument': {'code': code, 'market_code': 'NASDAQ'}} for code, value in values.items()]}
 
+	def test_a_start_notes_the_holdings_reports_the_cache_holds(self):
+		"""note_cached notes the holdings reports already in the cache, whatever their age, with no request but a
+		rate: a restart need not wait for the warm job."""
+		performance = sample('sharesight', 'finbot_sharesight_performance_684141_0.json')
+		cache.write(sharesight.PORTFOLIOS_CACHE, sample('sharesight', 'finbot_sharesight_portfolios.json'))
+		cache.write(sharesight.performance_cache_file(684141, 0), performance) # the other portfolio has no report
+		self.patch(sharesight.net, 'get', lambda *args, **kwargs: self.fail('Sharesight was asked'))
+		sharesight.note_cached()
+		top = max(performance['report']['holdings'], key=lambda each: each['value'])
+		self.assertEqual(sharesight.largest(), markets.transform_to_yahoo(top['instrument']['code'],
+			top['instrument']['market_code']))
+		self.assertEqual(set(cache.load(sharesight.LARGEST)['portfolios']), {'684141'})
+
+	def test_a_start_notes_nothing_without_sharesight_or_a_cache(self):
+		"""note_cached does nothing with the cache setting off, Sharesight not set up, or nothing cached."""
+		sharesight.note_cached() # nothing cached
+		self.assertIsNone(sharesight.largest())
+		cache.write(sharesight.PORTFOLIOS_CACHE, sample('sharesight', 'finbot_sharesight_portfolios.json'))
+		cache.write(sharesight.performance_cache_file(684141, 0), sample('sharesight',
+			'finbot_sharesight_performance_684141_0.json'))
+		self.settings(cache=False)
+		sharesight.note_cached()
+		self.settings(cache=True)
+		self.patch(sharesight, 'configured', lambda: False)
+		sharesight.note_cached()
+		self.assertIsNone(sharesight.largest())
+
 	def test_nothing_is_largest_before_any_report(self):
 		"""No holdings report yet: no biggest holding."""
 		self.assertIsNone(sharesight.largest())

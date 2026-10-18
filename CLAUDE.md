@@ -136,7 +136,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `trades(days)`. Sharesight is
   optional (`sharesight.configured()`): without its keys `tickers()` is empty, so reports cover the watchlist alone, and
   `portfolios()` raises `NotSetUp`, an answer. A holdings report (days 0) as it is fetched also notes what its holdings
-  are worth in US dollars (`_note_values`, `yahoo.usd_rates`) for `largest()`.
+  are worth in US dollars (`_note_values`, `yahoo.usd_rates`) for `largest()`; `note_cached()` does the same at start from the
+  reports already cached (bot.py, in a thread), as a warm job runs only on its schedule.
 - `lib/log.py`: the log, by level (`error warn info debug`), as the `log_level` setting lets in, and `cut()`, which
   keeps a line that can run long (a request's, a chat message's) on one line, within the `log_width` setting;
   bot.py's `WholeLines` writes each line whole, whichever threads log at once. `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
