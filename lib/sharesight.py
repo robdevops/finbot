@@ -11,12 +11,15 @@ from lib import cache
 from lib import config
 from lib import markets
 from lib import net
+from lib import yahoo
 
 API = 'https://api.sharesight.com/'
 MAX_CONCURRENT = 1 # Sharesight refuses parallel requests beyond a few per account: one at a time, whoever asks
 _request_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
 TOKEN = 'finbot_sharesight_token.json' # good until the expiry it carries
 PORTFOLIOS_CACHE = 'finbot_sharesight_portfolios.json' # good for the cache_seconds setting
+LARGEST = 'finbot_sharesight_largest.json' # what each portfolio's holdings are worth in US dollars: see largest()
+_largest_lock = threading.Lock() # one change of LARGEST at a time: two portfolios' reports can arrive together
 
 
 def _request(path, what, expect, **kwargs):
@@ -90,10 +93,53 @@ def _performance(portfolio_id, days=None, seconds=None):
 	if days is None:
 		days = config.settings.past_days
 	query = f'v3/portfolios/{portfolio_id}/performance?grouping=ungrouped&start_date={_since(days)}'
-	fetch = lambda: _api(query, f'performance of portfolio {portfolio_id}', 'report')
+	def fetch():
+		"""Ask Sharesight for the report; a holdings report (days 0) also notes what its holdings are worth."""
+		data = _api(query, f'performance of portfolio {portfolio_id}', 'report')
+		if days == 0:
+			_note_values(portfolio_id, data['report'])
+		return data
 	if seconds is None:
 		seconds = config.settings.performance_cache_seconds
 	return cache.cached(performance_cache_file(portfolio_id, days), seconds, fetch)['report']
+
+
+def _note_values(portfolio_id, report):
+	"""Keep what the holdings of a portfolio's holdings report are worth in US dollars (their values are in the report's
+	currency), for largest(); with the cache setting on. A failure (Yahoo's rate, the write) is only logged."""
+	if not config.settings.cache:
+		return
+	try:
+		code = (report.get('currency') or {}).get('code')
+		rate = yahoo.usd_rates([code]).get(code)
+		if not rate:
+			raise RuntimeError(f"no US dollar rate for {code}")
+		worth = {}
+		for each in report.get('holdings') or []:
+			if each.get('value') is not None and float(each['value']) > 0:
+				ticker = markets.transform_to_yahoo(each['instrument']['code'], each['instrument']['market_code'])
+				worth[ticker] = worth.get(ticker, 0.0) + float(each['value']) * rate
+		with _largest_lock:
+			kept = cache.load(LARGEST) or {}
+			kept.setdefault('portfolios', {})[str(portfolio_id)] = worth
+			cache.write(LARGEST, kept)
+	except Exception as e:
+		log.warn(f"Sharesight: could not note the holdings of portfolio {portfolio_id} in US dollars:", e)
+
+
+def largest():
+	"""The Yahoo ticker held in the biggest amount, in US dollars, over the portfolios to report on, as their last
+	holdings reports left it (a ticker in several portfolios counts them all); None where there is none. Reads what
+	was kept (_note_values) and never asks anyone, and never raises."""
+	try:
+		totals = {}
+		for portfolio_id, worth in ((cache.load(LARGEST) or {}).get('portfolios') or {}).items():
+			if _wanted(portfolio_id):
+				for ticker, value in worth.items():
+					totals[ticker] = totals.get(ticker, 0.0) + value
+		return max(totals, key=lambda ticker: (totals[ticker], ticker)) if totals else None
+	except Exception as e:
+		log.warn("Sharesight: cannot read the biggest holding:", e)
 
 
 def _trades(portfolio_id, days=None):
@@ -151,11 +197,15 @@ class Portfolio:
 		return [trade | {'portfolio': self.name} for trade in _trades(self.id, days)]
 
 
+def _wanted(portfolio_id):
+	"""Whether a portfolio (by its id) is one to report on, after include_portfolios and exclude_portfolios."""
+	include, exclude = config.settings.include_portfolios, config.settings.exclude_portfolios
+	return str(portfolio_id) not in exclude and (not include or str(portfolio_id) in include)
+
+
 def _chosen(listed):
 	"""The portfolios of Sharesight's list to report on, after include_portfolios and exclude_portfolios."""
-	include, exclude = config.settings.include_portfolios, config.settings.exclude_portfolios
-	return [Portfolio(each['name'], each['id']) for each in listed
-		if str(each['id']) not in exclude and (not include or str(each['id']) in include)]
+	return [Portfolio(each['name'], each['id']) for each in listed if _wanted(each['id'])]
 
 
 def portfolios(select=None, seconds=None):
@@ -202,5 +252,11 @@ def warm():
 	found = portfolios(seconds=0)
 	for portfolio in found:
 		_performance(portfolio.id, 0, seconds=0)
+	with _largest_lock: # a portfolio that is gone no longer counts towards largest()
+		kept = cache.load(LARGEST) or {}
+		listed = {str(portfolio.id) for portfolio in found}
+		if kept.get('portfolios') and not set(kept['portfolios']) <= listed:
+			kept['portfolios'] = {each: worth for each, worth in kept['portfolios'].items() if each in listed}
+			cache.write(LARGEST, kept)
 	return found
 

@@ -1111,6 +1111,31 @@ class Pickers(FinbotCase):
 		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')], ['✅ T3'])
 		self.assertEqual(self.command('.history'), self.command('.compare'))
 
+	def test_compare_starts_on_the_biggest_holding(self):
+		""".compare answers with the biggest holding (sharesight.largest) at first, ticked in the tickers' screen, when
+		it is among the tickers offered; else with the first."""
+		self.patch(sharesight, 'largest', lambda: 'T3')
+		self.command('.compare')
+		self.assertTrue(any('Co T3' in line for line in self.showing))
+		self.assertFalse(any('Co T0' in line for line in self.showing))
+		kind, lines, rows = self.tap('+')
+		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')], ['✅ T3'])
+		for biggest in (None, 'NOT HELD'):
+			with self.subTest(biggest=biggest):
+				self.patch(sharesight, 'largest', lambda biggest=biggest: biggest)
+				self.command('.compare')
+				self.assertTrue(any('Co T0' in line for line in self.showing))
+
+	def test_a_ticker_pickers_default_is_the_biggest_holding_among_those_offered(self):
+		"""pick.default for tickers: the ticker sharesight.largest names, ticked, if it is offered; else the first; a
+		portfolio picker begins on the first portfolio."""
+		found = ['A', 'B', 'C']
+		for biggest, number in (('C', 2), ('B', 1), ('Z', 0), (None, 0)):
+			with self.subTest(biggest=biggest):
+				self.patch(sharesight, 'largest', lambda biggest=biggest: biggest)
+				self.assertEqual(pick.default('c', found), (pick.pack([number]), 1 << number))
+		self.assertEqual(pick.default('t', found), (1, 0))
+
 	def test_compare_ticks_change_the_buttons_until_show_is_pressed(self):
 		""".compare answers at the period typed; ticking changes the buttons, not the chart, until OK is pressed,
 		which shows those ticked and goes back to the period row."""

@@ -1,8 +1,8 @@
 """The pickers: what a chat gets when it types .treemap, .holdings or .price (.compare) with nothing to say
-what it is about, or a job runs one so: the answer for the first portfolio or ticker, with buttons for the portfolios
-or tickers under it, one message edited as each is pressed (buttons.PickPress). Each answer takes the message over and
-leaves the buttons under it, the item shown marked, so another can be picked. The ticker picker is .price's: its
-period row ends in +, which opens the tickers to tick."""
+what it is about, or a job runs one so: the answer for the first portfolio or the biggest holding, with buttons for
+the portfolios or tickers under it, one message edited as each is pressed (buttons.PickPress). Each answer takes the
+message over and leaves the buttons under it, the item shown marked, so another can be picked. The ticker picker is
+.price's: its period row ends in +, which opens the tickers to tick, and it starts on the biggest holding."""
 from lib import answer
 from lib import buttons
 from lib import config
@@ -55,10 +55,12 @@ def unpack(shown):
 	return [int(text[i:i + 2], 16) - 1 for i in range(0, len(text), 2)]
 
 def default(cmd, found):
-	"""What a picker answers at first, as (shown, mask): the first portfolio (treemap, holdings), or the first
-	ticker (compare), ticked, alphabetically."""
+	"""What a picker answers at first, as (shown, mask): the first portfolio (treemap, holdings), alphabetically, or the
+	ticker held in the biggest amount (sharesight.largest) among those offered, else the first (compare), ticked."""
 	if cmd == 'c':
-		return pack([0]), 0b1
+		biggest = sharesight.largest()
+		i = found.index(biggest) if biggest in found else 0
+		return pack([i]), 1 << i
 	return 1, 0
 
 def shown_names(cmd, found, shown):
