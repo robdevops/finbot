@@ -464,17 +464,15 @@ def watchlist_screen(service, chat, mask, user='', page=0, note=None, editing=Tr
 	pages = -(-len(found) // per_page)
 	page = min(max(page, 0), max(pages - 1, 0))
 	crc = buttons.checksum(found)
-	def button(label, act, mask=mask):
-		"""A button of this screen: its label, and the press it makes."""
-		return buttons.pick_button(label, buttons.PickPress('w', '0', '0', 0, mask, act, crc))
+	def button(label, act, **changes):
+		"""A button of this screen: its label, and the press it makes (changes: the mask it asks for)."""
+		return buttons.pick_button(label, buttons.PickPress('w', '0', '0', 0, changes.get('mask', mask), act, crc))
 	if not found: # nothing to edit: the list alone, no buttons
 		return ([note] if note else []) + lines, []
 	if not editing:
-		return ([note] if note else []) + lines, [[button('Edit', 'e0', 0)]]
-	rows = pick.chunks([button(about.struck(ticker) if mask >> i & 1 else ticker, f"m{page}", mask ^ 1 << i)
-		for i, ticker in pick.items_on(found, page, per_page)], per_row)
-	rows.append(([button('<', f"m{page - 1}")] if page else []) + ([button('>', f"m{page + 1}")] if page < pages - 1
-		else []) + [button('Delete', 'h0'), button('Cancel', 'p0', 0)])
+		return ([note] if note else []) + lines, [[button('Edit', 'e0', mask=0)]]
+	rows = pick.chunks(pick.ticker_buttons(found, page, per_page, mask, button, about.struck, 'm'), per_row)
+	rows.append(pick.page_buttons(page, pages, 'm', button) + [button('Delete', 'h0'), button('Cancel', 'p0', mask=0)])
 	return ([note] if note else []) + lines + ['', WATCHLIST_HINT], rows
 
 def watchlist_press(service, chat, press, pressed):
@@ -620,8 +618,9 @@ def on_rating(request, args):
 
 def on_compare(request, args):
 	""".price (or .compare, .history) [SYMBOL...] [period]: their price changes on one chart, with period buttons where
-	they work; one stock's alone; with no symbols, the first one's, with buttons to pick others. What only the movers
-	list takes (a percent, top or bottom, and no ticker), typed to .price, which it was, gets the .movers to type."""
+	they work; one stock's alone; with no symbols, the biggest holding's, with buttons to pick others. What only the
+	movers list takes (a percent, top or bottom, and no ticker), typed to .price, which it was, gets the .movers to
+	type."""
 	if args.word in PRICE_NAMES:
 		_, listed = read('.movers ' + args.text, '')
 		if not listed.words and (listed.percent is not None or listed.keyword):
@@ -654,8 +653,8 @@ def compare_picker(request, tickers, days):
 
 def picker(request, cmd, args):
 	"""A command typed with nothing to say what it is about (cmd, a key of buttons.PICKERS), or a job's run of it: where
-	there are buttons, its answer for the first portfolio or ticker, alphabetically, with the picker's buttons under
-	it, one message that a press then edits (see send_picker). Else the command's usage."""
+	there are buttons, its answer for the first portfolio, alphabetically, or the biggest holding (a ticker), with the
+	picker's buttons under it, one message that a press then edits (see send_picker). Else the command's usage."""
 	dest = request.dest
 	if not dest.takes_buttons:
 		raise Usage(portfolios()) if pick.noun(cmd) == 'portfolio' else Usage

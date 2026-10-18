@@ -2,6 +2,7 @@
 button pressed, so that both look alike. Each builder takes the network's dialect, the chat's key (the movers list
 covers the stocks that chat follows), the period, its days, then what the buttons carry."""
 import threading
+import time
 
 from lib import answer
 from lib import buttons
@@ -66,22 +67,34 @@ def build(kind, args, service, chat, period=None, days=None):
 		raise ValueError(f"unknown chart kind {kind}")
 	return BUILDERS[kind](service, chat, period, buttons.PERIODS[period][1] if period else days, *args)
 
+def timed(function, *args, **kwargs):
+	"""(function(*args, **kwargs), the seconds it took)."""
+	began = time.monotonic()
+	result = function(*args, **kwargs)
+	return result, time.monotonic() - began
+
+def primed(what, built, drew):
+	"""Log, at debug, how long one chart of a priming took: built (its data) and drew."""
+	log.debug(f"priming {what}: built {built:.1f} s, drew {drew:.2f} s")
+
 def prime(kind, args, service, chat, shown):
 	"""Draw, to fill the cache, the chart of each period button of a kind (but `shown`, the period already sent), as a
-	press would ask for it, each uploaded ahead to the network's preload chat where a setting names one
-	(delivery.preload; one failing stops those uploads). A period with nothing to draw is skipped, and a failure is
-	logged, never raised."""
-	preloading = True
+	press would ask for it, each uploaded ahead as it is drawn to the network's preload chat where a setting names one
+	(delivery.Preloader). A period with nothing to draw is skipped, and a failure is logged, never raised. Each
+	chart's times are logged (primed)."""
+	preloader = delivery.Preloader(service)
 	for period in buttons.BUTTONS[kind]:
 		if period == shown:
 			continue
 		try:
-			_, chart = build(kind, args, service, chat, period=period)
+			(_, chart), built = timed(build, kind, args, service, chat, period=period)
 			if chart and chart.rows:
-				image = render.draw(chart)
-				preloading = preloading and delivery.preload(service, image)
+				image, drew = timed(render.draw, chart)
+				preloader.add(image)
+				primed(f"{kind} {period}", built, drew)
 		except Exception as e:
 			log.warn("priming", kind, args, period, "failed:", e)
+	preloader.finish()
 
 def prime_in_background(kind, args, service, chat, shown):
 	"""Start drawing a chart's other periods, to fill the cache, in a thread of its own (see prime)."""

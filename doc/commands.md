@@ -272,7 +272,9 @@ Command:
 
 One stock's price line over a period, green or red with its change and filled below, its high and low marked; or two
 to eight stocks' changes over the period, rebased on one chart. Max is a stock's whole history, and ten years for
-several. Typed, `.compare` and `.history` are other names for it.
+several. Typed, `.compare` and `.history` are other names for it. With no symbol it starts on your biggest holding: the
+stock worth most in US dollars (at Yahoo's rates, so portfolios in other currencies compare) over all the portfolios
+that hold it, as of the last holdings report; until Sharesight has reported, or without it, on the first ticker.
 
 Command:
 ```

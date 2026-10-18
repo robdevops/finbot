@@ -1,10 +1,11 @@
 """The pickers: what a chat gets when it types .treemap, .holdings or .price (.compare) with nothing to say
-what it is about, or a job runs one so: the answer for the first portfolio or ticker, with buttons for the portfolios
-or tickers under it, one message edited as each is pressed (buttons.PickPress). Each answer takes the message over and
-leaves the buttons under it, the item shown marked, so another can be picked. The ticker picker is .price's: its
-period row ends in +, which opens the tickers to tick."""
+what it is about, or a job runs one so: the answer for the first portfolio or the biggest holding, with buttons for
+the portfolios or tickers under it, one message edited as each is pressed (buttons.PickPress). Each answer takes the
+message over and leaves the buttons under it, the item shown marked, so another can be picked. The ticker picker is
+.price's: its period row ends in +, which opens the tickers to tick, and it starts on the biggest holding."""
 from lib import answer
 from lib import buttons
+from lib import charts
 from lib import config
 from lib import delivery
 from lib import log
@@ -55,10 +56,12 @@ def unpack(shown):
 	return [int(text[i:i + 2], 16) - 1 for i in range(0, len(text), 2)]
 
 def default(cmd, found):
-	"""What a picker answers at first, as (shown, mask): the first portfolio (treemap, holdings), or the first
-	ticker (compare), ticked, alphabetically."""
+	"""What a picker answers at first, as (shown, mask): the first portfolio (treemap, holdings), alphabetically, or the
+	ticker held in the biggest amount (sharesight.largest) among those offered, else the first (compare), ticked."""
 	if cmd == 'c':
-		return pack([0]), 0b1
+		biggest = sharesight.largest()
+		i = found.index(biggest) if biggest in found else 0
+		return pack([i]), 1 << i
 	return 1, 0
 
 def shown_names(cmd, found, shown):
@@ -69,21 +72,23 @@ def shown_names(cmd, found, shown):
 
 def prime(service, cmd, group, found, index):
 	"""Draw, to fill the cache, the charts a button of a treemap picker would ask for: the other groupings of the
-	portfolio shown (found[index]) first, then every other portfolio in all, each uploaded ahead to the network's
-	preload chat where a setting names one (delivery.preload; one failing stops those uploads). A failure is logged,
-	never raised."""
+	portfolio shown (found[index]) first, then every other portfolio in all, each uploaded ahead as it is drawn to the
+	network's preload chat where a setting names one (delivery.Preloader). A failure is logged, never raised. Each
+	chart's times are logged (charts.primed)."""
 	by = holdings.GROUPS.get(group, 'industry')
 	wanted = [(found[index], each) for each in holdings.GROUPS.values() if each != by] + [(name, each)
 		for name in found if name != found[index] for each in holdings.GROUPS.values()]
-	preloading = True
+	preloader = delivery.Preloader(service)
 	for name, by in wanted:
 		try:
-			_, chart = holdings.prepare_treemap(name, by, service)
+			(_, chart), built = charts.timed(holdings.prepare_treemap, name, by, service)
 			if chart and chart.rows:
-				image = render.draw(chart)
-				preloading = preloading and delivery.preload(service, image)
+				image, drew = charts.timed(render.draw, chart)
+				preloader.add(image)
+				charts.primed(f"{cmd} {name} by {by}", built, drew)
 		except Exception as e:
 			log.warn("priming", cmd, name, by, "failed:", e)
+	preloader.finish()
 
 def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=None):
 	"""A picker's screen, as (lines, rows): `view` 'p', the first (the portfolios; for tickers the period and the way
@@ -124,20 +129,11 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		if cmd == 't':
 			rows.append([button(f"Grouped by: {holdings.GROUPS.get(group, 'industry').capitalize()} ▾", f"g{page}")])
 	elif view == 'm':
-		full = len(ticked) >= buttons.MAX_PICKED
-		tickers = []
-		for i, ticker in on_page:
-			if mask >> i & 1:
-				tickers.append(button(f"✅ {ticker}", f"{step}{page}", mask=mask ^ 1 << i))
-			else:
-				tickers.append(button(ticker, f"f{page}") if full else button(ticker, f"{step}{page}",
-					mask=mask | 1 << i))
-		rows += chunks(tickers, per_row)
+		rows += chunks(ticker_buttons(found, page, per_page, mask, button, lambda ticker: f"✅ {ticker}", step,
+			full=len(ticked) >= buttons.MAX_PICKED), per_row)
 	nav = [button('◀ Back', 'p0')] if cmd == 'c' and view == 'm' else []
 	if pages > 1 and (view == 'm' or noun(cmd) == 'portfolio'): # the page buttons: under the tickers, not above them
-		act = step if view == 'm' else 'p'
-		nav += ([button('<', f"{act}{page - 1}")] if page else []) + (
-			[button('>', f"{act}{page + 1}")] if page < pages - 1 else [])
+		nav += page_buttons(page, pages, step if view == 'm' else 'p', button)
 	if view == 'm' and to_compare:
 		nav.append(button('OK', 'h0'))
 	if nav:
@@ -155,3 +151,24 @@ def items_on(found, page, per_page):
 def chunks(row, size):
 	"""A list of buttons as rows of at most `size`."""
 	return [row[i:i + size] for i in range(0, len(row), size)]
+
+def ticker_buttons(found, page, per_page, mask, button, mark, step, full=False):
+	"""The buttons of a page of tickers to tick (the .price picker's, the watchlist's Edit): a ticked one (a bit of
+	`mask`) is labelled by mark(ticker) and unticks itself; any other ticks itself, or with `full` (no more may be
+	ticked) is refused (act f). `button(label, act, **changes)` makes the screen's own button, `changes` the mask it
+	asks for; `step` is the act that redraws the screen at `page`."""
+	tickers = []
+	for i, ticker in items_on(found, page, per_page):
+		if mask >> i & 1:
+			tickers.append(button(mark(ticker), f"{step}{page}", mask=mask ^ 1 << i))
+		elif full:
+			tickers.append(button(ticker, f"f{page}"))
+		else:
+			tickers.append(button(ticker, f"{step}{page}", mask=mask | 1 << i))
+	return tickers
+
+def page_buttons(page, pages, act, button):
+	"""The < and > buttons of a screen at `page` of `pages`, each pressing `act` at the page it goes to; none for a
+	page there is no other side of."""
+	return ([button('<', f"{act}{page - 1}")] if page else []) + (
+		[button('>', f"{act}{page + 1}")] if page < pages - 1 else [])

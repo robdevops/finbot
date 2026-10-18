@@ -3,6 +3,7 @@ import contextlib
 import unittest
 import datetime
 import re
+import types
 from tests.common import *
 from lib.reports import pick
 
@@ -1111,6 +1112,31 @@ class Pickers(FinbotCase):
 		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')], ['✅ T3'])
 		self.assertEqual(self.command('.history'), self.command('.compare'))
 
+	def test_compare_starts_on_the_biggest_holding(self):
+		""".compare answers with the biggest holding (sharesight.largest) at first, ticked in the tickers' screen, when
+		it is among the tickers offered; else with the first."""
+		self.patch(sharesight, 'largest', lambda: 'T3')
+		self.command('.compare')
+		self.assertTrue(any('Co T3' in line for line in self.showing))
+		self.assertFalse(any('Co T0' in line for line in self.showing))
+		kind, lines, rows = self.tap('+')
+		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')], ['✅ T3'])
+		for biggest in (None, 'NOT HELD'):
+			with self.subTest(biggest=biggest):
+				self.patch(sharesight, 'largest', lambda biggest=biggest: biggest)
+				self.command('.compare')
+				self.assertTrue(any('Co T0' in line for line in self.showing))
+
+	def test_a_ticker_pickers_default_is_the_biggest_holding_among_those_offered(self):
+		"""pick.default for tickers: the ticker sharesight.largest names, ticked, if it is offered; else the first; a
+		portfolio picker begins on the first portfolio."""
+		found = ['A', 'B', 'C']
+		for biggest, number in (('C', 2), ('B', 1), ('Z', 0), (None, 0)):
+			with self.subTest(biggest=biggest):
+				self.patch(sharesight, 'largest', lambda biggest=biggest: biggest)
+				self.assertEqual(pick.default('c', found), (pick.pack([number]), 1 << number))
+		self.assertEqual(pick.default('t', found), (1, 0))
+
 	def test_compare_ticks_change_the_buttons_until_show_is_pressed(self):
 		""".compare answers at the period typed; ticking changes the buttons, not the chart, until OK is pressed,
 		which shows those ticked and goes back to the period row."""
@@ -1186,6 +1212,21 @@ class Pickers(FinbotCase):
 		self.assertEqual(lines[0], 'The list has changed: here it is now')
 		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+']])
 		self.assertTrue(any('Co A1' in line for line in lines))
+
+	def test_the_tickers_pickers_build_their_grid_and_page_buttons_in_one_place(self):
+		"""pick.ticker_buttons and pick.page_buttons make the ticker buttons and the < > of the .price picker and of the
+		watchlist's Edit: a ticked ticker unticks itself, any other ticks itself or, at the cap, is refused."""
+		made = lambda label, act, **changes: (label, act, changes)
+		found = ['A', 'B', 'C', 'D']
+		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm'),
+			[('a', 'm0', {'mask': 0b100}), ('B', 'm0', {'mask': 0b111}), ('c', 'm0', {'mask': 0b001})])
+		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, str.lower, 'n'),
+			[('D', 'n1', {'mask': 0b1101})])
+		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm', full=True),
+			[('a', 'm0', {'mask': 0b100}), ('B', 'f0', {}), ('c', 'm0', {'mask': 0b001})])
+		self.assertEqual([pick.page_buttons(page, 3, 'm', made) for page in range(3)],
+			[[('>', 'm1', {})], [('<', 'm0', {}), ('>', 'm2', {})], [('<', 'm1', {})]])
+		self.assertEqual(pick.page_buttons(0, 1, 'm', made), [])
 
 	def test_watchlist_edit_crosses_tickers_off_and_ok_deletes_them(self):
 		""".watchlist lists the watchlist with an Edit button, which offers a button for each ticker: pressing one
@@ -1439,22 +1480,63 @@ class Pickers(FinbotCase):
 			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
 		self.assertEqual((built, drawn), (['w', 'm', 'y'], ['bars']))
 		self.assertIn("priming c ['T1'] m failed: boom", err.getvalue())
+	def preloaders(self):
+		"""Stand in for delivery.Preloader: each one made, with the images added to it and whether it finished."""
+		made = []
+		class Preloader:
+			"""Notes what priming hands over."""
+			def __init__(self, service):
+				"""Note this preloader."""
+				self.service, self.images, self.finished = service, [], False
+				made.append(self)
+			def add(self, image):
+				"""Note a chart handed over."""
+				self.images.append(image)
+			def finish(self):
+				"""Note that priming waited."""
+				self.finished = True
+		self.patch(delivery, 'Preloader', Preloader)
+		return made
 
-	def test_priming_hands_each_chart_drawn_to_preload_till_one_fails(self):
-		"""Each chart priming draws goes to delivery.preload, for the network's preload chat (a period's, a portfolio's,
-		in the order they are drawn); after one fails, the rest are drawn and not handed on."""
-		drawn, handed = [], []
-		self.patch(render, 'draw', lambda chart: drawn.append(chart.title) or chart.title) # the image: its title
-		self.patch(delivery, 'preload', lambda service, image: handed.append((service, image)) or len(handed) < 2)
+	def test_priming_hands_each_chart_to_a_preloader_as_it_is_drawn(self):
+		"""Each chart priming draws (a chart's other periods, a treemap's other portfolios and groupings, in the order
+		they are drawn) is handed to the network's delivery.Preloader as it is, and priming waits for it at the end."""
+		made, drawn = self.preloaders(), []
+		def draw(chart):
+			"""The image: its title; noting, at the time, what the preloader has so far."""
+			drawn.append((chart.title, list(made[-1].images)))
+			return chart.title
+		self.patch(render, 'draw', draw)
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
 			render.Chart('bars', period, rows=(('a', 1.0),))))
 		charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
-		self.assertEqual((drawn, handed), (['w', 'm', 'y'], [(TELEGRAM, 'w'), (TELEGRAM, 'm')]))
-		drawn.clear(), handed.clear()
+		self.assertEqual(drawn, [('w', []), ('m', ['w']), ('y', ['w', 'm'])]) # each was handed over before the next
+		self.assertEqual((made[0].service, made[0].images, made[0].finished), (TELEGRAM, ['w', 'm', 'y'], True))
+		del made[:], drawn[:]
 		self.portfolios('Amy', 'Bob')
 		pick.prime(SLACK, 't', '0', ['Amy', 'Bob'], 0)
-		self.assertEqual(len(drawn), 9)
-		self.assertEqual(handed, [(SLACK, 'Amy treemap by sector'), (SLACK, 'Amy treemap by country')])
+		self.assertEqual((len(drawn), len(made), made[0].service, made[0].images[:2], made[0].finished),
+			(9, 1, SLACK, ['Amy treemap by sector', 'Amy treemap by country'], True))
+
+	def test_priming_logs_how_long_each_chart_took_to_build_and_draw(self):
+		"""Each chart a priming draws leaves one DEBUG line with the seconds its data and its drawing took, for finding
+		which stage sets the pace; at the default level, none."""
+		ticks = iter(x / 10 for x in range(1000))
+		self.preloaders()
+		self.patch(charts, 'time', types.SimpleNamespace(monotonic=lambda: next(ticks)))
+		self.patch(render, 'draw', lambda chart: chart.title)
+		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
+			render.Chart('bars', period, rows=(('a', 1.0),))))
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
+		self.assertNotIn('priming', log.getvalue())
+		self.settings(log_level='DEBUG')
+		ticks = iter(x / 10 for x in range(1000))
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
+		lines = [line for line in log.getvalue().split('\n') if line.startswith('priming')]
+		self.assertEqual(lines, ['priming c w: built 0.1 s, drew 0.10 s', 'priming c m: built 0.1 s, drew 0.10 s',
+			'priming c y: built 0.1 s, drew 0.10 s'])
 
 
 if __name__ == '__main__':

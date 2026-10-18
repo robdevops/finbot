@@ -1,6 +1,6 @@
 """Sharesight's portfolios, holdings, gains and trades on the answers saved under doc/, its failures,
 and the cache warmer."""
-import datetime, unittest
+import contextlib, datetime, unittest
 from tests.common import *
 
 
@@ -10,6 +10,11 @@ def portfolios():
 
 
 class SharesightApi(ProviderCase):
+	def setUp(self):
+		"""Yahoo's exchange rates fixed, which a holdings report asks for to note its values in US dollars."""
+		super().setUp()
+		self.patch(yahoo, 'usd_rates', lambda currencies: {'USD': 1.0, 'AUD': 0.5})
+
 	def test_portfolios_from_real_response(self):
 		"""The portfolio list parses from a real answer."""
 		self.http(sharesight, Resp(sample('sharesight', 'finbot_sharesight_portfolios.json')))
@@ -116,9 +121,135 @@ class SharesightApi(ProviderCase):
 		self.assertIsNone(cache.read(sharesight.performance_cache_file(684141, 7))) # and is not cached
 
 
+class SharesightLargest(ProviderCase):
+	"""largest(): the ticker held in the biggest amount over the portfolios, noted in US dollars as holdings reports
+	arrive."""
+
+	def setUp(self):
+		"""Yahoo's exchange rates fixed: an Australian dollar is half a US dollar."""
+		super().setUp()
+		self.patch(yahoo, 'usd_rates', lambda currencies: {'USD': 1.0, 'AUD': 0.5})
+
+	def report(self, currency, **values):
+		"""A holdings report in `currency` whose holdings (US-listed tickers) have these values."""
+		return {'currency': {'code': currency}, 'holdings': [
+			{'value': value, 'instrument': {'code': code, 'market_code': 'NASDAQ'}} for code, value in values.items()]}
+
+	def test_a_start_notes_the_holdings_reports_the_cache_holds(self):
+		"""note_cached notes the holdings reports already in the cache, whatever their age, with no request but a
+		rate: a restart need not wait for the warm job."""
+		performance = sample('sharesight', 'finbot_sharesight_performance_684141_0.json')
+		cache.write(sharesight.PORTFOLIOS_CACHE, sample('sharesight', 'finbot_sharesight_portfolios.json'))
+		cache.write(sharesight.performance_cache_file(684141, 0), performance) # the other portfolio has no report
+		self.patch(sharesight.net, 'get', lambda *args, **kwargs: self.fail('Sharesight was asked'))
+		sharesight.note_cached()
+		top = max(performance['report']['holdings'], key=lambda each: each['value'])
+		self.assertEqual(sharesight.largest(), markets.transform_to_yahoo(top['instrument']['code'],
+			top['instrument']['market_code']))
+		self.assertEqual(set(cache.load(sharesight.LARGEST)['portfolios']), {'684141'})
+
+	def test_a_start_leaves_what_an_earlier_run_noted(self):
+		"""The file survives a restart: with it there, note_cached changes nothing (the warm job keeps it current)."""
+		sharesight._note_values(1, self.report('USD', KEPT=5.0))
+		cache.write(sharesight.PORTFOLIOS_CACHE, sample('sharesight', 'finbot_sharesight_portfolios.json'))
+		cache.write(sharesight.performance_cache_file(684141, 0), sample('sharesight',
+			'finbot_sharesight_performance_684141_0.json'))
+		before = cache.load(sharesight.LARGEST)
+		sharesight.note_cached()
+		self.assertEqual(cache.load(sharesight.LARGEST), before)
+		self.assertEqual(sharesight.largest(), 'KEPT')
+
+	def test_a_start_notes_nothing_without_sharesight_or_a_cache(self):
+		"""note_cached does nothing with the cache setting off, Sharesight not set up, or nothing cached."""
+		sharesight.note_cached() # nothing cached
+		self.assertIsNone(sharesight.largest())
+		cache.write(sharesight.PORTFOLIOS_CACHE, sample('sharesight', 'finbot_sharesight_portfolios.json'))
+		cache.write(sharesight.performance_cache_file(684141, 0), sample('sharesight',
+			'finbot_sharesight_performance_684141_0.json'))
+		self.settings(cache=False)
+		sharesight.note_cached()
+		self.settings(cache=True)
+		self.patch(sharesight, 'configured', lambda: False)
+		sharesight.note_cached()
+		self.assertIsNone(sharesight.largest())
+
+	def test_nothing_is_largest_before_any_report(self):
+		"""No holdings report yet: no biggest holding."""
+		self.assertIsNone(sharesight.largest())
+
+	def test_a_fetched_holdings_report_notes_its_biggest_holding_in_us_dollars(self):
+		"""Asking Sharesight for a portfolio's holdings (days 0) keeps what each holding is worth in US dollars (the
+		report's values are in its currency, here AUD), and largest() is the biggest."""
+		performance = sample('sharesight', 'finbot_sharesight_performance_684141_0.json')
+		self.http(sharesight, Resp(performance))
+		self.assertEqual(len(sharesight._performance(684141, 0)['holdings']), 18)
+		top = max(performance['report']['holdings'], key=lambda each: each['value'])
+		ticker = markets.transform_to_yahoo(top['instrument']['code'], top['instrument']['market_code'])
+		self.assertEqual(sharesight.largest(), ticker)
+		kept = cache.load(sharesight.LARGEST)['portfolios']['684141']
+		self.assertAlmostEqual(kept[ticker], top['value'] * 0.5)
+		self.assertEqual(len(kept), 18)
+
+	def test_a_ticker_in_several_portfolios_counts_them_all_in_one_currency(self):
+		"""A ticker held in an AUD and a USD portfolio is worth both in US dollars, which can put it past a ticker whose
+		single position is bigger than either of its."""
+		sharesight._note_values(1, self.report('AUD', A=100.0, B=120.0)) # A 50, B 60
+		self.assertEqual(sharesight.largest(), 'B')
+		sharesight._note_values(2, self.report('USD', A=40.0)) # A 50 + 40
+		self.assertEqual(sharesight.largest(), 'A')
+		sharesight._note_values(2, self.report('USD', A=5.0)) # a newer report replaces the portfolio's
+		self.assertEqual(sharesight.largest(), 'B')
+
+	def test_only_the_portfolios_reported_on_count(self):
+		"""A portfolio that exclude_portfolios (or include_portfolios) leaves out does not count."""
+		sharesight._note_values(1, self.report('USD', A=10.0))
+		sharesight._note_values(2, self.report('USD', B=20.0))
+		self.assertEqual(sharesight.largest(), 'B')
+		self.settings(exclude_portfolios=['2'])
+		self.assertEqual(sharesight.largest(), 'A')
+		self.settings(exclude_portfolios=[], include_portfolios=['2'])
+		self.assertEqual(sharesight.largest(), 'B')
+
+	def test_a_holding_without_a_value_is_left_out(self):
+		"""A holding with no value, or none above zero, is no candidate."""
+		sharesight._note_values(1, self.report('USD', A=None, B=0.0, C=3.0))
+		self.assertEqual(sharesight.largest(), 'C')
+		self.assertEqual(set(cache.load(sharesight.LARGEST)['portfolios']['1']), {'C'})
+
+	def test_a_rate_that_cannot_be_had_loses_the_note_and_never_the_report(self):
+		"""No US dollar rate for the report's currency, or the cache setting off: the holdings report comes back all the
+		same, and nothing is kept."""
+		performance = sample('sharesight', 'finbot_sharesight_performance_684141_0.json')
+		self.patch(yahoo, 'usd_rates', lambda currencies: {'USD': 1.0})
+		self.http(sharesight, Resp(performance))
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertEqual(len(sharesight._performance(684141, 0)['holdings']), 18)
+		self.assertIsNone(sharesight.largest())
+		self.assertIn('could not note the holdings of portfolio 684141', err.getvalue())
+		self.settings(cache=False)
+		sharesight._note_values(1, self.report('USD', A=1.0))
+		self.assertIsNone(sharesight.largest())
+
+	def test_other_reports_note_nothing(self):
+		"""A performance report over past days (the gain of a period) says nothing about the holdings now."""
+		self.http(sharesight, Resp(sample('sharesight', 'finbot_sharesight_performance_684141_0.json')))
+		sharesight._performance(684141, 28)
+		self.assertIsNone(sharesight.largest())
+
+	def test_a_damaged_file_is_no_largest_holding(self):
+		"""largest() never raises: a file that is not what _note_values writes is no answer."""
+		cache.write(sharesight.LARGEST, {'portfolios': {'1': 'nonsense'}})
+		self.assertIsNone(sharesight.largest())
+
+
 class SharesightWarm(ProviderCase):
 	"""warm() fetches the portfolio list and the holdings reports (days=0) afresh, for sharesight_warm.py to run on its
 	schedule."""
+
+	def setUp(self):
+		"""Yahoo's exchange rates fixed, which a holdings report asks for to note its values in US dollars."""
+		super().setUp()
+		self.patch(yahoo, 'usd_rates', lambda currencies: {'USD': 1.0, 'AUD': 0.5})
 
 	def serve_sharesight(self):
 		"""Answer with the real portfolio list and holdings report; returns the URLs asked for."""
@@ -142,6 +273,16 @@ class SharesightWarm(ProviderCase):
 		self.assertTrue(all(today in c for c in calls if '/performance' in c)) # days=0
 		sharesight.warm()
 		self.assertEqual(len(calls), 6)
+
+	def test_a_portfolio_that_is_gone_no_longer_counts_towards_the_biggest_holding(self):
+		"""warm keeps the biggest holding of the portfolios in Sharesight's list alone."""
+		self.serve_sharesight()
+		sharesight._note_values(999, {'currency': {'code': 'USD'}, 'holdings': [
+			{'value': 1e12, 'instrument': {'code': 'GONE', 'market_code': 'NASDAQ'}}]})
+		self.assertEqual(sharesight.largest(), 'GONE')
+		sharesight.warm()
+		self.assertNotEqual(sharesight.largest(), 'GONE')
+		self.assertEqual(set(cache.load(sharesight.LARGEST)['portfolios']), {'445825', '684141'})
 
 	def test_a_request_never_waits_on_a_cache_the_job_has_warmed(self):
 		"""Once warmed, the list and the holdings report need no request."""

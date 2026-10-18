@@ -175,6 +175,7 @@ class TelegramSending(FinbotCase):
 		file id: a press's edit of that chart in another chat then sends the id. A chart Telegram has is not sent again,
 		the next preload waits out the gap, and with the cache setting off nothing is sent."""
 		sent, waits = self.photos(), self.preloading()
+		self.settings(preload_gap=3.0)
 		chat = telegram_common.TelegramBot('-100777')
 		self.assertTrue(chat.preload(b'one'))
 		self.assertTrue(chat.preload(b'one')) # Telegram has it now
@@ -184,10 +185,134 @@ class TelegramSending(FinbotCase):
 		self.assertEqual([(method, data['chat_id'], uploaded) for method, data, uploaded in sent], [('sendPhoto',
 			'-100777', True), ('sendPhoto', '-100777', True), ('editMessageMedia', '5', False)])
 		self.assertEqual(sent[0][1], {'chat_id': '-100777', 'disable_notification': True})
-		self.assertEqual(waits, [0.0, transports.PRELOAD_GAP - 1])
+		self.assertEqual(waits, [0.0, 3.0 - 1])
 		self.settings(cache=False)
 		self.assertTrue(chat.preload(b'three'))
 		self.assertEqual(len(sent), 3)
+
+	def test_the_gap_between_preloads_is_a_setting(self):
+		"""preload_gap says how long a preload waits after the last one, for either network."""
+		waits = self.preloading()
+		self.settings(preload_gap=1.0)
+		chat = telegram_common.TelegramBot('5')
+		self.patch(telegram_common.TelegramBot, 'send_ahead', lambda dest, photo: None)
+		self.assertTrue(chat.preload(b'one'))
+		self.now[0] += 0.25
+		self.assertTrue(chat.preload(b'two'))
+		self.settings(preload_gap=0.0)
+		self.assertTrue(chat.preload(b'three'))
+		self.assertEqual(waits, [0.0, 0.75, 0.0])
+
+	def test_the_gap_runs_from_the_start_of_the_last_send_not_its_end(self):
+		"""A preload that takes two seconds to upload leaves only the rest of the gap to wait: sends begin the gap
+		apart, not the gap plus an upload."""
+		waits = self.preloading()
+		self.settings(preload_gap=3.0)
+		def upload(dest, photo):
+			"""An upload that takes two seconds."""
+			self.now[0] += 2
+		self.patch(telegram_common.TelegramBot, 'send_ahead', upload)
+		chat = telegram_common.TelegramBot('-100777')
+		self.assertTrue(chat.preload(b'one'))
+		self.assertTrue(chat.preload(b'two'))
+		self.assertEqual(waits, [0.0, 1.0]) # the 3 second gap less the 2 seconds the first took
+
+	def test_a_rate_limit_is_waited_out_once_and_the_preload_tried_again(self):
+		"""Telegram's "retry after 5" (Slack's "ratelimited": ten seconds) is slept through, at most RATE_LIMIT_WAIT,
+		and the chart sent again; a second refusal, or any other failure, ends it as before."""
+		waits = self.preloading()
+		limited = 'Telegram sendPhoto: Too Many Requests: retry after '
+		telegram, slack = telegram_common.TelegramBot, slack_common.SlackBot
+		def refusing(error, times):
+			"""A send_ahead that raises `error` its first `times` calls, and counts its calls in tries."""
+			tries = []
+			def send(dest, photo):
+				"""Raise, or send."""
+				tries.append(photo)
+				if len(tries) <= times:
+					raise RuntimeError(error)
+			return send, tries
+		cases = ((telegram, limited + '5', 5), (telegram, limited + '900', transports.RATE_LIMIT_WAIT),
+			(slack, 'Slack files.completeUploadExternal: ratelimited', 10))
+		for kind, error, wait in cases:
+			with self.subTest(error=error):
+				send, tries = refusing(error, 1)
+				self.patch(kind, 'send_ahead', send)
+				del waits[:]
+				with contextlib.redirect_stderr(io.StringIO()) as log:
+					self.assertTrue(kind('-100777').preload(b'png'))
+				self.assertEqual((len(tries), waits[1:]), (2, [wait]))
+				self.assertIn('is rate limited', log.getvalue())
+		for error, tried in ((limited + '1', 2), ('Telegram sendPhoto: Bad Request: chat not found', 1)):
+			with self.subTest(error=error), contextlib.redirect_stderr(io.StringIO()):
+				send, tries = refusing(error, 9)
+				self.patch(telegram, 'send_ahead', send)
+				self.assertFalse(telegram('-100777').preload(b'png')) # refused again, or not a rate limit: it stops
+				self.assertEqual(len(tries), tried)
+
+	def test_charts_drawn_are_preloaded_to_their_networks_preload_chat_where_a_setting_names_one(self):
+		"""A delivery.Preloader hands each chart added to the preload chat its network's setting names, as that
+		network's bot; with no chat named, on Discord, or with no image, it does nothing."""
+		taken = []
+		for kind in (telegram_common.TelegramBot, slack_common.SlackBot):
+			self.patch(kind, 'preload', lambda chat, photo: taken.append((chat.key, photo)) or True)
+		def preload(service, *images):
+			"""Add the images to a preloader and wait for it."""
+			preloader = delivery.Preloader(service)
+			for image in images:
+				preloader.add(image)
+			preloader.finish()
+		preload(TELEGRAM, io.BytesIO(b'png'))
+		self.settings(telegram_preload_chat='-100777', slack_preload_chat='C9')
+		for service in (TELEGRAM, SLACK, DISCORD):
+			preload(service, io.BytesIO(b'png'), None, io.BytesIO(b'two'))
+		self.assertEqual(sorted(taken), [('slack:C9', b'png'), ('slack:C9', b'two'), ('telegram:-100777', b'png'),
+			('telegram:-100777', b'two')])
+
+	def test_charts_are_preloaded_two_at_a_time_by_the_same_code_on_both_networks(self):
+		"""A Preloader sends the charts it is handed PRELOAD_PARALLEL at a time, on Telegram as on Slack: all are sent,
+		never more than two in flight (each waits at the barrier for the other, so none could go after another)."""
+		self.settings(preload_gap=0.0, telegram_preload_chat='-100777', slack_preload_chat='C9')
+		for kind, service in ((telegram_common.TelegramBot, TELEGRAM), (slack_common.SlackBot, SLACK)):
+			with self.subTest(network=kind.name):
+				busy, peak, sent, lock = [0], [0], [], threading.Lock()
+				meet = threading.Barrier(transports.PRELOAD_PARALLEL, timeout=5)
+				def upload(chat, photo):
+					"""An upload that waits for the one beside it, counting those in flight."""
+					with lock:
+						busy[0] += 1
+						peak[0] = max(peak[0], busy[0])
+					meet.wait()
+					with lock:
+						busy[0] -= 1
+						sent.append(photo)
+				self.patch(kind, 'preloaded_at', 0.0)
+				self.patch(kind, 'send_ahead', upload)
+				preloader = delivery.Preloader(service)
+				for photo in (b'a', b'b', b'c', b'd'):
+					preloader.add(io.BytesIO(photo))
+				preloader.finish()
+				self.assertEqual((sorted(sent), peak[0], preloader.failed), ([b'a', b'b', b'c', b'd'], 2, False))
+		self.assertEqual(transports.PRELOAD_PARALLEL, 2)
+
+	def test_a_preload_that_fails_stops_the_rest(self):
+		"""A chart that cannot be preloaded is a warning, and the charts handed over after it are not sent."""
+		self.settings(preload_gap=0.0, telegram_preload_chat='-100777')
+		self.patch(telegram_common.TelegramBot, 'preloaded_at', 0.0)
+		sent = []
+		def upload(chat, photo):
+			"""Refuse the first chart."""
+			sent.append(photo)
+			raise RuntimeError('Telegram sendPhoto: Bad Request: chat not found')
+		self.patch(telegram_common.TelegramBot, 'send_ahead', upload)
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			preloader = delivery.Preloader(TELEGRAM)
+			preloader.add(io.BytesIO(b'one'))
+			preloader.finish()
+			preloader.pool = None # finished: what is handed over now is not even queued
+			preloader.add(io.BytesIO(b'two'))
+		self.assertEqual((sent, preloader.failed), ([b'one'], True))
+		self.assertIn('Telegram preload to -100777 failed', log.getvalue())
 
 	def test_a_preload_telegram_refuses_is_logged_and_stops(self):
 		"""A preload that fails (the bot not in the chat, say) is a warning, and False: priming stops preloading."""
@@ -198,19 +323,6 @@ class TelegramSending(FinbotCase):
 			self.assertFalse(telegram_common.TelegramBot('-100777').preload(b'png'))
 		self.assertIn('Telegram preload to -100777 failed: Telegram sendPhoto: Bad Request: chat not found',
 			log.getvalue())
-
-	def test_a_chart_goes_to_its_networks_preload_chat_where_a_setting_names_one(self):
-		"""delivery.preload hands a chart drawn ahead to the preload chat its network's setting names, as that
-		network's bot; with no chat named, on Discord, or with no image, it does nothing."""
-		taken = []
-		for kind in (telegram_common.TelegramBot, slack_common.SlackBot):
-			self.patch(kind, 'preload', lambda chat, photo: taken.append((chat.key, photo)) or True)
-		self.assertTrue(delivery.preload(TELEGRAM, io.BytesIO(b'png')))
-		self.settings(telegram_preload_chat='-100777', slack_preload_chat='C9')
-		for service in (TELEGRAM, SLACK, DISCORD):
-			self.assertTrue(delivery.preload(service, io.BytesIO(b'png')))
-		self.assertTrue(delivery.preload(TELEGRAM, None))
-		self.assertEqual(taken, [('telegram:-100777', b'png'), ('slack:C9', b'png')])
 
 	def test_a_file_id_is_another_bots_after_the_token_changes_or_none_with_the_cache_off(self):
 		"""A file id is reused by the bot that uploaded it alone (a new token is another bot), and not at all with the

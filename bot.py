@@ -24,6 +24,7 @@ from lib import telegram_longpolling
 from lib import telegram_webhook
 from lib import delivery
 from lib import render
+from lib import sharesight
 from lib.reports import cleanup
 
 ROUTED = 'finbot.routed' # a request's WSGI environ: the network whose webhook path it came to (the path is a secret)
@@ -315,6 +316,7 @@ if __name__ == '__main__':
 	jobs.current = jobs.Scheduler() # the scheduled jobs, which the .jobs chat command lists and changes
 	jobs.current.load()
 	render.preload()
+	threading.Thread(target=sharesight.note_cached, daemon=True).start() # the biggest holding, from the cache
 	try:
 		server = http_server() # bound before Telegram is given the URL
 	except OSError as e:

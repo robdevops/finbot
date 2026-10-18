@@ -113,11 +113,16 @@ class SlackBot(transports.Transport):
 	WORKING = 'hourglass_flowing_sand' # ⏳: Slack has no typing notice for bots, so a reaction on the message stands in
 	working = None # True while ⏳ is on the message, False when putting it there failed
 	preload_lock = threading.Lock()
+	preload_slots = threading.BoundedSemaphore(transports.PRELOAD_PARALLEL)
 
 	def wants(self, photo):
 		"""Whether preloading a chart (its PNG bytes) would spare a press its upload: no upload of it in the last
 		SLACK_REUSE_SECONDS (earlier_upload)."""
 		return self.earlier_upload(digest_of(photo)) is None
+
+	def retry_after(self, error):
+		"""Ten seconds for Slack's rate limit ("ratelimited"), which does not say how long; None for another failure."""
+		return 10.0 if 'ratelimited' in str(error) else None
 
 	def send_ahead(self, photo):
 		"""Upload a chart into this channel, noted as shown by no message: a press within SLACK_REUSE_SECONDS shows it

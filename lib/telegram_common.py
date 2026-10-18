@@ -191,11 +191,17 @@ class TelegramBot(transports.Transport):
 	TYPING = (0.5, 4, 18) # "typing…" shows for 5 s at most (sendChatAction), so it is sent again every 4 s
 	NO_PREVIEWS = {'is_disabled': True} # link_preview_options, which replaced disable_web_page_preview (Bot API 7.0)
 	preload_lock = threading.Lock()
+	preload_slots = threading.BoundedSemaphore(transports.PRELOAD_PARALLEL)
 
 	def wants(self, photo):
 		"""Whether preloading a chart (its PNG bytes) would spare a press its upload: Telegram has not it (no file id
 		kept), with the cache setting on."""
 		return bool(config.settings.cache and not cache.read(photo_file(photo), PHOTO_SECONDS))
+
+	def retry_after(self, error):
+		"""The seconds Telegram's 429 asks to wait ("Too Many Requests: retry after 5"), or None for another failure."""
+		found = re.search(r'retry after (\d+)', str(error))
+		return float(found.group(1)) if found else None
 
 	def send_ahead(self, photo):
 		"""Send a chart to this chat silently, with no caption, for its file id (with_photo keeps it)."""

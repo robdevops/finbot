@@ -6,12 +6,14 @@ whichever way its network's updates arrive, their presses reach finbot."""
 import threading
 import time
 
+from lib import config
 from lib import log
 from lib import net
 
 
 ADMINS_FOR = 300 # seconds a network's answer about who administers a chat is kept
-PRELOAD_GAP = 3 # seconds between two charts preloaded to a network: some 20 a minute, which a Telegram group takes
+RATE_LIMIT_WAIT = 30 # the longest a preload waits out a network's rate limit, in seconds
+PRELOAD_PARALLEL = 2 # uploads to a network's preload chat in flight at once: each waits on the network's answer
 _administers = {} # (chat key, sender id) -> (when asked, whether they administer the chat)
 MAYBE_SENT = object() # a read timeout on the request that posts a chart: it may have arrived, so no text copy follows
 
@@ -27,8 +29,9 @@ class Transport:
 	TYPING = (0.5, 7, 10) # the notice: first after 0.5 s (a quick answer gets none), then every 7 s, 10 times at most
 	scheduled = False # posting a scheduled run's report (a chat's job), not a reply to a command
 	asked = False # a scheduled run that someone asked for (Run now, .jobs run): delivery.asked
-	preload_lock = None # one chart at a time preloaded to the network: a network that preloads has its own lock
-	preloaded_at = 0.0 # when the network's last preload went (time.monotonic)
+	preload_lock = None # paces the starts of the network's preloads: a network that preloads has its own lock
+	preload_slots = None # its preloads in flight at once: a BoundedSemaphore(PRELOAD_PARALLEL) where it preloads
+	preloaded_at = 0.0 # when the network's last preload began (time.monotonic)
 	_notices = None # the thread sending the notices
 	_quiet = None # set to stop them
 
@@ -162,21 +165,25 @@ class Transport:
 
 	def preload(self, photo):
 		"""Upload a chart (its PNG bytes) to this chat, the network's preload chat, ahead of a press that may ask for
-		it, where the network can show it again without an upload and has it not (wants, send_ahead): one at a time,
-		PRELOAD_GAP apart. False when it failed (logged): the caller stops preloading."""
+		it, where the network can show it again without an upload and has it not (wants, send_ahead), in its turn
+		(paced). False when it failed (logged): the caller stops preloading."""
 		if self.preload_lock is None or not self.wants(photo):
 			return True
-		with self.preload_lock:
-			if not self.wants(photo): # a press may have sent it meanwhile
-				return True
-			time.sleep(max(0.0, type(self).preloaded_at + PRELOAD_GAP - time.monotonic()))
+		return self.paced(lambda: self.send_ahead(photo) if self.wants(photo) else None) # a press may have sent it
+
+	def paced(self, send):
+		"""Run send(), an upload ahead of a press, in its turn: in one of the network's preload_slots, starting
+		preload_gap seconds (a setting) after the last one began (the gap is from start to start, so uploads in
+		different slots overlap). A rate limit is waited out once (patiently). False when it failed (logged)."""
+		with self.preload_slots:
+			with self.preload_lock:
+				time.sleep(max(0.0, type(self).preloaded_at + config.settings.preload_gap - time.monotonic()))
+				type(self).preloaded_at = time.monotonic()
 			try:
-				self.send_ahead(photo)
+				self.patiently(send)
 			except Exception as e:
 				log.warn(f"{self.name.capitalize()} preload to {self.where} failed:", net.redact(e))
 				return False
-			finally:
-				type(self).preloaded_at = time.monotonic()
 		return True
 
 	def wants(self, photo):
@@ -186,6 +193,23 @@ class Transport:
 	def send_ahead(self, photo):
 		"""Upload a chart (its PNG bytes) to this chat ahead of a press (see preload)."""
 		raise NotImplementedError
+
+	def patiently(self, send):
+		"""send(), tried once more after the wait a rate limit asks for (retry_after; at most RATE_LIMIT_WAIT)."""
+		try:
+			send()
+		except Exception as e:
+			wait = self.retry_after(e)
+			if wait is None:
+				raise
+			log.warn(f"{self.name.capitalize()} preload to {self.where} is rate limited: waiting {wait:g} s")
+			time.sleep(min(wait, RATE_LIMIT_WAIT))
+			send()
+
+	def retry_after(self, error):
+		"""The seconds the network asks to wait after a request failed with `error` (a rate limit), or None for any
+		other failure. Here never."""
+		return None
 
 	def edit_buttons(self, message, buttons):
 		"""Change only the buttons under a message, its text or chart left as it is, where the network can: True when

@@ -101,15 +101,19 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   cache file by chart and bot), Slack's upload of the last 30 minutes (`SlackBot.showing`); a period pressed again
   within 30 minutes of being shown in the chat is not even built (`reshow`, by chat and period: Telegram, Slack). The
   other periods and portfolios that priming draws go ahead to a private chat where `telegram_preload_chat` or
-  `slack_preload_chat` names one (`delivery.preload`, `Transport.preload`: one at a time, `PRELOAD_GAP` apart).
+  `slack_preload_chat` names one (`delivery.Preloader`, handed each chart as it is drawn: `Transport.preload`, the same on both networks, `PRELOAD_PARALLEL`
+  uploads at a time (`preload_slots`), each starting `preload_gap` after the last began; a rate limit is waited out once:
+  `retry_after`).
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.treemap .holdings
   .price` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
-  `process_pick_callback`): the first answer at once (the first portfolio or ticker; price's `+`, ending its period
+  `process_pick_callback`): the first answer at once (the first portfolio, or price's biggest holding: `sharesight.largest()`, read from
+  what each holdings report noted in US dollars, `LARGEST`, summed over portfolios, else the first ticker; price's `+`, ending its period
   row, opens the ticker picker, and `OK` draws the ticks), the buttons kept under it and every press re-editing the answer from
   `shown` (an item's number plus one; compare's tickers, `pick.pack`), but a tick or a page of tickers its buttons alone
   (`m`; `n` under a note, which the next press takes away), 32 items a page (`pick.layout`; fewer on Discord) turned by
   `<` `>` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
-  is), `.price`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, one more refused by an alert
+  is), `.price`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, their buttons and the `.watchlist` Edit's
+  built by `pick.ticker_buttons` and `pick.page_buttons`, one more refused by an alert
   toast (`buttons.alert`); a treemap primes its other charts in a thread (`pick.prime`, started by
   `worker.prime_in_background`); every chart with period buttons primes its other periods (`charts.prime`,
   `worker.prime_periods` after `.price`, `.movers`, `.performance`, `chart_reply` and the pickers); neither for a
@@ -133,7 +137,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   when Yahoo does not know it bare: every ticker a chat gives goes through it. `sharesight.portfolios(name=None)` gives
   `Portfolio` objects: `holdings()`, `tickers()`, `gain(days)` (the portfolio's), `trades(days)`. Sharesight is
   optional (`sharesight.configured()`): without its keys `tickers()` is empty, so reports cover the watchlist alone, and
-  `portfolios()` raises `NotSetUp`, an answer.
+  `portfolios()` raises `NotSetUp`, an answer. A holdings report (days 0) as it is fetched also notes what its holdings
+  are worth in US dollars (`_note_values`, `yahoo.usd_rates`) for `largest()`; `note_cached()` does the same at start, in a thread (bot.py), from the
+  reports already cached, only when `LARGEST` is missing: it survives a restart, and a warm job runs only on its schedule.
 - `lib/log.py`: the log, by level (`error warn info debug`), as the `log_level` setting lets in, and `cut()`, which
   keeps a line that can run long (a request's, a chat message's) on one line, within the `log_width` setting;
   bot.py's `WholeLines` writes each line whole, whichever threads log at once. `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
@@ -187,7 +193,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   tabs counting 4 (an edit quotes whole lines); a test checks all but README.md, CLAUDE.md and `doc/`.
 - Log with `lib/log.py`, at a level, with print()'s arguments: `log.error` (failed and lost: a message not sent),
   `log.warn` (failed and got over: a retry, a fallback, a refused request), `log.info` (what finbot does: a message
-  sent, a job run; `net` logs each request it sends), `log.debug` (cache misses, hits and writes; the routine of a
+  sent, a job run; `net` logs each request it sends), `log.debug` (cache misses, hits and writes; a priming's times per chart; the routine of a
   press: the press, its acknowledgement and the edit in place, sent with `logged='debug'` (but its POST line at INFO
   when it uploads a chart's image: Telegram's `with_photo`), and a success answered to
   a network). The
