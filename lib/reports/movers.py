@@ -61,12 +61,12 @@ def trigger_bar(ticker, quote, threshold, details):
 # today's moves, in session, out of it (pre- or post-market), at the close, over `days`
 MODES = ('interday', 'midsession', 'premarket', 'close', 'period')
 TOP = 10 # the stocks in each of the top and bottom lists (.movers top, a job of a number of days)
-HEADINGS = { # the report's heading, by mode
-	'interday': '≥ {threshold:g}% at close, {on}',
-	'midsession': '≥ {threshold:g}% mid-session, {on} ({where})',
-	'premarket': '≥ {threshold:g}% pre-market, {on} ({where})',
-	'close': '≥ {threshold:g}% at close, {on} ({where})',
-	'period': 'Price movement ≥ {threshold:g}%, {span}',
+HEADINGS = { # the report's heading, by mode; {when} is its date (or span), which its chart gives in its subtitle
+	'interday': '≥ {threshold:g}% at close{when}',
+	'midsession': '≥ {threshold:g}% mid-session{when} ({where})',
+	'premarket': '≥ {threshold:g}% pre-market{when} ({where})',
+	'close': '≥ {threshold:g}% at close{when} ({where})',
+	'period': 'Price movement ≥ {threshold:g}%{when}',
 }
 
 @dataclasses.dataclass
@@ -134,19 +134,17 @@ def report(service, found, mode='interday', threshold=None, days=None, top=None,
 	if specific_stock:
 		return lines, None
 	label = lambda rows: [(formats.short_ticker(ticker), percent) for ticker, percent, _ in rows]
-	on = formats.date_short(found.as_of, True)
-	span = formats.date_range_english(days, found.as_of) if days else on
+	span = formats.date_range_english(days, found.as_of) if days else formats.date_short(found.as_of, True)
+	subtitle = formats.change_span(days, found.as_of)
 	if not top:
-		heading = HEADINGS[mode].format(threshold=threshold, on=on, where=", ".join(found.exchanges), span=span)
+		heading = lambda when: HEADINGS[mode].format(threshold=threshold, when=when, where=", ".join(found.exchanges))
 		session = mode if mode in ('midsession', 'premarket') else None
-		chart = render.Chart('bars', heading, rows=tuple(label(found.rows)), session=session)
-		return [service.bold(heading)] + lines, chart
+		chart = render.Chart('bars', heading(''), subtitle, tuple(label(found.rows)), session=session)
+		return [service.bold(heading(f', {span}'))] + lines, chart
 	worst = [i for i in reversed(range(len(found.rows))) if i >= top][:top] # the worst, worst first, none of the best
 	payload = [service.bold(f'Top {top} performers {span}')] + lines[:top]
 	if worst:
 		payload += ['', service.bold(f'Bottom {top}')] + [lines[i] for i in worst]
-	period = formats.days_english(days)
-	subtitle = f"% change {'' if period == 'today' else 'over '}{period}"
 	bars = label(found.rows[:top]) # the best, then after a gap the worst, as the caption's two lists
 	if worst:
 		bars += [('', None)] + label(found.rows[i] for i in worst)

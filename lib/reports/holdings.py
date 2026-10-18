@@ -94,7 +94,8 @@ def prepare_treemap(portfolio_name, by, service, max_groups=8):
 	shown = lambda label: f"{markets.flag(label)} {label}".lstrip() if by == 'country' else label # a country's flag
 	payload += [f"{shown(label)}: {sum(value for _, value in held) / total * 100:.1f}%" for label, held in rows]
 	count = sum(len(held) for held in groups.values())
-	subtitle = f"{_noun(by, len(groups))}, {count} {'holding' if count == 1 else 'holdings'}"
+	subtitle = f"{_noun(by, len(groups))}, {count} {'holding' if count == 1 else 'holdings'}, " + \
+		formats.date_short(formats.today(), True)
 	return payload, render.Chart('treemap', title, subtitle, tuple((label, tuple(held)) for label, held in rows))
 
 def prepare_watchlist(service, chat, user, action=None, ticker=None, removing=()):

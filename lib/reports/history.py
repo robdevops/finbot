@@ -36,7 +36,8 @@ def prepare_compare(service, tickers, period_days=None):
 	growth = lambda rows: rows[-1][1] / rows[0][1] # last close over first
 	by_performance = sorted(cropped, key=lambda item: growth(item[1]), reverse=True)
 	title = ' vs '.join(formats.short_ticker(t) for t, _ in by_performance) # best first; colours keep input order
-	subtitle = f"% change over {period_label}, since {start:%-d %b %Y}" + note
+	end = max(rows[-1][0] for _, rows in cropped) # the latest close shown
+	subtitle = f"% change over {period_label}, {formats.date_span(start, end)}" + note
 	lines = tuple((formats.short_ticker(t), tuple((f"{day:%Y-%m-%d}", float(close)) for day, close in rows))
 		for t, rows in cropped)
 	chart = render.Chart('compare', title, subtitle, lines)
@@ -60,7 +61,8 @@ def line_chart(ticker, changes, line, days=None):
 		change = changes[span]
 	arrow = '▲' if change > 0 else '▼' if change < 0 else '■'
 	price = ' '.join(filter(None, (formats.price(line.price), line.currency)))
-	subtitle = f"{price}   {arrow} {abs(change):,g}%"
+	shown = formats.date_span(*(datetime.date.fromisoformat(line.closes[end][0]) for end in (0, -1))) # its dates
+	subtitle = f"{price}   {arrow} {abs(change):,g}%   {shown}"
 	return render.Chart('line', f"{line.name} ({ticker}) {span}", subtitle, line.closes, change=float(change))
 
 def price_line(ticker, days=None, quote=None):

@@ -241,7 +241,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   never print there (a test checks); only the util/ tools, run by hand, do.
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
   charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's), kept until
-  cleanup: a spec's image never goes stale.
+  cleanup: a spec's image never goes stale. Every chart's subtitle ends with the date it shows, or the dates it spans
+  (`formats.date_span`, `formats.change_span`; a test checks), which its title leaves out; the report puts the date
+  in the spec, never the renderer, as an image is kept by its spec.
 - A chart renderer in `lib/render.py` takes its `Chart` and is listed in `RENDERERS` by kind; it gets `@_drawn`, which
   draws one chart at a time (Pillow's fonts are shared by every thread). A chart is drawn on a `_Canvas`: its shapes at
   twice its size and reduced (at its own size, `scale=1`, where every edge is upright: bars, the treemap), then its

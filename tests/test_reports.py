@@ -258,7 +258,8 @@ class ReportFunctions(FinbotCase):
 				shown = payload[payload.index('<b>Bottom 10</b>') + 1:] if bottom else []
 				self.assertEqual((len(shown), len(chart.rows)), (bottom, bars))
 				self.assertEqual(len(payload), 1 + min(count, 10) + (bottom and 2 + bottom))
-				self.assertEqual(chart.subtitle, '% change over the past 3 months') # it said "in 3 months"
+				self.assertEqual(chart.subtitle, # it said "in 3 months"
+					f'% change over the past 3 months, {formats.date_range_english(90, found.as_of)}')
 
 	def test_the_small_caps_betas_are_fetched_together(self):
 		"""A scheduled price report asks for the betas of the small caps that moved (US$150M to US$1B) together."""
@@ -445,13 +446,13 @@ class ReportFunctions(FinbotCase):
 	def test_one_stock_is_drawn_as_the_price_history_was(self):
 		""".compare of one stock is its price line, as .history's chart was: titled with its name, symbol and span,
 		its price and change beneath, red or green with the change; of two or more, the rebased lines, 'T1 vs T2'."""
-		closes = tuple((datetime.date(2026, 1, day), 100.0 - day) for day in range(1, 31))
+		closes = tuple((str(datetime.date(2026, 1, day)), 100.0 - day) for day in range(1, 31)) # as Line has them
 		self.patch(yahoo, 'price_history', lambda t, days=None, quote=None: ({days: -12.5},
 			yahoo.Line('Co ' + t, 'NasdaqGS', 'USD', 70.0, closes)))
 		_, one = charts.build('c', ['T1'], TELEGRAM, 'telegram:55', period='m')
 		_, two = charts.build('c', ['T1', 'T2'], TELEGRAM, 'telegram:55', period='m')
 		self.assertEqual((one.kind, one.title, one.subtitle, one.change), ('line', 'Co T1 (T1) 30 days',
-			'70.00 USD   ▼ 12.5%', -12.5))
+			'70.00 USD   ▼ 12.5%   1 Jan - 30 Jan 2026', -12.5))
 		self.assertEqual((two.kind, two.title), ('compare', 'T1 vs T2'))
 
 
@@ -934,7 +935,7 @@ class TreemapCommand(FinbotCase):
 		self.assertEqual([r[0] for r in chart.rows], ['Electronic Technology', 'Health Technology', 'Unclassified'])
 		self.assertEqual(chart.rows[0][1], (('A', 500.0), ('B', 300.0)))
 		self.assertIn('Electronic Technology: 72.7%', payload)
-		self.assertEqual(chart.subtitle, '3 sectors, 4 holdings')
+		self.assertEqual(chart.subtitle, f'3 sectors, 4 holdings, {formats.date_short(formats.today(), True)}')
 		self.assertTrue(render.draw_treemap(chart).read().startswith(b'\x89PNG'))
 		self.assertEqual(self.command('.treemap Rob sector')[0][0], 'photo')
 

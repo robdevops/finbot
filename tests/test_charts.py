@@ -375,10 +375,23 @@ class ReportChartInputs(FinbotCase):
 		self.assertEqual(values, sorted(values, reverse=True))
 		self.assertIn('5', chart.title)
 
-	def test_movers_over_a_period_has_a_dated_title(self):
-		""".movers 7d: the chart's title gives the dates covered."""
-		chart = self.run_report(lambda: self.command('.movers 7d'))
-		self.assertRegex(chart.title, r'\d{1,2} \w{3} - \d{1,2} \w{3} \d{4}') # 28 Sep - 5 Oct 2026
+	def test_every_chart_gives_its_date_or_dates_in_its_subtitle(self):
+		"""Every chart's subtitle ends with the date it shows (5 Oct 2026), or the dates it spans (28 Sep - 5 Oct
+		2026), which its title leaves to it."""
+		captured, real = [], render.draw
+		self.patch(render, 'draw', lambda chart: captured.append(chart) or real(chart))
+		commands = ('.movers 5%', '.session', '.movers 7d', '.movers 30d top', '.performance 7d', '.price T1 T2 1y',
+			'.treemap Rob', '.shorts', '.buy & sell', '.pe', '.beta')
+		for text in commands:
+			self.command(text)
+		self.assertEqual(len(captured), len(commands))
+		day = r'\d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)'
+		for text, chart in zip(commands, captured):
+			with self.subTest(text=text, subtitle=chart.subtitle):
+				self.assertRegex(chart.subtitle, rf'(, |   |^)({day}( \d{{4}})? - )?{day} \d{{4}}$')
+				self.assertNotRegex(chart.title, day)
+		spans = [chart.subtitle.rpartition(', ')[2] for chart in captured[2:5]]
+		self.assertTrue(all(' - ' in span for span in spans), spans) # 28 Sep - 5 Oct 2026
 
 	def test_performance_is_sorted_by_name(self):
 		""".performance 7d: the portfolios by name, in any case, whatever their gains, then the two benchmarks: the

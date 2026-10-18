@@ -127,10 +127,23 @@ def date_short(d, year=False):
 	"""5 Oct (or 5 Oct 2026)."""
 	return f"{d.day} {d:%b}" + (f" {d.year}" if year else "")
 
-def date_range_english(days, end):
-	"""'28 Sep - 5 Oct 2026' for the `days` ending on `end`; both ends carry their year when the range crosses one."""
-	start = end - datetime.timedelta(days=days)
+def date_span(start, end):
+	"""'28 Sep - 5 Oct 2026' from start to end, the start with its year where the span crosses one; one date where they
+	are the same day."""
+	if start == end:
+		return date_short(end, True)
 	return f"{date_short(start, start.year != end.year)} - {date_short(end, True)}"
+
+def date_range_english(days, end):
+	"""'28 Sep - 5 Oct 2026' for the `days` ending on `end` (date_span)."""
+	return date_span(end - datetime.timedelta(days=days), end)
+
+def change_span(days, end):
+	"""The subtitle of a chart of changes over `days` to `end`: '% change over the past week, 28 Sep - 5 Oct 2026', or
+	'% change today, 5 Oct 2026' for none."""
+	if not days:
+		return f"% change today, {date_short(end, True)}"
+	return f"% change over {days_english(days)}, {date_range_english(days, end)}"
 
 def days_english(days, prefix='the past ', article=''):
 	"""A span of days in words: 'today' for 0 or None; prefix + article + 'day', 'week', 'month' or 'year'; else prefix

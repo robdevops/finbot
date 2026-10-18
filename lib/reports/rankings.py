@@ -89,9 +89,9 @@ def prepare_rating_payload(service, chat, actions, length=None, asked=True):
 	low, high = min(shown), max(shown)
 	spread = (high - low) or 0.2
 	# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
-	chart = render.Chart('bars', title, 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed)',
-		tuple(rows), value_format='number', xlim=(max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25)),
-		red_rows=tuple(red))
+	chart = render.Chart('bars', title, 'Mean analyst rating: 1 = strong buy, 5 = strong sell (axis zoomed), '
+		+ formats.date_short(formats.today(), True), tuple(rows), value_format='number',
+		xlim=(max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25)), red_rows=tuple(red))
 	return payload, chart
 
 RATIOS = {'forward pe': 'price_to_earnings_forward', 'peg': 'price_to_earnings_peg'}
@@ -145,7 +145,7 @@ def ratio_list(service, chat, kind, mode='top', length=LENGTH):
 	coverage = f" ({config.settings.min_analysts}+ analysts)" if covered is not None else ''
 	heading = f"{'Bottom' if mode == 'bottom' else 'Top'} {length} tracked stocks by {trail} ratio{coverage}"
 	bars = tuple((label, float(ratio)) for ratio, label, _ in rows)
-	chart = render.Chart('bars', heading, rows=bars, value_format='number')
+	chart = render.Chart('bars', heading, formats.date_short(formats.today(), True), bars, value_format='number')
 	return [service.bold(heading)] + [line for _, _, line in rows], chart
 
 def prepare_beta_payload(service, chat):
@@ -163,5 +163,6 @@ def prepare_beta_payload(service, chat):
 		raise answer.Nothing('No tracked stocks have a beta over 1.5 and mkt cap under US$2B')
 	found.sort(key=lambda row: row[0], reverse=True)
 	heading = 'Beta over 1.5 and mkt cap under US$2B'
-	chart = render.Chart('bars', heading, rows=tuple(row for _, _, row in found), value_format='number')
+	chart = render.Chart('bars', heading, formats.date_short(formats.today(), True), tuple(row for _, _, row in found),
+		value_format='number')
 	return [service.bold(heading)] + [line for _, line, _ in found], chart

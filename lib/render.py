@@ -649,7 +649,8 @@ def draw_shorts(chart):
 	canvas.line([at(u, v) for u, v in curve], '#e07b1a', 2.6)
 
 	canvas.text(40, 52, 'Shorts', 21, ink, bold=True)
-	canvas.text(40, 104, f"each pair of shorts = {PAIR}% of shares shorted", 9.5, ink)
+	canvas.text(40, 104, ', '.join(filter(None, (f"each pair of shorts = {PAIR}% of shares shorted", chart.subtitle))),
+		9.5, ink)
 	for i, (label, value) in enumerate(rows):
 		if value is None:
 			continue

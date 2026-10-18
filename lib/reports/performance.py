@@ -42,8 +42,8 @@ def report(service, past_days, portfolio_select=None):
 	period = formats.days_english(past_days)
 	payload = [service.bold(f"Performance over {period}")] + [line for _, line, _ in rows]
 	chart_rows = [(label, percent) for percent, _, label in rows if percent is not None]
-	span = f"% change {'' if period == 'today' else 'over '}{period}"
-	return payload, render.Chart('bars', "Performance", span, tuple(chart_rows), value_format='percent2')
+	return payload, render.Chart('bars', "Performance", formats.change_span(past_days, formats.today()),
+		tuple(chart_rows), value_format='percent2')
 
 def run(chat, *, past_days=None, portfolio_select=None):
 	"""Post each portfolio's performance over past_days (the past_days setting when None), or the one named, beside
