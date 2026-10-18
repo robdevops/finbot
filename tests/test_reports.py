@@ -194,6 +194,16 @@ class ReportFunctions(FinbotCase):
 				worker.job_commands()[text[1:]].run(job, words=[])
 				self.assertEqual(self.sent, typed)
 
+	def test_holdings_of_a_portfolio_that_holds_nothing_say_so(self):
+		""".holdings NAME for a portfolio that holds nothing says so, as the picker does; a job's run of it on schedule
+		posts nothing."""
+		empty = types.SimpleNamespace(name='Empty', holdings=lambda: {})
+		self.patch(sharesight, 'portfolios', lambda name=None, seconds=None: [empty])
+		self.assertEqual(self.command('.holdings Empty'), [('text', ['Empty holds nothing'])])
+		self.sent.clear()
+		worker.job_commands()['holdings'].run(delivery.chat('telegram:55', scheduled=True), words=['Empty'])
+		self.assertEqual(self.sent, [])
+
 	def test_prepare_marketcap(self):
 		"""The market cap list is built."""
 		self.assertTrue(rankings.marketcap_list(TELEGRAM, 'telegram:55', length=5))

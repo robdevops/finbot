@@ -1,6 +1,5 @@
 """Telegram's webhook, its HTTP mode (telegramOutgoingWebhook set): Telegram posts each update to finbot's URL with
 the secret header that setWebhook gave it, for the reader (telegram_common.READER)."""
-import json
 from urllib.parse import urlparse
 
 from lib import log
@@ -11,11 +10,11 @@ from lib import telegram_common
 
 def setWebhook():
 	"""Have Telegram post messages and button presses to telegramOutgoingWebhook, signed with telegramOutgoingToken. The
-	log does not show the URL: its path is a secret."""
+	URL goes in the body, never the query string, which a failed request's error (and so the log) would show: its path
+	is a secret."""
 	log.info("telegram: setting the webhook (telegramOutgoingWebhook)")
-	params = {'url': config.env.telegramOutgoingWebhook, "allowed_updates": json.dumps(['message', 'callback_query']),
-		'secret_token': config.env.telegramOutgoingToken}
-	return telegram_common.call('setWebhook', params=params)
+	return telegram_common.call('setWebhook', json={'url': config.env.telegramOutgoingWebhook,
+		'allowed_updates': ['message', 'callback_query'], 'secret_token': config.env.telegramOutgoingToken})
 
 
 def register():

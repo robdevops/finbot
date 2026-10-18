@@ -269,7 +269,7 @@ class Messages(FinbotCase):
 				(datetime.date(2026, 8, 17), "It's my 3rd birthday! 🥳")):
 			with self.subTest(today=today):
 				self.sent.clear()
-				self.patch(message, 'today', lambda: today)
+				self.patch(formats, 'today', lambda: today)
 				message.run(scheduled('slack:C9'), lines=list(birthday.args))
 				self.assertEqual(self.sent, [('text', [said])])
 
@@ -308,8 +308,8 @@ class DirectMessages(FinbotCase):
 			s.load()
 			self.patch(jobs, 'current', s)
 			for chat, dm in (('88', True), ('77', False)):
-				worker.process_request(inbound.Message('discord', chat, '<@5>', '.help', '@99', 'rob', dm=dm))
-			worker.process_request(inbound.Message('telegram', '5', '@u', '.help', BOT, 'U'))
+				worker.process_request(inbound.Message('discord', chat, '<@5>', '.help', '@99', dm=dm))
+			worker.process_request(inbound.Message('telegram', '5', '@u', '.help', BOT))
 		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:88': {'defaults': 'off', 'dm': True}, 'discord:77': {},
 			'telegram:5': {'defaults': 'off', 'dm': True}})
 

@@ -323,7 +323,7 @@ class YahooChart(ProviderCase):
 			"""Run a command on Slack, its report as text (no charts), and return the text."""
 			self.settings(graph=False)
 			self.sent.clear(); self.errors.clear()
-			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', text, BOT, 'U'))
+			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', text, BOT))
 			self.assertEqual(self.errors, [], text)
 			return '\n'.join(map(str, self.sent[-1][1]))
 		movers = slack('.movers 7d') # T3 is left out, the rest are listed
@@ -334,7 +334,7 @@ class YahooChart(ProviderCase):
 		self.assertIn('NASDAQ 100', report)
 		self.command('.T3') # the profile goes out without its history lines
 		self.sent.clear(); self.errors.clear()
-		worker.process_request(inbound.Message('telegram', '55', '@u', '.price T3 7d', BOT, 'U'))
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.price T3 7d', BOT))
 		self.assertEqual(len(self.errors), 1) # the one ticker asked for: one line saying why
 		self.assertTrue(self.errors[0].startswith('⚠️ .price: RuntimeError: 404 error for T3'))
 

@@ -205,7 +205,7 @@ class FinbotCase(unittest.TestCase):
 		self.sent.clear()
 		self.markups.clear()
 		self.errors.clear()
-		worker.process_request(inbound.Message('telegram', chat, '@u', text, BOT, 'U'))
+		worker.process_request(inbound.Message('telegram', chat, '@u', text, BOT))
 		self.assertEqual(self.errors, [], f'{text} crashed') # the worker reports crashes instead of raising
 		return list(self.sent)
 

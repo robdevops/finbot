@@ -82,10 +82,15 @@ class Listener:
 		raise NotImplementedError
 
 	def run(self, take):
-		"""Fetch and hand on updates for good, waiting as poll() says between rounds."""
+		"""Fetch and hand on updates for good, waiting as poll() says between rounds. A round that fails in a way poll()
+		did not foresee is logged and tried again after the back-off: the network's updates must not stop for good."""
 		log.info(f"{self.network.service}: {self.describe()}")
 		while True:
-			time.sleep(self.poll(take))
+			try:
+				wait = self.poll(take)
+			except Exception as e:
+				wait = self.failed('a round', e)
+			time.sleep(wait)
 
 	def describe(self):
 		"""How it listens, for the log as it starts."""

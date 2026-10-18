@@ -15,10 +15,9 @@ class Message:
 	"""A chat message to answer (worker.process_request)."""
 	service: str
 	chat_id: str
-	user: str # the sender's handle: whose watchlist add or plan it is
+	user: str # the sender's handle, as a reply calls them: the network's mention, or a Telegram @username
 	text: str
 	bot_name: str # the bot's @name, which can start a command
-	user_name: str # what to call them
 	message_id: str = '' # the message itself: Slack shows ⏳ on it while finbot works
 	interaction: str = '' # Discord's slash command: its application id and token, to answer through
 	dm: bool = None # whether the chat is a direct message with the bot; None where its key says (jobs.is_dm)
@@ -33,7 +32,7 @@ class Press:
 	chat_id: str
 	message_id: str
 	data: str
-	user: str = '' # who pressed it, for the log
+	user: str = '' # who pressed it: the same handle as a message's (Message.user)
 	interaction: str = '' # Discord's press: its application id and token, to edit the message pressed through
 	ids: tuple = () # what the admins setting may call the presser (see Message.ids)
 

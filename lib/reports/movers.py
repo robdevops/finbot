@@ -114,7 +114,7 @@ def moves(tickers, mode='interday', threshold=None, days=None, specific_stock=No
 			rows = []
 	rows.sort(key=lambda row: row[1], reverse=True)
 	stamps = [quote['regularMarketTime'] for quote in market_data.values()]
-	as_of = datetime.datetime.fromtimestamp(max(stamps)).date() if stamps else datetime.date.today()
+	as_of = datetime.datetime.fromtimestamp(max(stamps), formats.zone()).date() if stamps else formats.today()
 	in_session = any(quote['marketState'] == 'REGULAR' for quote in market_data.values())
 	return Moves(rows, exchanges, in_session, as_of)
 

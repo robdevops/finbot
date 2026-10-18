@@ -106,6 +106,7 @@ def _ref(args):
 		return inline
 	key = hashlib.sha1(inline.encode()).hexdigest()[:10]
 	with state.edit(REF_FILE, {}) as refs:
+		refs.pop(key, None) # stored again as the newest: a list sent every day must not age out as the oldest
 		refs[key] = args
 		for old in list(refs)[:-REF_LIMIT]:
 			del refs[old]

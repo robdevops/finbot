@@ -172,8 +172,8 @@ def days_from_human_days(arg):
 	"""7, 7d, 2w, 3m, 1y or ytd -> days. Raises ValueError for anything else."""
 	arg = arg.upper()
 	if arg == 'YTD':
-		today = datetime.datetime.now().date()
-		return (today - today.replace(day=1, month=1)).days
+		now = today()
+		return (now - now.replace(day=1, month=1)).days
 	for suffix, days in (('D', 1), ('W', 7), ('M', 30)):
 		try:
 			return int(arg.removesuffix(suffix)) * days
@@ -215,6 +215,11 @@ def plain(line):
 	"""A line of a message job's text as words alone: a link's text without its url, no underscores of italics."""
 	line = LINK.sub(lambda link: link.group(1), line)
 	return line[1:-1] if len(line) > 1 and line.startswith('_') and line.endswith('_') else line
+
+
+def today():
+	"""Today's date by the timezone setting's clock, not the host's (a host in UTC is behind Sydney's morning)."""
+	return datetime.datetime.now(zone()).date()
 
 
 def zone():

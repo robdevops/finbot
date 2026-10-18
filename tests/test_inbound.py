@@ -160,8 +160,8 @@ class WsgiRejections(FinbotCase):
 		calls = []
 		self.patch(worker, 'process_callback', lambda *a: calls.append(a))
 		secret = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
-		for sender, who in (({'username': 'rob', 'first_name': 'Rob'}, '@rob'), ({'first_name': 'Ann'}, 'Ann'),
-				({}, 'unknown')):
+		for sender, who in (({'username': 'rob', 'first_name': 'Rob'}, '@rob'), ({'first_name': 'Ann'}, '@Ann'),
+				({}, '@unknown')):
 			body = json.dumps({'callback_query': {'id': '1', 'from': sender, 'data': 'c|c|y|T1',
 				'message': {'message_id': 9, 'chat': {'id': 55}}}}).encode()
 			err = io.StringIO()
@@ -459,7 +459,7 @@ class SlackEvents(FinbotCase):
 		presses = []
 		self.patch(worker, 'process_callback', presses.append)
 		self.assertEqual(self.press(PRESS), '200 OK')
-		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '@rob', ids=('U1',))])
+		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '<@U1>', ids=('U1',))])
 		self.assertEqual(self.press({**PRESS, 'token': 'wrong'}), '403 Forbidden')
 		self.assertEqual(self.press({**PRESS, 'container': {'type': 'view', 'view_id': 'V1'}}), '200 OK')
 		self.assertEqual(self.press({**PRESS, 'actions': []}), '200 OK')
@@ -554,7 +554,7 @@ class SlackSigning(FinbotCase):
 				bot.main(wsgi_environ('/slack', sent, **headers), lambda s, *a, **k: answers.append(s))
 			self.join_workers()
 			self.assertEqual(answers, [status])
-		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '@rob', ids=('U1',))])
+		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '<@U1>', ids=('U1',))])
 
 	def test_a_signed_request_is_answered_and_the_token_is_not_needed(self):
 		"""A request signed with the secret is answered, whatever token it carries."""
@@ -603,8 +603,8 @@ class SlackSlashCommands(FinbotCase):
 		the reply goes to; Slack gets an empty 200 at once. There is no message of it, so no ⏳."""
 		self.assertEqual(self.post(SLASH), ('200 OK', b''))
 		self.assertEqual(self.post({**SLASH, 'channel_id': 'D1', 'command': '/job', 'text': ''}), ('200 OK', b''))
-		self.assertEqual(self.requests, [inbound.Message('slack', 'C1', '<@U1>', '/movers 5 & 7d', '', '<@U1>',
-			ids=('U1',)), inbound.Message('slack', 'D1', '<@U1>', '/job', '', '<@U1>', ids=('U1',))])
+		self.assertEqual(self.requests, [inbound.Message('slack', 'C1', '<@U1>', '/movers 5 & 7d', '',
+			ids=('U1',)), inbound.Message('slack', 'D1', '<@U1>', '/job', '', ids=('U1',))])
 		self.assertEqual([worker.read(r.text, r.bot_name)[0].names[0] for r in self.requests], ['movers', 'jobs'])
 		self.assertFalse(delivery.reply_to('slack', 'C1', self.requests[0].message_id).shows_typing)
 
@@ -672,15 +672,21 @@ class UserTextIsEscaped(FinbotCase):
 	"""Replies go out as Telegram HTML: text a user wrote is shown, never read as markup."""
 
 	def test_a_telegram_name_is_escaped_where_it_arrives(self):
-		"""A Telegram first name is escaped as the update arrives, in the handle and the name."""
-		requests = []
+		"""A Telegram first name is escaped as the update arrives, in the handle of a message and of a button press
+		alike (a press's goes into the watchlist's greeting)."""
+		requests, presses = [], []
 		self.patch(worker, 'process_request', requests.append)
-		body = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A<b>&'}, 'text': '.hello'}}
-		env = wsgi_environ('/telegram', json.dumps(body).encode(), HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok')
-		with contextlib.redirect_stderr(io.StringIO()):
-			bot.main(env, lambda *a, **k: None)
+		self.patch(worker, 'process_callback', presses.append)
+		sender = {'first_name': 'A<b>&'}
+		message = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': sender, 'text': '.hello'}}
+		press = {'callback_query': {'id': '1', 'from': sender, 'data': 'c|c|y|T1', 'message': {'message_id': 9,
+			'chat': {'id': 5}}}}
+		for body in (message, press):
+			env = wsgi_environ('/telegram', json.dumps(body).encode(), HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok')
+			with contextlib.redirect_stderr(io.StringIO()):
+				bot.main(env, lambda *a, **k: None)
 		self.join_workers()
-		self.assertEqual((requests[0].user, requests[0].user_name), ('@A&lt;b&gt;&amp;',) * 2) # the handle and the name
+		self.assertEqual((requests[0].user, presses[0].user), ('@A&lt;b&gt;&amp;',) * 2)
 
 
 if __name__ == '__main__':

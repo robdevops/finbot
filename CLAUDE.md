@@ -93,7 +93,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   caption, the lines as text after it), the one-line error report (to its chat; one that belongs to no chat only
   logged). A caption is cut to fit as the network counts it (`Dialect.visible`: Telegram's in UTF-16 code units).
   `lib/transports.py`: `Transport`, the base of each network's bot, every one taking charts and buttons: splitting,
-  captions, charts, buttons, edits, and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the
+  captions, charts, buttons, edits (`edit_lines` splits an edit too long for one message), and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the
   message), which `text()` and `chart()` stop before posting; `edit_buttons` changes a message's buttons alone where
   the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
   its `interaction` (application id/token), and a pressed message is edited through the press's. A chart the network
@@ -147,7 +147,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   reports already cached, only when `LARGEST` is missing: it survives a restart, and a warm job runs only on its schedule.
 - `lib/log.py`: the log, by level (`error warn info debug`), as the `log_level` setting lets in, and `cut()`, which
   keeps a line that can run long (a request's, a chat message's) on one line, within the `log_width` setting;
-  bot.py's `WholeLines` writes each line whole, whichever threads log at once. `lib/cache.py`: cache files (any may vanish at any time). `lib/state.py`: state files in `DATA_DIR`, which must last;
+  bot.py's `WholeLines` writes each line whole, whichever threads log at once. `lib/cache.py`: cache files (any may vanish at any time; one
+  that does not parse is a miss); callers missing the same file at once wait for one fetch (`cache.lock`, which `state.edit` uses too). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save; a file of one record per chat with
   `state.load_for(chat, name, default)` and `state.edit_for`. A chat's key is its network and id (`Transport.key`,
   `telegram:-1001234`), the same in both modes. `lib/watchlist.py`: each chat's watchlist (`tickers(chat)`), and

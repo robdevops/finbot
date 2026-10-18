@@ -153,6 +153,18 @@ class Parsing(unittest.TestCase):
 			config.setting_values(config._getenv_for({'log_level': 'loud'}))
 		self.assertEqual(caught.exception.errors, ["log_level='loud' is not one of ERROR, WARN, INFO, DEBUG"])
 
+	def test_a_zone_a_provider_and_a_country_are_read_as_finbot_uses_them(self):
+		"""timezone must name a zone and hyperlinkProvider google or yahoo (in any case), else each is a mistake that
+		names the key, as a zone read wrong would store new jobs in UTC; country_code is read in any case."""
+		values = config.setting_values(config._getenv_for({'timezone': 'Asia/Tokyo', 'hyperlinkProvider': 'Yahoo',
+			'country_code': 'au'}))
+		self.assertEqual((values.timezone, values.hyperlinkProvider, values.country_code),
+			('Asia/Tokyo', 'yahoo', 'AU'))
+		with self.assertRaises(config.ConfigError) as caught:
+			config.setting_values(config._getenv_for({'timezone': 'Melbourne', 'hyperlinkProvider': 'bing'}))
+		self.assertEqual(caught.exception.errors, ["hyperlinkProvider='bing' is not one of google, yahoo",
+			"timezone='Melbourne' is not a time zone such as Australia/Sydney or UTC"])
+
 	def test_a_retired_key_is_accepted_and_said_to_do_nothing(self):
 		"""A key finbot no longer reads (alliterate in settings.conf, slack_webhook in finbot.env, say) does not stop
 		a start, as an unknown key would: it is ignored, and the log at start (and check_config) says what to do

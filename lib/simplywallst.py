@@ -1,3 +1,5 @@
+from urllib.parse import quote_plus
+
 from lib import config
 
 # the first to list a ticker wins
@@ -9,6 +11,6 @@ def get_url(symbol, name, exchange):
 		url = config.data_json(file, {}).get(symbol)
 		if url:
 			return url
-	query = f"site:simplywall.st+({name}+{exchange}:{symbol.split('.')[0]})+Stock"
+	query = quote_plus(f"site:simplywall.st ({name} {exchange}:{symbol.split('.')[0]}) Stock", safe=':()')
 	return 'https://www.google.com/search?q=' + query + '&btnI'
 

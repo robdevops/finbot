@@ -17,13 +17,14 @@ def holding_line(holding, service, text=None):
 	return f"{markets.flag_from_market(holding['market_code'])} {name} ({link})"
 
 def prepare_holdings_payload(portfolio_name, service):
-	"""The holdings of the portfolio called `portfolio_name`. Raises sharesight.PortfolioNotFound."""
+	"""The holdings of the portfolio called `portfolio_name`. Raises sharesight.PortfolioNotFound, and answer.Nothing
+	for one that holds nothing."""
 	portfolio, = sharesight.portfolios(portfolio_name)
 	holdings = portfolio.holdings()
-	payload = sorted(holding_line(holding, service) for holding in holdings.values())
-	if payload:
-		payload.insert(0, service.bold(f"Holdings for {portfolio.name} ({len(holdings)})"))
-	return payload
+	if not holdings:
+		raise answer.Nothing(f"{portfolio.name} holds nothing")
+	return [service.bold(f"Holdings for {portfolio.name} ({len(holdings)})")] + sorted(holding_line(holding, service)
+		for holding in holdings.values())
 
 def prepare_who(service, code):
 	"""Which portfolios hold `code` (a ticker without its exchange), each holding linked to Sharesight. Raises

@@ -18,11 +18,14 @@ class TelegramWebhook(FinbotCase):
 	def test_register_sets_the_webhook_again_or_deletes_it_and_names_the_bot(self):
 		"""register() deletes the webhook, keeping the updates not delivered yet, and sets it again with
 		telegramOutgoingWebhook (telegram_webhook, http mode), or leaves it unset for getUpdates (telegram_longpolling,
-		pull mode); bot_name() is the bot's @name. The log never shows the URL: its path is a secret."""
+		pull mode); bot_name() is the bot's @name. The log never shows the URL, nor a request's query string (which a
+		failed request's error would print): its path is a secret."""
 		calls = []
 		def post(url, **kwargs):
 			"""Record the method and what it was given, and answer like Telegram."""
-			calls.append((url.rsplit('/', 1)[1], kwargs.get('params', {}).get('url') or kwargs.get('json')))
+			self.assertNotIn('params', kwargs)
+			given = kwargs.get('json')
+			calls.append((url.rsplit('/', 1)[1], given.get('url', given) if isinstance(given, dict) else given))
 			return Resp({'ok': True, 'result': {'username': 'finbot'} if url.endswith('getMe') else True})
 		self.patch(net, 'post', post)
 		kept = ('deleteWebhook', {'drop_pending_updates': False})

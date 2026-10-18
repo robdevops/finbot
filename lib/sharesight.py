@@ -9,6 +9,7 @@ from lib import log
 from lib import answer
 from lib import cache
 from lib import config
+from lib import formats
 from lib import markets
 from lib import net
 from lib import yahoo
@@ -84,7 +85,7 @@ def performance_cache_file(portfolio_id, days):
 
 def _since(days):
 	"""The date `days` ago, as Sharesight takes it: 2023-04-25."""
-	return (datetime.date.today() - datetime.timedelta(days=days)).isoformat()
+	return (formats.today() - datetime.timedelta(days=days)).isoformat()
 
 
 def _performance(portfolio_id, days=None, seconds=None):

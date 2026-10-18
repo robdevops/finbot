@@ -47,23 +47,23 @@ class Reading(FinbotCase):
 	def test_a_slash_command_is_the_message_it_stands_for(self):
 		"""/movers with its arguments is the message '/movers 5 7d', answered through its interaction; in a DM (no
 		member, no server) the person is the interaction's user, and the message says it is a DM."""
-		expected = inbound.Message('discord', '77', '<@5>', '/movers 5 7d', '@99', 'Rob', '', '42/tok', dm=False,
+		expected = inbound.Message('discord', '77', '<@5>', '/movers 5 7d', '@99', '', '42/tok', dm=False,
 			ids=('5',))
 		self.assertEqual(discord_common.READER.parse(COMMAND), expected)
 		dm = {k: v for k, v in COMMAND.items() if k != 'member'} | {'user': {'id': '5', 'username': 'rob'}}
-		self.assertEqual(discord_common.READER.parse(dm), dataclasses.replace(expected, user_name='rob', dm=True))
+		self.assertEqual(discord_common.READER.parse(dm), dataclasses.replace(expected, dm=True))
 		self.assertEqual(discord_common.READER.parse({**COMMAND, 'data': {'name': 'beta'}}).text, '/beta')
 
 	def test_a_press_is_a_press_of_its_message(self):
 		"""A button pressed is a Press of its message, its custom_id the button's data."""
 		self.assertEqual(discord_common.READER.parse(PRESS),
-			inbound.Press('discord', '901', '77', '333', 'c|c|y|T1', '@rob', '42/tok', ids=('5',)))
+			inbound.Press('discord', '901', '77', '333', 'c|c|y|T1', '<@5>', '42/tok', ids=('5',)))
 
 	def test_a_message_by_a_person_reads_with_its_mentions_as_slacks(self):
 		"""A gateway message's mentions read as @id, so that '@bot movers 7d' calls .movers; one by a bot or a webhook
 		(this bot's replies included) is not answered. One from no server is a DM."""
 		message = discord_common.READER.parse(MESSAGE)
-		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 movers 7d', '@99', 'rob', '700',
+		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 movers 7d', '@99', '700',
 			dm=False, ids=('5',)))
 		self.assertTrue(discord_common.READER.parse({k: v for k, v in MESSAGE.items() if k != 'guild_id'}).dm)
 		command, args = worker.read(message.text, message.bot_name)
@@ -215,7 +215,7 @@ class Sending(FinbotCase):
 		"""A slash command over without a word, or one that reads as no command, has its "thinking…" deleted, or it
 		would show for 15 minutes."""
 		discord_common.DiscordBot('77', interaction='42/tok').typing_done()
-		worker.process_request(inbound.Message('discord', '77', '<@5>', '/nothing@else', '@99', 'Rob', '', '42/t2'))
+		worker.process_request(inbound.Message('discord', '77', '<@5>', '/nothing@else', '@99', '', '42/t2'))
 		self.assertEqual([(m, p) for m, p, _ in self.calls], [('DELETE', '/webhooks/42/tok/messages/@original'),
 			('DELETE', '/webhooks/42/t2/messages/@original')])
 
@@ -355,7 +355,7 @@ class Commands(FinbotCase):
 		self.patch(discord_common.READER, 'bot_id', '99')
 		sent = []
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None: sent.append(lines) or [])
-		message = inbound.Message('discord', '77', '<@5>', '/help', '@99', 'Rob', '', '42/tok')
+		message = inbound.Message('discord', '77', '<@5>', '/help', '@99', '', '42/tok')
 		worker.process_request(message)
 		self.assertIn('/pe [SYMBOL|top|bottom|negative]', sent[0])
 		self.assertIn('/stock SYMBOL', sent[0])

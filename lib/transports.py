@@ -215,6 +215,19 @@ class Transport:
 		they show now. Here never: the message is edited whole."""
 		return False
 
+	def edit_text(self, message, text, buttons=None):
+		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged.
+		The text must fit one message: edit_lines splits."""
+		raise NotImplementedError
+
+	def edit_lines(self, message, lines, buttons=None):
+		"""Edit a message to show lines, split as text() splits them: what fits one message goes in the message edited,
+		the rest in messages of their own after it, the buttons under the last."""
+		parts = chunked([str(line) for line in lines], self.dialect.text_limit) or [[]]
+		self.edit_text(message, '\n'.join(parts[0]), buttons if len(parts) == 1 else [])
+		for i, part in enumerate(parts[1:], 1):
+			self.text(part, buttons if i == len(parts) - 1 else None)
+
 
 def marked(buttons):
 	"""The data of the button marked as shown now, which names a chart message's period (None when none is, or the

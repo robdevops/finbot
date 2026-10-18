@@ -36,7 +36,7 @@ class UpstreamEmpty(FinbotCase):
 		for cmd in ('.movers', '.peg', '.T1', '.compare T1 T2'):
 			with self.subTest(cmd=cmd):
 				self.sent.clear(); self.errors.clear()
-				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT, 'U'))
+				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT))
 				self.assertEqual(len(self.errors), 1, cmd) # exactly one one-line report, not a traceback to the user
 				self.assertTrue(self.errors[0].startswith('⚠️'))
 
@@ -48,7 +48,7 @@ class UpstreamEmpty(FinbotCase):
 		self.patch(sharesight, '_performance', down)
 		self.patch(sharesight, '_portfolios', down)
 		self.sent.clear(); self.errors.clear()
-		worker.process_request(inbound.Message('telegram', '55', '@u', '.performance 7d', BOT, 'U'))
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.performance 7d', BOT))
 		self.assertEqual(len(self.errors), 1)
 
 	def test_the_typing_notice_stops_before_any_message_goes_out(self):
@@ -68,7 +68,7 @@ class UpstreamEmpty(FinbotCase):
 		for cmd in ('.help', '.movers', '.trades 7d', '.performance 7d'):
 			with self.subTest(cmd=cmd), contextlib.redirect_stderr(io.StringIO()):
 				typing.clear()
-				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT, 'U'))
+				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT))
 				self.assertEqual(typing, [False])
 
 	def test_no_holdings_and_empty_watchlist(self):

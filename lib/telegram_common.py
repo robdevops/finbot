@@ -148,20 +148,13 @@ class Telegram(inbound.Network):
 			if not message or not press.get('data'):
 				return inbound.UNSUPPORTED
 			sender = press.get('from', {})
-			who = '@' + sender['username'] if 'username' in sender else sender.get('first_name', 'unknown')
 			return inbound.Press(self.service, press['id'], str(message['chat']['id']), str(message['message_id']),
-				press['data'], who, ids=self.ids(sender))
+				press['data'], self.handle(sender), ids=self.ids(sender))
 		if 'message' not in update:
 			return inbound.UNSUPPORTED
 		message = update['message']
 		sender = message['from']
 		chat_id = str(message['chat']['id'])
-		first_name = html.escape(sender['first_name'], quote=False)
-		if 'username' in sender:
-			user = '@' + sender['username']
-			user_name = first_name or user # the handle when the first name is blank
-		else:
-			user = user_name = '@' + first_name
 		if 'text' in message:
 			text = message['text']
 		elif 'photo' in message:
@@ -171,8 +164,14 @@ class Telegram(inbound.Network):
 		else:
 			log.info("Telegram unhandled: 'message' without 'text/photo'")
 			return inbound.UNHANDLED
-		return inbound.Message(self.service, chat_id, user, text, self.bot_name, user_name,
+		return inbound.Message(self.service, chat_id, self.handle(sender), text, self.bot_name,
 			str(message.get('message_id', '')), ids=self.ids(sender))
+
+	@staticmethod
+	def handle(sender):
+		"""What a reply calls a sender: its @username, else @ and its first name escaped (a reply is Telegram HTML)."""
+		name = sender.get('username') or html.escape(sender.get('first_name') or 'unknown', quote=False)
+		return '@' + name
 
 	@staticmethod
 	def ids(sender):

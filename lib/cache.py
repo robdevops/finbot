@@ -2,8 +2,10 @@
 seconds. Anything here may be deleted at any time (cleanup.py, a flush); what must last lives in lib/state.py."""
 import io
 import json
+import math
 import os
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -11,9 +13,19 @@ from lib import config
 from lib import log
 
 
+_locks = {} # file path -> the lock held while that file is fetched or edited (lock)
+_locks_lock = threading.Lock()
+
+
 def path(name):
 	"""Where a cache file lives."""
 	return config.env.cache_dir + '/' + name
+
+
+def lock(where):
+	"""The lock of a file by its path, the same one each time: whoever holds it fetches or edits that file alone."""
+	with _locks_lock:
+		return _locks.setdefault(where, threading.Lock())
 
 
 def age(name):
@@ -24,26 +36,37 @@ def age(name):
 		return None
 
 
+def _within(name, seconds):
+	"""(whether the cache file was written less than `seconds` ago, cache_seconds when None; the seconds it has left,
+	or None when there is no such file)."""
+	written = age(name)
+	limit = config.settings.cache_seconds if seconds is None else seconds
+	return written is not None and written < limit, None if written is None else limit - written
+
+
 def _fresh(name, seconds):
 	"""The cache file's path if written less than `seconds` ago (cache_seconds when None), else None."""
-	if seconds is None:
-		seconds = config.settings.cache_seconds
-	where, written = path(name), age(name)
-	if written is None or written >= seconds:
+	fresh, left = _within(name, seconds)
+	where = path(name)
+	if not fresh:
 		log.debug("cache miss:", where)
 		return None
-	log.debug(f"cache hit: {where} TTL: {seconds - written:.0f}s")
+	log.debug(f"cache hit: {where} TTL: {left:.0f}s")
 	return where
 
 
 def _read_fresh(name, seconds, read):
-	"""read(path) of the cache file if fresh, else None; also None if it goes (cleanup, a flush) after the check."""
+	"""read(path) of the cache file if fresh, else None; also None if it goes (cleanup, a flush) after the check, or
+	does not parse (empty, or cut short): the next fetch replaces it."""
 	where = _fresh(name, seconds)
 	if not where:
 		return None
 	try:
 		return read(Path(where))
 	except FileNotFoundError:
+		return None
+	except ValueError as e:
+		log.warn(f"cache: {where} does not parse, taking it for a miss:", e)
 		return None
 
 
@@ -59,22 +82,24 @@ def read_bytes(name, seconds=None):
 
 def load(name):
 	"""A cache file's JSON whatever its age, or None: for an answer with its own expiry (the Sharesight token)."""
-	where = Path(path(name))
-	try:
-		return json.loads(where.read_text(encoding="utf-8"))
-	except FileNotFoundError:
-		return None
+	return read(name, math.inf)
 
 
 def cached(name, seconds, fetch):
 	"""fetch()'s answer (JSON), as sent: from the cache file `name` while it is under `seconds` old (cache_seconds when
 	None) and the cache setting is on, else fetched and written there unless empty. Answers are cached as sent, not
-	parsed, so that a parser fix needs no flush."""
-	if config.settings.cache and (data := read(name, seconds)):
+	parsed, so that a parser fix needs no flush. Callers that miss the same file at once (every chat's job at the same
+	minute) wait for the first one's fetch and read what it wrote."""
+	if not config.settings.cache:
+		return fetch()
+	if data := read(name, seconds):
 		return data
-	data = fetch()
-	if data and config.settings.cache:
-		write(name, data)
+	with lock(path(name)):
+		if _within(name, seconds)[0] and (data := read(name, seconds)): # fetched meanwhile, by whoever held the lock
+			return data
+		data = fetch()
+		if data:
+			write(name, data)
 	return data
 
 

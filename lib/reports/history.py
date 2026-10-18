@@ -3,6 +3,7 @@ price line, which a .price of one stock draws, and whose change over a period th
 import bisect
 import datetime
 from lib import answer
+from lib import buttons
 from lib import formats
 from lib import links
 from lib import render
@@ -19,7 +20,7 @@ def prepare_compare(service, tickers, period_days=None):
 		names[ticker], exchanges[ticker], closes[ticker] = history
 	limiting = max(closes, key=lambda t: closes[t][0][0]) # ticker with the shortest history
 	common_start = closes[limiting][0][0]
-	requested = datetime.datetime.now().date() - datetime.timedelta(days=period_days or 3655)
+	requested = formats.today() - datetime.timedelta(days=period_days or buttons.MAX_DAYS)
 	start = max(common_start, requested)
 	note = f" (limited by {limiting} history)" if period_days and requested < common_start else ''
 	cropped = []
@@ -30,7 +31,7 @@ def prepare_compare(service, tickers, period_days=None):
 		cropped.append((ticker, ((start, base_value), *rows[before:])))
 	if any(len(rows) < 2 for _, rows in cropped):
 		raise answer.Answer("not enough price history in that period to compare")
-	span_days = (datetime.datetime.now().date() - start).days
+	span_days = (formats.today() - start).days
 	period_label = formats.days_english(period_days) if period_days and not note else f"{span_days} days"
 	growth = lambda rows: rows[-1][1] / rows[0][1] # last close over first
 	by_performance = sorted(cropped, key=lambda item: growth(item[1]), reverse=True)
@@ -53,7 +54,7 @@ def line_chart(ticker, changes, line, days=None):
 	if len(line.closes) < 2 or (days and days < 2):
 		return None
 	if days:
-		span, change = f"{min(days, 3655)} days", changes[days]
+		span, change = f"{min(days, buttons.MAX_DAYS)} days", changes[days]
 	else:
 		span = "Max" if "Max" in changes else "10Y"
 		change = changes[span]

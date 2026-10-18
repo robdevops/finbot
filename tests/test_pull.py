@@ -97,6 +97,35 @@ class TelegramPolling(FinbotCase):
 		self.assertEqual(slept, [0, 5, 0])
 		self.assertIn('telegram: long polling for updates (no telegramOutgoingWebhook)', err.getvalue())
 
+	def test_a_round_that_fails_unforeseen_is_waited_out_and_tried_again(self):
+		"""A round that raises (a bug, say) does not end the listener: it is logged without the token and tried again
+		after the back-off, which a good round resets."""
+		def rounds():
+			"""Fail once, then a round that fetched nothing to wait for."""
+			yield KeyError('update_id')
+			while True:
+				yield 0
+		outcomes, slept = rounds(), []
+		def poll(take):
+			"""The next outcome: raised if it is an error."""
+			outcome = next(outcomes)
+			if isinstance(outcome, Exception):
+				raise outcome
+			return outcome
+		listener = telegram_longpolling.TelegramPoll()
+		self.patch(listener, 'poll', poll)
+		def sleep(seconds):
+			"""Note the wait; end the loop after two."""
+			slept.append(seconds)
+			if len(slept) == 2:
+				raise Stop
+		self.patch(pull.time, 'sleep', sleep)
+		err = io.StringIO()
+		with contextlib.redirect_stderr(err), self.assertRaises(Stop):
+			listener.run(bot.take)
+		self.assertEqual(slept, [pull.backoff(1), 0])
+		self.assertIn("telegram: a round failed, trying again in", err.getvalue())
+
 	def test_a_listener_for_each_network_without_a_webhook(self):
 		"""Telegram is polled with its bot token and no telegramOutgoingWebhook; with the URL, or without a token, it
 		is not."""
@@ -252,7 +281,7 @@ class SlackSocketMode(FinbotCase):
 			self.socket({'type': 'hello'}, {'envelope_id': 'e1', 'type': 'slash_commands', 'payload': slash},
 				{'type': 'disconnect', 'reason': 'warning'}).poll(bot.take)
 		self.join_workers()
-		self.assertEqual(messages, [inbound.Message('slack', 'C1', '<@U1>', '/forwardpe top', '', '<@U1>',
+		self.assertEqual(messages, [inbound.Message('slack', 'C1', '<@U1>', '/forwardpe top', '',
 			ids=('U1',))] * 2)
 		self.assertIn(('ack', 'e1'), self.log)
 

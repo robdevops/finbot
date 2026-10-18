@@ -269,7 +269,7 @@ class SharesightWarm(ProviderCase):
 		self.assertEqual([portfolio.name for portfolio in sharesight.warm()], ['Rob', 'RobSMSF'])
 		self.assertEqual(len(calls), 3) # portfolio list + one holdings report per portfolio (2)
 		self.assertEqual(sum('/performance' in c for c in calls), 2)
-		today = 'start_date=' + datetime.date.today().isoformat()
+		today = 'start_date=' + formats.today().isoformat()
 		self.assertTrue(all(today in c for c in calls if '/performance' in c)) # days=0
 		sharesight.warm()
 		self.assertEqual(len(calls), 6)

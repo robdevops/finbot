@@ -20,7 +20,6 @@ from lib import delivery
 from lib import render
 from lib import buttons
 from lib import charts
-from lib import transports
 from lib.reports import about, earnings, holdings, movers, performance, pick, profile, rankings, shorts, trades
 from lib import sharesight
 from lib import telegram_common
@@ -34,8 +33,7 @@ class Request:
 	command (CommandJob), its chat's transport given as dest."""
 	service: str
 	chat_id: str
-	user: str # the sender's handle: whose watchlist add or plan it is
-	user_name: str # what to call them
+	user: str # the sender's handle, as a reply calls them (inbound.Message.user)
 	bot_name: str
 	message_id: str = None # the message being answered
 	interaction: str = '' # what the network answers through, where it has one (Discord's slash command)
@@ -135,7 +133,7 @@ def process_menu_callback(press, pressed):
 	chat = delivery.reply_to(service, press.chat_id, interaction=press.interaction, pressed=True)
 	try:
 		lines, markup = menu_screen(service, chat, pressed)
-		chat.edit_text(press.message_id, '\n'.join(lines), markup or [])
+		chat.edit_lines(press.message_id, lines, markup or [])
 	except Exception as e:
 		forget(press)
 		delivery.report_error(e, chat, context='jobs')
@@ -181,10 +179,8 @@ def edit_step(service, chat, scheduler, pressed, page):
 		return about.jobs_screen(service, chat, 'top', 0, f"Deleted {len(gone)} disabled job{s}")
 	if what.isdigit() and 1 <= int(what) <= len(own):
 		job = own[int(what) - 1]
-		try:
-			enabling = not job.on
-			scheduler.switch(job, enabling)
-			note = f"{'Enabled' if enabling else 'Disabled'} {what}. {service.escape(job.name)}"
+		try: # flipped as stored, under the scheduler's lock: two presses at once flip it twice
+			note = f"{'Enabled' if scheduler.toggle(job) else 'Disabled'} {what}. {service.escape(job.name)}"
 		except jobs.ScheduleError as e:
 			note = service.escape(str(e))
 	return about.jobs_screen(service, chat, 'edit', page, note)
@@ -236,7 +232,7 @@ def process_pick_callback(press, pressed):
 			if cmd == 'c' and (stale or kind == 'h'): # a new ticker or set
 				prime_periods(chat, 'c', names, period)
 			return
-		chat.edit_text(press.message_id, '\n'.join(lines), rows) # the picker alone: no answer yet, so text
+		chat.edit_lines(press.message_id, lines, rows) # the picker alone: no answer yet, so text
 	except answer.Answer as e:
 		delivery.deliver(chat, delivery.Report(e.lines))
 	except Exception as e:
@@ -247,7 +243,10 @@ def pick_content(service, chat, cmd, group, period, names):
 	"""A picker's answer for the portfolio (treemap, holdings) or tickers (compare) `names`: (caption, chart or
 	None)."""
 	if cmd == 'h':
-		return '\n'.join(holdings.prepare_holdings_payload(names[0], service) or [f"{names[0]} holds nothing"]), None
+		try:
+			return '\n'.join(holdings.prepare_holdings_payload(names[0], service)), None
+		except answer.Nothing as e: # shown in place, under the picker's buttons
+			return '\n'.join(e.lines), None
 	if cmd == 't':
 		lines, chart = holdings.prepare_treemap(names[0], holdings.GROUPS.get(group, 'industry'), service)
 		return '\n'.join(lines), chart
@@ -259,17 +258,13 @@ def pick_answer(service, chat, message, cmd, group, period, names, rows, note=No
 	holdings)."""
 	if cmd == 'h':
 		lines = pick_content(service, chat, cmd, group, period, names)[0].split('\n')
-		parts = transports.chunked(([note] if note else []) + lines, chat.dialect.text_limit)
-		chat.edit_text(message, '\n'.join(parts[0]), rows if len(parts) == 1 else [])
-		for i, part in enumerate(parts[1:], 1):
-			chat.text(part, rows if i == len(parts) - 1 else None)
-		return
+		return chat.edit_lines(message, ([note] if note else []) + lines, rows)
 	caption, chart = pick_content(service, chat, cmd, group, period, names)
 	caption = f"{note}\n{caption}" if note else caption
 	if pick.as_photo(chat, cmd):
 		chat.edit_chart(message, render.draw(chart) if chart and chart.rows else render.blank(), caption, rows)
 	else:
-		chat.edit_text(message, caption, rows)
+		chat.edit_lines(message, caption.split('\n'), rows)
 
 def process_callback(press):
 	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): a picker's, the .jobs menu's, or
@@ -288,7 +283,7 @@ def process_callback(press):
 		markup = buttons.keyboard(pressed.kind, args, pressed.period)
 		if pressed.kind in charts.TEXT: # a text answer: its lines for that period, in place
 			caption, _ = charts.build(pressed.kind, args, service, chat.key, period=pressed.period)
-			return chat.edit_text(press.message_id, caption, markup)
+			return chat.edit_lines(press.message_id, caption.split('\n'), markup)
 		if chat.reshow(press.message_id, markup): # that period as posted lately (Slack, Telegram): nothing built
 			return
 		caption, chart = charts.build(pressed.kind, args, service, chat.key, period=pressed.period)
@@ -306,7 +301,7 @@ def process_request(message):
 	meanwhile, which the first message of the answer stops and the end of the command takes off; a message that calls
 	none gets no answer. Arguments the command cannot take get its usage, and any failure a one-line reply in the
 	chat."""
-	request = Request(dialects.of(message.service), message.chat_id, message.user, message.user_name, message.bot_name,
+	request = Request(dialects.of(message.service), message.chat_id, message.user, message.bot_name,
 		message.message_id, message.interaction)
 	command, args = read(message.text, message.bot_name)
 	if why := refused(message.service, message.ids, command, message.chat_id):
@@ -466,7 +461,7 @@ def watchlist_press(service, chat, press, pressed):
 		editing = kind in 'em' and not stale
 		lines, rows = watchlist_screen(service, chat.key, pressed.mask if editing else 0, press.user,
 			number if kind == 'm' else 0, note, editing)
-		chat.edit_text(press.message_id, '\n'.join(lines), rows)
+		chat.edit_lines(press.message_id, lines, rows)
 	except Exception as e:
 		forget(press)
 		delivery.report_error(e, chat, context='watchlist')
@@ -910,7 +905,7 @@ class CommandJob:
 	def run(self, dest, *, words):
 		"""Answer in the job's chat (dest) as the command would to these words, typed there: its usage where it cannot
 		take them, an answer as an answer; any other failure is the job's to report."""
-		request = Request(dest.dialect, dest.where, '', '', '', dest=dest)
+		request = Request(dest.dialect, dest.where, '', '', dest=dest)
 		try:
 			self.command.handler(request, read_args(self.command, self.name, ' '.join(words)))
 		except Usage as e:

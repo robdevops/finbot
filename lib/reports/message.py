@@ -17,13 +17,8 @@ def run(dest=None, *, lines):
 	"""Post the lines to the chat whose job it is (dest), each placeholder filled, by an explicit replace: the text is
 	data, never a format string."""
 	chat = delivery.target(dest)
-	filled = [YEARS.sub(lambda found: years_since(found, today()), line) for line in lines]
+	filled = [YEARS.sub(lambda found: years_since(found, formats.today()), line) for line in lines]
 	delivery.deliver(chat, delivery.Report([formats.markup(line, chat.dialect) for line in filled]))
-
-
-def today():
-	"""Today's date, by the timezone setting's clock."""
-	return datetime.datetime.now(formats.zone()).date()
 
 
 def years_since(found, on):

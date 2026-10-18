@@ -5,15 +5,10 @@ record per chat ({'chats': {chat key: record}}): see load_for and edit_for."""
 import contextlib
 import copy
 import json
-import threading
 from pathlib import Path
 
 from lib import cache
 from lib import config
-
-_locks = {} # file name -> the lock edit() holds while it changes the file
-_locks_lock = threading.Lock()
-
 
 def path(name):
 	"""Where a state file lives."""
@@ -29,12 +24,6 @@ def load(name, default=None):
 def save(name, data):
 	"""Write a state file's JSON, whole or not at all, flushed to disk (cache.write_file)."""
 	cache.write_file(path(name), json.dumps(data, indent=4).encode('utf-8'), sync=True)
-
-
-def _lock(name):
-	"""The lock edit() holds while it changes the file `name`."""
-	with _locks_lock:
-		return _locks.setdefault(name, threading.Lock())
 
 
 def load_for(chat, name, default):
@@ -55,7 +44,7 @@ def edit(name, default):
 	block starts (a copy of `default` when there is none yet) and written as the block ends without an error, if the
 	block changed it. Meanwhile no other edit of the same file runs in this process, so two chats changing it at once
 	both count. Keep slow work, a network call say, outside the block."""
-	with _lock(name):
+	with cache.lock(path(name)):
 		data = load(name, copy.deepcopy(default))
 		before = copy.deepcopy(data)
 		yield data

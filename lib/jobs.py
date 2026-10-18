@@ -319,12 +319,19 @@ class Scheduler:
 		self.last = {}
 		self.busy = set() # the keys of the jobs running now, scheduled or by hand
 		self.lock = threading.Lock()
+		self.loading = threading.Lock() # one load at a time, so the list swapped in last is the one read last
 
 	def load(self):
 		"""Read every job: the system jobs; for each chat JOBS_FILE knows, the catalog's (switched off where its record
 		says so) and those it added. A stored job that cannot be (an action that is none, arguments its parser refuses:
 		an edited or older file) is logged and left out, never run. A job kept from before keeps its timing; a new one
-		counts from now, as one does that was off."""
+		counts from now, as one does that was off. Loads take turns: one reading the file while another change is stored
+		would otherwise swap in the older list after the newer one."""
+		with self.loading:
+			self._load()
+
+	def _load(self):
+		"""load(), with the loading lock held."""
 		jobs = system_jobs()
 		chats = self.stored_chats()
 		items = catalog.items(config.settings.country_code, sharesight.configured())

@@ -147,8 +147,8 @@ class Discord(inbound.Network):
 		if kind == self.COMMAND and data.get('name'):
 			given = ' '.join(str(option.get('value', '')) for option in data.get('options') or []).strip()
 			text = f"/{data['name']} {given}".strip()
-			return inbound.Message(self.service, channel, f"<@{person.get('id')}>", text, self.bot_name,
-				self.name(person), interaction=through, dm=self.dm(update), ids=self.ids(person))
+			return inbound.Message(self.service, channel, self.handle(person), text, self.bot_name, interaction=through,
+				dm=self.dm(update), ids=self.ids(person))
 		if kind == self.AUTOCOMPLETE and data.get('name'):
 			options = data.get('options') or []
 			typed = next((str(option.get('value', '')) for option in options if option.get('focused')), '')
@@ -156,7 +156,7 @@ class Discord(inbound.Network):
 		message = update.get('message') or {}
 		if kind == self.COMPONENT and data.get('custom_id') and message.get('id'):
 			return inbound.Press(self.service, str(update.get('id')), channel, str(message['id']), data['custom_id'],
-				'@' + str(person.get('username') or person.get('id') or 'unknown'), through, ids=self.ids(person))
+				self.handle(person), through, ids=self.ids(person))
 		return inbound.UNSUPPORTED
 
 	def message(self, update):
@@ -166,8 +166,8 @@ class Discord(inbound.Network):
 		if author.get('bot') or update.get('webhook_id') or not author.get('id') or 'content' not in update:
 			return inbound.OK
 		text = re.sub(r'<@!?(\d+)>', r'@\1', update['content'])
-		return inbound.Message(self.service, str(update.get('channel_id')), f"<@{author['id']}>", text, self.bot_name,
-			self.name(author), str(update.get('id', '')), dm=self.dm(update), ids=self.ids(author))
+		return inbound.Message(self.service, str(update.get('channel_id')), self.handle(author), text, self.bot_name,
+			str(update.get('id', '')), dm=self.dm(update), ids=self.ids(author))
 
 	@staticmethod
 	def ids(person):
@@ -181,9 +181,9 @@ class Discord(inbound.Network):
 		return not (update.get('guild_id') or update.get('member'))
 
 	@staticmethod
-	def name(person):
-		"""What to call someone: their display name, else their username."""
-		return person.get('global_name') or person.get('username') or 'unknown'
+	def handle(person):
+		"""What a reply calls someone: a mention of their id (posts ping nobody: NO_MENTIONS)."""
+		return f"<@{person.get('id') or 'unknown'}>"
 
 	def acknowledge(self, event, toast=True):
 		"""An interaction's answer, which Discord must have within 3 seconds and before any reply: "thinking…" for a

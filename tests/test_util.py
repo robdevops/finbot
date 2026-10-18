@@ -1,5 +1,5 @@
 """Pure helpers (lib/markets.py, formats.py, links.py) and the cache and state files: table-driven cases."""
-import datetime, json, threading, unittest
+import contextlib, datetime, io, json, threading, time, unittest
 from pathlib import Path
 from tests.common import *
 from lib import when
@@ -11,7 +11,7 @@ class Parsing(unittest.TestCase):
 		for arg, days in (('7', 7), ('7d', 7), ('7D', 7), ('2w', 14), ('3m', 90), ('1y', 365), ('0', 0)):
 			with self.subTest(arg=arg):
 				self.assertEqual(formats.days_from_human_days(arg), days)
-		today = datetime.date.today()
+		today = formats.today() # by the timezone setting's clock, not the host's
 		self.assertEqual(formats.days_from_human_days('ytd'), (today - today.replace(month=1, day=1)).days)
 
 	def test_days_from_human_days_rejects_non_periods(self):
@@ -332,6 +332,36 @@ class StateFiles(FinbotCase):
 			return real(path, *a, **k)
 		with mock.patch.object(Path, 'read_text', vanish):
 			self.assertIsNone(cache.read('gone.json', 60))
+
+	def test_a_cache_file_that_does_not_parse_is_a_miss(self):
+		"""An empty or cut-short cache file is a miss, logged, and the next fetch replaces it; load() finds none."""
+		for broken in ('', '{"a": '):
+			with self.subTest(broken=broken):
+				Path(cache.path('bad.json')).write_text(broken)
+				with contextlib.redirect_stderr(io.StringIO()) as err:
+					self.assertIsNone(cache.read('bad.json', 60))
+					self.assertIsNone(cache.load('bad.json'))
+					self.assertEqual(cache.cached('bad.json', 60, lambda: {'a': 1}), {'a': 1})
+				self.assertIn('does not parse', err.getvalue())
+				self.assertEqual(cache.read('bad.json', 60), {'a': 1})
+
+	def test_callers_that_miss_the_same_file_at_once_fetch_it_once(self):
+		"""Callers missing the same cache file at once (every chat's job at the same minute) wait for one fetch and
+		read what it wrote."""
+		fetches = []
+		def fetch():
+			"""A slow fetch, so that the other callers arrive meanwhile."""
+			fetches.append(1)
+			time.sleep(0.05)
+			return {'a': 1}
+		answers = []
+		threads = [threading.Thread(target=lambda: answers.append(cache.cached('shared.json', 60, fetch)))
+			for _ in range(4)]
+		for thread in threads:
+			thread.start()
+		for thread in threads:
+			thread.join()
+		self.assertEqual((len(fetches), answers), (1, [{'a': 1}] * 4))
 
 	def test_binary_cache_roundtrip(self):
 		"""A drawn chart reads back from the cache as written."""

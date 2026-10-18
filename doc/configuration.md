@@ -69,10 +69,10 @@ The administrators of the chat a person is in are admins there with no setting: 
 | `graph` | `True` | Send charts with reports |
 | `hyperlink` | `True` | Hyperlink tickers in reports |
 | `hyperlinkFooter` | `True` | Add a website link footer to stock lookups |
-| `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` |
+| `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` (any other value stops a start or a reload, naming the key) |
 | `exchange_suffix` | `AX` | Regional: Yahoo's suffix for your exchange (`AX` for the ASX, `NZ`, `L`, `TO` and so on). A bare symbol Yahoo does not know is tried again with it, in every command that takes a symbol (`BHP` becomes `BHP.AX`); empty, a symbol is taken as written |
-| `country_code` | `AU` | Regional: your country, for the default jobs' messages that are for one (`AU`: the tax year's reminders) |
-| `timezone` | `Australia/Melbourne` | Regional: your time zone, the clock of the times `/jobs` takes and shows, and a job's zone where it names none |
+| `country_code` | `AU` | Regional: your country, in any case, for the default jobs' messages that are for one (`AU`: the tax year's reminders) |
+| `timezone` | `Australia/Melbourne` | Regional: your time zone, the clock of the times `/jobs` takes and shows, a job's zone where it names none, and what "today" is (ytd, reports' dates); a name that is no zone stops a start or a reload, naming the key |
 | `telegram_preload_chat` | | A private Telegram channel or group of your own, by its id (`-1001234567890`, as the log shows a chat's): as a chart with period or portfolio buttons goes out, its other periods and portfolios are uploaded there, so that a press shows them without an upload (see [Telegram](telegram.md#preloading-charts)). Empty: off |
 | `slack_preload_chat` | | The same on Slack: a private channel's id (`C0123ABCD`), the bot invited (see [Slack](slack.md#preloading-charts)). Empty: off |
 | `preload_gap` | `0.1` | Seconds between the starts of two charts preloaded to a network (two uploads at a time, on Telegram and Slack alike, each chart sent as soon as it is drawn). A rate limit is waited out once and the preload tried again |

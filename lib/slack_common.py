@@ -74,17 +74,20 @@ class Slack(inbound.Network):
 		if event['type'] not in ('message', 'app_mention') or 'text' not in event:
 			log.info("Slack unhandled event callback type", event['type'])
 			return inbound.UNHANDLED
-		user = '<@' + event['user'] + '>' # a mention: Slack shows the name
-		return inbound.Message(self.service, event['channel'], user, self.plain(event['text']), '@' + bot_user, user,
-			event.get('ts', ''), ids=(event['user'],))
+		return inbound.Message(self.service, event['channel'], self.handle(event['user']), self.plain(event['text']),
+			'@' + bot_user, event.get('ts', ''), ids=(event['user'],))
 
 	def slash(self, update):
 		"""A slash command (/price with 5 7d), as the message that says the same (/price 5 7d), in the channel or DM it
 		was sent in. There is no message of it, for ⏳ to show on."""
-		user = '<@' + str(update.get('user_id') or 'unknown') + '>'
 		text = self.plain(f"{update['command']} {update.get('text') or ''}".strip())
-		return inbound.Message(self.service, str(update.get('channel_id') or ''), user, text, '', user,
-			ids=tuple(filter(None, (str(update.get('user_id') or ''),))))
+		return inbound.Message(self.service, str(update.get('channel_id') or ''), self.handle(update.get('user_id')),
+			text, '', ids=tuple(filter(None, (str(update.get('user_id') or ''),))))
+
+	@staticmethod
+	def handle(user_id):
+		"""What a reply calls a Slack user: a mention of their id, which Slack shows as their name."""
+		return f"<@{user_id or 'unknown'}>"
 
 	@staticmethod
 	def plain(text):
@@ -102,9 +105,9 @@ class Slack(inbound.Network):
 		if container.get('type') != 'message' or not container.get('message_ts') or not value:
 			return inbound.UNSUPPORTED
 		user = update.get('user') or {}
-		who = '@' + str(user.get('username') or user.get('id') or 'unknown')
 		return inbound.Press(self.service, update.get('trigger_id', ''), container.get('channel_id', ''),
-			container['message_ts'], value, who, ids=tuple(filter(None, (str(user.get('id') or ''),))))
+			container['message_ts'], value, self.handle(user.get('id')), ids=tuple(filter(None, (str(user.get('id') or
+			''),))))
 
 
 class SlackBot(transports.Transport):
@@ -256,14 +259,18 @@ class SlackBot(transports.Transport):
 	def post_blocks(self, data, caption, buttons):
 		"""The chart in a Block Kit message, the report above it and the period buttons under it, the chart an earlier
 		upload where there is one (showing). Slack's answer, or MAYBE_SENT when posting the message timed out (it may
-		have arrived); raises RuntimeError when Slack refuses."""
-		try:
-			answer, file_id, digest = self.showing(data, lambda file_id: call('chat.postMessage', channel=self.where,
-				text=caption[:SECTION_LIMIT], blocks=json.dumps(chart_blocks(caption, buttons, file_id)),
-				unfurl_links='false', unfurl_media='false'))
-		except requests.exceptions.ReadTimeout as e:
-			log.warn("Slack chat.postMessage timed out, the chart may still arrive:", net.redact(e))
-			return transports.MAYBE_SENT
+		have arrived); raises when an upload fails (no message exists yet) or Slack refuses."""
+		def post(file_id):
+			"""chat.postMessage of the blocks that show the chart: MAYBE_SENT when it timed out."""
+			try:
+				return call('chat.postMessage', channel=self.where, text=caption[:SECTION_LIMIT], unfurl_links='false',
+					blocks=json.dumps(chart_blocks(caption, buttons, file_id)), unfurl_media='false')
+			except requests.exceptions.ReadTimeout as e:
+				log.warn("Slack chat.postMessage timed out, the chart may still arrive:", net.redact(e))
+				return transports.MAYBE_SENT
+		answer, file_id, digest = self.showing(data, post)
+		if answer is transports.MAYBE_SENT:
+			return answer
 		if answer.get('ts'):
 			self.delete(self.shows(answer['ts'], file_id, caption, buttons, digest))
 		return answer

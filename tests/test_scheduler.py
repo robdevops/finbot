@@ -1,7 +1,7 @@
 """The scheduler (lib/jobs.py): each chat's jobs (the default ones and those it added) and the system jobs running on a
 fake clock, across the clocks' changes; .jobs in a chat, its menu of buttons and the steps of Add; each job run in the
 bot's process, past its deadline too."""
-import contextlib, datetime, io, os, re, subprocess, sys, tempfile, time, unittest
+import contextlib, datetime, io, os, re, subprocess, sys, tempfile, threading, time, unittest
 import zoneinfo
 from pathlib import Path
 from unittest import mock
@@ -191,6 +191,41 @@ class SchedulerBase(FinbotCase):
 		with contextlib.redirect_stderr(io.StringIO()):
 			s.load()
 		return s
+
+
+class LoadsTakeTurns(SchedulerBase):
+	"""Two changes at once: the list read last is the one left live."""
+
+	def test_a_change_during_a_load_is_live_after_both(self):
+		"""A job switched off while another load is reading the jobs (an older list) is off once both are done: the
+		second load waits for the first, so the first cannot swap its older list in after it."""
+		self.patch(catalog, 'ITEMS', FEW)
+		s = self.scheduler()
+		read = s.stored_chats
+		reading, release = threading.Event(), threading.Event()
+		def slow():
+			"""The first read of the jobs file waits until the other change is stored."""
+			chats = read()
+			if not reading.is_set():
+				reading.set()
+				release.wait(5)
+			return chats
+		self.patch(s, 'stored_chats', slow)
+		jobs.know([CHAT])
+		first = threading.Thread(target=s.load)
+		first.start()
+		reading.wait(5)
+		job = next(job for job in s.chat_jobs(CHAT) if job.item == 'rating')
+		second = threading.Thread(target=s.switch, args=(job, False))
+		second.start()
+		for _ in range(200): # until the switch is stored
+			if 'rating' in (state.load(jobs.JOBS_FILE, {}).get(CHAT) or {}).get('off', []):
+				break
+			time.sleep(0.01)
+		release.set()
+		first.join(5)
+		second.join(5)
+		self.assertFalse(next(job for job in s.chat_jobs(CHAT) if job.item == 'rating').on)
 
 
 class WarmNow(FinbotCase):
@@ -499,7 +534,7 @@ class ChatBase(SchedulerBase):
 		"""Send text in a Telegram chat: the lines of the reply."""
 		self.replies.clear()
 		with contextlib.redirect_stderr(io.StringIO()):
-			worker.process_request(inbound.Message('telegram', chat, '@u', text, BOT, 'U'))
+			worker.process_request(inbound.Message('telegram', chat, '@u', text, BOT))
 		self.assertEqual(self.errors, [], text)
 		return self.replies[-1][1] if self.replies else None
 
