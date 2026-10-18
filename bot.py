@@ -193,11 +193,12 @@ class Sent(list):
 def take(network, update):
 	"""An update from a network (an inbound.Network reads it), however it arrived: what it says goes to lib/worker in a
 	thread of its own (dispatch), unless it is a repeat (the same update resent, the same message sent again at once:
-	doubled, or the same button pressed again: worker.repeated, acknowledged without a toast), or a press of a command
-	only the admins may use, by someone else (worker.refused_press: an alert says so). It is acknowledged
-	first, the one place that does (Network.acknowledge), a press with what it is told at once (buttons.toast, an
-	alert where buttons.alert says). Returns the inbound.Response for the network; when the network must have it before
-	any reply (Discord's interactions), the work waits in its `then`, for whoever delivers it."""
+	doubled, or the same button pressed again: worker.repeated, acknowledged without a toast), or a press refused: a
+	tick past the picker's limit (buttons.refusal) or a button of a command only the admins may use, by someone else
+	(worker.refused_press), which an alert to the presser says. It is acknowledged first, the one place that does
+	(Network.acknowledge), a press with what it is told at once (buttons.toast). Returns the inbound.Response for the
+	network; when the network must have it before any reply (Discord's interactions), the work waits in its `then`, for
+	whoever delivers it."""
 	event = network.parse(update)
 	if isinstance(event, inbound.Response):
 		return event
@@ -210,16 +211,14 @@ def take(network, update):
 		who = f"{network.service.capitalize()} {event.chat_id} {event.user}"
 		log.info(log.cut(f"{who} sent it again within {DOUBLED} s, not run again: {event.text}"))
 		return inbound.OK
-	if isinstance(event, inbound.Press) and (why := worker.refused_press(event)):
-		log.info(f"{network.service.capitalize()} {event.chat_id} {event.user} refused: a button of an admins' command")
+	if isinstance(event, inbound.Press) and (why := buttons.refusal(event.data) or worker.refused_press(event)):
+		log.info(f"{network.service.capitalize()} {event.chat_id} {event.user} refused: {why}")
 		return network.acknowledge(event, why, alert=True) or inbound.OK
 	if isinstance(event, inbound.Press) and worker.repeated(event):
 		log.info(f"{network.service.capitalize()} duplicate button press ignored")
 		return network.acknowledge(event) or inbound.OK
-	if isinstance(event, inbound.Press):
-		answer = network.acknowledge(event, buttons.toast(event.data), buttons.alert(event.data))
-	else:
-		answer = network.acknowledge(event)
+	answer = network.acknowledge(event, buttons.toast(event.data)) if isinstance(event, inbound.Press) else \
+		network.acknowledge(event)
 	if answer is not None:
 		return dataclasses.replace(answer, then=lambda: dispatch(event))
 	dispatch(event)

@@ -45,8 +45,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   and SIGUSR1 cache flush, each in a thread. `bot.take(network, update)` takes an update however it arrived, and is the
   one place a press is acknowledged (the worker never does); the same button pressed again on the same message within a
   minute is acknowledged without a toast and dropped (`worker.repeated`; a press that failed is forgotten,
-  `worker.forget`), and a press of a button of an `admin_only` command by someone the `admins` setting does not name is
-  refused with an alert (`worker.refused_press`; a message calling one gets a refusal in `process_request`; closed as
+  `worker.forget`), and a press refused goes no further, its refusal told to the presser alone (`acknowledge` with
+  alert: Telegram's alert, Slack's `chat.postEphemeral`, Discord's ephemeral answer): a ninth tick (`buttons.refusal`)
+  or a button of an `admin_only` command by someone the `admins` setting does not name (`worker.refused_press`; a
+  message calling one gets a refusal in `process_request`; closed as
   finbot ships: `.jobs`; the `admins` setting, or the chat's own administrators, asked of the network by
   `Transport.administers` and kept five minutes; `inbound.Message.ids` is who a sender is, never their name). An answer the
   network must have before any reply (Discord's deferred interaction) carries the work in its `then`: started once the
@@ -121,8 +123,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   (`m`; `n` under a note, which the next press takes away), 32 items a page (`pick.layout`; fewer on Discord) turned by
   `◀` `▶` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
   is), `.price`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, their buttons and the `.watchlist` Edit's
-  built by `pick.ticker_buttons` and `buttons.page_buttons`, one more refused by an alert
-  toast (`buttons.alert`); a treemap primes its other charts in a thread (`pick.prime`, started by
+  built by `pick.ticker_buttons` and `buttons.page_buttons`, one more refused (act `f`: `buttons.refusal`, in
+  `bot.take`); a treemap primes its other charts in a thread (`pick.prime`, started by
   `worker.prime_in_background`); every chart with period buttons primes its other periods (`charts.prime`,
   `worker.prime_periods` after `.price`, `.movers`, `.performance`, `chart_reply` and the pickers); neither for a
   scheduled run.

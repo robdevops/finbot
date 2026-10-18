@@ -1172,7 +1172,7 @@ class Pickers(FinbotCase):
 			[['● Amy', 'Zed'], ['Grouped by: Industry ▾']]))
 
 	def test_compare_ticks_up_to_eight_and_refuses_a_ninth(self):
-		""".compare: ticks toggle, a ninth is refused with an alert and a note."""
+		""".compare: ticks toggle, a ninth is refused with an alert alone, the message left as it is."""
 		self.command('.compare')
 		self.tap('+')
 		for ticker in ('T1', 'T10', 'T11', 'T12', 'T13', 'T14', 'T15'): # with T0, the first, ticked already
@@ -1180,17 +1180,16 @@ class Pickers(FinbotCase):
 		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')],
 			['✅ T0', '✅ T1', '✅ T10', '✅ T11', '✅ T12', '✅ T13', '✅ T14', '✅ T15'])
 		self.assertEqual(self.toasts[-1], ('Updating…', False))
-		kind, lines, rows = self.tap('T16')
-		self.assertEqual((self.toasts[-1], lines[0]), ((buttons.TOO_MANY, True), buttons.TOO_MANY))
-		self.assertNotIn('✅ T16', [t for row in self.labels(rows) for t in row])
+		edits = len(self.edits)
+		self.tap('T16')
+		self.assertEqual((self.toasts[-1], len(self.edits)), ((buttons.TOO_MANY, True), edits))
 		kind, lines, rows = self.tap('✅ T13') # unticking makes room
-		self.assertNotIn(buttons.TOO_MANY, lines)
 		self.assertEqual(len([t for row in self.labels(rows) for t in row if t.startswith('✅')]), 7)
 
 	def test_a_tick_or_a_page_changes_the_buttons_alone(self):
-		"""+, a tick and a page of tickers change only the buttons, the chart left as it is (nothing drawn or uploaded);
-		under a note (a ninth tick refused), the next press draws the message whole, which takes the note away; where
-		the network cannot change buttons alone, the message is drawn whole."""
+		"""+, a tick and a page of tickers change only the buttons, the chart left as it is (nothing drawn or uploaded),
+		and a ninth tick, refused, changes nothing; where the network cannot change buttons alone, the message is drawn
+		whole."""
 		self.many()
 		self.command('.compare')
 		first = self.showing
@@ -1199,11 +1198,11 @@ class Pickers(FinbotCase):
 			self.assertEqual((kind, lines), ('buttons', first), label)
 		for ticker in ('S40', 'S41', 'S42', 'S43', 'S44', 'S45'): # eight ticked, with S00 and S05
 			self.assertEqual(self.tap(ticker)[0], 'buttons')
-		kind, lines, rows = self.tap('S46') # refused, as the ninth: said in a note
-		self.assertEqual((kind, lines[0]), ('photo', buttons.TOO_MANY))
-		kind, lines, rows = self.tap('✅ S45')
-		self.assertEqual((kind, lines), ('photo', first))
-		self.assertEqual(self.tap('S46')[0], 'buttons') # room again, and no note to take away
+		edits = len(self.edits)
+		self.tap('S46') # refused, as the ninth: an alert alone
+		self.assertEqual((self.toasts[-1], len(self.edits)), ((buttons.TOO_MANY, True), edits))
+		self.assertEqual(self.tap('✅ S45')[0], 'buttons')
+		self.assertEqual(self.tap('S46')[0], 'buttons') # room again
 		self.assertEqual(self.tap('◀')[0], 'buttons')
 		self.patch(telegram_common.TelegramBot, 'edit_buttons', transports.Transport.edit_buttons) # none on Slack
 		self.assertEqual(self.tap('▶')[0], 'photo')
@@ -1349,16 +1348,16 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+'], ['OK']])
 
 	def test_a_ninth_tick_is_refused_on_a_later_page(self):
-		"""The limit of eight counts every page's ticks, and the refusal stays on the page."""
+		"""The limit of eight counts every page's ticks: a ninth on another page is refused too."""
 		self.many()
 		self.command('.compare')
 		self.tap('+')
 		for ticker in ('S01', 'S02', 'S03', 'S04', 'S05', 'S06', 'S07'): # with S00, the first, ticked already
 			self.tap(ticker)
 		self.tap('▶')
-		kind, lines, rows = self.tap('S33')
-		self.assertEqual((self.toasts[-1], lines[0], self.labels(rows)[0][:2]), ((buttons.TOO_MANY, True),
-			buttons.TOO_MANY, ['S32', 'S33']))
+		edits = len(self.edits)
+		self.tap('S33')
+		self.assertEqual((self.toasts[-1], len(self.edits)), ((buttons.TOO_MANY, True), edits))
 
 	def test_an_item_on_a_later_page_is_the_one_picked(self):
 		"""A ticker ticked on page two is the one OK draws, back at the top."""

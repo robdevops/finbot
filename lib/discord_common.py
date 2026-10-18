@@ -107,8 +107,9 @@ class Discord(inbound.Network):
 	service = 'discord'
 	bot_id = None # the bot's user id, noted as finbot starts (start): a message mentioning it is for the bot
 	PING, COMMAND, COMPONENT, AUTOCOMPLETE = 1, 2, 3, 4 # interaction types
-	PONG, THINKING, LATER, CHOICES = 1, 5, 6, 8 # answers: to the check, "thinking…" until the reply, nothing to see (a
-	# press), the suggestions for what is being typed
+	PONG, MESSAGE, THINKING, LATER, CHOICES = 1, 4, 5, 6, 8 # answers: to the check, a message, "thinking…" until the
+	# reply, nothing to see (a press), the suggestions for what is being typed
+	EPHEMERAL = 64 # a message's flag: only the person who pressed (or typed) sees it
 
 	def update_id(self, update):
 		"""The interaction's id, or the message's."""
@@ -177,10 +178,14 @@ class Discord(inbound.Network):
 
 	def acknowledge(self, event, text=None, alert=False):
 		"""An interaction's answer, which Discord must have within 3 seconds and before any reply: "thinking…" for a
-		slash command, until the reply replaces it; nothing to see for a press (Discord has no toast), whose message is
-		edited after. A gateway message needs none."""
+		slash command, until the reply replaces it; for a press, nothing to see (Discord has no toast), its message
+		edited after, or with alert the text in a message that the presser alone sees (a press refused). A gateway
+		message needs none."""
 		if not event.interaction:
 			return None
+		if alert:
+			told = {'content': text, 'flags': self.EPHEMERAL, 'allowed_mentions': NO_MENTIONS}
+			return inbound.Response(body=json.dumps({'type': self.MESSAGE, 'data': told}).encode(), interaction=True)
 		answer = self.THINKING if isinstance(event, inbound.Message) else self.LATER
 		return inbound.Response(body=json.dumps({'type': answer}).encode(), interaction=True)
 

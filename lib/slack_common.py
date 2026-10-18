@@ -97,6 +97,14 @@ class Slack(inbound.Network):
 		text = re.sub(r'<((?:https?|mailto):[^|>]*)(?:\|([^>]*))?>', lambda m: m.group(2) or m.group(1), text)
 		return html.unescape(re.sub(r'<(@[\w\.]+)>', r'\g<1>', text)) # Slack sends & < > as &amp; &lt; &gt;
 
+	def acknowledge(self, event, text=None, alert=False):
+		"""A press refused (alert): the text posted to the presser alone (chat.postEphemeral) once Slack has the press
+		(the 200, or the socket's ack, is the acknowledgement of every update); a failure is only logged."""
+		if not (alert and isinstance(event, inbound.Press) and event.ids):
+			return None
+		return inbound.Response(then=lambda: try_call('chat.postEphemeral', channel=event.chat_id, user=event.ids[0],
+			text=text))
+
 	def press(self, update):
 		"""A button pressed under one of the bot's messages, or UNSUPPORTED for one that is not under a message or
 		carries no value."""

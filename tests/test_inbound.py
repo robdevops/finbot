@@ -435,6 +435,30 @@ class AdminOnly(FinbotCase):
 		self.assertEqual((self.taken, self.toasts[1:]), (['c|c|y|T1', 'm|top|0|ab12'], [('Loading 1Y…', False),
 			('Updating…', False)]))
 
+	def test_a_refused_press_is_told_to_the_presser_alone_on_every_network(self):
+		"""A press refused (here of a button of .jobs, by someone else) is told to the presser alone, and not run: an
+		alert on Telegram (above); on Slack a message only the presser sees (chat.postEphemeral), once the press is
+		acknowledged; on Discord the interaction's answer is such a message, in either mode."""
+		self.env(slackBotToken='xoxb-1', discordBotToken='x')
+		for kind in (slack_common.SlackBot, discord_common.DiscordBot):
+			self.patch(kind, 'is_administrator', lambda chat, who: False)
+		posts = []
+		self.patch(net, 'post', lambda url, **kwargs: posts.append((url.rsplit('/', 1)[1], kwargs['data'])) or
+			Resp({'ok': True}))
+		with contextlib.redirect_stderr(io.StringIO()):
+			answer = bot.take(slack_common.READER, {**PRESS, 'actions': [{'value': 'm|top|0|ab12'}]})
+			self.assertEqual((answer.status, answer.body, posts), ('200 OK', b'', [])) # acknowledged first
+			answer.then()
+		self.assertEqual(posts, [('chat.postEphemeral', {'channel': 'C1', 'user': 'U1', 'text': self.REFUSED})])
+		discord = {'type': 3, 'id': '5', 'token': 'tok', 'application_id': '42', 'channel_id': '77',
+			'user': {'id': '9'}, 'data': {'custom_id': 'm|top|0|ab12'}, 'message': {'id': '8'}}
+		with contextlib.redirect_stderr(io.StringIO()):
+			answer = bot.take(discord_common.READER, discord)
+		told = {'content': self.REFUSED, 'flags': 64, 'allowed_mentions': {'parse': []}}
+		self.assertEqual((json.loads(answer.body), answer.interaction, answer.then), ({'type': 4, 'data': told}, True,
+			None))
+		self.assertEqual(self.taken, [])
+
 
 class SlackEvents(FinbotCase):
 	"""Slack sends every message in a subscribed channel, the bot's own posts included."""

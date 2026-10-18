@@ -97,7 +97,7 @@ def record(output):
 			event = common.inbound.Press(service, *fields)
 			if 'text' in inspect.signature(network.acknowledge).parameters:
 				from lib import buttons
-				network.acknowledge(event, buttons.toast(event.data), buttons.alert(event.data))
+				network.acknowledge(event, buttons.toast(event.data))
 			else:
 				network.acknowledge(event)
 			run()

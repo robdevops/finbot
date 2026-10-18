@@ -178,18 +178,19 @@ def parse(data):
 		return ChartPress(*parts)
 	return None
 
-def alert(data):
-	"""Whether a press's toast is an alert the person must dismiss: a picker refusing a tick past MAX_PICKED."""
+def refusal(data):
+	"""What a press is refused with, from the button's data alone: TOO_MANY for a tick past MAX_PICKED (a picker's
+	act f), else None."""
 	pressed = parse(data)
-	return isinstance(pressed, PickPress) and pressed.act[0] == 'f'
+	return TOO_MANY if isinstance(pressed, PickPress) and pressed.act[0] == 'f' else None
 
 def toast(data):
 	"""What a press is told at once, from the button's data alone (the network acknowledges a press before finbot
 	knows more): 'Loading 1Y…' for a period button, 'Updating…' for the .jobs menu's, 'Loading…' or 'Updating…' for a
-	picker's (an error for a refused tick), None for data of none of them."""
+	picker's, None for data of none of them."""
 	pressed = parse(data)
 	if isinstance(pressed, PickPress):
-		return TOO_MANY if pressed.act[0] == 'f' else 'Loading…' if pressed.act[0] in 'rh' else 'Updating…'
+		return 'Loading…' if pressed.act[0] in 'rh' else 'Updating…'
 	if isinstance(pressed, MenuPress):
 		return 'Updating…'
 	return f"Loading {PERIODS[pressed.period][0]}…" if pressed else None
