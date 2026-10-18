@@ -124,20 +124,11 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		if cmd == 't':
 			rows.append([button(f"Grouped by: {holdings.GROUPS.get(group, 'industry').capitalize()} ▾", f"g{page}")])
 	elif view == 'm':
-		full = len(ticked) >= buttons.MAX_PICKED
-		tickers = []
-		for i, ticker in on_page:
-			if mask >> i & 1:
-				tickers.append(button(f"✅ {ticker}", f"{step}{page}", mask=mask ^ 1 << i))
-			else:
-				tickers.append(button(ticker, f"f{page}") if full else button(ticker, f"{step}{page}",
-					mask=mask | 1 << i))
-		rows += chunks(tickers, per_row)
+		rows += chunks(ticker_buttons(found, page, per_page, mask, button, lambda ticker: f"✅ {ticker}", step,
+			full=len(ticked) >= buttons.MAX_PICKED), per_row)
 	nav = [button('◀ Back', 'p0')] if cmd == 'c' and view == 'm' else []
 	if pages > 1 and (view == 'm' or noun(cmd) == 'portfolio'): # the page buttons: under the tickers, not above them
-		act = step if view == 'm' else 'p'
-		nav += ([button('<', f"{act}{page - 1}")] if page else []) + (
-			[button('>', f"{act}{page + 1}")] if page < pages - 1 else [])
+		nav += page_buttons(page, pages, step if view == 'm' else 'p', button)
 	if view == 'm' and to_compare:
 		nav.append(button('OK', 'h0'))
 	if nav:
@@ -155,3 +146,24 @@ def items_on(found, page, per_page):
 def chunks(row, size):
 	"""A list of buttons as rows of at most `size`."""
 	return [row[i:i + size] for i in range(0, len(row), size)]
+
+def ticker_buttons(found, page, per_page, mask, button, mark, step, full=False):
+	"""The buttons of a page of tickers to tick (the .price picker's, the watchlist's Edit): a ticked one (a bit of
+	`mask`) is labelled by mark(ticker) and unticks itself; any other ticks itself, or with `full` (no more may be
+	ticked) is refused (act f). `button(label, act, **changes)` makes the screen's own button, `changes` the mask it
+	asks for; `step` is the act that redraws the screen at `page`."""
+	tickers = []
+	for i, ticker in items_on(found, page, per_page):
+		if mask >> i & 1:
+			tickers.append(button(mark(ticker), f"{step}{page}", mask=mask ^ 1 << i))
+		elif full:
+			tickers.append(button(ticker, f"f{page}"))
+		else:
+			tickers.append(button(ticker, f"{step}{page}", mask=mask | 1 << i))
+	return tickers
+
+def page_buttons(page, pages, act, button):
+	"""The < and > buttons of a screen at `page` of `pages`, each pressing `act` at the page it goes to; none for a
+	page there is no other side of."""
+	return ([button('<', f"{act}{page - 1}")] if page else []) + (
+		[button('>', f"{act}{page + 1}")] if page < pages - 1 else [])

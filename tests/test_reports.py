@@ -1187,6 +1187,21 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+']])
 		self.assertTrue(any('Co A1' in line for line in lines))
 
+	def test_the_tickers_pickers_build_their_grid_and_page_buttons_in_one_place(self):
+		"""pick.ticker_buttons and pick.page_buttons make the ticker buttons and the < > of the .price picker and of the
+		watchlist's Edit: a ticked ticker unticks itself, any other ticks itself or, at the cap, is refused."""
+		made = lambda label, act, **changes: (label, act, changes)
+		found = ['A', 'B', 'C', 'D']
+		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm'),
+			[('a', 'm0', {'mask': 0b100}), ('B', 'm0', {'mask': 0b111}), ('c', 'm0', {'mask': 0b001})])
+		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, str.lower, 'n'),
+			[('D', 'n1', {'mask': 0b1101})])
+		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm', full=True),
+			[('a', 'm0', {'mask': 0b100}), ('B', 'f0', {}), ('c', 'm0', {'mask': 0b001})])
+		self.assertEqual([pick.page_buttons(page, 3, 'm', made) for page in range(3)],
+			[[('>', 'm1', {})], [('<', 'm0', {}), ('>', 'm2', {})], [('<', 'm1', {})]])
+		self.assertEqual(pick.page_buttons(0, 1, 'm', made), [])
+
 	def test_watchlist_edit_crosses_tickers_off_and_ok_deletes_them(self):
 		""".watchlist lists the watchlist with an Edit button, which offers a button for each ticker: pressing one
 		strikes it through in the list (and again undoes it); Delete deletes the struck ones; Cancel goes back."""

@@ -464,17 +464,15 @@ def watchlist_screen(service, chat, mask, user='', page=0, note=None, editing=Tr
 	pages = -(-len(found) // per_page)
 	page = min(max(page, 0), max(pages - 1, 0))
 	crc = buttons.checksum(found)
-	def button(label, act, mask=mask):
-		"""A button of this screen: its label, and the press it makes."""
-		return buttons.pick_button(label, buttons.PickPress('w', '0', '0', 0, mask, act, crc))
+	def button(label, act, **changes):
+		"""A button of this screen: its label, and the press it makes (changes: the mask it asks for)."""
+		return buttons.pick_button(label, buttons.PickPress('w', '0', '0', 0, changes.get('mask', mask), act, crc))
 	if not found: # nothing to edit: the list alone, no buttons
 		return ([note] if note else []) + lines, []
 	if not editing:
-		return ([note] if note else []) + lines, [[button('Edit', 'e0', 0)]]
-	rows = pick.chunks([button(about.struck(ticker) if mask >> i & 1 else ticker, f"m{page}", mask ^ 1 << i)
-		for i, ticker in pick.items_on(found, page, per_page)], per_row)
-	rows.append(([button('<', f"m{page - 1}")] if page else []) + ([button('>', f"m{page + 1}")] if page < pages - 1
-		else []) + [button('Delete', 'h0'), button('Cancel', 'p0', 0)])
+		return ([note] if note else []) + lines, [[button('Edit', 'e0', mask=0)]]
+	rows = pick.chunks(pick.ticker_buttons(found, page, per_page, mask, button, about.struck, 'm'), per_row)
+	rows.append(pick.page_buttons(page, pages, 'm', button) + [button('Delete', 'h0'), button('Cancel', 'p0', mask=0)])
 	return ([note] if note else []) + lines + ['', WATCHLIST_HINT], rows
 
 def watchlist_press(service, chat, press, pressed):
