@@ -42,7 +42,6 @@ def try_call(method, **kwargs):
 
 
 ALBUM = 10 # photos in one sendMediaGroup: Telegram's most
-ALBUMS_PER_SECOND = 4 # albums preloaded in a second at most, with no other delay; up to that many in flight
 PHOTO_SECONDS = 30 * 86400 # how long a chart's file id is reused: Telegram keeps a bot's files, cleanup the cache file
 TELEGRAM_REUSE_SECONDS = 30 * 60 # a period pressed within this long of its upload in a chat shows that upload again
 # how Telegram refuses a file id it does not know (another bot's, say)
@@ -194,7 +193,7 @@ class TelegramBot(transports.Transport):
 	TYPING = (0.5, 4, 18) # "typing…" shows for 5 s at most (sendChatAction), so it is sent again every 4 s
 	NO_PREVIEWS = {'is_disabled': True} # link_preview_options, which replaced disable_web_page_preview (Bot API 7.0)
 	preload_lock = threading.Lock()
-	preload_slots = threading.BoundedSemaphore(ALBUMS_PER_SECOND) # albums in flight at once
+	preload_slots = threading.BoundedSemaphore(1) # single charts, one at a time (albums are not held to slots)
 
 	def wants(self, photo):
 		"""Whether preloading a chart (its PNG bytes) would spare a press its upload: Telegram has not it (no file id
@@ -207,16 +206,16 @@ class TelegramBot(transports.Transport):
 		return float(found.group(1)) if found else None
 
 	def send_all(self, photos):
-		"""Preload charts Telegram lacks as albums of up to ALBUM, one request each, started at most ALBUMS_PER_SECOND
-		a second with no other delay and overlapping: an upload takes as long for a few photos as for one (its time is
-		latency, not size). A lone chart goes by sendPhoto. False if any failed."""
+		"""Preload charts Telegram lacks as albums of up to ALBUM (Telegram's own limit), all sent at once with no
+		pacing or limit of ours: an upload takes as long for a few photos as for one (its time is latency, not size).
+		A lone chart goes by sendPhoto, in its turn (paced). False if any failed."""
 		chunks = [photos[i:i + ALBUM] for i in range(0, len(photos), ALBUM)]
 		def send(chunk):
 			"""One album, or a lone chart by sendPhoto."""
 			if len(chunk) == 1:
 				return self.preload(chunk[0])
-			return self.paced(lambda: self.send_album(chunk), 1 / ALBUMS_PER_SECOND)
-		with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(chunks), ALBUMS_PER_SECOND)) as pool:
+			return self.attempt(lambda: self.send_album(chunk))
+		with concurrent.futures.ThreadPoolExecutor(max_workers=len(chunks)) as pool:
 			return all(list(pool.map(send, chunks)))
 
 	def send_album(self, photos):

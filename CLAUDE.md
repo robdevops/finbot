@@ -101,8 +101,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   cache file by chart and bot), Slack's upload of the last 30 minutes (`SlackBot.showing`); a period pressed again
   within 30 minutes of being shown in the chat is not even built (`reshow`, by chat and period: Telegram, Slack). The
   other periods and portfolios that priming draws go ahead to a private chat where `telegram_preload_chat` or
-  `slack_preload_chat` names one (`delivery.preload_many`, `Transport.preload_many`: Telegram sends a chart's periods as an album, `sendMediaGroup`, at most
-  `ALBUMS_PER_SECOND` a second; Slack two uploads at a time (`preload_slots`); a lone chart `preload_gap` after the last
+  `slack_preload_chat` names one (`delivery.preload_many`, `Transport.preload_many`: Telegram sends a chart's periods as an album, `sendMediaGroup`, all at once
+  with no pacing (`attempt`); Slack two uploads at a time (`preload_slots`); a lone chart `preload_gap` after the last
   send began; a rate limit is waited out once: `retry_after`).
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.treemap .holdings
   .price` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,

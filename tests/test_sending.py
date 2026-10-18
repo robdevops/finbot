@@ -320,14 +320,19 @@ class TelegramSending(FinbotCase):
 		self.assertTrue(chat.preload_many([b'lone', b'lone']))
 		self.assertEqual([(method, names) for method, _, names in sent], [('sendPhoto', ['photo'])])
 
-	def test_albums_start_four_a_second_with_no_other_delay(self):
-		"""Albums begin ALBUMS_PER_SECOND a second apart: the first at once, the others a quarter second after the last
-		began, and together (preload_slots), whatever preload_gap says."""
-		sent, waits = self.albums(), self.preloading()
+	def test_albums_are_sent_all_at_once_with_no_pacing(self):
+		"""Albums wait for nothing: no gap (whatever preload_gap says), and no limit on how many are in flight, all
+		sent together (each waits at the barrier for the other two, so none could be sent after another)."""
+		waits = self.preloading()
 		self.settings(preload_gap=5.0)
-		self.assertEqual(telegram_common.ALBUMS_PER_SECOND, 4)
+		meet, sent = threading.Barrier(3, timeout=5), []
+		def album(chat, photos):
+			"""An album that goes only when the other two are going."""
+			meet.wait()
+			sent.append(len(photos))
+		self.patch(telegram_common.TelegramBot, 'send_album', album)
 		self.assertTrue(telegram_common.TelegramBot('-100777').preload_many([b'%d' % i for i in range(25)]))
-		self.assertEqual((len(sent), sorted(waits)), (3, [0.0, 0.25, 0.25])) # albums of 10, 10 and 5
+		self.assertEqual((sorted(sent), waits), ([5, 10, 10], [])) # albums of 10, 10 and 5, and nothing slept
 
 	def test_a_refused_album_is_logged_and_stops_and_a_rate_limit_is_waited_out(self):
 		"""An album Telegram refuses is a warning and False; one it rate limits is sent again after the wait it asks."""
@@ -351,7 +356,7 @@ class TelegramSending(FinbotCase):
 		del waits[:]
 		with contextlib.redirect_stderr(io.StringIO()):
 			self.assertTrue(chat.preload_many([b'three', b'four']))
-		self.assertEqual((len(tries), waits[1:]), (2, [2.0]))
+		self.assertEqual((len(tries), waits), (2, [2.0])) # an album is not paced: the one sleep is the rate limit's
 
 	def test_a_file_id_is_another_bots_after_the_token_changes_or_none_with_the_cache_off(self):
 		"""A file id is reused by the bot that uploaded it alone (a new token is another bot), and not at all with the

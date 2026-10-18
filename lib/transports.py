@@ -170,21 +170,23 @@ class Transport:
 			return True
 		return self.paced(lambda: self.send_ahead(photo) if self.wants(photo) else None) # a press may have sent it
 
-	def paced(self, send, gap=None):
-		"""Run send(), an upload ahead of a press (one chart, or an album), in its turn: in one of the network's
-		preload_slots, starting `gap` seconds (the preload_gap setting when None) after the last one began (the gap is
-		from start to start, so uploads in different slots overlap). A rate limit is waited out once (patiently).
-		False when it failed (logged)."""
+	def paced(self, send):
+		"""Run send(), an upload ahead of a press, in its turn: in one of the network's preload_slots, starting
+		preload_gap seconds (a setting) after the last one began (the gap is from start to start, so uploads in
+		different slots overlap). False when it failed (logged; see attempt)."""
 		with self.preload_slots:
 			with self.preload_lock:
-				gap = config.settings.preload_gap if gap is None else gap
-				time.sleep(max(0.0, type(self).preloaded_at + gap - time.monotonic()))
+				time.sleep(max(0.0, type(self).preloaded_at + config.settings.preload_gap - time.monotonic()))
 				type(self).preloaded_at = time.monotonic()
-			try:
-				self.patiently(send)
-			except Exception as e:
-				log.warn(f"{self.name.capitalize()} preload to {self.where} failed:", net.redact(e))
-				return False
+			return self.attempt(send)
+
+	def attempt(self, send):
+		"""Run send() with no pacing, a rate limit waited out once (patiently). False when it failed (logged)."""
+		try:
+			self.patiently(send)
+		except Exception as e:
+			log.warn(f"{self.name.capitalize()} preload to {self.where} failed:", net.redact(e))
+			return False
 		return True
 
 	def preload_many(self, photos):

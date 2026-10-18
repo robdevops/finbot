@@ -109,8 +109,8 @@ portfolio buttons goes out, it draws the chart's other periods and portfolios in
 The posts are silent, with no caption, and stay. Every chart finbot preloads goes there, whichever chat it was drawn
 for, so keep the chat private. A chart's other periods go together as one album (`sendMediaGroup`, up to 10 photos in
 a request), which takes about as long as a single photo: an upload costs its round trip to Telegram, not its size.
-Albums start at most 4 a second with no other delay, and up to 4 at once. A chart on its own goes as a photo,
-`preload_gap` seconds (0.1) after the last send began. Telegram's own limits are roughly one message a second in a
+Albums are sent all at once, with no pacing and no limit of ours (Telegram's own is 10 photos to an album). A chart
+on its own goes as a photo, `preload_gap` seconds (0.1) after the last send began. Telegram's own limits are roughly one message a second in a
 private chat and 20 a minute in a group or channel, and an album is a message for each photo, so a busy chat, a group or
 a channel will answer "too many requests" now and then: finbot waits as long as Telegram asks and sends once more, and a
 second refusal ends that run's preloads. A preload that fails is a warning in the log, and the next chart that goes out
