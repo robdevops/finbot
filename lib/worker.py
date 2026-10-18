@@ -451,7 +451,7 @@ def portfolios():
 	"""'Portfolios: A, B': the names a portfolio command takes."""
 	return 'Portfolios: ' + ', '.join(portfolio.name for portfolio in sharesight.portfolios())
 
-WATCHLIST_HINT = "Tap a ticker to cross it off, then Delete to delete those."
+WATCHLIST_HINT = "Toggle tickers to red to select them for deletion"
 
 def watchlist_screen(service, chat, mask, user='', page=0, note=None, editing=True):
 	"""(lines, button rows) of the watchlist: with Edit alone, or while editing, the tickers of `mask` (a bit for each,
