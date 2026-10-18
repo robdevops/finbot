@@ -92,7 +92,7 @@ edit `settings.conf`, then reload if running. The service log shows what changed
 
 ## Data directory
 All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`); in Docker it is `/data`, the host's `/opt/finbot-data` (see [docker.md](docker.md)).
-Reference data (`finbot_adr.json`, `finbot_sws_*.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
+Reference data (`finbot_adr.json`, `finbot_sws_*.json`) and the reminders (`finbot_reminders.json`, see [Scheduling](scheduling.md#your-own-reminders)) ship in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
 ```
 util/sync_defaults.py          # dry run
 util/sync_defaults.py --apply  # copy missing files (including a starter settings.conf)
@@ -100,7 +100,7 @@ util/sync_defaults.py --force  # also replace changed files, keeping .bak copies
 util/sync_defaults.py --dest /srv/finbot --apply  # target another directory instead of the data directory
 util/sync_defaults.py --dest /srv/finbot --create --apply  # and make it (mode 750) if it does not exist yet
 ```
-The reminders that `reminder.json` held are message jobs now, among the default jobs (see [Scheduling](scheduling.md#the-default-jobs)), and finbot reads that file no more: delete the data directory's copy. A chat adds its own with `/jobs add message SCHEDULE "TEXT"`.
+The reminders that `reminder.json` held are default jobs now, from `finbot_reminders.json` (see [Scheduling](scheduling.md#your-own-reminders)), and finbot reads `reminder.json` no more: delete the data directory's copy. A chat adds its own with `/jobs add reminder SCHEDULE "TEXT"`.
 
 With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
 

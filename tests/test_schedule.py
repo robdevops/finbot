@@ -7,7 +7,7 @@ from tests.common import *
 from lib import catalog, inbound, jobs, state, when, worker
 from lib.reports import cleanup, earnings, message, movers, performance, podcasts
 
-MELBOURNE = 'Australia/Melbourne'
+MELBOURNE, SYDNEY = 'Australia/Melbourne', 'Australia/Sydney'
 OCTOBER = datetime.datetime(2026, 10, 15, tzinfo=when.UTC)
 
 
@@ -184,10 +184,10 @@ class DefaultJobs(unittest.TestCase):
 		"""Each default job is an action a chat may schedule, with arguments its parser takes, on a schedule that runs;
 		its key is its own; its name says what it reports on, never when; performance and movers over a period cover the
 		days between their runs."""
-		self.assertEqual(len(catalog.ITEMS), 34)
-		self.assertEqual(len({item.key for item in catalog.ITEMS}), 34)
+		every = (*catalog.ITEMS, *catalog.reminders())
+		self.assertEqual((len(catalog.ITEMS), len(every), len({item.key for item in every})), (24, 31, 31))
 		start = datetime.datetime(2026, 1, 1, tzinfo=when.UTC)
-		for item in catalog.ITEMS:
+		for item in every:
 			with self.subTest(item=item.key):
 				jobs.make_job(item.action, item.args, item.schedule, 'telegram:1', item=item.key, name=item.name)
 				self.assertIn(item.action, jobs.chat_actions())
@@ -227,25 +227,22 @@ class DefaultJobs(unittest.TestCase):
 			'movers · bi-annual, 2 Jan and 2 Jul at 8:30am', 'performance · annual, 2 Jan at 8:30am',
 			'movers · annual, 2 Jan at 8:30am',
 			'🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 · annual, 31 Mar at 8:30am',
-			'SPCX IPO anniversary · annual, 12 Jun at 8:30am',
 			'💸 Realise capital gains/losses by EOFY June 30 (AU) · annual, 23 Jun at 8:30am',
 			'🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 · annual, 30 Jun at 8:30am',
 			"✍️ Submit 'Notice of Intent to Claim' for any post-tax … (AU) · annual, 7 Jul at 8:30am",
 			"finbot's birthday · annual, 18 Aug at 8:30am",
 			'😓 Self-service individual tax returns are due Oct 31 (AU) · annual, 25 Oct at 8:30am',
-			'ubank draw 6/6 … (AU) · once, 28 Oct 2026 at 8:30am',
-			'😰 Self-service individual tax returns are due today (AU) · annual, 31 Oct at 8:30am',
-			'SPCX 5th mensiversary. End of (statistically) most … · once, 12 Nov 2026 at 8:30am'])
+			'😰 Self-service individual tax returns are due today (AU) · annual, 31 Oct at 8:30am'])
 
 	def test_a_message_for_one_country_only_there_with_its_flag(self):
 		"""A message for one country is a default job only where it is the country_code setting, with its flag."""
 		au, nz = ({item.key for item in catalog.items(country)} for country in ('AU', 'NZ'))
 		self.assertEqual(sorted(au - nz), ['message-eofy-checklist', 'message-intent-to-claim', 'message-tax-due-soon',
-			'message-tax-due-today', 'message-ubank-draw-6'])
+			'message-tax-due-today'])
 		self.assertLess(nz, au)
-		checklist = next(item for item in catalog.ITEMS if item.key == 'message-eofy-checklist')
+		checklist = next(item for item in catalog.reminders() if item.key == 'message-eofy-checklist')
 		self.assertEqual(checklist.args[0], '💸 Realise capital gains/losses by EOFY June 30🇦🇺')
-		self.assertFalse(any('{flag}' in line for item in catalog.ITEMS for line in item.args))
+		self.assertFalse(any('{flag}' in line for item in catalog.reminders() for line in item.args))
 
 	def test_a_job_that_is_a_default_one(self):
 		"""A job is a default one where its action, arguments, days and times are, in a zone that keeps the same clock
@@ -261,10 +258,60 @@ class DefaultJobs(unittest.TestCase):
 		self.assertEqual(matching('movers every sunday at 8:30am'), 'price-weekly')
 
 
+class Reminders(FinbotCase):
+	"""The reminders' file (catalog.REMINDERS): the data dir's copy, else the one shipped in defaults/."""
+
+	def setUp(self):
+		"""The reminders read afresh by each test, and as they were again after it."""
+		super().setUp()
+		self.patch(catalog, '_reminders', None)
+
+	def write(self, entries):
+		"""A reminders file in the data dir, of these entries (or this text): its path."""
+		path = Path(config.env.data_dir, catalog.REMINDERS)
+		path.write_text(entries if isinstance(entries, str) else json.dumps(entries))
+		return path
+
+	def test_the_data_dirs_copy_takes_the_shipped_ones_place(self):
+		"""The reminders shipped hold the general ones; a copy in the data dir takes their place, each entry a
+		reminder at 8:30am Sydney on its date (every year, or once), for one country with its flag where it says so,
+		and named after its first line unless it has a name."""
+		self.assertEqual(len(catalog.reminders()), 7)
+		self.write([{'key': 'message-draw', 'date': '2026-10-28', 'country': 'AU', 'lines': ['Draw day{flag}']},
+			{'key': 'message-ipo', 'date': '06-12', 'name': 'IPO', 'lines': ['IPO anniversary', '', 'more']}])
+		draw, ipo = catalog.read_reminders()
+		self.assertEqual((draw.key, draw.name, draw.args, draw.country, draw.schedule.describe(SYDNEY)),
+			('message-draw', 'Draw day (AU)', ('Draw day🇦🇺',), 'AU', 'once, 28 Oct 2026 at 8:30am'))
+		self.assertEqual((ipo.name, ipo.args, ipo.schedule.describe(SYDNEY)), ('IPO', ('IPO anniversary', '', 'more'),
+			'annual, 12 Jun at 8:30am'))
+		self.assertEqual([item.key for item in catalog.items('NZ') if item.action == 'message'], ['message-ipo'])
+
+	def test_a_file_that_does_not_read_is_an_error_naming_it_and_the_reminders_read_before_stay(self):
+		"""A reminders file that does not parse, or an entry that cannot be a reminder, is a config error naming the
+		file and the entry (bot.py stops its start on it), and the reminders read before stay."""
+		before = catalog.reminders()
+		for written, why in (('[{"key": ', 'Expecting value'), ({'key': 'x'}, 'it is a list of reminders'),
+				([{'key': 'x', 'date': '13-01', 'lines': ['hi']}], 'reminder 1: x: '),
+				([{'key': 'x', 'date': '02-30', 'lines': ['hi']}], 'reminder 1: x: there is no 02-30'),
+				([{'key': 'x', 'date': '1 Jan', 'lines': ['hi']}], 'its date is MM-DD (each year) or YYYY-MM-DD'),
+				([{'key': 'x', 'date': '01-01', 'lines': ['']}], 'reminder 1: x: "TEXT"'),
+				([{'key': 'x', 'date': '01-01', 'lines': 'hi'}], 'reminder 1: x: "TEXT"'),
+				([{'key': 'x', 'date': '01-01', 'lines': ['hi'], 'when': 'soon'}], 'a reminder holds key, date'),
+				([{'date': '01-01', 'lines': ['hi']}], 'its key, and any country or name, are text'),
+				([{'key': 'trades', 'date': '01-01', 'lines': ['hi']}], "a key that is another reminder's")):
+			with self.subTest(why=why):
+				path = self.write(written)
+				with self.assertRaises(config.ConfigError) as caught:
+					catalog.read_reminders()
+				self.assertIn(f'{path}: ', str(caught.exception))
+				self.assertIn(why, str(caught.exception))
+				self.assertEqual(catalog.reminders(), before)
+
+
 class Messages(FinbotCase):
 	def test_the_end_of_financial_year_checklist(self):
 		"""On 23 June an Australian chat gets the EOFY checklist, its links and footnotes in its network's markup."""
-		checklist = next(item for item in catalog.ITEMS if item.key == 'message-eofy-checklist')
+		checklist = next(item for item in catalog.reminders() if item.key == 'message-eofy-checklist')
 		message.run(scheduled(), lines=list(checklist.args))
 		lines = self.sent[0][1]
 		self.assertEqual((len(lines), lines[0]), (12, '💸 Realise capital gains/losses by EOFY June 30🇦🇺'))
@@ -273,7 +320,7 @@ class Messages(FinbotCase):
 
 	def test_the_birthday_counts_the_years(self):
 		"""finbot's birthday says how old it is that day, by the timezone setting's clock."""
-		birthday = next(item for item in catalog.ITEMS if item.key == 'message-birthday')
+		birthday = next(item for item in catalog.reminders() if item.key == 'message-birthday')
 		for today, said in ((datetime.date(2026, 8, 18), "It's my 4th birthday! 🥳"),
 				(datetime.date(2026, 8, 17), "It's my 3rd birthday! 🥳")):
 			with self.subTest(today=today):
@@ -326,6 +373,7 @@ class DirectMessages(FinbotCase):
 		"""The schedule's line in the log at each load counts the chats' jobs, the group chats and the DMs apart (a
 		DM by its mark, or its key), and the system's jobs."""
 		self.patch(catalog, 'ITEMS', ())
+		self.patch(catalog, '_reminders', ()) # no reminder either
 		self.patch(jobs, 'SYSTEM', ())
 		state.save(jobs.JOBS_FILE, {'telegram:-100': {}, 'discord:8': {'dm': True}, 'slack:C1': {}})
 		with contextlib.redirect_stderr(io.StringIO()) as log:

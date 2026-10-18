@@ -417,6 +417,7 @@ class Suggestions(FinbotCase):
 		each shown with what it takes; then what the report takes, and the words of a schedule."""
 		self.patch(jobs, 'SYSTEM', ())
 		self.patch(catalog, 'ITEMS', (catalog.Item('rating', 'rating', 'rating', (), catalog.at('daily')),))
+		self.patch(catalog, '_reminders', ()) # no reminder either
 		state.save(jobs.JOBS_FILE, {'discord:77': {'jobs': [
 			{'action': 'trades', 'args': [], 'schedule': {'days': 'weekdays', 'every': 20, 'zone': 'UTC'}, 'on': True},
 			{'action': 'shorts', 'args': [], 'schedule': {'at': '22:00', 'zone': 'UTC'}, 'on': False}]}})

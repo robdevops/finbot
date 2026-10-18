@@ -148,24 +148,44 @@ move as either side's daylight saving changes.
 | 23 | performance | annual, 2 Jan at 8:30am Sydney |
 | 24 | movers | annual, 2 Jan at 8:30am Sydney |
 | 25 | 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 | annual, 31 Mar at 8:30am Sydney |
-| 26 | SPCX IPO anniversary | annual, 12 Jun at 8:30am Sydney |
-| 27 | 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
-| 28 | 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
-| 29 | ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
-| 30 | finbot's birthday | annual, 18 Aug at 8:30am Sydney |
-| 31 | 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
-| 32 | ubank draw 6/6 … (AU) | once, 28 Oct 2026 at 8:30am Sydney |
-| 33 | 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
-| 34 | SPCX 5th mensiversary … | once, 12 Nov 2026 at 8:30am Sydney |
+| 26 | 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
+| 27 | 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
+| 28 | ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
+| 29 | finbot's birthday | annual, 18 Aug at 8:30am Sydney |
+| 30 | 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
+| 31 | 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
 
 * **Market reports run in their market's zone**, so they keep to its session through its daylight saving:
   * pre-market US at 7:15am New York;
   * mid-session about halfway through: 1:00pm Sydney for the ASX, 12:45pm New York for the NYSE;
   * the close 30 minutes after it: 4:30pm Sydney for the ASX, 4:30pm Hong Kong, 5:00pm London and 4:30pm New York.
-* **The messages marked (AU)** are default jobs only where the `country_code` setting is `AU`.
+* **The reminders (from 25 on)** come from `finbot_reminders.json`: the copy shipped in `defaults/`, unless the data
+  directory has one, which takes its place whole (see below). Those marked (AU) are default jobs only where the
+  `country_code` setting is `AU`.
 * **trades and performance** are default jobs only where Sharesight is set up (see
   [Configuration](configuration.md#sharesight)).
 * **A one-off leaves the list** once its date has passed.
+
+### Your own reminders
+Copy `defaults/finbot_reminders.json` to the data directory and edit it there: each entry is a reminder at 8:30am
+Sydney, every chat's default job (switched off where a chat switches it off, as any default job is).
+```json
+[
+	{"key": "message-eofy-au", "date": "06-30", "lines": ["🥳 Happy EOFY 🇦🇺"]},
+	{"key": "message-draw", "date": "2026-10-28", "country": "AU", "name": "Draw day", "lines": ["Draw day{flag}"]}
+]
+```
+* `key` names the reminder in each chat's record of its switches: keep a reminder's key, or the chats' choices about
+  it are lost.
+* `date` is `MM-DD` for every year, or `YYYY-MM-DD` for once.
+* `lines` is its text, a line each, as a reminder typed with `/jobs add reminder` takes it: `[text](url)` is a link, a
+  line in `_underscores_` is in italics, and `{years since YYYY-MM-DD}` becomes the years since then (`4th`).
+* `country` (optional) makes it a default job only where `country_code` is that country, and `{flag}` its flag.
+* `name` (optional) is what `/jobs` calls it; else its first line.
+
+A file that does not read, or an entry that cannot be a reminder (no key, a date that is none, no lines), stops the
+start, the log naming the file and the entry. `systemctl reload finbot` (SIGHUP) reads the file again and loads the
+jobs again; a bad file then is logged, and the reminders read before stay.
 
 ## How jobs run
 * A job is kept by its chat's network and id, in `finbot_chat_jobs.json` in the data directory, so switching a network

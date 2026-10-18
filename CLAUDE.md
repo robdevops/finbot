@@ -43,7 +43,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   then a thread of `lib/worker.py` per message or button press), served by waitress only when some network's webhook is
   set; the pull listeners that finbot.env asks for (`listeners()`), a thread each; each network registered at start
   (Telegram's webhook set or deleted, and its menu; Discord's slash commands); plain threads, no gevent; SIGHUP reload
-  and SIGUSR1 cache flush, each in a thread. `bot.take(network, update)` takes an update however it arrived, and is the
+  (settings.conf, the reminders, then the jobs) and SIGUSR1 cache flush, each in a thread. `bot.take(network, update)` takes an update however it arrived, and is the
   one place a press is acknowledged (the worker never does); the same button pressed again on the same message within a
   minute is acknowledged without a toast and dropped (`worker.repeated`, an `inbound.Recent` as the repeated updates
   and messages are; a press that failed is forgotten,
@@ -196,7 +196,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `describe()` (a zone named where it keeps another clock than the local one: `same_clock`), `next_after()` through
   daylight saving; `cycle()` the months of a quarterly or bi-annual one from its start month. `lib/catalog.py`: the default jobs (`ITEMS`), each with its
   name and schedule; the period of performance and movers follows how often it runs (`period_args`); an action renamed keeps
-  its items' keys (`OLD_NAMES`: `price-weekly`), which chats' records name.
+  its items' keys (`OLD_NAMES`: `price-weekly`), which chats' records name; then the reminders (`reminders()`), read
+  from `finbot_reminders.json` (`REMINDERS`, by `config.data_json`: DATA_DIR's copy, else the shipped one) at start
+  and on SIGHUP (`read_reminders`: a bad file a ConfigError naming it, which stops the start, or on SIGHUP leaves the
+  reminders read before); a test that wants no default job patches `ITEMS` and `_reminders` both.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.movers')` returns what was sent:
   `('text', lines)` or `('photo', size, caption)`. `wsgi_environ(path, body, **headers)` is a request for `bot.main`.
   `ProviderCase` runs the real parsers on the answers saved under `doc/` (`sample`), as `Resp` and `serve` return
