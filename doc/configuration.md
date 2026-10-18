@@ -76,6 +76,7 @@ The administrators of the chat a person is in are admins there with no setting: 
 | `timezone` | `Australia/Melbourne` | Regional: your time zone, the clock of the times `/jobs` takes and shows, and a job's zone where it names none |
 | `telegram_preload_chat` | | A private Telegram channel or group of your own, by its id (`-1001234567890`, as the log shows a chat's): as a chart with period or portfolio buttons goes out, its other periods and portfolios are uploaded there, so that a press shows them without an upload (see [Telegram](telegram.md#preloading-charts)). Empty: off |
 | `slack_preload_chat` | | The same on Slack: a private channel's id (`C0123ABCD`), the bot invited (see [Slack](slack.md#preloading-charts)). Empty: off |
+| `preload_gap` | `3.0` | Seconds between two charts preloaded to a network. 3 stays within the 20 messages a minute that Telegram takes in a group or channel; a private chat with the bot takes about one a second, so 1 there. A rate limit is waited out once and the preload tried again |
 | `cache` | `True` | Cache Yahoo and Sharesight responses |
 | `cache_seconds` | `21600` | Cache lifetime in seconds (6 hours) |
 | `performance_cache_seconds` | `2400` | Cache lifetime of Sharesight performance reports in seconds: longer than the 30 minutes between `sharesight_warm` runs, so the holdings never run out |

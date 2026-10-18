@@ -119,6 +119,10 @@ class SlackBot(transports.Transport):
 		SLACK_REUSE_SECONDS (earlier_upload)."""
 		return self.earlier_upload(digest_of(photo)) is None
 
+	def retry_after(self, error):
+		"""Ten seconds for Slack's rate limit ("ratelimited"), which does not say how long; None for another failure."""
+		return 10.0 if 'ratelimited' in str(error) else None
+
 	def send_ahead(self, photo):
 		"""Upload a chart into this channel, noted as shown by no message: a press within SLACK_REUSE_SECONDS shows it
 		(earlier_upload), and shows deletes it a minute after unless a message comes to show it."""

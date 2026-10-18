@@ -184,10 +184,56 @@ class TelegramSending(FinbotCase):
 		self.assertEqual([(method, data['chat_id'], uploaded) for method, data, uploaded in sent], [('sendPhoto',
 			'-100777', True), ('sendPhoto', '-100777', True), ('editMessageMedia', '5', False)])
 		self.assertEqual(sent[0][1], {'chat_id': '-100777', 'disable_notification': True})
-		self.assertEqual(waits, [0.0, transports.PRELOAD_GAP - 1])
+		self.assertEqual(waits, [0.0, 3.0 - 1])
 		self.settings(cache=False)
 		self.assertTrue(chat.preload(b'three'))
 		self.assertEqual(len(sent), 3)
+
+	def test_the_gap_between_preloads_is_a_setting(self):
+		"""preload_gap says how long a preload waits after the last one, for either network."""
+		waits = self.preloading()
+		self.settings(preload_gap=1.0)
+		chat = telegram_common.TelegramBot('5')
+		self.patch(telegram_common.TelegramBot, 'send_ahead', lambda dest, photo: None)
+		self.assertTrue(chat.preload(b'one'))
+		self.now[0] += 0.25
+		self.assertTrue(chat.preload(b'two'))
+		self.settings(preload_gap=0.0)
+		self.assertTrue(chat.preload(b'three'))
+		self.assertEqual(waits, [0.0, 0.75, 0.0])
+
+	def test_a_rate_limit_is_waited_out_once_and_the_preload_tried_again(self):
+		"""Telegram's "retry after 5" (Slack's "ratelimited": ten seconds) is slept through, at most RATE_LIMIT_WAIT,
+		and the chart sent again; a second refusal, or any other failure, ends it as before."""
+		waits = self.preloading()
+		limited = 'Telegram sendPhoto: Too Many Requests: retry after '
+		telegram, slack = telegram_common.TelegramBot, slack_common.SlackBot
+		def refusing(error, times):
+			"""A send_ahead that raises `error` its first `times` calls, and counts its calls in tries."""
+			tries = []
+			def send(dest, photo):
+				"""Raise, or send."""
+				tries.append(photo)
+				if len(tries) <= times:
+					raise RuntimeError(error)
+			return send, tries
+		cases = ((telegram, limited + '5', 5), (telegram, limited + '900', transports.RATE_LIMIT_WAIT),
+			(slack, 'Slack files.completeUploadExternal: ratelimited', 10))
+		for kind, error, wait in cases:
+			with self.subTest(error=error):
+				send, tries = refusing(error, 1)
+				self.patch(kind, 'send_ahead', send)
+				del waits[:]
+				with contextlib.redirect_stderr(io.StringIO()) as log:
+					self.assertTrue(kind('-100777').preload(b'png'))
+				self.assertEqual((len(tries), waits[1:]), (2, [wait]))
+				self.assertIn('is rate limited', log.getvalue())
+		for error, tried in ((limited + '1', 2), ('Telegram sendPhoto: Bad Request: chat not found', 1)):
+			with self.subTest(error=error), contextlib.redirect_stderr(io.StringIO()):
+				send, tries = refusing(error, 9)
+				self.patch(telegram, 'send_ahead', send)
+				self.assertFalse(telegram('-100777').preload(b'png')) # refused again, or not a rate limit: it stops
+				self.assertEqual(len(tries), tried)
 
 	def test_a_preload_telegram_refuses_is_logged_and_stops(self):
 		"""A preload that fails (the bot not in the chat, say) is a warning, and False: priming stops preloading."""

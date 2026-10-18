@@ -197,6 +197,11 @@ class TelegramBot(transports.Transport):
 		kept), with the cache setting on."""
 		return bool(config.settings.cache and not cache.read(photo_file(photo), PHOTO_SECONDS))
 
+	def retry_after(self, error):
+		"""The seconds Telegram's 429 asks to wait ("Too Many Requests: retry after 5"), or None for another failure."""
+		found = re.search(r'retry after (\d+)', str(error))
+		return float(found.group(1)) if found else None
+
 	def send_ahead(self, photo):
 		"""Send a chart to this chat silently, with no caption, for its file id (with_photo keeps it)."""
 		with_photo('sendPhoto', photo, lambda known: {'chat_id': self.where, 'disable_notification': True})
