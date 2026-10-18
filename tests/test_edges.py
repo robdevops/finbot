@@ -152,6 +152,31 @@ class BadArguments(FinbotCase):
 		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', 'c|c|m|T1'))
 		self.assertEqual((self.sent, self.errors), ([('text', ['no price history for T1'])], []))
 
+	def test_a_command_given_more_words_than_it_takes_gets_its_usage(self):
+		"""A command given more words than it takes, or fewer than it needs, gets its usage, not an answer for its first
+		word: .who and .stock take one word, .marketcap one at most, .beta none. .SYMBOL is its one word, whatever
+		follows it."""
+		for typed, usage in (('.who T1 T2', 'Usage: /who SYMBOL'), ('.who', 'Usage: /who SYMBOL'),
+				('.stock T1 T2', 'Usage: /stock SYMBOL'), ('.marketcap T1 T2', 'Usage: /marketcap [SYMBOL|top|bottom]'),
+				('.beta now', 'Usage: /beta')):
+			with self.subTest(typed=typed):
+				self.assertIn(usage, str(self.command(typed)))
+		self.assertEqual(self.command('.T1 is up'), self.command('.T1'))
+
+	def test_an_answer_to_any_press_is_a_plain_reply(self):
+		"""An Answer that any press comes to (the .jobs menu's, the watchlist's, a picker's or a chart's) is said in the
+		chat as it is, as a command's is: not as a ⚠️ error line."""
+		def answering(chat, press, pressed):
+			"""A press's handler that comes to an answer."""
+			raise answer.Answer('Nothing here')
+		for handler, data in (('menu_press', 'm|top|0|ab12'), ('watchlist_press', 'k|w|0|0|0|0|e0|ab12'),
+				('pick_press', 'k|c|0|w|0|0|p0|ab12'), ('chart_press', 'c|c|w|T1')):
+			with self.subTest(handler=handler):
+				self.patch(worker, handler, answering)
+				self.sent.clear()
+				worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', data))
+				self.assertEqual((self.sent, self.errors), ([('text', ['Nothing here'])], []))
+
 	def test_history_is_compare(self):
 		""".history is .compare's other name: bare, the first ticker's chart and the buttons to pick others; with a
 		ticker and a period, that stock's chart over it, not the profile of a ticker called HISTORY."""

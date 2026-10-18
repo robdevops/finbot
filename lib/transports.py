@@ -270,10 +270,7 @@ class Transport:
 
 
 def marked(buttons):
-	"""The data of the button marked as shown now, which names a chart message's period (None when none is, or the
-	buttons are a keyboard of the network's own)."""
-	if isinstance(buttons, dict):
-		return None
+	"""The data of the button marked as shown now, which names a chart message's period (None when none is)."""
 	return next((button.data for row in buttons or [] for button in row if button.active), None)
 
 

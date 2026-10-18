@@ -129,12 +129,12 @@ class FinbotCase(unittest.TestCase):
 		self.env(data_dir=tmp.name, cache_dir=tmp.name, telegramBotToken='X',
 			telegram_api='https://api.telegram.org/botX/', sharesight_auth={**config.env.sharesight_auth,
 			'client_id': 'test'}) # Sharesight set up: its answers are the fixtures below
-		self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
-		self.patch(bot, '_said', {}) # nor any message
+		self.patch(bot, '_updates_seen', inbound.Recent()) # each test starts with no update taken
+		self.patch(bot, '_said', inbound.Recent()) # nor any message
 		self.patch(bot, 'doubled', lambda message: False) # a test may send the same message twice on purpose
 		self.patch(worker, 'repeated', lambda press: False) # or press the same button twice
 		self.settings(admin_only=()) # and use any command: AdminOnly closes the gate again
-		self.patch(worker, '_presses', collections.OrderedDict()) # each test starts with no press taken
+		self.patch(worker, '_presses', inbound.Recent()) # each test starts with no press taken
 		self.workers = []
 		self.patch(bot, 'dispatch', lambda event: self.workers.append(REAL_DISPATCH(event)))
 		self.sent = []

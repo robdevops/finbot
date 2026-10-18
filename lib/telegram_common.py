@@ -15,6 +15,7 @@ from lib import config
 from lib import dialects
 from lib import inbound
 from lib import net
+from lib import state
 from lib import transports
 
 
@@ -35,6 +36,7 @@ def try_call(method, **kwargs):
 
 STYLES = {buttons.ON: 'success', buttons.OFF: 'danger', buttons.ACTIVE: 'primary'} # a button's style by its look
 ALLOWED_UPDATES = ['message', 'callback_query'] # what finbot takes, whichever way it arrives: messages, presses
+KEYBOARD_FILE = 'finbot_keyboards.json' # chat id -> the version of the command keyboard that DM has (keep_keyboard)
 PHOTO_SECONDS = 30 * 86400 # how long a chart's file id is reused: Telegram keeps a bot's files, cleanup the cache file
 TELEGRAM_REUSE_SECONDS = 30 * 60 # a period pressed within this long of its upload in a chat shows that upload again
 # how Telegram refuses a file id it does not know (another bot's, say)
@@ -107,6 +109,38 @@ def set_commands(commands):
 	wanted = [{'command': command.name, 'description': command.description[:256]} for command in commands]
 	if try_call('getMyCommands') != wanted and try_call('setMyCommands', json={'commands': wanted}) is not None:
 		log.info(f"telegram: {len(wanted)} commands in the menu")
+
+
+def keyboard(texts, per_row=3):
+	"""The persistent reply keyboard of a DM: a button for each text (a command, which a press sends as a message),
+	alphabetical, per_row to a row."""
+	texts = sorted(texts)
+	rows = [[{'text': text} for text in texts[i:i + per_row]] for i in range(0, len(texts), per_row)]
+	return {'keyboard': rows, 'resize_keyboard': True, 'is_persistent': True}
+
+
+def keep_keyboard(chat_id, texts):
+	"""Give a DM the keyboard of these texts where it has another, or none yet (KEYBOARD_FILE, by a short hash of the
+	keyboard): Telegram changes a reply keyboard only with a message, so a short one carries it. A failure is logged,
+	and tried again after the next command."""
+	given = keyboard(texts)
+	version = hashlib.sha1(json.dumps(given, sort_keys=True).encode()).hexdigest()[:8]
+	chat = TelegramBot(chat_id)
+	if not chat.dm or state.load(KEYBOARD_FILE, {}).get(str(chat_id)) == version:
+		return
+	if chat.sent('message', lambda: call('sendMessage', json={'chat_id': chat_id, 'text': '⌨️ Keyboard updated',
+			'disable_notification': True, 'reply_markup': given})) is not None:
+		with state.edit(KEYBOARD_FILE, {}) as versions:
+			versions[str(chat_id)] = version
+
+
+def refresh_keyboards(texts):
+	"""As finbot starts, in a thread of its own: each DM that has had a keyboard given this one, where it differs."""
+	for chat_id in state.load(KEYBOARD_FILE, {}):
+		try:
+			keep_keyboard(chat_id, texts)
+		except Exception as e:
+			log.warn("telegram: the keyboard of", chat_id, "was not refreshed:", e)
 
 
 def pinChatMessage(chat_id, message_id):
@@ -226,10 +260,7 @@ class TelegramBot(transports.Transport):
 
 	@staticmethod
 	def markup(buttons):
-		"""Rows of buttons.Button as Telegram's inline keyboard, each in its style (button_style); a markup of
-		Telegram's own (the command keyboard) as it is."""
-		if isinstance(buttons, dict):
-			return buttons
+		"""Rows of buttons.Button as Telegram's inline keyboard, each in its style (button_style)."""
 		return {'inline_keyboard': [[{'text': button.label, 'callback_data': button.data, **button_style(button)}
 			for button in row] for row in buttons]}
 

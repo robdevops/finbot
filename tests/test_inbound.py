@@ -209,7 +209,7 @@ class DoubledMessages(FinbotCase):
 		super().setUp()
 		self.patch(bot, 'doubled', REAL_DOUBLED)
 		self.now = [1000.0]
-		self.patch(bot, 'time', types.SimpleNamespace(monotonic=lambda: self.now[0]))
+		self.patch(inbound, 'time', types.SimpleNamespace(monotonic=lambda: self.now[0]))
 
 	def send(self, update_id, text='/start', user='rob', chat=55):
 		"""Take a Telegram message, as an update of this id arrives."""
@@ -251,7 +251,7 @@ class RepeatedPresses(FinbotCase):
 		super().setUp()
 		self.patch(worker, 'repeated', REAL_REPEATED)
 		self.now = [1000.0]
-		self.patch(worker, 'time', types.SimpleNamespace(monotonic=lambda: self.now[0]))
+		self.patch(inbound, 'time', types.SimpleNamespace(monotonic=lambda: self.now[0]))
 		self.taken, self.toasts = [], []
 		self.patch(worker, 'process_callback', lambda press: self.taken.append((press.message_id, press.data)))
 		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None, alert=False: self.toasts.append(text))

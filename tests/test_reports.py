@@ -115,7 +115,7 @@ class Commands(FinbotCase):
 	def test_the_keyboard_is_alphabetical_and_every_button_is_its_command(self):
 		"""The command keyboard is alphabetical, .schedule (the jobs) in place of .beta, and each button runs the
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
-		buttons = [button['text'] for row in worker.command_keyboard()['keyboard'] for button in row]
+		buttons = [button['text'] for row in telegram_common.keyboard(worker.KEYBOARD)['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
 		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.movers', '.pe', '.peg',
 			'.performance', '.price', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])

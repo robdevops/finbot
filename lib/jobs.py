@@ -95,6 +95,12 @@ def list_checksum(jobs):
 	return buttons.checksum(job.key for job in jobs)
 
 
+def numbered(own, number):
+	"""The job of a chat's list (own, as .jobs numbers them) by its number, as typed or a button gives it (a string);
+	None for a number that is none."""
+	return own[int(number) - 1] if number.isascii() and number.isdigit() and 1 <= int(number) <= len(own) else None
+
+
 def start_thread(target, *args):
 	"""Run target(*args) in a daemon thread of its own."""
 	threading.Thread(target=target, args=args, daemon=True).start()
@@ -473,11 +479,10 @@ class Scheduler:
 			return job.key in self.last
 
 	def job(self, chat, number):
-		"""A chat's job by its number in .jobs (a string, from a chat). Raises ScheduleError."""
-		jobs = self.chat_jobs(chat)
-		if not (number.isascii() and number.isdigit() and 1 <= int(number) <= len(jobs)):
+		"""A chat's job by its number in .jobs (numbered). Raises ScheduleError for a number that is none."""
+		if (job := numbered(self.chat_jobs(chat), number)) is None:
 			raise ScheduleError(f'no job {number}: send .jobs for the list')
-		return jobs[int(number) - 1]
+		return job
 
 	def number(self, chat, key):
 		"""A chat's job's number in .jobs, by its key."""

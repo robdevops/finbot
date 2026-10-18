@@ -247,7 +247,7 @@ class DiscordBot(transports.Transport):
 	def extras(buttons):
 		"""What a message carries besides its text: no link previews, no pings, and its buttons as components."""
 		extra = {'flags': SUPPRESS_EMBEDS, 'allowed_mentions': NO_MENTIONS}
-		if buttons and not isinstance(buttons, dict):
+		if buttons:
 			extra['components'] = components(buttons)
 		return extra
 

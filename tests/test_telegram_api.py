@@ -50,6 +50,28 @@ class TelegramWebhook(FinbotCase):
 			telegram_common.start([])
 		self.assertIn('HTTPS url must be provided', str(caught.exception))
 
+	def test_a_dms_keyboard_is_given_once_and_again_when_it_changes(self):
+		"""A DM is given the command keyboard after a command where it has none, or another (a message carries it:
+		Telegram changes a reply keyboard no other way), and not again while it is the same; a group never is; a
+		keyboard that did not go is tried again after the next command."""
+		sent = []
+		def post(url, **kwargs):
+			"""Note the method and the chat, and answer as Telegram does."""
+			sent.append((url.rsplit('/', 1)[1], kwargs['json']['chat_id']))
+			return Resp({'ok': True, 'result': {'message_id': 1}})
+		self.patch(net, 'post', post)
+		with contextlib.redirect_stderr(io.StringIO()):
+			for chat in ('55', '55', '-100'):
+				telegram_common.keep_keyboard(chat, ('.price', '.movers'))
+			self.assertEqual(sent, [('sendMessage', '55')])
+			telegram_common.keep_keyboard('55', ('.price',)) # the keyboard changed
+			self.assertEqual(sent[1:], [('sendMessage', '55')])
+			self.patch(net, 'post', lambda url, **kwargs: Resp({'ok': False, 'description': 'Forbidden'}, 403))
+			telegram_common.keep_keyboard('56', ('.price',))
+			self.patch(net, 'post', post)
+			telegram_common.keep_keyboard('56', ('.price',))
+		self.assertEqual(sent[2:], [('sendMessage', '56')])
+
 	def test_edits_toasts_and_typing_go_through_call(self):
 		"""A chart edit that Telegram refuses is an error (unless nothing changed); a toast, a text edit or a typing
 		notice that fails, or an edit lost on the way, is only logged."""

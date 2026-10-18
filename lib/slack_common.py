@@ -173,7 +173,7 @@ class SlackBot(transports.Transport):
 	def post_text(self, text, buttons=None):
 		"""chat.postMessage, without link previews, and with buttons (a Block Kit message) where they work: Slack's
 		answer. Slack refuses with HTTP 200 and ok false (not_in_channel, say), which raises (call)."""
-		blocks = {'blocks': json.dumps(text_blocks(text, buttons))} if buttons and not isinstance(buttons, dict) else {}
+		blocks = {'blocks': json.dumps(text_blocks(text, buttons))} if buttons else {}
 		return call('chat.postMessage', channel=self.where, text=text, unfurl_links='false', unfurl_media='false',
 			**blocks)
 
@@ -181,7 +181,7 @@ class SlackBot(transports.Transport):
 		"""The chart uploaded into the channel with the report as its message (upload). With period buttons, where they
 		work, it goes in a Block Kit message instead (post_blocks), or without them if that fails. Slack's answer;
 		raises when a step fails, MaybeSent when the request that posts it timed out."""
-		if buttons and not isinstance(buttons, dict):
+		if buttons:
 			try:
 				return self.post_blocks(photo, caption, buttons)
 			except transports.MaybeSent:

@@ -47,7 +47,7 @@ arrive after the switch.
 4. Stop strangers adding your bot to their groups: send BotFather `/setjoingroups`, pick the bot and choose `Disable`.
    Do this after step 2, as it stops you adding the bot to groups too.
 5. Start finbot (`sudo systemctl restart finbot`). The log says `telegram: long polling for updates`.
-6. Send `/help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
+6. Send `/help` in the chat. In a direct chat with the bot, a keyboard of the common commands follows the reply.
    Each chat has the default scheduled jobs, which `/jobs` changes ([Scheduling](scheduling.md)).
 
 ```
@@ -88,7 +88,7 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
    every update, and finbot turns away a request without it.
 4. Restart finbot. As it starts, it sets the webhook again, deleting it first, which also wakes up a stale connection.
    If Telegram refuses, finbot does not start, and the log says why.
-5. Send `/help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
+5. Send `/help` in the chat. In a direct chat with the bot, a keyboard of the common commands follows the reply.
 
 ```
 telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA

@@ -5,7 +5,7 @@ if __name__ == '__main__':
 	# ignored until startup is done (the reload handler is installed last): its default action kills the bot
 	signal.signal(signal.SIGHUP, signal.SIG_IGN)
 	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise the cache flush
-import collections, dataclasses, json, os, sys, threading, time, traceback
+import dataclasses, json, os, sys, threading, traceback
 
 from lib import log
 from lib import buttons
@@ -36,25 +36,15 @@ LISTENERS = (telegram_longpolling.TelegramPoll, slack_websocket.SlackSocket, dis
 SECRET_HEADERS = {name for hook in WEBHOOKS for name in hook.SECRET_HEADERS} # redacted where headers are logged
 STARTS = ((telegram_common, 'telegramBotToken'), (discord_common, 'discordBotToken')) # each network set up as finbot
 # starts (start: Telegram's webhook and menu, Discord's slash commands), where finbot.env has its key
-_updates_seen = collections.OrderedDict() # (service, update id) of the last updates taken, oldest first
-_updates_lock = threading.Lock() # updates arrive on several threads: a resent one may race its first copy
+_updates_seen = inbound.Recent() # (service, update id) of the last updates taken: a resent one may race its first copy
 DOUBLED = 1 # seconds in which the same message, from the same person in the same chat, is taken once
-_said = {} # (service, chat, user, text) of the messages taken in the last DOUBLED seconds: when
+_said = inbound.Recent() # (service, chat, user, text) of the messages taken lately
 
-def seen_before(service, update_id, keep=1000):
-	"""Whether this update was taken already: Telegram's update_id, Slack's event_id. Slack resends an event it got no
-	answer to within 3 seconds and Telegram one that failed, and a command must not run twice. An update without an id
-	is never a repeat."""
-	if update_id is None:
-		return False
-	key = (service, update_id)
-	with _updates_lock:
-		if key in _updates_seen:
-			return True
-		_updates_seen[key] = None
-		if len(_updates_seen) > keep:
-			_updates_seen.popitem(last=False)
-	return False
+def seen_before(service, update_id):
+	"""Whether this update was taken already (of the last ones: inbound.Recent): Telegram's update_id, Slack's
+	event_id. Slack resends an event it got no answer to within 3 seconds and Telegram one that failed, and a command
+	must not run twice. An update without an id is never a repeat."""
+	return update_id is not None and _updates_seen.repeat((service, update_id))
 
 def route(path):
 	"""The webhook whose path this is, or None."""
@@ -69,15 +59,7 @@ def doubled(message):
 	"""Whether this message repeats one that the same person sent in the same chat in the last DOUBLED seconds:
 	Telegram's mobile app can send a command twice (/start in a new chat), each its own update, and one answer is
 	enough."""
-	key = (message.service, message.chat_id, message.user, message.text.strip())
-	now = time.monotonic()
-	with _updates_lock:
-		for old in [said for said, at in _said.items() if now - at > DOUBLED]:
-			del _said[old]
-		if key in _said:
-			return True
-		_said[key] = now
-	return False
+	return _said.repeat((message.service, message.chat_id, message.user, message.text.strip()), within=DOUBLED)
 
 def main(environ, start_response):
 	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is logged as an
@@ -314,8 +296,8 @@ if __name__ == '__main__':
 			except Exception as e:
 				log.error('ERROR', delivery.error_line(e, network.READER.service))
 				sys.exit(1)
-	if config.env.telegramBotToken:
-		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
+	if config.env.telegramBotToken: # stale DM keyboards, in the background
+		threading.Thread(target=telegram_common.refresh_keyboards, args=(worker.KEYBOARD,), daemon=True).start()
 	threading.Thread(target=jobs.current.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	for listener in listeners(): # the networks without a webhook: finbot fetches their updates
 		threading.Thread(target=listener.run, args=(take,), daemon=True).start()

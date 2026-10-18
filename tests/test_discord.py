@@ -638,7 +638,7 @@ class Gateway(FinbotCase):
 			bot.main(wsgi_environ('/discord', body, HTTP_X_SIGNATURE_ED25519=signature,
 				HTTP_X_SIGNATURE_TIMESTAMP='1700000000'), lambda *a: None).close()
 			self.join_workers()
-			self.patch(bot, '_updates_seen', collections.OrderedDict()) # a restart in the other mode
+			self.patch(bot, '_updates_seen', inbound.Recent()) # a restart in the other mode
 			self.env(discordOutgoingWebhook='')
 			pressed = {'op': 0, 't': 'INTERACTION_CREATE', 's': 2, 'd': PRESS}
 			self.gateway([HELLO, READY, pressed, {'op': 7}]).poll(bot.take)

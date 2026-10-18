@@ -8,7 +8,7 @@ from lib.reports import message
 
 class Plumbing(FinbotCase):
 	def test_chunked_send_keeps_keyboard_on_last_chunk(self):
-		"""A long report goes out in several messages, and only the last carries the keyboard."""
+		"""A long report goes out in several messages, and only the last carries the buttons."""
 		posted = []
 
 		class Response:
@@ -22,8 +22,9 @@ class Plumbing(FinbotCase):
 			posted.append(kwargs['json'])
 			return Response()
 
+		markup = [[buttons.Button('7D', 'c|c|w|T1')]]
 		with mock.patch.object(net, 'post', post), mock.patch.object(transports.time, 'sleep', lambda s: 0):
-			results = REAL_TEXT(telegram_common.TelegramBot('5'), ['x' * 60] * 300, {'keyboard': []})
+			results = REAL_TEXT(telegram_common.TelegramBot('5'), ['x' * 60] * 300, markup)
 		self.assertGreater(len(results), 1)
 		self.assertEqual(len(posted), len(results))
 		self.assertIn('reply_markup', posted[-1])

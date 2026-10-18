@@ -2,7 +2,6 @@
 disable, delete or run one; the steps of Add; the upcoming runs; the system jobs; and the reports a job can run."""
 import calendar
 import datetime
-import re
 
 from lib import buttons
 from lib import catalog
@@ -252,7 +251,7 @@ def add_screen(service, chat, steps):
 	if command and command.needs: # what it is about, a stock or a portfolio, comes from typing, not a button
 		return [service.bold(f'Add {label}'), f'What {label} is about is typed:',
 			f'.jobs add {action} {command.ARGUMENTS} SCHEDULE', '', service.bold('For example:'),
-			f'.jobs add {action} {example(command.ARGUMENTS)} weekly'], [[back, cancel]]
+			f'.jobs add {action} {example(command.command)} weekly'], [[back, cancel]]
 	if len(steps) == 1:
 		return choices(f'Add {label}: how often?', [(name, code) for code, name in FREQUENCIES], 3,
 			usual=USUAL['frequency'])
@@ -294,12 +293,13 @@ def add_reports():
 	button's data, whichever are offered."""
 	return REPORTS + tuple((name, name, ()) for name, command in jobs.command_actions().items() if command.listed)
 
-def example(arguments):
-	"""What a command's arguments may be, for an example: its words outside brackets, each SYMBOL a ticker in turn and
-	PORTFOLIO a portfolio's name (the first that Sharesight's cache has, else Growth)."""
-	tickers, names = iter(('AAPL', 'MSFT', 'GOOG')), sharesight.cached()[0] + ['Growth']
-	return ' '.join(next(tickers) if word == 'SYMBOL' else names[0] if word == 'PORTFOLIO' else word
-		for word in re.sub(r'\[[^\]]*\]', '', arguments).split())
+def example(command):
+	"""The words a command needs (Command.words), for an example: tickers, or a portfolio's name (the first that
+	Sharesight's cache has, else Growth), as it takes (Command.takes)."""
+	needed = command.words[0]
+	if command.takes == 'portfolio':
+		return ' '.join((sharesight.cached()[0] + ['Growth'])[:1] * needed)
+	return ' '.join(('AAPL', 'MSFT', 'GOOG')[:needed])
 
 def levels_of(frequency, made):
 	"""The choices Add asks for after how often (LEVELS), as far as those made say: every... asks a weekday's hour and

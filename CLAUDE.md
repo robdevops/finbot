@@ -44,7 +44,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   (Telegram's webhook set or deleted, and its menu; Discord's slash commands); plain threads, no gevent; SIGHUP reload
   and SIGUSR1 cache flush, each in a thread. `bot.take(network, update)` takes an update however it arrived, and is the
   one place a press is acknowledged (the worker never does); the same button pressed again on the same message within a
-  minute is acknowledged without a toast and dropped (`worker.repeated`; a press that failed is forgotten,
+  minute is acknowledged without a toast and dropped (`worker.repeated`, an `inbound.Recent` as the repeated updates
+  and messages are; a press that failed is forgotten,
   `worker.forget`), and a press refused goes no further, its refusal told to the presser alone (`acknowledge` with
   alert: Telegram's alert, Slack's `chat.postEphemeral`, Discord's ephemeral answer): a ninth tick (`buttons.refusal`)
   or a button of an `admin_only` command by someone the `admins` setting does not name (`worker.refused_press`; a
@@ -71,16 +72,21 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   failure in a row: `backoff`; `SocketListener`, a connection a round, and `WebSocket`, over websocket-client, for
   Slack and Discord), `lib/transports.py` (the `Transport` base, below).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
-  keywords, job)`, which also makes `.help`, the commands a job may run (`job_commands()`, each a `CommandJob`: every
-  one but those that change something, `job=False`, and those a report runs, `REPORTED`; stored under its `key`,
-  `.price`'s as compare, `STORED`), the Telegram command keyboard, kept current in DMs, and `slash_commands()`, which
-  every network gets (Telegram's menu, Slack's manifest from `util/slack_manifest.py`, Discord's registered commands);
-  `suggest(chat, text)` completes a slash command's arguments as they are typed (Discord's autocomplete), from the
-  cache alone. `read()` finds the
-  command by its whole name (any other first word that may be a ticker is `.SYMBOL`) and `read_args()` its `Args`: a
-  percent, a period and a keyword from either end, the words between; a handler raises `Usage` for arguments it cannot
-  take, and gets a ticker with `ticker(args)`. `Request` (`request.reply(lines, chart, buttons)`); each command gets
-  the typing notice while it works. `process_request(message)` and `process_callback(press)` take inbound's objects.
+  keywords, words, takes, job)`, which also makes `.help`, the commands a job may run (`job_commands()`, each a
+  `CommandJob`: every one but those that change something, `job=False`, and those a report runs, `REPORTED`; stored
+  under its `key`, `.price`'s as compare, `STORED`), the Telegram command keyboard (`KEYBOARD`, which
+  `telegram_common.keep_keyboard` gives each DM after a command where it has another or none), and
+  `slash_commands()`, which every network gets (Telegram's menu, Slack's manifest from `util/slack_manifest.py`,
+  Discord's registered commands); `suggest(chat, text)` completes a slash command's arguments as they are typed
+  (Discord's autocomplete), from the cache alone, offering what a command `takes` (tickers or portfolios). `read()`
+  finds the command by its whole name, the longest that matches (any other first word that may be a ticker is
+  `.SYMBOL`, that word its one word), and `read_args()` its `Args`: a percent, a period and a keyword from either end,
+  the words between. `answered()` runs a message's command and a job's alike: more or fewer words than its `words`
+  (`Command.fits`), or a handler's `Usage`, get its usage; an Answer is the reply (Nothing only where asked); a
+  handler gets a ticker with `ticker(args)`. `Request(dest, user, bot_name)` (`request.reply(lines, chart,
+  buttons)`); each command gets the typing notice while it works. `process_request(message)` answers a message
+  (`delivery.answering` is where), and `process_callback(press)` a press, by its handler (`pressing()`: `menu_press`,
+  `pick_press`, `watchlist_press`, `chart_press`), its Answer a plain reply and any other failure reported once.
 - `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
   or the job's chat, and with no dest raises: there are no home chats (`delivery.target`); `job(argv)`, its arguments'
   parser (`reports.no_arguments(name)` for one that takes none); and `ARGUMENTS`, what `.jobs add` lists): `movers
@@ -116,7 +122,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   starting `preload_gap` after the last began).
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.treemap .holdings
   .price` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
-  `process_pick_callback`): the first answer at once (the first portfolio, or price's biggest holding: `sharesight.largest()`, read from
+  `pick_press`): the first answer at once (the first portfolio, or price's biggest holding: `sharesight.largest()`, read from
   what each holdings report noted in US dollars, `LARGEST`, summed over portfolios, else the first ticker; price's `+`, ending its period
   row, opens the ticker picker, and `OK` draws the ticks), the buttons kept under it and every press re-editing the answer from
   `shown` (an item's number plus one; compare's tickers, `pick.pack`), but a tick or a page of tickers its buttons alone

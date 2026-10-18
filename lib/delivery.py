@@ -7,6 +7,7 @@ import traceback
 from lib import log
 from lib import config
 from lib import discord_common
+from lib import inbound
 from lib import net
 from lib import render
 from lib import slack_common
@@ -17,7 +18,7 @@ from lib import transports
 @dataclasses.dataclass
 class Report:
 	"""What a report says: its lines; perhaps a chart, a render.Chart spec that deliver() draws only for a destination
-	that takes charts; and buttons, rows of buttons.Button (or, on Telegram, a keyboard markup of its own)."""
+	that takes charts; and buttons, rows of buttons.Button."""
 	lines: list
 	chart: object = None
 	buttons: list = None
@@ -32,6 +33,15 @@ def reply_to(service, chat, message=None, interaction='', pressed=False):
 	takes no replies."""
 	kind = REPLIES.get(service)
 	return kind(chat, message, interaction, pressed) if kind else None
+
+
+def answering(event):
+	"""The destination of the answer to an update (inbound's Message or Press): the chat it came from, as its network's
+	bot, answering the message (Slack's ⏳ goes on it), or the press, through the network's interaction where there is
+	one (Discord's)."""
+	if isinstance(event, inbound.Press):
+		return reply_to(event.service, event.chat_id, interaction=event.interaction, pressed=True)
+	return reply_to(event.service, event.chat_id, event.message_id, event.interaction)
 
 
 def chat(key, scheduled=False, asked=False):
