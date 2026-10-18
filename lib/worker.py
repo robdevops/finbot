@@ -60,7 +60,7 @@ def admin(service, ids, chat_id=None):
 	admins = {plain_id(who) for who in config.settings.admins}
 	if any(plain_id(f'{service}:{who}') in admins for who in ids):
 		return True
-	return bool(chat_id) and delivery.chat(f'{service}:{chat_id}').administers(ids)
+	return bool(chat_id) and delivery.reply_to(service, chat_id).administers(ids)
 
 def plain_id(who):
 	"""network:id without the <@ > or @ a log shows it with, in lower case: telegram:@Rob is telegram:rob."""
@@ -484,7 +484,7 @@ def on_help(request, args):
 	""".help: every command (on Discord as its slash command, which works in both modes); in a Telegram DM the command
 	keyboard too."""
 	markup = None
-	if request.service == 'telegram' and int(request.chat_id) > 0: # positive chat ids are DMs; groups are negative
+	if request.service == 'telegram' and request.dest.dm:
 		markup = command_keyboard()
 	sections = help_sections(slash=request.service == 'discord')
 	request.reply(about.prepare_help(request.service, request.bot_name, sections), buttons=markup)
@@ -1032,15 +1032,15 @@ def mark_keyboard(chat_id):
 		versions[str(chat_id)] = keyboard_version()
 
 def push_keyboard(chat_id):
-	"""Telegram can only change a reply keyboard by sending a message, so send a short one carrying it."""
-	result = telegram_common.TelegramBot(chat_id).post_text('⌨️ Keyboard updated', command_keyboard())
-	if result is not None:
+	"""Telegram can only change a reply keyboard by sending a message, so send a short one carrying it (a failure is
+	logged, and tried again after the next command)."""
+	chat = telegram_common.TelegramBot(chat_id)
+	if chat.sent('message', lambda: chat.post_text('⌨️ Keyboard updated', command_keyboard())) is not None:
 		mark_keyboard(chat_id)
-	return result
 
 def ensure_keyboard(chat_id):
-	"""DMs only (positive chat ids): update a chat's keyboard if its buttons changed or it never had them."""
-	if int(chat_id) <= 0:
+	"""DMs only: update a chat's keyboard if its buttons changed or it never had them."""
+	if not telegram_common.TelegramBot(chat_id).dm:
 		return
 	if state.load(KEYBOARD_FILE, {}).get(str(chat_id)) != keyboard_version():
 		push_keyboard(chat_id)

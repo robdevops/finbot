@@ -313,10 +313,11 @@ class SecretsStayOutOfLogs(FinbotCase):
 		token = 'MTAwMDAwMDAwMDAwMDAwMDAwMDA.SECRET.' + 'a' * 38 # a Discord bot token's shape
 		self.env(slackBotToken='xoxb-SECRET', telegram_api=self.SECRET_URL.split('sendMessage')[0],
 			discordBotToken=token)
-		log = self.stderr_of(lambda: telegram_common.TelegramBot('1').post_text('hi'))
-		log += self.stderr_of(lambda: slack_common.SlackBot('C1').post_text('hi'))
+		self.patch(transports.Transport, 'text', REAL_TEXT)
+		log = self.stderr_of(lambda: telegram_common.TelegramBot('1').text(['hi']))
+		log += self.stderr_of(lambda: slack_common.SlackBot('C1').text(['hi']))
 		slash = discord_common.DiscordBot('77', interaction='42/SECRET-interaction')
-		log += self.stderr_of(lambda: slash.post_text('hi'))
+		log += self.stderr_of(lambda: slash.text(['hi']))
 		self.assertIn('failed', log)
 		for secret in ('SECRET-tok_en', 'xoxb-SECRET', 'SECRET-interaction', token):
 			self.assertNotIn(secret, log)

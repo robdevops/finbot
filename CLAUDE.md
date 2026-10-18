@@ -52,18 +52,22 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   network must have before any reply (Discord's deferred interaction) carries the work in its `then`: started once the
   HTTP answer is sent (`bot.Sent`) or, over the gateway, posted to its callback.
 - Each network in three modules, flat in `lib/`. `<network>_common.py`, what both ways in share: the API calls (`call`,
-  `try_call`; Discord's wait out its rate limits), the reader of its updates (`READER`: a `Message`, a `Press`, a
-  `Suggest` or a `Response` given straight back; `acknowledge` where the network waits for that: Telegram's toast,
-  Discord's interaction answer) and its bot (`TelegramBot`, `SlackBot`, `DiscordBot`). `<network>_webhook.py`, the HTTP
-  mode: the path and how a request proves itself (`WEBHOOK`). The pull mode's persistent client, handing its updates
-  to `bot.take`: `telegram_longpolling.py` (`TelegramPoll`: getUpdates), `slack_websocket.py` (`SlackSocket`: Socket
-  Mode), `discord_websocket.py` (`DiscordGateway`: Hello, IDENTIFY or RESUME, the heartbeat and its ACK; a close code
-  that trying again cannot mend waits an hour, as 1000 identifies in a day get the token reset). Telegram's
-  `register()`, in each mode's module, sets the webhook or deletes it; Discord's slash commands are registered at start
-  in both modes (`discord_common.register`, from `worker.slash_commands()`). What no network owns: `lib/inbound.py`
-  (`Message`, `Press`, `Suggest`, `Response`; the `Network` and `Webhook` bases), `lib/pull.py` (the `Listener` base,
-  which waits longer after each failure in a row: `backoff`; `WebSocket`, over websocket-client, for Slack and
-  Discord), `lib/transports.py` (the `Transport` base, below).
+  `try_call`; each waits out a rate limit once, `net.patiently`: Telegram's and Slack's answers read by
+  `net.ok_answer`), the reader of its updates (`READER`: a `Message`, a `Press`, a `Suggest` or a `Response` given
+  straight back; `acknowledge(event, text, alert)` where the network waits for that: Telegram's toast, Discord's
+  interaction answer; `bot.take` works out a press's text) and its bot (`TelegramBot`, `SlackBot`, `DiscordBot`).
+  `<network>_webhook.py`, the HTTP mode: the finbot.env key of its URL (`URL`, whose path `path()` gives), its secret
+  headers and fields (redacted in the log) and how a request proves itself (`WEBHOOK`). The pull mode's persistent
+  client, handing its updates to `bot.take`, wanted where finbot.env has its keys (`TOKENS`) and no webhook URL
+  (`WEBHOOK_URL`): `telegram_longpolling.py` (`TelegramPoll`: getUpdates), `slack_websocket.py` (`SlackSocket`:
+  Socket Mode), `discord_websocket.py` (`DiscordGateway`: Hello, IDENTIFY or RESUME, the heartbeat and its ACK; a close
+  code that trying again cannot mend waits an hour, as 1000 identifies in a day get the token reset). bot.py calls each
+  network's `start(commands)` as it starts, in both modes, from `worker.slash_commands()`: `telegram_common.start`
+  sets the webhook or deletes it, notes the bot's name and makes the menu; `discord_common.start` registers the slash
+  commands and notes the bot's id. What no network owns: `lib/inbound.py` (`Message`, `Press`, `Suggest`,
+  `Response`; the `Network` and `Webhook` bases), `lib/pull.py` (the `Listener` base, which waits longer after each
+  failure in a row: `backoff`; `SocketListener`, a connection a round, and `WebSocket`, over websocket-client, for
+  Slack and Discord), `lib/transports.py` (the `Transport` base, below).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
   keywords, job)`, which also makes `.help`, the commands a job may run (`job_commands()`, each a `CommandJob`: every
   one but those that change something, `job=False`, and those a report runs, `REPORTED`; stored under its `key`,
@@ -92,18 +96,22 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `chat(key)`, as its network's bot), `deliver(dest, report)` (a chart refused goes again with its heading alone as the
   caption, the lines as text after it), the one-line error report (to its chat; one that belongs to no chat only
   logged). A caption is cut to fit as the network counts it (`Dialect.visible`: Telegram's in UTF-16 code units).
-  `lib/transports.py`: `Transport`, the base of each network's bot, every one taking charts and buttons: splitting,
-  captions, charts, buttons, edits (`edit_lines` splits an edit too long for one message), and the typing notice (`start_typing`: after half a second; Slack's ⏳ on the
-  message), which `text()` and `chart()` stop before posting; `edit_buttons` changes a message's buttons alone where
-  the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
+  `lib/transports.py`: `Transport`, the base of each network's bot, every one taking charts and buttons: splitting
+  (`CHUNK_GAP` between messages, the network's), captions, charts, buttons, edits (`edit_lines` splits an edit too
+  long for one message; `edit_chart` cuts the caption and hands each bot's `replace_chart` the PNG), whether a chat
+  is a direct message (`dm`), the chat's key (`chat_key`, `split_key`), and the typing notice (`start_typing`: after
+  half a second; Slack's ⏳ on the message), which `text()` and `chart()` stop before posting. Each bot's `post_text`
+  and `post_chart` (the PNG's bytes) raise when they fail, `MaybeSent` where a chart's post timed out, and
+  `Transport.sent` logs it and gives the answer, `MAYBE_SENT` or None; `edit_buttons` changes a message's buttons
+  alone where the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
   its `interaction` (application id/token), and a pressed message is edited through the press's. A chart the network
   has already (the same PNG) goes by its id, not uploaded again: Telegram's file id (`telegram_common.with_photo`, a
   cache file by chart and bot), Slack's upload of the last 30 minutes (`SlackBot.showing`); a period pressed again
   within 30 minutes of being shown in the chat is not even built (`reshow`, by chat and period: Telegram, Slack). The
   other periods and portfolios that priming draws go ahead to a private chat where `telegram_preload_chat` or
-  `slack_preload_chat` names one (`delivery.Preloader`, handed each chart as it is drawn: `Transport.preload`, the same on both networks, `PRELOAD_PARALLEL`
-  uploads at a time (`preload_slots`), each starting `preload_gap` after the last began; a rate limit is waited out once:
-  `retry_after`).
+  `slack_preload_chat` names one (each bot's `PRELOAD_CHAT`; `delivery.Preloader`, handed each chart as it is drawn:
+  `Transport.preload`, the same on both networks, `PRELOAD_PARALLEL` uploads at a time (`preload_slots`), each
+  starting `preload_gap` after the last began).
 - `lib/reports/pick.py` and `PickPress` (`lib/buttons.py`, `pick_button`): the buttons of `.treemap .holdings
   .price` typed bare, or so run by a job, their usage bracketing what they are about (`worker.picker`,
   `process_pick_callback`): the first answer at once (the first portfolio, or price's biggest holding: `sharesight.largest()`, read from
@@ -151,7 +159,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   that does not parse is a miss); callers missing the same file at once wait for one fetch (`cache.lock`, which `state.edit` uses too). `lib/state.py`: state files in `DATA_DIR`, which must last;
   change one with `with state.edit(name, default) as data:`, never load-then-save; a file of one record per chat with
   `state.load_for(chat, name, default)` and `state.edit_for`. A chat's key is its network and id (`Transport.key`,
-  `telegram:-1001234`), the same in both modes. `lib/watchlist.py`: each chat's watchlist (`tickers(chat)`), and
+  `transports.chat_key`: `telegram:-1001234`), the same in both modes. `lib/watchlist.py`: each chat's watchlist (`tickers(chat)`), and
   `with_holdings(chat)`, the stocks a report in that chat covers; a report takes the chat from its destination.
 - `lib/config.py`: `config.env` (finbot.env, fixed at start) and `config.settings` (settings.conf, a new object on
   each reload). `lib/jobs.py`: the scheduler: each chat's jobs, the default ones and those it added (`JOBS_FILE`, by

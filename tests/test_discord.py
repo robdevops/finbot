@@ -256,24 +256,25 @@ class Sending(FinbotCase):
 
 	def test_each_request_names_finbot_as_discord_asks(self):
 		"""Each request carries the bot token, and the User-Agent that Discord asks of a bot: DiscordBot, its URL and
-		its version (the commit, which bot.py notes as it starts)."""
-		self.patch(discord_common, 'version', '0123456')
+		its version (finbot's commit)."""
+		self.patch(config, 'git_version', lambda checkout=None: '0123456')
 		discord_common.call('GET', '/users/@me')
 		self.assertEqual(self.calls[0][2]['headers'], {'Authorization': 'Bot x',
 			'User-Agent': 'DiscordBot (https://github.com/robdevops/finbot, 0123456)'})
 
 	def test_rate_limits_are_waited_out_and_refusals_raise(self):
-		"""A 429 waits as long as Discord asks, then tries again, three times at most; a refusal raises with Discord's
-		reason; the token in an interaction's path is never logged."""
+		"""A 429 waits as long as Discord asks (net.RATE_LIMIT_WAIT at most), then tries once more; a refusal raises
+		with Discord's reason; the token in an interaction's path is never logged."""
 		slept = []
-		self.patch(discord_common.time, 'sleep', slept.append)
+		self.patch(net.time, 'sleep', slept.append)
 		self.answers += [Resp({'retry_after': 0.25}, 429), Resp({'id': '5'})]
-		self.assertEqual(discord_common.call('GET', '/users/@me'), {'id': '5'})
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertEqual(discord_common.call('GET', '/users/@me'), {'id': '5'})
 		self.assertEqual(slept, [0.25])
-		self.answers += [Resp({'retry_after': 99}, 429)] * 3
-		with self.assertRaisesRegex(RuntimeError, '429'):
+		self.answers += [Resp({'retry_after': 99}, 429)] * 2
+		with contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(net.RateLimited, '429'):
 			discord_common.call('GET', '/users/@me')
-		self.assertEqual(slept, [0.25, 10, 10])
+		self.assertEqual(slept, [0.25, net.RATE_LIMIT_WAIT])
 		self.answers.append(Resp({'message': 'Missing Access', 'code': 50001}, 403))
 		err = io.StringIO()
 		with contextlib.redirect_stderr(err):
@@ -333,7 +334,7 @@ class Commands(FinbotCase):
 		self.assertEqual(registered['beta']['options'], [])
 
 	def test_registering_replaces_the_commands_only_when_they_differ(self):
-		"""Registering puts the commands only when Discord's differ from them, and gives the bot's user id."""
+		"""Starting puts the commands only when Discord's differ from them, and notes the bot's user id."""
 		wanted = [discord_common.command('price', 'price [period]', '[period]')]
 		calls = []
 		def call(method, path, **kwargs):
@@ -341,12 +342,14 @@ class Commands(FinbotCase):
 			calls.append((method, path))
 			return {'/applications/@me': {'id': '42'}, '/users/@me': {'id': '99'}}.get(path, registered)
 		self.patch(discord_common, 'call', call)
+		self.patch(discord_common.READER, 'bot_id', None)
 		registered = [{**wanted[0], 'id': '1', 'version': '2', 'application_id': '42'}]
-		self.assertEqual(discord_common.register([('price', 'price [period]', '[period]')]), '99')
+		discord_common.start([('price', 'price [period]', '[period]')])
+		self.assertEqual(discord_common.READER.bot_id, '99')
 		self.assertNotIn(('PUT', '/applications/42/commands'), calls)
 		registered = []
 		with contextlib.redirect_stderr(io.StringIO()):
-			discord_common.register([('price', 'price [period]', '[period]')])
+			discord_common.start([('price', 'price [period]', '[period]')])
 		self.assertIn(('PUT', '/applications/42/commands'), calls)
 
 	def test_help_on_discord_lists_the_slash_commands(self):

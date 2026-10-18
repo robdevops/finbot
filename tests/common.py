@@ -220,9 +220,10 @@ def sample(*path):
 
 
 class Resp:
-	def __init__(self, payload=None, status=200, text=''):
-		"""A response with this JSON payload (None: not JSON), status and text."""
+	def __init__(self, payload=None, status=200, text='', headers=None):
+		"""A response with this JSON payload (None: not JSON), status, text and headers."""
 		self.payload, self.status_code, self.text = payload, status, text or json.dumps(payload)
+		self.headers = headers or {}
 	def json(self):
 		"""The payload, or ValueError when it is not JSON."""
 		if self.payload is None:

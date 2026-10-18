@@ -23,6 +23,7 @@ from lib import delivery
 from lib import log
 from lib import sharesight
 from lib import state
+from lib import transports
 from lib import when
 from lib.reports import cleanup, earnings, message, milestone, movers, performance, podcasts, rating, shorts, trades
 from lib.reports import sharesight_warm, yahoo_warm
@@ -228,14 +229,10 @@ def keep(record, name, listed):
 
 
 def is_dm(key):
-	"""Whether a chat (by key) is a direct message with the bot, as its key tells: a person's positive id on Telegram,
-	an id starting D on Slack; None on Discord, whose key does not say."""
-	network, _, chat = key.partition(':')
-	if network == 'telegram':
-		return not chat.startswith('-')
-	if network == 'slack':
-		return chat.startswith('D')
-	return None
+	"""Whether a chat (by key) is a direct message with the bot, as its id tells (Transport.dm): None where its
+	network's ids do not say (Discord's), or its key names no network."""
+	chat = delivery.reply_to(*transports.split_key(key))
+	return chat.dm if chat else None
 
 
 def know(keys, dm=None):

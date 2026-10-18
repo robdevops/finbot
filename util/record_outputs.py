@@ -86,15 +86,20 @@ def record(output):
 			return getattr(getattr(common, 'inbound', None), service.upper(), None)
 
 	def pressing(service, *fields):
-		"""A step that presses a button: acknowledged first where the tree's bot.take does that (Network.acknowledge),
-		then handed to the worker as handing() does."""
+		"""A step that presses a button: acknowledged first where the tree's bot.take does that (Network.acknowledge,
+		given the press's toast where bot.take works it out), then handed to the worker as handing() does."""
 		run = handing(worker.process_callback, 'Press', service, *fields)
 		network = reader(service)
 		if not hasattr(network, 'acknowledge'):
 			return run
 		def press():
 			"""Acknowledge the press, then hand it to the worker."""
-			network.acknowledge(common.inbound.Press(service, *fields))
+			event = common.inbound.Press(service, *fields)
+			if 'text' in inspect.signature(network.acknowledge).parameters:
+				from lib import buttons
+				network.acknowledge(event, buttons.toast(event.data), buttons.alert(event.data))
+			else:
+				network.acknowledge(event)
 			run()
 		return press
 

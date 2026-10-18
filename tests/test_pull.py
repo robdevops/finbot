@@ -185,7 +185,7 @@ class FakeSocket:
 		"""Note a ping."""
 		self.log.append(('ping',))
 
-	def close(self):
+	def close(self, code=1000):
 		"""Note the close."""
 		self.log.append(('close',))
 
@@ -240,7 +240,7 @@ class SlackSocketMode(FinbotCase):
 		listener = slack_websocket.SlackSocket()
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			self.assertEqual([listener.poll(lambda *a: None) for _ in range(3)], [5, 10, 20])
-		self.assertIn('slack: opening a socket failed, trying again in 5 s: Slack apps.connections.open:'
+		self.assertIn('slack: connecting to the socket failed, trying again in 5 s: Slack apps.connections.open:'
 			' invalid_auth', err.getvalue())
 		self.patch(slack_common, 'call', lambda *a, **k: {'url': 'wss://example.com/link'})
 		self.patch(listener, 'connect', lambda url: FakeSocket([{'type': 'hello'}], self.log))

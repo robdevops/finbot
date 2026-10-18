@@ -5,7 +5,6 @@ import hashlib
 import html
 import json
 import re
-import threading
 
 import requests
 
@@ -16,20 +15,14 @@ from lib import config
 from lib import dialects
 from lib import inbound
 from lib import net
-from lib import state
 from lib import transports
 
 
 def call(method, **kwargs):
-	"""POST a Bot API method and return its result. Raises RuntimeError with Telegram's reason when it is not ok."""
-	response = net.post(config.env.telegram_api + method, **kwargs)
-	try:
-		output = response.json()
-	except ValueError:
-		output = {}
-	if not output.get('ok'):
-		raise RuntimeError(f"Telegram {method}: {output.get('description') or response.status_code}")
-	return output['result']
+	"""POST a Bot API method and return its result, a rate limit waited out once (net.patiently). Raises RuntimeError
+	with Telegram's reason when it is not ok."""
+	url = config.env.telegram_api + method
+	return net.patiently(lambda: net.ok_answer(net.post(url, **kwargs), f"Telegram {method}", 'description'))['result']
 
 
 def try_call(method, **kwargs):
@@ -41,6 +34,7 @@ def try_call(method, **kwargs):
 
 
 STYLES = {buttons.ON: 'success', buttons.OFF: 'danger', buttons.ACTIVE: 'primary'} # a button's style by its look
+ALLOWED_UPDATES = ['message', 'callback_query'] # what finbot takes, whichever way it arrives: messages, presses
 PHOTO_SECONDS = 30 * 86400 # how long a chart's file id is reused: Telegram keeps a bot's files, cleanup the cache file
 TELEGRAM_REUSE_SECONDS = 30 * 60 # a period pressed within this long of its upload in a chat shows that upload again
 # how Telegram refuses a file id it does not know (another bot's, say)
@@ -89,15 +83,21 @@ def unchanged(error):
 	return True
 
 
-def deleteWebhook():
-	"""Have Telegram stop posting updates. Those not delivered yet are kept, for the webhook set next or getUpdates."""
+def start(commands):
+	"""Called once by bot.py as it starts, never on import: the webhook deleted, keeping the updates not delivered yet,
+	and in http mode set again (telegramOutgoingWebhook, signed with telegramOutgoingToken), which wakes a stale
+	connection on Telegram's side; in pull mode getUpdates takes them (telegram_longpolling). Then the bot's
+	@username (getMe: a command in a group may name the bot, /price@finbot) and the command menu (set_commands).
+	Raises RuntimeError, or a requests error, when the webhook or the bot's name cannot be had."""
 	log.info("telegram: deleting the webhook")
-	return call('deleteWebhook', json={'drop_pending_updates': False})
-
-
-def bot_name():
-	"""The bot's @username, from its own account (getMe): a command in a group may name the bot (/price@finbot)."""
-	return '@' + call('getMe')['username']
+	call('deleteWebhook', json={'drop_pending_updates': False})
+	if config.env.telegramOutgoingWebhook: # in the body, never the query string, which a failed request's error (and
+		# so the log) would show: the URL's path is a secret
+		log.info("telegram: setting the webhook (telegramOutgoingWebhook)")
+		call('setWebhook', json={'url': config.env.telegramOutgoingWebhook, 'allowed_updates': ALLOWED_UPDATES,
+			'secret_token': config.env.telegramOutgoingToken})
+	READER.bot_name = '@' + call('getMe')['username']
+	set_commands(commands)
 
 
 def set_commands(commands):
@@ -116,7 +116,7 @@ def pinChatMessage(chat_id, message_id):
 
 def answerCallbackQuery(callback_query_id, text=None, alert=False):
 	"""Acknowledge a button press (the client's spinner stops), `text` as a toast, or with `alert` as an alert the
-	person dismisses. A failure is only logged."""
+	presser dismisses. A failure is only logged."""
 	try_call('answerCallbackQuery', json={'callback_query_id': callback_query_id} | ({'text': text} if text else {}) |
 		({'show_alert': True} if alert else {}), logged='debug')
 
@@ -131,7 +131,7 @@ def button_style(button):
 class Telegram(inbound.Network):
 	"""Telegram's updates: messages and button presses."""
 	service = 'telegram'
-	bot_name = None # the bot's @username, from bot_name() as bot.py starts
+	bot_name = None # the bot's @username, noted as finbot starts (start)
 	IGNORED = {'sticker', 'animation', 'voice', 'video', 'video_note', 'audio', 'document', 'contact', 'location',
 		'venue', 'poll', 'dice'} # nothing to answer, nothing worth logging
 
@@ -180,14 +180,11 @@ class Telegram(inbound.Network):
 		return tuple(filter(None, (str(sender.get('id') or ''), '@' + sender['username'] if sender.get('username')
 			else '')))
 
-	def acknowledge(self, event, toast=True):
-		"""A press: answerCallbackQuery, so that the client's spinner stops and a toast made from the button's data says
-		what is coming (buttons.toast: 'Loading 1Y…'); none for a press dropped (toast false), and for one refused
-		(toast a text) that text as an alert. A failure is only logged. Nothing goes back with the update."""
-		if isinstance(event, inbound.Press) and toast is True:
-			answerCallbackQuery(event.press_id, buttons.toast(event.data), alert=buttons.alert(event.data))
-		elif isinstance(event, inbound.Press):
-			answerCallbackQuery(event.press_id, toast or None, alert=bool(toast))
+	def acknowledge(self, event, text=None, alert=False):
+		"""A press: answerCallbackQuery, so that the client's spinner stops, with the text as a toast, or with alert as
+		an alert the presser dismisses. A failure is only logged. Nothing goes back with the update."""
+		if isinstance(event, inbound.Press):
+			answerCallbackQuery(event.press_id, text, alert)
 		return None
 
 
@@ -196,19 +193,19 @@ class TelegramBot(transports.Transport):
 	name = 'telegram'
 	dialect = dialects.TELEGRAM
 	TYPING = (0.5, 4, 18) # "typing…" shows for 5 s at most (sendChatAction), so it is sent again every 4 s
+	CHUNK_GAP = 0.5 # Telegram takes about one message a second in a chat
+	PRELOAD_CHAT = 'telegram_preload_chat'
 	NO_PREVIEWS = {'is_disabled': True} # link_preview_options, which replaced disable_web_page_preview (Bot API 7.0)
-	preload_lock = threading.Lock()
-	preload_slots = threading.BoundedSemaphore(transports.PRELOAD_PARALLEL)
+
+	@property
+	def dm(self):
+		"""Whether the chat is a direct message: a person's id is positive, a group's negative."""
+		return not self.where.startswith('-')
 
 	def wants(self, photo):
 		"""Whether preloading a chart (its PNG bytes) would spare a press its upload: Telegram has not it (no file id
 		kept), with the cache setting on."""
 		return bool(config.settings.cache and not cache.read(photo_file(photo), PHOTO_SECONDS))
-
-	def retry_after(self, error):
-		"""The seconds Telegram's 429 asks to wait ("Too Many Requests: retry after 5"), or None for another failure."""
-		found = re.search(r'retry after (\d+)', str(error))
-		return float(found.group(1)) if found else None
 
 	def send_ahead(self, photo):
 		"""Send a chart to this chat silently, with no caption, for its file id (with_photo keeps it)."""
@@ -216,13 +213,14 @@ class TelegramBot(transports.Transport):
 
 	def is_administrator(self, who):
 		"""Whether getChatMember says this user id is the creator or an administrator of the group; in a direct
-		message, of any group finbot knows. A username (@name) cannot be asked."""
+		message, of any group finbot knows (the schedule's chats). A username (@name) cannot be asked."""
 		if not who.isdigit():
 			return False
-		if not self.where.startswith('-'):
+		if self.dm:
 			from lib import jobs # only here: a direct message asks about each group finbot has seen
-			return any(TelegramBot(group).administers((who,)) for group in
-				(key.partition(':')[2] for key in state.load(jobs.JOBS_FILE, {}) if key.startswith('telegram:-')))
+			chats = [TelegramBot(where) for network, where in map(transports.split_key, jobs.current.chats if
+				jobs.current else ()) if network == self.name]
+			return any(chat.administers((who,)) for chat in chats if not chat.dm)
 		return call('getChatMember', json={'chat_id': self.where, 'user_id': who}).get('status') in (
 			'creator', 'administrator')
 
@@ -236,57 +234,45 @@ class TelegramBot(transports.Transport):
 			for button in row] for row in buttons]}
 
 	def post_text(self, text, buttons=None):
-		"""sendMessage: Telegram's message, or None when it refused or failed (logged with Telegram's reason, such as
-		"can't parse entities")."""
+		"""sendMessage: Telegram's message. Raises with Telegram's reason (such as "can't parse entities")."""
 		payload = {'chat_id': self.where, 'text': text, 'parse_mode': 'HTML', 'link_preview_options': self.NO_PREVIEWS,
 			'disable_notification': True}
 		if buttons:
 			payload['reply_markup'] = self.markup(buttons)
-		try:
-			message = call('sendMessage', json=payload)
-		except Exception as e:
-			log.error("Telegram sendMessage to", self.where, "failed:", net.redact(e))
-			return None
-		log.info("OK telegram message to", self.where)
-		return message
+		return call('sendMessage', json=payload)
 
-	def post_chart(self, image, caption, buttons=None):
-		"""sendPhoto, the report as its caption: Telegram's message, MAYBE_SENT, or None when it refused or failed
-		(logged with Telegram's reason)."""
+	def post_chart(self, photo, caption, buttons=None):
+		"""sendPhoto, the report as its caption: Telegram's message. Raises with Telegram's reason; MaybeSent when it
+		timed out."""
 		data = {'chat_id': self.where, 'caption': caption, 'parse_mode': 'HTML', 'disable_notification': True}
 		if buttons:
 			data['reply_markup'] = json.dumps(self.markup(buttons))
 		try:
-			message = with_photo('sendPhoto', image.getvalue(),
-				lambda known: data | ({'photo': known} if known else {}))
+			message = with_photo('sendPhoto', photo, lambda known: data | ({'photo': known} if known else {}))
 		except requests.exceptions.ReadTimeout as e:
-			log.warn("Telegram sendPhoto timed out, the chart may still arrive:", net.redact(e))
-			return transports.MAYBE_SENT
-		except Exception as e:
-			log.warn("Telegram sendPhoto to", self.where, "failed:", net.redact(e))
-			return None
-		log.info("OK telegram chart to", self.where)
+			raise transports.MaybeSent(e) from e
 		self.note_view(buttons, message, caption)
 		return message
 
-	def edit_chart(self, message, image, caption, buttons=None):
+	def replace_chart(self, message, photo, caption, buttons):
 		"""Replace a chart message's image, caption and buttons in place, the image by the file id of its earlier upload
 		where there is one (with_photo). Raises RuntimeError when Telegram refuses, unless the message is already so
 		(pressing the active period again is harmless); a request that fails on the way is only logged."""
-		caption = transports.fit_caption(caption, self.dialect)
 		data = {'chat_id': self.where, 'message_id': message}
 		if buttons:
 			data['reply_markup'] = json.dumps(self.markup(buttons))
 		try:
-			edited = with_photo('editMessageMedia', image.getvalue(), lambda known: data | {'media': json.dumps({
+			edited = with_photo('editMessageMedia', photo, lambda known: data | {'media': json.dumps({
 				'type': 'photo', 'media': known or 'attach://photo', 'caption': caption, 'parse_mode': 'HTML'})},
 				quiet=True)
-			self.note_view(buttons, edited, caption)
 		except RuntimeError as e:
 			if not unchanged(e):
 				raise
+			return
 		except Exception as e: # it may have arrived even so: no error line for something the chat may already show
 			log.warn("Telegram editMessageMedia failed:", net.redact(e))
+			return
+		self.note_view(buttons, edited, caption)
 
 	def note_view(self, buttons, message, caption):
 		"""Note the chart a message shows now (Telegram's answer, message: its photo's file id) for the period its
@@ -307,40 +293,34 @@ class TelegramBot(transports.Transport):
 		if not earlier:
 			return False
 		file_id, caption = earlier
-		data = {'chat_id': self.where, 'message_id': message, 'reply_markup': json.dumps(self.markup(buttons)),
-			'media': json.dumps({'type': 'photo', 'media': file_id, 'caption': caption, 'parse_mode': 'HTML'})}
-		try:
-			call('editMessageMedia', data=data, logged='debug')
-		except Exception as e:
-			if unchanged(e):
-				return True
-			log.warn("Telegram editMessageMedia with an earlier upload failed, drawing the chart anew:", net.redact(e))
-			return False
-		return True
+		return self.edit('editMessageMedia', data={'chat_id': self.where, 'message_id': message,
+			'reply_markup': json.dumps(self.markup(buttons)),
+			'media': json.dumps({'type': 'photo', 'media': file_id, 'caption': caption, 'parse_mode': 'HTML'})})
 
 	def edit_text(self, message, text, buttons=None):
-		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged, an
-		edit that changes nothing (unchanged) as no failure."""
+		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
 		payload = {'chat_id': self.where, 'message_id': message, 'text': text, 'parse_mode': 'HTML',
 			'link_preview_options': self.NO_PREVIEWS}
 		if buttons is not None:
 			payload['reply_markup'] = self.markup(buttons)
-		try:
-			call('editMessageText', json=payload, logged='debug')
-		except Exception as e:
-			if not unchanged(e):
-				log.warn("Telegram editMessageText failed:", net.redact(e))
+		self.edit('editMessageText', json=payload)
 
 	def edit_buttons(self, message, buttons):
 		"""editMessageReplyMarkup: the buttons under a message changed, its text or chart left as it is (no upload).
-		True when they show now, as they do when they were so already (unchanged); a failure is logged, and False."""
+		True when they show now (see edit)."""
+		return self.edit('editMessageReplyMarkup', json={'chat_id': self.where, 'message_id': message,
+			'reply_markup': self.markup(buttons)})
+
+	def edit(self, method, **request):
+		"""An edit of a message, call(method, **request) logged at DEBUG (a press's routine): True when the message
+		shows what it asks for now, as it does when Telegram refuses it for changing nothing (unchanged); False when it
+		failed (logged)."""
 		try:
-			call('editMessageReplyMarkup', json={'chat_id': self.where, 'message_id': message,
-				'reply_markup': self.markup(buttons)}, logged='debug')
+			call(method, logged='debug', **request)
 		except Exception as e:
 			if unchanged(e):
 				return True
-			log.warn("Telegram editMessageReplyMarkup failed:", net.redact(e))
+			log.warn(f"Telegram {method} failed:", net.redact(e))
 			return False
 		return True
 

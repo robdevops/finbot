@@ -29,6 +29,18 @@ class Plumbing(FinbotCase):
 		self.assertIn('reply_markup', posted[-1])
 		self.assertTrue(all('reply_markup' not in p for p in posted[:-1]))
 
+	def test_the_messages_of_a_long_reply_are_the_networks_gap_apart(self):
+		"""The messages of a reply too long for one go CHUNK_GAP apart: half a second on Telegram and Slack, which take
+		about one a second in a chat, and none on Discord, which takes five in five seconds."""
+		for bot, gap in ((telegram_common.TelegramBot, 0.5), (slack_common.SlackBot, 0.5),
+				(discord_common.DiscordBot, 0.0)):
+			slept = []
+			with self.subTest(network=bot.name), mock.patch.object(bot, 'post_text', lambda chat, text, buttons=None:
+					{}), mock.patch.object(transports.time, 'sleep', slept.append), \
+					contextlib.redirect_stderr(io.StringIO()):
+				answers = REAL_TEXT(bot('5'), ['x' * 60] * 300)
+				self.assertEqual(slept, [gap] * (len(answers) - 1))
+
 	def test_chunks_respect_the_size(self):
 		"""A message ends before the line that would take it past the size limit; an overlong line is cut short."""
 		chunks = transports.chunked(['a' * 30] * 10 + ['b' * 500], limit=100)
@@ -62,10 +74,10 @@ class Plumbing(FinbotCase):
 		self.assertEqual(post({'sticker': {'file_id': 'x'}}), ([b''], ''))
 		self.settings(log_level='DEBUG')
 		self.assertEqual(post({'sticker': {'file_id': 'x'}}), ([b''], 'POST from telegram: we answered 200 OK\n'))
-		self.assertGreaterEqual(len(bot.git_version()), 7)
+		self.assertGreaterEqual(len(config.git_version()), 7)
 		head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=bot.__file__.rsplit('/', 1)[0], capture_output=True,
 			text=True).stdout.strip()
-		self.assertEqual(bot.git_version(), head[:7]) # matches what git says
+		self.assertEqual(config.git_version(), head[:7]) # matches what git says
 
 
 class Conventions(unittest.TestCase):
@@ -186,7 +198,7 @@ class GitVersion(unittest.TestCase):
 			self.repo(a, 'ref: refs/heads/work', {'refs/heads/work': self.SHA})
 			self.repo(b, self.SHA)
 			self.repo(c, 'ref: refs/heads/work', packed=f'{self.SHA} refs/heads/work\n{"f" * 40} refs/heads/other\n')
-			self.assertEqual([bot.git_version(d) for d in (a, b, c)], ['0123456'] * 3)
+			self.assertEqual([config.git_version(d) for d in (a, b, c)], ['0123456'] * 3)
 
 	def test_linked_worktree(self):
 		"""A linked worktree, whose .git is a file naming its gitdir, finds its refs in the main repository."""
@@ -197,16 +209,16 @@ class GitVersion(unittest.TestCase):
 			(linked / 'HEAD').write_text('ref: refs/heads/main\n')
 			(linked / 'commondir').write_text('../..\n')
 			Path(tree, '.git').write_text(f'gitdir: {linked}\n')
-			self.assertEqual(bot.git_version(tree), '0123456')
+			self.assertEqual(config.git_version(tree), '0123456')
 
 	def test_unreadable_is_unknown(self):
 		"""No .git, a dangling ref, or a garbled HEAD all give 'unknown'."""
 		with tempfile.TemporaryDirectory() as empty, tempfile.TemporaryDirectory() as odd:
 			self.repo(odd, 'ref: refs/heads/gone')
-			self.assertEqual([bot.git_version(empty), bot.git_version(odd), bot.git_version('/nonexistent')],
+			self.assertEqual([config.git_version(empty), config.git_version(odd), config.git_version('/nonexistent')],
 				['unknown'] * 3)
 			self.repo(empty, 'garbage')
-			self.assertEqual(bot.git_version(empty), 'unknown')
+			self.assertEqual(config.git_version(empty), 'unknown')
 
 	def test_an_image_without_git_names_the_commit_it_was_built_from(self):
 		"""A Docker image has no .git: the commit it was built from (FINBOT_COMMIT, from the build's GIT_COMMIT) names
@@ -216,14 +228,14 @@ class GitVersion(unittest.TestCase):
 			for built, expected in ((self.SHA, '0123456'), ('abcdef1', 'abcdef1'), ('unknown', 'unknown'),
 					('', 'unknown'), ('$(id)', 'unknown')):
 				with self.subTest(built=built), mock.patch.dict(os.environ, {'FINBOT_COMMIT': built}):
-					self.assertEqual(bot.git_version(empty), expected)
+					self.assertEqual(config.git_version(empty), expected)
 			with mock.patch.dict(os.environ, {'FINBOT_COMMIT': 'f' * 40}):
-				self.assertEqual(bot.git_version(checkout), '0123456')
+				self.assertEqual(config.git_version(checkout), '0123456')
 
 	def test_does_not_run_git(self):
 		"""git_version reads .git itself: no git binary is run."""
 		with mock.patch('subprocess.run', side_effect=AssertionError('git was run')):
-			self.assertGreaterEqual(len(bot.git_version()), 7)
+			self.assertGreaterEqual(len(config.git_version()), 7)
 
 
 if __name__ == '__main__':

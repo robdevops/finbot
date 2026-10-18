@@ -429,6 +429,32 @@ def check_startup_environment():
 		raise ConfigError(problems)
 
 
+def git_version(checkout=None):
+	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no
+	"dubious ownership" refusal when the service user does not own the checkout. Without one (a Docker image), the
+	commit it was built from (FINBOT_COMMIT); 'unknown' when neither can be read."""
+	try:
+		git = Path(checkout or REPO_DIR) / '.git'
+		if git.is_file(): # a linked worktree or submodule: .git is a file saying "gitdir: <path>"
+			git = (git.parent / git.read_text().split(':', 1)[1].strip()).resolve()
+		# refs of a worktree
+		common = (git / (git / 'commondir').read_text().strip()).resolve() if (git / 'commondir').is_file() else git
+		head = (git / 'HEAD').read_text().strip()
+		if head.startswith('ref:'):
+			ref = head.split(':', 1)[1].strip()
+			if (common / ref).is_file():
+				head = (common / ref).read_text().strip()
+			else: # the branch is only in packed-refs
+				packed = (common / 'packed-refs').read_text().splitlines()
+				head = next((line.split()[0] for line in packed if line.endswith(' ' + ref)), '')
+		if re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', head):
+			return head[:7]
+	except (OSError, IndexError):
+		pass
+	built = os.environ.get('FINBOT_COMMIT', '')
+	return built[:7] if re.fullmatch(r'[0-9a-f]{7,64}', built) else 'unknown'
+
+
 def startup_report():
 	"""Lines for the log at start: where the config came from (counts only; check_config names the problems)."""
 	def keys(count):

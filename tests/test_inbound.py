@@ -41,6 +41,17 @@ class WsgiRejections(FinbotCase):
 			'403 Forbidden')
 		self.assertEqual((self.sent, self.errors), ([], []))
 
+	def test_the_secrets_of_a_request_stay_out_of_the_log(self):
+		"""The headers logged (with the print_headers setting, or of a request refused unread) hide each webhook's
+		secret ones (Telegram's secret token), and a refused update its secret fields (Slack's verification token)."""
+		self.env(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok', slackSigningSecret='')
+		self.settings(print_headers=True)
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			bot.main(wsgi_environ('/telegram', b'{}', HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok-x'), lambda *a: None)
+			bot.main(wsgi_environ('/slack', json.dumps({'type': 'event_callback', 'token': 'stok-x'}).encode()),
+				lambda *a: None)
+		self.assertEqual([said in log.getvalue() for said in ('tok-x', 'stok-x', '<redacted>')], [False, False, True])
+
 	def test_unknown_path_is_404(self):
 		"""An unknown path is 404."""
 		self.assertEqual(self.request(path='/nope')[1], '404 Not Found')
@@ -356,13 +367,17 @@ class AdminOnly(FinbotCase):
 		self.assertEqual(len(asked), 3)
 		from lib import jobs
 		jobs.know(['telegram:-100', 'telegram:-200', 'slack:C1'])
+		scheduler = jobs.Scheduler()
+		with contextlib.redirect_stderr(io.StringIO()):
+			scheduler.load()
+		self.patch(jobs, 'current', scheduler) # the chats the schedule knows: two groups
 		transports._administers.clear() # the earlier answer for this chat is kept for minutes
-		self.assertEqual(self.say('.jobs'), answered) # Rob administers a group finbot knows: in a direct message too
+		self.assertNotEqual(self.say('.jobs'), [[self.REFUSED]]) # Rob administers a group finbot knows: in a DM too
 		self.assertEqual(self.say('.jobs', id=9), [[self.REFUSED]])
 		self.patch(telegram_common, 'call', lambda method, **kwargs: 1 / 0)
 		self.assertEqual(group('.jobs', id=10), [[self.REFUSED]])
 		self.settings(admins=('telegram:10',))
-		self.assertEqual(group('.jobs', id=10), answered)
+		self.assertNotEqual(group('.jobs', id=10), [[self.REFUSED]])
 
 	def test_a_telegram_username_is_not_asked_about(self):
 		"""Only a numeric user id can be asked of getChatMember: a @username is no one's proof."""

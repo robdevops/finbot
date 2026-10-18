@@ -8,6 +8,9 @@ with a call, Discord's interaction with the answer it must have before any reply
 import dataclasses
 import hmac
 import json
+from urllib.parse import urlparse
+
+from lib import config
 
 
 @dataclasses.dataclass
@@ -87,26 +90,31 @@ class Network:
 		"""What the update (a dict) says: a Message, a Press, or a Response to give straight back."""
 		raise NotImplementedError
 
-	def acknowledge(self, event, toast=True):
-		"""Tell the network an update was taken (a Message or a Press; toast: true for a press's own toast, false for
-		none, a press dropped, or a text: an alert, a press refused), where it waits for that: None when the answer to
-		the update says nothing more, or the Response the network must have before any reply. Here None: taking the
-		update is the acknowledgement (Slack's is the 200, or the socket's ack)."""
+	def acknowledge(self, event, text=None, alert=False):
+		"""Tell the network an update was taken (a Message or a Press), where it waits for that: a press with the text
+		it is told at once (its toast; none for a press dropped), or with alert as an alert (a press refused). None when
+		the answer to the update says nothing more, or the Response the network must have before any reply. Here None:
+		taking the update is the acknowledgement (Slack's is the 200, or the socket's ack)."""
 		return None
 
 
 class Webhook:
-	"""Updates a network posts to the bot, for its reader (a Network); subclasses give the path it posts to and how it
+	"""Updates a network posts to the bot, for its reader (a Network); subclasses give the URL it posts to and how it
 	proves itself."""
+	URL = '' # the finbot.env key of the URL the network posts to: finbot takes the path
 	REFUSED = FORBIDDEN # the answer to a request that does not prove itself
+	SECRET_HEADERS = () # the request headers (WSGI's names) that carry a secret, redacted where headers are logged
+	SECRET_FIELDS = () # the fields of an update that carry a secret, redacted where a refused update is logged
+
 	def __init__(self, network):
 		"""network: the reader of its updates."""
 		self.network = network
 		self.service = network.service
 
 	def path(self):
-		"""The URL path the network posts to, or '' when finbot.env sets none."""
-		return ''
+		"""The path of the URL the network posts to, or '' when finbot.env sets none."""
+		url = getattr(config.env, self.URL) if self.URL else ''
+		return urlparse(url).path if url else ''
 
 	def refuse_unread(self, environ):
 		"""Why to turn the request away before its body is read (a secret header missing or wrong), else None."""

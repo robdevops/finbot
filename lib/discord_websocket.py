@@ -25,7 +25,7 @@ SESSIONS_KEPT = 10 # a new session waits while Discord allows no more than this 
 HELLO_SECONDS = 30 # the wait for Discord's Hello, on a new connection
 
 
-class DiscordGateway(pull.Listener):
+class DiscordGateway(pull.SocketListener):
 	"""Discord's gateway (API v10), as Slack's Socket Mode, over websocket-client. Hello gives the heartbeat's interval;
 	the first beat comes a random part of it later, and each beat's ACK is due before the next, or the connection is
 	taken for dead. Then IDENTIFY with the token and the intents, or RESUME a session (READY gives its id and the URL
@@ -34,6 +34,11 @@ class DiscordGateway(pull.Listener):
 	INTERACTION_CREATE events, each in a thread of its own, so that the heartbeat never waits on finbot; the gateway
 	takes no answers: an interaction's goes to its callback over REST."""
 	network = discord_common.READER
+	TOKENS = ('discordBotToken',)
+	WEBHOOK_URL = 'discordOutgoingWebhook'
+	MODE = 'gateway'
+	SOCKET = 'the gateway'
+	CLOSE_CODE = 4000 # not 1000, which would end the session
 	TAKEN = ('MESSAGE_CREATE', 'INTERACTION_CREATE')
 
 	def __init__(self):
@@ -41,46 +46,11 @@ class DiscordGateway(pull.Listener):
 		self.session = None # (its id, the URL to resume it at), from READY
 		self.sequence = None # the last event's, for the heartbeat and RESUME
 
-	@staticmethod
-	def wanted():
-		"""Whether finbot.env asks for it: Discord's bot token, and no discordOutgoingWebhook."""
-		return bool(config.env.discordBotToken and not config.env.discordOutgoingWebhook)
-
-	def describe(self):
-		"""The mode, for the log."""
-		return 'gateway (no discordOutgoingWebhook)'
-
-	def connect(self, url):
-		"""A WebSocket connected to url."""
-		return pull.WebSocket(url)
-
-	def poll(self, take):
-		"""One connection, until it ends: then another, resuming the session where there is one; after a failure, the
-		back-off; after a refusal that trying again cannot mend (the token, the intents), REFUSED_WAIT."""
-		try:
-			url = self.session[1] if self.session else self.start()
-			if not isinstance(url, str): # no session may start yet: the wait
-				return url
-			connection = self.connect(url.rstrip('/') + '/' + VERSION)
-		except Exception as e:
-			return self.failed('connecting to the gateway', e)
-		try:
-			return self.listen(connection, take)
-		except pull.Closed as e:
-			if e.code in REFUSED:
-				log.error(f"discord: the gateway refused finbot ({e.code}: {REFUSED[e.code]}), trying again in an hour")
-				return REFUSED_WAIT
-			if e.code in UNRESUMABLE:
-				self.session = None
-			return self.failed('the gateway', e)
-		except Exception as e:
-			return self.failed('the gateway', e)
-		finally:
-			connection.close(4000) # not 1000, which would end the session
-
-	def start(self):
-		"""The gateway's URL for a new session (GET /gateway/bot), or the seconds to wait first while Discord allows
-		few more sessions today."""
+	def url(self):
+		"""The URL to resume the session at, where there is one; else the gateway's URL for a new session (GET
+		/gateway/bot), or the seconds to wait first while Discord allows few more sessions today."""
+		if self.session:
+			return self.session[1].rstrip('/') + '/' + VERSION
 		answer = discord_common.call('GET', '/gateway/bot')
 		limit = answer.get('session_start_limit') or {}
 		if limit.get('remaining', SESSIONS_KEPT + 1) <= SESSIONS_KEPT:
@@ -88,7 +58,17 @@ class DiscordGateway(pull.Listener):
 			log.warn(f"discord: Discord allows {limit.get('remaining')} more sessions today: waiting {wait / 60:.0f}"
 				" minutes")
 			return wait
-		return answer['url']
+		return answer['url'].rstrip('/') + '/' + VERSION
+
+	def ended(self, e):
+		"""The wait after a connection that ended with e: REFUSED_WAIT after a refusal that trying again cannot mend
+		(the token, the intents); else the back-off, a session that cannot go on given up first."""
+		if isinstance(e, pull.Closed) and e.code in REFUSED:
+			log.error(f"discord: the gateway refused finbot ({e.code}: {REFUSED[e.code]}), trying again in an hour")
+			return REFUSED_WAIT
+		if isinstance(e, pull.Closed) and e.code in UNRESUMABLE:
+			self.session = None
+		return self.failed(self.SOCKET, e)
 
 	def listen(self, connection, take):
 		"""Read the gateway until Discord asks for a reconnect (op 7: at once) or ends the session (op 9: after a
