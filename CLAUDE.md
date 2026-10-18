@@ -128,16 +128,19 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   what each holdings report noted in US dollars, `LARGEST`, summed over portfolios, else the first ticker; price's `+`, ending its period
   row, opens the ticker picker, and `OK` draws the ticks), the buttons kept under it and every press re-editing the answer from
   `shown` (an item's number plus one; compare's tickers, `pick.pack`), but a tick or a page of tickers its buttons alone
-  (`m`; `n` under a note, which the next press takes away), 32 items a page (`pick.layout`; fewer on Discord) turned by
+  (what a press asks for is its act, a letter of `buttons.ACTS`: the screen it shows, what its number is, whether it
+  changes the buttons alone, its toast; `m`, and `n` under a note, which the next press takes away), 32 items a page
+  (`pick.layout`; fewer where the network holds few rows of buttons, `Dialect.room`: Discord's five) turned by
   `◀` `▶` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
   is), `.price`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, their buttons and the `.watchlist` Edit's
-  built by `pick.ticker_buttons` and `buttons.page_buttons`, one more refused (act `f`: `buttons.refusal`, in
+  built by `pick.ticker_buttons` and `buttons.page_buttons`, one more refused (act `f`, its `refused`: `buttons.refusal`, in
   `bot.take`); a treemap primes its other charts (`pick.treemaps`), and every chart with period buttons its other
   periods (`charts.periods`, by `worker.prime_periods` after `.price`, `.movers`, `.performance`, `chart_reply` and the
   pickers), both in a thread (`charts.prime_in_background`: `charts.prime`, which logs a chart with nothing to draw at
   debug); neither for a scheduled run.
-- `.watchlist` typed bare has an Edit button (`worker.watchlist_screen`, `watchlist_press`: a `PickPress` of command `w`): its tickers
-  red as they are pressed (struck through in the list), Delete deleting them; the `.jobs` list strikes through the jobs that are
+- `.watchlist` typed bare has an Edit button (`pick.watchlist_screen`, `worker.watchlist_press`: a `PickPress` of command `w`, its
+  acts `e`, `d` and `p`): its tickers red as they are pressed (struck through in the list), Delete deleting them; a treemap's
+  menu of groupings is built from `buttons.GROUPS`, `holdings.GROUPED` unless one is chosen; the `.jobs` list strikes through the jobs that are
   off (❌), and Edit draws their buttons red. The `.jobs` menu's screens: top, Edit, Run, Upcoming and Add's steps; typed
   `.jobs enable`, `disable` or `delete` alone opens Edit.
 - `lib/buttons.py`: `Button`, drawn by its look (`look(button)`: a toggle's `tone`, `ON` or `OFF`, else `ACTIVE` for the
@@ -149,7 +152,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   it is unique in a message.
   `lib/charts.py`: a chart with period buttons, built by its kind's builder (`build`: lines and a chart) for the
   command's first view (`worker.chart_reply`) and for each press, its period when none is typed `buttons.DEFAULT_PERIOD`.
-- `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: one table by market code (flag,
+- `lib/dialects.py`: each network's markup and what a message holds: its text, a chart's caption, its rows of buttons
+  (`button_rows`, from which the menus and pickers size their pages: `room()`). `lib/markets.py`: one table by market code (flag,
   currency, Yahoo suffix, Google code; Sharesight's codes, so TSE is Toronto), and `code(name)` for any name an exchange
   goes by. `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`:
   every chart, `Chart` specs and `draw()`.

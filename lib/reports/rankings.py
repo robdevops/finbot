@@ -9,6 +9,9 @@ from lib import links
 from lib import render
 from lib import yahoo
 
+LENGTH = 15 # the stocks a ranking lists
+PAIRED = 10 # the stocks in each of two lists in one message (.buy & sell)
+
 def marketcap_line(service, ticker):
 	"""One stock's market cap, in its own currency, and in US dollars too where that is another. Raises answer.Answer
 	when Yahoo has none."""
@@ -21,7 +24,7 @@ def marketcap_line(service, ticker):
 		cap += f" (USD {formats.human_units(data['market_cap_usd'])})"
 	return f"{links.stock_line(ticker, data, service)} mkt cap: {cap}"
 
-def marketcap_list(service, chat, bottom=False, length=15):
+def marketcap_list(service, chat, bottom=False, length=LENGTH):
 	"""The `length` stocks a chat follows (by its key) of largest (or, `bottom`, smallest) market cap, compared in US
 	dollars at Yahoo's exchange rates: a market cap in won or yen is a far bigger number."""
 	caps = [] # (market cap in US dollars, line)
@@ -53,10 +56,11 @@ def rated(details, action, length):
 			found.append((rating, analysts, (ticker, data, rating, analysts), ticker))
 	return sorted(found, key=lambda row: (row[0] if action == 'buy' else -row[0], -row[1]))[:length]
 
-def prepare_rating_payload(service, chat, actions, length=15, asked=True):
+def prepare_rating_payload(service, chat, actions, length=None, asked=True):
 	"""(payload, chart) of the `length` stocks a chat follows (by its key) rated each of `actions` ('buy' and 'sell',
-	in the order asked): one list each, and one bar chart with the sells in red. A list with no stocks says so, where
-	someone asked; none at all raises answer.Nothing."""
+	in the order asked; LENGTH for one list, PAIRED for each of two where None): one list each, and one bar chart with
+	the sells in red. A list with no stocks says so, where someone asked; none at all raises answer.Nothing."""
+	length = length or (LENGTH if len(actions) == 1 else PAIRED)
 	details = yahoo.fetch_details(watchlist.with_holdings(chat))
 	blocks, notes, rows, red, shown = [], [], [], [], []
 	for action in actions:
@@ -110,7 +114,7 @@ def ratio_line(service, ticker, kind):
 		raise answer.Answer(f"{ticker}: no {kind} ratio found")
 	return f"{links.stock_line(ticker, data, service)} {figures}"
 
-def ratio_list(service, chat, kind, mode='top', length=15):
+def ratio_list(service, chat, kind, mode='top', length=LENGTH):
 	"""(payload, chart): the `length` stocks a chat follows (by its key) by a ratio (kind: forward pe or peg),
 	lowest first (mode top), highest first (bottom), or the negative ones only, lowest first (negative). A forward P/E
 	is analysts' estimate, so its list takes only stocks that min_analysts or more analysts cover, as .buy does."""

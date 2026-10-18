@@ -25,11 +25,12 @@ def noun(cmd):
 	return 'ticker' if cmd == 'c' else 'portfolio'
 
 def layout(service, cmd):
-	"""(items to a page, items to a row) that a picker's screen has room for: 32 in rows of 4; Discord holds five rows
-	of five buttons, so a page leaves a row for the group and page buttons (12 portfolios, 20 tickers)."""
-	if service == 'discord':
-		return (20, 5) if noun(cmd) == 'ticker' else (12, 4)
-	return 32, 4
+	"""(items to a page, items to a row) that a picker's screen has room for: 32 in rows of 4, or where the network
+	holds few rows of buttons (Dialect.room), tickers in rows of 5 besides a row for Back, ◀ ▶ and OK, and portfolios
+	in rows of 4 besides the page buttons' row and the grouping's (on Discord 20 tickers, 12 portfolios)."""
+	if not service.button_rows:
+		return 32, 4
+	return (service.room(5), 5) if noun(cmd) == 'ticker' else (service.room(4, kept=2), 4)
 
 def items(cmd, chat):
 	"""What a picker offers, sorted: portfolio names (a portfolio command), or tickers (compare): the ones
@@ -71,7 +72,7 @@ def shown_names(cmd, found, shown):
 def treemaps(service, group, found, index):
 	"""What charts.prime takes to draw the treemaps a button of a treemap picker would ask for: the other groupings of
 	the portfolio shown (found[index]) first, then every other portfolio in all."""
-	by = holdings.GROUPS.get(group, 'industry')
+	by = holdings.grouping(group)
 	wanted = [(found[index], each) for each in holdings.GROUPS.values() if each != by] + [(name, each)
 		for name in found if name != found[index] for each in holdings.GROUPS.values()]
 	return [(f"t {name} by {by}", functools.partial(holdings.prepare_treemap, name, by, service))
@@ -94,13 +95,13 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	step = 'n' if note else 'm' # the tickers' screen, at a page
 	button = press_button(cmd, crc, group, period, shown, mask)
 	rows = []
-	if view == 'g': # the treemap's menu: a choice redoes the chart and stays; Back
-		chosen = group if group in holdings.GROUPS else 'i'
-		menu = {name: button(name.capitalize(), f"q{page}", key == chosen, group=key)
-			for key, name in sorted(holdings.GROUPS.items(), key=lambda item: item[1])}
-		back = button('Back', f"p{page}")
-		return ['Grouped by'], [[menu['country'], menu['currency'], menu['industry']],
-			[back, menu['market'], menu['sector']]]
+	if view == 'g': # the treemap's menu, by name in rows of three: a choice redoes the chart and stays; Back
+		rows = buttons.chunks([button(name.capitalize(), f"q{page}", name == holdings.grouping(group), group=key)
+			for key, name in sorted(holdings.GROUPS.items(), key=lambda item: item[1])], 3)
+		if len(rows[-1]) == 3:
+			rows.append([])
+		rows[-1].insert(0, button('Back', f"p{page}")) # first in the last row
+		return ['Grouped by'], rows
 	if cmd == 'c' and view == 'p': # the periods, and + to the tickers
 		rows.append([button(buttons.PERIODS[key][0], 'p0', key == period, period=key) for key in buttons.BUTTONS['c']] +
 			[button('+', f"{step}0")])
@@ -110,7 +111,7 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	if noun(cmd) == 'portfolio':
 		rows += buttons.chunks([button(name, f"r{i}", shown == i + 1, shown=i + 1) for i, name in on_page], per_row)
 		if cmd == 't':
-			rows.append([button(f"Grouped by: {holdings.GROUPS.get(group, 'industry').capitalize()} ▾", f"g{page}")])
+			rows.append([button(f"Grouped by: {holdings.grouping(group).capitalize()} ▾", f"g{page}")])
 	elif view == 'm':
 		rows += buttons.chunks(ticker_buttons(found, page, per_page, mask, button, step,
 			full=len(ticked) >= buttons.MAX_PICKED, ticked_tone=buttons.ON), per_row)
@@ -127,6 +128,28 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	else:
 		heading = f"Pick up to {buttons.MAX_PICKED} tickers"
 	return ([note] if note else []) + [heading + (f" (page {page + 1} of {pages})" if pages > 1 else '')], rows
+
+WATCHLIST_HINT = "Toggle tickers to red to select them for deletion"
+
+def watchlist_screen(service, chat, mask, user='', page=0, note=None, editing=True):
+	"""(lines, button rows) of a chat's (by its key) watchlist: with Edit alone (e), or while editing, the tickers of
+	`mask` (a bit for each, in sorted order) struck through, a button for each (red when marked) at a page, and Delete
+	(d), which deletes the marked, and Cancel (p). An empty watchlist has no buttons."""
+	found = sorted(watchlist.tickers(chat))[:MOST_ITEMS]
+	removing = [ticker for i, ticker in enumerate(found) if mask >> i & 1]
+	lines = holdings.prepare_watchlist(service, chat, user, removing=removing)
+	per_page, per_row = layout(service, 'c')
+	pages = -(-len(found) // per_page)
+	page = min(max(page, 0), max(pages - 1, 0))
+	button = press_button('w', buttons.checksum(found), '0', '0', 0, mask)
+	if not found: # nothing to edit: the list alone, no buttons
+		return ([note] if note else []) + lines, []
+	if not editing:
+		return ([note] if note else []) + lines, [[button('Edit', 'e0', mask=0)]]
+	rows = buttons.chunks(ticker_buttons(found, page, per_page, mask, button, 'e', ticked_tone=buttons.OFF), per_row)
+	rows.append(buttons.page_buttons(page, pages, lambda label, to: button(label, f"e{to}")) +
+		[button('Delete', 'd0'), button('Cancel', 'p0', mask=0)])
+	return ([note] if note else []) + lines + ['', WATCHLIST_HINT], rows
 
 def press_button(cmd, crc, group, period, shown, mask):
 	"""A picker screen's maker of buttons, `button(label, act, active=False, tone='', **changes)`: the press it makes

@@ -40,8 +40,13 @@ def prepare_who(service, code):
 	return found
 
 GROUPS = buttons.GROUPS
+GROUPED = 'industry' # what a treemap is grouped by unless told
 NOUNS = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries'),
 	'country': ('country', 'countries'), 'currency': ('currency', 'currencies'), 'market': ('market', 'markets')}
+
+def grouping(key):
+	"""What a picker's group key (a key of GROUPS, or 0 for none chosen) groups a treemap by: a value of GROUPS."""
+	return GROUPS.get(key, GROUPED)
 
 def group_of(holding, by):
 	"""The group a Sharesight holding is in by `by` (a value of GROUPS): its sector or industry, its market's country

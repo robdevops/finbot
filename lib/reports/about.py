@@ -16,7 +16,7 @@ ADD_TYPED = ['/jobs add REPORT SCHEDULE', '/jobs add reminder SCHEDULE "TEXT"'] 
 NOT_RUN = '* not run yet' # the key to a list's mark
 PAGE_ROOM = 500 # characters of a screen besides its jobs' lines: its headings, a note, the key to *
 JOB_ROW = 4 # job buttons in a row
-MOST_JOBS = {'discord': 16} # job buttons on a page: Discord takes five rows of five, one kept for the others; else 40
+MOST_JOBS = 40 # job buttons on a page, where the network holds more rows of buttons than they take (Dialect.room)
 # Add's reports: (label, action, arguments; None where the period follows how often it runs, or a reminder's text)
 REPORTS = (('trades', 'trades', ()), ('movers midsession', 'movers', ('midsession',)),
 	('movers premarket', 'movers', ('premarket',)), ('movers close', 'movers', ('close',)), ('movers', 'movers', None),
@@ -40,10 +40,8 @@ USUAL = {'frequency': 'd', 'weekday': '5', 'day': '1', 'month': '1', 'hour': '9'
 MORE = 'p1' # Add's data for the second page of the days of a month
 INTERVALS = (5, 10, 15, 20, 30, 120, 180, 240, 360, 720) # minutes between a repeat's runs, as every... offers them
 MINUTES = tuple(range(0, 60, 5)) # the minutes Add offers
-MOST_DAYS = {'discord': 20} # days of the month on a page: Discord takes 25 buttons, elsewhere all 31
-MOST_REPORTS = {'discord': 16} # Add's reports on a page, four to a row: Discord takes five rows, elsewhere all
 YEARS = 10 # the years a one-off may be in, this one first
-CROWDED = 20 # a screen of more choices takes them in rows of five, Back last: Discord takes 25 buttons
+CROWDED = 20 # a screen of more choices takes them in rows of five, Back last, on every network: Discord holds 25
 
 def jobs_screen(service, chat, screen='top', page=0, note=None, highlight=None):
 	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each struck through and marked ❌
@@ -102,7 +100,7 @@ def listed_with(service, chat, lines):
 	for number, job in enumerate(own, 1):
 		line = job_entry(service, scheduler, number, job, running, local, now)
 		size += len(line) + 1
-		if size > room or len(shown) == MOST_JOBS.get(service, 40):
+		if size > room or len(shown) == service.room(JOB_ROW, otherwise=MOST_JOBS):
 			break
 		shown.append((number, job, line))
 	if not shown:
@@ -113,7 +111,7 @@ def listed_with(service, chat, lines):
 def paged(entries, service):
 	"""The jobs' entries (number, job, line) a page at a time: as many as fit a message of the network with room to
 	spare, and as many buttons as it takes in a message besides the others."""
-	most, room = MOST_JOBS.get(service, 40), service.text_limit - PAGE_ROOM
+	most, room = service.room(JOB_ROW, otherwise=MOST_JOBS), service.text_limit - PAGE_ROOM
 	parts, size = [[]], 0
 	for entry in entries:
 		if parts[-1] and (len(parts[-1]) == most or size + len(entry[2]) + 1 > room):
@@ -235,12 +233,12 @@ def add_screen(service, chat, steps):
 	if not steps: # a button per report, by its name alone (none that reports on Sharesight without it), and Cancel
 		offer = [(label, number) for number, (label, action, _) in enumerate(reports, 1)
 			if sharesight.configured() or action not in catalog.SHARESIGHT]
-		most = MOST_REPORTS.get(service, len(offer))
+		row = 4 if service.button_rows else 3 # four to a row where rows are few
+		most = service.room(row, otherwise=len(offer))
 		if page * most >= len(offer):
 			raise ValueError('no such page')
 		nav = turn(len(offer) > most) + [cancel]
-		return choices('Add a job: which report?', offer[page * most:(page + 1) * most], 4 if service in
-			MOST_REPORTS else 3, nav=nav)
+		return choices('Add a job: which report?', offer[page * most:(page + 1) * most], row, nav=nav)
 	label, action, args = reports[choice(steps[0], 1, len(reports)) - 1]
 	if action == 'message':
 		return [service.bold('Add a reminder'), "A reminder's text is what you type:",
@@ -269,7 +267,7 @@ def add_screen(service, chat, steps):
 	found, usual = offered(level, frequency, values, today)
 	offer = [(text, data) for text, data, _ in found]
 	if level == 'day':
-		most = MOST_DAYS.get(service, 31)
+		most = service.room(5, otherwise=31)
 		if page * most >= len(offer):
 			raise ValueError('no such page')
 		nav = turn(len(offer) > most) + [back, cancel]

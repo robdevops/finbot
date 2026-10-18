@@ -193,25 +193,24 @@ def pick_press(chat, press, pressed):
 	shown, mask = pressed.shown, pressed.mask
 	found = pick.items(cmd, chat.key)
 	stale = buttons.checksum(found) != pressed.checksum
-	kind, number = (pressed.act[0], int(pressed.act[1:])) if not stale else ('p', 0)
+	letter, number = (pressed.act[0], int(pressed.act[1:])) if not stale else ('p', 0)
+	act = buttons.ACTS[letter]
 	if stale:
 		shown, mask = pick.default(cmd, found)
-	per_page = pick.layout(service, cmd)[0]
-	view = 'm' if kind in 'mn' else 'g' if kind in 'gq' else 'p' # picking a ticker, or OK, goes back to the top
-	page = number if kind in 'pmngq' else number // per_page if kind == 'r' else 0
-	note = 'The list has changed: here it is now' if stale else None
-	if kind == 'r' and number < len(found):
-		shown = number + 1
-	elif kind == 'h' and mask:
+	page = number if act.on == buttons.PAGE else 0
+	if act.on == buttons.ITEM and number < len(found):
+		shown, page = number + 1, number // pick.layout(service, cmd)[0]
+	elif act.on == buttons.TICKED and mask:
 		shown = pick.pack([i for i in range(len(found)) if mask >> i & 1])
 	names = pick.shown_names(cmd, found, shown)
-	lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, view, page, note)
+	note = 'The list has changed: here it is now' if stale else None
+	lines, rows = pick.screen(service, cmd, found, group, period, shown, mask, act.view, page, note)
 	if not names:
 		return chat.edit_lines(press.message_id, lines, rows) # the picker alone: no answer yet, so text
-	if kind in 'mg' and chat.edit_buttons(press.message_id, rows): # a tick, a page: the answer stays as it is
+	if act.alone and chat.edit_buttons(press.message_id, rows): # a tick, a page: the answer stays as it is
 		return
 	pick_answer(service, chat, press.message_id, cmd, group, period, names, rows, note)
-	if cmd == 'c' and (stale or kind == 'h'): # a new ticker or set
+	if cmd == 'c' and (stale or act.on == buttons.TICKED): # a new ticker or set
 		prime_periods(chat, 'c', names, period)
 
 def pick_content(service, chat, cmd, group, period, names):
@@ -222,7 +221,7 @@ def pick_content(service, chat, cmd, group, period, names):
 		except answer.Nothing as e: # shown in place, under the picker's buttons
 			return e.lines, None
 	if cmd == 't':
-		return holdings.prepare_treemap(names[0], holdings.GROUPS.get(group, 'industry'), service)
+		return holdings.prepare_treemap(names[0], holdings.grouping(group), service)
 	return charts.build('c', names, service, chat.key, period=period if period != '0' else 'x')
 
 def pick_answer(service, chat, message, cmd, group, period, names, rows, note=None):
@@ -405,43 +404,21 @@ def ticker(args):
 	was given none."""
 	return yahoo.symbol(args.words[0]) if args.words else None
 
-WATCHLIST_HINT = "Toggle tickers to red to select them for deletion"
-
-def watchlist_screen(service, chat, mask, user='', page=0, note=None, editing=True):
-	"""(lines, button rows) of the watchlist: with Edit alone, or while editing, the tickers of `mask` (a bit for each,
-	in sorted order) struck through, a button for each (red when marked) at a page, and Delete, which deletes the
-	marked, and Cancel. An empty watchlist has no buttons."""
-	found = sorted(watchlist.tickers(chat))[:pick.MOST_ITEMS]
-	removing = [ticker for i, ticker in enumerate(found) if mask >> i & 1]
-	lines = holdings.prepare_watchlist(service, chat, user, removing=removing)
-	per_page, per_row = pick.layout(service, 'c')
-	pages = -(-len(found) // per_page)
-	page = min(max(page, 0), max(pages - 1, 0))
-	crc = buttons.checksum(found)
-	button = pick.press_button('w', crc, '0', '0', 0, mask)
-	if not found: # nothing to edit: the list alone, no buttons
-		return ([note] if note else []) + lines, []
-	if not editing:
-		return ([note] if note else []) + lines, [[button('Edit', 'e0', mask=0)]]
-	rows = buttons.chunks(pick.ticker_buttons(found, page, per_page, mask, button, 'm', ticked_tone=buttons.OFF),
-		per_row)
-	rows.append(buttons.page_buttons(page, pages, lambda label, to: button(label, f"m{to}")) +
-		[button('Delete', 'h0'), button('Cancel', 'p0', mask=0)])
-	return ([note] if note else []) + lines + ['', WATCHLIST_HINT], rows
-
 def watchlist_press(chat, press, pressed):
-	"""A press under the watchlist: Edit offers its tickers; one marks or unmarks itself, struck through in the list;
-	Delete deletes the marked; Cancel goes back. Buttons drawn for another watchlist start again, saying so."""
+	"""A press under the watchlist (pick.watchlist_screen): Edit offers its tickers; one marks or unmarks itself,
+	struck through in the list; Delete deletes the marked; Cancel goes back. Buttons drawn for another watchlist start
+	again, saying so."""
 	found = sorted(watchlist.tickers(chat.key))[:pick.MOST_ITEMS]
 	stale = buttons.checksum(found) != pressed.checksum
-	kind, number = pressed.act[0], int(pressed.act[1:])
-	gone = [ticker for i, ticker in enumerate(found) if pressed.mask >> i & 1] if kind == 'h' and not stale else []
+	act, number = buttons.ACTS[pressed.act[0]], int(pressed.act[1:])
+	deleting = act.on == buttons.TICKED and not stale
+	gone = [ticker for i, ticker in enumerate(found) if deleting and pressed.mask >> i & 1]
 	for ticker in gone:
 		watchlist.remove(chat.key, ticker)
 	note = 'The list has changed: here it is now' if stale else 'Deleted: ' + ', '.join(gone) if gone else None
-	editing = kind in 'em' and not stale
-	lines, rows = watchlist_screen(chat.dialect, chat.key, pressed.mask if editing else 0, press.user,
-		number if kind == 'm' else 0, note, editing)
+	editing = act.view == 'e' and not stale
+	lines, rows = pick.watchlist_screen(chat.dialect, chat.key, pressed.mask if editing else 0, press.user,
+		number if editing else 0, note, editing)
 	chat.edit_lines(press.message_id, lines, rows)
 
 def on_watchlist(request, args):
@@ -451,14 +428,14 @@ def on_watchlist(request, args):
 		symbol = ticker(args) if args.keyword == 'add' else watchlist.watched(chat, args.words[0])
 		changed = holdings.prepare_watchlist(request.service, chat, request.user, args.keyword, symbol)
 		if watchlist.tickers(chat):
-			lines, rows = watchlist_screen(request.service, chat, 0, request.user, note=changed[0], editing=False)
+			lines, rows = pick.watchlist_screen(request.service, chat, 0, request.user, note=changed[0], editing=False)
 			request.reply(lines, None, rows)
 		else:
 			request.reply(changed)
 	elif args.keyword or args.words:
 		raise Usage
 	else:
-		lines, rows = watchlist_screen(request.service, chat, 0, request.user, editing=False)
+		lines, rows = pick.watchlist_screen(request.service, chat, 0, request.user, editing=False)
 		request.reply(lines, None, rows)
 
 def on_help(request, args):
@@ -494,7 +471,7 @@ def on_movers(request, args):
 			specific_stock=ticker(args))
 	if args.words:
 		raise Usage
-	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
+	top = movers.TOP if args.keyword else None # top or bottom: one chart shows both ends
 	if attached := movers.run(request.dest, mode='period' if args.days else 'interday',
 			threshold=0 if top else args.percent, days=args.days, top=top, user=request.user):
 		prime_periods(request.dest, *attached)
@@ -519,8 +496,7 @@ def on_marketcap(request, args):
 	if args.words:
 		request.reply([rankings.marketcap_line(request.service, ticker(args))])
 	else:
-		request.reply(rankings.marketcap_list(request.service, request.dest.key, bottom=args.keyword == 'bottom',
-			length=15))
+		request.reply(rankings.marketcap_list(request.service, request.dest.key, bottom=args.keyword == 'bottom'))
 
 def on_ratio(kind):
 	"""The handler of .pe (the forward P/E) or .peg (kind: forward pe or peg): the top (by default) or bottom 15 by the
@@ -531,7 +507,7 @@ def on_ratio(kind):
 			request.reply([rankings.ratio_line(request.service, ticker(args), kind)])
 		else:
 			mode = args.keyword or 'top'
-			request.reply(*rankings.ratio_list(request.service, request.dest.key, kind, mode, length=15))
+			request.reply(*rankings.ratio_list(request.service, request.dest.key, kind, mode))
 	return handler
 
 def on_beta(request, args):
@@ -544,7 +520,7 @@ def on_treemap(request, args):
 	unless told; with no portfolio, the first one's, with buttons for them and a menu of what to group by."""
 	if not args.words:
 		return picker(request, 't', args)
-	payload, chart = holdings.prepare_treemap(args.rest, args.keyword or 'industry', request.service)
+	payload, chart = holdings.prepare_treemap(args.rest, args.keyword or holdings.GROUPED, request.service)
 	request.reply(payload, chart)
 
 def on_rating(request, args):
@@ -552,7 +528,7 @@ def on_rating(request, args):
 	in one message."""
 	actions = list(dict.fromkeys(re.findall('buy|sell', f'{args.word} {args.text}'.lower()))) # each once, as asked
 	payload, chart = rankings.prepare_rating_payload(request.service, request.dest.key, actions,
-		length=10 if len(actions) > 1 else 15, asked=delivery.asked(request.dest))
+		asked=delivery.asked(request.dest))
 	request.reply(payload, chart)
 
 def on_compare(request, args):

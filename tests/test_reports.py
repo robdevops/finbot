@@ -931,7 +931,7 @@ class CommandJobs(FinbotCase):
 	def test_a_command_job_with_nothing_to_show_says_so_only_when_asked(self):
 		"""A command with nothing to show (answer.Nothing) says so typed, and in a job run now (asked), but posts
 		nothing on schedule; .buy & sell posts the list there is, saying the other has none only where asked."""
-		def rated(service, chat, actions, length=15, asked=True):
+		def rated(service, chat, actions, length=None, asked=True):
 			"""Sell ratings, and no stock rated buy."""
 			if actions == ['buy']:
 				raise answer.Nothing('No tracked stocks rated buy')
@@ -1090,6 +1090,16 @@ class Pickers(FinbotCase):
 		kind, lines, rows = self.tap('Zed')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Zed treemap by currency</b>',
 			[['Amy', '● Zed'], ['Grouped by: Currency ▾']]))
+
+	def test_the_group_menu_has_a_button_for_each_grouping(self):
+		"""The Grouped by menu is made from GROUPS, by name in rows of three, Back first in the last row: a new grouping
+		gets its button (the five were placed by hand)."""
+		menu = lambda: [[('● ' if button.active else '') + button.label for button in row]
+			for row in pick.screen(TELEGRAM, 't', ['Amy', 'Zed'], '0', '0', 1, 0, 'g')[1]]
+		self.assertEqual(menu(), [['Country', 'Currency', '● Industry'], ['Back', 'Market', 'Sector']])
+		with mock.patch.dict(holdings.GROUPS, {'x': 'exchange'}):
+			self.assertEqual(menu(), [['Country', 'Currency', 'Exchange'], ['● Industry', 'Market', 'Sector'],
+				['Back']])
 
 	def test_a_holdings_answer_keeps_its_buttons(self):
 		""".holdings: another portfolio's list as text in place of the first's, the portfolio buttons still under it."""
@@ -1558,10 +1568,10 @@ class Pickers(FinbotCase):
 		tickers are green when ticked and plain when not; no other button is toned."""
 		for ticker in ('T1', 'T2', 'T3'):
 			watchlist.add('telegram:55', ticker)
-		lines, rows = worker.watchlist_screen(TELEGRAM, 'telegram:55', 0b010)
+		lines, rows = pick.watchlist_screen(TELEGRAM, 'telegram:55', 0b010)
 		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows],
 			[[('T1', ''), ('T2', 'off'), ('T3', '')], [('Delete', ''), ('Cancel', '')]])
-		self.assertEqual([button.tone for row in worker.watchlist_screen(TELEGRAM, 'telegram:55', 0, editing=False)[1]
+		self.assertEqual([button.tone for row in pick.watchlist_screen(TELEGRAM, 'telegram:55', 0, editing=False)[1]
 			for button in row], [''])
 		lines, rows = pick.screen(TELEGRAM, 'c', ['A1', 'B1', 'C1'], '0', 'w', pick.pack([1]), 0b010, 'm')
 		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows[:1]],

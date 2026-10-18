@@ -53,12 +53,8 @@ class PickPress(typing.NamedTuple):
 	"""A press in a picker (lib/reports/pick.py): the command it picks for (a key of PICKERS), how it groups (a
 	treemap's: a key of GROUPS, or 0 for neither), the period (a key of PERIODS, or 0), what the message shows
 	(shown: 0 nothing yet, an item's number plus one, or the ticked tickers packed), the items ticked (a bit of the mask
-	each), what the press asks for (act: a letter and a number: p the first screen, e a watchlist's editing screen, g a
-	treemap's menu of groupings (q a grouping chosen in it, shown with the menu kept) and m the tickers' screen, each
-	at a page, n as m under a message showing a note, which
-	it takes away; f a tick refused, as too many, the tickers' screen at a page; r an item's number, to run it and show
-	the first screen; h the ticked ones, to run them and show the first screen) and the checksum of the list of items
-	it was drawn for, stale once that changes."""
+	each), what the press asks for (act: a letter of ACTS and a number) and the checksum of the list of items it was
+	drawn for, stale once that changes."""
 	cmd: str
 	group: str
 	period: str
@@ -76,6 +72,36 @@ GROUPS = {'s': 'sector', 'i': 'industry', 'c': 'country', 'u': 'currency', 'm': 
 PICKERS = {'t': 'treemap', 'h': 'holdings', 'c': 'price', 'w': 'watchlist'} # command key -> its name
 MAX_PICKED = 8 # tickers .price takes
 TOO_MANY = f"⚠️ Max {MAX_PICKED} tickers: untick one first"
+
+
+class Act(typing.NamedTuple):
+	"""What a picker's press asks for, by the letter of its act (ACTS): the screen it shows (p the first, m the
+	tickers', g a treemap's menu of groupings, e the watchlist's editing); what the number after the letter is (PAGE,
+	the screen's page; ITEM, an item to answer for, on the screen's page that has it) or that the press acts on the
+	ticked items (TICKED), the screen at its first page; the pickers whose buttons have it (keys of PICKERS); whether
+	it changes the buttons alone, the answer kept as it is, where the network can (Transport.edit_buttons); and what
+	the press is told at once, or refused with (bot.take), the message left as it is."""
+	view: str
+	on: str
+	pickers: str
+	alone: bool = False
+	toast: str = 'Updating…'
+	refused: str = None
+
+
+PAGE, ITEM, TICKED = 'page', 'item', 'ticked'
+ACTS = {
+	'p': Act('p', PAGE, 'thcw'), # the first screen (the watchlist's Cancel: its list)
+	'm': Act('m', PAGE, 'c', alone=True), # the tickers' screen: a tick, another page
+	'n': Act('m', PAGE, 'c'), # as m, under a message showing a note, which it takes away
+	'f': Act('m', PAGE, 'c', refused=TOO_MANY), # a tick past MAX_PICKED
+	'h': Act('p', TICKED, 'c', toast='Loading…'), # the ticked tickers answered for (OK)
+	'r': Act('p', ITEM, 'th', toast='Loading…'), # a portfolio answered for
+	'g': Act('g', PAGE, 't', alone=True), # a treemap's menu of groupings
+	'q': Act('g', PAGE, 't'), # a grouping chosen in that menu: the chart again, the menu kept
+	'e': Act('e', PAGE, 'w'), # the watchlist's editing screen: Edit, a tick, another page
+	'd': Act('p', TICKED, 'w'), # the watchlist's ticked tickers deleted (Delete)
+}
 
 PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x': ('Max', None)}
 # chart kind -> its buttons, five at most (Discord's limit for a row): c price (one stock's line too), f performance,
@@ -153,15 +179,16 @@ def page_buttons(page, pages, to):
 	return ([to('◀', page - 1)] if page else []) + ([to('▶', page + 1)] if page < pages - 1 else [])
 
 def parse(data):
-	"""What a pressed button's data asks for: a PickPress for a picker's button of a known command and act; a
-	MenuPress for a .jobs menu's button of a known screen, its parts plain letters and digits; a ChartPress for a
-	period button of a known kind and period; or None for data of none of them (from an older finbot, or forged)."""
+	"""What a pressed button's data asks for: a PickPress for a picker's button of a known command, with an act its
+	buttons have (ACTS); a MenuPress for a .jobs menu's button of a known screen, its parts plain letters and digits; a
+	ChartPress for a period button of a known kind and period; or None for data of none of them (from an older finbot,
+	or forged)."""
 	kind, _, rest = data.partition('|')
 	if kind == 'k':
 		parts = rest.split('|')
 		if (len(parts) == 7 and parts[0] in PICKERS and parts[1] in ('0', *GROUPS) and (parts[2] in PERIODS or
 				parts[2] == '0') and len(parts[3]) <= 2 * MAX_PICKED and len(parts[4]) <= 25 and
-				parts[5][:1] in 'pmnfrhegq' and
+				parts[5][:1] in ACTS and parts[0] in ACTS[parts[5][0]].pickers and
 				parts[5][1:].isdigit() and all(part.isascii() and part.isalnum() for part in parts) and
 				len(data.encode()) <= MAX_CALLBACK_BYTES):
 			try:
@@ -182,18 +209,18 @@ def parse(data):
 	return None
 
 def refusal(data):
-	"""What a press is refused with, from the button's data alone: TOO_MANY for a tick past MAX_PICKED (a picker's
-	act f), else None."""
+	"""What a press is refused with, from the button's data alone: a picker's act's (TOO_MANY for a tick past
+	MAX_PICKED), else None."""
 	pressed = parse(data)
-	return TOO_MANY if isinstance(pressed, PickPress) and pressed.act[0] == 'f' else None
+	return ACTS[pressed.act[0]].refused if isinstance(pressed, PickPress) else None
 
 def toast(data):
 	"""What a press is told at once, from the button's data alone (the network acknowledges a press before finbot
-	knows more): 'Loading 1Y…' for a period button, 'Updating…' for the .jobs menu's, 'Loading…' or 'Updating…' for a
-	picker's, None for data of none of them."""
+	knows more): 'Loading 1Y…' for a period button, 'Updating…' for the .jobs menu's, a picker's act's ('Loading…' or
+	'Updating…'), None for data of none of them."""
 	pressed = parse(data)
 	if isinstance(pressed, PickPress):
-		return 'Loading…' if pressed.act[0] in 'rh' else 'Updating…'
+		return ACTS[pressed.act[0]].toast
 	if isinstance(pressed, MenuPress):
 		return 'Updating…'
 	return f"Loading {PERIODS[pressed.period][0]}…" if pressed else None

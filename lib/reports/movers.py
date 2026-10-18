@@ -60,6 +60,7 @@ def trigger_bar(ticker, quote, threshold, details):
 
 # today's moves, in session, out of it (pre- or post-market), at the close, over `days`
 MODES = ('interday', 'midsession', 'premarket', 'close', 'period')
+TOP = 10 # the stocks in each of the top and bottom lists (.movers top, a job of a number of days)
 HEADINGS = { # the report's heading, by mode
 	'interday': '≥ {threshold:g}% at close, {on}',
 	'midsession': '≥ {threshold:g}% mid-session, {on} ({where})',
@@ -200,6 +201,6 @@ def job(argv):
 		case ['midsession' | 'interday' | 'premarket' | 'close' as mode]:
 			return f'movers {mode}', {'mode': mode}
 		case [days] if days.isdigit():
-			return f'movers {days}', {'mode': 'period', 'threshold': 0, 'days': int(days), 'top': 10}
+			return f'movers {days}', {'mode': 'period', 'threshold': 0, 'days': int(days), 'top': TOP}
 		case _:
 			raise ValueError(ARGUMENTS)
