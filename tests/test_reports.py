@@ -514,9 +514,9 @@ class ScheduledReports(FinbotCase):
 		self.run_job(performance, portfolio_select='Nope')
 		self.assertEqual((self.sent[0][1][0], self.errors), ('Nope portfolio not found. I only know about:', []))
 
-	def test_a_report_run_now_says_when_it_has_nothing_to_show(self):
-		"""Run now asks for its run (delivery.asked): a report with nothing to show says so, where the same run on
-		schedule posts nothing."""
+	def test_a_jobs_run_posts_nothing_where_there_is_nothing_to_show(self):
+		"""A report a job runs with nothing to show posts nothing, on schedule or by Run now (which said so); run for a
+		command, it raises answer.Nothing, whose line the reply is (trades' says so itself, with its buttons)."""
 		from lib.reports import podcasts
 		self.patch(trades, 'gather', lambda days, portfolio, known: [])
 		self.patch(rating, 'changed', lambda market_data, seen, old: [])
@@ -525,18 +525,22 @@ class ScheduledReports(FinbotCase):
 		self.patch(podcasts, 'fetch_new_episodes', lambda feed_url, seen: [])
 		past = formats.days_english(config.settings.past_days, 'in the past ')
 		ahead = formats.days_english(config.settings.future_days, 'for the next ')
-		runs = ((trades, {}, f'No new trades {past}.'), (rating, {}, 'No rating changes found'),
+		runs = ((trades, {}, None), (rating, {}, 'No rating changes found'),
 			(milestone, {}, 'No new record highs or lows'), (earnings, {}, f'No events found {ahead}'),
 			(podcasts, {'feed_url': 'https://example.com/feed'}, '📣 No new episodes'),
 			(shorts, {'threshold': 1000}, '🩳 No stocks shorted over 1000%. Try specifying a number.'),
 			(movers, {'mode': 'premarket', 'threshold': 1000}, 'No pre-market price movements meet threshold 1000%'),
 			(movers, {'mode': 'interday', 'threshold': 1000}, 'No price movements meet threshold 1000%'))
 		for module, kwargs, said in runs:
-			for asked, posted in ((False, []), (True, [('text', [said])])):
-				with self.subTest(report=module.__name__, asked=asked):
-					self.sent.clear()
-					self.run_job(module, 'telegram:5', asked, **kwargs)
-					self.assertEqual(self.sent, posted)
+			with self.subTest(report=module.__name__, said=said):
+				self.sent.clear()
+				for now in (False, True):
+					self.run_job(module, 'telegram:5', now, **kwargs)
+				self.assertEqual(self.sent, [])
+				if said:
+					with self.assertRaises(answer.Nothing) as caught:
+						module.run(telegram_common.TelegramBot('5'), **kwargs)
+					self.assertEqual(caught.exception.lines, [said])
 
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
 		"""T1 has no earnings date, even in its details, so its primary listing is looked up: Yahoo not knowing it
@@ -674,9 +678,9 @@ class ScheduledReports(FinbotCase):
 		self.assertNotIn('Record high', str(self.sent))
 
 	def test_rating(self):
-		"""The rating report run now posts, if only to say that no rating changed."""
-		self.run_job(rating, asked=True)
-		self.assertEqual(self.sent, [('text', ['No rating changes found'])])
+		"""The rating report run now posts nothing where no rating changed (a job's run no longer says so)."""
+		self.run_job(rating, now=True)
+		self.assertEqual(self.sent, [])
 
 	def test_rating_keeps_the_last_rating_of_a_ticker_missing_from_a_run(self):
 		"""A ticker missing from one run keeps its last rating, so its change is reported when it comes back; it used to
@@ -961,9 +965,9 @@ class TreemapCommand(FinbotCase):
 class CommandJobs(FinbotCase):
 	"""A job that runs a command of .help posts in its chat what the command posts when typed there."""
 
-	def test_a_command_job_with_nothing_to_show_says_so_only_when_asked(self):
-		"""A command with nothing to show (answer.Nothing) says so typed, and in a job run now (asked), but posts
-		nothing on schedule; .buy & sell posts the list there is, saying the other has none only where asked."""
+	def test_a_command_job_with_nothing_to_show_says_nothing(self):
+		"""A command with nothing to show (answer.Nothing) says so typed, but a job that runs it posts nothing, on
+		schedule or by Run now; .buy & sell posts the list there is, saying the other has none only typed."""
 		def rated(service, chat, actions, length=None, asked=True):
 			"""Sell ratings, and no stock rated buy."""
 			if actions == ['buy']:
@@ -972,12 +976,11 @@ class CommandJobs(FinbotCase):
 		self.patch(rankings, 'prepare_rating_payload', rated)
 		none, sells = ('text', ['No tracked stocks rated buy']), ('text', ['Sells'])
 		both = ('text', ['Sells', 'No tracked stocks rated buy'])
-		self.assertEqual(self.command('.buy & sell'), [both])
-		for name, asked, posted in (('buy&sell', False, [sells]), ('buy&sell', True, [both]), ('buy', False, []),
-				('buy', True, [none])):
-			with self.subTest(name=name, asked=asked):
+		self.assertEqual((self.command('.buy & sell'), self.command('.buy')), ([both], [none]))
+		for name, posted in (('buy&sell', [sells]), ('buy', [])):
+			with self.subTest(name=name):
 				self.sent.clear()
-				worker.job_commands()[name].run(delivery.chat('telegram:55', scheduled=True, asked=asked), words=[])
+				worker.job_commands()[name].run(delivery.chat('telegram:55', scheduled=True), words=[])
 				self.assertEqual(self.sent, posted)
 
 	def test_a_command_job_posts_what_the_typed_command_posts(self):

@@ -83,7 +83,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   finds the command by its whole name, the longest that matches (any other first word that may be a ticker is
   `.SYMBOL`, that word its one word), and `read_args()` its `Args`: a percent, a period and a keyword from either end,
   the words between. `answered()` runs a message's command and a job's alike: more or fewer words than its `words`
-  (`Command.fits`), or a handler's `Usage`, get its usage; an Answer is the reply (Nothing only where asked); a
+  (`Command.fits`), or a handler's `Usage`, get its usage; an Answer is the reply (Nothing never in a job's run); a
   handler gets a ticker with `ticker(args)`. `Request(dest, user, bot_name)` (`request.reply(lines, chart,
   buttons)`); each command gets the typing notice while it works. `process_request(message)` answers a message
   (`delivery.answering` is where), and `process_callback(press)` a press, by its handler (`pressing()`: `menu_press`,
@@ -98,9 +98,9 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   both rewritten in JOBS_FILE once, as it is read and changed: `jobs.clean`). trades, rating,
   milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`), added to only
   by a scheduled run (`delivery.interactive(chat)` is false). A report with nothing to show raises `answer.Nothing`,
-  which its runner (`worker.answered`, `Scheduler.execute`) posts only where someone asked (`delivery.asked(dest)`: a
-  command, a button, or Run now and `.jobs run`, whose destination is scheduled but `asked`); on schedule nothing is
-  posted. Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens:
+  which its runner (`worker.answered`, `Scheduler.execute`) posts only to a command or a button
+  (`delivery.interactive(dest)`); a job's run, on schedule, Run now or `.jobs run`, posts nothing. Chat-only
+  (`prepare_*`): `about` (.help, and the .jobs menu's screens:
   `jobs_screen`, `add_screen`, `next_screen`), `history` (.price, also called .compare and .history: one stock's line, or
   two to eight rebased), `holdings` (.holdings .who .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe
   .fpe .peg .beta .buy .sell).
@@ -224,8 +224,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `SLACK`, `DISCORD`.
 - A command or report that cannot give what was asked (no such portfolio, no prices) raises `answer.Answer(*lines)`,
   which the chat gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report.
-  Nothing to show (no trades, no stock rated buy, nothing moved) raises `answer.Nothing`, an Answer that a job's run on
-  schedule never posts (`worker.answered` for a command, `Scheduler.execute` for a report).
+  Nothing to show (no trades, no stock rated buy, nothing moved) raises `answer.Nothing`, an Answer that a job's run
+  (on schedule, Run now or `.jobs run`) never posts (`worker.answered` for a command, `Scheduler.execute` for a report).
 - Every function and method has a docstring, tests included (a test checks): one line where it fits, reworded rather
   than spilling a few words onto a second. Tabs everywhere (`.editorconfig`). Every line stays within 120 columns,
   tabs counting 4 (an edit quotes whole lines); a test checks all but README.md, CLAUDE.md and `doc/`.

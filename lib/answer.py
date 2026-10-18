@@ -13,6 +13,6 @@ class Answer(Exception):
 
 
 class Nothing(Answer):
-	"""Nothing to show (no trades, no stock rated buy): its lines go to a chat that asked (a command, a button, Run now
-	or .jobs run: delivery.asked), and a job's run on schedule posts nothing (worker.answered for a command,
+	"""Nothing to show (no trades, no stock rated buy): its lines go to a chat that asked (a command or a button:
+	delivery.interactive), and a job's run, on schedule or Run now, posts nothing (worker.answered for a command,
 	Scheduler.execute for a report)."""

@@ -304,8 +304,8 @@ def process_request(message):
 def answered(request, command, args):
 	"""Answer a command (a message's, or a job's: CommandJob) as its handler does what it was given (args): arguments
 	it cannot take (Usage, or more or fewer words than it takes: Command.fits) get its usage; an Answer (a portfolio
-	that is none, a ticker with no prices) is the reply, but nothing to show (answer.Nothing) only where someone asked:
-	not on schedule. Any other failure raises."""
+	that is none, a ticker with no prices) is the reply, but nothing to show (answer.Nothing) only for a command or a
+	button: never in a job's run, on schedule or Run now. Any other failure raises."""
 	try:
 		if not command.fits(args):
 			raise Usage
@@ -313,7 +313,7 @@ def answered(request, command, args):
 	except Usage:
 		request.reply([f"Usage: {slashed(line)}" for line in command.usage])
 	except answer.Answer as e:
-		if not isinstance(e, answer.Nothing) or delivery.asked(request.dest):
+		if not isinstance(e, answer.Nothing) or delivery.interactive(request.dest):
 			request.reply(e.lines)
 
 @dataclasses.dataclass
@@ -528,7 +528,7 @@ def on_rating(request, args):
 	in one message."""
 	actions = list(dict.fromkeys(re.findall('buy|sell', f'{args.word} {args.text}'.lower()))) # each once, as asked
 	payload, chart = rankings.prepare_rating_payload(request.service, request.dest.key, actions,
-		asked=delivery.asked(request.dest))
+		asked=delivery.interactive(request.dest))
 	request.reply(payload, chart)
 
 def on_compare(request, args):

@@ -210,12 +210,13 @@ class FinbotCase(unittest.TestCase):
 		self.assertEqual(self.errors, [], f'{text} crashed') # the worker reports crashes instead of raising
 		return list(self.sent)
 
-	def run_job(self, module, key='telegram:1', asked=False, **kwargs):
-		"""Run a report as a chat's job does (Scheduler.execute: an answer it comes to is posted, but nothing to show
-		only where asked, as by Run now), to the chat of this key, and check that it did not fail."""
+	def run_job(self, module, key='telegram:1', now=False, **kwargs):
+		"""Run a report as a chat's job does, on schedule (Scheduler.execute) or by Run now (now: Scheduler.run), to
+		the chat of this key, and check that it did not fail: an answer it comes to is posted, nothing to show not."""
 		name = module.__name__.rpartition('.')[2]
 		job = jobs.Job(name, (), name, kwargs, when.parse('daily', 'UTC'), key)
-		self.assertEqual(jobs.Scheduler().execute(job, asked=asked), 'done')
+		scheduler = jobs.Scheduler()
+		self.assertEqual(scheduler.run(job) if now else scheduler.execute(job), 'done')
 
 
 DOC = os.path.join(ROOT, 'doc')

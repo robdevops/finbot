@@ -196,9 +196,9 @@ jobs again; a bad file then is logged, and the reminders read before stay.
   episodes), so the same report scheduled in two chats tells each of them once. A run from **Run now** or `/jobs run`
   is a scheduled run: it posts to the chat and updates the same record. A change counts at once, with no reload.
 * A report or command with nothing to show (no new trades, no stock past the threshold, no rating changes) posts
-  nothing on schedule. Asked for, it says so: a command, a keyboard button, **Run now** or `/jobs run`. One that cannot
-  give what it was asked for (a portfolio that is none, Sharesight not set up) says so as a command's reply does, on
-  schedule too.
+  nothing when a job runs it, on schedule, from **Run now** or by `/jobs run`; typed as a command, or from a keyboard
+  button, it says so. One that cannot give what it was asked for (a portfolio that is none, Sharesight not set up)
+  says so as a command's reply does, from a job too.
 * **A job can only run finbot's own reports and commands.** It names a report from a fixed table in `lib/jobs.py` (or
   posting a message), or a command of the table `/help` is made from (`lib/worker.py`) that changes nothing, with
   arguments its parser has checked, kept as words: never a command line, a script or code. A stored job naming anything

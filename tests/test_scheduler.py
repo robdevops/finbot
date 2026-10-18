@@ -721,15 +721,20 @@ class JobsInChat(ChatBase):
 		self.assertIsNone(self.say('.jobs run 1', chat='56')) # a chat seen first has the defaults
 		self.assertEqual(self.dests, [CHAT, 'telegram:56'])
 
-	def test_a_job_run_now_is_asked_for_and_one_on_schedule_is_not(self):
-		"""Run now and .jobs run ask for their run, whose report says when it has nothing to show (delivery.asked); a
-		run on schedule does not."""
-		asked = []
-		self.patch(jobs.ACTIONS['trades'], 'run', lambda dest=None, **kwargs: asked.append(delivery.asked(dest)))
+	def test_a_job_run_now_posts_nothing_where_it_has_nothing_to_show(self):
+		"""Run now and .jobs run run a job as its schedule does: nothing to show (answer.Nothing) posts nothing either
+		way (Run now said so), and an answer of another kind is the reply."""
 		job = self.s.chat_jobs(CHAT)[2]
-		self.s.execute(job)
-		self.s.run(job)
-		self.assertEqual(asked, [False, True])
+		for raised, posted in ((answer.Nothing('No new trades'), []),
+				(answer.Answer('Rob portfolio not found'), [(CHAT, ['Rob portfolio not found'], None)] * 2)):
+			def run(dest=None, **kwargs):
+				"""Come to this round's answer."""
+				raise raised
+			self.patch(jobs.ACTIONS['trades'], 'run', run)
+			with self.subTest(raised=raised):
+				self.replies.clear()
+				self.assertEqual((self.s.execute(job), self.s.run(job)), ('done', 'done'))
+				self.assertEqual(self.replies, posted)
 
 	def test_enable_and_disable_a_job(self):
 		""".jobs disable N switches job N off and .jobs enable N on, whichever way it was; .jobs enable, disable or

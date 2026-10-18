@@ -45,8 +45,7 @@ class Transport:
 	TYPING = (0.5, 7, 10) # the notice: first after 0.5 s (a quick answer gets none), then every 7 s, 10 times at most
 	CHUNK_GAP = 0.0 # seconds between the messages of a reply too long for one, where the network wants a gap
 	PRELOAD_CHAT = '' # the setting that names the network's preload chat, where it preloads (see preload)
-	scheduled = False # posting a scheduled run's report (a chat's job), not a reply to a command
-	asked = False # a scheduled run that someone asked for (Run now, .jobs run): delivery.asked
+	scheduled = False # posting a job's report (on schedule, or Run now), not a reply to a command or a button
 	preload_lock = None # paces the starts of the network's preloads: a network that preloads has its own lock
 	preload_slots = None # its preloads in flight at once: a BoundedSemaphore(PRELOAD_PARALLEL) where it preloads
 	preloaded_at = 0.0 # when the network's last preload began (time.monotonic)

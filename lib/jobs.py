@@ -456,14 +456,13 @@ class Scheduler:
 			self.busy.add(key)
 			return True
 
-	def execute(self, job, asked=False):
+	def execute(self, job):
 		"""Run a job now, in this thread, posting to its chat (a system job posts nothing, and its failure goes to the
-		log): an Answer it comes to is the reply, but nothing to show (answer.Nothing) only where someone asked (Run now
-		and .jobs run: delivery.asked); a failure is reported. A job already running is skipped. One still running
-		after JOB_TIMEOUT is reported as late, once, and runs on: a thread cannot be stopped, but every request it makes
-		has a timeout, so it ends; until then it stays marked running, and no second copy starts. Returns 'done',
-		'failed' or 'already running'."""
-		dest = delivery.chat(job.chat, scheduled=True, asked=asked) if job.chat else None
+		log): an Answer it comes to is the reply, but nothing to show (answer.Nothing) posts nothing; a failure is
+		reported. A job already running is skipped. One still running after JOB_TIMEOUT is reported as late, once, and
+		runs on: a thread cannot be stopped, but every request it makes has a timeout, so it ends; until then it stays
+		marked running, and no second copy starts. Returns 'done', 'failed' or 'already running'."""
+		dest = delivery.chat(job.chat, scheduled=True) if job.chat else None
 		if not self.claim(job.key):
 			log.warn(f'schedule: {job.label} is already running for {job.chat or "the system"}, skipping it')
 			return 'already running'
@@ -475,8 +474,8 @@ class Scheduler:
 		try:
 			job.module.run(dest, **job.kwargs)
 			return 'done'
-		except answer.Answer as e: # an answer, not a failure: nothing to show is said only where someone asked
-			if dest is not None and (delivery.asked(dest) or not isinstance(e, answer.Nothing)):
+		except answer.Answer as e: # an answer, not a failure; a job's run says nothing where it has nothing to show
+			if dest is not None and not isinstance(e, answer.Nothing):
 				delivery.deliver(dest, delivery.Report(e.lines))
 			return 'done'
 		except (Exception, SystemExit) as e: # a library's sys.exit would end the thread unreported
@@ -530,12 +529,12 @@ class Scheduler:
 		return next(number for number, job in enumerate(self.chat_jobs(chat), 1) if job.key == key)
 
 	def run(self, job):
-		"""Run a job now, as its schedule would, and note the run: its outcome (see execute). Someone asked for it, so
-		it says when it has nothing to show."""
+		"""Run a job now (Run now, .jobs run), as its schedule would, nothing to show posting nothing, and note the
+		run: its outcome (see execute)."""
 		with self.lock:
 			self.last[job.key] = self.clock().isoformat()
 		self.save_runs()
-		return self.execute(job, asked=True)
+		return self.execute(job)
 
 	def see(self, chat, dm=None):
 		"""A chat seen, at a command of its: one finbot does not know yet starts with the default jobs, switched on,

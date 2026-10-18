@@ -44,15 +44,14 @@ def answering(event):
 	return reply_to(event.service, event.chat_id, event.message_id, event.interaction)
 
 
-def chat(key, scheduled=False, asked=False):
+def chat(key, scheduled=False):
 	"""The destination of a chat by its key ('telegram:-1001234', Transport.key), as its network's bot; scheduled: for a
-	scheduled run, whose reports keep their record of what they told it; asked: one that someone asked for (Run now,
-	.jobs run), which says when it has nothing to show."""
+	job's run (on schedule, or Run now), whose reports keep their record of what they told it."""
 	network, where = transports.split_key(key)
 	dest = reply_to(network, where)
 	if dest is None:
 		raise ValueError(f'no chat {key!r}: no such network')
-	dest.scheduled, dest.asked = scheduled, asked
+	dest.scheduled = scheduled
 	return dest
 
 
@@ -89,15 +88,10 @@ class Preloader:
 
 
 def interactive(dest):
-	"""Whether a report answers a command (dest, the chat that asked), not a scheduled run (dest a job's chat): a
-	scheduled run tells each chat only what it has not told it before."""
+	"""Whether a report answers a command or a button (dest, the chat that asked), not a job's run (dest a job's chat,
+	on schedule or Run now): a job's run tells each chat only what it has not told it before, and nothing where there
+	is nothing to show (answer.Nothing), which a command or a button is told."""
 	return not dest.scheduled
-
-
-def asked(dest):
-	"""Whether someone asked for what goes to dest, and is told when there is nothing to show (answer.Nothing): a
-	command (interactive) or a job run now; a run on schedule posts nothing then."""
-	return not dest.scheduled or dest.asked
 
 
 def deliver(dest, report):
