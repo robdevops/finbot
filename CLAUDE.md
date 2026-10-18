@@ -87,16 +87,18 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   buttons)`); each command gets the typing notice while it works. `process_request(message)` answers a message
   (`delivery.answering` is where), and `process_callback(press)` a press, by its handler (`pressing()`: `menu_press`,
   `pick_press`, `watchlist_press`, `chart_press`), its Answer a plain reply and any other failure reported once.
-- `lib/reports/`: what finbot says. Scheduled (each has `run(dest=None, **kwargs)`, which posts to the chat that asked
-  or the job's chat, and with no dest raises: there are no home chats (`delivery.target`); `job(argv)`, its arguments'
-  parser (`reports.no_arguments(name)` for one that takes none); and `ARGUMENTS`, what `.jobs add` lists): `movers
+- `lib/reports/`: what finbot says. Scheduled (each has `run(chat, **kwargs)`, which posts to the chat, a command's or
+  a job's (a system job's takes none); one whose job takes arguments has `job(argv)`, their parser, and `ARGUMENTS`,
+  what `.jobs add` lists, and one without takes none (`jobs.job_args`, `jobs.takes`; `reports.optional_days` for a
+  number of days); one with period buttons returns what they carry, `(kind, args, shown)`, which the worker primes): `movers
   performance trades shorts earnings rating milestone message podcasts cleanup sharesight_warm yahoo_warm` (`jobs.RENAMED`:
   a job stored under an old name runs under the new, as `price` does as `movers`, and `cal` with its earnings or
   ex-dividend argument as `earnings`, which posts both; `jobs.OLD_KEYS` for a default job's old keys in a chat's record). trades, rating,
   milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`), added to only
-  by a scheduled run (`delivery.interactive(dest)` is false). A report with nothing to show says so only where someone
-  asked (`delivery.asked(dest)`: a command, a button, or Run now and `.jobs run`, whose destination is scheduled but
-  `asked`); on schedule it posts nothing. Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens:
+  by a scheduled run (`delivery.interactive(chat)` is false). A report with nothing to show raises `answer.Nothing`,
+  which its runner (`worker.answered`, `Scheduler.execute`) posts only where someone asked (`delivery.asked(dest)`: a
+  command, a button, or Run now and `.jobs run`, whose destination is scheduled but `asked`); on schedule nothing is
+  posted. Chat-only (`prepare_*`): `about` (.help, and the .jobs menu's screens:
   `jobs_screen`, `add_screen`, `next_screen`), `history` (.price, also called .compare and .history: one stock's line, or
   two to eight rebased), `holdings` (.holdings .who .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe
   .fpe .peg .beta .buy .sell).
@@ -130,10 +132,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   `◀` `▶` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
   is), `.price`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, their buttons and the `.watchlist` Edit's
   built by `pick.ticker_buttons` and `buttons.page_buttons`, one more refused (act `f`: `buttons.refusal`, in
-  `bot.take`); a treemap primes its other charts in a thread (`pick.prime`, started by
-  `worker.prime_in_background`); every chart with period buttons primes its other periods (`charts.prime`,
-  `worker.prime_periods` after `.price`, `.movers`, `.performance`, `chart_reply` and the pickers); neither for a
-  scheduled run.
+  `bot.take`); a treemap primes its other charts (`pick.treemaps`), and every chart with period buttons its other
+  periods (`charts.periods`, by `worker.prime_periods` after `.price`, `.movers`, `.performance`, `chart_reply` and the
+  pickers), both in a thread (`charts.prime_in_background`: `charts.prime`, which logs a chart with nothing to draw at
+  debug); neither for a scheduled run.
 - `.watchlist` typed bare has an Edit button (`worker.watchlist_screen`, `watchlist_press`: a `PickPress` of command `w`): its tickers
   red as they are pressed (struck through in the list), Delete deleting them; the `.jobs` list strikes through the jobs that are
   off (❌), and Edit draws their buttons red. The `.jobs` menu's screens: top, Edit, Run, Upcoming and Add's steps; typed
@@ -145,8 +147,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   (`keyboard`), the `.jobs` menu's (`menu_button`, a `MenuPress`), what a pressed button's data asks for (`parse`), and the
   toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so
   it is unique in a message.
-  `lib/charts.py`: a chart with period buttons, built by its kind's builder (`build`) for the command's first view
-  (`worker.chart_reply`) and for each press.
+  `lib/charts.py`: a chart with period buttons, built by its kind's builder (`build`: lines and a chart) for the
+  command's first view (`worker.chart_reply`) and for each press, its period when none is typed `buttons.DEFAULT_PERIOD`.
 - `lib/dialects.py`: each network's markup and message sizes. `lib/markets.py`: one table by market code (flag,
   currency, Yahoo suffix, Google code; Sharesight's codes, so TSE is Toronto), and `code(name)` for any name an exchange
   goes by. `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`:
@@ -206,10 +208,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   with `service.bold(text)`, `.italic`, `.strike`, `.link(url, text)`, user-written text through
   `service.escape(text)`, stock links through `links.finance_link(symbol, exchange, service)`. Tests pass `TELEGRAM`,
   `SLACK`, `DISCORD`.
-- A command that cannot give what was asked (no such portfolio, no prices) raises `answer.Answer(*lines)`, which the
-  chat gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report. What has
-  nothing to show and no destination to ask (the rankings, `.who`) raises `answer.Nothing`, an Answer that a job's
-  run on schedule never posts (`CommandJob.run`).
+- A command or report that cannot give what was asked (no such portfolio, no prices) raises `answer.Answer(*lines)`,
+  which the chat gets as a plain reply; `yahoo.NoData` is one. Any other exception becomes a one-line ⚠️ error report.
+  Nothing to show (no trades, no stock rated buy, nothing moved) raises `answer.Nothing`, an Answer that a job's run on
+  schedule never posts (`worker.answered` for a command, `Scheduler.execute` for a report).
 - Every function and method has a docstring, tests included (a test checks): one line where it fits, reworded rather
   than spilling a few words onto a second. Tabs everywhere (`.editorconfig`). Every line stays within 120 columns,
   tabs counting 4 (an edit quotes whole lines); a test checks all but README.md, CLAUDE.md and `doc/`.

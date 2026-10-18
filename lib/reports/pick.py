@@ -3,13 +3,11 @@ what it is about, or a job runs one so: the answer for the first portfolio or th
 the portfolios or tickers under it, one message edited as each is pressed (buttons.PickPress). Each answer takes the
 message over and leaves the buttons under it, the item shown marked, so another can be picked. The ticker picker is
 .price's: its period row ends in +, which opens the tickers to tick, and it starts on the biggest holding."""
+import functools
+
 from lib import answer
 from lib import buttons
-from lib import charts
 from lib import config
-from lib import delivery
-from lib import log
-from lib import render
 from lib import sharesight
 from lib import watchlist
 from lib.reports import holdings
@@ -70,25 +68,14 @@ def shown_names(cmd, found, shown):
 		return [found[number] for number in unpack(shown) if 0 <= number < len(found)] if shown else []
 	return [found[shown - 1]] if 0 < shown <= len(found) else []
 
-def prime(service, cmd, group, found, index):
-	"""Draw, to fill the cache, the charts a button of a treemap picker would ask for: the other groupings of the
-	portfolio shown (found[index]) first, then every other portfolio in all, each uploaded ahead as it is drawn to the
-	network's preload chat where a setting names one (delivery.Preloader). A failure is logged, never raised. Each
-	chart's times are logged (charts.primed)."""
+def treemaps(service, group, found, index):
+	"""What charts.prime takes to draw the treemaps a button of a treemap picker would ask for: the other groupings of
+	the portfolio shown (found[index]) first, then every other portfolio in all."""
 	by = holdings.GROUPS.get(group, 'industry')
 	wanted = [(found[index], each) for each in holdings.GROUPS.values() if each != by] + [(name, each)
 		for name in found if name != found[index] for each in holdings.GROUPS.values()]
-	preloader = delivery.Preloader(service)
-	for name, by in wanted:
-		try:
-			(_, chart), built = charts.timed(holdings.prepare_treemap, name, by, service)
-			if chart and chart.rows:
-				image, drew = charts.timed(render.draw, chart)
-				preloader.add(image)
-				charts.primed(f"{cmd} {name} by {by}", built, drew)
-		except Exception as e:
-			log.warn("priming", cmd, name, by, "failed:", e)
-	preloader.finish()
+	return [(f"t {name} by {by}", functools.partial(holdings.prepare_treemap, name, by, service))
+		for name, by in wanted]
 
 def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=None):
 	"""A picker's screen, as (lines, rows): `view` 'p', the first (the portfolios; for tickers the period and the way

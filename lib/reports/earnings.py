@@ -1,13 +1,13 @@
 """.earnings and .dividend: upcoming earnings and ex-dividend dates (scheduled: earnings)."""
 import datetime
 
+from lib import answer
 from lib import config
 from lib import formats
 from lib import links
 from lib import markets
 from lib import watchlist
 from lib import delivery
-from lib import reports
 from lib import yahoo
 
 def primary_listings():
@@ -17,12 +17,11 @@ def primary_listings():
 EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'),
 	'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
 
-def run(dest=None, *, days=None, specific_stock=None, event='both'):
+def run(chat, *, days=None, specific_stock=None, event='both'):
 	"""Post the earnings or ex-dividend dates ahead (`event`: both by default, in one chronological list with each
-	line named for its event) for the stocks a chat follows or one (Yahoo's symbol): to the chat that asked or whose
-	job it is (dest). The scheduled report is pinned where the network can; a reply is not, or the chat would collect
-	pinned copies."""
-	chat, interactive = delivery.target(dest), delivery.interactive(dest)
+	line named for its event) for the stocks a chat follows or one (Yahoo's symbol), to the chat (a command's or a
+	job's). The scheduled report is pinned where the network can; a reply is not, or the chat would collect pinned
+	copies. Raises answer.Nothing where there are none."""
 	if days is None:
 		days = config.settings.future_days
 	tickers = watchlist.covered(chat.key, specific_stock)
@@ -31,9 +30,8 @@ def run(dest=None, *, days=None, specific_stock=None, event='both'):
 			key=lambda item: item[0])
 	else:
 		events = gather(tickers, days, specific_stock, event)
-	payload = report(chat.dialect, events, days, specific_stock, delivery.asked(dest), event)
-	answers = delivery.deliver(chat, delivery.Report(payload))
-	if event == 'both' and not specific_stock and not interactive and hasattr(chat, 'pin'):
+	answers = delivery.deliver(chat, delivery.Report(report(chat.dialect, events, days, specific_stock, event)))
+	if event == 'both' and not specific_stock and not delivery.interactive(chat) and hasattr(chat, 'pin'):
 		chat.pin(answers) # the scheduled report stays on top, where the network can pin
 
 def gather(tickers, days, specific_stock, event):
@@ -81,9 +79,9 @@ def primary_listing(ticker, data, field):
 		return other, details
 	return None, None
 
-def report(service, events, days, specific_stock, asked, event):
-	"""The events in one network's markup, grouped by date under a heading (one stock's carry their dates instead);
-	where there is none, a line saying so where someone asked, else nothing."""
+def report(service, events, days, specific_stock, event):
+	"""The events in one network's markup, grouped by date under a heading (one stock's carry their dates instead).
+	Raises answer.Nothing where there are none."""
 	heading = 'Upcoming earnings and ex-dividends' if event == 'both' else EVENTS[event][1]
 	blocks = []
 	for date in sorted({when.date() for when, *_ in events}):
@@ -93,13 +91,7 @@ def report(service, events, days, specific_stock, asked, event):
 			if when.date() == date]
 		blocks.append(lines if specific_stock else [service.bold(f"{date:%b %d}")] + lines)
 	payload = sum(blocks, []) if specific_stock else formats.sections(*blocks)
-	if payload and not specific_stock:
-		payload = formats.sections([service.bold(f"{heading} {formats.days_english(days, 'for the next ')}:")], payload)
-	elif not payload and asked:
-		ahead = formats.days_english(days, 'for the next ')
-		payload = [f"No events found for {specific_stock}" if specific_stock else f"No events found {ahead}"]
-	return payload
-
-ARGUMENTS = '' # what a scheduled run takes: nothing
-
-job = reports.no_arguments('earnings')
+	ahead = formats.days_english(days, 'for the next ')
+	if not payload:
+		raise answer.Nothing(f"No events found for {specific_stock}" if specific_stock else f"No events found {ahead}")
+	return payload if specific_stock else formats.sections([service.bold(f"{heading} {ahead}:")], payload)

@@ -4,7 +4,6 @@ import dataclasses
 import functools
 import math
 import re
-import threading
 import typing
 from lib import log
 from lib import answer
@@ -216,31 +215,27 @@ def pick_press(chat, press, pressed):
 		prime_periods(chat, 'c', names, period)
 
 def pick_content(service, chat, cmd, group, period, names):
-	"""A picker's answer for the portfolio (treemap, holdings) or tickers (compare) `names`: (caption, chart or
-	None)."""
+	"""A picker's answer for the portfolio (treemap, holdings) or tickers (compare) `names`: (lines, chart or None)."""
 	if cmd == 'h':
 		try:
-			return '\n'.join(holdings.prepare_holdings_payload(names[0], service)), None
+			return holdings.prepare_holdings_payload(names[0], service), None
 		except answer.Nothing as e: # shown in place, under the picker's buttons
-			return '\n'.join(e.lines), None
+			return e.lines, None
 	if cmd == 't':
-		lines, chart = holdings.prepare_treemap(names[0], holdings.GROUPS.get(group, 'industry'), service)
-		return '\n'.join(lines), chart
+		return holdings.prepare_treemap(names[0], holdings.GROUPS.get(group, 'industry'), service)
 	return charts.build('c', names, service, chat.key, period=period if period != '0' else 'x')
 
 def pick_answer(service, chat, message, cmd, group, period, names, rows, note=None):
 	"""The pressed picker message turned into the answer of its command for the item (a portfolio's) or items
 	(compare's tickers), the picker's button rows left under it, after a note if there is one: a chart, or text (the
 	holdings)."""
-	if cmd == 'h':
-		lines = pick_content(service, chat, cmd, group, period, names)[0].split('\n')
-		return chat.edit_lines(message, ([note] if note else []) + lines, rows)
-	caption, chart = pick_content(service, chat, cmd, group, period, names)
-	caption = f"{note}\n{caption}" if note else caption
+	lines, chart = pick_content(service, chat, cmd, group, period, names)
+	lines = ([note] if note else []) + lines
 	if pick.as_photo(chat, cmd):
-		chat.edit_chart(message, render.draw(chart) if chart and chart.rows else render.blank(), caption, rows)
+		chat.edit_chart(message, render.draw(chart) if chart and chart.rows else render.blank(), '\n'.join(lines),
+			rows)
 	else:
-		chat.edit_lines(message, caption.split('\n'), rows)
+		chat.edit_lines(message, lines, rows)
 
 def process_callback(press):
 	"""A button pressed (an inbound.Press, which bot.take acknowledged as it arrived): the message pressed answers what
@@ -267,14 +262,14 @@ def chart_press(chat, press, pressed):
 	args = buttons.resolve(pressed.ref)
 	markup = buttons.keyboard(pressed.kind, args, pressed.period)
 	if pressed.kind in charts.TEXT:
-		caption, _ = charts.build(pressed.kind, args, chat.dialect, chat.key, period=pressed.period)
-		return chat.edit_lines(press.message_id, caption.split('\n'), markup)
+		lines, _ = charts.build(pressed.kind, args, chat.dialect, chat.key, period=pressed.period)
+		return chat.edit_lines(press.message_id, lines, markup)
 	if chat.reshow(press.message_id, markup): # that period as posted lately (Slack, Telegram): nothing built
 		return
-	caption, chart = charts.build(pressed.kind, args, chat.dialect, chat.key, period=pressed.period)
+	lines, chart = charts.build(pressed.kind, args, chat.dialect, chat.key, period=pressed.period)
 	if not (chart and chart.rows): # too few prices in that period to draw a line
 		raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[pressed.period][0]}")
-	chat.edit_chart(press.message_id, render.draw(chart), caption, markup)
+	chat.edit_chart(press.message_id, render.draw(chart), '\n'.join(lines), markup)
 
 def process_request(message):
 	"""A chat message (an inbound.Message): the command it calls (see read) answers it, with the typing notice
@@ -478,12 +473,11 @@ def on_calendar(request, args):
 	earnings.run(request.dest, days=args.days, specific_stock=ticker(args), event=event)
 
 def on_performance(request, args):
-	""".performance [period] [portfolio]: each portfolio's return, over a month by default."""
-	days = buttons.PERIODS['m'][1] if args.days is None else args.days # the default view is the 1M button
+	""".performance [period] [portfolio]: each portfolio's return, over a month by default (DEFAULT_PERIOD)."""
+	days = buttons.PERIODS[buttons.DEFAULT_PERIOD['f']][1] if args.days is None else args.days
 	if days < 1: # 0d, or ytd on 1 January
 		raise answer.Answer("The period must cover a day or more, such as 7d, 3m or ytd")
-	performance.run(request.dest, past_days=days, portfolio_select=args.rest or None)
-	prime_periods(request.dest, 'f', [args.rest or ''], buttons.period_for_days(days))
+	prime_periods(request.dest, *performance.run(request.dest, past_days=days, portfolio_select=args.rest or None))
 
 # the modes of .movers session and premarket, which were commands of their own and still answer typed
 SESSIONS = {'session': 'midsession', 'premarket': 'premarket', 'postmarket': 'premarket', 'permarket': 'premarket'}
@@ -501,9 +495,9 @@ def on_movers(request, args):
 	if args.words:
 		raise Usage
 	top = 10 if args.keyword else None # top or bottom: one chart shows both ends
-	movers.run(request.dest, mode='period' if args.days else 'interday', threshold=0 if top else args.percent,
-		days=args.days, top=top, user=request.user)
-	prime_periods(request.dest, 'l', *movers.list_buttons(0 if top else args.percent, top, args.days))
+	if attached := movers.run(request.dest, mode='period' if args.days else 'interday',
+			threshold=0 if top else args.percent, days=args.days, top=top, user=request.user):
+		prime_periods(request.dest, *attached)
 
 def on_shorts(request, args):
 	""".shorts [percent|SYMBOL]: the most shorted stocks followed, or one stock's short interest."""
@@ -511,8 +505,8 @@ def on_shorts(request, args):
 
 def on_trades(request, args):
 	""".trades [period] [portfolio]: the buys and sells, of the past day by default."""
-	trades.run(request.dest, days=1 if args.days is None else args.days, user=request.user,
-		portfolio_select=args.rest or None)
+	days = buttons.PERIODS[buttons.DEFAULT_PERIOD['r']][1] if args.days is None else args.days
+	trades.run(request.dest, days=days, user=request.user, portfolio_select=args.rest or None)
 
 def on_holdings(request, args):
 	""".holdings [PORTFOLIO]: what it holds; with no portfolio, the first one's, with buttons for them."""
@@ -611,37 +605,33 @@ def send_picker(request, cmd, found, group, period, shown, mask):
 	for a command asked for (not a job's run), the answer's other charts drawn in the background to fill the cache."""
 	dest = request.dest
 	_, rows = pick.screen(request.service, cmd, found, group, period, shown, mask, 'p')
-	caption, chart = pick_content(request.service, dest, cmd, group, period, pick.shown_names(cmd, found, shown))
+	lines, chart = pick_content(request.service, dest, cmd, group, period, pick.shown_names(cmd, found, shown))
 	if not pick.as_photo(dest, cmd):
-		dest.text(caption.split('\n'), rows) # no chart goes (the holdings, the graph off): the answer as text
+		dest.text(lines, rows) # no chart goes (the holdings, the graph off): the answer as text
 	elif chart and chart.rows:
-		request.reply(caption.split('\n'), chart, rows)
+		request.reply(lines, chart, rows)
 	else: # nothing to draw (no holdings, too few prices): a photo all the same, which a press can turn into a chart
-		dest.chart(render.blank(), caption, rows)
-	if cmd == 't' and pick.as_photo(dest, cmd) and delivery.interactive(dest):
-		prime_in_background(request.service, cmd, group, found, 0)
+		dest.chart(render.blank(), '\n'.join(lines), rows)
+	if cmd == 't' and pick.as_photo(dest, cmd) and delivery.interactive(dest): # the picker's other charts
+		charts.prime_in_background(request.service, pick.treemaps(request.service, group, found, 0))
 	elif cmd == 'c' and chart:
 		prime_periods(dest, 'c', pick.shown_names(cmd, found, shown), period)
 
-def prime_in_background(service, cmd, group, found, index):
-	"""Start drawing a picker's other charts, to fill the cache, in a thread of its own (see pick.prime)."""
-	threading.Thread(target=pick.prime, args=(service, cmd, group, found, index), daemon=True).start()
-
 def chart_reply(request, kind, args, days=None):
-	"""The first view of a chart with period buttons, built as a button press builds it (charts.build): its caption,
-	chart and buttons where they go, the period shown marked (Max when days is None)."""
-	caption, chart = charts.build(kind, args, request.service, request.dest.key, days=days)
-	markup = buttons.keyboard(kind, args, buttons.period_for_days(days) if days else 'x') if chart else None
-	request.reply(caption.split('\n'), chart, markup)
+	"""The first view of a chart with period buttons, built as a button press builds it (charts.build): its lines,
+	chart and buttons where they go, the period shown marked (its kind's DEFAULT_PERIOD when days is None)."""
+	lines, chart = charts.build(kind, args, request.service, request.dest.key, days=days)
+	shown = buttons.period_for_days(days) if days else buttons.DEFAULT_PERIOD[kind]
+	request.reply(lines, chart, buttons.keyboard(kind, args, shown) if chart else None)
 	if chart:
-		prime_periods(request.dest, kind, args, buttons.period_for_days(days) if days else 'x')
+		prime_periods(request.dest, kind, args, shown)
 
 def prime_periods(dest, kind, args, shown):
 	"""After a chart with period buttons is sent to a chat (dest; kind, args and the period `shown`: charts.build), its
 	other periods are drawn in the background to fill the cache, where the chat can use them: a command asked for, or a
 	picker's press, with charts."""
 	if dest.takes_charts and config.settings.graph and delivery.interactive(dest):
-		charts.prime_in_background(kind, args, dest.dialect, dest.key, shown)
+		charts.prime_in_background(dest.dialect, charts.periods(kind, args, dest.dialect, dest.key, shown))
 
 def on_who(request, args):
 	""".who SYMBOL: the portfolios that hold it."""
@@ -969,9 +959,9 @@ def job_words(chat, words):
 	if action != 'add':
 		return []
 	if len(words) == 1:
-		return [(name, f'{name} {jobs.actions()[name].ARGUMENTS}'.strip()) for name in jobs.chat_actions()]
+		return [(name, f'{name} {jobs.takes(jobs.actions()[name])}'.strip()) for name in jobs.chat_actions()]
 	module = jobs.actions().get(words[1].lower())
 	if module is None or words[1].lower() not in jobs.chat_actions():
 		return []
-	takes = re.findall(r'[a-z][a-z-]*', module.ARGUMENTS) if len(words) == 2 else []
+	takes = re.findall(r'[a-z][a-z-]*', jobs.takes(module)) if len(words) == 2 else []
 	return [(word, word) for word in dict.fromkeys(takes + list(SCHEDULE_WORDS))]

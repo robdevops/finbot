@@ -9,6 +9,7 @@ from lib import links
 from lib import render
 from lib import yahoo
 from lib import buttons
+from lib import reports
 
 BENCHMARKS = (('SPY', 'NYSEARCA', 'S&P 500'), ('QQQ', 'NasdaqGM', 'NASDAQ 100'))
 
@@ -44,25 +45,16 @@ def report(service, past_days, portfolio_select=None):
 	span = f"% change {'' if period == 'today' else 'over '}{period}"
 	return payload, render.Chart('bars', "Performance", span, tuple(chart_rows), value_format='percent2')
 
-def run(dest=None, *, past_days=None, portfolio_select=None):
+def run(chat, *, past_days=None, portfolio_select=None):
 	"""Post each portfolio's performance over past_days (the past_days setting when None), or the one named, beside
-	the benchmarks: to the chat that asked or whose job it is (dest), with its chart and period buttons where they can
-	go."""
-	chat = delivery.target(dest)
+	the benchmarks, to the chat (a command's or a job's), with its chart and period buttons where they can go: their
+	(kind, arguments, the period marked), as charts.prime takes them."""
 	if past_days is None:
 		past_days = config.settings.past_days
 	payload, graph = report(chat.dialect, past_days, portfolio_select)
-	markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days))
-	delivery.deliver(chat, delivery.Report(payload, graph, markup))
+	attached = ('f', [portfolio_select or ''], buttons.period_for_days(past_days))
+	delivery.deliver(chat, delivery.Report(payload, graph, buttons.keyboard(*attached)))
+	return attached
 
 ARGUMENTS = '[DAYS]' # what a scheduled run takes
-
-def job(argv):
-	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
-	match argv:
-		case []:
-			return 'performance', {}
-		case [days] if days.isdigit():
-			return f'performance {days}', {'past_days': int(days)}
-		case _:
-			raise ValueError(ARGUMENTS)
+job = reports.optional_days('performance', 'past_days')

@@ -3,6 +3,7 @@ them by age too (remove)."""
 import os, time
 from lib import log
 from lib import config
+from lib import reports
 
 def run(dest=None, *, days=30):
 	"""Delete the cache files (finbot_*) that were last written more than `days` days ago (days=0: all of them, a
@@ -35,13 +36,4 @@ def remove(before=None, after=None, directory=None):
 	return removed
 
 ARGUMENTS = '[DAYS]' # what a scheduled run takes
-
-def job(argv):
-	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
-	match argv:
-		case []:
-			return 'cleanup', {}
-		case [days] if days.isdigit():
-			return f'cleanup {days}', {'days': int(days)}
-		case _:
-			raise ValueError(ARGUMENTS)
+job = reports.optional_days('cleanup', 'days')

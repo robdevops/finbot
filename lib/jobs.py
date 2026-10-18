@@ -16,6 +16,7 @@ import math
 import threading
 import time
 
+from lib import answer
 from lib import buttons
 from lib import catalog
 from lib import config
@@ -127,6 +128,21 @@ def actions():
 	return {**command_actions(), **ACTIONS}
 
 
+def job_args(action, name, argv):
+	"""(label, run's keyword arguments) that an action (a report module, or a command: CommandJob) makes of a job's
+	words, by its job(); one without a job() takes none. Raises ValueError, with what it takes, for words it cannot."""
+	if hasattr(action, 'job'):
+		return action.job(argv)
+	if argv:
+		raise ValueError('no arguments')
+	return name, {}
+
+
+def takes(action):
+	"""What an action's job takes, as .jobs add lists it (ARGUMENTS): '' for none."""
+	return getattr(action, 'ARGUMENTS', '')
+
+
 def command_actions():
 	"""The commands of .help that a job may run, by each name a job may call one by (worker.job_commands)."""
 	from lib import worker # here, not at the top: worker imports this module
@@ -151,7 +167,7 @@ def make_job(action, args, schedule, chat='', on=True, item=None, name=None):
 		raise ScheduleError(f'{action} takes words, not {args!r}')
 	action = getattr(known[action], 'key', action) # a command's other name (a typo too) stands for its first
 	try:
-		label, kwargs = known[action].job(list(args))
+		label, kwargs = job_args(known[action], action, list(args))
 	except ValueError as e:
 		raise ScheduleError(f'{action} takes {e}')
 	if not isinstance(schedule, when.Schedule):
@@ -279,7 +295,7 @@ def parse_add(text, zone):
 			continue
 		args = words[:cut] or catalog.period_args(name, schedule)
 		try:
-			known[name].job(args)
+			job_args(known[name], name, args)
 		except ValueError as e:
 			wrong = ScheduleError(f'{name} takes {e}')
 			continue
@@ -422,10 +438,11 @@ class Scheduler:
 
 	def execute(self, job, asked=False):
 		"""Run a job now, in this thread, posting to its chat (a system job posts nothing, and its failure goes to the
-		log); a failure is reported. Run now and .jobs run ask for theirs (asked: delivery.asked), so a report with
-		nothing to show says so. A job already running is skipped. One still running after JOB_TIMEOUT is reported
-		as late, once, and runs on: a thread cannot be stopped, but every request it makes has a timeout, so it ends;
-		until then it stays marked running, and no second copy starts. Returns 'done', 'failed' or 'already running'."""
+		log): an Answer it comes to is the reply, but nothing to show (answer.Nothing) only where someone asked (Run now
+		and .jobs run: delivery.asked); a failure is reported. A job already running is skipped. One still running
+		after JOB_TIMEOUT is reported as late, once, and runs on: a thread cannot be stopped, but every request it makes
+		has a timeout, so it ends; until then it stays marked running, and no second copy starts. Returns 'done',
+		'failed' or 'already running'."""
 		dest = delivery.chat(job.chat, scheduled=True, asked=asked) if job.chat else None
 		if not self.claim(job.key):
 			log.warn(f'schedule: {job.label} is already running for {job.chat or "the system"}, skipping it')
@@ -437,6 +454,10 @@ class Scheduler:
 		late.start()
 		try:
 			job.module.run(dest, **job.kwargs)
+			return 'done'
+		except answer.Answer as e: # an answer, not a failure: nothing to show is said only where someone asked
+			if dest is not None and (delivery.asked(dest) or not isinstance(e, answer.Nothing)):
+				delivery.deliver(dest, delivery.Report(e.lines))
 			return 'done'
 		except (Exception, SystemExit) as e: # a library's sys.exit would end the thread unreported
 			delivery.report_error(e, dest, context=job.label)

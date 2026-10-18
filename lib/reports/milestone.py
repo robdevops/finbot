@@ -1,5 +1,5 @@
 """Record highs and lows (all-time) among the stocks followed (scheduled: milestone)."""
-from lib import reports
+from lib import answer
 from lib import state
 from lib import delivery
 from lib import formats
@@ -9,20 +9,20 @@ from lib import yahoo
 
 STATE_FILE = 'finbot_milestone.json' # each chat's {ticker: {'all_time_high': ..., 'all_time_low': ...}}
 
-def run(dest=None):
-	"""Post the stocks a chat follows that set an all-time high or low, against its record, to the job's chat (dest),
-	none said so only where someone asked (delivery.asked), and record the chat's new records."""
-	chat = delivery.target(dest)
+def run(chat):
+	"""Post the stocks a chat follows that set an all-time high or low, against its record, to the job's chat, and
+	record the chat's new records. Raises answer.Nothing, once they are recorded, where none set one."""
 	tickers = watchlist.with_holdings(chat.key)
 	market_data = yahoo.fetch(tickers)
 	highs, lows, changed = compare(tickers, market_data, state.load_for(chat.key, STATE_FILE, {}))
 	payload = report(chat.dialect, market_data, highs, lows)
-	if not payload and delivery.asked(dest):
-		payload = ["No new record highs or lows"]
-	delivery.deliver(chat, delivery.Report(payload))
+	if payload:
+		delivery.deliver(chat, delivery.Report(payload))
 	if changed:
 		with state.edit_for(chat.key, STATE_FILE, {}) as recorded:
 			recorded.update(changed)
+	if not payload:
+		raise answer.Nothing("No new record highs or lows")
 
 def compare(tickers, market_data, records):
 	"""(the tickers at a record high, those at a record low, {ticker: its records after this run}): each one's 52-week
@@ -57,7 +57,3 @@ def report(service, market_data, highs, lows):
 		return links.stock_line(ticker, market_data[ticker], service)
 	return formats.sections(highs and [service.bold('Record high:')] + sorted(line(ticker) for ticker in highs),
 		lows and [service.bold('Record low:')] + sorted(line(ticker) for ticker in lows))
-
-ARGUMENTS = '' # what a scheduled run takes: none
-
-job = reports.no_arguments('milestone')

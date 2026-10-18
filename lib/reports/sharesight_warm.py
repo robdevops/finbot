@@ -1,6 +1,5 @@
 """Keeps Sharesight's portfolio list and holdings reports fresh in the cache (scheduled: sharesight_warm), so that a
 request never waits on Sharesight. The price histories have their own, yahoo_warm."""
-from lib import reports
 from lib import log
 from lib import config, sharesight
 
@@ -17,7 +16,3 @@ def run(dest=None):
 	except Exception as e:
 		log.warn("sharesight_warm: refresh failed:", e)
 		return 0
-
-ARGUMENTS = '' # what a scheduled run takes: none
-
-job = reports.no_arguments('sharesight_warm')

@@ -91,20 +91,13 @@ class Preloader:
 def interactive(dest):
 	"""Whether a report answers a command (dest, the chat that asked), not a scheduled run (dest a job's chat): a
 	scheduled run tells each chat only what it has not told it before."""
-	return dest is not None and not dest.scheduled
+	return not dest.scheduled
 
 
 def asked(dest):
 	"""Whether someone asked for what goes to dest, and is told when there is nothing to show (answer.Nothing): a
 	command (interactive) or a job run now; a run on schedule posts nothing then."""
-	return dest is not None and (not dest.scheduled or dest.asked)
-
-
-def target(dest):
-	"""Where a report goes: the chat that asked for it, or whose job it is (dest). Raises RuntimeError without one."""
-	if dest is None:
-		raise RuntimeError('nowhere to post: a report goes to the chat that asked for it, or whose job it is')
-	return dest
+	return not dest.scheduled or dest.asked
 
 
 def deliver(dest, report):

@@ -13,13 +13,13 @@ OCTOBER = datetime.datetime(2026, 10, 15, tzinfo=when.UTC)
 
 class Actions(unittest.TestCase):
 	def test_a_job_runs_only_a_report_or_a_command_of_finbots_own(self):
-		"""Each action a job may run is a report module of finbot's own, with its run and its parser, or a command of
-		.help that changes nothing, by one of its names; a chat may schedule all but the system's, the commands listed
-		by their names in .help."""
+		"""Each action a job may run is a report module of finbot's own, with its run (and its parser, where it takes
+		arguments), or a command of .help that changes nothing, by one of its names; a chat may schedule all but the
+		system's, the commands listed by their names in .help."""
 		for name, module in jobs.ACTIONS.items():
 			with self.subTest(name=name):
 				self.assertEqual(module.__name__, f'lib.reports.{name}')
-				self.assertTrue(callable(module.run) and callable(module.job))
+				self.assertTrue(callable(module.run) and callable(getattr(module, 'job', print)))
 		commands = jobs.command_actions()
 		for name, command in commands.items():
 			with self.subTest(name=name):
@@ -124,9 +124,9 @@ class JobArguments(unittest.TestCase):
 		"""earnings takes none; performance an optional number of days."""
 		self.assertEqual(performance.job([]), ('performance', {}))
 		self.assertEqual(performance.job(['7']), ('performance 7', {'past_days': 7}))
-		for bad, module in ((['x'], earnings), (['x'], performance)):
+		for bad, module, name in ((['x'], earnings, 'earnings'), (['x'], performance, 'performance')):
 			with self.assertRaises(ValueError):
-				module.job(bad)
+				jobs.job_args(module, name, bad)
 
 	def test_podcasts(self):
 		"""podcasts takes one feed URL; its label carries the start of the hash that names its seen file."""
@@ -155,14 +155,17 @@ class JobArguments(unittest.TestCase):
 				cleanup.job(bad)
 
 	def test_plain_reports(self):
-		"""The other reports take no arguments, and say so: their ARGUMENTS, which .jobs add lists, are empty."""
+		"""A report that takes arguments has a job() to read them and ARGUMENTS, which .jobs add lists; the others have
+		neither, so a job of one takes no words (jobs.job_args) and .jobs add lists none (jobs.takes)."""
 		for name, module in jobs.ACTIONS.items():
 			with self.subTest(name=name):
-				self.assertIsInstance(module.ARGUMENTS, str)
-				if name not in ('cleanup', 'message', 'performance', 'podcasts', 'movers'):
-					self.assertEqual((module.job([]), module.ARGUMENTS), ((name, {}), ''))
+				self.assertEqual(hasattr(module, 'job'), hasattr(module, 'ARGUMENTS'))
+				self.assertEqual(hasattr(module, 'job'), name in ('cleanup', 'message', 'performance', 'podcasts',
+					'movers'))
+				if not hasattr(module, 'job'):
+					self.assertEqual((jobs.job_args(module, name, []), jobs.takes(module)), ((name, {}), ''))
 					with self.assertRaisesRegex(ValueError, 'no arguments'):
-						module.job(['7'])
+						jobs.job_args(module, name, ['7'])
 
 	def test_the_checkout_holds_only_the_bot_at_its_top(self):
 		"""The scheduled reports run in the bot (and `.jobs run`), so the checkout's top holds bot.py alone: the scripts

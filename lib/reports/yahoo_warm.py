@@ -1,6 +1,5 @@
 """Keeps the price history of every stock followed fresh in the cache (scheduled: yahoo_warm), so that a period list
 or a chart never waits on Yahoo. Sharesight's caches have their own, sharesight_warm."""
-from lib import reports
 from lib import log
 from lib import config, sharesight, watchlist, yahoo
 
@@ -20,7 +19,3 @@ def run(dest=None):
 	failed = yahoo.prefetch_history(tickers, seconds=0)
 	log.info(f"yahoo_warm: {len(tickers) - len(failed)} of {len(tickers)} price histories fetched")
 	return len(tickers) - len(failed)
-
-ARGUMENTS = '' # what a scheduled run takes: none
-
-job = reports.no_arguments('yahoo_warm')

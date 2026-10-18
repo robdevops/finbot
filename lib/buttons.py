@@ -81,6 +81,9 @@ PERIODS = {'d': ('1D', 1), 'w': ('7D', 7), 'm': ('1M', 30), 'y': ('1Y', 365), 'x
 # chart kind -> its buttons, five at most (Discord's limit for a row): c price (one stock's line too), f performance,
 # l the movers list, r the trades
 BUTTONS = {'c': 'wmyx', 'f': 'wmyx', 'l': 'dwmyx', 'r': 'dwm'}
+# each kind's period when none is typed: a stock's whole history (Max; .price's picker starts on 7D), a month of
+# performance, today's moves and the day's trades
+DEFAULT_PERIOD = {'c': 'x', 'f': 'm', 'l': 'd', 'r': 'd'}
 MAX_DAYS = 3650 # what Max means for the Sharesight-based reports
 MAX_CALLBACK_BYTES = 64 # Telegram limit on callback_data
 REF_FILE = 'finbot_chart_buttons.json'

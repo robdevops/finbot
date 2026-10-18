@@ -13,10 +13,9 @@ MAX_CHARACTERS = 3000
 YEARS = re.compile(r'\{years since (\d{4})-(\d{2})-(\d{2})\}')
 
 
-def run(dest=None, *, lines):
-	"""Post the lines to the chat whose job it is (dest), each placeholder filled, by an explicit replace: the text is
-	data, never a format string."""
-	chat = delivery.target(dest)
+def run(chat, *, lines):
+	"""Post the lines to the chat whose job it is, each placeholder filled, by an explicit replace: the text is data,
+	never a format string."""
 	filled = [YEARS.sub(lambda found: years_since(found, formats.today()), line) for line in lines]
 	delivery.deliver(chat, delivery.Report([formats.markup(line, chat.dialect) for line in filled]))
 

@@ -254,7 +254,7 @@ class ReportFunctions(FinbotCase):
 		for count, bottom, bars in ((12, 2, 13), (8, 0, 8)):
 			with self.subTest(count=count):
 				found = movers.moves(TICKERS[:count], 'period', 0, 90, interactive=True)
-				payload, chart = movers.report(TELEGRAM, found, 'period', 0, 90, top=10, asked=True)
+				payload, chart = movers.report(TELEGRAM, found, 'period', 0, 90, top=10)
 				shown = payload[payload.index('<b>Bottom 10</b>') + 1:] if bottom else []
 				self.assertEqual((len(shown), len(chart.rows)), (bottom, bars))
 				self.assertEqual(len(payload), 1 + min(count, 10) + (bottom and 2 + bottom))
@@ -498,16 +498,21 @@ class ScheduledReports(FinbotCase):
 		were given for a command."""
 		pins = []
 		self.patch(telegram_common.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
-		job_chat = delivery.chat('telegram:5', scheduled=True)
 		for module, kwargs in ((movers, {'mode': 'premarket', 'threshold': 1000}), (shorts, {'threshold': 1000})):
 			with self.subTest(report=module.__name__):
 				self.sent.clear()
-				module.run(job_chat, **kwargs)
+				self.run_job(module, 'telegram:5', **kwargs)
 				self.assertEqual(self.sent, [])
-				module.run(telegram_common.TelegramBot('5'), **kwargs) # a command's reply says that nothing passed
-				self.assertTrue(self.sent)
-		earnings.run(job_chat)
+				with self.assertRaises(answer.Nothing): # which a command's reply says (worker.answered)
+					module.run(telegram_common.TelegramBot('5'), **kwargs)
+		self.run_job(earnings, 'telegram:5')
 		self.assertEqual(pins, ['5'])
+
+	def test_a_jobs_answer_is_posted_as_its_reply_not_as_an_error(self):
+		"""A job's report that comes to an answer (a portfolio that is none) posts it as a command's reply, on schedule
+		too: it was a ⚠️ error line."""
+		self.run_job(performance, portfolio_select='Nope')
+		self.assertEqual((self.sent[0][1][0], self.errors), ('Nope portfolio not found. I only know about:', []))
 
 	def test_a_report_run_now_says_when_it_has_nothing_to_show(self):
 		"""Run now asks for its run (delivery.asked): a report with nothing to show says so, where the same run on
@@ -530,7 +535,7 @@ class ScheduledReports(FinbotCase):
 			for asked, posted in ((False, []), (True, [('text', [said])])):
 				with self.subTest(report=module.__name__, asked=asked):
 					self.sent.clear()
-					module.run(delivery.chat('telegram:5', scheduled=True, asked=asked), **kwargs)
+					self.run_job(module, 'telegram:5', asked, **kwargs)
 					self.assertEqual(self.sent, posted)
 
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
@@ -584,10 +589,10 @@ class ScheduledReports(FinbotCase):
 		fetched = []
 		self.patch(yahoo, 'fetch',
 			lambda tickers: fetched.append(set(tickers)) or {t: market_entry(t) for t in tickers})
-		trades.run(scheduled())
+		self.run_job(trades)
 		self.assertEqual(fetched, [{'T1'}])
 		fetched.clear()
-		trades.run(scheduled()) # the trade is known now: nothing to report and nothing to fetch
+		self.run_job(trades) # the trade is known now: nothing to report and nothing to fetch
 		self.assertEqual(fetched, [])
 
 	def test_a_scheduled_run_keeps_the_trades_another_run_recorded_meanwhile(self):
@@ -605,23 +610,23 @@ class ScheduledReports(FinbotCase):
 		told = []
 		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None:
 			told.append((dest.key, ' '.join(lines))) or [])
-		chats = [delivery.chat(key, scheduled=True) for key in ('telegram:5', 'slack:C9')]
+		chats = ('telegram:5', 'slack:C9')
 		self.env(slackBotToken='xoxb-test')
 		for chat in chats * 2:
-			trades.run(chat)
+			self.run_job(trades, chat)
 		self.assertEqual([key for key, text in told if 'T1' in text], ['telegram:5', 'slack:C9'])
 		for chat in chats:
-			rating.run(chat) # the first sighting, recorded
+			self.run_job(rating, chat) # the first sighting, recorded
 		told.clear()
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | ({'recommend': 'sell',
 			'recommend_index': 4.5} if t == 'T1' else {})})
 		for chat in chats * 2:
-			rating.run(chat)
+			self.run_job(rating, chat)
 		self.assertEqual([key for key, text in told if 'Co T1' in text], ['telegram:5', 'slack:C9'])
 
 	def test_milestone(self):
 		"""The milestone report posts."""
-		milestone.run(scheduled())
+		self.run_job(milestone)
 		self.assertTrue(self.sent)
 
 	def test_milestone_records_a_ticker_only_with_its_new_values(self):
@@ -629,11 +634,11 @@ class ScheduledReports(FinbotCase):
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0)) # beyond the 52-week range (120/80): nothing new
 		self.patch(yahoo, 'fetch',
 			lambda ts: {t: {k: v for k, v in market_entry(t).items() if not k.startswith('fiftyTwoWeek')} for t in ts})
-		milestone.run(scheduled())
+		self.run_job(milestone)
 		self.assertFalse(state.load_for('telegram:1', milestone.STATE_FILE, {}))
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.sent.clear()
-		milestone.run(scheduled())
+		self.run_job(milestone)
 		self.assertNotIn('Record high', str(self.sent))
 		self.assertEqual(state.load_for('telegram:1', milestone.STATE_FILE, {})['T1'],
 			{'all_time_high': 150.0, 'all_time_low': 50.0})
@@ -643,7 +648,7 @@ class ScheduledReports(FinbotCase):
 		above its 10-year high but below its all-time one posted a false record."""
 		state.save(milestone.STATE_FILE, {'chats': {'telegram:1': {'T1': {'record_high': 110.0, 'record_low': 90.0}}}})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
-		milestone.run(scheduled()) # the 52-week range (120/80) was past the old record, but not the whole history's
+		self.run_job(milestone) # the 52-week range (120/80) was past the old record, but not the whole history's
 		self.assertNotIn('Co T1 ', str(self.sent))
 		self.assertEqual(state.load_for('telegram:1', milestone.STATE_FILE, {})['T1'],
 			{'all_time_high': 150.0, 'all_time_low': 50.0})
@@ -652,12 +657,12 @@ class ScheduledReports(FinbotCase):
 		"""A new 52-week high below the all-time high is no record. The record used to become the 52-week high after the
 		first run, so a stock far below its peak posted a record high each time it set a new 52-week one."""
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
-		milestone.run(scheduled()) # first sighting: the 52-week range (120/80) is inside the history (150/50)
+		self.run_job(milestone) # first sighting: the 52-week range (120/80) is inside the history (150/50)
 		for high, expected in ((130.0, False), (160.0, True), (155.0, False)):
 			with self.subTest(high=high):
 				self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'fiftyTwoWeekHigh': high} for t in ts})
 				self.sent.clear()
-				milestone.run(scheduled())
+				self.run_job(milestone)
 				self.assertEqual('Record high' in str(self.sent), expected)
 
 	def test_a_52_week_record_kept_before_is_replaced_by_the_history(self):
@@ -665,24 +670,24 @@ class ScheduledReports(FinbotCase):
 		state.save(milestone.STATE_FILE, {'chats': {'telegram:1': {f'T{i}': {'high': 110.0, 'low': 90.0}
 			for i in range(25)}}})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
-		milestone.run(scheduled()) # 120 beats the old 52-week record of 110, but not the history's 150
+		self.run_job(milestone) # 120 beats the old 52-week record of 110, but not the history's 150
 		self.assertNotIn('Record high', str(self.sent))
 
 	def test_rating(self):
 		"""The rating report run now posts, if only to say that no rating changed."""
-		rating.run(delivery.chat('telegram:1', scheduled=True, asked=True))
+		self.run_job(rating, asked=True)
 		self.assertEqual(self.sent, [('text', ['No rating changes found'])])
 
 	def test_rating_keeps_the_last_rating_of_a_ticker_missing_from_a_run(self):
 		"""A ticker missing from one run keeps its last rating, so its change is reported when it comes back; it used to
 		be dropped from the record."""
-		rating.run(scheduled()) # records every ticker's rating
+		self.run_job(rating) # records every ticker's rating
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1' else {t: market_entry(t)})
-		rating.run(scheduled()) # no T1 this time: its rating used to be dropped from the record
+		self.run_job(rating) # no T1 this time: its rating used to be dropped from the record
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | ({'recommend': 'sell',
 			'recommend_index': 4.5} if t == 'T1' else {})})
 		self.sent.clear()
-		rating.run(scheduled())
+		self.run_job(rating)
 		self.assertIn('Co T1 ', str(self.sent)) # so its change from buy to sell went unreported
 
 	def test_scheduled_reports_reach_each_jobs_chat_with_its_own_token(self):
@@ -710,11 +715,6 @@ class ScheduledReports(FinbotCase):
 				self.assertIn(('slack.com', 'Bearer xoxb-test', 'C9'), posts)
 				self.assertTrue(any(host == 'api.telegram.org' and chat == '1' for host, _, chat in posts))
 				self.assertFalse(any(host == 'slack.com' and chat == '1' for host, _, chat in posts))
-
-	def test_nowhere_to_post_is_an_error(self):
-		"""A report run for no chat (there are no home chats) is an error that says so."""
-		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
-			movers.run()
 
 
 class PeriodButtons(FinbotCase):
@@ -870,7 +870,7 @@ class Podcasts(FinbotCase):
 						 '📣 Show: <a href="https://x/1.mp3">ep 1</a> 00:10',
 						 '📣 Show: <a href="https://x/2.mp3">ep 2</a> 00:10'])
 		self.sent.clear()
-		podcasts.run(scheduled(), feed_url='https://example.com/feed')
+		self.run_job(podcasts, feed_url='https://example.com/feed')
 		self.assertEqual(self.sent, []) # all seen now
 
 
@@ -1409,23 +1409,27 @@ class Pickers(FinbotCase):
 		other grouping first); compare (.history) and holdings start none, nor does a job's run, nor a chat without
 		charts."""
 		started = []
-		self.patch(worker, 'prime_in_background', lambda *args: started.append(args))
+		self.patch(charts, 'prime_in_background', lambda service, wanted:
+			started.append([label for label, _ in wanted]))
 		self.portfolios('Amy', 'Zed')
 		for text in ('.treemap sector', '.history', '.compare', '.holdings'):
 			self.command(text)
-		self.assertEqual([args[1:] for args in started], [('t', 's', ['Amy', 'Zed'], 0)])
+		every = ('sector', 'industry', 'country', 'currency', 'market')
+		treemaps = [labels for labels in started if labels[0].startswith('t ')] # not the periods of .history's answer
+		self.assertEqual(treemaps, [[f't Amy by {by}' for by in every[1:]] + [f't Zed by {by}' for by in every]])
+		count = len(started)
 		worker.job_commands()['treemap'].run(delivery.chat('telegram:55', scheduled=True), words=[])
 		self.settings(graph=False)
 		self.command('.treemap')
-		self.assertEqual(len(started), 1)
+		self.assertEqual(len(started), count)
 
 	def test_priming_draws_the_other_grouping_then_the_other_portfolios(self):
-		"""pick.prime draws a treemap's shown portfolio's other groupings, then each other portfolio in every one. An
-		empty chart is skipped, and a failure is logged and the rest still drawn."""
+		"""Priming a treemap (pick.treemaps) draws its shown portfolio's other groupings, then each other portfolio in
+		every one. An empty chart is skipped, and a failure is logged and the rest still drawn."""
 		drawn = []
 		self.patch(render, 'draw', lambda chart: drawn.append(chart.title))
 		self.portfolios('Amy', 'Bob', 'Cat', 'Zed')
-		pick.prime(TELEGRAM, 't', '0', ['Amy', 'Bob', 'Zed'], 0)
+		charts.prime(TELEGRAM, pick.treemaps(TELEGRAM, '0', ['Amy', 'Bob', 'Zed'], 0))
 		each = lambda name, *groups: [f'{name} treemap by {group}' for group in groups]
 		every = ('sector', 'industry', 'country', 'currency', 'market')
 		self.assertEqual(drawn, each('Amy', 'sector', 'country', 'currency', 'market') + each('Bob', *every) +
@@ -1439,9 +1443,9 @@ class Pickers(FinbotCase):
 			return real(name, by, service) if name != 'Zed' else (['x'], None)
 		self.patch(holdings, 'prepare_treemap', prepare)
 		with contextlib.redirect_stderr(io.StringIO()) as err:
-			pick.prime(TELEGRAM, 't', 's', ['Amy', 'Bob', 'Cat', 'Zed'], 0)
+			charts.prime(TELEGRAM, pick.treemaps(TELEGRAM, 's', ['Amy', 'Bob', 'Cat', 'Zed'], 0))
 		self.assertEqual(drawn, each('Amy', 'industry', 'country', 'currency', 'market') + each('Cat', *every))
-		self.assertIn('priming t Bob sector failed: boom', err.getvalue())
+		self.assertIn('priming t Bob by sector failed: boom', err.getvalue())
 
 	def test_compare_typed_with_tickers_has_the_tickers_button_too(self):
 		""".compare T1 T2 [period] answers with the period row and the tickers' + under its chart, those typed ticked
@@ -1459,7 +1463,8 @@ class Pickers(FinbotCase):
 		"""Once a chart with period buttons is out, its other periods are drawn in the background: .compare,
 		.performance, the movers list and a picker's answer, but not where no chart goes."""
 		started = []
-		self.patch(charts, 'prime_in_background', lambda *args: started.append(args[:1] + args[1:2] + args[4:]))
+		self.patch(charts, 'periods', lambda kind, args, service, chat, shown:
+			started.append((kind, args, shown)) or [])
 		self.command('.compare T1 T2')
 		self.command('.performance')
 		self.command('.movers')
@@ -1473,22 +1478,24 @@ class Pickers(FinbotCase):
 		self.assertEqual(started, [])
 
 	def test_priming_draws_each_other_period_and_survives_a_failure(self):
-		"""charts.prime draws the chart of each period button but the one shown, skipping one with nothing to draw,
-		and logs a failure."""
+		"""charts.prime draws the chart of each period button but the one shown (charts.periods), skipping one with
+		nothing to draw (no chart, or an Answer, which is logged only at debug), and logs a failure."""
 		drawn = []
 		self.patch(render, 'draw', lambda chart: drawn.append(chart.kind))
 		built = []
 		def build(kind, args, service, chat, period=None, days=None):
-			"""Fail for 1M, answer nothing for 1Y, a chart for the rest."""
+			"""Fail for 1M, answer nothing for 1Y, draw nothing for 1D, a chart for the rest."""
 			built.append(period)
 			if period == 'm':
 				raise RuntimeError('boom')
-			return 'caption', None if period == 'y' else render.Chart('bars', rows=(('a', 1.0),))
+			if period == 'y':
+				raise answer.Nothing('No price movements meet threshold 5%')
+			return ['caption'], None if period == 'd' else render.Chart('bars', rows=(('a', 1.0),))
 		self.patch(charts, 'build', build)
 		with contextlib.redirect_stderr(io.StringIO()) as err:
-			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
-		self.assertEqual((built, drawn), (['w', 'm', 'y'], ['bars']))
-		self.assertIn("priming c ['T1'] m failed: boom", err.getvalue())
+			charts.prime(TELEGRAM, charts.periods('l', ['5', '0'], TELEGRAM, 'telegram:55', 'x'))
+		self.assertEqual((built, drawn), (['d', 'w', 'm', 'y'], ['bars']))
+		self.assertEqual(err.getvalue().split('\n'), ["priming l ['5', '0'] m failed: boom", '']) # not the Answer
 	def preloaders(self):
 		"""Stand in for delivery.Preloader: each one made, with the images added to it and whether it finished."""
 		made = []
@@ -1518,12 +1525,12 @@ class Pickers(FinbotCase):
 		self.patch(render, 'draw', draw)
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
 			render.Chart('bars', period, rows=(('a', 1.0),))))
-		charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
+		charts.prime(TELEGRAM, charts.periods('c', ['T1'], TELEGRAM, 'telegram:55', 'x'))
 		self.assertEqual(drawn, [('w', []), ('m', ['w']), ('y', ['w', 'm'])]) # each was handed over before the next
 		self.assertEqual((made[0].service, made[0].images, made[0].finished), (TELEGRAM, ['w', 'm', 'y'], True))
 		del made[:], drawn[:]
 		self.portfolios('Amy', 'Bob')
-		pick.prime(SLACK, 't', '0', ['Amy', 'Bob'], 0)
+		charts.prime(SLACK, pick.treemaps(SLACK, '0', ['Amy', 'Bob'], 0))
 		self.assertEqual((len(drawn), len(made), made[0].service, made[0].images[:2], made[0].finished),
 			(9, 1, SLACK, ['Amy treemap by sector', 'Amy treemap by country'], True))
 
@@ -1537,15 +1544,14 @@ class Pickers(FinbotCase):
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
 			render.Chart('bars', period, rows=(('a', 1.0),))))
 		with contextlib.redirect_stderr(io.StringIO()) as log:
-			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
+			charts.prime(TELEGRAM, charts.periods('c', ['T1'], TELEGRAM, 'telegram:55', 'x'))
 		self.assertNotIn('priming', log.getvalue())
 		self.settings(log_level='DEBUG')
 		ticks = iter(x / 10 for x in range(1000))
 		with contextlib.redirect_stderr(io.StringIO()) as log:
-			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
+			charts.prime(TELEGRAM, charts.periods('c', ['T1'], TELEGRAM, 'telegram:55', 'x'))
 		lines = [line for line in log.getvalue().split('\n') if line.startswith('priming')]
-		self.assertEqual(lines, ['priming c w: built 0.1 s, drew 0.10 s', 'priming c m: built 0.1 s, drew 0.10 s',
-			'priming c y: built 0.1 s, drew 0.10 s'])
+		self.assertEqual(lines, [f"priming c ['T1'] {period}: built 0.1 s, drew 0.10 s" for period in 'wmy'])
 
 	def test_toggle_buttons_are_green_when_on_and_red_when_off(self):
 		"""The watchlist's Edit draws a ticker plain, and red once struck (marked to delete); the .price picker's

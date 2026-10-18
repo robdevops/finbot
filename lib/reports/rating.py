@@ -1,5 +1,5 @@
 """Analysts' consensus rating changes since the last scheduled run (rating); .buy and .sell are in rankings."""
-from lib import reports
+from lib import answer
 from lib import delivery
 from lib import formats
 from lib import state
@@ -9,16 +9,18 @@ from lib import yahoo
 
 STATE_FILE = 'finbot_rating.json' # each chat's {ticker: [action, index]} as its last run saw them
 
-def run(dest=None):
+def run(chat):
 	"""Post the analysts' consensus ratings of the stocks a chat follows that changed since its last run, to the job's
-	chat (dest), and record the ratings it saw. No change is said only where someone asked (delivery.asked)."""
-	chat = delivery.target(dest)
+	chat, and record the ratings it saw. Raises answer.Nothing, once they are recorded, where none changed."""
 	market_data, seen = gather(watchlist.with_holdings(chat.key))
 	changes = changed(market_data, seen, state.load_for(chat.key, STATE_FILE, {}))
-	delivery.deliver(chat, delivery.Report(report(chat.dialect, changes, delivery.asked(dest))))
+	if changes:
+		delivery.deliver(chat, delivery.Report(report(chat.dialect, changes)))
 	if seen: # added to its record: a ticker missing from this run keeps its last rating
 		with state.edit_for(chat.key, STATE_FILE, {}) as ratings:
 			ratings.update(seen)
+	if not changes:
+		raise answer.Nothing("No rating changes found")
 
 def gather(tickers):
 	"""(the stocks' details; {ticker: [action, index]} of every rating seen, which counts only with its analysts)."""
@@ -48,9 +50,9 @@ def changed(market_data, seen, old):
 				market_data[ticker]['recommend_analysts']))
 	return changes
 
-def report(service, changes, asked):
-	"""The rating changes in one network's markup, sorted: 📈 when the consensus improved (its index fell: 1 is a strong
-	buy), 📉 when it worsened; where there is none, a line saying so where someone asked, else nothing."""
+def report(service, changes):
+	"""The rating changes in one network's markup, sorted, under a heading: 📈 when the consensus improved (its index
+	fell: 1 is a strong buy), 📉 when it worsened."""
 	payload = []
 	for ticker, data, (old_action, old_index), (action, index), analysts in changes:
 		emoji = '📈' if old_index > index else '📉' if old_index < index else '▪️'
@@ -58,13 +60,4 @@ def report(service, changes, asked):
 		before, after = service.bold(f'{old_index} {old_action}'), service.bold(f'{index} {action}')
 		message = f"{before} to {after} ({analysts} analysts)"
 		payload.append(f"{emoji} {formats.short_name(data['profile_title'])} ({ticker_link}) changed from {message}")
-	payload.sort()
-	if payload:
-		payload.insert(0, service.bold('Consensus rating changes:'))
-	elif asked:
-		payload = ["No rating changes found"]
-	return payload
-
-ARGUMENTS = '' # what a scheduled run takes: none
-
-job = reports.no_arguments('rating')
+	return [service.bold('Consensus rating changes:')] + sorted(payload)

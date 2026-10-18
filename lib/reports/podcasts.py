@@ -4,6 +4,7 @@ import string
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
+from lib import answer
 from lib import net
 from lib import state
 from lib import delivery
@@ -85,18 +86,16 @@ def fetch_new_episodes(feed_url, seen):
 	episodes.sort(key=lambda episode: episode["published"], reverse=True)
 	return episodes
 
-def run(dest=None, *, feed_url):
-	"""Post to the job's chat (dest) the feed's newest episodes not posted to it before, then record every new one as
-	seen by it; none said so only where someone asked (delivery.asked: Run now)."""
-	chat, seen_file = delivery.target(dest), get_seen_filename(feed_url)
+def run(chat, *, feed_url):
+	"""Post to the job's chat the feed's newest episodes not posted to it before, then record every new one as seen by
+	it. Raises answer.Nothing where there is none."""
+	seen_file = get_seen_filename(feed_url)
 	try:
 		new = fetch_new_episodes(feed_url, set(state.load_for(chat.key, seen_file, [])))
 	except Exception as e:
 		raise RuntimeError(f"fetching feed {feed_url}: {e}")
 	if not new:
-		if delivery.asked(dest):
-			delivery.deliver(chat, delivery.Report(["📣 No new episodes"]))
-		return
+		raise answer.Nothing("📣 No new episodes")
 	delivery.deliver(chat, delivery.Report(report(chat.dialect, new[:NEWEST])))
 	with state.edit_for(chat.key, seen_file, []) as recorded: # last: a failure above leaves them for next run
 		recorded[:] = sorted({episode['guid'] for episode in new}.union(recorded))

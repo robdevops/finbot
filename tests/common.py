@@ -11,8 +11,8 @@ os.chdir(ROOT)
 os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
 
 import bot
-from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, net
-from lib import render, sharesight, shortman, state, transports, watchlist, worker, yahoo
+from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, jobs, links, markets, net
+from lib import render, sharesight, shortman, state, transports, watchlist, when, worker, yahoo
 from lib import discord_common, slack_common, telegram_common # each network's reader and bot
 from lib.reports import about, earnings, history, holdings, milestone, movers, performance, profile, rankings, rating
 from lib.reports import shorts, trades
@@ -146,7 +146,6 @@ class FinbotCase(unittest.TestCase):
 			self.record_chart(dest, image, caption, markup))
 		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None: self.record_text(dest, lines))
 		self.patch(watchlist, 'with_holdings', lambda chat: TICKERS)
-		self.patch(worker, 'prime_in_background', lambda *args: None) # no thread draws charts behind a test
 		self.patch(charts, 'prime_in_background', lambda *args: None)
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
@@ -208,6 +207,13 @@ class FinbotCase(unittest.TestCase):
 		worker.process_request(inbound.Message('telegram', chat, '@u', text, BOT))
 		self.assertEqual(self.errors, [], f'{text} crashed') # the worker reports crashes instead of raising
 		return list(self.sent)
+
+	def run_job(self, module, key='telegram:1', asked=False, **kwargs):
+		"""Run a report as a chat's job does (Scheduler.execute: an answer it comes to is posted, but nothing to show
+		only where asked, as by Run now), to the chat of this key, and check that it did not fail."""
+		name = module.__name__.rpartition('.')[2]
+		job = jobs.Job(name, (), name, kwargs, when.parse('daily', 'UTC'), key)
+		self.assertEqual(jobs.Scheduler().execute(job, asked=asked), 'done')
 
 
 DOC = os.path.join(ROOT, 'doc')

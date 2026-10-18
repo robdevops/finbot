@@ -430,7 +430,7 @@ def prepare_reports(service):
 	examples."""
 	known = jobs.actions()
 	return [service.bold('What a job can run:')] + [f"{'reminder' if name == 'message' else name} "
-		f"{known[name].ARGUMENTS}".strip() for name in jobs.chat_actions()] + ['', service.bold('For example:'),
+		f"{jobs.takes(known[name])}".strip() for name in jobs.chat_actions()] + ['', service.bold('For example:'),
 		'.jobs add movers weekly',
 		'.jobs add movers close weekdays at 4:30pm New York', '.jobs add performance first day of each month at 9am',
 		'.jobs add trades every 20 mins weekdays from 10am to 4pm', '.jobs add peg top weekly',
