@@ -31,7 +31,7 @@ class SharesightApi(ProviderCase):
 
 	def test_portfolio_failures_raise(self):
 		"""An error answer, Sharesight unreachable or no portfolios is a RuntimeError."""
-		for failure in (Resp({'error': 'nope', 'error_code': 'x'}, 401), ConnectionError('down'),
+		for failure in (Resp({'error': 'nope', 'error_code': 'x'}, 401), requests.ConnectionError('down'),
 				Resp({'portfolios': []})):
 			with self.subTest(failure=failure):
 				self.http(sharesight, failure)
@@ -58,7 +58,7 @@ class SharesightApi(ProviderCase):
 
 	def test_trade_failures_raise(self):
 		"""Sharesight unreachable, or an error answer, is a RuntimeError."""
-		self.http(sharesight, ConnectionError('down'))
+		self.http(sharesight, requests.ConnectionError('down'))
 		with self.assertRaises(RuntimeError):
 			sharesight.Portfolio('RobSMSF', 684141).trades(1)
 		self.http(sharesight, Resp({'trades': [], 'error': 'bad', 'error_code': 'x'}, 400))
@@ -73,6 +73,38 @@ class SharesightApi(ProviderCase):
 		self.patch(sharesight.net, 'post', lambda url, **kwargs: Resp(refusal, 401))
 		with self.assertRaisesRegex(RuntimeError, 'Sharesight auth: invalid_client: Client authentication failed'):
 			sharesight.portfolios()
+
+	def test_a_refused_token_is_renewed_once(self):
+		"""A token Sharesight refuses (a 401: revoked, say) is renewed, and the request asked again with the new one,
+		once; another thread that held the refused one takes the new one, without asking again."""
+		self.patch(sharesight, '_token', REAL_TOKEN)
+		cache.write(sharesight.TOKEN, {'access_token': 'old', 'created_at': time.time(), 'expires_in': 7200})
+		tokens = []
+		self.patch(sharesight.net, 'post', lambda url, **kwargs: tokens.append(url) or Resp({'access_token': 'new',
+			'created_at': time.time(), 'expires_in': 7200}))
+		sent = []
+		def get(url, **kwargs):
+			"""Refuse the old token; the portfolios for the new one."""
+			sent.append(kwargs['headers']['Authorization'])
+			if kwargs['headers']['Authorization'] == 'Bearer old':
+				return Resp({'error': 'invalid_token', 'error_description': 'revoked'}, 401)
+			return Resp(sample('sharesight', 'finbot_sharesight_portfolios.json'))
+		self.patch(sharesight.net, 'get', get)
+		self.assertEqual(portfolios(), {'Rob': 445825, 'RobSMSF': 684141})
+		self.assertEqual((sent, len(tokens)), (['Bearer old', 'Bearer new'], 1))
+		self.assertEqual(sharesight._token(refused='old'), 'new') # renewed meanwhile: no second request
+		self.assertEqual(len(tokens), 1)
+
+	def test_the_token_is_kept_whatever_the_cache_setting(self):
+		"""The token is kept until it expires with the cache setting off too: it was asked for afresh for every
+		request."""
+		self.patch(sharesight, '_token', REAL_TOKEN)
+		self.settings(cache=False)
+		tokens = []
+		self.patch(sharesight.net, 'post', lambda url, **kwargs: tokens.append(url) or Resp({'access_token': 't',
+			'created_at': time.time(), 'expires_in': 7200}))
+		self.assertEqual([sharesight._token(), sharesight._token()], ['t', 't'])
+		self.assertEqual(len(tokens), 1)
 
 	def test_an_answer_without_what_was_asked_for_is_an_error(self):
 		"""A refusal without an error, or a 200 without the list asked for, is an error saying so, not a KeyError
@@ -107,7 +139,7 @@ class SharesightApi(ProviderCase):
 	def test_performance_gives_up_after_repeated_busy_or_hard_errors(self):
 		"""Busy every time, a hard error, or unreachable: a RuntimeError in the end."""
 		for failure in (Resp({'error': 'Too many parallel requests', 'error_code': 'x'}, 429),
-						Resp({'error': 'forbidden', 'error_code': 'x'}, 403), ConnectionError('down')):
+						Resp({'error': 'forbidden', 'error_code': 'x'}, 403), requests.ConnectionError('down')):
 			with self.subTest(failure=failure):
 				self.http(sharesight, failure)
 				with self.assertRaises(RuntimeError):
@@ -306,7 +338,7 @@ class SharesightWarm(ProviderCase):
 		"""A refresh that fails raises, and keeps the cache it would have replaced."""
 		self.serve_sharesight()
 		sharesight.warm()
-		self.http(sharesight, ConnectionError('down'))
+		self.http(sharesight, requests.ConnectionError('down'))
 		with self.assertRaises(RuntimeError):
 			sharesight.warm()
 		self.assertEqual(portfolios(), {'Rob': 445825, 'RobSMSF': 684141}) # still served from the cache

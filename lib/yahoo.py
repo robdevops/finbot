@@ -24,10 +24,7 @@ def credentials(renew=False):
 	with _auth:
 		if not renew and (cached := cache.read(CREDENTIALS, 14 * 86400)):
 			return tuple(cached)
-		try:
-			r = net.get('https://fc.yahoo.com/', headers=HEADERS) # a 404, with the cookie in its headers
-		except Exception as e:
-			raise RuntimeError(f"Yahoo unreachable for a cookie: {net.redact(e)}") from e
+		r = net.answer('Yahoo', 'a cookie', 'https://fc.yahoo.com/', headers=HEADERS) # a 404, the cookie in its headers
 		jar = SimpleCookie()
 		jar.load(r.headers.get('Set-Cookie', ''))
 		if not jar:
@@ -35,9 +32,9 @@ def credentials(renew=False):
 		cookie = '{}={}'.format(*next((name, morsel.value) for name, morsel in jar.items()))
 		for url in _hosts('/v1/test/getcrumb'):
 			try:
-				r = net.get(url, headers={**HEADERS, 'Cookie': cookie})
-			except Exception as e:
-				log.warn("Yahoo crumb:", net.redact(e))
+				r = net.answer('Yahoo', 'a crumb', url, headers={**HEADERS, 'Cookie': cookie})
+			except RuntimeError as e:
+				log.warn(e)
 				continue
 			if r.status_code == 200 and r.text.strip():
 				cache.write(CREDENTIALS, [cookie, r.text.strip()])
@@ -53,19 +50,19 @@ def _hosts(path):
 def _answer(query, what):
 	"""Yahoo's JSON answer to an API query, from query2 or else query1, with the cookie and its crumb (renewed once when
 	Yahoo refuses them): None when Yahoo says it has no such symbol (404 Not Found). Raises RuntimeError when no host
-	answers, or one refuses otherwise; `what` names the request in the error."""
+	answers with JSON, or one refuses otherwise; `what` names the request in the error."""
 	refusal = ''
 	for renew in (False, True):
 		cookie, crumb = credentials(renew)
 		for url in _hosts(query + ('&' if '?' in query else '?') + 'crumb=' + crumb):
 			try:
-				r = net.get(url, headers={**HEADERS, 'Cookie': cookie})
-			except Exception as e:
-				refusal = f"Yahoo unreachable for {what}: {net.redact(e)}"
+				r = net.answer('Yahoo', what, url, headers={**HEADERS, 'Cookie': cookie})
+				if r.status_code == 200:
+					return net.json_answer(r, 'Yahoo', what)
+			except RuntimeError as e:
+				refusal = str(e)
 				log.warn(refusal)
 				continue
-			if r.status_code == 200:
-				return r.json()
 			if r.status_code == 404 and not_found(r):
 				return None
 			refusal = f"{r.status_code} error for {what} from Yahoo"
@@ -323,18 +320,29 @@ def months_before(day, months):
 	year, month = divmod(day.year * 12 + day.month - 1 - months, 12)
 	return day.replace(year=year, month=month + 1, day=min(day.day, calendar.monthrange(year, month + 1)[1]))
 
+def _history(ticker):
+	"""(Yahoo's meta, the bars (see bars), the closes [(day, close)] where it has one) of a ticker's daily chart. Raises
+	NoData when there are no closes, RuntimeError when the chart cannot be fetched."""
+	data = fetch_chart_json(ticker)
+	daily = bars(data)
+	closes = [(day, last) for day, _, last in daily if last is not None]
+	if not closes:
+		raise NoData(f"no price history for {ticker}")
+	return dig(data, 'chart', 'result', 0, 'meta') or {}, daily, closes
+
+def _named(meta, ticker):
+	"""(the company's name, its exchange's) as a chart's meta has them: its long name, else its short one, else the
+	ticker; the exchange's full name, else its short one."""
+	return (formats.transform_title(meta.get('longName') or meta.get('shortName') or ticker),
+		meta.get('fullExchangeName') or meta.get('exchangeName') or '')
+
 def price_history(ticker, days=None, quote=None):
 	"""({period: percent change}, its Line): the change over `days`, else over each standard period (and 'Max', from the
 	first close, when one goes back further than the history), and the closes behind it, for a chart. The change is to
 	the price now: the quote's (the ticker's quote or detail, which carries today's change too), else the chart's.
 	Days are counted in the exchange's time zone. Raises NoData when there are no prices, RuntimeError when the history
 	cannot be fetched."""
-	data = fetch_chart_json(ticker)
-	meta = dig(data, 'chart', 'result', 0, 'meta') or {}
-	daily = bars(data)
-	closes = [(day, last) for day, _, last in daily if last is not None]
-	if not closes:
-		raise NoData(f"no price history for {ticker}")
+	meta, daily, closes = _history(ticker)
 	quote = quote or {}
 	price = quote.get('regularMarketPrice') or meta.get('regularMarketPrice') or closes[-1][1]
 	today = datetime.datetime.now(zoneinfo.ZoneInfo(meta.get('exchangeTimezoneName') or 'UTC')).date()
@@ -370,21 +378,14 @@ def price_history(ticker, days=None, quote=None):
 				changes['Max'] = round(change(closes[0][1]))
 			else:
 				changes[period] = round(change(past))
-	name = formats.transform_title(meta.get('longName', ''))
-	exchange = meta.get('fullExchangeName') or meta.get('exchangeName') or ''
-	return changes, Line(name, exchange, meta.get('currency') or '', price,
+	return changes, Line(*_named(meta, ticker), meta.get('currency') or '', price,
 		tuple((str(day), float(last)) for day, last in closes))
 
 def price_series(ticker):
 	"""A ticker's daily closes over 10 years, from the same chart as price_history(): (name, exchange, ((date,
 	close), ...)), oldest first, each date a datetime.date. Raises NoData when there is no history."""
-	data = fetch_chart_json(ticker)
-	meta = dig(data, 'chart', 'result', 0, 'meta') or {}
-	closes = tuple((day, float(last)) for day, _, last in bars(data) if last is not None)
-	if not closes:
-		raise NoData(f"no price history for {ticker}")
-	name = formats.transform_title(meta.get('longName') or meta.get('shortName') or ticker)
-	return name, meta.get('fullExchangeName') or meta.get('exchangeName') or '', closes
+	meta, _, closes = _history(ticker)
+	return *_named(meta, ticker), tuple((day, float(last)) for day, last in closes)
 
 def fetch_each(get, tickers, workers=8):
 	"""get(ticker) for each ticker, `workers` at a time so the waits overlap: [its result or the exception raised]."""

@@ -5,6 +5,8 @@ import collections, dataclasses, datetime, io, json, os, shutil, sys, tempfile, 
 from pathlib import Path
 from unittest import mock
 
+import requests
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
@@ -24,6 +26,7 @@ REAL_GET_HOLDINGS = watchlist.with_holdings
 REAL_DISPATCH = bot.dispatch # FinbotCase notes the worker thread of each update, so that a test can wait for it
 REAL_DOUBLED = bot.doubled # FinbotCase takes every message, a repeat sent on purpose too; DoubledMessages puts it back
 REAL_REPEATED = worker.repeated # and every press, as RepeatedPresses does not
+REAL_SHORTMAN = shortman.fetch # ShortInterest reads Short Man's CSV as served
 
 
 def no_jobs(data):
@@ -123,12 +126,11 @@ class FinbotCase(unittest.TestCase):
 		collected in self.sent (and the buttons of each chart in self.markups, error lines in self.errors)."""
 		fake = mock.Mock(status_code=200, text='{}')
 		fake.json.return_value = {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 5}}}
-		self.patch(__import__('requests').Session, 'request', mock.Mock(return_value=fake)) # no real network traffic
+		self.patch(requests.Session, 'request', mock.Mock(return_value=fake)) # no real network traffic
 		tmp = tempfile.TemporaryDirectory()
 		self.addCleanup(tmp.cleanup)
 		self.env(data_dir=tmp.name, cache_dir=tmp.name, telegramBotToken='X',
-			telegram_api='https://api.telegram.org/botX/', sharesight_auth={**config.env.sharesight_auth,
-			'client_id': 'test'}) # Sharesight set up: its answers are the fixtures below
+			telegram_api='https://api.telegram.org/botX/', sharesight_client_id='test') # its answers are the fixtures
 		self.patch(bot, '_updates_seen', inbound.Recent()) # each test starts with no update taken
 		self.patch(bot, '_said', inbound.Recent()) # nor any message
 		self.patch(bot, 'doubled', lambda message: False) # a test may send the same message twice on purpose
@@ -227,9 +229,9 @@ def sample(*path):
 
 class Resp:
 	def __init__(self, payload=None, status=200, text='', headers=None):
-		"""A response with this JSON payload (None: not JSON), status, text and headers."""
+		"""A response with this JSON payload (None: not JSON), status, text (and its bytes, content) and headers."""
 		self.payload, self.status_code, self.text = payload, status, text or json.dumps(payload)
-		self.headers = headers or {}
+		self.content, self.headers = self.text.encode(), headers or {}
 	def json(self):
 		"""The payload, or ValueError when it is not JSON."""
 		if self.payload is None:
@@ -270,7 +272,7 @@ class ProviderCase(FinbotCase):
 				(sharesight, '_portfolios'), (sharesight, '_trades'), (sharesight, '_performance')):
 			self.patch(module, name, REAL[(module.__name__, name)])
 		self.patch(yahoo, 'credentials', lambda renew=False: ('A=B', 'crumb'))
-		self.patch(sharesight, '_token', lambda: 'token')
+		self.patch(sharesight, '_token', lambda refused=None: 'token')
 		self.patch(sharesight.time, 'sleep', lambda s: None)
 
 	def http(self, module, *responses):

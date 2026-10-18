@@ -71,7 +71,7 @@ class YahooWarmJob(FinbotCase):
 		configured."""
 		super().setUp()
 		self.patch(yahoo, 'prefetch_history', PREFETCH_HISTORY)
-		self.env(sharesight_auth={'client_id': 'id'})
+		self.env(sharesight_client_id='id')
 		def answer(ticker, full):
 			"""A history that names its ticker; none for T2."""
 			if ticker == 'T2':
@@ -102,7 +102,7 @@ class YahooWarmJob(FinbotCase):
 			self.assertEqual(yahoo_warm.run(), 1)
 		self.assertEqual(cache.read('finbot_yahoo_history_W1.json'), {'history of': 'W1'})
 		self.assertIn('no holdings from Sharesight', log.getvalue())
-		self.env(sharesight_auth={'client_id': None})
+		self.env(sharesight_client_id='')
 		self.assertEqual((yahoo_warm.run(), len(asked)), (1, 1))
 
 	def test_with_the_cache_off_nothing_is_fetched(self):
@@ -117,12 +117,12 @@ class SharesightWarmJob(FinbotCase):
 		"""sharesight_warm refreshes the portfolio list and the holdings (sharesight.warm) and counts the portfolios;
 		without Sharesight configured, or with the cache setting off (nothing would be kept), it fetches nothing."""
 		self.patch(sharesight, 'warm', lambda: ['Rob', 'RobSMSF'])
-		self.env(sharesight_auth={'client_id': 'id'})
+		self.env(sharesight_client_id='id')
 		self.assertEqual(sharesight_warm.run(), 2)
 		self.settings(cache=False)
 		self.assertEqual(sharesight_warm.run(), 0)
 		self.settings(cache=True)
-		self.env(sharesight_auth={'client_id': None})
+		self.env(sharesight_client_id='')
 		self.assertEqual(sharesight_warm.run(), 0)
 
 	def test_a_failure_is_logged_not_reported(self):
@@ -131,7 +131,7 @@ class SharesightWarmJob(FinbotCase):
 			"""Sharesight unreachable, as warm meets it."""
 			raise RuntimeError('Sharesight portfolios: unreachable')
 		self.patch(sharesight, 'warm', down)
-		self.env(sharesight_auth={'client_id': 'id'})
+		self.env(sharesight_client_id='id')
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			self.assertEqual(sharesight_warm.run(), 0)
 		self.assertIn('sharesight_warm: refresh failed: Sharesight portfolios: unreachable', log.getvalue())
@@ -590,7 +590,7 @@ class JobsInChat(ChatBase):
 
 	def test_without_sharesight_no_job_reports_on_it(self):
 		"""Without Sharesight's keys, a chat cannot add a job that reports on it, and Add does not offer one."""
-		self.env(sharesight_auth={'client_id': None})
+		self.env(sharesight_client_id='')
 		self.assertEqual(self.say('.jobs add trades every 20 mins weekdays from 10am to 4pm'), ['trades reports on'
 			' Sharesight, which is not set up'])
 		labels = [button.label for row in about.add_screen(TELEGRAM, CHAT, [])[1] for button in row]

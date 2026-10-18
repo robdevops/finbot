@@ -15,6 +15,8 @@ A chart is uploaded once where the network lets finbot show it again by its id: 
 
 Each Sharesight holdings report also leaves `finbot_sharesight_largest.json`, what the portfolio's holdings are worth in US dollars, which `/price` with no symbol reads to start on your biggest holding (see [Commands](commands.md#price)). It is rewritten as the reports are fetched, so the `sharesight_warm` job keeps it current, and it survives a restart (a start only fills it, from the holdings reports the cache already holds, when it is missing, so the first run after an update need not wait for the job); with `cache=False` there is none, and `/price` starts on the first ticker.
 
+Short Man's CSV of ASX short interest, which `/shorts` reads, is cached for `cache_seconds` too (`finbot_shortman.json`). Yahoo's cookie and crumb (for 14 days) and Sharesight's access token (until it expires) are kept whatever `cache` says, and each is renewed at once when its service refuses it.
+
 To flush the cache, so that what it holds is fetched afresh, run `util/flush.py` with the files to delete, by when they were written. With no argument it prints its help:
 ```
 util/flush.py --before 180s     # the files written more than 180 seconds ago

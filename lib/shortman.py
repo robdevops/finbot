@@ -1,25 +1,37 @@
+"""Short Man's daily short interest of ASX stocks (shortman.com.au): its CSV, cached as sent."""
+import csv
+import io
+
+from lib import cache
 from lib import log
 from lib import net
 
+URL = 'https://www.shortman.com.au/downloadeddata/latest.csv'
+CACHE = 'finbot_shortman.json' # the CSV as sent, a day's figures: good for the cache_seconds setting
+
 def fetch(market_data):
-	"""market_data with each ASX ticker's short interest added from Short Man's daily CSV (as it was if unreachable)."""
-	url = 'https://www.shortman.com.au/downloadeddata/latest.csv'
+	"""market_data with each ASX ticker's short interest added from Short Man's daily CSV (as it was where Short Man
+	cannot be had); a row that is not a stock's is left out, with a warning."""
 	try:
-		r = net.get(url)
-	except Exception as e:
-		log.warn("Failure fetching", url, net.redact(e))
+		text = cache.cached(CACHE, None, _csv)
+	except RuntimeError as e:
+		log.warn(e)
 		return market_data # the ASX short interest is missing, the rest of the report is not
-	if r.status_code != 200:
-		log.warn(r.status_code, "error communicating with", url)
-		return market_data
-	csv = r.content.decode('utf-8')
-	csv = csv.split('\r\n')
-	csv.pop(0) # remove header
-	del csv[-1] # remove junk
-	for line in csv:
-		cells = line.split(',') # title, code, positions, on issue, percent shorted
-		ticker = cells[1] + '.AX'
-		short_percent = float(cells[4]) # every row, so a malformed one still fails the fetch
+	rows = csv.reader(io.StringIO(text))
+	next(rows, None) # the header
+	for row in filter(None, rows): # title, code, positions, on issue, percent shorted
+		try:
+			ticker, percent = row[1] + '.AX', float(row[4])
+		except (IndexError, ValueError):
+			log.warn("Short Man: a row that is not a stock's:", log.cut(','.join(row)))
+			continue
 		if ticker in market_data:
-			market_data[ticker]['short_percent'] = short_percent
+			market_data[ticker]['short_percent'] = percent
 	return market_data
+
+def _csv():
+	"""Short Man's CSV, as sent. Raises RuntimeError when it cannot be had."""
+	r = net.answer('Short Man', 'short interest', URL)
+	if r.status_code != 200:
+		raise RuntimeError(f"Short Man short interest: a {r.status_code} answer")
+	return r.content.decode('utf-8')

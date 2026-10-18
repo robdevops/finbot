@@ -34,11 +34,39 @@ class YahooQuotes(ProviderCase):
 
 	def test_all_hosts_failing_raises(self):
 		"""Every host failing, or Yahoo unreachable, is a RuntimeError."""
-		for failure in (Resp(status=500), ConnectionError('down')):
+		for failure in (Resp(status=500), requests.ConnectionError('down')):
 			with self.subTest(failure=failure):
 				self.http(yahoo, failure)
 				with self.assertRaises(RuntimeError):
 					yahoo.fetch(['AAPL'])
+
+	def test_an_answer_that_is_not_json_is_a_hosts_failure(self):
+		"""A 200 that is not JSON (an HTML page) from one host has the other asked, and from both is a RuntimeError
+		saying so: it was a ValueError from the JSON parser."""
+		page = Resp(None, 200, '<html>Will be right back</html>')
+		getter = self.http(yahoo, page, Resp(sample('yahoo', 'sample_yahoo_v7.json')))
+		self.assertIn('AAPL', yahoo.fetch(['AAPL']))
+		self.assertIn('query1', getter.calls[1])
+		self.http(yahoo, page)
+		with self.assertRaisesRegex(RuntimeError, 'Yahoo quotes: a 200 answer that is not JSON'):
+			yahoo.fetch(['MSFT'])
+
+	def test_a_bug_is_not_taken_for_an_outage(self):
+		"""Only a failure of the request (requests.RequestException) is Yahoo unreachable: any other exception is a bug,
+		and raises as it is."""
+		self.http(yahoo, TypeError('a bug'))
+		with self.assertRaises(TypeError):
+			yahoo.fetch(['AAPL'])
+
+	def test_a_rate_limit_that_asks_for_a_wait_is_waited_out_once(self):
+		"""A 429 saying how long to wait (Retry-After) is waited out once (net.answer), then asked again; one that
+		says nothing is a host's failure, as before."""
+		slept = []
+		self.patch(net.time, 'sleep', slept.append)
+		getter = self.http(yahoo, Resp(status=429, headers={'Retry-After': '3'}),
+			Resp(sample('yahoo', 'sample_yahoo_v7.json')))
+		self.assertIn('AAPL', yahoo.fetch(['AAPL']))
+		self.assertEqual((slept, len(getter.calls)), ([3.0], 2))
 
 	def test_empty_result_is_none(self):
 		"""An empty result is no quotes."""
@@ -57,7 +85,7 @@ class YahooQuotes(ProviderCase):
 		body = sample('yahoo', 'sample_yahoo_v7.json')
 		self.http(yahoo, Resp(body))
 		yahoo.fetch(['AAPL'])
-		self.http(yahoo, ConnectionError('down')) # from here on, only the cache answers
+		self.http(yahoo, requests.ConnectionError('down')) # from here on, only the cache answers
 		self.patch(yahoo, 'QUOTE_FIELDS', yahoo.QUOTE_FIELDS + (('short_name', 'shortName', None),))
 		self.assertEqual(yahoo.fetch(['AAPL'])['AAPL']['short_name'], 'Apple Inc.')
 
@@ -129,7 +157,7 @@ class YahooDetail(ProviderCase):
 		"""A detail is cached as Yahoo sent it, not parsed: a change to the parsing applies to a cached answer."""
 		self.http(yahoo, Resp(self.combined()))
 		yahoo.fetch_detail('NVDA')
-		self.http(yahoo, ConnectionError('down')) # from here on, only the cache answers
+		self.http(yahoo, requests.ConnectionError('down')) # from here on, only the cache answers
 		self.patch(yahoo, 'DETAIL_FIELDS', yahoo.DETAIL_FIELDS + (('short_name', ('price', 'shortName')),))
 		self.assertEqual(yahoo.fetch_detail('NVDA')['NVDA']['short_name'], 'NVIDIA Corporation')
 
@@ -139,7 +167,7 @@ class YahooDetail(ProviderCase):
 		unknown = {'quoteSummary': {'result': None, 'error': {'code': 'Not Found', 'description': 'Quote not found'}}}
 		self.http(yahoo, Resp(unknown, status=404))
 		self.assertEqual(yahoo.fetch_detail('DRNA'), {})
-		for failure in (Resp(status=404), Resp(status=500), ConnectionError('down')):
+		for failure in (Resp(status=404), Resp(status=500), requests.ConnectionError('down')):
 			with self.subTest(failure=failure):
 				self.http(yahoo, failure)
 				with self.assertRaises(RuntimeError):
@@ -228,7 +256,7 @@ class YahooChart(ProviderCase):
 
 	def test_fetch_chart_json_failures_raise(self):
 		"""A chart Yahoo will not give is a RuntimeError."""
-		for failure in (Resp(status=404), ConnectionError('down')):
+		for failure in (Resp(status=404), requests.ConnectionError('down')):
 			with self.subTest(failure=failure):
 				self.http(yahoo, failure)
 				with self.assertRaises(RuntimeError):
@@ -298,7 +326,7 @@ class YahooChart(ProviderCase):
 	def test_a_failed_chart_fetch_raises(self):
 		"""A chart refused (429) or unreachable is a RuntimeError, which callers turn into leaving the ticker out."""
 		self.patch(yahoo, 'price_history', REAL[('lib.yahoo', 'price_history')])
-		for failure in (Resp(status=429), ConnectionError('down')):
+		for failure in (Resp(status=429), requests.ConnectionError('down')):
 			with self.subTest(failure=failure):
 				self.http(yahoo, failure)
 				with self.assertRaises(RuntimeError):

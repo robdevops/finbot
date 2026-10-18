@@ -26,9 +26,14 @@ def save(name, data):
 	cache.write_file(path(name), json.dumps(data, indent=4).encode('utf-8'), sync=True)
 
 
+def records(name):
+	"""Every chat's record in a state file that holds one per chat: {chat key: record}."""
+	return load(name, {}).get('chats', {})
+
+
 def load_for(chat, name, default):
 	"""A chat's record (by its key) in a state file that holds one per chat, or `default` when it has none yet."""
-	return copy.deepcopy(load(name, {}).get('chats', {}).get(chat, default))
+	return copy.deepcopy(records(name).get(chat, default))
 
 
 @contextlib.contextmanager

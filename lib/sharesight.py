@@ -17,27 +17,28 @@ from lib import yahoo
 API = 'https://api.sharesight.com/'
 MAX_CONCURRENT = 1 # Sharesight refuses parallel requests beyond a few per account: one at a time, whoever asks
 _request_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
-TOKEN = 'finbot_sharesight_token.json' # good until the expiry it carries
+TOKEN = 'finbot_sharesight_token.json' # good until the expiry it carries, whatever the cache setting
+TOKEN_MARGIN = 20 # seconds a kept token must have left to be used: one about to expire is renewed first
+_auth = threading.Lock() # one token request at a time, or two threads would each ask for one
 PORTFOLIOS_CACHE = 'finbot_sharesight_portfolios.json' # good for the cache_seconds setting
+TRADES_SECONDS = 299 # trades are asked for afresh after 5 minutes, so that a trades job every 5 sees each new one
 LARGEST = 'finbot_sharesight_largest.json' # what each portfolio's holdings are worth in US dollars: see largest()
 _largest_lock = threading.Lock() # one change of LARGEST at a time: two portfolios' reports can arrive together
+
+
+class Refused(RuntimeError):
+	"""Sharesight refused a request's credentials (a 401): an access token revoked, say."""
 
 
 def _request(path, what, expect, **kwargs):
 	"""Sharesight's answer to a request (a POST with data=, else a GET), checked to hold `expect`: one request at a
 	time (MAX_CONCURRENT), tried again while Sharesight says too many are in flight (five tries in all). Raises
-	RuntimeError naming `what` when Sharesight cannot be reached, or answers with an error, or without `expect`."""
-	send = net.post if 'data' in kwargs else net.get
+	RuntimeError naming `what` when Sharesight cannot be reached, or answers with an error (Refused for a 401), or
+	without `expect`."""
 	for attempt in range(5):
 		with _request_slots:
-			try:
-				r = send(API + path, **kwargs)
-			except Exception as e:
-				raise RuntimeError(f"Sharesight {what}: {net.redact(e)}") from e
-		try:
-			data = r.json()
-		except ValueError: # an HTML error page, say
-			data = None
+			r = net.answer('Sharesight', what, API + path, **kwargs)
+		data = net.json_answer(r, 'Sharesight', what) # an HTML error page raises
 		error = data.get('error') if isinstance(data, dict) else None
 		if not (error and 'parallel' in str(error).lower() and attempt < 4):
 			break
@@ -45,31 +46,37 @@ def _request(path, what, expect, **kwargs):
 		time.sleep(1 + attempt)
 	if error: # an OAuth error describes itself too
 		why = ': '.join(str(data[key]) for key in ('error', 'error_description') if data.get(key))
-	elif not isinstance(data, dict):
-		why = f"a {r.status_code} answer that is not JSON"
-	elif r.status_code != 200 or expect not in data:
+	elif r.status_code != 200 or not isinstance(data, dict) or expect not in data:
 		why = f"a {r.status_code} answer without {expect}"
 	else:
 		return data
-	raise RuntimeError(f"Sharesight {what}: {why}")
+	raise (Refused if r.status_code == 401 else RuntimeError)(f"Sharesight {what}: {why}")
 
 
-def _token():
-	"""An access token for Sharesight's API: the cached one while it has more than 20 seconds left, else a new one
-	(cached while the cache setting is on)."""
-	cached = cache.load(TOKEN) if config.settings.cache else None
-	if cached and cached['created_at'] + cached['expires_in'] - time.time() > 20:
-		return cached['access_token']
-	data = _request('oauth2/token', 'auth', 'access_token', data=config.env.sharesight_auth)
-	if config.settings.cache:
+def _token(refused=None):
+	"""An access token for Sharesight's API: the one kept (TOKEN) while it has more than TOKEN_MARGIN seconds left,
+	unless it is the one Sharesight `refused`; else a new one, for the client's keys. One thread at a time: one that
+	waited while another renewed the token takes the new one."""
+	with _auth:
+		kept = cache.load(TOKEN)
+		if (kept and kept['access_token'] != refused and
+				kept['created_at'] + kept['expires_in'] - time.time() > TOKEN_MARGIN):
+			return kept['access_token']
+		data = _request('oauth2/token', 'auth', 'access_token', data={'grant_type': 'client_credentials',
+			'client_id': config.env.sharesight_client_id, 'client_secret': config.env.sharesight_client_secret,
+			'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob'})
 		cache.write(TOKEN, data)
-	return data['access_token']
+		return data['access_token']
 
 
 def _api(path, what, expect):
-	"""Sharesight's answer to an API query (path: under api/, with its query string) with the access token; see
-	_request."""
-	return _request('api/' + path, what, expect, headers={'Authorization': 'Bearer ' + _token()})
+	"""Sharesight's answer to an API query (path: under api/, with its query string) with the access token, and with a
+	new one once when Sharesight refuses it; see _request."""
+	token = _token()
+	try:
+		return _request('api/' + path, what, expect, headers={'Authorization': 'Bearer ' + token})
+	except Refused:
+		return _request('api/' + path, what, expect, headers={'Authorization': 'Bearer ' + _token(refused=token)})
 
 
 def _portfolios(seconds=None):
@@ -118,7 +125,7 @@ def _note_values(portfolio_id, report):
 		worth = {}
 		for each in report.get('holdings') or []:
 			if each.get('value') is not None and float(each['value']) > 0:
-				ticker = markets.transform_to_yahoo(each['instrument']['code'], each['instrument']['market_code'])
+				ticker = _ticker(each['instrument'])
 				worth[ticker] = worth.get(ticker, 0.0) + float(each['value']) * rate
 		with _largest_lock:
 			kept = cache.load(LARGEST) or {}
@@ -150,8 +157,8 @@ def note_cached():
 	setting."""
 	if not (configured() and config.settings.cache) or cache.load(LARGEST):
 		return
-	for portfolio in _chosen((cache.load(PORTFOLIOS_CACHE) or {}).get('portfolios') or []):
-		if report := (cache.load(performance_cache_file(portfolio.id, 0)) or {}).get('report'):
+	for portfolio, report in _cached_reports():
+		if report:
 			_note_values(portfolio.id, report)
 
 
@@ -162,7 +169,7 @@ def _trades(portfolio_id, days=None):
 		days = config.settings.past_days
 	query = f'v2/portfolios/{portfolio_id}/trades.json?start_date={_since(days)}'
 	fetch = lambda: _api(query, 'trades', 'trades')
-	return cache.cached(f"finbot_sharesight_trades_{portfolio_id}_{days}.json", 299, fetch)['trades']
+	return cache.cached(f"finbot_sharesight_trades_{portfolio_id}_{days}.json", TRADES_SECONDS, fetch)['trades']
 
 
 class NotSetUp(answer.Answer, RuntimeError):
@@ -174,7 +181,7 @@ class NotSetUp(answer.Answer, RuntimeError):
 
 def configured():
 	"""Whether Sharesight is set up, its keys in finbot.env: without, a chat's reports cover its watchlist alone."""
-	return bool(config.env.sharesight_auth.get('client_id'))
+	return bool(config.env.sharesight_client_id)
 
 
 class PortfolioNotFound(answer.Answer, LookupError):
@@ -202,12 +209,16 @@ class Portfolio:
 
 	def tickers(self):
 		"""What it holds, as Yahoo tickers, sorted."""
-		return sorted({markets.transform_to_yahoo(each['code'],
-			each['market_code']) for each in self.holdings().values()})
+		return sorted({_ticker(each) for each in self.holdings().values()})
 
 	def trades(self, days=None):
 		"""Its trades of the past `days` (the past_days setting when None), each with the portfolio's name added."""
 		return [trade | {'portfolio': self.name} for trade in _trades(self.id, days)]
+
+
+def _ticker(instrument):
+	"""The Yahoo ticker of a Sharesight instrument (its code and market)."""
+	return markets.transform_to_yahoo(instrument['code'], instrument['market_code'])
 
 
 def _wanted(portfolio_id):
@@ -249,13 +260,16 @@ def cached():
 	"""(the portfolios' names, the Yahoo tickers they hold, sorted) from what the cache holds, whatever its age, and
 	never a request: for suggestions while a command is typed, which must come at once. Empty where nothing is
 	cached."""
-	found = _chosen((cache.load(PORTFOLIOS_CACHE) or {}).get('portfolios') or [])
-	held = set()
-	for portfolio in found:
-		report = (cache.load(performance_cache_file(portfolio.id, 0)) or {}).get('report') or {}
-		held |= {markets.transform_to_yahoo(each['instrument']['code'], each['instrument']['market_code'])
-			for each in report.get('holdings') or []}
-	return [portfolio.name for portfolio in found], sorted(held)
+	found = _cached_reports()
+	held = {_ticker(each['instrument']) for _, report in found for each in (report or {}).get('holdings') or []}
+	return [portfolio.name for portfolio, _ in found], sorted(held)
+
+
+def _cached_reports():
+	"""[(portfolio, its holdings report or None)] of the portfolios to report on, from what the cache holds, whatever
+	its age: never a request."""
+	return [(portfolio, (cache.load(performance_cache_file(portfolio.id, 0)) or {}).get('report'))
+		for portfolio in _chosen((cache.load(PORTFOLIOS_CACHE) or {}).get('portfolios') or [])]
 
 
 def warm():

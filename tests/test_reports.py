@@ -874,6 +874,39 @@ class Podcasts(FinbotCase):
 		self.assertEqual(self.sent, []) # all seen now
 
 
+class ShortInterest(FinbotCase):
+	"""Short Man's CSV of ASX short interest (lib/shortman.py), as served."""
+	CSV = ('Title,Code,Positions,On issue,Percent\r\nCo T1,T1,100,1000,10.5\r\nCo T2,T2,1,10,abc\r\nshort\r\n'
+		'Co T3,T3,5,50,2.25\r\n')
+
+	def setUp(self):
+		"""The real reader."""
+		super().setUp()
+		self.patch(shortman, 'fetch', REAL_SHORTMAN)
+
+	def test_each_stocks_figure_is_added_and_a_row_that_is_none_skipped(self):
+		"""Each ASX stock asked about gets its percent shorted; a row that is not a stock's is left out with a warning
+		(one failed the report), and the CSV is cached as sent, so that the next report asks for none."""
+		calls = []
+		self.patch(net, 'get', lambda url, **kwargs: calls.append(url) or Resp(text=self.CSV, status=200))
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			found = shortman.fetch({'T1.AX': {}, 'T2.AX': {}, 'T3.AX': {}, 'T4.AX': {}})
+		self.assertEqual(found, {'T1.AX': {'short_percent': 10.5}, 'T2.AX': {}, 'T3.AX': {'short_percent': 2.25},
+			'T4.AX': {}})
+		self.assertEqual(err.getvalue().count("a row that is not a stock's"), 2)
+		shortman.fetch({'T1.AX': {}})
+		self.assertEqual(len(calls), 1)
+
+	def test_short_man_out_of_reach_leaves_the_figures_as_they_were(self):
+		"""Short Man unreachable, or answering with an error, leaves the figures as they were, with a warning."""
+		for failure in (requests.ConnectionError('down'), Resp(status=503)):
+			with self.subTest(failure=failure):
+				self.patch(net, 'get', serve(failure))
+				with contextlib.redirect_stderr(io.StringIO()) as err:
+					self.assertEqual(shortman.fetch({'T1.AX': {}}), {'T1.AX': {}})
+				self.assertIn('Short Man', err.getvalue())
+
+
 class TreemapCommand(FinbotCase):
 	def setUp(self):
 		"""A portfolio of five holdings across three industries, one unclassified and one worth nothing."""
@@ -971,7 +1004,7 @@ class WithoutSharesight(FinbotCase):
 	def setUp(self):
 		"""No Sharesight keys in finbot.env."""
 		super().setUp()
-		self.env(sharesight_auth={**config.env.sharesight_auth, 'client_id': None})
+		self.env(sharesight_client_id='')
 		self.patch(sharesight, '_portfolios', lambda seconds=None: self.fail('Sharesight was asked'))
 
 	def test_the_watchlist_alone_and_never_a_request(self):

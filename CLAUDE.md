@@ -157,8 +157,11 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   currency, Yahoo suffix, Google code; Sharesight's codes, so TSE is Toronto), and `code(name)` for any name an exchange
   goes by. `lib/formats.py`: names, units, dates, percents in words. `lib/links.py`: stock links. `lib/render.py`:
   every chart, `Chart` specs and `draw()`.
-- `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources. Yahoo's and Sharesight's answers
-  are cached in `DATA_DIR/cache` as sent, not parsed, so a parser fix needs no flush (`cache.cached`); `util/flush.py`
+- `lib/yahoo.py lib/sharesight.py lib/shortman.py lib/simplywallst.py`: data sources, each request through `net.answer`
+  (an outage, `requests.RequestException` alone, a redacted RuntimeError; a 429 with Retry-After waited out once) and
+  `net.json_answer` (a body that is not JSON, a RuntimeError). Yahoo's, Sharesight's and Short Man's answers
+  are cached in `DATA_DIR/cache` as sent, not parsed, so a parser fix needs no flush (`cache.cached`); Yahoo's cookie
+  and crumb and Sharesight's token are kept whatever the cache setting, and renewed when refused; `util/flush.py`
   deletes cache files by when they were written (`--before`/`--after TIME`, or `all`), never the state.
   `yahoo.symbol(typed)` is Yahoo's symbol for a ticker as written, tried on the local exchange (`exchange_suffix`)
   when Yahoo does not know it bare: every ticker a chat gives goes through it. `sharesight.portfolios(name=None)` gives

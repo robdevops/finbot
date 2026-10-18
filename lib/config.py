@@ -253,7 +253,8 @@ class Env:
 	discordBotToken: str
 	discordOutgoingWebhook: str # the interactions endpoint URL (http mode); unset, finbot keeps to the gateway
 	discordPublicKey: str # the app's key, which checks the signature of each interaction posted to the endpoint
-	sharesight_auth: dict
+	sharesight_client_id: str # '' without Sharesight: a chat's reports then cover its watchlist alone
+	sharesight_client_secret: str
 	telegram_api: str # the Bot API's base URL for telegramBotToken ('' without one): a method's name follows it
 
 	@property
@@ -285,12 +286,8 @@ def startup_values(getenv):
 		discordBotToken=r.str('discordBotToken', ''),
 		discordOutgoingWebhook=r.str('discordOutgoingWebhook', ''),
 		discordPublicKey=r.str('discordPublicKey', ''),
-		sharesight_auth={
-			"grant_type": 'client_credentials',
-			"client_id": getenv('sharesight_client_id'),
-			"client_secret": getenv('sharesight_client_secret'),
-			"redirect_uri": 'urn:ietf:wg:oauth:2.0:oob'
-		},
+		sharesight_client_id=r.str('sharesight_client_id', ''),
+		sharesight_client_secret=r.str('sharesight_client_secret', ''),
 		telegram_api=f'https://api.telegram.org/bot{token}/' if token else '')
 	r.check()
 	return env

@@ -103,6 +103,32 @@ def ok_answer(response, what, reason):
 		raise RateLimited(said, retry_after(response))
 	raise RuntimeError(said)
 
+def answer(source, what, url, **kwargs):
+	"""A data source's response (source: its name, Yahoo) to a request for `what`: a GET, or a POST where kwargs have
+	data. A rate limit (a 429) that says how long to wait (Retry-After) is waited out once; any other answer is given
+	back as it is, for the source to read. Raises RuntimeError, its secrets redacted and its cause chained, when the
+	host cannot be reached (requests.RequestException: any other exception is a bug, raised as it is), or keeps up its
+	rate limit."""
+	send = post if 'data' in kwargs else get
+	def sent():
+		"""The response, or RateLimited for a 429 that asks for a wait."""
+		try:
+			response = send(url, **kwargs)
+		except requests.RequestException as e:
+			raise RuntimeError(f"{source} unreachable for {what}: {redact(e)}") from e
+		if response.status_code == 429 and 'Retry-After' in response.headers:
+			raise RateLimited(f"{source} {what}: rate limited", retry_after(response))
+		return response
+	return patiently(sent)
+
+def json_answer(response, source, what):
+	"""A data source's answer (source: its name) as JSON, whatever its status. Raises RuntimeError naming the source,
+	`what` and the status for a body that is not JSON (an HTML error page)."""
+	try:
+		return response.json()
+	except ValueError as e:
+		raise RuntimeError(f"{source} {what}: a {response.status_code} answer that is not JSON") from e
+
 def json_of(response):
 	"""A response's JSON object, or {} for a body that is none."""
 	try:
