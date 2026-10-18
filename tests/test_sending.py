@@ -335,6 +335,19 @@ class TelegramSending(FinbotCase):
 		telegram_common.TelegramBot('5').post_chart(io.BytesIO(b'png'), 'caption')
 		self.assertEqual([uploaded for _, _, uploaded in sent], [True, True, True])
 
+	def test_toggle_buttons_are_drawn_green_when_on_and_red_when_off(self):
+		"""A toggle button's tone becomes each network's green and red: Telegram's style success and danger, Slack's
+		primary and danger (primary also marks the button shown now), Discord's styles 3 and 4 (blurple for the one
+		shown now, else grey); a plain button gets none."""
+		row = [buttons.Button('a', 'da', tone=buttons.ON), buttons.Button('b', 'db', tone=buttons.OFF),
+			buttons.Button('c', 'dc', active=True), buttons.Button('d', 'dd')]
+		keyboard = telegram_common.TelegramBot.markup([row])['inline_keyboard'][0]
+		self.assertEqual([button.get('style') for button in keyboard], ['success', 'danger', None, None])
+		elements = slack_common.actions_block(row)['elements']
+		self.assertEqual([element.get('style') for element in elements], ['primary', 'danger', 'primary', None])
+		components = discord_common.components([row])[0]['components']
+		self.assertEqual([component['style'] for component in components], [3, 4, 1, 2])
+
 	def test_error_line_redacts_secrets_and_truncates(self):
 		"""An error line has no token or crumb in it, and is cut to about 200 characters."""
 		line = delivery.error_line(RuntimeError('GET /bot123456:ABC-def_1/send?crumb=SECRET&x=1 failed'), 'ctx')

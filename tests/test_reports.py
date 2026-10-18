@@ -1219,11 +1219,13 @@ class Pickers(FinbotCase):
 		made = lambda label, act, **changes: (label, act, changes)
 		found = ['A', 'B', 'C', 'D']
 		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm'),
-			[('a', 'm0', {'mask': 0b100}), ('B', 'm0', {'mask': 0b111}), ('c', 'm0', {'mask': 0b001})])
-		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, str.lower, 'n'),
-			[('D', 'n1', {'mask': 0b1101})])
-		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm', full=True),
-			[('a', 'm0', {'mask': 0b100}), ('B', 'f0', {}), ('c', 'm0', {'mask': 0b001})])
+			[('a', 'm0', {'mask': 0b100, 'tone': ''}), ('B', 'm0', {'mask': 0b111, 'tone': ''}),
+			('c', 'm0', {'mask': 0b001, 'tone': ''})])
+		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, str.lower, 'n', tones=('on', 'off')),
+			[('D', 'n1', {'mask': 0b1101, 'tone': 'on'})])
+		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm', full=True, tones=('', 'on')),
+			[('a', 'm0', {'mask': 0b100, 'tone': 'on'}), ('B', 'f0', {'tone': ''}),
+			('c', 'm0', {'mask': 0b001, 'tone': 'on'})])
 		self.assertEqual([pick.page_buttons(page, 3, 'm', made) for page in range(3)],
 			[[('>', 'm1', {})], [('<', 'm0', {}), ('>', 'm2', {})], [('<', 'm1', {})]])
 		self.assertEqual(pick.page_buttons(0, 1, 'm', made), [])
@@ -1537,6 +1539,21 @@ class Pickers(FinbotCase):
 		lines = [line for line in log.getvalue().split('\n') if line.startswith('priming')]
 		self.assertEqual(lines, ['priming c w: built 0.1 s, drew 0.10 s', 'priming c m: built 0.1 s, drew 0.10 s',
 			'priming c y: built 0.1 s, drew 0.10 s'])
+
+	def test_toggle_buttons_are_green_when_on_and_red_when_off(self):
+		"""The watchlist's Edit draws each ticker green, and red once struck (marked to delete); the .price picker's
+		tickers are green when ticked and plain when not; no other button is toned."""
+		for ticker in ('T1', 'T2', 'T3'):
+			watchlist.add('telegram:55', ticker)
+		lines, rows = worker.watchlist_screen(TELEGRAM, 'telegram:55', 0b010)
+		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows],
+			[[('T1', 'on'), (about.struck('T2'), 'off'), ('T3', 'on')], [('Delete', ''), ('Cancel', '')]])
+		self.assertEqual([button.tone for row in worker.watchlist_screen(TELEGRAM, 'telegram:55', 0, editing=False)[1]
+			for button in row], [''])
+		lines, rows = pick.screen(TELEGRAM, 'c', ['A1', 'B1', 'C1'], '0', 'w', pick.pack([1]), 0b010, 'm')
+		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows[:1]],
+			[[('A1', ''), ('✅ B1', 'on'), ('C1', '')]])
+		self.assertEqual({button.tone for row in rows[1:] for button in row}, {''}) # Back and OK
 
 
 if __name__ == '__main__':

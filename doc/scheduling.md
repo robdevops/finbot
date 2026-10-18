@@ -22,7 +22,7 @@ never run, its name and its schedule in words. Under the list, in italics, is ho
 ```
 Under it is one row of buttons, each there only where it has something to act on (**+** always; **Edit** and **Run** with any job, **Upcoming** with one that is on). Each screen is drawn in place of the last:
 * **+**: what the job runs, how often, then the rest down to the minute ([below](#add-step-by-step)).
-* **Edit**: the list with a button per job, the default ones too; a press switches that job on or off at once, and a job that is off is struck through, its button too. **OK** goes back to the list. **Delete disabled jobs**, there while any job is off, asks first ("Delete the 3 disabled jobs?"), then deletes them. A default job that is deleted comes back when the same job is added again.
+* **Edit**: the list with a button per job, the default ones too; a press switches that job on or off at once, and a job that is off is struck through, its button too. The buttons are green for a job that is on and red for one that is off (on Telegram, Slack and Discord alike; the Enable and Disable lists colour the jobs they offer the same way). **OK** goes back to the list. **Delete disabled jobs**, there while any job is off, asks first ("Delete the 3 disabled jobs?"), then deletes them. A default job that is deleted comes back when the same job is added again.
 * **Run**: a button per job; a press runs it now, as its schedule would. What the job posts shows it ran; a
   message says so only when it failed, or was running already. The same button pressed again within a minute does
   nothing more, as with every button.

@@ -158,14 +158,14 @@ def screen_buttons(screen, page, pages, shown, crc, own):
 		nav = []
 	elif screen == 'edit':
 		tapped = [buttons.menu_button(f'{number} {job.name}' if job.on else struck(f'{number} {job.name}'), screen,
-			[page, number], crc) for number, job, _ in shown]
+			[page, number], crc, tone(job)) for number, job, _ in shown]
 		rows = [tapped[i:i + JOB_ROW] for i in range(0, len(tapped), JOB_ROW)]
 		nav = [buttons.menu_button('OK', 'top', [0], crc)]
 		if not all(job.on for job in own):
 			nav.append(buttons.menu_button('Delete disabled jobs', screen, [page, 'ask'], crc))
 	else:
-		tapped = [buttons.menu_button(f'{number} {job.name}', screen, [page, number], crc) for number, job, _ in shown
-			if acts(screen, job)]
+		tapped = [buttons.menu_button(f'{number} {job.name}', screen, [page, number], crc,
+			tone(job) if screen in ('on', 'off') else '') for number, job, _ in shown if acts(screen, job)]
 		rows = [tapped[i:i + JOB_ROW] for i in range(0, len(tapped), JOB_ROW)]
 		nav = [buttons.menu_button('Cancel', 'top', [0], crc)]
 		if screen in EVERY and any(acts(screen, job) for job in own):
@@ -175,6 +175,10 @@ def screen_buttons(screen, page, pages, shown, crc, own):
 	if page < pages - 1:
 		nav.append(buttons.menu_button('More ▶', screen, [page + 1], crc))
 	return rows + ([nav] if nav else [])
+
+def tone(job):
+	"""A job's toggle button tone: green when it is on, red when it is off."""
+	return buttons.ON if job.on else buttons.OFF
 
 def struck(text):
 	"""The text with a line through it, for a button's label, which has no markup."""

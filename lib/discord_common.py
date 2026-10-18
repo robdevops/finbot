@@ -9,6 +9,7 @@ import time
 import requests
 
 from lib import log
+from lib import buttons
 from lib import config
 from lib import dialects
 from lib import inbound
@@ -321,11 +322,18 @@ DISCORD_ROW = 5 # buttons in a row of components, and rows in a message: Discord
 
 def components(buttons):
 	"""Rows of buttons.Button as Discord's action rows: a row of at most DISCORD_ROW buttons (a longer one in rows of
-	that), and as many rows at most (the buttons past that are left out), the one shown now blurple and the rest
-	grey. A row of buttons that fits stays a row of its own, so a picker's period buttons keep theirs."""
+	that), and as many rows at most (the buttons past that are left out), a toggle that is on green and one that is off
+	red, the one shown now blurple and the rest grey. A row of buttons that fits stays a row of its own, so a picker's
+	period buttons keep theirs."""
 	rows = [row[i:i + DISCORD_ROW] for row in buttons for i in range(0, len(row), DISCORD_ROW)][:DISCORD_ROW]
-	return [{'type': 1, 'components': [{'type': 2, 'style': 1 if button.active else 2, 'label': button.label[:80],
+	return [{'type': 1, 'components': [{'type': 2, 'style': button_style(button), 'label': button.label[:80],
 		'custom_id': button.data} for button in row]} for row in rows]
+
+
+def button_style(button):
+	"""The style number of a Discord button: 3 (green) for a toggle that is on, 4 (red) for one that is off, else 1
+	(blurple) for the one shown now and 2 (grey)."""
+	return {buttons.ON: 3, buttons.OFF: 4}.get(button.tone) or (1 if button.active else 2)
 
 
 def message_body(payload, image=None):

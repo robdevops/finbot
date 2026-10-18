@@ -9,11 +9,16 @@ import zlib
 from lib import answer
 from lib import state
 
+ON, OFF = 'on', 'off' # a toggle's state, as a button's tone: drawn green and red where the network colours buttons
+
+
 class Button(typing.NamedTuple):
-	"""One button: its label, the data a press sends back, and whether it is the one shown now (marked)."""
+	"""One button: its label, the data a press sends back, whether it is the one shown now (marked), and for a toggle
+	its state (tone: ON or OFF; none for any other button)."""
 	label: str
 	data: str
 	active: bool = False
+	tone: str = ''
 
 
 class ChartPress(typing.NamedTuple):
@@ -109,16 +114,17 @@ def keyboard(kind, args, active=None):
 	ref = _ref(args)
 	return [[Button(PERIODS[key][0], f"c|{kind}|{key}|{ref}", key == active) for key in BUTTONS[kind]]]
 
-def menu_button(label, screen, args, checksum):
+def menu_button(label, screen, args, checksum, tone=''):
 	"""A button of the .jobs menu: its label, cut to 40 characters, and its data the screen it asks for, what it says
-	besides (words, numbers) and the list's checksum: 'm|on|0|5|a1b2'."""
-	return Button(label[:40], '|'.join(['m', screen, *map(str, args), checksum]))
+	besides (words, numbers) and the list's checksum: 'm|on|0|5|a1b2'; tone, a job's state where it is a toggle."""
+	return Button(label[:40], '|'.join(['m', screen, *map(str, args), checksum]), tone=tone)
 
-def pick_button(label, press, active=False):
-	"""A picker's button: its label (cut to 40 characters) and a PickPress as its data: 'k|c|0|x|1|3|p0|a1b2'."""
+def pick_button(label, press, active=False, tone=''):
+	"""A picker's button: its label (cut to 40 characters) and a PickPress as its data: 'k|c|0|x|1|3|p0|a1b2'; tone,
+	the state of a ticker's toggle."""
 	data = '|'.join(['k', press.cmd, press.group, press.period, format(press.shown, 'x'), format(press.mask, 'x'),
 		press.act, press.checksum])
-	return Button(label[:40], data, active)
+	return Button(label[:40], data, active, tone)
 
 def parse(data):
 	"""What a pressed button's data asks for: a PickPress for a picker's button of a known command and act; a
