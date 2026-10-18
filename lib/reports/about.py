@@ -54,8 +54,9 @@ YEARS = 10 # the years a one-off may be in, this one first
 CROWDED = 20 # a screen of more choices takes them in rows of five, Back last: Discord takes 25 buttons
 
 def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, highlight=None):
-	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each ✅ (on) or struck through (off),
-	* where it has never run, its name and its schedule in words, by the timezone setting's clock (lib/when.py), then
+	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each struck through and marked ❌
+	when it is off, * where it has never run, its name and its schedule in words, by the timezone setting's clock
+	(lib/when.py), then
 	the key to the marks shown. top has what can be done in one row (+ to add, and where there is a job to act on, Edit,
 	Run, Upcoming) and how + is typed, in italics; edit, on, off, del and run a button for each job the
 	screen acts on (acts), which switches it on or off, deletes it or runs it now, and Enable all, Disable all or Delete
@@ -191,18 +192,19 @@ def delete_disabled_screen(service, chat, page=0):
 	off = [(number, job) for number, job in enumerate(own, 1) if not job.on]
 	crc = jobs.list_checksum(own)
 	return [service.bold(f"Delete the {len(off)} disabled job{'' if len(off) == 1 else 's'}?"), '',
-		*(f"{number}. {service.strike(service.escape(job.name))}" for number, job in off)], [[
+		*(f"{number}. ❌ {service.strike(service.escape(job.name))}" for number, job in off)], [[
 		buttons.menu_button('Yes, delete them', 'edit', [page, 'yes'], crc),
 		buttons.menu_button('Cancel', 'edit', [page], crc)]]
 
 def job_entry(service, scheduler, number, job, running=(), local=None, now=None):
-	"""'5. ✅ movers close AU · weekdays at 4:30pm Sydney': a job in .jobs, with its number, whether it is on (✅; one
-	that is off is struck through) and * where it has never run, its name, its schedule in words, and whether it is
-	running."""
+	"""'5. movers close AU · weekdays at 4:30pm Sydney': a job in .jobs, with its number, * where it has never run, its
+	name and its schedule in words, and whether it is running; one that is off has a ❌ before them and is struck
+	through."""
 	never = '' if scheduler.has_run(job) else '*'
 	schedule = job.schedule.describe(local or formats.zone().key, now or scheduler.clock())
 	body = f"{service.escape(job.name)} · {schedule}"
-	shown = f"✅{never} {body}" if job.on else f"{never} {service.strike(body)}".lstrip()
+	shown = f"{never} {body}" if job.on else f"❌{never} {service.strike(body)}"
+	shown = shown.lstrip()
 	return f"{number}. {shown}" + (' (running)' if job.key in running else '')
 
 def delete_all_screen(service, chat, page=0):
