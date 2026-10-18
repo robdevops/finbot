@@ -177,8 +177,8 @@ def screen_buttons(screen, page, pages, shown, crc, own):
 	return rows + ([nav] if nav else [])
 
 def tone(job):
-	"""A job's toggle button tone: green when it is on, red when it is off."""
-	return buttons.ON if job.on else buttons.OFF
+	"""A job's toggle button tone: plain when it is on, red when it is off."""
+	return '' if job.on else buttons.OFF
 
 def struck(text):
 	"""The text with a line through it, for a button's label, which has no markup."""

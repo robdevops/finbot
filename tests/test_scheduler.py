@@ -810,19 +810,20 @@ class JobsMenu(ChatBase):
 		self.assertEqual((lines[0], rows[0]), ('<b>Jobs here</b>', ['+', 'Edit', 'Run', 'Upcoming']))
 
 	def test_toggles_are_green_when_a_job_is_on_and_red_when_it_is_off(self):
-		"""Edit draws each job's button green (on) or red (off); the Enable and Disable lists draw theirs by the state
-		the jobs are in (disabled ones red, enabled ones green); the delete and run lists, not toggles, are plain."""
+		"""Edit draws a job's button red when the job is off and plain when it is on; the Enable and Disable lists draw
+		theirs by the state the jobs are in (disabled ones red); the delete and run lists, not toggles, are plain."""
+		off, on = buttons.OFF, ''
 		def tones():
 			"""The tones of the buttons of the last screen, by row."""
 			return [[button.tone for button in row] for row in self.edits[-1][3]]
 		self.press(f'm|edit|0|{self.crc()}')
-		self.assertEqual(tones(), [['on', 'on', 'on'], ['']])
+		self.assertEqual(tones(), [[on, on, on], ['']])
 		lines, rows, data = self.press(f'm|edit|0|1|{self.crc()}')
-		self.assertEqual(tones(), [['off', 'on', 'on'], ['', '']])
+		self.assertEqual(tones(), [[off, on, on], ['', '']])
 		self.press(f'm|on|0|{self.crc()}')
-		self.assertEqual(tones()[0], ['off'])
+		self.assertEqual(tones()[0], [off])
 		self.press(f'm|off|0|{self.crc()}')
-		self.assertEqual(tones()[0], ['on', 'on'])
+		self.assertEqual(tones()[0], [on, on])
 		for screen in ('del', 'run'):
 			self.press(f'm|{screen}|0|{self.crc()}')
 			self.assertEqual({tone for row in tones() for tone in row}, {''}, screen)

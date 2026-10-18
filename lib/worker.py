@@ -473,7 +473,7 @@ def watchlist_screen(service, chat, mask, user='', page=0, note=None, editing=Tr
 	if not editing:
 		return ([note] if note else []) + lines, [[button('Edit', 'e0', mask=0)]]
 	rows = pick.chunks(pick.ticker_buttons(found, page, per_page, mask, button, about.struck, 'm',
-		tones=(buttons.ON, buttons.OFF)), per_row)
+		tones=('', buttons.OFF)), per_row)
 	rows.append(pick.page_buttons(page, pages, 'm', button) + [button('Delete', 'h0'), button('Cancel', 'p0', mask=0)])
 	return ([note] if note else []) + lines + ['', WATCHLIST_HINT], rows
 

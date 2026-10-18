@@ -1544,13 +1544,13 @@ class Pickers(FinbotCase):
 			'priming c y: built 0.1 s, drew 0.10 s'])
 
 	def test_toggle_buttons_are_green_when_on_and_red_when_off(self):
-		"""The watchlist's Edit draws each ticker green, and red once struck (marked to delete); the .price picker's
+		"""The watchlist's Edit draws a ticker plain, and red once struck (marked to delete); the .price picker's
 		tickers are green when ticked and plain when not; no other button is toned."""
 		for ticker in ('T1', 'T2', 'T3'):
 			watchlist.add('telegram:55', ticker)
 		lines, rows = worker.watchlist_screen(TELEGRAM, 'telegram:55', 0b010)
 		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows],
-			[[('T1', 'on'), (about.struck('T2'), 'off'), ('T3', 'on')], [('Delete', ''), ('Cancel', '')]])
+			[[('T1', ''), (about.struck('T2'), 'off'), ('T3', '')], [('Delete', ''), ('Cancel', '')]])
 		self.assertEqual([button.tone for row in worker.watchlist_screen(TELEGRAM, 'telegram:55', 0, editing=False)[1]
 			for button in row], [''])
 		lines, rows = pick.screen(TELEGRAM, 'c', ['A1', 'B1', 'C1'], '0', 'w', pick.pack([1]), 0b010, 'm')

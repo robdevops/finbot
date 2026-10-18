@@ -318,7 +318,7 @@ Tracks additional securities which are not in your Sharesight holdings. Each cha
 
 The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file.
 
-Command (with an Edit button, where the chat has buttons: it offers each ticker, green, which a press strikes through and turns red, and Delete deletes the struck ones; none under an empty watchlist):
+Command (with an Edit button, where the chat has buttons: it offers each ticker, which a press strikes through and turns red, and Delete deletes the struck ones; none under an empty watchlist):
 ```
 /watchlist
 ```
