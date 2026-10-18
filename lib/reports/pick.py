@@ -5,6 +5,7 @@ message over and leaves the buttons under it, the item shown marked, so another 
 .price's: its period row ends in +, which opens the tickers to tick, and it starts on the biggest holding."""
 from lib import answer
 from lib import buttons
+from lib import charts
 from lib import config
 from lib import delivery
 from lib import log
@@ -73,17 +74,20 @@ def prime(service, cmd, group, found, index):
 	"""Draw, to fill the cache, the charts a button of a treemap picker would ask for: the other groupings of the
 	portfolio shown (found[index]) first, then every other portfolio in all, each uploaded ahead to the network's
 	preload chat where a setting names one (delivery.preload; one failing stops those uploads). A failure is logged,
-	never raised."""
+	never raised. Each chart's times are logged (charts.primed)."""
 	by = holdings.GROUPS.get(group, 'industry')
 	wanted = [(found[index], each) for each in holdings.GROUPS.values() if each != by] + [(name, each)
 		for name in found if name != found[index] for each in holdings.GROUPS.values()]
 	preloading = True
 	for name, by in wanted:
 		try:
-			_, chart = holdings.prepare_treemap(name, by, service)
+			(_, chart), built = charts.timed(holdings.prepare_treemap, name, by, service)
 			if chart and chart.rows:
-				image = render.draw(chart)
-				preloading = preloading and delivery.preload(service, image)
+				image, drew = charts.timed(render.draw, chart)
+				uploaded = 0.0
+				if preloading:
+					preloading, uploaded = charts.timed(delivery.preload, service, image)
+				charts.primed(f"{cmd} {name} by {by}", built, drew, uploaded)
 		except Exception as e:
 			log.warn("priming", cmd, name, by, "failed:", e)
 

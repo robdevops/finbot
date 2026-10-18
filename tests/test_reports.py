@@ -3,6 +3,7 @@ import contextlib
 import unittest
 import datetime
 import re
+import types
 from tests.common import *
 from lib.reports import pick
 
@@ -1495,6 +1496,23 @@ class Pickers(FinbotCase):
 		pick.prime(SLACK, 't', '0', ['Amy', 'Bob'], 0)
 		self.assertEqual(len(drawn), 9)
 		self.assertEqual(handed, [(SLACK, 'Amy treemap by sector'), (SLACK, 'Amy treemap by country')])
+
+
+	def test_priming_logs_how_long_each_chart_took_to_build_draw_and_upload(self):
+		"""Each chart a priming draws leaves one INFO line with the seconds its data, its drawing and its upload took
+		(the upload 0 once preloading has stopped), for finding which stage sets the pace."""
+		ticks = iter(x / 10 for x in range(1000))
+		self.patch(charts, 'time', types.SimpleNamespace(monotonic=lambda: next(ticks)))
+		self.patch(render, 'draw', lambda chart: chart.title)
+		self.patch(delivery, 'preload', lambda service, image: image != 'm') # the second one fails
+		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
+			render.Chart('bars', period, rows=(('a', 1.0),))))
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
+		lines = [line for line in log.getvalue().split('\n') if line.startswith('priming')]
+		self.assertEqual(lines, ['priming c w: built 0.1 s, drew 0.10 s, uploaded 0.1 s',
+			'priming c m: built 0.1 s, drew 0.10 s, uploaded 0.1 s',
+			'priming c y: built 0.1 s, drew 0.10 s, uploaded 0.0 s'])
 
 
 if __name__ == '__main__':
