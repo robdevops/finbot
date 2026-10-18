@@ -175,6 +175,7 @@ class TelegramSending(FinbotCase):
 		file id: a press's edit of that chart in another chat then sends the id. A chart Telegram has is not sent again,
 		the next preload waits out the gap, and with the cache setting off nothing is sent."""
 		sent, waits = self.photos(), self.preloading()
+		self.settings(preload_gap=3.0)
 		chat = telegram_common.TelegramBot('-100777')
 		self.assertTrue(chat.preload(b'one'))
 		self.assertTrue(chat.preload(b'one')) # Telegram has it now
@@ -201,6 +202,20 @@ class TelegramSending(FinbotCase):
 		self.settings(preload_gap=0.0)
 		self.assertTrue(chat.preload(b'three'))
 		self.assertEqual(waits, [0.0, 0.75, 0.0])
+
+	def test_the_gap_runs_from_the_start_of_the_last_send_not_its_end(self):
+		"""A preload that takes two seconds to upload leaves only the rest of the gap to wait: sends begin the gap
+		apart, not the gap plus an upload."""
+		waits = self.preloading()
+		self.settings(preload_gap=3.0)
+		def upload(dest, photo):
+			"""An upload that takes two seconds."""
+			self.now[0] += 2
+		self.patch(telegram_common.TelegramBot, 'send_ahead', upload)
+		chat = telegram_common.TelegramBot('-100777')
+		self.assertTrue(chat.preload(b'one'))
+		self.assertTrue(chat.preload(b'two'))
+		self.assertEqual(waits, [0.0, 1.0]) # the 3 second gap less the 2 seconds the first took
 
 	def test_a_rate_limit_is_waited_out_once_and_the_preload_tried_again(self):
 		"""Telegram's "retry after 5" (Slack's "ratelimited": ten seconds) is slept through, at most RATE_LIMIT_WAIT,

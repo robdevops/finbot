@@ -107,8 +107,8 @@ portfolio buttons goes out, it draws the chart's other periods and portfolios in
 3. Set `telegram_preload_chat=-1001234567890` in `settings.conf` and reload.
 
 The posts are silent, with no caption, and stay. Every chart finbot preloads goes there, whichever chat it was drawn
-for, so keep the chat private. Preloads go one at a time, `preload_gap` seconds apart: 3 by default, which keeps within the 20 messages a
-minute that Telegram takes in a group or channel. A private chat with the bot takes about one a second, so set
-`preload_gap=1` if that is your preload chat. If Telegram answers "too many requests", finbot waits the time it asks
+for, so keep the chat private. Preloads go one at a time, a new one starting `preload_gap` seconds after the last began: 0.1 by default, which
+leaves the pace to the upload (about a chart a second), as a private chat with the bot takes. A group or channel takes
+only about 20 messages a minute, so set `preload_gap=3` if that is your preload chat. If Telegram answers "too many requests", finbot waits the time it asks
 and sends the chart once more. A preload that fails is a warning in the log, and that chart's others are not
 preloaded; the next chart that goes out tries again.

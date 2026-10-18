@@ -29,7 +29,7 @@ class Transport:
 	scheduled = False # posting a scheduled run's report (a chat's job), not a reply to a command
 	asked = False # a scheduled run that someone asked for (Run now, .jobs run): delivery.asked
 	preload_lock = None # one chart at a time preloaded to the network: a network that preloads has its own lock
-	preloaded_at = 0.0 # when the network's last preload went (time.monotonic)
+	preloaded_at = 0.0 # when the network's last preload began (time.monotonic)
 	_notices = None # the thread sending the notices
 	_quiet = None # set to stop them
 
@@ -163,21 +163,21 @@ class Transport:
 
 	def preload(self, photo):
 		"""Upload a chart (its PNG bytes) to this chat, the network's preload chat, ahead of a press that may ask for
-		it, where the network can show it again without an upload and has it not (wants, send_ahead): one at a time,
-		the preload_gap setting apart. False when it failed (logged): the caller stops preloading."""
+		it, where the network can show it again without an upload and has it not (wants, send_ahead): one at a time, a
+		send starting preload_gap seconds (a setting) after the last began, or when it ends if later. False when it
+		failed (logged): the caller stops preloading."""
 		if self.preload_lock is None or not self.wants(photo):
 			return True
 		with self.preload_lock:
 			if not self.wants(photo): # a press may have sent it meanwhile
 				return True
 			time.sleep(max(0.0, type(self).preloaded_at + config.settings.preload_gap - time.monotonic()))
+			type(self).preloaded_at = time.monotonic() # the gap is from one send's start to the next's, not its end
 			try:
 				self.send_patiently(photo)
 			except Exception as e:
 				log.warn(f"{self.name.capitalize()} preload to {self.where} failed:", net.redact(e))
 				return False
-			finally:
-				type(self).preloaded_at = time.monotonic()
 		return True
 
 	def wants(self, photo):

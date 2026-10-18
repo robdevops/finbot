@@ -135,5 +135,5 @@ background. With `slack_preload_chat` set to a private channel's id (`C0123ABCD`
 bottom; `/invite @finbot` there), it also uploads each one into that channel, so that a press within 30 minutes shows
 it without an upload (and without waiting for Slack to be able to show a new file). An upload no message shows is
 deleted once those 30 minutes are past, as every one is. Every chart finbot preloads goes there, whichever channel it
-was drawn for, so keep the channel private. Preloads go one at a time, `preload_gap` seconds apart (3 by default); a rate limit is waited out once; one that fails is a warning in
+was drawn for, so keep the channel private. Preloads go one at a time, `preload_gap` seconds apart (0.1 by default; raise it if the log says rate limited); a rate limit is waited out once; one that fails is a warning in
 the log.
