@@ -73,16 +73,16 @@ def timed(function, *args, **kwargs):
 	result = function(*args, **kwargs)
 	return result, time.monotonic() - began
 
-def primed(what, built, drew, uploaded):
-	"""Log how long one chart of a priming took: built (its data), drew, and uploaded ahead (0 where it was not)."""
-	log.info(f"priming {what}: built {built:.1f} s, drew {drew:.2f} s, uploaded {uploaded:.1f} s")
+def primed(what, built, drew):
+	"""Log how long one chart of a priming took: built (its data) and drew."""
+	log.info(f"priming {what}: built {built:.1f} s, drew {drew:.2f} s")
 
 def prime(kind, args, service, chat, shown):
 	"""Draw, to fill the cache, the chart of each period button of a kind (but `shown`, the period already sent), as a
-	press would ask for it, each uploaded ahead to the network's preload chat where a setting names one
-	(delivery.preload; one failing stops those uploads). A period with nothing to draw is skipped, and a failure is
-	logged, never raised. Each chart's times are logged (primed)."""
-	preloading = True
+	press would ask for it, then all uploaded ahead together to the network's preload chat where a setting names one
+	(delivery.preload_many). A period with nothing to draw is skipped, and a failure is logged, never raised. Each
+	chart's times are logged (primed)."""
+	images = []
 	for period in buttons.BUTTONS[kind]:
 		if period == shown:
 			continue
@@ -90,12 +90,11 @@ def prime(kind, args, service, chat, shown):
 			(_, chart), built = timed(build, kind, args, service, chat, period=period)
 			if chart and chart.rows:
 				image, drew = timed(render.draw, chart)
-				uploaded = 0.0
-				if preloading:
-					preloading, uploaded = timed(delivery.preload, service, image)
-				primed(f"{kind} {period}", built, drew, uploaded)
+				images.append(image)
+				primed(f"{kind} {period}", built, drew)
 		except Exception as e:
 			log.warn("priming", kind, args, period, "failed:", e)
+	delivery.preload_many(service, images)
 
 def prime_in_background(kind, args, service, chat, shown):
 	"""Start drawing a chart's other periods, to fill the cache, in a thread of its own (see prime)."""

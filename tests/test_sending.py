@@ -261,17 +261,97 @@ class TelegramSending(FinbotCase):
 			log.getvalue())
 
 	def test_a_chart_goes_to_its_networks_preload_chat_where_a_setting_names_one(self):
-		"""delivery.preload hands a chart drawn ahead to the preload chat its network's setting names, as that
-		network's bot; with no chat named, on Discord, or with no image, it does nothing."""
+		"""delivery.preload_many hands charts drawn ahead to the preload chat their network's setting names, as that
+		network's bot; with no chat named, on Discord, or with no images, it does nothing."""
 		taken = []
 		for kind in (telegram_common.TelegramBot, slack_common.SlackBot):
-			self.patch(kind, 'preload', lambda chat, photo: taken.append((chat.key, photo)) or True)
-		self.assertTrue(delivery.preload(TELEGRAM, io.BytesIO(b'png')))
+			self.patch(kind, 'preload_many', lambda chat, photos: taken.append((chat.key, photos)) or True)
+		self.assertTrue(delivery.preload_many(TELEGRAM, [io.BytesIO(b'png')]))
 		self.settings(telegram_preload_chat='-100777', slack_preload_chat='C9')
 		for service in (TELEGRAM, SLACK, DISCORD):
-			self.assertTrue(delivery.preload(service, io.BytesIO(b'png')))
-		self.assertTrue(delivery.preload(TELEGRAM, None))
-		self.assertEqual(taken, [('telegram:-100777', b'png'), ('slack:C9', b'png')])
+			self.assertTrue(delivery.preload_many(service, [io.BytesIO(b'png'), io.BytesIO(b'two')]))
+		self.assertTrue(delivery.preload_many(TELEGRAM, []))
+		self.assertEqual(taken, [('telegram:-100777', [b'png', b'two']), ('slack:C9', [b'png', b'two'])])
+
+	def albums(self):
+		"""net.post as Telegram for sendMediaGroup and sendPhoto: the requests, as (method, data, names of the files
+		sent); each file's id 'id-' and its bytes as text, an album answered with a message for each, in order."""
+		sent = []
+		def post(url, data=None, files=None, **kwargs):
+			"""Answer as Telegram does."""
+			sent.append((url.rsplit('/', 1)[1], data, sorted(files or ())))
+			def message(name, i=0):
+				"""The message that shows one file."""
+				return {'message_id': 8 + i, 'photo': [{'file_id': 's'}, {'file_id': 'id-' + files[name][1].decode()}]}
+			if url.endswith('sendMediaGroup'):
+				return Resp({'ok': True, 'result': [message(f'chart{i}', i) for i in range(len(files))]})
+			return Resp({'ok': True, 'result': message('photo')})
+		self.patch(net, 'post', post)
+		return sent
+
+	def test_a_charts_periods_are_preloaded_as_one_album_and_keep_their_file_ids(self):
+		"""preload_many sends the charts Telegram lacks in one sendMediaGroup, silently, and keeps the file id of each
+		(the answer has a message for each, in order), so each then goes by its id; charts it has are left out."""
+		sent = self.albums()
+		self.preloading()
+		chat = telegram_common.TelegramBot('-100777')
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			self.assertTrue(chat.preload_many([b'one', b'two', b'three']))
+		self.assertEqual([(method, data['chat_id'], names) for method, data, names in sent],
+			[('sendMediaGroup', '-100777', ['chart0', 'chart1', 'chart2'])])
+		self.assertEqual(json.loads(sent[0][1]['media']), [{'type': 'photo', 'media': f'attach://chart{i}'}
+			for i in range(3)])
+		self.assertTrue(sent[0][1]['disable_notification'])
+		self.assertEqual([cache.read(telegram_common.photo_file(photo)) for photo in (b'one', b'two', b'three')],
+			['id-one', 'id-two', 'id-three'])
+		self.assertIn('Telegram preloaded 3 charts to -100777 in 0.0 s', log.getvalue())
+		self.assertTrue(chat.preload_many([b'one', b'two'])) # Telegram has them now
+		self.assertEqual(len(sent), 1)
+
+	def test_albums_hold_ten_charts_a_lone_chart_goes_by_sendphoto_and_a_repeat_once(self):
+		"""Twelve charts are albums of ten and two; one chart, or the same chart twice, is a sendPhoto."""
+		sent = self.albums()
+		self.preloading()
+		chat = telegram_common.TelegramBot('-100777')
+		self.assertTrue(chat.preload_many([b'chart %d' % i for i in range(12)]))
+		self.assertEqual(sorted((method, len(names)) for method, _, names in sent),
+			[('sendMediaGroup', 2), ('sendMediaGroup', 10)])
+		del sent[:]
+		self.assertTrue(chat.preload_many([b'lone', b'lone']))
+		self.assertEqual([(method, names) for method, _, names in sent], [('sendPhoto', ['photo'])])
+
+	def test_albums_start_four_a_second_with_no_other_delay(self):
+		"""Albums begin ALBUMS_PER_SECOND a second apart: the first at once, the others a quarter second after the last
+		began, and together (preload_slots), whatever preload_gap says."""
+		sent, waits = self.albums(), self.preloading()
+		self.settings(preload_gap=5.0)
+		self.assertEqual(telegram_common.ALBUMS_PER_SECOND, 4)
+		self.assertTrue(telegram_common.TelegramBot('-100777').preload_many([b'%d' % i for i in range(25)]))
+		self.assertEqual((len(sent), sorted(waits)), (3, [0.0, 0.25, 0.25])) # albums of 10, 10 and 5
+
+	def test_a_refused_album_is_logged_and_stops_and_a_rate_limit_is_waited_out(self):
+		"""An album Telegram refuses is a warning and False; one it rate limits is sent again after the wait it asks."""
+		waits = self.preloading()
+		answers = [Resp({'ok': False, 'description': 'Bad Request: chat not found'}, 400)]
+		self.patch(net, 'post', lambda url, **kwargs: answers[0])
+		chat = telegram_common.TelegramBot('-100777')
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			self.assertFalse(chat.preload_many([b'one', b'two']))
+		self.assertIn('Telegram preload to -100777 failed: Telegram sendMediaGroup: Bad Request: chat not found',
+			log.getvalue())
+		answers[0] = Resp({'ok': False, 'description': 'Too Many Requests: retry after 2'}, 429)
+		tries = []
+		def post(url, data=None, files=None, **kwargs):
+			"""Rate limited the first time."""
+			tries.append(url)
+			if len(tries) > 1:
+				return Resp({'ok': True, 'result': [{'photo': [{'file_id': 'x'}]}, {'photo': [{'file_id': 'y'}]}]})
+			return answers[0]
+		self.patch(net, 'post', post)
+		del waits[:]
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertTrue(chat.preload_many([b'three', b'four']))
+		self.assertEqual((len(tries), waits[1:]), (2, [2.0]))
 
 	def test_a_file_id_is_another_bots_after_the_token_changes_or_none_with_the_cache_off(self):
 		"""A file id is reused by the bot that uploaded it alone (a new token is another bot), and not at all with the
@@ -878,6 +958,32 @@ class SlackButtons(FinbotCase):
 		self.assertEqual(self.calls()[-4:], ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.update'])
 		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F2'})
+
+	def test_preload_many_uploads_two_charts_at_a_time(self):
+		"""Slack preloads charts two uploads at a time: all are sent, never more than two in flight; one failing gives
+		False and a warning."""
+		self.patch(slack_common.SlackBot, 'preloaded_at', 0.0)
+		self.settings(preload_gap=0.0)
+		busy, peak, sent, lock = [0], [0], [], threading.Lock()
+		meet = threading.Barrier(2, timeout=5) # each upload waits for the other: only overlapping ones get through
+		def upload(chat, photo):
+			"""An upload that waits for the one beside it, counting those in flight."""
+			with lock:
+				busy[0] += 1
+				peak[0] = max(peak[0], busy[0])
+			meet.wait()
+			with lock:
+				busy[0] -= 1
+				sent.append(photo)
+			if photo == b'bad':
+				raise RuntimeError('Slack files.completeUploadExternal: invalid_auth')
+		self.patch(slack_common.SlackBot, 'send_ahead', upload)
+		chat = slack_common.SlackBot('C9')
+		self.assertTrue(chat.preload_many([b'a', b'b', b'c', b'd']))
+		self.assertEqual((sorted(sent), peak[0]), ([b'a', b'b', b'c', b'd'], 2))
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			self.assertFalse(chat.preload_many([b'e', b'bad']))
+		self.assertIn('Slack preload to C9 failed: Slack files.completeUploadExternal: invalid_auth', log.getvalue())
 
 	def test_a_chart_preloaded_into_the_preload_channel_is_shown_without_an_upload(self):
 		"""Preloading uploads a chart into the preload channel; a press's edit of that chart in another channel within

@@ -28,7 +28,8 @@ class Transport:
 	TYPING = (0.5, 7, 10) # the notice: first after 0.5 s (a quick answer gets none), then every 7 s, 10 times at most
 	scheduled = False # posting a scheduled run's report (a chat's job), not a reply to a command
 	asked = False # a scheduled run that someone asked for (Run now, .jobs run): delivery.asked
-	preload_lock = None # one chart at a time preloaded to the network: a network that preloads has its own lock
+	preload_lock = None # paces the starts of the network's preloads: a network that preloads has its own lock
+	preload_slots = None # how many of its preloads may be in flight at once (a BoundedSemaphore)
 	preloaded_at = 0.0 # when the network's last preload began (time.monotonic)
 	_notices = None # the thread sending the notices
 	_quiet = None # set to stop them
@@ -163,22 +164,47 @@ class Transport:
 
 	def preload(self, photo):
 		"""Upload a chart (its PNG bytes) to this chat, the network's preload chat, ahead of a press that may ask for
-		it, where the network can show it again without an upload and has it not (wants, send_ahead): one at a time, a
-		send starting preload_gap seconds (a setting) after the last began, or when it ends if later. False when it
-		failed (logged): the caller stops preloading."""
+		it, where the network can show it again without an upload and has it not (wants, send_ahead), in its turn
+		(paced). False when it failed (logged): the caller stops preloading."""
 		if self.preload_lock is None or not self.wants(photo):
 			return True
-		with self.preload_lock:
-			if not self.wants(photo): # a press may have sent it meanwhile
-				return True
-			time.sleep(max(0.0, type(self).preloaded_at + config.settings.preload_gap - time.monotonic()))
-			type(self).preloaded_at = time.monotonic() # the gap is from one send's start to the next's, not its end
+		return self.paced(lambda: self.send_ahead(photo) if self.wants(photo) else None) # a press may have sent it
+
+	def paced(self, send, gap=None):
+		"""Run send(), an upload ahead of a press (one chart, or an album), in its turn: in one of the network's
+		preload_slots, starting `gap` seconds (the preload_gap setting when None) after the last one began (the gap is
+		from start to start, so uploads in different slots overlap). A rate limit is waited out once (patiently).
+		False when it failed (logged)."""
+		with self.preload_slots:
+			with self.preload_lock:
+				gap = config.settings.preload_gap if gap is None else gap
+				time.sleep(max(0.0, type(self).preloaded_at + gap - time.monotonic()))
+				type(self).preloaded_at = time.monotonic()
 			try:
-				self.send_patiently(photo)
+				self.patiently(send)
 			except Exception as e:
 				log.warn(f"{self.name.capitalize()} preload to {self.where} failed:", net.redact(e))
 				return False
 		return True
+
+	def preload_many(self, photos):
+		"""Preload several charts (PNG bytes), each distinct one the network lacks (wants), by send_all; logs how long
+		that took. False when one failed (logged): the caller stops preloading."""
+		if self.preload_lock is None:
+			return True
+		wanted = [photo for photo in dict.fromkeys(photos) if self.wants(photo)]
+		if not wanted:
+			return True
+		began = time.monotonic()
+		done = self.send_all(wanted)
+		log.info(f"{self.name.capitalize()} preloaded {len(wanted)} chart{'s' * (len(wanted) != 1)} to {self.where}"
+			f" in {time.monotonic() - began:.1f} s")
+		return done
+
+	def send_all(self, photos):
+		"""Preload charts the network lacks, one after another (preload); False at the first that failed. Overridden
+		where several can go together."""
+		return all(self.preload(photo) for photo in photos)
 
 	def wants(self, photo):
 		"""Whether preloading a chart (its PNG bytes) would spare a press its upload. Here never."""
@@ -188,17 +214,17 @@ class Transport:
 		"""Upload a chart (its PNG bytes) to this chat ahead of a press (see preload)."""
 		raise NotImplementedError
 
-	def send_patiently(self, photo):
-		"""send_ahead, tried once more after the wait a rate limit asks for (retry_after; at most RATE_LIMIT_WAIT)."""
+	def patiently(self, send):
+		"""send(), tried once more after the wait a rate limit asks for (retry_after; at most RATE_LIMIT_WAIT)."""
 		try:
-			self.send_ahead(photo)
+			send()
 		except Exception as e:
 			wait = self.retry_after(e)
 			if wait is None:
 				raise
 			log.warn(f"{self.name.capitalize()} preload to {self.where} is rate limited: waiting {wait:g} s")
 			time.sleep(min(wait, RATE_LIMIT_WAIT))
-			self.send_ahead(photo)
+			send()
 
 	def retry_after(self, error):
 		"""The seconds the network asks to wait after a request failed with `error` (a rate limit), or None for any

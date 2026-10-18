@@ -49,15 +49,15 @@ def chat(key, scheduled=False, asked=False):
 	return dest
 
 
-def preload(service, image):
-	"""Upload a chart drawn ahead of a press that may ask for it (another period or portfolio of a chart that went out)
-	to its network's preload chat, where a setting names one, so that the press shows it without an upload
-	(Transport.preload). False when that failed (logged): the caller stops preloading."""
+def preload_many(service, images):
+	"""Upload charts drawn ahead of presses that may ask for them (the other periods or portfolios of a chart that went
+	out; images, file objects) to their network's preload chat, where a setting names one, so that a press shows one
+	without an upload (Transport.preload_many). False when that failed (logged): the caller stops preloading."""
 	setting = PRELOAD_CHATS.get(service)
 	where = setting and getattr(config.settings, setting)
-	if not where or image is None:
+	if not where or not images:
 		return True
-	return reply_to(service, where).preload(image.getvalue())
+	return reply_to(service, where).preload_many([image.getvalue() for image in images])
 
 
 def interactive(dest):
