@@ -1,7 +1,6 @@
 """Telegram, whichever way its updates arrive (long polling, telegram_longpolling; or the webhook, telegram_webhook):
 the Bot API calls, the reader of its updates (Telegram, READER), and the bot that posts into its chats
 (TelegramBot)."""
-import concurrent.futures
 import hashlib
 import html
 import json
@@ -41,7 +40,6 @@ def try_call(method, **kwargs):
 		log.warn(f"Telegram {method} failed:", net.redact(e))
 
 
-ALBUM = 10 # photos in one sendMediaGroup: Telegram's most
 PHOTO_SECONDS = 30 * 86400 # how long a chart's file id is reused: Telegram keeps a bot's files, cleanup the cache file
 TELEGRAM_REUSE_SECONDS = 30 * 60 # a period pressed within this long of its upload in a chat shows that upload again
 # how Telegram refuses a file id it does not know (another bot's, say)
@@ -193,7 +191,7 @@ class TelegramBot(transports.Transport):
 	TYPING = (0.5, 4, 18) # "typing…" shows for 5 s at most (sendChatAction), so it is sent again every 4 s
 	NO_PREVIEWS = {'is_disabled': True} # link_preview_options, which replaced disable_web_page_preview (Bot API 7.0)
 	preload_lock = threading.Lock()
-	preload_slots = threading.BoundedSemaphore(1) # single charts, one at a time (albums are not held to slots)
+	preload_slots = threading.BoundedSemaphore(transports.PRELOAD_PARALLEL)
 
 	def wants(self, photo):
 		"""Whether preloading a chart (its PNG bytes) would spare a press its upload: Telegram has not it (no file id
@@ -204,31 +202,6 @@ class TelegramBot(transports.Transport):
 		"""The seconds Telegram's 429 asks to wait ("Too Many Requests: retry after 5"), or None for another failure."""
 		found = re.search(r'retry after (\d+)', str(error))
 		return float(found.group(1)) if found else None
-
-	def send_all(self, photos):
-		"""Preload charts Telegram lacks as albums of up to ALBUM (Telegram's own limit), all sent at once with no
-		pacing or limit of ours: an upload takes as long for a few photos as for one (its time is latency, not size).
-		A lone chart goes by sendPhoto, in its turn (paced). False if any failed."""
-		chunks = [photos[i:i + ALBUM] for i in range(0, len(photos), ALBUM)]
-		def send(chunk):
-			"""One album, or a lone chart by sendPhoto."""
-			if len(chunk) == 1:
-				return self.preload(chunk[0])
-			return self.attempt(lambda: self.send_album(chunk))
-		with concurrent.futures.ThreadPoolExecutor(max_workers=len(chunks)) as pool:
-			return all(list(pool.map(send, chunks)))
-
-	def send_album(self, photos):
-		"""Send 2 to ALBUM charts (PNG bytes) to this chat silently in one sendMediaGroup, keeping each one's file id
-		(the answer has a message for each, in order) with the cache setting on."""
-		media = [{'type': 'photo', 'media': f'attach://chart{i}'} for i in range(len(photos))]
-		files = {f'chart{i}': (f'chart{i}.png', photo) for i, photo in enumerate(photos)}
-		sent = call('sendMediaGroup', data={'chat_id': self.where, 'disable_notification': True,
-			'media': json.dumps(media)}, files=files)
-		if config.settings.cache:
-			for photo, message in zip(photos, sent):
-				if sizes := message.get('photo'):
-					cache.write(photo_file(photo), sizes[-1]['file_id'])
 
 	def send_ahead(self, photo):
 		"""Send a chart to this chat silently, with no caption, for its file id (with_photo keeps it)."""

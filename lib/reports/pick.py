@@ -72,23 +72,23 @@ def shown_names(cmd, found, shown):
 
 def prime(service, cmd, group, found, index):
 	"""Draw, to fill the cache, the charts a button of a treemap picker would ask for: the other groupings of the
-	portfolio shown (found[index]) first, then every other portfolio in all, then all uploaded ahead together to the
-	network's preload chat where a setting names one (delivery.preload_many). A failure is logged, never raised. Each
+	portfolio shown (found[index]) first, then every other portfolio in all, each uploaded ahead as it is drawn to the
+	network's preload chat where a setting names one (delivery.Preloader). A failure is logged, never raised. Each
 	chart's times are logged (charts.primed)."""
 	by = holdings.GROUPS.get(group, 'industry')
 	wanted = [(found[index], each) for each in holdings.GROUPS.values() if each != by] + [(name, each)
 		for name in found if name != found[index] for each in holdings.GROUPS.values()]
-	images = []
+	preloader = delivery.Preloader(service)
 	for name, by in wanted:
 		try:
 			(_, chart), built = charts.timed(holdings.prepare_treemap, name, by, service)
 			if chart and chart.rows:
 				image, drew = charts.timed(render.draw, chart)
-				images.append(image)
+				preloader.add(image)
 				charts.primed(f"{cmd} {name} by {by}", built, drew)
 		except Exception as e:
 			log.warn("priming", cmd, name, by, "failed:", e)
-	delivery.preload_many(service, images)
+	preloader.finish()
 
 def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=None):
 	"""A picker's screen, as (lines, rows): `view` 'p', the first (the portfolios; for tickers the period and the way

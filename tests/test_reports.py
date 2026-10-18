@@ -1480,31 +1480,51 @@ class Pickers(FinbotCase):
 			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
 		self.assertEqual((built, drawn), (['w', 'm', 'y'], ['bars']))
 		self.assertIn("priming c ['T1'] m failed: boom", err.getvalue())
+	def preloaders(self):
+		"""Stand in for delivery.Preloader: each one made, with the images added to it and whether it finished."""
+		made = []
+		class Preloader:
+			"""Notes what priming hands over."""
+			def __init__(self, service):
+				"""Note this preloader."""
+				self.service, self.images, self.finished = service, [], False
+				made.append(self)
+			def add(self, image):
+				"""Note a chart handed over."""
+				self.images.append(image)
+			def finish(self):
+				"""Note that priming waited."""
+				self.finished = True
+		self.patch(delivery, 'Preloader', Preloader)
+		return made
 
-	def test_priming_hands_every_chart_drawn_to_one_preload(self):
-		"""The charts priming draws (a chart's other periods, a treemap's other portfolios and groupings, in the order
-		they are drawn) go together to delivery.preload_many, for the network's preload chat."""
-		drawn, handed = [], []
-		self.patch(render, 'draw', lambda chart: drawn.append(chart.title) or chart.title) # the image: its title
-		self.patch(delivery, 'preload_many', lambda service, images: handed.append((service, images)))
+	def test_priming_hands_each_chart_to_a_preloader_as_it_is_drawn(self):
+		"""Each chart priming draws (a chart's other periods, a treemap's other portfolios and groupings, in the order
+		they are drawn) is handed to the network's delivery.Preloader as it is, and priming waits for it at the end."""
+		made, drawn = self.preloaders(), []
+		def draw(chart):
+			"""The image: its title; noting, at the time, what the preloader has so far."""
+			drawn.append((chart.title, list(made[-1].images)))
+			return chart.title
+		self.patch(render, 'draw', draw)
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
 			render.Chart('bars', period, rows=(('a', 1.0),))))
 		charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
-		self.assertEqual((drawn, handed), (['w', 'm', 'y'], [(TELEGRAM, ['w', 'm', 'y'])]))
-		drawn.clear(), handed.clear()
+		self.assertEqual(drawn, [('w', []), ('m', ['w']), ('y', ['w', 'm'])]) # each was handed over before the next
+		self.assertEqual((made[0].service, made[0].images, made[0].finished), (TELEGRAM, ['w', 'm', 'y'], True))
+		del made[:], drawn[:]
 		self.portfolios('Amy', 'Bob')
 		pick.prime(SLACK, 't', '0', ['Amy', 'Bob'], 0)
-		self.assertEqual((len(drawn), len(handed), handed[0][0], handed[0][1][:2]),
-			(9, 1, SLACK, ['Amy treemap by sector', 'Amy treemap by country']))
-
+		self.assertEqual((len(drawn), len(made), made[0].service, made[0].images[:2], made[0].finished),
+			(9, 1, SLACK, ['Amy treemap by sector', 'Amy treemap by country'], True))
 
 	def test_priming_logs_how_long_each_chart_took_to_build_and_draw(self):
 		"""Each chart a priming draws leaves one INFO line with the seconds its data and its drawing took, for finding
 		which stage sets the pace."""
 		ticks = iter(x / 10 for x in range(1000))
+		self.preloaders()
 		self.patch(charts, 'time', types.SimpleNamespace(monotonic=lambda: next(ticks)))
 		self.patch(render, 'draw', lambda chart: chart.title)
-		self.patch(delivery, 'preload_many', lambda service, images: True)
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
 			render.Chart('bars', period, rows=(('a', 1.0),))))
 		with contextlib.redirect_stderr(io.StringIO()) as log:

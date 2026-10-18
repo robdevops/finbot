@@ -13,6 +13,7 @@ from lib import net
 
 ADMINS_FOR = 300 # seconds a network's answer about who administers a chat is kept
 RATE_LIMIT_WAIT = 30 # the longest a preload waits out a network's rate limit, in seconds
+PRELOAD_PARALLEL = 2 # uploads to a network's preload chat in flight at once: each waits on the network's answer
 _administers = {} # (chat key, sender id) -> (when asked, whether they administer the chat)
 MAYBE_SENT = object() # a read timeout on the request that posts a chart: it may have arrived, so no text copy follows
 
@@ -29,7 +30,7 @@ class Transport:
 	scheduled = False # posting a scheduled run's report (a chat's job), not a reply to a command
 	asked = False # a scheduled run that someone asked for (Run now, .jobs run): delivery.asked
 	preload_lock = None # paces the starts of the network's preloads: a network that preloads has its own lock
-	preload_slots = None # how many of its preloads may be in flight at once (a BoundedSemaphore)
+	preload_slots = None # its preloads in flight at once: a BoundedSemaphore(PRELOAD_PARALLEL) where it preloads
 	preloaded_at = 0.0 # when the network's last preload began (time.monotonic)
 	_notices = None # the thread sending the notices
 	_quiet = None # set to stop them
@@ -173,40 +174,17 @@ class Transport:
 	def paced(self, send):
 		"""Run send(), an upload ahead of a press, in its turn: in one of the network's preload_slots, starting
 		preload_gap seconds (a setting) after the last one began (the gap is from start to start, so uploads in
-		different slots overlap). False when it failed (logged; see attempt)."""
+		different slots overlap). A rate limit is waited out once (patiently). False when it failed (logged)."""
 		with self.preload_slots:
 			with self.preload_lock:
 				time.sleep(max(0.0, type(self).preloaded_at + config.settings.preload_gap - time.monotonic()))
 				type(self).preloaded_at = time.monotonic()
-			return self.attempt(send)
-
-	def attempt(self, send):
-		"""Run send() with no pacing, a rate limit waited out once (patiently). False when it failed (logged)."""
-		try:
-			self.patiently(send)
-		except Exception as e:
-			log.warn(f"{self.name.capitalize()} preload to {self.where} failed:", net.redact(e))
-			return False
+			try:
+				self.patiently(send)
+			except Exception as e:
+				log.warn(f"{self.name.capitalize()} preload to {self.where} failed:", net.redact(e))
+				return False
 		return True
-
-	def preload_many(self, photos):
-		"""Preload several charts (PNG bytes), each distinct one the network lacks (wants), by send_all; logs how long
-		that took. False when one failed (logged): the caller stops preloading."""
-		if self.preload_lock is None:
-			return True
-		wanted = [photo for photo in dict.fromkeys(photos) if self.wants(photo)]
-		if not wanted:
-			return True
-		began = time.monotonic()
-		done = self.send_all(wanted)
-		log.info(f"{self.name.capitalize()} preloaded {len(wanted)} chart{'s' * (len(wanted) != 1)} to {self.where}"
-			f" in {time.monotonic() - began:.1f} s")
-		return done
-
-	def send_all(self, photos):
-		"""Preload charts the network lacks, one after another (preload); False at the first that failed. Overridden
-		where several can go together."""
-		return all(self.preload(photo) for photo in photos)
 
 	def wants(self, photo):
 		"""Whether preloading a chart (its PNG bytes) would spare a press its upload. Here never."""

@@ -79,10 +79,10 @@ def primed(what, built, drew):
 
 def prime(kind, args, service, chat, shown):
 	"""Draw, to fill the cache, the chart of each period button of a kind (but `shown`, the period already sent), as a
-	press would ask for it, then all uploaded ahead together to the network's preload chat where a setting names one
-	(delivery.preload_many). A period with nothing to draw is skipped, and a failure is logged, never raised. Each
+	press would ask for it, each uploaded ahead as it is drawn to the network's preload chat where a setting names one
+	(delivery.Preloader). A period with nothing to draw is skipped, and a failure is logged, never raised. Each
 	chart's times are logged (primed)."""
-	images = []
+	preloader = delivery.Preloader(service)
 	for period in buttons.BUTTONS[kind]:
 		if period == shown:
 			continue
@@ -90,11 +90,11 @@ def prime(kind, args, service, chat, shown):
 			(_, chart), built = timed(build, kind, args, service, chat, period=period)
 			if chart and chart.rows:
 				image, drew = timed(render.draw, chart)
-				images.append(image)
+				preloader.add(image)
 				primed(f"{kind} {period}", built, drew)
 		except Exception as e:
 			log.warn("priming", kind, args, period, "failed:", e)
-	delivery.preload_many(service, images)
+	preloader.finish()
 
 def prime_in_background(kind, args, service, chat, shown):
 	"""Start drawing a chart's other periods, to fill the cache, in a thread of its own (see prime)."""

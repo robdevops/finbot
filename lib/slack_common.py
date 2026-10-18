@@ -1,7 +1,6 @@
 """Slack, whichever way its updates arrive (Socket Mode, slack_websocket; or the Request URL, slack_webhook): the Web
 API calls, the reader of its events, button presses and slash commands (Slack, READER), and the bot that posts into
 its channels (SlackBot), with the Block Kit of its messages."""
-import concurrent.futures
 import hashlib
 import html
 import json
@@ -114,7 +113,7 @@ class SlackBot(transports.Transport):
 	WORKING = 'hourglass_flowing_sand' # ⏳: Slack has no typing notice for bots, so a reaction on the message stands in
 	working = None # True while ⏳ is on the message, False when putting it there failed
 	preload_lock = threading.Lock()
-	preload_slots = threading.BoundedSemaphore(2) # uploads wait on Slack's answers, so two go at once
+	preload_slots = threading.BoundedSemaphore(transports.PRELOAD_PARALLEL)
 
 	def wants(self, photo):
 		"""Whether preloading a chart (its PNG bytes) would spare a press its upload: no upload of it in the last
@@ -124,12 +123,6 @@ class SlackBot(transports.Transport):
 	def retry_after(self, error):
 		"""Ten seconds for Slack's rate limit ("ratelimited"), which does not say how long; None for another failure."""
 		return 10.0 if 'ratelimited' in str(error) else None
-
-	def send_all(self, photos):
-		"""Preload charts Slack lacks, two uploads at a time (preload_slots), each starting preload_gap seconds after
-		the last. False if any failed."""
-		with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-			return all(list(pool.map(self.preload, photos)))
 
 	def send_ahead(self, photo):
 		"""Upload a chart into this channel, noted as shown by no message: a press within SLACK_REUSE_SECONDS shows it

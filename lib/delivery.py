@@ -1,5 +1,6 @@
 """Where a report goes and how: Report, the destinations (the chat that asked, or whose job it is), deliver(), and the
 one-line error report. A destination is a transport: a network's bot (TelegramBot, SlackBot, DiscordBot)."""
+import concurrent.futures
 import dataclasses
 import html
 import traceback
@@ -49,15 +50,35 @@ def chat(key, scheduled=False, asked=False):
 	return dest
 
 
-def preload_many(service, images):
-	"""Upload charts drawn ahead of presses that may ask for them (the other periods or portfolios of a chart that went
-	out; images, file objects) to their network's preload chat, where a setting names one, so that a press shows one
-	without an upload (Transport.preload_many). False when that failed (logged): the caller stops preloading."""
-	setting = PRELOAD_CHATS.get(service)
-	where = setting and getattr(config.settings, setting)
-	if not where or not images:
-		return True
-	return reply_to(service, where).preload_many([image.getvalue() for image in images])
+class Preloader:
+	"""Charts drawn ahead of presses that may ask for them (the other periods or portfolios of a chart that went out),
+	preloaded to their network's preload chat, where a setting names one, so that a press shows one without an upload.
+	Each is handed over (add) as it is drawn and goes at once, PRELOAD_PARALLEL uploads at a time (Transport.preload):
+	it is usable as soon as it lands, not when the last is drawn. One that fails stops the rest. finish waits for
+	them."""
+
+	def __init__(self, service):
+		"""A preloader for charts of a network (a dialect); it does nothing where no preload chat is named."""
+		setting = PRELOAD_CHATS.get(service)
+		where = setting and getattr(config.settings, setting)
+		self.chat = reply_to(service, where) if where else None
+		self.pool = concurrent.futures.ThreadPoolExecutor(transports.PRELOAD_PARALLEL) if self.chat else None
+		self.failed = False
+
+	def add(self, image):
+		"""Preload a drawn chart (a file object) in the background."""
+		if self.pool and image is not None and not self.failed:
+			self.pool.submit(self.send, image.getvalue())
+
+	def send(self, photo):
+		"""Preload one chart, unless an earlier one failed."""
+		if not self.failed and not self.chat.preload(photo):
+			self.failed = True
+
+	def finish(self):
+		"""Wait for the uploads started."""
+		if self.pool:
+			self.pool.shutdown(wait=True)
 
 
 def interactive(dest):
