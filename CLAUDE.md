@@ -111,19 +111,22 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   row, opens the ticker picker, and `OK` draws the ticks), the buttons kept under it and every press re-editing the answer from
   `shown` (an item's number plus one; compare's tickers, `pick.pack`), but a tick or a page of tickers its buttons alone
   (`m`; `n` under a note, which the next press takes away), 32 items a page (`pick.layout`; fewer on Discord) turned by
-  `<` `>` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
+  `◀` `▶` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
   is), `.price`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, their buttons and the `.watchlist` Edit's
-  built by `pick.ticker_buttons` and `pick.page_buttons`, one more refused by an alert
+  built by `pick.ticker_buttons` and `buttons.page_buttons`, one more refused by an alert
   toast (`buttons.alert`); a treemap primes its other charts in a thread (`pick.prime`, started by
   `worker.prime_in_background`); every chart with period buttons primes its other periods (`charts.prime`,
   `worker.prime_periods` after `.price`, `.movers`, `.performance`, `chart_reply` and the pickers); neither for a
   scheduled run.
 - `.watchlist` typed bare has an Edit button (`worker.watchlist_screen`, `watchlist_press`: a `PickPress` of command `w`): its tickers
-  struck through as they are pressed, Delete deleting them; the `.jobs` list strikes through the jobs that are off.
-- `lib/buttons.py`: `Button` (a toggle's `tone`, `ON` or `OFF`, which each transport draws green or red: Telegram's `style`,
-  Slack's `primary`/`danger`, Discord's styles 3/4, all from `look(button)`; `tone(on)` makes a job's or ticker's, red only when off;
-  a picker screen's buttons come from `pick.press_button`), a chart's period buttons (`keyboard`), the `.jobs` menu's (`menu_button`, a
-  `MenuPress`), what a pressed button's data asks for (`parse`), and the
+  red as they are pressed (struck through in the list), Delete deleting them; the `.jobs` list strikes through the jobs that are
+  off (❌), and Edit draws their buttons red. The `.jobs` menu's screens: top, Edit, Run, Upcoming and Add's steps; typed
+  `.jobs enable`, `disable` or `delete` alone opens Edit.
+- `lib/buttons.py`: `Button`, drawn by its look (`look(button)`: a toggle's `tone`, `ON` or `OFF`, else `ACTIVE` for the
+  one shown now), which each network maps through its `STYLES` (Telegram's `style` success/danger/primary, Slack's
+  primary/danger, Discord's 3/4/1); `tone(on)` makes a job's or ticker's, red only when off; a picker screen's buttons come
+  from `pick.press_button`; rows of buttons (`chunks`) and every menu's ◀ ▶ (`page_buttons`); a chart's period buttons
+  (`keyboard`), the `.jobs` menu's (`menu_button`, a `MenuPress`), what a pressed button's data asks for (`parse`), and the
   toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so
   it is unique in a message.
   `lib/charts.py`: a chart with period buttons, built by its kind's builder (`build`) for the command's first view
@@ -153,8 +156,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   each reload). `lib/jobs.py`: the scheduler: each chat's jobs, the default ones and those it added (`JOBS_FILE`, by
   chat key: the defaults it switched off and those it removed, `'deleted'`, the jobs it added; a direct message's
   defaults start off, `'defaults': 'off'` with those switched on, and it is marked `'dm'`; `see` makes a chat known at
-  its first command, a DM as `inbound.Message.dm` or `is_dm` says; `add`, `delete`, `delete_all`, `switch`,
-  `toggle`, `switch_all`, `run`, `upcoming`, which `.jobs` calls through `jobs.current`; `parse_add` reads `.jobs add`),
+  its first command, a DM as `inbound.Message.dm` or `is_dm` says; `add`, `delete`, `switch`,
+  `toggle`, `run`, `upcoming`, which `.jobs` calls through `jobs.current`; `parse_add` reads `.jobs add`),
   and the fixed `SYSTEM` jobs, its shared state under one lock. A job is an action of `actions()`: a report module of
   `ACTIONS` (`message` among them) or a command of `.help` (`command_actions()`), with the arguments its `job()` takes
   as words, never a command line; one stored that is anything else is logged and left out. Each job runs in the bot's process, in a thread (`run_in_process`), reported once if still

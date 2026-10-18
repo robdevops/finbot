@@ -318,6 +318,7 @@ class DiscordBot(transports.Transport):
 
 
 DISCORD_ROW = 5 # buttons in a row of components, and rows in a message: Discord's limits
+STYLES = {buttons.ON: 3, buttons.OFF: 4, buttons.ACTIVE: 1} # a button's style by its look; grey (2) for the rest
 
 
 def components(buttons):
@@ -333,7 +334,7 @@ def components(buttons):
 def button_style(button):
 	"""The style number of a Discord button: 3 (green) for a toggle that is on, 4 (red) for one that is off, else 1
 	(blurple) for the one shown now and 2 (grey)."""
-	return {buttons.ON: 3, buttons.OFF: 4, buttons.ACTIVE: 1}.get(buttons.look(button), 2)
+	return STYLES.get(buttons.look(button), 2)
 
 
 def message_body(payload, image=None):

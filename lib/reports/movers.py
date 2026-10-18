@@ -178,8 +178,8 @@ def run(dest=None, *, mode='interday', threshold=None, days=None, top=None, user
 		threshold = config.settings.price_percent
 	found = moves(watchlist.covered(chat.key, specific_stock), mode, threshold, days, specific_stock, interactive)
 	payload, graph = report(chat.dialect, found, mode, threshold, days, top, user, specific_stock, delivery.asked(dest))
-	markup = None # the period buttons of the daily and N-day lists (not the intraday ones), where the chat takes them
-	if graph and chat.takes_buttons and mode in ('interday', 'period'):
+	markup = None # the period buttons of the daily and N-day lists (not the intraday ones)
+	if graph and mode in ('interday', 'period'):
 		markup = buttons.keyboard('l', *list_buttons(threshold, top, days))
 	delivery.deliver(chat, delivery.Report(payload, graph, markup))
 

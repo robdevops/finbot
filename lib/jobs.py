@@ -242,19 +242,6 @@ def keep(record, name, listed):
 		record.pop(name, None)
 
 
-def switch_record(record, on):
-	"""Switch every job of a chat's record on, or off: those it added, and the default ones, which then start so."""
-	record.pop('off', None)
-	record.pop('on', None)
-	if on:
-		record.pop('defaults', None)
-	else:
-		record['defaults'] = 'off'
-	for entry in record.get('jobs', []):
-		if isinstance(entry, dict):
-			entry['on'] = on
-
-
 def is_dm(key):
 	"""Whether a chat (by key) is a direct message with the bot, as its key tells: a person's positive id on Telegram,
 	an id starting D on Slack; None on Discord, whose key does not say."""
@@ -564,10 +551,6 @@ class Scheduler:
 		self.change(chat, append)
 		return self.number(chat, job.key)
 
-	def switch_all(self, chat, on):
-		"""Switch every job of a chat on, or off: the default ones and those it added."""
-		self.change(chat, lambda record: switch_record(record, on))
-
 	def delete(self, job):
 		"""Remove a chat's job (from job() or pick()): one it added, or a default one, which stays out of its list
 		until the same job is added again."""
@@ -579,17 +562,6 @@ class Scheduler:
 				keep(record, name, [key for key in current_keys(record.get(name, [])) if key != job.item])
 			record['deleted'] = list(dict.fromkeys([*removed(record), job.item]))
 		self.change(job.chat, remove)
-
-	def delete_all(self, chat):
-		"""Remove every job of a chat: those it added, and the default ones, which stay out of its list until the same
-		job is added again."""
-		def clear(record):
-			"""Remove every job, as stored."""
-			record['jobs'] = []
-			record.pop('off', None)
-			record.pop('on', None)
-			record['deleted'] = list(dict.fromkeys([*removed(record), *(item.key for item in catalog.ITEMS)]))
-		self.change(chat, clear)
 
 	def switch(self, job, on):
 		"""Switch a chat's job on, or off, whichever way it is now: whether it is on."""

@@ -285,7 +285,7 @@ class Sending(FinbotCase):
 		"""A Discord channel's job posts there as the bot, charts and buttons and all."""
 		chat = delivery.chat('discord:77', scheduled=True)
 		self.assertEqual((type(chat).__name__, chat.where, chat.key), ('DiscordBot', '77', 'discord:77'))
-		self.assertTrue(chat.takes_buttons and chat.takes_charts and chat.scheduled)
+		self.assertTrue(chat.takes_charts and chat.scheduled)
 
 
 class Commands(FinbotCase):

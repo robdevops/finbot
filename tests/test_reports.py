@@ -8,6 +8,11 @@ from tests.common import *
 from lib.reports import pick
 
 
+def drawn(button):
+	"""A Telegram button as these tests write it: its label, with '● ' before it for the one shown now (drawn blue)."""
+	return ('● ' if button.get('style') == 'primary' else '') + button['text']
+
+
 class Commands(FinbotCase):
 	def test_text_commands(self):
 		"""Every text command answers."""
@@ -178,9 +183,8 @@ class ReportFunctions(FinbotCase):
 
 	def test_a_portfolio_command_without_a_portfolio_answers_for_the_first(self):
 		""".holdings and .treemap without a portfolio answer for the first one, typed or run by a job (as .jobs
-		Add adds them), with buttons for the portfolios there are; where there are no buttons, they name them."""
-		job, unbuttoned = delivery.chat('telegram:55', scheduled=True), delivery.chat('telegram:55', scheduled=True)
-		unbuttoned.takes_buttons = False
+		Add adds them), with buttons for the portfolios there are."""
+		job = delivery.chat('telegram:55', scheduled=True)
 		for text in ('.holdings', '.treemap'):
 			with self.subTest(text=text):
 				self.sent.clear()
@@ -189,11 +193,6 @@ class ReportFunctions(FinbotCase):
 				self.sent.clear()
 				worker.job_commands()[text[1:]].run(job, words=[])
 				self.assertEqual(self.sent, typed)
-				self.sent.clear()
-				worker.job_commands()[text[1:]].run(unbuttoned, words=[])
-				by = '' if text == '.holdings' else ' [sector|industry|country|currency|market]'
-				usage = f"Usage: {worker.slashed(text)} [PORTFOLIO]" + by
-				self.assertEqual(self.sent, [('text', [usage, 'Portfolios: Rob'])])
 
 	def test_prepare_marketcap(self):
 		"""The market cap list is built."""
@@ -720,7 +719,7 @@ class PeriodButtons(FinbotCase):
 		"""The labels of the period buttons a command's chart came with."""
 		self.command(command)
 		self.assertTrue(self.markups and self.markups[0], f'{command} sent no buttons')
-		return [b['text'] for b in self.markups[0]['inline_keyboard'][0]]
+		return [drawn(b) for b in self.markups[0]['inline_keyboard'][0]]
 
 	def test_performance_defaults_to_one_month(self):
 		""".performance shows a month, marked on its button, and says month, not 4 weeks."""
@@ -749,13 +748,13 @@ class PeriodButtons(FinbotCase):
 			shown.clear()
 			self.command(typed)
 			row = shown[0]['inline_keyboard'][0]
-			return [b['text'] for b in row], row[0]['callback_data']
+			return [drawn(b) for b in row], row[0]['callback_data']
 		self.assertEqual(labels('.trades'), (['● 1D', '7D', '1M'], 'c|r|d|'))
 		self.assertEqual(labels('.trades 7d')[0], ['1D', '● 7D', '1M'])
 		self.assertEqual(labels('.trades 7d Rob'), (['1D', '● 7D', '1M'], 'c|r|d|Rob'))
 		edits = []
 		self.patch(telegram_common.TelegramBot, 'edit_text', lambda dest, msg, text, buttons=None: edits.append(
-			(text, [b['text'] for b in telegram_common.TelegramBot.markup(buttons)['inline_keyboard'][0]])))
+			(text, [drawn(b) for b in telegram_common.TelegramBot.markup(buttons)['inline_keyboard'][0]])))
 		self.press_button('c|r|m|Rob')
 		self.assertEqual((len(edits), edits[0][1], self.errors), (1, ['1D', '7D', '● 1M'], []))
 		shown.clear()
@@ -814,7 +813,7 @@ class PeriodButtons(FinbotCase):
 		self.assertEqual(toasts, ['Loading 1D…'])
 		self.assertEqual(self.errors, [])
 		self.assertEqual(len(edits), 1)
-		self.assertEqual([b['text'] for b in edits[0][1]['inline_keyboard'][0]][0], '● 1D')
+		self.assertEqual([drawn(b) for b in edits[0][1]['inline_keyboard'][0]][0], '● 1D')
 
 	def test_a_period_with_too_few_prices_is_said_in_the_chat(self):
 		"""A period button whose span has too few prices for a line says so in the chat and leaves the chart as it is
@@ -1072,15 +1071,15 @@ class Pickers(FinbotCase):
 		self.command('.treemap')
 		kind, lines, rows = self.tap('Grouped by: Industry ▾')
 		self.assertEqual((kind, self.labels(rows)), ('buttons',
-			[['Country', 'Currency', '● Industry'], ['◀ Back', 'Market', 'Sector']]))
+			[['Country', 'Currency', '● Industry'], ['Back', 'Market', 'Sector']]))
 		kind, lines, rows = self.tap('Sector')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by sector</b>',
-			[['Country', 'Currency', 'Industry'], ['◀ Back', 'Market', '● Sector']])) # the menu stays
+			[['Country', 'Currency', 'Industry'], ['Back', 'Market', '● Sector']])) # the menu stays
 		self.assertEqual(self.toasts[-1], ('Updating…', False))
 		kind, lines, rows = self.tap('Currency')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by currency</b>',
-			[['Country', '● Currency', 'Industry'], ['◀ Back', 'Market', 'Sector']]))
-		kind, lines, rows = self.tap('◀ Back')
+			[['Country', '● Currency', 'Industry'], ['Back', 'Market', 'Sector']]))
+		kind, lines, rows = self.tap('Back')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by currency</b>',
 			[['● Amy', 'Zed'], ['Grouped by: Currency ▾']]))
 		kind, lines, rows = self.tap('Zed')
@@ -1150,7 +1149,7 @@ class Pickers(FinbotCase):
 		kind, lines, rows = self.tap('T10')
 		self.assertEqual((lines[0], self.labels(rows)[0][:3]), (first, ['✅ T0', 'T1', '✅ T10']))
 		self.assertFalse(any('Co T10' in line for line in lines)) # the chart is still of the first
-		self.assertEqual(self.labels(rows)[-1], ['◀ Back', 'OK'])
+		self.assertEqual(self.labels(rows)[-1], ['Back', 'OK'])
 		kind, lines, rows = self.tap('OK')
 		self.assertTrue(any('Co T10' in line for line in lines) and any('Co T0' in line for line in lines))
 		self.assertEqual((self.toasts[-1], self.labels(rows)), (('Loading…', False),
@@ -1190,7 +1189,7 @@ class Pickers(FinbotCase):
 		self.many()
 		self.command('.compare')
 		first = self.showing
-		for label in ('+', 'S05', '>'):
+		for label in ('+', 'S05', '▶'):
 			kind, lines, rows = self.tap(label)
 			self.assertEqual((kind, lines), ('buttons', first), label)
 		for ticker in ('S40', 'S41', 'S42', 'S43', 'S44', 'S45'): # eight ticked, with S00 and S05
@@ -1200,9 +1199,9 @@ class Pickers(FinbotCase):
 		kind, lines, rows = self.tap('✅ S45')
 		self.assertEqual((kind, lines), ('photo', first))
 		self.assertEqual(self.tap('S46')[0], 'buttons') # room again, and no note to take away
-		self.assertEqual(self.tap('<')[0], 'buttons')
+		self.assertEqual(self.tap('◀')[0], 'buttons')
 		self.patch(telegram_common.TelegramBot, 'edit_buttons', transports.Transport.edit_buttons) # none on Slack
-		self.assertEqual(self.tap('>')[0], 'photo')
+		self.assertEqual(self.tap('▶')[0], 'photo')
 
 	def test_buttons_of_another_list_start_again(self):
 		"""A button drawn for other tickers than there are now starts the picker again, at its first answer, saying
@@ -1217,21 +1216,22 @@ class Pickers(FinbotCase):
 		self.assertTrue(any('Co A1' in line for line in lines))
 
 	def test_the_tickers_pickers_build_their_grid_and_page_buttons_in_one_place(self):
-		"""pick.ticker_buttons and pick.page_buttons make the ticker buttons and the < > of the .price picker and of the
-		watchlist's Edit: a ticked ticker unticks itself, any other ticks itself or, at the cap, is refused."""
+		"""pick.ticker_buttons and buttons.page_buttons make the ticker buttons and the ◀ ▶ of the .price picker and of
+		the watchlist's Edit: a ticked ticker unticks itself, any other ticks itself or, at the cap, is refused."""
 		made = lambda label, act, **changes: (label, act, changes)
 		found = ['A', 'B', 'C', 'D']
-		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm'),
-			[('a', 'm0', {'mask': 0b100, 'tone': ''}), ('B', 'm0', {'mask': 0b111}),
-			('c', 'm0', {'mask': 0b001, 'tone': ''})])
-		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, str.lower, 'n', ticked_tone='off'),
+		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, 'm'),
+			[('A', 'm0', {'mask': 0b100, 'tone': ''}), ('B', 'm0', {'mask': 0b111}),
+			('C', 'm0', {'mask': 0b001, 'tone': ''})])
+		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, 'n', ticked_tone='off'),
 			[('D', 'n1', {'mask': 0b1101})])
-		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm', full=True, ticked_tone='on'),
-			[('a', 'm0', {'mask': 0b100, 'tone': 'on'}), ('B', 'f0', {}),
-			('c', 'm0', {'mask': 0b001, 'tone': 'on'})])
-		self.assertEqual([pick.page_buttons(page, 3, 'm', made) for page in range(3)],
-			[[('>', 'm1', {})], [('<', 'm0', {}), ('>', 'm2', {})], [('<', 'm1', {})]])
-		self.assertEqual(pick.page_buttons(0, 1, 'm', made), [])
+		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, 'm', full=True, ticked_tone='on'),
+			[('A', 'm0', {'mask': 0b100, 'tone': 'on'}), ('B', 'f0', {}),
+			('C', 'm0', {'mask': 0b001, 'tone': 'on'})])
+		to = lambda label, page: (label, page)
+		self.assertEqual([buttons.page_buttons(page, 3, to) for page in range(3)],
+			[[('▶', 1)], [('◀', 0), ('▶', 2)], [('◀', 1)]])
+		self.assertEqual(buttons.page_buttons(0, 1, to), [])
 
 	def test_watchlist_edit_crosses_tickers_off_and_ok_deletes_them(self):
 		""".watchlist lists the watchlist with an Edit button, which offers a button for each ticker: pressing one
@@ -1245,10 +1245,10 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(rows), [['T1', 'T2', 'T3'], ['Delete', 'Cancel']])
 		self.assertFalse(any(line.startswith('<s>') for line in lines))
 		kind, lines, rows = self.tap('T2')
-		self.assertEqual(self.labels(rows), [['T1', buttons.struck('T2'), 'T3'], ['Delete', 'Cancel']])
+		self.assertEqual(self.labels(rows), [['T1', 'T2', 'T3'], ['Delete', 'Cancel']])
 		struck = [line for line in lines if line.startswith('<s>')]
 		self.assertEqual([('Co T2' in line, line.endswith('</s>')) for line in struck], [(True, True)])
-		kind, lines, rows = self.tap(buttons.struck('T2'))
+		kind, lines, rows = self.tap('T2')
 		self.assertFalse(any(line.startswith('<s>') for line in lines))
 		self.tap('T1')
 		kind, lines, rows = self.tap('Cancel')
@@ -1300,7 +1300,7 @@ class Pickers(FinbotCase):
 		self.patch(watchlist, 'tickers', lambda chat: ['MSFT', 'AAPL'])
 		self.command('.compare')
 		self.tap('+')
-		self.assertEqual([t for row in self.labels(self.edits[-1][2]) for t in row], ['✅ AAPL', 'MSFT', '◀ Back'])
+		self.assertEqual([t for row in self.labels(self.edits[-1][2]) for t in row], ['✅ AAPL', 'MSFT', 'Back'])
 		self.patch(watchlist, 'tickers', lambda chat: [])
 		self.assertEqual(self.command('.compare'),
 			[('text', ['No tickers to pick from: .watchlist add SYMBOL adds one'])])
@@ -1330,17 +1330,17 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(), [['● 7D', '1M', '1Y', 'Max', '+']]) # compare starts on 7D
 		kind, lines, rows = self.tap('+')
 		self.assertEqual((len(rows) - 1, [t for row in self.labels(rows)[:-1] for t in row][-1], self.labels(rows)[-1]),
-			(8, 'S31', ['◀ Back', '>']))
-		kind, lines, rows = self.tap('>')
+			(8, 'S31', ['Back', '▶']))
+		kind, lines, rows = self.tap('▶')
 		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['S32', 'S33', 'S34', 'S35'],
-			['◀ Back', '<', '>']))
+			['Back', '◀', '▶']))
 		kind, lines, rows = self.tap('S40')
-		kind, lines, rows = self.tap('>')
+		kind, lines, rows = self.tap('▶')
 		self.assertEqual((self.labels(rows)[-1], [t for row in self.labels(rows)[:-1] for t in row][-1]),
-			(['◀ Back', '<', 'OK'], 'S69'))
-		kind, lines, rows = self.tap('<')
+			(['Back', '◀', 'OK'], 'S69'))
+		kind, lines, rows = self.tap('◀')
 		self.assertIn('✅ S40', [t for row in self.labels(rows) for t in row])
-		kind, lines, rows = self.tap('◀ Back')
+		kind, lines, rows = self.tap('Back')
 		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+'], ['OK']])
 
 	def test_a_ninth_tick_is_refused_on_a_later_page(self):
@@ -1350,7 +1350,7 @@ class Pickers(FinbotCase):
 		self.tap('+')
 		for ticker in ('S01', 'S02', 'S03', 'S04', 'S05', 'S06', 'S07'): # with S00, the first, ticked already
 			self.tap(ticker)
-		self.tap('>')
+		self.tap('▶')
 		kind, lines, rows = self.tap('S33')
 		self.assertEqual((self.toasts[-1], lines[0], self.labels(rows)[0][:2]), ((buttons.TOO_MANY, True),
 			buttons.TOO_MANY, ['S32', 'S33']))
@@ -1360,7 +1360,7 @@ class Pickers(FinbotCase):
 		self.many()
 		self.command('.compare')
 		self.tap('+')
-		self.tap('>')
+		self.tap('▶')
 		self.tap('S40')
 		kind, lines, rows = self.tap('OK')
 		self.assertTrue(any('Co S40' in line for line in lines))
@@ -1373,9 +1373,9 @@ class Pickers(FinbotCase):
 		self.command('.treemap')
 		rows = self.labels()
 		self.assertEqual((len(rows), rows[7], rows[8], rows[9]), (10, ['P28', 'P29', 'P30', 'P31'],
-			['Grouped by: Industry ▾'], ['>']))
-		kind, lines, rows = self.tap('>')
-		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['P32', 'P33', 'P34', 'P35'], ['<']))
+			['Grouped by: Industry ▾'], ['▶']))
+		kind, lines, rows = self.tap('▶')
+		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['P32', 'P33', 'P34', 'P35'], ['◀']))
 
 	def test_discord_pages_hold_five_rows(self):
 		"""Discord's five rows of five buttons hold 12 portfolios with Grouped by and the page buttons, or 20 tickers
@@ -1550,7 +1550,7 @@ class Pickers(FinbotCase):
 			watchlist.add('telegram:55', ticker)
 		lines, rows = worker.watchlist_screen(TELEGRAM, 'telegram:55', 0b010)
 		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows],
-			[[('T1', ''), (buttons.struck('T2'), 'off'), ('T3', '')], [('Delete', ''), ('Cancel', '')]])
+			[[('T1', ''), ('T2', 'off'), ('T3', '')], [('Delete', ''), ('Cancel', '')]])
 		self.assertEqual([button.tone for row in worker.watchlist_screen(TELEGRAM, 'telegram:55', 0, editing=False)[1]
 			for button in row], [''])
 		lines, rows = pick.screen(TELEGRAM, 'c', ['A1', 'B1', 'C1'], '0', 'w', pick.pack([1]), 0b010, 'm')

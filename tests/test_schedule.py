@@ -284,8 +284,7 @@ class DirectMessages(FinbotCase):
 
 	def test_a_direct_message_starts_with_its_default_jobs_off(self):
 		"""A chat new to finbot starts with its default jobs on, a direct message with them off: Telegram's (a person's
-		id) and Slack's (D…) as their keys tell, Discord's as its updates say. One switched on there is on; All on makes
-		them all start on."""
+		id) and Slack's (D…) as their keys tell, Discord's as its updates say. One switched on there is on."""
 		jobs.know(['telegram:5', 'telegram:-100', 'slack:D1', 'slack:C1', 'discord:7'])
 		jobs.know(['discord:8'], dm=True)
 		dm = {'defaults': 'off', 'dm': True}
@@ -299,8 +298,6 @@ class DirectMessages(FinbotCase):
 			s.toggle(s.chat_jobs('telegram:5')[0])
 			self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {**dm, 'on': ['trades']})
 			self.assertEqual([job.on for job in s.chat_jobs('telegram:5')][:2], [True, False])
-			s.switch_all('telegram:5', True)
-		self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {'dm': True}) # still a DM
 
 	def test_a_chat_seen_says_whether_it_is_a_direct_message(self):
 		"""At a chat's first command it starts with its default jobs off where it is a direct Discord's update

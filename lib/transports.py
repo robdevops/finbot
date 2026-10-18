@@ -24,7 +24,6 @@ class Transport:
 	name = '' # the network, in logs
 	dialect = None
 	takes_charts = True # a chart, with the report as its caption
-	takes_buttons = True # buttons under a message
 	shows_typing = True # a typing notice while a command works
 	TYPING = (0.5, 7, 10) # the notice: first after 0.5 s (a quick answer gets none), then every 7 s, 10 times at most
 	scheduled = False # posting a scheduled run's report (a chat's job), not a reply to a command

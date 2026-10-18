@@ -18,6 +18,9 @@ Everything else is the same in both: the scheduled reports with their charts, th
 under charts and the buttons of the `/jobs` menu, "typing…" while a command works, and a keyboard of the
 common commands in a direct chat with the bot.
 
+Buttons are coloured: the period shown blue, a ticked ticker green, a job that is off (or a ticker marked for deletion)
+red. Telegram apps from February 2026 draw the colours; older ones draw every button plain.
+
 A chart is uploaded once: Telegram gives it a file id, which finbot keeps (in `DATA_DIR/cache`, 30 days) and sends the
 next time the same chart goes out, instead of the image. A period or portfolio pressed again, or the same scheduled chart
 for several chats, then shows without an upload. A period pressed again within 30 minutes of being shown in the chat

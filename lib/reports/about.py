@@ -11,16 +11,8 @@ from lib import formats
 from lib import jobs
 from lib import sharesight
 from lib import when
-from lib.reports import pick
 
-HEADINGS = {'top': 'Jobs here', 'on': 'Tap a job to enable it', 'off': 'Tap a job to disable it',
-	'del': 'Tap a job to delete it', 'run': 'Tap a job to run it now', 'edit': 'Tap a job to enable or disable it'}
-NOTHING = {'on': 'Every job is on', 'off': 'Every job is off'} # what Enable and Disable say with nothing to switch
-EVERY = {'on': 'Enable all', 'off': 'Disable all', 'del': 'Delete all'} # each list screen's button for every job
-TYPED = ['.jobs enable|disable|delete|run NUMBER: switch one on or off, delete one, run one now',
-	'.jobs add REPORT SCHEDULE: add one (.jobs add lists the reports)', '.jobs upcoming: the next runs',
-	'.jobs system: the system jobs'] # what a chat without buttons types instead
-TYPED_ACTIONS = {'on': 'enable', 'off': 'disable', 'del': 'delete', 'run': 'run'}
+HEADINGS = {'top': 'Jobs here', 'edit': 'Tap a job to enable or disable it', 'run': 'Tap a job to run it now'}
 ADD_TYPED = ['/jobs add REPORT SCHEDULE', '/jobs add reminder SCHEDULE "TEXT"'] # how Add is typed: under the list
 NOT_RUN = '* not run yet' # the key to a list's mark
 PAGE_ROOM = 500 # characters of a screen besides its jobs' lines: its headings, a note, the key to *
@@ -54,17 +46,14 @@ MOST_REPORTS = {'discord': 16} # Add's reports on a page, four to a row: Discord
 YEARS = 10 # the years a one-off may be in, this one first
 CROWDED = 20 # a screen of more choices takes them in rows of five, Back last: Discord takes 25 buttons
 
-def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, highlight=None):
+def jobs_screen(service, chat, screen='top', page=0, note=None, highlight=None):
 	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each struck through and marked ❌
 	when it is off, * where it has never run, its name and its schedule in words, by the timezone setting's clock
-	(lib/when.py), then
-	the key to the marks shown. top has what can be done in one row (+ to add, and where there is a job to act on, Edit,
-	Run, Upcoming) and how + is typed, in italics; edit, on, off, del and run a button for each job the
-	screen acts on (acts), which switches it on or off, deletes it or runs it now, and Enable all, Disable all or Delete
-	all. A page at a time, as many jobs as a message of the network takes (◀ and More ▶ for the others), after a note of
-	what the last press did. A one-off gone by is deleted first. Returns (lines, buttons); where the chat takes no
-	buttons (tappable false), the whole list and what to type instead. The job numbered `highlight` is in bold with a
-	👉 before it, on its page."""
+	(lib/when.py), then the key to the marks shown. top has what can be done in one row (+ to add, and where there is
+	a job to act on, Edit, Run, Upcoming) and how + is typed, in italics; edit and run a button for each job, which
+	switches it on or off, or runs it now. A page at a time, as many jobs as a message of the network takes (◀ and ▶
+	for the others), after a note of what the last press did. A one-off gone by is deleted first. Returns (lines,
+	buttons). The job numbered `highlight` is in bold with a 👉 before it, on its page."""
 	scheduler = jobs.current
 	if scheduler is None:
 		return ['No schedule is running'], None
@@ -76,7 +65,7 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, h
 	if highlight:
 		entries = [(number, job, f'👉 {service.bold(line)}' if number == highlight else line)
 			for number, job, line in entries]
-	parts = paged(entries, service) if tappable else [entries]
+	parts = paged(entries, service)
 	if highlight:
 		page = next((i for i, part in enumerate(parts) if any(number == highlight for number, _, _ in part)), page)
 	page = min(max(page, 0), len(parts) - 1)
@@ -85,14 +74,10 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, tappable=True, h
 	lines = ([note, ''] if note else []) + [service.bold(HEADINGS[screen] + span)]
 	if not own:
 		lines.append('No jobs here: + adds one')
-	elif screen in NOTHING and not any(acts(screen, job) for job in own):
-		lines.append(NOTHING[screen])
 	if shown:
 		lines += grouped(service, shown)
 	if not all(scheduler.has_run(job) for _, job, _ in shown):
 		lines += ['', NOT_RUN]
-	if not tappable:
-		return lines + [''] + (TYPED if screen == 'top' else [f'Send .jobs {TYPED_ACTIONS[screen]} NUMBER']), None
 	if screen == 'top':
 		lines += ['', *(service.italic(service.escape(line)) for line in ADD_TYPED)]
 	return lines, screen_buttons(screen, page, len(parts), shown, jobs.list_checksum(own), own)
@@ -130,10 +115,6 @@ def listed_with(service, chat, lines):
 	more = [f'…and {len(own) - len(shown)} more'] if len(shown) < len(own) else []
 	return [*lines, '', service.bold('Jobs'), *grouped(service, shown)[1:], *more]
 
-def acts(screen, job):
-	"""Whether a list screen acts on a job: Enable on one that is off, Disable on one that is on, the others on any."""
-	return {'on': not job.on, 'off': job.on}.get(screen, True)
-
 def paged(entries, service):
 	"""The jobs' entries (number, job, line) a page at a time: as many as fit a message of the network with room to
 	spare, and as many buttons as it takes in a message besides the others."""
@@ -148,34 +129,23 @@ def paged(entries, service):
 	return parts
 
 def screen_buttons(screen, page, pages, shown, crc, own):
-	"""A list screen's buttons: top's, what can be done (Add; Delete, Run now with any job, Enable with one off,
-	Disable with one on, Upcoming... with one on), two to a row; on, off, del and run's, one for each job shown
-	that the screen acts on (acts), '<number> <name>', JOB_ROW to a row, then Enable all, Disable all or Delete all
-	where it acts on any of the chat's jobs (own), and Cancel, back to the list; ◀ and More ▶ to the other pages."""
+	"""A list screen's buttons: top's, what can be done (+; Edit and Run with any job, Upcoming with one on), in one
+	row; edit's and run's, a button for each job shown, '<number> <name>', JOB_ROW to a row, edit's red for a job that
+	is off, then OK and, while any job is off, Delete disabled jobs (edit), or Cancel (run); ◀ and ▶ to the other
+	pages."""
 	if screen == 'top':
 		possible = [('+', 'add', [])] + [(label, kind, args) for label, kind, args, there in (
 			('Edit', 'edit', [0], bool(own)), ('Run', 'run', [0], bool(own)),
 			('Upcoming', 'next', [], any(job.on for job in own))) if there]
 		rows = [[buttons.menu_button(label, kind, args, crc) for label, kind, args in possible]]
 		nav = []
-	elif screen == 'edit':
-		tapped = [buttons.menu_button(label if job.on else buttons.struck(label), screen, [page, number], crc,
-			buttons.tone(job.on)) for number, job, _ in shown if (label := f'{number} {job.name}')]
-		rows = pick.chunks(tapped, JOB_ROW)
-		nav = [buttons.menu_button('OK', 'top', [0], crc)]
-		if not all(job.on for job in own):
+	else: # edit or run: a button per job
+		rows = buttons.chunks([buttons.menu_button(f'{number} {job.name}', screen, [page, number], crc,
+			buttons.tone(job.on) if screen == 'edit' else '') for number, job, _ in shown], JOB_ROW)
+		nav = [buttons.menu_button('OK' if screen == 'edit' else 'Cancel', 'top', [0], crc)]
+		if screen == 'edit' and not all(job.on for job in own):
 			nav.append(buttons.menu_button('Delete disabled jobs', screen, [page, 'ask'], crc))
-	else:
-		tapped = [buttons.menu_button(f'{number} {job.name}', screen, [page, number], crc,
-			buttons.tone(job.on) if screen in ('on', 'off') else '') for number, job, _ in shown if acts(screen, job)]
-		rows = pick.chunks(tapped, JOB_ROW)
-		nav = [buttons.menu_button('Cancel', 'top', [0], crc)]
-		if screen in EVERY and any(acts(screen, job) for job in own):
-			nav.insert(0, buttons.menu_button(EVERY[screen], screen, [page, 'all'], crc))
-	if page > 0:
-		nav.append(buttons.menu_button('◀', screen, [page - 1], crc))
-	if page < pages - 1:
-		nav.append(buttons.menu_button('More ▶', screen, [page + 1], crc))
+	nav += buttons.page_buttons(page, pages, lambda label, to: buttons.menu_button(label, screen, [to], crc))
 	return rows + ([nav] if nav else [])
 
 def delete_disabled_screen(service, chat, page=0):
@@ -199,15 +169,6 @@ def job_entry(service, scheduler, number, job, running=(), local=None, now=None)
 	shown = f"{never} {body}" if job.on else f"❌{never} {service.strike(body)}"
 	shown = shown.lstrip()
 	return f"{number}. {shown}" + (' (running)' if job.key in running else '')
-
-def delete_all_screen(service, chat, page=0):
-	"""Delete all's question, for a chat (by its key): whether to delete every one of its jobs, the default ones too,
-	with Yes, delete all and Cancel."""
-	own = jobs.current.chat_jobs(chat)
-	crc = jobs.list_checksum(own)
-	return [service.bold(f"Delete all {len(own)} job{'' if len(own) == 1 else 's'} here?"), 'A default job deleted'
-		' comes back only when the same job is added again'], [[buttons.menu_button('Yes, delete all', 'del', [page,
-		'allyes'], crc), buttons.menu_button('Cancel', 'top', [0], crc)]]
 
 def job_line(service, number, job, outcome):
 	"""'3. trades: done': a job's number in the .jobs list, its name, and how its run went."""
@@ -270,9 +231,13 @@ def add_screen(service, chat, steps):
 		key = [] if usual is None else ['', service.italic('† indicates default')]
 		text = [service.bold(heading), *lines, *key]
 		if nav is None and len(tapped) > CROWDED:
-			tapped.append(back)
-			return text, [tapped[i:i + 5] for i in range(0, len(tapped), 5)]
-		return text, [tapped[i:i + row] for i in range(0, len(tapped), row)] + [nav or [back, cancel]]
+			return text, buttons.chunks([*tapped, back], 5)
+		return text, buttons.chunks(tapped, row) + [nav or [back, cancel]]
+	def turn(more):
+		"""The ◀ or ▶ of a choice that may take two pages (more: whether it does); MORE ending the steps asks for the
+		second."""
+		return buttons.page_buttons(page, 2 if more else 1, lambda label, to: buttons.menu_button(label, 'add',
+			[*steps, MORE] if to else steps, crc))
 	reports = add_reports()
 	if not steps: # a button per report, by its name alone (none that reports on Sharesight without it), and Cancel
 		offer = [(label, number) for number, (label, action, _) in enumerate(reports, 1)
@@ -280,11 +245,7 @@ def add_screen(service, chat, steps):
 		most = MOST_REPORTS.get(service, len(offer))
 		if page * most >= len(offer):
 			raise ValueError('no such page')
-		nav = [cancel]
-		if page:
-			nav.insert(0, buttons.menu_button('◀', 'add', [], crc))
-		elif len(offer) > most:
-			nav.insert(0, buttons.menu_button('More ▶', 'add', [MORE], crc))
+		nav = turn(len(offer) > most) + [cancel]
 		return choices('Add a job: which report?', offer[page * most:(page + 1) * most], 4 if service in
 			MOST_REPORTS else 3, nav=nav)
 	label, action, args = reports[choice(steps[0], 1, len(reports)) - 1]
@@ -318,11 +279,7 @@ def add_screen(service, chat, steps):
 		most = MOST_DAYS.get(service, 31)
 		if page * most >= len(offer):
 			raise ValueError('no such page')
-		nav = [back, cancel]
-		if page:
-			nav.insert(0, buttons.menu_button('◀', 'add', steps, crc))
-		elif len(offer) > most:
-			nav.insert(0, buttons.menu_button('More ▶', 'add', [*steps, MORE], crc))
+		nav = turn(len(offer) > most) + [back, cancel]
 		question = 'on which day?' if frequency == 'o' else 'on which day of the month?'
 		return choices(f'Add {label}, {said}: {question}', offer[page * most:(page + 1) * most], 5,
 			['A month without that day has no run'] if frequency in 'mqb' else [], usual, nav)
@@ -461,10 +418,10 @@ def choice(text, low, high):
 		raise ValueError(f'no choice {text!r}')
 	return int(text)
 
-def added_screen(service, chat, number, tappable=True):
+def added_screen(service, chat, number):
 	"""What the last step of Add shows: the whole list, the job added pointed to (👉) and in bold, with the buttons of
 	the list (+ adds another)."""
-	return jobs_screen(service, chat, 'top', 0, 'Added', tappable, number)
+	return jobs_screen(service, chat, 'top', 0, 'Added', number)
 
 def add_failed(service, chat, steps, why):
 	"""What the last step of Add shows when the job cannot be added: why, with Back to the last choice and Cancel."""

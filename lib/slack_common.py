@@ -175,7 +175,7 @@ class SlackBot(transports.Transport):
 			log.error(f"ERROR slack: a reply to channel {self.where} needs slackBotToken in finbot.env; not sent")
 			return None
 		blocks = {}
-		if buttons and not isinstance(buttons, dict) and self.takes_buttons:
+		if buttons and not isinstance(buttons, dict):
 			blocks['blocks'] = json.dumps(text_blocks(text, buttons))
 		try:
 			answer = call('chat.postMessage', channel=self.where, text=text, unfurl_links='false',
@@ -193,7 +193,7 @@ class SlackBot(transports.Transport):
 		message instead (post_blocks), or without them if that fails. Slack's answer, MAYBE_SENT, or None if a step
 		failed."""
 		data = image.read() if hasattr(image, 'read') else bytes(image)
-		if buttons and not isinstance(buttons, dict) and self.takes_buttons:
+		if buttons and not isinstance(buttons, dict):
 			try:
 				return self.post_blocks(data, caption, buttons)
 			except Exception as e:
@@ -367,6 +367,7 @@ def kept(noted):
 
 
 SECTION_LIMIT = 3000 # characters of text in a Block Kit section
+STYLES = {buttons.OFF: 'danger', buttons.ON: 'primary', buttons.ACTIVE: 'primary'} # a button's style by its look
 
 
 def section_blocks(text):
@@ -376,9 +377,9 @@ def section_blocks(text):
 
 
 def button_style(button):
-	"""The Block Kit style of a button: danger (red) for a toggle that is off, primary (green) for one that is on or
-	the one shown now; none for the rest."""
-	style = {buttons.OFF: 'danger', buttons.ON: 'primary', buttons.ACTIVE: 'primary'}.get(buttons.look(button))
+	"""The Block Kit style of a button (STYLES): danger (red) for a toggle that is off, primary (green) for one that is
+	on or the one shown now; none for the rest."""
+	style = STYLES.get(buttons.look(button))
 	return {'style': style} if style else {}
 
 

@@ -148,25 +148,24 @@ class Formatting(unittest.TestCase):
 
 	def test_a_buttons_look_is_its_tone_else_active_and_a_toggle_is_red_only_when_off(self):
 		"""buttons.look is a toggle's tone, else ACTIVE for the button shown now, else nothing; buttons.tone is plain
-		for a toggle that is on and OFF for one that is off; buttons.struck draws a line through a label."""
+		for a toggle that is on and OFF for one that is off."""
 		look = lambda **kwargs: buttons.look(buttons.Button('x', 'y', **kwargs))
 		self.assertEqual([look(), look(active=True), look(tone=buttons.ON), look(active=True, tone=buttons.OFF)],
 			['', buttons.ACTIVE, buttons.ON, buttons.OFF])
 		self.assertEqual([buttons.tone(True), buttons.tone(False)], ['', buttons.OFF])
-		self.assertEqual(buttons.struck('ab'), 'a\u0336b\u0336')
 
 	def test_button_data_reads_back(self):
 		"""A button's data says what was pressed: a period button of a known kind and period (as keyboard() makes
 		them), a .jobs menu's button of a known screen made of plain letters and digits, and nothing for anything else:
-		the job buttons of older lists (j|, e|) included."""
+		the job buttons of older lists (j|, e|) and of the retired Enable and Delete screens included."""
 		self.assertEqual([buttons.parse(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
 			[buttons.ChartPress('l', key, '5,0') for key in 'dwmyx'])
-		self.assertEqual(buttons.parse(buttons.menu_button('1 ✅ trades', 'on', [0, 1], 'abcd').data),
-			buttons.MenuPress('on', ('0', '1'), 'abcd'))
+		self.assertEqual(buttons.parse(buttons.menu_button('1 trades', 'edit', [0, 1], 'abcd').data),
+			buttons.MenuPress('edit', ('0', '1'), 'abcd'))
 		self.assertEqual(buttons.parse('m|add|abcd'), buttons.MenuPress('add', (), 'abcd'))
 		self.assertEqual(buttons.menu_button('x' * 50, 'top', [0], 'abcd').label, 'x' * 40)
-		for data in ('c|c|d|T1', 'c|z|w|T1', 'c|c|w', 'x|h|w|T1', '', 'c', 'm|zz|0|abcd', 'm|on', 'm|on|0|a b',
-				'm|on|٨|abcd', 'm|on|0|1|' + 'a' * 60, 'j|8|abcd', 'e|8|abcd'):
+		for data in ('c|c|d|T1', 'c|z|w|T1', 'c|c|w', 'x|h|w|T1', '', 'c', 'm|zz|0|abcd', 'm|run', 'm|run|0|a b',
+				'm|run|٨|abcd', 'm|run|0|1|' + 'a' * 60, 'j|8|abcd', 'e|8|abcd', 'm|on|0|1|abcd', 'm|del|0|1|abcd'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
 
@@ -190,7 +189,7 @@ class Formatting(unittest.TestCase):
 		none for other data (the older lists' job buttons among them)."""
 		self.assertEqual([buttons.toast(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
 			['Loading 1D…', 'Loading 7D…', 'Loading 1M…', 'Loading 1Y…', 'Loading Max…'])
-		self.assertEqual(buttons.toast('m|on|0|1|abcd'), 'Updating…')
+		self.assertEqual(buttons.toast('m|edit|0|1|abcd'), 'Updating…')
 		for data in ('c|f|d|', 'c|zz|m|T1', '', 'x', 'j|8|abcd', 'e|99|0000'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.toast(data))

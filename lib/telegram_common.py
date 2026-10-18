@@ -40,7 +40,7 @@ def try_call(method, **kwargs):
 		log.warn(f"Telegram {method} failed:", net.redact(e))
 
 
-TONE_STYLES = {buttons.ON: 'success', buttons.OFF: 'danger'} # a toggle's button style: green and red
+STYLES = {buttons.ON: 'success', buttons.OFF: 'danger', buttons.ACTIVE: 'primary'} # a button's style by its look
 PHOTO_SECONDS = 30 * 86400 # how long a chart's file id is reused: Telegram keeps a bot's files, cleanup the cache file
 TELEGRAM_REUSE_SECONDS = 30 * 60 # a period pressed within this long of its upload in a chat shows that upload again
 # how Telegram refuses a file id it does not know (another bot's, say)
@@ -119,6 +119,13 @@ def answerCallbackQuery(callback_query_id, text=None, alert=False):
 	person dismisses. A failure is only logged."""
 	try_call('answerCallbackQuery', json={'callback_query_id': callback_query_id} | ({'text': text} if text else {}) |
 		({'show_alert': True} if alert else {}), logged='debug')
+
+
+def button_style(button):
+	"""Telegram's style of a button (STYLES): success (green) for a toggle that is on, danger (red) for one that is
+	off, primary (blue) for the one shown now; none for the rest. A client before February 2026 draws none."""
+	style = STYLES.get(buttons.look(button))
+	return {'style': style} if style else {}
 
 
 class Telegram(inbound.Network):
@@ -222,12 +229,11 @@ class TelegramBot(transports.Transport):
 
 	@staticmethod
 	def markup(buttons):
-		"""Rows of buttons.Button as Telegram's inline keyboard ('● ' marks the active one); a markup of Telegram's own
-		(the command keyboard) as it is."""
+		"""Rows of buttons.Button as Telegram's inline keyboard, each in its style (button_style); a markup of
+		Telegram's own (the command keyboard) as it is."""
 		if isinstance(buttons, dict):
 			return buttons
-		return {'inline_keyboard': [[{'text': ('● ' if button.active else '') + button.label,
-			'callback_data': button.data, **({'style': TONE_STYLES[button.tone]} if button.tone else {})}
+		return {'inline_keyboard': [[{'text': button.label, 'callback_data': button.data, **button_style(button)}
 			for button in row] for row in buttons]}
 
 	def post_text(self, text, buttons=None):

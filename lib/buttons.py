@@ -1,7 +1,8 @@
 """Buttons under a message, what their data says when one is pressed (parse), and what a press is told at once
 (toast): a chart's period buttons (1D | 7D | 1M | 1Y | Max), whose data carries what its builder needs
 (charts.BUILDERS); the .jobs menu's (menu_button); the pickers of a command typed with nothing to say what it is
-about (pick_button). Each transport draws Button rows its own way."""
+about (pick_button); and the rows and page buttons of both (chunks, page_buttons). Each transport draws Button rows
+its own way."""
 import hashlib
 import typing
 import zlib
@@ -31,11 +32,6 @@ def look(button):
 def tone(on):
 	"""A toggle's tone: plain when it is on, OFF (red) when it is off."""
 	return '' if on else OFF
-
-
-def struck(text):
-	"""The text with a line through it, for a button's label, which has no markup."""
-	return ''.join(char + '\u0336' for char in text)
 
 
 class ChartPress(typing.NamedTuple):
@@ -72,7 +68,7 @@ class PickPress(typing.NamedTuple):
 	checksum: str
 
 
-MENU_SCREENS = ('top', 'on', 'off', 'del', 'run', 'add', 'next', 'edit')
+MENU_SCREENS = ('top', 'edit', 'run', 'add', 'next')
 # the .jobs menu's screens (lib/reports/about.py)
 
 
@@ -142,6 +138,15 @@ def pick_button(label, press, active=False, tone=''):
 	data = '|'.join(['k', press.cmd, press.group, press.period, format(press.shown, 'x'), format(press.mask, 'x'),
 		press.act, press.checksum])
 	return Button(label[:40], data, active, tone)
+
+def chunks(row, size):
+	"""A list of buttons as rows of at most `size`."""
+	return [row[i:i + size] for i in range(0, len(row), size)]
+
+def page_buttons(page, pages, to):
+	"""The ◀ and ▶ buttons of a screen at `page` of `pages`, each made by to(label, the page it goes to); none for a
+	side with no page."""
+	return ([to('◀', page - 1)] if page else []) + ([to('▶', page + 1)] if page < pages - 1 else [])
 
 def parse(data):
 	"""What a pressed button's data asks for: a PickPress for a picker's button of a known command and act; a

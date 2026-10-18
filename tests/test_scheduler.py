@@ -685,16 +685,18 @@ class JobsInChat(ChatBase):
 		self.assertEqual(asked, [False, True])
 
 	def test_enable_and_disable_a_job(self):
-		""".jobs disable N switches job N off and .jobs enable N on, whichever way it was; .jobs enable alone lists the
-		jobs with a button for each one that is off."""
+		""".jobs disable N switches job N off and .jobs enable N on, whichever way it was; .jobs enable, disable or
+		delete alone opens Edit."""
 		off, on = '3. ❌* <s>trades · every 20 mins, weekdays UTC</s>', '3. * trades · every 20 mins, weekdays UTC'
 		for typed, line in (('.jobs disable 3', off), ('.jobs disable 3', off), ('.jobs enable 3', on)):
 			with self.subTest(typed=typed):
 				self.assertEqual(self.say(typed), [line])
 		self.say('.jobs disable 1')
-		self.assertEqual(self.say('.jobs enable')[0], '<b>Tap a job to enable it</b>')
-		self.assertEqual([[button.label for button in row] for row in self.replies[-1][2]],
-			[['1 rating'], ['Enable all', 'Cancel']])
+		for typed in ('.jobs enable', '.jobs disable', '.jobs delete'):
+			with self.subTest(typed=typed):
+				self.assertEqual(self.say(typed)[0], '<b>Tap a job to enable or disable it</b>')
+				self.assertEqual([[button.label for button in row] for row in self.replies[-1][2]],
+					[['1 rating', '2 movers close US', '3 trades'], ['OK', 'Delete disabled jobs']])
 
 	def test_toggle_a_job_off_and_on(self):
 		""".jobs toggle N switches job N off (it no longer fires) and on again."""
@@ -787,31 +789,9 @@ class JobsMenu(ChatBase):
 	"""The .jobs menu's buttons: each screen drawn in place of the pressed one, with a page of the list and a button
 	per job; Add's steps; a stale or forged press acting on nothing."""
 
-	def test_enable_and_disable_switch_one_way(self):
-		"""Disable lists the jobs with a button for each one that is on, '<number> <name>', and Enable for each one that
-		is off; a press switches the job that way, says so and redraws; Cancel goes back to the list."""
-		lines, rows, data = self.press(f'm|off|0|{self.crc()}')
-		self.assertEqual(self.toasts, ['Updating…'])
-		self.assertEqual((lines[0], rows), ('<b>Tap a job to disable it</b>', [['1 rating', '2 movers close US',
-			'3 trades'], ['Disable all', 'Cancel']]))
-		lines, rows, data = self.press(data['1 rating'])
-		self.assertEqual(lines[:2], ['Disabled 1. rating', ''])
-		self.assertIn('1. ❌* <s>rating · Tue–Sat at 8:30am</s>', lines)
-		self.assertEqual(rows[0], ['2 movers close US', '3 trades'])
-		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['off'], ['rating'])
-		self.assertEqual(self.press(data['2 movers close US'])[0][0], 'Disabled 2. movers close US')
-		lines, rows, data = self.press(f'm|on|0|{self.crc()}')
-		self.assertEqual((lines[0], rows), ('<b>Tap a job to enable it</b>', [['1 rating', '2 movers close US'],
-			['Enable all', 'Cancel']]))
-		lines, rows, data = self.press(data['1 rating'])
-		self.assertEqual((lines[0], rows[0]), ('Enabled 1. rating', ['2 movers close US']))
-		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['off'], ['price-close-us'])
-		lines, rows, _ = self.press(data['Cancel'])
-		self.assertEqual((lines[0], rows[0]), ('<b>Jobs here</b>', ['+', 'Edit', 'Run', 'Upcoming']))
-
-	def test_toggles_are_green_when_a_job_is_on_and_red_when_it_is_off(self):
-		"""Edit draws a job's button red when the job is off and plain when it is on; the Enable and Disable lists draw
-		theirs by the state the jobs are in (disabled ones red); the delete and run lists, not toggles, are plain."""
+	def test_a_job_that_is_off_has_a_red_button(self):
+		"""Edit draws a job's button red when the job is off and plain when it is on; the run list, not a toggle, is
+		plain."""
 		off, on = buttons.OFF, ''
 		def tones():
 			"""The tones of the buttons of the last screen, by row."""
@@ -820,24 +800,18 @@ class JobsMenu(ChatBase):
 		self.assertEqual(tones(), [[on, on, on], ['']])
 		lines, rows, data = self.press(f'm|edit|0|1|{self.crc()}')
 		self.assertEqual(tones(), [[off, on, on], ['', '']])
-		self.press(f'm|on|0|{self.crc()}')
-		self.assertEqual(tones()[0], [off])
-		self.press(f'm|off|0|{self.crc()}')
-		self.assertEqual(tones()[0], [on, on])
-		for screen in ('del', 'run'):
-			self.press(f'm|{screen}|0|{self.crc()}')
-			self.assertEqual({tone for row in tones() for tone in row}, {''}, screen)
+		self.press(f'm|run|0|{self.crc()}')
+		self.assertEqual({tone for row in tones() for tone in row}, {''})
 
 	def test_edit_switches_jobs_and_deletes_the_disabled_after_asking(self):
-		"""Edit lists the jobs with a button for each, struck through where it is off: a press switches that job, OK
+		"""Edit lists the jobs with a button for each, red where it is off: a press switches that job, OK
 		goes back, and Delete disabled jobs, shown while one is off, asks before it deletes them; buttons drawn for
 		another list switch and delete nothing."""
 		lines, rows, data = self.press(f'm|edit|0|{self.crc()}')
 		self.assertEqual((lines[0], rows), ('<b>Tap a job to enable or disable it</b>', [['1 rating',
 			'2 movers close US', '3 trades'], ['OK']]))
 		lines, rows, data = self.press(data['1 rating'])
-		off = buttons.struck('1 rating')
-		self.assertEqual((lines[0], rows), ('Disabled 1. rating', [[off, '2 movers close US', '3 trades'],
+		self.assertEqual((lines[0], rows), ('Disabled 1. rating', [['1 rating', '2 movers close US', '3 trades'],
 			['OK', 'Delete disabled jobs']]))
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['off'], ['rating'])
 		lines, rows, data = self.press(data['Delete disabled jobs'])
@@ -862,53 +836,12 @@ class JobsMenu(ChatBase):
 			"""The top screen's button labels, by row."""
 			return [[button.label for button in row] for row in about.jobs_screen(TELEGRAM, CHAT)[1]]
 		self.assertEqual(top(), [['+', 'Edit', 'Run', 'Upcoming']])
-		self.s.switch_all(CHAT, False)
+		for job in self.s.chat_jobs(CHAT):
+			self.s.switch(job, False)
 		self.assertEqual(top(), [['+', 'Edit', 'Run']])
-		self.s.delete_all(CHAT)
+		for job in self.s.chat_jobs(CHAT):
+			self.s.delete(job)
 		self.assertEqual(top(), [['+']])
-
-	def test_enable_all_and_disable_all(self):
-		"""Disable all switches every job of the chat off and Enable all every one on, each saying so, and each shown
-		only where some job has that to change: with nothing to switch, the screen says so. Pressed for another list,
-		it switches nothing."""
-		lines, rows, data = self.press(f'm|off|0|{self.crc()}')
-		lines, rows, data = self.press(data['Disable all'])
-		self.assertEqual((lines[:4], rows), (['Every job is off now', '', '<b>Tap a job to disable it</b>',
-			'Every job is off'], [['Cancel']]))
-		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'defaults': 'off', # the default jobs start off now
-			'jobs': [entry('trades every 20 mins weekdays', on=False)]})
-		lines, rows, data = self.press(f'm|on|0|{self.crc()}')
-		self.assertEqual(rows, [['1 rating', '2 movers close US', '3 trades'], ['Enable all', 'Cancel']])
-		lines, rows, data = self.press(data['Enable all'])
-		self.assertEqual((lines[0], lines[3], rows), ('Every job is on now', 'Every job is on', [['Cancel']]))
-		self.assertTrue(all(job.on for job in self.s.chat_jobs(CHAT)))
-		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [entry('trades every 20 mins weekdays')]})
-		self.assertEqual(self.press('m|off|0|all|0000')[0][0], 'The jobs have changed: here they are now')
-		self.assertTrue(all(job.on for job in self.s.chat_jobs(CHAT)))
-
-	def test_delete_offers_every_job_and_delete_all_asks_first(self):
-		"""Delete lists every job with a button each, the default ones too: a press deletes it and says so, a default
-		one staying out of the list (stored as deleted). Delete all asks first; Yes empties the list, and a stale
-		press deletes nothing."""
-		lines, rows, data = self.press(f'm|del|0|{self.crc()}')
-		self.assertEqual((lines[0], lines[-1]), ('<b>Tap a job to delete it</b>', '* not run yet'))
-		self.assertEqual(rows, [['1 rating', '2 movers close US', '3 trades'], ['Delete all', 'Cancel']])
-		lines, rows, data = self.press(data['1 rating'])
-		self.assertEqual((lines[:2], rows), (['Deleted 1. rating', ''], [['1 movers close US', '2 trades'],
-			['Delete all', 'Cancel']]))
-		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'deleted': ['rating'],
-			'jobs': [entry('trades every 20 mins weekdays')]})
-		lines, rows, data = self.press(data['Delete all'])
-		self.assertEqual((lines, rows), (['<b>Delete all 2 jobs here?</b>', 'A default job deleted comes back only when'
-			' the same job is added again'], [['Yes, delete all', 'Cancel']]))
-		self.assertEqual(self.press('m|del|0|allyes|0000')[0][0], 'The jobs have changed: here they are now')
-		self.assertEqual(len(self.s.chat_jobs(CHAT)), 2)
-		lines, rows, data = self.press(data['Yes, delete all'])
-		self.assertEqual(lines[:4], ['Every job here is deleted', '', '<b>Jobs here</b>',
-			'No jobs here: + adds one'])
-		self.assertEqual((self.s.chat_jobs(CHAT), state.load(jobs.JOBS_FILE)[CHAT]), ([], {'deleted': ['rating',
-			'price-close-us'], 'jobs': []}))
-		self.assertEqual(self.press(f'm|del|0|{self.crc()}')[1], [['Cancel']])
 
 	def test_run_now_runs_the_job_and_says_only_what_went_wrong(self):
 		"""Run now lists the jobs with a button each; a press runs the job, what it posts showing that it ran: no
@@ -930,16 +863,16 @@ class JobsMenu(ChatBase):
 
 	def test_a_stale_or_forged_press_acts_on_nothing(self):
 		"""A press drawn for another list (its checksum), for a number that is none, or of no screen at all (a job
-		button of the older lists, j| and e|, among them) switches, deletes and runs nothing: the screen is drawn as the
-		list is now, or the press is ignored."""
+		button of the older lists, j| and e|, and of the retired Enable, Disable and Delete screens among them)
+		switches, deletes and runs nothing: the screen is drawn as the list is now, or the press is ignored."""
 		good = self.crc()
-		for data in (f'm|on|0|1|0000', f'm|off|0|1|0000', f'm|del|0|3|0000', f'm|run|0|3|0000', f'm|on|0|9|{good}',
-				f'm|on|0|0|{good}', f'm|run|0|x|{good}', f'm|run|0|all|{good}', f'm|on|0|allyes|{good}'):
+		for data in (f'm|edit|0|1|0000', f'm|run|0|3|0000', f'm|run|0|9|{good}', f'm|run|0|0|{good}',
+				f'm|run|0|x|{good}', f'm|run|0|all|{good}'):
 			with self.subTest(data=data):
 				lines, _, _ = self.press(data)
 				self.assertEqual(lines[0], 'The jobs have changed: here they are now')
-		for data in (f'm|zz|0|{good}', f'm|on|0|1|{good}|' + 'x' * 60, 'm|on|٨|1|' + good, 'm|on|0|1|a b',
-				f'j|3|{good}', f'e|3|{good}'):
+		for data in (f'm|zz|0|{good}', f'm|run|0|1|{good}|' + 'x' * 60, 'm|run|٨|1|' + good, 'm|run|0|1|a b',
+				f'j|3|{good}', f'e|3|{good}', f'm|on|0|1|{good}', f'm|off|0|1|{good}', f'm|del|0|3|{good}'):
 			with self.subTest(data=data):
 				self.assertEqual(self.press(data), (None, None, None))
 		self.assertEqual((self.ran, len(self.s.chat_jobs(CHAT))), ([], 3))
@@ -1009,7 +942,7 @@ class JobsMenu(ChatBase):
 		lines, rows, data = self.press(f'm|add|5|a|2|{self.crc()}')
 		self.assertEqual((lines[0], rows[-2]), ('<b>Add movers, annual, in Feb: on which day of the month?</b>',
 			['26', '27', '28', '29']))
-		self.assertEqual(about.add_screen(DISCORD, CHAT, ['5', 'm'])[1][-1][0].label, 'More ▶')
+		self.assertEqual(about.add_screen(DISCORD, CHAT, ['5', 'm'])[1][-1][0].label, '▶')
 		self.assertEqual(about.add_screen(DISCORD, CHAT, ['5', 'm', 'p1'])[1][0][0].label, '21')
 
 	def test_repeats_by_buttons(self):
@@ -1089,7 +1022,7 @@ class JobsMenu(ChatBase):
 			[['Back', 'Cancel']]))
 		first, second = (about.add_screen(DISCORD, CHAT, steps)[1] for steps in ([], ['p1']))
 		self.assertEqual(([len(row) for row in first], [button.label for button in first[-1]]), ([4, 4, 4, 4, 2],
-			['More ▶', 'Cancel']))
+			['▶', 'Cancel']))
 		self.assertEqual([button.label for row in second for button in row], ['price',
 			'buysell', 'pe', 'peg', 'stock', '◀', 'Cancel'])
 
@@ -1123,7 +1056,7 @@ class JobsMenu(ChatBase):
 			self.s.add(CHAT, 'message', [f'reminder number {minute} ' * 4], when.parse(f'daily at 1:{minute:02d}',
 				'UTC'))
 		for service in (TELEGRAM, SLACK, DISCORD):
-			for screen in ('top', 'on', 'off', 'del', 'run'):
+			for screen in ('top', 'edit', 'run'):
 				for page in range(6):
 					with self.subTest(service=service, screen=screen, page=page):
 						fits(service, *about.jobs_screen(service, CHAT, screen, page))
@@ -1140,10 +1073,10 @@ class JobsMenu(ChatBase):
 					lines, markup = about.add_screen(service, CHAT, steps)
 					fits(service, about.listed_with(service, CHAT, lines), markup)
 			fits(service, *about.next_screen(service, CHAT))
-			fits(service, *about.delete_all_screen(service, CHAT))
+			fits(service, *about.delete_disabled_screen(service, CHAT))
 			fits(service, *about.added_screen(service, CHAT, 1))
 			fits(service, *about.add_failed(service, CHAT, ['5', 'd', '9'], 'that job is here already'))
-		pages = len({about.jobs_screen(DISCORD, CHAT, 'on', page)[0][0] for page in range(6)})
+		pages = len({about.jobs_screen(DISCORD, CHAT, 'edit', page)[0][0] for page in range(6)})
 		self.assertEqual(pages, 4) # 64 jobs, 16 to a page on Discord
 		self.assertEqual(len({about.jobs_screen(TELEGRAM, CHAT, 'top', page)[0][0] for page in range(6)}), 2)
 

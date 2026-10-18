@@ -53,7 +53,7 @@ def run(dest=None, *, past_days=None, user='', portfolio_select=None):
 		past_days = config.settings.past_days
 	payload, graph = report(chat.dialect, past_days, portfolio_select)
 	markup = None
-	if graph and chat.takes_buttons:
+	if graph:
 		markup = buttons.keyboard('f', [portfolio_select or ''], buttons.period_for_days(past_days))
 	delivery.deliver(chat, delivery.Report(payload, graph, markup))
 

@@ -46,7 +46,7 @@ def run(dest=None, *, days=None, user='', portfolio_select=None):
 		when = formats.days_english(days, 'in the past ')
 		payload = [f"{user} No trades {when}." if interactive else f"No new trades {when}."]
 	markup = None # a chat that asks gets the period buttons, which show the trades of another span in place
-	if interactive and chat.takes_buttons:
+	if interactive:
 		markup = buttons.keyboard('r', [portfolio_select or ''], buttons.period_for_days(days))
 	delivery.deliver(chat, delivery.Report(payload, None, markup))
 	if new and not interactive: # recorded once the report is out
