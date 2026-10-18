@@ -47,7 +47,8 @@ class Commands(FinbotCase):
 		text = str(both)
 		self.assertEqual(text.count('Upcoming'), 1)
 		self.assertIn('Upcoming earnings and ex-dividends', text)
-		self.assertEqual(text.count('Oct 20'), 1) # a date heading shared by both kinds
+		date = f"{datetime.date.fromtimestamp(NOW + 86400 * 3):%b %d}" # the fixtures' date for both events
+		self.assertEqual(text.count(date), 1) # a date heading shared by both kinds
 		self.assertIn('T1</a>) - earnings', text)
 		self.assertIn('T1</a>) - ex-dividend', text)
 		for typed in ('.earningsdividend', '.earnings & dividend'):
