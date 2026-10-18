@@ -34,7 +34,7 @@ class Tables(unittest.TestCase):
 	def test_secrets_are_startup_keys(self):
 		"""Every secret is a startup key: settings.conf holds none."""
 		self.assertTrue(set(config.SECRET_KEYS) <= set(config.STARTUP_KEYS))
-		self.assertEqual(len(config.SECRET_KEYS), 13)
+		self.assertEqual(len(config.SECRET_KEYS), 12)
 
 	def test_unset_settings_take_their_defaults(self):
 		"""An unset setting takes its field's default, as it is: reading tidies nothing away."""

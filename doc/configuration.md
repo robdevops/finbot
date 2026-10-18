@@ -23,7 +23,6 @@ of the chat network keys it needs.
 | `ip` | `127.0.0.1` | Address the bot listens on, in push mode |
 | `port` | `5000` | Port the bot listens on, in push mode |
 | `scheduler_catchup` | `5` | Minutes: a run missed while the bot was down still fires if it was due this recently |
-| `sharesight_code` | | Sharesight API access |
 | `sharesight_client_id` | | Sharesight API access |
 | `sharesight_client_secret` | | Sharesight API access |
 | `telegramBotToken` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `telegramOutgoingWebhook` is set) |
@@ -110,7 +109,6 @@ In Docker, one container is enough: `bot.py` runs the schedule too, so there is 
 ## Sharesight
 * Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to `finbot.env`. Example:
 ```
-sharesight_code=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 sharesight_client_id=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 sharesight_client_secret=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 ```

@@ -15,11 +15,11 @@ from pathlib import Path
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
-STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'scheduler_catchup', 'sharesight_code', 'sharesight_client_id',
-	'sharesight_client_secret', 'slackBotToken', 'slackAppToken', 'slackOutgoingToken', 'slackOutgoingWebhook',
-	'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook', 'discordBotToken',
-	'discordOutgoingWebhook', 'discordPublicKey')
-SECRET_KEYS = ('sharesight_code', 'sharesight_client_id', 'sharesight_client_secret', 'slackBotToken', 'slackAppToken',
+STARTUP_KEYS = ('DATA_DIR', 'ip', 'port', 'scheduler_catchup', 'sharesight_client_id', 'sharesight_client_secret',
+	'slackBotToken', 'slackAppToken', 'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret',
+	'telegramBotToken', 'telegramOutgoingToken', 'telegramOutgoingWebhook', 'discordBotToken', 'discordOutgoingWebhook',
+	'discordPublicKey')
+SECRET_KEYS = ('sharesight_client_id', 'sharesight_client_secret', 'slackBotToken', 'slackAppToken',
 	'slackOutgoingToken', 'slackOutgoingWebhook', 'slackSigningSecret', 'telegramBotToken', 'telegramOutgoingToken',
 	'telegramOutgoingWebhook', 'discordBotToken', 'discordOutgoingWebhook') # never printed
 SETTINGS_FILE = 'settings.conf'
@@ -38,6 +38,7 @@ RETIRED = { # keys of either file that do nothing any more: accepted, so that th
 	'discordChannelID': HOME_CHAT,
 	'scheduler': 'the scheduler is always on, and a schedule without jobs runs nothing; delete the line',
 	'debug': 'log_level sets what the log shows (INFO by default; DEBUG adds cache hits); delete the line',
+	'sharesight_code': 'Sharesight needs only sharesight_client_id and sharesight_client_secret; delete the line',
 }
 LOG_LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG') # log_level's values, the most severe first (lib/log.py)
 
@@ -277,7 +278,6 @@ def startup_values(getenv):
 		discordPublicKey=r.str('discordPublicKey', ''),
 		sharesight_auth={
 			"grant_type": 'client_credentials',
-			"code": getenv('sharesight_code'),
 			"client_id": getenv('sharesight_client_id'),
 			"client_secret": getenv('sharesight_client_secret'),
 			"redirect_uri": 'urn:ietf:wg:oauth:2.0:oob'
