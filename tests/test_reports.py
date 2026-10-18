@@ -1017,8 +1017,11 @@ class Pickers(FinbotCase):
 
 	@staticmethod
 	def rows(buttons):
-		"""Rows of (label, data) of the buttons a message was left with."""
-		return [[(b.label if not b.active else '● ' + b.label, b.data) for b in row] for row in buttons or []]
+		"""Rows of (label, data) of the buttons a message was left with, as the tests read them: the one shown now
+		marked '● ', a ticked ticker of the .price picker (drawn green, tone 'on') '✅ '."""
+		ticked = lambda b: b.tone == 'on' and b.data.startswith('k|c|')
+		return [[(('● ' if b.active else '✅ ' if ticked(b) else '') + b.label, b.data) for b in row]
+			for row in buttons or []]
 
 	def sent_rows(self):
 		"""The buttons of the picker as shown now (posted or edited), by row: (label, data)."""
@@ -1219,11 +1222,13 @@ class Pickers(FinbotCase):
 		made = lambda label, act, **changes: (label, act, changes)
 		found = ['A', 'B', 'C', 'D']
 		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm'),
-			[('a', 'm0', {'mask': 0b100}), ('B', 'm0', {'mask': 0b111}), ('c', 'm0', {'mask': 0b001})])
-		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, str.lower, 'n'),
+			[('a', 'm0', {'mask': 0b100, 'tone': ''}), ('B', 'm0', {'mask': 0b111}),
+			('c', 'm0', {'mask': 0b001, 'tone': ''})])
+		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, str.lower, 'n', ticked_tone='off'),
 			[('D', 'n1', {'mask': 0b1101})])
-		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm', full=True),
-			[('a', 'm0', {'mask': 0b100}), ('B', 'f0', {}), ('c', 'm0', {'mask': 0b001})])
+		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm', full=True, ticked_tone='on'),
+			[('a', 'm0', {'mask': 0b100, 'tone': 'on'}), ('B', 'f0', {}),
+			('c', 'm0', {'mask': 0b001, 'tone': 'on'})])
 		self.assertEqual([pick.page_buttons(page, 3, 'm', made) for page in range(3)],
 			[[('>', 'm1', {})], [('<', 'm0', {}), ('>', 'm2', {})], [('<', 'm1', {})]])
 		self.assertEqual(pick.page_buttons(0, 1, 'm', made), [])
@@ -1240,10 +1245,10 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(rows), [['T1', 'T2', 'T3'], ['Delete', 'Cancel']])
 		self.assertFalse(any(line.startswith('<s>') for line in lines))
 		kind, lines, rows = self.tap('T2')
-		self.assertEqual(self.labels(rows), [['T1', about.struck('T2'), 'T3'], ['Delete', 'Cancel']])
+		self.assertEqual(self.labels(rows), [['T1', buttons.struck('T2'), 'T3'], ['Delete', 'Cancel']])
 		struck = [line for line in lines if line.startswith('<s>')]
 		self.assertEqual([('Co T2' in line, line.endswith('</s>')) for line in struck], [(True, True)])
-		kind, lines, rows = self.tap(about.struck('T2'))
+		kind, lines, rows = self.tap(buttons.struck('T2'))
 		self.assertFalse(any(line.startswith('<s>') for line in lines))
 		self.tap('T1')
 		kind, lines, rows = self.tap('Cancel')
@@ -1537,6 +1542,21 @@ class Pickers(FinbotCase):
 		lines = [line for line in log.getvalue().split('\n') if line.startswith('priming')]
 		self.assertEqual(lines, ['priming c w: built 0.1 s, drew 0.10 s', 'priming c m: built 0.1 s, drew 0.10 s',
 			'priming c y: built 0.1 s, drew 0.10 s'])
+
+	def test_toggle_buttons_are_green_when_on_and_red_when_off(self):
+		"""The watchlist's Edit draws a ticker plain, and red once struck (marked to delete); the .price picker's
+		tickers are green when ticked and plain when not; no other button is toned."""
+		for ticker in ('T1', 'T2', 'T3'):
+			watchlist.add('telegram:55', ticker)
+		lines, rows = worker.watchlist_screen(TELEGRAM, 'telegram:55', 0b010)
+		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows],
+			[[('T1', ''), (buttons.struck('T2'), 'off'), ('T3', '')], [('Delete', ''), ('Cancel', '')]])
+		self.assertEqual([button.tone for row in worker.watchlist_screen(TELEGRAM, 'telegram:55', 0, editing=False)[1]
+			for button in row], [''])
+		lines, rows = pick.screen(TELEGRAM, 'c', ['A1', 'B1', 'C1'], '0', 'w', pick.pack([1]), 0b010, 'm')
+		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows[:1]],
+			[[('A1', ''), ('B1', 'on'), ('C1', '')]])
+		self.assertEqual({button.tone for row in rows[1:] for button in row}, {''}) # Back and OK
 
 
 if __name__ == '__main__':

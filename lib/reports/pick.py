@@ -105,11 +105,7 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	to_compare = cmd == 'c' and bool(ticked) and pack(ticked) != shown # ticks to show in place of what is shown
 	crc = buttons.checksum(found)
 	step = 'n' if note else 'm' # the tickers' screen, at a page
-	def button(label, act, active=False, **changes):
-		"""A button of this screen, whatever it changes (group, period, shown or mask) in its data."""
-		now = {'group': group, 'period': period, 'shown': shown, 'mask': mask} | changes
-		return buttons.pick_button(label, buttons.PickPress(cmd, now['group'], now['period'], now['shown'],
-			now['mask'], act, crc), active)
+	button = press_button(cmd, crc, group, period, shown, mask)
 	rows = []
 	if view == 'g': # the treemap's menu: a choice redoes the chart and stays; Back
 		chosen = group if group in holdings.GROUPS else 'i'
@@ -129,8 +125,8 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		if cmd == 't':
 			rows.append([button(f"Grouped by: {holdings.GROUPS.get(group, 'industry').capitalize()} ▾", f"g{page}")])
 	elif view == 'm':
-		rows += chunks(ticker_buttons(found, page, per_page, mask, button, lambda ticker: f"✅ {ticker}", step,
-			full=len(ticked) >= buttons.MAX_PICKED), per_row)
+		rows += chunks(ticker_buttons(found, page, per_page, mask, button, str, step,
+			full=len(ticked) >= buttons.MAX_PICKED, ticked_tone=buttons.ON), per_row)
 	nav = [button('◀ Back', 'p0')] if cmd == 'c' and view == 'm' else []
 	if pages > 1 and (view == 'm' or noun(cmd) == 'portfolio'): # the page buttons: under the tickers, not above them
 		nav += page_buttons(page, pages, step if view == 'm' else 'p', button)
@@ -144,6 +140,16 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		heading = f"Pick up to {buttons.MAX_PICKED} tickers"
 	return ([note] if note else []) + [heading + (f" (page {page + 1} of {pages})" if pages > 1 else '')], rows
 
+def press_button(cmd, crc, group, period, shown, mask):
+	"""A picker screen's maker of buttons, `button(label, act, active=False, tone='', **changes)`: the press it makes
+	is that of the screen (the arguments), `changes` the group, period, shown or mask it asks for instead."""
+	def button(label, act, active=False, tone='', **changes):
+		"""A button of this screen, whatever it changes in its data."""
+		now = {'group': group, 'period': period, 'shown': shown, 'mask': mask} | changes
+		return buttons.pick_button(label, buttons.PickPress(cmd, now['group'], now['period'], now['shown'],
+			now['mask'], act, crc), active, tone)
+	return button
+
 def items_on(found, page, per_page):
 	"""(number, item) of the items on a page."""
 	return list(enumerate(found))[page * per_page:(page + 1) * per_page]
@@ -152,15 +158,16 @@ def chunks(row, size):
 	"""A list of buttons as rows of at most `size`."""
 	return [row[i:i + size] for i in range(0, len(row), size)]
 
-def ticker_buttons(found, page, per_page, mask, button, mark, step, full=False):
+def ticker_buttons(found, page, per_page, mask, button, mark, step, full=False, ticked_tone=''):
 	"""The buttons of a page of tickers to tick (the .price picker's, the watchlist's Edit): a ticked one (a bit of
 	`mask`) is labelled by mark(ticker) and unticks itself; any other ticks itself, or with `full` (no more may be
 	ticked) is refused (act f). `button(label, act, **changes)` makes the screen's own button, `changes` the mask it
-	asks for; `step` is the act that redraws the screen at `page`."""
+	asks for and the `tone` it is drawn in (ticked_tone: that of a ticked ticker, an unticked one has none); `step` is
+	the act that redraws the screen at `page`."""
 	tickers = []
 	for i, ticker in items_on(found, page, per_page):
 		if mask >> i & 1:
-			tickers.append(button(mark(ticker), f"{step}{page}", mask=mask ^ 1 << i))
+			tickers.append(button(mark(ticker), f"{step}{page}", mask=mask ^ 1 << i, tone=ticked_tone))
 		elif full:
 			tickers.append(button(ticker, f"f{page}"))
 		else:

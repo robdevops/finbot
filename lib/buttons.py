@@ -9,11 +9,33 @@ import zlib
 from lib import answer
 from lib import state
 
+ON, OFF = 'on', 'off' # a toggle's state, as a button's tone: drawn green and red where the network colours buttons
+ACTIVE = 'active' # the look of the button shown now, which a tone overrides
+
+
 class Button(typing.NamedTuple):
-	"""One button: its label, the data a press sends back, and whether it is the one shown now (marked)."""
+	"""One button: its label, the data a press sends back, whether it is the one shown now (marked), and for a toggle
+	its state (tone: ON or OFF; none for any other button)."""
 	label: str
 	data: str
 	active: bool = False
+	tone: str = ''
+
+
+def look(button):
+	"""How a network should draw a button: its toggle tone (ON or OFF) if it has one, else ACTIVE for the one shown now,
+	else '' for the rest; each transport maps these to its own styles."""
+	return button.tone or (ACTIVE if button.active else '')
+
+
+def tone(on):
+	"""A toggle's tone: plain when it is on, OFF (red) when it is off."""
+	return '' if on else OFF
+
+
+def struck(text):
+	"""The text with a line through it, for a button's label, which has no markup."""
+	return ''.join(char + '\u0336' for char in text)
 
 
 class ChartPress(typing.NamedTuple):
@@ -29,6 +51,10 @@ class MenuPress(typing.NamedTuple):
 	screen: str
 	args: tuple
 	checksum: str
+
+	def encode(self, label, active=False, tone=''):
+		"""The button for this press: 'm|on|0|5|a1b2'."""
+		return _button(label, '|'.join(['m', self.screen, *map(str, self.args), self.checksum]), active, tone)
 
 
 class PickPress(typing.NamedTuple):
@@ -48,6 +74,11 @@ class PickPress(typing.NamedTuple):
 	mask: int
 	act: str
 	checksum: str
+
+	def encode(self, label, active=False, tone=''):
+		"""The button for this press: 'k|c|0|x|1|3|p0|a1b2'."""
+		return _button(label, '|'.join(['k', self.cmd, self.group, self.period, format(self.shown, 'x'),
+			format(self.mask, 'x'), self.act, self.checksum]), active, tone)
 
 
 MENU_SCREENS = ('top', 'on', 'off', 'del', 'run', 'add', 'next', 'edit')
@@ -109,16 +140,17 @@ def keyboard(kind, args, active=None):
 	ref = _ref(args)
 	return [[Button(PERIODS[key][0], f"c|{kind}|{key}|{ref}", key == active) for key in BUTTONS[kind]]]
 
-def menu_button(label, screen, args, checksum):
-	"""A button of the .jobs menu: its label, cut to 40 characters, and its data the screen it asks for, what it says
-	besides (words, numbers) and the list's checksum: 'm|on|0|5|a1b2'."""
-	return Button(label[:40], '|'.join(['m', screen, *map(str, args), checksum]))
+def _button(label, data, active, tone):
+	"""A Button with its label cut to 40 characters."""
+	return Button(label[:40], data, active, tone)
 
-def pick_button(label, press, active=False):
-	"""A picker's button: its label (cut to 40 characters) and a PickPress as its data: 'k|c|0|x|1|3|p0|a1b2'."""
-	data = '|'.join(['k', press.cmd, press.group, press.period, format(press.shown, 'x'), format(press.mask, 'x'),
-		press.act, press.checksum])
-	return Button(label[:40], data, active)
+def menu_button(label, screen, args, checksum, tone=''):
+	"""A button of the .jobs menu: its label and a MenuPress as its data; tone, a job's state where it is a toggle."""
+	return MenuPress(screen, tuple(args), checksum).encode(label, tone=tone)
+
+def pick_button(label, press, active=False, tone=''):
+	"""A picker's button: its label and a PickPress as its data; tone, the state of a ticker's toggle."""
+	return press.encode(label, active, tone)
 
 def parse(data):
 	"""What a pressed button's data asks for: a PickPress for a picker's button of a known command and act; a

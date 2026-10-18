@@ -11,6 +11,7 @@ import time
 import requests
 
 from lib import log
+from lib import buttons
 from lib import config
 from lib import dialects
 from lib import inbound
@@ -374,11 +375,17 @@ def section_blocks(text):
 		for part in transports.chunked(text.split('\n'), SECTION_LIMIT) if '\n'.join(part).strip()]
 
 
+def button_style(button):
+	"""The Block Kit style of a button: danger (red) for a toggle that is off, primary (green) for one that is on or
+	the one shown now; none for the rest."""
+	style = {buttons.OFF: 'danger', buttons.ON: 'primary', buttons.ACTIVE: 'primary'}.get(buttons.look(button))
+	return {'style': style} if style else {}
+
+
 def actions_block(row):
-	"""A Block Kit row of buttons, the one shown now marked."""
+	"""A Block Kit row of buttons, the one shown now marked, a toggle green (on) or red (off)."""
 	return {'type': 'actions', 'elements': [{'type': 'button', 'text': {'type': 'plain_text', 'text': button.label},
-		'value': button.data, 'action_id': button.data, **({'style': 'primary'} if button.active else {})}
-		for button in row]}
+		'value': button.data, 'action_id': button.data, **button_style(button)} for button in row]}
 
 
 def chart_blocks(caption, buttons, file_id):

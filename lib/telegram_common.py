@@ -40,6 +40,7 @@ def try_call(method, **kwargs):
 		log.warn(f"Telegram {method} failed:", net.redact(e))
 
 
+TONE_STYLES = {buttons.ON: 'success', buttons.OFF: 'danger'} # a toggle's button style: green and red
 PHOTO_SECONDS = 30 * 86400 # how long a chart's file id is reused: Telegram keeps a bot's files, cleanup the cache file
 TELEGRAM_REUSE_SECONDS = 30 * 60 # a period pressed within this long of its upload in a chat shows that upload again
 # how Telegram refuses a file id it does not know (another bot's, say)
@@ -226,7 +227,8 @@ class TelegramBot(transports.Transport):
 		if isinstance(buttons, dict):
 			return buttons
 		return {'inline_keyboard': [[{'text': ('● ' if button.active else '') + button.label,
-			'callback_data': button.data} for button in row] for row in buttons]}
+			'callback_data': button.data, **({'style': TONE_STYLES[button.tone]} if button.tone else {})}
+			for button in row] for row in buttons]}
 
 	def post_text(self, text, buttons=None):
 		"""sendMessage: Telegram's message, or None when it refused or failed (logged with Telegram's reason, such as
