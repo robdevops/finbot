@@ -187,19 +187,15 @@ def display_name(action, args, schedule, label):
 
 
 def stored_job(chat, entry):
-	"""A job a chat added, as JOBS_FILE keeps it (Job.stored), an action renamed since by its new name (RENAMED).
-	Raises ScheduleError for one that cannot be: an action that is none, arguments its parser refuses, a schedule that
-	is none (an edited file, or an older one)."""
+	"""A job a chat added, as JOBS_FILE keeps it (Job.stored). Raises ScheduleError for one that cannot be: an action
+	that is none, arguments its parser refuses, a schedule that is none (an edited file, or an older one)."""
 	if not isinstance(entry, dict):
 		raise ScheduleError(f'no job: {entry!r}')
 	on = entry.get('on', True)
 	if not isinstance(on, bool):
 		raise ScheduleError(f'no switch: {on!r}')
 	schedule = when.Schedule.from_json(entry.get('schedule'))
-	action, args = entry.get('action'), entry.get('args', [])
-	if action == 'cal' and args in (['earnings'], ['ex-dividend']):
-		args = [] # cal earnings and cal ex-dividend are one job now, earnings
-	return make_job(RENAMED.get(action, action) if isinstance(action, str) else action, args, schedule, chat, on)
+	return make_job(entry.get('action'), entry.get('args', []), schedule, chat, on)
 
 
 def entry_key(chat, entry):
@@ -212,18 +208,30 @@ def entry_key(chat, entry):
 
 OLD_KEYS = {'cal-earnings': 'earnings', 'cal-ex-dividend': 'earnings'} # default jobs merged; records may name them
 
-def current_keys(listed):
-	"""A record's list of catalog keys, a default job's old key (OLD_KEYS) by its new."""
-	return [OLD_KEYS.get(key, key) for key in listed] if isinstance(listed, list) else listed
+def clean(record):
+	"""A chat's record made current, in place, as JOBS_FILE is read and changed, so that the file names each job once
+	as this finbot does: a job it added under an action renamed since (RENAMED: cal earnings and cal ex-dividend are
+	one job now, earnings), and a default job's old key (OLD_KEYS). Whether it changed anything."""
+	changed = False
+	for name in ('off', 'on', 'deleted'):
+		listed = record.get(name)
+		if isinstance(listed, list) and all(isinstance(key, str) for key in listed) and set(listed) & set(OLD_KEYS):
+			record[name], changed = list(dict.fromkeys(OLD_KEYS.get(key, key) for key in listed)), True
+	for entry in record.get('jobs') if isinstance(record.get('jobs'), list) else []:
+		if isinstance(entry, dict) and isinstance(entry.get('action'), str) and entry['action'] in RENAMED:
+			if entry['action'] == 'cal' and entry.get('args') in (['earnings'], ['ex-dividend']):
+				entry['args'] = []
+			entry['action'], changed = RENAMED[entry['action']], True
+	return changed
 
 
 def item_on(record, key):
 	"""Whether a default job (by its catalog key) is on in a chat's record: unless it is switched off, or, where the
 	default jobs start off (a direct message), where it is switched on."""
 	if record.get('defaults') == 'off':
-		listed = current_keys(record.get('on', []))
+		listed = record.get('on', [])
 		return isinstance(listed, list) and key in listed
-	listed = current_keys(record.get('off', []))
+	listed = record.get('off', [])
 	return not (isinstance(listed, list) and key in listed)
 
 
@@ -231,14 +239,15 @@ def switch_item(record, key, on):
 	"""Switch a default job on or off in a chat's record: whether it is on now."""
 	starts_on = record.get('defaults') != 'off'
 	name = 'off' if starts_on else 'on' # the list of those switched from how they start
-	others = [each for each in current_keys(record.get(name, [])) if each != key]
+	listed = record.get(name, [])
+	others = [each for each in listed if each != key] if isinstance(listed, list) else []
 	keep(record, name, others + ([key] if on != starts_on else []))
 	return on
 
 
 def removed(record):
 	"""The default jobs (by catalog key) that a chat's record says it removed."""
-	listed = current_keys(record.get('deleted', []))
+	listed = record.get('deleted', [])
 	return [key for key in listed if isinstance(key, str)] if isinstance(listed, list) else []
 
 
@@ -323,6 +332,7 @@ class Scheduler:
 		self.busy = set() # the keys of the jobs running now, scheduled or by hand
 		self.lock = threading.Lock()
 		self.loading = threading.Lock() # one load at a time, so the list swapped in last is the one read last
+		self.saving = threading.Lock() # one save of the record of runs at a time, so the one written last is newest
 
 	def load(self):
 		"""Read every job: the system jobs; for each chat JOBS_FILE knows, the catalog's (switched off where its record
@@ -360,12 +370,13 @@ class Scheduler:
 				last, problem = None, f'cannot read {STATE_FILE}, starting without a record of past runs: {e}'
 			keys = {job.key for job in jobs}
 			self.last = {key: value for key, value in last.items() if key in keys} if isinstance(last, dict) else {}
-			if isinstance(last, dict) and self.last != last: # a job gone: one added again later has not run
-				self.save_runs()
+			gone = isinstance(last, dict) and self.last != last # a job gone: one added again later has not run
 			now = self.clock()
 			self.base = {job.key: self.base.get(job.key) or self.start_base(job, now) for job in jobs}
 			self.next_at = {}
 			self.jobs, self.chats = jobs, set(chats)
+		if gone:
+			self.save_runs()
 		if problem:
 			delivery.report_error(ScheduleError(problem), context='schedule')
 		dms = sum(1 for key, record in chats.items() if isinstance(record, dict) and record.get('dm') is True or
@@ -375,9 +386,13 @@ class Scheduler:
 			" system jobs")
 
 	def stored_chats(self):
-		"""The chats JOBS_FILE knows, each with its record."""
+		"""The chats JOBS_FILE knows, each with its record, made current in the file (clean) where an older finbot left
+		names this one has changed."""
 		try:
-			chats = state.load(JOBS_FILE, {})
+			with state.edit(JOBS_FILE, {}) as chats:
+				for record in chats.values() if isinstance(chats, dict) else []:
+					if isinstance(record, dict):
+						clean(record)
 		except (OSError, ValueError) as e:
 			log.error(f'schedule: cannot read {JOBS_FILE}, so no chat has jobs: {e}')
 			return {}
@@ -417,16 +432,21 @@ class Scheduler:
 				self.base[key], self.next_at[key] = latest, upcoming
 				self.last[key] = latest.isoformat()
 				fired.append((job, latest))
-			if fired:
-				self.save_runs()
+		if fired:
+			self.save_runs()
 		return fired
 
 	def save_runs(self):
-		"""Write the record of runs (the lock held)."""
-		try:
-			state.save(STATE_FILE, self.last)
-		except OSError as e:
-			log.error('schedule: cannot save', STATE_FILE, e)
+		"""Write the record of runs as it is now, outside the lock that the loop and the chats share (a write is flushed
+		to disk, which takes a while): one save at a time, each of the record as it is when it starts, so that the one
+		written last is the newest."""
+		with self.saving:
+			with self.lock:
+				last = dict(self.last)
+			try:
+				state.save(STATE_FILE, last)
+			except OSError as e:
+				log.error('schedule: cannot save', STATE_FILE, e)
 
 	def claim(self, key):
 		"""Mark a job running, unless it already is (scheduled or by hand): whether it was claimed."""
@@ -514,7 +534,7 @@ class Scheduler:
 		it says when it has nothing to show."""
 		with self.lock:
 			self.last[job.key] = self.clock().isoformat()
-			self.save_runs()
+		self.save_runs()
 		return self.execute(job, asked=True)
 
 	def see(self, chat, dm=None):
@@ -531,6 +551,7 @@ class Scheduler:
 		[catalog keys], 'jobs': [...]}), or raises ScheduleError; then every job is read again, to count at once."""
 		with state.edit(JOBS_FILE, {}) as chats:
 			record = chats.setdefault(chat, {})
+			clean(record)
 			if not isinstance(record.get('jobs', []), list):
 				record['jobs'] = []
 			result = edit(record)
@@ -573,30 +594,21 @@ class Scheduler:
 			if not job.item:
 				return record['jobs'].pop(self.index(record, job))
 			for name in ('off', 'on'):
-				keep(record, name, [key for key in current_keys(record.get(name, [])) if key != job.item])
+				keep(record, name, [key for key in record.get(name, []) if key != job.item])
 			record['deleted'] = list(dict.fromkeys([*removed(record), job.item]))
 		self.change(job.chat, remove)
 
-	def switch(self, job, on):
-		"""Switch a chat's job on, or off, whichever way it is now: whether it is on."""
+	def toggle(self, job, on=None):
+		"""Switch a chat's job on (on True) or off (False), or the other way from how it is stored (None), as stored,
+		under the state file's lock: two presses at once flip it twice. Whether it is on now."""
 		def turn(record):
-			"""Set the job's switch, as stored."""
+			"""Set or flip the job's switch, as stored."""
 			if job.item:
-				return switch_item(record, job.item, on)
-			record['jobs'][self.index(record, job)]['on'] = on
-			return on
-		return self.change(job.chat, turn)
-
-	def toggle(self, job):
-		"""Switch a chat's job on or off: whether it is on now."""
-		def flip(record):
-			"""Flip the job's switch, as stored."""
-			if job.item:
-				return switch_item(record, job.item, not item_on(record, job.item))
+				return switch_item(record, job.item, not item_on(record, job.item) if on is None else on)
 			entry = record['jobs'][self.index(record, job)]
-			entry['on'] = not entry.get('on', True)
+			entry['on'] = not entry.get('on', True) if on is None else on
 			return entry['on']
-		return self.change(job.chat, flip)
+		return self.change(job.chat, turn)
 
 	@staticmethod
 	def index(record, job):

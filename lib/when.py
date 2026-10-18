@@ -9,6 +9,8 @@ import json
 import re
 import zoneinfo
 
+from lib import formats
+
 UTC = zoneinfo.ZoneInfo('UTC')
 MINUTE = datetime.timedelta(minutes=1)
 DAY_MINUTES = 1440
@@ -210,18 +212,14 @@ class Schedule:
 		return month_kind(days['months'])
 
 	def describe(self, local, now=None):
-		"""The schedule in words, by its own zone's clock: plain where that is local (the zone's name, or a zone whose
-		clock reads the same at the next run after now: Sydney for Melbourne), in 24 hours with "UTC" after it where it
-		is UTC, else with the zone's place after it and, where the local clock differs at that run, its times in
-		parentheses: "weekdays at 12:45pm New York (3:45am local, Tue–Sat)"."""
-		if self.zone == local:
+		"""The schedule in words, by its own zone's clock: plain where that keeps the local one (same_clock: Sydney for
+		Melbourne), in 24 hours with "UTC" after it where it is UTC, else with the zone's place after it and, where the
+		local clock differs at the next run after now, its times in parentheses: "weekdays at 12:45pm New York (3:45am
+		local, Tue–Sat)", "weekdays at 9am Brisbane" in a Melbourne winter."""
+		if same_clock(self.zone, local):
 			return self.words(False)
 		if self.zone == 'UTC':
 			return self.words(True) + ' UTC'
-		run = self.next_after(now or datetime.datetime.now(UTC))
-		same = run and run.astimezone(self.tz).utcoffset() == run.astimezone(zoneinfo.ZoneInfo(local)).utcoffset()
-		if same:
-			return self.words(False)
 		return f"{self.words(False)} {place(self.zone)}{self.aside(local, now)}"
 
 	def words(self, utc):
@@ -336,11 +334,8 @@ def clock(minute, utc):
 
 def bound(minute, utc):
 	"""The end of a window or span as shown: '10am', '9:30pm' ('10:00' for UTC); any minute, as the clock reads it."""
-	minute %= DAY_MINUTES
-	if utc:
-		return clock24(minute)
-	hour, mins = divmod(minute, 60)
-	return f"{hour % 12 or 12}{f':{mins:02d}' if mins else ''}{'am' if hour < 12 else 'pm'}"
+	shown = clock(minute % DAY_MINUTES, utc)
+	return shown if utc else shown.replace(':00', '')
 
 
 def repeat_words(every, offset, utc):
@@ -363,7 +358,7 @@ def span_words(span, utc):
 
 def ordinal(n):
 	"""2 -> '2nd'."""
-	return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+	return f"{n}{formats.ordinal(n)}"
 
 
 def plural(day):
@@ -373,13 +368,15 @@ def plural(day):
 
 def date_words(date):
 	"""A date as shown: '28 Oct 2026'."""
-	return f"{date.day} {MONTHS[date.month - 1].title()} {date.year}"
+	return formats.date_short(date, year=True)
 
 
 def day_list(days):
-	"""Some days of the week as shown: ('tue', 'wed', 'thu', 'fri', 'sat') -> 'Tue–Sat', a run of three or more even
-	across Sunday ('Sun–Thu'); ('mon', 'thu') -> 'Mon, Thu'; ('sat', 'sun') -> 'weekends'."""
+	"""Some days of the week as shown: ('sun',) -> 'Sundays'; ('tue', 'wed', 'thu', 'fri', 'sat') -> 'Tue–Sat', a run of
+	three or more even across Sunday ('Sun–Thu'); ('mon', 'thu') -> 'Mon, Thu'; ('sat', 'sun') -> 'weekends'."""
 	found = sorted({DAYS.index(day) for day in days})
+	if len(found) == 1:
+		return plural(DAYS[found[0]])
 	if len(found) == 7:
 		return 'daily'
 	if found == [5, 6]:
@@ -433,7 +430,7 @@ def repeat_days(days):
 	if isinstance(days, str):
 		return days
 	if isinstance(days, tuple):
-		return plural(days[0]) if len(days) == 1 else day_list(days)
+		return day_list(days)
 	if 'date' in days:
 		return 'on ' + date_words(datetime.date.fromisoformat(days['date']))
 	names = '/'.join(MONTHS[m - 1].title() for m in days['months'])
@@ -446,8 +443,19 @@ def shifted(days, shift):
 		return ''
 	if isinstance(days, dict):
 		return 'the day after' if shift > 0 else 'the day before'
-	moved = tuple(DAYS[(DAYS.index(day) + shift) % 7] for day in (DAYS[:5] if days == 'weekdays' else days))
-	return plural(moved[0]) if len(moved) == 1 else day_list(moved)
+	return day_list(tuple(DAYS[(DAYS.index(day) + shift) % 7] for day in (DAYS[:5] if days == 'weekdays' else days)))
+
+
+def same_clock(a, b):
+	"""Whether two zones (by name) keep the same clock, as Melbourne's and Sydney's do: the same offset on the 1st and
+	15th of every month for two years (Brisbane's and Melbourne's differ in summer)."""
+	if a == b:
+		return True
+	first, second = zoneinfo.ZoneInfo(a), zoneinfo.ZoneInfo(b)
+	year = datetime.date.today().year
+	moments = [datetime.datetime(year + month // 12, month % 12 + 1, day, tzinfo=UTC)
+		for month in range(24) for day in (1, 15)]
+	return all(moment.astimezone(first).utcoffset() == moment.astimezone(second).utcoffset() for moment in moments)
 
 
 def place(zone):

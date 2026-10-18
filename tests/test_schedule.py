@@ -109,16 +109,22 @@ class JobArguments(unittest.TestCase):
 			with self.assertRaisesRegex(ValueError, movers.ARGUMENTS.replace('|', r'\|')):
 				movers.job(bad)
 
-	def test_the_old_cal_jobs_are_the_earnings_job(self):
-		"""A job stored as cal earnings or cal ex-dividend runs as earnings, and a default job's old keys in a chat's
-		record stand for the one earnings."""
+	def test_an_older_finbots_names_are_made_current(self):
+		"""A chat's record naming jobs as an older finbot did is made current (jobs.clean), once: a job added as cal
+		earnings or cal ex-dividend is earnings, one as price is movers, and a default job's old keys are the one
+		earnings."""
 		schedule = {'days': ['sun'], 'at': '09:00', 'zone': 'UTC'}
-		for args in (['earnings'], ['ex-dividend']):
-			job = jobs.stored_job('telegram:5', {'action': 'cal', 'args': args, 'schedule': schedule})
-			self.assertEqual((job.action, job.args, job.name), ('earnings', (), 'earnings'))
-		self.assertFalse(jobs.item_on({'off': ['cal-ex-dividend']}, 'earnings'))
-		self.assertTrue(jobs.item_on({'off': ['cal-ex-dividend']}, 'shorts'))
-		self.assertEqual(jobs.removed({'deleted': ['cal-earnings', 'shorts']}), ['earnings', 'shorts'])
+		record = {'off': ['cal-ex-dividend', 'cal-earnings'], 'deleted': ['cal-earnings', 'shorts'], 'jobs': [
+			{'action': 'cal', 'args': ['ex-dividend'], 'schedule': schedule},
+			{'action': 'price', 'args': ['7'], 'schedule': schedule}]}
+		self.assertTrue(jobs.clean(record))
+		self.assertEqual(record, {'off': ['earnings'], 'deleted': ['earnings', 'shorts'], 'jobs': [
+			{'action': 'earnings', 'args': [], 'schedule': schedule},
+			{'action': 'movers', 'args': ['7'], 'schedule': schedule}]})
+		self.assertFalse(jobs.clean(record))
+		self.assertEqual([jobs.stored_job('telegram:5', entry).action for entry in record['jobs']], ['earnings',
+			'movers'])
+		self.assertEqual((jobs.item_on(record, 'earnings'), jobs.item_on(record, 'shorts')), (False, True))
 
 	def test_cal_and_performance(self):
 		"""earnings takes none; performance an optional number of days."""

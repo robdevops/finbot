@@ -93,7 +93,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   number of days); one with period buttons returns what they carry, `(kind, args, shown)`, which the worker primes): `movers
   performance trades shorts earnings rating milestone message podcasts cleanup sharesight_warm yahoo_warm` (`jobs.RENAMED`:
   a job stored under an old name runs under the new, as `price` does as `movers`, and `cal` with its earnings or
-  ex-dividend argument as `earnings`, which posts both; `jobs.OLD_KEYS` for a default job's old keys in a chat's record). trades, rating,
+  ex-dividend argument as `earnings`, which posts both; `jobs.OLD_KEYS` for a default job's old keys in a chat's record;
+  both rewritten in JOBS_FILE once, as it is read and changed: `jobs.clean`). trades, rating,
   milestone and podcasts keep a record per chat of what they told it (`state.load_for`, `state.edit_for`), added to only
   by a scheduled run (`delivery.interactive(chat)` is false). A report with nothing to show raises `answer.Nothing`,
   which its runner (`worker.answered`, `Scheduler.execute`) posts only where someone asked (`delivery.asked(dest)`: a
@@ -182,16 +183,16 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   each reload). `lib/jobs.py`: the scheduler: each chat's jobs, the default ones and those it added (`JOBS_FILE`, by
   chat key: the defaults it switched off and those it removed, `'deleted'`, the jobs it added; a direct message's
   defaults start off, `'defaults': 'off'` with those switched on, and it is marked `'dm'`; `see` makes a chat known at
-  its first command, a DM as `inbound.Message.dm` or `is_dm` says; `add`, `delete`, `switch`,
-  `toggle`, `run`, `upcoming`, which `.jobs` calls through `jobs.current`; `parse_add` reads `.jobs add`),
-  and the fixed `SYSTEM` jobs, its shared state under one lock. A job is an action of `actions()`: a report module of
+  its first command, a DM as `inbound.Message.dm` or `is_dm` says; `add`, `delete`, `toggle` (on, off, or flipped),
+  `run`, `upcoming`, which `.jobs` calls through `jobs.current`; `parse_add` reads `.jobs add`),
+  and the fixed `SYSTEM` jobs, its shared state under one lock (the record of runs written outside it, `save_runs`). A job is an action of `actions()`: a report module of
   `ACTIONS` (`message` among them) or a command of `.help` (`command_actions()`), with the arguments its `job()` takes
   as words, never a command line; one stored that is anything else is logged and left out. Each job runs in the bot's process, in a thread (`Scheduler.execute`), reported once if still
   running after `JOB_TIMEOUT` and left to finish (every request goes through `net`, with its timeouts: a test checks);
   each job's next run is worked out once and again only after it runs, so a tick costs little. `lib/when.py`: a job's
   `Schedule` (days, a time or a repeat, or a span across days, in a zone): `parse()` of the English a chat types,
-  `describe()`, `next_after()` through daylight saving; `cycle()` the months of a quarterly or bi-annual one from its
-  start month. `lib/catalog.py`: the default jobs (`ITEMS`), each with its
+  `describe()` (a zone named where it keeps another clock than the local one: `same_clock`), `next_after()` through
+  daylight saving; `cycle()` the months of a quarterly or bi-annual one from its start month. `lib/catalog.py`: the default jobs (`ITEMS`), each with its
   name and schedule; the period of performance and movers follows how often it runs (`period_args`); an action renamed keeps
   its items' keys (`OLD_NAMES`: `price-weekly`), which chats' records name.
 - `tests/common.py`: `FinbotCase` (offline fixtures). `self.command('.movers')` returns what was sent:

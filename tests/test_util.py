@@ -504,6 +504,16 @@ class Schedules(unittest.TestCase):
 			with self.subTest(words=words):
 				self.assertEqual(when.Schedule.from_json(stored).describe(local, self.OCTOBER), words)
 
+	def test_a_zone_with_another_clock_is_named_in_every_season(self):
+		"""A Brisbane job seen from Melbourne names Brisbane in winter too, when both clocks read the same: it read as a
+		Melbourne job half the year (when.same_clock); Sydney's, which keeps Melbourne's clock, reads plain."""
+		brisbane = when.Schedule.from_json({'days': 'weekdays', 'at': '09:00', 'zone': 'Australia/Brisbane'})
+		july = datetime.datetime(2026, 7, 15, tzinfo=when.UTC)
+		self.assertEqual([brisbane.describe(self.MEL, now) for now in (july, self.OCTOBER)],
+			['weekdays at 9:00am Brisbane', 'weekdays at 9:00am Brisbane (10:00am local)'])
+		sydney = when.Schedule.from_json({'days': 'weekdays', 'at': '09:00', 'zone': self.SYD})
+		self.assertEqual([sydney.describe(self.MEL, now) for now in (july, self.OCTOBER)], ['weekdays at 9:00am'] * 2)
+
 	def test_the_next_run_of_each_kind(self):
 		"""next_after gives the first run after a moment, never at it: a week on, the next month with a 31st, 29
 		February years on, a one-off's date and then none, a repeat's next step, within its window or its span."""

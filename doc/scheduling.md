@@ -89,7 +89,8 @@ A job is a report and what it takes, then when it runs:
     common abbreviation (`ET`, `EST`, `PT`, `GMT`, `CET`, `HKT`, `JST`, `AEST`). An abbreviation means the zone with its
     daylight saving: `EST` follows New York's clock in summer too.
   * `/jobs` shows a job by its own zone's clock, with the local time beside it where the clocks differ: `weekdays at
-    4:30pm New York (7:30am local, Tue–Sat)`.
+    4:30pm New York (7:30am local, Tue–Sat)`. A zone that keeps another clock is named in every season: a Brisbane job
+    seen from Melbourne reads `weekdays at 9:00am Brisbane` in winter, when both clocks agree.
 
 The reports are `trades`, `movers midsession|interday|premarket|close|DAYS`, `earnings`,
 `performance [DAYS]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `reminder "TEXT"` (`message` works too). A job a chat added

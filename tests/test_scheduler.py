@@ -216,7 +216,7 @@ class LoadsTakeTurns(SchedulerBase):
 		first.start()
 		reading.wait(5)
 		job = next(job for job in s.chat_jobs(CHAT) if job.item == 'rating')
-		second = threading.Thread(target=s.switch, args=(job, False))
+		second = threading.Thread(target=s.toggle, args=(job, False))
 		second.start()
 		for _ in range(200): # until the switch is stored
 			if 'rating' in (state.load(jobs.JOBS_FILE, {}).get(CHAT) or {}).get('off', []):
@@ -404,6 +404,29 @@ class SchedulerTests(SchedulerBase):
 		self.assertEqual(second, ['already running'])
 		self.assertEqual(self.ran, [('trades', {})])
 		self.assertEqual(s.busy, set())
+
+	def test_the_record_of_runs_is_saved_outside_the_schedulers_lock(self):
+		"""Saving the record of runs (flushed to disk, which takes a while) holds no lock a chat's command waits on: the
+		scheduler's lock is free while it writes."""
+		s = self.scheduler()
+		held = []
+		self.patch(state, 'save', lambda name, data: held.append((name, s.lock.locked())))
+		s.run(s.chat_jobs(CHAT)[0])
+		self.assertEqual(held, [(jobs.STATE_FILE, False)])
+
+	def test_an_older_finbots_names_are_rewritten_in_the_file_once(self):
+		"""A job JOBS_FILE keeps as an older finbot named it (cal earnings: earnings now) is rewritten there as the
+		scheduler loads, once: the next load finds nothing to change, and writes nothing."""
+		with state.edit(jobs.JOBS_FILE, {}) as chats:
+			chats[CHAT]['jobs'][0].update(action='cal', args=['earnings'])
+		s = self.scheduler()
+		self.assertEqual([(job.action, job.args) for job in s.chat_jobs(CHAT)], [('earnings', ())])
+		self.assertEqual({key: state.load(jobs.JOBS_FILE)[CHAT]['jobs'][0][key] for key in ('action', 'args')},
+			{'action': 'earnings', 'args': []})
+		saved = []
+		self.patch(state, 'save', lambda name, data: saved.append(name))
+		s.load()
+		self.assertNotIn(jobs.JOBS_FILE, saved)
 
 	def test_a_stored_job_that_cannot_be_is_logged_left_out_and_never_run(self):
 		"""A job is only ever an action of the fixed table with arguments its parser takes: a stored one that is
@@ -858,7 +881,7 @@ class JobsMenu(ChatBase):
 			return [[button.label for button in row] for row in about.jobs_screen(TELEGRAM, CHAT)[1]]
 		self.assertEqual(top(), [['+', 'Edit', 'Run', 'Upcoming']])
 		for job in self.s.chat_jobs(CHAT):
-			self.s.switch(job, False)
+			self.s.toggle(job, False)
 		self.assertEqual(top(), [['+', 'Edit', 'Run']])
 		for job in self.s.chat_jobs(CHAT):
 			self.s.delete(job)

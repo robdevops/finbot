@@ -4,8 +4,6 @@ often the item runs (period_args): quarterly, 90 days. The market reports run in
 to its session through its daylight saving: pre-market at 7:15am New York, mid-session about halfway through, the close
 30 minutes after it. The messages are the reminders that reminder.json held, each at 8:30am Sydney on its date."""
 import dataclasses
-import datetime
-import zoneinfo
 
 from lib import formats
 from lib import when
@@ -141,24 +139,12 @@ def items(country, sharesight=True):
 		SHARESIGHT)]
 
 
-def same_clock(a, b):
-	"""Whether two zones (by name) keep the same clock, as Melbourne's and Sydney's do: the same offset on the 1st and
-	15th of every month for two years."""
-	if a == b:
-		return True
-	first, second = zoneinfo.ZoneInfo(a), zoneinfo.ZoneInfo(b)
-	year = datetime.date.today().year
-	moments = [datetime.datetime(year + month // 12, month % 12 + 1, day, tzinfo=when.UTC)
-		for month in range(24) for day in (1, 15)]
-	return all(moment.astimezone(first).utcoffset() == moment.astimezone(second).utcoffset() for moment in moments)
-
-
 def matching(action, args, schedule, country):
 	"""The default job that a job is, or None: the same action and arguments, on the same days at the same times, in a
 	zone that keeps the same clock as the item's (a chat in Melbourne typing a Sydney item's schedule)."""
 	for item in items(country):
 		if ((item.action, item.args) == (action, tuple(args)) and
 				dataclasses.replace(item.schedule, zone=schedule.zone) == schedule and
-				same_clock(item.schedule.zone, schedule.zone)):
+				when.same_clock(item.schedule.zone, schedule.zone)):
 			return item
 	return None

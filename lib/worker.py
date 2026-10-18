@@ -651,11 +651,8 @@ def on_jobs(request, args):
 				scheduler.delete(job)
 				request.reply([f"Deleted {number}. {service.escape(job.name)} · "
 					f"{job.schedule.describe(formats.zone().key)}"])
-			else:
-				if args.keyword == 'toggle':
-					scheduler.toggle(job)
-				else:
-					scheduler.switch(job, args.keyword == 'enable')
+			else: # enable, disable or toggle
+				scheduler.toggle(job, {'enable': True, 'disable': False}.get(args.keyword))
 				request.reply([about.job_entry(service, scheduler, number, scheduler.job(chat, number))])
 		else:
 			raise Usage
