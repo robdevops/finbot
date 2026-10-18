@@ -129,7 +129,7 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 		if cmd == 't':
 			rows.append([button(f"Grouped by: {holdings.GROUPS.get(group, 'industry').capitalize()} ▾", f"g{page}")])
 	elif view == 'm':
-		rows += chunks(ticker_buttons(found, page, per_page, mask, button, lambda ticker: f"✅ {ticker}", step,
+		rows += chunks(ticker_buttons(found, page, per_page, mask, button, str, step,
 			full=len(ticked) >= buttons.MAX_PICKED, tones=('', buttons.ON)), per_row)
 	nav = [button('◀ Back', 'p0')] if cmd == 'c' and view == 'm' else []
 	if pages > 1 and (view == 'm' or noun(cmd) == 'portfolio'): # the page buttons: under the tickers, not above them

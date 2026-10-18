@@ -1017,8 +1017,11 @@ class Pickers(FinbotCase):
 
 	@staticmethod
 	def rows(buttons):
-		"""Rows of (label, data) of the buttons a message was left with."""
-		return [[(b.label if not b.active else '● ' + b.label, b.data) for b in row] for row in buttons or []]
+		"""Rows of (label, data) of the buttons a message was left with, as the tests read them: the one shown now
+		marked '● ', a ticked ticker of the .price picker (drawn green, tone 'on') '✅ '."""
+		ticked = lambda b: b.tone == 'on' and b.data.startswith('k|c|')
+		return [[(('● ' if b.active else '✅ ' if ticked(b) else '') + b.label, b.data) for b in row]
+			for row in buttons or []]
 
 	def sent_rows(self):
 		"""The buttons of the picker as shown now (posted or edited), by row: (label, data)."""
@@ -1552,7 +1555,7 @@ class Pickers(FinbotCase):
 			for button in row], [''])
 		lines, rows = pick.screen(TELEGRAM, 'c', ['A1', 'B1', 'C1'], '0', 'w', pick.pack([1]), 0b010, 'm')
 		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows[:1]],
-			[[('A1', ''), ('✅ B1', 'on'), ('C1', '')]])
+			[[('A1', ''), ('B1', 'on'), ('C1', '')]])
 		self.assertEqual({button.tone for row in rows[1:] for button in row}, {''}) # Back and OK
 
 
