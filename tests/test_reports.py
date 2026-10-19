@@ -1073,7 +1073,7 @@ class Pickers(FinbotCase):
 	@staticmethod
 	def rows(buttons):
 		"""Rows of (label, data) of the buttons a message was left with, as the tests read them: the one shown now
-		marked '● ', a ticked ticker of the .price picker (drawn green, tone 'on') '✅ '."""
+		marked '● ', a ticked ticker of the .price picker (drawn in the selection colour, tone 'on') '✅ '."""
 		ticked = lambda b: b.tone == 'on' and b.data.startswith('k|c|')
 		return [[(('● ' if b.active else '✅ ' if ticked(b) else '') + b.label, b.data) for b in row]
 			for row in buttons or []]
@@ -1614,9 +1614,9 @@ class Pickers(FinbotCase):
 		lines = [line for line in log.getvalue().split('\n') if line.startswith('priming')]
 		self.assertEqual(lines, [f"priming c ['T1'] {period}: built 0.1 s, drew 0.10 s" for period in 'wmy'])
 
-	def test_toggle_buttons_are_green_when_on_and_red_when_off(self):
+	def test_toggle_buttons_are_selected_when_on_and_red_when_off(self):
 		"""The watchlist's Edit draws a ticker plain, and red once struck (marked to delete); the .price picker's
-		tickers are green when ticked and plain when not; no other button is toned."""
+		tickers are selected when ticked and plain when not; no other button is toned."""
 		for ticker in ('T1', 'T2', 'T3'):
 			watchlist.add('telegram:55', ticker)
 		lines, rows = pick.watchlist_screen(TELEGRAM, 'telegram:55', 0b010)

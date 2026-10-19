@@ -149,8 +149,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   off (❌), and Edit draws their buttons red. The `.jobs` menu's screens: top, Edit, Run, Upcoming and Add's steps; typed
   `.jobs enable`, `disable` or `delete` alone opens Edit.
 - `lib/buttons.py`: `Button`, drawn by its look (`look(button)`: a toggle's `tone`, `ON` or `OFF`, else `ACTIVE` for the
-  one shown now), which each network maps through its `STYLES` (Telegram's `style` success/danger/primary, Slack's
-  primary/danger, Discord's 3/4/1); `tone(on)` makes a job's or ticker's, red only when off; a picker screen's buttons come
+  one shown now), which each network maps through its `STYLES` (Telegram's `style` primary/danger, Slack's
+  primary/danger, Discord's 1/4: ON and ACTIVE are the network's selection colour); `tone(on)` makes a job's or ticker's, red only when off; a picker screen's buttons come
   from `pick.press_button`; rows of buttons (`chunks`) and every menu's ◀ ▶ (`page_buttons`); a chart's period buttons
   (`keyboard`), the `.jobs` menu's (`menu_button`, a `MenuPress`), what a pressed button's data asks for (`parse`), and the
   toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so

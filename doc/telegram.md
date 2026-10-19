@@ -19,7 +19,7 @@ under charts and the buttons of the `/jobs` menu, "typing…" while a command wo
 common commands in a direct chat with the bot: it comes with the first command, and again when it changes; `/start` or
 `/help` brings it back where it went (with the messages, when the chat is cleared).
 
-Buttons are coloured: the period shown blue, a ticked ticker green, a job that is off (or a ticker marked for deletion)
+Buttons are coloured: the period shown blue, a ticked ticker blue too, a job that is off (or a ticker marked for deletion)
 red. Telegram apps from February 2026 draw the colours; older ones draw every button plain.
 
 A chart is uploaded once: Telegram gives it a file id, which finbot keeps (in `DATA_DIR/cache`, 30 days) and sends the
