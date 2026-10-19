@@ -688,10 +688,10 @@ class SlackManifest(unittest.TestCase):
 		self.assertNotIn('app_mentions:read', manifest['oauth_config']['scopes']['bot'])
 		commands = manifest['features']['slash_commands']
 		self.assertEqual([c['command'] for c in commands], ['/' + command.name for command in worker.slash_commands()
-			if command.name != 'help']) # Slack keeps /help: a manifest that names it is refused
+			if command.name != 'who']) # Slack keeps /who: a manifest that names it is refused
 		names = {c['command'] for c in commands}
-		only = slack_manifest.manifest(only={'price', 'who'})['features']['slash_commands']
-		self.assertEqual([c['command'] for c in only], ['/who', '/price']) # to find which command Slack refuses
+		only = slack_manifest.manifest(only={'price', 'stock'})['features']['slash_commands']
+		self.assertEqual([c['command'] for c in only], ['/price', '/stock']) # to find which command Slack refuses
 		self.assertTrue({'/stock', '/jobs', '/ratio'} <= names and not {'/profile', '/job'} & names)
 		for command in commands:
 			with self.subTest(command=command['command']):

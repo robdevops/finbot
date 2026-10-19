@@ -7,7 +7,7 @@ the buttons; the messages tab of App Home, for direct messages; and Socket Mode,
   util/slack_manifest.py --url https://example.com/slack  HTTP mode: Slack posts to slackOutgoingWebhook, this URL
   util/slack_manifest.py --every-message                  the bot sees every message in its channels, not only the
                                                           ones that mention it, so that .price works there
-  util/slack_manifest.py --only price,who                 just these slash commands: to find which one Slack refuses
+  util/slack_manifest.py --only price,stock                 just these slash commands: to find which one Slack refuses
 
 Slack makes slash commands only in an app's settings (there is no API for them without a configuration token), so this
 is the way they get there: run it again, and paste what it prints, when finbot's commands change."""
@@ -25,7 +25,7 @@ from lib import worker
 
 SCOPES = ('chat:write', 'commands', 'files:read', 'files:write', 'reactions:write', 'users:read')
 # replies, slash commands, charts, ⏳, who the workspace's admins are
-RESERVED = ('help',) # slash commands Slack keeps for itself: a manifest that names one is refused ("invalid name")
+RESERVED = ('who',) # slash commands Slack keeps for itself: a manifest that names one is refused ("invalid name")
 EVENT_SCOPES = {'app_mention': 'app_mentions:read', 'message.channels': 'channels:history',
 	'message.groups': 'groups:history', 'message.im': 'im:history'} # what each event needs
 
@@ -33,8 +33,8 @@ EVENT_SCOPES = {'app_mention': 'app_mentions:read', 'message.channels': 'channel
 def manifest(name='finbot', url='', every_message=False, only=()):
 	"""The manifest, as a dict: for Socket Mode without url; for HTTP mode with it, the Request URL of the events, the
 	buttons and each slash command. The bot hears the messages that mention it, or with every_message each message in
-	the channels it is in, and its direct messages either way. Every slash command of .help but /help, which Slack's
-	own is (.help and @finbot help work); only, those named."""
+	the channels it is in, and its direct messages either way. Every slash command of .help but /who, which Slack's
+	own is (.who SYMBOL and @finbot who SYMBOL work); only, those named."""
 	events = ['message.channels', 'message.groups'] if every_message else ['app_mention']
 	events.append('message.im')
 	posted = {'url': url} if url else {}
