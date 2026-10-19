@@ -3,58 +3,31 @@ envelopes carry what Slack would post to the Request URL, for the reader (slack_
 import json
 
 from lib import log
-from lib import config
 from lib import pull
 from lib import slack_common
 
 
-class SlackSocket(pull.Listener):
+class SlackSocket(pull.SocketListener):
 	"""Slack's Socket Mode: a WebSocket to the URL that apps.connections.open gives for the app-level token
 	(slackAppToken). Each event, button press or slash command comes in an envelope, acked at once, before anything
 	else (Slack sends again what is not acked within 3 seconds); inside it is what Slack would post to
 	slackOutgoingWebhook. Slack closes a socket now and then, saying so first (disconnect), and another is opened at
 	once."""
 	network = slack_common.READER
+	TOKENS = ('slackBotToken', 'slackAppToken')
+	WEBHOOK_URL = 'slackOutgoingWebhook'
+	MODE = 'Socket Mode'
 	PING_SECONDS = 30 # silence this long sends a ping; as long again after it, and the socket is taken for dead
 	TAKEN = ('events_api', 'interactive', 'slash_commands') # the envelopes whose payload goes to the reader
 
-	@staticmethod
-	def wanted():
-		"""Whether finbot.env asks for it: Slack's bot token and app-level token, and no slackOutgoingWebhook."""
-		env = config.env
-		return bool(env.slackBotToken and env.slackAppToken and not env.slackOutgoingWebhook)
-
-	def describe(self):
-		"""The mode, for the log."""
-		return 'Socket Mode (no slackOutgoingWebhook)'
-
-	def open(self):
+	def url(self):
 		"""The URL of a new socket, from apps.connections.open."""
 		return slack_common.call('apps.connections.open', as_app=True)['url']
 
-	def connect(self, url):
-		"""A WebSocket connected to url."""
-		return pull.WebSocket(url)
-
-	def poll(self, take):
-		"""One socket, from opening it to Slack closing it: then another at once; after a failure, the back-off."""
-		try:
-			connection = self.connect(self.open())
-		except Exception as e:
-			return self.failed('opening a socket', e)
-		try:
-			reason = self.listen(connection, take)
-		except Exception as e:
-			return self.failed('the socket', e)
-		finally:
-			connection.close()
-		log.info(f"slack: Slack is closing the socket ({reason}), opening another")
-		return 0
-
 	def listen(self, connection, take):
-		"""Read envelopes until Slack says it will close the socket, and return its reason: each acked, then its payload
-		handed on. A ping goes out after PING_SECONDS of silence; as long again with nothing, not even the pong, raises
-		TimeoutError."""
+		"""Read envelopes until Slack says it will close the socket (then another opens at once, no wait): each acked,
+		then its payload handed on. A ping goes out after PING_SECONDS of silence; as long again with nothing, not even
+		the pong, raises TimeoutError."""
 		pinged = False
 		while True:
 			text = connection.receive(self.PING_SECONDS)
@@ -74,6 +47,8 @@ class SlackSocket(pull.Listener):
 			if kind == 'hello':
 				self.failures = 0
 			elif kind == 'disconnect':
-				return envelope.get('reason') or 'no reason given'
+				reason = envelope.get('reason') or 'no reason given'
+				log.info(f"slack: Slack is closing the socket ({reason}), opening another")
+				return 0
 			elif kind in self.TAKEN:
 				self.hand_on(take, envelope.get('payload') or {})

@@ -11,19 +11,19 @@ from lib import yahoo
 
 def holding_line(holding, service, text=None):
 	"""'🇦🇺 Title (CODE)' for a Sharesight holding, CODE (or `text`) linking to the holding on Sharesight."""
-	link = service.link(f"https://portfolio.sharesight.com/holdings/{holding['holding_id']}/dashboard",
-		holding['code'] if text is None else text)
+	link = service.link(links.holding_url(holding['holding_id']), holding['code'] if text is None else text)
 	name = formats.short_name(formats.transform_title(holding['name']))
 	return f"{markets.flag_from_market(holding['market_code'])} {name} ({link})"
 
 def prepare_holdings_payload(portfolio_name, service):
-	"""The holdings of the portfolio called `portfolio_name`. Raises sharesight.PortfolioNotFound."""
+	"""The holdings of the portfolio called `portfolio_name`. Raises sharesight.PortfolioNotFound, and answer.Nothing
+	for one that holds nothing."""
 	portfolio, = sharesight.portfolios(portfolio_name)
 	holdings = portfolio.holdings()
-	payload = sorted(holding_line(holding, service) for holding in holdings.values())
-	if payload:
-		payload.insert(0, service.bold(f"Holdings for {portfolio.name} ({len(holdings)})"))
-	return payload
+	if not holdings:
+		raise answer.Nothing(f"{portfolio.name} holds nothing")
+	return [service.bold(f"Holdings for {portfolio.name} ({len(holdings)})")] + sorted(holding_line(holding, service)
+		for holding in holdings.values())
 
 def prepare_who(service, code):
 	"""Which portfolios hold `code` (a ticker without its exchange), each holding linked to Sharesight. Raises
@@ -39,8 +39,13 @@ def prepare_who(service, code):
 	return found
 
 GROUPS = buttons.GROUPS
+GROUPED = 'industry' # what a treemap is grouped by unless told
 NOUNS = {'sector': ('sector', 'sectors'), 'industry': ('industry', 'industries'),
 	'country': ('country', 'countries'), 'currency': ('currency', 'currencies'), 'market': ('market', 'markets')}
+
+def grouping(key):
+	"""What a picker's group key (a key of GROUPS, or 0 for none chosen) groups a treemap by: a value of GROUPS."""
+	return GROUPS.get(key, GROUPED)
 
 def group_of(holding, by):
 	"""The group a Sharesight holding is in by `by` (a value of GROUPS): its sector or industry, its market's country
@@ -51,12 +56,6 @@ def group_of(holding, by):
 		'industry': holding.get('industry_classification_name'), 'country': country,
 		'currency': holding.get('currency_code'), 'market': market}[by]
 	return label or 'Unclassified'
-
-def flag(letters):
-	"""The flag of a country by its two letters ('AU'), with a space after it, where they are two; else nothing."""
-	if len(letters) != 2 or not letters.isalpha():
-		return ''
-	return ''.join(chr(ord('🇦') + ord(letter) - ord('A')) for letter in letters.upper()) + ' '
 
 def _groups(portfolio, by):
 	"""The holdings of a portfolio with a value, by `by` (a value of GROUPS): {group: [(code, value), ...]}."""
@@ -92,10 +91,11 @@ def prepare_treemap(portfolio_name, by, service, max_groups=8):
 	total = sum(value for _, held in rows for _, value in held)
 	title = f"{name} treemap by {by}"
 	payload = [service.bold(title)]
-	payload += [f"{flag(label) if by == 'country' else ''}{label}: {sum(value for _, value in held) / total * 100:.1f}%"
-		for label, held in rows]
+	shown = lambda label: f"{markets.flag(label)} {label}".lstrip() if by == 'country' else label # a country's flag
+	payload += [f"{shown(label)}: {sum(value for _, value in held) / total * 100:.1f}%" for label, held in rows]
 	count = sum(len(held) for held in groups.values())
-	subtitle = f"{_noun(by, len(groups))}, {count} {'holding' if count == 1 else 'holdings'}"
+	subtitle = f"{_noun(by, len(groups))}, {count} {'holding' if count == 1 else 'holdings'}, " + \
+		formats.date_short(formats.today(), True)
 	return payload, render.Chart('treemap', title, subtitle, tuple((label, tuple(held)) for label, held in rows))
 
 def prepare_watchlist(service, chat, user, action=None, ticker=None, removing=()):

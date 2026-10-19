@@ -5,9 +5,16 @@ telegram_webhook, slack_webhook, discord_webhook) or a pull mode (lib/pull.py). 
 a Press of a button, a Suggest to complete, or a Response the network gets straight back (a challenge, or nothing to
 do). The reader also acknowledges an update where the network waits for that, however it arrived: Telegram's press
 with a call, Discord's interaction with the answer it must have before any reply."""
+import collections
 import dataclasses
 import hmac
 import json
+import math
+import threading
+import time
+from urllib.parse import urlparse
+
+from lib import config
 
 
 @dataclasses.dataclass
@@ -15,10 +22,9 @@ class Message:
 	"""A chat message to answer (worker.process_request)."""
 	service: str
 	chat_id: str
-	user: str # the sender's handle: whose watchlist add or plan it is
+	user: str # the sender's handle, as a reply calls them: the network's mention, or a Telegram @username
 	text: str
 	bot_name: str # the bot's @name, which can start a command
-	user_name: str # what to call them
 	message_id: str = '' # the message itself: Slack shows ⏳ on it while finbot works
 	interaction: str = '' # Discord's slash command: its application id and token, to answer through
 	dm: bool = None # whether the chat is a direct message with the bot; None where its key says (jobs.is_dm)
@@ -33,7 +39,7 @@ class Press:
 	chat_id: str
 	message_id: str
 	data: str
-	user: str = '' # who pressed it, for the log
+	user: str = '' # who pressed it: the same handle as a message's (Message.user)
 	interaction: str = '' # Discord's press: its application id and token, to edit the message pressed through
 	ids: tuple = () # what the admins setting may call the presser (see Message.ids)
 
@@ -70,6 +76,34 @@ NOT_FOUND = Response('404 Not Found', b'<h1>404</h1>')
 TOO_LARGE = Response('413 Payload Too Large', b'<h1>Payload Too Large</h1>')
 
 
+class Recent:
+	"""What was taken lately, by key, with a value and when (time.monotonic), at most `kept` keys, the oldest forgotten
+	first: a key taken again with the same value within its window is a repeat. Updates arrive on several threads, so
+	it is locked."""
+
+	def __init__(self, kept=1000):
+		"""An empty store of at most kept keys."""
+		self.taken, self.kept, self.lock = collections.OrderedDict(), kept, threading.Lock()
+
+	def repeat(self, key, value=None, within=math.inf):
+		"""Whether the key was taken with this value in the last `within` seconds: then it is left as it was (the window
+		runs from the first time); else it is taken now."""
+		now = time.monotonic()
+		with self.lock:
+			last = self.taken.pop(key, None)
+			again = last is not None and last[0] == value and now - last[1] <= within
+			self.taken[key] = last if again else (value, now)
+			if len(self.taken) > self.kept:
+				self.taken.popitem(last=False)
+		return again
+
+	def forget(self, key, value=None):
+		"""Forget the key where it was taken with this value: taken again, it is no repeat."""
+		with self.lock:
+			if key in self.taken and self.taken[key][0] == value:
+				del self.taken[key]
+
+
 def same_secret(given, expected):
 	"""Whether a secret sent with a request is the one configured, compared in constant time. An empty configured secret
 	proves nothing, so it matches nothing."""
@@ -88,26 +122,31 @@ class Network:
 		"""What the update (a dict) says: a Message, a Press, or a Response to give straight back."""
 		raise NotImplementedError
 
-	def acknowledge(self, event, toast=True):
-		"""Tell the network an update was taken (a Message or a Press; toast: true for a press's own toast, false for
-		none, a press dropped, or a text: an alert, a press refused), where it waits for that: None when the answer to
-		the update says nothing more, or the Response the network must have before any reply. Here None: taking the
-		update is the acknowledgement (Slack's is the 200, or the socket's ack)."""
+	def acknowledge(self, event, text=None, alert=False):
+		"""Tell the network an update was taken (a Message or a Press), where it waits for that: a press with the text
+		it is told at once (its toast; none for a press dropped), or with alert as an alert (a press refused). None when
+		the answer to the update says nothing more, or the Response the network must have before any reply. Here None:
+		taking the update is the acknowledgement (Slack's is the 200, or the socket's ack)."""
 		return None
 
 
 class Webhook:
-	"""Updates a network posts to the bot, for its reader (a Network); subclasses give the path it posts to and how it
+	"""Updates a network posts to the bot, for its reader (a Network); subclasses give the URL it posts to and how it
 	proves itself."""
+	URL = '' # the finbot.env key of the URL the network posts to: finbot takes the path
 	REFUSED = FORBIDDEN # the answer to a request that does not prove itself
+	SECRET_HEADERS = () # the request headers (WSGI's names) that carry a secret, redacted where headers are logged
+	SECRET_FIELDS = () # the fields of an update that carry a secret, redacted where a refused update is logged
+
 	def __init__(self, network):
 		"""network: the reader of its updates."""
 		self.network = network
 		self.service = network.service
 
 	def path(self):
-		"""The URL path the network posts to, or '' when finbot.env sets none."""
-		return ''
+		"""The path of the URL the network posts to, or '' when finbot.env sets none."""
+		url = getattr(config.env, self.URL) if self.URL else ''
+		return urlparse(url).path if url else ''
 
 	def refuse_unread(self, environ):
 		"""Why to turn the request away before its body is read (a secret header missing or wrong), else None."""

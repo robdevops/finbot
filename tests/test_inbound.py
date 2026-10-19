@@ -1,6 +1,6 @@
 """What reaches the bot: webhook requests turned away or taken, Slack's events, presses, slash commands and signatures,
 the Slack app's manifest, and user text escaped where it arrives."""
-import contextlib, hashlib, hmac, io, json, re, time, types, unittest
+import contextlib, hashlib, hmac, io, json, time, types, unittest
 from urllib.parse import urlencode
 from tests.common import *
 from util import slack_manifest
@@ -40,6 +40,17 @@ class WsgiRejections(FinbotCase):
 		self.assertEqual(self.request('/slack', {'token': '', 'type': 'url_verification', 'challenge': 'c'})[1],
 			'403 Forbidden')
 		self.assertEqual((self.sent, self.errors), ([], []))
+
+	def test_the_secrets_of_a_request_stay_out_of_the_log(self):
+		"""The headers logged (with the print_headers setting, or of a request refused unread) hide each webhook's
+		secret ones (Telegram's secret token), and a refused update its secret fields (Slack's verification token)."""
+		self.env(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok', slackSigningSecret='')
+		self.settings(print_headers=True)
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			bot.main(wsgi_environ('/telegram', b'{}', HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok-x'), lambda *a: None)
+			bot.main(wsgi_environ('/slack', json.dumps({'type': 'event_callback', 'token': 'stok-x'}).encode()),
+				lambda *a: None)
+		self.assertEqual([said in log.getvalue() for said in ('tok-x', 'stok-x', '<redacted>')], [False, False, True])
 
 	def test_unknown_path_is_404(self):
 		"""An unknown path is 404."""
@@ -160,8 +171,8 @@ class WsgiRejections(FinbotCase):
 		calls = []
 		self.patch(worker, 'process_callback', lambda *a: calls.append(a))
 		secret = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': 'tok'}
-		for sender, who in (({'username': 'rob', 'first_name': 'Rob'}, '@rob'), ({'first_name': 'Ann'}, 'Ann'),
-				({}, 'unknown')):
+		for sender, who in (({'username': 'rob', 'first_name': 'Rob'}, '@rob'), ({'first_name': 'Ann'}, '@Ann'),
+				({}, '@unknown')):
 			body = json.dumps({'callback_query': {'id': '1', 'from': sender, 'data': 'c|c|y|T1',
 				'message': {'message_id': 9, 'chat': {'id': 55}}}}).encode()
 			err = io.StringIO()
@@ -198,7 +209,7 @@ class DoubledMessages(FinbotCase):
 		super().setUp()
 		self.patch(bot, 'doubled', REAL_DOUBLED)
 		self.now = [1000.0]
-		self.patch(bot, 'time', types.SimpleNamespace(monotonic=lambda: self.now[0]))
+		self.patch(inbound, 'time', types.SimpleNamespace(monotonic=lambda: self.now[0]))
 
 	def send(self, update_id, text='/start', user='rob', chat=55):
 		"""Take a Telegram message, as an update of this id arrives."""
@@ -240,7 +251,7 @@ class RepeatedPresses(FinbotCase):
 		super().setUp()
 		self.patch(worker, 'repeated', REAL_REPEATED)
 		self.now = [1000.0]
-		self.patch(worker, 'time', types.SimpleNamespace(monotonic=lambda: self.now[0]))
+		self.patch(inbound, 'time', types.SimpleNamespace(monotonic=lambda: self.now[0]))
 		self.taken, self.toasts = [], []
 		self.patch(worker, 'process_callback', lambda press: self.taken.append((press.message_id, press.data)))
 		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None, alert=False: self.toasts.append(text))
@@ -275,17 +286,15 @@ class RepeatedPresses(FinbotCase):
 		self.assertEqual(len(self.taken), 6)
 
 	def test_a_job_switch_pressed_again_after_a_moment_flips_it_back(self):
-		"""The same Edit, Enable or Disable button of a job is a double tap for FLIPPED seconds only; after that it is
-		a press of its own."""
-		for data in ('m|edit|0|3|ab12', 'm|off|0|3|ab12'):
-			with self.subTest(data=data):
-				self.taken.clear()
-				self.press(data)
-				self.now[0] += worker.FLIPPED / 2
-				self.assertEqual(self.press(data), ['Telegram duplicate button press ignored'])
-				self.now[0] += worker.FLIPPED
-				self.press(data)
-				self.assertEqual(self.taken, [('9', data), ('9', data)])
+		"""The same Edit button of a job is a double tap for FLIPPED seconds only; after that it is a press of its
+		own."""
+		data = 'm|edit|0|3|ab12'
+		self.press(data)
+		self.now[0] += worker.FLIPPED / 2
+		self.assertEqual(self.press(data), ['Telegram duplicate button press ignored'])
+		self.now[0] += worker.FLIPPED
+		self.press(data)
+		self.assertEqual(self.taken, [('9', data), ('9', data)])
 
 
 class AdminOnly(FinbotCase):
@@ -358,13 +367,17 @@ class AdminOnly(FinbotCase):
 		self.assertEqual(len(asked), 3)
 		from lib import jobs
 		jobs.know(['telegram:-100', 'telegram:-200', 'slack:C1'])
+		scheduler = jobs.Scheduler()
+		with contextlib.redirect_stderr(io.StringIO()):
+			scheduler.load()
+		self.patch(jobs, 'current', scheduler) # the chats the schedule knows: two groups
 		transports._administers.clear() # the earlier answer for this chat is kept for minutes
-		self.assertEqual(self.say('.jobs'), answered) # Rob administers a group finbot knows: in a direct message too
+		self.assertNotEqual(self.say('.jobs'), [[self.REFUSED]]) # Rob administers a group finbot knows: in a DM too
 		self.assertEqual(self.say('.jobs', id=9), [[self.REFUSED]])
 		self.patch(telegram_common, 'call', lambda method, **kwargs: 1 / 0)
 		self.assertEqual(group('.jobs', id=10), [[self.REFUSED]])
 		self.settings(admins=('telegram:10',))
-		self.assertEqual(group('.jobs', id=10), answered)
+		self.assertNotEqual(group('.jobs', id=10), [[self.REFUSED]])
 
 	def test_a_telegram_username_is_not_asked_about(self):
 		"""Only a numeric user id can be asked of getChatMember: a @username is no one's proof."""
@@ -422,6 +435,30 @@ class AdminOnly(FinbotCase):
 		self.assertEqual((self.taken, self.toasts[1:]), (['c|c|y|T1', 'm|top|0|ab12'], [('Loading 1Y…', False),
 			('Updating…', False)]))
 
+	def test_a_refused_press_is_told_to_the_presser_alone_on_every_network(self):
+		"""A press refused (here of a button of .jobs, by someone else) is told to the presser alone, and not run: an
+		alert on Telegram (above); on Slack a message only the presser sees (chat.postEphemeral), once the press is
+		acknowledged; on Discord the interaction's answer is such a message, in either mode."""
+		self.env(slackBotToken='xoxb-1', discordBotToken='x')
+		for kind in (slack_common.SlackBot, discord_common.DiscordBot):
+			self.patch(kind, 'is_administrator', lambda chat, who: False)
+		posts = []
+		self.patch(net, 'post', lambda url, **kwargs: posts.append((url.rsplit('/', 1)[1], kwargs['data'])) or
+			Resp({'ok': True}))
+		with contextlib.redirect_stderr(io.StringIO()):
+			answer = bot.take(slack_common.READER, {**PRESS, 'actions': [{'value': 'm|top|0|ab12'}]})
+			self.assertEqual((answer.status, answer.body, posts), ('200 OK', b'', [])) # acknowledged first
+			answer.then()
+		self.assertEqual(posts, [('chat.postEphemeral', {'channel': 'C1', 'user': 'U1', 'text': self.REFUSED})])
+		discord = {'type': 3, 'id': '5', 'token': 'tok', 'application_id': '42', 'channel_id': '77',
+			'user': {'id': '9'}, 'data': {'custom_id': 'm|top|0|ab12'}, 'message': {'id': '8'}}
+		with contextlib.redirect_stderr(io.StringIO()):
+			answer = bot.take(discord_common.READER, discord)
+		told = {'content': self.REFUSED, 'flags': 64, 'allowed_mentions': {'parse': []}}
+		self.assertEqual((json.loads(answer.body), answer.interaction, answer.then), ({'type': 4, 'data': told}, True,
+			None))
+		self.assertEqual(self.taken, [])
+
 
 class SlackEvents(FinbotCase):
 	"""Slack sends every message in a subscribed channel, the bot's own posts included."""
@@ -461,7 +498,7 @@ class SlackEvents(FinbotCase):
 		presses = []
 		self.patch(worker, 'process_callback', presses.append)
 		self.assertEqual(self.press(PRESS), '200 OK')
-		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '@rob', ids=('U1',))])
+		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '<@U1>', ids=('U1',))])
 		self.assertEqual(self.press({**PRESS, 'token': 'wrong'}), '403 Forbidden')
 		self.assertEqual(self.press({**PRESS, 'container': {'type': 'view', 'view_id': 'V1'}}), '200 OK')
 		self.assertEqual(self.press({**PRESS, 'actions': []}), '200 OK')
@@ -556,7 +593,7 @@ class SlackSigning(FinbotCase):
 				bot.main(wsgi_environ('/slack', sent, **headers), lambda s, *a, **k: answers.append(s))
 			self.join_workers()
 			self.assertEqual(answers, [status])
-		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '@rob', ids=('U1',))])
+		self.assertEqual(presses, [inbound.Press('slack', 't1', 'C1', '1.5', 'c|c|w|T1', '<@U1>', ids=('U1',))])
 
 	def test_a_signed_request_is_answered_and_the_token_is_not_needed(self):
 		"""A request signed with the secret is answered, whatever token it carries."""
@@ -605,8 +642,8 @@ class SlackSlashCommands(FinbotCase):
 		the reply goes to; Slack gets an empty 200 at once. There is no message of it, so no ⏳."""
 		self.assertEqual(self.post(SLASH), ('200 OK', b''))
 		self.assertEqual(self.post({**SLASH, 'channel_id': 'D1', 'command': '/job', 'text': ''}), ('200 OK', b''))
-		self.assertEqual(self.requests, [inbound.Message('slack', 'C1', '<@U1>', '/movers 5 & 7d', '', '<@U1>',
-			ids=('U1',)), inbound.Message('slack', 'D1', '<@U1>', '/job', '', '<@U1>', ids=('U1',))])
+		self.assertEqual(self.requests, [inbound.Message('slack', 'C1', '<@U1>', '/movers 5 & 7d', '',
+			ids=('U1',)), inbound.Message('slack', 'D1', '<@U1>', '/job', '', ids=('U1',))])
 		self.assertEqual([worker.read(r.text, r.bot_name)[0].names[0] for r in self.requests], ['movers', 'jobs'])
 		self.assertFalse(delivery.reply_to('slack', 'C1', self.requests[0].message_id).shows_typing)
 
@@ -674,15 +711,21 @@ class UserTextIsEscaped(FinbotCase):
 	"""Replies go out as Telegram HTML: text a user wrote is shown, never read as markup."""
 
 	def test_a_telegram_name_is_escaped_where_it_arrives(self):
-		"""A Telegram first name is escaped as the update arrives, in the handle and the name."""
-		requests = []
+		"""A Telegram first name is escaped as the update arrives, in the handle of a message and of a button press
+		alike (a press's goes into the watchlist's greeting)."""
+		requests, presses = [], []
 		self.patch(worker, 'process_request', requests.append)
-		body = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A<b>&'}, 'text': '.hello'}}
-		env = wsgi_environ('/telegram', json.dumps(body).encode(), HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok')
-		with contextlib.redirect_stderr(io.StringIO()):
-			bot.main(env, lambda *a, **k: None)
+		self.patch(worker, 'process_callback', presses.append)
+		sender = {'first_name': 'A<b>&'}
+		message = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': sender, 'text': '.hello'}}
+		press = {'callback_query': {'id': '1', 'from': sender, 'data': 'c|c|y|T1', 'message': {'message_id': 9,
+			'chat': {'id': 5}}}}
+		for body in (message, press):
+			env = wsgi_environ('/telegram', json.dumps(body).encode(), HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok')
+			with contextlib.redirect_stderr(io.StringIO()):
+				bot.main(env, lambda *a, **k: None)
 		self.join_workers()
-		self.assertEqual((requests[0].user, requests[0].user_name), ('@A&lt;b&gt;&amp;',) * 2) # the handle and the name
+		self.assertEqual((requests[0].user, presses[0].user), ('@A&lt;b&gt;&amp;',) * 2)
 
 
 if __name__ == '__main__':

@@ -13,13 +13,13 @@ OCTOBER = datetime.datetime(2026, 10, 15, tzinfo=when.UTC)
 
 class Actions(unittest.TestCase):
 	def test_a_job_runs_only_a_report_or_a_command_of_finbots_own(self):
-		"""Each action a job may run is a report module of finbot's own, with its run and its parser, or a command of
-		.help that changes nothing, by one of its names; a chat may schedule all but the system's, the commands listed
-		by their names in .help."""
+		"""Each action a job may run is a report module of finbot's own, with its run (and its parser, where it takes
+		arguments), or a command of .help that changes nothing, by one of its names; a chat may schedule all but the
+		system's, the commands listed by their names in .help."""
 		for name, module in jobs.ACTIONS.items():
 			with self.subTest(name=name):
 				self.assertEqual(module.__name__, f'lib.reports.{name}')
-				self.assertTrue(callable(module.run) and callable(module.job))
+				self.assertTrue(callable(module.run) and callable(getattr(module, 'job', print)))
 		commands = jobs.command_actions()
 		for name, command in commands.items():
 			with self.subTest(name=name):
@@ -109,24 +109,30 @@ class JobArguments(unittest.TestCase):
 			with self.assertRaisesRegex(ValueError, movers.ARGUMENTS.replace('|', r'\|')):
 				movers.job(bad)
 
-	def test_the_old_cal_jobs_are_the_earnings_job(self):
-		"""A job stored as cal earnings or cal ex-dividend runs as earnings, and a default job's old keys in a chat's
-		record stand for the one earnings."""
+	def test_an_older_finbots_names_are_made_current(self):
+		"""A chat's record naming jobs as an older finbot did is made current (jobs.clean), once: a job added as cal
+		earnings or cal ex-dividend is earnings, one as price is movers, and a default job's old keys are the one
+		earnings."""
 		schedule = {'days': ['sun'], 'at': '09:00', 'zone': 'UTC'}
-		for args in (['earnings'], ['ex-dividend']):
-			job = jobs.stored_job('telegram:5', {'action': 'cal', 'args': args, 'schedule': schedule})
-			self.assertEqual((job.action, job.args, job.name), ('earnings', (), 'earnings'))
-		self.assertFalse(jobs.item_on({'off': ['cal-ex-dividend']}, 'earnings'))
-		self.assertTrue(jobs.item_on({'off': ['cal-ex-dividend']}, 'shorts'))
-		self.assertEqual(jobs.removed({'deleted': ['cal-earnings', 'shorts']}), ['earnings', 'shorts'])
+		record = {'off': ['cal-ex-dividend', 'cal-earnings'], 'deleted': ['cal-earnings', 'shorts'], 'jobs': [
+			{'action': 'cal', 'args': ['ex-dividend'], 'schedule': schedule},
+			{'action': 'price', 'args': ['7'], 'schedule': schedule}]}
+		self.assertTrue(jobs.clean(record))
+		self.assertEqual(record, {'off': ['earnings'], 'deleted': ['earnings', 'shorts'], 'jobs': [
+			{'action': 'earnings', 'args': [], 'schedule': schedule},
+			{'action': 'movers', 'args': ['7'], 'schedule': schedule}]})
+		self.assertFalse(jobs.clean(record))
+		self.assertEqual([jobs.stored_job('telegram:5', entry).action for entry in record['jobs']], ['earnings',
+			'movers'])
+		self.assertEqual((jobs.item_on(record, 'earnings'), jobs.item_on(record, 'shorts')), (False, True))
 
 	def test_cal_and_performance(self):
 		"""earnings takes none; performance an optional number of days."""
 		self.assertEqual(performance.job([]), ('performance', {}))
 		self.assertEqual(performance.job(['7']), ('performance 7', {'past_days': 7}))
-		for bad, module in ((['x'], earnings), (['x'], performance)):
+		for bad, module, name in ((['x'], earnings, 'earnings'), (['x'], performance, 'performance')):
 			with self.assertRaises(ValueError):
-				module.job(bad)
+				jobs.job_args(module, name, bad)
 
 	def test_podcasts(self):
 		"""podcasts takes one feed URL; its label carries the start of the hash that names its seen file."""
@@ -155,14 +161,17 @@ class JobArguments(unittest.TestCase):
 				cleanup.job(bad)
 
 	def test_plain_reports(self):
-		"""The other reports take no arguments, and say so: their ARGUMENTS, which .jobs add lists, are empty."""
+		"""A report that takes arguments has a job() to read them and ARGUMENTS, which .jobs add lists; the others have
+		neither, so a job of one takes no words (jobs.job_args) and .jobs add lists none (jobs.takes)."""
 		for name, module in jobs.ACTIONS.items():
 			with self.subTest(name=name):
-				self.assertIsInstance(module.ARGUMENTS, str)
-				if name not in ('cleanup', 'message', 'performance', 'podcasts', 'movers'):
-					self.assertEqual((module.job([]), module.ARGUMENTS), ((name, {}), ''))
+				self.assertEqual(hasattr(module, 'job'), hasattr(module, 'ARGUMENTS'))
+				self.assertEqual(hasattr(module, 'job'), name in ('cleanup', 'message', 'performance', 'podcasts',
+					'movers'))
+				if not hasattr(module, 'job'):
+					self.assertEqual((jobs.job_args(module, name, []), jobs.takes(module)), ((name, {}), ''))
 					with self.assertRaisesRegex(ValueError, 'no arguments'):
-						module.job(['7'])
+						jobs.job_args(module, name, ['7'])
 
 	def test_the_checkout_holds_only_the_bot_at_its_top(self):
 		"""The scheduled reports run in the bot (and `.jobs run`), so the checkout's top holds bot.py alone: the scripts
@@ -175,8 +184,7 @@ class DefaultJobs(unittest.TestCase):
 		"""Each default job is an action a chat may schedule, with arguments its parser takes, on a schedule that runs;
 		its key is its own; its name says what it reports on, never when; performance and movers over a period cover the
 		days between their runs."""
-		self.assertEqual(len(catalog.ITEMS), 34)
-		self.assertEqual(len({item.key for item in catalog.ITEMS}), 34)
+		self.assertEqual((len(catalog.ITEMS), len({item.key for item in catalog.ITEMS})), (31, 31))
 		start = datetime.datetime(2026, 1, 1, tzinfo=when.UTC)
 		for item in catalog.ITEMS:
 			with self.subTest(item=item.key):
@@ -218,21 +226,18 @@ class DefaultJobs(unittest.TestCase):
 			'movers · bi-annual, 2 Jan and 2 Jul at 8:30am', 'performance · annual, 2 Jan at 8:30am',
 			'movers · annual, 2 Jan at 8:30am',
 			'🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 · annual, 31 Mar at 8:30am',
-			'SPCX IPO anniversary · annual, 12 Jun at 8:30am',
 			'💸 Realise capital gains/losses by EOFY June 30 (AU) · annual, 23 Jun at 8:30am',
 			'🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 · annual, 30 Jun at 8:30am',
 			"✍️ Submit 'Notice of Intent to Claim' for any post-tax … (AU) · annual, 7 Jul at 8:30am",
 			"finbot's birthday · annual, 18 Aug at 8:30am",
 			'😓 Self-service individual tax returns are due Oct 31 (AU) · annual, 25 Oct at 8:30am',
-			'ubank draw 6/6 … (AU) · once, 28 Oct 2026 at 8:30am',
-			'😰 Self-service individual tax returns are due today (AU) · annual, 31 Oct at 8:30am',
-			'SPCX 5th mensiversary. End of (statistically) most … · once, 12 Nov 2026 at 8:30am'])
+			'😰 Self-service individual tax returns are due today (AU) · annual, 31 Oct at 8:30am'])
 
 	def test_a_message_for_one_country_only_there_with_its_flag(self):
 		"""A message for one country is a default job only where it is the country_code setting, with its flag."""
 		au, nz = ({item.key for item in catalog.items(country)} for country in ('AU', 'NZ'))
 		self.assertEqual(sorted(au - nz), ['message-eofy-checklist', 'message-intent-to-claim', 'message-tax-due-soon',
-			'message-tax-due-today', 'message-ubank-draw-6'])
+			'message-tax-due-today'])
 		self.assertLess(nz, au)
 		checklist = next(item for item in catalog.ITEMS if item.key == 'message-eofy-checklist')
 		self.assertEqual(checklist.args[0], '💸 Realise capital gains/losses by EOFY June 30🇦🇺')
@@ -269,7 +274,7 @@ class Messages(FinbotCase):
 				(datetime.date(2026, 8, 17), "It's my 3rd birthday! 🥳")):
 			with self.subTest(today=today):
 				self.sent.clear()
-				self.patch(message, 'today', lambda: today)
+				self.patch(formats, 'today', lambda: today)
 				message.run(scheduled('slack:C9'), lines=list(birthday.args))
 				self.assertEqual(self.sent, [('text', [said])])
 
@@ -284,8 +289,7 @@ class DirectMessages(FinbotCase):
 
 	def test_a_direct_message_starts_with_its_default_jobs_off(self):
 		"""A chat new to finbot starts with its default jobs on, a direct message with them off: Telegram's (a person's
-		id) and Slack's (D…) as their keys tell, Discord's as its updates say. One switched on there is on; All on makes
-		them all start on."""
+		id) and Slack's (D…) as their keys tell, Discord's as its updates say. One switched on there is on."""
 		jobs.know(['telegram:5', 'telegram:-100', 'slack:D1', 'slack:C1', 'discord:7'])
 		jobs.know(['discord:8'], dm=True)
 		dm = {'defaults': 'off', 'dm': True}
@@ -299,8 +303,6 @@ class DirectMessages(FinbotCase):
 			s.toggle(s.chat_jobs('telegram:5')[0])
 			self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {**dm, 'on': ['trades']})
 			self.assertEqual([job.on for job in s.chat_jobs('telegram:5')][:2], [True, False])
-			s.switch_all('telegram:5', True)
-		self.assertEqual(state.load(jobs.JOBS_FILE)['telegram:5'], {'dm': True}) # still a DM
 
 	def test_a_chat_seen_says_whether_it_is_a_direct_message(self):
 		"""At a chat's first command it starts with its default jobs off where it is a direct Discord's update
@@ -311,8 +313,8 @@ class DirectMessages(FinbotCase):
 			s.load()
 			self.patch(jobs, 'current', s)
 			for chat, dm in (('88', True), ('77', False)):
-				worker.process_request(inbound.Message('discord', chat, '<@5>', '.help', '@99', 'rob', dm=dm))
-			worker.process_request(inbound.Message('telegram', '5', '@u', '.help', BOT, 'U'))
+				worker.process_request(inbound.Message('discord', chat, '<@5>', '.help', '@99', dm=dm))
+			worker.process_request(inbound.Message('telegram', '5', '@u', '.help', BOT))
 		self.assertEqual(state.load(jobs.JOBS_FILE), {'discord:88': {'defaults': 'off', 'dm': True}, 'discord:77': {},
 			'telegram:5': {'defaults': 'off', 'dm': True}})
 

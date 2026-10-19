@@ -97,6 +97,35 @@ class TelegramPolling(FinbotCase):
 		self.assertEqual(slept, [0, 5, 0])
 		self.assertIn('telegram: long polling for updates (no telegramOutgoingWebhook)', err.getvalue())
 
+	def test_a_round_that_fails_unforeseen_is_waited_out_and_tried_again(self):
+		"""A round that raises (a bug, say) does not end the listener: it is logged without the token and tried again
+		after the back-off, which a good round resets."""
+		def rounds():
+			"""Fail once, then a round that fetched nothing to wait for."""
+			yield KeyError('update_id')
+			while True:
+				yield 0
+		outcomes, slept = rounds(), []
+		def poll(take):
+			"""The next outcome: raised if it is an error."""
+			outcome = next(outcomes)
+			if isinstance(outcome, Exception):
+				raise outcome
+			return outcome
+		listener = telegram_longpolling.TelegramPoll()
+		self.patch(listener, 'poll', poll)
+		def sleep(seconds):
+			"""Note the wait; end the loop after two."""
+			slept.append(seconds)
+			if len(slept) == 2:
+				raise Stop
+		self.patch(pull.time, 'sleep', sleep)
+		err = io.StringIO()
+		with contextlib.redirect_stderr(err), self.assertRaises(Stop):
+			listener.run(bot.take)
+		self.assertEqual(slept, [pull.backoff(1), 0])
+		self.assertIn("telegram: a round failed, trying again in", err.getvalue())
+
 	def test_a_listener_for_each_network_without_a_webhook(self):
 		"""Telegram is polled with its bot token and no telegramOutgoingWebhook; with the URL, or without a token, it
 		is not."""
@@ -156,7 +185,7 @@ class FakeSocket:
 		"""Note a ping."""
 		self.log.append(('ping',))
 
-	def close(self):
+	def close(self, code=1000):
 		"""Note the close."""
 		self.log.append(('close',))
 
@@ -211,7 +240,7 @@ class SlackSocketMode(FinbotCase):
 		listener = slack_websocket.SlackSocket()
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			self.assertEqual([listener.poll(lambda *a: None) for _ in range(3)], [5, 10, 20])
-		self.assertIn('slack: opening a socket failed, trying again in 5 s: Slack apps.connections.open:'
+		self.assertIn('slack: connecting to the socket failed, trying again in 5 s: Slack apps.connections.open:'
 			' invalid_auth', err.getvalue())
 		self.patch(slack_common, 'call', lambda *a, **k: {'url': 'wss://example.com/link'})
 		self.patch(listener, 'connect', lambda url: FakeSocket([{'type': 'hello'}], self.log))
@@ -252,7 +281,7 @@ class SlackSocketMode(FinbotCase):
 			self.socket({'type': 'hello'}, {'envelope_id': 'e1', 'type': 'slash_commands', 'payload': slash},
 				{'type': 'disconnect', 'reason': 'warning'}).poll(bot.take)
 		self.join_workers()
-		self.assertEqual(messages, [inbound.Message('slack', 'C1', '<@U1>', '/forwardpe top', '', '<@U1>',
+		self.assertEqual(messages, [inbound.Message('slack', 'C1', '<@U1>', '/forwardpe top', '',
 			ids=('U1',))] * 2)
 		self.assertIn(('ack', 'e1'), self.log)
 

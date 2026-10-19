@@ -1,19 +1,14 @@
-"""State files in DATA_DIR: what must last from one run to the next (each chat's jobs, the watchlist, plans, seen
-trades, ratings, record highs, the schedule's last runs, chart button refs, keyboard versions, seen podcast episodes).
+"""State files in DATA_DIR: what must last from one run to the next (each chat's jobs, the watchlist, seen trades,
+ratings, record highs, the schedule's last runs, chart button refs, keyboard versions, seen podcast episodes).
 Written whole or not at all, and flushed. A report's record of what it told each chat is a file of its own, holding one
 record per chat ({'chats': {chat key: record}}): see load_for and edit_for."""
 import contextlib
 import copy
 import json
-import threading
 from pathlib import Path
 
 from lib import cache
 from lib import config
-
-_locks = {} # file name -> the lock edit() holds while it changes the file
-_locks_lock = threading.Lock()
-
 
 def path(name):
 	"""Where a state file lives."""
@@ -31,15 +26,14 @@ def save(name, data):
 	cache.write_file(path(name), json.dumps(data, indent=4).encode('utf-8'), sync=True)
 
 
-def _lock(name):
-	"""The lock edit() holds while it changes the file `name`."""
-	with _locks_lock:
-		return _locks.setdefault(name, threading.Lock())
+def records(name):
+	"""Every chat's record in a state file that holds one per chat: {chat key: record}."""
+	return load(name, {}).get('chats', {})
 
 
 def load_for(chat, name, default):
 	"""A chat's record (by its key) in a state file that holds one per chat, or `default` when it has none yet."""
-	return copy.deepcopy(load(name, {}).get('chats', {}).get(chat, default))
+	return copy.deepcopy(records(name).get(chat, default))
 
 
 @contextlib.contextmanager
@@ -55,7 +49,7 @@ def edit(name, default):
 	block starts (a copy of `default` when there is none yet) and written as the block ends without an error, if the
 	block changed it. Meanwhile no other edit of the same file runs in this process, so two chats changing it at once
 	both count. Keep slow work, a network call say, outside the block."""
-	with _lock(name):
+	with cache.lock(path(name)):
 		data = load(name, copy.deepcopy(default))
 		before = copy.deepcopy(data)
 		yield data

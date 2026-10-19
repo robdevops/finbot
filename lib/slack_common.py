@@ -5,7 +5,6 @@ import hashlib
 import html
 import json
 import re
-import threading
 import time
 
 import requests
@@ -27,20 +26,22 @@ SLACK_REUSE_SECONDS = 30 * 60 # a period pressed (or the same chart drawn) withi
 
 def call(method, as_app=False, logged=True, **data):
 	"""POST a Slack Web API method (form-encoded) as the bot, or with the app-level token (as_app, for Socket Mode's
-	apps.connections.open), and return the answer; an error raises RuntimeError. logged: as net logs the request."""
+	apps.connections.open), and return the answer, a rate limit waited out once (net.patiently); an error raises
+	RuntimeError. logged: as net logs the request."""
 	key = 'slackAppToken' if as_app else 'slackBotToken'
 	token = getattr(config.env, key)
 	if not token:
 		raise RuntimeError(f"Slack {method}: needs {key} in finbot.env")
-	r = net.post('https://slack.com/api/' + method, headers={'Authorization': 'Bearer ' + token}, data=data,
-		logged=logged)
+	return net.patiently(lambda: net.ok_answer(net.post('https://slack.com/api/' + method,
+		headers={'Authorization': 'Bearer ' + token}, data=data, logged=logged), f"Slack {method}", 'error'))
+
+
+def try_call(method, **data):
+	"""call(), where a failure must not stop what the bot is doing: it is only logged, and None returned."""
 	try:
-		output = r.json()
-	except ValueError:
-		output = {}
-	if not output.get('ok'):
-		raise RuntimeError(f"Slack {method}: {output.get('error') or r.status_code}")
-	return output
+		return call(method, **data)
+	except Exception as e:
+		log.warn(f"Slack {method} failed:", net.redact(e))
 
 
 class Slack(inbound.Network):
@@ -74,17 +75,20 @@ class Slack(inbound.Network):
 		if event['type'] not in ('message', 'app_mention') or 'text' not in event:
 			log.info("Slack unhandled event callback type", event['type'])
 			return inbound.UNHANDLED
-		user = '<@' + event['user'] + '>' # a mention: Slack shows the name
-		return inbound.Message(self.service, event['channel'], user, self.plain(event['text']), '@' + bot_user, user,
-			event.get('ts', ''), ids=(event['user'],))
+		return inbound.Message(self.service, event['channel'], self.handle(event['user']), self.plain(event['text']),
+			'@' + bot_user, event.get('ts', ''), ids=(event['user'],))
 
 	def slash(self, update):
 		"""A slash command (/price with 5 7d), as the message that says the same (/price 5 7d), in the channel or DM it
 		was sent in. There is no message of it, for ⏳ to show on."""
-		user = '<@' + str(update.get('user_id') or 'unknown') + '>'
 		text = self.plain(f"{update['command']} {update.get('text') or ''}".strip())
-		return inbound.Message(self.service, str(update.get('channel_id') or ''), user, text, '', user,
-			ids=tuple(filter(None, (str(update.get('user_id') or ''),))))
+		return inbound.Message(self.service, str(update.get('channel_id') or ''), self.handle(update.get('user_id')),
+			text, '', ids=tuple(filter(None, (str(update.get('user_id') or ''),))))
+
+	@staticmethod
+	def handle(user_id):
+		"""What a reply calls a Slack user: a mention of their id, which Slack shows as their name."""
+		return f"<@{user_id or 'unknown'}>"
 
 	@staticmethod
 	def plain(text):
@@ -92,6 +96,14 @@ class Slack(inbound.Network):
 		@QWERTY), and Slack's escapes their meaning (&amp; becomes &)."""
 		text = re.sub(r'<((?:https?|mailto):[^|>]*)(?:\|([^>]*))?>', lambda m: m.group(2) or m.group(1), text)
 		return html.unescape(re.sub(r'<(@[\w\.]+)>', r'\g<1>', text)) # Slack sends & < > as &amp; &lt; &gt;
+
+	def acknowledge(self, event, text=None, alert=False):
+		"""A press refused (alert): the text posted to the presser alone (chat.postEphemeral) once Slack has the press
+		(the 200, or the socket's ack, is the acknowledgement of every update); a failure is only logged."""
+		if not (alert and isinstance(event, inbound.Press) and event.ids):
+			return None
+		return inbound.Response(then=lambda: try_call('chat.postEphemeral', channel=event.chat_id, user=event.ids[0],
+			text=text))
 
 	def press(self, update):
 		"""A button pressed under one of the bot's messages, or UNSUPPORTED for one that is not under a message or
@@ -102,9 +114,9 @@ class Slack(inbound.Network):
 		if container.get('type') != 'message' or not container.get('message_ts') or not value:
 			return inbound.UNSUPPORTED
 		user = update.get('user') or {}
-		who = '@' + str(user.get('username') or user.get('id') or 'unknown')
 		return inbound.Press(self.service, update.get('trigger_id', ''), container.get('channel_id', ''),
-			container['message_ts'], value, who, ids=tuple(filter(None, (str(user.get('id') or ''),))))
+			container['message_ts'], value, self.handle(user.get('id')), ids=tuple(filter(None, (str(user.get('id') or
+			''),))))
 
 
 class SlackBot(transports.Transport):
@@ -112,27 +124,27 @@ class SlackBot(transports.Transport):
 	name = 'slack'
 	dialect = dialects.SLACK
 	WORKING = 'hourglass_flowing_sand' # ⏳: Slack has no typing notice for bots, so a reaction on the message stands in
+	CHUNK_GAP = 0.5 # Slack takes about one message a second in a channel
+	PRELOAD_CHAT = 'slack_preload_chat'
 	working = None # True while ⏳ is on the message, False when putting it there failed
-	preload_lock = threading.Lock()
-	preload_slots = threading.BoundedSemaphore(transports.PRELOAD_PARALLEL)
+
+	@property
+	def dm(self):
+		"""Whether the channel is a direct message: its id starts with D."""
+		return self.where.startswith('D')
 
 	def wants(self, photo):
 		"""Whether preloading a chart (its PNG bytes) would spare a press its upload: no upload of it in the last
 		SLACK_REUSE_SECONDS (earlier_upload)."""
 		return self.earlier_upload(digest_of(photo)) is None
 
-	def retry_after(self, error):
-		"""Ten seconds for Slack's rate limit ("ratelimited"), which does not say how long; None for another failure."""
-		return 10.0 if 'ratelimited' in str(error) else None
-
 	def send_ahead(self, photo):
 		"""Upload a chart into this channel, noted as shown by no message: a press within SLACK_REUSE_SECONDS shows it
 		(earlier_upload), and shows deletes it a minute after unless a message comes to show it."""
-		file_id = self.upload(photo)
-		call('files.completeUploadExternal', files=json.dumps([{'id': file_id, 'title': 'chart'}]),
-			channel_id=self.where)
+		file_id, _ = self.upload(photo, channel_id=self.where)
 		with state.edit(SLACK_CHARTS, {}) as noted:
-			kept(noted)['uploads'][file_id] = [time.time(), None, '', digest_of(photo)]
+			kept(noted)['uploads'][file_id] = {'at': time.time(), 'view': None, 'caption': '',
+				'digest': digest_of(photo)}
 
 	def is_administrator(self, who):
 		"""Whether users.info says this user is an owner or an admin of the workspace (Slack's channels have no
@@ -148,92 +160,61 @@ class SlackBot(transports.Transport):
 	def typing(self):
 		"""Put ⏳ on the message being answered, once (the bot needs the reactions:write scope); a failure is only
 		logged, and not tried again."""
-		if self.working is not None:
-			return
-		try:
-			call('reactions.add', channel=self.where, timestamp=self.message, name=self.WORKING)
-			self.working = True
-		except Exception as e:
-			self.working = False
-			log.warn("Slack reactions.add failed:", net.redact(e))
+		if self.working is None:
+			self.working = try_call('reactions.add', channel=self.where, timestamp=self.message,
+				name=self.WORKING) is not None
 
 	def typing_done(self):
 		"""Take ⏳ off the message again; a failure is only logged."""
-		if not self.working:
-			return
-		self.working = False
-		try:
-			call('reactions.remove', channel=self.where, timestamp=self.message, name=self.WORKING)
-		except Exception as e:
-			log.warn("Slack reactions.remove failed:", net.redact(e))
+		if self.working:
+			self.working = False
+			try_call('reactions.remove', channel=self.where, timestamp=self.message, name=self.WORKING)
 
 	def post_text(self, text, buttons=None):
-		"""chat.postMessage, without link previews, and with buttons (a Block Kit message) where they work. Slack's
-		answer, or None when it failed or refused (logged): Slack refuses with HTTP 200 and ok false (not_in_channel,
-		say), so a refusal is read from the answer."""
-		if not config.env.slackBotToken:
-			log.error(f"ERROR slack: a reply to channel {self.where} needs slackBotToken in finbot.env; not sent")
-			return None
-		blocks = {}
-		if buttons and not isinstance(buttons, dict) and self.takes_buttons:
-			blocks['blocks'] = json.dumps(text_blocks(text, buttons))
-		try:
-			answer = call('chat.postMessage', channel=self.where, text=text, unfurl_links='false',
-				unfurl_media='false', **blocks)
-		except Exception as e:
-			log.error("Slack chat.postMessage to", self.where, "failed:", net.redact(e))
-			return None
-		log.info("OK slack message to", self.where)
-		return answer
+		"""chat.postMessage, without link previews, and with buttons (a Block Kit message) where they work: Slack's
+		answer. Slack refuses with HTTP 200 and ok false (not_in_channel, say), which raises (call)."""
+		blocks = {'blocks': json.dumps(text_blocks(text, buttons))} if buttons else {}
+		return call('chat.postMessage', channel=self.where, text=text, unfurl_links='false', unfurl_media='false',
+			**blocks)
 
-	def post_chart(self, image, caption, buttons=None):
-		"""Upload the chart into the channel with the report as its message, the way Slack takes files since it retired
-		files.upload: ask for an upload URL, send the bytes there, then complete the upload into the channel (the bot
-		needs the files:write and files:read scopes). With period buttons, where they work, it goes in a Block Kit
-		message instead (post_blocks), or without them if that fails. Slack's answer, MAYBE_SENT, or None if a step
-		failed."""
-		data = image.read() if hasattr(image, 'read') else bytes(image)
-		if buttons and not isinstance(buttons, dict) and self.takes_buttons:
+	def post_chart(self, photo, caption, buttons=None):
+		"""The chart uploaded into the channel with the report as its message (upload). With period buttons, where they
+		work, it goes in a Block Kit message instead (post_blocks), or without them if that fails. Slack's answer;
+		raises when a step fails, MaybeSent when the request that posts it timed out."""
+		if buttons:
 			try:
-				return self.post_blocks(data, caption, buttons)
+				return self.post_blocks(photo, caption, buttons)
+			except transports.MaybeSent:
+				raise
 			except Exception as e:
 				log.warn("Slack chart with buttons failed, uploading it without them:", net.redact(e))
-		try:
-			share = {'files': json.dumps([{'id': self.upload(data)}]), 'channel_id': self.where,
-				'initial_comment': caption}
-			try:
-				output = call('files.completeUploadExternal', **share)
-			except requests.exceptions.ReadTimeout as e:
-				log.warn("Slack files.completeUploadExternal timed out, the chart may still arrive:", net.redact(e))
-				return transports.MAYBE_SENT
-		except Exception as e:
-			log.warn("Slack chart upload failed:", net.redact(e))
-			return None
-		log.info("OK slack chart upload to", self.where)
-		return output
+		return self.upload(photo, channel_id=self.where, initial_comment=caption)[1]
 
-	def upload(self, data):
-		"""Send a chart's bytes to Slack: the id of the file, not completed yet. Raises RuntimeError on a refusal."""
-		ticket = call('files.getUploadURLExternal', filename='chart.png', length=len(data))
-		r = net.post(ticket['upload_url'], data=data)
+	def upload(self, photo, **share):
+		"""Upload a chart (its PNG bytes) as Slack takes files since it retired files.upload: ask for an upload URL,
+		send the bytes there, then complete the upload as a file titled chart, shared as `share` says (channel_id, and
+		an initial_comment: a message in the channel), else in no channel, for an image block to show (the bot needs
+		the files:write and files:read scopes). (the file's id, Slack's answer to completing it). Raises RuntimeError
+		on a refusal; MaybeSent when completing it into a channel, which posts it, timed out."""
+		ticket = call('files.getUploadURLExternal', filename='chart.png', length=len(photo))
+		r = net.post(ticket['upload_url'], data=photo)
 		if r.status_code != 200:
 			raise RuntimeError(f"Slack upload: {r.status_code} {r.text[:200]}")
-		return ticket['file_id']
-
-	def unshared(self, data):
-		"""Upload a chart as a file that is in no channel, for an image block to show: its id."""
-		file_id = self.upload(data)
-		call('files.completeUploadExternal', files=json.dumps([{'id': file_id, 'title': 'chart'}]))
-		return file_id
+		try:
+			return ticket['file_id'], call('files.completeUploadExternal',
+				files=json.dumps([{'id': ticket['file_id'], 'title': 'chart'}]), **share)
+		except requests.exceptions.ReadTimeout as e:
+			if 'channel_id' in share:
+				raise transports.MaybeSent(e) from e
+			raise
 
 	def earlier_upload(self, digest):
 		"""The file of the chart whose PNG has this digest, uploaded (or shown as the same chart) under
 		SLACK_REUSE_SECONDS ago: Slack shows it at once, and it is kept a minute past that (see shows). None when there
 		is none."""
 		now = time.time()
-		uploads = state.load(SLACK_CHARTS, {}).get('uploads', {})
-		found = [(upload[0], file_id) for file_id, upload in uploads.items()
-			if upload[3:4] == [digest] and now - upload[0] < SLACK_REUSE_SECONDS]
+		found = [(upload['at'], file_id) for file_id, upload in uploads().items()
+			if upload.get('digest') == digest and now - upload['at'] < SLACK_REUSE_SECONDS]
 		return max(found)[1] if found else None
 
 	def showing(self, data, post):
@@ -250,20 +231,21 @@ class SlackBot(transports.Transport):
 					raise
 				log.warn("Slack will not show an earlier upload of the chart, uploading it anew:", net.redact(e))
 				self.forget(earlier)
-		file_id = self.unshared(data)
+		file_id, _ = self.upload(data)
 		return until_shown(lambda: post(file_id)), file_id, digest
 
-	def post_blocks(self, data, caption, buttons):
+	def post_blocks(self, photo, caption, buttons):
 		"""The chart in a Block Kit message, the report above it and the period buttons under it, the chart an earlier
-		upload where there is one (showing). Slack's answer, or MAYBE_SENT when posting the message timed out (it may
-		have arrived); raises RuntimeError when Slack refuses."""
-		try:
-			answer, file_id, digest = self.showing(data, lambda file_id: call('chat.postMessage', channel=self.where,
-				text=caption[:SECTION_LIMIT], blocks=json.dumps(chart_blocks(caption, buttons, file_id)),
-				unfurl_links='false', unfurl_media='false'))
-		except requests.exceptions.ReadTimeout as e:
-			log.warn("Slack chat.postMessage timed out, the chart may still arrive:", net.redact(e))
-			return transports.MAYBE_SENT
+		upload where there is one (showing): Slack's answer. Raises when an upload fails (no message exists yet) or
+		Slack refuses; MaybeSent when posting the message timed out (it may have arrived)."""
+		def post(file_id):
+			"""chat.postMessage of the blocks that show the chart."""
+			try:
+				return call('chat.postMessage', channel=self.where, text=caption[:SECTION_LIMIT], unfurl_links='false',
+					blocks=json.dumps(chart_blocks(caption, buttons, file_id)), unfurl_media='false')
+			except requests.exceptions.ReadTimeout as e:
+				raise transports.MaybeSent(e) from e
+		answer, file_id, digest = self.showing(photo, post)
 		if answer.get('ts'):
 			self.delete(self.shows(answer['ts'], file_id, caption, buttons, digest))
 		return answer
@@ -273,9 +255,8 @@ class SlackBot(transports.Transport):
 		another in its chat), with the report it came with: nothing is drawn or uploaded. True when it did; False when
 		there is no such upload, or Slack refuses it (a file deleted outside finbot, say: then it is forgotten)."""
 		view, now = self.view(buttons), time.time()
-		uploads = state.load(SLACK_CHARTS, {}).get('uploads', {})
-		recent = [(upload[0], file_id, upload[2]) for file_id, upload in uploads.items()
-			if view and upload[1] == view and now - upload[0] < SLACK_REUSE_SECONDS]
+		recent = [(upload['at'], file_id, upload.get('caption')) for file_id, upload in uploads().items()
+			if view and upload.get('view') == view and now - upload['at'] < SLACK_REUSE_SECONDS]
 		if not recent:
 			return False
 		_, file_id, caption = max(recent)
@@ -295,14 +276,12 @@ class SlackBot(transports.Transport):
 		with state.edit(SLACK_CHARTS, {}) as noted:
 			noted.get('uploads', {}).pop(file_id, None)
 
-	def edit_chart(self, message, image, caption, buttons=None):
+	def replace_chart(self, message, photo, caption, buttons):
 		"""Show another period (or portfolio) in a chart message, in its image block with its caption and buttons: an
 		earlier upload of the same chart, else the new chart uploaded (a file cannot be replaced; see showing). A press
 		for that period within SLACK_REUSE_SECONDS shows this upload again (reshow). Raises RuntimeError when Slack
 		refuses the update."""
-		if hasattr(image, 'seek'):
-			image.seek(0)
-		_, file_id, digest = self.showing(image.read() if hasattr(image, 'read') else bytes(image),
+		_, file_id, digest = self.showing(photo,
 			lambda file_id: call('chat.update', channel=self.where, ts=message, text=caption[:SECTION_LIMIT],
 			blocks=json.dumps(chart_blocks(caption, buttons or [], file_id)), logged='debug'))
 		self.delete(self.shows(message, file_id, caption, buttons, digest))
@@ -316,7 +295,7 @@ class SlackBot(transports.Transport):
 		with state.edit(SLACK_CHARTS, {}) as noted:
 			shown, uploads = kept(noted)['shown'], noted['uploads'] # see kept
 			if caption is not None:
-				uploads[file_id] = [now, self.view(buttons), caption] + ([digest] if digest else [])
+				uploads[file_id] = {'at': now, 'view': self.view(buttons), 'caption': caption, 'digest': digest}
 			key = f'{self.where} {message}'
 			shown.pop(key, None)
 			shown[key] = file_id
@@ -324,32 +303,26 @@ class SlackBot(transports.Transport):
 				uploads.pop(shown.pop(old), None)
 			showing = set(shown.values())
 			gone = [old for old, upload in uploads.items()
-				if old not in showing and now - upload[0] > SLACK_REUSE_SECONDS + 60]
+				if old not in showing and now - upload['at'] > SLACK_REUSE_SECONDS + 60]
 			for old in gone:
 				del uploads[old]
 			for upload in uploads.values(): # past reuse, a file shown is kept only to be deleted later
-				if now - upload[0] >= SLACK_REUSE_SECONDS:
-					upload[1:] = [None, None] # its view, report and digest
+				if now - upload['at'] >= SLACK_REUSE_SECONDS:
+					upload.update(view=None, caption=None, digest=None)
 		return gone
 
 	def delete(self, files):
 		"""Delete uploaded charts that no message shows any more; a failure is only logged (the file stays among the
 		bot's files, in no channel)."""
 		for file_id in files:
-			try:
-				call('files.delete', file=file_id)
-			except Exception as e:
-				log.warn("Slack files.delete failed:", net.redact(e))
+			try_call('files.delete', file=file_id)
 
 	def edit_text(self, message, text, buttons=None):
 		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
 		data = {'channel': self.where, 'ts': message, 'text': text}
 		if buttons is not None:
 			data['blocks'] = json.dumps(text_blocks(text, buttons))
-		try:
-			call('chat.update', logged='debug', **data)
-		except Exception as e:
-			log.warn("Slack chat.update failed:", net.redact(e))
+		try_call('chat.update', logged='debug', **data)
 
 
 def digest_of(data):
@@ -358,15 +331,22 @@ def digest_of(data):
 
 
 def kept(noted):
-	"""SLACK_CHARTS's record as shows keeps it, {'shown': {'channel ts': file}, 'uploads': {file: [time, view, report,
-	digest]}}: started anew where it is new, or the {'channel ts': file} of before, whose files stay."""
-	if set(noted) != {'shown', 'uploads'}:
+	"""SLACK_CHARTS's record as shows keeps it, {'shown': {'channel ts': file}, 'uploads': {file: {'at': when uploaded,
+	'view', 'caption': its report, 'digest': its PNG's}}}: started anew where it is new, or of an earlier form (the
+	{'channel ts': file} of before, or uploads as lists), whose files stay."""
+	if set(noted) != {'shown', 'uploads'} or not all(isinstance(upload, dict) for upload in noted['uploads'].values()):
 		noted.clear()
 		noted.update(shown={}, uploads={})
 	return noted
 
 
+def uploads():
+	"""The charts uploaded, as shows notes them (kept): {file id: {'at', 'view', 'caption', 'digest'}}."""
+	return kept(state.load(SLACK_CHARTS, {}))['uploads']
+
+
 SECTION_LIMIT = 3000 # characters of text in a Block Kit section
+STYLES = {buttons.OFF: 'danger', buttons.ON: 'primary', buttons.ACTIVE: 'primary'} # a button's style by its look
 
 
 def section_blocks(text):
@@ -376,9 +356,9 @@ def section_blocks(text):
 
 
 def button_style(button):
-	"""The Block Kit style of a button: danger (red) for a toggle that is off, primary (green) for one that is on or
-	the one shown now; none for the rest."""
-	style = {buttons.OFF: 'danger', buttons.ON: 'primary', buttons.ACTIVE: 'primary'}.get(buttons.look(button))
+	"""The Block Kit style of a button (STYLES): danger (red) for a toggle that is off, primary (green) for one that is
+	on or the one shown now; none for the rest."""
+	style = STYLES.get(buttons.look(button))
 	return {'style': style} if style else {}
 
 

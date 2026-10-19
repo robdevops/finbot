@@ -5,10 +5,10 @@ if __name__ == '__main__':
 	# ignored until startup is done (the reload handler is installed last): its default action kills the bot
 	signal.signal(signal.SIGHUP, signal.SIG_IGN)
 	signal.signal(signal.SIGUSR1, signal.SIG_IGN) # likewise the cache flush
-import collections, dataclasses, json, os, re, sys, threading, time, traceback
-from pathlib import Path
+import dataclasses, json, os, sys, threading, traceback
 
 from lib import log
+from lib import buttons
 from lib import config
 from lib import discord_common
 from lib import discord_webhook
@@ -22,6 +22,7 @@ from lib import slack_websocket
 from lib import telegram_common
 from lib import telegram_longpolling
 from lib import telegram_webhook
+from lib import transports
 from lib import delivery
 from lib import render
 from lib import sharesight
@@ -32,25 +33,18 @@ AUTHENTICATED = 'finbot.authenticated' # set once it has passed that network's c
 MAX_BODY = 1 << 20 # bytes in a request body, at most: an update from Telegram or Slack takes a few thousand
 WEBHOOKS = (telegram_webhook.WEBHOOK, slack_webhook.WEBHOOK, discord_webhook.WEBHOOK) # HTTP: each network posts
 LISTENERS = (telegram_longpolling.TelegramPoll, slack_websocket.SlackSocket, discord_websocket.DiscordGateway) # pull
-_updates_seen = collections.OrderedDict() # (service, update id) of the last updates taken, oldest first
-_updates_lock = threading.Lock() # updates arrive on several threads: a resent one may race its first copy
+SECRET_HEADERS = {name for hook in WEBHOOKS for name in hook.SECRET_HEADERS} # redacted where headers are logged
+STARTS = ((telegram_common, 'telegramBotToken'), (discord_common, 'discordBotToken')) # each network set up as finbot
+# starts (start: Telegram's webhook and menu, Discord's slash commands), where finbot.env has its key
+_updates_seen = inbound.Recent() # (service, update id) of the last updates taken: a resent one may race its first copy
 DOUBLED = 1 # seconds in which the same message, from the same person in the same chat, is taken once
-_said = {} # (service, chat, user, text) of the messages taken in the last DOUBLED seconds: when
+_said = inbound.Recent() # (service, chat, user, text) of the messages taken lately
 
-def seen_before(service, update_id, keep=1000):
-	"""Whether this update was taken already: Telegram's update_id, Slack's event_id. Slack resends an event it got no
-	answer to within 3 seconds and Telegram one that failed, and a command must not run twice. An update without an id
-	is never a repeat."""
-	if update_id is None:
-		return False
-	key = (service, update_id)
-	with _updates_lock:
-		if key in _updates_seen:
-			return True
-		_updates_seen[key] = None
-		if len(_updates_seen) > keep:
-			_updates_seen.popitem(last=False)
-	return False
+def seen_before(service, update_id):
+	"""Whether this update was taken already (of the last ones: inbound.Recent): Telegram's update_id, Slack's
+	event_id. Slack resends an event it got no answer to within 3 seconds and Telegram one that failed, and a command
+	must not run twice. An update without an id is never a repeat."""
+	return update_id is not None and _updates_seen.repeat((service, update_id))
 
 def route(path):
 	"""The webhook whose path this is, or None."""
@@ -65,15 +59,7 @@ def doubled(message):
 	"""Whether this message repeats one that the same person sent in the same chat in the last DOUBLED seconds:
 	Telegram's mobile app can send a command twice (/start in a new chat), each its own update, and one answer is
 	enough."""
-	key = (message.service, message.chat_id, message.user, message.text.strip())
-	now = time.monotonic()
-	with _updates_lock:
-		for old in [said for said, at in _said.items() if now - at > DOUBLED]:
-			del _said[old]
-		if key in _said:
-			return True
-		_said[key] = now
-	return False
+	return _said.repeat((message.service, message.chat_id, message.user, message.text.strip()), within=DOUBLED)
 
 def main(environ, start_response):
 	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is logged as an
@@ -110,9 +96,9 @@ def handle(environ, start_response):
 		start_response(response.status, [('Content-type', 'application/json')])
 		return Sent([response.body], response.then) if response.then else [response.body]
 	def print_headers(say=log.info):
-		"""Log the request headers (at INFO, or as say() logs), Telegram's secret header redacted."""
+		"""Log the request headers (at INFO, or as say() logs), the secret ones redacted (SECRET_HEADERS)."""
 		for name, value in sorted(environ.items()):
-			say((name, '<redacted>' if name == 'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN' else value))
+			say((name, '<redacted>' if name in SECRET_HEADERS else value))
 	if config.settings.print_headers:
 		print_headers()
 	path = environ.get('PATH_INFO', '')
@@ -124,7 +110,7 @@ def handle(environ, start_response):
 	if why := source.refuse_unread(environ): # strangers are turned away before their body is read
 		print_headers(log.warn)
 		log.warn("refused:", why)
-		return respond(inbound.FORBIDDEN)
+		return respond(source.REFUSED)
 	length = environ.get('CONTENT_LENGTH') or '0'
 	if not length.isdigit() or int(length) > MAX_BODY:
 		log.warn(f"{source.service.capitalize()} a body of {length!r} bytes refused unread")
@@ -136,7 +122,7 @@ def handle(environ, start_response):
 		log.warn(f"{source.service.capitalize()} request body is not a JSON object")
 		return respond(inbound.BAD_REQUEST)
 	if why := source.refuse(environ, body, update):
-		shown = {k: '<redacted>' if k == 'token' else v for k, v in update.items()} # Slack's verification token
+		shown = {k: '<redacted>' if k in source.SECRET_FIELDS else v for k, v in update.items()}
 		log.warn("warning:", why)
 		log.warn(f"{source.service.capitalize()} refused update", json.dumps(shown, indent=4, default=str))
 		return respond(source.REFUSED)
@@ -189,16 +175,17 @@ class Sent(list):
 def take(network, update):
 	"""An update from a network (an inbound.Network reads it), however it arrived: what it says goes to lib/worker in a
 	thread of its own (dispatch), unless it is a repeat (the same update resent, the same message sent again at once:
-	doubled, or the same button pressed again: worker.repeated, acknowledged without a toast), or a press of a command
-	only the admins may use, by someone else (worker.refused_press: an alert says so). It is acknowledged
-	first, the one place that does (Network.acknowledge: Telegram's toast for a press). Returns the inbound.Response
-	for the network; when the network must have it before any reply (Discord's interactions), the work waits in its
-	`then`, for whoever delivers it."""
+	doubled, or the same button pressed again: worker.repeated, acknowledged without a toast), or a press refused: a
+	tick past the picker's limit (buttons.refusal) or a button of a command only the admins may use, by someone else
+	(worker.refused_press), which an alert to the presser says. It is acknowledged first, the one place that does
+	(Network.acknowledge), a press with what it is told at once (buttons.toast). Returns the inbound.Response for the
+	network; when the network must have it before any reply (Discord's interactions), the work waits in its `then`, for
+	whoever delivers it."""
 	event = network.parse(update)
 	if isinstance(event, inbound.Response):
 		return event
 	if isinstance(event, inbound.Suggest): # answered here and at once, while the command is typed
-		return network.suggestions(worker.suggest(f'{event.service}:{event.chat_id}', event.text))
+		return network.suggestions(worker.suggest(transports.chat_key(event.service, event.chat_id), event.text))
 	if seen_before(network.service, network.update_id(update)):
 		log.info(f"{network.service.capitalize()} update {network.update_id(update)} seen already, not run again")
 		return inbound.OK
@@ -206,13 +193,14 @@ def take(network, update):
 		who = f"{network.service.capitalize()} {event.chat_id} {event.user}"
 		log.info(log.cut(f"{who} sent it again within {DOUBLED} s, not run again: {event.text}"))
 		return inbound.OK
-	if isinstance(event, inbound.Press) and (why := worker.refused_press(event)):
-		log.info(f"{network.service.capitalize()} {event.chat_id} {event.user} refused: a button of an admins' command")
-		return network.acknowledge(event, toast=why) or inbound.OK
+	if isinstance(event, inbound.Press) and (why := buttons.refusal(event.data) or worker.refused_press(event)):
+		log.info(f"{network.service.capitalize()} {event.chat_id} {event.user} refused: {why}")
+		return network.acknowledge(event, why, alert=True) or inbound.OK
 	if isinstance(event, inbound.Press) and worker.repeated(event):
 		log.info(f"{network.service.capitalize()} duplicate button press ignored")
-		return network.acknowledge(event, toast=False) or inbound.OK
-	answer = network.acknowledge(event)
+		return network.acknowledge(event) or inbound.OK
+	answer = network.acknowledge(event, buttons.toast(event.data)) if isinstance(event, inbound.Press) else \
+		network.acknowledge(event)
 	if answer is not None:
 		return dataclasses.replace(answer, then=lambda: dispatch(event))
 	dispatch(event)
@@ -230,31 +218,6 @@ def dispatch(event):
 	thread.start()
 	return thread
 
-def git_version(checkout=None):
-	"""Short hash of the checked-out commit, read straight from the .git directory: no git binary to run, and no
-	"dubious ownership" refusal when the service user does not own the checkout. Without one (a Docker image), the
-	commit it was built from (FINBOT_COMMIT); 'unknown' when neither can be read."""
-	try:
-		git = Path(checkout or config.REPO_DIR) / '.git'
-		if git.is_file(): # a linked worktree or submodule: .git is a file saying "gitdir: <path>"
-			git = (git.parent / git.read_text().split(':', 1)[1].strip()).resolve()
-		# refs of a worktree
-		common = (git / (git / 'commondir').read_text().strip()).resolve() if (git / 'commondir').is_file() else git
-		head = (git / 'HEAD').read_text().strip()
-		if head.startswith('ref:'):
-			ref = head.split(':', 1)[1].strip()
-			if (common / ref).is_file():
-				head = (common / ref).read_text().strip()
-			else: # the branch is only in packed-refs
-				packed = (common / 'packed-refs').read_text().splitlines()
-				head = next((line.split()[0] for line in packed if line.endswith(' ' + ref)), '')
-		if re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}', head):
-			return head[:7]
-	except (OSError, IndexError):
-		pass
-	built = os.environ.get('FINBOT_COMMIT', '')
-	return built[:7] if re.fullmatch(r'[0-9a-f]{7,64}', built) else 'unknown'
-
 _signal_work = threading.Lock() # one signal's work at a time: a second reload waits for the first
 
 def in_thread(work):
@@ -266,10 +229,10 @@ def in_thread(work):
 			work()
 	return lambda *args: threading.Thread(target=run, daemon=True).start()
 
-def reload_all(*args):
-	"""SIGHUP: re-read settings.conf; a bad one is reported and leaves the running config untouched. A key set in
-	defaults/settings.conf, which is never read, is pointed at the file to set it in. (Each chat's jobs need no
-	reload: a change made with .jobs counts at once.)"""
+def reload_all():
+	"""SIGHUP: re-read settings.conf, then load the jobs again, as the default jobs follow its country_code (a chat's
+	own changes count at once); a bad file is reported and leaves the running config untouched. A key set in
+	defaults/settings.conf, which is never read, is pointed at the file to set it in."""
 	try:
 		changes = config.reload()
 		for change in changes:
@@ -279,8 +242,9 @@ def reload_all(*args):
 		config.print_errors(e)
 	if note := config.template_note(config.settings_path):
 		log.warn('WARN config:', note)
+	jobs.current.load()
 
-def flush_cache(*args):
+def flush_cache():
 	"""SIGUSR1 (`systemctl kill -s USR1 finbot`): delete the cache and keep the state (watchlist, seen trades, ratings,
 	schedule), then fill it again straight away with the warm jobs, in a thread of their own (a reload need not wait
 	for them)."""
@@ -301,7 +265,7 @@ def http_server():
 
 if __name__ == '__main__':
 	sys.stderr = WholeLines(sys.stderr) # threads log at once: each line goes out whole
-	log.info(f'Starting finbot {git_version()}')
+	log.info(f'Starting finbot {config.git_version()}')
 	try:
 		config.check_startup_environment()
 	except config.ConfigError as e:
@@ -326,22 +290,15 @@ if __name__ == '__main__':
 		log.info(f'Opening socket on http://{config.env.ip}:{server.effective_port}')
 	else:
 		log.info('No webhook is set: finbot takes no HTTP requests')
-	if config.env.telegramBotToken:
-		try: # here only, never on import: the webhook set (HTTP mode), or deleted for getUpdates (pull mode)
-			(telegram_webhook if config.env.telegramOutgoingWebhook else telegram_longpolling).register()
-			telegram_common.READER.bot_name = telegram_common.bot_name()
-		except Exception as e:
-			log.error('ERROR', delivery.error_line(e, 'telegram'))
-			sys.exit(1)
-		telegram_common.set_commands(worker.slash_commands()) # the menu; /profile and /job work typed
-		threading.Thread(target=worker.refresh_keyboards, daemon=True).start() # stale DM keyboards, in the background
-	if config.env.discordBotToken:
-		discord_common.version = git_version() # in each request's User-Agent, as Discord asks
-		try:
-			discord_common.READER.bot_id = discord_common.register(worker.slash_commands())
-		except Exception as e:
-			log.error('ERROR', delivery.error_line(e, 'discord'))
-			sys.exit(1)
+	for network, key in STARTS: # here only, never on import
+		if getattr(config.env, key):
+			try:
+				network.start(worker.slash_commands())
+			except Exception as e:
+				log.error('ERROR', delivery.error_line(e, network.READER.service))
+				sys.exit(1)
+	if config.env.telegramBotToken: # stale DM keyboards, in the background
+		threading.Thread(target=telegram_common.refresh_keyboards, args=(worker.KEYBOARD,), daemon=True).start()
 	threading.Thread(target=jobs.current.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	for listener in listeners(): # the networks without a webhook: finbot fetches their updates
 		threading.Thread(target=listener.run, args=(take,), daemon=True).start()

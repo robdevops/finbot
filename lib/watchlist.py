@@ -55,7 +55,7 @@ def with_holdings(chat):
 
 def all_watched():
 	"""Every chat's watched tickers, each once, sorted."""
-	return sorted({ticker for watching in state.load(FILE, {}).get('chats', {}).values() for ticker in watching})
+	return sorted({ticker for watching in state.records(FILE).values() for ticker in watching})
 
 
 def all_followed():

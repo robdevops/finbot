@@ -126,7 +126,8 @@ the channel without them. If an upload fails, it is tried once more with the rep
 report following as text; if that fails too (a missing scope, say), the report goes out as text alone. The log says why.
 
 `/jobs` lists the channel's jobs with the menu's buttons, as on Telegram; a button from a list that has since changed
-puts the current list in its place.
+puts the current list in its place. A press that is refused (a button of an admins' command pressed by someone else, or
+a ninth ticker) is told to the presser in a message only they see.
 
 ### Preloading charts
 

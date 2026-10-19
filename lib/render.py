@@ -203,19 +203,6 @@ class _Canvas:
 		self.circle(x, y, (radius + width / 2) * PT, edge)
 		self.circle(x, y, (radius - width / 2) * PT, color)
 
-	def slice(self, x, y, r, start, end, fill):
-		"""A slice of the disc of radius r about (x, y), from `start` to `end` degrees past three o'clock."""
-		self.colours.add(fill)
-		s = self.scale
-		self.pen.pieslice(((x - r) * s, (y - r) * s, (x + r) * s, (y + r) * s), start, end, fill=fill)
-
-	def ring(self, x, y, r, color, width):
-		"""The inside rim of the disc of radius r about (x, y), `width` points wide."""
-		self.colours.add(color)
-		s = self.scale
-		self.pen.ellipse(((x - r) * s, (y - r) * s, (x + r) * s, (y + r) * s), outline=color,
-			width=max(1, round(width * PT * s)))
-
 	def paste(self, other, x, y, width=None):
 		"""Another canvas's image (drawn at the same scale), its top left at (x, y), cut to `width` pixels from its left
 		where given."""
@@ -228,6 +215,13 @@ class _Canvas:
 	def measure(self, text, size, bold=False):
 		"""How wide text `size` points high is, in pixels."""
 		return _font(size, bold).getlength(text)
+
+	def fitted(self, text, size, room, bold=False):
+		"""text, `size` points high, cut short with an ellipsis until it is at most `room` pixels wide; None where not
+		even its first letter and the ellipsis fit."""
+		while len(text) > 2 and self.measure(text, size, bold) > room:
+			text = text.rstrip('… ')[:-1].rstrip() + '…'
+		return text if self.measure(text, size, bold) <= room else None
 
 	def fit(self, size, texts, room, bold=False):
 		"""The size, in points, that makes the widest of the texts at most `room` pixels wide: `size` if they fit."""
@@ -549,14 +543,16 @@ SHORTS_VERDICTS = ((5, 'board shorts'), (10, 'cargo shorts'), (15, 'boxers'), (2
 	(80, 'budgie smugglers'), (90, 'just a belt'),
 	(float('inf'), 'never nudes')) # the extreme ones step in every 10 points
 
+PAIR = 5 # the percent of shares shorted that a pair of shorts stands for
+
 def shorts_verdict(percent):
 	"""The more shorted, the shorter the shorts."""
 	return next(name for limit, name in SHORTS_VERDICTS if percent < limit)
 
 @_drawn
-def draw_shorts(chart, step=5):
+def draw_shorts(chart):
 	"""Short interest as a pictogram: each row (label, percent), largest first, is a run of cartoon shorts, one pair per
-	`step` percent (the last pair cropped); a (label, None) row is a gap; the threshold is the outrageous line. Loud on
+	PAIR percent (the last pair cropped); a (label, None) row is a gap; the threshold is the outrageous line. Loud on
 	purpose, and drawn in shapes, as colour emoji are no part of the font: a 1280x800 PNG."""
 	rows, threshold = chart.rows, chart.threshold
 	sky, ink, sea, foam, ray = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff', '#ffd23f'
@@ -571,7 +567,7 @@ def draw_shorts(chart, step=5):
 		def P(px, py):
 			"""A point of the pair's box, from fractions of its width and height."""
 			return (m + px * w, m + py * h)
-		belt = '#' + ''.join(f"{int(int(color[i:i + 2], 16) * 0.7):02x}" for i in (1, 3, 5))
+		belt = _mixed(color, '#000000', 0.3)
 		stamp.polygon([P(0.04, 0.2), P(0.96, 0.2), P(1.0, 0.97), P(0.56, 0.97), P(0.5, 0.58), P(0.44, 0.97),
 			P(0.0, 0.97)], color, ink, lw) # the legs
 		stamp.rect(*P(0.04, 0.0), *P(0.96, 0.22), belt, ink, lw) # the waist
@@ -596,14 +592,14 @@ def draw_shorts(chart, step=5):
 	top += ((bottom - top) - row_h * n) / 2 # few rows sit in the middle of the beach, not the top
 	bottom = top + row_h * n
 	size = max(6, min(18, row_h * 0.5 * 72 / 200 * 2))
-	label_w = max(len(str(label)) for label, _ in rows) * size * PT * 0.62
+	label_w = max(canvas.measure(str(label), size, bold=True) for label, _ in rows)
 	x0 = 40 + label_w + 16
 	room = 40 + 400 # right-hand text: percent and verdict
-	max_icons = max(math.ceil(max(v for _, v in rows if v is not None) / step), 1)
+	max_icons = max(math.ceil(max(v for _, v in rows if v is not None) / PAIR), 1)
 	icon_w = min((W - room - x0) / max_icons, row_h * 1.1 * 0.9, 120)
 	icon_h = icon_w / 1.1
 	lw = max(0.6, min(1.6, icon_w / 45))
-	line_x = x0 + threshold / step * icon_w
+	line_x = x0 + threshold / PAIR * icon_w
 	dash, gap = 5 * 1.8 * PT, 4 * 1.8 * PT # the outrageous line's dashes, under the shorts
 	for y in range(math.ceil((bottom - top + 12) / (dash + gap))):
 		start = top - 12 + y * (dash + gap)
@@ -633,7 +629,7 @@ def draw_shorts(chart, step=5):
 		if value is None: # the gap between the most shorted and the least
 			continue
 		cy = top + (i + 0.5) * row_h
-		whole, frac = divmod(value / step, 1)
+		whole, frac = divmod(value / PAIR, 1)
 		color = colors[i % len(colors)]
 		if color not in stamps: # each colour's pair drawn once, every row's the same size
 			stamps[color] = pair(icon_w * 0.92, icon_h, color, lw)
@@ -645,21 +641,23 @@ def draw_shorts(chart, step=5):
 	nose = [(-0.07, -0.35), (0.05, -0.26), (0.15, -0.13), (0.18, 0.0), (0.10, 0.10), (-0.03, 0.16)]
 	mid = [sum(axis) / len(nose) for axis in zip(*nose)]
 	nose = [(mid[0] + 0.62 * (u - mid[0]), mid[1] + 0.62 * (v - mid[1])) for u, v in nose] # dainty: a smaller squiggle
-	pts = [nose[0], *nose, nose[-1]] # Catmull-Rom through the points, so the squiggle is smooth
-	curve = [tuple(0.5 * (2 * b + (c - a) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (3 * b - a - 3 * c + d) * t ** 3)
-		for a, b, c, d in zip(p0, p1, p2, p3))
-		for p0, p1, p2, p3 in zip(pts, pts[1:], pts[2:], pts[3:]) for t in (i / 11 for i in range(12))]
+	pts = [nose[0], *nose, nose[-1]] # a Catmull-Rom spline through the points, so the squiggle is smooth: each of its
+	# segments, p1 to p2, is the Bézier curve with these control points
+	curve = [pts[1], *(point for p0, p1, p2, p3 in zip(pts, pts[1:], pts[2:], pts[3:])
+		for point in _bezier(p1, tuple(b + (c - a) / 6 for a, b, c in zip(p0, p1, p2)),
+			tuple(c - (d - b) / 6 for b, c, d in zip(p1, p2, p3)), p2, 11))]
 	canvas.line([at(u, v) for u, v in curve], '#e07b1a', 2.6)
 
 	canvas.text(40, 52, 'Shorts', 21, ink, bold=True)
-	canvas.text(40, 104, f"each pair of shorts = {step}% of shares shorted", 9.5, ink)
+	canvas.text(40, 104, ', '.join(filter(None, (f"each pair of shorts = {PAIR}% of shares shorted", chart.subtitle))),
+		9.5, ink)
 	for i, (label, value) in enumerate(rows):
 		if value is None:
 			continue
 		cy = top + (i + 0.5) * row_h
 		canvas.text(x0 - 14, cy, label, size, ink, ha='right', bold=True)
 		# each verdict right after its own percentage, never off the image
-		x = canvas.text(x0 + (value / step) * icon_w + 14, cy, f"{round(value)}%", size, ink, bold=True) + 10
+		x = canvas.text(x0 + (value / PAIR) * icon_w + 14, cy, f"{round(value)}%", size, ink, bold=True) + 10
 		verdict = shorts_verdict(round(value))
 		canvas.text(x, cy, verdict, canvas.fit(size * 0.62, [verdict], W - 16 - x), ink, italic=True)
 	canvas.text(W / 2, 784, 'past fashion not indicative of future fashion', 8, 'white', ha='center', italic=True)
@@ -707,23 +705,21 @@ def draw_treemap(chart):
 	total = sum(value for _, held in rows for _, value in held) or 1.0
 	top = _plot_top(chart.subtitle) # below the heading, as the other charts are
 	box = _squarify([sum(value for _, value in held) for _, held in rows], 0, top, W, H - top) # 2px edges, with gaps
-	char, n = 14, 0 # pixels a character of the 8pt tile text takes, at most
+	n = 0
 	for (label, held), (x, y, w, h) in zip(rows, box):
 		color = '#6b7280' if label == 'Other' else CATEGORIES[n % len(CATEGORIES)]
 		n += label != 'Other'
 		x, y, w, h = x + 1, y + 1, w - 2, h - 2
-		head = 22 if h > 60 and w > 4 * char else 0
-		if head:
-			title = label
-			while len(title) > 2 and canvas.measure(title, 8, bold=True) > w - 12:
-				title = title.rstrip('… ')[:-1].rstrip() + '…'
-			if canvas.measure(title, 8, bold=True) <= w - 12: # else not even a few letters fit
-				canvas.text(x + 2, y + head / 2, title, 8, color, bold=True)
+		title = canvas.fitted(label, 8, w - 12, bold=True) if h > 60 else None # over a block with room for a row
+		head = 22 if title else 0
+		if title:
+			canvas.text(x + 2, y + head / 2, title, 8, color, bold=True)
 		tiles = _squarify([value for _, value in held], x, y + head, w, h - head)
 		for k, ((name, value), (tx, ty, tw, th)) in enumerate(zip(held, tiles)):
 			canvas.rect(tx + 1, ty + 1, tx + tw - 1, ty + th - 1, _mixed(color, bg, k % 3 * 0.14))
-			if tw > len(name) * char + 8 and th > 34:
-				lines = name + ('\n%.1f%%' % (value / total * 100) if th > 64 and tw > 5 * char else '')
+			share = f"{value / total * 100:.1f}%"
+			if th > 34 and canvas.measure(name, 8) + 8 < tw: # its name where it fits, and its share below
+				lines = name + (f"\n{share}" if th > 64 and canvas.measure(share, 8) + 8 < tw else '')
 				canvas.text(tx + tw / 2, ty + th / 2, lines, 8, '#ffffff', ha='center')
 	_heading(canvas, chart.title, chart.subtitle)
 	return canvas.png()
@@ -764,7 +760,7 @@ def draw(chart):
 		raise ValueError(f"unknown chart kind {chart.kind!r}")
 	key = json.dumps([_code_version(), dataclasses.asdict(chart)], sort_keys=True, default=str)
 	name = f"finbot_chart_{hashlib.sha1(key.encode()).hexdigest()[:20]}.png"
-	if config.settings.cache and (image := cache.read_bytes(name)):
+	if config.settings.cache and (image := cache.read_bytes(name, math.inf)): # kept until cleanup: it never goes stale
 		return image
 	image = RENDERERS[chart.kind](trimmed(chart))
 	if config.settings.cache:

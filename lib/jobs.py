@@ -16,6 +16,7 @@ import math
 import threading
 import time
 
+from lib import answer
 from lib import buttons
 from lib import catalog
 from lib import config
@@ -23,6 +24,7 @@ from lib import delivery
 from lib import log
 from lib import sharesight
 from lib import state
+from lib import transports
 from lib import when
 from lib.reports import cleanup, earnings, message, milestone, movers, performance, podcasts, rating, shorts, trades
 from lib.reports import sharesight_warm, yahoo_warm
@@ -94,13 +96,10 @@ def list_checksum(jobs):
 	return buttons.checksum(job.key for job in jobs)
 
 
-def run_in_process(label, module, kwargs, dest=None):
-	"""Run a job here, in the calling thread: its report's run(**kwargs), posting to dest (a chat's job; None for a
-	system job, which posts nothing)."""
-	if dest is None:
-		module.run(**kwargs)
-	else:
-		module.run(dest, **kwargs)
+def numbered(own, number):
+	"""The job of a chat's list (own, as .jobs numbers them) by its number, as typed or a button gives it (a string);
+	None for a number that is none."""
+	return own[int(number) - 1] if number.isascii() and number.isdigit() and 1 <= int(number) <= len(own) else None
 
 
 def start_thread(target, *args):
@@ -113,19 +112,13 @@ def system_jobs():
 	return [make_job(action, args, when.Schedule.from_json({**times, 'zone': 'UTC'})) for action, args, times in SYSTEM]
 
 
-def warm_now(scheduler=None):
-	"""Run the warm jobs (WARM) now, one after the other: through the scheduler, so that one running on its schedule
-	is not started twice; without one (a test, a tool), here, a failure reported as the scheduler reports it."""
+def warm_now(scheduler):
+	"""Run the warm jobs (WARM) now, one after the other, through the scheduler, so that one running on its schedule
+	is not started twice."""
 	warm = [job for job in system_jobs() if job.action in WARM]
 	log.info('cache: filling it again:', ', '.join(job.label for job in warm))
 	for job in warm:
-		if scheduler:
-			scheduler.execute(job)
-			continue
-		try:
-			run_in_process(job.label, job.module, job.kwargs)
-		except Exception as e:
-			delivery.report_error(e, context=job.label)
+		scheduler.execute(job)
 	log.info('cache: warm jobs done')
 
 
@@ -133,6 +126,21 @@ def actions():
 	"""Every action a job may name: the report modules (ACTIONS), and the commands of .help that a job may run
 	(command_actions), each standing in for a report module."""
 	return {**command_actions(), **ACTIONS}
+
+
+def job_args(action, name, argv):
+	"""(label, run's keyword arguments) that an action (a report module, or a command: CommandJob) makes of a job's
+	words, by its job(); one without a job() takes none. Raises ValueError, with what it takes, for words it cannot."""
+	if hasattr(action, 'job'):
+		return action.job(argv)
+	if argv:
+		raise ValueError('no arguments')
+	return name, {}
+
+
+def takes(action):
+	"""What an action's job takes, as .jobs add lists it (ARGUMENTS): '' for none."""
+	return getattr(action, 'ARGUMENTS', '')
 
 
 def command_actions():
@@ -159,7 +167,7 @@ def make_job(action, args, schedule, chat='', on=True, item=None, name=None):
 		raise ScheduleError(f'{action} takes words, not {args!r}')
 	action = getattr(known[action], 'key', action) # a command's other name (a typo too) stands for its first
 	try:
-		label, kwargs = known[action].job(list(args))
+		label, kwargs = job_args(known[action], action, list(args))
 	except ValueError as e:
 		raise ScheduleError(f'{action} takes {e}')
 	if not isinstance(schedule, when.Schedule):
@@ -179,19 +187,15 @@ def display_name(action, args, schedule, label):
 
 
 def stored_job(chat, entry):
-	"""A job a chat added, as JOBS_FILE keeps it (Job.stored), an action renamed since by its new name (RENAMED).
-	Raises ScheduleError for one that cannot be: an action that is none, arguments its parser refuses, a schedule that
-	is none (an edited file, or an older one)."""
+	"""A job a chat added, as JOBS_FILE keeps it (Job.stored). Raises ScheduleError for one that cannot be: an action
+	that is none, arguments its parser refuses, a schedule that is none (an edited file, or an older one)."""
 	if not isinstance(entry, dict):
 		raise ScheduleError(f'no job: {entry!r}')
 	on = entry.get('on', True)
 	if not isinstance(on, bool):
 		raise ScheduleError(f'no switch: {on!r}')
 	schedule = when.Schedule.from_json(entry.get('schedule'))
-	action, args = entry.get('action'), entry.get('args', [])
-	if action == 'cal' and args in (['earnings'], ['ex-dividend']):
-		args = [] # cal earnings and cal ex-dividend are one job now, earnings
-	return make_job(RENAMED.get(action, action) if isinstance(action, str) else action, args, schedule, chat, on)
+	return make_job(entry.get('action'), entry.get('args', []), schedule, chat, on)
 
 
 def entry_key(chat, entry):
@@ -204,18 +208,30 @@ def entry_key(chat, entry):
 
 OLD_KEYS = {'cal-earnings': 'earnings', 'cal-ex-dividend': 'earnings'} # default jobs merged; records may name them
 
-def current_keys(listed):
-	"""A record's list of catalog keys, a default job's old key (OLD_KEYS) by its new."""
-	return [OLD_KEYS.get(key, key) for key in listed] if isinstance(listed, list) else listed
+def clean(record):
+	"""A chat's record made current, in place, as JOBS_FILE is read and changed, so that the file names each job once
+	as this finbot does: a job it added under an action renamed since (RENAMED: cal earnings and cal ex-dividend are
+	one job now, earnings), and a default job's old key (OLD_KEYS). Whether it changed anything."""
+	changed = False
+	for name in ('off', 'on', 'deleted'):
+		listed = record.get(name)
+		if isinstance(listed, list) and all(isinstance(key, str) for key in listed) and set(listed) & set(OLD_KEYS):
+			record[name], changed = list(dict.fromkeys(OLD_KEYS.get(key, key) for key in listed)), True
+	for entry in record.get('jobs') if isinstance(record.get('jobs'), list) else []:
+		if isinstance(entry, dict) and isinstance(entry.get('action'), str) and entry['action'] in RENAMED:
+			if entry['action'] == 'cal' and entry.get('args') in (['earnings'], ['ex-dividend']):
+				entry['args'] = []
+			entry['action'], changed = RENAMED[entry['action']], True
+	return changed
 
 
 def item_on(record, key):
 	"""Whether a default job (by its catalog key) is on in a chat's record: unless it is switched off, or, where the
 	default jobs start off (a direct message), where it is switched on."""
 	if record.get('defaults') == 'off':
-		listed = current_keys(record.get('on', []))
+		listed = record.get('on', [])
 		return isinstance(listed, list) and key in listed
-	listed = current_keys(record.get('off', []))
+	listed = record.get('off', [])
 	return not (isinstance(listed, list) and key in listed)
 
 
@@ -223,14 +239,15 @@ def switch_item(record, key, on):
 	"""Switch a default job on or off in a chat's record: whether it is on now."""
 	starts_on = record.get('defaults') != 'off'
 	name = 'off' if starts_on else 'on' # the list of those switched from how they start
-	others = [each for each in current_keys(record.get(name, [])) if each != key]
+	listed = record.get(name, [])
+	others = [each for each in listed if each != key] if isinstance(listed, list) else []
 	keep(record, name, others + ([key] if on != starts_on else []))
 	return on
 
 
 def removed(record):
 	"""The default jobs (by catalog key) that a chat's record says it removed."""
-	listed = current_keys(record.get('deleted', []))
+	listed = record.get('deleted', [])
 	return [key for key in listed if isinstance(key, str)] if isinstance(listed, list) else []
 
 
@@ -242,28 +259,11 @@ def keep(record, name, listed):
 		record.pop(name, None)
 
 
-def switch_record(record, on):
-	"""Switch every job of a chat's record on, or off: those it added, and the default ones, which then start so."""
-	record.pop('off', None)
-	record.pop('on', None)
-	if on:
-		record.pop('defaults', None)
-	else:
-		record['defaults'] = 'off'
-	for entry in record.get('jobs', []):
-		if isinstance(entry, dict):
-			entry['on'] = on
-
-
 def is_dm(key):
-	"""Whether a chat (by key) is a direct message with the bot, as its key tells: a person's positive id on Telegram,
-	an id starting D on Slack; None on Discord, whose key does not say."""
-	network, _, chat = key.partition(':')
-	if network == 'telegram':
-		return not chat.startswith('-')
-	if network == 'slack':
-		return chat.startswith('D')
-	return None
+	"""Whether a chat (by key) is a direct message with the bot, as its id tells (Transport.dm): None where its
+	network's ids do not say (Discord's), or its key names no network."""
+	chat = delivery.reply_to(*transports.split_key(key))
+	return chat.dm if chat else None
 
 
 def know(keys, dm=None):
@@ -304,7 +304,7 @@ def parse_add(text, zone):
 			continue
 		args = words[:cut] or catalog.period_args(name, schedule)
 		try:
-			known[name].job(args)
+			job_args(known[name], name, args)
 		except ValueError as e:
 			wrong = ScheduleError(f'{name} takes {e}')
 			continue
@@ -313,18 +313,17 @@ def parse_add(text, zone):
 
 
 class Scheduler:
-	"""Runs the jobs: each chat's, from JOBS_FILE and the catalog, and the system jobs. clock, sleep, spawn and runner
-	can be replaced, which the tests do. Its lock covers what the loop, a change from chat and the runs share: the
+	"""Runs the jobs: each chat's, from JOBS_FILE and the catalog, and the system jobs. clock, sleep and spawn can be
+	replaced, which the tests do. Its lock covers what the loop, a change from chat and the runs share: the
 	jobs, their bases and next runs, the record of runs and what is running."""
 
-	def __init__(self, catchup=None, clock=None, sleep=None, spawn=None, runner=None):
+	def __init__(self, catchup=None, clock=None, sleep=None, spawn=None):
 		"""catchup is how late, in minutes, a missed run may still start (the scheduler_catchup setting when None);
-		clock, sleep, spawn and runner stand in for the real ones in tests."""
+		clock, sleep and spawn stand in for the real ones in tests."""
 		self.catchup = datetime.timedelta(minutes=config.env.scheduler_catchup if catchup is None else catchup)
 		self.clock = clock or (lambda: datetime.datetime.now(datetime.timezone.utc))
 		self.sleep = sleep or time.sleep
 		self.spawn = spawn or start_thread
-		self.runner = runner or run_in_process # (label, module, kwargs, dest): runs the job
 		self.jobs = []
 		self.chats = set() # the chats JOBS_FILE knows
 		self.base = {} # key -> the time after which the next run is due
@@ -332,12 +331,20 @@ class Scheduler:
 		self.last = {}
 		self.busy = set() # the keys of the jobs running now, scheduled or by hand
 		self.lock = threading.Lock()
+		self.loading = threading.Lock() # one load at a time, so the list swapped in last is the one read last
+		self.saving = threading.Lock() # one save of the record of runs at a time, so the one written last is newest
 
 	def load(self):
 		"""Read every job: the system jobs; for each chat JOBS_FILE knows, the catalog's (switched off where its record
 		says so) and those it added. A stored job that cannot be (an action that is none, arguments its parser refuses:
 		an edited or older file) is logged and left out, never run. A job kept from before keeps its timing; a new one
-		counts from now, as one does that was off."""
+		counts from now, as one does that was off. Loads take turns: one reading the file while another change is stored
+		would otherwise swap in the older list after the newer one."""
+		with self.loading:
+			self._load()
+
+	def _load(self):
+		"""load(), with the loading lock held."""
 		jobs = system_jobs()
 		chats = self.stored_chats()
 		items = catalog.items(config.settings.country_code, sharesight.configured())
@@ -363,12 +370,13 @@ class Scheduler:
 				last, problem = None, f'cannot read {STATE_FILE}, starting without a record of past runs: {e}'
 			keys = {job.key for job in jobs}
 			self.last = {key: value for key, value in last.items() if key in keys} if isinstance(last, dict) else {}
-			if isinstance(last, dict) and self.last != last: # a job gone: one added again later has not run
-				self.save_runs()
+			gone = isinstance(last, dict) and self.last != last # a job gone: one added again later has not run
 			now = self.clock()
 			self.base = {job.key: self.base.get(job.key) or self.start_base(job, now) for job in jobs}
 			self.next_at = {}
 			self.jobs, self.chats = jobs, set(chats)
+		if gone:
+			self.save_runs()
 		if problem:
 			delivery.report_error(ScheduleError(problem), context='schedule')
 		dms = sum(1 for key, record in chats.items() if isinstance(record, dict) and record.get('dm') is True or
@@ -378,9 +386,13 @@ class Scheduler:
 			" system jobs")
 
 	def stored_chats(self):
-		"""The chats JOBS_FILE knows, each with its record."""
+		"""The chats JOBS_FILE knows, each with its record, made current in the file (clean) where an older finbot left
+		names this one has changed."""
 		try:
-			chats = state.load(JOBS_FILE, {})
+			with state.edit(JOBS_FILE, {}) as chats:
+				for record in chats.values() if isinstance(chats, dict) else []:
+					if isinstance(record, dict):
+						clean(record)
 		except (OSError, ValueError) as e:
 			log.error(f'schedule: cannot read {JOBS_FILE}, so no chat has jobs: {e}')
 			return {}
@@ -420,16 +432,21 @@ class Scheduler:
 				self.base[key], self.next_at[key] = latest, upcoming
 				self.last[key] = latest.isoformat()
 				fired.append((job, latest))
-			if fired:
-				self.save_runs()
+		if fired:
+			self.save_runs()
 		return fired
 
 	def save_runs(self):
-		"""Write the record of runs (the lock held)."""
-		try:
-			state.save(STATE_FILE, self.last)
-		except OSError as e:
-			log.error('schedule: cannot save', STATE_FILE, e)
+		"""Write the record of runs as it is now, outside the lock that the loop and the chats share (a write is flushed
+		to disk, which takes a while): one save at a time, each of the record as it is when it starts, so that the one
+		written last is the newest."""
+		with self.saving:
+			with self.lock:
+				last = dict(self.last)
+			try:
+				state.save(STATE_FILE, last)
+			except OSError as e:
+				log.error('schedule: cannot save', STATE_FILE, e)
 
 	def claim(self, key):
 		"""Mark a job running, unless it already is (scheduled or by hand): whether it was claimed."""
@@ -439,13 +456,13 @@ class Scheduler:
 			self.busy.add(key)
 			return True
 
-	def execute(self, job, asked=False):
+	def execute(self, job):
 		"""Run a job now, in this thread, posting to its chat (a system job posts nothing, and its failure goes to the
-		log); a failure is reported. Run now and .jobs run ask for theirs (asked: delivery.asked), so a report with
-		nothing to show says so. A job already running is skipped. One still running after JOB_TIMEOUT is reported
-		as late, once, and runs on: a thread cannot be stopped, but every request it makes has a timeout, so it ends;
-		until then it stays marked running, and no second copy starts. Returns 'done', 'failed' or 'already running'."""
-		dest = delivery.chat(job.chat, scheduled=True, asked=asked) if job.chat else None
+		log): an Answer it comes to is the reply, but nothing to show (answer.Nothing) posts nothing; a failure is
+		reported. A job already running is skipped. One still running after JOB_TIMEOUT is reported as late, once, and
+		runs on: a thread cannot be stopped, but every request it makes has a timeout, so it ends; until then it stays
+		marked running, and no second copy starts. Returns 'done', 'failed' or 'already running'."""
+		dest = delivery.chat(job.chat, scheduled=True) if job.chat else None
 		if not self.claim(job.key):
 			log.warn(f'schedule: {job.label} is already running for {job.chat or "the system"}, skipping it')
 			return 'already running'
@@ -455,9 +472,13 @@ class Scheduler:
 		late.daemon = True
 		late.start()
 		try:
-			self.runner(job.label, job.module, job.kwargs, dest)
+			job.module.run(dest, **job.kwargs)
 			return 'done'
-		except (Exception, SystemExit) as e:
+		except answer.Answer as e: # an answer, not a failure; a job's run says nothing where it has nothing to show
+			if dest is not None and not isinstance(e, answer.Nothing):
+				delivery.deliver(dest, delivery.Report(e.lines))
+			return 'done'
+		except (Exception, SystemExit) as e: # a library's sys.exit would end the thread unreported
 			delivery.report_error(e, dest, context=job.label)
 			return 'failed'
 		finally:
@@ -498,23 +519,22 @@ class Scheduler:
 			return job.key in self.last
 
 	def job(self, chat, number):
-		"""A chat's job by its number in .jobs (a string, from a chat). Raises ScheduleError."""
-		jobs = self.chat_jobs(chat)
-		if not (number.isascii() and number.isdigit() and 1 <= int(number) <= len(jobs)):
+		"""A chat's job by its number in .jobs (numbered). Raises ScheduleError for a number that is none."""
+		if (job := numbered(self.chat_jobs(chat), number)) is None:
 			raise ScheduleError(f'no job {number}: send .jobs for the list')
-		return jobs[int(number) - 1]
+		return job
 
 	def number(self, chat, key):
 		"""A chat's job's number in .jobs, by its key."""
 		return next(number for number, job in enumerate(self.chat_jobs(chat), 1) if job.key == key)
 
 	def run(self, job):
-		"""Run a job now, as its schedule would, and note the run: its outcome (see execute). Someone asked for it, so
-		it says when it has nothing to show."""
+		"""Run a job now (Run now, .jobs run), as its schedule would, nothing to show posting nothing, and note the
+		run: its outcome (see execute)."""
 		with self.lock:
 			self.last[job.key] = self.clock().isoformat()
-			self.save_runs()
-		return self.execute(job, asked=True)
+		self.save_runs()
+		return self.execute(job)
 
 	def see(self, chat, dm=None):
 		"""A chat seen, at a command of its: one finbot does not know yet starts with the default jobs, switched on,
@@ -530,6 +550,7 @@ class Scheduler:
 		[catalog keys], 'jobs': [...]}), or raises ScheduleError; then every job is read again, to count at once."""
 		with state.edit(JOBS_FILE, {}) as chats:
 			record = chats.setdefault(chat, {})
+			clean(record)
 			if not isinstance(record.get('jobs', []), list):
 				record['jobs'] = []
 			result = edit(record)
@@ -564,10 +585,6 @@ class Scheduler:
 		self.change(chat, append)
 		return self.number(chat, job.key)
 
-	def switch_all(self, chat, on):
-		"""Switch every job of a chat on, or off: the default ones and those it added."""
-		self.change(chat, lambda record: switch_record(record, on))
-
 	def delete(self, job):
 		"""Remove a chat's job (from job() or pick()): one it added, or a default one, which stays out of its list
 		until the same job is added again."""
@@ -576,41 +593,21 @@ class Scheduler:
 			if not job.item:
 				return record['jobs'].pop(self.index(record, job))
 			for name in ('off', 'on'):
-				keep(record, name, [key for key in current_keys(record.get(name, [])) if key != job.item])
+				keep(record, name, [key for key in record.get(name, []) if key != job.item])
 			record['deleted'] = list(dict.fromkeys([*removed(record), job.item]))
 		self.change(job.chat, remove)
 
-	def delete_all(self, chat):
-		"""Remove every job of a chat: those it added, and the default ones, which stay out of its list until the same
-		job is added again."""
-		def clear(record):
-			"""Remove every job, as stored."""
-			record['jobs'] = []
-			record.pop('off', None)
-			record.pop('on', None)
-			record['deleted'] = list(dict.fromkeys([*removed(record), *(item.key for item in catalog.ITEMS)]))
-		self.change(chat, clear)
-
-	def switch(self, job, on):
-		"""Switch a chat's job on, or off, whichever way it is now: whether it is on."""
+	def toggle(self, job, on=None):
+		"""Switch a chat's job on (on True) or off (False), or the other way from how it is stored (None), as stored,
+		under the state file's lock: two presses at once flip it twice. Whether it is on now."""
 		def turn(record):
-			"""Set the job's switch, as stored."""
+			"""Set or flip the job's switch, as stored."""
 			if job.item:
-				return switch_item(record, job.item, on)
-			record['jobs'][self.index(record, job)]['on'] = on
-			return on
-		return self.change(job.chat, turn)
-
-	def toggle(self, job):
-		"""Switch a chat's job on or off: whether it is on now."""
-		def flip(record):
-			"""Flip the job's switch, as stored."""
-			if job.item:
-				return switch_item(record, job.item, not item_on(record, job.item))
+				return switch_item(record, job.item, not item_on(record, job.item) if on is None else on)
 			entry = record['jobs'][self.index(record, job)]
-			entry['on'] = not entry.get('on', True)
+			entry['on'] = not entry.get('on', True) if on is None else on
 			return entry['on']
-		return self.change(job.chat, flip)
+		return self.change(job.chat, turn)
 
 	@staticmethod
 	def index(record, job):

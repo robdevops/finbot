@@ -16,7 +16,11 @@ Telegram:
 Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price`, `/movers`,
 `/performance` and the rest, [the list](commands.md#supported-commands), or as messages, `.price`), period buttons
 under charts and the buttons of the `/jobs` menu, "typing…" while a command works, and a keyboard of the
-common commands in a direct chat with the bot.
+common commands in a direct chat with the bot: it comes with the first command, and again when it changes; `/start` or
+`/help` brings it back where it went (with the messages, when the chat is cleared).
+
+Buttons are coloured: the period shown blue, a ticked ticker green, a job that is off (or a ticker marked for deletion)
+red. Telegram apps from February 2026 draw the colours; older ones draw every button plain.
 
 A chart is uploaded once: Telegram gives it a file id, which finbot keeps (in `DATA_DIR/cache`, 30 days) and sends the
 next time the same chart goes out, instead of the image. A period or portfolio pressed again, or the same scheduled chart
@@ -44,7 +48,7 @@ arrive after the switch.
 4. Stop strangers adding your bot to their groups: send BotFather `/setjoingroups`, pick the bot and choose `Disable`.
    Do this after step 2, as it stops you adding the bot to groups too.
 5. Start finbot (`sudo systemctl restart finbot`). The log says `telegram: long polling for updates`.
-6. Send `/help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
+6. Send `/help` in the chat. In a direct chat with the bot, a keyboard of the common commands follows the reply.
    Each chat has the default scheduled jobs, which `/jobs` changes ([Scheduling](scheduling.md)).
 
 ```
@@ -85,7 +89,7 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
    every update, and finbot turns away a request without it.
 4. Restart finbot. As it starts, it sets the webhook again, deleting it first, which also wakes up a stale connection.
    If Telegram refuses, finbot does not start, and the log says why.
-5. Send `/help` in the chat. In a direct chat with the bot, the reply also brings a keyboard of the common commands.
+5. Send `/help` in the chat. In a direct chat with the bot, a keyboard of the common commands follows the reply.
 
 ```
 telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA

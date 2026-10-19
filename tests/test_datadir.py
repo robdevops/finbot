@@ -37,11 +37,12 @@ class DataDirTests(FinbotCase):
 			self.assertEqual(out.split()[-2:], [d, d + '/cache'])
 			self.assertTrue(os.path.isdir(d + '/cache'))
 
-	def test_config_reads_environment_only(self):
-		"""Settings come from the environment; python-dotenv is not loaded."""
+	def test_settings_never_come_from_the_environment(self):
+		"""A setting comes from settings.conf alone, never the environment (bot.py refuses one there); python-dotenv is
+		not loaded."""
 		code = "import sys; from lib import config as c; print(c.settings.price_percent, 'dotenv' in sys.modules)"
 		out = run_config(code, price_percent='3.3')
-		self.assertEqual(out.split()[-2:], ['3.3', 'False'])
+		self.assertEqual(out.split()[-2:], ['5.0', 'False'])
 
 	def test_state_directory_fallback(self):
 		"""Without DATA_DIR, STATE_DIRECTORY's first entry is the data dir, with the cache in it."""

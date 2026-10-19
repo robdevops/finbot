@@ -1,6 +1,6 @@
 """Posting to the networks against their answers and failures: Telegram, Slack (text, charts, Block Kit
 buttons) and Discord."""
-import contextlib, html.parser, io, json, threading, types, unittest
+import contextlib, html.parser, io, json, threading, time, types, unittest
 from unittest import mock
 import requests
 from tests.common import *
@@ -11,14 +11,17 @@ class TelegramSending(FinbotCase):
 	"""A message posted to Telegram against failing endpoints: the real send path, not the base fixture's recorder."""
 
 	def post(self, outcome):
-		"""Post 'hi' to a Telegram chat, the request answering with outcome (or raising it)."""
+		"""Post 'hi' to a Telegram chat as text() posts each message (Transport.sent), the request answering with
+		outcome (or raising it)."""
 		def fake(url, **kwargs):
 			"""The outcome, or raise it."""
 			if isinstance(outcome, Exception):
 				raise outcome
 			return outcome
 		self.patch(net, 'post', fake)
-		return telegram_common.TelegramBot('5').post_text('hi')
+		self.patch(net.time, 'sleep', lambda seconds: None) # a rate limit's wait
+		chat = telegram_common.TelegramBot('5')
+		return chat.sent('message', lambda: chat.post_text('hi'))
 
 	def test_success_returns_the_message(self):
 		"""A sent message returns the message, as Telegram gives it."""
@@ -100,7 +103,7 @@ class TelegramSending(FinbotCase):
 		sent = []
 		self.patch(net, 'post', lambda url, **kwargs: sent.append((url, kwargs)) or
 			Resp({'ok': True, 'result': {'message_id': 8}}))
-		self.assertEqual(telegram_common.TelegramBot('5').post_chart(io.BytesIO(b'png'), 'caption'), {'message_id': 8})
+		self.assertEqual(telegram_common.TelegramBot('5').post_chart(b'png', 'caption'), {'message_id': 8})
 		url, kwargs = sent[0]
 		self.assertTrue(url.endswith('/sendPhoto'))
 		self.assertEqual(kwargs['data'], {'chat_id': '5', 'caption': 'caption', 'parse_mode': 'HTML',
@@ -127,8 +130,8 @@ class TelegramSending(FinbotCase):
 		or a message edited for a period or portfolio pressed again: no bytes are sent. Another chart is uploaded."""
 		sent = self.photos()
 		chat = telegram_common.TelegramBot('5')
-		chat.post_chart(io.BytesIO(b'png one'), 'caption')
-		chat.post_chart(io.BytesIO(b'png one'), 'caption')
+		chat.post_chart(b'png one', 'caption')
+		chat.post_chart(b'png one', 'caption')
 		chat.edit_chart('8', io.BytesIO(b'png two'), 'another period')
 		chat.edit_chart('8', io.BytesIO(b'png one'), 'back to the first')
 		self.assertEqual([(method, uploaded) for method, _, uploaded in sent], [('sendPhoto', True),
@@ -142,11 +145,11 @@ class TelegramSending(FinbotCase):
 		"""A file id Telegram will not take (another bot's, say) is followed by the upload, whose file id is kept."""
 		sent = self.photos(refused=('P1',))
 		chat = telegram_common.TelegramBot('5')
-		chat.post_chart(io.BytesIO(b'png'), 'caption')
+		chat.post_chart(b'png', 'caption')
 		with contextlib.redirect_stderr(io.StringIO()) as log:
-			chat.post_chart(io.BytesIO(b'png'), 'caption')
+			chat.post_chart(b'png', 'caption')
 		self.assertIn('refused an earlier upload of the chart', log.getvalue())
-		chat.post_chart(io.BytesIO(b'png'), 'caption')
+		chat.post_chart(b'png', 'caption')
 		self.assertEqual([(uploaded, data.get('photo')) for _, data, uploaded in sent], [(True, None), (False, 'P1'),
 			(True, None), (False, 'P2')])
 
@@ -217,38 +220,42 @@ class TelegramSending(FinbotCase):
 		self.assertTrue(chat.preload(b'two'))
 		self.assertEqual(waits, [0.0, 1.0]) # the 3 second gap less the 2 seconds the first took
 
-	def test_a_rate_limit_is_waited_out_once_and_the_preload_tried_again(self):
-		"""Telegram's "retry after 5" (Slack's "ratelimited": ten seconds) is slept through, at most RATE_LIMIT_WAIT,
-		and the chart sent again; a second refusal, or any other failure, ends it as before."""
-		waits = self.preloading()
-		limited = 'Telegram sendPhoto: Too Many Requests: retry after '
-		telegram, slack = telegram_common.TelegramBot, slack_common.SlackBot
-		def refusing(error, times):
-			"""A send_ahead that raises `error` its first `times` calls, and counts its calls in tries."""
-			tries = []
-			def send(dest, photo):
-				"""Raise, or send."""
-				tries.append(photo)
-				if len(tries) <= times:
-					raise RuntimeError(error)
-			return send, tries
-		cases = ((telegram, limited + '5', 5), (telegram, limited + '900', transports.RATE_LIMIT_WAIT),
-			(slack, 'Slack files.completeUploadExternal: ratelimited', 10))
-		for kind, error, wait in cases:
-			with self.subTest(error=error):
-				send, tries = refusing(error, 1)
-				self.patch(kind, 'send_ahead', send)
-				del waits[:]
+	def test_a_rate_limit_is_waited_out_once_and_the_call_tried_again(self):
+		"""A call that a network refuses for its rate limit (a 429) waits as long as the refusal asks (Telegram's
+		retry_after, Slack's Retry-After header), at most net.RATE_LIMIT_WAIT, and goes again, once: refused again, it
+		raises. A preload whose upload fails stops."""
+		slept = []
+		self.patch(net.time, 'sleep', slept.append)
+		self.env(slackBotToken='xoxb-test')
+		def telegram_limit(wait):
+			"""Telegram's refusal for its rate limit, asking for wait seconds."""
+			return Resp({'ok': False, 'error_code': 429, 'description': f'Too Many Requests: retry after {wait}',
+				'parameters': {'retry_after': wait}}, 429)
+		def slack_limit(wait):
+			"""Slack's refusal for its rate limit, asking for wait seconds."""
+			return Resp({'ok': False, 'error': 'ratelimited'}, 429, headers={'Retry-After': str(wait)})
+		telegram, slack = (lambda: telegram_common.call('sendPhoto')), (lambda: slack_common.call('chat.postMessage'))
+		for send, refusal, waited in ((telegram, telegram_limit(5), 5), (telegram, telegram_limit(900),
+				net.RATE_LIMIT_WAIT), (slack, slack_limit(7), 7)):
+			with self.subTest(waited=waited):
+				answers = [refusal, Resp({'ok': True, 'result': {'message_id': 8}})]
+				self.patch(net, 'post', lambda url, **kwargs: answers.pop(0))
+				del slept[:]
 				with contextlib.redirect_stderr(io.StringIO()) as log:
-					self.assertTrue(kind('-100777').preload(b'png'))
-				self.assertEqual((len(tries), waits[1:]), (2, [wait]))
-				self.assertIn('is rate limited', log.getvalue())
-		for error, tried in ((limited + '1', 2), ('Telegram sendPhoto: Bad Request: chat not found', 1)):
-			with self.subTest(error=error), contextlib.redirect_stderr(io.StringIO()):
-				send, tries = refusing(error, 9)
-				self.patch(telegram, 'send_ahead', send)
-				self.assertFalse(telegram('-100777').preload(b'png')) # refused again, or not a rate limit: it stops
-				self.assertEqual(len(tries), tried)
+					send()
+				self.assertEqual((slept, answers), ([waited], []))
+				self.assertIn('rate limited, trying again in', log.getvalue())
+		answers = [telegram_limit(1), telegram_limit(1), Resp({'ok': True, 'result': True})]
+		self.patch(net, 'post', lambda url, **kwargs: answers.pop(0))
+		with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(net.RateLimited):
+			telegram()
+		self.assertEqual(len(answers), 1) # refused again: no third try
+		self.preloading()
+		tries = []
+		self.patch(telegram_common.TelegramBot, 'send_ahead', lambda dest, photo: tries.append(photo) or 1 / 0)
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertFalse(telegram_common.TelegramBot('-100777').preload(b'png'))
+		self.assertEqual(tries, [b'png'])
 
 	def test_charts_drawn_are_preloaded_to_their_networks_preload_chat_where_a_setting_names_one(self):
 		"""A delivery.Preloader hands each chart added to the preload chat its network's setting names, as that
@@ -328,21 +335,22 @@ class TelegramSending(FinbotCase):
 		"""A file id is reused by the bot that uploaded it alone (a new token is another bot), and not at all with the
 		cache setting off."""
 		sent = self.photos()
-		telegram_common.TelegramBot('5').post_chart(io.BytesIO(b'png'), 'caption')
+		telegram_common.TelegramBot('5').post_chart(b'png', 'caption')
 		self.env(telegramBotToken='Y')
-		telegram_common.TelegramBot('5').post_chart(io.BytesIO(b'png'), 'caption')
+		telegram_common.TelegramBot('5').post_chart(b'png', 'caption')
 		self.settings(cache=False)
-		telegram_common.TelegramBot('5').post_chart(io.BytesIO(b'png'), 'caption')
+		telegram_common.TelegramBot('5').post_chart(b'png', 'caption')
 		self.assertEqual([uploaded for _, _, uploaded in sent], [True, True, True])
 
-	def test_toggle_buttons_are_drawn_green_when_on_and_red_when_off(self):
-		"""A toggle button's tone becomes each network's green and red: Telegram's style success and danger, Slack's
-		primary and danger (primary also marks the button shown now), Discord's styles 3 and 4 (blurple for the one
-		shown now, else grey); a plain button gets none."""
+	def test_each_network_draws_a_buttons_look_in_its_own_style(self):
+		"""A button's look (buttons.look) becomes each network's style: a toggle that is on green and one that is off
+		red, the button shown now blue on Telegram (primary, its label unmarked) and Discord (blurple), green on Slack
+		(primary); a plain button gets none, grey on Discord."""
 		row = [buttons.Button('a', 'da', tone=buttons.ON), buttons.Button('b', 'db', tone=buttons.OFF),
 			buttons.Button('c', 'dc', active=True), buttons.Button('d', 'dd')]
 		keyboard = telegram_common.TelegramBot.markup([row])['inline_keyboard'][0]
-		self.assertEqual([button.get('style') for button in keyboard], ['success', 'danger', None, None])
+		self.assertEqual([(button['text'], button.get('style')) for button in keyboard],
+			[('a', 'success'), ('b', 'danger'), ('c', 'primary'), ('d', None)])
 		elements = slack_common.actions_block(row)['elements']
 		self.assertEqual([element.get('style') for element in elements], ['primary', 'danger', 'primary', None])
 		components = discord_common.components([row])[0]['components']
@@ -411,13 +419,30 @@ class ChartDelivery(FinbotCase):
 		return [Resp({'ok': True, 'upload_url': self.UPLOAD_URL, 'file_id': 'F1'}), Resp(None, text='OK - 3'),
 			Resp({'ok': True, 'files': [{'id': 'F1'}]})]
 
-	def test_every_bot_takes_charts_and_buttons(self):
-		"""Every network's bot takes charts and buttons, whichever way its updates arrive: their presses reach finbot,
-		and no setting holds them back."""
+	def test_an_edit_longer_than_a_message_is_split(self):
+		"""An edit in place longer than a message (a long watchlist under its Edit button, a month of trades) shows what
+		fits in the message edited and the rest in messages after it, the buttons under the last; one that fits is one
+		edit."""
+		edits, posts = [], []
+		bot = discord_common.DiscordBot('77')
+		self.patch(bot, 'edit_text', lambda message, text, buttons=None: edits.append((message, text, buttons)))
+		self.patch(bot, 'text', lambda lines, buttons=None: posts.append((list(lines), buttons)))
+		rows = [[buttons.Button('Edit', 'k|w|0|0|0|0|e0|ab12')]]
+		lines = [f'line {i:03d} ' + 'x' * 90 for i in range(40)] # about 4000 characters: two Discord messages
+		bot.edit_lines('9', lines, rows)
+		self.assertEqual([(message, buttons) for message, _, buttons in edits], [('9', [])])
+		self.assertEqual([buttons for _, buttons in posts], [rows])
+		self.assertEqual(edits[0][1].split('\n') + posts[0][0], lines)
+		edits.clear(), posts.clear()
+		bot.edit_lines('9', lines[:3], rows)
+		self.assertEqual((edits, posts), ([('9', '\n'.join(lines[:3]), rows)], []))
+
+	def test_every_bot_takes_charts(self):
+		"""Every network's bot takes charts, whichever way its updates arrive, and no setting holds them back."""
 		self.env(slackBotToken='', slackAppToken='', slackOutgoingWebhook='', telegramOutgoingWebhook='')
 		for kind in (telegram_common.TelegramBot, slack_common.SlackBot, discord_common.DiscordBot):
 			with self.subTest(kind=kind.__name__):
-				self.assertTrue(kind('1').takes_charts and kind('1').takes_buttons)
+				self.assertTrue(kind('1').takes_charts)
 
 	def test_an_error_that_belongs_to_no_chat_goes_only_to_the_log(self):
 		"""There are no home chats: an error that belongs to no chat (a system job's, a webhook request's) is logged,
@@ -440,7 +465,7 @@ class ChartDelivery(FinbotCase):
 			with self.subTest(cmd=cmd):
 				calls = self.slack_answers(*self.upload_steps())
 				self.sent.clear(); self.errors.clear()
-				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT, 'U'))
+				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT))
 				self.assertEqual(self.errors, [])
 				self.assertEqual([url for url, _ in calls],
 					['https://slack.com/api/files.getUploadURLExternal', self.UPLOAD_URL,
@@ -451,7 +476,7 @@ class ChartDelivery(FinbotCase):
 				self.assertEqual((ticket['data']['filename'], ticket['data']['length']),
 					('chart.png', len(upload['data'])))
 				self.assertEqual((share['data']['channel_id'], json.loads(share['data']['files'])),
-					('C1', [{'id': 'F1'}]))
+					('C1', [{'id': 'F1', 'title': 'chart'}]))
 				self.assertTrue(share['data']['initial_comment'].startswith(heading),
 					share['data']['initial_comment'][:80]) # the report
 				# not sent again as text
@@ -508,7 +533,7 @@ class ChartDelivery(FinbotCase):
 					'.compare T1 T2', '.pie Rob'):
 				with self.subTest(service=service, cmd=cmd):
 					self.sent.clear(); self.errors.clear()
-					worker.process_request(inbound.Message(service, chat, '@u', cmd, BOT, 'U'))
+					worker.process_request(inbound.Message(service, chat, '@u', cmd, BOT))
 					self.assertEqual(self.errors, [])
 					self.assertEqual({kind for kind, *_ in self.sent}, {'text'})
 		self.assertEqual([url for url in posts if 'sendPhoto' in url or 'files.' in url], [])
@@ -670,9 +695,10 @@ class SlackSending(FinbotCase):
 		"""Slack refuses with HTTP 200 and ok false (the bot is not in the channel, say): a failure, logged as one."""
 		self.env(slackBotToken='xoxb-test')
 		self.patch(net, 'post', lambda url, **kwargs: Resp({'ok': False, 'error': 'not_in_channel'}))
+		chat = slack_common.SlackBot('C1')
 		with contextlib.redirect_stderr(io.StringIO()) as err:
-			self.assertIsNone(slack_common.SlackBot('C1').post_text('hi'))
-		self.assertIn('Slack chat.postMessage to C1 failed: Slack chat.postMessage: not_in_channel', err.getvalue())
+			self.assertEqual(chat.text(['hi']), [None])
+		self.assertIn('Slack message to C1 failed: Slack chat.postMessage: not_in_channel', err.getvalue())
 		self.assertNotIn('OK', err.getvalue())
 
 	def test_a_reply_without_a_bot_token_is_logged_not_sent(self):
@@ -682,9 +708,9 @@ class SlackSending(FinbotCase):
 		err = io.StringIO()
 		with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
 			for cmd in ('.help', '.movers', '.compare T1 T2'):
-				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT, 'U'))
+				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT))
 		self.assertEqual((self.posts, self.errors), ([], []))
-		refusal = 'ERROR slack: a reply to channel C1 needs slackBotToken in finbot.env; not sent'
+		refusal = 'Slack message to C1 failed: Slack chat.postMessage: needs slackBotToken in finbot.env'
 		self.assertEqual(err.getvalue().count(refusal), 3)
 
 	def test_a_command_at_work_shows_an_hourglass_on_its_message(self):
@@ -702,7 +728,7 @@ class SlackSending(FinbotCase):
 		self.patch(net, 'post', post)
 		help_text = about.prepare_help
 		self.patch(about, 'prepare_help', lambda *a: (added.wait(5), help_text(*a))[1]) # a command slow enough for ⏳
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.help', BOT, 'U', '1.2'))
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.help', BOT, '1.2'))
 		self.assertEqual([url.rsplit('/', 1)[-1] for url, _ in self.posts],
 			['reactions.add', 'chat.postMessage', 'reactions.remove'])
 		reaction = {'channel': 'C1', 'timestamp': '1.2', 'name': 'hourglass_flowing_sand'}
@@ -776,7 +802,7 @@ class TelegramCharts(FinbotCase):
 		"""A press for a period shown in this chat in the last 30 minutes (in this message or another) shows that
 		upload again by its file id, with the report it came with: nothing is built, drawn or uploaded. Another chat
 		builds its own; past 30 minutes the period is built again, its chart (the same) sent by its file id."""
-		worker.process_request(inbound.Message('telegram', '55', '@u', '.movers', BOT, 'U')) # 1D: P1
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.movers', BOT)) # 1D: P1
 		caption = next(caption for method, _, _, caption in self.requests if method == 'sendPhoto')
 		self.press('c|l|w|5,0') # 7D: built, uploaded as P2
 		self.assertEqual(self.built, [['5', '0']])
@@ -791,7 +817,7 @@ class TelegramCharts(FinbotCase):
 
 	def test_an_earlier_upload_telegram_refuses_is_drawn_anew(self):
 		"""A period's earlier upload that Telegram will not show again is built, drawn and uploaded anew."""
-		worker.process_request(inbound.Message('telegram', '55', '@u', '.movers', BOT, 'U')) # 1D: P1
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.movers', BOT)) # 1D: P1
 		self.refused.add('P1')
 		with contextlib.redirect_stderr(io.StringIO()):
 			self.press('c|l|d|5,0')
@@ -800,7 +826,7 @@ class TelegramCharts(FinbotCase):
 	def test_with_the_cache_off_each_press_builds_its_period(self):
 		"""With the cache setting off, nothing is noted to show again: each press builds and uploads its period."""
 		self.settings(cache=False)
-		worker.process_request(inbound.Message('telegram', '55', '@u', '.movers', BOT, 'U'))
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.movers', BOT))
 		self.press('c|l|w|5,0')
 		self.press('c|l|d|5,0')
 		uploads = [uploaded for _, _, uploaded, _ in self.requests if uploaded]
@@ -840,10 +866,28 @@ class SlackButtons(FinbotCase):
 		"""The blocks of the last call of this method."""
 		return json.loads([kwargs for url, kwargs in self.posts if url.endswith('/' + method)][-1]['data']['blocks'])
 
+	def test_an_upload_that_times_out_is_not_taken_for_a_post(self):
+		"""An upload that times out (the chart's bytes, before any message exists) is no sign that the chart arrived:
+		the chart goes again without its buttons, and the report is not lost."""
+		answer = net.post
+		timeouts = [requests.exceptions.ReadTimeout('slow')]
+		def post(url, **kwargs):
+			"""The first upload of the bytes times out; the rest as Slack would answer."""
+			if url == self.UPLOAD_URL and timeouts:
+				self.posts.append((url, kwargs))
+				raise timeouts.pop()
+			return answer(url, **kwargs)
+		self.patch(net, 'post', post)
+		with contextlib.redirect_stderr(io.StringIO()):
+			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT))
+		self.assertEqual(self.errors, [])
+		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.getUploadURLExternal', 'upload',
+			'files.completeUploadExternal'])
+
 	def test_a_chart_reply_carries_its_period_buttons(self):
 		"""A chart reply is a Block Kit message: the report, the chart (uploaded into no channel, shown by its id) and
 		the period buttons, the one shown marked; nothing goes as text."""
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U'))
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT))
 		self.assertEqual(self.errors, [])
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.postMessage'])
@@ -890,7 +934,7 @@ class SlackButtons(FinbotCase):
 		built = []
 		build = charts.build
 		self.patch(charts, 'build', lambda *args, **kwargs: built.append(args) or build(*args, **kwargs))
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U')) # 1D: F1, in message 1.5
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT)) # 1D: F1, in message 1.5
 		worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|w|5,0')) # 7D: F2
 		del self.posts[:], built[:]
 		worker.process_callback(inbound.Press('slack', 't2', 'C1', '2.5', 'c|l|d|5,0')) # 1D in another message: F1
@@ -901,7 +945,7 @@ class SlackButtons(FinbotCase):
 		self.assertEqual(slack_common.SLACK_REUSE_SECONDS, 30 * 60)
 		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 31 minutes on
 			for upload in noted['uploads'].values():
-				upload[0] -= 31 * 60 + 1
+				upload['at'] -= 31 * 60 + 1
 		worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|d|5,0')) # 1D again: F3
 		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F3'})
 		deleted = [kwargs['data']['file'] for url, kwargs in self.posts if url.endswith('/files.delete')]
@@ -921,12 +965,12 @@ class SlackButtons(FinbotCase):
 		self.assertEqual(self.blocks('chat.update')[0]['text']['text'], 'one')
 		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 29 minutes on: still shown again
 			for upload in noted['uploads'].values():
-				upload[0] -= 29 * 60
+				upload['at'] -= 29 * 60
 		chat.edit_chart('1.5', io.BytesIO(b'two'), 'two')
 		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F2'})
 		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 30 minutes after it was shown again
 			for upload in noted['uploads'].values():
-				upload[0] -= 30 * 60
+				upload['at'] -= 30 * 60
 		chat.edit_chart('1.5', io.BytesIO(b'two'), 'two')
 		self.assertEqual(self.blocks('chat.update')[1]['slack_file'], {'id': 'F3'})
 		self.assertEqual(self.waits, []) # never a chart Slack could not show yet
@@ -936,7 +980,7 @@ class SlackButtons(FinbotCase):
 		stocks that channel follows, so a press there builds its own."""
 		self.uploading()
 		self.patch(watchlist, 'with_holdings', lambda chat: TICKERS[:3] if chat == 'slack:C2' else TICKERS)
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U')) # 1D: F1
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT)) # 1D: F1
 		worker.process_callback(inbound.Press('slack', 't2', 'C2', '2.5', 'c|l|d|5,0')) # 1D in C2: its own, F2
 		self.assertEqual(self.errors, [])
 		self.assertEqual(self.calls()[-4:], ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
@@ -961,7 +1005,7 @@ class SlackButtons(FinbotCase):
 		self.assertTrue(preload.preload(b'two')) # F2, which no message shows
 		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 31 minutes on
 			for upload in noted['uploads'].values():
-				upload[0] -= 31 * 60 + 1
+				upload['at'] -= 31 * 60 + 1
 		slack_common.SlackBot('C1').edit_chart('1.5', io.BytesIO(b'three'), 'three')
 		deleted = [kwargs['data']['file'] for url, kwargs in self.posts if url.endswith('/files.delete')]
 		self.assertIn('F2', deleted)
@@ -970,7 +1014,7 @@ class SlackButtons(FinbotCase):
 		"""When Slack refuses to show an earlier upload again (a file deleted outside finbot, say), the period is
 		built and uploaded anew."""
 		self.uploading()
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U')) # 1D: F1
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT)) # 1D: F1
 		self.refusals['chat.update'] = ['invalid_blocks']
 		with contextlib.redirect_stderr(io.StringIO()):
 			worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|d|5,0'))
@@ -979,16 +1023,19 @@ class SlackButtons(FinbotCase):
 		self.assertEqual((self.blocks('chat.update')[1]['slack_file'], self.errors), ({'id': 'F2'}, []))
 
 	def test_the_charts_noted_before_uploads_were_reused_are_left_alone(self):
-		"""The chart messages noted as before ({'channel ts': file}) are forgotten, their files never deleted."""
-		state.save(slack_common.SLACK_CHARTS, {'C1 1.5': 'F0'})
-		worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|w|5,0'))
-		self.assertNotIn('files.delete', self.calls())
-		self.assertEqual(state.load(slack_common.SLACK_CHARTS)['shown'], {'C1 1.5': 'F1'})
+		"""The chart messages noted in an earlier form ({'channel ts': file}, or uploads as lists) are forgotten, their
+		files never deleted."""
+		for before in ({'C1 1.5': 'F0'}, {'shown': {'C1 1.5': 'F0'}, 'uploads': {'F0': [0, None, None]}}):
+			with self.subTest(before=before):
+				state.save(slack_common.SLACK_CHARTS, before)
+				worker.process_callback(inbound.Press('slack', 't1', 'C1', '1.5', 'c|l|w|5,0'))
+				self.assertNotIn('files.delete', self.calls())
+				self.assertEqual(state.load(slack_common.SLACK_CHARTS)['shown'], {'C1 1.5': 'F1'})
 
 	def test_a_chart_not_ready_to_show_is_shown_a_moment_later(self):
 		"""Slack refusing the blocks of a chart just uploaded (invalid_blocks) is asked again after a wait."""
 		self.refusals['chat.postMessage'] = ['invalid_blocks']
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U'))
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT))
 		self.assertEqual((self.calls()[-2:], self.waits), (['chat.postMessage', 'chat.postMessage'], [1]))
 		self.assertEqual((self.sent, self.errors), ([], []))
 
@@ -996,7 +1043,7 @@ class SlackButtons(FinbotCase):
 		"""When Slack will not show the chart with its buttons, the chart is uploaded into the channel without them."""
 		self.refusals['chat.postMessage'] = ['invalid_blocks'] * 4
 		with contextlib.redirect_stderr(io.StringIO()):
-			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U'))
+			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT))
 		self.assertEqual(self.calls()[-3:], ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal'])
 		self.assertEqual(self.posts[-1][1]['data']['channel_id'], 'C1')
 		self.assertEqual((self.waits, self.sent, self.errors), ([1, 2, 4], [], []))
@@ -1005,7 +1052,7 @@ class SlackButtons(FinbotCase):
 		"""In Socket Mode (no slackOutgoingWebhook) a press reaches finbot over the socket, so a chart has its buttons
 		as in http mode."""
 		self.env(slackOutgoingWebhook='', slackAppToken='xapp-1')
-		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U'))
+		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT))
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.postMessage'])
 		self.assertEqual(self.blocks('chat.postMessage')[-1]['type'], 'actions')
@@ -1036,7 +1083,7 @@ class SlackButtons(FinbotCase):
 			return record(url, **kwargs)
 		self.patch(net, 'post', post)
 		with contextlib.redirect_stderr(io.StringIO()):
-			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT, 'U'))
+			worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT))
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.postMessage'])
 		self.assertEqual(self.errors, [])
@@ -1120,6 +1167,78 @@ class EveryNetworkAndMode(FinbotCase):
 					else:
 						self.assertEqual(len(self.typing), 2)
 						self.assertTrue(all(dest.shows_typing for dest in self.typing))
+
+
+class Chats(FinbotCase):
+	"""What every network's bot knows of its chat (Transport): whether it is a direct message, who administers it, and
+	when a post counts as sent."""
+
+	def test_a_direct_message_is_told_by_its_id_where_the_network_says(self):
+		"""Whether a chat is a direct message, as its id tells: a person's positive id on Telegram (a group's is
+		negative), an id starting D on Slack; Discord's ids do not say (its updates do: inbound.Message.dm)."""
+		self.assertEqual([telegram_common.TelegramBot(where).dm for where in ('55', '-1001')], [True, False])
+		self.assertEqual([slack_common.SlackBot(where).dm for where in ('D1', 'C1')], [True, False])
+		self.assertIsNone(discord_common.DiscordBot('77').dm)
+		self.assertEqual([jobs.is_dm(key) for key in ('telegram:55', 'slack:C1', 'discord:77', 'nowhere:1')],
+			[True, False, None, None])
+
+	def test_what_a_network_says_of_administrators_counts_a_while(self):
+		"""What a network said about who administers a chat counts ADMINS_FOR seconds, so it is asked once in that
+		time, and again after it."""
+		asked = []
+		self.patch(telegram_common.TelegramBot, 'is_administrator', lambda chat, who: asked.append(who) or True)
+		self.addCleanup(transports._administers.clear)
+		transports._administers.clear()
+		chat = telegram_common.TelegramBot('-100')
+		self.assertTrue(chat.administers(('7',)) and chat.administers(('7',)))
+		self.assertEqual(asked, ['7'])
+		transports._administers['telegram:-100', '7'] = (time.time() - transports.ADMINS_FOR, True) # long ago
+		self.assertTrue(chat.administers(('7',)))
+		self.assertEqual(asked, ['7', '7'])
+
+	def test_a_question_about_administrators_that_fails_is_never_kept_as_an_answer(self):
+		"""A question about who administers a chat whose connection fails is asked once more at once (a host closes a
+		connection left idle); failing again, or refused, the network's last answer stands, else no, and the next
+		message asks again: in a group, and in a direct message, which asks the groups finbot knows."""
+		asked, outcomes = [], []
+		def ask(chat, who):
+			"""The next outcome, an answer or a failure, of a question asked of the network."""
+			asked.append((chat.where, who))
+			outcome = outcomes.pop(0)
+			if isinstance(outcome, Exception):
+				raise outcome
+			return outcome
+		self.patch(telegram_common.TelegramBot, 'is_administrator', ask)
+		self.addCleanup(transports._administers.clear)
+		transports._administers.clear()
+		group, closed = telegram_common.TelegramBot('-100'), requests.ConnectionError('closed')
+		outcomes[:] = [closed, True]
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			self.assertTrue(group.administers(('7',))) # asked again at once
+			transports._administers['telegram:-100', '7'] = (time.time() - transports.ADMINS_FOR, True) # long ago
+			outcomes[:] = [closed, closed, False]
+			self.assertTrue(group.administers(('7',))) # what the network said last stands
+			self.assertFalse(group.administers(('7',))) # and the next message asks again
+			outcomes[:] = [RuntimeError('Forbidden'), True]
+			self.assertFalse(group.administers(('9',))) # a refusal is not asked again, and no answer is no
+			self.assertTrue(group.administers(('9',)))
+			self.patch(jobs, 'current', types.SimpleNamespace(chats={'telegram:-100', 'telegram:55'}))
+			outcomes[:] = [closed, closed, True]
+			self.assertFalse(telegram_common.TelegramBot('55').administers(('8',)))
+			self.assertTrue(telegram_common.TelegramBot('55').administers(('8',))) # the group asked again
+		self.assertEqual((len(asked), outcomes), (10, []))
+		self.assertIn('Telegram cannot tell whether 7 administers -100: closed', err.getvalue())
+
+	def test_a_chart_the_network_answers_without_a_body_was_sent(self):
+		"""A chart whose post the network answers without a body (Discord's empty answer) was sent: its report does
+		not go again as text."""
+		self.patch(transports.Transport, 'chart', REAL_CHART)
+		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
+		self.env(discordBotToken='x')
+		self.patch(net, 'request', lambda method, url, **kwargs: Resp(None, 204))
+		with contextlib.redirect_stderr(io.StringIO()):
+			answers = delivery.deliver(discord_common.DiscordBot('77'), delivery.Report(['Heading', 'a line'], CHART))
+		self.assertEqual((answers, self.sent), ([{}], []))
 
 
 if __name__ == '__main__':

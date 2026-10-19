@@ -55,7 +55,7 @@ Where:
 
 Each command is a slash command on every network, which completes its name as it is typed: Telegram's command menu, set as finbot starts; Slack's, from the app's manifest (`util/slack_manifest.py`, see the [Slack guide](slack.md#slash-commands)); Discord's, registered as finbot starts. `/profile` is a second name of `/stock`, and `/job` of `/jobs`: no slash command of their own, they work when typed. `/help` lists the commands in chat.
 
-Every command also works as a plain message, which is quicker to type on a phone: a dot in place of the slash (`.movers 7d`), or `!`, or the bot's name (`@botname movers 7d`). As a message, `.forward pe` is `/forwardpe`, and a symbol alone is `/stock` (`.AAPL`, `@botname AAPL`). A message reaches the bot wherever it reads the chat: on Telegram, a direct chat, or a group where it is an administrator; on Slack, a direct message, a mention, or every message with `--every-message`; on Discord, in gateway API mode. A command is its whole name, in any case, and so are its keywords (`.movers TOP`); any other first word is a symbol.
+Every command also works as a plain message, which is quicker to type on a phone: a dot in place of the slash (`.movers 7d`), or `!`, or the bot's name (`@botname movers 7d`). As a message, `.forward pe` is `/forwardpe`, and a symbol alone is `/stock` (`.AAPL`, `@botname AAPL`). A message reaches the bot wherever it reads the chat: on Telegram, a direct chat, or a group where it is an administrator; on Slack, a direct message, a mention, or every message with `--every-message`; on Discord, in gateway API mode. A command is its whole name, in any case, and so are its keywords (`.movers TOP`); any other first word is a symbol. A command given more words than it takes (`/who AAPL MSFT`), or fewer than it needs, gets its usage.
 
 Trade notifications are peformed by polling the Sharesight trades API on a schedule (see [Scheduling](scheduling.md)), and notifying each chat that schedules them of any new trades. Thus, it works best if your trades are auto-imported into Sharesight through its broker integrations, and if your environment has persistent storage so that the bot can keep track of known trade IDs between runs.
 
@@ -66,11 +66,12 @@ The bot answers commands in every chat it is in. By default, it fetches its upda
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
 * A treemap of a portfolio (`/treemap portfolio [sector|industry|country|currency|market]`): the treemap tiles each holding by value, grouped and coloured by industry (the default), sector, country (its market's, as two letters, with a flag in the caption), currency or market
-* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/treemap`, `/holdings` (the first portfolio alphabetically; a treemap by industry, or by the grouping typed) and `/price` (the first ticker, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Grouped by button after them, which opens a menu of Country, Currency, Industry, Market and Sector with Back (the one shown marked; a choice redoes the chart in place and keeps the menu open, Back returns to the portfolios); for tickers the period row, ending in `+` to the tickers (those held, else the chat's watchlist) with `<` `>` pages: up to 8 ticked (drawn green), which OK draws. With one ticker ticked, `+` clears it, so that the first tick picks afresh. Another portfolio or ticker, a grouping or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/treemap` draws its other charts in the background so the next press is quick. `/price T1 T2 [period]` typed with tickers gets the same period row and `+` when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead), and a chat with no buttons gets the usage instead
+* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/treemap`, `/holdings` (the first portfolio alphabetically; a treemap by industry, or by the grouping typed) and `/price` (the first ticker, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Grouped by button after them, which opens a menu of Country, Currency, Industry, Market and Sector with Back (the one shown marked; a choice redoes the chart in place and keeps the menu open, Back returns to the portfolios); for tickers the period row, ending in `+` to the tickers (those held, else the chat's watchlist) with `◀` `▶` pages: up to 8 ticked (drawn green), which OK draws (a ninth is refused with a message to the presser alone, the chart left as it is). With one ticker ticked, `+` clears it, so that the first tick picks afresh. Another portfolio or ticker, a grouping or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/treemap` draws its other charts in the background so the next press is quick. `/price T1 T2 [period]` typed with tickers gets the same period row and `+` when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead)
 * Listing of holdings sorted by various attributes 
 * Running the other stock reports on demand
 
 ## Reports
+Every chart's subtitle ends with the date it shows, or the dates it spans (`12 Oct - 19 Oct 2026`).
 
 ### Stock lookup
 ![Screenshot showing stock info on Slack](../img/stockinfo.png?raw=true "Screenshot showing stock info on Slack")
@@ -220,7 +221,7 @@ As a command, it also takes a portfolio:
 ### Events calendar
 ![earnings message in Slack](../img/earnings.png?raw=true "Earnings message in Slack")
 
-The `earnings` report sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the `settings.conf` for a scheduled run, or can be specified as an argument when triggered through the chat bot.
+The `earnings` report sends upcoming earnings and ex-dividend date alerts, in one list by date: an ex-dividend date is marked `- ex-dividend`, an earnings date (most of them) is not. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the `settings.conf` for a scheduled run, or can be specified as an argument when triggered through the chat bot.
 
 **Finance Explainer:** When a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 
@@ -259,7 +260,7 @@ Command:
 ### pe / peg
 ![Forward PE report in Slack](../img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
-List securities by forward P/E ratio (`/pe`), or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`).
+List securities by forward P/E ratio (`/pe`), or PEG ratio (`/peg`). Both are analysts' estimates (a forward P/E of earnings, a PEG of their growth), so their lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`), as `/buy` and `/sell` do.
 
 Command:
 ```
@@ -318,7 +319,7 @@ Tracks additional securities which are not in your Sharesight holdings. Each cha
 
 The watchlists are kept in `finbot_watchlist.json` in the data directory, by chat (`{"chats": {"telegram:-1001234": ["2454.TW", "ASO.AX", "STEM"]}}`), so there is no need to edit the file.
 
-Command (with an Edit button, where the chat has buttons: it offers each ticker, which a press strikes through and turns red, and Delete deletes the struck ones; none under an empty watchlist):
+Command (with an Edit button, where the chat has buttons: it offers each ticker, which a press turns red (and strikes through in the list), and Delete deletes the red ones; none under an empty watchlist):
 ```
 /watchlist
 ```

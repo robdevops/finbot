@@ -93,7 +93,7 @@ def company(service, data, ticker, exchange):
 				service.link(macrotrends, 'macrotrends'),
 				service.link('https://seekingalpha.com/symbol/' + ticker, 'seekingalpha')]
 		elif exchange == 'ASX':
-			sites.append(service.link('https://www.shortman.com.au/stock?q=' + code.lower(), 'shortman'))
+			sites.append(service.link(links.shortman_url(code), 'shortman'))
 		lines.append(service.bold("Links: ") + ' | '.join(sites))
 	return lines
 

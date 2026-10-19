@@ -1,5 +1,5 @@
 """Pure helpers (lib/markets.py, formats.py, links.py) and the cache and state files: table-driven cases."""
-import datetime, json, threading, unittest
+import contextlib, datetime, io, json, threading, time, unittest
 from pathlib import Path
 from tests.common import *
 from lib import when
@@ -11,7 +11,7 @@ class Parsing(unittest.TestCase):
 		for arg, days in (('7', 7), ('7d', 7), ('7D', 7), ('2w', 14), ('3m', 90), ('1y', 365), ('0', 0)):
 			with self.subTest(arg=arg):
 				self.assertEqual(formats.days_from_human_days(arg), days)
-		today = datetime.date.today()
+		today = formats.today() # by the timezone setting's clock, not the host's
 		self.assertEqual(formats.days_from_human_days('ytd'), (today - today.replace(month=1, day=1)).days)
 
 	def test_days_from_human_days_rejects_non_periods(self):
@@ -148,49 +148,51 @@ class Formatting(unittest.TestCase):
 
 	def test_a_buttons_look_is_its_tone_else_active_and_a_toggle_is_red_only_when_off(self):
 		"""buttons.look is a toggle's tone, else ACTIVE for the button shown now, else nothing; buttons.tone is plain
-		for a toggle that is on and OFF for one that is off; buttons.struck draws a line through a label."""
+		for a toggle that is on and OFF for one that is off."""
 		look = lambda **kwargs: buttons.look(buttons.Button('x', 'y', **kwargs))
 		self.assertEqual([look(), look(active=True), look(tone=buttons.ON), look(active=True, tone=buttons.OFF)],
 			['', buttons.ACTIVE, buttons.ON, buttons.OFF])
 		self.assertEqual([buttons.tone(True), buttons.tone(False)], ['', buttons.OFF])
-		self.assertEqual(buttons.struck('ab'), 'a\u0336b\u0336')
 
 	def test_button_data_reads_back(self):
 		"""A button's data says what was pressed: a period button of a known kind and period (as keyboard() makes
 		them), a .jobs menu's button of a known screen made of plain letters and digits, and nothing for anything else:
-		the job buttons of older lists (j|, e|) included."""
+		the job buttons of older lists (j|, e|) and of the retired Enable and Delete screens included."""
 		self.assertEqual([buttons.parse(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
 			[buttons.ChartPress('l', key, '5,0') for key in 'dwmyx'])
-		self.assertEqual(buttons.parse(buttons.menu_button('1 ✅ trades', 'on', [0, 1], 'abcd').data),
-			buttons.MenuPress('on', ('0', '1'), 'abcd'))
+		self.assertEqual(buttons.parse(buttons.menu_button('1 trades', 'edit', [0, 1], 'abcd').data),
+			buttons.MenuPress('edit', ('0', '1'), 'abcd'))
 		self.assertEqual(buttons.parse('m|add|abcd'), buttons.MenuPress('add', (), 'abcd'))
 		self.assertEqual(buttons.menu_button('x' * 50, 'top', [0], 'abcd').label, 'x' * 40)
-		for data in ('c|c|d|T1', 'c|z|w|T1', 'c|c|w', 'x|h|w|T1', '', 'c', 'm|zz|0|abcd', 'm|on', 'm|on|0|a b',
-				'm|on|٨|abcd', 'm|on|0|1|' + 'a' * 60, 'j|8|abcd', 'e|8|abcd'):
+		for data in ('c|c|d|T1', 'c|z|w|T1', 'c|c|w', 'x|h|w|T1', '', 'c', 'm|zz|0|abcd', 'm|run', 'm|run|0|a b',
+				'm|run|٨|abcd', 'm|run|0|1|' + 'a' * 60, 'j|8|abcd', 'e|8|abcd', 'm|on|0|1|abcd', 'm|del|0|1|abcd'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
 
 	def test_a_pickers_data_reads_back_in_few_bytes(self):
-		"""A picker's button says what it asks for, with up to 32 ticked tickers in 64 bytes; data of no picker, with
-		an act or a command it has not, is nothing, and only a refused tick is an alert."""
-		press = buttons.PickPress('c', 's', 'x', 1, 2 ** 32 - 1, 'r31', 'a1b2')
+		"""A picker's button says what it asks for, with up to 32 ticked tickers in 64 bytes; data of no picker, or
+		with an act that picker's buttons have not (buttons.ACTS), is nothing; a press is told its act's toast, and
+		only a tick past the limit is refused."""
+		press = buttons.PickPress('t', 's', 'x', 1, 2 ** 32 - 1, 'r31', 'a1b2')
 		button = buttons.pick_button('x' * 99, press)
 		self.assertEqual((buttons.parse(button.data), len(button.label), len(button.data)), (press, 40, 27))
 		for data in ('k|z|0|x|0|0|p0|a1b2', 'k|c|0|x|0|0|z0|a1b2', 'k|c|0|x|0|zz|p0|a1b2', 'k|c|0|q|0|0|p0|a1b2',
-				'k|c|0|x|0|0|p0', 'k|c|0|x|0|0|p0|a-b2', 'k|c|0|x|0|0|p|a1b2', 'k|c|0|x|0|3|z0|a1b2'):
+				'k|c|0|x|0|0|p0', 'k|c|0|x|0|0|p0|a-b2', 'k|c|0|x|0|0|p|a1b2', 'k|c|0|x|0|3|z0|a1b2',
+				'k|c|0|x|0|0|r1|a1b2', 'k|h|0|0|1|0|g0|a1b2', 'k|w|0|0|0|1|h0|a1b2', 'k|t|0|0|1|0|e0|a1b2'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.parse(data))
-		acts = ('p0', 'm1', 'n1', 'r2', 'h0', 'f0')
-		self.assertEqual([buttons.toast(f'k|c|0|x|0|3|{act}|a1b2') for act in acts],
-			['Updating…', 'Updating…', 'Updating…', 'Loading…', 'Loading…', buttons.TOO_MANY])
-		self.assertEqual([buttons.alert(f'k|c|0|x|0|3|{act}|a1b2') for act in ('m0', 'f0')], [False, True])
+		acts = ('c|0|x|0|3|p0', 'c|0|x|0|3|m1', 'c|0|x|0|3|n1', 'c|0|x|0|3|h0', 't|0|0|1|0|r2', 't|0|0|1|0|q0',
+			'w|0|0|0|1|e0', 'w|0|0|0|1|d0')
+		self.assertEqual([buttons.toast(f'k|{act}|a1b2') for act in acts], ['Updating…', 'Updating…', 'Updating…',
+			'Loading…', 'Loading…', 'Updating…', 'Updating…', 'Updating…']) # Delete said Loading…
+		self.assertEqual([buttons.refusal(f'k|c|0|x|0|3|{act}|a1b2') for act in ('m0', 'f0')], [None, buttons.TOO_MANY])
 
 	def test_a_press_is_told_what_is_coming_from_its_data_alone(self):
 		"""The toast a press gets as it arrives: the period a period button loads, 'Updating…' for the .jobs menu's, and
 		none for other data (the older lists' job buttons among them)."""
 		self.assertEqual([buttons.toast(button.data) for button in buttons.keyboard('l', ['5', '0'])[0]],
 			['Loading 1D…', 'Loading 7D…', 'Loading 1M…', 'Loading 1Y…', 'Loading Max…'])
-		self.assertEqual(buttons.toast('m|on|0|1|abcd'), 'Updating…')
+		self.assertEqual(buttons.toast('m|edit|0|1|abcd'), 'Updating…')
 		for data in ('c|f|d|', 'c|zz|m|T1', '', 'x', 'j|8|abcd', 'e|99|0000'):
 			with self.subTest(data=data):
 				self.assertIsNone(buttons.toast(data))
@@ -334,6 +336,36 @@ class StateFiles(FinbotCase):
 		with mock.patch.object(Path, 'read_text', vanish):
 			self.assertIsNone(cache.read('gone.json', 60))
 
+	def test_a_cache_file_that_does_not_parse_is_a_miss(self):
+		"""An empty or cut-short cache file is a miss, logged, and the next fetch replaces it; load() finds none."""
+		for broken in ('', '{"a": '):
+			with self.subTest(broken=broken):
+				Path(cache.path('bad.json')).write_text(broken)
+				with contextlib.redirect_stderr(io.StringIO()) as err:
+					self.assertIsNone(cache.read('bad.json', 60))
+					self.assertIsNone(cache.load('bad.json'))
+					self.assertEqual(cache.cached('bad.json', 60, lambda: {'a': 1}), {'a': 1})
+				self.assertIn('does not parse', err.getvalue())
+				self.assertEqual(cache.read('bad.json', 60), {'a': 1})
+
+	def test_callers_that_miss_the_same_file_at_once_fetch_it_once(self):
+		"""Callers missing the same cache file at once (every chat's job at the same minute) wait for one fetch and
+		read what it wrote."""
+		fetches = []
+		def fetch():
+			"""A slow fetch, so that the other callers arrive meanwhile."""
+			fetches.append(1)
+			time.sleep(0.05)
+			return {'a': 1}
+		answers = []
+		threads = [threading.Thread(target=lambda: answers.append(cache.cached('shared.json', 60, fetch)))
+			for _ in range(4)]
+		for thread in threads:
+			thread.start()
+		for thread in threads:
+			thread.join()
+		self.assertEqual((len(fetches), answers), (1, [{'a': 1}] * 4))
+
 	def test_binary_cache_roundtrip(self):
 		"""A drawn chart reads back from the cache as written."""
 		self.assertFalse(cache.read_bytes('absent.png'))
@@ -471,6 +503,16 @@ class Schedules(unittest.TestCase):
 				({'days': 'weekdays', 'at': '13:00', 'zone': syd}, 'UTC', 'weekdays at 1:00pm Sydney (02:00 UTC)')):
 			with self.subTest(words=words):
 				self.assertEqual(when.Schedule.from_json(stored).describe(local, self.OCTOBER), words)
+
+	def test_a_zone_with_another_clock_is_named_in_every_season(self):
+		"""A Brisbane job seen from Melbourne names Brisbane in winter too, when both clocks read the same: it read as a
+		Melbourne job half the year (when.same_clock); Sydney's, which keeps Melbourne's clock, reads plain."""
+		brisbane = when.Schedule.from_json({'days': 'weekdays', 'at': '09:00', 'zone': 'Australia/Brisbane'})
+		july = datetime.datetime(2026, 7, 15, tzinfo=when.UTC)
+		self.assertEqual([brisbane.describe(self.MEL, now) for now in (july, self.OCTOBER)],
+			['weekdays at 9:00am Brisbane', 'weekdays at 9:00am Brisbane (10:00am local)'])
+		sydney = when.Schedule.from_json({'days': 'weekdays', 'at': '09:00', 'zone': self.SYD})
+		self.assertEqual([sydney.describe(self.MEL, now) for now in (july, self.OCTOBER)], ['weekdays at 9:00am'] * 2)
 
 	def test_the_next_run_of_each_kind(self):
 		"""next_after gives the first run after a moment, never at it: a week on, the next month with a 31st, 29

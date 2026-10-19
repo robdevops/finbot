@@ -8,6 +8,11 @@ from tests.common import *
 from lib.reports import pick
 
 
+def drawn(button):
+	"""A Telegram button as these tests write it: its label, with '● ' before it for the one shown now (drawn blue)."""
+	return ('● ' if button.get('style') == 'primary' else '') + button['text']
+
+
 class Commands(FinbotCase):
 	def test_text_commands(self):
 		"""Every text command answers."""
@@ -41,7 +46,8 @@ class Commands(FinbotCase):
 
 	def test_earnings_is_one_list_of_both_events_by_date(self):
 		""".earnings (also .earningsdividend, and the keyboard's old .earnings & dividend) posts one message: earnings
-		and ex-dividends under shared date headings, each line named for its event; .dividend is the ex-dividends."""
+		and ex-dividends under shared date headings, the ex-dividends saying so (the earnings, most lines, go bare);
+		.dividend is the ex-dividends."""
 		self.settings(graph=False)
 		both = self.command('.earnings')
 		self.assertEqual(len(both), 1)
@@ -50,8 +56,9 @@ class Commands(FinbotCase):
 		self.assertIn('Upcoming earnings and ex-dividends', text)
 		date = f"{datetime.date.fromtimestamp(NOW + 86400 * 3):%b %d}" # the fixtures' date for both events
 		self.assertEqual(text.count(date), 1) # a date heading shared by both kinds
-		self.assertIn('T1</a>) - earnings', text)
+		self.assertTrue(any(line.endswith('T1</a>)') for line in both[0][1])) # its earnings date, bare
 		self.assertIn('T1</a>) - ex-dividend', text)
+		self.assertNotIn(' - earnings', text)
 		for typed in ('.earningsdividend', '.earnings & dividend'):
 			self.assertEqual(text, str(self.command(typed)))
 		self.assertEqual(str(self.command('.earnings & dividend T1')), str(self.command('.earnings T1')))
@@ -110,7 +117,7 @@ class Commands(FinbotCase):
 	def test_the_keyboard_is_alphabetical_and_every_button_is_its_command(self):
 		"""The command keyboard is alphabetical, .schedule (the jobs) in place of .beta, and each button runs the
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
-		buttons = [button['text'] for row in worker.command_keyboard()['keyboard'] for button in row]
+		buttons = [button['text'] for row in telegram_common.keyboard(worker.KEYBOARD)['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
 		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.movers', '.pe', '.peg',
 			'.performance', '.price', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])
@@ -167,7 +174,7 @@ class ReportFunctions(FinbotCase):
 		"""group_of: a holding's sector, industry, its market's country (its letters), currency or market; a
 		holding without one is Unclassified; .treemap takes each as a word, in the plural too; the caption's country
 		lines have the flag the chart's font cannot draw."""
-		self.assertEqual((holdings.flag('au'), holdings.flag('Other'), holdings.flag('')), ('🇦🇺 ', '', ''))
+		self.assertEqual((markets.flag('au'), markets.flag('Other'), markets.flag('')), ('🇦🇺', '', ''))
 		holding = {'market_code': 'ASX', 'currency_code': 'AUD', 'sector_classification_name': 'Energy',
 			'industry_classification_name': 'Oil'}
 		self.assertEqual([holdings.group_of(holding, by) for by in holdings.GROUPS.values()],
@@ -178,9 +185,8 @@ class ReportFunctions(FinbotCase):
 
 	def test_a_portfolio_command_without_a_portfolio_answers_for_the_first(self):
 		""".holdings and .treemap without a portfolio answer for the first one, typed or run by a job (as .jobs
-		Add adds them), with buttons for the portfolios there are; where there are no buttons, they name them."""
-		job, unbuttoned = delivery.chat('telegram:55', scheduled=True), delivery.chat('telegram:55', scheduled=True)
-		unbuttoned.takes_buttons = False
+		Add adds them), with buttons for the portfolios there are."""
+		job = delivery.chat('telegram:55', scheduled=True)
 		for text in ('.holdings', '.treemap'):
 			with self.subTest(text=text):
 				self.sent.clear()
@@ -189,11 +195,16 @@ class ReportFunctions(FinbotCase):
 				self.sent.clear()
 				worker.job_commands()[text[1:]].run(job, words=[])
 				self.assertEqual(self.sent, typed)
-				self.sent.clear()
-				worker.job_commands()[text[1:]].run(unbuttoned, words=[])
-				by = '' if text == '.holdings' else ' [sector|industry|country|currency|market]'
-				usage = f"Usage: {worker.slashed(text)} [PORTFOLIO]" + by
-				self.assertEqual(self.sent, [('text', [usage, 'Portfolios: Rob'])])
+
+	def test_holdings_of_a_portfolio_that_holds_nothing_say_so(self):
+		""".holdings NAME for a portfolio that holds nothing says so, as the picker does; a job's run of it on schedule
+		posts nothing."""
+		empty = types.SimpleNamespace(name='Empty', holdings=lambda: {})
+		self.patch(sharesight, 'portfolios', lambda name=None, seconds=None: [empty])
+		self.assertEqual(self.command('.holdings Empty'), [('text', ['Empty holds nothing'])])
+		self.sent.clear()
+		worker.job_commands()['holdings'].run(delivery.chat('telegram:55', scheduled=True), words=['Empty'])
+		self.assertEqual(self.sent, [])
 
 	def test_prepare_marketcap(self):
 		"""The market cap list is built."""
@@ -222,7 +233,10 @@ class ReportFunctions(FinbotCase):
 			return [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], [label for label, _ in chart.rows]
 		self.assertEqual(order('buy'), (['T2', 'T3', 'T1'], ['T2', 'T3', 'T1']))
 		self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
-		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy'])[0][0])
+		payload, chart = rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy'])
+		self.assertIn('(7+ analysts)', payload[0]) # the text's heading has the count, and the chart's subtitle
+		self.assertEqual((chart.title, chart.subtitle.partition(':')[0]),
+			('Top 15 analyst buy ratings for tracked stocks', 'Mean rating of 7+ analysts'))
 		self.patch(watchlist, 'with_holdings', lambda chat: ['T7', 'T8'])
 		with self.assertRaises(answer.Nothing) as none:
 			rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy'])
@@ -245,11 +259,12 @@ class ReportFunctions(FinbotCase):
 		for count, bottom, bars in ((12, 2, 13), (8, 0, 8)):
 			with self.subTest(count=count):
 				found = movers.moves(TICKERS[:count], 'period', 0, 90, interactive=True)
-				payload, chart = movers.report(TELEGRAM, found, 'period', 0, 90, top=10, asked=True)
+				payload, chart = movers.report(TELEGRAM, found, 'period', 0, 90, top=10)
 				shown = payload[payload.index('<b>Bottom 10</b>') + 1:] if bottom else []
 				self.assertEqual((len(shown), len(chart.rows)), (bottom, bars))
 				self.assertEqual(len(payload), 1 + min(count, 10) + (bottom and 2 + bottom))
-				self.assertEqual(chart.subtitle, '% change over the past 3 months') # it said "in 3 months"
+				self.assertEqual(chart.subtitle, # it said "in 3 months"
+					f'% change over the past 3 months, {formats.date_range_english(90, found.as_of)}')
 
 	def test_the_small_caps_betas_are_fetched_together(self):
 		"""A scheduled price report asks for the betas of the small caps that moved (US$150M to US$1B) together."""
@@ -264,25 +279,33 @@ class ReportFunctions(FinbotCase):
 		self.assertEqual(len(calls), 1)
 		self.assertTrue(calls[0])
 
-	def test_forward_pe_lists_need_as_many_analysts_as_buy(self):
-		"""A forward P/E is analysts' estimate: from few, it says little, as a perfect 1.0 buy from two brokers does."""
+	def test_forward_pe_and_peg_lists_need_as_many_analysts_as_buy(self):
+		"""A forward P/E and a PEG are analysts' estimates: from few, they say little, as a perfect 1.0 buy from two
+		brokers does."""
 		analysts = {'T1': 7, 'T2': 6, 'T3': 12, 'T4': 2}
 		self.patch(watchlist, 'with_holdings', lambda chat: list(analysts))
 		self.patch(yahoo, 'fetch',
 			lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': -5 if t == 'T3' else 20} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
-		def listed(mode='top'):
-			"""(heading, the tickers listed, the chart) of a forward P/E list."""
-			payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', 'forward pe', mode)
+		def listed(mode='top', kind='forward pe'):
+			"""(heading, the tickers listed, the chart) of a forward P/E list, or a PEG one."""
+			payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', kind, mode)
 			return payload[0], [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], chart
 		heading, names, chart = listed()
 		# T2 and T4: too few analysts; T3: negative
 		self.assertEqual((names, [label for label, _ in chart.rows]), (['T1'], ['T1']))
 		self.assertIn('forward pe ratio (7+ analysts)', heading)
+		today = formats.date_short(formats.today(), True) # the chart's subtitle has the count, its title not
+		self.assertEqual((chart.title, chart.subtitle), ('Top 15 tracked stocks by forward pe ratio',
+			f'7+ analysts, {today}'))
 		self.assertEqual(listed('negative')[1], ['T3'])
+		heading, names, chart = listed(kind='peg') # every PEG is 1.2: T2 and T4 have too few analysts
+		self.assertEqual((names, chart.subtitle), (['T1', 'T3'], f'7+ analysts, {today}'))
+		self.assertIn('peg ratio (7+ analysts)', heading)
 		self.assertIn('Co T2', rankings.ratio_line(TELEGRAM, 'T2', 'forward pe')) # one ticker asked for: shown
-		self.settings(min_analysts=13) # the one setting moves .buy and .forward pe together
+		self.settings(min_analysts=13) # the one setting moves .buy, .sell, .forward pe and .peg together
 		for none, said in ((listed, 'No tracked stocks with 13+ analysts have a forward pe ratio'),
+				(lambda: listed(kind='peg'), 'No tracked stocks with 13+ analysts have a peg ratio'),
 				(lambda: rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy']),
 				'No tracked stocks rated buy by 13+ analysts')):
 			with self.assertRaises(answer.Nothing) as nothing:
@@ -320,9 +343,10 @@ class ReportFunctions(FinbotCase):
 			with self.subTest(kind=kind, mode=mode):
 				payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', kind, mode, length=5)
 				self.assertIn(heading, payload[0])
+				self.assertTrue(chart.subtitle.startswith('7+ analysts, '), chart.subtitle)
 		with self.assertRaises(answer.Nothing) as none:
 			rankings.ratio_list(TELEGRAM, 'telegram:55', 'peg', 'negative', length=5)
-		self.assertEqual(none.exception.lines, ['negative peg: no data found'])
+		self.assertEqual(none.exception.lines, ['No tracked stocks with 7+ analysts have a negative peg ratio'])
 
 	def test_one_stocks_ratio_shows_what_yahoo_has(self):
 		""".pe of a loss-maker shows its forward P/E (it used to say nothing), .peg labels its figure, and a stock
@@ -436,13 +460,13 @@ class ReportFunctions(FinbotCase):
 	def test_one_stock_is_drawn_as_the_price_history_was(self):
 		""".compare of one stock is its price line, as .history's chart was: titled with its name, symbol and span,
 		its price and change beneath, red or green with the change; of two or more, the rebased lines, 'T1 vs T2'."""
-		closes = tuple((datetime.date(2026, 1, day), 100.0 - day) for day in range(1, 31))
+		closes = tuple((str(datetime.date(2026, 1, day)), 100.0 - day) for day in range(1, 31)) # as Line has them
 		self.patch(yahoo, 'price_history', lambda t, days=None, quote=None: ({days: -12.5},
 			yahoo.Line('Co ' + t, 'NasdaqGS', 'USD', 70.0, closes)))
 		_, one = charts.build('c', ['T1'], TELEGRAM, 'telegram:55', period='m')
 		_, two = charts.build('c', ['T1', 'T2'], TELEGRAM, 'telegram:55', period='m')
 		self.assertEqual((one.kind, one.title, one.subtitle, one.change), ('line', 'Co T1 (T1) 30 days',
-			'70.00 USD   ▼ 12.5%', -12.5))
+			'70.00 USD   ▼ 12.5%   1 Jan - 30 Jan 2026', -12.5))
 		self.assertEqual((two.kind, two.title), ('compare', 'T1 vs T2'))
 
 
@@ -489,20 +513,25 @@ class ScheduledReports(FinbotCase):
 		were given for a command."""
 		pins = []
 		self.patch(telegram_common.TelegramBot, 'pin', lambda chat, answers: pins.append(chat.where))
-		job_chat = delivery.chat('telegram:5', scheduled=True)
 		for module, kwargs in ((movers, {'mode': 'premarket', 'threshold': 1000}), (shorts, {'threshold': 1000})):
 			with self.subTest(report=module.__name__):
 				self.sent.clear()
-				module.run(job_chat, **kwargs)
+				self.run_job(module, 'telegram:5', **kwargs)
 				self.assertEqual(self.sent, [])
-				module.run(telegram_common.TelegramBot('5'), **kwargs) # a command's reply says that nothing passed
-				self.assertTrue(self.sent)
-		earnings.run(job_chat)
+				with self.assertRaises(answer.Nothing): # which a command's reply says (worker.answered)
+					module.run(telegram_common.TelegramBot('5'), **kwargs)
+		self.run_job(earnings, 'telegram:5')
 		self.assertEqual(pins, ['5'])
 
-	def test_a_report_run_now_says_when_it_has_nothing_to_show(self):
-		"""Run now asks for its run (delivery.asked): a report with nothing to show says so, where the same run on
-		schedule posts nothing."""
+	def test_a_jobs_answer_is_posted_as_its_reply_not_as_an_error(self):
+		"""A job's report that comes to an answer (a portfolio that is none) posts it as a command's reply, on schedule
+		too: it was a ⚠️ error line."""
+		self.run_job(performance, portfolio_select='Nope')
+		self.assertEqual((self.sent[0][1][0], self.errors), ('Nope portfolio not found. I only know about:', []))
+
+	def test_a_jobs_run_posts_nothing_where_there_is_nothing_to_show(self):
+		"""A report a job runs with nothing to show posts nothing, on schedule or by Run now (which said so); run for a
+		command, it raises answer.Nothing, whose line the reply is (trades' says so itself, with its buttons)."""
 		from lib.reports import podcasts
 		self.patch(trades, 'gather', lambda days, portfolio, known: [])
 		self.patch(rating, 'changed', lambda market_data, seen, old: [])
@@ -511,18 +540,22 @@ class ScheduledReports(FinbotCase):
 		self.patch(podcasts, 'fetch_new_episodes', lambda feed_url, seen: [])
 		past = formats.days_english(config.settings.past_days, 'in the past ')
 		ahead = formats.days_english(config.settings.future_days, 'for the next ')
-		runs = ((trades, {}, f'No new trades {past}.'), (rating, {}, 'No rating changes found'),
+		runs = ((trades, {}, None), (rating, {}, 'No rating changes found'),
 			(milestone, {}, 'No new record highs or lows'), (earnings, {}, f'No events found {ahead}'),
 			(podcasts, {'feed_url': 'https://example.com/feed'}, '📣 No new episodes'),
 			(shorts, {'threshold': 1000}, '🩳 No stocks shorted over 1000%. Try specifying a number.'),
 			(movers, {'mode': 'premarket', 'threshold': 1000}, 'No pre-market price movements meet threshold 1000%'),
 			(movers, {'mode': 'interday', 'threshold': 1000}, 'No price movements meet threshold 1000%'))
 		for module, kwargs, said in runs:
-			for asked, posted in ((False, []), (True, [('text', [said])])):
-				with self.subTest(report=module.__name__, asked=asked):
-					self.sent.clear()
-					module.run(delivery.chat('telegram:5', scheduled=True, asked=asked), **kwargs)
-					self.assertEqual(self.sent, posted)
+			with self.subTest(report=module.__name__, said=said):
+				self.sent.clear()
+				for now in (False, True):
+					self.run_job(module, 'telegram:5', now, **kwargs)
+				self.assertEqual(self.sent, [])
+				if said:
+					with self.assertRaises(answer.Nothing) as caught:
+						module.run(telegram_common.TelegramBot('5'), **kwargs)
+					self.assertEqual(caught.exception.lines, [said])
 
 	def test_earnings_skip_an_adr_whose_primary_listing_yahoo_does_not_know(self):
 		"""T1 has no earnings date, even in its details, so its primary listing is looked up: Yahoo not knowing it
@@ -575,10 +608,10 @@ class ScheduledReports(FinbotCase):
 		fetched = []
 		self.patch(yahoo, 'fetch',
 			lambda tickers: fetched.append(set(tickers)) or {t: market_entry(t) for t in tickers})
-		trades.run(scheduled())
+		self.run_job(trades)
 		self.assertEqual(fetched, [{'T1'}])
 		fetched.clear()
-		trades.run(scheduled()) # the trade is known now: nothing to report and nothing to fetch
+		self.run_job(trades) # the trade is known now: nothing to report and nothing to fetch
 		self.assertEqual(fetched, [])
 
 	def test_a_scheduled_run_keeps_the_trades_another_run_recorded_meanwhile(self):
@@ -596,23 +629,23 @@ class ScheduledReports(FinbotCase):
 		told = []
 		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None:
 			told.append((dest.key, ' '.join(lines))) or [])
-		chats = [delivery.chat(key, scheduled=True) for key in ('telegram:5', 'slack:C9')]
+		chats = ('telegram:5', 'slack:C9')
 		self.env(slackBotToken='xoxb-test')
 		for chat in chats * 2:
-			trades.run(chat)
+			self.run_job(trades, chat)
 		self.assertEqual([key for key, text in told if 'T1' in text], ['telegram:5', 'slack:C9'])
 		for chat in chats:
-			rating.run(chat) # the first sighting, recorded
+			self.run_job(rating, chat) # the first sighting, recorded
 		told.clear()
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | ({'recommend': 'sell',
 			'recommend_index': 4.5} if t == 'T1' else {})})
 		for chat in chats * 2:
-			rating.run(chat)
+			self.run_job(rating, chat)
 		self.assertEqual([key for key, text in told if 'Co T1' in text], ['telegram:5', 'slack:C9'])
 
 	def test_milestone(self):
 		"""The milestone report posts."""
-		milestone.run(scheduled())
+		self.run_job(milestone)
 		self.assertTrue(self.sent)
 
 	def test_milestone_records_a_ticker_only_with_its_new_values(self):
@@ -620,11 +653,11 @@ class ScheduledReports(FinbotCase):
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0)) # beyond the 52-week range (120/80): nothing new
 		self.patch(yahoo, 'fetch',
 			lambda ts: {t: {k: v for k, v in market_entry(t).items() if not k.startswith('fiftyTwoWeek')} for t in ts})
-		milestone.run(scheduled())
+		self.run_job(milestone)
 		self.assertFalse(state.load_for('telegram:1', milestone.STATE_FILE, {}))
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.sent.clear()
-		milestone.run(scheduled())
+		self.run_job(milestone)
 		self.assertNotIn('Record high', str(self.sent))
 		self.assertEqual(state.load_for('telegram:1', milestone.STATE_FILE, {})['T1'],
 			{'all_time_high': 150.0, 'all_time_low': 50.0})
@@ -634,7 +667,7 @@ class ScheduledReports(FinbotCase):
 		above its 10-year high but below its all-time one posted a false record."""
 		state.save(milestone.STATE_FILE, {'chats': {'telegram:1': {'T1': {'record_high': 110.0, 'record_low': 90.0}}}})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
-		milestone.run(scheduled()) # the 52-week range (120/80) was past the old record, but not the whole history's
+		self.run_job(milestone) # the 52-week range (120/80) was past the old record, but not the whole history's
 		self.assertNotIn('Co T1 ', str(self.sent))
 		self.assertEqual(state.load_for('telegram:1', milestone.STATE_FILE, {})['T1'],
 			{'all_time_high': 150.0, 'all_time_low': 50.0})
@@ -643,12 +676,12 @@ class ScheduledReports(FinbotCase):
 		"""A new 52-week high below the all-time high is no record. The record used to become the 52-week high after the
 		first run, so a stock far below its peak posted a record high each time it set a new 52-week one."""
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
-		milestone.run(scheduled()) # first sighting: the 52-week range (120/80) is inside the history (150/50)
+		self.run_job(milestone) # first sighting: the 52-week range (120/80) is inside the history (150/50)
 		for high, expected in ((130.0, False), (160.0, True), (155.0, False)):
 			with self.subTest(high=high):
 				self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'fiftyTwoWeekHigh': high} for t in ts})
 				self.sent.clear()
-				milestone.run(scheduled())
+				self.run_job(milestone)
 				self.assertEqual('Record high' in str(self.sent), expected)
 
 	def test_a_52_week_record_kept_before_is_replaced_by_the_history(self):
@@ -656,30 +689,25 @@ class ScheduledReports(FinbotCase):
 		state.save(milestone.STATE_FILE, {'chats': {'telegram:1': {f'T{i}': {'high': 110.0, 'low': 90.0}
 			for i in range(25)}}})
 		self.patch(yahoo, 'historic_high', lambda t: (150.0, 50.0))
-		milestone.run(scheduled()) # 120 beats the old 52-week record of 110, but not the history's 150
+		self.run_job(milestone) # 120 beats the old 52-week record of 110, but not the history's 150
 		self.assertNotIn('Record high', str(self.sent))
 
 	def test_rating(self):
-		""".rating run from a chat posts."""
-		rating.run(telegram_common.TelegramBot('5'))
-		self.assertTrue(self.sent)
+		"""The rating report run now posts nothing where no rating changed (a job's run no longer says so)."""
+		self.run_job(rating, now=True)
+		self.assertEqual(self.sent, [])
 
 	def test_rating_keeps_the_last_rating_of_a_ticker_missing_from_a_run(self):
 		"""A ticker missing from one run keeps its last rating, so its change is reported when it comes back; it used to
 		be dropped from the record."""
-		rating.run(scheduled()) # records every ticker's rating
+		self.run_job(rating) # records every ticker's rating
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {} if t == 'T1' else {t: market_entry(t)})
-		rating.run(scheduled()) # no T1 this time: its rating used to be dropped from the record
+		self.run_job(rating) # no T1 this time: its rating used to be dropped from the record
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | ({'recommend': 'sell',
 			'recommend_index': 4.5} if t == 'T1' else {})})
 		self.sent.clear()
-		rating.run(scheduled())
+		self.run_job(rating)
 		self.assertIn('Co T1 ', str(self.sent)) # so its change from buy to sell went unreported
-
-	def test_an_interactive_rating_records_nothing(self):
-		"""A rating report asked for in a chat leaves the record for the scheduled runs alone."""
-		rating.run(telegram_common.TelegramBot('5'))
-		self.assertIsNone(state.load(rating.STATE_FILE))
 
 	def test_scheduled_reports_reach_each_jobs_chat_with_its_own_token(self):
 		"""Scheduled reports reach a Telegram and a Slack job's chat, each with its own bot's credentials: Slack's
@@ -707,11 +735,6 @@ class ScheduledReports(FinbotCase):
 				self.assertTrue(any(host == 'api.telegram.org' and chat == '1' for host, _, chat in posts))
 				self.assertFalse(any(host == 'slack.com' and chat == '1' for host, _, chat in posts))
 
-	def test_nowhere_to_post_is_an_error(self):
-		"""A report run for no chat (there are no home chats) is an error that says so."""
-		with self.assertRaisesRegex(RuntimeError, 'nowhere to post'):
-			movers.run()
-
 
 class PeriodButtons(FinbotCase):
 	"""Default views line up with the buttons: the highlighted button is the period actually shown."""
@@ -720,7 +743,7 @@ class PeriodButtons(FinbotCase):
 		"""The labels of the period buttons a command's chart came with."""
 		self.command(command)
 		self.assertTrue(self.markups and self.markups[0], f'{command} sent no buttons')
-		return [b['text'] for b in self.markups[0]['inline_keyboard'][0]]
+		return [drawn(b) for b in self.markups[0]['inline_keyboard'][0]]
 
 	def test_performance_defaults_to_one_month(self):
 		""".performance shows a month, marked on its button, and says month, not 4 weeks."""
@@ -749,13 +772,13 @@ class PeriodButtons(FinbotCase):
 			shown.clear()
 			self.command(typed)
 			row = shown[0]['inline_keyboard'][0]
-			return [b['text'] for b in row], row[0]['callback_data']
+			return [drawn(b) for b in row], row[0]['callback_data']
 		self.assertEqual(labels('.trades'), (['● 1D', '7D', '1M'], 'c|r|d|'))
 		self.assertEqual(labels('.trades 7d')[0], ['1D', '● 7D', '1M'])
 		self.assertEqual(labels('.trades 7d Rob'), (['1D', '● 7D', '1M'], 'c|r|d|Rob'))
 		edits = []
 		self.patch(telegram_common.TelegramBot, 'edit_text', lambda dest, msg, text, buttons=None: edits.append(
-			(text, [b['text'] for b in telegram_common.TelegramBot.markup(buttons)['inline_keyboard'][0]])))
+			(text, [drawn(b) for b in telegram_common.TelegramBot.markup(buttons)['inline_keyboard'][0]])))
 		self.press_button('c|r|m|Rob')
 		self.assertEqual((len(edits), edits[0][1], self.errors), (1, ['1D', '7D', '● 1M'], []))
 		shown.clear()
@@ -814,7 +837,7 @@ class PeriodButtons(FinbotCase):
 		self.assertEqual(toasts, ['Loading 1D…'])
 		self.assertEqual(self.errors, [])
 		self.assertEqual(len(edits), 1)
-		self.assertEqual([b['text'] for b in edits[0][1]['inline_keyboard'][0]][0], '● 1D')
+		self.assertEqual([drawn(b) for b in edits[0][1]['inline_keyboard'][0]][0], '● 1D')
 
 	def test_a_period_with_too_few_prices_is_said_in_the_chat(self):
 		"""A period button whose span has too few prices for a line says so in the chat and leaves the chart as it is
@@ -866,8 +889,41 @@ class Podcasts(FinbotCase):
 						 '📣 Show: <a href="https://x/1.mp3">ep 1</a> 00:10',
 						 '📣 Show: <a href="https://x/2.mp3">ep 2</a> 00:10'])
 		self.sent.clear()
-		podcasts.run(scheduled(), feed_url='https://example.com/feed')
+		self.run_job(podcasts, feed_url='https://example.com/feed')
 		self.assertEqual(self.sent, []) # all seen now
+
+
+class ShortInterest(FinbotCase):
+	"""Short Man's CSV of ASX short interest (lib/shortman.py), as served."""
+	CSV = ('Title,Code,Positions,On issue,Percent\r\nCo T1,T1,100,1000,10.5\r\nCo T2,T2,1,10,abc\r\nshort\r\n'
+		'Co T3,T3,5,50,2.25\r\n')
+
+	def setUp(self):
+		"""The real reader."""
+		super().setUp()
+		self.patch(shortman, 'fetch', REAL_SHORTMAN)
+
+	def test_each_stocks_figure_is_added_and_a_row_that_is_none_skipped(self):
+		"""Each ASX stock asked about gets its percent shorted; a row that is not a stock's is left out with a warning
+		(one failed the report), and the CSV is cached as sent, so that the next report asks for none."""
+		calls = []
+		self.patch(net, 'get', lambda url, **kwargs: calls.append(url) or Resp(text=self.CSV, status=200))
+		with contextlib.redirect_stderr(io.StringIO()) as err:
+			found = shortman.fetch({'T1.AX': {}, 'T2.AX': {}, 'T3.AX': {}, 'T4.AX': {}})
+		self.assertEqual(found, {'T1.AX': {'short_percent': 10.5}, 'T2.AX': {}, 'T3.AX': {'short_percent': 2.25},
+			'T4.AX': {}})
+		self.assertEqual(err.getvalue().count("a row that is not a stock's"), 2)
+		shortman.fetch({'T1.AX': {}})
+		self.assertEqual(len(calls), 1)
+
+	def test_short_man_out_of_reach_leaves_the_figures_as_they_were(self):
+		"""Short Man unreachable, or answering with an error, leaves the figures as they were, with a warning."""
+		for failure in (requests.ConnectionError('down'), Resp(status=503)):
+			with self.subTest(failure=failure):
+				self.patch(net, 'get', serve(failure))
+				with contextlib.redirect_stderr(io.StringIO()) as err:
+					self.assertEqual(shortman.fetch({'T1.AX': {}}), {'T1.AX': {}})
+				self.assertIn('Short Man', err.getvalue())
 
 
 class TreemapCommand(FinbotCase):
@@ -893,7 +949,7 @@ class TreemapCommand(FinbotCase):
 		self.assertEqual([r[0] for r in chart.rows], ['Electronic Technology', 'Health Technology', 'Unclassified'])
 		self.assertEqual(chart.rows[0][1], (('A', 500.0), ('B', 300.0)))
 		self.assertIn('Electronic Technology: 72.7%', payload)
-		self.assertEqual(chart.subtitle, '3 sectors, 4 holdings')
+		self.assertEqual(chart.subtitle, f'3 sectors, 4 holdings, {formats.date_short(formats.today(), True)}')
 		self.assertTrue(render.draw_treemap(chart).read().startswith(b'\x89PNG'))
 		self.assertEqual(self.command('.treemap Rob sector')[0][0], 'photo')
 
@@ -924,10 +980,10 @@ class TreemapCommand(FinbotCase):
 class CommandJobs(FinbotCase):
 	"""A job that runs a command of .help posts in its chat what the command posts when typed there."""
 
-	def test_a_command_job_with_nothing_to_show_says_so_only_when_asked(self):
-		"""A command with nothing to show (answer.Nothing) says so typed, and in a job run now (asked), but posts
-		nothing on schedule; .buy & sell posts the list there is, saying the other has none only where asked."""
-		def rated(service, chat, actions, length=15, asked=True):
+	def test_a_command_job_with_nothing_to_show_says_nothing(self):
+		"""A command with nothing to show (answer.Nothing) says so typed, but a job that runs it posts nothing, on
+		schedule or by Run now; .buy & sell posts the list there is, saying the other has none only typed."""
+		def rated(service, chat, actions, length=None, asked=True):
 			"""Sell ratings, and no stock rated buy."""
 			if actions == ['buy']:
 				raise answer.Nothing('No tracked stocks rated buy')
@@ -935,12 +991,11 @@ class CommandJobs(FinbotCase):
 		self.patch(rankings, 'prepare_rating_payload', rated)
 		none, sells = ('text', ['No tracked stocks rated buy']), ('text', ['Sells'])
 		both = ('text', ['Sells', 'No tracked stocks rated buy'])
-		self.assertEqual(self.command('.buy & sell'), [both])
-		for name, asked, posted in (('buy&sell', False, [sells]), ('buy&sell', True, [both]), ('buy', False, []),
-				('buy', True, [none])):
-			with self.subTest(name=name, asked=asked):
+		self.assertEqual((self.command('.buy & sell'), self.command('.buy')), ([both], [none]))
+		for name, posted in (('buy&sell', [sells]), ('buy', [])):
+			with self.subTest(name=name):
 				self.sent.clear()
-				worker.job_commands()[name].run(delivery.chat('telegram:55', scheduled=True, asked=asked), words=[])
+				worker.job_commands()[name].run(delivery.chat('telegram:55', scheduled=True), words=[])
 				self.assertEqual(self.sent, posted)
 
 	def test_a_command_job_posts_what_the_typed_command_posts(self):
@@ -967,7 +1022,7 @@ class WithoutSharesight(FinbotCase):
 	def setUp(self):
 		"""No Sharesight keys in finbot.env."""
 		super().setUp()
-		self.env(sharesight_auth={**config.env.sharesight_auth, 'client_id': None})
+		self.env(sharesight_client_id='')
 		self.patch(sharesight, '_portfolios', lambda seconds=None: self.fail('Sharesight was asked'))
 
 	def test_the_watchlist_alone_and_never_a_request(self):
@@ -1072,20 +1127,30 @@ class Pickers(FinbotCase):
 		self.command('.treemap')
 		kind, lines, rows = self.tap('Grouped by: Industry ▾')
 		self.assertEqual((kind, self.labels(rows)), ('buttons',
-			[['Country', 'Currency', '● Industry'], ['◀ Back', 'Market', 'Sector']]))
+			[['Country', 'Currency', '● Industry'], ['Back', 'Market', 'Sector']]))
 		kind, lines, rows = self.tap('Sector')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by sector</b>',
-			[['Country', 'Currency', 'Industry'], ['◀ Back', 'Market', '● Sector']])) # the menu stays
+			[['Country', 'Currency', 'Industry'], ['Back', 'Market', '● Sector']])) # the menu stays
 		self.assertEqual(self.toasts[-1], ('Updating…', False))
 		kind, lines, rows = self.tap('Currency')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by currency</b>',
-			[['Country', '● Currency', 'Industry'], ['◀ Back', 'Market', 'Sector']]))
-		kind, lines, rows = self.tap('◀ Back')
+			[['Country', '● Currency', 'Industry'], ['Back', 'Market', 'Sector']]))
+		kind, lines, rows = self.tap('Back')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by currency</b>',
 			[['● Amy', 'Zed'], ['Grouped by: Currency ▾']]))
 		kind, lines, rows = self.tap('Zed')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Zed treemap by currency</b>',
 			[['Amy', '● Zed'], ['Grouped by: Currency ▾']]))
+
+	def test_the_group_menu_has_a_button_for_each_grouping(self):
+		"""The Grouped by menu is made from GROUPS, by name in rows of three, Back first in the last row: a new grouping
+		gets its button (the five were placed by hand)."""
+		menu = lambda: [[('● ' if button.active else '') + button.label for button in row]
+			for row in pick.screen(TELEGRAM, 't', ['Amy', 'Zed'], '0', '0', 1, 0, 'g')[1]]
+		self.assertEqual(menu(), [['Country', 'Currency', '● Industry'], ['Back', 'Market', 'Sector']])
+		with mock.patch.dict(holdings.GROUPS, {'x': 'exchange'}):
+			self.assertEqual(menu(), [['Country', 'Currency', 'Exchange'], ['● Industry', 'Market', 'Sector'],
+				['Back']])
 
 	def test_a_holdings_answer_keeps_its_buttons(self):
 		""".holdings: another portfolio's list as text in place of the first's, the portfolio buttons still under it."""
@@ -1150,7 +1215,7 @@ class Pickers(FinbotCase):
 		kind, lines, rows = self.tap('T10')
 		self.assertEqual((lines[0], self.labels(rows)[0][:3]), (first, ['✅ T0', 'T1', '✅ T10']))
 		self.assertFalse(any('Co T10' in line for line in lines)) # the chart is still of the first
-		self.assertEqual(self.labels(rows)[-1], ['◀ Back', 'OK'])
+		self.assertEqual(self.labels(rows)[-1], ['Back', 'OK'])
 		kind, lines, rows = self.tap('OK')
 		self.assertTrue(any('Co T10' in line for line in lines) and any('Co T0' in line for line in lines))
 		self.assertEqual((self.toasts[-1], self.labels(rows)), (('Loading…', False),
@@ -1168,7 +1233,7 @@ class Pickers(FinbotCase):
 			[['● Amy', 'Zed'], ['Grouped by: Industry ▾']]))
 
 	def test_compare_ticks_up_to_eight_and_refuses_a_ninth(self):
-		""".compare: ticks toggle, a ninth is refused with an alert and a note."""
+		""".compare: ticks toggle, a ninth is refused with an alert alone, the message left as it is."""
 		self.command('.compare')
 		self.tap('+')
 		for ticker in ('T1', 'T10', 'T11', 'T12', 'T13', 'T14', 'T15'): # with T0, the first, ticked already
@@ -1176,33 +1241,32 @@ class Pickers(FinbotCase):
 		self.assertEqual([t for row in self.labels(rows) for t in row if t.startswith('✅')],
 			['✅ T0', '✅ T1', '✅ T10', '✅ T11', '✅ T12', '✅ T13', '✅ T14', '✅ T15'])
 		self.assertEqual(self.toasts[-1], ('Updating…', False))
-		kind, lines, rows = self.tap('T16')
-		self.assertEqual((self.toasts[-1], lines[0]), ((buttons.TOO_MANY, True), buttons.TOO_MANY))
-		self.assertNotIn('✅ T16', [t for row in self.labels(rows) for t in row])
+		edits = len(self.edits)
+		self.tap('T16')
+		self.assertEqual((self.toasts[-1], len(self.edits)), ((buttons.TOO_MANY, True), edits))
 		kind, lines, rows = self.tap('✅ T13') # unticking makes room
-		self.assertNotIn(buttons.TOO_MANY, lines)
 		self.assertEqual(len([t for row in self.labels(rows) for t in row if t.startswith('✅')]), 7)
 
 	def test_a_tick_or_a_page_changes_the_buttons_alone(self):
-		"""+, a tick and a page of tickers change only the buttons, the chart left as it is (nothing drawn or uploaded);
-		under a note (a ninth tick refused), the next press draws the message whole, which takes the note away; where
-		the network cannot change buttons alone, the message is drawn whole."""
+		"""+, a tick and a page of tickers change only the buttons, the chart left as it is (nothing drawn or uploaded),
+		and a ninth tick, refused, changes nothing; where the network cannot change buttons alone, the message is drawn
+		whole."""
 		self.many()
 		self.command('.compare')
 		first = self.showing
-		for label in ('+', 'S05', '>'):
+		for label in ('+', 'S05', '▶'):
 			kind, lines, rows = self.tap(label)
 			self.assertEqual((kind, lines), ('buttons', first), label)
 		for ticker in ('S40', 'S41', 'S42', 'S43', 'S44', 'S45'): # eight ticked, with S00 and S05
 			self.assertEqual(self.tap(ticker)[0], 'buttons')
-		kind, lines, rows = self.tap('S46') # refused, as the ninth: said in a note
-		self.assertEqual((kind, lines[0]), ('photo', buttons.TOO_MANY))
-		kind, lines, rows = self.tap('✅ S45')
-		self.assertEqual((kind, lines), ('photo', first))
-		self.assertEqual(self.tap('S46')[0], 'buttons') # room again, and no note to take away
-		self.assertEqual(self.tap('<')[0], 'buttons')
+		edits = len(self.edits)
+		self.tap('S46') # refused, as the ninth: an alert alone
+		self.assertEqual((self.toasts[-1], len(self.edits)), ((buttons.TOO_MANY, True), edits))
+		self.assertEqual(self.tap('✅ S45')[0], 'buttons')
+		self.assertEqual(self.tap('S46')[0], 'buttons') # room again
+		self.assertEqual(self.tap('◀')[0], 'buttons')
 		self.patch(telegram_common.TelegramBot, 'edit_buttons', transports.Transport.edit_buttons) # none on Slack
-		self.assertEqual(self.tap('>')[0], 'photo')
+		self.assertEqual(self.tap('▶')[0], 'photo')
 
 	def test_buttons_of_another_list_start_again(self):
 		"""A button drawn for other tickers than there are now starts the picker again, at its first answer, saying
@@ -1217,21 +1281,22 @@ class Pickers(FinbotCase):
 		self.assertTrue(any('Co A1' in line for line in lines))
 
 	def test_the_tickers_pickers_build_their_grid_and_page_buttons_in_one_place(self):
-		"""pick.ticker_buttons and pick.page_buttons make the ticker buttons and the < > of the .price picker and of the
-		watchlist's Edit: a ticked ticker unticks itself, any other ticks itself or, at the cap, is refused."""
+		"""pick.ticker_buttons and buttons.page_buttons make the ticker buttons and the ◀ ▶ of the .price picker and of
+		the watchlist's Edit: a ticked ticker unticks itself, any other ticks itself or, at the cap, is refused."""
 		made = lambda label, act, **changes: (label, act, changes)
 		found = ['A', 'B', 'C', 'D']
-		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm'),
-			[('a', 'm0', {'mask': 0b100, 'tone': ''}), ('B', 'm0', {'mask': 0b111}),
-			('c', 'm0', {'mask': 0b001, 'tone': ''})])
-		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, str.lower, 'n', ticked_tone='off'),
+		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, 'm'),
+			[('A', 'm0', {'mask': 0b100, 'tone': ''}), ('B', 'm0', {'mask': 0b111}),
+			('C', 'm0', {'mask': 0b001, 'tone': ''})])
+		self.assertEqual(pick.ticker_buttons(found, 1, 3, 0b101, made, 'n', ticked_tone='off'),
 			[('D', 'n1', {'mask': 0b1101})])
-		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, str.lower, 'm', full=True, ticked_tone='on'),
-			[('a', 'm0', {'mask': 0b100, 'tone': 'on'}), ('B', 'f0', {}),
-			('c', 'm0', {'mask': 0b001, 'tone': 'on'})])
-		self.assertEqual([pick.page_buttons(page, 3, 'm', made) for page in range(3)],
-			[[('>', 'm1', {})], [('<', 'm0', {}), ('>', 'm2', {})], [('<', 'm1', {})]])
-		self.assertEqual(pick.page_buttons(0, 1, 'm', made), [])
+		self.assertEqual(pick.ticker_buttons(found, 0, 3, 0b101, made, 'm', full=True, ticked_tone='on'),
+			[('A', 'm0', {'mask': 0b100, 'tone': 'on'}), ('B', 'f0', {}),
+			('C', 'm0', {'mask': 0b001, 'tone': 'on'})])
+		to = lambda label, page: (label, page)
+		self.assertEqual([buttons.page_buttons(page, 3, to) for page in range(3)],
+			[[('▶', 1)], [('◀', 0), ('▶', 2)], [('◀', 1)]])
+		self.assertEqual(buttons.page_buttons(0, 1, to), [])
 
 	def test_watchlist_edit_crosses_tickers_off_and_ok_deletes_them(self):
 		""".watchlist lists the watchlist with an Edit button, which offers a button for each ticker: pressing one
@@ -1245,10 +1310,10 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(rows), [['T1', 'T2', 'T3'], ['Delete', 'Cancel']])
 		self.assertFalse(any(line.startswith('<s>') for line in lines))
 		kind, lines, rows = self.tap('T2')
-		self.assertEqual(self.labels(rows), [['T1', buttons.struck('T2'), 'T3'], ['Delete', 'Cancel']])
+		self.assertEqual(self.labels(rows), [['T1', 'T2', 'T3'], ['Delete', 'Cancel']])
 		struck = [line for line in lines if line.startswith('<s>')]
 		self.assertEqual([('Co T2' in line, line.endswith('</s>')) for line in struck], [(True, True)])
-		kind, lines, rows = self.tap(buttons.struck('T2'))
+		kind, lines, rows = self.tap('T2')
 		self.assertFalse(any(line.startswith('<s>') for line in lines))
 		self.tap('T1')
 		kind, lines, rows = self.tap('Cancel')
@@ -1300,7 +1365,7 @@ class Pickers(FinbotCase):
 		self.patch(watchlist, 'tickers', lambda chat: ['MSFT', 'AAPL'])
 		self.command('.compare')
 		self.tap('+')
-		self.assertEqual([t for row in self.labels(self.edits[-1][2]) for t in row], ['✅ AAPL', 'MSFT', '◀ Back'])
+		self.assertEqual([t for row in self.labels(self.edits[-1][2]) for t in row], ['✅ AAPL', 'MSFT', 'Back'])
 		self.patch(watchlist, 'tickers', lambda chat: [])
 		self.assertEqual(self.command('.compare'),
 			[('text', ['No tickers to pick from: .watchlist add SYMBOL adds one'])])
@@ -1330,37 +1395,37 @@ class Pickers(FinbotCase):
 		self.assertEqual(self.labels(), [['● 7D', '1M', '1Y', 'Max', '+']]) # compare starts on 7D
 		kind, lines, rows = self.tap('+')
 		self.assertEqual((len(rows) - 1, [t for row in self.labels(rows)[:-1] for t in row][-1], self.labels(rows)[-1]),
-			(8, 'S31', ['◀ Back', '>']))
-		kind, lines, rows = self.tap('>')
+			(8, 'S31', ['Back', '▶']))
+		kind, lines, rows = self.tap('▶')
 		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['S32', 'S33', 'S34', 'S35'],
-			['◀ Back', '<', '>']))
+			['Back', '◀', '▶']))
 		kind, lines, rows = self.tap('S40')
-		kind, lines, rows = self.tap('>')
+		kind, lines, rows = self.tap('▶')
 		self.assertEqual((self.labels(rows)[-1], [t for row in self.labels(rows)[:-1] for t in row][-1]),
-			(['◀ Back', '<', 'OK'], 'S69'))
-		kind, lines, rows = self.tap('<')
+			(['Back', '◀', 'OK'], 'S69'))
+		kind, lines, rows = self.tap('◀')
 		self.assertIn('✅ S40', [t for row in self.labels(rows) for t in row])
-		kind, lines, rows = self.tap('◀ Back')
+		kind, lines, rows = self.tap('Back')
 		self.assertEqual(self.labels(rows), [['● 7D', '1M', '1Y', 'Max', '+'], ['OK']])
 
 	def test_a_ninth_tick_is_refused_on_a_later_page(self):
-		"""The limit of eight counts every page's ticks, and the refusal stays on the page."""
+		"""The limit of eight counts every page's ticks: a ninth on another page is refused too."""
 		self.many()
 		self.command('.compare')
 		self.tap('+')
 		for ticker in ('S01', 'S02', 'S03', 'S04', 'S05', 'S06', 'S07'): # with S00, the first, ticked already
 			self.tap(ticker)
-		self.tap('>')
-		kind, lines, rows = self.tap('S33')
-		self.assertEqual((self.toasts[-1], lines[0], self.labels(rows)[0][:2]), ((buttons.TOO_MANY, True),
-			buttons.TOO_MANY, ['S32', 'S33']))
+		self.tap('▶')
+		edits = len(self.edits)
+		self.tap('S33')
+		self.assertEqual((self.toasts[-1], len(self.edits)), ((buttons.TOO_MANY, True), edits))
 
 	def test_an_item_on_a_later_page_is_the_one_picked(self):
 		"""A ticker ticked on page two is the one OK draws, back at the top."""
 		self.many()
 		self.command('.compare')
 		self.tap('+')
-		self.tap('>')
+		self.tap('▶')
 		self.tap('S40')
 		kind, lines, rows = self.tap('OK')
 		self.assertTrue(any('Co S40' in line for line in lines))
@@ -1373,9 +1438,9 @@ class Pickers(FinbotCase):
 		self.command('.treemap')
 		rows = self.labels()
 		self.assertEqual((len(rows), rows[7], rows[8], rows[9]), (10, ['P28', 'P29', 'P30', 'P31'],
-			['Grouped by: Industry ▾'], ['>']))
-		kind, lines, rows = self.tap('>')
-		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['P32', 'P33', 'P34', 'P35'], ['<']))
+			['Grouped by: Industry ▾'], ['▶']))
+		kind, lines, rows = self.tap('▶')
+		self.assertEqual((self.labels(rows)[0], self.labels(rows)[-1]), (['P32', 'P33', 'P34', 'P35'], ['◀']))
 
 	def test_discord_pages_hold_five_rows(self):
 		"""Discord's five rows of five buttons hold 12 portfolios with Grouped by and the page buttons, or 20 tickers
@@ -1405,23 +1470,27 @@ class Pickers(FinbotCase):
 		other grouping first); compare (.history) and holdings start none, nor does a job's run, nor a chat without
 		charts."""
 		started = []
-		self.patch(worker, 'prime_in_background', lambda *args: started.append(args))
+		self.patch(charts, 'prime_in_background', lambda service, wanted:
+			started.append([label for label, _ in wanted]))
 		self.portfolios('Amy', 'Zed')
 		for text in ('.treemap sector', '.history', '.compare', '.holdings'):
 			self.command(text)
-		self.assertEqual([args[1:] for args in started], [('t', 's', ['Amy', 'Zed'], 0)])
+		every = ('sector', 'industry', 'country', 'currency', 'market')
+		treemaps = [labels for labels in started if labels[0].startswith('t ')] # not the periods of .history's answer
+		self.assertEqual(treemaps, [[f't Amy by {by}' for by in every[1:]] + [f't Zed by {by}' for by in every]])
+		count = len(started)
 		worker.job_commands()['treemap'].run(delivery.chat('telegram:55', scheduled=True), words=[])
 		self.settings(graph=False)
 		self.command('.treemap')
-		self.assertEqual(len(started), 1)
+		self.assertEqual(len(started), count)
 
 	def test_priming_draws_the_other_grouping_then_the_other_portfolios(self):
-		"""pick.prime draws a treemap's shown portfolio's other groupings, then each other portfolio in every one. An
-		empty chart is skipped, and a failure is logged and the rest still drawn."""
+		"""Priming a treemap (pick.treemaps) draws its shown portfolio's other groupings, then each other portfolio in
+		every one. An empty chart is skipped, and a failure is logged and the rest still drawn."""
 		drawn = []
 		self.patch(render, 'draw', lambda chart: drawn.append(chart.title))
 		self.portfolios('Amy', 'Bob', 'Cat', 'Zed')
-		pick.prime(TELEGRAM, 't', '0', ['Amy', 'Bob', 'Zed'], 0)
+		charts.prime(TELEGRAM, pick.treemaps(TELEGRAM, '0', ['Amy', 'Bob', 'Zed'], 0))
 		each = lambda name, *groups: [f'{name} treemap by {group}' for group in groups]
 		every = ('sector', 'industry', 'country', 'currency', 'market')
 		self.assertEqual(drawn, each('Amy', 'sector', 'country', 'currency', 'market') + each('Bob', *every) +
@@ -1435,9 +1504,9 @@ class Pickers(FinbotCase):
 			return real(name, by, service) if name != 'Zed' else (['x'], None)
 		self.patch(holdings, 'prepare_treemap', prepare)
 		with contextlib.redirect_stderr(io.StringIO()) as err:
-			pick.prime(TELEGRAM, 't', 's', ['Amy', 'Bob', 'Cat', 'Zed'], 0)
+			charts.prime(TELEGRAM, pick.treemaps(TELEGRAM, 's', ['Amy', 'Bob', 'Cat', 'Zed'], 0))
 		self.assertEqual(drawn, each('Amy', 'industry', 'country', 'currency', 'market') + each('Cat', *every))
-		self.assertIn('priming t Bob sector failed: boom', err.getvalue())
+		self.assertIn('priming t Bob by sector failed: boom', err.getvalue())
 
 	def test_compare_typed_with_tickers_has_the_tickers_button_too(self):
 		""".compare T1 T2 [period] answers with the period row and the tickers' + under its chart, those typed ticked
@@ -1455,7 +1524,8 @@ class Pickers(FinbotCase):
 		"""Once a chart with period buttons is out, its other periods are drawn in the background: .compare,
 		.performance, the movers list and a picker's answer, but not where no chart goes."""
 		started = []
-		self.patch(charts, 'prime_in_background', lambda *args: started.append(args[:1] + args[1:2] + args[4:]))
+		self.patch(charts, 'periods', lambda kind, args, service, chat, shown:
+			started.append((kind, args, shown)) or [])
 		self.command('.compare T1 T2')
 		self.command('.performance')
 		self.command('.movers')
@@ -1469,22 +1539,24 @@ class Pickers(FinbotCase):
 		self.assertEqual(started, [])
 
 	def test_priming_draws_each_other_period_and_survives_a_failure(self):
-		"""charts.prime draws the chart of each period button but the one shown, skipping one with nothing to draw,
-		and logs a failure."""
+		"""charts.prime draws the chart of each period button but the one shown (charts.periods), skipping one with
+		nothing to draw (no chart, or an Answer, which is logged only at debug), and logs a failure."""
 		drawn = []
 		self.patch(render, 'draw', lambda chart: drawn.append(chart.kind))
 		built = []
 		def build(kind, args, service, chat, period=None, days=None):
-			"""Fail for 1M, answer nothing for 1Y, a chart for the rest."""
+			"""Fail for 1M, answer nothing for 1Y, draw nothing for 1D, a chart for the rest."""
 			built.append(period)
 			if period == 'm':
 				raise RuntimeError('boom')
-			return 'caption', None if period == 'y' else render.Chart('bars', rows=(('a', 1.0),))
+			if period == 'y':
+				raise answer.Nothing('No price movements meet threshold 5%')
+			return ['caption'], None if period == 'd' else render.Chart('bars', rows=(('a', 1.0),))
 		self.patch(charts, 'build', build)
 		with contextlib.redirect_stderr(io.StringIO()) as err:
-			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
-		self.assertEqual((built, drawn), (['w', 'm', 'y'], ['bars']))
-		self.assertIn("priming c ['T1'] m failed: boom", err.getvalue())
+			charts.prime(TELEGRAM, charts.periods('l', ['5', '0'], TELEGRAM, 'telegram:55', 'x'))
+		self.assertEqual((built, drawn), (['d', 'w', 'm', 'y'], ['bars']))
+		self.assertEqual(err.getvalue().split('\n'), ["priming l ['5', '0'] m failed: boom", '']) # not the Answer
 	def preloaders(self):
 		"""Stand in for delivery.Preloader: each one made, with the images added to it and whether it finished."""
 		made = []
@@ -1514,12 +1586,12 @@ class Pickers(FinbotCase):
 		self.patch(render, 'draw', draw)
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
 			render.Chart('bars', period, rows=(('a', 1.0),))))
-		charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
+		charts.prime(TELEGRAM, charts.periods('c', ['T1'], TELEGRAM, 'telegram:55', 'x'))
 		self.assertEqual(drawn, [('w', []), ('m', ['w']), ('y', ['w', 'm'])]) # each was handed over before the next
 		self.assertEqual((made[0].service, made[0].images, made[0].finished), (TELEGRAM, ['w', 'm', 'y'], True))
 		del made[:], drawn[:]
 		self.portfolios('Amy', 'Bob')
-		pick.prime(SLACK, 't', '0', ['Amy', 'Bob'], 0)
+		charts.prime(SLACK, pick.treemaps(SLACK, '0', ['Amy', 'Bob'], 0))
 		self.assertEqual((len(drawn), len(made), made[0].service, made[0].images[:2], made[0].finished),
 			(9, 1, SLACK, ['Amy treemap by sector', 'Amy treemap by country'], True))
 
@@ -1533,25 +1605,24 @@ class Pickers(FinbotCase):
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
 			render.Chart('bars', period, rows=(('a', 1.0),))))
 		with contextlib.redirect_stderr(io.StringIO()) as log:
-			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
+			charts.prime(TELEGRAM, charts.periods('c', ['T1'], TELEGRAM, 'telegram:55', 'x'))
 		self.assertNotIn('priming', log.getvalue())
 		self.settings(log_level='DEBUG')
 		ticks = iter(x / 10 for x in range(1000))
 		with contextlib.redirect_stderr(io.StringIO()) as log:
-			charts.prime('c', ['T1'], TELEGRAM, 'telegram:55', 'x')
+			charts.prime(TELEGRAM, charts.periods('c', ['T1'], TELEGRAM, 'telegram:55', 'x'))
 		lines = [line for line in log.getvalue().split('\n') if line.startswith('priming')]
-		self.assertEqual(lines, ['priming c w: built 0.1 s, drew 0.10 s', 'priming c m: built 0.1 s, drew 0.10 s',
-			'priming c y: built 0.1 s, drew 0.10 s'])
+		self.assertEqual(lines, [f"priming c ['T1'] {period}: built 0.1 s, drew 0.10 s" for period in 'wmy'])
 
 	def test_toggle_buttons_are_green_when_on_and_red_when_off(self):
 		"""The watchlist's Edit draws a ticker plain, and red once struck (marked to delete); the .price picker's
 		tickers are green when ticked and plain when not; no other button is toned."""
 		for ticker in ('T1', 'T2', 'T3'):
 			watchlist.add('telegram:55', ticker)
-		lines, rows = worker.watchlist_screen(TELEGRAM, 'telegram:55', 0b010)
+		lines, rows = pick.watchlist_screen(TELEGRAM, 'telegram:55', 0b010)
 		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows],
-			[[('T1', ''), (buttons.struck('T2'), 'off'), ('T3', '')], [('Delete', ''), ('Cancel', '')]])
-		self.assertEqual([button.tone for row in worker.watchlist_screen(TELEGRAM, 'telegram:55', 0, editing=False)[1]
+			[[('T1', ''), ('T2', 'off'), ('T3', '')], [('Delete', ''), ('Cancel', '')]])
+		self.assertEqual([button.tone for row in pick.watchlist_screen(TELEGRAM, 'telegram:55', 0, editing=False)[1]
 			for button in row], [''])
 		lines, rows = pick.screen(TELEGRAM, 'c', ['A1', 'B1', 'C1'], '0', 'w', pick.pack([1]), 0b010, 'm')
 		self.assertEqual([[(button.label, button.tone) for button in row] for row in rows[:1]],

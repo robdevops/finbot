@@ -19,7 +19,8 @@ The bot does the same either way. What differs is how it hears from Discord:
 In both: the scheduled reports with their charts; period buttons under charts and the buttons of the `/jobs` menu,
 which redraw their message in place; linked tickers, without link previews and without pinging anyone;
 and direct messages with the bot. A command in a message shows "finbot is typing…" while it works; a slash command
-shows Discord's "finbot is thinking…" until its answer takes its place.
+shows Discord's "finbot is thinking…" until its answer takes its place. A press that is refused (a button of an admins'
+command pressed by someone else, or a ninth ticker) is told to the presser in a message only they see.
 
 `discordOutgoingWebhook` chooses the mode: set, push mode; empty, gateway API mode. Discord sends the slash commands
 and button presses to the app's _Interactions Endpoint URL_ while it is set, and over the gateway API while it is

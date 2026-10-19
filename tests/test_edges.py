@@ -36,7 +36,7 @@ class UpstreamEmpty(FinbotCase):
 		for cmd in ('.movers', '.peg', '.T1', '.compare T1 T2'):
 			with self.subTest(cmd=cmd):
 				self.sent.clear(); self.errors.clear()
-				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT, 'U'))
+				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT))
 				self.assertEqual(len(self.errors), 1, cmd) # exactly one one-line report, not a traceback to the user
 				self.assertTrue(self.errors[0].startswith('⚠️'))
 
@@ -48,7 +48,7 @@ class UpstreamEmpty(FinbotCase):
 		self.patch(sharesight, '_performance', down)
 		self.patch(sharesight, '_portfolios', down)
 		self.sent.clear(); self.errors.clear()
-		worker.process_request(inbound.Message('telegram', '55', '@u', '.performance 7d', BOT, 'U'))
+		worker.process_request(inbound.Message('telegram', '55', '@u', '.performance 7d', BOT))
 		self.assertEqual(len(self.errors), 1)
 
 	def test_the_typing_notice_stops_before_any_message_goes_out(self):
@@ -68,7 +68,7 @@ class UpstreamEmpty(FinbotCase):
 		for cmd in ('.help', '.movers', '.trades 7d', '.performance 7d'):
 			with self.subTest(cmd=cmd), contextlib.redirect_stderr(io.StringIO()):
 				typing.clear()
-				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT, 'U'))
+				worker.process_request(inbound.Message('telegram', '55', '@u', cmd, BOT))
 				self.assertEqual(typing, [False])
 
 	def test_no_holdings_and_empty_watchlist(self):
@@ -151,6 +151,31 @@ class BadArguments(FinbotCase):
 		self.sent.clear()
 		worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', 'c|c|m|T1'))
 		self.assertEqual((self.sent, self.errors), ([('text', ['no price history for T1'])], []))
+
+	def test_a_command_given_more_words_than_it_takes_gets_its_usage(self):
+		"""A command given more words than it takes, or fewer than it needs, gets its usage, not an answer for its first
+		word: .who and .stock take one word, .marketcap one at most, .beta none. .SYMBOL is its one word, whatever
+		follows it."""
+		for typed, usage in (('.who T1 T2', 'Usage: /who SYMBOL'), ('.who', 'Usage: /who SYMBOL'),
+				('.stock T1 T2', 'Usage: /stock SYMBOL'), ('.marketcap T1 T2', 'Usage: /marketcap [SYMBOL|top|bottom]'),
+				('.beta now', 'Usage: /beta')):
+			with self.subTest(typed=typed):
+				self.assertIn(usage, str(self.command(typed)))
+		self.assertEqual(self.command('.T1 is up'), self.command('.T1'))
+
+	def test_an_answer_to_any_press_is_a_plain_reply(self):
+		"""An Answer that any press comes to (the .jobs menu's, the watchlist's, a picker's or a chart's) is said in the
+		chat as it is, as a command's is: not as a ⚠️ error line."""
+		def answering(chat, press, pressed):
+			"""A press's handler that comes to an answer."""
+			raise answer.Answer('Nothing here')
+		for handler, data in (('menu_press', 'm|top|0|ab12'), ('watchlist_press', 'k|w|0|0|0|0|e0|ab12'),
+				('pick_press', 'k|c|0|w|0|0|p0|ab12'), ('chart_press', 'c|c|w|T1')):
+			with self.subTest(handler=handler):
+				self.patch(worker, handler, answering)
+				self.sent.clear()
+				worker.process_callback(inbound.Press('telegram', 'cb', '55', '9', data))
+				self.assertEqual((self.sent, self.errors), ([('text', ['Nothing here'])], []))
 
 	def test_history_is_compare(self):
 		""".history is .compare's other name: bare, the first ticker's chart and the buttons to pick others; with a
@@ -313,10 +338,11 @@ class SecretsStayOutOfLogs(FinbotCase):
 		token = 'MTAwMDAwMDAwMDAwMDAwMDAwMDA.SECRET.' + 'a' * 38 # a Discord bot token's shape
 		self.env(slackBotToken='xoxb-SECRET', telegram_api=self.SECRET_URL.split('sendMessage')[0],
 			discordBotToken=token)
-		log = self.stderr_of(lambda: telegram_common.TelegramBot('1').post_text('hi'))
-		log += self.stderr_of(lambda: slack_common.SlackBot('C1').post_text('hi'))
+		self.patch(transports.Transport, 'text', REAL_TEXT)
+		log = self.stderr_of(lambda: telegram_common.TelegramBot('1').text(['hi']))
+		log += self.stderr_of(lambda: slack_common.SlackBot('C1').text(['hi']))
 		slash = discord_common.DiscordBot('77', interaction='42/SECRET-interaction')
-		log += self.stderr_of(lambda: slash.post_text('hi'))
+		log += self.stderr_of(lambda: slash.text(['hi']))
 		self.assertIn('failed', log)
 		for secret in ('SECRET-tok_en', 'xoxb-SECRET', 'SECRET-interaction', token):
 			self.assertNotIn(secret, log)

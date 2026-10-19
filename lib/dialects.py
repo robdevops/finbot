@@ -1,6 +1,7 @@
-"""How each chat network marks text up: bold, italic, struck-through, links, user text made safe, and message sizes. A
-dialect is also the network's name (TELEGRAM == 'telegram'), so it can stand wherever the name did: reports take one as
-`service` and write `service.bold(text)`. dialects.of('slack') gives the one for a name."""
+"""How each chat network marks text up: bold, italic, struck-through, links, user text made safe, and how much a
+message holds (its text, a chart's caption, its buttons). A dialect is also the network's name (TELEGRAM ==
+'telegram'), so it can stand wherever the name did: reports take one as `service` and write `service.bold(text)`.
+dialects.of('slack') gives the one for a name."""
 import html
 import re
 
@@ -13,6 +14,12 @@ class Dialect(str):
 	styles = {} # style -> (before, after)
 	text_limit = 4096 # characters in one message
 	caption_limit = None # characters under a chart, as visible() counts them; None: no limit of its own
+	button_rows = None # rows of buttons a message holds, five buttons to a row at most; None: more than finbot draws
+
+	def room(self, per_row, kept=1, otherwise=None):
+		"""How many buttons a screen may show in rows of `per_row`, where the network holds few rows (button_rows): all
+		they hold but `kept` rows, kept for the screen's others (Back, ◀ ▶); else `otherwise`."""
+		return (self.button_rows - kept) * per_row if self.button_rows else otherwise
 
 	def bold(self, text):
 		"""text in bold."""
@@ -77,6 +84,7 @@ class Discord(Dialect):
 	__slots__ = ()
 	styles = {'bold': ('**', '**'), 'italic': ('_', '_'), 'strike': ('~~', '~~')}
 	text_limit = caption_limit = 2000 # markup included
+	button_rows = 5 # an action row each
 
 	def _link(self, url, text):
 		"""A masked link: <url> stops a preview; brackets in the text and parentheses in the url would end it early."""

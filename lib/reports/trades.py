@@ -2,8 +2,8 @@
 import dataclasses
 import datetime
 
+from lib import answer
 from lib import buttons
-from lib import reports
 from lib import log
 from lib import config
 from lib import state
@@ -31,22 +31,22 @@ class Trade:
 	holding_id: str
 
 
-def run(dest=None, *, days=None, user='', portfolio_select=None):
-	"""Post the buys and sells of the past `days`, in every portfolio or the one named: to the chat that asked (dest);
-	or, a scheduled run, to the job's chat (dest) those it has not told that chat of before; none said so only where
-	someone asked (delivery.asked). Raises
+def run(chat, *, days=None, user='', portfolio_select=None):
+	"""Post the buys and sells of the past `days`, in every portfolio or the one named, to the chat: a command's, with
+	period buttons, which show the trades of another span in place, and a line where there are none; or a job's, those
+	it has not told the chat of before, raising answer.Nothing where there are none. Raises
 	sharesight.PortfolioNotFound for a name that is none of them."""
-	chat, interactive = delivery.target(dest), delivery.interactive(dest)
+	interactive = delivery.interactive(chat)
 	if days is None:
 		days = config.settings.past_days
 	told = set() if interactive else set(state.load_for(chat.key, STATE_FILE, []))
 	new = gather(days, portfolio_select, told) # those the chat was told of before are left out
-	payload = report(chat.dialect, new, days, interactive)
-	if not payload and delivery.asked(dest): # no trades, a buy or a sell; on schedule, none it was not told of
-		when = formats.days_english(days, 'in the past ')
-		payload = [f"{user} No trades {when}." if interactive else f"No new trades {when}."]
-	markup = None # a chat that asks gets the period buttons, which show the trades of another span in place
-	if interactive and chat.takes_buttons:
+	payload, when = report(chat.dialect, new, days, interactive), formats.days_english(days, 'in the past ')
+	if not interactive and not payload:
+		raise answer.Nothing(f"No new trades {when}.")
+	markup = None
+	if interactive:
+		payload = payload or [f"{user} No trades {when}."]
 		markup = buttons.keyboard('r', [portfolio_select or ''], buttons.period_for_days(days))
 	delivery.deliver(chat, delivery.Report(payload, None, markup))
 	if new and not interactive: # recorded once the report is out
@@ -99,15 +99,10 @@ def report(service, trades, days, interactive):
 	def line(trade):
 		"""One trade: who, bought or sold (linked to Sharesight), how much, and the stock."""
 		action, emoji = ('bought', '💸') if trade.bought else ('sold', '🤑')
-		url = f"https://portfolio.sharesight.com/holdings/{trade.holding_id}/dashboard/transactions"
+		url = links.holding_url(trade.holding_id, 'transactions')
 		return ' '.join([emoji, trade.portfolio, service.link(url, action), trade.currency, f'{trade.value}',
 			links.finance_link(trade.symbol, trade.market, service), markets.flag_from_market(trade.market)])
 	dates = sorted({trade.date for trade in trades})
 	headed = len(dates) > 1 or (interactive and days > 1)
 	return formats.sections(*([service.bold(f"{date:%b %d}")] * headed + [line(trade) for trade in trades
 		if trade.date == date] for date in dates))
-
-
-ARGUMENTS = '' # what a scheduled run takes: none
-
-job = reports.no_arguments('trades')

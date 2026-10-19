@@ -5,14 +5,16 @@ import collections, dataclasses, datetime, io, json, os, shutil, sys, tempfile, 
 from pathlib import Path
 from unittest import mock
 
+import requests
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
 
 import bot
-from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, links, markets, net
-from lib import render, sharesight, shortman, state, transports, watchlist, worker, yahoo
+from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, jobs, links, markets, net
+from lib import render, sharesight, shortman, state, transports, watchlist, when, worker, yahoo
 from lib import discord_common, slack_common, telegram_common # each network's reader and bot
 from lib.reports import about, earnings, history, holdings, milestone, movers, performance, profile, rankings, rating
 from lib.reports import shorts, trades
@@ -24,6 +26,7 @@ REAL_GET_HOLDINGS = watchlist.with_holdings
 REAL_DISPATCH = bot.dispatch # FinbotCase notes the worker thread of each update, so that a test can wait for it
 REAL_DOUBLED = bot.doubled # FinbotCase takes every message, a repeat sent on purpose too; DoubledMessages puts it back
 REAL_REPEATED = worker.repeated # and every press, as RepeatedPresses does not
+REAL_SHORTMAN = shortman.fetch # ShortInterest reads Short Man's CSV as served
 
 
 def no_jobs(data):
@@ -123,18 +126,17 @@ class FinbotCase(unittest.TestCase):
 		collected in self.sent (and the buttons of each chart in self.markups, error lines in self.errors)."""
 		fake = mock.Mock(status_code=200, text='{}')
 		fake.json.return_value = {'ok': True, 'result': {'message_id': 1, 'chat': {'id': 5}}}
-		self.patch(__import__('requests').Session, 'request', mock.Mock(return_value=fake)) # no real network traffic
+		self.patch(requests.Session, 'request', mock.Mock(return_value=fake)) # no real network traffic
 		tmp = tempfile.TemporaryDirectory()
 		self.addCleanup(tmp.cleanup)
 		self.env(data_dir=tmp.name, cache_dir=tmp.name, telegramBotToken='X',
-			telegram_api='https://api.telegram.org/botX/', sharesight_auth={**config.env.sharesight_auth,
-			'client_id': 'test'}) # Sharesight set up: its answers are the fixtures below
-		self.patch(bot, '_updates_seen', collections.OrderedDict()) # each test starts with no update taken
-		self.patch(bot, '_said', {}) # nor any message
+			telegram_api='https://api.telegram.org/botX/', sharesight_client_id='test') # its answers are the fixtures
+		self.patch(bot, '_updates_seen', inbound.Recent()) # each test starts with no update taken
+		self.patch(bot, '_said', inbound.Recent()) # nor any message
 		self.patch(bot, 'doubled', lambda message: False) # a test may send the same message twice on purpose
 		self.patch(worker, 'repeated', lambda press: False) # or press the same button twice
 		self.settings(admin_only=()) # and use any command: AdminOnly closes the gate again
-		self.patch(worker, '_presses', collections.OrderedDict()) # each test starts with no press taken
+		self.patch(worker, '_presses', inbound.Recent()) # each test starts with no press taken
 		self.workers = []
 		self.patch(bot, 'dispatch', lambda event: self.workers.append(REAL_DISPATCH(event)))
 		self.sent = []
@@ -146,7 +148,6 @@ class FinbotCase(unittest.TestCase):
 			self.record_chart(dest, image, caption, markup))
 		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None: self.record_text(dest, lines))
 		self.patch(watchlist, 'with_holdings', lambda chat: TICKERS)
-		self.patch(worker, 'prime_in_background', lambda *args: None) # no thread draws charts behind a test
 		self.patch(charts, 'prime_in_background', lambda *args: None)
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t)})
@@ -205,9 +206,17 @@ class FinbotCase(unittest.TestCase):
 		self.sent.clear()
 		self.markups.clear()
 		self.errors.clear()
-		worker.process_request(inbound.Message('telegram', chat, '@u', text, BOT, 'U'))
+		worker.process_request(inbound.Message('telegram', chat, '@u', text, BOT))
 		self.assertEqual(self.errors, [], f'{text} crashed') # the worker reports crashes instead of raising
 		return list(self.sent)
+
+	def run_job(self, module, key='telegram:1', now=False, **kwargs):
+		"""Run a report as a chat's job does, on schedule (Scheduler.execute) or by Run now (now: Scheduler.run), to
+		the chat of this key, and check that it did not fail: an answer it comes to is posted, nothing to show not."""
+		name = module.__name__.rpartition('.')[2]
+		job = jobs.Job(name, (), name, kwargs, when.parse('daily', 'UTC'), key)
+		scheduler = jobs.Scheduler()
+		self.assertEqual(scheduler.run(job) if now else scheduler.execute(job), 'done')
 
 
 DOC = os.path.join(ROOT, 'doc')
@@ -220,9 +229,10 @@ def sample(*path):
 
 
 class Resp:
-	def __init__(self, payload=None, status=200, text=''):
-		"""A response with this JSON payload (None: not JSON), status and text."""
+	def __init__(self, payload=None, status=200, text='', headers=None):
+		"""A response with this JSON payload (None: not JSON), status, text (and its bytes, content) and headers."""
 		self.payload, self.status_code, self.text = payload, status, text or json.dumps(payload)
+		self.content, self.headers = self.text.encode(), headers or {}
 	def json(self):
 		"""The payload, or ValueError when it is not JSON."""
 		if self.payload is None:
@@ -263,7 +273,7 @@ class ProviderCase(FinbotCase):
 				(sharesight, '_portfolios'), (sharesight, '_trades'), (sharesight, '_performance')):
 			self.patch(module, name, REAL[(module.__name__, name)])
 		self.patch(yahoo, 'credentials', lambda renew=False: ('A=B', 'crumb'))
-		self.patch(sharesight, '_token', lambda: 'token')
+		self.patch(sharesight, '_token', lambda refused=None: 'token')
 		self.patch(sharesight.time, 'sleep', lambda s: None)
 
 	def http(self, module, *responses):

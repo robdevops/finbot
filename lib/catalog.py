@@ -2,18 +2,17 @@
 what it reports on, never when: its schedule (lib/when.py) says that. For performance and movers the period follows how
 often the item runs (period_args): quarterly, 90 days. The market reports run in their market's zone, so that they keep
 to its session through its daylight saving: pre-market at 7:15am New York, mid-session about halfway through, the close
-30 minutes after it. The messages are the reminders that reminder.json held, each at 8:30am Sydney on its date."""
+30 minutes after it. The reminders (message jobs) run at 8:30am Sydney on their dates, some only where the country_code
+setting is their country; a chat adds its own with .jobs add reminder."""
 import dataclasses
-import datetime
-import zoneinfo
 
 from lib import formats
+from lib import markets
 from lib import when
 
 SYDNEY, NEW_YORK, HONG_KONG, LONDON = 'Australia/Sydney', 'America/New_York', 'Asia/Hong_Kong', 'Europe/London'
-MORNING = '08:30' # by Sydney's clock: the weekly and longer reports, and the messages
+MORNING = '08:30' # by Sydney's clock: the weekly and longer reports, and the reminders
 TUE_SAT = ['tue', 'wed', 'thu', 'fri', 'sat'] # the mornings after a US session
-FLAGS = {'AU': '🇦🇺'} # what {flag} becomes in a message for one country
 SHARESIGHT = ('trades', 'performance', 'holdings', 'treemap', 'who') # the actions that report on Sharesight
 PERIODIC = ('performance', 'movers') # the reports whose period follows how often they run
 PERIOD_DAYS = {'daily': 1, 'weekdays': 1, 'weekly': 7, 'monthly': 30, 'quarterly': 90, 'bi-annual': 180, 'annual': 365}
@@ -63,11 +62,11 @@ def periodic(frequency, days):
 
 
 def message(key, date, lines, country=None, name=None):
-	"""A message item at 8:30am Sydney on its date ('MM-DD' each year, 'YYYY-MM-DD' once), where it is for one country
-	with that country's flag for {flag}."""
-	day = {'date': date} if len(date) == 10 else {'day': int(date[3:]), 'months': [int(date[:2])]}
+	"""A reminder (a message job) at 8:30am Sydney on its date ('MM-DD') each year; where it is for one country, with
+	that country's flag for {flag} (markets.flag); named after its first line unless it has a name."""
 	return Item(key, name or message_name(lines, country), 'message',
-		tuple(line.replace('{flag}', FLAGS.get(country, '')) for line in lines), at(day), country)
+		tuple(line.replace('{flag}', markets.flag(country or '')) for line in lines),
+		at({'day': int(date[3:]), 'months': [int(date[:2])]}), country)
 
 
 def message_name(lines, country=None, size=56):
@@ -118,19 +117,13 @@ ITEMS = (
 	*periodic('bi-annual', {'day': 2, 'months': [1, 7]}),
 	*periodic('annual', {'day': 2, 'months': [1]}),
 	message('message-eofy-world', '03-31', ['🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦']),
-	message('message-spcx-ipo', '06-12', ['SPCX IPO anniversary']),
 	message('message-eofy-checklist', '06-23', EOFY_CHECKLIST, 'AU'),
 	message('message-eofy-au', '06-30', ['🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰']),
 	message('message-intent-to-claim', '07-07', ["✍️ Submit 'Notice of Intent to Claim' for any post-tax Super"
 		" contributions. The fund must acknowledge them before you lodge your tax return{flag}"], 'AU'),
-	message('message-birthday', '08-18', ["It's my {years since 2022-08-18} birthday! 🥳"],
-		name="finbot's birthday"),
+	message('message-birthday', '08-18', ["It's my {years since 2022-08-18} birthday! 🥳"], name="finbot's birthday"),
 	message('message-tax-due-soon', '10-25', ['😓 Self-service individual tax returns are due Oct 31{flag}'], 'AU'),
-	message('message-ubank-draw-6', '2026-10-28', ['ubank draw 6/6 https://www.ubank.com.au/campaigns/doubleyourpay'
-		' → Winners'], 'AU'),
 	message('message-tax-due-today', '10-31', ['😰 Self-service individual tax returns are due today{flag}'], 'AU'),
-	message('message-spcx-mensiversary', '2026-11-12', ['SPCX 5th mensiversary. End of (statistically) most risky price'
-		' finding period after an IPO.']),
 )
 
 
@@ -141,24 +134,12 @@ def items(country, sharesight=True):
 		SHARESIGHT)]
 
 
-def same_clock(a, b):
-	"""Whether two zones (by name) keep the same clock, as Melbourne's and Sydney's do: the same offset on the 1st and
-	15th of every month for two years."""
-	if a == b:
-		return True
-	first, second = zoneinfo.ZoneInfo(a), zoneinfo.ZoneInfo(b)
-	year = datetime.date.today().year
-	moments = [datetime.datetime(year + month // 12, month % 12 + 1, day, tzinfo=when.UTC)
-		for month in range(24) for day in (1, 15)]
-	return all(moment.astimezone(first).utcoffset() == moment.astimezone(second).utcoffset() for moment in moments)
-
-
 def matching(action, args, schedule, country):
 	"""The default job that a job is, or None: the same action and arguments, on the same days at the same times, in a
 	zone that keeps the same clock as the item's (a chat in Melbourne typing a Sydney item's schedule)."""
 	for item in items(country):
 		if ((item.action, item.args) == (action, tuple(args)) and
 				dataclasses.replace(item.schedule, zone=schedule.zone) == schedule and
-				same_clock(item.schedule.zone, schedule.zone)):
+				when.same_clock(item.schedule.zone, schedule.zone)):
 			return item
 	return None

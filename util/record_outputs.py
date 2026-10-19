@@ -86,15 +86,20 @@ def record(output):
 			return getattr(getattr(common, 'inbound', None), service.upper(), None)
 
 	def pressing(service, *fields):
-		"""A step that presses a button: acknowledged first where the tree's bot.take does that (Network.acknowledge),
-		then handed to the worker as handing() does."""
+		"""A step that presses a button: acknowledged first where the tree's bot.take does that (Network.acknowledge,
+		given the press's toast where bot.take works it out), then handed to the worker as handing() does."""
 		run = handing(worker.process_callback, 'Press', service, *fields)
 		network = reader(service)
 		if not hasattr(network, 'acknowledge'):
 			return run
 		def press():
 			"""Acknowledge the press, then hand it to the worker."""
-			network.acknowledge(common.inbound.Press(service, *fields))
+			event = common.inbound.Press(service, *fields)
+			if 'text' in inspect.signature(network.acknowledge).parameters:
+				from lib import buttons
+				network.acknowledge(event, buttons.toast(event.data))
+			else:
+				network.acknowledge(event)
 			run()
 		return press
 
@@ -174,19 +179,26 @@ def record(output):
 			discord = {'discordChannelID': '78'} if 'discordChannelID' in fields else {}
 			self.env(**homes, **api, **discord)
 			def scheduled(run, kwargs):
-				"""A scheduled run to a chat of each network: one run to the home chats, or else one run per chat."""
+				"""A scheduled run to a chat of each network: one run to the home chats, or else one run per chat, where
+				nothing to show (answer.Nothing) posts nothing, as the job runner has it on schedule."""
 				if homes:
 					return lambda: run(**kwargs)
-				from lib import delivery # a tree without home chats has it: an older one may not
-				keys = ('telegram:1', 'slack:C9', 'discord:78')
-				return lambda: [run(delivery.chat(key, scheduled=True), **kwargs) for key in keys]
+				from lib import answer, delivery # a tree without home chats has them: an older one may not
+				def each(key):
+					"""One chat's run."""
+					with contextlib.suppress(getattr(answer, 'Nothing', ())):
+						run(delivery.chat(key, scheduled=True), **kwargs)
+				return lambda: [each(key) for key in ('telegram:1', 'slack:C9', 'discord:78')]
 			for line in SCHEDULED:
 				if hasattr(jobs, 'ACTIONS'): # a job is an action and its arguments, since schedules of finbot's own
 					name, *arguments = renamed(line, jobs.ACTIONS).split()
 					if name not in jobs.ACTIONS: # the reminder report, which message jobs replaced
 						continue
 					module = jobs.ACTIONS[name]
-					label, kwargs = module.job(arguments)
+					if hasattr(jobs, 'job_args'): # a report that takes no arguments may have no job()
+						label, kwargs = jobs.job_args(module, name, arguments)
+					else:
+						label, kwargs = module.job(arguments)
 				elif hasattr(jobs, 'parse_reports'):
 					label, module, kwargs = jobs.parse_reports(line)[0]
 				else: # a commit from before jobs per chat, whose reports were scripts

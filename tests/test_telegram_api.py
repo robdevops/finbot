@@ -2,11 +2,10 @@
 import contextlib, io, os, re, subprocess, unittest
 from unittest import mock
 from tests.common import *
-from lib import telegram_longpolling, telegram_webhook
 
 
 class TelegramWebhook(FinbotCase):
-	"""bot.py registers the webhook once as it starts (or deletes it, for long polling); importing does nothing."""
+	"""bot.py sets the webhook once as it starts (or deletes it, for long polling); importing does nothing."""
 
 	def setUp(self):
 		"""A Telegram bot with an outgoing webhook configured."""
@@ -15,28 +14,32 @@ class TelegramWebhook(FinbotCase):
 		self.env(telegramOutgoingWebhook='https://example.com/telegram')
 
 
-	def test_register_sets_the_webhook_again_or_deletes_it_and_names_the_bot(self):
-		"""register() deletes the webhook, keeping the updates not delivered yet, and sets it again with
-		telegramOutgoingWebhook (telegram_webhook, http mode), or leaves it unset for getUpdates (telegram_longpolling,
-		pull mode); bot_name() is the bot's @name. The log never shows the URL: its path is a secret."""
-		calls = []
+	def test_start_sets_the_webhook_again_or_deletes_it_and_names_the_bot(self):
+		"""start() deletes the webhook, keeping the updates not delivered yet, and sets it again with
+		telegramOutgoingWebhook (http mode), or leaves it unset for getUpdates (pull mode); it notes the bot's @name
+		and makes the command menu. The log never shows the URL, nor a request's query string (which a failed
+		request's error would print): its path is a secret."""
+		calls, menus = [], []
 		def post(url, **kwargs):
 			"""Record the method and what it was given, and answer like Telegram."""
-			calls.append((url.rsplit('/', 1)[1], kwargs.get('params', {}).get('url') or kwargs.get('json')))
+			self.assertNotIn('params', kwargs)
+			given = kwargs.get('json')
+			calls.append((url.rsplit('/', 1)[1], given.get('url', given) if isinstance(given, dict) else given))
 			return Resp({'ok': True, 'result': {'username': 'finbot'} if url.endswith('getMe') else True})
 		self.patch(net, 'post', post)
+		self.patch(telegram_common, 'set_commands', menus.append)
+		self.patch(telegram_common.READER, 'bot_name', None)
 		kept = ('deleteWebhook', {'drop_pending_updates': False})
-		for hook, mode, expected in (('https://example.com/telegram', telegram_webhook,
-				[kept, ('setWebhook', 'https://example.com/telegram'), ('getMe', None)]),
-				('', telegram_longpolling, [kept, ('getMe', None)])):
+		for hook, expected in (('https://example.com/telegram', [kept, ('setWebhook', 'https://example.com/telegram'),
+				('getMe', None)]), ('', [kept, ('getMe', None)])):
 			with self.subTest(telegramOutgoingWebhook=hook):
 				self.env(telegramOutgoingWebhook=hook)
 				calls.clear()
 				err = io.StringIO()
 				with contextlib.redirect_stderr(err):
-					mode.register()
-					self.assertEqual(telegram_common.bot_name(), '@finbot')
-				self.assertEqual(calls, expected)
+					telegram_common.start(['the commands'])
+				self.assertEqual((calls, telegram_common.READER.bot_name, menus[-1]),
+					(expected, '@finbot', ['the commands']))
 				self.assertNotIn('example.com', err.getvalue())
 
 	def test_a_refused_call_raises(self):
@@ -44,8 +47,44 @@ class TelegramWebhook(FinbotCase):
 		self.patch(net, 'post',
 			lambda url, **k: Resp({'ok': False, 'description': 'Bad Request: bad webhook: HTTPS url must be provided'}))
 		with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(RuntimeError) as caught:
-			telegram_webhook.register()
+			telegram_common.start([])
 		self.assertIn('HTTPS url must be provided', str(caught.exception))
+
+	def test_a_dms_keyboard_is_given_once_and_again_when_it_changes(self):
+		"""A DM is given the command keyboard after a command where it has none, or another (a message carries it:
+		Telegram changes a reply keyboard no other way), and not again while it is the same; a group never is; a
+		keyboard that did not go is tried again after the next command."""
+		sent = []
+		def post(url, **kwargs):
+			"""Note the method and the chat, and answer as Telegram does."""
+			sent.append((url.rsplit('/', 1)[1], kwargs['json']['chat_id']))
+			return Resp({'ok': True, 'result': {'message_id': 1}})
+		self.patch(net, 'post', post)
+		with contextlib.redirect_stderr(io.StringIO()):
+			for chat in ('55', '55', '-100'):
+				telegram_common.keep_keyboard(chat, ('.price', '.movers'))
+			self.assertEqual(sent, [('sendMessage', '55')])
+			telegram_common.keep_keyboard('55', ('.price',)) # the keyboard changed
+			self.assertEqual(sent[1:], [('sendMessage', '55')])
+			self.patch(net, 'post', lambda url, **kwargs: Resp({'ok': False, 'description': 'Forbidden'}, 403))
+			telegram_common.keep_keyboard('56', ('.price',))
+			self.patch(net, 'post', post)
+			telegram_common.keep_keyboard('56', ('.price',))
+		self.assertEqual(sent[2:], [('sendMessage', '56')])
+
+	def test_start_and_help_give_a_dm_its_keyboard_again(self):
+		"""/start (what Telegram sends as a chat opens, or restarts) and /help give a DM its keyboard again, though it
+		has it, so that one that went with the messages a person cleared comes back; any other command only a new
+		one; a group never."""
+		texts = []
+		self.patch(telegram_common, 'call', lambda method, **kwargs: texts.append(kwargs['json']['text']) or {})
+		with contextlib.redirect_stderr(io.StringIO()):
+			telegram_common.keep_keyboard('55', ('.price',))
+			for text in ('.movers', '/start', '/help', '.help', '.movers'):
+				self.command(text)
+			self.command('/start', chat='-100')
+		self.assertEqual([text for text in texts if 'Keyboard' in text], ['⌨️ Keyboard updated', '⌨️ Keyboard updated']
+			+ ['⌨️ Keyboard'] * 3)
 
 	def test_edits_toasts_and_typing_go_through_call(self):
 		"""A chart edit that Telegram refuses is an error (unless nothing changed); a toast, a text edit or a typing

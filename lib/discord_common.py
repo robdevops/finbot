@@ -4,7 +4,6 @@ slash commands registered as finbot starts; the reader of its interactions and m
 that posts into its channels and DMs (DiscordBot)."""
 import json
 import re
-import time
 
 import requests
 
@@ -18,32 +17,31 @@ from lib import transports
 
 
 API = 'https://discord.com/api/v10'
-TRIES = 3 # a call that Discord rate-limits is tried this many times at most
-LONGEST_WAIT = 10 # seconds: a rate limit asking for longer is waited this long
 SUPPRESS_EMBEDS = 4 # message flag: no link previews
 NO_MENTIONS = {'parse': []} # text that looks like @everyone or a mention pings nobody
 GUILD, BOT_DM = 0, 1 # where a slash command may be used: in servers, and in a DM with the bot
 OPTION = 'arguments' # the name of a slash command's one option: its arguments as text
 USER_AGENT = 'DiscordBot (https://github.com/robdevops/finbot, {})' # the form Discord asks of every request's agent
-version = 'unknown' # finbot's commit, for USER_AGENT: bot.py sets it as it starts
 
 
 def call(method, path, **kwargs):
-	"""A REST call as the bot: Discord's answer as JSON, or None when it is empty. A 429 waits as long as Discord asks
-	(LONGEST_WAIT at most) and tries again. Raises RuntimeError with Discord's reason when it refuses, or a requests
-	error."""
-	headers = {'Authorization': 'Bot ' + config.env.discordBotToken, 'User-Agent': USER_AGENT.format(version),
-		**kwargs.pop('headers', {})}
-	for attempt in range(1, TRIES + 1):
-		r = net.request(method, API + path, headers=headers, **kwargs)
-		if r.status_code != 429 or attempt == TRIES:
-			break
-		time.sleep(min(retry_after(r), LONGEST_WAIT))
-	if r.status_code >= 400:
-		raise RuntimeError(f"Discord {method} {path}: {r.status_code} {reason(r)}")
+	"""A REST call as the bot, its User-Agent naming finbot's commit: Discord's answer as JSON, or None when it is
+	empty; a rate limit waited out once, as long as Discord asks (net.patiently). Raises RuntimeError with Discord's
+	reason when it refuses, or a requests error."""
+	headers = {'Authorization': 'Bot ' + config.env.discordBotToken,
+		'User-Agent': USER_AGENT.format(config.git_version()), **kwargs.pop('headers', {})}
+	return net.patiently(lambda: answer_of(net.request(method, API + path, headers=headers, **kwargs), method, path))
+
+
+def answer_of(response, method, path):
+	"""Discord's answer to a call as JSON, or None when it is empty (204 No Content). Raises RateLimited for a 429,
+	RuntimeError with Discord's reason for another refusal."""
+	if response.status_code >= 400:
+		said = f"Discord {method} {path}: {response.status_code} {reason(response)}"
+		raise net.RateLimited(said, net.retry_after(response)) if response.status_code == 429 else RuntimeError(said)
 	try:
-		return r.json()
-	except ValueError: # empty: 204 No Content
+		return response.json()
+	except ValueError:
 		return None
 
 
@@ -53,14 +51,6 @@ def try_call(method, path, **kwargs):
 		return call(method, path, **kwargs)
 	except Exception as e:
 		log.warn(f"Discord {method} failed:", net.redact(e))
-
-
-def retry_after(response):
-	"""The seconds a rate-limited answer asks to wait (its retry_after), or one when it does not say."""
-	try:
-		return float(response.json().get('retry_after'))
-	except (ValueError, TypeError, AttributeError):
-		return 1.0
 
 
 def reason(response):
@@ -97,28 +87,29 @@ def summary(commands):
 			for o in c.get('options') or []]) for c in commands)
 
 
-def register(commands):
-	"""Called once by bot.py as it starts, in both modes: make the application's slash commands these ([(name,
-	description, arguments)], from worker.slash_commands), replacing them all only when they differ (Discord limits how
-	many may be made in a day). Returns the bot's user id: a message that mentions it is for the bot. Raises
-	RuntimeError, or a requests error."""
+def start(commands):
+	"""Called once by bot.py as it starts, in both modes: the application's slash commands made these ([(name,
+	description, arguments, completes)], from worker.slash_commands), replacing them all only when they differ (Discord
+	limits how many may be made in a day), and the bot's user id noted (READER.bot_id): a message that mentions it is
+	for the bot. Raises RuntimeError, or a requests error."""
 	application = call('GET', '/applications/@me')['id']
 	wanted = [command(*entry) for entry in commands]
 	path = f'/applications/{application}/commands'
 	if summary(call('GET', path) or []) != summary(wanted):
 		call('PUT', path, json=wanted)
 		log.info(f"discord: {len(wanted)} slash commands registered")
-	return str(call('GET', '/users/@me')['id'])
+	READER.bot_id = str(call('GET', '/users/@me')['id'])
 
 
 class Discord(inbound.Network):
 	"""Discord's interactions (a slash command, a button pressed, the endpoint's check), which read the same from the
 	interactions endpoint and the gateway, and the gateway's messages."""
 	service = 'discord'
-	bot_id = None # the bot's user id, from register() as bot.py starts: a message mentioning it is for the bot
+	bot_id = None # the bot's user id, noted as finbot starts (start): a message mentioning it is for the bot
 	PING, COMMAND, COMPONENT, AUTOCOMPLETE = 1, 2, 3, 4 # interaction types
-	PONG, THINKING, LATER, CHOICES = 1, 5, 6, 8 # answers: to the check, "thinking…" until the reply, nothing to see (a
-	# press), the suggestions for what is being typed
+	PONG, MESSAGE, THINKING, LATER, CHOICES = 1, 4, 5, 6, 8 # answers: to the check, a message, "thinking…" until the
+	# reply, nothing to see (a press), the suggestions for what is being typed
+	EPHEMERAL = 64 # a message's flag: only the person who pressed (or typed) sees it
 
 	def update_id(self, update):
 		"""The interaction's id, or the message's."""
@@ -147,8 +138,8 @@ class Discord(inbound.Network):
 		if kind == self.COMMAND and data.get('name'):
 			given = ' '.join(str(option.get('value', '')) for option in data.get('options') or []).strip()
 			text = f"/{data['name']} {given}".strip()
-			return inbound.Message(self.service, channel, f"<@{person.get('id')}>", text, self.bot_name,
-				self.name(person), interaction=through, dm=self.dm(update), ids=self.ids(person))
+			return inbound.Message(self.service, channel, self.handle(person), text, self.bot_name, interaction=through,
+				dm=self.dm(update), ids=self.ids(person))
 		if kind == self.AUTOCOMPLETE and data.get('name'):
 			options = data.get('options') or []
 			typed = next((str(option.get('value', '')) for option in options if option.get('focused')), '')
@@ -156,7 +147,7 @@ class Discord(inbound.Network):
 		message = update.get('message') or {}
 		if kind == self.COMPONENT and data.get('custom_id') and message.get('id'):
 			return inbound.Press(self.service, str(update.get('id')), channel, str(message['id']), data['custom_id'],
-				'@' + str(person.get('username') or person.get('id') or 'unknown'), through, ids=self.ids(person))
+				self.handle(person), through, ids=self.ids(person))
 		return inbound.UNSUPPORTED
 
 	def message(self, update):
@@ -166,8 +157,8 @@ class Discord(inbound.Network):
 		if author.get('bot') or update.get('webhook_id') or not author.get('id') or 'content' not in update:
 			return inbound.OK
 		text = re.sub(r'<@!?(\d+)>', r'@\1', update['content'])
-		return inbound.Message(self.service, str(update.get('channel_id')), f"<@{author['id']}>", text, self.bot_name,
-			self.name(author), str(update.get('id', '')), dm=self.dm(update), ids=self.ids(author))
+		return inbound.Message(self.service, str(update.get('channel_id')), self.handle(author), text, self.bot_name,
+			str(update.get('id', '')), dm=self.dm(update), ids=self.ids(author))
 
 	@staticmethod
 	def ids(person):
@@ -181,16 +172,20 @@ class Discord(inbound.Network):
 		return not (update.get('guild_id') or update.get('member'))
 
 	@staticmethod
-	def name(person):
-		"""What to call someone: their display name, else their username."""
-		return person.get('global_name') or person.get('username') or 'unknown'
+	def handle(person):
+		"""What a reply calls someone: a mention of their id (posts ping nobody: NO_MENTIONS)."""
+		return f"<@{person.get('id') or 'unknown'}>"
 
-	def acknowledge(self, event, toast=True):
+	def acknowledge(self, event, text=None, alert=False):
 		"""An interaction's answer, which Discord must have within 3 seconds and before any reply: "thinking…" for a
-		slash command, until the reply replaces it; nothing to see for a press (Discord has no toast), whose message is
-		edited after. A gateway message needs none."""
+		slash command, until the reply replaces it; for a press, nothing to see (Discord has no toast), its message
+		edited after, or with alert the text in a message that the presser alone sees (a press refused). A gateway
+		message needs none."""
 		if not event.interaction:
 			return None
+		if alert:
+			told = {'content': text, 'flags': self.EPHEMERAL, 'allowed_mentions': NO_MENTIONS}
+			return inbound.Response(body=json.dumps({'type': self.MESSAGE, 'data': told}).encode(), interaction=True)
 		answer = self.THINKING if isinstance(event, inbound.Message) else self.LATER
 		return inbound.Response(body=json.dumps({'type': answer}).encode(), interaction=True)
 
@@ -252,7 +247,7 @@ class DiscordBot(transports.Transport):
 	def extras(buttons):
 		"""What a message carries besides its text: no link previews, no pings, and its buttons as components."""
 		extra = {'flags': SUPPRESS_EMBEDS, 'allowed_mentions': NO_MENTIONS}
-		if buttons and not isinstance(buttons, dict):
+		if buttons:
 			extra['components'] = components(buttons)
 		return extra
 
@@ -260,15 +255,15 @@ class DiscordBot(transports.Transport):
 		"""Post one message (see post)."""
 		return self.post({'content': text, **self.extras(buttons)})
 
-	def post_chart(self, image, caption, buttons=None):
+	def post_chart(self, photo, caption, buttons=None):
 		"""Post a chart, attached to the report as its message (see post)."""
 		attached = {'content': caption, 'attachments': [{'id': 0, 'filename': 'chart.png'}], **self.extras(buttons)}
-		return self.post(attached, image)
+		return self.post(attached, photo)
 
-	def post(self, payload, image=None):
-		"""Post one message: a slash command's first replaces its "thinking…" and the rest follow it up; otherwise it
-		goes into the channel. Discord's message; MAYBE_SENT when a chart's post timed out; None when it failed
-		(logged)."""
+	def post(self, payload, photo=None):
+		"""Post one message, with a chart where photo (its PNG bytes) is given: a slash command's first replaces its
+		"thinking…" and the rest follow it up; otherwise it goes into the channel. Discord's message. Raises when it
+		fails; MaybeSent when a chart's post timed out."""
 		if self.interaction and not self.answered:
 			method, path = 'PATCH', f'/webhooks/{self.interaction}/messages/@original'
 		elif self.interaction and not self.pressed:
@@ -276,17 +271,14 @@ class DiscordBot(transports.Transport):
 		else:
 			method, path = 'POST', f'/channels/{self.where}/messages'
 		try:
-			answer = call(method, path, **message_body(payload, image))
+			answer = call(method, path, **message_body(payload, photo))
 		except requests.exceptions.ReadTimeout as e:
 			self.answered = True # it may have arrived
-			log.warn("Discord post timed out, it may still arrive:", net.redact(e))
-			return transports.MAYBE_SENT if image is not None else None
-		except Exception as e:
-			log.error("Discord post to", self.where, "failed:", net.redact(e))
-			return None
+			if photo is not None:
+				raise transports.MaybeSent(e) from e
+			raise
 		self.answered = True
-		log.info("OK discord message to", self.where)
-		return answer or {}
+		return answer or {} # an answer without a body is a message sent all the same
 
 	def message_path(self, message):
 		"""Where a message is edited: through the press's interaction where there is one (a message that answered a
@@ -295,13 +287,11 @@ class DiscordBot(transports.Transport):
 			return f'/webhooks/{self.interaction}/messages/@original'
 		return f'/channels/{self.where}/messages/{message}'
 
-	def edit_chart(self, message, image, caption, buttons=None):
+	def replace_chart(self, message, photo, caption, buttons):
 		"""Replace a chart message's image, caption and buttons in place. Raises RuntimeError when Discord refuses."""
-		if hasattr(image, 'seek'):
-			image.seek(0)
-		payload = {'content': transports.fit_caption(caption, self.dialect),
-			'attachments': [{'id': 0, 'filename': 'chart.png'}], 'components': components(buttons or [])}
-		call('PATCH', self.message_path(message), **message_body(payload, image), logged='debug')
+		payload = {'content': caption, 'attachments': [{'id': 0, 'filename': 'chart.png'}],
+			'components': components(buttons or [])}
+		call('PATCH', self.message_path(message), **message_body(payload, photo), logged='debug')
 
 	def edit_text(self, message, text, buttons=None):
 		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged."""
@@ -318,6 +308,7 @@ class DiscordBot(transports.Transport):
 
 
 DISCORD_ROW = 5 # buttons in a row of components, and rows in a message: Discord's limits
+STYLES = {buttons.ON: 3, buttons.OFF: 4, buttons.ACTIVE: 1} # a button's style by its look; grey (2) for the rest
 
 
 def components(buttons):
@@ -333,16 +324,15 @@ def components(buttons):
 def button_style(button):
 	"""The style number of a Discord button: 3 (green) for a toggle that is on, 4 (red) for one that is off, else 1
 	(blurple) for the one shown now and 2 (grey)."""
-	return {buttons.ON: 3, buttons.OFF: 4, buttons.ACTIVE: 1}.get(buttons.look(button), 2)
+	return STYLES.get(buttons.look(button), 2)
 
 
-def message_body(payload, image=None):
-	"""A Discord message's request arguments: its JSON; with a chart, a form of the JSON and the PNG (bytes, so that a
-	rate-limited call can send it again)."""
-	if image is None:
+def message_body(payload, photo=None):
+	"""A Discord message's request arguments: its JSON; with a chart (its PNG bytes, which a rate-limited call can send
+	again), a form of the JSON and the PNG."""
+	if photo is None:
 		return {'json': payload}
-	data = image.read() if hasattr(image, 'read') else bytes(image)
-	return {'data': {'payload_json': json.dumps(payload)}, 'files': {'files[0]': ('chart.png', data, 'image/png')}}
+	return {'data': {'payload_json': json.dumps(payload)}, 'files': {'files[0]': ('chart.png', photo, 'image/png')}}
 
 
 READER = Discord()

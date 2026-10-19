@@ -47,23 +47,23 @@ class Reading(FinbotCase):
 	def test_a_slash_command_is_the_message_it_stands_for(self):
 		"""/movers with its arguments is the message '/movers 5 7d', answered through its interaction; in a DM (no
 		member, no server) the person is the interaction's user, and the message says it is a DM."""
-		expected = inbound.Message('discord', '77', '<@5>', '/movers 5 7d', '@99', 'Rob', '', '42/tok', dm=False,
+		expected = inbound.Message('discord', '77', '<@5>', '/movers 5 7d', '@99', '', '42/tok', dm=False,
 			ids=('5',))
 		self.assertEqual(discord_common.READER.parse(COMMAND), expected)
 		dm = {k: v for k, v in COMMAND.items() if k != 'member'} | {'user': {'id': '5', 'username': 'rob'}}
-		self.assertEqual(discord_common.READER.parse(dm), dataclasses.replace(expected, user_name='rob', dm=True))
+		self.assertEqual(discord_common.READER.parse(dm), dataclasses.replace(expected, dm=True))
 		self.assertEqual(discord_common.READER.parse({**COMMAND, 'data': {'name': 'beta'}}).text, '/beta')
 
 	def test_a_press_is_a_press_of_its_message(self):
 		"""A button pressed is a Press of its message, its custom_id the button's data."""
 		self.assertEqual(discord_common.READER.parse(PRESS),
-			inbound.Press('discord', '901', '77', '333', 'c|c|y|T1', '@rob', '42/tok', ids=('5',)))
+			inbound.Press('discord', '901', '77', '333', 'c|c|y|T1', '<@5>', '42/tok', ids=('5',)))
 
 	def test_a_message_by_a_person_reads_with_its_mentions_as_slacks(self):
 		"""A gateway message's mentions read as @id, so that '@bot movers 7d' calls .movers; one by a bot or a webhook
 		(this bot's replies included) is not answered. One from no server is a DM."""
 		message = discord_common.READER.parse(MESSAGE)
-		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 movers 7d', '@99', 'rob', '700',
+		self.assertEqual(message, inbound.Message('discord', '77', '<@5>', '@99 movers 7d', '@99', '700',
 			dm=False, ids=('5',)))
 		self.assertTrue(discord_common.READER.parse({k: v for k, v in MESSAGE.items() if k != 'guild_id'}).dm)
 		command, args = worker.read(message.text, message.bot_name)
@@ -215,7 +215,7 @@ class Sending(FinbotCase):
 		"""A slash command over without a word, or one that reads as no command, has its "thinking…" deleted, or it
 		would show for 15 minutes."""
 		discord_common.DiscordBot('77', interaction='42/tok').typing_done()
-		worker.process_request(inbound.Message('discord', '77', '<@5>', '/nothing@else', '@99', 'Rob', '', '42/t2'))
+		worker.process_request(inbound.Message('discord', '77', '<@5>', '/nothing@else', '@99', '', '42/t2'))
 		self.assertEqual([(m, p) for m, p, _ in self.calls], [('DELETE', '/webhooks/42/tok/messages/@original'),
 			('DELETE', '/webhooks/42/t2/messages/@original')])
 
@@ -256,24 +256,25 @@ class Sending(FinbotCase):
 
 	def test_each_request_names_finbot_as_discord_asks(self):
 		"""Each request carries the bot token, and the User-Agent that Discord asks of a bot: DiscordBot, its URL and
-		its version (the commit, which bot.py notes as it starts)."""
-		self.patch(discord_common, 'version', '0123456')
+		its version (finbot's commit)."""
+		self.patch(config, 'git_version', lambda checkout=None: '0123456')
 		discord_common.call('GET', '/users/@me')
 		self.assertEqual(self.calls[0][2]['headers'], {'Authorization': 'Bot x',
 			'User-Agent': 'DiscordBot (https://github.com/robdevops/finbot, 0123456)'})
 
 	def test_rate_limits_are_waited_out_and_refusals_raise(self):
-		"""A 429 waits as long as Discord asks, then tries again, three times at most; a refusal raises with Discord's
-		reason; the token in an interaction's path is never logged."""
+		"""A 429 waits as long as Discord asks (net.RATE_LIMIT_WAIT at most), then tries once more; a refusal raises
+		with Discord's reason; the token in an interaction's path is never logged."""
 		slept = []
-		self.patch(discord_common.time, 'sleep', slept.append)
+		self.patch(net.time, 'sleep', slept.append)
 		self.answers += [Resp({'retry_after': 0.25}, 429), Resp({'id': '5'})]
-		self.assertEqual(discord_common.call('GET', '/users/@me'), {'id': '5'})
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertEqual(discord_common.call('GET', '/users/@me'), {'id': '5'})
 		self.assertEqual(slept, [0.25])
-		self.answers += [Resp({'retry_after': 99}, 429)] * 3
-		with self.assertRaisesRegex(RuntimeError, '429'):
+		self.answers += [Resp({'retry_after': 99}, 429)] * 2
+		with contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(net.RateLimited, '429'):
 			discord_common.call('GET', '/users/@me')
-		self.assertEqual(slept, [0.25, 10, 10])
+		self.assertEqual(slept, [0.25, net.RATE_LIMIT_WAIT])
 		self.answers.append(Resp({'message': 'Missing Access', 'code': 50001}, 403))
 		err = io.StringIO()
 		with contextlib.redirect_stderr(err):
@@ -285,7 +286,7 @@ class Sending(FinbotCase):
 		"""A Discord channel's job posts there as the bot, charts and buttons and all."""
 		chat = delivery.chat('discord:77', scheduled=True)
 		self.assertEqual((type(chat).__name__, chat.where, chat.key), ('DiscordBot', '77', 'discord:77'))
-		self.assertTrue(chat.takes_buttons and chat.takes_charts and chat.scheduled)
+		self.assertTrue(chat.takes_charts and chat.scheduled)
 
 
 class Commands(FinbotCase):
@@ -333,7 +334,7 @@ class Commands(FinbotCase):
 		self.assertEqual(registered['beta']['options'], [])
 
 	def test_registering_replaces_the_commands_only_when_they_differ(self):
-		"""Registering puts the commands only when Discord's differ from them, and gives the bot's user id."""
+		"""Starting puts the commands only when Discord's differ from them, and notes the bot's user id."""
 		wanted = [discord_common.command('price', 'price [period]', '[period]')]
 		calls = []
 		def call(method, path, **kwargs):
@@ -341,12 +342,14 @@ class Commands(FinbotCase):
 			calls.append((method, path))
 			return {'/applications/@me': {'id': '42'}, '/users/@me': {'id': '99'}}.get(path, registered)
 		self.patch(discord_common, 'call', call)
+		self.patch(discord_common.READER, 'bot_id', None)
 		registered = [{**wanted[0], 'id': '1', 'version': '2', 'application_id': '42'}]
-		self.assertEqual(discord_common.register([('price', 'price [period]', '[period]')]), '99')
+		discord_common.start([('price', 'price [period]', '[period]')])
+		self.assertEqual(discord_common.READER.bot_id, '99')
 		self.assertNotIn(('PUT', '/applications/42/commands'), calls)
 		registered = []
 		with contextlib.redirect_stderr(io.StringIO()):
-			discord_common.register([('price', 'price [period]', '[period]')])
+			discord_common.start([('price', 'price [period]', '[period]')])
 		self.assertIn(('PUT', '/applications/42/commands'), calls)
 
 	def test_help_on_discord_lists_the_slash_commands(self):
@@ -355,7 +358,7 @@ class Commands(FinbotCase):
 		self.patch(discord_common.READER, 'bot_id', '99')
 		sent = []
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None: sent.append(lines) or [])
-		message = inbound.Message('discord', '77', '<@5>', '/help', '@99', 'Rob', '', '42/tok')
+		message = inbound.Message('discord', '77', '<@5>', '/help', '@99', '', '42/tok')
 		worker.process_request(message)
 		self.assertIn('/pe [SYMBOL|top|bottom|negative]', sent[0])
 		self.assertIn('/stock SYMBOL', sent[0])
@@ -635,7 +638,7 @@ class Gateway(FinbotCase):
 			bot.main(wsgi_environ('/discord', body, HTTP_X_SIGNATURE_ED25519=signature,
 				HTTP_X_SIGNATURE_TIMESTAMP='1700000000'), lambda *a: None).close()
 			self.join_workers()
-			self.patch(bot, '_updates_seen', collections.OrderedDict()) # a restart in the other mode
+			self.patch(bot, '_updates_seen', inbound.Recent()) # a restart in the other mode
 			self.env(discordOutgoingWebhook='')
 			pressed = {'op': 0, 't': 'INTERACTION_CREATE', 's': 2, 'd': PRESS}
 			self.gateway([HELLO, READY, pressed, {'op': 7}]).poll(bot.take)

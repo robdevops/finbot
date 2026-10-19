@@ -3,7 +3,7 @@ command to finbot's URL, signed with the app's signing secret, for the reader (s
 import hashlib
 import hmac
 import time
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs
 
 from lib import config
 from lib import inbound
@@ -16,10 +16,8 @@ SIGNATURE_AGE = 300 # seconds: Slack's limit; an older signed request may be a r
 class SlackWebhook(inbound.Webhook):
 	"""Slack posting events, button presses and slash commands to slackOutgoingWebhook (the app's Request URL for each),
 	each request signed with the app's signing secret, and carrying its verification token."""
-
-	def path(self):
-		"""The path of slackOutgoingWebhook."""
-		return urlparse(config.env.slackOutgoingWebhook).path if config.env.slackOutgoingWebhook else ''
+	URL = 'slackOutgoingWebhook'
+	SECRET_FIELDS = ('token',) # the verification token
 
 	def refuse(self, environ, body, update):
 		"""With slackSigningSecret, the request must carry Slack's signature of its body, made in the last five minutes;

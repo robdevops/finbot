@@ -43,7 +43,7 @@ def check(startup_path, settings_path):
 	try:
 		settings = config.read_settings(settings_path)
 		if settings is not None:
-			config.setting_values(config._getenv_for(settings))
+			config.setting_values(settings)
 	except config.ConfigError as e:
 		problems += e.errors
 	return problems

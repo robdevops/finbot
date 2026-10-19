@@ -1,8 +1,9 @@
 """How a message gets to a network: Transport, the base of each network's bot (TelegramBot, SlackBot and DiscordBot,
 in telegram_common, slack_common and discord_common), made for one destination (a chat). A transport knows its
-dialect, what it can carry (charts, buttons, a typing notice) and the network's size limits; text() and chart() are
-the same everywhere, and each network posts one message its own way (post_text, post_chart). Every bot takes buttons:
-whichever way its network's updates arrive, their presses reach finbot."""
+dialect, what it can carry (charts, buttons, a typing notice) and the network's size limits; text(), chart() and
+edit_chart() are the same everywhere, and each network posts or replaces one message its own way (post_text,
+post_chart, replace_chart), raising when it fails. Every bot takes buttons: whichever way its network's updates
+arrive, their presses reach finbot."""
 import threading
 import time
 
@@ -11,11 +12,27 @@ from lib import log
 from lib import net
 
 
-ADMINS_FOR = 300 # seconds a network's answer about who administers a chat is kept
-RATE_LIMIT_WAIT = 30 # the longest a preload waits out a network's rate limit, in seconds
+ADMINS_FOR = 300 # seconds a network's answer about who administers a chat counts, before it is asked again
 PRELOAD_PARALLEL = 2 # uploads to a network's preload chat in flight at once: each waits on the network's answer
-_administers = {} # (chat key, sender id) -> (when asked, whether they administer the chat)
+_administers = {} # (chat key, sender id) -> (when the network answered, whether they administer the chat)
+_administers_lock = threading.Lock() # presses and messages are taken on threads of their own
 MAYBE_SENT = object() # a read timeout on the request that posts a chart: it may have arrived, so no text copy follows
+
+
+class MaybeSent(Exception):
+	"""Raised by the request that posts a chart when it timed out: the chart may have arrived (MAYBE_SENT)."""
+
+
+def chat_key(network, where):
+	"""A chat's key, its network and its id ('telegram:-1001234'), the same whichever way its network's updates arrive:
+	a chat's jobs, its watchlist and what its reports have told it are kept under it."""
+	return f'{network}:{where}'
+
+
+def split_key(key):
+	"""(network, id) of a chat's key (chat_key)."""
+	network, _, where = key.partition(':')
+	return network, where
 
 
 class Transport:
@@ -24,16 +41,22 @@ class Transport:
 	name = '' # the network, in logs
 	dialect = None
 	takes_charts = True # a chart, with the report as its caption
-	takes_buttons = True # buttons under a message
 	shows_typing = True # a typing notice while a command works
 	TYPING = (0.5, 7, 10) # the notice: first after 0.5 s (a quick answer gets none), then every 7 s, 10 times at most
-	scheduled = False # posting a scheduled run's report (a chat's job), not a reply to a command
-	asked = False # a scheduled run that someone asked for (Run now, .jobs run): delivery.asked
+	CHUNK_GAP = 0.0 # seconds between the messages of a reply too long for one, where the network wants a gap
+	PRELOAD_CHAT = '' # the setting that names the network's preload chat, where it preloads (see preload)
+	scheduled = False # posting a job's report (on schedule, or Run now), not a reply to a command or a button
 	preload_lock = None # paces the starts of the network's preloads: a network that preloads has its own lock
 	preload_slots = None # its preloads in flight at once: a BoundedSemaphore(PRELOAD_PARALLEL) where it preloads
 	preloaded_at = 0.0 # when the network's last preload began (time.monotonic)
 	_notices = None # the thread sending the notices
 	_quiet = None # set to stop them
+
+	def __init_subclass__(cls, **kwargs):
+		"""A network's bot that preloads (it names its PRELOAD_CHAT setting) gets its own lock and slots for it."""
+		super().__init_subclass__(**kwargs)
+		if 'PRELOAD_CHAT' in vars(cls):
+			cls.preload_lock, cls.preload_slots = threading.Lock(), threading.BoundedSemaphore(PRELOAD_PARALLEL)
 
 	def __init__(self, where, message=None, interaction='', pressed=False):
 		"""where: the chat id; message: the id of the message being answered, if any;
@@ -50,26 +73,30 @@ class Transport:
 
 	@property
 	def key(self):
-		"""The chat's key, the same whichever way its network's updates arrive: 'telegram:-1001234'. A chat's jobs, its
-		watchlist and what its reports have told it are kept under it."""
-		return f'{self.name}:{self.where}'
+		"""The chat's key (chat_key): 'telegram:-1001234'."""
+		return chat_key(self.name, self.where)
+
+	@property
+	def dm(self):
+		"""Whether the chat is a direct message with the bot, as its id tells; None where the network's ids do not
+		say (Discord's)."""
+		return None
 
 	def administers(self, ids):
 		"""Whether the network makes any of these ids (inbound.Message.ids) an administrator of this chat: asked of the
-		network (is_administrator) and kept ADMINS_FOR seconds; a failure is logged and means no. A direct message has
-		no administrators."""
+		network (is_administrator) once in ADMINS_FOR seconds, and once more at once where the connection fails
+		(net.twice). A question that fails (logged) is never kept as an answer: the network's last answer stands, else
+		no, and the next message asks again."""
 		for who in ids:
-			asked, answer = _administers.get((self.key, who), (0, False))
-			if time.time() - asked < ADMINS_FOR:
-				if answer:
-					return True
-				continue
-			try:
-				answer = bool(self.is_administrator(who))
-			except Exception as e:
-				log.warn(f"{self.name.capitalize()} cannot tell whether {who} administers {self.where}:", e)
-				return False
-			_administers[self.key, who] = (time.time(), answer)
+			with _administers_lock:
+				answered, answer = _administers.get((self.key, who), (0, False))
+			if time.time() - answered >= ADMINS_FOR:
+				try:
+					answer = bool(net.twice(lambda: self.is_administrator(who)))
+					with _administers_lock:
+						_administers[self.key, who] = (time.time(), answer)
+				except Exception as e:
+					log.warn(f"{self.name.capitalize()} cannot tell whether {who} administers {self.where}:", e)
 			if answer:
 				return True
 		return False
@@ -113,37 +140,49 @@ class Transport:
 		return bool(self._notices and self._notices.is_alive())
 
 	def text(self, lines, buttons=None):
-		"""Post lines of text: one message, or several when they are too long for one, buttons under the last; the
-		typing notice stops first. Returns the network's answer for each message (None for one that failed)."""
+		"""Post lines of text: one message, or several when they are too long for one (CHUNK_GAP apart), buttons under
+		the last; the typing notice stops first. Returns the network's answer for each message (see sent)."""
 		self.stop_typing()
-		lines = [str(line) for line in lines]
-		if not lines:
-			return []
-		limit = self.dialect.text_limit
-		if len('\n'.join(lines)) <= limit:
-			return [self.post_text('\n'.join(lines), buttons)]
-		chunks = chunked(lines, limit)
+		chunks = chunked([str(line) for line in lines], self.dialect.text_limit)
 		answers = []
 		for i, chunk in enumerate(chunks):
 			if i:
-				time.sleep(0.5) # Telegram takes about one message a second in a chat
-			answers.append(self.post_text('\n'.join(chunk), buttons if i == len(chunks) - 1 else None))
+				time.sleep(self.CHUNK_GAP)
+			last = i == len(chunks) - 1
+			answers.append(self.sent('message', lambda: self.post_text('\n'.join(chunk), buttons if last else None)))
 		return answers
 
 	def chart(self, image, caption, buttons=None):
-		"""Post a chart, the caption under it cut to fit, the typing notice stopped first: the network's answer,
-		MAYBE_SENT, or None if it failed."""
+		"""Post a chart (a file object), the caption under it cut to fit, the typing notice stopped first: the network's
+		answer (see sent)."""
 		self.stop_typing()
-		if hasattr(image, 'seek'):
-			image.seek(0)
-		return self.post_chart(image, fit_caption(caption, self.dialect), buttons)
+		caption = fit_caption(caption, self.dialect)
+		return self.sent('chart', lambda: self.post_chart(image.getvalue(), caption, buttons))
+
+	def sent(self, what, post):
+		"""The answer of post(), which posts one message (what: 'message' or 'chart', for the log): the network's
+		message; MAYBE_SENT when the request that posts a chart timed out (MaybeSent: it may have arrived); None when it
+		failed, which is logged: an error for a message, which is lost, a warning for a chart, whose report goes as text
+		instead (delivery.deliver)."""
+		network = self.name.capitalize()
+		try:
+			answer = post()
+		except MaybeSent as e:
+			log.warn(f"{network} {what} to {self.where} timed out, it may still arrive:", net.redact(e))
+			return MAYBE_SENT
+		except Exception as e:
+			(log.error if what == 'message' else log.warn)(f"{network} {what} to {self.where} failed:", net.redact(e))
+			return None
+		log.info(f"OK {self.name} {what} to {self.where}")
+		return answer
 
 	def post_text(self, text, buttons=None):
-		"""Post one message. The network's answer, or None when it failed (logged)."""
+		"""Post one message: the network's answer. Raises when it fails (see sent)."""
 		raise NotImplementedError
 
-	def post_chart(self, image, caption, buttons=None):
-		"""Post one chart with its caption (see chart())."""
+	def post_chart(self, photo, caption, buttons=None):
+		"""Post one chart (its PNG bytes) with its caption: the network's answer. Raises when it fails, MaybeSent when
+		the request that posts it timed out (see sent)."""
 		raise NotImplementedError
 
 	def typing(self):
@@ -174,13 +213,14 @@ class Transport:
 	def paced(self, send):
 		"""Run send(), an upload ahead of a press, in its turn: in one of the network's preload_slots, starting
 		preload_gap seconds (a setting) after the last one began (the gap is from start to start, so uploads in
-		different slots overlap). A rate limit is waited out once (patiently). False when it failed (logged)."""
+		different slots overlap). False when it failed (logged; a rate limit is waited out once by each call:
+		net.patiently)."""
 		with self.preload_slots:
 			with self.preload_lock:
 				time.sleep(max(0.0, type(self).preloaded_at + config.settings.preload_gap - time.monotonic()))
 				type(self).preloaded_at = time.monotonic()
 			try:
-				self.patiently(send)
+				send()
 			except Exception as e:
 				log.warn(f"{self.name.capitalize()} preload to {self.where} failed:", net.redact(e))
 				return False
@@ -194,34 +234,36 @@ class Transport:
 		"""Upload a chart (its PNG bytes) to this chat ahead of a press (see preload)."""
 		raise NotImplementedError
 
-	def patiently(self, send):
-		"""send(), tried once more after the wait a rate limit asks for (retry_after; at most RATE_LIMIT_WAIT)."""
-		try:
-			send()
-		except Exception as e:
-			wait = self.retry_after(e)
-			if wait is None:
-				raise
-			log.warn(f"{self.name.capitalize()} preload to {self.where} is rate limited: waiting {wait:g} s")
-			time.sleep(min(wait, RATE_LIMIT_WAIT))
-			send()
-
-	def retry_after(self, error):
-		"""The seconds the network asks to wait after a request failed with `error` (a rate limit), or None for any
-		other failure. Here never."""
-		return None
-
 	def edit_buttons(self, message, buttons):
 		"""Change only the buttons under a message, its text or chart left as it is, where the network can: True when
 		they show now. Here never: the message is edited whole."""
 		return False
 
+	def edit_text(self, message, text, buttons=None):
+		"""Edit a message's text, and its buttons unless buttons is None ([] removes them); a failure is only logged.
+		The text must fit one message: edit_lines splits."""
+		raise NotImplementedError
+
+	def edit_chart(self, message, image, caption, buttons=None):
+		"""Replace a chart message's image (a file object), its caption, cut to fit, and its buttons, in place
+		(replace_chart). Raises RuntimeError when the network refuses."""
+		self.replace_chart(message, image.getvalue(), fit_caption(caption, self.dialect), buttons)
+
+	def replace_chart(self, message, photo, caption, buttons):
+		"""Replace a chart message's image (its PNG bytes), caption and buttons (see edit_chart)."""
+		raise NotImplementedError
+
+	def edit_lines(self, message, lines, buttons=None):
+		"""Edit a message to show lines, split as text() splits them: what fits one message goes in the message edited,
+		the rest in messages of their own after it, the buttons under the last."""
+		parts = chunked([str(line) for line in lines], self.dialect.text_limit) or [[]]
+		self.edit_text(message, '\n'.join(parts[0]), buttons if len(parts) == 1 else [])
+		for i, part in enumerate(parts[1:], 1):
+			self.text(part, buttons if i == len(parts) - 1 else None)
+
 
 def marked(buttons):
-	"""The data of the button marked as shown now, which names a chart message's period (None when none is, or the
-	buttons are a keyboard of the network's own)."""
-	if isinstance(buttons, dict):
-		return None
+	"""The data of the button marked as shown now, which names a chart message's period (None when none is)."""
 	return next((button.data for row in buttons or [] for button in row if button.active), None)
 
 

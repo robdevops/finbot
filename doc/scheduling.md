@@ -22,13 +22,13 @@ never run, its name and its schedule in words. Under the list, in italics, is ho
 ```
 Under it is one row of buttons, each there only where it has something to act on (**+** always; **Edit** and **Run** with any job, **Upcoming** with one that is on). Each screen is drawn in place of the last:
 * **+**: what the job runs, how often, then the rest down to the minute ([below](#add-step-by-step)).
-* **Edit**: the list with a button per job, the default ones too; a press switches that job on or off at once, and a job that is off is struck through, its button too. A job that is off has a red button (on Telegram, Slack and Discord alike); one that is on has a plain one. The Enable and Disable lists colour the jobs they offer the same way. **OK** goes back to the list. **Delete disabled jobs**, there while any job is off, asks first ("Delete the 3 disabled jobs?"), then deletes them. A default job that is deleted comes back when the same job is added again.
+* **Edit**: the list with a button per job, the default ones too; a press switches that job on or off at once. A job that is off is struck through in the list and has a red button (on Telegram, Slack and Discord alike); one that is on has a plain one. **OK** goes back to the list. **Delete disabled jobs**, there while any job is off, asks first ("Delete the 3 disabled jobs?"), then deletes them. A default job that is deleted comes back when the same job is added again.
 * **Run**: a button per job; a press runs it now, as its schedule would. What the job posts shows it ran; a
   message says so only when it failed, or was running already. The same button pressed again within a minute does
   nothing more, as with every button.
 * **Upcoming**: the next runs, in time order.
 
-The typed `/jobs enable`, `disable` and `delete` alone still list the jobs with a button for each, as before.
+The typed `/jobs enable`, `disable` and `delete` alone open **Edit**; with a number they act on that job at once.
 
 A button drawn for a list that has since changed acts on nothing: the screen is drawn again as the list is now.
 
@@ -89,7 +89,8 @@ A job is a report and what it takes, then when it runs:
     common abbreviation (`ET`, `EST`, `PT`, `GMT`, `CET`, `HKT`, `JST`, `AEST`). An abbreviation means the zone with its
     daylight saving: `EST` follows New York's clock in summer too.
   * `/jobs` shows a job by its own zone's clock, with the local time beside it where the clocks differ: `weekdays at
-    4:30pm New York (7:30am local, Tue–Sat)`.
+    4:30pm New York (7:30am local, Tue–Sat)`. A zone that keeps another clock is named in every season: a Brisbane job
+    seen from Melbourne reads `weekdays at 9:00am Brisbane` in winter, when both clocks agree.
 
 The reports are `trades`, `movers midsession|interday|premarket|close|DAYS`, `earnings`,
 `performance [DAYS]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `reminder "TEXT"` (`message` works too). A job a chat added
@@ -110,7 +111,8 @@ instead.
 A **reminder** posts its text as it is:
 * The text comes last, in double quotes (or curly quotes, as phones type them). It runs from the first quote to the
   last, so quotes inside it stay, and it may run over several lines.
-* `[text](url)` is a link, and a line wrapped in `_underscores_` is in italics.
+* `[text](url)` is a link, a line wrapped in `_underscores_` is in italics, and `{years since YYYY-MM-DD}` becomes the
+  years since then (`4th`), for an anniversary.
 * A one-off reminder (`on 28 oct 2026`) is deleted after its time has passed, when the list is next shown.
 
 A job that is the same as a default job (the same report, days and times, in a zone with the same clock) switches that
@@ -147,24 +149,21 @@ move as either side's daylight saving changes.
 | 23 | performance | annual, 2 Jan at 8:30am Sydney |
 | 24 | movers | annual, 2 Jan at 8:30am Sydney |
 | 25 | 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 | annual, 31 Mar at 8:30am Sydney |
-| 26 | SPCX IPO anniversary | annual, 12 Jun at 8:30am Sydney |
-| 27 | 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
-| 28 | 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
-| 29 | ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
-| 30 | finbot's birthday | annual, 18 Aug at 8:30am Sydney |
-| 31 | 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
-| 32 | ubank draw 6/6 … (AU) | once, 28 Oct 2026 at 8:30am Sydney |
-| 33 | 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
-| 34 | SPCX 5th mensiversary … | once, 12 Nov 2026 at 8:30am Sydney |
+| 26 | 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
+| 27 | 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
+| 28 | ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
+| 29 | finbot's birthday | annual, 18 Aug at 8:30am Sydney |
+| 30 | 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
+| 31 | 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
 
 * **Market reports run in their market's zone**, so they keep to its session through its daylight saving:
   * pre-market US at 7:15am New York;
   * mid-session about halfway through: 1:00pm Sydney for the ASX, 12:45pm New York for the NYSE;
   * the close 30 minutes after it: 4:30pm Sydney for the ASX, 4:30pm Hong Kong, 5:00pm London and 4:30pm New York.
-* **The messages marked (AU)** are default jobs only where the `country_code` setting is `AU`.
+* **The reminders (from 25 on)** marked (AU) are default jobs only where the `country_code` setting is `AU`. A chat
+  adds its own with `/jobs add reminder` ([A job in English](#a-job-in-english)).
 * **trades and performance** are default jobs only where Sharesight is set up (see
   [Configuration](configuration.md#sharesight)).
-* **A one-off leaves the list** once its date has passed.
 
 ## How jobs run
 * A job is kept by its chat's network and id, in `finbot_chat_jobs.json` in the data directory, so switching a network
@@ -175,7 +174,9 @@ move as either side's daylight saving changes.
   episodes), so the same report scheduled in two chats tells each of them once. A run from **Run now** or `/jobs run`
   is a scheduled run: it posts to the chat and updates the same record. A change counts at once, with no reload.
 * A report or command with nothing to show (no new trades, no stock past the threshold, no rating changes) posts
-  nothing on schedule. Asked for, it says so: a command, a keyboard button, **Run now** or `/jobs run`.
+  nothing when a job runs it, on schedule, from **Run now** or by `/jobs run`; typed as a command, or from a keyboard
+  button, it says so. One that cannot give what it was asked for (a portfolio that is none, Sharesight not set up)
+  says so as a command's reply does, from a job too.
 * **A job can only run finbot's own reports and commands.** It names a report from a fixed table in `lib/jobs.py` (or
   posting a message), or a command of the table `/help` is made from (`lib/worker.py`) that changes nothing, with
   arguments its parser has checked, kept as words: never a command line, a script or code. A stored job naming anything

@@ -7,6 +7,7 @@ WebSocket."""
 import time
 
 from lib import log
+from lib import config
 from lib import delivery
 from lib import net
 
@@ -74,22 +75,26 @@ class WebSocket:
 class Listener:
 	"""Updates fetched from a network, for its reader; run() hands them to take() until the process ends."""
 	network = None # the reader, an inbound.Network
+	TOKENS = () # the finbot.env keys it needs
+	WEBHOOK_URL = '' # the finbot.env key of the URL that has the network post to finbot instead (its http mode)
+	MODE = '' # how it listens, for the log
 	failures = 0 # in a row
 
-	@staticmethod
-	def wanted():
-		"""Whether finbot.env asks for this listener: its network's keys set, and no webhook URL."""
-		raise NotImplementedError
+	@classmethod
+	def wanted(cls):
+		"""Whether finbot.env asks for this listener: its network's keys set (TOKENS), and no webhook URL."""
+		return all(getattr(config.env, key) for key in cls.TOKENS) and not getattr(config.env, cls.WEBHOOK_URL)
 
 	def run(self, take):
-		"""Fetch and hand on updates for good, waiting as poll() says between rounds."""
-		log.info(f"{self.network.service}: {self.describe()}")
+		"""Fetch and hand on updates for good, waiting as poll() says between rounds. A round that fails in a way poll()
+		did not foresee is logged and tried again after the back-off: the network's updates must not stop for good."""
+		log.info(f"{self.network.service}: {self.MODE} (no {self.WEBHOOK_URL})")
 		while True:
-			time.sleep(self.poll(take))
-
-	def describe(self):
-		"""How it listens, for the log as it starts."""
-		return 'listening'
+			try:
+				wait = self.poll(take)
+			except Exception as e:
+				wait = self.failed('a round', e)
+			time.sleep(wait)
 
 	def poll(self, take):
 		"""One round: fetch what there is, hand each update to take(network, update), and return the seconds to wait
@@ -119,3 +124,42 @@ class Listener:
 		start the work waiting on it, if any."""
 		if answer.then:
 			answer.then()
+
+
+class SocketListener(Listener):
+	"""A listener on a WebSocket (Slack's Socket Mode, Discord's gateway): a round is one connection, from opening it to
+	its end, then the wait that listen() returns (none: another at once); a failure waits the back-off."""
+	SOCKET = 'the socket' # what the log calls the connection
+	CLOSE_CODE = 1000 # what the socket is closed with
+
+	def url(self):
+		"""The URL to connect to, or the seconds to wait first when no connection may be made yet."""
+		raise NotImplementedError
+
+	def connect(self, url):
+		"""A WebSocket connected to url."""
+		return WebSocket(url)
+
+	def poll(self, take):
+		"""One connection, until it ends (listen): the seconds to wait after it, or after a failure, as ended() says."""
+		try:
+			url = self.url()
+			if not isinstance(url, str): # the wait before a connection may be made
+				return url
+			connection = self.connect(url)
+		except Exception as e:
+			return self.failed(f'connecting to {self.SOCKET}', e)
+		try:
+			return self.listen(connection, take)
+		except Exception as e:
+			return self.ended(e)
+		finally:
+			connection.close(self.CLOSE_CODE)
+
+	def listen(self, connection, take):
+		"""Read the socket, each update handed on, until it ends: the seconds to wait before the next connection."""
+		raise NotImplementedError
+
+	def ended(self, e):
+		"""The wait after a connection that failed with e: the back-off (failed)."""
+		return self.failed(self.SOCKET, e)
