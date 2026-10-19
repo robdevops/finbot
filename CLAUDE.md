@@ -262,5 +262,5 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - README.md is short: what finbot is, a quick start, and links. The rest is in `doc/`, a file per topic: `commands.md`
   (the commands and reports, 16 KB: grep for the section instead of reading it whole), `configuration.md` (the keys
   and settings), `scheduling.md`, `caching.md`, `install.md` (a Debian host), `docker.md`, and a guide per network,
-  `telegram.md`, `slack.md` and `discord.md`: a change to a network's setup or keys goes in its guide. `doc/yahoo/` and
+  `telegram.md`, `slack.md` and `discord.md`: a change to a network's setup or keys goes in its guide. `classes.md` lists every class by what it is for (keep it current when one is added, renamed or removed). `doc/yahoo/` and
   `doc/sharesight/` hold large API samples that the tests replay: inspect them with python, don't read them.
