@@ -110,6 +110,8 @@ Each command is a slash command, with its usage as Slack's hint: `/price`, `/div
 `/sell`, `/ratio`, `/stock`, `/jobs`, and the rest.
 Not `/help`, which Slack keeps for its own (a manifest that names it is refused as an invalid name): `.help` and
 `@finbot help` work.
+If Slack refuses a manifest, `util/slack_manifest.py --only price,who` prints it with just those slash commands, to find
+which one it objects to.
 Slack makes slash commands only from the app's settings, so they come in the manifest: when finbot's commands change,
 print it again and paste it into _App Manifest_.
 
