@@ -27,8 +27,8 @@ switch, change both (paste the manifest for the other mode, which sets the app's
 1. Print the app's manifest, which sets up the whole app at once (the slash commands, the scopes, the events, the
    buttons, direct messages and Socket Mode): `util/slack_manifest.py`. The bot then hears the messages that mention it
    (`@finbot price`), its slash commands and direct messages. With `--every-message`, it hears every message in its
-   channels instead of the mentions, so that `.price` works there without mentioning it; not both, or it would answer a
-   mention twice.
+   channels instead, so that `.price` works there without mentioning it. Do not install both manifests, or a mention
+   would reach it twice, as a message and as a mention, and it would answer twice.
 2. At https://api.slack.com/apps choose _Create New App > From an app manifest_, pick your workspace, paste the
    manifest into the JSON tab, and _Create_.
 3. Under _Basic Information > App-Level Tokens_, choose _Generate Token and Scopes_: name it (finbot, say), add the
