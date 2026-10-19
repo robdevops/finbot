@@ -24,6 +24,7 @@ from lib import worker
 
 SCOPES = ('chat:write', 'commands', 'files:read', 'files:write', 'reactions:write', 'users:read')
 # replies, slash commands, charts, ⏳, who the workspace's admins are
+RESERVED = ('help',) # slash commands Slack keeps for itself: a manifest that names one is refused ("invalid name")
 EVENT_SCOPES = {'app_mention': 'app_mentions:read', 'message.channels': 'channels:history',
 	'message.groups': 'groups:history', 'message.im': 'im:history'} # what each event needs
 
@@ -31,13 +32,14 @@ EVENT_SCOPES = {'app_mention': 'app_mentions:read', 'message.channels': 'channel
 def manifest(name='finbot', url='', every_message=False):
 	"""The manifest, as a dict: for Socket Mode without url; for HTTP mode with it, the Request URL of the events, the
 	buttons and each slash command. The bot hears the messages that mention it, or with every_message each message in
-	the channels it is in, and its direct messages either way."""
+	the channels it is in, and its direct messages either way. Every slash command of .help but /help, which Slack's
+	own is (.help and @finbot help work)."""
 	events = ['message.channels', 'message.groups'] if every_message else ['app_mention']
 	events.append('message.im')
 	posted = {'url': url} if url else {}
 	commands = [{'command': '/' + command.name, 'description': command.description, 'should_escape': False,
 		**({'usage_hint': command.arguments} if command.arguments else {}), **posted}
-		for command in worker.slash_commands()]
+		for command in worker.slash_commands() if command.name not in RESERVED]
 	return {
 		'display_information': {'name': name, 'description': 'Stock prices, charts and Sharesight reports',
 			'background_color': '#14181f'},

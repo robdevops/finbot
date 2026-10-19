@@ -687,7 +687,8 @@ class SlackManifest(unittest.TestCase):
 		self.assertIn('channels:history', manifest['oauth_config']['scopes']['bot'])
 		self.assertNotIn('app_mentions:read', manifest['oauth_config']['scopes']['bot'])
 		commands = manifest['features']['slash_commands']
-		self.assertEqual([c['command'] for c in commands], ['/' + command.name for command in worker.slash_commands()])
+		self.assertEqual([c['command'] for c in commands], ['/' + command.name for command in worker.slash_commands()
+			if command.name != 'help']) # Slack keeps /help: a manifest that names it is refused
 		names = {c['command'] for c in commands}
 		self.assertTrue({'/stock', '/jobs', '/ratio'} <= names and not {'/profile', '/job'} & names)
 		for command in commands:

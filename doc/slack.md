@@ -108,6 +108,8 @@ Slack shows what changes, and asks to reinstall the app when its scopes do.
 
 Each command is a slash command, with its usage as Slack's hint: `/price`, `/dividend` and `/earnings`, `/buy` and
 `/sell`, `/ratio`, `/stock`, `/jobs`, and the rest.
+Not `/help`, which Slack keeps for its own (a manifest that names it is refused as an invalid name): `.help` and
+`@finbot help` work.
 Slack makes slash commands only from the app's settings, so they come in the manifest: when finbot's commands change,
 print it again and paste it into _App Manifest_.
 
