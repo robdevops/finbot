@@ -59,7 +59,7 @@ The administrators of the chat a person is in are admins there with no setting: 
 | `future_days` | `30` | How many days ahead the events calendar looks |
 | `price_percent` | `5` | Movers threshold, percent: the moves `/movers`, `/session` and their jobs list |
 | `shorts_percent` | `15` | Short interest alert threshold, percent |
-| `min_analysts` | `7` | `/buy`, `/sell` and `/pe` list only stocks covered by at least this many analysts; with fewer, a consensus says little (thinly covered small caps are nearly all a perfect buy) |
+| `min_analysts` | `7` | `/buy`, `/sell`, `/pe` and `/peg` list only stocks covered by at least this many analysts; with fewer, a consensus or an estimate says little (thinly covered small caps are nearly all a perfect buy). Their charts say so in the subtitle |
 | `demote_volatile` | `True` | Volatile (small cap, high beta) stocks need a bigger move to alert |
 | `demote_leveraged` | `True` | Leveraged (2x, 3x) funds need a bigger move to alert |
 | `volatility_multiplier` | `2` | How much bigger a move volatile stocks need |

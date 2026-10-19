@@ -260,7 +260,7 @@ Command:
 ### pe / peg
 ![Forward PE report in Slack](../img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
-List securities by forward P/E ratio (`/pe`), or PEG ratio. A forward P/E is an analysts' estimate, so its lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`).
+List securities by forward P/E ratio (`/pe`), or PEG ratio (`/peg`). Both are analysts' estimates (a forward P/E of earnings, a PEG of their growth), so their lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`), as `/buy` and `/sell` do.
 
 Command:
 ```

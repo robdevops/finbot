@@ -233,7 +233,10 @@ class ReportFunctions(FinbotCase):
 			return [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], [label for label, _ in chart.rows]
 		self.assertEqual(order('buy'), (['T2', 'T3', 'T1'], ['T2', 'T3', 'T1']))
 		self.assertEqual(order('sell'), (['T5', 'T6', 'T4'], ['T5', 'T6', 'T4']))
-		self.assertIn('(7+ analysts)', rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy'])[0][0])
+		payload, chart = rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy'])
+		self.assertIn('(7+ analysts)', payload[0]) # the text's heading has the count, and the chart's subtitle
+		self.assertEqual((chart.title, chart.subtitle.partition(':')[0]),
+			('Top 15 analyst buy ratings for tracked stocks', 'Mean rating of 7+ analysts'))
 		self.patch(watchlist, 'with_holdings', lambda chat: ['T7', 'T8'])
 		with self.assertRaises(answer.Nothing) as none:
 			rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy'])
@@ -276,16 +279,17 @@ class ReportFunctions(FinbotCase):
 		self.assertEqual(len(calls), 1)
 		self.assertTrue(calls[0])
 
-	def test_forward_pe_lists_need_as_many_analysts_as_buy(self):
-		"""A forward P/E is analysts' estimate: from few, it says little, as a perfect 1.0 buy from two brokers does."""
+	def test_forward_pe_and_peg_lists_need_as_many_analysts_as_buy(self):
+		"""A forward P/E and a PEG are analysts' estimates: from few, they say little, as a perfect 1.0 buy from two
+		brokers does."""
 		analysts = {'T1': 7, 'T2': 6, 'T3': 12, 'T4': 2}
 		self.patch(watchlist, 'with_holdings', lambda chat: list(analysts))
 		self.patch(yahoo, 'fetch',
 			lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': -5 if t == 'T3' else 20} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
-		def listed(mode='top'):
-			"""(heading, the tickers listed, the chart) of a forward P/E list."""
-			payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', 'forward pe', mode)
+		def listed(mode='top', kind='forward pe'):
+			"""(heading, the tickers listed, the chart) of a forward P/E list, or a PEG one."""
+			payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', kind, mode)
 			return payload[0], [line.split('Co ')[1].split(' ')[0] for line in payload[1:]], chart
 		heading, names, chart = listed()
 		# T2 and T4: too few analysts; T3: negative
@@ -295,9 +299,13 @@ class ReportFunctions(FinbotCase):
 		self.assertEqual((chart.title, chart.subtitle), ('Top 15 tracked stocks by forward pe ratio',
 			f'7+ analysts, {today}'))
 		self.assertEqual(listed('negative')[1], ['T3'])
+		heading, names, chart = listed(kind='peg') # every PEG is 1.2: T2 and T4 have too few analysts
+		self.assertEqual((names, chart.subtitle), (['T1', 'T3'], f'7+ analysts, {today}'))
+		self.assertIn('peg ratio (7+ analysts)', heading)
 		self.assertIn('Co T2', rankings.ratio_line(TELEGRAM, 'T2', 'forward pe')) # one ticker asked for: shown
-		self.settings(min_analysts=13) # the one setting moves .buy and .forward pe together
+		self.settings(min_analysts=13) # the one setting moves .buy, .sell, .forward pe and .peg together
 		for none, said in ((listed, 'No tracked stocks with 13+ analysts have a forward pe ratio'),
+				(lambda: listed(kind='peg'), 'No tracked stocks with 13+ analysts have a peg ratio'),
 				(lambda: rankings.prepare_rating_payload(TELEGRAM, 'telegram:55', ['buy']),
 				'No tracked stocks rated buy by 13+ analysts')):
 			with self.assertRaises(answer.Nothing) as nothing:
@@ -335,10 +343,10 @@ class ReportFunctions(FinbotCase):
 			with self.subTest(kind=kind, mode=mode):
 				payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', kind, mode, length=5)
 				self.assertIn(heading, payload[0])
-				self.assertEqual('analysts' in chart.subtitle, kind == 'forward pe') # a .peg list counts none
+				self.assertTrue(chart.subtitle.startswith('7+ analysts, '), chart.subtitle)
 		with self.assertRaises(answer.Nothing) as none:
 			rankings.ratio_list(TELEGRAM, 'telegram:55', 'peg', 'negative', length=5)
-		self.assertEqual(none.exception.lines, ['negative peg: no data found'])
+		self.assertEqual(none.exception.lines, ['No tracked stocks with 7+ analysts have a negative peg ratio'])
 
 	def test_one_stocks_ratio_shows_what_yahoo_has(self):
 		""".pe of a loss-maker shows its forward P/E (it used to say nothing), .peg labels its figure, and a stock

@@ -302,7 +302,7 @@ class Settings:
 	include_portfolios: tuple = () # portfolio ids
 	log_level: str = 'INFO' # what the log shows: one of LOG_LEVELS, and those more severe (lib/log.py)
 	log_width: int = 71 # the most characters of a log line that can run long (a request's, a chat message's); 0: no cut
-	min_analysts: int = 7 # .buy, .sell and .forward pe list only stocks this many analysts cover
+	min_analysts: int = 7 # .buy, .sell, .pe and .peg list only stocks this many analysts cover
 	past_days: int = 28
 	performance_cache_seconds: int = 2400 # Sharesight performance reports (40 minutes: sharesight_warm runs every 30)
 	preload_gap: float = 0.1 # seconds between two charts preloaded to a network (see telegram_preload_chat)
