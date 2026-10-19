@@ -1,4 +1,4 @@
-"""Ranked lists of the stocks followed (.marketcap, .pe and .peg, .beta, .buy and .sell), and one stock's
+"""Ranked lists of the stocks followed (.marketcap, .ratio, .beta, .buy and .sell), and one stock's
 market cap or ratio."""
 from lib import log
 from lib import answer

@@ -503,18 +503,15 @@ def on_marketcap(request, args):
 	else:
 		request.reply(rankings.marketcap_list(request.service, request.dest.key, bottom=args.keyword == 'bottom'))
 
-def on_ratio(kind):
-	"""The handler of .pe (the forward P/E, or the current one given the option) or .peg (kind: forward pe or peg): the
-	top (by default) or bottom 15 by the ratio and its chart, the negative ones (where there can be any), or one
-	ticker's ratio."""
-	def handler(request, args):
-		""".pe [SYMBOL|top|bottom|negative] [trailing|current] or .peg [SYMBOL|top|bottom|negative]."""
-		if args.words:
-			request.reply([rankings.ratio_line(request.service, ticker(args), kind)])
-		else:
-			now = 'trailing pe' if args.option == 'trailing' else kind
-			request.reply(*rankings.ratio_list(request.service, request.dest.key, now, args.keyword or 'top'))
-	return handler
+def on_ratio(request, args):
+	""".ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]: the top (by default) or bottom (reverse) 15
+	stocks by a ratio and its chart, the negative ones (where there can be any), or one ticker's ratio; the forward
+	P/E by default, the trailing one given current, the PEG given peg. .pe and .peg are its names, .peg's the PEG."""
+	kind = args.option or ('peg' if args.word == 'peg' else 'forward pe')
+	if args.words:
+		request.reply([rankings.ratio_line(request.service, ticker(args), kind)])
+	else:
+		request.reply(*rankings.ratio_list(request.service, request.dest.key, kind, args.keyword or 'top'))
 
 def on_beta(request, args):
 	""".beta: the volatile small caps among the stocks followed."""
@@ -698,6 +695,8 @@ SECTIONS = TRACKED, COMPANY, PRICE, RISK, TRADES, JOBS = ('Tracked securities', 
 
 TOP = {'top': 'top', 'bottom': 'bottom'} # the ends of a ranked list
 NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # the ratios that can be negative
+ENDS = NEGATIVE | dict.fromkeys(('reverse', 'reversed'), 'bottom') # .ratio's: the lowest first, or the highest
+RATIOS = {'forward': 'forward pe', 'current': 'trailing pe', 'trailing': 'trailing pe', 'peg': 'peg'} # .ratio's
 DELETE = ('del', 'delete', 'rem', 'remove', 'rm') # how deleting is typed, to the watchlist and to .jobs
 CHANGE = {'add': 'add'} | dict.fromkeys(DELETE, 'delete') # of the watchlist
 BY = {word: name for name, words in holdings.NOUNS.items() for word in words} # .treemap's: sector, sectors, ...
@@ -736,12 +735,9 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 		('.movers [percent|top|bottom|session|premarket] [period]',), PRICE, ('.movers',), percent=True, period=True,
 		keywords=TOP | {name: name for name in SESSIONS}, words=(0, 1)), # a word: session's or premarket's SYMBOL
 	Command(BUY_SELL, on_rating, ('.buysell',), RISK, ('.buy & sell',)), # .buy & sell, .buy sell: both
-	Command(('pe', 'forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'),
-		('.pe [SYMBOL|top|bottom|negative] [trailing]',), RISK, ('.pe',), keywords=NEGATIVE,
-		options={'trailing': 'trailing', 'current': 'trailing'}, words=(0, 1),
-		takes='ticker'), # the forward P/E: it was .forward pe
-	Command(('peg',), on_ratio('peg'), ('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',), keywords=NEGATIVE,
-		words=(0, 1), takes='ticker'),
+	Command(('ratio', 'pe', 'forward pe', 'forwardpe', 'fpe', 'peg'), on_ratio,
+		('.ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]',), RISK, ('.ratio',), keywords=ENDS,
+		options=RATIOS, words=(0, 1), takes='ticker'), # was .pe (the forward P/E) and .peg, still their names
 	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True,
 		words=(0, 1), takes='ticker'),
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True,
@@ -860,7 +856,7 @@ def job_commands():
 	"""The commands of .help a job may run, by each name a job may call one by: a CommandJob each. Every one but those
 	that change something (job false) and those a scheduled report runs already (REPORTED): first each by the name its
 	first line in .help that has one gives it (.stock's, not .SYMBOL's), with what it takes; then its other names and
-	its typos, each standing for the first, but buy and sell's (.compare stands for price)."""
+	its typos, each standing for the first, but buy and sell's and peg's (.compare stands for price)."""
 	found = {}
 	for command in COMMANDS:
 		if not (command.job and command.usage) or command.handler in REPORTED:
@@ -872,8 +868,8 @@ def job_commands():
 				first = found[name] = CommandJob(command, name, ' '.join(words[len(name.split()):]))
 				break
 		for name in command.names:
-			found.setdefault(name, dataclasses.replace(first, name=name if command.handler is on_rating else first.name,
-				listed=False))
+			found.setdefault(name, dataclasses.replace(first, listed=False, name=name if command.handler is on_rating or
+				name == 'peg' else first.name)) # buy, sell and peg: the name says which
 	return found
 
 PERIOD_WORDS = ('1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y') # suggested where a command takes a period

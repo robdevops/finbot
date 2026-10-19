@@ -660,7 +660,8 @@ class JobsInChat(ChatBase):
 		self.assertEqual(lines[0], '<b>What a job can run:</b>')
 		for line in ('reminder "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
 				'movers midsession|interday|premarket|close|DAYS', 'trades', '.jobs add movers weekly', 'beta',
-				'peg [SYMBOL|top|bottom|negative]', 'price [SYMBOL ... up to 8] [period]', '.jobs add peg top weekly'):
+				'ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]',
+				'price [SYMBOL ... up to 8] [period]', '.jobs add ratio peg bottom weekly'):
 			self.assertIn(line, lines)
 		self.assertFalse(any(name in line for line in lines for name in jobs.SYSTEM_ACTIONS))
 
@@ -936,7 +937,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual(lines[:3], ['<b>Add a job: which report?</b>', '', '<b>Jobs</b>']) # the list stays in view
 		self.assertEqual(rows, [['trades', 'movers midsession', 'movers premarket'], ['movers close', 'movers',
 			'performance'], ['earnings', 'shorts', 'rating'], ['milestone', 'reminder', 'holdings'],
-			['treemap', 'who', 'marketcap'], ['beta', 'price', 'buysell'], ['pe', 'peg', 'stock'], ['Cancel']])
+			['treemap', 'who', 'marketcap'], ['beta', 'price', 'buysell'], ['ratio', 'stock'], ['Cancel']])
 		self.assertEqual((data['movers'], data['Cancel']), (f'm|add|5|{self.crc()}', f'm|top|0|{self.crc()}'))
 		lines, rows, data = self.press(data['movers'])
 		self.assertEqual((lines[:3], rows), (['<b>Add movers: how often?</b>', '', '<i>† indicates default</i>'],
@@ -1054,10 +1055,10 @@ class JobsMenu(ChatBase):
 		one whose usage brackets its stock or portfolio (a picker's, run bare as typed: the first one's answer); one
 		that needs a stock says how to type it. On Discord the list comes on two pages."""
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
-		for pressed in ('peg', 'weekly', 'Fri', '09†', '09:00†'):
+		for pressed in ('ratio', 'weekly', 'Fri', '09†', '09:00†'):
 			lines, rows, data = self.press(data[pressed])
-		self.assertEqual(newest(lines), '3. * peg · weekly, Fridays at 9:00am')
-		self.assertIn('peg', [job.action for job in self.s.chat_jobs(CHAT)])
+		self.assertEqual(newest(lines), '3. * ratio · weekly, Fridays at 9:00am')
+		self.assertIn('ratio', [job.action for job in self.s.chat_jobs(CHAT)])
 		lines, rows, data = self.press(f'm|add|{self.crc()}')
 		for pressed in ('treemap', 'weekly', 'Fri', '09†', '09:00†'):
 			lines, rows, data = self.press(data[pressed])
@@ -1073,7 +1074,7 @@ class JobsMenu(ChatBase):
 		self.assertEqual(([len(row) for row in first], [button.label for button in first[-1]]), ([4, 4, 4, 4, 2],
 			['▶', 'Cancel']))
 		self.assertEqual([button.label for row in second for button in row], ['price',
-			'buysell', 'pe', 'peg', 'stock', '◀', 'Cancel'])
+			'buysell', 'ratio', 'stock', '◀', 'Cancel'])
 
 	def test_a_step_that_is_none_adds_nothing(self):
 		"""Data that is no step of Add (forged, or an older finbot's: the weekdays frequency, the next 14 days, every...

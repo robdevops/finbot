@@ -146,7 +146,8 @@ class TelegramWebhook(FinbotCase):
 		self.assertEqual(calls, ['getMyCommands', 'setMyCommands', 'getMyCommands'])
 		self.assertIn(f'telegram: {len(menu)} commands in the menu', log.getvalue())
 		names = [entry['command'] for entry in menu]
-		self.assertIn({'command': 'pe', 'description': 'pe [SYMBOL|top|bottom|negative] [trailing]'}, menu)
+		self.assertIn({'command': 'ratio',
+			'description': 'ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]'}, menu)
 		self.assertEqual([name in names for name in ('stock', 'jobs', 'profile', 'job')], [True, True, False, False])
 		self.assertTrue(all(re.fullmatch(r'[a-z0-9_]{1,32}', name) for name in names))
 		self.patch(telegram_common, 'call', mock.Mock(side_effect=RuntimeError('Telegram getMyCommands: Unauthorized')))

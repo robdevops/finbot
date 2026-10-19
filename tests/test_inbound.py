@@ -689,7 +689,7 @@ class SlackManifest(unittest.TestCase):
 		commands = manifest['features']['slash_commands']
 		self.assertEqual([c['command'] for c in commands], ['/' + command.name for command in worker.slash_commands()])
 		names = {c['command'] for c in commands}
-		self.assertTrue({'/stock', '/jobs', '/pe'} <= names and not {'/profile', '/job'} & names)
+		self.assertTrue({'/stock', '/jobs', '/ratio'} <= names and not {'/profile', '/job'} & names)
 		for command in commands:
 			with self.subTest(command=command['command']):
 				self.assertRegex(command['command'], r'^/[a-z0-9_]{1,31}$')

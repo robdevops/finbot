@@ -299,7 +299,7 @@ class Commands(FinbotCase):
 		commands = worker.slash_commands()
 		names = [name for name, _, _, _ in commands]
 		self.assertEqual(len(names), len(set(names)))
-		for expected in ('help', 'earnings', 'buysell', 'pe', 'stock',
+		for expected in ('help', 'earnings', 'buysell', 'ratio', 'stock',
 				'jobs', 'price', 'movers'):
 			self.assertIn(expected, names)
 		gone = {'profile', 'job', 'session', 'premarket', 'pie', 'plan', 'buy', 'sell', 'dividend'}
@@ -360,7 +360,7 @@ class Commands(FinbotCase):
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None: sent.append(lines) or [])
 		message = inbound.Message('discord', '77', '<@5>', '/help', '@99', '', '42/tok')
 		worker.process_request(message)
-		self.assertIn('/pe [SYMBOL|top|bottom|negative] [trailing]', sent[0])
+		self.assertIn('/ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]', sent[0])
 		self.assertIn('/stock SYMBOL', sent[0])
 		self.assertIn('.price, or <@99> price', sent[0])
 		self.env(discordOutgoingWebhook='https://example.com/discord')

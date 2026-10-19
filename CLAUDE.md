@@ -84,8 +84,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   Discord's registered commands); `suggest(chat, text)` completes a slash command's arguments as they are typed
   (Discord's autocomplete), from the cache alone, offering what a command `takes` (tickers or portfolios). `read()`
   finds the command by its whole name, the longest that matches (any other first word that may be a ticker is
-  `.SYMBOL`, that word its one word), and `read_args()` its `Args`: a percent, a period, a keyword and an option (`.pe`'s
-  trailing) from either end, the words between. `answered()` runs a message's command and a job's alike: more or fewer words than its `words`
+  `.SYMBOL`, that word its one word), and `read_args()` its `Args`: a percent, a period, a keyword and an option (`.ratio`'s
+  ratio, `.pe` and `.peg` its names) from either end, the words between. `answered()` runs a message's command and a job's alike: more or fewer words than its `words`
   (`Command.fits`), or a handler's `Usage`, get its usage; an Answer is the reply (Nothing never in a job's run); a
   handler gets a ticker with `ticker(args)`. `Request(dest, user, bot_name)` (`request.reply(lines, chart,
   buttons)`); each command gets the typing notice while it works. `process_request(message)` answers a message
@@ -105,8 +105,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   (`delivery.interactive(dest)`); a job's run, on schedule, Run now or `.jobs run`, posts nothing. Chat-only
   (`prepare_*`): `about` (.help, and the .jobs menu's screens:
   `jobs_screen`, `add_screen`, `next_screen`), `history` (.price, also called .compare and .history: one stock's line, or
-  two to eight rebased), `holdings` (.holdings .who .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe
-  .fpe .peg .beta .buy .sell).
+  two to eight rebased), `holdings` (.holdings .who .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .ratio
+  .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
   `chat(key)`, as its network's bot), `deliver(dest, report)` (a chart refused goes again with its heading alone as the
   caption, the lines as text after it), the one-line error report (to its chat; one that belongs to no chat only

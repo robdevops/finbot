@@ -42,10 +42,9 @@ Where:
 /jobs add reminder schedule "text"
 /marketcap [symbol|top|bottom]
 /movers [percent|top|bottom|session|premarket] [period]
-/pe [symbol|top|bottom|negative] [trailing]
-/peg [symbol|top|bottom|negative]
 /performance [period] [portfolio]
 /price [symbol...] [period]
+/ratio [symbol] [forward|current|peg] [top|bottom|negative|reverse]
 /shorts [percent|symbol]
 /trades [period] [portfolio]
 /treemap [portfolio] [sector|industry|country|currency|market]
@@ -257,15 +256,14 @@ Command:
 /shorts [percent]
 ```
 
-### pe / peg
+### ratio (pe, peg)
 ![Forward PE report in Slack](../img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
-List securities by forward P/E ratio (`/pe`), or PEG ratio (`/peg`). Both are analysts' estimates (a forward P/E of earnings, a PEG of their growth), so their lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`), as `/buy` and `/sell` do. Add `trailing` (or `current`) to `/pe`, beside `top`, `bottom` or `negative` in either order, for the trailing P/E, of the earnings reported: it is no estimate, so every stock counts.
+List the stocks followed by a ratio: `/ratio` is the forward P/E, lowest first; `/ratio current` the trailing P/E (`current` or `trailing`), of the earnings reported; `/ratio peg` the PEG. Then, optionally, the end: `top` (the default), `bottom` or `reverse` for the highest first, or `negative`, in either order: `/ratio peg reverse`, `/ratio current negative`. A ticker (`/ratio T1`) gets its own figures. `/pe` and `/peg` still work, as `/ratio` and `/ratio peg`. A forward P/E and a PEG are analysts' estimates (of earnings, of their growth), so their lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`), as `/buy` and `/sell` do; a trailing P/E is no estimate, so every stock counts.
 
 Command:
 ```
-/pe [SYMBOL|top|bottom|negative] [trailing]
-/peg [SYMBOL|top|bottom|negative]
+/ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]
 ```
 
 ### Price

@@ -119,8 +119,8 @@ class Commands(FinbotCase):
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in telegram_common.keyboard(worker.KEYBOARD)['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.movers', '.pe', '.peg',
-			'.performance', '.price', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])
+		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.movers', '.performance',
+			'.price', '.ratio', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
 				with self.subTest(text=text):
@@ -312,9 +312,10 @@ class ReportFunctions(FinbotCase):
 				none()
 			self.assertEqual(nothing.exception.lines, [said])
 
-	def test_pe_takes_trailing_or_current_as_an_option_beside_its_other_words(self):
-		""".pe [top|bottom|negative] trailing (or current) lists the trailing P/E, of earnings reported, which needs no
-		analysts (a forward P/E does), with the option before or after the keyword; .peg takes it as a ticker."""
+	def test_ratio_takes_the_ratio_then_its_end_as_optional_words(self):
+		""".ratio lists the forward P/E, lowest first; current (trailing) or peg picks another ratio, and top, bottom,
+		reverse (bottom) or negative the end, each optional and in either order; .pe and .peg are its names, .peg's
+		the PEG. A trailing P/E, of earnings reported, needs no analysts; a forward P/E and a PEG do."""
 		analysts = {'T1': 7, 'T2': 2, 'T3': 12}
 		self.patch(watchlist, 'with_holdings', lambda chat: list(analysts))
 		trailing = {'T1': 30, 'T2': 10, 'T3': -4}
@@ -328,14 +329,26 @@ class ReportFunctions(FinbotCase):
 			charted.clear()
 			self.command(text)
 			return charted[0].title, [label for label, _ in charted[0].rows]
-		forward = listed('.pe')
-		self.assertEqual(forward[1], ['T1', 'T3']) # T2: too few analysts
-		for text in ('.pe trailing', '.pe current', '.pe trailing top', '.pe top current'):
+		for text in ('.ratio', '.pe', '.ratio forward', '.ratio top', '.ratio forward top', '.forward pe'):
+			with self.subTest(text=text):
+				title, tickers = listed(text)
+				self.assertEqual((tickers, 'forward pe ratio' in title), (['T1', 'T3'], True)) # T2: too few analysts
+		for text in ('.ratio current', '.ratio trailing', '.pe current', '.ratio top current', '.ratio current top'):
 			with self.subTest(text=text):
 				title, tickers = listed(text)
 				self.assertEqual((tickers, 'trailing pe ratio' in title), (['T2', 'T1'], True)) # T3 is negative
-		self.assertEqual(listed('.pe bottom trailing')[1], ['T1', 'T2'])
-		self.assertEqual(listed('.pe negative current')[1], ['T3'])
+		for text, kind, tickers in (('.ratio current bottom', 'trailing pe', ['T1', 'T2']),
+				('.ratio reverse current', 'trailing pe', ['T1', 'T2']), ('.pe bottom', 'forward pe', ['T3', 'T1']),
+				('.ratio negative current', 'trailing pe', ['T3']), ('.ratio peg', 'peg', ['T1', 'T3']),
+				('.peg', 'peg', ['T1', 'T3']), ('.peg reverse', 'peg', ['T3', 'T1']),
+				('.ratio peg negative', 'peg', [])):
+			with self.subTest(text=text):
+				if tickers:
+					title, found = listed(text)
+					self.assertEqual((found, f'{kind} ratio' in title), (tickers, True))
+				else:
+					charted.clear()
+					self.assertEqual(self.command(text)[0][0], 'text') # nothing negative: nothing to show
 		self.assertEqual(rankings.ratio_list(TELEGRAM, 'telegram:55', 'trailing pe')[1].subtitle,
 			formats.date_short(formats.today(), True)) # no analysts in a trailing chart's subtitle
 

@@ -4,7 +4,7 @@ cache), each with run(chat, **kwargs), which posts to the chat (a command's, or 
 posts nothing), and where a scheduled run takes arguments, job(argv), which reads them, and ARGUMENTS, what .jobs add
 lists (one without takes none: jobs.job_args); the scheduler runs them in the bot's process, and `.jobs run` runs one
 now. And the chat-only reports: about (.help, .jobs), history (.price, also called .compare and .history), holdings
-(.holdings, .who, .treemap, .watchlist), pick (the pickers' buttons), profile (.SYMBOL) and rankings (.marketcap, .pe
+(.holdings, .who, .treemap, .watchlist), pick (the pickers' buttons), profile (.SYMBOL) and rankings (.marketcap, .ratio
 and the rest)."""
 
 
