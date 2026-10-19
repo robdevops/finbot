@@ -136,7 +136,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   (what a press asks for is its act, a letter of `buttons.ACTS`: the screen it shows, what its number is, whether it
   changes the buttons alone, its toast; `m`, and `n` under a note, which the next press takes away), 32 items a page
   (`pick.layout`; fewer where the network holds few rows of buttons, `Dialect.room`: Discord's five) turned by
-  `◀` `▶` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
+  `◀` `▶` under the ticker picker, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
   is), `.price`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, their buttons and the `.watchlist` Edit's
   built by `pick.ticker_buttons` and `buttons.page_buttons`, one more refused (act `f`, its `refused`: `buttons.refusal`, in
   `bot.take`); a treemap primes its other charts (`pick.treemaps`), and every chart with period buttons its other

@@ -1388,7 +1388,7 @@ class Pickers(FinbotCase):
 		self.patch(sharesight, 'tickers', lambda: [f'S{i:02d}' for i in range(count)])
 
 	def test_tickers_are_paged_32_to_a_page_under_the_tickers_menu(self):
-		"""The top level has no < or >; the tickers menu has 32 tickers to a page, in rows of four, with < and > where
+		"""The top level has no < or >; the ticker picker has 32 tickers to a page, in rows of four, with < and > where
 		there is another page, Back always, and ticks lasting across pages."""
 		self.many()
 		self.command('.compare')
