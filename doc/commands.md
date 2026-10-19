@@ -221,7 +221,7 @@ As a command, it also takes a portfolio:
 ### Events calendar
 ![earnings message in Slack](../img/earnings.png?raw=true "Earnings message in Slack")
 
-The `earnings` report sends upcoming earnings and ex-dividend date alerts. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the `settings.conf` for a scheduled run, or can be specified as an argument when triggered through the chat bot.
+The `earnings` report sends upcoming earnings and ex-dividend date alerts, in one list by date: an ex-dividend date is marked `- ex-dividend`, an earnings date (most of them) is not. The data is sourced from Yahoo! Finance. It reports on events up to `future_days` into the future. This is set in the `settings.conf` for a scheduled run, or can be specified as an argument when triggered through the chat bot.
 
 **Finance Explainer:** When a company releases its quarterly earnings report, the stock price may undergo a signficant positive or negative movement, depending on whether the company beat or missed market expectations. You may wish to hold off buying more of this stock until after its earnings report, unless you think the stock will beat market expectations.
 

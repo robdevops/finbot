@@ -142,11 +142,12 @@ def ratio_list(service, chat, kind, mode='top', length=LENGTH):
 			raise answer.Nothing(f"No tracked stocks with {config.settings.min_analysts}+ analysts have a {trail}"
 				" ratio")
 		raise answer.Nothing(f"{kind if mode == 'top' else f'{mode} {kind}'}: no data found")
-	coverage = f" ({config.settings.min_analysts}+ analysts)" if covered is not None else ''
-	heading = f"{'Bottom' if mode == 'bottom' else 'Top'} {length} tracked stocks by {trail} ratio{coverage}"
-	bars = tuple((label, float(ratio)) for ratio, label, _ in rows)
-	chart = render.Chart('bars', heading, formats.date_short(formats.today(), True), bars, value_format='number')
-	return [service.bold(heading)] + [line for _, _, line in rows], chart
+	coverage = f"{config.settings.min_analysts}+ analysts" if covered is not None else '' # the chart's subtitle has it
+	heading = f"{'Bottom' if mode == 'bottom' else 'Top'} {length} tracked stocks by {trail} ratio"
+	subtitle = ', '.join(filter(None, (coverage, formats.date_short(formats.today(), True))))
+	chart = render.Chart('bars', heading, subtitle, tuple((label, float(ratio)) for ratio, label, _ in rows),
+		value_format='number')
+	return [service.bold(heading + (f" ({coverage})" if coverage else ''))] + [line for _, _, line in rows], chart
 
 def prepare_beta_payload(service, chat):
 	"""(payload, chart) of the stocks a chat follows (by its key) with a beta over 1.5 and a market cap under US$2B,

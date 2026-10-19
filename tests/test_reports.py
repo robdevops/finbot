@@ -46,7 +46,8 @@ class Commands(FinbotCase):
 
 	def test_earnings_is_one_list_of_both_events_by_date(self):
 		""".earnings (also .earningsdividend, and the keyboard's old .earnings & dividend) posts one message: earnings
-		and ex-dividends under shared date headings, each line named for its event; .dividend is the ex-dividends."""
+		and ex-dividends under shared date headings, the ex-dividends saying so (the earnings, most lines, go bare);
+		.dividend is the ex-dividends."""
 		self.settings(graph=False)
 		both = self.command('.earnings')
 		self.assertEqual(len(both), 1)
@@ -55,8 +56,9 @@ class Commands(FinbotCase):
 		self.assertIn('Upcoming earnings and ex-dividends', text)
 		date = f"{datetime.date.fromtimestamp(NOW + 86400 * 3):%b %d}" # the fixtures' date for both events
 		self.assertEqual(text.count(date), 1) # a date heading shared by both kinds
-		self.assertIn('T1</a>) - earnings', text)
+		self.assertTrue(any(line.endswith('T1</a>)') for line in both[0][1])) # its earnings date, bare
 		self.assertIn('T1</a>) - ex-dividend', text)
+		self.assertNotIn(' - earnings', text)
 		for typed in ('.earningsdividend', '.earnings & dividend'):
 			self.assertEqual(text, str(self.command(typed)))
 		self.assertEqual(str(self.command('.earnings & dividend T1')), str(self.command('.earnings T1')))
@@ -289,6 +291,9 @@ class ReportFunctions(FinbotCase):
 		# T2 and T4: too few analysts; T3: negative
 		self.assertEqual((names, [label for label, _ in chart.rows]), (['T1'], ['T1']))
 		self.assertIn('forward pe ratio (7+ analysts)', heading)
+		today = formats.date_short(formats.today(), True) # the chart's subtitle has the count, its title not
+		self.assertEqual((chart.title, chart.subtitle), ('Top 15 tracked stocks by forward pe ratio',
+			f'7+ analysts, {today}'))
 		self.assertEqual(listed('negative')[1], ['T3'])
 		self.assertIn('Co T2', rankings.ratio_line(TELEGRAM, 'T2', 'forward pe')) # one ticker asked for: shown
 		self.settings(min_analysts=13) # the one setting moves .buy and .forward pe together
@@ -330,6 +335,7 @@ class ReportFunctions(FinbotCase):
 			with self.subTest(kind=kind, mode=mode):
 				payload, chart = rankings.ratio_list(TELEGRAM, 'telegram:55', kind, mode, length=5)
 				self.assertIn(heading, payload[0])
+				self.assertEqual('analysts' in chart.subtitle, kind == 'forward pe') # a .peg list counts none
 		with self.assertRaises(answer.Nothing) as none:
 			rankings.ratio_list(TELEGRAM, 'telegram:55', 'peg', 'negative', length=5)
 		self.assertEqual(none.exception.lines, ['negative peg: no data found'])

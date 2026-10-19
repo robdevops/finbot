@@ -18,10 +18,10 @@ EVENTS = {'earnings': ('earnings_date', 'Upcoming earnings'),
 	'ex-dividend': ('ex_dividend_date', 'Upcoming ex-dividends')} # -> (field, heading)
 
 def run(chat, *, days=None, specific_stock=None, event='both'):
-	"""Post the earnings or ex-dividend dates ahead (`event`: both by default, in one chronological list with each
-	line named for its event) for the stocks a chat follows or one (Yahoo's symbol), to the chat (a command's or a
-	job's). The scheduled report is pinned where the network can; a reply is not, or the chat would collect pinned
-	copies. Raises answer.Nothing where there are none."""
+	"""Post the earnings or ex-dividend dates ahead (`event`: both by default, in one chronological list, where the
+	ex-dividend lines say so and the earnings, most of them, go bare) for the stocks a chat follows or one (Yahoo's
+	symbol), to the chat (a command's or a job's). The scheduled report is pinned where the network can; a reply is
+	not, or the chat would collect pinned copies. Raises answer.Nothing where there are none."""
 	if days is None:
 		days = config.settings.future_days
 	tickers = watchlist.covered(chat.key, specific_stock)
@@ -87,7 +87,7 @@ def report(service, events, days, specific_stock, event):
 	for date in sorted({when.date() for when, *_ in events}):
 		day = f"{date:%b %d} " if specific_stock else '' # one stock's events carry their date
 		lines = [f"{flag} {day}{formats.short_name(title)} ({links.yahoo_link(ticker, service)})"
-			+ (f" - {kind[0]}" if kind else '') for when, flag, title, ticker, *kind in events
+			+ (' - ex-dividend' if kind == ['ex-dividend'] else '') for when, flag, title, ticker, *kind in events
 			if when.date() == date]
 		blocks.append(lines if specific_stock else [service.bold(f"{date:%b %d}")] + lines)
 	payload = sum(blocks, []) if specific_stock else formats.sections(*blocks)
