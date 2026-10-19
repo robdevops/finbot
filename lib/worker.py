@@ -319,12 +319,14 @@ def answered(request, command, args):
 @dataclasses.dataclass
 class Args:
 	"""What a command was given (read_args): its name as written, a percent and a period where it takes them, one of its
-	keywords, and the words left between, which say what it is about: tickers or a portfolio's name."""
+	keywords and one of its options, and the words left between, which say what it is about: tickers or a portfolio's
+	name."""
 	word: str
 	text: str = '' # the arguments as written
 	percent: float = None
 	days: int = None
 	keyword: str = None
+	option: str = None
 	words: list = dataclasses.field(default_factory=list)
 
 	@property
@@ -360,8 +362,8 @@ def read(message, bot_name):
 
 def read_args(command, word, text):
 	"""The Args of a command called by `word`: from either end of its arguments, a percent where it takes one (5, 5% or
-	2.5), a period where it takes one (7d, 3m, ytd; a bare number where it takes no percent) and one of its keywords, in
-	any case; the words left between are what it is about."""
+	2.5), a period where it takes one (7d, 3m, ytd; a bare number where it takes no percent), one of its keywords and
+	one of its options, in any case; the words left between are what it is about."""
 	args = Args(word, text.strip())
 	def taken(word):
 		"""Whether the word is an option the command takes and has not had yet, which it then has."""
@@ -379,6 +381,9 @@ def read_args(command, word, text):
 				pass
 		if args.keyword is None and word.lower() in command.keywords:
 			args.keyword = command.keywords[word.lower()]
+			return True
+		if args.option is None and word.lower() in command.options:
+			args.option = command.options[word.lower()]
 			return True
 		return False
 	words = text.split()
@@ -499,15 +504,16 @@ def on_marketcap(request, args):
 		request.reply(rankings.marketcap_list(request.service, request.dest.key, bottom=args.keyword == 'bottom'))
 
 def on_ratio(kind):
-	"""The handler of .pe (the forward P/E) or .peg (kind: forward pe or peg): the top (by default) or bottom 15 by the
-	ratio and its chart, the negative ones (where there can be any), or one ticker's ratio."""
+	"""The handler of .pe (the forward P/E, or the current one given the option) or .peg (kind: forward pe or peg): the
+	top (by default) or bottom 15 by the ratio and its chart, the negative ones (where there can be any), or one
+	ticker's ratio."""
 	def handler(request, args):
-		""".pe or .peg [SYMBOL|top|bottom|negative]."""
+		""".pe [SYMBOL|top|bottom|negative] [trailing|current] or .peg [SYMBOL|top|bottom|negative]."""
 		if args.words:
 			request.reply([rankings.ratio_line(request.service, ticker(args), kind)])
 		else:
-			mode = args.keyword or 'top'
-			request.reply(*rankings.ratio_list(request.service, request.dest.key, kind, mode))
+			now = 'trailing pe' if args.option == 'trailing' else kind
+			request.reply(*rankings.ratio_list(request.service, request.dest.key, now, args.keyword or 'top'))
 	return handler
 
 def on_beta(request, args):
@@ -667,8 +673,8 @@ def on_profile(request, args):
 class Command:
 	"""A chat command: its names (typos too; a name may be several words, as 'forward pe'), the handler that answers
 	it, its .help lines under its section's heading, the Telegram keyboard buttons that send it, and what its arguments
-	may hold besides words (read_args): a percent, a period, its keywords ({spelling: keyword}); then how many words it
-	takes, and what they are."""
+	may hold besides words (read_args): a percent, a period, its keywords and its options ({spelling: keyword}); then
+	how many words it takes, and what they are."""
 	names: tuple
 	handler: typing.Callable
 	usage: tuple = () # its lines in .help; none keeps it out of .help
@@ -677,6 +683,7 @@ class Command:
 	percent: bool = False
 	period: bool = False
 	keywords: dict = dataclasses.field(default_factory=dict)
+	options: dict = dataclasses.field(default_factory=dict) # a word it may take beside a keyword (.pe top current)
 	words: tuple = (0, None) # how many words it takes, at least and at most (None: any): others get its usage
 	takes: str = '' # what its words are, for suggest and a job's example: 'ticker' or 'portfolio' (a name)
 	job: bool = True # whether a job may run it (job_commands): not one that changes something
@@ -730,7 +737,8 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 		keywords=TOP | {name: name for name in SESSIONS}, words=(0, 1)), # a word: session's or premarket's SYMBOL
 	Command(BUY_SELL, on_rating, ('.buysell',), RISK, ('.buy & sell',)), # .buy & sell, .buy sell: both
 	Command(('pe', 'forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'),
-		('.pe [SYMBOL|top|bottom|negative]',), RISK, ('.pe',), keywords=NEGATIVE, words=(0, 1),
+		('.pe [SYMBOL|top|bottom|negative] [trailing]',), RISK, ('.pe',), keywords=NEGATIVE,
+		options={'trailing': 'trailing', 'current': 'trailing'}, words=(0, 1),
 		takes='ticker'), # the forward P/E: it was .forward pe
 	Command(('peg',), on_ratio('peg'), ('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',), keywords=NEGATIVE,
 		words=(0, 1), takes='ticker'),
@@ -876,7 +884,7 @@ SCHEDULE_WORDS = ('daily', 'weekdays', 'weekly', 'monthly', 'quarterly', 'bi-ann
 def completes(command):
 	"""Whether suggest has words to offer for a command's arguments: its keywords, periods, tickers, portfolios, or
 	those of /jobs."""
-	return bool(command.handler is on_jobs or command.keywords or command.period or command.takes)
+	return bool(command.handler is on_jobs or command.keywords or command.options or command.period or command.takes)
 
 def suggest(chat, text):
 	"""What to suggest while a slash command's arguments are typed (Discord's autocomplete), from the message they make
@@ -908,8 +916,8 @@ def argument_words(command, chat, given):
 	"""(word, shown) pairs that a command's arguments may hold next, for suggest, after those given (Args): the
 	keywords its usage shows and periods, unless it has one already; portfolios; tickers (the chat's watchlist and the
 	holdings, as cached)."""
-	words = [word for word in re.findall(r'[\w-]+', ' '.join(command.usage))
-		if word in command.keywords and word not in command.names and given.keyword is None]
+	words = [word for word in re.findall(r'[\w-]+', ' '.join(command.usage)) if word not in command.names and (
+		word in command.keywords and given.keyword is None or word in command.options and given.option is None)]
 	if command.period and given.days is None:
 		words += PERIOD_WORDS
 	if command.takes:

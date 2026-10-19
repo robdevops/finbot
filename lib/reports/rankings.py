@@ -92,7 +92,9 @@ def prepare_rating_payload(service, chat, actions, length=None, asked=True):
 		xlim=(max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25)), red_rows=tuple(red))
 	return payload, chart
 
-RATIOS = {'forward pe': 'price_to_earnings_forward', 'peg': 'price_to_earnings_peg'}
+RATIOS = {'forward pe': 'price_to_earnings_forward', 'trailing pe': 'price_to_earnings_trailing',
+	'peg': 'price_to_earnings_peg'}
+ESTIMATES = ('forward pe', 'peg') # the ratios that are analysts' estimates: their lists need min_analysts of them
 
 def ratio_line(service, ticker, kind):
 	"""One stock's line for .pe (the forward P/E) or .peg SYMBOL (kind: forward pe or peg): its P/E, trailing and
@@ -113,21 +115,23 @@ def ratio_line(service, ticker, kind):
 	return f"{links.stock_line(ticker, data, service)} {figures}"
 
 def ratio_list(service, chat, kind, mode='top', length=LENGTH):
-	"""(payload, chart): the `length` stocks a chat follows (by its key) by a ratio (kind: forward pe or peg),
-	lowest first (mode top), highest first (bottom), or the negative ones only, lowest first (negative). Both are
-	analysts' estimates (a forward P/E of earnings, a PEG of their growth), so a list takes only stocks that
-	min_analysts or more analysts cover, as .buy does."""
+	"""(payload, chart): the `length` stocks a chat follows (by its key) by a ratio (kind: forward pe, trailing pe or
+	peg), lowest first (mode top), highest first (bottom), or the negative ones only, lowest first (negative). A
+	forward P/E and a PEG are analysts' estimates (of earnings, of their growth), so their lists take only stocks that
+	min_analysts or more analysts cover, as .buy does; a trailing P/E is of earnings reported, and takes all."""
 	field = RATIOS[kind]
 	market_data = yahoo.fetch(watchlist.with_holdings(chat))
-	details = yahoo.fetch_details(market_data) # how many analysts cover each, and its PEG
-	if kind == 'peg':
-		market_data |= details
-	covered = {ticker for ticker, detail in details.items()
-		if detail.get('recommend_analysts', 0) >= config.settings.min_analysts}
+	covered = None # the tickers enough analysts cover, for the estimates
+	if kind in ESTIMATES:
+		details = yahoo.fetch_details(market_data) # how many analysts cover each, and its PEG
+		if kind == 'peg':
+			market_data |= details
+		covered = {ticker for ticker, detail in details.items()
+			if detail.get('recommend_analysts', 0) >= config.settings.min_analysts}
 	rows = [] # (ratio, chart label, line), one sorted list for the caption and the chart
 	for ticker, data in market_data.items():
 		ratio = data.get(field)
-		if ratio is None or ticker not in covered or (ratio < 0) != (mode == 'negative'):
+		if ratio is None or (covered is not None and ticker not in covered) or (ratio < 0) != (mode == 'negative'):
 			continue # too few analysts; the negative ones, or none of them
 		rows.append((ratio, formats.short_ticker(ticker), f"{links.stock_line(ticker, data, service)} {ratio}"))
 	rows.sort(key=lambda row: row[0])
@@ -135,13 +139,15 @@ def ratio_list(service, chat, kind, mode='top', length=LENGTH):
 		rows.reverse()
 	rows = rows[:length]
 	trail = f'negative {kind}' if mode == 'negative' else kind # what the heading calls the ratio
-	analysts = f"{config.settings.min_analysts}+ analysts" # in the heading, and in the chart's subtitle
+	analysts = f"{config.settings.min_analysts}+ analysts" if covered is not None else '' # in the heading and subtitle
 	if not rows:
-		raise answer.Nothing(f"No tracked stocks with {analysts} have a {trail} ratio")
+		raise answer.Nothing(f"No tracked stocks with {analysts} have a {trail} ratio" if analysts else
+			f"No tracked stocks have a {trail} ratio")
 	heading = f"{'Bottom' if mode == 'bottom' else 'Top'} {length} tracked stocks by {trail} ratio"
-	chart = render.Chart('bars', heading, f"{analysts}, {formats.date_short(formats.today(), True)}",
-		tuple((label, float(ratio)) for ratio, label, _ in rows), value_format='number')
-	return [service.bold(f"{heading} ({analysts})")] + [line for _, _, line in rows], chart
+	subtitle = ', '.join(filter(None, (analysts, formats.date_short(formats.today(), True))))
+	chart = render.Chart('bars', heading, subtitle, tuple((label, float(ratio)) for ratio, label, _ in rows),
+		value_format='number')
+	return [service.bold(heading + (f" ({analysts})" if analysts else ''))] + [line for _, _, line in rows], chart
 
 def prepare_beta_payload(service, chat):
 	"""(payload, chart) of the stocks a chat follows (by its key) with a beta over 1.5 and a market cap under US$2B,

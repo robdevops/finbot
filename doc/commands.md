@@ -42,7 +42,7 @@ Where:
 /jobs add reminder schedule "text"
 /marketcap [symbol|top|bottom]
 /movers [percent|top|bottom|session|premarket] [period]
-/pe [symbol|top|bottom|negative]
+/pe [symbol|top|bottom|negative] [trailing]
 /peg [symbol|top|bottom|negative]
 /performance [period] [portfolio]
 /price [symbol...] [period]
@@ -260,11 +260,11 @@ Command:
 ### pe / peg
 ![Forward PE report in Slack](../img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
-List securities by forward P/E ratio (`/pe`), or PEG ratio (`/peg`). Both are analysts' estimates (a forward P/E of earnings, a PEG of their growth), so their lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`), as `/buy` and `/sell` do.
+List securities by forward P/E ratio (`/pe`), or PEG ratio (`/peg`). Both are analysts' estimates (a forward P/E of earnings, a PEG of their growth), so their lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`), as `/buy` and `/sell` do. Add `trailing` (or `current`) to `/pe`, beside `top`, `bottom` or `negative` in either order, for the trailing P/E, of the earnings reported: it is no estimate, so every stock counts.
 
 Command:
 ```
-/pe [SYMBOL|top|bottom|negative]
+/pe [SYMBOL|top|bottom|negative] [trailing]
 /peg [SYMBOL|top|bottom|negative]
 ```
 

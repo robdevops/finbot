@@ -360,7 +360,7 @@ class Commands(FinbotCase):
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None: sent.append(lines) or [])
 		message = inbound.Message('discord', '77', '<@5>', '/help', '@99', '', '42/tok')
 		worker.process_request(message)
-		self.assertIn('/pe [SYMBOL|top|bottom|negative]', sent[0])
+		self.assertIn('/pe [SYMBOL|top|bottom|negative] [trailing]', sent[0])
 		self.assertIn('/stock SYMBOL', sent[0])
 		self.assertIn('.price, or <@99> price', sent[0])
 		self.env(discordOutgoingWebhook='https://example.com/discord')

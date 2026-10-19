@@ -312,6 +312,33 @@ class ReportFunctions(FinbotCase):
 				none()
 			self.assertEqual(nothing.exception.lines, [said])
 
+	def test_pe_takes_trailing_or_current_as_an_option_beside_its_other_words(self):
+		""".pe [top|bottom|negative] trailing (or current) lists the trailing P/E, of earnings reported, which needs no
+		analysts (a forward P/E does), with the option before or after the keyword; .peg takes it as a ticker."""
+		analysts = {'T1': 7, 'T2': 2, 'T3': 12}
+		self.patch(watchlist, 'with_holdings', lambda chat: list(analysts))
+		trailing = {'T1': 30, 'T2': 10, 'T3': -4}
+		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': 20,
+			'price_to_earnings_trailing': trailing[t]} for t in ts})
+		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
+		charted, real = [], render.draw
+		self.patch(render, 'draw', lambda chart: charted.append(chart) or real(chart))
+		def listed(text):
+			"""(the chart's title, the tickers it shows) of the list a command gives."""
+			charted.clear()
+			self.command(text)
+			return charted[0].title, [label for label, _ in charted[0].rows]
+		forward = listed('.pe')
+		self.assertEqual(forward[1], ['T1', 'T3']) # T2: too few analysts
+		for text in ('.pe trailing', '.pe current', '.pe trailing top', '.pe top current'):
+			with self.subTest(text=text):
+				title, tickers = listed(text)
+				self.assertEqual((tickers, 'trailing pe ratio' in title), (['T2', 'T1'], True)) # T3 is negative
+		self.assertEqual(listed('.pe bottom trailing')[1], ['T1', 'T2'])
+		self.assertEqual(listed('.pe negative current')[1], ['T3'])
+		self.assertEqual(rankings.ratio_list(TELEGRAM, 'telegram:55', 'trailing pe')[1].subtitle,
+			formats.date_short(formats.today(), True)) # no analysts in a trailing chart's subtitle
+
 	def test_market_caps_compare_in_us_dollars(self):
 		"""Yahoo gives a market cap in the stock's own currency: unconverted, a won market cap topped every list."""
 		stocks = {'K1.KS': ('KRW', 1.01e15), 'K2.KS': ('KRW', 5e11), 'U1': ('USD', 5.39e12), 'L1.L': ('GBp', 6.25e10),
