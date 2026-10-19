@@ -16,7 +16,8 @@ Telegram:
 Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price`, `/movers`,
 `/performance` and the rest, [the list](commands.md#supported-commands), or as messages, `.price`), period buttons
 under charts and the buttons of the `/jobs` menu, "typing…" while a command works, and a keyboard of the
-common commands in a direct chat with the bot.
+common commands in a direct chat with the bot: it comes with the first command, and again when it changes; `/start` or
+`/help` brings it back where it went (with the messages, when the chat is cleared).
 
 Buttons are coloured: the period shown blue, a ticked ticker green, a job that is off (or a ticker marked for deletion)
 red. Telegram apps from February 2026 draw the colours; older ones draw every button plain.

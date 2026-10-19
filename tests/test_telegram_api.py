@@ -72,6 +72,20 @@ class TelegramWebhook(FinbotCase):
 			telegram_common.keep_keyboard('56', ('.price',))
 		self.assertEqual(sent[2:], [('sendMessage', '56')])
 
+	def test_start_and_help_give_a_dm_its_keyboard_again(self):
+		"""/start (what Telegram sends as a chat opens, or restarts) and /help give a DM its keyboard again, though it
+		has it, so that one that went with the messages a person cleared comes back; any other command only a new
+		one; a group never."""
+		texts = []
+		self.patch(telegram_common, 'call', lambda method, **kwargs: texts.append(kwargs['json']['text']) or {})
+		with contextlib.redirect_stderr(io.StringIO()):
+			telegram_common.keep_keyboard('55', ('.price',))
+			for text in ('.movers', '/start', '/help', '.help', '.movers'):
+				self.command(text)
+			self.command('/start', chat='-100')
+		self.assertEqual([text for text in texts if 'Keyboard' in text], ['⌨️ Keyboard updated', '⌨️ Keyboard updated']
+			+ ['⌨️ Keyboard'] * 3)
+
 	def test_edits_toasts_and_typing_go_through_call(self):
 		"""A chart edit that Telegram refuses is an error (unless nothing changed); a toast, a text edit or a typing
 		notice that fails, or an edit lost on the way, is only logged."""

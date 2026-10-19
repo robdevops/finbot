@@ -119,16 +119,21 @@ def keyboard(texts, per_row=3):
 	return {'keyboard': rows, 'resize_keyboard': True, 'is_persistent': True}
 
 
-def keep_keyboard(chat_id, texts):
+def keep_keyboard(chat_id, texts, again=False):
 	"""Give a DM the keyboard of these texts where it has another, or none yet (KEYBOARD_FILE, by a short hash of the
-	keyboard): Telegram changes a reply keyboard only with a message, so a short one carries it. A failure is logged,
-	and tried again after the next command."""
+	keyboard), or again (/start and /help: one that went, with the messages a person cleared, comes back): Telegram
+	changes a reply keyboard only with a message, so a short one carries it. A failure is logged, and tried again
+	after the next command."""
 	given = keyboard(texts)
 	version = hashlib.sha1(json.dumps(given, sort_keys=True).encode()).hexdigest()[:8]
 	chat = TelegramBot(chat_id)
-	if not chat.dm or state.load(KEYBOARD_FILE, {}).get(str(chat_id)) == version:
+	if not chat.dm:
 		return
-	if chat.sent('message', lambda: call('sendMessage', json={'chat_id': chat_id, 'text': '⌨️ Keyboard updated',
+	had = state.load(KEYBOARD_FILE, {}).get(str(chat_id))
+	if had == version and not again:
+		return
+	text = '⌨️ Keyboard' if had == version else '⌨️ Keyboard updated'
+	if chat.sent('message', lambda: call('sendMessage', json={'chat_id': chat_id, 'text': text,
 			'disable_notification': True, 'reply_markup': given})) is not None:
 		with state.edit(KEYBOARD_FILE, {}) as versions:
 			versions[str(chat_id)] = version

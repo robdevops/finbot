@@ -78,7 +78,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   keywords, words, takes, job)`, which also makes `.help`, the commands a job may run (`job_commands()`, each a
   `CommandJob`: every one but those that change something, `job=False`, and those a report runs, `REPORTED`; stored
   under its `key`, `.price`'s as compare, `STORED`), the Telegram command keyboard (`KEYBOARD`, which
-  `telegram_common.keep_keyboard` gives each DM after a command where it has another or none), and
+  `telegram_common.keep_keyboard` gives each DM after a command where it has another or none, and after /start and
+  /help again, as a keyboard a person cleared comes back no other way), and
   `slash_commands()`, which every network gets (Telegram's menu, Slack's manifest from `util/slack_manifest.py`,
   Discord's registered commands); `suggest(chat, text)` completes a slash command's arguments as they are typed
   (Discord's autocomplete), from the cache alone, offering what a command `takes` (tickers or portfolios). `read()`

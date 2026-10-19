@@ -296,8 +296,8 @@ def process_request(message):
 	elif message.interaction: # a slash command that reads as none: its notice taken off (Discord's "thinking…")
 		request.dest.end_typing()
 	if message.service == 'telegram':
-		try:
-			telegram_common.keep_keyboard(message.chat_id, KEYBOARD) # a DM's, after the reply
+		try: # a DM's, after the reply; /start and /help give it again, as one a person cleared comes back no other way
+			telegram_common.keep_keyboard(message.chat_id, KEYBOARD, again=bool(command) and command.handler is on_help)
 		except Exception as e:
 			log.warn("keyboard update failed:", e)
 
