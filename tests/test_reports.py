@@ -322,8 +322,8 @@ class ReportFunctions(FinbotCase):
 		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': 20,
 			'price_to_earnings_trailing': trailing[t]} for t in ts})
 		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
-		charted, real = [], render.draw
-		self.patch(render, 'draw', lambda chart: charted.append(chart) or real(chart))
+		charted, real = [], delivery.deliver
+		self.patch(delivery, 'deliver', lambda dest, report: charted.append(report.chart) or real(dest, report))
 		def listed(text):
 			"""(the chart's title, the tickers it shows) of the list a command gives."""
 			charted.clear()
@@ -1591,7 +1591,7 @@ class Pickers(FinbotCase):
 				raise RuntimeError('boom')
 			if period == 'y':
 				raise answer.Nothing('No price movements meet threshold 5%')
-			return ['caption'], None if period == 'd' else render.Chart('bars', rows=(('a', 1.0),))
+			return ['caption'], None if period == 'd' else render.Chart('bars', rows=(('a', 1.0), ('b', 2.0)))
 		self.patch(charts, 'build', build)
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			charts.prime(TELEGRAM, charts.periods('l', ['5', '0'], TELEGRAM, 'telegram:55', 'x'))
@@ -1625,7 +1625,7 @@ class Pickers(FinbotCase):
 			return chart.title
 		self.patch(render, 'draw', draw)
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
-			render.Chart('bars', period, rows=(('a', 1.0),))))
+			render.Chart('bars', period, rows=(('a', 1.0), ('b', 2.0)))))
 		charts.prime(TELEGRAM, charts.periods('c', ['T1'], TELEGRAM, 'telegram:55', 'x'))
 		self.assertEqual(drawn, [('w', []), ('m', ['w']), ('y', ['w', 'm'])]) # each was handed over before the next
 		self.assertEqual((made[0].service, made[0].images, made[0].finished), (TELEGRAM, ['w', 'm', 'y'], True))
@@ -1643,7 +1643,7 @@ class Pickers(FinbotCase):
 		self.patch(charts, 'time', types.SimpleNamespace(monotonic=lambda: next(ticks)))
 		self.patch(render, 'draw', lambda chart: chart.title)
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
-			render.Chart('bars', period, rows=(('a', 1.0),))))
+			render.Chart('bars', period, rows=(('a', 1.0), ('b', 2.0)))))
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			charts.prime(TELEGRAM, charts.periods('c', ['T1'], TELEGRAM, 'telegram:55', 'x'))
 		self.assertNotIn('priming', log.getvalue())

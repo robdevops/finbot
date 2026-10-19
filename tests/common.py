@@ -258,7 +258,7 @@ def serve(*responses):
 REAL_CREDENTIALS = yahoo.credentials
 
 
-CHART = render.Chart('bars', 'Heading', rows=(('A', 1.0),)) # a chart for the sending tests, which draw it as b'png'
+CHART = render.Chart('bars', 'Heading', rows=(('A', 1.0), ('B', 2.0))) # for the sending tests, drawn as b'png'
 
 
 REAL_TOKEN = sharesight._token

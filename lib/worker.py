@@ -266,6 +266,8 @@ def chart_press(chat, press, pressed):
 	if chat.reshow(press.message_id, markup): # that period as posted lately (Slack, Telegram): nothing built
 		return
 	lines, chart = charts.build(pressed.kind, args, chat.dialect, chat.key, period=pressed.period)
+	if chart and chart.rows and not chart.drawable: # a lone bar: the text alone
+		return chat.edit_lines(press.message_id, lines, markup)
 	if not (chart and chart.rows): # too few prices in that period to draw a line
 		raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[pressed.period][0]}")
 	chat.edit_chart(press.message_id, render.draw(chart), '\n'.join(lines), markup)

@@ -538,6 +538,17 @@ class ChartDelivery(FinbotCase):
 					self.assertEqual({kind for kind, *_ in self.sent}, {'text'})
 		self.assertEqual([url for url in posts if 'sendPhoto' in url or 'files.' in url], [])
 
+	def test_a_bar_chart_of_one_item_goes_as_text_with_its_buttons(self):
+		"""A report whose bar chart has a single bar goes as its text alone; a gap is no bar."""
+		drawn = []
+		self.patch(render, 'draw', lambda chart: drawn.append(chart) or io.BytesIO(b'png'))
+		chat = delivery.reply_to(TELEGRAM, '55')
+		for rows, charts in (((('A', 1.0),), 0), ((('A', 1.0), ('', None)), 0), ((('A', 1.0), ('B', 2.0)), 1)):
+			with self.subTest(rows=rows):
+				drawn.clear()
+				delivery.deliver(chat, delivery.Report(['Heading', 'line'], render.Chart('bars', 'T', rows=rows), []))
+				self.assertEqual(len(drawn), charts)
+
 	def test_a_chart_telegram_refuses_goes_out_as_text(self):
 		"""A chart Telegram refuses or that fails goes as text, but not after a timeout, when it may have arrived."""
 		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))

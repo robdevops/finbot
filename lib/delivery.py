@@ -101,8 +101,8 @@ def deliver(dest, report):
 	lines following as text; refused again, the lines go as text alone, without its buttons. A chart that may have
 	arrived after all (a timeout) is not sent again. Returns the network's answers, one per message."""
 	chart = report.chart
-	if chart is None or not (dest.takes_charts and config.settings.graph and chart.rows):
-		return dest.text(report.lines, report.buttons if chart is None else None)
+	if chart is None or not (dest.takes_charts and config.settings.graph and chart.drawable):
+		return dest.text(report.lines, report.buttons if chart is None or (chart.rows and not chart.drawable) else None)
 	caption = '\n'.join(map(str, report.lines)) or chart.title
 	image = render.draw(chart)
 	answer = dest.chart(image, caption, report.buttons)

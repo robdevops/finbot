@@ -70,7 +70,7 @@ The bot answers commands in every chat it is in. By default, it fetches its upda
 * Running the other stock reports on demand
 
 ## Reports
-Every chart's subtitle ends with the date it shows, or the dates it spans (`12 Oct - 19 Oct 2026`).
+Every chart's subtitle ends with the date it shows, or the dates it spans (`12 Oct - 19 Oct 2026`). A bar chart of a single bar is not drawn: the report goes as its text, with its buttons.
 
 ### Stock lookup
 ![Screenshot showing stock info on Slack](../img/stockinfo.png?raw=true "Screenshot showing stock info on Slack")
