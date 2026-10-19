@@ -10,7 +10,7 @@ import zlib
 from lib import answer
 from lib import state
 
-ON, OFF = 'on', 'off' # a toggle's state, as a button's tone: drawn green and red where the network colours buttons
+ON, OFF = 'on', 'off' # a toggle's state, as a button's tone: the selection colour, or red, where buttons have one
 ACTIVE = 'active' # the look of the button shown now, which a tone overrides
 
 

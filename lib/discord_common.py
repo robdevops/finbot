@@ -308,22 +308,22 @@ class DiscordBot(transports.Transport):
 
 
 DISCORD_ROW = 5 # buttons in a row of components, and rows in a message: Discord's limits
-STYLES = {buttons.ON: 3, buttons.OFF: 4, buttons.ACTIVE: 1} # a button's style by its look; grey (2) for the rest
+STYLES = {buttons.ON: 1, buttons.OFF: 4, buttons.ACTIVE: 1} # a button's style by its look; grey (2) for the rest
 
 
 def components(buttons):
 	"""Rows of buttons.Button as Discord's action rows: a row of at most DISCORD_ROW buttons (a longer one in rows of
-	that), and as many rows at most (the buttons past that are left out), a toggle that is on green and one that is off
-	red, the one shown now blurple and the rest grey. A row of buttons that fits stays a row of its own, so a picker's
-	period buttons keep theirs."""
+	that), and as many rows at most (the buttons past that are left out), a toggle that is on, and the one shown now,
+	blurple (Discord's selection colour), one that is off red, and the rest grey. A row of buttons that fits stays a
+	row of its own, so a picker's period buttons keep theirs."""
 	rows = [row[i:i + DISCORD_ROW] for row in buttons for i in range(0, len(row), DISCORD_ROW)][:DISCORD_ROW]
 	return [{'type': 1, 'components': [{'type': 2, 'style': button_style(button), 'label': button.label[:80],
 		'custom_id': button.data} for button in row]} for row in rows]
 
 
 def button_style(button):
-	"""The style number of a Discord button: 3 (green) for a toggle that is on, 4 (red) for one that is off, else 1
-	(blurple) for the one shown now and 2 (grey)."""
+	"""The style number of a Discord button: 1 (blurple, its selection colour) for a toggle that is on and the one
+	shown now, 4 (red) for a toggle that is off, else 2 (grey)."""
 	return STYLES.get(buttons.look(button), 2)
 
 

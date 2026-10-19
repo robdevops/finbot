@@ -343,18 +343,18 @@ class TelegramSending(FinbotCase):
 		self.assertEqual([uploaded for _, _, uploaded in sent], [True, True, True])
 
 	def test_each_network_draws_a_buttons_look_in_its_own_style(self):
-		"""A button's look (buttons.look) becomes each network's style: a toggle that is on green and one that is off
-		red, the button shown now blue on Telegram (primary, its label unmarked) and Discord (blurple), green on Slack
-		(primary); a plain button gets none, grey on Discord."""
+		"""A button's look (buttons.look) becomes each network's style: a toggle that is on, and the button shown now,
+		in the network's selection colour (blue on Telegram, primary; blurple on Discord; Slack's primary, green), one
+		that is off red; a plain button gets none, grey on Discord."""
 		row = [buttons.Button('a', 'da', tone=buttons.ON), buttons.Button('b', 'db', tone=buttons.OFF),
 			buttons.Button('c', 'dc', active=True), buttons.Button('d', 'dd')]
 		keyboard = telegram_common.TelegramBot.markup([row])['inline_keyboard'][0]
 		self.assertEqual([(button['text'], button.get('style')) for button in keyboard],
-			[('a', 'success'), ('b', 'danger'), ('c', 'primary'), ('d', None)])
+			[('a', 'primary'), ('b', 'danger'), ('c', 'primary'), ('d', None)])
 		elements = slack_common.actions_block(row)['elements']
 		self.assertEqual([element.get('style') for element in elements], ['primary', 'danger', 'primary', None])
 		components = discord_common.components([row])[0]['components']
-		self.assertEqual([component['style'] for component in components], [3, 4, 1, 2])
+		self.assertEqual([component['style'] for component in components], [1, 4, 1, 2])
 
 	def test_error_line_redacts_secrets_and_truncates(self):
 		"""An error line has no token or crumb in it, and is cut to about 200 characters."""

@@ -6,7 +6,9 @@ explicit Cookie header; and the request that asks fc.yahoo.com for a new cookie 
 would not set a new one."""
 import http.cookiejar
 import re
+import threading
 import time
+import urllib.parse
 
 import requests
 
@@ -17,6 +19,10 @@ session = requests.Session()
 # no domain may set or receive a cookie
 session.cookies.set_policy(http.cookiejar.DefaultCookiePolicy(allowed_domains=[]))
 CONNECT_TIMEOUT = 5 # seconds to wait for a host to answer the connection: one that is down costs this, not http_timeout
+IDLE_SECONDS = 20 # a host's connections idle this long are dropped, not reused: servers close them, and a request sent
+# on one fails with a reset (a chart upload, a reply)
+_used = {} # host -> when a request to it last began (time.monotonic)
+_used_lock = threading.Lock()
 RATE_LIMIT_WAIT = 30 # the longest a rate limit is waited out, in seconds: one that asks for longer is tried then
 
 
@@ -42,11 +48,22 @@ def request(method, url, **kwargs):
 	logged."""
 	return session.request(method, url, **timeouts(logged(method, url, kwargs)))
 
+def fresh(url):
+	"""Drop the shared session's connections if the host of this url has had none used for IDLE_SECONDS: a server
+	closes an idle connection, and a request sent on it fails with a reset. Returns None."""
+	host, now = urllib.parse.urlsplit(url).netloc, time.monotonic()
+	with _used_lock:
+		idle = now - _used.get(host, now) >= IDLE_SECONDS
+		_used[host] = now
+	if idle:
+		session.get_adapter(url).poolmanager.clear()
+
 def logged(method, url, kwargs):
 	"""The request's arguments without `logged`; the request noted first, its method and URL without secrets or the
 	scheme, cut to the log_width setting (log.cut): at INFO; at DEBUG with logged='debug' (the routine of a press:
 	its acknowledgement, the message edited in place); not at all with logged=False (Telegram's long polling, asked
-	again and again)."""
+	again and again). A host's idle connections are dropped first (fresh)."""
+	fresh(url)
 	shown = kwargs.pop('logged', True)
 	if shown:
 		(log.debug if shown == 'debug' else log.info)(log.cut(f"{method} {redact(url).split('://', 1)[-1]}"))
@@ -76,6 +93,12 @@ def twice(send):
 		return send()
 	except requests.RequestException:
 		return send()
+
+def was_reset(error):
+	"""Whether a request failed because the server reset its connection (errno 104), as one left idle is: requests
+	wraps urllib3's ProtocolError, which wraps the ConnectionResetError, in its ConnectionError."""
+	return isinstance(error, ConnectionResetError) or any(was_reset(arg) for arg in getattr(error, 'args', ())
+		if isinstance(arg, BaseException))
 
 def patiently(send):
 	"""send(), tried once more after the wait that a rate limit asks for (RateLimited; RATE_LIMIT_WAIT at most)."""

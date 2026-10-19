@@ -117,7 +117,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   is a direct message (`dm`), the chat's key (`chat_key`, `split_key`), and the typing notice (`start_typing`: after
   half a second; Slack's ⏳ on the message), which `text()` and `chart()` stop before posting. Each bot's `post_text`
   and `post_chart` (the PNG's bytes) raise when they fail, `MaybeSent` where a chart's post timed out, and
-  `Transport.sent` logs it and gives the answer, `MAYBE_SENT` or None; `edit_buttons` changes a message's buttons
+  `Transport.sent` logs it and gives the answer, `MAYBE_SENT` or None, after sending once more a request the server reset (`net.was_reset`: an idle connection; `net.fresh` drops a host's idle for 20 s before a request); `edit_buttons` changes a message's buttons
   alone where the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
   its `interaction` (application id/token), and a pressed message is edited through the press's. A chart the network
   has already (the same PNG) goes by its id, not uploaded again: Telegram's file id (`telegram_common.with_photo`, a
@@ -136,7 +136,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   (what a press asks for is its act, a letter of `buttons.ACTS`: the screen it shows, what its number is, whether it
   changes the buttons alone, its toast; `m`, and `n` under a note, which the next press takes away), 32 items a page
   (`pick.layout`; fewer where the network holds few rows of buttons, `Dialect.room`: Discord's five) turned by
-  `◀` `▶` under the tickers menu, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
+  `◀` `▶` under the ticker picker, its list of items checked by checksum (`buttons.checksum`, as the `.jobs` menu's list
   is), `.price`'s ticks (up to `buttons.MAX_PICKED`, 8) a bit each in the data's mask, their buttons and the `.watchlist` Edit's
   built by `pick.ticker_buttons` and `buttons.page_buttons`, one more refused (act `f`, its `refused`: `buttons.refusal`, in
   `bot.take`); a treemap primes its other charts (`pick.treemaps`), and every chart with period buttons its other
@@ -149,8 +149,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   off (❌), and Edit draws their buttons red. The `.jobs` menu's screens: top, Edit, Run, Upcoming and Add's steps; typed
   `.jobs enable`, `disable` or `delete` alone opens Edit.
 - `lib/buttons.py`: `Button`, drawn by its look (`look(button)`: a toggle's `tone`, `ON` or `OFF`, else `ACTIVE` for the
-  one shown now), which each network maps through its `STYLES` (Telegram's `style` success/danger/primary, Slack's
-  primary/danger, Discord's 3/4/1); `tone(on)` makes a job's or ticker's, red only when off; a picker screen's buttons come
+  one shown now), which each network maps through its `STYLES` (Telegram's `style` primary/danger, Slack's
+  primary/danger, Discord's 1/4: ON and ACTIVE are the network's selection colour); `tone(on)` makes a job's or ticker's, red only when off; a picker screen's buttons come
   from `pick.press_button`; rows of buttons (`chunks`) and every menu's ◀ ▶ (`page_buttons`); a chart's period buttons
   (`keyboard`), the `.jobs` menu's (`menu_button`, a `MenuPress`), what a pressed button's data asks for (`parse`), and the
   toast it gets at once (`toast`); each transport draws them, and Slack and Discord take a button's data as its id, so

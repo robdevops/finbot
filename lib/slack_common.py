@@ -356,14 +356,14 @@ def section_blocks(text):
 
 
 def button_style(button):
-	"""The Block Kit style of a button (STYLES): danger (red) for a toggle that is off, primary (green) for one that is
-	on or the one shown now; none for the rest."""
+	"""The Block Kit style of a button (STYLES): danger (red) for a toggle that is off, primary (Slack's one selection
+	colour, green) for one that is on or the one shown now; none for the rest."""
 	style = STYLES.get(buttons.look(button))
 	return {'style': style} if style else {}
 
 
 def actions_block(row):
-	"""A Block Kit row of buttons, the one shown now marked, a toggle green (on) or red (off)."""
+	"""A Block Kit row of buttons, the one shown now marked, a toggle in the selection colour (on) or red (off)."""
 	return {'type': 'actions', 'elements': [{'type': 'button', 'text': {'type': 'plain_text', 'text': button.label},
 		'value': button.data, 'action_id': button.data, **button_style(button)} for button in row]}
 

@@ -34,7 +34,7 @@ def try_call(method, **kwargs):
 		log.warn(f"Telegram {method} failed:", net.redact(e))
 
 
-STYLES = {buttons.ON: 'success', buttons.OFF: 'danger', buttons.ACTIVE: 'primary'} # a button's style by its look
+STYLES = {buttons.ON: 'primary', buttons.OFF: 'danger', buttons.ACTIVE: 'primary'} # a button's style by its look
 ALLOWED_UPDATES = ['message', 'callback_query'] # what finbot takes, whichever way it arrives: messages, presses
 KEYBOARD_FILE = 'finbot_keyboards.json' # chat id -> the version of the command keyboard that DM has (keep_keyboard)
 PHOTO_SECONDS = 30 * 86400 # how long a chart's file id is reused: Telegram keeps a bot's files, cleanup the cache file
@@ -161,8 +161,9 @@ def answerCallbackQuery(callback_query_id, text=None, alert=False):
 
 
 def button_style(button):
-	"""Telegram's style of a button (STYLES): success (green) for a toggle that is on, danger (red) for one that is
-	off, primary (blue) for the one shown now; none for the rest. A client before February 2026 draws none."""
+	"""Telegram's style of a button (STYLES): primary (blue, its selection colour) for a toggle that is on and for the
+	one shown now, danger (red) for a toggle that is off; none for the rest. A client before February 2026 draws
+	none."""
 	style = STYLES.get(buttons.look(button))
 	return {'style': style} if style else {}
 
