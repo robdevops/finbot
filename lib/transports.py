@@ -163,10 +163,17 @@ class Transport:
 		"""The answer of post(), which posts one message (what: 'message' or 'chart', for the log): the network's
 		message; MAYBE_SENT when the request that posts a chart timed out (MaybeSent: it may have arrived); None when it
 		failed, which is logged: an error for a message, which is lost, a warning for a chart, whose report goes as text
-		instead (delivery.deliver)."""
+		instead (delivery.deliver). A request the server reset (a stale connection, which net.fresh avoids) is sent
+		again once, whole: at worst a message or chart that did arrive comes twice."""
 		network = self.name.capitalize()
 		try:
-			answer = post()
+			try:
+				answer = post()
+			except Exception as e:
+				if not net.was_reset(e):
+					raise
+				log.warn(f"{network} {what} to {self.where} was reset, sending it again:", net.redact(e))
+				answer = post()
 		except MaybeSent as e:
 			log.warn(f"{network} {what} to {self.where} timed out, it may still arrive:", net.redact(e))
 			return MAYBE_SENT

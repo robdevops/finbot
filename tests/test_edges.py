@@ -518,6 +518,55 @@ class SharedSession(unittest.TestCase):
 		net.session.cookies.extract_cookies(response, urllib.request.Request('https://fc.yahoo.com/'))
 		self.assertEqual(len(net.session.cookies), 0)
 
+	def test_a_hosts_connections_idle_too_long_are_dropped_before_the_next_request(self):
+		"""A server closes a connection left idle, and a request sent on it fails with a reset: the session drops a
+		host's connections once none has been used for IDLE_SECONDS, and not before, nor those of a host just used."""
+		from lib import net
+		clock, cleared = [1000.0], []
+		adapter = type('Adapter', (), {'poolmanager': type('Pools', (), {'clear': lambda self: cleared.append(1)})()})()
+		with mock.patch.object(net.time, 'monotonic', lambda: clock[0]), mock.patch.object(net.session, 'get_adapter',
+				lambda url: adapter), mock.patch.dict(net._used, clear=True):
+			net.fresh('https://api.telegram.org/bot1/sendPhoto') # the first use of a host
+			clock[0] += net.IDLE_SECONDS - 1
+			net.fresh('https://api.telegram.org/bot1/sendMessage') # used a moment ago
+			self.assertEqual(cleared, [])
+			clock[0] += net.IDLE_SECONDS
+			net.fresh('https://api.telegram.org/bot1/sendPhoto') # idle for IDLE_SECONDS
+			self.assertEqual(cleared, [1])
+			net.fresh('https://api.telegram.org/bot1/sendPhoto')
+			self.assertEqual(cleared, [1])
+
+
+class ResetConnections(FinbotCase):
+	def test_a_chart_or_message_the_server_reset_is_sent_again_whole(self):
+		"""A request that fails with a connection reset (errno 104: the server closed an idle connection) is sent again
+		once as it was, a chart too, not as text with its heading alone; another failure, or a second reset, is not
+		sent again, and the chart's report goes as text as before."""
+		import requests, urllib3
+		reset = requests.ConnectionError(urllib3.exceptions.ProtocolError('Connection aborted.',
+			ConnectionResetError(104, 'Connection reset by peer'))) # as requests raises one
+		bot, tries = telegram_common.TelegramBot('55'), []
+		def post(outcome):
+			"""A post that raises what each try is given."""
+			def one():
+				"""One try: its outcome."""
+				tries.append(1)
+				error = outcome[len(tries) - 1]
+				if error:
+					raise error
+				return {'message_id': 1}
+			return one
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertEqual(bot.sent('chart', post([reset, None])), {'message_id': 1})
+			self.assertEqual(len(tries), 2)
+			tries.clear()
+			self.assertIsNone(bot.sent('chart', post([reset, reset])))
+			self.assertEqual(len(tries), 2)
+			tries.clear()
+			self.assertIsNone(bot.sent('message', post([RuntimeError('Forbidden'), None])))
+			self.assertEqual(len(tries), 1)
+		self.assertTrue(net.was_reset(reset) and not net.was_reset(requests.ConnectionError('refused')))
+
 
 class SignalHandOff(unittest.TestCase):
 	def test_a_signal_handler_hands_its_work_to_a_thread_one_at_a_time(self):

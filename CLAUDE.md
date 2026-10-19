@@ -117,7 +117,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   is a direct message (`dm`), the chat's key (`chat_key`, `split_key`), and the typing notice (`start_typing`: after
   half a second; Slack's ⏳ on the message), which `text()` and `chart()` stop before posting. Each bot's `post_text`
   and `post_chart` (the PNG's bytes) raise when they fail, `MaybeSent` where a chart's post timed out, and
-  `Transport.sent` logs it and gives the answer, `MAYBE_SENT` or None; `edit_buttons` changes a message's buttons
+  `Transport.sent` logs it and gives the answer, `MAYBE_SENT` or None, after sending once more a request the server reset (`net.was_reset`: an idle connection; `net.fresh` drops a host's idle for 20 s before a request); `edit_buttons` changes a message's buttons
   alone where the network can (Telegram, Discord). `DiscordBot`: a slash command's first message replaces its "thinking…" through
   its `interaction` (application id/token), and a pressed message is edited through the press's. A chart the network
   has already (the same PNG) goes by its id, not uploaded again: Telegram's file id (`telegram_common.with_photo`, a
