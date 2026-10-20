@@ -160,20 +160,17 @@ def edit_step(service, chat, scheduler, pressed, page):
 	if what == 'ask' and chosen:
 		return about.delete_screen(service, chat, selected, page)
 	if what == 'ok':
-		off = on = 0
-		try: # each set as stored, under the scheduler's lock
-			for i, job in enumerate(own):
-				if bool(selected >> i & 1) == job.on:
-					scheduler.toggle(job, on=not selected >> i & 1)
-					off, on = off + bool(selected >> i & 1), on + (not selected >> i & 1)
+		states = [(job, not selected >> i & 1) for i, job in enumerate(own) if bool(selected >> i & 1) == job.on]
+		off, on = sum(not state for _, state in states), sum(state for _, state in states)
+		try: # all set in one change, as stored, under the state file's lock
+			scheduler.switch_all(chat, states)
 		except jobs.ScheduleError as e:
 			return about.jobs_screen(service, chat, 'edit', page, service.escape(str(e)))
 		said = [f"{how} {count} job{'' if count == 1 else 's'}" for count, how in ((off, 'disabled'), (on, 'enabled'))
 			if count]
 		return about.jobs_screen(service, chat, 'top', 0, ', '.join(said).capitalize() if said else 'Nothing changed')
 	if what == 'yes':
-		for job in chosen:
-			scheduler.delete(job)
+		scheduler.delete(*chosen)
 		s = '' if len(chosen) == 1 else 's'
 		return about.jobs_screen(service, chat, 'top', 0, f"Deleted {len(chosen)} job{s}")
 	return about.jobs_screen(service, chat, 'edit', page, selected=selected)

@@ -894,6 +894,19 @@ class JobsMenu(ChatBase):
 			['rating', 'trades']))
 		self.assertEqual(self.press('m|edit|0|ask|1|0000')[0][0], 'The jobs have changed: here they are now')
 
+	def test_only_a_change_is_logged_once_and_a_selection_press_not_at_all(self):
+		"""Selecting jobs in Edit logs nothing about the schedule; OK, which changes several jobs, logs one line."""
+		lines, rows, data = self.press(f'm|edit|0|{self.crc()}')
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			self.press_button(data['1 rating'])
+		self.assertEqual([line for line in log.getvalue().splitlines() if 'schedule' in line], [])
+		lines, rows, data = self.press(data['1 rating'])
+		lines, rows, data = self.press(data['Select all'])
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			self.press_button(data['OK'])
+		self.assertEqual([line for line in log.getvalue().splitlines() if 'schedule' in line],
+			[f'schedule: {CHAT}: updated'])
+
 	def test_the_top_level_offers_only_what_can_be_done(self):
 		"""Edit, Run and Upcoming show only where a job is there to act on: with every job off no Upcoming; with none,
 		only +."""
