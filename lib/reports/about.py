@@ -60,7 +60,9 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, highlight=None):
 	if highlight:
 		entries = [(number, job, f'👉 {service.bold(line)}' if number == highlight else line)
 			for number, job, line in entries]
-	parts = paged(entries, service)
+	parts = paged(entries, service, screen != 'top')
+	if screen == 'top': # no pages: what fits, and how many more Edit and Run list
+		parts = parts[:1]
 	if highlight:
 		page = next((i for i, part in enumerate(parts) if any(number == highlight for number, _, _ in part)), page)
 	page = min(max(page, 0), len(parts) - 1)
@@ -71,6 +73,8 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, highlight=None):
 		lines.append('No jobs here: + adds one')
 	if shown:
 		lines += grouped(service, shown)
+	if screen == 'top' and shown and len(shown) < len(own):
+		lines += ['', f'…and {len(own) - len(shown)} more: Edit and Run list every job']
 	if not all(scheduler.has_run(job) for _, job, _ in shown):
 		lines += ['', NOT_RUN]
 	if screen == 'top':
@@ -108,10 +112,11 @@ def listed_with(service, chat, lines):
 	more = [f'…and {len(own) - len(shown)} more'] if len(shown) < len(own) else []
 	return [*lines, '', service.bold('Jobs'), *grouped(service, shown)[1:], *more]
 
-def paged(entries, service):
+def paged(entries, service, with_buttons=True):
 	"""The jobs' entries (number, job, line) a page at a time: as many as fit a message of the network with room to
-	spare, and as many buttons as it takes in a message besides the others."""
-	most, room = service.room(JOB_ROW, otherwise=MOST_JOBS), service.text_limit - PAGE_ROOM
+	spare, and (with_buttons: a button each) as many buttons as it takes in a message besides the others."""
+	most = service.room(JOB_ROW, otherwise=MOST_JOBS) if with_buttons else len(entries) or 1
+	room = service.text_limit - PAGE_ROOM
 	parts, size = [[]], 0
 	for entry in entries:
 		if parts[-1] and (len(parts[-1]) == most or size + len(entry[2]) + 1 > room):
@@ -124,7 +129,8 @@ def paged(entries, service):
 def screen_buttons(screen, page, pages, shown, crc, own):
 	"""A list screen's buttons: top's, what can be done (+; Edit and Run with any job, Upcoming with one on), in one
 	row; edit's and run's, a button for each job shown, '<number> <name>', JOB_ROW to a row, edit's red for a job that
-	is off, then OK and, while any job is off, Delete disabled jobs (edit), or Cancel (run); ◀ and ▶ to the other
+	is off, then OK and, while any job is on, Disable all, and while any is off, Delete disabled jobs (edit), or Cancel
+	(run); ◀ and ▶ to the other
 	pages."""
 	if screen == 'top':
 		possible = [('+', 'add', [])] + [(label, kind, args) for label, kind, args, there in (
@@ -136,6 +142,8 @@ def screen_buttons(screen, page, pages, shown, crc, own):
 		rows = buttons.chunks([buttons.menu_button(f'{number} {job.name}', screen, [page, number], crc,
 			buttons.tone(job.on) if screen == 'edit' else '') for number, job, _ in shown], JOB_ROW)
 		nav = [buttons.menu_button('OK' if screen == 'edit' else 'Cancel', 'top', [0], crc)]
+		if screen == 'edit' and any(job.on for job in own):
+			nav.append(buttons.menu_button('Disable all', screen, [page, 'off'], crc))
 		if screen == 'edit' and not all(job.on for job in own):
 			nav.append(buttons.menu_button('Delete disabled jobs', screen, [page, 'ask'], crc))
 	nav += buttons.page_buttons(page, pages, lambda label, to: buttons.menu_button(label, screen, [to], crc))

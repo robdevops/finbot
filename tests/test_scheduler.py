@@ -746,7 +746,7 @@ class JobsInChat(ChatBase):
 			with self.subTest(typed=typed):
 				self.assertEqual(self.say(typed)[0], '<b>Tap a job to enable or disable it</b>')
 				self.assertEqual([[button.label for button in row] for row in self.replies[-1][2]],
-					[['1 rating', '2 movers close US', '3 trades'], ['OK', 'Delete disabled jobs']])
+					[['1 rating', '2 movers close US', '3 trades'], ['OK', 'Disable all', 'Delete disabled jobs']])
 
 	def test_toggle_a_job_off_and_on(self):
 		""".jobs toggle N switches job N off (it no longer fires) and on again."""
@@ -847,9 +847,9 @@ class JobsMenu(ChatBase):
 			"""The tones of the buttons of the last screen, by row."""
 			return [[button.tone for button in row] for row in self.edits[-1][3]]
 		self.press(f'm|edit|0|{self.crc()}')
-		self.assertEqual(tones(), [[on, on, on], ['']])
+		self.assertEqual(tones(), [[on, on, on], ['', '']])
 		lines, rows, data = self.press(f'm|edit|0|1|{self.crc()}')
-		self.assertEqual(tones(), [[off, on, on], ['', '']])
+		self.assertEqual(tones(), [[off, on, on], ['', '', '']])
 		self.press(f'm|run|0|{self.crc()}')
 		self.assertEqual({tone for row in tones() for tone in row}, {''})
 
@@ -859,10 +859,10 @@ class JobsMenu(ChatBase):
 		another list switch and delete nothing."""
 		lines, rows, data = self.press(f'm|edit|0|{self.crc()}')
 		self.assertEqual((lines[0], rows), ('<b>Tap a job to enable or disable it</b>', [['1 rating',
-			'2 movers close US', '3 trades'], ['OK']]))
+			'2 movers close US', '3 trades'], ['OK', 'Disable all']]))
 		lines, rows, data = self.press(data['1 rating'])
 		self.assertEqual((lines[0], rows), ('Disabled 1. rating', [['1 rating', '2 movers close US', '3 trades'],
-			['OK', 'Delete disabled jobs']]))
+			['OK', 'Disable all', 'Delete disabled jobs']]))
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['off'], ['rating'])
 		lines, rows, data = self.press(data['Delete disabled jobs'])
 		self.assertEqual((lines[0], rows), ('<b>Delete the 1 disabled job?</b>', [['Yes, delete them', 'Cancel']]))
@@ -1128,7 +1128,8 @@ class JobsMenu(ChatBase):
 			fits(service, *about.add_failed(service, CHAT, ['5', 'd', '9'], 'that job is here already'))
 		pages = len({about.jobs_screen(DISCORD, CHAT, 'edit', page)[0][0] for page in range(6)})
 		self.assertEqual(pages, 4) # 64 jobs, 16 to a page on Discord
-		self.assertEqual(len({about.jobs_screen(TELEGRAM, CHAT, 'top', page)[0][0] for page in range(6)}), 2)
+		lines, markup = about.jobs_screen(DISCORD, CHAT, 'top', 3) # no pages: what fits, and how many more
+		self.assertEqual((lines[0], '▶' in str(markup), '…and ' in str(lines)), ('**Jobs here**', False, True))
 
 class ReportImports(FinbotCase):
 	"""What importing the reports brings in."""
