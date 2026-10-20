@@ -90,6 +90,12 @@ discordOutgoingWebhook=https://www.example.com:8443/discord
 discordPublicKey=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ```
 
+## Switching between push and pull mode:
+Assuming you have already followed both sections to meet all requirements:
+1. In the Discord Developer Portal, set/unset _General Information > Interactions Endpoint URL_ and _Save Changes_.
+2. In finbot.env, add/remove `discordOutgoingWebhook` and restart finbot.
+
+
 ## Slash commands
 
 finbot registers a slash command for each line of `/help`, as it starts, and again only when the list has changed:
