@@ -104,6 +104,11 @@ slackBotToken=xoxb-your-bot-token
 An app set up by hand before takes the manifest too: paste it into _Features > App Manifest_ and _Save Changes_;
 Slack shows what changes, and asks to reinstall the app when its scopes do.
 
+### Switching between push and pull modes
+Assuming you have followed all requirements above
+1. Go to https://api.slack.com/apps > [Your app] > Socket Mode, and toggle _Connect using Socket Mode_
+2. Comment/uncomment `slackOutgoingWebhook` in finbot.env and restart finbot 
+
 ### Slash commands
 
 Each command is a slash command, with its usage as Slack's hint: `/price`, `/dividend` and `/earnings`, `/buy` and
