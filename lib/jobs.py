@@ -340,7 +340,7 @@ class Scheduler:
 		an edited or older file) is logged and left out, never run. A job kept from before keeps its timing; a new one
 		counts from now, as one does that was off. Loads take turns: one reading the file while another change is stored
 		would otherwise swap in the older list after the newer one. `changed` is the chat (its key) whose change or
-		first sight this reads for, said in the log."""
+		first sight this reads for: the log then says only that it was updated."""
 		with self.loading:
 			self._load(changed)
 
@@ -380,11 +380,13 @@ class Scheduler:
 			self.save_runs()
 		if problem:
 			delivery.report_error(ScheduleError(problem), context='schedule')
+		if changed:
+			return log.info(f"schedule: {changed}: updated")
 		dms = sum(1 for key, record in chats.items() if isinstance(record, dict) and record.get('dm') is True or
 			is_dm(key))
 		log.info(f"schedule: {len(jobs) - len(SYSTEM)} jobs of {len(chats) - dms} group"
 			f" chat{'' if len(chats) - dms == 1 else 's'} and {dms} DM{'' if dms == 1 else 's'}, and {len(SYSTEM)}"
-			f" system jobs{f' (for {changed})' if changed else ''}")
+			" system jobs")
 
 	def stored_chats(self):
 		"""The chats JOBS_FILE knows, each with its record, made current in the file (clean) where an older finbot left

@@ -130,7 +130,7 @@ def menu_screen(service, chat, pressed):
 	if screen == 'add':
 		return add_step(service, chat, args)
 	page = int(args[0]) if args and args[0].isdigit() and len(args[0]) < 4 else 0
-	if screen == 'edit' and len(args) == 2:
+	if screen == 'edit' and len(args) == 3 and all(arg.isalnum() for arg in args):
 		return edit_step(service, key, scheduler, pressed, page)
 	note = None
 	if screen == 'run' and len(args) == 2:
@@ -148,39 +148,35 @@ def run_now(chat, scheduler, job, number):
 		delivery.deliver(chat, delivery.Report([about.job_line(chat.dialect, number, job, outcome)]))
 
 def edit_step(service, chat, scheduler, pressed, page):
-	"""A press of the .jobs editing screen: a job switched on or off, all switched off (off) or on (on), the jobs that
-	are off asked about (ask) or deleted (yes), as long as the list is the one the button was drawn for (its
-	checksum), else the screen is drawn as the list is now, saying so."""
-	own, what = scheduler.chat_jobs(chat), pressed.args[1]
-	if jobs.list_checksum(own) != pressed.checksum:
+	"""A press of the .jobs editing screen, which carries the selection (a bit for each job: the jobs to disable, or to
+	delete) in its data: the screen again with that selection (m), the jobs switched to it (ok: the selected off, the
+	rest on), the selected jobs asked about (ask) or deleted (yes), as long as the list is the one the button was
+	drawn for (its checksum), else the screen is drawn as the list is now, saying so."""
+	own, what, mask = scheduler.chat_jobs(chat), pressed.args[1], pressed.args[2]
+	selected = int(mask, 16) if all(c in '0123456789abcdef' for c in mask) else -1
+	if jobs.list_checksum(own) != pressed.checksum or not 0 <= selected < 1 << len(own):
 		return about.jobs_screen(service, chat, 'edit', page, CHANGED)
-	note = None
-	if what == 'ask' and not all(job.on for job in own):
-		return about.delete_disabled_screen(service, chat, page)
-	if what == 'on':
-		turned = [job for job in own if not job.on]
-		for job in turned:
-			scheduler.toggle(job, on=True)
-		s = '' if len(turned) == 1 else 's'
-		return about.jobs_screen(service, chat, 'edit', page, f"Enabled {len(turned)} job{s}")
-	if what == 'off':
-		turned = [job for job in own if job.on]
-		for job in turned:
-			scheduler.toggle(job, on=False)
-		s = '' if len(turned) == 1 else 's'
-		return about.jobs_screen(service, chat, 'edit', page, f"Disabled {len(turned)} job{s}")
-	if what == 'yes':
-		gone = [job for job in own if not job.on]
-		for job in gone:
-			scheduler.delete(job)
-		s = '' if len(gone) == 1 else 's'
-		return about.jobs_screen(service, chat, 'top', 0, f"Deleted {len(gone)} disabled job{s}")
-	if job := jobs.numbered(own, what):
-		try: # flipped as stored, under the scheduler's lock: two presses at once flip it twice
-			note = f"{'Enabled' if scheduler.toggle(job) else 'Disabled'} {what}. {service.escape(job.name)}"
+	chosen = [job for i, job in enumerate(own) if selected >> i & 1]
+	if what == 'ask' and chosen:
+		return about.delete_screen(service, chat, selected, page)
+	if what == 'ok':
+		off = on = 0
+		try: # each set as stored, under the scheduler's lock
+			for i, job in enumerate(own):
+				if bool(selected >> i & 1) == job.on:
+					scheduler.toggle(job, on=not selected >> i & 1)
+					off, on = off + bool(selected >> i & 1), on + (not selected >> i & 1)
 		except jobs.ScheduleError as e:
-			note = service.escape(str(e))
-	return about.jobs_screen(service, chat, 'edit', page, note)
+			return about.jobs_screen(service, chat, 'edit', page, service.escape(str(e)))
+		said = [f"{how} {count} job{'' if count == 1 else 's'}" for count, how in ((off, 'disabled'), (on, 'enabled'))
+			if count]
+		return about.jobs_screen(service, chat, 'top', 0, ', '.join(said).capitalize() if said else 'Nothing changed')
+	if what == 'yes':
+		for job in chosen:
+			scheduler.delete(job)
+		s = '' if len(chosen) == 1 else 's'
+		return about.jobs_screen(service, chat, 'top', 0, f"Deleted {len(chosen)} job{s}")
+	return about.jobs_screen(service, chat, 'edit', page, selected=selected)
 
 def add_step(service, chat, steps):
 	"""A step of Add pressed: the next choice's screen; once every choice is made, the job added, or why it is not."""
