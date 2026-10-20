@@ -334,16 +334,17 @@ class Scheduler:
 		self.loading = threading.Lock() # one load at a time, so the list swapped in last is the one read last
 		self.saving = threading.Lock() # one save of the record of runs at a time, so the one written last is newest
 
-	def load(self):
+	def load(self, changed=None):
 		"""Read every job: the system jobs; for each chat JOBS_FILE knows, the catalog's (switched off where its record
 		says so) and those it added. A stored job that cannot be (an action that is none, arguments its parser refuses:
 		an edited or older file) is logged and left out, never run. A job kept from before keeps its timing; a new one
 		counts from now, as one does that was off. Loads take turns: one reading the file while another change is stored
-		would otherwise swap in the older list after the newer one."""
+		would otherwise swap in the older list after the newer one. `changed` is the chat (its key) whose change or
+		first sight this reads for, said in the log."""
 		with self.loading:
-			self._load()
+			self._load(changed)
 
-	def _load(self):
+	def _load(self, changed=None):
 		"""load(), with the loading lock held."""
 		jobs = system_jobs()
 		chats = self.stored_chats()
@@ -383,7 +384,7 @@ class Scheduler:
 			is_dm(key))
 		log.info(f"schedule: {len(jobs) - len(SYSTEM)} jobs of {len(chats) - dms} group"
 			f" chat{'' if len(chats) - dms == 1 else 's'} and {dms} DM{'' if dms == 1 else 's'}, and {len(SYSTEM)}"
-			" system jobs")
+			f" system jobs{f' (for {changed})' if changed else ''}")
 
 	def stored_chats(self):
 		"""The chats JOBS_FILE knows, each with its record, made current in the file (clean) where an older finbot left
@@ -543,7 +544,7 @@ class Scheduler:
 			known = chat in self.chats
 		if not known:
 			know([chat], dm)
-			self.load()
+			self.load(chat)
 
 	def change(self, chat, edit):
 		"""Change a chat's jobs as stored, and return what edit(record) returned: it changes the chat's record ({'off':
@@ -554,7 +555,7 @@ class Scheduler:
 			if not isinstance(record.get('jobs', []), list):
 				record['jobs'] = []
 			result = edit(record)
-		self.load()
+		self.load(chat)
 		return result
 
 	def add(self, chat, action, args, schedule):

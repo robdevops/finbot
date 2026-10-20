@@ -328,6 +328,16 @@ class DirectMessages(FinbotCase):
 			jobs.Scheduler(clock=lambda: OCTOBER).load()
 		self.assertIn('schedule: 0 jobs of 2 group chats and 1 DM, and 0 system jobs', log.getvalue())
 
+	def test_the_schedule_line_names_the_chat_a_change_was_for(self):
+		"""A load that follows a change to a chat's jobs says which chat, by network and id, in its log line."""
+		self.patch(catalog, 'ITEMS', ())
+		self.patch(jobs, 'SYSTEM', ())
+		state.save(jobs.JOBS_FILE, {'slack:C1': {}})
+		scheduler = jobs.Scheduler(clock=lambda: OCTOBER)
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			scheduler.change('slack:C1', lambda record: None)
+		self.assertIn('0 system jobs (for slack:C1)', log.getvalue())
+
 
 if __name__ == '__main__':
 	unittest.main()
