@@ -13,6 +13,7 @@ If you don't have Sharesight, you can still add your holdings manually via the w
 * Alerts of daily price movements past a threshold, earnings and ex-dividend dates, analyst rating changes, short
   interest, record highs
 * Stock lookup and comparisons, rankings by P/E, PEG, market cap or analyst rating
+* /command, @bot, schedule, or button driven.
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
