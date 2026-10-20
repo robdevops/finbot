@@ -129,9 +129,8 @@ def paged(entries, service, with_buttons=True):
 def screen_buttons(screen, page, pages, shown, crc, own):
 	"""A list screen's buttons: top's, what can be done (+; Edit and Run with any job, Upcoming with one on), in one
 	row; edit's and run's, a button for each job shown, '<number> <name>', JOB_ROW to a row, edit's red for a job that
-	is off, then OK and, while any job is on, Disable all, and while any is off, Delete disabled jobs (edit), or Cancel
-	(run); ◀ and ▶ to the other
-	pages."""
+	is off, then OK and, on edit, Cancel (both back to the list, as a switch is made at once), then, while any job is
+	on, Disable all, and while any is off, Delete disabled jobs; on run, Cancel; ◀ and ▶ to the other pages."""
 	if screen == 'top':
 		possible = [('+', 'add', [])] + [(label, kind, args) for label, kind, args, there in (
 			('Edit', 'edit', [0], bool(own)), ('Run', 'run', [0], bool(own)),
@@ -142,6 +141,8 @@ def screen_buttons(screen, page, pages, shown, crc, own):
 		rows = buttons.chunks([buttons.menu_button(f'{number} {job.name}', screen, [page, number], crc,
 			buttons.tone(job.on) if screen == 'edit' else '') for number, job, _ in shown], JOB_ROW)
 		nav = [buttons.menu_button('OK' if screen == 'edit' else 'Cancel', 'top', [0], crc)]
+		if screen == 'edit':
+			nav.append(buttons.menu_button('Cancel', 'top', [0, 'x'], crc)) # its own data: a button's id is unique
 		if screen == 'edit' and any(job.on for job in own):
 			nav.append(buttons.menu_button('Disable all', screen, [page, 'off'], crc))
 		if screen == 'edit' and not all(job.on for job in own):
