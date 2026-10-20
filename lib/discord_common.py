@@ -130,6 +130,7 @@ class Discord(inbound.Network):
 		UNSUPPORTED."""
 		kind = update.get('type')
 		if kind == self.PING:
+			log.info("Discord: endpoint check (a signed PING) answered")
 			return inbound.Response(body=json.dumps({'type': self.PONG}).encode(), interaction=True)
 		person = (update.get('member') or {}).get('user') or update.get('user') or {}
 		channel = str(update.get('channel_id') or (update.get('channel') or {}).get('id') or '')

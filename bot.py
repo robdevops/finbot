@@ -131,8 +131,8 @@ def handle(environ, start_response):
 		return respond(inbound.BAD_REQUEST)
 	if why := source.refuse(environ, body, update):
 		shown = {k: '<redacted>' if k in source.SECRET_FIELDS else v for k, v in update.items()}
-		log.warn("warning:", why)
-		log.warn(f"{source.service.capitalize()} refused update", json.dumps(shown, indent=4, default=str))
+		log.warn(f"{source.service.capitalize()} refused update: {why}")
+		log.debug(f"{source.service.capitalize()} refused update", json.dumps(shown, indent=4, default=str))
 		return respond(source.REFUSED)
 	environ[AUTHENTICATED] = True
 	return respond(take(source.network, update))

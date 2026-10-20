@@ -26,8 +26,9 @@ class DiscordInteractions(inbound.Webhook):
 			VerifyKey(bytes.fromhex(config.env.discordPublicKey.strip())).verify(timestamp.encode() + body,
 				bytes.fromhex(signature))
 		except (BadSignatureError, ValueError):
-			return ("Discord signature incorrect (Discord sends one on purpose when the Interactions Endpoint URL is "
-				"saved, to see a 401; if saving fails, discordPublicKey is not General Information > Public Key)")
+			return ("Discord signature incorrect (expected once or twice when the Interactions Endpoint URL is saved: "
+				"Discord sends a bad one on purpose to see a 401; if saving fails, discordPublicKey is not General "
+				"Information > Public Key)")
 		return None
 
 
