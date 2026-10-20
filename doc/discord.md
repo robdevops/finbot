@@ -32,9 +32,9 @@ empty, so change both, and restart finbot, to switch.
    (finbot, say).
 2. Under _Bot_:
    * _Reset Token_, and copy the token into `finbot.env` as `discordBotToken`.
+   * Turn _Public Bot_ off, so that only you can add the bot to servers.
    * Turn _Message Content Intent_ on, for the bot to read `.price` and `@finbot price` in your channels. Without it,
      Discord refuses the connection, and the log says so.
-   * Turn _Public Bot_ off, so that only you can add the bot to servers.
 3. Under _OAuth2 > URL Generator_, tick the scopes `bot` and `applications.commands`, then the bot permissions _View
    Channels_, _Send Messages_, _Attach Files_ and _Read Message History_. Open the URL it makes, and add the bot to your
    server.
