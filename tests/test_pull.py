@@ -135,6 +135,16 @@ class TelegramPolling(FinbotCase):
 		self.env(telegramBotToken='', telegramOutgoingWebhook='')
 		self.assertEqual(bot.listeners(), [])
 
+	def test_the_networks_line_names_each_enabled_network_and_how_it_reaches_finbot(self):
+		"""Startup logs the enabled networks, each pushed (its webhook URL is set) or pulled (finbot fetches)."""
+		self.env(telegramBotToken='1:a', telegramOutgoingWebhook='', slackBotToken='xoxb-1', slackAppToken='xapp-1',
+			slackOutgoingWebhook='', discordBotToken='d', discordOutgoingWebhook='https://example.com/discord')
+		self.assertEqual(bot.networks_line(), 'networks: discord (push), slack (pull), telegram (pull)')
+		self.env(slackAppToken='', discordBotToken='', telegramOutgoingWebhook='https://example.com/t')
+		self.assertEqual(bot.networks_line(), 'networks: telegram (push)') # Slack has no way to hear; Discord is off
+		self.env(telegramBotToken='')
+		self.assertEqual(bot.networks_line(), 'networks: none')
+
 	def test_a_press_polled_for_is_the_press_the_webhook_gets(self):
 		"""The same button press, posted to the webhook (http mode) or polled for (pull mode), reaches the worker as the
 		same Press, and is acknowledged the same way."""

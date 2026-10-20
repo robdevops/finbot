@@ -55,6 +55,14 @@ def listeners():
 	app-level token): finbot fetches the updates of those networks itself."""
 	return [kind() for kind in LISTENERS if kind.wanted()]
 
+def networks_line():
+	"""'networks: discord (push), slack (pull)': the networks finbot.env enables, by name, each with how its updates
+	reach finbot: push (it posts them to a webhook URL) or pull (finbot fetches them); 'networks: none' for none."""
+	how = sorted((hook.service, 'push') if hook.path() else (hook.service, 'pull')
+		for hook, kind in zip(WEBHOOKS, LISTENERS) if getattr(config.env, kind.TOKENS[0]) and (hook.path() or
+		kind.wanted()))
+	return 'networks: ' + (', '.join(f'{service} ({way})' for service, way in how) or 'none')
+
 def doubled(message):
 	"""Whether this message repeats one that the same person sent in the same chat in the last DOUBLED seconds:
 	Telegram's mobile app can send a command twice (/start in a new chat), each its own update, and one answer is
@@ -271,6 +279,7 @@ if __name__ == '__main__':
 	except config.ConfigError as e:
 		config.print_errors(e)
 		sys.exit(1)
+	log.info(networks_line())
 	for line in config.startup_report():
 		log.info('config:', line)
 	for line in config.startup_warnings():
