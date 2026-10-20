@@ -11,18 +11,18 @@ works (Slack has no typing notice for bots), and period buttons under a chart th
 
 The bot does the same either way. What differs is how it hears from Slack:
 
-| | Socket Mode (the default) | Push mode |
+| | Pull Mode (the default) | Push mode |
 |---|---|---|
 | How messages, slash commands and button presses reach finbot | Over a socket that finbot opens to Slack | Slack posts them to your HTTPS server |
 | Listens on the internet | No: finbot opens the socket to Slack | Yes, behind your HTTPS server: a domain name with a valid certificate |
 | Python module | `websocket-client` (Debian: `python3-websocket`) | `waitress` (Debian: `python3-waitress`) |
 | `finbot.env` keys | `slackBotToken`, `slackAppToken` | `slackBotToken`, `slackOutgoingWebhook`, `slackSigningSecret` |
 
-`slackOutgoingWebhook` chooses the mode: set, push mode; empty, Socket Mode. The app's own _Socket Mode_ setting must
+`slackOutgoingWebhook` chooses the mode: set, push mode; empty, pull mode. The Slack app's own _Socket Mode_ setting must
 agree, as Slack sends to one or the other: to finbot's socket while it is on, to the Request URLs while it is off. To
 switch, change both (paste the manifest for the other mode, which sets the app's side) and restart finbot.
 
-### Socket Mode
+### Pull Mode
 
 1. Print the app's manifest, which sets up the whole app at once (the slash commands, the scopes, the events, the
    buttons, direct messages and Socket Mode): `util/slack_manifest.py`. The bot then hears the messages that mention it
@@ -103,11 +103,6 @@ slackBotToken=xoxb-your-bot-token
 
 An app set up by hand before takes the manifest too: paste it into _Features > App Manifest_ and _Save Changes_;
 Slack shows what changes, and asks to reinstall the app when its scopes do.
-
-### Switching between push and pull modes
-Assuming you have followed all requirements above
-1. Go to https://api.slack.com/apps > [Your app] > Socket Mode, and toggle _Connect using Socket Mode_
-2. Comment/uncomment `slackOutgoingWebhook` in finbot.env and restart finbot 
 
 ### Slash commands
 
