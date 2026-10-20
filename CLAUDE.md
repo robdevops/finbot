@@ -75,7 +75,7 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   failure in a row: `backoff`; `SocketListener`, a connection a round, and `WebSocket`, over websocket-client, for
   Slack and Discord), `lib/transports.py` (the `Transport` base, below).
 - `lib/worker.py`: `COMMANDS`, a table of `Command(names, handler, usage, section, buttons, percent, period,
-  keywords, words, takes, job)`, which also makes `.help`, the commands a job may run (`job_commands()`, each a
+  keywords, words, takes, job, slashes)`, which also makes `.help`, the commands a job may run (`job_commands()`, each a
   `CommandJob`: every one but those that change something, `job=False`, and those a report runs, `REPORTED`; stored
   under its `key`, `.price`'s as compare, `STORED`), the Telegram command keyboard (`KEYBOARD`, which
   `telegram_common.keep_keyboard` gives each DM after a command where it has another or none, and after /start and

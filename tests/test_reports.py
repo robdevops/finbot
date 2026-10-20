@@ -115,16 +115,24 @@ class Commands(FinbotCase):
 		self.assertNotIn('No tracked stocks rated buy by 7+ analysts', payload)
 
 	def test_the_keyboard_is_alphabetical_and_every_button_is_its_command(self):
-		"""The command keyboard is alphabetical, .schedule (the jobs) in place of .beta, and each button runs the
+		"""The command keyboard is alphabetical, with .pe (the ratios) and .jobs, and each button runs the
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in telegram_common.keyboard(worker.KEYBOARD)['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.movers', '.performance',
-			'.price', '.ratio', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])
+		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.jobs', '.movers', '.pe', '.performance',
+			'.price', '.shorts', '.trades', '.treemap', '.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
 				with self.subTest(text=text):
 					self.assertIs(worker.read(text, BOT)[0], command)
+
+	def test_peg_is_a_slash_command_that_answers_as_ratio_peg(self):
+		"""/peg is in the slash menu beside /ratio, with the ending words /ratio takes, and answers as .ratio peg."""
+		slashes = {slash.name: slash for slash in worker.slash_commands()}
+		self.assertEqual(slashes['peg'].arguments, '[SYMBOL] [top|bottom|negative|reverse]')
+		self.assertTrue(slashes['peg'].completes)
+		command, args = worker.read('/peg reverse', BOT)
+		self.assertEqual((command.handler, args.word, args.keyword), (worker.on_ratio, 'peg', 'bottom'))
 
 	def test_history_and_compare(self):
 		""".history and .compare answer."""

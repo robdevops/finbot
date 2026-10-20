@@ -691,6 +691,7 @@ class Command:
 	words: tuple = (0, None) # how many words it takes, at least and at most (None: any): others get its usage
 	takes: str = '' # what its words are, for suggest and a job's example: 'ticker' or 'portfolio' (a name)
 	job: bool = True # whether a job may run it (job_commands): not one that changes something
+	slashes: dict = dataclasses.field(default_factory=dict) # other names that are slash commands too: {name: arguments}
 
 	def fits(self, args):
 		"""Whether it takes as many words as args has (words)."""
@@ -743,15 +744,16 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 		keywords=TOP | {name: name for name in SESSIONS}, words=(0, 1)), # a word: session's or premarket's SYMBOL
 	Command(BUY_SELL, on_rating, ('.buysell',), RISK, ('.buy & sell',)), # .buy & sell, .buy sell: both
 	Command(('ratio', 'pe', 'forward pe', 'forwardpe', 'fpe', 'peg'), on_ratio,
-		('.ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]',), RISK, ('.ratio',), keywords=ENDS,
-		options=RATIOS, words=(0, 1), takes='ticker'), # was .pe (the forward P/E) and .peg, still their names
+		('.ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]',), RISK, ('.pe',), keywords=ENDS,
+		options=RATIOS, words=(0, 1), takes='ticker', slashes={'peg': '[SYMBOL] [top|bottom|negative|reverse]'}),
+	# was .pe (the forward P/E) and .peg, still their names, /peg a slash command of its own
 	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True,
 		words=(0, 1), takes='ticker'),
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True,
 		takes='portfolio'),
 	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [upcoming|system]',
 		'.jobs enable|disable|delete|run [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'),
-		JOBS, ('.schedule',), keywords=JOB_CHANGES, job=False),
+		JOBS, ('.jobs',), keywords=JOB_CHANGES, job=False),
 	PROFILE,
 ]
 KEYBOARD = tuple(text for command in COMMANDS for text in command.buttons) # Telegram's command keyboard in a DM
@@ -797,8 +799,8 @@ class Slash(typing.NamedTuple):
 
 def slash_commands():
 	"""The slash commands to register (Slash), from the .help lines (slash_form), and /help; the arguments of a
-	command's several lines joined by " | ". A command's other names (/profile, /job) are no slash commands: typed,
-	they work as every name does."""
+	command's several lines joined by " | ". A command's other names (/profile, /job) are no slash commands, but
+	those it lists in slashes (/peg): typed, they work as every name does."""
 	found = {'help': (None, [])} # name -> (its command, the arguments of its lines)
 	for command in COMMANDS:
 		for line in command.usage:
@@ -806,6 +808,8 @@ def slash_commands():
 				name, arguments = form
 				if arguments not in found.setdefault(name, (command, []))[1]:
 					found[name][1].append(arguments)
+		for name, arguments in command.slashes.items():
+			found.setdefault(name, (command, []))[1].append(arguments)
 	return [Slash('help', 'every command, and what it takes', '') if name == 'help' else
 		Slash(name, described(name, lines), ' | '.join(lines), completes(command))
 		for name, (command, lines) in found.items()]
