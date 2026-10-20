@@ -126,11 +126,9 @@ class Commands(FinbotCase):
 				with self.subTest(text=text):
 					self.assertIs(worker.read(text, BOT)[0], command)
 
-	def test_peg_is_a_slash_command_that_answers_as_ratio_peg(self):
-		"""/peg is in the slash menu beside /ratio, with the ending words /ratio takes, and answers as .ratio peg."""
-		slashes = {slash.name: slash for slash in worker.slash_commands()}
-		self.assertEqual(slashes['peg'].arguments, '[SYMBOL] [top|bottom|negative|reverse]')
-		self.assertTrue(slashes['peg'].completes)
+	def test_peg_is_typed_as_ratio_peg_and_has_no_slash_command_of_its_own(self):
+		"""Only /ratio is in the slash menu; .peg and /peg typed answer as .ratio peg."""
+		self.assertNotIn('peg', {slash.name for slash in worker.slash_commands()})
 		command, args = worker.read('/peg reverse', BOT)
 		self.assertEqual((command.handler, args.word, args.keyword), (worker.on_ratio, 'peg', 'bottom'))
 
