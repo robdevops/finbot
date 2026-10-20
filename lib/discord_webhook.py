@@ -11,6 +11,7 @@ class DiscordInteractions(inbound.Webhook):
 	the app's Ed25519 key, whose public half is discordPublicKey."""
 	URL = 'discordOutgoingWebhook'
 	REFUSED = inbound.UNAUTHORIZED # Discord checks that a bad signature gets a 401, and drops a URL answering otherwise
+	SECRET_FIELDS = ('token',) # the interaction's token, with which anyone can answer it for 15 minutes
 
 	def refuse(self, environ, body, update):
 		"""The request must carry Discord's signature of its timestamp and body under discordPublicKey, checked with
@@ -22,10 +23,11 @@ class DiscordInteractions(inbound.Webhook):
 		from nacl.exceptions import BadSignatureError
 		from nacl.signing import VerifyKey
 		try:
-			VerifyKey(bytes.fromhex(config.env.discordPublicKey)).verify(timestamp.encode() + body,
+			VerifyKey(bytes.fromhex(config.env.discordPublicKey.strip())).verify(timestamp.encode() + body,
 				bytes.fromhex(signature))
 		except (BadSignatureError, ValueError):
-			return "Discord signature incorrect"
+			return ("Discord signature incorrect (Discord sends one on purpose when the Interactions Endpoint URL is "
+				"saved, to see a 401; if saving fails, discordPublicKey is not General Information > Public Key)")
 		return None
 
 

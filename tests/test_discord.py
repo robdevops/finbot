@@ -120,6 +120,15 @@ class Endpoint(FinbotCase):
 				HTTP_X_SIGNATURE_TIMESTAMP=timestamp), lambda s, *a: status.append(s))
 		return status[0], b''.join(out), out
 
+	def test_a_refused_interaction_keeps_its_token_out_of_the_log(self):
+		"""An interaction whose signature fails is logged without its token, which answers it for 15 minutes."""
+		body = json.dumps(interaction(1, token='secret-token')).encode()
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			bot.main(wsgi_environ('/discord', body, HTTP_X_SIGNATURE_ED25519='00' * 64,
+				HTTP_X_SIGNATURE_TIMESTAMP='1700000000'), lambda *a: None)
+		self.assertEqual(('secret-token' in log.getvalue(), 'Discord signature incorrect' in log.getvalue()),
+			(False, True))
+
 	def test_a_signed_check_gets_its_pong(self):
 		"""Discord's check of the URL, signed, gets its PONG."""
 		status, answer, _ = self.post(interaction(1))
