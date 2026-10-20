@@ -129,24 +129,29 @@ def paged(entries, service, with_buttons=True):
 def screen_buttons(screen, page, pages, shown, crc, own):
 	"""A list screen's buttons: top's, what can be done (+; Edit and Run with any job, Upcoming with one on), in one
 	row; edit's and run's, a button for each job shown, '<number> <name>', JOB_ROW to a row, edit's red for a job that
-	is off, then OK and, on edit, Cancel (both back to the list, as a switch is made at once), then, while any job is
-	on, Disable all, and while any is off, Delete disabled jobs; on run, Cancel; ◀ and ▶ to the other pages."""
+	is off (selected), then on edit Select all (Select none where all are selected) and, while any is selected, Delete
+	and OK, then Cancel (OK and Cancel go back to the list: a switch is made at once); on run, Cancel; ◀ and ▶ to the
+	other pages."""
 	if screen == 'top':
 		possible = [('+', 'add', [])] + [(label, kind, args) for label, kind, args, there in (
-			('Edit', 'edit', [0], bool(own)), ('Run', 'run', [0], bool(own)),
+			('Edit', 'edit', [0], bool(own)), ('Run...', 'run', [0], bool(own)),
 			('Upcoming', 'next', [], any(job.on for job in own))) if there]
 		rows = [[buttons.menu_button(label, kind, args, crc) for label, kind, args in possible]]
 		nav = []
 	else: # edit or run: a button per job
 		rows = buttons.chunks([buttons.menu_button(f'{number} {job.name}', screen, [page, number], crc,
 			buttons.tone(job.on) if screen == 'edit' else '') for number, job, _ in shown], JOB_ROW)
-		nav = [buttons.menu_button('OK' if screen == 'edit' else 'Cancel', 'top', [0], crc)]
+		nav = []
 		if screen == 'edit':
+			everything = not any(job.on for job in own) # all selected: the jobs that are off are the ones selected
+			nav.append(buttons.menu_button('Select none' if everything else 'Select all', screen,
+				[page, 'on' if everything else 'off'], crc))
+			if not all(job.on for job in own): # something selected
+				nav.append(buttons.menu_button('Delete', screen, [page, 'ask'], crc))
+				nav.append(buttons.menu_button('OK', 'top', [0], crc))
 			nav.append(buttons.menu_button('Cancel', 'top', [0, 'x'], crc)) # its own data: a button's id is unique
-		if screen == 'edit' and any(job.on for job in own):
-			nav.append(buttons.menu_button('Disable all', screen, [page, 'off'], crc))
-		if screen == 'edit' and not all(job.on for job in own):
-			nav.append(buttons.menu_button('Delete disabled jobs', screen, [page, 'ask'], crc))
+		else:
+			nav.append(buttons.menu_button('Cancel', 'top', [0], crc))
 	nav += buttons.page_buttons(page, pages, lambda label, to: buttons.menu_button(label, screen, [to], crc))
 	return rows + ([nav] if nav else [])
 

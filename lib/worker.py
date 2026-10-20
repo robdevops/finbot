@@ -148,15 +148,21 @@ def run_now(chat, scheduler, job, number):
 		delivery.deliver(chat, delivery.Report([about.job_line(chat.dialect, number, job, outcome)]))
 
 def edit_step(service, chat, scheduler, pressed, page):
-	"""A press of the .jobs editing screen: a job switched on or off, all switched off (off), the jobs that are off
-	asked about (ask) or deleted (yes), as long as the list is the one the button was drawn for (its checksum), else
-	the screen is drawn as the list is now, saying so."""
+	"""A press of the .jobs editing screen: a job switched on or off, all switched off (off) or on (on), the jobs that
+	are off asked about (ask) or deleted (yes), as long as the list is the one the button was drawn for (its
+	checksum), else the screen is drawn as the list is now, saying so."""
 	own, what = scheduler.chat_jobs(chat), pressed.args[1]
 	if jobs.list_checksum(own) != pressed.checksum:
 		return about.jobs_screen(service, chat, 'edit', page, CHANGED)
 	note = None
 	if what == 'ask' and not all(job.on for job in own):
 		return about.delete_disabled_screen(service, chat, page)
+	if what == 'on':
+		turned = [job for job in own if not job.on]
+		for job in turned:
+			scheduler.toggle(job, on=True)
+		s = '' if len(turned) == 1 else 's'
+		return about.jobs_screen(service, chat, 'edit', page, f"Enabled {len(turned)} job{s}")
 	if what == 'off':
 		turned = [job for job in own if job.on]
 		for job in turned:

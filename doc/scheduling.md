@@ -20,10 +20,10 @@ never run, its name and its schedule in words. Under the list, in italics, is ho
 /jobs add REPORT SCHEDULE
 /jobs add reminder SCHEDULE "TEXT"
 ```
-Under it is one row of buttons, each there only where it has something to act on (**+** always; **Edit** and **Run** with any job, **Upcoming** with one that is on). Each screen is drawn in place of the last:
+Under it is one row of buttons, each there only where it has something to act on (**+** always; **Edit** and **Run...** with any job, **Upcoming** with one that is on). Each screen is drawn in place of the last:
 * **+**: what the job runs, how often, then the rest down to the minute ([below](#add-step-by-step)).
-* **Edit**: the list with a button per job, the default ones too; a press switches that job on or off at once. A job that is off is struck through in the list and has a red button (on Telegram, Slack and Discord alike); one that is on has a plain one. **OK** and **Cancel** both go back to the list (a switch is made at once, so Cancel undoes nothing). **Disable all**, there while any job is on, switches them all off at once. **Delete disabled jobs**, there while any job is off, asks first ("Delete the 3 disabled jobs?"), then deletes them. A default job that is deleted comes back when the same job is added again.
-* **Run**: a button per job; a press runs it now, as its schedule would. What the job posts shows it ran; a
+* **Edit**: the list with a button per job, the default ones too; a press switches that job on or off at once. A job that is off is struck through in the list and has a red button (on Telegram, Slack and Discord alike); one that is on has a plain one. **Select all** switches every job off at once (all selected); it reads **Select none** once all are off, and switches them all on. While any job is off (selected), **Delete** asks first ("Delete the 3 disabled jobs?"), then deletes them, and **OK** goes back to the list. **Cancel** goes back to the list too (a switch is made at once, so Cancel undoes nothing). A default job that is deleted comes back when the same job is added again.
+* **Run...**: a button per job; a press runs it now, as its schedule would. What the job posts shows it ran; a
   message says so only when it failed, or was running already. The same button pressed again within a minute does
   nothing more, as with every button.
 * **Upcoming**: the next runs, in time order.
