@@ -62,11 +62,10 @@ Telegram delivers the messages in your chats, and each button press, to finbot o
 with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
 
 1. Set up the bot as for [pull mode](#pull-mode), above.
-2. Put finbot behind an HTTPS server. An nginx example, which lets in only Telegram's addresses:
+2. Put finbot behind an HTTPS server. An nginx example:
    ```
    server {
    	listen 8443 ssl;
-   	deny all;
 
    	server_name         www.example.com;
    	ssl_certificate     /etc/letsencrypt/live/www.example.com/fullchain.pem;
@@ -75,15 +74,12 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
 
    	location /telegram {
    		proxy_pass http://127.0.0.1:5000/telegram;
-   		include /etc/nginx/telegram_subnets;
-   		deny all;
    	}
    }
    ```
-   `util/nginx_telegram_cron` writes `/etc/nginx/telegram_subnets`, an `allow` line for each of Telegram's networks,
-   and reloads nginx. Run it once as root before nginx loads this configuration, or put it in `/etc/cron.daily/` to
-   keep the list current. `util/iptables_telegram_cron` goes further, in the firewall: of the traffic to ports 443 and
-   8443 it lets in only Telegram's networks on 8443 and drops the rest, so nothing else can be served on those ports.
+   To restrict the port to Telegram's networks, `util/iptables_telegram_cron` works in the firewall: of the traffic to
+   ports 443 and 8443 it lets in only Telegram's networks on 8443 and drops the rest, so nothing else can be served on
+   those ports.
 3. In `finbot.env`, set `telegramOutgoingWebhook` to the URL Telegram should post to, and `telegramOutgoingToken` to a
    password of your choosing: 1 to 256 characters, of letters, digits, `_` and `-`. Telegram sends the password with
    every update, and finbot turns away a request without it.

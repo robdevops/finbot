@@ -55,12 +55,10 @@ Slack delivers the messages, the button presses and the slash commands to finbot
 `http://127.0.0.1:5000` (`ip` and `port` in `finbot.env`), so it needs a web server in front of it, on a domain name
 with a valid certificate.
 
-1. Put finbot behind an HTTPS server. An nginx example, which lets in only Amazon's addresses, where Slack's requests
-   come from:
+1. Put finbot behind an HTTPS server. An nginx example:
    ```
    server {
    	listen 8443 ssl;
-   	deny all;
 
    	server_name         www.example.com;
    	ssl_certificate     /etc/letsencrypt/live/www.example.com/fullchain.pem;
@@ -69,14 +67,9 @@ with a valid certificate.
 
    	location /slack {
    		proxy_pass http://127.0.0.1:5000/slack;
-   		include /etc/nginx/aws_subnets;
-   		deny all;
    	}
    }
    ```
-   `util/nginx_aws_cron` writes `/etc/nginx/aws_subnets`, an `allow` line for each of Amazon's networks, and reloads
-   nginx. Run it once as root before nginx loads this configuration, or put it in `/etc/cron.daily/` to keep the list
-   current.
 2. In `finbot.env`, set `slackOutgoingWebhook` to the URL Slack should post to, and restart finbot, so that it can
    answer Slack's check of the URL in step 4.
 3. Print the app's manifest with that URL, which Slack then posts everything to:
