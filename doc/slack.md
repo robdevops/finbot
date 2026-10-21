@@ -23,7 +23,7 @@ mode. On the Slack side, enabling _Socket Mode_ expects finbot to pull, and disa
 Slack's side is set by the manifest, which `util/slack_manifest.py` makes without reading `finbot.env`: run without `--url` it is Socket Mode, and with `--url
 https://example.com/slack` (the same URL as `slackOutgoingWebhook`) push mode. To switch modes, paste the manifest
 for the other mode into the [Slack app](https://api.slack.com.apps), and change `finbot.env` to match (set `slackOutgoingWebhook` for push mode, empty it
-for Socket Mode), then restart finbot. Full details below.
+for Socket Mode), then restart finbot. Full details follow.
 
 ### Pull Mode
 
