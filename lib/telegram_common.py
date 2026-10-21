@@ -87,7 +87,7 @@ def unchanged(error):
 
 def start(commands):
 	"""Called once by bot.py as it starts, never on import: the webhook deleted, keeping the updates not delivered yet,
-	and in http mode set again (telegramOutgoingWebhook, signed with telegramOutgoingToken), which wakes a stale
+	and in http mode set again (telegramOutgoingWebhook, signed with telegramSecretToken), which wakes a stale
 	connection on Telegram's side; in pull mode getUpdates takes them (telegram_longpolling). Then the bot's
 	@username (getMe: a command in a group may name the bot, /price@finbot) and the command menu (set_commands).
 	Raises RuntimeError, or a requests error, when the webhook or the bot's name cannot be had."""
@@ -97,7 +97,7 @@ def start(commands):
 		# so the log) would show: the URL's path is a secret
 		log.info("telegram: setting the webhook (telegramOutgoingWebhook)")
 		call('setWebhook', json={'url': config.env.telegramOutgoingWebhook, 'allowed_updates': ALLOWED_UPDATES,
-			'secret_token': config.env.telegramOutgoingToken})
+			'secret_token': config.env.telegramSecretToken})
 	READER.bot_name = '@' + call('getMe')['username']
 	set_commands(commands)
 

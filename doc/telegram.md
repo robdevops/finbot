@@ -11,8 +11,8 @@ Telegram:
 |---|---|---|
 | How messages and button presses reach finbot | finbot asks Telegram for them (long polling) | Telegram posts them to your HTTPS server |
 | Listens on the internet | No: finbot only makes outgoing requests | Yes, behind your HTTPS server: a domain name with a valid certificate, on port 443, 80, 88 or 8443 |
-| How finbot knows it is Telegram | Nothing arrives unasked: finbot's own requests carry the bot token (`telegramBotToken`) | The secret token (`telegramOutgoingToken`) that finbot gave Telegram when setting the webhook, which Telegram sends back in a header with every update. Without it, finbot turns Telegram off |
-| `finbot.env` keys | `telegramBotToken` | `telegramBotToken`, `telegramOutgoingWebhook` and `telegramOutgoingToken` |
+| How finbot knows it is Telegram | Nothing arrives unasked: finbot's own requests carry the bot token (`telegramBotToken`) | The secret token (`telegramSecretToken`) that finbot gave Telegram when setting the webhook, which Telegram sends back in a header with every update. Without it, finbot turns Telegram off |
+| `finbot.env` keys | `telegramBotToken` | `telegramBotToken`, `telegramOutgoingWebhook` and `telegramSecretToken` |
 
 Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price`, `/movers`,
 `/performance` and the rest, [the list](commands.md#supported-commands), or as messages, `.price`), period buttons
@@ -82,10 +82,11 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
    	}
    }
    ```
-3. In `finbot.env`, set `telegramOutgoingWebhook` to the URL Telegram should post to, and `telegramOutgoingToken` to a
+3. In `finbot.env`, set `telegramOutgoingWebhook` to the URL Telegram should post to, and `telegramSecretToken` to a
    password of your choosing: 1 to 256 characters, of letters, digits, `_` and `-`. Telegram sends the password with
    every update, and finbot turns away a request without it. With `telegramOutgoingWebhook` set and no
-   `telegramOutgoingToken`, finbot turns Telegram off (it says so in the log at start).
+   `telegramSecretToken`, finbot turns Telegram off (it says so in the log at start). The key was called
+   `telegramOutgoingToken`, which still works, with a note in the log to rename it.
 4. Restart finbot. As it starts, it sets the webhook again, deleting it first, which also wakes up a stale connection.
    If Telegram refuses, finbot does not start, and the log says why.
 5. Send `/help` in the chat. In a direct chat with the bot, a keyboard of the common commands follows the reply.
@@ -93,7 +94,7 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
 ```
 telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
 telegramOutgoingWebhook=https://www.example.com:8443/telegram
-telegramOutgoingToken=a-long-random-password
+telegramSecretToken=a-long-random-password
 ```
 
 ## Preloading charts

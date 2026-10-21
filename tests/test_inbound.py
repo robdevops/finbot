@@ -34,7 +34,7 @@ class WsgiRejections(FinbotCase):
 	def test_an_empty_secret_proves_nothing(self):
 		"""With no secret configured, a network is turned away on all three (its URL is served by nobody: 404), even to
 		a request carrying an empty secret."""
-		self.env(telegramOutgoingToken='', slackSigningSecret='', slackOutgoingWebhook='https://example.com/slack',
+		self.env(telegramSecretToken='', slackSigningSecret='', slackOutgoingWebhook='https://example.com/slack',
 			slackOutgoingToken='', discordOutgoingWebhook='https://example.com/discord', discordPublicKey='')
 		message = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'text': '.help'}}
 		empty = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': ''}
@@ -49,10 +49,10 @@ class WsgiRejections(FinbotCase):
 	def test_a_network_without_its_secret_is_reported_and_not_started(self):
 		"""A webhook URL with no token, signing secret or public key is named at start as turned off, and its network
 		is not registered; with the secret set it is served."""
-		self.env(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='')
+		self.env(telegramOutgoingWebhook='https://example.com/telegram', telegramSecretToken='')
 		self.assertIn('telegram', [hook.service for hook in bot.unsecured()])
 		self.assertEqual(bot.WEBHOOKS[0].path(), '')
-		self.env(telegramOutgoingToken='tok')
+		self.env(telegramSecretToken='tok')
 		self.assertNotIn('telegram', [hook.service for hook in bot.unsecured()])
 		self.assertEqual(bot.WEBHOOKS[0].path(), '/telegram')
 

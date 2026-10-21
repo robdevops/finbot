@@ -10,7 +10,7 @@ import requests
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
-os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
+os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramSecretToken='tok')
 
 import bot
 from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, jobs, links, markets, net

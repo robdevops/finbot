@@ -29,7 +29,7 @@ of the chat network keys it needs.
 | `slackBotToken` | | Slack bot token, for replies and chart uploads in Slack |
 | `slackAppToken` | | Slack app-level token (`xapp-`): commands over a socket finbot opens to Slack (Socket Mode), when `slackOutgoingWebhook` is empty |
 | `telegramOutgoingWebhook` | | The URL Telegram posts its updates to (push mode); empty, finbot fetches them (pull mode) |
-| `telegramOutgoingToken` | | Secret token Telegram must present (push mode) |
+| `telegramSecretToken` | | Secret token Telegram must present (push mode); was `telegramOutgoingToken`, which still works |
 | `slackOutgoingWebhook` | | The URL Slack posts its events and button presses to (push mode); empty, Socket Mode with `slackAppToken` |
 | `slackOutgoingToken` | | Token Slack must present (push mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
 | `slackSigningSecret` | | Secret Slack signs each request with (push mode) |
