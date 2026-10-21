@@ -14,6 +14,7 @@ The bot does the same either way. What differs is how it hears from Discord:
 | Listens on the internet | No: finbot opens the connection to Discord | Yes, behind your HTTPS server: a domain name with a valid certificate |
 | Commands | Slash commands (`/price`), and messages (`.price`, `@finbot price`) | Slash commands (`/price`): Discord posts no messages |
 | Python modules | `websocket-client` (Debian: `python3-websocket`) | `PyNaCl` and `waitress` (Debian: `python3-nacl`, `python3-waitress`) |
+| How finbot knows it is Discord | Nothing arrives unasked: the gateway connection is one finbot opened with the bot token (`discordBotToken`) | Discord's signature on every request, checked with the app's Public Key (`discordPublicKey`). Without it, finbot turns Discord off |
 | `finbot.env` keys | `discordBotToken` | `discordBotToken`, `discordOutgoingWebhook` and `discordPublicKey` |
 
 In both: the scheduled reports with their charts; period buttons under charts and the buttons of the `/jobs` menu,
