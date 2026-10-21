@@ -63,7 +63,8 @@ Telegram delivers the messages in your chats, and each button press, to finbot o
 with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
 
 1. Set up the bot as for [pull mode](#pull-mode), above.
-2. Put finbot behind an HTTPS server. An nginx example:
+2. Put finbot behind an HTTPS server. An nginx example, which lets in only Telegram's addresses (the networks it posts from, as
+   [Telegram lists them](https://core.telegram.org/bots/webhooks#the-short-version)):
    ```
    server {
    	listen 8443 ssl;
@@ -75,6 +76,9 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
 
    	location /telegram {
    		proxy_pass http://127.0.0.1:5000/telegram;
+   		allow 149.154.160.0/20;
+   		allow 91.108.4.0/22;
+   		deny all;
    	}
    }
    ```
