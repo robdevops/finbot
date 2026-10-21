@@ -60,7 +60,7 @@ with a valid certificate.
    	server_name         www.example.com;
    	ssl_certificate     /etc/letsencrypt/live/www.example.com/fullchain.pem;
    	ssl_certificate_key /etc/letsencrypt/live/www.example.com/privkey.pem;
-   	ssl_protocols       TLSv1.2 TLSv1.3;
+   	ssl_protocols       TLSv1.3;
 
    	location /slack {
    		proxy_pass http://127.0.0.1:5000/slack;
