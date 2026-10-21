@@ -119,7 +119,7 @@ class Commands(FinbotCase):
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in telegram_common.keyboard(worker.KEYBOARD)['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.jobs', '.movers', '.pe', '.performance',
+		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.jobs', '.movers', '.pe', '.peg', '.performance',
 			'.price', '.shorts', '.trades', '.treemap', '.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
