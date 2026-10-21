@@ -263,6 +263,27 @@ class Sending(FinbotCase):
 		self.assertEqual(self.calls[0][:2], ('POST', '/channels/77/typing'))
 		self.assertLess(chat.TYPING[1], 10)
 
+	def test_an_interaction_discord_has_not_registered_yet_is_tried_again(self):
+		"""An answer 'Unknown Webhook' (10015) on an interaction's webhook, as when the edit follows the interaction's
+		answer too closely, is tried again after short waits, and raises when it persists; other 404s raise at once."""
+		slept = []
+		self.patch(discord_common.time, 'sleep', slept.append)
+		path = '/webhooks/42/tok/messages/@original'
+		self.answers += [Resp({'message': 'Unknown Webhook', 'code': 10015}, 404)] * 2 + [Resp({'id': '5'})]
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertEqual(discord_common.call('PATCH', path), {'id': '5'})
+		self.assertEqual((slept, len(self.calls)), ([0.5, 1], 3))
+		slept.clear()
+		self.answers += [Resp({'message': 'Unknown Webhook', 'code': 10015}, 404)] * 4
+		with contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(RuntimeError, '10015'):
+			discord_common.call('PATCH', path)
+		self.assertEqual(slept, [0.5, 1, 2])
+		slept.clear()
+		self.answers.append(Resp({'message': 'Unknown Message', 'code': 10008}, 404))
+		with contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(RuntimeError, '10008'):
+			discord_common.call('PATCH', path)
+		self.assertEqual(slept, [])
+
 	def test_each_request_names_finbot_as_discord_asks(self):
 		"""Each request carries the bot token, and the User-Agent that Discord asks of a bot: DiscordBot, its URL and
 		its version (finbot's commit)."""
