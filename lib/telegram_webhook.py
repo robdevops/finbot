@@ -9,6 +9,11 @@ class TelegramWebhook(inbound.Webhook):
 	"""Telegram posting to telegramOutgoingWebhook, each update with the secret header that setWebhook gave it."""
 	URL = 'telegramOutgoingWebhook'
 	SECRET_HEADERS = ('HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN',)
+	MISSING = 'telegramOutgoingToken'
+
+	def secured(self):
+		"""Whether telegramOutgoingToken is set: the header must carry it."""
+		return bool(config.env.telegramOutgoingToken)
 
 	def refuse_unread(self, environ):
 		"""The header must carry telegramOutgoingToken."""

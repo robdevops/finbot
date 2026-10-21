@@ -143,10 +143,22 @@ class Webhook:
 		self.network = network
 		self.service = network.service
 
+	MISSING = '' # what finbot.env must also set for requests to be checked, for the log
+
+	def secured(self):
+		"""Whether finbot.env has what proves a request comes from the network (a token, a signing secret, a public
+		key). Without it the network is turned away: no request to its URL is served, and it is not started."""
+		return False
+
+	def asked(self):
+		"""Whether finbot.env sets the URL the network posts to, secured or not."""
+		return bool(getattr(config.env, self.URL)) if self.URL else False
+
 	def path(self):
-		"""The path of the URL the network posts to, or '' when finbot.env sets none."""
+		"""The path of the URL the network posts to, or '' when finbot.env sets none, or has no way to check a request
+		(secured): such a URL is served by nobody."""
 		url = getattr(config.env, self.URL) if self.URL else ''
-		return urlparse(url).path if url else ''
+		return urlparse(url).path if url and self.secured() else ''
 
 	def refuse_unread(self, environ):
 		"""Why to turn the request away before its body is read (a secret header missing or wrong), else None."""

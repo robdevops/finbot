@@ -465,9 +465,9 @@ class Startup(unittest.TestCase):
 			' Slack, so its commands and buttons get no answer')
 		no_reply = 'slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply'
 		slack_refused = ('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
-			' every Slack request will be refused')
-		telegram_refused = ('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update'
-			' will be refused')
+			' Slack is turned off')
+		telegram_refused = ('telegramOutgoingWebhook is set but telegramOutgoingToken is not: Telegram is turned'
+			' off')
 		unused = ('telegramOutgoingToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram updates'
 			' (pull mode), and the token is not used')
 		app_no_reply = 'slackAppToken is set but slackBotToken is not: Slack commands will get no reply'
@@ -500,7 +500,7 @@ class Startup(unittest.TestCase):
 		http = dict(discordBotToken='x', discordOutgoingWebhook='https://example.com/discord', discordPublicKey=key)
 		no_reply = 'discordOutgoingWebhook is set but discordBotToken is not: Discord commands will get no reply'
 		refused = ("discordOutgoingWebhook is set but discordPublicKey is not the app's public key (64 hex digits):"
-			' every Discord interaction will be refused')
+			' Discord is turned off')
 		unused = ('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway (pull'
 			' mode), and the key is not used')
 		cases = (({}, []), ({'discordBotToken': ''}, [no_reply]),

@@ -77,12 +77,10 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
    	}
    }
    ```
-   To restrict the port to Telegram's networks, `util/iptables_telegram_cron` works in the firewall: of the traffic to
-   ports 443 and 8443 it lets in only Telegram's networks on 8443 and drops the rest, so nothing else can be served on
-   those ports.
 3. In `finbot.env`, set `telegramOutgoingWebhook` to the URL Telegram should post to, and `telegramOutgoingToken` to a
    password of your choosing: 1 to 256 characters, of letters, digits, `_` and `-`. Telegram sends the password with
-   every update, and finbot turns away a request without it.
+   every update, and finbot turns away a request without it. With `telegramOutgoingWebhook` set and no
+   `telegramOutgoingToken`, finbot turns Telegram off (it says so in the log at start).
 4. Restart finbot. As it starts, it sets the webhook again, deleting it first, which also wakes up a stale connection.
    If Telegram refuses, finbot does not start, and the log says why.
 5. Send `/help` in the chat. In a direct chat with the bot, a keyboard of the common commands follows the reply.

@@ -476,10 +476,10 @@ def startup_warnings(startup=None):
 			' Information, App-Level Tokens), not the bot token')
 	if s.slackOutgoingWebhook and not (s.slackSigningSecret or s.slackOutgoingToken):
 		warnings.append('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
-			' every Slack request will be refused')
+			' Slack is turned off')
 	if s.telegramOutgoingWebhook and not s.telegramOutgoingToken:
-		warnings.append('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update will be'
-			' refused')
+		warnings.append('telegramOutgoingWebhook is set but telegramOutgoingToken is not: Telegram is turned'
+			' off')
 	if s.telegramOutgoingToken and not re.fullmatch(r'[A-Za-z0-9_-]{1,256}', s.telegramOutgoingToken):
 		warnings.append('telegramOutgoingToken is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the'
 			" webhook's secret, so setting the webhook will fail")
@@ -490,7 +490,7 @@ def startup_warnings(startup=None):
 		warnings.append('discordOutgoingWebhook is set but discordBotToken is not: Discord commands will get no reply')
 	if s.discordOutgoingWebhook and not re.fullmatch(r'[0-9a-fA-F]{64}', s.discordPublicKey):
 		warnings.append("discordOutgoingWebhook is set but discordPublicKey is not the app's public key (64 hex"
-			' digits): every Discord interaction will be refused')
+			' digits): Discord is turned off')
 	if s.discordPublicKey and not s.discordOutgoingWebhook:
 		warnings.append('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway'
 			' (pull mode), and the key is not used')

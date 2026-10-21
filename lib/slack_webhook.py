@@ -18,6 +18,11 @@ class SlackWebhook(inbound.Webhook):
 	each request signed with the app's signing secret, and carrying its verification token."""
 	URL = 'slackOutgoingWebhook'
 	SECRET_FIELDS = ('token',) # the verification token
+	MISSING = 'slackSigningSecret (or slackOutgoingToken)'
+
+	def secured(self):
+		"""Whether slackSigningSecret or slackOutgoingToken is set."""
+		return bool(config.env.slackSigningSecret or config.env.slackOutgoingToken)
 
 	def refuse(self, environ, body, update):
 		"""With slackSigningSecret, the request must carry Slack's signature of its body, made in the last five minutes;

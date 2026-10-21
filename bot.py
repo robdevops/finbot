@@ -55,6 +55,11 @@ def listeners():
 	app-level token): finbot fetches the updates of those networks itself."""
 	return [kind() for kind in LISTENERS if kind.wanted()]
 
+def unsecured():
+	"""The webhooks whose URL finbot.env sets but not what checks a request (Webhook.secured): their networks are
+	turned away, not served and not started."""
+	return [hook for hook in WEBHOOKS if hook.asked() and not hook.secured()]
+
 def networks_line():
 	"""'networks: discord (push), slack (pull)': the networks finbot.env enables, by name, each with how its updates
 	reach finbot: push (it posts them to a webhook URL) or pull (finbot fetches them); 'networks: none' for none."""
@@ -279,6 +284,9 @@ if __name__ == '__main__':
 	except config.ConfigError as e:
 		config.print_errors(e)
 		sys.exit(1)
+	for hook in unsecured():
+		log.error(f"{hook.service}: {hook.URL} is set but {hook.MISSING} is not: finbot cannot check where its requests"
+			" come from, so the network is turned off")
 	log.info(networks_line())
 	for line in config.startup_report():
 		log.info('config:', line)
@@ -299,8 +307,9 @@ if __name__ == '__main__':
 		log.info(f'Opening socket on http://{config.env.ip}:{server.effective_port}')
 	else:
 		log.info('No webhook is set: finbot takes no HTTP requests')
+	turned_off = {hook.service for hook in unsecured()}
 	for network, key in STARTS: # here only, never on import
-		if getattr(config.env, key):
+		if getattr(config.env, key) and network.READER.service not in turned_off:
 			try:
 				network.start(worker.slash_commands())
 			except Exception as e:

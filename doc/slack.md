@@ -82,6 +82,7 @@ with a valid certificate.
    than five minutes earlier: a replay, or a server clock that is wrong.
    * The older _Verification Token_, set as `slackOutgoingToken`, still works in place of the signing secret, but
      Slack has deprecated it: the token travels in every request, where the signing secret never does.
+   * With `slackOutgoingWebhook` set and neither of them, finbot turns Slack off (it says so in the log at start).
 6. Go on with [installing the app](#installing-the-app), below.
 
 ```

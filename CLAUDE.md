@@ -57,7 +57,9 @@ The work branch named in the session instructions (`claude/...`) is the persiste
   straight back; `acknowledge(event, text, alert)` where the network waits for that: Telegram's toast, Discord's
   interaction answer; `bot.take` works out a press's text) and its bot (`TelegramBot`, `SlackBot`, `DiscordBot`).
   `<network>_webhook.py`, the HTTP mode: the finbot.env key of its URL (`URL`, whose path `path()` gives), its secret
-  headers and fields (redacted in the log) and how a request proves itself (`WEBHOOK`). The pull mode's persistent
+  headers and fields (redacted in the log) and how a request proves itself (`WEBHOOK`; `secured()` says finbot.env has the
+  token, signing secret or public key for that: without it the network is turned off, `bot.unsecured()`, its URL served
+  by nobody and its network not started). The pull mode's persistent
   client, handing its updates to `bot.take`, wanted where finbot.env has its keys (`TOKENS`) and no webhook URL
   (`WEBHOOK_URL`): `telegram_longpolling.py` (`TelegramPoll`: getUpdates), `slack_websocket.py` (`SlackSocket`:
   Socket Mode), `discord_websocket.py` (`DiscordGateway`: Hello, IDENTIFY or RESUME, the heartbeat and its ACK; a close

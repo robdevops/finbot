@@ -78,7 +78,8 @@ API.
    Discord publishes no list of its addresses, so the signature on each request is what keeps strangers out: finbot
    refuses a request without a good one.
 4. In `finbot.env`, set `discordOutgoingWebhook` to the URL Discord should post to, and `discordPublicKey` to the app's
-   _General Information > Public Key_. Restart finbot, so that it can answer Discord's check in the next step.
+   _General Information > Public Key_ (64 hex digits; without it finbot turns Discord off, and says so in the log).
+   Restart finbot, so that it can answer Discord's check in the next step.
 5. In the Developer Portal, set _General Information > Interactions Endpoint URL_ to the same URL, and _Save Changes_.
    Discord checks it at once, sending a signed request and one with a bad signature, which finbot refuses as Discord
    expects.
