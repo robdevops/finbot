@@ -95,12 +95,12 @@ def screen(service, cmd, found, group, period, shown, mask, view, page=0, note=N
 	step = 'n' if note else 'm' # the tickers' screen, at a page
 	button = press_button(cmd, crc, group, period, shown, mask)
 	rows = []
-	if view == 'g': # the treemap's menu, by name in rows of three: a choice redoes the chart and stays; Done
+	if view == 'g': # the treemap's menu, by name in rows of three: a choice redoes the chart and stays; OK
 		rows = buttons.chunks([button(name.capitalize(), f"q{page}", name == holdings.grouping(group), group=key)
 			for key, name in sorted(holdings.GROUPS.items(), key=lambda item: item[1])], 3)
 		if len(rows[-1]) == 3:
 			rows.append([])
-		rows[-1].append(button('Done', f"p{page}")) # last, on a row of its own where the last is full
+		rows[-1].append(button('OK', f"p{page}")) # last, on a row of its own where the last is full
 		return ['Grouped by'], rows
 	if cmd == 'c' and view == 'p': # the periods, and + to the tickers
 		rows.append([button(buttons.PERIODS[key][0], 'p0', key == period, period=key) for key in buttons.BUTTONS['c']] +
