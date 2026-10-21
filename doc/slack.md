@@ -18,8 +18,8 @@ The bot does the same either way. What differs is how it hears from Slack:
 | Python module | `websocket-client` (Debian: `python3-websocket`) | `waitress` (Debian: `python3-waitress`) |
 | `finbot.env` keys | `slackBotToken`, `slackAppToken` | `slackBotToken`, `slackOutgoingWebhook`, `slackSigningSecret` |
 
-finbot chooses its mode from `finbot.env`: with `slackOutgoingWebhook` set it is push mode, with it empty Socket
-Mode. The Slack app has its own _Socket Mode_ setting, and the two must agree, as Slack sends to one or the other: to
+finbot chooses its mode from `finbot.env`: with `slackOutgoingWebhook` set it is push mode, with it empty pull
+mode. The Slack app has its own _Socket Mode_ setting, and the two must agree, as Slack sends to one or the other: to
 finbot's socket while the app's is on, to the Request URLs while it is off. The app's side is set by the manifest, which
 `util/slack_manifest.py` makes without reading `finbot.env`: run without `--url` it is Socket Mode, and with `--url
 https://example.com/slack` (the same URL as `slackOutgoingWebhook`) push mode. To switch, do both: paste the manifest
