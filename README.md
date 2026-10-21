@@ -13,6 +13,7 @@ If you don't have Sharesight, you can still add your holdings manually via the w
 * Alerts of daily price movements past a threshold, earnings and ex-dividend dates, analyst rating changes, short
   interest, record highs
 * Stock lookup and comparisons, rankings by P/E, PEG, market cap or analyst rating
+* /command, @bot, schedule, or button driven.
 
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
@@ -40,9 +41,9 @@ On Linux, macOS or WSL, with Python 3.12 or later:
 To run it as a service, under systemd on a Debian host, see [doc/install.md](doc/install.md).
 
 ### The chat networks
-Each network needs a bot of its own. By default, finbot fetches its updates from each network itself (pull mode).
+By default, finbot fetches its updates from each network itself (pull mode), which is what this quick start guide covers.
 Alternatively, if you prefer to run an HTTPS gateway (a reverse proxy on a domain with a valid certificate), push mode
-subscribes the bot to the updates each network pushes to it (each guide's _push mode_).
+subscribes the bot to the updates each network pushes to it (see each guide's _push mode_).
 * **Telegram:** create the bot with [@BotFather](https://telegram.me/BotFather), set `telegramBotToken`, restart
   finbot ([guide](doc/telegram.md)).
 * **Slack:** create the app from the manifest that `util/slack_manifest.py` prints, add an app-level token, set
