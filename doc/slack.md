@@ -7,7 +7,7 @@ works (Slack has no typing notice for bots), and period buttons under a chart th
 
 ## The bot
 
-### Socket Mode or push mode?
+### Pull mode or push mode?
 
 The bot does the same either way. What differs is how it hears from Slack:
 
