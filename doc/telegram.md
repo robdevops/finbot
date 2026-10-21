@@ -11,7 +11,7 @@ Telegram:
 |---|---|---|
 | How messages and button presses reach finbot | finbot asks Telegram for them (long polling) | Telegram posts them to your HTTPS server |
 | Listens on the internet | No: finbot only makes outgoing requests | Yes, behind your HTTPS server: a domain name with a valid certificate, on port 443, 80, 88 or 8443 |
-| How finbot knows it is Telegram | Nothing arrives unasked: finbot's own requests carry the bot token (`telegramBotToken`) | The secret token (`telegramSecretToken`) that finbot gave Telegram when setting the webhook, which Telegram sends back in a header with every update. Without it, finbot turns Telegram off |
+| Security | Nothing arrives unasked: finbot's own requests carry the bot token (`telegramBotToken`) | The secret token (`telegramSecretToken`) that finbot gave Telegram when setting the webhook, which Telegram sends back in a header with every update. Without it, finbot turns Telegram off |
 | `finbot.env` keys | `telegramBotToken` | `telegramBotToken`, `telegramOutgoingWebhook` and `telegramSecretToken` |
 
 Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price`, `/movers`,
