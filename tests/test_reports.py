@@ -1168,20 +1168,21 @@ class Pickers(FinbotCase):
 
 	def test_the_group_menu_and_another_portfolio_redraw_the_answer(self):
 		"""The Grouped by button opens a menu of the five groupings, the one shown marked; a choice redoes the chart in
-		place and keeps the menu, Back returns to the portfolio buttons; another portfolio's button redoes it too."""
+		place and keeps the menu, Done (the last button) returns to the portfolio buttons; another portfolio's button
+		redoes it too."""
 		self.portfolios('Amy', 'Zed')
 		self.command('.treemap')
 		kind, lines, rows = self.tap('Grouped by: Industry ▾')
 		self.assertEqual((kind, self.labels(rows)), ('buttons',
-			[['Country', 'Currency', '● Industry'], ['Back', 'Market', 'Sector']]))
+			[['Country', 'Currency', '● Industry'], ['Market', 'Sector', 'Done']]))
 		kind, lines, rows = self.tap('Sector')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by sector</b>',
-			[['Country', 'Currency', 'Industry'], ['Back', 'Market', '● Sector']])) # the menu stays
+			[['Country', 'Currency', 'Industry'], ['Market', '● Sector', 'Done']])) # the menu stays
 		self.assertEqual(self.toasts[-1], ('Updating…', False))
 		kind, lines, rows = self.tap('Currency')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by currency</b>',
-			[['Country', '● Currency', 'Industry'], ['Back', 'Market', 'Sector']]))
-		kind, lines, rows = self.tap('Back')
+			[['Country', '● Currency', 'Industry'], ['Market', 'Sector', 'Done']]))
+		kind, lines, rows = self.tap('Done')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by currency</b>',
 			[['● Amy', 'Zed'], ['Grouped by: Currency ▾']]))
 		kind, lines, rows = self.tap('Zed')
@@ -1189,14 +1190,14 @@ class Pickers(FinbotCase):
 			[['Amy', '● Zed'], ['Grouped by: Currency ▾']]))
 
 	def test_the_group_menu_has_a_button_for_each_grouping(self):
-		"""The Grouped by menu is made from GROUPS, by name in rows of three, Back first in the last row: a new grouping
+		"""The Grouped by menu is made from GROUPS, by name in rows of three, Done last: a new grouping
 		gets its button (the five were placed by hand)."""
 		menu = lambda: [[('● ' if button.active else '') + button.label for button in row]
 			for row in pick.screen(TELEGRAM, 't', ['Amy', 'Zed'], '0', '0', 1, 0, 'g')[1]]
-		self.assertEqual(menu(), [['Country', 'Currency', '● Industry'], ['Back', 'Market', 'Sector']])
+		self.assertEqual(menu(), [['Country', 'Currency', '● Industry'], ['Market', 'Sector', 'Done']])
 		with mock.patch.dict(holdings.GROUPS, {'x': 'exchange'}):
 			self.assertEqual(menu(), [['Country', 'Currency', 'Exchange'], ['● Industry', 'Market', 'Sector'],
-				['Back']])
+				['Done']])
 
 	def test_a_holdings_answer_keeps_its_buttons(self):
 		""".holdings: another portfolio's list as text in place of the first's, the portfolio buttons still under it."""
