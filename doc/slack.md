@@ -7,7 +7,7 @@ works (Slack has no typing notice for bots), and period buttons under a chart th
 
 ## The bot
 
-### Socket Mode or push mode?
+### Pull mode or push mode?
 
 The bot does the same either way. What differs is how it hears from Slack:
 
@@ -19,16 +19,12 @@ The bot does the same either way. What differs is how it hears from Slack:
 | How finbot knows it is Slack | Nothing arrives unasked: the socket is one finbot opened with the app-level token (`slackAppToken`) | Slack's signature on every request, made with the app's Signing Secret (`slackSigningSecret`); or the older Verification Token (`slackOutgoingToken`) in the request. With neither, finbot turns Slack off |
 | `finbot.env` keys | `slackBotToken`, `slackAppToken` | `slackBotToken`, `slackOutgoingWebhook`, and `slackSigningSecret` (or `slackOutgoingToken`) |
 
-finbot chooses its mode from `finbot.env`: with `slackOutgoingWebhook` set it is push mode, with it empty Socket
-Mode. The Slack app has its own _Socket Mode_ setting, and the two must agree, as Slack sends to one or the other: to
-finbot's socket while the app's is on, to the Request URLs while it is off. The app's side is set by the manifest, which
-`util/slack_manifest.py` makes without reading `finbot.env`: run without `--url` it is Socket Mode, and with `--url
-https://example.com/slack` (the same URL as `slackOutgoingWebhook`) push mode. To switch, do both: paste the manifest
-for the other mode into the app, and change `finbot.env` to match (set `slackOutgoingWebhook` for push mode, empty it
-for Socket Mode), then restart finbot.
-`slackOutgoingWebhook` chooses the mode: set, push mode; empty, pull mode. The Slack app's own _Socket Mode_ setting must
-agree, as Slack sends to one or the other: to finbot's socket while it is on, to the Request URLs while it is off. To
-switch, change both (paste the manifest for the other mode, which sets the app's side) and restart finbot.
+finbot chooses its mode from `finbot.env`: with `slackOutgoingWebhook` set, finbot uses push mode, with it empty, finbot uses pull
+mode. On the Slack side, enabling _Socket Mode_ expects finbot to pull, and disabling it pushes updates to the _Event Subscriptions Request URL_.
+Slack's side is set by the manifest, which `util/slack_manifest.py` makes without reading `finbot.env`: run without `--url` it is Socket Mode, and with `--url
+https://example.com/slack` (the same URL as `slackOutgoingWebhook`) push mode. To switch modes, paste the manifest
+for the other mode into the [Slack app](https://api.slack.com.apps), and change `finbot.env` to match (set `slackOutgoingWebhook` for push mode, empty it
+for Socket Mode), then restart finbot. Full details follow.
 
 ### Pull Mode
 
