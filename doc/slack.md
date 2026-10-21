@@ -22,7 +22,7 @@ finbot chooses its mode from `finbot.env`: with `slackOutgoingWebhook` set, finb
 mode. On the Slack side, enabling _Socket Mode_ expects finbot to pull, and disabling it pushes updates to the _Event Subscriptions Request URL_.
 Slack's side is set by the manifest, which `util/slack_manifest.py` makes without reading `finbot.env`: run without `--url` it is Socket Mode, and with `--url
 https://example.com/slack` (the same URL as `slackOutgoingWebhook`) push mode. To switch modes, paste the manifest
-for the other mode into the [Slack app](https://api.slack.com), and change `finbot.env` to match (set `slackOutgoingWebhook` for push mode, empty it
+for the other mode into the [Slack app](https://api.slack.com.apps), and change `finbot.env` to match (set `slackOutgoingWebhook` for push mode, empty it
 for Socket Mode), then restart finbot. Full details below.
 
 ### Pull Mode
