@@ -115,16 +115,22 @@ class Commands(FinbotCase):
 		self.assertNotIn('No tracked stocks rated buy by 7+ analysts', payload)
 
 	def test_the_keyboard_is_alphabetical_and_every_button_is_its_command(self):
-		"""The command keyboard is alphabetical, .schedule (the jobs) in place of .beta, and each button runs the
+		"""The command keyboard is alphabetical, with .pe (the ratios) and .jobs, and each button runs the
 		command it belongs to in the table, not taken for a ticker by .SYMBOL."""
 		buttons = [button['text'] for row in telegram_common.keyboard(worker.KEYBOARD)['keyboard'] for button in row]
 		self.assertEqual(buttons, sorted(buttons))
-		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.movers', '.pe', '.peg',
-			'.performance', '.price', '.schedule', '.shorts', '.trades', '.treemap', '.watchlist'])
+		self.assertEqual(buttons, ['.buy & sell', '.earnings', '.jobs', '.movers', '.pe', '.performance',
+			'.price', '.shorts', '.trades', '.treemap', '.watchlist'])
 		for command in worker.COMMANDS:
 			for text in command.buttons:
 				with self.subTest(text=text):
 					self.assertIs(worker.read(text, BOT)[0], command)
+
+	def test_peg_is_typed_as_ratio_peg_and_has_no_slash_command_of_its_own(self):
+		"""Only /ratio is in the slash menu; .peg and /peg typed answer as .ratio peg."""
+		self.assertNotIn('peg', {slash.name for slash in worker.slash_commands()})
+		command, args = worker.read('/peg reverse', BOT)
+		self.assertEqual((command.handler, args.word, args.keyword), (worker.on_ratio, 'peg', 'bottom'))
 
 	def test_history_and_compare(self):
 		""".history and .compare answer."""
@@ -311,6 +317,46 @@ class ReportFunctions(FinbotCase):
 			with self.assertRaises(answer.Nothing) as nothing:
 				none()
 			self.assertEqual(nothing.exception.lines, [said])
+
+	def test_ratio_takes_the_ratio_then_its_end_as_optional_words(self):
+		""".ratio lists the forward P/E, lowest first; current (trailing) or peg picks another ratio, and top, bottom,
+		reverse (bottom) or negative the end, each optional and in either order; .pe and .peg are its names, .peg's
+		the PEG. A trailing P/E, of earnings reported, needs no analysts; a forward P/E and a PEG do."""
+		analysts = {'T1': 7, 'T2': 2, 'T3': 12}
+		self.patch(watchlist, 'with_holdings', lambda chat: list(analysts))
+		trailing = {'T1': 30, 'T2': 10, 'T3': -4}
+		self.patch(yahoo, 'fetch', lambda ts: {t: market_entry(t) | {'price_to_earnings_forward': 20,
+			'price_to_earnings_trailing': trailing[t]} for t in ts})
+		self.patch(yahoo, 'fetch_detail', lambda t, *a, **k: {t: market_entry(t) | {'recommend_analysts': analysts[t]}})
+		charted, real = [], delivery.deliver
+		self.patch(delivery, 'deliver', lambda dest, report: charted.append(report.chart) or real(dest, report))
+		def listed(text):
+			"""(the chart's title, the tickers it shows) of the list a command gives."""
+			charted.clear()
+			self.command(text)
+			return charted[0].title, [label for label, _ in charted[0].rows]
+		for text in ('.ratio', '.pe', '.ratio forward', '.ratio top', '.ratio forward top', '.forward pe'):
+			with self.subTest(text=text):
+				title, tickers = listed(text)
+				self.assertEqual((tickers, 'forward pe ratio' in title), (['T1', 'T3'], True)) # T2: too few analysts
+		for text in ('.ratio current', '.ratio trailing', '.pe current', '.ratio top current', '.ratio current top'):
+			with self.subTest(text=text):
+				title, tickers = listed(text)
+				self.assertEqual((tickers, 'trailing pe ratio' in title), (['T2', 'T1'], True)) # T3 is negative
+		for text, kind, tickers in (('.ratio current bottom', 'trailing pe', ['T1', 'T2']),
+				('.ratio reverse current', 'trailing pe', ['T1', 'T2']), ('.pe bottom', 'forward pe', ['T3', 'T1']),
+				('.ratio negative current', 'trailing pe', ['T3']), ('.ratio peg', 'peg', ['T1', 'T3']),
+				('.peg', 'peg', ['T1', 'T3']), ('.peg reverse', 'peg', ['T3', 'T1']),
+				('.ratio peg negative', 'peg', [])):
+			with self.subTest(text=text):
+				if tickers:
+					title, found = listed(text)
+					self.assertEqual((found, f'{kind} ratio' in title), (tickers, True))
+				else:
+					charted.clear()
+					self.assertEqual(self.command(text)[0][0], 'text') # nothing negative: nothing to show
+		self.assertEqual(rankings.ratio_list(TELEGRAM, 'telegram:55', 'trailing pe')[1].subtitle,
+			formats.date_short(formats.today(), True)) # no analysts in a trailing chart's subtitle
 
 	def test_market_caps_compare_in_us_dollars(self):
 		"""Yahoo gives a market cap in the stock's own currency: unconverted, a won market cap topped every list."""
@@ -1122,20 +1168,21 @@ class Pickers(FinbotCase):
 
 	def test_the_group_menu_and_another_portfolio_redraw_the_answer(self):
 		"""The Grouped by button opens a menu of the five groupings, the one shown marked; a choice redoes the chart in
-		place and keeps the menu, Back returns to the portfolio buttons; another portfolio's button redoes it too."""
+		place and keeps the menu, OK (the last button) returns to the portfolio buttons; another portfolio's button
+		redoes it too."""
 		self.portfolios('Amy', 'Zed')
 		self.command('.treemap')
 		kind, lines, rows = self.tap('Grouped by: Industry ▾')
 		self.assertEqual((kind, self.labels(rows)), ('buttons',
-			[['Country', 'Currency', '● Industry'], ['Back', 'Market', 'Sector']]))
+			[['Country', 'Currency', '● Industry'], ['Market', 'Sector', 'OK']]))
 		kind, lines, rows = self.tap('Sector')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by sector</b>',
-			[['Country', 'Currency', 'Industry'], ['Back', 'Market', '● Sector']])) # the menu stays
+			[['Country', 'Currency', 'Industry'], ['Market', '● Sector', 'OK']])) # the menu stays
 		self.assertEqual(self.toasts[-1], ('Updating…', False))
 		kind, lines, rows = self.tap('Currency')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by currency</b>',
-			[['Country', '● Currency', 'Industry'], ['Back', 'Market', 'Sector']]))
-		kind, lines, rows = self.tap('Back')
+			[['Country', '● Currency', 'Industry'], ['Market', 'Sector', 'OK']]))
+		kind, lines, rows = self.tap('OK')
 		self.assertEqual((kind, lines[0], self.labels(rows)), ('photo', '<b>Amy treemap by currency</b>',
 			[['● Amy', 'Zed'], ['Grouped by: Currency ▾']]))
 		kind, lines, rows = self.tap('Zed')
@@ -1143,14 +1190,14 @@ class Pickers(FinbotCase):
 			[['Amy', '● Zed'], ['Grouped by: Currency ▾']]))
 
 	def test_the_group_menu_has_a_button_for_each_grouping(self):
-		"""The Grouped by menu is made from GROUPS, by name in rows of three, Back first in the last row: a new grouping
+		"""The Grouped by menu is made from GROUPS, by name in rows of three, OK last: a new grouping
 		gets its button (the five were placed by hand)."""
 		menu = lambda: [[('● ' if button.active else '') + button.label for button in row]
 			for row in pick.screen(TELEGRAM, 't', ['Amy', 'Zed'], '0', '0', 1, 0, 'g')[1]]
-		self.assertEqual(menu(), [['Country', 'Currency', '● Industry'], ['Back', 'Market', 'Sector']])
+		self.assertEqual(menu(), [['Country', 'Currency', '● Industry'], ['Market', 'Sector', 'OK']])
 		with mock.patch.dict(holdings.GROUPS, {'x': 'exchange'}):
 			self.assertEqual(menu(), [['Country', 'Currency', 'Exchange'], ['● Industry', 'Market', 'Sector'],
-				['Back']])
+				['OK']])
 
 	def test_a_holdings_answer_keeps_its_buttons(self):
 		""".holdings: another portfolio's list as text in place of the first's, the portfolio buttons still under it."""
@@ -1551,7 +1598,7 @@ class Pickers(FinbotCase):
 				raise RuntimeError('boom')
 			if period == 'y':
 				raise answer.Nothing('No price movements meet threshold 5%')
-			return ['caption'], None if period == 'd' else render.Chart('bars', rows=(('a', 1.0),))
+			return ['caption'], None if period == 'd' else render.Chart('bars', rows=(('a', 1.0), ('b', 2.0)))
 		self.patch(charts, 'build', build)
 		with contextlib.redirect_stderr(io.StringIO()) as err:
 			charts.prime(TELEGRAM, charts.periods('l', ['5', '0'], TELEGRAM, 'telegram:55', 'x'))
@@ -1585,7 +1632,7 @@ class Pickers(FinbotCase):
 			return chart.title
 		self.patch(render, 'draw', draw)
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
-			render.Chart('bars', period, rows=(('a', 1.0),))))
+			render.Chart('bars', period, rows=(('a', 1.0), ('b', 2.0)))))
 		charts.prime(TELEGRAM, charts.periods('c', ['T1'], TELEGRAM, 'telegram:55', 'x'))
 		self.assertEqual(drawn, [('w', []), ('m', ['w']), ('y', ['w', 'm'])]) # each was handed over before the next
 		self.assertEqual((made[0].service, made[0].images, made[0].finished), (TELEGRAM, ['w', 'm', 'y'], True))
@@ -1603,7 +1650,7 @@ class Pickers(FinbotCase):
 		self.patch(charts, 'time', types.SimpleNamespace(monotonic=lambda: next(ticks)))
 		self.patch(render, 'draw', lambda chart: chart.title)
 		self.patch(charts, 'build', lambda kind, args, service, chat, period=None, days=None: ('caption',
-			render.Chart('bars', period, rows=(('a', 1.0),))))
+			render.Chart('bars', period, rows=(('a', 1.0), ('b', 2.0)))))
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			charts.prime(TELEGRAM, charts.periods('c', ['T1'], TELEGRAM, 'telegram:55', 'x'))
 		self.assertNotIn('priming', log.getvalue())

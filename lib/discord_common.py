@@ -4,6 +4,7 @@ slash commands registered as finbot starts; the reader of its interactions and m
 that posts into its channels and DMs (DiscordBot)."""
 import json
 import re
+import time
 
 import requests
 
@@ -21,6 +22,7 @@ SUPPRESS_EMBEDS = 4 # message flag: no link previews
 NO_MENTIONS = {'parse': []} # text that looks like @everyone or a mention pings nobody
 GUILD, BOT_DM = 0, 1 # where a slash command may be used: in servers, and in a DM with the bot
 OPTION = 'arguments' # the name of a slash command's one option: its arguments as text
+NOT_YET_WAITS = (0.5, 1, 2) # seconds between tries of a call Discord answered 'Unknown Webhook' (see NotYet)
 USER_AGENT = 'DiscordBot (https://github.com/robdevops/finbot, {})' # the form Discord asks of every request's agent
 
 
@@ -30,7 +32,22 @@ def call(method, path, **kwargs):
 	reason when it refuses, or a requests error."""
 	headers = {'Authorization': 'Bot ' + config.env.discordBotToken,
 		'User-Agent': USER_AGENT.format(config.git_version()), **kwargs.pop('headers', {})}
-	return net.patiently(lambda: answer_of(net.request(method, API + path, headers=headers, **kwargs), method, path))
+	def send():
+		"""The request, a rate limit waited out once."""
+		return net.patiently(
+			lambda: answer_of(net.request(method, API + path, headers=headers, **kwargs), method, path))
+	for wait in NOT_YET_WAITS:
+		try:
+			return send()
+		except NotYet as e:
+			log.warn(f"{net.redact(e)}: Discord has not registered the interaction yet, trying again in {wait:g} s")
+			time.sleep(wait)
+	return send()
+
+
+class NotYet(RuntimeError):
+	"""Discord's answer 'Unknown Webhook' (10015) to a call on an interaction's webhook: Discord may not have taken the
+	answer to the interaction yet, which it must have before the interaction's webhook is known."""
 
 
 def answer_of(response, method, path):
@@ -38,7 +55,9 @@ def answer_of(response, method, path):
 	RuntimeError with Discord's reason for another refusal."""
 	if response.status_code >= 400:
 		said = f"Discord {method} {path}: {response.status_code} {reason(response)}"
-		raise net.RateLimited(said, net.retry_after(response)) if response.status_code == 429 else RuntimeError(said)
+		if response.status_code == 429:
+			raise net.RateLimited(said, net.retry_after(response))
+		raise (NotYet if path.startswith('/webhooks/') and said.endswith('(10015)') else RuntimeError)(said)
 	try:
 		return response.json()
 	except ValueError:
@@ -130,6 +149,7 @@ class Discord(inbound.Network):
 		UNSUPPORTED."""
 		kind = update.get('type')
 		if kind == self.PING:
+			log.info("Discord: endpoint check (a signed PING) answered")
 			return inbound.Response(body=json.dumps({'type': self.PONG}).encode(), interaction=True)
 		person = (update.get('member') or {}).get('user') or update.get('user') or {}
 		channel = str(update.get('channel_id') or (update.get('channel') or {}).get('id') or '')

@@ -120,6 +120,15 @@ class Endpoint(FinbotCase):
 				HTTP_X_SIGNATURE_TIMESTAMP=timestamp), lambda s, *a: status.append(s))
 		return status[0], b''.join(out), out
 
+	def test_a_refused_interaction_keeps_its_token_out_of_the_log(self):
+		"""An interaction whose signature fails is logged without its token, which answers it for 15 minutes."""
+		body = json.dumps(interaction(1, token='secret-token')).encode()
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			bot.main(wsgi_environ('/discord', body, HTTP_X_SIGNATURE_ED25519='00' * 64,
+				HTTP_X_SIGNATURE_TIMESTAMP='1700000000'), lambda *a: None)
+		self.assertEqual(('secret-token' in log.getvalue(), 'Discord signature incorrect' in log.getvalue()),
+			(False, True))
+
 	def test_a_signed_check_gets_its_pong(self):
 		"""Discord's check of the URL, signed, gets its PONG."""
 		status, answer, _ = self.post(interaction(1))
@@ -254,6 +263,27 @@ class Sending(FinbotCase):
 		self.assertEqual(self.calls[0][:2], ('POST', '/channels/77/typing'))
 		self.assertLess(chat.TYPING[1], 10)
 
+	def test_an_interaction_discord_has_not_registered_yet_is_tried_again(self):
+		"""An answer 'Unknown Webhook' (10015) on an interaction's webhook, as when the edit follows the interaction's
+		answer too closely, is tried again after short waits, and raises when it persists; other 404s raise at once."""
+		slept = []
+		self.patch(discord_common.time, 'sleep', slept.append)
+		path = '/webhooks/42/tok/messages/@original'
+		self.answers += [Resp({'message': 'Unknown Webhook', 'code': 10015}, 404)] * 2 + [Resp({'id': '5'})]
+		with contextlib.redirect_stderr(io.StringIO()):
+			self.assertEqual(discord_common.call('PATCH', path), {'id': '5'})
+		self.assertEqual((slept, len(self.calls)), ([0.5, 1], 3))
+		slept.clear()
+		self.answers += [Resp({'message': 'Unknown Webhook', 'code': 10015}, 404)] * 4
+		with contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(RuntimeError, '10015'):
+			discord_common.call('PATCH', path)
+		self.assertEqual(slept, [0.5, 1, 2])
+		slept.clear()
+		self.answers.append(Resp({'message': 'Unknown Message', 'code': 10008}, 404))
+		with contextlib.redirect_stderr(io.StringIO()), self.assertRaisesRegex(RuntimeError, '10008'):
+			discord_common.call('PATCH', path)
+		self.assertEqual(slept, [])
+
 	def test_each_request_names_finbot_as_discord_asks(self):
 		"""Each request carries the bot token, and the User-Agent that Discord asks of a bot: DiscordBot, its URL and
 		its version (finbot's commit)."""
@@ -299,7 +329,7 @@ class Commands(FinbotCase):
 		commands = worker.slash_commands()
 		names = [name for name, _, _, _ in commands]
 		self.assertEqual(len(names), len(set(names)))
-		for expected in ('help', 'earnings', 'buysell', 'pe', 'stock',
+		for expected in ('help', 'earnings', 'buysell', 'ratio', 'stock',
 				'jobs', 'price', 'movers'):
 			self.assertIn(expected, names)
 		gone = {'profile', 'job', 'session', 'premarket', 'pie', 'plan', 'buy', 'sell', 'dividend'}
@@ -360,7 +390,7 @@ class Commands(FinbotCase):
 		self.patch(transports.Transport, 'text', lambda dest, lines, buttons=None: sent.append(lines) or [])
 		message = inbound.Message('discord', '77', '<@5>', '/help', '@99', '', '42/tok')
 		worker.process_request(message)
-		self.assertIn('/pe [SYMBOL|top|bottom|negative]', sent[0])
+		self.assertIn('/ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]', sent[0])
 		self.assertIn('/stock SYMBOL', sent[0])
 		self.assertIn('.price, or <@99> price', sent[0])
 		self.env(discordOutgoingWebhook='https://example.com/discord')

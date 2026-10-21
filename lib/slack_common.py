@@ -231,6 +231,8 @@ class SlackBot(transports.Transport):
 					raise
 				log.warn("Slack will not show an earlier upload of the chart, uploading it anew:", net.redact(e))
 				self.forget(earlier)
+		if not config.settings.slack_preload_chat:
+			log.info("Slack uploads the chart for this press: slack_preload_chat is not set, none was sent ahead")
 		file_id, _ = self.upload(data)
 		return until_shown(lambda: post(file_id)), file_id, digest
 
@@ -389,7 +391,7 @@ def until_shown(post, waits=(1, 2, 4)):
 		except RuntimeError as e:
 			if 'invalid_blocks' not in str(e):
 				raise
-			log.info(f"Slack cannot show the chart yet ({e}), trying again in {wait} s")
+			log.info(f"Slack is not ready to show the chart just uploaded ({e}), trying again in {wait} s")
 			time.sleep(wait)
 	return post()
 

@@ -30,7 +30,7 @@ class Actions(unittest.TestCase):
 			'session', 'earnings', 'trades'} & set(commands))
 		self.assertEqual(jobs.chat_actions(), ['earnings', 'message', 'milestone', 'movers', 'performance', 'podcasts',
 			'rating', 'shorts', 'trades', 'holdings', 'treemap', 'who', 'marketcap', 'beta', 'price',
-			'buysell', 'pe', 'peg', 'stock'])
+			'buysell', 'ratio', 'stock'])
 
 	def test_a_command_of_help_as_a_job(self):
 		"""A job may run a command of .help by its name, the words it takes before the schedule; another of its names
@@ -49,8 +49,8 @@ class Actions(unittest.TestCase):
 		for text in ('beta x weekly', 'who weekly', 'stock weekly'):
 			with self.subTest(text=text), self.assertRaises(jobs.ScheduleError):
 				jobs.parse_add(text, 'UTC')
-		for action, args, made, name in (('hospital', ['AAPL'], 'compare', 'price AAPL'), ('fpe', [], 'pe',
-				'pe'), ('buy&sell', [], 'buy&sell', 'buy & sell'), ('sell', [], 'sell', 'sell'),
+		for action, args, made, name in (('hospital', ['AAPL'], 'compare', 'price AAPL'), ('fpe', [], 'ratio',
+				'ratio'), ('buy&sell', [], 'buy&sell', 'buy & sell'), ('sell', [], 'sell', 'sell'),
 				('price', ['AAPL'], 'compare', 'price AAPL')):
 			with self.subTest(action=action):
 				job = jobs.make_job(action, args, weekly, 'telegram:1')
@@ -327,6 +327,16 @@ class DirectMessages(FinbotCase):
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			jobs.Scheduler(clock=lambda: OCTOBER).load()
 		self.assertIn('schedule: 0 jobs of 2 group chats and 1 DM, and 0 system jobs', log.getvalue())
+
+	def test_the_schedule_line_names_the_chat_a_change_was_for(self):
+		"""A load that follows a change to a chat's jobs logs which chat, by network and id, was updated."""
+		self.patch(catalog, 'ITEMS', ())
+		self.patch(jobs, 'SYSTEM', ())
+		state.save(jobs.JOBS_FILE, {'slack:C1': {}})
+		scheduler = jobs.Scheduler(clock=lambda: OCTOBER)
+		with contextlib.redirect_stderr(io.StringIO()) as log:
+			scheduler.change('slack:C1', lambda record: None)
+		self.assertIn('schedule: slack:C1: updated', log.getvalue())
 
 
 if __name__ == '__main__':

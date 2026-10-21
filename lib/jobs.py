@@ -334,16 +334,17 @@ class Scheduler:
 		self.loading = threading.Lock() # one load at a time, so the list swapped in last is the one read last
 		self.saving = threading.Lock() # one save of the record of runs at a time, so the one written last is newest
 
-	def load(self):
+	def load(self, changed=None):
 		"""Read every job: the system jobs; for each chat JOBS_FILE knows, the catalog's (switched off where its record
 		says so) and those it added. A stored job that cannot be (an action that is none, arguments its parser refuses:
 		an edited or older file) is logged and left out, never run. A job kept from before keeps its timing; a new one
 		counts from now, as one does that was off. Loads take turns: one reading the file while another change is stored
-		would otherwise swap in the older list after the newer one."""
+		would otherwise swap in the older list after the newer one. `changed` is the chat (its key) whose change or
+		first sight this reads for: the log then says only that it was updated."""
 		with self.loading:
-			self._load()
+			self._load(changed)
 
-	def _load(self):
+	def _load(self, changed=None):
 		"""load(), with the loading lock held."""
 		jobs = system_jobs()
 		chats = self.stored_chats()
@@ -379,6 +380,8 @@ class Scheduler:
 			self.save_runs()
 		if problem:
 			delivery.report_error(ScheduleError(problem), context='schedule')
+		if changed:
+			return log.info(f"schedule: {changed}: updated")
 		dms = sum(1 for key, record in chats.items() if isinstance(record, dict) and record.get('dm') is True or
 			is_dm(key))
 		log.info(f"schedule: {len(jobs) - len(SYSTEM)} jobs of {len(chats) - dms} group"
@@ -543,7 +546,7 @@ class Scheduler:
 			known = chat in self.chats
 		if not known:
 			know([chat], dm)
-			self.load()
+			self.load(chat)
 
 	def change(self, chat, edit):
 		"""Change a chat's jobs as stored, and return what edit(record) returned: it changes the chat's record ({'off':
@@ -554,7 +557,7 @@ class Scheduler:
 			if not isinstance(record.get('jobs', []), list):
 				record['jobs'] = []
 			result = edit(record)
-		self.load()
+		self.load(chat)
 		return result
 
 	def add(self, chat, action, args, schedule):
@@ -585,29 +588,42 @@ class Scheduler:
 		self.change(chat, append)
 		return self.number(chat, job.key)
 
-	def delete(self, job):
-		"""Remove a chat's job (from job() or pick()): one it added, or a default one, which stays out of its list
-		until the same job is added again."""
+	def delete(self, *chosen):
+		"""Remove jobs of one chat (from job() or pick()), in one change: one it added, or a default one, which stays
+		out of its list until the same job is added again."""
 		def remove(record):
-			"""Remove the job, as stored."""
-			if not job.item:
-				return record['jobs'].pop(self.index(record, job))
-			for name in ('off', 'on'):
-				keep(record, name, [key for key in record.get(name, []) if key != job.item])
-			record['deleted'] = list(dict.fromkeys([*removed(record), job.item]))
-		self.change(job.chat, remove)
+			"""Remove the jobs, as stored."""
+			for job in chosen:
+				if not job.item:
+					record['jobs'].pop(self.index(record, job))
+					continue
+				for name in ('off', 'on'):
+					keep(record, name, [key for key in record.get(name, []) if key != job.item])
+				record['deleted'] = list(dict.fromkeys([*removed(record), job.item]))
+		if chosen:
+			self.change(chosen[0].chat, remove)
 
 	def toggle(self, job, on=None):
 		"""Switch a chat's job on (on True) or off (False), or the other way from how it is stored (None), as stored,
 		under the state file's lock: two presses at once flip it twice. Whether it is on now."""
-		def turn(record):
-			"""Set or flip the job's switch, as stored."""
-			if job.item:
-				return switch_item(record, job.item, not item_on(record, job.item) if on is None else on)
-			entry = record['jobs'][self.index(record, job)]
-			entry['on'] = not entry.get('on', True) if on is None else on
-			return entry['on']
-		return self.change(job.chat, turn)
+		return self.change(job.chat, lambda record: self.turn(record, job, on))
+
+	def switch_all(self, chat, states):
+		"""Switch several of a chat's jobs, in one change: states, (job, on) pairs."""
+		def turn_all(record):
+			"""Set each job's switch, as stored."""
+			for job, on in states:
+				self.turn(record, job, on)
+		if states:
+			self.change(chat, turn_all)
+
+	def turn(self, record, job, on):
+		"""Set (on True or False) or flip (None) a job's switch in its chat's record: whether it is on now."""
+		if job.item:
+			return switch_item(record, job.item, not item_on(record, job.item) if on is None else on)
+		entry = record['jobs'][self.index(record, job)]
+		entry['on'] = not entry.get('on', True) if on is None else on
+		return entry['on']
 
 	@staticmethod
 	def index(record, job):

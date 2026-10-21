@@ -18,6 +18,13 @@ The bot does the same either way. What differs is how it hears from Slack:
 | Python module | `websocket-client` (Debian: `python3-websocket`) | `waitress` (Debian: `python3-waitress`) |
 | `finbot.env` keys | `slackBotToken`, `slackAppToken` | `slackBotToken`, `slackOutgoingWebhook`, `slackSigningSecret` |
 
+finbot chooses its mode from `finbot.env`: with `slackOutgoingWebhook` set it is push mode, with it empty Socket
+Mode. The Slack app has its own _Socket Mode_ setting, and the two must agree, as Slack sends to one or the other: to
+finbot's socket while the app's is on, to the Request URLs while it is off. The app's side is set by the manifest, which
+`util/slack_manifest.py` makes without reading `finbot.env`: run without `--url` it is Socket Mode, and with `--url
+https://example.com/slack` (the same URL as `slackOutgoingWebhook`) push mode. To switch, do both: paste the manifest
+for the other mode into the app, and change `finbot.env` to match (set `slackOutgoingWebhook` for push mode, empty it
+for Socket Mode), then restart finbot.
 `slackOutgoingWebhook` chooses the mode: set, push mode; empty, pull mode. The Slack app's own _Socket Mode_ setting must
 agree, as Slack sends to one or the other: to finbot's socket while it is on, to the Request URLs while it is off. To
 switch, change both (paste the manifest for the other mode, which sets the app's side) and restart finbot.
@@ -27,8 +34,8 @@ switch, change both (paste the manifest for the other mode, which sets the app's
 1. Print the app's manifest, which sets up the whole app at once (the slash commands, the scopes, the events, the
    buttons, direct messages and Socket Mode): `util/slack_manifest.py`. The bot then hears the messages that mention it
    (`@finbot price`), its slash commands and direct messages. With `--every-message`, it hears every message in its
-   channels instead of the mentions, so that `.price` works there without mentioning it; not both, or it would answer a
-   mention twice.
+   channels instead, so that `.price` works there without mentioning it. Do not install both manifests, or a mention
+   would reach it twice, as a message and as a mention, and it would answer twice.
 2. At https://api.slack.com/apps choose _Create New App > From an app manifest_, pick your workspace, paste the
    manifest into the JSON tab, and _Create_.
 3. Under _Basic Information > App-Level Tokens_, choose _Generate Token and Scopes_: name it (finbot, say), add the
@@ -107,7 +114,10 @@ Slack shows what changes, and asks to reinstall the app when its scopes do.
 ### Slash commands
 
 Each command is a slash command, with its usage as Slack's hint: `/price`, `/dividend` and `/earnings`, `/buy` and
-`/sell`, `/pe`, `/stock`, `/jobs`, and the rest.
+`/sell`, `/ratio`, `/stock`, `/jobs`, and the rest.
+Not `/who`, which Slack keeps for its own (a manifest that names it is refused as an invalid name): `.who SYMBOL`
+and `@finbot who SYMBOL` work. If Slack refuses a manifest, `util/slack_manifest.py --only price,stock` prints it with
+just those slash commands, to find which one it objects to.
 Slack makes slash commands only from the app's settings, so they come in the manifest: when finbot's commands change,
 print it again and paste it into _App Manifest_.
 

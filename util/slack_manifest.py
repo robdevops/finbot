@@ -7,6 +7,7 @@ the buttons; the messages tab of App Home, for direct messages; and Socket Mode,
   util/slack_manifest.py --url https://example.com/slack  HTTP mode: Slack posts to slackOutgoingWebhook, this URL
   util/slack_manifest.py --every-message                  the bot sees every message in its channels, not only the
                                                           ones that mention it, so that .price works there
+  util/slack_manifest.py --only price,stock                 just these slash commands: to find which one Slack refuses
 
 Slack makes slash commands only in an app's settings (there is no API for them without a configuration token), so this
 is the way they get there: run it again, and paste what it prints, when finbot's commands change."""
@@ -24,20 +25,22 @@ from lib import worker
 
 SCOPES = ('chat:write', 'commands', 'files:read', 'files:write', 'reactions:write', 'users:read')
 # replies, slash commands, charts, ⏳, who the workspace's admins are
+RESERVED = ('who',) # slash commands Slack keeps for itself: a manifest that names one is refused ("invalid name")
 EVENT_SCOPES = {'app_mention': 'app_mentions:read', 'message.channels': 'channels:history',
 	'message.groups': 'groups:history', 'message.im': 'im:history'} # what each event needs
 
 
-def manifest(name='finbot', url='', every_message=False):
+def manifest(name='finbot', url='', every_message=False, only=()):
 	"""The manifest, as a dict: for Socket Mode without url; for HTTP mode with it, the Request URL of the events, the
 	buttons and each slash command. The bot hears the messages that mention it, or with every_message each message in
-	the channels it is in, and its direct messages either way."""
+	the channels it is in, and its direct messages either way. Every slash command of .help but /who, which Slack's
+	own is (.who SYMBOL and @finbot who SYMBOL work); only, those named."""
 	events = ['message.channels', 'message.groups'] if every_message else ['app_mention']
 	events.append('message.im')
 	posted = {'url': url} if url else {}
 	commands = [{'command': '/' + command.name, 'description': command.description, 'should_escape': False,
 		**({'usage_hint': command.arguments} if command.arguments else {}), **posted}
-		for command in worker.slash_commands()]
+		for command in worker.slash_commands() if command.name not in RESERVED and (not only or command.name in only)]
 	return {
 		'display_information': {'name': name, 'description': 'Stock prices, charts and Sharesight reports',
 			'background_color': '#14181f'},
@@ -64,11 +67,13 @@ def main(argv=None):
 	parser.add_argument('--url', default='', help='HTTP mode: slackOutgoingWebhook, which Slack posts to')
 	parser.add_argument('--name', default='finbot', help="the app's and the bot's name (default finbot)")
 	parser.add_argument('--every-message', action='store_true', help='the bot sees every message in its channels')
+	parser.add_argument('--only', default='', help='only these slash commands (names, comma separated)')
 	args = parser.parse_args(argv)
 	if args.url and not args.url.startswith('https://'):
 		print('slack_manifest: --url must be https://: Slack posts to no other', file=sys.stderr)
 		return 2
-	print(json.dumps(manifest(args.name, args.url, args.every_message), indent=2, ensure_ascii=False))
+	print(json.dumps(manifest(args.name, args.url, args.every_message, set(args.only.split(',')) - {''}), indent=2,
+		ensure_ascii=False))
 	return 0
 
 

@@ -11,7 +11,8 @@ from lib import jobs
 from lib import sharesight
 from lib import when
 
-HEADINGS = {'top': 'Jobs here', 'edit': 'Tap a job to enable or disable it', 'run': 'Tap a job to run it now'}
+HEADINGS = {'top': 'Jobs here', 'edit': 'Select jobs to disable or delete (the rest are enabled)',
+	'run': 'Tap a job to run it now'}
 ADD_TYPED = ['/jobs add REPORT SCHEDULE', '/jobs add reminder SCHEDULE "TEXT"'] # how Add is typed: under the list
 NOT_RUN = '* not run yet' # the key to a list's mark
 PAGE_ROOM = 500 # characters of a screen besides its jobs' lines: its headings, a note, the key to *
@@ -43,14 +44,15 @@ MINUTES = tuple(range(0, 60, 5)) # the minutes Add offers
 YEARS = 10 # the years a one-off may be in, this one first
 CROWDED = 20 # a screen of more choices takes them in rows of five, Back last, on every network: Discord holds 25
 
-def jobs_screen(service, chat, screen='top', page=0, note=None, highlight=None):
+def jobs_screen(service, chat, screen='top', page=0, note=None, highlight=None, selected=None):
 	"""A screen of the .jobs menu that lists a chat's jobs (by its key), numbered, each struck through and marked ❌
 	when it is off, * where it has never run, its name and its schedule in words, by the timezone setting's clock
 	(lib/when.py), then the key to the marks shown. top has what can be done in one row (+ to add, and where there is
 	a job to act on, Edit, Run, Upcoming) and how + is typed, in italics; edit and run a button for each job, which
 	switches it on or off, or runs it now. A page at a time, as many jobs as a message of the network takes (◀ and ▶
 	for the others), after a note of what the last press did. A one-off gone by is deleted first. Returns (lines,
-	buttons). The job numbered `highlight` is in bold with a 👉 before it, on its page."""
+	buttons). The job numbered `highlight` is in bold with a 👉 before it, on its page. On edit, `selected` is the jobs
+	selected (a bit each, by number less one: see selection; the jobs that are off now when None)."""
 	scheduler = jobs.current
 	scheduler.prune(chat)
 	own = scheduler.chat_jobs(chat)
@@ -60,7 +62,9 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, highlight=None):
 	if highlight:
 		entries = [(number, job, f'👉 {service.bold(line)}' if number == highlight else line)
 			for number, job, line in entries]
-	parts = paged(entries, service)
+	parts = paged(entries, service, screen != 'top')
+	if screen == 'top': # no pages: what fits, and how many more Edit and Run list
+		parts = parts[:1]
 	if highlight:
 		page = next((i for i, part in enumerate(parts) if any(number == highlight for number, _, _ in part)), page)
 	page = min(max(page, 0), len(parts) - 1)
@@ -71,11 +75,14 @@ def jobs_screen(service, chat, screen='top', page=0, note=None, highlight=None):
 		lines.append('No jobs here: + adds one')
 	if shown:
 		lines += grouped(service, shown)
+	if screen == 'top' and shown and len(shown) < len(own):
+		lines += ['', f'…and {len(own) - len(shown)} more: Edit and Run list every job']
 	if not all(scheduler.has_run(job) for _, job, _ in shown):
 		lines += ['', NOT_RUN]
 	if screen == 'top':
 		lines += ['', *(service.italic(service.escape(line)) for line in ADD_TYPED)]
-	return lines, screen_buttons(screen, page, len(parts), shown, jobs.list_checksum(own), own)
+	chosen = selection(own) if selected is None else selected
+	return lines, screen_buttons(screen, page, len(parts), shown, jobs.list_checksum(own), own, chosen)
 
 def grouped(service, shown):
 	"""The entries (number, job, line) as lines: the jobs of each report, or the reminders, under a heading of their
@@ -108,10 +115,11 @@ def listed_with(service, chat, lines):
 	more = [f'…and {len(own) - len(shown)} more'] if len(shown) < len(own) else []
 	return [*lines, '', service.bold('Jobs'), *grouped(service, shown)[1:], *more]
 
-def paged(entries, service):
+def paged(entries, service, with_buttons=True):
 	"""The jobs' entries (number, job, line) a page at a time: as many as fit a message of the network with room to
-	spare, and as many buttons as it takes in a message besides the others."""
-	most, room = service.room(JOB_ROW, otherwise=MOST_JOBS), service.text_limit - PAGE_ROOM
+	spare, and (with_buttons: a button each) as many buttons as it takes in a message besides the others."""
+	most = service.room(JOB_ROW, otherwise=MOST_JOBS) if with_buttons else len(entries) or 1
+	room = service.text_limit - PAGE_ROOM
 	parts, size = [[]], 0
 	for entry in entries:
 		if parts[-1] and (len(parts[-1]) == most or size + len(entry[2]) + 1 > room):
@@ -121,36 +129,57 @@ def paged(entries, service):
 		size += len(entry[2]) + 1
 	return parts
 
-def screen_buttons(screen, page, pages, shown, crc, own):
-	"""A list screen's buttons: top's, what can be done (+; Edit and Run with any job, Upcoming with one on), in one
-	row; edit's and run's, a button for each job shown, '<number> <name>', JOB_ROW to a row, edit's red for a job that
-	is off, then OK and, while any job is off, Delete disabled jobs (edit), or Cancel (run); ◀ and ▶ to the other
-	pages."""
+def selection(own):
+	"""The selection that matches the jobs as they are, Edit's start: a bit for each job (its number less one) that
+	is off."""
+	return sum(1 << i for i, job in enumerate(own) if not job.on)
+
+def screen_buttons(screen, page, pages, shown, crc, own, selected=0):
+	"""A list screen's buttons: top's, what can be done (+; Edit and Run... with any job, Upcoming with one on), in one
+	row; edit's and run's, a button for each job shown, '<number> <name>'. On edit a job's button selects the job or
+	not (red when selected: the selection, `selected`, is in each button's data, and nothing changes until OK),
+	JOB_ROW to a row, then Select all (Select none where all are selected), while any is selected Delete, while the
+	selection differs from the jobs as they are OK (it switches the selected jobs off and the rest on), and Cancel,
+	back to the list; run's Cancel; ◀ and ▶ to the other pages."""
 	if screen == 'top':
 		possible = [('+', 'add', [])] + [(label, kind, args) for label, kind, args, there in (
-			('Edit', 'edit', [0], bool(own)), ('Run', 'run', [0], bool(own)),
+			('Edit', 'edit', [0], bool(own)), ('Run...', 'run', [0], bool(own)),
 			('Upcoming', 'next', [], any(job.on for job in own))) if there]
 		rows = [[buttons.menu_button(label, kind, args, crc) for label, kind, args in possible]]
 		nav = []
-	else: # edit or run: a button per job
-		rows = buttons.chunks([buttons.menu_button(f'{number} {job.name}', screen, [page, number], crc,
-			buttons.tone(job.on) if screen == 'edit' else '') for number, job, _ in shown], JOB_ROW)
-		nav = [buttons.menu_button('OK' if screen == 'edit' else 'Cancel', 'top', [0], crc)]
-		if screen == 'edit' and not all(job.on for job in own):
-			nav.append(buttons.menu_button('Delete disabled jobs', screen, [page, 'ask'], crc))
-	nav += buttons.page_buttons(page, pages, lambda label, to: buttons.menu_button(label, screen, [to], crc))
+	elif screen == 'run':
+		rows = buttons.chunks([buttons.menu_button(f'{number} {job.name}', 'run', [page, number], crc)
+			for number, job, _ in shown], JOB_ROW)
+		nav = [buttons.menu_button('Cancel', 'top', [0], crc)]
+	else: # edit: the selection travels in each button's data, as a picker's ticks do
+		full = (1 << len(own)) - 1
+		def pick(to, what, mask):
+			"""The arguments of a press of edit: the page to show, what it asks for and the selection it makes."""
+			return [to, what, format(mask, 'x')]
+		rows = buttons.chunks([buttons.menu_button(f'{number} {job.name}', 'edit',
+			pick(page, 'm', selected ^ (1 << number - 1)), crc, buttons.tone(not selected >> number - 1 & 1))
+			for number, job, _ in shown], JOB_ROW)
+		nav = [buttons.menu_button('Select none' if selected == full else 'Select all', 'edit',
+			pick(page, 'm', 0 if selected == full else full), crc)]
+		if selected:
+			nav.append(buttons.menu_button('Delete', 'edit', pick(page, 'ask', selected), crc))
+		if selected != selection(own):
+			nav.append(buttons.menu_button('OK', 'edit', pick(page, 'ok', selected), crc))
+		nav.append(buttons.menu_button('Cancel', 'top', [0], crc))
+	nav += buttons.page_buttons(page, pages, lambda label, to: buttons.menu_button(label, screen,
+		pick(to, 'm', selected) if screen == 'edit' else [to], crc))
 	return rows + ([nav] if nav else [])
 
-def delete_disabled_screen(service, chat, page=0):
-	"""Delete disabled jobs' question, for a chat (by its key): whether to delete the jobs that are off, listed, with
-	Yes, delete them and Cancel, back to the editing."""
+def delete_screen(service, chat, selected, page=0):
+	"""The question of deleting the selected jobs, for a chat (by its key), listed, with Yes, delete them and Cancel,
+	back to the editing with the selection kept."""
 	own = jobs.current.chat_jobs(chat)
-	off = [(number, job) for number, job in enumerate(own, 1) if not job.on]
-	crc = jobs.list_checksum(own)
-	return [service.bold(f"Delete the {len(off)} disabled job{'' if len(off) == 1 else 's'}?"), '',
-		*(f"{number}. ❌ {service.strike(service.escape(job.name))}" for number, job in off)], [[
-		buttons.menu_button('Yes, delete them', 'edit', [page, 'yes'], crc),
-		buttons.menu_button('Cancel', 'edit', [page], crc)]]
+	chosen = [(number, job) for number, job in enumerate(own, 1) if selected >> number - 1 & 1]
+	crc, kept = jobs.list_checksum(own), format(selected, 'x')
+	return [service.bold(f"Delete the {len(chosen)} selected job{'' if len(chosen) == 1 else 's'}?"), '',
+		*(f"{number}. {service.escape(job.name)}" for number, job in chosen)], [[
+		buttons.menu_button('Yes, delete them', 'edit', [page, 'yes', kept], crc),
+		buttons.menu_button('Cancel', 'edit', [page, 'm', kept], crc)]]
 
 def job_entry(service, scheduler, number, job, running=(), local=None, now=None):
 	"""'5. movers close AU · weekdays at 4:30pm Sydney': a job in .jobs, with its number, * where it has never run, its
@@ -431,7 +460,7 @@ def prepare_reports(service):
 		f"{jobs.takes(known[name])}".strip() for name in jobs.chat_actions()] + ['', service.bold('For example:'),
 		'.jobs add movers weekly',
 		'.jobs add movers close weekdays at 4:30pm New York', '.jobs add performance first day of each month at 9am',
-		'.jobs add trades every 20 mins weekdays from 10am to 4pm', '.jobs add peg top weekly',
+		'.jobs add trades every 20 mins weekdays from 10am to 4pm', '.jobs add ratio peg bottom weekly',
 		'.jobs add price AAPL MSFT 1y monthly', '.jobs add reminder every 31 mar at 8:30am "🥳 Happy EOFY"', '',
 		f"Times are by {when.place(formats.zone().key)}'s clock unless one names a zone (UTC, New York, EST);"
 		" performance and movers cover the days between runs"]

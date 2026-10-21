@@ -243,7 +243,7 @@ class CommandArguments(FinbotCase):
 		"""A command is called by its whole name, in any case and from any of its prefixes; a word that only starts with
 		one is a ticker (.planet used to save the plan "et"), and the bot's name among the arguments is left out."""
 		for message, name in (('.MOVERS 7d', 'movers'), ('! movers', 'movers'), ('/movers@bot 7d', 'movers'),
-				('@bot movers', 'movers'), ('.forward PE top', 'pe'), ('.PE', 'pe'), ('.buy/sell', 'buysell'),
+				('@bot movers', 'movers'), ('.forward PE top', 'ratio'), ('.PE', 'ratio'), ('.buy/sell', 'buysell'),
 				('.movers @bot', 'movers'), ('.PRICE T1', 'price'), ('/price@bot T1', 'price'),
 				('.compare T1', 'price')):
 			with self.subTest(message=message):

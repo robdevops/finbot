@@ -3,19 +3,13 @@
 ## Iterating (auto mode)
 The owner chats back and forth; every message that asks for a change gets a change.
 1. Make the change, run the tests (`.venv/bin/python -m unittest discover -s tests -b`), fix what breaks.
-2. Commit (with the attribution trailer) and **push to the work branch** (`git push -u origin <branch>`). Do this every iteration, so the branch always holds the latest working state. If a PR from the work branch is open, update its title and description in the same iteration (see below).
+2. Commit (with the attribution trailer) and **push to the work branch** (`git push -u origin <branch>`). Do this every iteration, so the branch always holds the latest working state.
 3. Reply briefly: what changed, test result, and the pushed commit's short hash.
 
 ## The work branch is the dev branch
 The work branch named in the session instructions (`claude/...`) is the persistent dev branch. The owner's test environment pulls it and restarts the service, so:
 - **Never rewrite the work branch's history, and never reset the branch after a merge**: no reset to `main`, no rebase, no amend of pushed commits, no force-push. A force-push breaks `git pull` on the test environment. After a merge, leave the branch as it is.
 - If the owner wants a fixed name such as `dev`, they will say so; only push to another branch with their explicit permission.
-
-## Pull requests from the work branch
-An open PR takes in every commit pushed to its branch, so a PR opened for one small change can merge far more under its old title (#35 was titled as a CI tweak and merged 14 review fixes). The merge commit on `main` keeps that title for good.
-- Before each push, check for an open PR from the work branch. If there is one, update its title and description so they cover every commit it now holds, not only the change it was opened for.
-- Never make such a PR mergeable (resolve its conflict, merge `main` into it, enable auto-merge) while its title or description is out of date.
-- To merge: `main` takes only a branch that is up to date with it and green on every CI job. Merge `origin/main` into the work branch (a merge commit, never a rebase), run the tests, push, wait for CI on that head, then merge the PR with a merge commit.
 
 ## Facts
 - Python 3.13.5; tests are offline and need no network (`tests/`). CI runs them on the latest 3.x and 3.13.5, and
@@ -84,8 +78,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   Discord's registered commands); `suggest(chat, text)` completes a slash command's arguments as they are typed
   (Discord's autocomplete), from the cache alone, offering what a command `takes` (tickers or portfolios). `read()`
   finds the command by its whole name, the longest that matches (any other first word that may be a ticker is
-  `.SYMBOL`, that word its one word), and `read_args()` its `Args`: a percent, a period and a keyword from either end,
-  the words between. `answered()` runs a message's command and a job's alike: more or fewer words than its `words`
+  `.SYMBOL`, that word its one word), and `read_args()` its `Args`: a percent, a period, a keyword and an option (`.ratio`'s
+  ratio, `.pe` and `.peg` its names) from either end, the words between. `answered()` runs a message's command and a job's alike: more or fewer words than its `words`
   (`Command.fits`), or a handler's `Usage`, get its usage; an Answer is the reply (Nothing never in a job's run); a
   handler gets a ticker with `ticker(args)`. `Request(dest, user, bot_name)` (`request.reply(lines, chart,
   buttons)`); each command gets the typing notice while it works. `process_request(message)` answers a message
@@ -105,8 +99,8 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   (`delivery.interactive(dest)`); a job's run, on schedule, Run now or `.jobs run`, posts nothing. Chat-only
   (`prepare_*`): `about` (.help, and the .jobs menu's screens:
   `jobs_screen`, `add_screen`, `next_screen`), `history` (.price, also called .compare and .history: one stock's line, or
-  two to eight rebased), `holdings` (.holdings .who .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .pe
-  .fpe .peg .beta .buy .sell).
+  two to eight rebased), `holdings` (.holdings .who .treemap .watchlist), `profile` (.SYMBOL), `rankings` (.marketcap .ratio
+  .beta .buy .sell).
 - `lib/delivery.py`: `Report(lines, chart, buttons)`, the destinations (the chat that asked, or a chat by its key with
   `chat(key)`, as its network's bot), `deliver(dest, report)` (a chart refused goes again with its heading alone as the
   caption, the lines as text after it), the one-line error report (to its chat; one that belongs to no chat only
@@ -262,5 +256,5 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
 - README.md is short: what finbot is, a quick start, and links. The rest is in `doc/`, a file per topic: `commands.md`
   (the commands and reports, 16 KB: grep for the section instead of reading it whole), `configuration.md` (the keys
   and settings), `scheduling.md`, `caching.md`, `install.md` (a Debian host), `docker.md`, and a guide per network,
-  `telegram.md`, `slack.md` and `discord.md`: a change to a network's setup or keys goes in its guide. `doc/yahoo/` and
+  `telegram.md`, `slack.md` and `discord.md`: a change to a network's setup or keys goes in its guide. `classes.md` lists every class by what it is for (keep it current when one is added, renamed or removed). `doc/yahoo/` and
   `doc/sharesight/` hold large API samples that the tests replay: inspect them with python, don't read them.

@@ -87,7 +87,7 @@ def prime(service, wanted):
 	for label, make in wanted:
 		try:
 			(_, chart), built = timed(make)
-			if chart and chart.rows:
+			if chart and chart.drawable:
 				image, drew = timed(render.draw, chart)
 				preloader.add(image)
 				primed(label, built, drew)

@@ -17,7 +17,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 COMMANDS = ['.help', '/start', '.hello', '.thanks', '.who T1', '.holdings', '.holdings Rob',
 	'.marketcap', '.marketcap bottom', '.marketcap T1', '.pe', '.pe bottom', '.pe T1',
-	'.pe negative', '.forward pe T1', '.peg', '.peg negative', '.peg T1', '.beta', '.buy', '.sell', '.buy & sell',
+	'.pe negative', '.ratio current', '.ratio peg reverse', '.ratio negative current', '.forward pe T1', '.peg',
+	'.peg negative', '.peg T1', '.beta',
+	'.buy', '.sell', '.buy & sell',
 	'.earnings', '.earnings T1', '.dividend', '.dividend T1', '.trades', '.trades 30d', '.trades 7d Nope', '.movers',
 	'.movers 7d', '.movers 3', '.movers 3 7d', '.movers top', '.movers top 7d', '.price', '.price top', '.price T1',
 	'.price T1 7d', '.session',

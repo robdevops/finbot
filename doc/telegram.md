@@ -28,7 +28,7 @@ for several chats, then shows without an upload. A period pressed again within 3
 shows that chart again with the report it came with: nothing is fetched or drawn either.
 
 As finbot starts, it sets the bot's command menu, which Telegram shows when `/` is typed: each command with its usage
-(`/price`, `/pe`, `/stock` and the rest). `/profile` and `/job`, the second names of `/stock` and `/jobs`, are
+(`/price`, `/ratio`, `/stock` and the rest). `/profile` and `/job`, the second names of `/stock` and `/jobs`, are
 left out of the menu (as on Slack and Discord), and work when typed, as every name of a command does. In a group, `/price@finbot_bot` is the same
 as `/price`.
 

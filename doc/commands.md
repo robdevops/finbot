@@ -42,10 +42,9 @@ Where:
 /jobs add reminder schedule "text"
 /marketcap [symbol|top|bottom]
 /movers [percent|top|bottom|session|premarket] [period]
-/pe [symbol|top|bottom|negative]
-/peg [symbol|top|bottom|negative]
 /performance [period] [portfolio]
 /price [symbol...] [period]
+/ratio [symbol] [forward|current|peg] [top|bottom|negative|reverse]
 /shorts [percent|symbol]
 /trades [period] [portfolio]
 /treemap [portfolio] [sector|industry|country|currency|market]
@@ -66,12 +65,12 @@ The bot answers commands in every chat it is in. By default, it fetches its upda
 * A watch list per chat, which anyone in it can change, picked up by the reports there
 * Listing of portfolios and portfolio performance
 * A treemap of a portfolio (`/treemap portfolio [sector|industry|country|currency|market]`): the treemap tiles each holding by value, grouped and coloured by industry (the default), sector, country (its market's, as two letters, with a flag in the caption), currency or market
-* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/treemap`, `/holdings` (the first portfolio alphabetically; a treemap by industry, or by the grouping typed) and `/price` (the first ticker, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Grouped by button after them, which opens a menu of Country, Currency, Industry, Market and Sector with Back (the one shown marked; a choice redoes the chart in place and keeps the menu open, Back returns to the portfolios); for tickers the period row, ending in `+` to the tickers (those held, else the chat's watchlist) with `◀` `▶` pages: up to 8 ticked (drawn in the network's selection colour), which OK draws (a ninth is refused with a message to the presser alone, the chart left as it is). With one ticker ticked, `+` clears it, so that the first tick picks afresh. Another portfolio or ticker, a grouping or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/treemap` draws its other charts in the background so the next press is quick. `/price T1 T2 [period]` typed with tickers gets the same period row and `+` when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead)
+* Buttons to pick from where a command takes a portfolio or tickers and is typed without them: `/treemap`, `/holdings` (the first portfolio alphabetically; a treemap by industry, or by the grouping typed) and `/price` (the first ticker, over 7D unless a period or `max` is typed) answer at once, with the buttons under the chart: portfolios four to a row and `/treemap`'s Grouped by button after them, which opens a menu of Country, Currency, Industry, Market and Sector with OK last (the one shown marked; a choice redoes the chart in place and keeps the menu open, OK returns to the portfolios); for tickers the period row, ending in `+` to the tickers (those held, else the chat's watchlist) with `◀` `▶` pages: up to 8 ticked (drawn in the network's selection colour), which OK draws (a ninth is refused with a message to the presser alone, the chart left as it is). With one ticker ticked, `+` clears it, so that the first tick picks afresh. Another portfolio or ticker, a grouping or a period redoes the chart in place (a tick or a page of tickers changes only the buttons, on Telegram and Discord), and a `/treemap` draws its other charts in the background so the next press is quick. `/price T1 T2 [period]` typed with tickers gets the same period row and `+` when the tickers are among those held (else watched) and the period is a button one. Every chart with a period row, from any command, draws its other periods in the background once it is sent, so a period press is quick. Thirty-two items make a page (fewer on Discord, which holds five rows of five buttons). A job of one posts the same, buttons and all (but draws no charts ahead)
 * Listing of holdings sorted by various attributes 
 * Running the other stock reports on demand
 
 ## Reports
-Every chart's subtitle ends with the date it shows, or the dates it spans (`12 Oct - 19 Oct 2026`).
+Every chart's subtitle ends with the date it shows, or the dates it spans (`12 Oct - 19 Oct 2026`). A bar chart of a single bar is not drawn: the report goes as its text, with its buttons.
 
 ### Stock lookup
 ![Screenshot showing stock info on Slack](../img/stockinfo.png?raw=true "Screenshot showing stock info on Slack")
@@ -257,15 +256,14 @@ Command:
 /shorts [percent]
 ```
 
-### pe / peg
+### ratio (pe, peg)
 ![Forward PE report in Slack](../img/finbot_fpe.png?raw=true "Forward PE report in Slack")
 
-List securities by forward P/E ratio (`/pe`), or PEG ratio (`/peg`). Both are analysts' estimates (a forward P/E of earnings, a PEG of their growth), so their lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`), as `/buy` and `/sell` do.
+List the stocks followed by a ratio: `/ratio` is the forward P/E, lowest first; `/ratio current` the trailing P/E (`current` or `trailing`), of the earnings reported; `/ratio peg` the PEG. Then, optionally, the end: `top` (the default), `bottom` or `reverse` for the highest first, or `negative`, in either order: `/ratio peg reverse`, `/ratio current negative`. A ticker (`/ratio T1`) gets its own figures. `/pe` and `/peg` still work when typed, as `/ratio` and `/ratio peg` (only `/ratio` is in the slash menu); Telegram's keyboard has `.pe`. A forward P/E and a PEG are analysts' estimates (of earnings, of their growth), so their lists take only stocks covered by at least `min_analysts` analysts (7 by default; see `settings.conf`), as `/buy` and `/sell` do; a trailing P/E is no estimate, so every stock counts.
 
 Command:
 ```
-/pe [SYMBOL|top|bottom|negative]
-/peg [SYMBOL|top|bottom|negative]
+/ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]
 ```
 
 ### Price

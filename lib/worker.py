@@ -130,7 +130,7 @@ def menu_screen(service, chat, pressed):
 	if screen == 'add':
 		return add_step(service, chat, args)
 	page = int(args[0]) if args and args[0].isdigit() and len(args[0]) < 4 else 0
-	if screen == 'edit' and len(args) == 2:
+	if screen == 'edit' and len(args) == 3 and all(arg.isalnum() for arg in args):
 		return edit_step(service, key, scheduler, pressed, page)
 	note = None
 	if screen == 'run' and len(args) == 2:
@@ -148,27 +148,32 @@ def run_now(chat, scheduler, job, number):
 		delivery.deliver(chat, delivery.Report([about.job_line(chat.dialect, number, job, outcome)]))
 
 def edit_step(service, chat, scheduler, pressed, page):
-	"""A press of the .jobs editing screen: a job switched on or off, the jobs that are off asked about (ask) or deleted
-	(yes), as long as the list is the one the button was drawn for (its checksum), else the screen is drawn as the list
-	is now, saying so."""
-	own, what = scheduler.chat_jobs(chat), pressed.args[1]
-	if jobs.list_checksum(own) != pressed.checksum:
+	"""A press of the .jobs editing screen, which carries the selection (a bit for each job: the jobs to disable, or to
+	delete) in its data: the screen again with that selection (m), the jobs switched to it (ok: the selected off, the
+	rest on), the selected jobs asked about (ask) or deleted (yes), as long as the list is the one the button was
+	drawn for (its checksum), else the screen is drawn as the list is now, saying so."""
+	own, what, mask = scheduler.chat_jobs(chat), pressed.args[1], pressed.args[2]
+	selected = int(mask, 16) if all(c in '0123456789abcdef' for c in mask) else -1
+	if jobs.list_checksum(own) != pressed.checksum or not 0 <= selected < 1 << len(own):
 		return about.jobs_screen(service, chat, 'edit', page, CHANGED)
-	note = None
-	if what == 'ask' and not all(job.on for job in own):
-		return about.delete_disabled_screen(service, chat, page)
-	if what == 'yes':
-		gone = [job for job in own if not job.on]
-		for job in gone:
-			scheduler.delete(job)
-		s = '' if len(gone) == 1 else 's'
-		return about.jobs_screen(service, chat, 'top', 0, f"Deleted {len(gone)} disabled job{s}")
-	if job := jobs.numbered(own, what):
-		try: # flipped as stored, under the scheduler's lock: two presses at once flip it twice
-			note = f"{'Enabled' if scheduler.toggle(job) else 'Disabled'} {what}. {service.escape(job.name)}"
+	chosen = [job for i, job in enumerate(own) if selected >> i & 1]
+	if what == 'ask' and chosen:
+		return about.delete_screen(service, chat, selected, page)
+	if what == 'ok':
+		states = [(job, not selected >> i & 1) for i, job in enumerate(own) if bool(selected >> i & 1) == job.on]
+		off, on = sum(not state for _, state in states), sum(state for _, state in states)
+		try: # all set in one change, as stored, under the state file's lock
+			scheduler.switch_all(chat, states)
 		except jobs.ScheduleError as e:
-			note = service.escape(str(e))
-	return about.jobs_screen(service, chat, 'edit', page, note)
+			return about.jobs_screen(service, chat, 'edit', page, service.escape(str(e)))
+		said = [f"{how} {count} job{'' if count == 1 else 's'}" for count, how in ((off, 'disabled'), (on, 'enabled'))
+			if count]
+		return about.jobs_screen(service, chat, 'top', 0, ', '.join(said).capitalize() if said else 'Nothing changed')
+	if what == 'yes':
+		scheduler.delete(*chosen)
+		s = '' if len(chosen) == 1 else 's'
+		return about.jobs_screen(service, chat, 'top', 0, f"Deleted {len(chosen)} job{s}")
+	return about.jobs_screen(service, chat, 'edit', page, selected=selected)
 
 def add_step(service, chat, steps):
 	"""A step of Add pressed: the next choice's screen; once every choice is made, the job added, or why it is not."""
@@ -266,6 +271,8 @@ def chart_press(chat, press, pressed):
 	if chat.reshow(press.message_id, markup): # that period as posted lately (Slack, Telegram): nothing built
 		return
 	lines, chart = charts.build(pressed.kind, args, chat.dialect, chat.key, period=pressed.period)
+	if chart and chart.rows and not chart.drawable: # a lone bar: the text alone
+		return chat.edit_lines(press.message_id, lines, markup)
 	if not (chart and chart.rows): # too few prices in that period to draw a line
 		raise answer.Answer(f"Too few prices to draw {buttons.PERIODS[pressed.period][0]}")
 	chat.edit_chart(press.message_id, render.draw(chart), '\n'.join(lines), markup)
@@ -319,12 +326,14 @@ def answered(request, command, args):
 @dataclasses.dataclass
 class Args:
 	"""What a command was given (read_args): its name as written, a percent and a period where it takes them, one of its
-	keywords, and the words left between, which say what it is about: tickers or a portfolio's name."""
+	keywords and one of its options, and the words left between, which say what it is about: tickers or a portfolio's
+	name."""
 	word: str
 	text: str = '' # the arguments as written
 	percent: float = None
 	days: int = None
 	keyword: str = None
+	option: str = None
 	words: list = dataclasses.field(default_factory=list)
 
 	@property
@@ -360,8 +369,8 @@ def read(message, bot_name):
 
 def read_args(command, word, text):
 	"""The Args of a command called by `word`: from either end of its arguments, a percent where it takes one (5, 5% or
-	2.5), a period where it takes one (7d, 3m, ytd; a bare number where it takes no percent) and one of its keywords, in
-	any case; the words left between are what it is about."""
+	2.5), a period where it takes one (7d, 3m, ytd; a bare number where it takes no percent), one of its keywords and
+	one of its options, in any case; the words left between are what it is about."""
 	args = Args(word, text.strip())
 	def taken(word):
 		"""Whether the word is an option the command takes and has not had yet, which it then has."""
@@ -379,6 +388,9 @@ def read_args(command, word, text):
 				pass
 		if args.keyword is None and word.lower() in command.keywords:
 			args.keyword = command.keywords[word.lower()]
+			return True
+		if args.option is None and word.lower() in command.options:
+			args.option = command.options[word.lower()]
 			return True
 		return False
 	words = text.split()
@@ -498,17 +510,15 @@ def on_marketcap(request, args):
 	else:
 		request.reply(rankings.marketcap_list(request.service, request.dest.key, bottom=args.keyword == 'bottom'))
 
-def on_ratio(kind):
-	"""The handler of .pe (the forward P/E) or .peg (kind: forward pe or peg): the top (by default) or bottom 15 by the
-	ratio and its chart, the negative ones (where there can be any), or one ticker's ratio."""
-	def handler(request, args):
-		""".pe or .peg [SYMBOL|top|bottom|negative]."""
-		if args.words:
-			request.reply([rankings.ratio_line(request.service, ticker(args), kind)])
-		else:
-			mode = args.keyword or 'top'
-			request.reply(*rankings.ratio_list(request.service, request.dest.key, kind, mode))
-	return handler
+def on_ratio(request, args):
+	""".ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]: the top (by default) or bottom (reverse) 15
+	stocks by a ratio and its chart, the negative ones (where there can be any), or one ticker's ratio; the forward
+	P/E by default, the trailing one given current, the PEG given peg. .pe and .peg are its names, .peg's the PEG."""
+	kind = args.option or ('peg' if args.word == 'peg' else 'forward pe')
+	if args.words:
+		request.reply([rankings.ratio_line(request.service, ticker(args), kind)])
+	else:
+		request.reply(*rankings.ratio_list(request.service, request.dest.key, kind, args.keyword or 'top'))
 
 def on_beta(request, args):
 	""".beta: the volatile small caps among the stocks followed."""
@@ -667,8 +677,8 @@ def on_profile(request, args):
 class Command:
 	"""A chat command: its names (typos too; a name may be several words, as 'forward pe'), the handler that answers
 	it, its .help lines under its section's heading, the Telegram keyboard buttons that send it, and what its arguments
-	may hold besides words (read_args): a percent, a period, its keywords ({spelling: keyword}); then how many words it
-	takes, and what they are."""
+	may hold besides words (read_args): a percent, a period, its keywords and its options ({spelling: keyword}); then
+	how many words it takes, and what they are."""
 	names: tuple
 	handler: typing.Callable
 	usage: tuple = () # its lines in .help; none keeps it out of .help
@@ -677,6 +687,7 @@ class Command:
 	percent: bool = False
 	period: bool = False
 	keywords: dict = dataclasses.field(default_factory=dict)
+	options: dict = dataclasses.field(default_factory=dict) # a word it may take beside a keyword (.pe top current)
 	words: tuple = (0, None) # how many words it takes, at least and at most (None: any): others get its usage
 	takes: str = '' # what its words are, for suggest and a job's example: 'ticker' or 'portfolio' (a name)
 	job: bool = True # whether a job may run it (job_commands): not one that changes something
@@ -691,6 +702,8 @@ SECTIONS = TRACKED, COMPANY, PRICE, RISK, TRADES, JOBS = ('Tracked securities', 
 
 TOP = {'top': 'top', 'bottom': 'bottom'} # the ends of a ranked list
 NEGATIVE = TOP | dict.fromkeys(('neg', 'negative', 'negatives'), 'negative') # the ratios that can be negative
+ENDS = NEGATIVE | dict.fromkeys(('reverse', 'reversed'), 'bottom') # .ratio's: the lowest first, or the highest
+RATIOS = {'forward': 'forward pe', 'current': 'trailing pe', 'trailing': 'trailing pe', 'peg': 'peg'} # .ratio's
 DELETE = ('del', 'delete', 'rem', 'remove', 'rm') # how deleting is typed, to the watchlist and to .jobs
 CHANGE = {'add': 'add'} | dict.fromkeys(DELETE, 'delete') # of the watchlist
 BY = {word: name for name, words in holdings.NOUNS.items() for word in words} # .treemap's: sector, sectors, ...
@@ -729,18 +742,17 @@ COMMANDS = [ # .help lists a section's commands in this order. The odd spellings
 		('.movers [percent|top|bottom|session|premarket] [period]',), PRICE, ('.movers',), percent=True, period=True,
 		keywords=TOP | {name: name for name in SESSIONS}, words=(0, 1)), # a word: session's or premarket's SYMBOL
 	Command(BUY_SELL, on_rating, ('.buysell',), RISK, ('.buy & sell',)), # .buy & sell, .buy sell: both
-	Command(('pe', 'forward pe', 'forwardpe', 'fpe'), on_ratio('forward pe'),
-		('.pe [SYMBOL|top|bottom|negative]',), RISK, ('.pe',), keywords=NEGATIVE, words=(0, 1),
-		takes='ticker'), # the forward P/E: it was .forward pe
-	Command(('peg',), on_ratio('peg'), ('.peg [SYMBOL|top|bottom|negative]',), RISK, ('.peg',), keywords=NEGATIVE,
-		words=(0, 1), takes='ticker'),
+	Command(('ratio', 'pe', 'forward pe', 'forwardpe', 'fpe', 'peg'), on_ratio,
+		('.ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]',), RISK, ('.pe',), keywords=ENDS,
+		options=RATIOS, words=(0, 1), takes='ticker'),
+	# was .pe (the forward P/E) and .peg, still their names
 	Command(('shorts', 'short'), on_shorts, ('.shorts [percent|SYMBOL]',), RISK, ('.shorts',), percent=True,
 		words=(0, 1), takes='ticker'),
 	Command(('trades', 'trade'), on_trades, ('.trades [period] [portfolio]',), TRADES, ('.trades',), period=True,
 		takes='portfolio'),
 	Command(('jobs', 'job', 'cron', 'crons', 'schedule'), on_jobs, ('.jobs [upcoming|system]',
 		'.jobs enable|disable|delete|run [NUMBER]', '.jobs add REPORT SCHEDULE', '.jobs add message SCHEDULE "TEXT"'),
-		JOBS, ('.schedule',), keywords=JOB_CHANGES, job=False),
+		JOBS, ('.jobs',), keywords=JOB_CHANGES, job=False),
 	PROFILE,
 ]
 KEYBOARD = tuple(text for command in COMMANDS for text in command.buttons) # Telegram's command keyboard in a DM
@@ -852,7 +864,7 @@ def job_commands():
 	"""The commands of .help a job may run, by each name a job may call one by: a CommandJob each. Every one but those
 	that change something (job false) and those a scheduled report runs already (REPORTED): first each by the name its
 	first line in .help that has one gives it (.stock's, not .SYMBOL's), with what it takes; then its other names and
-	its typos, each standing for the first, but buy and sell's (.compare stands for price)."""
+	its typos, each standing for the first, but buy and sell's and peg's (.compare stands for price)."""
 	found = {}
 	for command in COMMANDS:
 		if not (command.job and command.usage) or command.handler in REPORTED:
@@ -864,8 +876,8 @@ def job_commands():
 				first = found[name] = CommandJob(command, name, ' '.join(words[len(name.split()):]))
 				break
 		for name in command.names:
-			found.setdefault(name, dataclasses.replace(first, name=name if command.handler is on_rating else first.name,
-				listed=False))
+			found.setdefault(name, dataclasses.replace(first, listed=False, name=name if command.handler is on_rating or
+				name == 'peg' else first.name)) # buy, sell and peg: the name says which
 	return found
 
 PERIOD_WORDS = ('1d', '7d', '1m', '3m', '6m', 'ytd', '1y', '5y', '10y') # suggested where a command takes a period
@@ -876,7 +888,7 @@ SCHEDULE_WORDS = ('daily', 'weekdays', 'weekly', 'monthly', 'quarterly', 'bi-ann
 def completes(command):
 	"""Whether suggest has words to offer for a command's arguments: its keywords, periods, tickers, portfolios, or
 	those of /jobs."""
-	return bool(command.handler is on_jobs or command.keywords or command.period or command.takes)
+	return bool(command.handler is on_jobs or command.keywords or command.options or command.period or command.takes)
 
 def suggest(chat, text):
 	"""What to suggest while a slash command's arguments are typed (Discord's autocomplete), from the message they make
@@ -908,8 +920,8 @@ def argument_words(command, chat, given):
 	"""(word, shown) pairs that a command's arguments may hold next, for suggest, after those given (Args): the
 	keywords its usage shows and periods, unless it has one already; portfolios; tickers (the chat's watchlist and the
 	holdings, as cached)."""
-	words = [word for word in re.findall(r'[\w-]+', ' '.join(command.usage))
-		if word in command.keywords and word not in command.names and given.keyword is None]
+	words = [word for word in re.findall(r'[\w-]+', ' '.join(command.usage)) if word not in command.names and (
+		word in command.keywords and given.keyword is None or word in command.options and given.option is None)]
 	if command.period and given.days is None:
 		words += PERIOD_WORDS
 	if command.takes:

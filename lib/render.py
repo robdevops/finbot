@@ -34,6 +34,14 @@ class Chart:
 	threshold: float = None # shorts: the outrageous line
 	change: float = None # line: the change shown, whose sign colours the line and its subtitle
 
+	@property
+	def drawable(self):
+		"""Whether the chart is worth drawing: it has rows, and bars have more than one (a single bar says no more than
+		the report's line does)."""
+		if self.kind == 'bars':
+			return sum(value is not None for _, value in self.rows) > 1
+		return bool(self.rows)
+
 VALUE_FORMATS = {'percent': lambda v: formats.signed_percent(round(v)),
 	'percent2': lambda v: formats.signed_percent(v, 2), 'number': lambda v: f"{v:g}"}
 
