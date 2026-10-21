@@ -16,8 +16,8 @@ The bot does the same either way. What differs is how it hears from Slack:
 | How messages, slash commands and button presses reach finbot | Over a socket that finbot opens to Slack | Slack posts them to your HTTPS server |
 | Listens on the internet | No: finbot opens the socket to Slack | Yes, behind your HTTPS server: a domain name with a valid certificate |
 | Python module | `websocket-client` (Debian: `python3-websocket`) | `waitress` (Debian: `python3-waitress`) |
-| How finbot knows it is Slack | Nothing arrives unasked: the socket is one finbot opened with the app-level token (`slackAppToken`) | Slack's signature on every request, made with the app's Signing Secret (`slackSigningSecret`); or the older Verification Token (`slackOutgoingToken`) in the request. With neither, finbot turns Slack off |
-| `finbot.env` keys | `slackBotToken`, `slackAppToken` | `slackBotToken`, `slackOutgoingWebhook`, and `slackSigningSecret` (or `slackOutgoingToken`) |
+| How finbot knows it is Slack | Nothing arrives unasked: the socket is one finbot opened with the app-level token (`slackAppToken`) | Slack's signature on every request, made with the app's Signing Secret (`slackSigningSecret`) in the request. With neither, finbot turns Slack off |
+| `finbot.env` keys | `slackBotToken`, `slackAppToken` | `slackBotToken`, `slackOutgoingWebhook`, and `slackSigningSecret` |
 
 finbot chooses its mode from `finbot.env`: with `slackOutgoingWebhook` set, finbot uses push mode, with it empty, finbot uses pull
 mode. On the Slack side, enabling _Socket Mode_ expects finbot to pull, and disabling it pushes updates to the _Event Subscriptions Request URL_.
