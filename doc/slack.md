@@ -16,7 +16,8 @@ The bot does the same either way. What differs is how it hears from Slack:
 | How messages, slash commands and button presses reach finbot | Over a socket that finbot opens to Slack | Slack posts them to your HTTPS server |
 | Listens on the internet | No: finbot opens the socket to Slack | Yes, behind your HTTPS server: a domain name with a valid certificate |
 | Python module | `websocket-client` (Debian: `python3-websocket`) | `waitress` (Debian: `python3-waitress`) |
-| `finbot.env` keys | `slackBotToken`, `slackAppToken` | `slackBotToken`, `slackOutgoingWebhook`, `slackSigningSecret` |
+| How finbot knows it is Slack | Nothing arrives unasked: the socket is one finbot opened with the app-level token (`slackAppToken`) | Slack's signature on every request, made with the app's Signing Secret (`slackSigningSecret`); or the older Verification Token (`slackOutgoingToken`) in the request. With neither, finbot turns Slack off |
+| `finbot.env` keys | `slackBotToken`, `slackAppToken` | `slackBotToken`, `slackOutgoingWebhook`, and `slackSigningSecret` (or `slackOutgoingToken`) |
 
 finbot chooses its mode from `finbot.env`: with `slackOutgoingWebhook` set, finbot uses push mode, with it empty, finbot uses pull
 mode. On the Slack side, enabling _Socket Mode_ expects finbot to pull, and disabling it pushes updates to the _Event Subscriptions Request URL_.
@@ -51,12 +52,10 @@ Slack delivers the messages, the button presses and the slash commands to finbot
 `http://127.0.0.1:5000` (`ip` and `port` in `finbot.env`), so it needs a web server in front of it, on a domain name
 with a valid certificate.
 
-1. Put finbot behind an HTTPS server. An nginx example, which lets in only Amazon's addresses, where Slack's requests
-   come from:
+1. Put finbot behind an HTTPS server. An nginx example:
    ```
    server {
    	listen 8443 ssl;
-   	deny all;
 
    	server_name         www.example.com;
    	ssl_certificate     /etc/letsencrypt/live/www.example.com/fullchain.pem;
@@ -65,14 +64,9 @@ with a valid certificate.
 
    	location /slack {
    		proxy_pass http://127.0.0.1:5000/slack;
-   		include /etc/nginx/aws_subnets;
-   		deny all;
    	}
    }
    ```
-   `util/nginx_aws_cron` writes `/etc/nginx/aws_subnets`, an `allow` line for each of Amazon's networks, and reloads
-   nginx. Run it once as root before nginx loads this configuration, or put it in `/etc/cron.daily/` to keep the list
-   current.
 2. In `finbot.env`, set `slackOutgoingWebhook` to the URL Slack should post to, and restart finbot, so that it can
    answer Slack's check of the URL in step 4.
 3. Print the app's manifest with that URL, which Slack then posts everything to:
@@ -85,6 +79,7 @@ with a valid certificate.
    than five minutes earlier: a replay, or a server clock that is wrong.
    * The older _Verification Token_, set as `slackOutgoingToken`, still works in place of the signing secret, but
      Slack has deprecated it: the token travels in every request, where the signing secret never does.
+   * With `slackOutgoingWebhook` set and neither of them, finbot turns Slack off (it says so in the log at start).
 6. Go on with [installing the app](#installing-the-app), below.
 
 ```

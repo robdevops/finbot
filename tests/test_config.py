@@ -237,12 +237,40 @@ class Parsing(unittest.TestCase):
 		"""check_config shows what bot.py would warn about at start for the file it checks: here a Telegram token for
 		a webhook that is not set (pull mode)."""
 		path = Path(common.temp_dir(self), 'finbot.env')
+		path.write_text('telegramSecretToken=tok\n')
+		self.assertEqual(check_config.check(path, Path(common.temp_dir(self), 'none')), [])
+		self.assertEqual(check_config.warnings(path), ['telegramSecretToken is set but telegramOutgoingWebhook is'
+			' not: finbot fetches its Telegram updates (pull mode), and the token is not used'])
+		path.write_text('telegramSecretToken=tok\ntelegramOutgoingWebhook=https://example.com/t\n')
+		self.assertEqual(check_config.warnings(path), [])
+
+
+class RenamedKeys(unittest.TestCase):
+	"""A startup key under a new name: the old one still works."""
+
+	def test_the_old_name_of_a_key_still_works_and_the_new_wins(self):
+		"""telegramOutgoingToken, set alone, gives telegramSecretToken its value; with both set the new one wins; a
+		finbot.env with the old line is valid, and says to rename it."""
+		old = config.startup_values({'telegramOutgoingToken': 'old'}.get)
+		both = config.startup_values({'telegramOutgoingToken': 'old', 'telegramSecretToken': 'new'}.get)
+		self.assertEqual((old.telegramSecretToken, both.telegramSecretToken,
+			config.startup_values({}.get).telegramSecretToken), ('old', 'new', ''))
+		self.assertNotIn('telegramOutgoingToken', config.STARTUP_KEYS)
+		path = Path(common.temp_dir(self), 'finbot.env')
 		path.write_text('telegramOutgoingToken=tok\n')
 		self.assertEqual(check_config.check(path, Path(common.temp_dir(self), 'none')), [])
-		self.assertEqual(check_config.warnings(path), ['telegramOutgoingToken is set but telegramOutgoingWebhook is'
-			' not: finbot fetches its Telegram updates (pull mode), and the token is not used'])
-		path.write_text('telegramOutgoingToken=tok\ntelegramOutgoingWebhook=https://example.com/t\n')
-		self.assertEqual(check_config.warnings(path), [])
+		self.assertEqual(check_config.notes(Path(common.temp_dir(self), 'none'), path),
+			['telegramOutgoingToken in finbot.env is now telegramSecretToken: it still works, but rename it'])
+		path.write_text('telegramOutgoingToken=tok\ntelegramSecretToken=new\n')
+		self.assertEqual(check_config.notes(Path(common.temp_dir(self), 'none'), path),
+			['telegramOutgoingToken in finbot.env is now telegramSecretToken: telegramSecretToken is set too, so this'
+			' line is ignored'])
+
+	def test_a_webhook_with_only_the_old_key_is_secured(self):
+		"""A finbot.env that still says telegramOutgoingToken has Telegram's webhook served as before."""
+		env = config.startup_values({'telegramOutgoingWebhook': 'https://example.com/t',
+			'telegramOutgoingToken': 'tok'}.get)
+		self.assertEqual(env.telegramSecretToken, 'tok')
 
 
 class Reload(unittest.TestCase):
@@ -460,29 +488,29 @@ class Startup(unittest.TestCase):
 		"""A startup warning for Slack commands without slackBotToken (no reply), and for an inbound webhook without its
 		secret (every request would be refused)."""
 		hooks = dict(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok',
-			slackBotToken='xoxb-1', telegramOutgoingWebhook='https://example.com/telegram', telegramOutgoingToken='tok')
+			slackBotToken='xoxb-1', telegramOutgoingWebhook='https://example.com/telegram', telegramSecretToken='tok')
 		deaf = ('slackBotToken is set but neither slackAppToken nor slackOutgoingWebhook is: finbot hears nothing from'
 			' Slack, so its commands and buttons get no answer')
 		no_reply = 'slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply'
 		slack_refused = ('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
-			' every Slack request will be refused')
-		telegram_refused = ('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update'
-			' will be refused')
-		unused = ('telegramOutgoingToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram updates'
+			' Slack is turned off')
+		telegram_refused = ('telegramOutgoingWebhook is set but telegramSecretToken is not: Telegram is turned'
+			' off')
+		unused = ('telegramSecretToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram updates'
 			' (pull mode), and the token is not used')
 		app_no_reply = 'slackAppToken is set but slackBotToken is not: Slack commands will get no reply'
 		app_unused = ('slackAppToken is set but so is slackOutgoingWebhook: Slack posts its updates there (http mode),'
 			' and the app-level token is not used')
 		not_app = ("slackAppToken does not start with xapp-: it must be an app-level token (the app's Basic"
 			' Information, App-Level Tokens), not the bot token')
-		bad_secret = ("telegramOutgoingToken is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the"
+		bad_secret = ("telegramSecretToken is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the"
 			" webhook's secret, so setting the webhook will fail")
 		cases = (({}, []), ({'slackBotToken': ''}, [no_reply]), ({'slackOutgoingToken': ''}, [slack_refused]),
 			({'slackOutgoingToken': '', 'slackSigningSecret': 's'}, []),
-			({'telegramOutgoingToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, [unused]),
-			({'telegramOutgoingWebhook': '', 'telegramOutgoingToken': ''}, []),
-			({'telegramOutgoingToken': 'A-z_09' * 40}, []), ({'telegramOutgoingToken': 'x' * 257}, [bad_secret]),
-			({'telegramOutgoingToken': 'pass word!'}, [bad_secret]),
+			({'telegramSecretToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, [unused]),
+			({'telegramOutgoingWebhook': '', 'telegramSecretToken': ''}, []),
+			({'telegramSecretToken': 'A-z_09' * 40}, []), ({'telegramSecretToken': 'x' * 257}, [bad_secret]),
+			({'telegramSecretToken': 'pass word!'}, [bad_secret]),
 			({'slackOutgoingWebhook': '', 'slackAppToken': 'xapp-1'}, []),
 			({'slackOutgoingWebhook': '', 'slackAppToken': 'xapp-1', 'slackBotToken': ''}, [app_no_reply]),
 			({'slackAppToken': 'xapp-1'}, [app_unused]),
@@ -500,7 +528,7 @@ class Startup(unittest.TestCase):
 		http = dict(discordBotToken='x', discordOutgoingWebhook='https://example.com/discord', discordPublicKey=key)
 		no_reply = 'discordOutgoingWebhook is set but discordBotToken is not: Discord commands will get no reply'
 		refused = ("discordOutgoingWebhook is set but discordPublicKey is not the app's public key (64 hex digits):"
-			' every Discord interaction will be refused')
+			' Discord is turned off')
 		unused = ('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway (pull'
 			' mode), and the key is not used')
 		cases = (({}, []), ({'discordBotToken': ''}, [no_reply]),

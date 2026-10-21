@@ -161,7 +161,7 @@ class TelegramWebhook(FinbotCase):
 			env = {k: v for k, v in bare_environment().items() if 'proxy' not in k.lower()}
 			no_jobs(data)
 			env.update(DATA_DIR=data, port='0', telegramBotToken='123456:SECRET-token',
-				telegramOutgoingToken='tok',
+				telegramSecretToken='tok',
 					   telegramOutgoingWebhook='https://example.com/telegram',
 					   # unreachable, so the registration fails at once and offline
 					   HTTPS_PROXY='http://127.0.0.1:9', https_proxy='http://127.0.0.1:9')

@@ -64,7 +64,8 @@ def notes(settings_path, startup_path=None):
 	lines = []
 	if startup_path:
 		try:
-			lines += config.retired_notes(config.read_startup_file(startup_path), 'finbot.env')
+			startup = config.read_startup_file(startup_path)
+			lines += config.retired_notes(startup, 'finbot.env') + config.renamed_notes(startup)
 		except config.ConfigError:
 			pass
 	try:

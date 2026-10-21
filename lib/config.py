@@ -34,6 +34,9 @@ RETIRED = { # keys of either file that do nothing any more: accepted, so that th
 	'debug': 'log_level sets what the log shows (INFO by default; DEBUG adds cache hits); delete the line',
 	'sharesight_code': 'Sharesight needs only sharesight_client_id and sharesight_client_secret; delete the line',
 }
+RENAMED = { # startup keys under a new name: the old still works (the new wins where both are set), with a note at start
+	'telegramOutgoingToken': 'telegramSecretToken', # Telegram calls it the secret token
+}
 LOG_LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG') # log_level's values, the most severe first (lib/log.py)
 
 
@@ -102,7 +105,7 @@ def read_assignments(path, keys, other_keys, other_file):
 	text = read_text(path)
 	if text is None:
 		return None
-	values, errors = parse_assignments(text, path, lambda key: None if key in RETIRED else
+	values, errors = parse_assignments(text, path, lambda key: None if key in RETIRED or key in RENAMED else
 		key_problem(key, keys, other_keys, other_file))
 	if errors:
 		raise ConfigError(errors)
@@ -245,7 +248,7 @@ class Env:
 	slackOutgoingWebhook: str = ''
 	slackSigningSecret: str = ''
 	telegramBotToken: str = ''
-	telegramOutgoingToken: str = ''
+	telegramSecretToken: str = ''
 	telegramOutgoingWebhook: str = ''
 	discordBotToken: str = ''
 	discordOutgoingWebhook: str = '' # the interactions endpoint URL (http mode); unset, finbot keeps to the gateway
@@ -268,7 +271,12 @@ STARTUP_KEYS = ('DATA_DIR', *(field.name for field in dataclasses.fields(Env) if
 def startup_values(getenv):
 	"""The startup settings (finbot.env), computed from getenv(name, default): each key read as its Env field's type
 	says, its default the field's where it is unset; then those worked out from them. Raises ConfigError."""
-	r = _Reader(getenv)
+	newer = {new: old for old, new in RENAMED.items()}
+	def read(name, default):
+		"""getenv's value, or for a key with an old name that one's value where the key is unset or blank."""
+		value = getenv(name, default)
+		return getenv(newer[name], default) if name in newer and getenv(name, '') == '' else value
+	r = _Reader(read)
 	readers = {int: r.int, str: r.str}
 	keys = {field.name: readers[field.type](field.name, field.default) for field in dataclasses.fields(Env)
 		if field.name not in DERIVED}
@@ -448,12 +456,20 @@ def startup_report():
 		lines.append(f'{settings_path} ({keys(len(_settings))} set; SIGHUP to reload)')
 	else:
 		lines.append(f'no {SETTINGS_FILE} in {env.data_dir}, reload unavailable')
-	return lines + retired_notes(os.environ, 'finbot.env') + retired_notes(_settings)
+	return lines + retired_notes(os.environ, 'finbot.env') + renamed_notes(os.environ, 'finbot.env') + \
+		retired_notes(_settings)
 
 
 def retired_notes(values, file=SETTINGS_FILE):
 	"""A line for each key of a file's {key: value} that does nothing any more, saying what to do instead."""
 	return [f'{key} in {file} does nothing any more: {instead}' for key, instead in RETIRED.items() if key in values]
+
+
+def renamed_notes(values, file='finbot.env'):
+	"""A line for each key of a file's {key: value} that has a new name: the old one still works, but the new one is
+	the one to write (and wins, where both are set)."""
+	return [f'{old} in {file} is now {new}: ' + (f'{new} is set too, so this line is ignored' if values.get(new) else
+		'it still works, but rename it') for old, new in RENAMED.items() if values.get(old)]
 
 
 def startup_warnings(startup=None):
@@ -476,21 +492,21 @@ def startup_warnings(startup=None):
 			' Information, App-Level Tokens), not the bot token')
 	if s.slackOutgoingWebhook and not (s.slackSigningSecret or s.slackOutgoingToken):
 		warnings.append('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
-			' every Slack request will be refused')
-	if s.telegramOutgoingWebhook and not s.telegramOutgoingToken:
-		warnings.append('telegramOutgoingWebhook is set but telegramOutgoingToken is not: every Telegram update will be'
-			' refused')
-	if s.telegramOutgoingToken and not re.fullmatch(r'[A-Za-z0-9_-]{1,256}', s.telegramOutgoingToken):
-		warnings.append('telegramOutgoingToken is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the'
+			' Slack is turned off')
+	if s.telegramOutgoingWebhook and not s.telegramSecretToken:
+		warnings.append('telegramOutgoingWebhook is set but telegramSecretToken is not: Telegram is turned'
+			' off')
+	if s.telegramSecretToken and not re.fullmatch(r'[A-Za-z0-9_-]{1,256}', s.telegramSecretToken):
+		warnings.append('telegramSecretToken is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the'
 			" webhook's secret, so setting the webhook will fail")
-	if s.telegramOutgoingToken and not s.telegramOutgoingWebhook:
-		warnings.append('telegramOutgoingToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram'
+	if s.telegramSecretToken and not s.telegramOutgoingWebhook:
+		warnings.append('telegramSecretToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram'
 			' updates (pull mode), and the token is not used')
 	if s.discordOutgoingWebhook and not s.discordBotToken:
 		warnings.append('discordOutgoingWebhook is set but discordBotToken is not: Discord commands will get no reply')
 	if s.discordOutgoingWebhook and not re.fullmatch(r'[0-9a-fA-F]{64}', s.discordPublicKey):
 		warnings.append("discordOutgoingWebhook is set but discordPublicKey is not the app's public key (64 hex"
-			' digits): every Discord interaction will be refused')
+			' digits): Discord is turned off')
 	if s.discordPublicKey and not s.discordOutgoingWebhook:
 		warnings.append('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway'
 			' (pull mode), and the key is not used')

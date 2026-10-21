@@ -11,7 +11,8 @@ Telegram:
 |---|---|---|
 | How messages and button presses reach finbot | finbot asks Telegram for them (long polling) | Telegram posts them to your HTTPS server |
 | Listens on the internet | No: finbot only makes outgoing requests | Yes, behind your HTTPS server: a domain name with a valid certificate, on port 443, 80, 88 or 8443 |
-| `finbot.env` keys | `telegramBotToken` | `telegramBotToken`, `telegramOutgoingWebhook` and `telegramOutgoingToken` |
+| How finbot knows it is Telegram | Nothing arrives unasked: finbot's own requests carry the bot token (`telegramBotToken`) | The secret token (`telegramSecretToken`) that finbot gave Telegram when setting the webhook, which Telegram sends back in a header with every update. Without it, finbot turns Telegram off |
+| `finbot.env` keys | `telegramBotToken` | `telegramBotToken`, `telegramOutgoingWebhook` and `telegramSecretToken` |
 
 Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price`, `/movers`,
 `/performance` and the rest, [the list](commands.md#supported-commands), or as messages, `.price`), period buttons
@@ -62,11 +63,11 @@ Telegram delivers the messages in your chats, and each button press, to finbot o
 with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
 
 1. Set up the bot as for [pull mode](#pull-mode), above.
-2. Put finbot behind an HTTPS server. An nginx example, which lets in only Telegram's addresses:
+2. Put finbot behind an HTTPS server. An nginx example, which lets in only Telegram's addresses (the networks it posts from, as
+   [Telegram lists them](https://core.telegram.org/bots/webhooks#the-short-version)):
    ```
    server {
    	listen 8443 ssl;
-   	deny all;
 
    	server_name         www.example.com;
    	ssl_certificate     /etc/letsencrypt/live/www.example.com/fullchain.pem;
@@ -75,18 +76,17 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
 
    	location /telegram {
    		proxy_pass http://127.0.0.1:5000/telegram;
-   		include /etc/nginx/telegram_subnets;
+   		allow 149.154.160.0/20;
+   		allow 91.108.4.0/22;
    		deny all;
    	}
    }
    ```
-   `util/nginx_telegram_cron` writes `/etc/nginx/telegram_subnets`, an `allow` line for each of Telegram's networks,
-   and reloads nginx. Run it once as root before nginx loads this configuration, or put it in `/etc/cron.daily/` to
-   keep the list current. `util/iptables_telegram_cron` goes further, in the firewall: of the traffic to ports 443 and
-   8443 it lets in only Telegram's networks on 8443 and drops the rest, so nothing else can be served on those ports.
-3. In `finbot.env`, set `telegramOutgoingWebhook` to the URL Telegram should post to, and `telegramOutgoingToken` to a
+3. In `finbot.env`, set `telegramOutgoingWebhook` to the URL Telegram should post to, and `telegramSecretToken` to a
    password of your choosing: 1 to 256 characters, of letters, digits, `_` and `-`. Telegram sends the password with
-   every update, and finbot turns away a request without it.
+   every update, and finbot turns away a request without it. With `telegramOutgoingWebhook` set and no
+   `telegramSecretToken`, finbot turns Telegram off (it says so in the log at start). The key was called
+   `telegramOutgoingToken`, which still works, with a note in the log to rename it.
 4. Restart finbot. As it starts, it sets the webhook again, deleting it first, which also wakes up a stale connection.
    If Telegram refuses, finbot does not start, and the log says why.
 5. Send `/help` in the chat. In a direct chat with the bot, a keyboard of the common commands follows the reply.
@@ -94,7 +94,7 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
 ```
 telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
 telegramOutgoingWebhook=https://www.example.com:8443/telegram
-telegramOutgoingToken=a-long-random-password
+telegramSecretToken=a-long-random-password
 ```
 
 ## Preloading charts

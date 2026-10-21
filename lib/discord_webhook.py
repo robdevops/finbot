@@ -1,6 +1,8 @@
 """Discord's interactions endpoint, its HTTP mode (discordOutgoingWebhook set): Discord posts each interaction to
 finbot's URL, signed with the app's Ed25519 key, for the reader (discord_common.READER), and takes the answer as the
 HTTP response."""
+import re
+
 from lib import config
 from lib import discord_common
 from lib import inbound
@@ -12,6 +14,11 @@ class DiscordInteractions(inbound.Webhook):
 	URL = 'discordOutgoingWebhook'
 	REFUSED = inbound.UNAUTHORIZED # Discord checks that a bad signature gets a 401, and drops a URL answering otherwise
 	SECRET_FIELDS = ('token',) # the interaction's token, with which anyone can answer it for 15 minutes
+	MISSING = "discordPublicKey (the app's, 64 hex digits)"
+
+	def secured(self):
+		"""Whether discordPublicKey is a public key: 64 hex digits."""
+		return re.fullmatch(r'[0-9a-fA-F]{64}', config.env.discordPublicKey.strip()) is not None
 
 	def refuse(self, environ, body, update):
 		"""The request must carry Discord's signature of its timestamp and body under discordPublicKey, checked with
