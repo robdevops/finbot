@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Lint finbot's two config files with the rules the bot applies, without starting it.
 
-  util/check_config.py /opt/finbot.env [/var/lib/finbot/settings.conf]
+  util/check_config.py /etc/finbot.env [/var/lib/finbot/settings.conf]
 
 finbot.env (the startup file) is never read by the bot, so this is the only place its
 typos are caught: an unknown key, a setting key in it, a malformed line or a bad value.

@@ -11,7 +11,7 @@ ExecStart=/opt/finbot/bot.py
 # systemctl reload finbot re-reads settings.conf without a restart
 ExecReload=/bin/kill -HUP $MAINPID
 # Refuse to start on a typo in finbot.env or settings.conf ("+" runs the check as root)
-ExecStartPre=+/opt/finbot/util/check_config.py /opt/finbot.env
+ExecStartPre=+/opt/finbot/util/check_config.py /etc/finbot.env
 Restart=on-failure
 RestartSec=30s
 StandardOutput=null
@@ -19,7 +19,7 @@ StandardError=journal
 SyslogIdentifier=finbot
 Environment=PYTHONUNBUFFERED=1
 # finbot.env: loaded by systemd as root (600 root:root); a change needs a restart
-EnvironmentFile=/opt/finbot.env
+EnvironmentFile=/etc/finbot.env
 
 [Install]
 WantedBy=multi-user.target

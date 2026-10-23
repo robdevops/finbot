@@ -24,7 +24,7 @@ Run finbot with Docker or with Python.
 On a Linux host with Docker:
 1. `git clone https://github.com/robdevops/finbot /opt/finbot`
 2. `sudo /opt/finbot/util/docker_setup.sh`
-3. Set the keys of each network you use in `/opt/finbot.env` (below)
+3. Set the keys of each network you use in `/etc/finbot.env` (below)
 4. `cd /opt/finbot && sudo docker compose up -d --build`
 5. `journalctl CONTAINER_NAME=finbot -f`
 

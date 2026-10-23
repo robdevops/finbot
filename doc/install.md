@@ -35,10 +35,10 @@ systemd, as below. To run it in a container instead, see [docker.md](docker.md).
    ```
 3. The startup file, from its template; then set each network's keys from its guide, and Sharesight's:
    ```
-   sudo cp /opt/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo chown root:root /opt/finbot.env
-   sudoedit /opt/finbot.env
+   sudo cp /opt/finbot/defaults/finbot.env /etc/finbot.env && sudo chmod 600 /etc/finbot.env && sudo chown root:root /etc/finbot.env
+   sudoedit /etc/finbot.env
    ```
-4. Check it: `/opt/finbot/util/check_config.py /opt/finbot.env` (it also warns if the file is not `600 root:root`)
+4. Check it: `/opt/finbot/util/check_config.py /etc/finbot.env` (it also warns if the file is not `600 root:root`)
 5. Run it under systemd ([below](#daemonize-systemd)). The first start makes the data directory, `/var/lib/finbot`
    (systemd keeps it in `/var/lib/private/finbot`, where `/var/lib/finbot` points); each chat then has the default
    scheduled jobs, which `/jobs` changes ([scheduling.md](scheduling.md)).
@@ -48,7 +48,7 @@ systemd, as below. To run it in a container instead, see [docker.md](docker.md).
    ```
    sudo /opt/finbot/util/sync_defaults.py --apply
    sudoedit /var/lib/finbot/settings.conf
-   sudo /opt/finbot/util/check_config.py /opt/finbot.env
+   sudo /opt/finbot/util/check_config.py /etc/finbot.env
    sudo systemctl reload finbot
    ```
    The files are root-owned and readable, so the service reads them; systemd gives the directory to the service's user
@@ -80,8 +80,9 @@ Under systemd (below), with the checkout in `/opt/finbot` and its venv made ther
 
 ## Daemonize (systemd)
 `finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. It expects the
-checkout in `/opt/finbot` and the startup file at `/opt/finbot.env` (see [`finbot.env`](configuration.md#finbotenv)),
-as above, and needs no editing then. Copy it to `/etc/systemd/system/`, then enable and start it.
+checkout in `/opt/finbot` and the startup file at `/etc/finbot.env` (see [`finbot.env`](configuration.md#finbotenv)),
+as above, and needs no editing then (an earlier version kept the startup file at `/opt/finbot.env`: move it with
+`sudo mv /opt/finbot.env /etc/finbot.env`). Copy the unit to `/etc/systemd/system/`, then enable and start it.
 `systemctl reload finbot` re-reads `settings.conf` without a restart; a change to `finbot.env` needs
 `systemctl restart finbot`:
 ```

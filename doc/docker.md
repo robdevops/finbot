@@ -2,13 +2,13 @@
 
 finbot runs in a container as it runs on a Debian host: the image is `debian:trixie-slim` with Debian's own `python3-*`
 packages, every optional library included, so it runs every network in either mode. The image holds only the code.
-The configuration lives on the host, beside the checkout, so a rebuild or an update never touches it.
+The configuration lives on the host, outside the image (the startup file in `/etc`, the data beside the checkout), so a rebuild or an update never touches it.
 
 ## Quick start
 
 1. `git clone https://github.com/robdevops/finbot /opt/finbot`
 2. `sudo /opt/finbot/util/docker_setup.sh`
-3. Set `telegramBotToken` in `/opt/finbot.env` (or another network's keys: see the [Telegram](telegram.md),
+3. Set `telegramBotToken` in `/etc/finbot.env` (or another network's keys: see the [Telegram](telegram.md),
    [Slack](slack.md) and [Discord](discord.md) guides).
 4. `cd /opt/finbot && sudo docker compose up -d --build`
 5. `journalctl CONTAINER_NAME=finbot -f`
@@ -18,12 +18,13 @@ The configuration lives on the host, beside the checkout, so a rebuild or an upd
 | Path | What | In the container |
 |---|---|---|
 | `/opt/finbot` | the checkout, with `Dockerfile` and `compose.yaml` | the image's `/opt/finbot`, copied at build |
-| `/opt/finbot.env` | the startup file: the tokens, and the mode of each network | the environment, and `/run/finbot.env`, read-only, for the check |
+| `/etc/finbot.env` | the startup file: the tokens, and the mode of each network | the environment, and `/run/finbot.env`, read-only, for the check |
 | `/opt/finbot-data` | `DATA_DIR`: `settings.conf`, each chat's jobs and watchlist, the records, the cache | `/data` |
 
-`compose.yaml` finds the other two beside the checkout (`../finbot.env`, `../finbot-data`): clone it elsewhere and
-they move with it. The startup file stays out of the image because it holds the secrets, and the data dir because it
-must outlast every container.
+`compose.yaml` reads the startup file at `/etc/finbot.env` and finds the data dir beside the checkout
+(`../finbot-data`): clone it elsewhere and the data dir moves with it. The startup file stays out of the image because
+it holds the secrets, and the data dir because it must outlast every container. Moving from an earlier version, where
+the startup file was `/opt/finbot.env`: `sudo mv /opt/finbot.env /etc/finbot.env`.
 
 ## What `util/docker_setup.sh` does
 
@@ -32,15 +33,15 @@ Run it once, as root; it is safe to run again. It:
    the shipped defaults into it: `settings.conf` and the data files. It never replaces a file you
    have changed. The script needs only the standard library, so any `python3` on the host runs it.
 2. gives the data dir to the container's user: `chown -R 10001:10001 /opt/finbot-data`.
-3. copies `defaults/finbot.env` to `/opt/finbot.env` if there is none, owned by `root:10001`, mode 640: root and the
+3. copies `defaults/finbot.env` to `/etc/finbot.env` if there is none, owned by `root:10001`, mode 640: root and the
    container can read it, nobody else.
 
 By hand, that is:
 ```
 sudo python3 /opt/finbot/util/sync_defaults.py --create --apply --dest /opt/finbot-data
 sudo chown -R 10001:10001 /opt/finbot-data
-sudo cp /opt/finbot/defaults/finbot.env /opt/finbot.env
-sudo chown root:10001 /opt/finbot.env && sudo chmod 640 /opt/finbot.env
+sudo cp /opt/finbot/defaults/finbot.env /etc/finbot.env
+sudo chown root:10001 /etc/finbot.env && sudo chmod 640 /etc/finbot.env
 ```
 
 The startup file is `KEY=value` lines, as for systemd; write the values without quotes.
@@ -76,7 +77,7 @@ sudo docker compose kill -s USR1 finbot    # flush the cache, and fill it again
 sudo docker compose exec finbot util/flush.py --after 24h    # flush the files of the last day (see caching.md)
 cd /opt/finbot && sudo git pull && sudo GIT_COMMIT=$(git rev-parse HEAD) docker compose up -d --build
 ```
-A change to `/opt/finbot.env` needs a restart: `sudo docker compose up -d`.
+A change to `/etc/finbot.env` needs a restart: `sudo docker compose up -d`.
 
 ## Push mode
 
@@ -113,12 +114,12 @@ sudo systemctl disable --now finbot
 sudo cp -a /var/lib/finbot/. /opt/finbot-data/    # or /opt/finbot/var/. for the default DATA_DIR
 sudo chown -R 10001:10001 /opt/finbot-data
 ```
-then `util/docker_setup.sh` (it keeps your files) and start as above. The startup file can stay at `/opt/finbot.env`.
+then `util/docker_setup.sh` (it keeps your files) and start as above. The startup file is `/etc/finbot.env` (move it from `/opt/finbot.env` if that is where it was).
 
 ## Troubleshooting
 
 * **The container stops at once and keeps restarting:** the log says why. `ERROR config: ... unknown key ...` is a
-  mistake in `/opt/finbot.env` or `settings.conf`; fix it and `sudo docker compose up -d`.
+  mistake in `/etc/finbot.env` or `settings.conf`; fix it and `sudo docker compose up -d`.
 * **`PermissionError` on `/data`:** the data dir is not the container user's: `sudo chown -R 10001:10001
   /opt/finbot-data`.
 * **`/data does not exist: --create makes it`:** the data dir is not mounted: `compose.yaml` mounts

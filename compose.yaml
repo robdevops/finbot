@@ -1,6 +1,6 @@
-# finbot with Docker Compose (doc/docker.md). The configuration lives beside the checkout, outside the image and the
-# container: ../finbot.env, the startup file, and ../finbot-data, DATA_DIR (settings.conf, state and cache), both
-# made by util/docker_setup.sh. Build and start: docker compose up -d --build
+# finbot with Docker Compose (doc/docker.md). The configuration lives outside the image and the container:
+# /etc/finbot.env, the startup file, and ../finbot-data beside the checkout, DATA_DIR (settings.conf, state and cache),
+# both made by util/docker_setup.sh. Build and start: docker compose up -d --build
 services:
   finbot:
     build:
@@ -10,13 +10,13 @@ services:
     image: finbot
     container_name: finbot
     restart: unless-stopped
-    env_file: ../finbot.env
+    env_file: /etc/finbot.env
     environment:
       DATA_DIR: /data
       ip: 0.0.0.0 # push mode listens inside the container: publish its port below
     volumes:
       - ../finbot-data:/data
-      - ../finbot.env:/run/finbot.env:ro # checked before the bot starts
+      - /etc/finbot.env:/run/finbot.env:ro # checked before the bot starts
     # ports: # push mode only, on the host's loopback, behind your reverse proxy
     #   - 127.0.0.1:5000:5000
     logging:

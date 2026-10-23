@@ -1,14 +1,14 @@
 #!/bin/sh
 # The host side of finbot's Docker install, set up once, as root; safe to run again (doc/docker.md). Beside the
-# checkout, where compose.yaml looks for them: ../finbot-data (DATA_DIR) made, the defaults copied in, owned by the
-# container's user (10001); and ../finbot.env from the template if there is none, readable by root and the container's
-# group only. Cloned to /opt/finbot, they are /opt/finbot-data and /opt/finbot.env.
+# checkout, where compose.yaml looks for it: ../finbot-data (DATA_DIR) made, the defaults copied in, owned by the
+# container's user (10001), so /opt/finbot-data for a checkout in /opt/finbot; and /etc/finbot.env, the startup file,
+# from the template if there is none, readable by root and the container's group only.
 set -eu
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
 parent=$(dirname "$repo")
 data="$parent/finbot-data"
-startup="$parent/finbot.env"
+startup=/etc/finbot.env
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "docker_setup: run it as root: sudo $0" >&2

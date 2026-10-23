@@ -4,14 +4,14 @@ Configuration is split into two files -- finbot.env for startup environment vari
 
 Copy the shipped template:
 ```
-sudo cp /opt/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo chown root:root /opt/finbot.env
+sudo cp /opt/finbot/defaults/finbot.env /etc/finbot.env && sudo chmod 600 /etc/finbot.env && sudo chown root:root /etc/finbot.env
 ```
 
 ## `finbot.env`
 **Load `finbot.env` with your launcher:**
-* **systemd:** `EnvironmentFile=/opt/finbot.env` in `finbot.service`, plus `ExecStartPre=+.../util/check_config.py /opt/finbot.env` for pre-flight lint.
+* **systemd:** `EnvironmentFile=/etc/finbot.env` in `finbot.service`, plus `ExecStartPre=+.../util/check_config.py /etc/finbot.env` for pre-flight lint.
 * **Docker:** `compose.yaml` loads it, and checks it before the bot starts (see [docker.md](docker.md)). Write the values without quotes.
-* **init.d / shell:** `util/check_config.py /opt/finbot.env && set -a && . /opt/finbot.env && set +a && ./bot.py` (`set -a` is what exports the values to the bot).
+* **init.d / shell:** `util/check_config.py /etc/finbot.env && set -a && . /etc/finbot.env && set +a && ./bot.py` (`set -a` is what exports the values to the bot).
 * **Scheduled jobs:** they are run by `bot.py` (see [Scheduling](scheduling.md)), so they run on the same settings. For a one-off run, send `/jobs run` in the chat.
 
 The startup keys, read by your launcher. A change needs a restart. Blank means unset. Each network's guide says which
@@ -86,7 +86,7 @@ The administrators of the chat a person is in are admins there with no setting: 
 
 A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied. A key finbot no longer reads (`alliterate`, `chunk_maxlines`) is ignored, and the log at start says to delete it.
 
-edit `settings.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `sudo util/check_config.py /opt/finbot.env` (under systemd it reads the service's `settings.conf`). Edit `finbot.env`, then restart: a running bot cannot see it change.
+edit `settings.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `sudo util/check_config.py /etc/finbot.env` (under systemd it reads the service's `settings.conf`). Edit `finbot.env`, then restart: a running bot cannot see it change.
 
 **Upgrading from a version before 16 Oct 2026?** Start commit `ff52f2b` once first, as [Scheduling](scheduling.md#from-an-earlier-version) says: it splits one old `.env` (`util/split_env.py`, which it asks for) and renames `preferences.conf` to `settings.conf`, which later versions no longer do.
 
