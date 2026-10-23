@@ -2,14 +2,14 @@
 
 finbot runs in a container as it runs on a Debian host: the image is `debian:trixie-slim` with Debian's own `python3-*`
 packages, every optional library included, so it runs every network in either mode. The image holds only the code.
-The configuration lives on the host, outside the image (the startup file in `/etc`, the data beside the checkout), so a rebuild or an update never touches it.
+The configuration lives on the host, outside the image (the startup file in `/etc`, the data beside the Git checkout), so a rebuild or an update never touches it.
 
 ## Quick start
 
 1. `git clone https://github.com/robdevops/finbot /opt/finbot`
 2. `sudo /opt/finbot/util/docker_setup.sh`
-3. Set `telegramBotToken` in `/etc/finbot.env` (or another network's keys: see the [Telegram](telegram.md),
-   [Slack](slack.md) and [Discord](discord.md) guides).
+3. Set your chatbot's API key in `/etc/finbot.env` (`telegramBotToken` for Telegram; see the
+   [Telegram](telegram.md), [Slack](slack.md) and [Discord](discord.md) guides).
 4. `cd /opt/finbot && sudo docker compose up -d --build`
 5. `journalctl CONTAINER_NAME=finbot -f`
 
@@ -17,14 +17,13 @@ The configuration lives on the host, outside the image (the startup file in `/et
 
 | Path | What | In the container |
 |---|---|---|
-| `/opt/finbot` | the checkout, with `Dockerfile` and `compose.yaml` | the image's `/opt/finbot`, copied at build |
+| `/opt/finbot` | the Git checkout, with `Dockerfile` and `compose.yaml` | the image's `/opt/finbot`, copied at build |
 | `/etc/finbot.env` | the startup file: the tokens, and the mode of each network | the environment, and `/run/finbot.env`, read-only, for the check |
 | `/opt/finbot-data` | `DATA_DIR`: `settings.conf`, each chat's jobs and watchlist, the records, the cache | `/data` |
 
-`compose.yaml` reads the startup file at `/etc/finbot.env` and finds the data dir beside the checkout
+`compose.yaml` reads the startup file at `/etc/finbot.env` and finds the data dir beside the Git checkout
 (`../finbot-data`): clone it elsewhere and the data dir moves with it. The startup file stays out of the image because
-it holds the secrets, and the data dir because it must outlast every container. Moving from an earlier version, where
-the startup file was `/opt/finbot.env`: `sudo mv /opt/finbot.env /etc/finbot.env`.
+it holds the secrets, and the data dir because it must outlast every container..
 
 ## What `util/docker_setup.sh` does
 
@@ -114,7 +113,7 @@ sudo systemctl disable --now finbot
 sudo cp -a /var/lib/finbot/. /opt/finbot-data/    # or /opt/finbot/var/. for the default DATA_DIR
 sudo chown -R 10001:10001 /opt/finbot-data
 ```
-then `util/docker_setup.sh` (it keeps your files) and start as above. The startup file is `/etc/finbot.env` (move it from `/opt/finbot.env` if that is where it was).
+then `util/docker_setup.sh` (it keeps your files) and start as above.
 
 ## Troubleshooting
 

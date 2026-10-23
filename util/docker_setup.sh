@@ -28,7 +28,7 @@ chmod 640 "$startup"
 cat <<NEXT
 
 Next:
-  1. Set telegramBotToken and telegramChatID (or another network's keys) in $startup
+  1. Set your chatbot's API key in $startup (telegramBotToken for Telegram; see doc/)
   2. cd $repo && sudo docker compose up -d --build
   3. journalctl CONTAINER_NAME=finbot -f
 NEXT

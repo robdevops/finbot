@@ -95,7 +95,7 @@ All state and cache lives in one data directory: `DATA_DIR` if set, else systemd
 Reference data (`finbot_adr.json`, `finbot_sws_*.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
 ```
 util/sync_defaults.py          # dry run
-util/sync_defaults.py --apply  # copy missing files (including a starter settings.conf)
+util/sync_defaults.py --apply  # copy missing files (including the settings.conf template)
 util/sync_defaults.py --force  # also replace changed files, keeping .bak copies
 util/sync_defaults.py --dest /srv/finbot --apply  # target another directory instead of the data directory
 util/sync_defaults.py --dest /srv/finbot --create --apply  # and make it (mode 750) if it does not exist yet

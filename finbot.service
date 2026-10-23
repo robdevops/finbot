@@ -4,7 +4,8 @@ Description=Finbot interactive chat bot
 [Service]
 Type=simple
 # No user to make: systemd runs finbot as a throwaway user, and gives it /var/lib/finbot for its state
-# (StateDirectory=). The checkout is in /opt/finbot, which that user can read. Optional: finbot.service.d/hardening.conf
+# (StateDirectory=). The Git checkout is in /opt/finbot, which that user can read.
+# Optional hardening: finbot.service.d/hardening.conf
 DynamicUser=yes
 StateDirectory=finbot
 ExecStart=/opt/finbot/bot.py
