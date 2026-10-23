@@ -359,12 +359,12 @@ class ReportChartInputs(FinbotCase):
 		self.assertIsNone(canvas.fitted('Packaged Software', 8, 5, bold=True))
 
 	def test_movers_top_lists_best_first_then_worst(self):
-		""".movers top: the ten best, best first, a spacer, then the ten worst, worst first, as in the caption."""
+		""".movers top: the ten best, best first, a spacer, then the ten worst, the worst last."""
 		chart = self.run_report(lambda: self.command('.movers top 7d'))
 		values = [v for _, v in chart.rows if v is not None]
 		top, bottom = values[:10], values[10:]
 		self.assertEqual(top, sorted(top, reverse=True))
-		self.assertEqual(bottom, sorted(bottom)) # the worst performer comes first, like the caption's second list
+		self.assertEqual(bottom, sorted(bottom, reverse=True)) # the worst performer is last
 		self.assertGreater(min(top), max(bottom))
 		self.assertIn(None, [v for _, v in chart.rows]) # spacer between the two lists
 

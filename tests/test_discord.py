@@ -463,7 +463,7 @@ class Suggestions(FinbotCase):
 		self.assertEqual(self.values('/jobs disable '), ['disable 1', 'disable 3'])
 		self.assertEqual(self.values('/jobs run ', chat='discord:88'), [])
 		reports = worker.suggest('discord:77', '/jobs add ')
-		self.assertIn(('add movers midsession|interday|premarket|close|DAYS', 'add movers'), reports)
+		self.assertIn(('add movers midsession|interday|premarket|close|PERIOD', 'add movers'), reports)
 		self.assertIn(('add message "TEXT"', 'add message'), reports)
 		self.assertFalse(any(name in value for _, value in reports for name in jobs.SYSTEM_ACTIONS))
 		self.assertEqual(self.values('/jobs add movers m'), ['add movers midsession', 'add movers monthly'])

@@ -263,7 +263,7 @@ class CommandArguments(FinbotCase):
 				('.watchlist Remove x', 'delete')):
 			with self.subTest(message=message):
 				self.assertEqual(self.args(message)[1].keyword, keyword)
-		self.assertIn('Top 10 performers', str(self.command('.movers TOP 7d')))
+		self.assertIn('Top 10 movers', str(self.command('.movers TOP 7d')))
 
 	def test_a_bare_number_on_movers_is_a_percent(self):
 		"""As on .session, .premarket and .shorts, and as doc/commands.md has it; a period carries its unit."""

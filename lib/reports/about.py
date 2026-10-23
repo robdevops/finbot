@@ -38,6 +38,7 @@ END = 'e' # a repeat's end where it runs to the end of the day
 # the default of each choice, marked † on its button; a one-off's are today's year and month, and tomorrow
 USUAL = {'frequency': 'd', 'weekday': '5', 'day': '1', 'month': '1', 'hour': '9', 'minute': '0', 'interval': WEEKDAY,
 	'repeat': 'd', 'start hour': '0', 'start minute': '0', 'end': END}
+PERIODS = ('1d', '7d', '1w', '1m', '3m', '1y') # what Add offers a movers or performance job's period
 MORE = 'p1' # Add's data for the second page of the days of a month
 TYPED = 'v' # starts Add's data for a report's argument typed with it (.jobs add performance 3m)
 INTERVALS = (5, 10, 15, 20, 30, 120, 180, 240, 360, 720) # minutes between a repeat's runs, as every... offers them
@@ -289,6 +290,8 @@ def add_screen(service, chat, steps):
 		return [service.bold(f'Add {label}'), f'What {label} is about is typed:',
 			f'.jobs add {action} {command.ARGUMENTS} SCHEDULE', '', service.bold('For example:'),
 			f'.jobs add {action} {example(command.command)} weekly'], [[back, cancel]]
+	if len(core) == 1 and not typed and args is None and action in ('movers', 'performance'):
+		return choices(f'Add {label}: which period?', [(period, TYPED + period) for period in PERIODS], 3)
 	if len(core) == 1:
 		return choices(f'Add {label}: how often?', [(name, code) for code, name in FREQUENCIES], 3,
 			usual=USUAL['frequency'])

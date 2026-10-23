@@ -21,7 +21,7 @@ never run, its name and its schedule in words. Under the list, in italics, is ho
 /jobs add reminder SCHEDULE "TEXT"
 ```
 Under it is one row of buttons, each there only where it has something to act on (**+** always; **Edit** and **Run...** with any job, **Upcoming** with one that is on). Each screen is drawn in place of the last:
-* **+**: what the job runs, how often, then the rest down to the minute ([below](#add-step-by-step)).
+* **+**: what the job runs (for `movers` and `performance`, then its period: 1d, 7d, 1w, 1m, 3m or 1y), how often, then the rest down to the minute ([below](#add-step-by-step)).
 * **Edit**: the list with a button per job, the default ones too; a press selects the job (its button turns red, on Telegram, Slack and Discord alike) or takes it out of the selection again. It starts with the jobs that are off selected, and nothing changes until **OK**, which switches the selected jobs off and the rest on. **OK** shows only where the selection differs from the jobs as they are, and **Delete** only while any job is selected; **Delete** asks first ("Delete the 3 selected jobs?"), then deletes them. **Select all** selects every job, and reads **Select none** once all are selected. **Cancel** goes back to the list, whatever was selected. A default job that is deleted comes back when the same job is added again.
 * **Run...**: a button per job; a press runs it now, as its schedule would. What the job posts shows it ran; a
   message says so only when it failed, or was running already. The same button pressed again within a minute does
@@ -94,7 +94,7 @@ A job is a report and what it takes, then when it runs:
     4:30pm New York (7:30am local, Tue–Sat)`. A zone that keeps another clock is named in every season: a Brisbane job
     seen from Melbourne reads `weekdays at 9:00am Brisbane` in winter, when both clocks agree.
 
-The reports are `trades`, `movers midsession|interday|premarket|close|DAYS`, `earnings`,
+The reports are `trades`, `movers midsession|interday|premarket|close|PERIOD`, `earnings`,
 `performance [PERIOD]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `reminder "TEXT"` (`message` works too). A job a chat added
 as `price` before the movers report took its name runs as `movers`; `price` in a job added now is the line chart.
 
