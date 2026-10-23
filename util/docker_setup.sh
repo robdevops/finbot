@@ -25,10 +25,17 @@ fi
 chown root:10001 "$startup"
 chmod 640 "$startup"
 
+# the host's journal takes the log where journald runs, so that it outlasts a rebuild; Docker's own `local` driver
+# (compose.yaml's default) elsewhere. Never replaces a .env that is there already
+if [ -S /run/systemd/journal/socket ] && [ ! -e "$repo/.env" ]; then
+	echo "FINBOT_LOG_DRIVER=journald" > "$repo/.env"
+	echo "docker_setup: the log goes to the journal ($repo/.env)"
+fi
+
 cat <<NEXT
 
 Next:
   1. Set your chatbot's API key in $startup (telegramBotToken for Telegram; see doc/)
   2. cd $repo && sudo docker compose up -d --build
-  3. journalctl CONTAINER_NAME=finbot -f
+  3. sudo docker compose logs -f
 NEXT

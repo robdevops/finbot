@@ -11,7 +11,7 @@ The configuration lives on the host, outside the image (the startup env in `/etc
 3. Set your chatbot's API key in `/etc/finbot.env` (`telegramBotToken` for Telegram; see the
    [Telegram](telegram.md), [Slack](slack.md) and [Discord](discord.md) guides).
 4. `cd /opt/finbot && sudo docker compose up -d --build`
-5. `journalctl CONTAINER_NAME=finbot -f`
+5. `sudo docker compose logs -f`
 
 ## The layout on the host
 
@@ -61,12 +61,20 @@ Each start of the container, in order:
 
 ## Logs
 
-The log goes to the host's journal:
+```
+sudo docker compose logs -f
+```
+
+Where journald runs, `util/docker_setup.sh` sends the log to the host's journal, which keeps it when you rebuild. Read
+it there too:
 ```
 journalctl CONTAINER_NAME=finbot -f
 ```
-On a host without journald, set `FINBOT_LOG_DRIVER=json-file` (in the environment of `docker compose`, or in a `.env`
-file beside `compose.yaml`), and read it with `sudo docker compose logs -f`.
+
+Elsewhere, Docker keeps the log itself (its `local` driver, which rotates it), and `docker compose logs` is the way to
+read it. That log is lost when the container is rebuilt.
+
+To choose, set `FINBOT_LOG_DRIVER` (`journald`, `local` or `json-file`) in a `.env` file beside `compose.yaml`.
 
 ## Reload, flush, update
 
@@ -123,4 +131,5 @@ then `util/docker_setup.sh` (it keeps your files) and start as above.
   /opt/finbot-data`.
 * **`/data does not exist: --create makes it`:** the data dir is not mounted: `compose.yaml` mounts
   `../finbot-data`; run `util/docker_setup.sh` to make it.
-* **No log in the journal:** the host has no journald; use `FINBOT_LOG_DRIVER=json-file` (see [Logs](#logs)).
+* **No log in `journalctl`:** the container is not using journald; read it with `sudo docker compose logs -f` (see
+  [Logs](#logs)).

@@ -26,7 +26,7 @@ On a Linux host with Docker:
 2. `sudo /opt/finbot/util/docker_setup.sh`
 3. Set the keys of each network you use in `/etc/finbot.env` (below)
 4. `cd /opt/finbot && sudo docker compose up -d --build`
-5. `journalctl CONTAINER_NAME=finbot -f`
+5. `sudo docker compose logs -f`
 
 ### With Python
 On Linux, macOS or WSL, with Python 3.12 or later:
