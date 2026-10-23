@@ -18,7 +18,7 @@ To run it in a container instead, see [docker.md](docker.md).
 * By default, finbot fetches its updates from your chatbot itself (pull mode). It only makes outgoing connections, so
   nothing has to listen on the internet.
 
-  Push mode is the alternative: your chatbot posts its updates to an HTTPS server you run. Each guide covers it.
+  Push mode is the alternative: your chatbot posts its updates to an HTTPS server you run.
 
 * One more library for the way you receive updates:
 
