@@ -4,7 +4,7 @@ Configuration is split into two files -- finbot.env for startup environment vari
 
 Copy the shipped template:
 ```
-sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo chown root:root /opt/finbot.env
+sudo cp /opt/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo chown root:root /opt/finbot.env
 ```
 
 ## `finbot.env`

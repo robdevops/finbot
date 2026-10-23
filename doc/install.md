@@ -29,18 +29,18 @@ systemd, as below. To run it in a container instead, see [docker.md](docker.md).
    sudo apt install python3-websocket    # Slack's Socket Mode, Discord's gateway API
    sudo apt install python3-nacl         # Discord's push mode
    ```
-2. The code:
+2. The code, in `/opt/finbot` (not under `/home`: the service unit hides it):
    ```
-   git clone https://github.com/robdevops/finbot.git ~/finbot
+   sudo git clone https://github.com/robdevops/finbot.git /opt/finbot
    ```
 3. The startup file, from its template; then set each network's keys from its guide, and Sharesight's:
    ```
-   sudo cp ~/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo chown root:root /opt/finbot.env
+   sudo cp /opt/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo chown root:root /opt/finbot.env
    sudoedit /opt/finbot.env
    ```
-4. Check it: `~/finbot/util/check_config.py /opt/finbot.env` (it also warns if the file is not `600 root:root`)
-5. Run it under systemd, below. The first start makes the data directory (`var/` in the checkout, or
-   `/var/lib/finbot` with `DynamicUser=`); each chat then has the default scheduled jobs, which `/jobs` changes
+4. Check it: `/opt/finbot/util/check_config.py /opt/finbot.env` (it also warns if the file is not `600 root:root`)
+5. Run it under systemd, below. The first start makes the data directory (`/var/lib/finbot` under the unit's
+   `StateDirectory=`; `var/` in the checkout when run another way); each chat then has the default scheduled jobs, which `/jobs` changes
    ([scheduling.md](scheduling.md)).
 
 [configuration.md](configuration.md) has every key and setting.
@@ -64,21 +64,25 @@ environment:
 .venv/bin/python util/check_config.py ~/finbot.env
 (set -a && . ~/finbot.env && exec .venv/bin/python bot.py)
 ```
-Under systemd (below), `ExecStart=` runs the venv's Python: `/home/<you>/finbot/.venv/bin/python
-/home/<you>/finbot/bot.py`.
+Under systemd (below), with the checkout in `/opt/finbot` and its venv made there, `ExecStart=` runs the venv's Python:
+`/opt/finbot/.venv/bin/python /opt/finbot/bot.py`.
 
 ## Daemonize (systemd)
-`finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. Copy
-`finbot.service` to `/etc/systemd/system/`, edit it to set the `User`, `ExecStart` and the path of
-[`finbot.env`](configuration.md#finbotenv) (`EnvironmentFile=`, and the `ExecStartPre=` check), then enable and start
-it. `systemctl reload finbot` re-reads `settings.conf` without a restart; a change to `finbot.env` needs
+`finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. It expects the
+checkout in `/opt/finbot` and the startup file at `/opt/finbot.env` (see [`finbot.env`](configuration.md#finbotenv)),
+as above, and needs no editing then. Copy it to `/etc/systemd/system/`, then enable and start it.
+`systemctl reload finbot` re-reads `settings.conf` without a restart; a change to `finbot.env` needs
 `systemctl restart finbot`:
 ```
-sudo cp -v ~/finbot/finbot.service /etc/systemd/system/
-sudo sed -i 's/CHANGEME/YOUR LINUX USERNAME/' /etc/systemd/system/finbot.service
+sudo cp -v /opt/finbot/finbot.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable finbot --now
 ```
+The unit runs finbot as a throwaway user (`DynamicUser=yes`) with its state in `/var/lib/finbot`, inside a sandbox: a
+read-only filesystem but for that directory, no access to `/home`, `/boot`, `/media` or `/mnt`, no privileges, no
+executable writable memory, and only the ordinary system calls and network families. Hence the checkout must not be
+under `/home`. `systemd-analyze security finbot` scores it. `MemoryMax` and `TasksMax` are starting values: after a few
+days, read `systemctl show finbot -p MemoryPeak -p TasksCurrent` and adjust them.
 The bot's log:
 ```
 journalctl -fu finbot
