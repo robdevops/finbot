@@ -51,7 +51,7 @@ To run it in a container instead, see [docker.md](docker.md).
    sudo git clone https://github.com/robdevops/finbot.git /opt/finbot
    ```
 
-3. Make the startup env from its template:
+3. Make the startup env file from its template:
 
    ```
    sudo cp /opt/finbot/defaults/finbot.env /etc/finbot.env && sudo chmod 600 /etc/finbot.env && sudo chown root:root /etc/finbot.env
@@ -96,7 +96,7 @@ sudo python3 -m venv .venv
 sudo .venv/bin/pip install -r requirements.txt -r requirements-optional.txt
 ```
 
-Make the startup env as in step 3 above, then check it:
+Make the startup env file as in step 3 above, then check it:
 
 ```
 sudo /opt/finbot/.venv/bin/python /opt/finbot/util/check_config.py /etc/finbot.env
@@ -114,7 +114,7 @@ For a service, use systemd, below.
 
 `finbot.service` runs finbot as a systemd service: it starts on boot, and restarts after a failure.
 
-It expects the Git checkout in `/opt/finbot` and the startup env at `/etc/finbot.env`, as above.
+It expects the Git checkout in `/opt/finbot` and the startup env file at `/etc/finbot.env`, as above.
 
 ```
 sudo cp -v /opt/finbot/finbot.service /etc/systemd/system/
