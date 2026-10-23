@@ -30,7 +30,7 @@ To run it in a container instead, see [docker.md](docker.md).
 
 ## Debian
 
-1. Install the packages, and those for the way you receive updates:
+1. Install the core dependencies, plus those for one or more chat methods:
 
    ```
    sudo apt install git python3 python3-requests python3-pil fonts-dejavu-core
