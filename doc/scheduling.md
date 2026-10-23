@@ -93,7 +93,7 @@ A job is a report and what it takes, then when it runs:
     seen from Melbourne reads `weekdays at 9:00am Brisbane` in winter, when both clocks agree.
 
 The reports are `trades`, `movers midsession|interday|premarket|close|DAYS`, `earnings`,
-`performance [DAYS]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `reminder "TEXT"` (`message` works too). A job a chat added
+`performance [PERIOD]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `reminder "TEXT"` (`message` works too). A job a chat added
 as `price` before the movers report took its name runs as `movers`; `price` in a job added now is the line chart.
 
 A job can also run a command of `/help`, with what it takes, and posts what the command posts when typed in the chat:

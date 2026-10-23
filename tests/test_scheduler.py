@@ -658,7 +658,7 @@ class JobsInChat(ChatBase):
 		and examples."""
 		lines = self.say('.jobs add')
 		self.assertEqual(lines[0], '<b>What a job can run:</b>')
-		for line in ('reminder "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
+		for line in ('reminder "TEXT"', 'performance [PERIOD]', 'podcasts FEED_URL',
 				'movers midsession|interday|premarket|close|DAYS', 'trades', '.jobs add movers weekly', 'beta',
 				'ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]',
 				'price [SYMBOL ... up to 8] [period]', '.jobs add ratio peg bottom weekly'):

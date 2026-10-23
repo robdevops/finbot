@@ -204,7 +204,7 @@ past_days=28
 
 Job (see [Scheduling](scheduling.md)), such as `/jobs add performance weekly`:
 ```
-performance [DAYS]
+performance [PERIOD]
 ```
 
 Command:
