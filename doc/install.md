@@ -135,7 +135,7 @@ journalctl -fu finbot
 
 ### Hardening (recommended)
 
-An optional file adds a sandbox and resource limits to the unit. finbot can then only write to `/var/lib/finbot`, and
+An optional file adds a sandbox to the unit. finbot can then only write to `/var/lib/finbot`, and
 gets no privileges.
 
 ```
@@ -147,8 +147,5 @@ sudo systemctl daemon-reload && sudo systemctl restart finbot
 It needs the Git checkout outside `/home`, as in `/opt/finbot`.
 
 `systemd-analyze security finbot` scores the result: about 1.3 (OK) with the file, about 8 (exposed) without.
-
-The memory and task limits are starting values. After a few days, check
-`systemctl show finbot -p MemoryPeak -p TasksCurrent` and adjust them.
 
 If the sandbox ever gets in the way, delete the file and restart finbot.
