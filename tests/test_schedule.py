@@ -132,9 +132,9 @@ class JobArguments(unittest.TestCase):
 		self.assertEqual(performance.job(['7']), ('performance 7', {'past_days': 7}))
 		self.assertEqual(performance.job(['1w']), ('performance 1w', {'past_days': 7}))
 		self.assertEqual(performance.job(['7d'])[1], {'past_days': 7})
-		for text in ('performance 1w every saturday at 9am', 'performance 7d saturdays at 9am',
-				'performance 1w weekly on saturday at 9am'):
-			self.assertEqual(jobs.parse_add(text, 'UTC')[:2], ('performance', ['1w']), text)
+		for text, period in (('performance 1w every saturday at 9am', '1w'), ('performance 7d saturdays at 9am', '7d'),
+				('performance 1w weekly on saturday at 9am', '1w')):
+			self.assertEqual(jobs.parse_add(text, 'UTC')[:2], ('performance', [period]), text)
 		for bad, module, name in ((['x'], earnings, 'earnings'), (['x'], performance, 'performance')):
 			with self.assertRaises(ValueError):
 				jobs.job_args(module, name, bad)
