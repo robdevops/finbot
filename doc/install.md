@@ -84,12 +84,12 @@ To run it in a container instead, see [docker.md](docker.md).
 
 ## Anywhere else: a Python venv
 
-For macOS, WSL, or any setup without the Debian packages. You need git and Python 3.12 or later.
+For macOS, WSL, or any setup that does not use the Debian packages. You need git, and Python 3.12 or later with its
+`venv` module.
 
 Use the same paths as the Debian steps, so the service below works unchanged:
 
 ```
-# Debian or Ubuntu only: sudo apt install python3-venv
 sudo git clone https://github.com/robdevops/finbot.git /opt/finbot
 cd /opt/finbot
 sudo python3 -m venv .venv
