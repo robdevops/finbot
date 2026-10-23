@@ -35,14 +35,14 @@ To run it in a container instead, see [docker.md](docker.md).
    ```
    sudo apt install git python3 python3-requests python3-pil fonts-dejavu-core
 
-   # shared dependency for push modes
-   sudo apt install python3-waitress
-
-   # Slack and Discord in pull mode
+   # Slack or Discord in pull mode
    sudo apt install python3-websocket
 
+   # Telegram or Slack in push mode
+   sudo apt install python3-waitress
+
    # Discord in push mode
-   sudo apt install python3-nacl
+   sudo apt install python3-nacl python3-waitress
    ```
 
 2. Get the code, in `/opt/finbot`:
