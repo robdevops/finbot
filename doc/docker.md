@@ -2,7 +2,7 @@
 
 finbot runs in a container as it runs on a Debian host: the image is `debian:trixie-slim` with Debian's own `python3-*`
 packages, every optional library included, so it runs every network in either mode. The image holds only the code.
-The configuration lives on the host, outside the image (the startup file in `/etc`, the data beside the Git checkout), so a rebuild or an update never touches it.
+The configuration lives on the host, outside the image (the startup env in `/etc`, the data beside the Git checkout), so a rebuild or an update never touches it.
 
 ## Quick start
 
@@ -18,11 +18,11 @@ The configuration lives on the host, outside the image (the startup file in `/et
 | Path | What | In the container |
 |---|---|---|
 | `/opt/finbot` | the Git checkout, with `Dockerfile` and `compose.yaml` | the image's `/opt/finbot`, copied at build |
-| `/etc/finbot.env` | the startup file: the tokens, and the mode of each network | the environment, and `/run/finbot.env`, read-only, for the check |
+| `/etc/finbot.env` | the startup env: the tokens, and the mode of each network | the environment, and `/run/finbot.env`, read-only, for the check |
 | `/opt/finbot-data` | `DATA_DIR`: `settings.conf`, each chat's jobs and watchlist, the records, the cache | `/data` |
 
-`compose.yaml` reads the startup file at `/etc/finbot.env` and finds the data dir beside the Git checkout
-(`../finbot-data`): clone it elsewhere and the data dir moves with it. The startup file stays out of the image because
+`compose.yaml` reads the startup env at `/etc/finbot.env` and finds the data dir beside the Git checkout
+(`../finbot-data`): clone it elsewhere and the data dir moves with it. The startup env stays out of the image because
 it holds the secrets, and the data dir because it must outlast every container..
 
 ## What `util/docker_setup.sh` does
@@ -43,7 +43,7 @@ sudo cp /opt/finbot/defaults/finbot.env /etc/finbot.env
 sudo chown root:10001 /etc/finbot.env && sudo chmod 640 /etc/finbot.env
 ```
 
-The startup file is `KEY=value` lines, as for systemd; write the values without quotes.
+The startup env is `KEY=value` lines, as for systemd; write the values without quotes.
 
 ## Build and start
 
@@ -55,7 +55,7 @@ cd /opt/finbot && sudo GIT_COMMIT=$(git rev-parse HEAD) docker compose up -d --b
 
 Each start of the container, in order:
 1. `util/sync_defaults.py --apply` copies into `/data` any default it lacks, such as a data file added by an update;
-2. `util/check_config.py /run/finbot.env` checks the startup file and `settings.conf`. A mistake stops the start
+2. `util/check_config.py /run/finbot.env` checks the startup env and `settings.conf`. A mistake stops the start
    here, and the log says which key and why;
 3. the bot starts.
 

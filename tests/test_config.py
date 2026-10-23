@@ -1,4 +1,4 @@
-"""The two config files: finbot.env (the startup file, which the launcher loads) and settings.conf (reloadable)."""
+"""The two config files: finbot.env (the startup env, which the launcher loads) and settings.conf (reloadable)."""
 import ast, contextlib, dataclasses, io, os, re, shutil, subprocess, sys, types, unittest
 from pathlib import Path
 from unittest import mock

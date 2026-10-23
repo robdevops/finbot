@@ -126,19 +126,19 @@ jobs:
           wait_for 'cache: flushed'
           docker rm -f finbot
       - if: steps.changes.outputs.docs_only != 'true'
-        name: A mistake in the startup file stops the container before the bot starts
+        name: A mistake in the startup env stops the container before the bot starts
         run: |
           printf 'telegramBotTokn=x\n' > "$RUNNER_TEMP/bad.env"
           if docker run --rm --read-only --tmpfs /tmp -e DATA_DIR=/tmp \
               -v "$RUNNER_TEMP/bad.env:/run/finbot.env:ro" finbot > "$RUNNER_TEMP/out" 2>&1; then
             cat "$RUNNER_TEMP/out"
-            echo "::error::the container started with a mistake in its startup file"
+            echo "::error::the container started with a mistake in its startup env"
             exit 1
           fi
           cat "$RUNNER_TEMP/out"
           grep -q 'unknown key telegramBotTokn' "$RUNNER_TEMP/out"
           if grep -q 'finbot is running' "$RUNNER_TEMP/out"; then
-            echo "::error::the bot started with a mistake in its startup file"
+            echo "::error::the bot started with a mistake in its startup env"
             exit 1
           fi
 

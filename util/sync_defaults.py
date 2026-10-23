@@ -32,7 +32,7 @@ def sync(apply=False, force=False, dest=None, create=False):
 		if not src.is_file():
 			continue
 		if src.name == 'finbot.env':
-			# the startup file is not data: it holds credentials, lives wherever the launcher loads it from, and the bot
+			# the startup env is not data: it holds credentials, lives wherever the launcher loads it from, and the bot
 			# never reads it
 			continue
 		name = src.name

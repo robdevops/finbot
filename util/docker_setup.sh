@@ -1,7 +1,7 @@
 #!/bin/sh
 # The host side of finbot's Docker install, set up once, as root; safe to run again (doc/docker.md). Beside the
 # checkout, where compose.yaml looks for it: ../finbot-data (DATA_DIR) made, the defaults copied in, owned by the
-# container's user (10001), so /opt/finbot-data for a checkout in /opt/finbot; and /etc/finbot.env, the startup file,
+# container's user (10001), so /opt/finbot-data for a checkout in /opt/finbot; and /etc/finbot.env, the startup env,
 # from the template if there is none, readable by root and the container's group only.
 set -eu
 
