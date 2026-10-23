@@ -114,8 +114,7 @@ For a service, use systemd, below.
 
 `finbot.service` runs finbot as a systemd service: it starts on boot, and restarts after a failure.
 
-It expects the Git checkout in `/opt/finbot` and the startup env at `/etc/finbot.env`, as above. It needs no editing,
-and uses the venv in `/opt/finbot/.venv` if you made one.
+It expects the Git checkout in `/opt/finbot` and the startup env at `/etc/finbot.env`, as above.
 
 ```
 sudo cp -v /opt/finbot/finbot.service /etc/systemd/system/
