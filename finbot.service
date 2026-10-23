@@ -3,8 +3,8 @@ Description=Finbot interactive chat bot
 
 [Service]
 Type=simple
-# A throwaway user for each start; its state lives in /var/lib/finbot (StateDirectory=). The checkout is in /opt/finbot,
-# not /home: ProtectHome=yes hides /home from the service
+# No user to make: systemd runs finbot as a throwaway user, and gives it /var/lib/finbot for its state
+# (StateDirectory=). The checkout is in /opt/finbot, which that user can read. Optional: finbot.service.d/hardening.conf
 DynamicUser=yes
 StateDirectory=finbot
 ExecStart=/opt/finbot/bot.py
@@ -20,50 +20,6 @@ SyslogIdentifier=finbot
 Environment=PYTHONUNBUFFERED=1
 # finbot.env: loaded by systemd as root (600 root:root); a change needs a restart
 EnvironmentFile=/opt/finbot.env
-
-# Filesystem isolation
-ProtectSystem=strict
-ProtectHome=yes
-PrivateTmp=yes
-PrivateDevices=yes
-InaccessiblePaths=/boot /media /mnt
-UMask=0077
-
-# Privilege restrictions
-AmbientCapabilities=
-CapabilityBoundingSet=
-LockPersonality=yes
-# No JIT or other code generated at run time: finbot and its libraries need none
-MemoryDenyWriteExecute=yes
-NoNewPrivileges=yes
-RestrictRealtime=yes
-RestrictSUIDSGID=yes
-SystemCallArchitectures=native
-SystemCallErrorNumber=EPERM
-SystemCallFilter=@system-service
-
-# Kernel and system protection
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectKernelLogs=yes
-ProtectControlGroups=yes
-ProtectClock=yes
-ProtectHostname=yes
-
-# Process isolation
-PrivateUsers=yes
-ProtectProc=invisible
-RestrictNamespaces=yes
-
-# Network restrictions: HTTPS out; in push mode, finbot listens on one local port
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-
-# Resource limits: starting values; read MemoryPeak and TasksCurrent from systemctl show finbot, then tune. Tasks are
-# threads: one per message, button press, scheduled job and chart priming, and many jobs can fire in the same minute
-MemoryAccounting=yes
-MemoryHigh=300M
-MemoryMax=400M
-TasksMax=256
 
 [Install]
 WantedBy=multi-user.target

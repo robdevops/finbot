@@ -89,11 +89,24 @@ sudo cp -v /opt/finbot/finbot.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable finbot --now
 ```
-The unit runs finbot as a throwaway user (`DynamicUser=yes`) with its state in `/var/lib/finbot`, inside a sandbox: a
-read-only filesystem but for that directory, no access to `/home`, `/boot`, `/media` or `/mnt`, no privileges, no
-executable writable memory, and only the ordinary system calls and network families. Hence the checkout must not be
-under `/home`. `systemd-analyze security finbot` scores it. `MemoryMax` and `TasksMax` are starting values: after a few
-days, read `systemctl show finbot -p MemoryPeak -p TasksCurrent` and adjust them.
+The unit runs finbot as a throwaway user (`DynamicUser=yes`: there is no user to make) with its state in
+`/var/lib/finbot`.
+
+### Hardening (recommended)
+`finbot.service.d/hardening.conf` adds a sandbox and resource limits to the unit: a read-only filesystem but for
+`/var/lib/finbot`, no access to `/home`, `/boot`, `/media` or `/mnt`, no privileges, no executable writable memory, and
+only the ordinary system calls and network families, with `MemoryMax=400M` and `TasksMax=256`. Install it beside the
+unit:
+```
+sudo mkdir -p /etc/systemd/system/finbot.service.d
+sudo cp -v /opt/finbot/finbot.service.d/hardening.conf /etc/systemd/system/finbot.service.d/
+sudo systemctl daemon-reload && sudo systemctl restart finbot
+```
+It needs the checkout outside `/home` (as in `/opt/finbot`). `systemd-analyze security finbot` scores the result (about 1.3, OK, with the file; about 8, exposed, without). The
+memory and task limits are starting values: after a few days, read
+`systemctl show finbot -p MemoryPeak -p TasksCurrent` and adjust them. If the sandbox ever gets in the way, delete that
+file and restart finbot, which leaves the plain unit.
+
 The bot's log:
 ```
 journalctl -fu finbot
