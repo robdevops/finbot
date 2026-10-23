@@ -19,6 +19,8 @@ StandardOutput=null
 StandardError=journal
 SyslogIdentifier=finbot
 Environment=PYTHONUNBUFFERED=1
+# The venv in /opt/finbot/.venv, if there is one, is the python3 that bot.py finds
+Environment=PATH=/opt/finbot/.venv/bin:/usr/local/bin:/usr/bin:/bin
 # finbot.env: loaded by systemd as root (600 root:root); a change needs a restart
 EnvironmentFile=/etc/finbot.env
 

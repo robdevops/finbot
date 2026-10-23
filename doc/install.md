@@ -1,7 +1,7 @@
 # Installing on a host
 
-finbot runs wherever Python 3.12 or later does (Linux, macOS, WSL). Production runs Debian's own packages under
-systemd, as below.
+finbot runs wherever Python 3.12 or later does (Linux, macOS, WSL). It is developed and most tested on Debian with
+Debian's packaged python modules.
 
 To run it in a container instead, see [docker.md](docker.md).
 
@@ -20,11 +20,11 @@ To run it in a container instead, see [docker.md](docker.md).
 
   Push mode is the alternative: your chatbot posts its updates to an HTTPS server you run.
 
-* One more library for the way you receive updates:
+* One more library, for the way you receive updates:
 
-  * `waitress`, for push mode
-  * `websocket-client`, for Slack or Discord in pull mode
-  * `PyNaCl`, for Discord in push mode
+  * `waitress` for push mode
+  * `websocket-client` for Slack or Discord in pull mode
+  * `PyNaCl` for Discord in push mode
 
   Docker and the venv below install them all. On Debian, install the ones you need.
 
@@ -34,9 +34,15 @@ To run it in a container instead, see [docker.md](docker.md).
 
    ```
    sudo apt install git python3 python3-requests python3-pil fonts-dejavu-core
-   sudo apt install python3-waitress     # push mode
-   sudo apt install python3-websocket    # Slack or Discord in pull mode
-   sudo apt install python3-nacl         # Discord in push mode
+
+   # shared dependency for push modes
+   sudo apt install python3-waitress
+
+   # Slack and Discord in pull mode
+   sudo apt install python3-websocket
+
+   # Discord in push mode
+   sudo apt install python3-nacl
    ```
 
 2. Get the code, in `/opt/finbot`:
@@ -80,35 +86,36 @@ To run it in a container instead, see [docker.md](docker.md).
 
 For macOS, WSL, or any setup without the Debian packages. You need git and Python 3.12 or later.
 
+Use the same paths as the Debian steps, so the service below works unchanged:
+
 ```
 # Debian or Ubuntu only: sudo apt install python3-venv
-git clone https://github.com/robdevops/finbot.git ~/finbot
-cd ~/finbot
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt -r requirements-optional.txt
+sudo git clone https://github.com/robdevops/finbot.git /opt/finbot
+cd /opt/finbot
+sudo python3 -m venv .venv
+sudo .venv/bin/pip install -r requirements.txt -r requirements-optional.txt
 ```
 
-Or with [uv](https://docs.astral.sh/uv/), which also fetches the exact Python from `.python-version`:
+Make the startup file as in step 3 above, then check it:
 
 ```
-uv venv && uv pip install -r requirements.txt -r requirements-optional.txt
+sudo /opt/finbot/.venv/bin/python /opt/finbot/util/check_config.py /etc/finbot.env
 ```
 
-Make the startup file as in step 3 above (anywhere: `~/finbot.env`, say), check it, and start the bot:
+To try the bot by hand:
 
 ```
-.venv/bin/python util/check_config.py ~/finbot.env
-(set -a && . ~/finbot.env && exec .venv/bin/python bot.py)
+sudo sh -c 'set -a && . /etc/finbot.env && exec /opt/finbot/.venv/bin/python /opt/finbot/bot.py'
 ```
 
-To run the venv under systemd, put the Git checkout in `/opt/finbot`, make the venv there, and set `ExecStart=` to
-`/opt/finbot/.venv/bin/python /opt/finbot/bot.py`.
+For a service, use systemd, below.
 
 ## Daemonize (systemd)
 
-`finbot.service` keeps `bot.py` running in the background and starts it on boot.
+`finbot.service` runs finbot as a systemd service: it starts on boot, and restarts after a failure.
 
-It expects the Git checkout in `/opt/finbot` and the startup file at `/etc/finbot.env`, as above. It needs no editing.
+It expects the Git checkout in `/opt/finbot` and the startup file at `/etc/finbot.env`, as above. It needs no editing,
+and uses the venv in `/opt/finbot/.venv` if you made one.
 
 ```
 sudo cp -v /opt/finbot/finbot.service /etc/systemd/system/
