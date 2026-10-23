@@ -18,25 +18,23 @@ If you don't have Sharesight, you can still add your holdings manually via the w
 ![Screenshot of showing trade notifications on Slack](img/screenshot.png?raw=true "Screenshot showing trade notifications on Slack")
 
 ## Quick start
-Run finbot with Docker or with Python.
+Run finbot with Docker or with Python. Both start the same way:
+
+1. `sudo git clone https://github.com/robdevops/finbot /opt/finbot`, then
+   `sudo cp /opt/finbot/defaults/finbot.env /etc/finbot.env && sudo chmod 600 /etc/finbot.env`, then set the keys of
+   each network you use in it (below)
 
 ### With Docker
 On a Linux host with Docker:
-1. `git clone https://github.com/robdevops/finbot /opt/finbot`
 2. `sudo /opt/finbot/util/docker_setup.sh`
-3. Set the keys of each network you use in `/etc/finbot.env` (below)
-4. `cd /opt/finbot && sudo docker compose up -d --build`
-5. `sudo docker compose logs -f`
+3. `cd /opt/finbot && sudo docker compose up -d --build`
+4. `sudo docker compose logs -f`
 
 ### With Python
-On Linux, macOS or WSL, with Python 3.12 or later:
-1. `git clone https://github.com/robdevops/finbot ~/finbot && cd ~/finbot`
-2. `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-optional.txt` (on Debian and
-   Ubuntu, `sudo apt install python3-venv` first)
-3. `cp defaults/finbot.env ~/finbot.env && chmod 600 ~/finbot.env`, then set the keys of each network you use in it
-   (below)
-4. `.venv/bin/python util/check_config.py ~/finbot.env`
-5. `(set -a && . ~/finbot.env && exec .venv/bin/python bot.py)`, which logs to the terminal until Ctrl-C
+On Linux, macOS or WSL, with Python 3.12 or later and its `venv` module:
+2. `cd /opt/finbot && sudo python3 -m venv .venv && sudo .venv/bin/pip install -r requirements.txt -r requirements-optional.txt`
+3. `sudo .venv/bin/python util/check_config.py /etc/finbot.env`
+4. `sudo sh -c 'set -a && . /etc/finbot.env && exec .venv/bin/python bot.py'`, which logs to the terminal until Ctrl-C
 
 To run it as a service, under systemd on a Debian host, see [doc/install.md](doc/install.md).
 
