@@ -17,7 +17,7 @@ never run, its name and its schedule in words. Under the list, in italics, is ho
 
 * not run yet
 
-/jobs add REPORT SCHEDULE
+/jobs add REPORT [ARGUMENT] [SCHEDULE]
 /jobs add reminder SCHEDULE "TEXT"
 ```
 Under it is one row of buttons, each there only where it has something to act on (**+** always; **Edit** and **Run...** with any job, **Upcoming** with one that is on). Each screen is drawn in place of the last:
@@ -53,7 +53,8 @@ them; `/treemap`, `/holdings` and `/price` run as typed bare. Then how often:
 
 A span across days (`every 20 mins from mon 9am to sat 3pm`), or a window of hours across midnight, is typed. The last
 screen is the whole list, headed "Added", the new job in bold with a 👉 before it, with the list's buttons (**+** adds another). A job added by
-`/jobs add` shows the same.
+`/jobs add` shows the same. `/jobs add performance 3m`, a report (and its one argument) without a schedule, opens the
+same buttons at the how-often step, the argument carried to the job.
 
 Or type:
 ```
@@ -62,6 +63,7 @@ Or type:
 /jobs system               the system jobs
 /jobs add                  what a job can run, what each takes, and examples
 /jobs add movers weekly
+/jobs add performance 3m      a report and its argument alone: buttons ask the rest
 /jobs add movers close weekdays at 4:30pm New York
 /jobs add peg top weekly
 /jobs add price AAPL MSFT 1y monthly

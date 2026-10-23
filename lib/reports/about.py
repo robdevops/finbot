@@ -39,6 +39,7 @@ END = 'e' # a repeat's end where it runs to the end of the day
 USUAL = {'frequency': 'd', 'weekday': '5', 'day': '1', 'month': '1', 'hour': '9', 'minute': '0', 'interval': WEEKDAY,
 	'repeat': 'd', 'start hour': '0', 'start minute': '0', 'end': END}
 MORE = 'p1' # Add's data for the second page of the days of a month
+TYPED = 'v' # starts Add's data for a report's argument typed with it (.jobs add performance 3m)
 INTERVALS = (5, 10, 15, 20, 30, 120, 180, 240, 360, 720) # minutes between a repeat's runs, as every... offers them
 MINUTES = tuple(range(0, 60, 5)) # the minutes Add offers
 YEARS = 10 # the years a one-off may be in, this one first
@@ -240,7 +241,10 @@ def add_screen(service, chat, steps):
 	steps, page = list(steps), 0
 	if steps and steps[-1] == MORE:
 		steps, page = steps[:-1], 1
-	back = buttons.menu_button('Back', 'add', steps[:-1], crc)
+	typed, core = None, steps # core: the steps without the report's typed argument (carried after its number)
+	if len(steps) > 1 and len(steps[1]) > 1 and steps[1][0] == TYPED: # as 'v3m'; no choice's data starts so
+		typed, core = steps[1][1:], [steps[0], *steps[2:]]
+	back = buttons.menu_button('Back', 'add', [] if typed and len(core) == 1 else steps[:-1], crc)
 	cancel = buttons.menu_button('Cancel', 'top', [0], crc)
 	def choices(heading, offer, row, lines=(), usual=None, nav=None):
 		"""A choice's screen: its heading and lines, and '† indicates default' in italics where one is (usual: its
@@ -268,7 +272,13 @@ def add_screen(service, chat, steps):
 			raise ValueError('no such page')
 		nav = turn(len(offer) > most) + [cancel]
 		return choices('Add a job: which report?', offer[page * most:(page + 1) * most], row, nav=nav)
-	label, action, args = reports[choice(steps[0], 1, len(reports)) - 1]
+	label, action, args = reports[choice(core[0], 1, len(reports)) - 1]
+	if typed:
+		try:
+			jobs.job_args(jobs.actions()[action], action, [typed])
+		except (KeyError, ValueError):
+			raise ValueError('no such argument') from None
+		label, args = f'{label} {typed}', [typed]
 	if action == 'message':
 		return [service.bold('Add a reminder'), "A reminder's text is what you type:",
 			'.jobs add reminder SCHEDULE "TEXT"', '', service.bold('For example:'),
@@ -279,10 +289,10 @@ def add_screen(service, chat, steps):
 		return [service.bold(f'Add {label}'), f'What {label} is about is typed:',
 			f'.jobs add {action} {command.ARGUMENTS} SCHEDULE', '', service.bold('For example:'),
 			f'.jobs add {action} {example(command.command)} weekly'], [[back, cancel]]
-	if len(steps) == 1:
+	if len(core) == 1:
 		return choices(f'Add {label}: how often?', [(name, code) for code, name in FREQUENCIES], 3,
 			usual=USUAL['frequency'])
-	frequency, made = steps[1], steps[2:]
+	frequency, made = core[1], core[2:]
 	levels = levels_of(frequency, made)
 	if len(made) > len(levels) or (page and levels[len(made):len(made) + 1] != ('day',)):
 		raise ValueError('no such choices')
@@ -313,6 +323,19 @@ def add_screen(service, chat, steps):
 		'repeat': ('on which days?', 2, []), 'start hour': ('start hour?', 5, clock),
 		'start minute': ('start minute?', 4, []), 'end': ('end time?', 4, [])}[level]
 	return choices(f'Add {label}, {said}: {question}', offer, row, lines, usual)
+
+def add_typed(service, chat, name, args):
+	"""Add's first screen for a report typed with its argument and no schedule (.jobs add performance 3m): how often,
+	the argument carried along: (lines, buttons); None where Add cannot ask the rest by buttons (a reminder, a command
+	that needs a stock or a portfolio typed, a report not offered)."""
+	reports = add_reports()
+	found = [number for number, (_, action, given) in enumerate(reports, 1) if action == name and (given is None or
+		given == ())]
+	if not found or (name in jobs.command_actions() and jobs.command_actions()[name].needs) or name == 'message':
+		return None
+	steps = [str(found[0]), *([TYPED + args[0]] if args else [])]
+	lines, markup = add_screen(service, chat, steps)
+	return listed_with(service, chat, lines), markup
 
 def add_reports():
 	"""What Add offers a job to run: the reports (REPORTS), then the commands of .help a job may run, in its order, each

@@ -627,7 +627,8 @@ def on_jobs(request, args):
 	""".jobs: this chat's jobs, with the menu's buttons; .jobs upcoming: the next runs; .jobs system: the system's;
 	.jobs enable, disable, delete, run or toggle NUMBER: one switched on or off, deleted, run now, or switched the
 	other way; without a number, enable, disable and delete open Edit, run a button per job to run it, toggle the list;
-	.jobs add REPORT SCHEDULE, or .jobs add message SCHEDULE "TEXT": one more (alone, the reports a job can run)."""
+	.jobs add REPORT SCHEDULE, or .jobs add message SCHEDULE "TEXT": one more (alone, the reports a job can run; a
+	report and its period with no schedule, .jobs add performance 3m, has the buttons ask for the schedule)."""
 	scheduler, chat, service = jobs.current, request.dest.key, request.service
 	if scheduler is None:
 		raise answer.Answer('No schedule is running')
@@ -646,7 +647,15 @@ def on_jobs(request, args):
 				raise Usage
 			if not text.strip():
 				return request.reply(about.prepare_reports(service))
-			number = scheduler.add(chat, *jobs.parse_add(text, formats.zone().key))
+			try:
+				parsed = jobs.parse_add(text, formats.zone().key)
+			except jobs.ScheduleError:
+				alone = jobs.report_alone(text) # a report and no schedule: Add's buttons ask for it
+				started = about.add_typed(service, chat, *alone) if alone else None
+				if started is None:
+					raise
+				return request.reply(started[0], buttons=started[1])
+			number = scheduler.add(chat, *parsed)
 			lines, markup = about.added_screen(service, chat, number)
 			request.reply(lines, buttons=markup)
 		elif args.keyword in JOB_SCREENS and not args.words:

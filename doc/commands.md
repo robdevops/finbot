@@ -38,7 +38,7 @@ Where:
 /holdings [portfolio]
 /jobs [upcoming|system]
 /jobs enable|disable|delete|run [number]
-/jobs add report schedule
+/jobs add report [argument] [schedule]
 /jobs add reminder schedule "text"
 /marketcap [symbol|top|bottom]
 /movers [percent|top|bottom|session|premarket] [period]
