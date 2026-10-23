@@ -39,9 +39,20 @@ systemd, as below. To run it in a container instead, see [docker.md](docker.md).
    sudoedit /opt/finbot.env
    ```
 4. Check it: `/opt/finbot/util/check_config.py /opt/finbot.env` (it also warns if the file is not `600 root:root`)
-5. Run it under systemd, below. The first start makes the data directory (`/var/lib/finbot` under the unit's
-   `StateDirectory=`; `var/` in the checkout when run another way); each chat then has the default scheduled jobs, which `/jobs` changes
-   ([scheduling.md](scheduling.md)).
+5. Run it under systemd ([below](#daemonize-systemd)). The first start makes the data directory, `/var/lib/finbot`
+   (systemd keeps it in `/var/lib/private/finbot`, where `/var/lib/finbot` points); each chat then has the default
+   scheduled jobs, which `/jobs` changes ([scheduling.md](scheduling.md)).
+6. Optional, to change settings: copy the starter `settings.conf` into the data directory, edit it, check it and reload
+   (`util/sync_defaults.py` and `util/check_config.py` find the service's data directory when run by hand; run them
+   with `sudo`, as the directory is the service's):
+   ```
+   sudo /opt/finbot/util/sync_defaults.py --apply
+   sudoedit /var/lib/finbot/settings.conf
+   sudo /opt/finbot/util/check_config.py /opt/finbot.env
+   sudo systemctl reload finbot
+   ```
+   The files are root-owned and readable, so the service reads them; systemd gives the directory to the service's user
+   again at the next start. Leave `DATA_DIR` unset: under the unit, only the state directory is writable.
 
 [configuration.md](configuration.md) has every key and setting.
 

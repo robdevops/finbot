@@ -86,12 +86,12 @@ The administrators of the chat a person is in are admins there with no setting: 
 
 A key in the wrong file, or one that is not listed, stops finbot starting; on a reload it is reported and nothing is applied. A key finbot no longer reads (`alliterate`, `chunk_maxlines`) is ignored, and the log at start says to delete it.
 
-edit `settings.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `util/check_config.py /opt/finbot.env`. Edit `finbot.env`, then restart: a running bot cannot see it change.
+edit `settings.conf`, then reload if running. The service log shows what changed (`config: future_days 30 -> 45`). If the file has a mistake, the reload reports it (`ERROR config: ...`), applies nothing and leaves finbot running on its previous settings. Check an edit before reloading with `sudo util/check_config.py /opt/finbot.env` (under systemd it reads the service's `settings.conf`). Edit `finbot.env`, then restart: a running bot cannot see it change.
 
 **Upgrading from a version before 16 Oct 2026?** Start commit `ff52f2b` once first, as [Scheduling](scheduling.md#from-an-earlier-version) says: it splits one old `.env` (`util/split_env.py`, which it asks for) and renames `preferences.conf` to `settings.conf`, which later versions no longer do.
 
 ## Data directory
-All state and cache lives under `var/` in the checkout by default. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`); in Docker it is `/data`, the host's `/opt/finbot-data` (see [docker.md](docker.md)).
+All state and cache lives in one data directory: `DATA_DIR` if set, else systemd's `$STATE_DIRECTORY` (`/var/lib/finbot` under the shipped unit), else `var/` in the checkout. Set `DATA_DIR` to relocate it (cache moves to `$DATA_DIR/cache`); in Docker it is `/data`, the host's `/opt/finbot-data` (see [docker.md](docker.md)). The tools in `util/` (`sync_defaults.py`, `check_config.py`, `flush.py`), run by hand outside the service, where systemd's `$STATE_DIRECTORY` is not set, also find the service's directory, `/var/lib/private/finbot`, when there is one, so that they act on the directory the service reads; use `sudo`, as it belongs to the service.
 Reference data (`finbot_adr.json`, `finbot_sws_*.json`) ships in `defaults/`. A file of the same name in the data directory takes precedence. Defaults are never copied or overwritten automatically; to see or pull in updates run:
 ```
 util/sync_defaults.py          # dry run
@@ -102,7 +102,7 @@ util/sync_defaults.py --dest /srv/finbot --create --apply  # and make it (mode 7
 ```
 The reminders that `reminder.json` held are default jobs now (see [Scheduling](scheduling.md#the-default-jobs)), and finbot reads `reminder.json` no more: delete the data directory's copy. A chat adds its own with `/jobs add reminder SCHEDULE "TEXT"`.
 
-With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`), so no setting is needed; move existing data once with `cp -a /opt/finbot/var/. /var/lib/finbot/`. An explicit `DATA_DIR` always wins.
+With systemd `DynamicUser=yes` and `StateDirectory=finbot`, `DATA_DIR` defaults to systemd's `$STATE_DIRECTORY` (`/var/lib/finbot`, a link to `/var/lib/private/finbot`), so no setting is needed, and none should be made: under the shipped unit only that directory is writable. To move existing data once, start the service (it makes the directory), stop it, run `sudo cp -a /opt/finbot/var/. /var/lib/private/finbot/` and start it again. An explicit `DATA_DIR` always wins.
 
 In Docker, one container is enough: `bot.py` runs the schedule too, so there is no cron or scheduler sidecar to set up. Each start copies the defaults the data directory lacks (`util/sync_defaults.py --apply`).
 

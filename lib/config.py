@@ -37,6 +37,7 @@ RETIRED = { # keys of either file that do nothing any more: accepted, so that th
 RENAMED = { # startup keys under a new name: the old still works (the new wins where both are set), with a note at start
 	'telegramOutgoingToken': 'telegramSecretToken', # Telegram calls it the secret token
 }
+SERVICE_DATA_DIR = '/var/lib/private/finbot' # systemd's state directory of finbot.service (StateDirectory=)
 LOG_LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG') # log_level's values, the most severe first (lib/log.py)
 
 
@@ -268,6 +269,13 @@ DERIVED = ('data_dir', 'cache_dir', 'telegram_api') # Env's fields worked out fr
 STARTUP_KEYS = ('DATA_DIR', *(field.name for field in dataclasses.fields(Env) if field.name not in DERIVED))
 
 
+def service_data_dir():
+	"""The service's data directory (SERVICE_DATA_DIR) for the util tools (they set FINBOT_CHECK_ONLY) run by hand
+	outside the service, where systemd's STATE_DIRECTORY is not set: they act on the directory the service reads, not
+	on var/ in the checkout. '' for the bot itself, and where the service has none."""
+	return SERVICE_DATA_DIR if os.environ.get('FINBOT_CHECK_ONLY') and os.path.isdir(SERVICE_DATA_DIR) else ''
+
+
 def startup_values(getenv):
 	"""The startup settings (finbot.env), computed from getenv(name, default): each key read as its Env field's type
 	says, its default the field's where it is unset; then those worked out from them. Raises ConfigError."""
@@ -281,7 +289,8 @@ def startup_values(getenv):
 	keys = {field.name: readers[field.type](field.name, field.default) for field in dataclasses.fields(Env)
 		if field.name not in DERIVED}
 	r.check()
-	data_dir = str(REPO_DIR / (getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or 'var'))
+	data_dir = str(REPO_DIR / (getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or
+		service_data_dir() or 'var'))
 	token = keys['telegramBotToken'].rstrip('/')
 	return Env(**keys, data_dir=data_dir, cache_dir=data_dir + '/cache',
 		telegram_api=f'https://api.telegram.org/bot{token}/' if token else '')

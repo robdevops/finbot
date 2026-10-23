@@ -17,7 +17,7 @@ Each Sharesight holdings report also leaves `finbot_sharesight_largest.json`, wh
 
 Short Man's CSV of ASX short interest, which `/shorts` reads, is cached for `cache_seconds` too (`finbot_shortman.json`). Yahoo's cookie and crumb (for 14 days) and Sharesight's access token (until it expires) are kept whatever `cache` says, and each is renewed at once when its service refuses it.
 
-To flush the cache, so that what it holds is fetched afresh, run `util/flush.py` with the files to delete, by when they were written. With no argument it prints its help:
+To flush the cache, so that what it holds is fetched afresh, run `util/flush.py` with the files to delete, by when they were written. With no argument it prints its help (run by hand on a host with finbot.service, it finds the service's data directory: use `sudo`):
 ```
 util/flush.py --before 180s     # the files written more than 180 seconds ago
 util/flush.py --after 24h       # the files written in the last 24 hours

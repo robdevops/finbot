@@ -245,6 +245,29 @@ class Parsing(unittest.TestCase):
 		self.assertEqual(check_config.warnings(path), [])
 
 
+class ServiceDataDir(unittest.TestCase):
+	"""The util tools run by hand find the service's data directory, which the bot never looks for."""
+
+	def data_dir(self, getenv, check_only, service):
+		"""The data dir startup_values gives, FINBOT_CHECK_ONLY set or not, SERVICE_DATA_DIR at `service`."""
+		with mock.patch.dict(os.environ), mock.patch.object(config, 'SERVICE_DATA_DIR', service):
+			os.environ.pop('FINBOT_CHECK_ONLY', None)
+			if check_only:
+				os.environ['FINBOT_CHECK_ONLY'] = '1'
+			return config.startup_values(getenv).data_dir
+
+	def test_the_tools_find_the_service_directory_the_bot_does_not(self):
+		"""With the tools' FINBOT_CHECK_ONLY and a service directory, no DATA_DIR or STATE_DIRECTORY: that directory;
+		DATA_DIR and STATE_DIRECTORY win; the bot (no FINBOT_CHECK_ONLY) and a host without the directory keep var/."""
+		service = common.temp_dir(self)
+		var = str(config.REPO_DIR / 'var')
+		self.assertEqual(self.data_dir({}.get, True, service), service)
+		self.assertEqual(self.data_dir({'STATE_DIRECTORY': '/state'}.get, True, service), '/state')
+		self.assertEqual(self.data_dir({'DATA_DIR': '/data', 'STATE_DIRECTORY': '/state'}.get, True, service), '/data')
+		self.assertEqual(self.data_dir({}.get, False, service), var)
+		self.assertEqual(self.data_dir({}.get, True, service + '/none'), var)
+
+
 class RenamedKeys(unittest.TestCase):
 	"""A startup key under a new name: the old one still works."""
 
